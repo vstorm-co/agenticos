@@ -2,7 +2,8 @@
 
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Check, Link2, MessageSquare, ShieldCheck } from "lucide-react";
+import { ArrowRight, Check, Link2, ShieldCheck } from "lucide-react";
+import { ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 
 import { Button, Card, CardContent, Skeleton } from "@/components/ui";
 import { getErrorMessage } from "@/lib/api-error";
@@ -18,6 +19,7 @@ const PLATFORM_LABEL: Record<string, string> = {
   telegram: "Telegram",
   slack: "Slack",
   mattermost: "Mattermost",
+  discord: "Discord",
 };
 
 /**

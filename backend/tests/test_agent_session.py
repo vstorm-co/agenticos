@@ -39,9 +39,10 @@ library's task cancellation, this platform's accounting sweep - runs while a
 
 import asyncio
 import contextlib
+import json
 import logging
 from collections.abc import AsyncIterator, Iterator
-from contextlib import contextmanager
+from contextlib import asynccontextmanager, contextmanager
 from dataclasses import replace
 from decimal import Decimal
 from types import SimpleNamespace
@@ -267,10 +268,17 @@ def _chat(
             )
         )
     )
+    conversations.get_conversation = AsyncMock()
     conversations.keep_summary = AsyncMock()
     conversations.keep_overhead = AsyncMock()
     conversations.keep_plan = AsyncMock()
+
+    @asynccontextmanager
+    async def admitted(*_args, **_kwargs):
+        yield True
+
     with (
+        patch("app.services.conversation_turns.claim", new=admitted),
         patch("app.services.agent_session.persist_user_turn", new=prompt),
         patch("app.services.agent_session.persist_assistant_turn", new=answer),
         patch("app.services.agent_session.get_db_context") as db_context,
@@ -705,7 +713,16 @@ class TestATurnThatFinished:
     async def test_a_turn_that_started_a_conversation_announces_it_first(self):
         session = _session()
 
-        with _chat(AsyncMock(return_value=_finished_turn()), newly_created=True):
+        async def enter_room(conversation_id: str) -> None:
+            assert _sent_events(session)[0] == (
+                "conversation_created",
+                {"conversation_id": _CONVERSATION},
+            )
+
+        with (
+            _chat(AsyncMock(return_value=_finished_turn()), newly_created=True),
+            patch.object(session, "_enter_room", side_effect=enter_room),
+        ):
             await session.process_message(_message())
 
         assert _frame_types(session) == [
@@ -818,16 +835,40 @@ class TestATurnThatFinished:
         assert _frame_types(session) == ["user_prompt", "complete"]
         assert _sent_events(session)[-1] == ("complete", {"conversation_id": None, "usage": None})
 
-    async def test_an_assistant_message_that_did_not_save_is_not_announced_as_saved(self):
-        """`message_saved` is what swaps the client's temporary id for the real
-        one. Sending it without an id would leave the message unratable and
-        unreloadable, pointing at `null`."""
+    @pytest.mark.parametrize("parked", [False, True])
+    async def test_an_unsaved_answer_warns_the_reader_before_the_turn_completes(
+        self, parked: bool
+    ) -> None:
         session = _session()
+        turn = _finished_turn(
+            usage=UsageReport(input_tokens=1200, output_tokens=300, cost_usd=Decimal("0.0125")),
+            parked=_parked_call() if parked else (),
+            summarized_history=[{"kind": "request"}],
+            overhead_tokens=1200,
+        )
 
-        with _chat(AsyncMock(return_value=_finished_turn()), message_id=None):
+        with _chat(AsyncMock(return_value=turn), message_id=None) as chat:
             await session.process_message(_message())
 
-        assert _frame_types(session) == ["user_prompt", "complete"]
+        assert _frame_types(session) == [
+            "user_prompt",
+            *(["tool_approval_required"] if parked else []),
+            "error",
+            "complete",
+        ]
+        assert _sent_events(session)[-2] == (
+            "error",
+            {
+                "message": "The assistant's reply could not be saved. "
+                "Copy any text you need before leaving this conversation.",
+                "code": "message_save_failed",
+            },
+        )
+        assert _sent_events(session)[-1][1]["usage"]["cost_usd"] == "0.0125"
+        # A failed save must not retry in finally and risk duplicating the reply.
+        chat.answer.assert_awaited_once()
+        chat.conversations.keep_summary.assert_not_awaited()
+        chat.conversations.keep_overhead.assert_not_awaited()
 
     async def test_the_thread_the_database_holds_is_what_the_model_is_told(self):
         """The history comes from the transcript, not from this socket (#771).
@@ -986,6 +1027,8 @@ class TestATurnThatFinished:
                         "id": str(approval_id),
                         "tool_call_id": "call-1",
                         "tool_name": "send_email",
+                        "subagent_name": None,
+                        "can_remember": True,
                         "args": {"to": "ops@example.com"},
                         # The tool's stable id, which the card words the call by.
                         "capability_tool_id": "send_email",
@@ -2152,6 +2195,35 @@ class TestATurnThatDidNotFinishStillKeepsWhatItSaid:
         # produced - a transcript naming no model cannot answer "which one said
         # this" for the turn most likely to be asked about.
         assert written.args[2] == "gpt-4.1"
+        assert (
+            "message_saved",
+            {"message_id": "saved-1", "conversation_id": session.current_conversation_id},
+        ) in _sent_events(session)
+
+    async def test_an_unsaved_partial_reply_reports_the_save_failure_too(self) -> None:
+        session = _session()
+
+        with _chat(
+            self._interrupted(BadRequestError(message="The run was refused"), run=self._opened()),
+            message_id=None,
+        ) as chat:
+            await session.process_message(_message())
+
+        assert chat.answer.await_args.args[1] == "Two are open."
+        assert _sent_events(session)[-2:] == [
+            ("error", {"message": "The run was refused"}),
+            (
+                "error",
+                {
+                    "message": "The assistant's reply could not be saved. "
+                    "Copy any text you need before leaving this conversation.",
+                    "code": "message_save_failed",
+                },
+            ),
+        ]
+        assert "complete" not in _frame_types(session)
+        assert session._current_timeline is None
+        chat.answer.assert_awaited_once()
 
     async def test_no_cost_is_invented_for_a_turn_that_never_reported_one(self):
         """The accounting is on the run row, written by `finish`. A figure guessed
@@ -3146,6 +3218,51 @@ class TestASocketThatWentAway:
         assert parked == [True]
         assert session._round_parks is False
 
+    @pytest.mark.parametrize("closed", [True, False])
+    async def test_a_question_asked_after_the_reader_left_parks_immediately(self, closed: bool):
+        session = _session()
+        session._live = _CONVERSATION
+        if closed:
+            session._closed = True
+        else:
+            session._park_question_when_leaving(None)
+        request = AskUserRequest(
+            questions=(
+                Question(
+                    header="Tone",
+                    question="How should it sound?",
+                    options=(QuestionOption(label="Formal"), QuestionOption(label="Casual")),
+                ),
+            )
+        )
+        with pytest.raises(CallDeferred):
+            await session._ask_questions(request)
+        assert session._ask_user_future is None
+        assert "ask_user" not in _frame_types(session)
+
+    async def test_leaving_a_chat_parks_its_unanswered_question(self):
+        session = _session()
+        session._live = _CONVERSATION
+        asked = _next_frame(session)
+        request = AskUserRequest(
+            questions=(
+                Question(
+                    header="Tone",
+                    question="How should it sound?",
+                    options=(QuestionOption(label="Formal"), QuestionOption(label="Casual")),
+                ),
+            )
+        )
+        asking = asyncio.create_task(session._ask_questions(request))
+        await _wait(asked)
+        session._park_question_when_leaving(_CONVERSATION)
+        assert not asking.done()
+        with patch.object(session, "_leave_room", new=AsyncMock()):
+            await session._attach(None)
+        with pytest.raises(CallDeferred):
+            await asking
+        assert session._ask_user_future is None
+
     async def test_a_delegates_question_left_open_is_still_no_answer(self):
         """Only the run's own agent parks: a delegate asking through `ask_parent`
         has nowhere to park, so it carries on with what it had."""
@@ -3693,3 +3810,103 @@ async def test_session_readiness_waits_for_cleanup_and_frees_the_admission_slot(
         assert next_task is not None
         await next_task
         assert _frame_types(session) == ["complete", "session_ready", "complete", "session_ready"]
+
+
+@pytest.mark.security
+async def test_local_file_origins_hide_private_paths_in_shared_frames() -> None:
+    session = _session()
+    run = AsyncMock(return_value=_finished_turn())
+    publish = AsyncMock()
+    with (
+        _chat(run),
+        patch("app.services.agent_session.live_turn.begin", AsyncMock(return_value=MagicMock())),
+        patch("app.services.agent_session.live_turn.publish", publish),
+        patch("app.services.agent_session.live_turn.end", AsyncMock()),
+    ):
+        await session.process_message(
+            _message(local={"folder": "/Users/alice/private", "mode": "full_access"})
+        )
+    frames = dict(_sent_events(session))
+    source = frames["user_prompt"]["file_source"]
+    assert source["kind"] == "local"
+    assert UUID(source["id"])
+    assert set(source) == {"kind", "id"}
+    shared = next(call.args[2] for call in publish.await_args_list if call.args[1] == "turn_prompt")
+    assert shared["file_source"] == source
+    assert "/Users/alice" not in json.dumps(shared)
+    assert run.await_args.kwargs["local"].folder == "/Users/alice/private"
+
+
+async def test_a_new_conversation_holds_admission_until_its_answer_has_been_saved() -> None:
+    session = _session()
+    held = False
+
+    @asynccontextmanager
+    async def admission(_conversation_id: UUID, *, background: bool):
+        nonlocal held
+        assert not background
+        held = True
+        try:
+            yield True
+        finally:
+            held = False
+
+    async def run(**_kwargs):
+        assert held
+        return _finished_turn()
+
+    with (
+        _chat(AsyncMock(side_effect=run), newly_created=True) as fake,
+        patch("app.services.conversation_turns.claim", new=admission),
+    ):
+
+        async def save(*_args, **_kwargs):
+            assert held
+            return str(uuid4())
+
+        fake.answer.side_effect = save
+        await session._run_turn(
+            {
+                "message": "Delegate the unrelated task",
+                "agent_id": str(uuid4()),
+                "conversation_id": None,
+            }
+        )
+    assert not held and session._admission_stack is None
+    assert "session_ready" in _frame_types(session)
+
+
+async def test_invalid_existing_conversation_ids_reach_the_normal_validation_without_claiming() -> (
+    None
+):
+    session = _session()
+    with (
+        patch.object(session, "process_message", new=AsyncMock()) as process,
+        patch("app.services.conversation_turns.claim") as claim,
+    ):
+        await session._run_turn({"conversation_id": "not-a-uuid"})
+        process.assert_awaited_once()
+        claim.assert_not_called()
+
+
+async def test_lost_conversation_access_is_reported_before_any_turn_is_written() -> None:
+    session = _session()
+    with _chat(AsyncMock(return_value=_finished_turn())) as fake:
+        fake.conversations.get_conversation.side_effect = AuthorizationError(
+            message="Project access was removed"
+        )
+        await session._run_turn(
+            {"message": "Question", "agent_id": str(uuid4()), "conversation_id": _CONVERSATION}
+        )
+        fake.prompt.assert_not_called()
+        fake.runner.run.assert_not_called()
+    assert ("error", {"message": "Project access was removed"}) in _sent_events(session)
+    assert session._admission_stack is None
+
+
+@pytest.mark.anyio
+async def test_a_closed_nonparking_surface_returns_no_answers_without_opening_a_prompt():
+    session = _session()
+    session._closed, session._round_parks = True, False
+    assert await session._ask_user([{"question": "Still there?"}]) == []
+    assert _sent_events(session) == []

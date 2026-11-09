@@ -199,7 +199,7 @@ export function useEveryAgent({ enabled = true }: { enabled?: boolean } = {}) {
     },
     enabled,
   });
-  return { agents: query.data ?? [] };
+  return { agents: query.data ?? [], isLoading: query.isLoading, error: query.error };
 }
 
 /**
@@ -234,7 +234,7 @@ export function useEveryDataset() {
       return datasets;
     },
   });
-  return { datasets: query.data ?? [] };
+  return { datasets: query.data ?? [], isLoading: query.isLoading, error: query.error };
 }
 
 /**

@@ -3,6 +3,8 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui";
 import { ArchitectMark } from "@/components/assistant/architect-mark";
 import { AvatarFace } from "@/components/ui/avatar-face";
+import { agentAvatarUrl } from "@/lib/agent-avatar-url";
+import { useOrgStore } from "@/stores/org-store";
 import { cn } from "@/lib/utils";
 import { useArchitectMarkStore } from "@/stores/architect-mark-store";
 
@@ -76,19 +78,15 @@ export function AgentAvatar({
   className,
   unframed = true,
 }: AgentAvatarProps) {
+  const organizationId = useOrgStore((state) => state.activeOrgId);
   const wearsMark = useArchitectMarkStore((state) => state.agentId === agentId);
-  if (wearsMark) return <ArchitectMark className={cn(SIZES[size], className)} />;
+  if (wearsMark && hasAvatar) return <ArchitectMark className={cn(SIZES[size], className)} />;
   return (
     <Avatar
       data-agent-avatar={agentId}
       className={cn(SIZES[size], "shrink-0", className, unframed && "ring-0")}
     >
-      {hasAvatar && (
-        <AvatarImage
-          src={`/api/agents/${agentId}/avatar${version ? `?v=${version}` : ""}`}
-          alt=""
-        />
-      )}
+      {hasAvatar && <AvatarImage src={agentAvatarUrl(agentId, organizationId, version)} alt="" />}
       {/* No fill of its own: the face brings its own disc, and a colour behind
           it would show as a ring wherever the two discs disagree. Held back
           while an uploaded picture loads: shown at once, the generated face

@@ -44,6 +44,7 @@ describe("CreateDatasetDialog", () => {
     expect(screen.getByRole("button", { name: "Create" })).toBeDisabled();
 
     await userEvent.type(screen.getByLabelText(/^Name/), " refunds ");
+    await userEvent.click(screen.getByRole("button", { name: "More options" }));
     await userEvent.type(screen.getByLabelText("Description"), " returns ");
     await userEvent.click(screen.getByRole("button", { name: "Create" }));
 
@@ -74,6 +75,27 @@ describe("CreateDatasetDialog", () => {
       visibility: "org",
     });
     expect(toast.error).not.toHaveBeenCalled();
+    await userEvent.type(screen.getByLabelText(/^Name/), " new");
+    expect(screen.queryByText(taken)).toBeNull();
+  });
+
+  it("opens optional details when the server rejects the description", async () => {
+    vi.mocked(apiClient.post).mockRejectedValue(
+      new ApiError(400, "Invalid description", {
+        error: {
+          code: "BAD_REQUEST",
+          message: "Invalid description",
+          details: { fields: [{ field: "description", message: "Choose a clearer description" }] },
+        },
+      }),
+    );
+    mount();
+    await userEvent.type(screen.getByLabelText(/^Name/), "refunds");
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+    expect(await screen.findByText("Choose a clearer description")).toBeVisible();
+    await userEvent.type(screen.getByLabelText("Description"), "Refund rules");
+    expect(screen.queryByText("Choose a clearer description")).toBeNull();
+    expect(screen.getByLabelText("Description")).toHaveValue("Refund rules");
   });
 
   it("toasts a refusal that names no field", async () => {
@@ -93,12 +115,13 @@ describe("CreateDatasetDialog", () => {
   it("says a new dataset is the organization's, and starts it private on request", async () => {
     vi.mocked(apiClient.post).mockResolvedValue({ id: "d2", name: "drafts" });
     mount();
-    expect(screen.getByText("Visible to the whole organization.")).toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole("button", { name: "Make it private" }));
-    expect(screen.getByText("Private to you until you share it.")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Show it to the organization" }));
-    await userEvent.click(screen.getByRole("button", { name: "Make it private" }));
+    expect(screen.queryByLabelText("Description")).toBeNull();
+    expect(screen.queryByRole("radio", { name: /Some people/ })).toBeNull();
+    expect(screen.getByRole("radio", { name: /Everyone/ })).toHaveAttribute("aria-checked", "true");
+    await userEvent.click(screen.getByRole("radio", { name: /Only me/ }));
+    expect(screen.getByRole("radio", { name: /Only me/ })).toHaveAttribute("aria-checked", "true");
+    await userEvent.click(screen.getByRole("radio", { name: /Everyone/ }));
+    await userEvent.click(screen.getByRole("radio", { name: /Only me/ }));
     await userEvent.type(screen.getByLabelText(/^Name/), "drafts");
     await userEvent.click(screen.getByRole("button", { name: "Create" }));
 

@@ -136,6 +136,7 @@ export function CapabilityNode({
   onFocus,
   registerRef,
 }: CapabilityNodeProps) {
+  const t = useTranslations("agents");
   const Icon = node.icon;
   const isEmpty = node.items.length === 0;
 
@@ -168,7 +169,7 @@ export function CapabilityNode({
         <p className="text-muted-foreground mt-2.5 text-sm">{node.empty}</p>
       ) : (
         <ul className="mt-2.5 flex flex-wrap gap-1.5">
-          {node.items.map((item, index) => (
+          {node.items.slice(0, 6).map((item, index) => (
             <li
               key={item.key}
               className={cn(
@@ -188,6 +189,11 @@ export function CapabilityNode({
               <span className="min-w-0 break-words">{item.label}</span>
             </li>
           ))}
+          {node.items.length > 6 && (
+            <li className="text-muted-foreground px-2 py-1 text-xs">
+              {t("mapMoreItems", { count: node.items.length - 6 })}
+            </li>
+          )}
         </ul>
       )}
     </button>

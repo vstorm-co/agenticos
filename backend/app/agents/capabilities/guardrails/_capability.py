@@ -31,37 +31,55 @@ a redacted key was on screen, and in the stored turn, before the redaction ran
 (agenticos#1900). :class:`ScreenedStream` holds each text and reasoning part back
 from whoever consumes the stream until the part is complete, and releases it
 through the same detector the output guardrail runs.
+
+**The input edge reads a picture's words, not its bytes.** The harness renders a
+prompt with an attached picture as the list's `repr`, bytes included, and cannot
+write a redaction back over it. :class:`ScreenedPrompt` screens such a prompt's
+text parts instead, one by one, and leaves the rest of it as it was (#2566).
 """
 
+import codecs
 import logging
 import re
-from collections.abc import AsyncIterable, Callable
+from collections.abc import AsyncIterable, Callable, Sequence
 from dataclasses import dataclass, field, replace
-from typing import Any
+from typing import Any, cast
 
 from pydantic import BaseModel, Field, field_validator
-from pydantic_ai.capabilities import AbstractCapability, CombinedCapability
+from pydantic_ai.capabilities import AbstractCapability, CombinedCapability, WrapModelRequestHandler
 from pydantic_ai.messages import (
     AgentStreamEvent,
+    BinaryContent,
+    FileUrl,
+    ModelMessage,
     ModelResponse,
     PartDeltaEvent,
     PartEndEvent,
     PartStartEvent,
+    TextContent,
     TextPart,
     TextPartDelta,
     ThinkingPart,
     ThinkingPartDelta,
     ToolCallPart,
     ToolCallPartDelta,
+    UserContent,
+    UserPromptPart,
 )
 from pydantic_ai.models import ModelRequestContext
 from pydantic_ai.tools import RunContext
+from pydantic_ai_harness._background_completion import get_background_completion
 from pydantic_ai_harness.guardrails import (
     GuardrailResult,
     InputGuardrail,
     OutputGuardrail,
     ToolGuardrail,
 )
+
+# Private, and on purpose: `ScreenedPrompt` must find the prompt - and the copies of
+# it an outer capability sent - exactly as the guardrail it extends does.
+from pydantic_ai_harness.guardrails._capability import _find_prompt_part, _history_prompt_parts
+from pydantic_ai_harness.guardrails._shared import trace_redaction
 from pydantic_ai_harness.guardrails.detectors import (
     blocked_keywords,
     for_text,
@@ -437,27 +455,169 @@ class ScreenedStream(AbstractCapability[object]):
         return str(verdict.replacement) if verdict.action == "replace" else text
 
 
-def _screened_value(value: object, screen: TextDetector) -> object:
+# A tag's attributes, quote-aware: a `>` inside a quoted value does not end the tag.
+_ATTRIBUTES = r"""(?:\s+[^\s"'<>/=]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'<>=`]+))?)*\s*/?"""
+# A tag is a name followed by attributes, whitespace, `/` or `>` - so `<jan@acme.com>`
+# and `<https://…>`, a markdown autolink, are text a person reads, not a tag.
+_MARKUP_PIECE = re.compile(
+    rf"""
+    (?P<comment><!--.*?-->)
+    |(?P<cdata><!\[CDATA\[(?P<cdata_text>.*?)\]\]>)
+    |(?P<script>(?P<script_open><script{_ATTRIBUTES}>)(?P<script_body>.*?)(?P<script_close></script\s*>))
+    |(?P<style><style{_ATTRIBUTES}>.*?</style\s*>)
+    |(?P<tag><(?:[A-Za-z][A-Za-z0-9-]*{_ATTRIBUTES}|/[A-Za-z][A-Za-z0-9-]*\s*|![A-Za-z][^<>]*|\?[A-Za-z][^<>]*\?)>)
+    """,
+    re.DOTALL | re.IGNORECASE | re.VERBOSE,
+)
+_READABLE_ATTRIBUTE = re.compile(
+    r"""(?<![\w-])((?:alt|title|aria-label|aria-description|label|placeholder|value|href|src)\s*=\s*)"""
+    r"""(?:(["'])(.*?)\2|([^\s"'<>=`]+))""",
+    re.DOTALL | re.IGNORECASE,
+)
+_SCRIPT_STRING = re.compile(
+    r"""'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\.)*`""", re.DOTALL
+)
+
+
+def _screened_template(inner: str, cleaned: Callable[[str], str]) -> str:
+    """A template literal's text screened around its `${…}` expressions, which stay code.
+
+    An expression whose braces never close is not code a page can run, so the rest
+    of the literal is screened as text rather than passed through.
+    """
+    pieces: list[str] = []
+    start = index = 0
+    while (index := inner.find("${", index)) != -1:
+        depth, end = 0, index + 1
+        while end < len(inner):
+            depth += {"{": 1, "}": -1}.get(inner[end], 0)
+            if depth == 0:
+                break
+            end += 1
+        if depth:
+            break
+        pieces.append(cleaned(inner[start:index]) + inner[index : end + 1])
+        start = index = end + 1
+    pieces.append(cleaned(inner[start:]))
+    return "".join(pieces)
+
+
+def _screened_markup(text: str, screen: TextDetector) -> str:
+    """A drawing's or page's source with the words in it screened, the rest as written.
+
+    The detectors read numbers and separators, which is what a path, a viewBox or
+    a style rule is made of. So one pass over the value screens the text outside
+    tags (all of it, including before the first tag and around a `<` that opens
+    none), CDATA text, the readable attributes of a tag (`alt`, `title`,
+    `aria-label`, `aria-description`, `label`, `placeholder`, `value`, `href`,
+    `src`, quoted or not, except an inline image or base64 `data:` URI) and the string literals of a
+    script, including a template literal's text around its `${…}` expressions, and
+    leaves tags, comments, style blocks and script code byte for byte. A value
+    with no tag is one piece of text.
+    """
+
+    def cleaned(piece: str) -> str:
+        if not piece:
+            return piece
+        verdict = screen(piece)
+        return str(verdict.replacement) if verdict.action == "replace" else piece
+
+    def attribute(match: re.Match[str]) -> str:
+        value = match.group(4) if match.group(2) is None else match.group(3)
+        # An inline image or a base64 payload is encoded content, not words, and its
+        # numbers read as personal data; a `data:text/...` URI is text and is screened.
+        lowered = value.lstrip().lower()
+        if lowered.startswith("data:image/") or (
+            lowered.startswith("data:") and ";base64," in lowered.split(",", 1)[0] + ","
+        ):
+            return match.group(0)
+        if match.group(2) is None:
+            return match.group(1) + cleaned(value)
+        return match.group(1) + match.group(2) + cleaned(value) + match.group(2)
+
+    def tag(piece: str) -> str:
+        return _READABLE_ATTRIBUTE.sub(attribute, piece)
+
+    def literal(match: re.Match[str]) -> str:
+        quoted = match.group(0)
+        inner = quoted[1:-1]
+        if quoted[0] == "`":
+            return "`" + _screened_template(inner, cleaned) + "`"
+        return quoted[0] + cleaned(inner) + quoted[-1]
+
+    pieces: list[str] = []
+    end = 0
+    for match in _MARKUP_PIECE.finditer(text):
+        pieces.append(cleaned(text[end : match.start()]))
+        end = match.end()
+        if match["cdata"] is not None:
+            whole, inner = match["cdata"], match["cdata_text"]
+            pieces.append("<![CDATA[" + cleaned(inner) + whole[len("<![CDATA[") + len(inner) :])
+        elif match["script"] is not None:
+            body = _SCRIPT_STRING.sub(literal, match["script_body"])
+            pieces.append(tag(match["script_open"]) + body + match["script_close"])
+        elif match["tag"] is not None:
+            pieces.append(tag(match["tag"]))
+        else:
+            pieces.append(match[0])
+    pieces.append(cleaned(text[end:]))
+    return "".join(pieces)
+
+
+def _screened_value(
+    value: object,
+    screen: TextDetector,
+    *,
+    markup: frozenset[str] = frozenset(),
+    skip: frozenset[str] = frozenset(),
+    key: str = "",
+) -> object:
     """A JSON value with every string in it as the screen leaves it; a block raises.
 
     Each string on its own: a value split across two fields is not one a model
     writes, and joining them would hand the tool a field it never had. Keys are
-    the tool's schema, not the agent's words, and are left alone.
+    the tool's schema, not the agent's words, and are left alone. A field named in
+    `skip` is an identifier or a path, not words, and is left as written with
+    everything under it; one named in `markup` is screened as markup.
     """
+    if key in skip:
+        return value
     if isinstance(value, str):
+        if key in markup:
+            return _screened_markup(value, screen)
         verdict = screen(value)
         return str(verdict.replacement) if verdict.action == "replace" else value
     if isinstance(value, list):
-        return [_screened_value(item, screen) for item in value]
+        return [_screened_value(item, screen, markup=markup, skip=skip, key=key) for item in value]
     if isinstance(value, dict):
-        return {key: _screened_value(item, screen) for key, item in value.items()}
+        return {
+            name: _screened_value(item, screen, markup=markup, skip=skip, key=name)
+            for name, item in value.items()
+        }
     return value
 
 
-def _screened_call(part: ToolCallPart, screen: TextDetector) -> ToolCallPart:
-    """The call with its arguments screened, or the same call when nothing changed."""
-    args = part.args_as_dict(raise_if_invalid=False)
-    screened: dict[str, Any] = {key: _screened_value(value, screen) for key, value in args.items()}
+def _screened_call(
+    part: ToolCallPart,
+    screen: TextDetector,
+    *,
+    markup: frozenset[str] = frozenset(),
+    skip: frozenset[str] = frozenset(),
+) -> ToolCallPart:
+    """The call with its arguments screened, or the same call when nothing changed.
+
+    Arguments that are not valid JSON are screened as the string they are and stay
+    one, so the repair step that runs later still sees what it can fix.
+    """
+    try:
+        args = part.args_as_dict(raise_if_invalid=True)
+    except ValueError, AssertionError:
+        verdict = screen(str(part.args))
+        return replace(part, args=str(verdict.replacement)) if verdict.action == "replace" else part
+    screened: dict[str, Any] = {
+        name: _screened_value(value, screen, markup=markup, skip=skip, key=name)
+        for name, value in args.items()
+    }
     return part if screened == args else replace(part, args=screened)
 
 
@@ -474,9 +634,27 @@ class ScreenedToolArgs(AbstractCapability[object]):
     call's start and deltas are held back until the part is complete and then
     released, screened, as one start event and its end - the treatment
     :class:`ScreenedStream` gives the answer's text.
+
+    `tools` narrows this to the calls of the named tools; `None` screens every
+    call. `markup` names fields holding HTML, SVG or similar source, screened by
+    their words only, and `skip` fields that are identifiers or paths. A name
+    can grow while it streams, so a call is held from its start while the name so far could still end as a listed one, and is told apart by
+    its final name when the part ends.
     """
 
     screen: TextDetector
+    tools: frozenset[str] | None = None
+    markup: frozenset[str] = frozenset()
+    skip: frozenset[str] = frozenset()
+
+    def _screen_call(self, part: ToolCallPart) -> ToolCallPart:
+        return _screened_call(part, self.screen, markup=self.markup, skip=self.skip)
+
+    def _listed(self, name: str) -> bool:
+        return self.tools is None or name in self.tools
+
+    def _could_be_listed(self, name: str) -> bool:
+        return self.tools is None or any(listed.startswith(name) for listed in self.tools)
 
     async def after_model_request(
         self,
@@ -488,7 +666,9 @@ class ScreenedToolArgs(AbstractCapability[object]):
         """The response with every tool call's arguments screened."""
         try:
             parts = [
-                _screened_call(part, self.screen) if isinstance(part, ToolCallPart) else part
+                self._screen_call(part)
+                if isinstance(part, ToolCallPart) and self._listed(part.tool_name)
+                else part
                 for part in response.parts
             ]
         except GuardrailBlocked as blocked:
@@ -504,26 +684,291 @@ class ScreenedToolArgs(AbstractCapability[object]):
         stream: AsyncIterable[AgentStreamEvent],
     ) -> AsyncIterable[AgentStreamEvent]:
         """Hold each tool call until it is whole, and release it screened."""
-        held: dict[int, PartStartEvent] = {}
+        held: dict[int, list[AgentStreamEvent]] = {}
         async for event in stream:
             match event:
-                case PartStartEvent(part=ToolCallPart()):
-                    held[event.index] = event
-                case PartDeltaEvent(delta=ToolCallPartDelta()):
-                    pass
-                case PartEndEvent(part=ToolCallPart() as part):
-                    start = held.pop(event.index)
+                case PartStartEvent(part=ToolCallPart() as part) if self._could_be_listed(
+                    part.tool_name
+                ):
+                    held[event.index] = [event]
+                case PartDeltaEvent(delta=ToolCallPartDelta()) if event.index in held:
+                    held[event.index].append(event)
+                case PartEndEvent(part=ToolCallPart() as part) if event.index in held:
+                    events = held.pop(event.index)
+                    if not self._listed(part.tool_name):
+                        for released in events:
+                            yield released
+                        yield event
+                        continue
                     try:
-                        screened = _screened_call(part, self.screen)
+                        screened = self._screen_call(part)
                     except GuardrailBlocked:
                         # Withheld, not raised: the response is still streaming
                         # and its cost is not known yet. `after_model_request`
                         # refuses it once whole, carrying what it cost.
                         continue
-                    yield replace(start, part=screened)
+                    yield replace(cast(PartStartEvent, events[0]), part=screened)
                     yield replace(event, part=screened)
                 case _:
                     yield event
+
+
+type PromptContent = str | Sequence[UserContent]
+
+
+@dataclass
+class ScreenedPrompt(InputGuardrail[object]):
+    """The harness's input guardrail, reading a multimodal prompt part by part (#2566).
+
+    The harness hands its guard such a prompt as the list's `repr`, a picture's
+    bytes included, and cannot write a redaction back over it. Here each text part
+    (a string or a `TextContent`, and a `text/*` or JSON `BinaryContent` decoded
+    as the UTF-8 a model is sent) is screened on its own and a redaction written
+    back over that part. A file that declares another character set, is not valid
+    in the one it declares, or cannot hold its redaction blocks. Size limits count the
+    whole prompt's text and links - every prompt part of a resumed request
+    together. A URL is
+    screened too, but cannot be rewritten without breaking it, so a redaction
+    there blocks. A picture, audio, video or cache marker is not read. A
+    plain-text prompt, and a parallel guard, take the harness's path unchanged.
+    """
+
+    async def wrap_model_request(
+        self,
+        ctx: RunContext[object],
+        *,
+        request_context: ModelRequestContext,
+        handler: WrapModelRequestHandler,
+    ) -> ModelResponse:
+        """Screen a multimodal prompt before the first model request."""
+        if ctx.run_step > 1:
+            return await handler(request_context)
+        parts, original = _find_prompt_part(ctx, request_context.messages)
+        targets = [*parts, *([] if original is None else [original])]
+        resumed = ctx.prompt is not None and _history_prompt_parts(ctx) > 1
+        if resumed:
+            # A run resumed from a request: its prompt is every prompt part there.
+            targets = _resumed_prompt_parts(ctx.messages)
+            sent = {id(part) for message in request_context.messages for part in message.parts}
+            if any(id(target) not in sent for target in targets):
+                # Sent as a copy, which cannot be told apart from the parts here:
+                # the harness screens the whole of it and refuses a redaction.
+                targets = []
+        if self.parallel or not any(_is_multimodal(target.content) for target in targets):
+            return await super().wrap_model_request(
+                ctx, request_context=request_context, handler=handler
+            )
+        # The whole prompt first, so a size limit counts all of its text rather
+        # than each part afresh: a resumed request's parts together, and each copy
+        # of any other prompt on its own. The rewrites come from the parts below.
+        indexes = [range(len(targets))] if resumed else [[i] for i in range(len(targets))]
+        wholes: list[tuple[Sequence[int], str]] = []
+        checked: list[list[str]] = []
+        for prompt in indexes:
+            texts = [text for i in prompt for text in _screened_texts(targets[i].content)]
+            if len(texts) > 1 and texts not in checked:
+                checked.append(texts)
+                wholes.append((prompt, await self._cleaned(ctx, "\n".join(texts))))
+        # Every part screened before any is rewritten, so a block rewrites nothing;
+        # a copy with the original's content is screened once.
+        screened: list[PromptContent | None] = []
+        for index, target in enumerate(targets):
+            twin = next((i for i in range(index) if targets[i].content == target.content), None)
+            screened.append(
+                screened[twin] if twin is not None else await self._screened(ctx, target.content)
+            )
+        for prompt, cleaned in wholes:
+            parts = [
+                text for i in prompt for text in _screened_texts(screened[i] or targets[i].content)
+            ]
+            if "\n".join(parts) != cleaned:
+                # A match only the whole prompt shows, such as a key split across
+                # two parts, has no part to be written back over.
+                logger.info("Guardrail blocked a run at the input edge: a redaction across parts")
+                raise GuardrailBlocked(edge="input", message=_BLOCK_MESSAGE["input"])
+        traced: list[PromptContent] = []
+        for target, content in zip(targets, screened, strict=True):
+            if content is None:
+                continue
+            target.content = content
+            if content not in traced:
+                traced.append(content)
+                # The text alone: a picture's bytes are no redaction to record.
+                trace_redaction(ctx, direction="input", replacement=_text_of(content))
+        return await handler(request_context)
+
+    async def _screened(
+        self, ctx: RunContext[object], content: PromptContent
+    ) -> PromptContent | None:
+        """`content` with each text part as the guard leaves it, or `None` when unchanged.
+
+        Plain text is screened whole: a copy the model is sent need not have the
+        shape of the history's original.
+        """
+        if isinstance(content, str):
+            cleaned = await self._cleaned(ctx, content)
+            return None if cleaned == content else cleaned
+        result: list[UserContent] = []
+        changed = False
+        for item in content:
+            screened = await self._screened_part(ctx, item)
+            changed = changed or screened is not item
+            result.append(screened)
+        return result if changed else None
+
+    async def _screened_part(self, ctx: RunContext[object], item: UserContent) -> UserContent:
+        """One part of a prompt as the model may read it; the same object when unchanged."""
+        if isinstance(item, str):
+            cleaned = await self._cleaned(ctx, item)
+            return item if cleaned == item else cleaned
+        if isinstance(item, TextContent):
+            cleaned = await self._cleaned(ctx, item.content)
+            # StructuredContent also carries a native value; retaining that value
+            # would let a structured-input model read past the redaction.
+            return item if cleaned == item.content else TextContent(cleaned, metadata=item.metadata)
+        if isinstance(item, BinaryContent) and (text := _text(item)) is not None:
+            cleaned = await self._cleaned(ctx, text)
+            return (
+                item
+                if cleaned == text
+                else BinaryContent(
+                    data=_encoded(cleaned, item),
+                    media_type=item.media_type,
+                    identifier=item.identifier,
+                    vendor_metadata=item.vendor_metadata,
+                )
+            )
+        if isinstance(item, FileUrl) and await self._cleaned(ctx, item.url) != item.url:
+            logger.info("Guardrail blocked a run at the input edge: a redaction in a URL")
+            raise GuardrailBlocked(edge="input", message=_BLOCK_MESSAGE["input"])
+        return item
+
+    async def _cleaned(self, ctx: RunContext[object], text: str) -> str:
+        """`text` as the guard chain leaves it; a block, a retry and an approval raise."""
+        verdict, _ = await self._screen(ctx, text)
+        return text if verdict.action == "allow" else str(verdict.replacement)
+
+
+def _is_multimodal(content: PromptContent) -> bool:
+    """A prompt of several parts - not plain text, and not a background task's result."""
+    return not isinstance(content, str) and get_background_completion(content) is None
+
+
+_TEXT_TYPES = frozenset(
+    {
+        "application/json",
+        "application/xml",
+        "application/yaml",
+        "application/x-yaml",
+        "application/toml",
+        "application/javascript",
+        "application/x-ndjson",
+        "application/sql",
+        "application/graphql",
+        "application/x-sh",
+    }
+)
+"""Media types outside `text/*` whose bytes are text a model reads as written."""
+
+
+def _is_text(media_type: str) -> bool:
+    """Whether an inline file is text a person could have written a key into."""
+    kind = media_type.split(";", 1)[0].strip().lower()
+    return (
+        kind.startswith("text/") or kind in _TEXT_TYPES or kind.endswith(("+json", "+xml", "+yaml"))
+    )
+
+
+def _text(item: UserContent) -> str | None:
+    """The text a prompt part carries, or `None` for a part that is not text."""
+    if isinstance(item, str):
+        return item
+    if isinstance(item, TextContent):
+        return item.content
+    if isinstance(item, BinaryContent) and _is_text(item.media_type):
+        try:
+            return item.data.decode(_charset(item.media_type))
+        except UnicodeError as error:
+            raise _unreadable() from error
+    return None
+
+
+def _encoded(text: str, item: BinaryContent) -> bytes:
+    """A redacted inline file's text, in the character set the file declares."""
+    try:
+        return text.encode(_charset(item.media_type))
+    except UnicodeError as error:
+        raise _unreadable() from error
+
+
+_MODEL_CHARSETS = frozenset({"utf-8", "ascii"})
+"""The character sets an inline file is screened in: the ones a model reads it in.
+
+Model adapters send an inline text file's bytes decoded as UTF-8 whatever its
+media type declares, so a file in any other set would be screened as text the
+model is never sent - a key in UTF-16 reads as no key at all.
+"""
+
+
+def _charset(media_type: str) -> str:
+    """The character set a text file declares, UTF-8 when none; one a model does not read blocks."""
+    declared = "utf-8"
+    for parameter in media_type.split(";")[1:]:
+        name, _, value = parameter.partition("=")
+        if name.strip().lower() == "charset" and (value := value.strip().strip('"')):
+            declared = value
+    try:
+        charset = codecs.lookup(declared).name
+    except LookupError as error:
+        raise _unreadable() from error
+    if charset not in _MODEL_CHARSETS:
+        raise _unreadable()
+    return charset
+
+
+def _unreadable() -> GuardrailBlocked:
+    """The refusal of an inline text file the guard cannot read as the model does."""
+    logger.info("Guardrail blocked a run at the input edge: an unreadable inline text file")
+    return GuardrailBlocked(
+        edge="input",
+        message=f"{_BLOCK_MESSAGE['input']} An attached text file is not valid UTF-8 "
+        "text, or declares a character set other than UTF-8.",
+    )
+
+
+def _texts(content: PromptContent) -> list[str]:
+    """The text parts of a prompt, in order."""
+    if isinstance(content, str):
+        return [content]
+    return [text for item in content if (text := _text(item)) is not None]
+
+
+def _screened_texts(content: PromptContent) -> list[str]:
+    """Everything of a prompt the guard screens, in order: its text and its links."""
+    if isinstance(content, str):
+        return [content]
+    texts: list[str] = []
+    for item in content:
+        if isinstance(item, FileUrl):
+            texts.append(item.url)
+        elif (text := _text(item)) is not None:
+            texts.append(text)
+    return texts
+
+
+def _text_of(content: PromptContent) -> str:
+    """The text parts of a screened prompt, joined, for the redaction's trace span."""
+    return "\n".join(_texts(content))
+
+
+def _resumed_prompt_parts(messages: Sequence[ModelMessage]) -> list[UserPromptPart]:
+    """Every prompt part of the latest request in the run's history that has one."""
+    # The caller has counted more than one, so there is such a request.
+    return next(
+        found
+        for message in reversed(messages)
+        if (found := [part for part in message.parts if isinstance(part, UserPromptPart)])
+    )
 
 
 def input_screen(config: GuardrailsConfig) -> TextDetector | None:
@@ -583,14 +1028,26 @@ def tool_args_screen(config: GuardrailsConfig) -> TextDetector | None:
     )
 
 
-def build_guardrails(config: GuardrailsConfig) -> CombinedCapability[object] | None:
+ANSWER_MARKUP_FIELDS = frozenset({"content", "new"})
+"""Fields of an answer tool that hold a drawing's or page's source."""
+
+ANSWER_SKIPPED_FIELDS = frozenset({"source", "path", "visual_id", "bindings", "actions", "old"})
+"""Fields of an answer tool that name something rather than say it."""
+
+
+def build_guardrails(
+    config: GuardrailsConfig, *, answer_tools: frozenset[str] = frozenset()
+) -> CombinedCapability[object] | None:
     """The harness capabilities this configuration asks for, combined into one.
 
     One capability per configured edge, wrapped in a `CombinedCapability` so a
     single binding attaches all of them. The output edge brings a second,
     :class:`ScreenedStream`, sharing its detector: the guardrail screens the answer
     the run ends with and the stream screen what a surface shows while it is
-    written, and neither is safe without the other. `None` when no edge is configured - the
+    written, and neither is safe without the other. `answer_tools` names the tools
+    whose arguments are what the person is shown, such as a draft or a drawing: with the
+    output edge on, a call to one is screened by the same detector as the text.
+    `None` when no edge is configured - the
     "enabled but inert" state does not exist, which is the "pays nothing when
     absent" contract every capability owes.
     """
@@ -599,12 +1056,21 @@ def build_guardrails(config: GuardrailsConfig) -> CombinedCapability[object] | N
 
     input_detector = input_screen(config)
     if input_detector is not None:
-        edges.append(InputGuardrail(guard=input_detector))
+        edges.append(ScreenedPrompt(guard=input_detector))
 
     stream = output_screen(config)
     if stream is not None:
         edges.append(OutputGuardrail(guard=for_text(stream.screen, on_other="allow")))
         edges.append(stream)
+        if answer_tools:
+            edges.append(
+                ScreenedToolArgs(
+                    screen=stream.screen,
+                    tools=answer_tools,
+                    markup=ANSWER_MARKUP_FIELDS,
+                    skip=ANSWER_SKIPPED_FIELDS,
+                )
+            )
 
     tool_detector = _edge_detector(
         redact_secrets_on=config.redact_secrets_tool,

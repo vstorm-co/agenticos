@@ -941,7 +941,6 @@ class TestAStageThatCannotMeasure:
         ("reason", "unknown"),
         [
             ("no_scorer", "unscorable"),
-            ("ai_assistance_off", "unscorable"),
             ("all_evidence", "all_evidence"),
             ("only_anonymised", "no_questions"),
         ],

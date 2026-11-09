@@ -6,7 +6,8 @@ import { useMemo, useState } from "react";
 import { ListFilters } from "@/components/ui/list-filters";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Activity, Library, Plus, Upload, Workflow } from "lucide-react";
+import { ArrowDownWideNarrow, Activity, Library, Plus, Upload } from "lucide-react";
+import { WorkflowIcon as Workflow } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
 
 import { ErrorState } from "@/components/states";
@@ -153,7 +154,7 @@ export default function WorkflowsPage() {
     );
 
   const statusControls = (
-    <div data-tour="workflows-list" className="flex min-w-0 flex-wrap items-center gap-2">
+    <div data-tour="workflows-list" className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
       <SearchInput
         className="min-w-0 flex-1 sm:flex-none"
         value={queryParam ?? ""}
@@ -168,7 +169,7 @@ export default function WorkflowsPage() {
         active={Number(filter !== "all") + Number(tagParam !== null) + Number(sort !== "edited")}
       >
         <Select value={filter} onValueChange={(value) => onFilter(value as Filter)}>
-          <SelectTrigger className="w-36" aria-label={t("filterByStatus")}>
+          <SelectTrigger size="sm" className="w-36" aria-label={t("filterByStatus")}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -187,7 +188,7 @@ export default function WorkflowsPage() {
               list.setPage(0);
             }}
           >
-            <SelectTrigger className="w-36" aria-label={t("filterByTag")}>
+            <SelectTrigger size="sm" className="w-36" aria-label={t("filterByTag")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -204,7 +205,12 @@ export default function WorkflowsPage() {
           value={sort}
           onValueChange={(value) => setSortParam(value === "edited" ? null : value)}
         >
-          <SelectTrigger className="w-40" aria-label={t("sortBy")}>
+          <SelectTrigger
+            size="sm"
+            icon={ArrowDownWideNarrow}
+            className="w-40"
+            aria-label={t("sortBy")}
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -220,11 +226,11 @@ export default function WorkflowsPage() {
   );
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-6">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       <PageHeader
         title={t("title")}
         description={t("description")}
-        actions={
+        secondaryActions={
           <>
             <Button variant="outline" asChild>
               <Link href={ROUTES.WORKFLOW_ALL_RUNS}>
@@ -248,20 +254,22 @@ export default function WorkflowsPage() {
                 {t("templateLibrary")}
               </Button>
             )}
-            {canCreate && (
-              <Button
-                onClick={() => {
-                  setInitial(undefined);
-                  setCreateOpen(true);
-                }}
-                disabled={create.isPending}
-                data-tour="workflows-new"
-              >
-                <Plus className="h-4 w-4" />
-                {t("newWorkflow")}
-              </Button>
-            )}
           </>
+        }
+        actions={
+          canCreate && (
+            <Button
+              onClick={() => {
+                setInitial(undefined);
+                setCreateOpen(true);
+              }}
+              disabled={create.isPending}
+              data-tour="workflows-new"
+            >
+              <Plus className="h-4 w-4" />
+              {t("newWorkflow")}
+            </Button>
+          )
         }
       />
 
@@ -272,9 +280,12 @@ export default function WorkflowsPage() {
         aria-modal={galleryFullscreen || undefined}
         aria-label={t("catalog")}
         className={
-          galleryFullscreen ? "fixed inset-0 z-40 overflow-y-auto rounded-none" : undefined
+          galleryFullscreen
+            ? "bg-background fixed inset-0 z-40 overflow-y-auto rounded-none p-4 sm:p-6"
+            : undefined
         }
         namedByPage
+        layout="grid"
         title={t("catalog")}
         counted={
           loading
@@ -284,7 +295,7 @@ export default function WorkflowsPage() {
               : t("shownOfTotal", { visible: list.matched, total: list.total })
         }
         controls={
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             {statusControls}
             <WorkspaceFullscreenButton
               expanded={galleryFullscreen}

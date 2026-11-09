@@ -16,6 +16,7 @@ import type {
   DatasetCaseContent,
   DatasetCaseList,
   DatasetFileFormat,
+  DatasetHelperSettings,
   DatasetList,
   DatasetSort,
   DatasetVersion,
@@ -138,8 +139,9 @@ export function useDataset(datasetId: string) {
     enabled: datasetId !== "",
   });
   const update = useMutation({
-    mutationFn: (changes: Partial<NewDataset>) =>
-      apiClient.patch<Dataset>(`/datasets/${datasetId}`, changes),
+    mutationFn: (
+      changes: Partial<NewDataset> & { helper_settings?: Partial<DatasetHelperSettings> },
+    ) => apiClient.patch<Dataset>(`/datasets/${datasetId}`, changes),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.datasets.all() }),
   });
   // The page leaves on success; its own query is dropped rather than refetched

@@ -4,7 +4,11 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { useSharedWithMeCounts } from "@/hooks";
 import { WidgetFrame } from "../widget-frame";
-import { Bot, LibraryBig, Share2, Waypoints } from "lucide-react";
+import { Bot, Share2 } from "lucide-react";
+import {
+  KnowledgeIcon as LibraryBig,
+  SkillIcon as Waypoints,
+} from "@/components/icons/product-icons";
 
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 import type { DashboardWidgetProps } from "./types";

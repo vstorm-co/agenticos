@@ -657,9 +657,9 @@ class _Chosen(BaseModel):
     ("config", "purposes"),
     [
         (_Chosen(provider="google"), ("google",)),
-        (_Chosen(provider=""), ("mem0",)),
-        (_Chosen(), ("mem0",)),
-        (None, ("mem0",)),
+        (_Chosen(provider=""), ("llamaparse",)),
+        (_Chosen(), ("llamaparse",)),
+        (None, ("llamaparse",)),
     ],
     ids=["chosen", "empty", "unset", "no-config"],
 )
@@ -668,7 +668,7 @@ def test_a_keys_purpose_is_the_chosen_service_or_the_named_one(config, purposes)
     requirement = SecretRequirement(
         kind=SecretKind.API_KEY,
         description="A key",
-        purpose="mem0",
+        purpose="llamaparse",
         required_when=SecretCondition(field="provider", equals=("google",)),
     )
 

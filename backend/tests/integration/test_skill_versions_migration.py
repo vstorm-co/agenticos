@@ -1,5 +1,5 @@
-"""`0250_skill_versions`: what each skill said becomes v1, and pending changes follow it;
-`0253_skill_catch_up`: merges read as edits on the way down.
+"""`0298_skill_versions`: what each skill said becomes v1, and pending changes follow it;
+`0301_skill_catch_up`: merges read as edits on the way down.
 
 The schema half is cycled with the whole chain by `test_migrations.py`. What only a
 seeded database shows is the data: the backfill's versions and the proposals it
@@ -41,7 +41,7 @@ pytestmark = pytest.mark.anyio
 
 
 def _migration() -> ModuleType:
-    path = Path(__file__).parents[2] / "alembic/versions/0250_skill_versions.py"
+    path = Path(__file__).parents[2] / "alembic/versions/0298_skill_versions.py"
     spec = importlib.util.spec_from_file_location("skill_versions_migration", path)
     assert spec is not None and spec.loader is not None
     migration = importlib.util.module_from_spec(spec)
@@ -265,7 +265,7 @@ async def test_a_downgrade_forgets_the_version_each_use_was_served(db: AsyncSess
 
 
 def _catch_up_migration() -> ModuleType:
-    path = Path(__file__).parents[2] / "alembic/versions/0253_skill_catch_up.py"
+    path = Path(__file__).parents[2] / "alembic/versions/0301_skill_catch_up.py"
     spec = importlib.util.spec_from_file_location("skill_catch_up_migration", path)
     assert spec is not None and spec.loader is not None
     migration = importlib.util.module_from_spec(spec)

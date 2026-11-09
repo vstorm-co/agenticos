@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUpRight, PanelsTopLeft } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
+import { AppIcon as PanelsTopLeft } from "@/components/icons/product-icons";
 import { useLocale, useTranslations } from "next-intl";
 
 import { LiveBadge } from "@/components/artifacts/live-badge";

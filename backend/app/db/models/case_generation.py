@@ -17,6 +17,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
+from pydantic import JsonValue
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
@@ -61,6 +62,10 @@ class CaseGeneration(Base):
     """One request to draft cases for a dataset, and how it went."""
 
     __tablename__ = "case_generations"
+
+    helper_settings: Mapped[dict[str, JsonValue]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
 
     generator_agent_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), nullable=True

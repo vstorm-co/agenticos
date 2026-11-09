@@ -218,3 +218,14 @@ it("shows a no-access state for a forbidden agent too", async () => {
   expect(await screen.findByText("Resource unavailable")).toBeVisible();
   expect(screen.queryByText("Something went wrong")).toBeNull();
 });
+
+it.each(["judge", "generator", "improver", "drafter", "classifier"] as const)(
+  "does not expose the %s pipeline helper in Agent Builder",
+  async (kind) => {
+    read.agent = { ...AGENT, kind };
+    read.error = null;
+    await mount();
+    expect(await screen.findByText("Resource unavailable")).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Build" })).toBeNull();
+  },
+);

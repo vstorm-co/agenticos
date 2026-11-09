@@ -913,3 +913,43 @@ async def test_existing_suite_is_not_offered_or_duplicated_on_finish(db):
         ctx, agent.id, ready.id, ImprovementFinish(confirmed=True, automatic_check=True)
     )
     assert [s.id for s in (await suites.list_for_agent(ctx, agent.id)).items] == [existing.id]
+
+
+async def test_a_session_and_its_authoring_child_keep_the_admitted_dataset_instructions(db):
+    from app.schemas.dataset import DatasetUpdate
+    from app.schemas.dataset_helpers import DatasetHelper, DatasetHelpers
+    from app.services.dataset import DatasetService
+
+    ctx, agent, _ = await _setup(db)
+    dataset = await _dataset(db, ctx, cases=5)
+    model = AgentSpec.model_validate(agent.draft_spec).model_profile_id
+    original = DatasetHelper(
+        model_profile_id=model, instructions="Base every proposal on the policy evidence."
+    )
+    await DatasetService(db).update(
+        ctx, dataset.id, DatasetUpdate(helper_settings=DatasetHelpers(improver=original))
+    )
+    read = await ImprovementPipelineService(db).start(
+        ctx,
+        agent.id,
+        ImprovementStart(dataset_id=dataset.id, max_iterations=1, budget_usd=Decimal("5")),
+    )
+    run = await db.get(ImprovementRun, read.id)
+    assert run is not None
+    assert run.helper_settings == original.model_dump(mode="json")
+    await DatasetService(db).update(
+        ctx,
+        dataset.id,
+        DatasetUpdate(
+            helper_settings=DatasetHelpers(
+                improver=DatasetHelper(
+                    model_profile_id=model, instructions="Settings for the next session."
+                )
+            )
+        ),
+    )
+    await _until_child(db, ctx, read.id)
+    current = await ImprovementPipelineService(db).read(ctx, agent.id, read.id)
+    request = await db.get(AuthoringRequest, current.iterations[0].authoring_request_id)
+    assert request is not None
+    assert request.helper_settings == original.model_dump(mode="json")

@@ -1,5 +1,5 @@
 ---
-source_sha: "5d173b003b4d"
+source_sha: "76c60cd662bd"
 ---
 
 # Pruebas { #testing }
@@ -76,12 +76,10 @@ make docs-build         # mkdocs --strict — a dead link is a failure
 make audit              # the locked dependency set against the advisory database
 ```
 
-Unos cinco minutos en serie, frente a los doce de CI en paralelo — con el job `test`
-del backend como el cuello de botella de allí, que es lo que #520 está recortando. La
-igualdad se mantiene en vez de afirmarse: el workflow llama a estos objetivos en vez de
-repetir sus comandos, y `tests/test_ci_parity.py` falla si un job de los que bloquean
-gana un paso que `make check` no ejecuta. Se ha desviado cuatro veces — ver
-[Comandos](commands.md#before-a-pull-request) para lo que `check` deja fuera y por qué.
+CI ejecuta las comprobaciones independientes en paralelo. El workflow utiliza
+los mismos objetivos de Makefile que las comprobaciones locales;
+`tests/test_ci_parity.py` protege su equivalencia. Las excepciones se describen
+en [Comandos](commands.md#before-a-pull-request).
 
 !!! info "CI puede ejecutar menos jobs que `check`, y eso no es una desviación"
 
@@ -652,3 +650,21 @@ importó y comprueba el payload, como hace la fixture `queued_fires` en
   listas en `backend/pyproject.toml`.
 - El orden se baraja en cada ejecución; reproduce un fallo con la semilla impresa antes
   de concluir nada sobre el cambio.
+
+## Distribución de CI { #ci-distribution }
+
+La suite del backend mide todo el código de la aplicación una sola vez. El informe
+de la plataforma sigue exigiendo un 100% de cobertura; `make coverage-all REUSE_COVERAGE=1`
+informa sobre el código heredado con los mismos datos, sin repetir los tests.
+
+El lint del frontend, el build de producción y cuatro shards de tests se ejecutan
+independientemente. Los shards mantienen el aislamiento entre archivos; un informe
+combinado comprueba los mismos umbrales de cobertura. El check obligatorio
+`test-frontend` falla si falta un job o shard, se omite inesperadamente o no termina
+con éxito. E2E reutiliza el build de producción en cuatro shards, cada uno con su
+propia base de datos, Redis, backend, seed y servidor stub. Los archivos dentro
+de cada shard siguen ejecutándose en serie y sin reintentos.
+
+PostgreSQL de CI usa un directorio de datos temporal en RAM y desactiva fsync,
+los commits síncronos y las escrituras de páginas completas solo en su contenedor.
+Las bases de producción y desarrollo conservan su configuración normal de durabilidad.

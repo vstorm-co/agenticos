@@ -38,6 +38,11 @@ const state = vi.hoisted(() => ({
   topicsLoading: false,
   evidenceTopics: ["t1", "t2", "t3"] as (string | null)[],
   compared: null as EvalComparison | null,
+  comparisonError: null as Error | null,
+  run: { cases: 12 } as { cases: number } | null,
+  runError: null as Error | null,
+  retryRun: vi.fn(),
+  comparisonRetry: vi.fn(),
   environments: [] as Environment[],
   suites: [] as { id: string }[],
   defer: vi.fn(),
@@ -69,7 +74,12 @@ vi.mock("@/hooks/use-datasets", () => ({
   useDatasetCases: () => ({ cases: [], total: 12 }),
 }));
 vi.mock("@/hooks/use-eval-runs", () => ({
-  useEvalComparison: () => ({ comparison: state.compared }),
+  useEvalRun: () => ({ run: state.run, error: state.runError, refetch: state.retryRun }),
+  useEvalComparison: () => ({
+    comparison: state.compared,
+    error: state.comparisonError,
+    refetch: state.comparisonRetry,
+  }),
 }));
 vi.mock("@/hooks/use-agent-environments", () => ({
   useAgentEnvironments: () => ({ environments: state.environments }),
@@ -108,6 +118,9 @@ const topic = (id: string, extra = {}): Topic => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  state.comparisonError = null;
+  state.run = { cases: 12 };
+  state.runError = null;
   state.topicsLoading = false;
   state.topics = [topic("t1"), topic("t2"), topic("t3", { can_edit: false }), topic("t9")];
   state.topicsError = null;
@@ -273,9 +286,8 @@ it("states what the new version fixes, breaks and costs, and what it was tested 
 it("reads no cost or held-out count from a comparison it does not have", () => {
   state.compared = null;
   render(<AcceptSummary session={SESSION} round={ROUND} />);
-  expect(
-    screen.getByRole("group", { name: /break 0\. Tested on 12 questions, 0 of them/ }),
-  ).toBeInTheDocument();
+  expect(screen.getByRole("status")).toHaveTextContent("Loading");
+  expect(screen.queryByRole("group")).not.toBeInTheDocument();
 });
 
 it("says what publishing does in each place people use the agent", () => {
@@ -374,4 +386,60 @@ it("finds the session's open topics, drafted or not, and nobody else's", () => {
   const { result } = renderHook(() => useSessionTopics(SESSION));
   expect(result.current.topics.map((item) => item.id)).toEqual(["t1", "t2"]);
   expect(result.current.error).toBeNull();
+});
+
+it("separates all tested questions from the held-out measurement", () => {
+  state.run = { cases: 15 };
+  state.compared = comparison({ candidate_summary: { ...SUMMARY, cases: 6 } });
+  render(<AcceptSummary session={SESSION} round={{ ...ROUND, held_out: 6 }} />);
+  expect(
+    screen.getByRole("group", { name: /Tested on 15 questions, 6 of them/ }),
+  ).toBeInTheDocument();
+  expect(screen.getByText("6 not used to write the changes")).toBeInTheDocument();
+});
+
+it("offers retry when the acceptance comparison could not be read", async () => {
+  state.comparisonError = new Error("Comparison unavailable");
+  render(<AcceptSummary session={SESSION} round={ROUND} />);
+  await userEvent.click(screen.getByRole("button", { name: "Try reading again" }));
+  expect(state.comparisonRetry).toHaveBeenCalled();
+  expect(screen.queryByRole("group")).not.toBeInTheDocument();
+});
+
+it("keeps loading and run-read failures distinct from a zero-case measurement", async () => {
+  state.run = null;
+  const view = render(<AcceptSummary session={SESSION} round={ROUND} />);
+  expect(screen.getByRole("status")).toHaveTextContent("Loading");
+  expect(screen.queryByRole("group")).not.toBeInTheDocument();
+  state.runError = new Error("Run unavailable");
+  view.rerender(<AcceptSummary session={SESSION} round={ROUND} />);
+  await userEvent.click(screen.getByRole("button", { name: "Try reading again" }));
+  expect(state.retryRun).toHaveBeenCalled();
+});
+
+it("keeps invalid result and acceptance summaries from reusing a previous verdict", () => {
+  state.compared = comparison({ verdict: "invalid", fixed_confirmed: 3, cases: [FLIP] });
+  const view = render(<ResultSummary session={SESSION} round={ROUND} />);
+  expect(screen.getByRole("alert")).toHaveTextContent("These results cannot be compared.");
+  expect(screen.queryByText("Newly fixed")).toBeNull();
+  expect(screen.queryByText("Newly broken")).toBeNull();
+  expect(
+    screen.queryByRole("group", { name: /^In the agent: 3 questions newly fixed/ }),
+  ).toBeNull();
+  view.rerender(<AcceptSummary session={SESSION} round={ROUND} />);
+  expect(screen.getByRole("alert")).toHaveTextContent("These results cannot be compared.");
+  expect(screen.queryByRole("group")).toBeNull();
+});
+
+it("does not state stored improvements until the comparison is read, and offers retry on failure", async () => {
+  state.compared = null;
+  const view = render(<ResultSummary session={SESSION} round={ROUND} />);
+  expect(
+    screen.getByRole("group", { name: /^In the agent: no measured result yet/ }),
+  ).toBeVisible();
+  state.comparisonError = new Error("Comparison unavailable");
+  view.rerender(<ResultSummary session={SESSION} round={ROUND} />);
+  expect(screen.getByRole("alert")).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "Try reading again" }));
+  expect(state.comparisonRetry).toHaveBeenCalled();
 });

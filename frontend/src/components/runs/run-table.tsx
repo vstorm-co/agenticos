@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
-
 import { formatUsd } from "@/components/dashboard/format";
-import { MessageSquare, ThumbsDown } from "lucide-react";
+import { ThumbsDown } from "lucide-react";
+import { ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { RunStatusBadge } from "@/components/agents/status-badge";
@@ -87,6 +87,15 @@ export function RunTable({
 
   /** The agent's face and name, or nothing when the reader cannot resolve it. */
   const agentLabel = (run: AgentRun) => {
+    // Work a platform role did is named for the role, not for the starter agent it is
+    // recorded under: that agent's instructions never ran (#2575).
+    if (run.system_role === "daily_briefing" || run.system_role === "memory_maintenance") {
+      return (
+        <span className="truncate italic">
+          {t(run.system_role === "daily_briefing" ? "systemRoleBriefing" : "systemRoleMaintenance")}
+        </span>
+      );
+    }
     const agent = agentsById?.get(run.agent_id);
     if (agent === undefined) {
       // A platform agent - the judge, the assistant - is in no agent list.

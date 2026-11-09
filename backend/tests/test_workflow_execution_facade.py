@@ -417,14 +417,22 @@ class TestStart:
 
     @pytest.mark.security
     @pytest.mark.parametrize("trigger_id", ["core.input", "trigger.manual"], ids=["api", "manual"])
+    @pytest.mark.parametrize(
+        ("field_type", "value", "problem_path"),
+        [
+            ("integer", "three", "seats"),
+            ("string_list", "three", "seats"),
+            ("string_list", ["front", 3], "seats.1"),
+        ],
+    )
     async def test_an_input_that_does_not_fit_the_declared_fields_is_refused_unwritten(
-        self, trigger_id
-    ):
+        self, trigger_id: str, field_type: str, value: object, problem_path: str
+    ) -> None:
         entry = NodeInstance(
             id=uuid.uuid4(),
             definition_id=trigger_id,
             definition_version=1,
-            config={"fields": [{"name": "seats", "type": "integer"}]},
+            config={"fields": [{"name": "seats", "type": field_type}]},
             layout=NodePosition(x=0, y=0),
         )
         graph = WorkflowGraph(entry_node_id=entry.id, nodes=(entry,))
@@ -440,9 +448,9 @@ class TestStart:
             patch(f"{FACADE_PATH}.workflow_run_repo.create_run", new=AsyncMock()) as create_run,
             pytest.raises(WorkflowRunInputInvalidError) as refused,
         ):
-            await service.start(_ctx(), workflow.id, run_input={"seats": "three"})
+            await service.start(_ctx(), workflow.id, run_input={"seats": value})
         assert refused.value.status_code == 422
-        assert [problem["field"] for problem in refused.value.details["problems"]] == ["seats"]
+        assert [problem["field"] for problem in refused.value.details["problems"]] == [problem_path]
         create_run.assert_not_awaited()
 
     @pytest.mark.parametrize(

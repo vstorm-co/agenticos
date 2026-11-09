@@ -53,7 +53,15 @@ export function useMapView(edgeInputs: EdgeInput[]) {
   const boxes = useRef(new Map<string, HTMLElement>());
   const [edges, setEdges] = useState<MapEdge[]>([]);
 
-  const { viewport, view, viewRef, zoomFromCentre, resetView, panHandlers } = usePanZoom();
+  // Named as a ref so the compiler reads `.current` below as one, not as a dependency.
+  const {
+    viewport: viewportRef,
+    view,
+    setView,
+    viewRef,
+    zoomFromCentre,
+    panHandlers,
+  } = usePanZoom();
 
   /** A stable ref-setter per key, registering and forgetting the box it draws to. */
   const registerBox = useCallback(
@@ -137,8 +145,36 @@ export function useMapView(edgeInputs: EdgeInput[]) {
     return () => observer.disconnect();
   }, [measure]);
 
+  // Fit on opening and on actual layout changes, never while the person pans.
+  const resetView = useCallback(() => {
+    const frame = viewportRef.current;
+    const content = container.current;
+    if (!frame || !content || !frame.clientWidth || !content.offsetHeight) {
+      setView({ x: 0, y: 0, scale: 1 });
+      return;
+    }
+    const scale = Math.min(
+      1,
+      (frame.clientWidth - 32) / content.offsetWidth,
+      (frame.clientHeight - 32) / content.offsetHeight,
+    );
+    setView({
+      scale,
+      x: (frame.clientWidth - content.offsetWidth * scale) / 2,
+      y: (frame.clientHeight - content.offsetHeight * scale) / 2,
+    });
+  }, [viewportRef, setView]);
+
+  useLayoutEffect(() => {
+    resetView();
+    const observer = new ResizeObserver(resetView);
+    if (viewportRef.current) observer.observe(viewportRef.current);
+    if (container.current) observer.observe(container.current);
+    return () => observer.disconnect();
+  }, [viewportRef, resetView]);
+
   return {
-    viewport,
+    viewport: viewportRef,
     container,
     hub,
     registerBox,

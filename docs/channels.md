@@ -253,6 +253,13 @@ sequenceDiagram
 That is the whole inbound vocabulary, plus `context` (what the page says about the
 visitor) and `file_ids` (what they attached, on a page that takes files).
 
+Every `message` frame counts toward a per-connection limit, including empty or
+malformed messages. Valid messages also spend the existing visitor allowance;
+malformed input cannot exhaust a bucket shared with other anonymous visitors.
+A frame may name at most three file IDs; oversized lists are refused before
+parsing. Invalid IDs in a bounded list are dropped and recorded as one aggregate
+log entry without their values.
+
 **It deliberately does not include the three fields the dashboard's own frame
 carries:** the agent, the model profile and the environment.
 
@@ -1013,6 +1020,110 @@ and endpoint alike.
 
 ---
 
+## SMS { #sms }
+
+A text to a Twilio number reaches an agent the way a direct message does on any other
+platform: through the same router, linked identity, access policy and budgets (#2082).
+Only the transport is new.
+
+**Add the bot** under Channels → SMS (Twilio). Its token is the Twilio account SID, the
+auth token and the number it sends from, joined with colons:
+`ACxxxxxxxx:auth_token:+15551234567`. An SMS bot is webhook-only; after saving, paste
+the webhook URL shown for it into the number's incoming-message setting in the Twilio
+console. The address Twilio signs is built from `PUBLIC_BASE_URL`, so that setting has to be the address Twilio actually calls: behind a proxy that rewrites it, every text is refused.
+
+**Who is texting.** A request is accepted only with a valid Twilio signature - HMAC-SHA1
+of the address Twilio called and its fields, under the auth token - and anything else is
+a 403 before a word of it is read. A valid signature proves the request came from Twilio.
+It does not prove who the sender is: the number is a claim, so a person acts with their
+own permissions only once they have linked that number to their account like any other
+channel identity. The link lapses after `SMS_LINK_MAX_AGE_DAYS` (90 by default, `0` keeps it for ever), because a number can be reassigned or taken over; the person links again.
+
+**What comes back.** The webhook answers at once and the agent replies through Twilio's
+API when it has an answer. A reply is plain text - markdown markers are removed and a link
+is written out in full - and is cut at about 1,500 characters with a note that the rest is
+in AgenticOS, so one question costs a few segments, not a dozen. SMS cannot stream, edit a
+message or press a button, so an approval or a question arrives as numbered lines and is
+answered by texting the number. A lone number that names a choice
+of a prompt sent to that number is the answer. Prompts waiting at once never share numbers - the second carries on where the first stopped, so 3 and 4 follow 1 and 2 - and deciding one leaves the other open. A prompt stays open for a day, so a multi-select takes several numbers; any other text is an ordinary message.
+
+Incoming MMS files, including messages with no text, use the ordinary channel
+attachment pipeline after identity and access checks. Up to ten files are read;
+their media URLs must name the bot's Twilio account and the incoming message.
+Authenticated downloads reject redirects, stop at `CHAT_MAX_UPLOAD_SIZE_MB` and
+have a 30-second total deadline. The shared upload path validates type and
+content and stores each accepted file in the conversation. A number sent with a
+file is a message, not a numbered approval.
+
+Outbound replies can send explicit workspace files and charts as MMS, including
+media-only replies. The ordinary channel file tool still controls which file is
+sent and where. The adapter refuses unsupported types, empty files, more than ten
+attachments, or over 5 MB of text and media combined. JPEG/PNG/GIF images can use
+that total; other accepted types, including PDF and CSV, are capped at 500 KB.
+Carrier and destination support still applies; provider refusal remains an error.
+
+MMS needs a publicly reachable HTTPS `PUBLIC_BASE_URL` and shared Redis. Only
+copies explicitly handed to the outbound adapter are staged, each under a random
+fetch credential for 15 minutes. Twilio's GET and HEAD requests use that credential;
+the original authenticated file store is never exposed. Its outgoing queue is
+limited to ten minutes, shorter than the copy's lifetime. These links are not
+written to chat or returned to the model. The API accepting a message means it
+was submitted, not that the carrier delivered it. See [Twilio's accepted media
+and limits](https://www.twilio.com/docs/messaging/guides/accepted-mime-types).
+
+## Email { #email }
+
+A mail to an address reaches an agent the way a direct message does on any other platform:
+through the same router, linked identity, access policy and budgets (#2082). Only the transport
+is new.
+
+**Add the bot** under Channels → Email. Its token is the address the bot answers from, for example
+`agent@mail.example.com`, and replies leave through the deployment's own e-mail provider, so
+`EMAIL_PROVIDER` must be one that delivers - a bot on the `log` provider refuses to answer rather than
+pretend it did. An e-mail bot is webhook-only and needs a secret: use Generate, then copy it into the relay.
+
+**The relay.** Mail is not polled. Whatever receives it - a Cloudflare Email Worker, a Postmark or
+Mailgun inbound route, a script on a mail server - POSTs one JSON document per message to the
+URL shown for the bot after saving:
+
+```json
+{"from": "ada@acme.com", "subject": "Invoice", "text": "Please send it",
+ "sender_authentication": {"dmarc": "pass", "from": "ada@acme.com"},
+ "message_id": "<1@acme>", "in_reply_to": "<0@acme>", "references": ["<0@acme>"],
+ "attachments": [{"filename": "a.pdf", "content_type": "application/pdf",
+                  "content_base64": "..."}]}
+```
+
+and signs it with two headers: `X-AgenticOS-Timestamp` (unix seconds) and `X-AgenticOS-Signature`,
+`sha256=` plus the hex HMAC-SHA256 of `timestamp.body` under the secret. A request with no valid
+signature, or one more than five minutes off, is a 403 before a word of it is read, and a bot with no
+secret refuses everything. The body is capped at 25 MB, up to ten attachments are read, and a message id
+seen before is ignored, so a relay's retry runs the agent once.
+
+Inbound attachments share a live cache limit of 64 MiB of encoded data and 1,024 files per bot. Each delivery is stored atomically; exhaustion returns 429 with Retry-After before any file or thread is cached. Reading or discarding files releases their capacity immediately. Unread files expire after 15 minutes, and the next cache operation reclaims their capacity. Processing failures also discard unused attachments. Replies and prompts retain the thread of their own inbound message even when another message arrives meanwhile.
+
+The webhook commits a `process-email-delivery` job before returning 200. The job retains the validated message body, including attachments, so an API restart or an expired cache cannot erase accepted work. Message-ID deduplication commits with that job; a rolled-back request remains retriable. Workers recheck the bot and organization, serialize deliveries to the same correspondent, and record failed attempts in Admin → Background jobs. Finished job payloads follow `BACKGROUND_JOB_RETENTION_DAYS`; deployment administrators can inspect them.
+
+SMS and iMessage webhooks commit a `process-channel-delivery` job before acknowledging a valid message. The payload and Message-ID receipt share one database transaction, so rollback permits retry and API restarts preserve accepted work. Workers recheck the bot’s organization, platform and active state, then resolve numbered replies against current prompts; expired SMS identities cannot approve old requests. Delivery payloads follow the background-job retention policy and are visible to deployment administrators.
+
+**Who is writing.** The signature proves the relay sent the request, not who wrote the mail: an
+address is a claim. A person acts with their own permissions only once they have linked that address to
+their account like any other channel identity. Every message must include
+`sender_authentication: {"dmarc": "pass", "from": "ada@acme.com"}`, attesting to an aligned DMARC
+pass for that exact header From address. The relay must derive this verdict from its trusted receiving
+mail server, never from authentication headers supplied by the sender. Missing, failed or mismatched
+attestations are ignored before account lookup, attachment storage or approval processing. Existing
+relays must add this field before upgrading; an HMAC signature alone no longer admits a message.
+
+**What comes back.** The webhook answers at once and the agent replies by mail as the answer to the
+sender's last message: `Re:` and the same subject, with `In-Reply-To` and `References` set so a mail client
+files it in the thread, and any files the agent produced attached. History quoted under a reply is
+cut before the agent reads it. An approval or a question arrives as numbered lines and is answered by
+replying with just the number; the numbers behave as on SMS, and a prompt stays open for a day.
+
+Inbound `references` must be a list of strings without CR or LF; retained entries must not exceed 998 characters. Malformed references are ignored before processing the message. Folded subjects are unfolded before reply headers are created.
+
+
 ## Slack
 
 1. **api.slack.com/apps → Create New App → From scratch.** Name it and pick the
@@ -1460,10 +1571,138 @@ remembered, and a trigger can name one of the organization's team channels or
 group chats: every fire's answer is then posted there as a new message, under the
 trigger's name. A personal chat is never offered — it is somebody's own.
 
+## Discord
+
+A Discord bot is an application in the Discord Developer Portal, spoken to over
+Discord's own Gateway and REST API with no library between (#2079). Messages,
+slash commands and button presses all arrive over the bot's one Gateway
+connection, so **a deployment needs no public address for Discord**, and a
+Discord bot has no webhook mode.
+
+1. In the [Developer Portal](https://discord.com/developers/applications), create
+   an application. Under **Bot**, reset and copy the **token**, and switch on
+   **Message Content Intent**. Without it Discord refuses the connection, and the
+   bot's row says which switch to turn on. Under **Installation**, set **Install
+   Link** to *None*, then switch off **Public Bot** under **Bot**. Anyone can add
+   a public bot to their own server, so the bot
+   refuses to connect while it is public. One made public while connected stops
+   the next time it is added to a server.
+2. Under **OAuth2 → URL Generator**, tick the `bot` and `applications.commands`
+   scopes and the permissions **View Channels**, **Send Messages**, **Send
+   Messages in Threads**, **Create Public Threads**, **Read Message History** and
+   **Attach Files**, then open the URL to add the bot to a server. Without
+   **Attach Files** a file or chart the agent sends is refused, and the text
+   posted with it is lost too.
+3. Register it: **Channels → Add channel**, platform `discord`, with the token.
+
+**Approve servers explicitly.** In the add/edit bot form, enter **Approved Discord server IDs**. Enable Discord's Developer Mode, copy each server's ID and separate IDs with commas or spaces. For the CLI, pass `--discord-guild 123456789012345678` to `channel-add-bot`; repeat the option for several servers. An empty list permits DMs only. Installations announced by READY are not approvals, and removal/re-add cannot bypass the list.
+
+`/ask` acknowledges privately before channel lookups or database admission. Only an admitted sender's question is posted publicly; refusals and account-link invitations stay private. Link invitations consume the sender's rate limit. Server approval chooses locations; `jwt_linked` or `require_link` still controls whether an organization account is required. Console access to a stored transcript requires both **View Channel** and **Read Message History**, plus membership for a private thread.
+
+The bot registers its commands when it connects: `/ask`, `/agents`, `/new`,
+`/link`, `/unlink` and `/help`, and **Ask the agent** under *Apps* on any message.
+Discord can take a while to show new commands in every server.
+
+| Where | When it answers |
+|---|---|
+| A direct message | Every message. The direct message is one conversation, and `/new` starts it over |
+| A server channel | When it is @mentioned or a message replies to it. The answer opens a thread on the question, and the thread is the conversation |
+| A thread the bot opened | Every message in it |
+| `/ask` | Anywhere: the question, up to 2,000 characters, is posted and the answer is threaded under it |
+| *Apps → Ask the agent* | On any message: the agent is asked about that message, in a thread on it |
+
+`/agents`, `/link` and the other commands answer privately, to whoever ran them.
+`/new` starts a thread's conversation over; in a server channel, where every
+mention already starts a new one, it says so instead.
+In a channel where the bot may not open threads, the answer is a reply to the
+question instead, and replying to the answer continues that conversation.
+
+**The answer is written in place.** The bot posts one message and edits it as the
+answer streams, running past 2,000 characters into further messages. Only text the
+guardrails have already screened is written, so a redacted secret is never shown,
+even for a moment. Nothing the bot posts can ping anybody: `@everyone` and role
+mentions in an answer stay plain text.
+
+**Approvals and questions are buttons**, or selects for a question with more than
+25 options. Thumbs go under every answer, and a thumbs-down opens a Discord form
+asking what was wrong. Discord has no reaction on the question.
+
+**Who is speaking** is the Discord user ID, linked to a member with `/link` as on
+every platform. A conversation from a server channel is shown in the console to
+those who can still see that channel, by the server's roles and the channel's
+permission overwrites, which is what being in a channel means on Discord. A
+private thread is invite-only, so it is a room of its own: a conversation from
+it is shown only to those still in that thread, and the notes the agent keeps
+there are not shared with the channel.
+
+**A thread the bot is brought into partway is read first.** The last messages in
+it, with who wrote them and when, and the files people posted there, reach the
+agent before it answers, as on Slack and Mattermost; files the bot posted itself
+are left out. It needs **Read Message History**, and `read_channel_history` reads
+a thread or a channel the same way where the binding allows it.
+
+### A server's roles as groups { #discord-roles }
+
+An administrator can map a role in one of the bot's servers to a group of the
+organization (#2569). Open **Channels**, then the **Discord roles** action on the bot's
+row. The server and the role are chosen from what the bot itself reads from Discord,
+so `@everyone` and the roles Discord manages for a bot are not offered. Mapping one
+takes `members:manage`, and the routes take `channels:manage` as well.
+
+A linked member who holds the role is placed in the group before each message they
+send to any of the organization's Discord bots, and again by the `sync-discord-roles` job
+every 15 minutes. They leave the group when the role is taken away, and the job is
+what notices that for somebody who has stopped writing to the bot. The bot asks
+Discord for one member's roles at a time, so it needs no privileged intent, and a
+new mapping places people at their next message rather than at once.
+
+Those checks before a message count against the sender's `rate_limit_rpm` on an
+allowance of their own, commands such as `/help` included. A sender past it is
+asked to slow down, and Discord is not asked again until the minute is over.
+
+A mapping can also name an organization role. A linked holder who is not a member
+yet then joins the organization with that role, which spares inviting everybody in
+a community server one at a time. Naming a role takes `roles:manage`, and only a
+role the caller's own strictly outranks. The order between several matching roles,
+and the rules about what the sync never touches, are the ones the
+[directory sync](directory.md#what-the-sync-never-touches) follows:
+
+- Only a linked account counts. A Discord user who never ran `/link` is placed
+  nowhere, whatever roles they hold.
+- A role matches only in the server the mapping names, read by the bot that holds
+  the mapping. The same role ID in another bot's server matches nothing.
+- The sync changes only rows it made, marked **Discord** on the members page and
+  in a group. A group membership added by hand stays when the role is taken away,
+  a membership an administrator made keeps its role, and an owner is never
+  demoted or removed. Somebody the sync admitted to the organization leaves all of
+  its groups when the sync removes them, as somebody removed by hand does.
+- If a server cannot be read, its mapped groups remain. Its possible organization roles can retain only authority the person already held; an unread `viewer` mapping cannot preserve `admin`. Confirmed grants still apply.
+
+Each reconciliation shares a ten-second network deadline. REST lookups share the bot’s `rate_limit_rpm` per linked user across all their accounts, separately from the per-user message-check allowance. Removing a mapped group also requires `channels:manage`.
+
+Server discovery permits one concurrent request per organization, shares a ten-second deadline across pagination and role reads, and reads roles for at most eight servers concurrently. Discovery stops above the supported 2,500-server limit; an incomplete response fails explicitly.
+
+Unlinking the Discord account takes back what its roles gave, unless another linked
+Discord account still earns it. Deleting a mapping takes back what it gave at each
+person's next message or the next job run. Deleting the bot or a mapped group, or
+giving the bot a new token, takes back the same, so it needs what deleting each of
+those mappings needs. Every change is in the audit log as
+`discord.member_added`, `discord.role_changed`, `discord.member_removed`,
+`discord.group_joined` or `discord.group_left`, and making or deleting a mapping
+as `discord.mapping_created` or `discord.mapping_deleted`.
+
+Not yet: one connection serves a bot in at most 2,500 servers, past which Discord
+asks for sharding and the bot stops with that reason. The channel members, details
+and search tools are not offered on Discord.
+
+Directory access takes priority when both sources grant membership. At sign-in,
+a directory grant takes over the Discord-managed row; when it ends, a remaining
+Discord grant takes over without revoking credentials. See [membership handover](directory.md#what-the-sync-never-touches).
+
 ## A bot that cannot start stops, rather than retrying
 
-Telegram polling, Slack Socket Mode and the Mattermost event stream all run
-under one supervisor that reconnects a dropped session. A missing or rejected
+Telegram polling, Slack Socket Mode, the Mattermost event stream and the Discord
+Gateway all run under one supervisor that reconnects a dropped session. A missing or rejected
 configuration value is not a dropped session, and the supervisor treats it
 differently: it records the bot as down with the reason, logs once and stops.
 Nothing it does would change the row — an operator has to add the Slack `xapp-`
@@ -1482,13 +1721,13 @@ A dropped session is different: that one is retried, waiting five seconds and
 doubling to a minute, so a server down for an hour is not hammered 720 times by
 every bot on it. A session that ended cleanly starts the ladder over. The line
 logged before each wait names the delay it is about to wait, and the same loop
-serves all three platforms, so the policy cannot drift between them.
+serves every one of these platforms, so the policy cannot drift between them.
 
 ---
 
 ## Approvals and questions as buttons
 
-A run started in Slack, Telegram, Mattermost or Teams can stop for a person: a gated
+A run started in Slack, Telegram, Mattermost, Teams or Discord can stop for a person: a gated
 tool call waits for a decision, or the agent asks an `ask_user` question. The
 chat is offered the choices where it is — a message per approval with
 **Approve** and **Reject**, a message per question with its options and **Skip**.
@@ -1521,7 +1760,8 @@ line and folds the others behind **Details**.
 
 A press acts as the person who pressed it, through their linked account: deciding
 needs `approvals:decide`, and only the person a question was put to can answer
-it. An unlinked presser is told to send `/link`. A run waits for an answer for
+it. A decision made somewhere else acts as the person who made it, an app admin
+included ([below](#decided-outside-the-chat)). An unlinked presser is told to send `/link`. A run waits for an answer for
 `QUESTION_EXPIRY_HOURS` and for a decision for `APPROVAL_EXPIRY_HOURS`, as
 anywhere else. Slack signs its presses; Mattermost signs nothing, so each button
 carries this deployment's own signature over its value and a press without it is
@@ -1538,6 +1778,58 @@ Mattermost alike. When the page needs somebody, a sign-in or a captcha, the step
 changes to *Needs you* and says what for, and names who has the browser while a
 person holds it. The link opens the console, so taking over needs a console account:
 the person the run is for, or someone who may edit the agent.
+
+### Decided outside the chat { #decided-outside-the-chat }
+
+A request put in a chat can also be decided in the console's **Approvals**, in
+the web chat or over the HTTP API. When a person does that and it settles the
+last thing the run waits for, the server continues the run as them and posts the
+answer in the chat it was asked in. The console says so instead of resuming the
+run itself, so the run is continued once. A question works the same way when the
+person it was put to answers it in the console.
+
+A decision made with an API key is recorded and does not continue the run: a run
+a person started is continued only by a person. Over the API, `continues_in_chat`
+tells a client which case it is in (see [Running an agent](api.md#running-an-agent)).
+
+Three endings that happen outside the chat each post one fixed message there, so
+nobody is left waiting on buttons that no longer do anything. The chat's open
+buttons are settled at the same time.
+
+| Ending | The chat is told |
+|---|---|
+| The run expires, after `APPROVAL_EXPIRY_HOURS` for a decision or `QUESTION_EXPIRY_HOURS` for a question | "This request expired without a decision." |
+| Someone presses **Stop** in the console | "This run was stopped from the console." |
+| A run was decided and nothing continued it within about an hour | "A decision was recorded, but the run could not continue." |
+
+The last one is a safety net. It stays quiet in two cases: when the decision is
+more than 7 days old, and when the chat was already told that the run could not
+continue. A chat hears at most one notice each time a run parks.
+
+A button pressed after the request was answered elsewhere replies "That has
+already been answered." and changes nothing.
+
+A continuation can be refused: for example when the chat started over since the
+question, its access policy now refuses the person who asked, the person who
+decided can no longer decide approvals, the bot was removed from the agent, or
+the agent can no longer be built. The chat is told once: "That was decided
+outside the chat, but the run could not continue." **Resume** on the run's page
+still works, within about an hour of the last decision. It runs as before, without the room check, and posts the
+answer only in a chat that still admits the asker. A membership check the
+platform cannot answer does not stop a continuation.
+
+A run parked before 1.29.0 has no chat recorded, so the console continues it as
+it always did. If nobody resumes it within about an hour of its last decision,
+the safety net ends it, without a message.
+
+The worker sends required replies and ending notices from durable jobs saved in
+the same transaction as the result or ending. A restart or transient send failure
+retries delivery up to three times without repeating the agent or approved tools.
+The bot, chat session and access policy are checked again before sending. A
+revoked destination receives nothing. Platforms without send idempotency can
+show a duplicate if a send succeeded but its acknowledgement was lost; this is
+at-least-once delivery, not a promise of exactly-once messages. Exhausted attempts
+are visible in **Admin → Background jobs** (`deliver-channel-handback`).
 
 ### Next steps as buttons { #next-steps-as-buttons }
 
@@ -1855,6 +2147,8 @@ surface, so a difference between the console and Mattermost remains visible.
     somebody, with no backfill: the turn points at the chat account and the
     account gains a person.
 
+    **The `/chat` list leaves channel threads out by default.** `GET /conversations` takes `hide_channels`, true by default, so the sidebar does not fill with threads a bot answers in; they still open from their link, and `hide_channels=false` lists them again.
+
     **Speaking is a claim; the platform decides whether it still holds.** The
     turn record says who *spoke*, and before [#641][641] that was the whole
     check — somebody removed from the channel kept reading the thread,
@@ -1948,7 +2242,7 @@ surface, so a difference between the console and Mattermost remains visible.
 
 - **Choose whether group mentions start a run.** In the bot's create or edit dialog, *Respond to group mentions* is off by default. Direct invocations continue to work. Enabling it also admits Mattermost `@all`, `@here` and `@channel`, Slack's native room mentions, and structured Teams channel/team mentions. Sender identity, access checks and rate limits still apply. Quoted code and unrelated users' mentions do not count.
 
-    Teams requires the updated app package to be installed or upgraded in the target team or chat, with owner consent to `ChannelMessage.Read.Group` and `ChatMessage.Read.Chat`. Those grants are requested only when this switch is on. Telegram uses explicit text aliases `@all`, `@here`, `@channel` and `@everyone`; these do not notify the group. Telegram must deliver group messages to the bot, so check BotFather privacy mode. Own mentions, commands and replies are resolved against the bot's actual Telegram identity.
+    Teams requires the updated app package to be installed or upgraded in the target team or chat, with owner consent to `ChannelMessage.Read.Group` and `ChatMessage.Read.Chat`. Those grants are requested only when this switch is on. Telegram uses explicit text aliases `@all`, `@here`, `@channel` and `@everyone`; these do not notify the group. Telegram must deliver group messages to the bot, so check BotFather privacy mode. Own mentions, commands and replies are resolved against the bot's actual Telegram identity. Discord counts `@everyone` and `@here` only when the sender may ping them, which is when Discord notifies the room.
 
 - **Requested workspace-file delivery also requires approval.** Granting `send_channel_file` makes it available; a request still waits for explicit confirmation before bytes are posted.
 - **Linked senders' MCP reads use the binding's approval policy; writes still require approval.** Read-only tools do not ask solely because a run is in a chat app. Tools without a `readOnlyHint: true` still ask, and an explicit `all` policy includes reads. This applies to personal, organization and platform connections, delegates and resumed calls. Personal connections still belong to the current sender, never the publisher or another participant.
@@ -2599,3 +2893,44 @@ A channel post containing only the bot mention or whitespace is ignored after me
 Channel formatting and conversation guidance come from the current deployment on every run. A binding prompt stores only custom additions. Upgrades remove exact recognized copies of previously shipped defaults while preserving surrounding custom text; edited or unknown text is left alone. Clearing the custom prompt keeps the platform defaults and channel context. No runtime compatibility rewrite of old prompt strings is needed.
 
 Downgrading restores the preceding release’s stored channel defaults while preserving custom additions, including bindings created after the upgrade. Other surfaces remain unchanged.
+
+## Notifications through linked channels { #linked-notifications }
+
+Choose a private destination per platform and organization in **Settings →
+Notifications**: Slack, Telegram, Mattermost, Teams, Discord, SMS and iMessage use the existing linked
+bot account. Email and push keep their own setup. Event preferences and routine
+overrides apply at send time, together with resource permissions and the shared
+case's current state. Linking a chat account alone does not enable delivery.
+
+Slack receives plain-text Block Kit notices with a link to the existing case.
+Opening the link uses normal console authorization. Acknowledging or resolving
+the case stops pending external notices across channels. A message's sent status
+records platform acceptance; the case retains its own acknowledgement state.
+
+A confirmed [Slack HTTP 429](https://docs.slack.dev/apis/web-api/rate-limits/)
+permits a bounded retry after `Retry-After`. The notification client disables
+[SDK retries](https://docs.slack.dev/tools/python-slack-sdk/web/), so timeouts and
+unknown outcomes remain visible failures instead of duplicate submissions. See
+[notification policy](governance.md) for route revocation, approval degradation
+and migration details.
+
+## iMessage through a company Mac { #imessage }
+
+A company-owned Mac running Messages and [BlueBubbles](https://docs.bluebubbles.app/server/developer-guides/rest-api-and-webhooks) provides this transport. Keep it signed in and online, grant BlueBubbles the macOS permissions it requests, and enable its REST API. In **Channels**, register **iMessage** with the bridge's HTTP URL and its server password as the bot token. The password is sealed in the organization's vault; the URL must contain no credentials, query or fragment.
+
+Bind the published agent, then edit the channel and choose **Register iMessage webhook** after saving any changes. Replacing the endpoint or password revokes the previous callback credential; register again. AgenticOS registers only `new-message` at `/api/v1/imessage/{bot_id}/webhook`. It generates a separate callback credential and registers it as HTTP Basic authentication. Configure HTTPS for traffic crossing an untrusted network. If AgenticOS has a private address, the BlueBubbles administrator must explicitly allow API webhooks to reach local addresses. Removing the webhook removes only callbacks naming this bot on this deployment.
+
+Text and files use BlueBubbles' AppleScript transport. Optional tapback acknowledgements need its Private API. Linked private senders get a separate channel conversation; linking an identity does not grant a bot or bridge access to existing private console history; groups retain their separate conversation and require the usual agent mention. Approvals use the existing numbered prompts: answer with the displayed number. Self echoes, tapbacks and system events do not start another turn. Incoming attachments are fetched only by GUID from the configured bridge and remain subject to the upload limit.
+
+Select the linked private conversation in **Settings → Notifications** to opt in. A group is never a private notification destination. Bridge acceptance records submission, not Apple's delivery or the recipient's acknowledgement. An offline bridge produces a visible failure; an uncertain submission is not retried automatically.
+
+[Apple Messages for Business](https://www.apple.com/legal/privacy/data/en/messages-for-business/) is a separate business service. Its [provider setup](https://learn.microsoft.com/en-us/dynamics365/customer-service/administer/configure-apple-messages-for-business-channel) requires a Messages for Business account and messaging provider; this Mac adapter does not provision that integration.
+
+
+SMS webhook forms are capped at 64 KiB and a ten-second read deadline before signature verification. Numbered SMS and iMessage replies claim the provider message ID before dispatch, so a duplicate delivery cannot toggle a pending selection twice.
+
+
+Inbound email is read as a bounded stream (25 MiB maximum) before signature verification, including requests without an honest Content-Length.
+
+
+Before durable email admission, each organization is limited to 4,096 retained delivery jobs and 256 MiB of retained bodies, including completed and failed deliveries. Admission is serialized across workers; duplicate Message-IDs remain idempotent. A full quota returns HTTP 429 before retaining another body; retention cleanup or deletion of retained jobs releases capacity.

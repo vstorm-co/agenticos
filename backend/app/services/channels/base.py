@@ -3,7 +3,7 @@ import logging
 import re
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Literal
 
 from app.agents.capabilities.channel_tools import (
@@ -51,7 +51,9 @@ def broadcast_mentioned(platform: str, text: str) -> bool:
 
 # Surface a conversation is happening on. "web" is the chat UI / API; the
 # others are messaging platforms. Extend this when adding new channels.
-ChannelType = Literal["web", "slack", "telegram", "mattermost", "teams"]
+ChannelType = Literal[
+    "web", "slack", "telegram", "mattermost", "teams", "sms", "email", "discord", "imessage"
+]
 
 # Default access policy applied to new channel bots.  Imported by models and
 # repositories so the literal is defined in exactly one place.
@@ -214,6 +216,14 @@ class IncomingAttachment:
     voice note's length can be recorded with its transcription without
     decoding the audio, which nothing in the image can do."""
 
+    author_id: str | None = None
+    """Who posted it, as the access policy names them, for a file read out of a
+    thread the bot was brought into.
+
+    What lets the router hold a file to the same admission as a message: a
+    participant the bot's policy excludes must not get a file into the prompt
+    that their words could not reach. `None` where the adapter does not say."""
+
 
 @dataclass(frozen=True)
 class OutgoingAttachment:
@@ -271,6 +281,9 @@ class IncomingMessage:
     meant a file sent to a bot was silently dropped and the agent answered about
     a document it never received.
     """
+
+    discord_roles_checked_for: tuple[str, str, str] | None = None
+    """Trusted preflight metadata: bot, linked user and identity; never read from raw payloads."""
 
 
 @dataclass
@@ -485,12 +498,18 @@ class ChannelAdapter(ABC):
     platform: str  # class-level constant e.g. "telegram"
 
     def prepare_connection(  # noqa: B027
-        self, bot_id: str, *, api_base_url: str | None, app_token: str | None
+        self,
+        bot_id: str,
+        *,
+        api_base_url: str | None,
+        app_token: str | None,
+        approved_guild_ids: tuple[str, ...] = (),
     ) -> None:
         """Register what this bot's connection needs before the stream opens.
 
         The adapter is one object serving every bot, so a per-bot fact - a
-        self-hosted server's address, a Slack app's `xapp-` token - is keyed on
+        self-hosted server's address, a Slack app's `xapp-` token or Discord's
+        approved server IDs - is keyed on
         the bot id here, and a stream opened before this ran would have nowhere
         to connect. A platform that needs neither leaves it alone; the supervisor
         calls it on every adapter the same way, which is what replaced reaching
@@ -504,6 +523,14 @@ class ChannelAdapter(ABC):
     @abstractmethod
     async def send_message(self, bot_token: str, msg: OutgoingMessage) -> None:
         """Send a reply back to the platform."""
+
+    async def send_notification(
+        self, bot_token: str, msg: OutgoingMessage, *, context_url: str | None
+    ) -> None:
+        """Deliver one notice; rich platforms may render its canonical case link."""
+        if context_url:
+            msg = replace(msg, text=f"{msg.text}\n\n{context_url}")
+        await self.send_message(bot_token, msg)
 
     async def begin_reply(self, bot_token: str, msg: OutgoingMessage) -> str | None:
         """Post a message that will be rewritten as the answer arrives.
@@ -668,6 +695,16 @@ class ChannelAdapter(ABC):
             ChannelDirectoryUnsupported: If this platform does not tell a bot.
         """
         raise ChannelDirectoryUnsupported(f"{self.platform} cannot list a channel's members.")
+
+    async def channel_server(self, bot_token: str, channel_id: str) -> str | None:
+        """The server a channel belongs to, for a platform that approves access by server.
+
+        `None` by default, and for a channel with no server (a direct message) or
+        one the bot can no longer see. Only a platform whose access policy names
+        servers answers; a sender rebuilt from a stored run has no server id, and
+        this is how admission asks the platform for the current one.
+        """
+        return None
 
     async def is_channel_member(
         self, bot_token: str, channel_id: str, platform_user_id: str, *, api_base_url: str | None

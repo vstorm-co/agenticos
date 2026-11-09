@@ -1,5 +1,7 @@
 "use client";
 
+import { MoreOptions } from "@/components/ui/more-options";
+
 import { useResourceCreation, mergeResourceChoices } from "@/components/agents/resource-creation";
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -15,24 +17,27 @@ import {
   Download,
   FlaskConical,
   History,
-  ImagePlus,
   Lock,
-  MessageSquare,
+  ImagePlus,
   MoreHorizontal,
   Network,
   Plug,
   Trash2,
   TrendingUp,
   Upload,
-  Workflow,
   Radio,
   SearchX,
   UserPlus,
   X,
 } from "lucide-react";
+import {
+  ChatIcon as MessageSquare,
+  WorkflowIcon as Workflow,
+} from "@/components/icons/product-icons";
 
 import { PinAgentButton } from "@/components/agents/pin-agent-button";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
+import { StartImprovementDialog } from "@/components/improvement/start-improvement-dialog";
 import { ImprovementHistory } from "@/components/improvement/improvement-history";
 import { JudgeDatasetsCard } from "@/components/agents/judge-datasets-card";
 import {
@@ -46,10 +51,12 @@ import {
 } from "@/components/agents/agent-map";
 import { MODE_LABEL } from "@/components/agents/agent-map-nodes";
 import { entryForConnection } from "@/lib/mcp-servers";
+import { openPrimaryConversation } from "@/lib/primary-conversation-api";
 import { askedToTest, readTestPanel, writeTestPanel } from "@/lib/test-panel-state";
 import { toMapDelegates } from "@/components/agents/agent-map-tree";
 import { AgentStatusBadge } from "@/components/agents/status-badge";
 import { RemoteChangeBanner } from "@/components/live-updates/remote-change-banner";
+import { ContextHelp } from "@/components/ui/context-help";
 import { InstructionsEditor } from "@/components/agents/instructions-editor";
 import { PromptVariablesPanel } from "@/components/agents/prompt-variables-panel";
 import { StartersPanel } from "@/components/agents/starters-panel";
@@ -64,7 +71,6 @@ import { ReviewersCard } from "@/components/agents/reviewers-card";
 import { CodeModeField } from "@/components/agents/code-mode-field";
 import { CapabilityWorkbench } from "@/components/agents/capability-workbench";
 import type { AgentResources } from "@/components/agents/capability-resources";
-import { SystemAgentBadge } from "@/components/agents/system-agent-badge";
 import { A2aPanel } from "@/components/agents/a2a-panel";
 import { EmbedsPanel } from "@/components/agents/embeds-panel";
 import { ExposuresPanel } from "@/components/agents/exposures-panel";
@@ -174,10 +180,10 @@ import {
   readSubagentsConfig,
   PERSONAL_CAPABILITIES,
   SANDBOX_ID,
-  SKILLS_ID,
   SUBAGENTS_ID,
   THINKING_ID,
   withCapability,
+  enableMcpToolSearch,
   withContextFiles,
   withSkills,
   withVisuals,
@@ -190,19 +196,10 @@ import { applySpecFix, type SpecFix } from "@/lib/spec-fixes";
 import { toolsForBinding } from "@/lib/binding-tools";
 import { ROUTES } from "@/lib/constants";
 import { useAgentSelectionStore, useConversationStore } from "@/stores";
-import { cn } from "@/lib/utils";
+import { cn, setUrlParam } from "@/lib/utils";
 import type { AgentSpec, CapabilityBindingSpec, McpServerRef } from "@/types/agents";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
-import {
-  chosenOnly,
-  forSystemAgent,
-  holdsSkills,
-  isSystemAgent,
-  sharedWithOrganization,
-  systemAgentOffers,
-  takesSkillsOffOnly,
-  verdictKind,
-} from "@/lib/system-agents";
+import { forSystemAgent, isSystemAgent, verdictKind } from "@/lib/system-agents";
 // The module, not the `@/stores` barrel, which this page's tests stub in part.
 import { useOnboardingStore } from "@/stores/onboarding-store";
 import { Perm } from "@/types/permissions";
@@ -275,8 +272,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const {
     agent,
     isLoading,
-    error,
     fetchedAt,
+    error: agentError,
+    refetch: refetchAgent,
     saveDraft,
     validate,
     publish,
@@ -349,6 +347,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const { servers: mcpCatalog, isLoading: catalogLoading, error: catalogError } = useMcpCatalog();
   const selectAgentForChat = useAgentSelectionStore((state) => state.select);
   const resetConversation = useConversationStore((state) => state.reset);
+  const openConversation = useConversationStore((state) => state.setCurrentConversationId);
 
   const [spec, setSpec] = useState<AgentSpec | null>(null);
   const [problems, setProblems] = useState<string[]>([]);
@@ -365,6 +364,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // In the address, so a reload or a shared link lands on the same tab.
   const [tabParam, changeTab] = useUrlState("tab");
   const [gapTopic, gapTopicView] = useUrlOverlay("topic");
+  const [improveMode, improveView] = useUrlOverlay("improve");
   const [gapStatusParam, setGapStatusParam] = useUrlState("status");
   const setTab = (next: string) => changeTab(next === "build" ? null : next);
   // The Model card, which "No model selected" takes its reader to (#2483).
@@ -490,8 +490,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const canStartEvals = canViewRuns && couldStartEvals && runsADataset;
   // Testing the draft runs it - the editors' work in progress - on a dataset.
   const canTestDraft = canStartEvals && canEdit;
-  // An editor who could test it but for reading runs sees why they cannot.
-  const testNeedsRunsView = !canViewRuns && couldStartEvals && runsADataset && canEdit;
   const [testingDraft, setTestingDraft] = useState(false);
   const resourceCreation = useResourceCreation({
     mayCreateSkill: canEdit && can(Perm.skillsEdit),
@@ -905,39 +903,27 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // panel, so switching it off is exactly what unpicking every skill already did,
   // and there was no way to grant the tools without picking one first.
   //
-  // A system agent's save refuses every capability but the few it may bind, so
-  // its Toolbox offers only those - and skills it may only take off, while it
-  // still holds some.
-  const kind = agent?.kind;
-  const skillsHeld = spec !== null && holdsSkills(spec);
   const grantable = useMemo(
-    () =>
-      capabilities.filter(
-        (entry) =>
-          entry.id !== THINKING_ID &&
-          (!isSystemAgent(kind) ||
-            systemAgentOffers(kind, entry.id) ||
-            (entry.id === SKILLS_ID && takesSkillsOffOnly(kind) && skillsHeld)),
-      ),
-    [capabilities, kind, skillsHeld],
+    () => capabilities.filter((entry) => entry.id !== THINKING_ID),
+    [capabilities],
   );
 
-  // A failed read leaves `agent` undefined with `isLoading` false - the skeleton guard
-  // below cannot tell it from a slow load. A 404 is the agent gone even while the cache
-  // still holds it (deleted from another tab); any other failure keeps the Builder open.
-  const gone = error instanceof ApiError && [403, 404].includes(error.status);
-  if (gone) return <ResourceUnavailable back={ROUTES.AGENTS} label={t("backToAgents")} />;
-  if (error && (!agent || gone)) {
+  if (isLoading) return <BuilderSkeleton />;
+  if (agentError || !agent) {
+    const unavailable =
+      agentError instanceof ApiError && (agentError.status === 404 || agentError.status === 403);
     return (
       <ErrorState
-        title={t("agentUnavailable")}
-        description={getErrorMessage(error, tErrors)}
-        cta={{ label: t("backToAgents"), onClick: () => router.push(ROUTES.AGENTS) }}
+        title={tAgents(unavailable ? "unavailableTitle" : "loadFailedTitle")}
+        description={
+          unavailable ? tAgents("unavailableDescription") : getErrorMessage(agentError, tErrors)
+        }
+        cta={{ label: tAgents("retryLoad"), onClick: () => void refetchAgent() }}
       />
     );
   }
-
-  if (isLoading || !spec || !agent) return <BuilderSkeleton />;
+  if (!spec) return <BuilderSkeleton />;
+  if (isSystem) return <ResourceUnavailable back={ROUTES.AGENTS} label={t("backToAgents")} />;
 
   const isPublished = agent.status === "published";
 
@@ -953,10 +939,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
   };
 
   const toggleCapability = (capabilityId: string) => {
-    if (capabilityId === SKILLS_ID && isSystemAgent(agent.kind) && takesSkillsOffOnly(agent.kind)) {
-      update(withSkills(spec, []));
-      return;
-    }
     const on = spec.capabilities.some((binding) => binding.id === capabilityId);
     if (capabilityId === VISUALS_ID && !on) {
       update(withVisuals(spec, skills));
@@ -980,14 +962,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // What the agent is *given*, picked in the panel of the capability that reads
   // it. Each setter switches that capability on with the first pick, because bound
   // without it the resources are resolved and then discarded.
-  const offeredContext = isSystem
-    ? sharedWithOrganization(contextFiles, contextCount, spec.context_ids)
-    : { items: contextFiles, total: contextCount };
-  const offeredSkills = !isSystemAgent(agent.kind)
-    ? { items: skills, total: skillCount }
-    : takesSkillsOffOnly(agent.kind)
-      ? chosenOnly(skills, skillCount, spec.skill_ids)
-      : sharedWithOrganization(skills, skillCount, spec.skill_ids);
+  const offeredContext = { items: contextFiles, total: contextCount };
+  const offeredSkills = { items: skills, total: skillCount };
   const resources: AgentResources = {
     contextFiles: mergeResourceChoices(offeredContext.items, resourceCreation.context),
     onCreateContext: resourceCreation.createContext,
@@ -1075,6 +1051,25 @@ export default function AgentBuilderPage({ params }: PageProps) {
     router.push(ROUTES.CHAT);
   }
 
+  /**
+   * Continue the one private conversation this person has with this agent.
+   *
+   * Unlike "Open in chat" it does not start a thread: it opens the stable one the
+   * server keeps per person and agent, creating it the first time. A failure is
+   * reported, because landing in an empty new chat would read as the history
+   * being gone.
+   */
+  async function continueConversation() {
+    try {
+      const conversationId = await openPrimaryConversation(id);
+      selectAgentForChat(id);
+      openConversation(conversationId);
+      router.push(ROUTES.CHAT);
+    } catch (failure) {
+      toast.error(getErrorMessage(failure, tErrors));
+    }
+  }
+
   async function handleAvatar(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     // Cleared before awaiting, so picking the same file twice in a row still
@@ -1089,8 +1084,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
   return (
     // Beside the Builder rather than over it: the test panel shares the width
     // (#2074), so the Builder stays usable while the agent is being tried.
-    <div className="flex items-start gap-4">
-      <div className="min-w-0 flex-1 space-y-6">
+    <div className="flex flex-1 items-start gap-4">
+      <div className="flex min-w-0 flex-1 flex-col gap-3 self-stretch sm:gap-4">
         <PageHeader
           title={
             <span className="flex min-w-0 items-center gap-3">
@@ -1127,7 +1122,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           badges={
             <>
               <AgentStatusBadge status={agent.status} />
-              {isSystemAgent(agent.kind) && <SystemAgentBadge kind={agent.kind} />}
+              {false}
               {/* Two badges, two different questions. This one: is the stored
                 draft a published version, and which one production runs -
                 computed from the server's copies, so the autosave settling
@@ -1136,8 +1131,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 agentId={id}
                 production={environments.find((environment) => environment.is_default)}
                 draftSpec={agent.draft_spec}
-                onTest={canTestDraft ? () => setTestingDraft(true) : undefined}
-                testNeedsRunsView={testNeedsRunsView}
               />
               {/* And this one: is my edit stored. The draft saves itself; this
                 says where that stands. Quiet when everything is stored -
@@ -1163,11 +1156,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
           }
           description={agent.description ?? undefined}
           breadcrumbs={[{ label: t("agents"), href: ROUTES.AGENTS }, { label: agent.name }]}
-          actions={
+          secondaryActions={
             <>
-              {canEdit && canViewRuns && !isSystem && (
-                <ImproveButton agentId={id} persist={persist} tour="agent-improve" />
-              )}
               {/* Trying the agent happens in the chat, which streams, keeps the
                 conversation and can hand a tool call to the approval queue.
                 Only a published agent has a version to run - the chat's own
@@ -1175,7 +1165,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 instead of opening a chat that would answer as somebody else. */}
               {/* Trying it here, beside the Builder, needs nothing published: the
                 draft answers as a test (#2074). */}
-              {canEdit && !isSystem && (
+              {canEdit && (
                 <Button
                   variant={testing ? "secondary" : "outline"}
                   onClick={() => toggleTesting(!testing)}
@@ -1188,39 +1178,44 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   {t("testPanelOpen")}
                 </Button>
               )}
-              {!isSystem && (
-                <>
-                  <Button
-                    variant="outline"
-                    onClick={openInChat}
-                    disabled={!isPublished}
-                    title={isPublished ? undefined : t("publishAgentChatWith")}
-                  >
-                    <MessageSquare className="h-4 w-4" />
-                    {t("openChat")}
-                  </Button>
-                  {/* In the apps: the Dock's or tray's "New Chat With", or the home screen. */}
-                  <PinAgentButton
-                    agent={{
-                      id,
-                      name: agent.name,
-                      slug: agent.slug,
-                      hasAvatar: agent.has_avatar ?? false,
-                      colorSlot: agent.avatar_color ?? null,
-                    }}
-                    disabled={!isPublished}
-                  />
-                </>
-              )}
+              <Button
+                variant="outline"
+                onClick={openInChat}
+                disabled={!isPublished}
+                title={isPublished ? undefined : t("publishAgentChatWith")}
+              >
+                <MessageSquare className="h-4 w-4" />
+                {t("openChat")}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={continueConversation}
+                disabled={!isPublished}
+                title={isPublished ? undefined : t("publishAgentChatWith")}
+              >
+                <History className="h-4 w-4" />
+                {t("continueConversation")}
+              </Button>
+              {/* In the apps: the Dock's or tray's "New Chat With", or the home screen. */}
+              <PinAgentButton
+                agent={{
+                  id,
+                  name: agent.name,
+                  slug: agent.slug,
+                  hasAvatar: agent.has_avatar ?? false,
+                  colorSlot: agent.avatar_color ?? null,
+                }}
+                disabled={!isPublished}
+              />
               {/* Beside the chat button rather than in the overflow menu: the
                 map answers "what is this agent" and that question comes up
                 before publishing, not after somebody goes looking for it. */}
-              {!isSystem && (
+              {
                 <Button variant="outline" onClick={() => setMapOpen(true)}>
                   <Network className="h-4 w-4" />
                   {t("visualMap")}
                 </Button>
-              )}
+              }
               {/* For whoever cannot open the overflow menu, which is where an
                   editor finds the export - a header of six buttons asked for
                   every decision at once. */}
@@ -1232,7 +1227,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   </a>
                 </Button>
               )}
-              {!canEdit && canDuplicate && !isSystem && (
+              {!canEdit && canDuplicate && (
                 <Button variant="outline" onClick={duplicate} disabled={clone.isPending}>
                   <Copy className="h-4 w-4" />
                   {t("duplicate")}
@@ -1244,18 +1239,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 <UserPlus className="h-4 w-4" />
                 {tSharing("share")}
               </Button>
-              {canPublish && (
-                <Button
-                  onClick={handlePublish}
-                  disabled={publish.isPending || !spec?.name.trim()}
-                  data-tour="agent-publish"
-                  // First in the row a phone scrolls, rather than past its edge.
-                  className="max-md:order-first"
-                >
-                  <Upload className="h-4 w-4" />
-                  {t("publish")}
-                </Button>
-              )}
+
               {canEdit && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -1273,7 +1257,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                         />
                       </a>
                     </DropdownMenuItem>
-                    {canDuplicate && !isSystem && (
+                    {canDuplicate && (
                       <DropdownMenuItem className={DESCRIBED_ITEM} onSelect={duplicate}>
                         <Copy className="h-4 w-4" />
                         <DropdownMenuItemText
@@ -1356,6 +1340,18 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 onChange={handleAvatar}
               />
             </>
+          }
+          actions={
+            canPublish && (
+              <Button
+                onClick={handlePublish}
+                disabled={publish.isPending || !spec?.name.trim()}
+                data-tour="agent-publish"
+              >
+                <Upload className="h-4 w-4" />
+                {t("publish")}
+              </Button>
+            )
           }
         />
 
@@ -1473,7 +1469,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           open={publishOpen}
           onOpenChange={setPublishOpen}
           version={nextVersion}
-          environments={isSystem ? null : environments}
+          environments={environments}
           publishing={publish.isPending}
           draftBreaks={(publishTests[0]?.outcome?.regressions_confirmed ?? 0) > 0}
           guardNames={Object.fromEntries(publishSuites.map((suite) => [suite.id, suite.name]))}
@@ -1496,7 +1492,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             }
           }}
         >
-          {canViewRuns && !isSystem && (
+          {canViewRuns && (
             <DraftEvalNote
               agentId={id}
               onTest={() => {
@@ -1590,14 +1586,14 @@ export default function AgentBuilderPage({ params }: PageProps) {
           disabled={!canEdit}
         />
 
-        {firstPublished && !isSystem && (
+        {firstPublished && (
           <div className="border-border bg-muted/40 mb-6 flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3">
             <Radio className="text-muted-foreground size-4 shrink-0" aria-hidden />
             <p className="min-w-0 flex-1 text-sm">{t("firstPublishNext")}</p>
             <Button
               size="sm"
               onClick={() => {
-                router.push(`/agents/${id}/improve/new?baseline=1`);
+                improveView.open("baseline");
                 setFirstPublished(false);
               }}
             >
@@ -1609,7 +1605,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           </div>
         )}
 
-        <Tabs value={tab} onValueChange={setTab}>
+        <Tabs value={tab} onValueChange={setTab} className="flex flex-1 flex-col">
           <TabsList>
             <TabsTrigger value="build" data-tour="agent-tab-build">
               <SlidersHorizontal className="mr-1.5 size-4 shrink-0" aria-hidden />
@@ -1619,29 +1615,29 @@ export default function AgentBuilderPage({ params }: PageProps) {
               <Wrench className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("toolbox")}
             </TabsTrigger>
-            {!isSystem && (
+            {
               <TabsTrigger value="mcp" data-tour="agent-tab-mcp">
                 <Plug className="mr-1.5 size-4 shrink-0" aria-hidden />
                 {t("mcpServers")}
               </TabsTrigger>
-            )}
+            }
             <TabsTrigger value="limits" data-tour="agent-tab-limits">
               <ShieldCheck className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("limits")}
             </TabsTrigger>
-            {!isSystem && (
+            {
               <TabsTrigger value="availability" data-tour="agent-tab-availability">
                 <Radio className="mr-1.5 size-4 shrink-0" aria-hidden />
                 {t("availability")}
               </TabsTrigger>
-            )}
-            {!isSystem && (canViewRuns || tab === "evals") && (
+            }
+            {(canViewRuns || tab === "evals") && (
               <TabsTrigger value="evals" data-tour="agent-tab-evals">
                 <FlaskConical className="mr-1.5 size-4 shrink-0" aria-hidden />
                 {t("evals")}
               </TabsTrigger>
             )}
-            {canViewRuns && !isSystem && (
+            {canViewRuns && (
               <TabsTrigger value="gaps" data-tour="agent-tab-gaps">
                 <SearchX className="mr-1.5 size-4 shrink-0" aria-hidden />
                 {tGaps("tab")}
@@ -1659,34 +1655,28 @@ export default function AgentBuilderPage({ params }: PageProps) {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="build" className="mt-6 space-y-6">
-            {canEdit && !isSystem && (
-              <AssistantStrip
-                agentId={id}
-                storedDraft={agent.draft_spec}
-                canCheck={canTestDraft}
-                checkNeedsRunsView={testNeedsRunsView}
-                persist={persist}
-                onDraft={setSpec}
-              />
-            )}
+          <TabsContent value="build" className="mt-4 space-y-4">
             <Card data-tour="agent-instructions">
-              <CardHeader
-                data-tour="agent-instructions-header"
-                className="flex-row items-start gap-3 space-y-0"
-              >
-                <div className="min-w-0 flex-1 space-y-1.5">
-                  <CardTitle>{t("instructions")}</CardTitle>
-                  <CardDescription>{t("agentAposSBehaviour")}</CardDescription>
-                </div>
-                <MarkdownModeToggle mode={instructionsMode} onChange={setInstructionsMode} />
-              </CardHeader>
-              <CardContent>
+              <CardContent className="p-4 sm:p-5">
                 <InstructionsEditor
                   // Named, because a placeholder is not a label: it is the only
                   // accessible name this control had, and it is the one thing that
                   // disappears the moment somebody types into it.
                   label={t("instructions2")}
+                  toolbar={
+                    <>
+                      <div
+                        data-tour="agent-instructions-header"
+                        className="flex min-w-0 flex-1 items-center gap-1"
+                      >
+                        <CardTitle className="min-w-0 truncate text-sm">
+                          {t("instructions")}
+                        </CardTitle>
+                        <ContextHelp>{t("agentAposSBehaviour")}</ContextHelp>
+                      </div>
+                      <MarkdownModeToggle mode={instructionsMode} onChange={setInstructionsMode} />
+                    </>
+                  }
                   value={spec.instructions}
                   onChange={(instructions) => update({ instructions })}
                   disabled={!canEdit}
@@ -1713,14 +1703,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
               onCustomChange={(variables) => update({ variables })}
               onTimeZoneChange={(time_zone) => update({ time_zone })}
             />
-
-            {!isSystem && (
-              <StartersPanel
-                starters={spec.starters ?? []}
-                disabled={!canEdit}
-                onChange={(starters) => update({ starters })}
-              />
-            )}
 
             {/* The model, then how it is asked: one card, apart from the
                 instructions, which are a thing to read rather than to set. */}
@@ -1754,12 +1736,14 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     <p className="text-muted-foreground text-xs">{t("noModelNeedsConnections")}</p>
                   )}
                 </div>
-                <ModelSettingsForm
-                  value={spec.model_settings}
-                  onChange={(model_settings) => update({ model_settings })}
-                  disabled={!canEdit}
-                  verdict={verdictKind(agent.kind)}
-                />
+                <MoreOptions label={t("modelSettings")}>
+                  <ModelSettingsForm
+                    value={spec.model_settings}
+                    onChange={(model_settings) => update({ model_settings })}
+                    disabled={!canEdit}
+                    verdict={verdictKind(agent.kind)}
+                  />
+                </MoreOptions>
                 <ThinkingSetting
                   definition={capabilities.find((entry) => entry.id === THINKING_ID)}
                   binding={spec.capabilities.find((binding) => binding.id === THINKING_ID)}
@@ -1770,7 +1754,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
               </CardContent>
             </Card>
 
-            {!isSystem && (
+            {
               <>
                 <Card data-tour="agent-answer-format">
                   <CardHeader>
@@ -1800,12 +1784,22 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   disabled={!canEdit}
                 />
               </>
-            )}
+            }
+
+            <StartersPanel
+              starters={spec.starters ?? []}
+              icons={spec.starter_icons ?? {}}
+              titles={spec.starter_titles ?? {}}
+              disabled={!canEdit}
+              onChange={(starters, starter_icons, starter_titles) =>
+                update({ starters, starter_icons, starter_titles })
+              }
+            />
 
             {/* Discovery metadata, not the spec: it autosaves at once like the
               avatar, so it hangs off the same `canEdit` every other editing
               control on this page does. */}
-            {canEdit && !isSystem && (
+            {canEdit && (
               <Card>
                 <CardHeader>
                   <CardTitle>{t("discovery")}</CardTitle>
@@ -1864,7 +1858,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             </Card>
           </TabsContent>
 
-          <TabsContent value="toolbox" className="mt-6 space-y-6">
+          <TabsContent value="toolbox" className="mt-4 space-y-4">
             <Card data-tour="agent-capabilities">
               <CardHeader data-tour="agent-capabilities-header">
                 <CardTitle>{t("capabilities")}</CardTitle>
@@ -1890,15 +1884,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   modelProfileId={spec.model_profile_id ?? null}
                   disabled={!canEdit}
                   configProblems={configProblems}
-                  system={
-                    isSystemAgent(agent.kind)
-                      ? {
-                          kind: agent.kind,
-                          maxSteps: spec.max_steps,
-                          onMaxSteps: (max_steps) => update({ max_steps }),
-                        }
-                      : undefined
-                  }
+                  system={undefined}
                 />
               </CardContent>
             </Card>
@@ -1909,7 +1895,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             outside the deployment for - and the picker embeds the whole server
             catalog, so it pushed the capability workbench off the top of the
             screen on any organization with more than a handful of servers. */}
-          <TabsContent value="mcp" className="mt-6 space-y-6" hidden={isSystem}>
+          <TabsContent value="mcp" className="mt-4 space-y-4">
             <Card data-tour="agent-mcp">
               {/* The passive tour points here rather than at the card: the picker
                 below embeds the whole server catalog, so the card runs well past
@@ -1959,7 +1945,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   connections={mcpConnections}
                   personalConnections={myMcpConnections}
                   onEnableToolSearch={() =>
-                    update({ capabilities: withCapability(spec.capabilities, "tool_search", true) })
+                    update({ capabilities: enableMcpToolSearch(spec.capabilities) })
                   }
                   disabled={!canEdit}
                 />
@@ -2005,7 +1991,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             </Card>
           </TabsContent>
 
-          <TabsContent value="limits" className="mt-6 space-y-6">
+          <TabsContent value="limits" className="mt-4 space-y-4">
             <Card data-tour="agent-limits">
               <CardHeader>
                 <CardTitle>{t("runLimits")}</CardTitle>
@@ -2048,7 +2034,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 {/* A system agent calls no tool but its knowledge search, whose
                   steps are set in that capability's panel, so loops and scripts
                   are not limits it can reach. */}
-                {!isSystem && (
+                {
                   <>
                     <div className="space-y-2">
                       <Label htmlFor="max-steps">{t("maxStepsPerRun")}</Label>
@@ -2083,25 +2069,25 @@ export default function AgentBuilderPage({ params }: PageProps) {
                       disabled={!canEdit}
                     />
                   </>
-                )}
+                }
               </CardContent>
             </Card>
             {/* Beside the budget rather than in a settings page of its own: the two
               questions are "how much may this agent spend" and "who is told when
               it stops", and answering the first without the second is how a run
               stops quietly. */}
-            {!isSystem && (
+            {
               <ReviewersCard
                 value={spec.reviewers}
                 onChange={(reviewers) => update({ reviewers })}
                 disabled={!canEdit}
               />
-            )}
+            }
             <AlertsPanel
               value={spec.notifications}
               onChange={(notifications) => update({ notifications })}
               disabled={!canEdit}
-              approvals={!isSystem}
+              approvals
             />
             <ObservabilityCard
               value={spec.observability}
@@ -2111,7 +2097,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             />
           </TabsContent>
 
-          <TabsContent value="availability" className="mt-6 space-y-6" hidden={isSystem}>
+          <TabsContent value="availability" className="mt-4 space-y-4">
             {/* Where people reach it first - a website, a page, the API - then the
                 chat apps, then what runs it on its own. Two cards here were both
                 called "where", and the one most people came for was last. */}
@@ -2140,7 +2126,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             />
           </TabsContent>
 
-          <TabsContent value="history" className="mt-6 space-y-6">
+          <TabsContent value="history" className="mt-4 space-y-4">
             {/* The first publish mints `production`; before it there is nothing
                 to point anywhere, and a card of explanation with nothing under
                 it read as a page that failed to load. */}
@@ -2148,12 +2134,10 @@ export default function AgentBuilderPage({ params }: PageProps) {
               <Card>
                 <CardHeader>
                   <CardTitle>{t("environments")}</CardTitle>
-                  <CardDescription>
-                    {isSystem ? t("systemAgentEnvironments") : t("namedPointersAtPublished")}
-                  </CardDescription>
+                  <CardDescription>{t("namedPointersAtPublished")}</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <EnvironmentsPanel agentId={id} canManage={canPublish} system={isSystem} />
+                  <EnvironmentsPanel agentId={id} canManage={canPublish} system={false} />
                 </CardContent>
               </Card>
             )}
@@ -2180,7 +2164,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   }
                   restoring={rollback.isPending}
                   environments={environments}
-                  onPromote={isSystem ? undefined : promotion.request}
+                  onPromote={promotion.request}
                   promoting={promotion.promoting}
                   compareFrom={compareFrom}
                   compareTo={compareTo}
@@ -2191,26 +2175,48 @@ export default function AgentBuilderPage({ params }: PageProps) {
             {canViewRuns && <ImprovementHistory agentId={id} />}
           </TabsContent>
 
-          {!isSystem && (
-            <TabsContent value="evals" className="mt-6 space-y-6">
+          {
+            <TabsContent value="evals" className="mt-6 flex flex-1 flex-col gap-6">
               {canViewRuns ? (
                 <>
-                  <EvalsPanel agentId={id} canStart={canStartEvals} />
+                  {canEdit && (
+                    <AssistantStrip
+                      agentId={id}
+                      storedDraft={agent.draft_spec}
+                      canCheck={canTestDraft}
+                      persist={persist}
+                      onDraft={setSpec}
+                    />
+                  )}
+                  <EvalsPanel
+                    agentId={id}
+                    canStart={canStartEvals}
+                    actions={
+                      canEdit ? (
+                        <ImproveButton
+                          agentId={id}
+                          persist={persist}
+                          onStart={() => improveView.open("new")}
+                          tour="agent-improve"
+                        />
+                      ) : undefined
+                    }
+                  />
                   <EvalSuitesCard agentId={id} canManage={canStartEvals && canEdit} />
                 </>
               ) : (
                 <RunsPermissionNotice />
               )}
             </TabsContent>
-          )}
+          }
           {isJudge && (
-            <TabsContent value="datasets" className="mt-6 space-y-6">
+            <TabsContent value="datasets" className="mt-6 flex flex-1 flex-col gap-6">
               <JudgeDatasetsCard judgeId={id} />
             </TabsContent>
           )}
-          {canViewRuns && !isSystem && (
-            <TabsContent value="gaps" className="mt-6">
-              <div data-tour="agent-gaps" className="space-y-4">
+          {canViewRuns && (
+            <TabsContent value="gaps" className="mt-6 flex flex-1 flex-col">
+              <div data-tour="agent-gaps" className="flex flex-1 flex-col gap-4">
                 {canEdit && (
                   <ImproveLink
                     agentId={id}
@@ -2234,8 +2240,18 @@ export default function AgentBuilderPage({ params }: PageProps) {
           )}
         </Tabs>
       </div>
+      {improveMode !== null && (
+        <StartImprovementDialog
+          agent={agent}
+          allowed={canEdit && canViewRuns}
+          onClose={() => {
+            setUrlParam("improveDataset", null);
+            improveView.close();
+          }}
+        />
+      )}
       {resourceCreation.dialogs}
-      {testing && canEdit && !isSystem && (
+      {testing && canEdit && (
         <TestPanel
           agentId={id}
           currentVersionId={agent.current_version_id}

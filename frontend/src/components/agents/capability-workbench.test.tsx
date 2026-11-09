@@ -21,6 +21,32 @@ vi.mock("@/hooks/use-model-providers", () => ({
   useVideoProviders: () => videoProviders(),
 }));
 
+// The terminal's panel reads what can be mounted and the organization's accounts;
+// `mirage-section` covers both, so here the deployment offers scratch space alone.
+vi.mock("@/hooks/use-mirage-backends", () => ({
+  useMirageBackends: () => ({
+    data: {
+      installed: true,
+      items: [
+        {
+          name: "ram",
+          title: "Scratch space",
+          group: "scratch",
+          credential: "none",
+          available: true,
+          reason: null,
+          options_schema: { type: "object", properties: {} },
+          secret_fields: [],
+          required_secrets: [],
+          secret_purposes: ["ram"],
+          address_fields: [],
+        },
+      ],
+    },
+    isError: false,
+  }),
+}));
+
 // The memory panel's one action, which needs a query client this file does not
 // provide; `clear-agent-memory` covers the dialog and the call it makes.
 vi.mock("@/hooks/use-memory", () => ({
@@ -29,7 +55,7 @@ vi.mock("@/hooks/use-memory", () => ({
 
 vi.mock("@/hooks", () => ({
   useSecrets: () => ({ secrets: [], isLoading: false, error: null }),
-  // The tables panel lists the organization's tables; `tables-section` covers it.
+  // Table resources are available through the platform MCP.
   useAllTables: () => ({
     tables: [{ id: "t-1", name: "Leads", description: null }],
     isLoading: false,
@@ -120,14 +146,6 @@ const MEMORY_FILES: CapabilityCatalogEntry = {
   description: "Notes the agent keeps of its own across conversations.",
   tools: [{ id: "read_memory", name: "read_memory", description: "Read one note by name." }],
   contracts: [],
-};
-
-const MEMORY_MEM0: CapabilityCatalogEntry = {
-  ...MEMORY_FILES,
-  id: "memory_mem0",
-  name: "Memory (mem0)",
-  description: "Semantic memory kept in a mem0 service rather than here.",
-  tools: [{ id: "recall", name: "recall", description: "Recall facts by meaning." }],
 };
 
 const CONTEXT: CapabilityCatalogEntry = {
@@ -225,19 +243,6 @@ describe("the capability workbench", () => {
     expect(screen.getByText("Clear this agent's memory")).toBeInTheDocument();
   });
 
-  it("says the clear does not reach mem0 when the agent also keeps memories there", async () => {
-    // mem0 addresses memories per person, so nothing can empty one agent's
-    // namespace wholesale - and somebody believing it did would stop looking.
-    renderWorkbench({
-      catalog: [MEMORY_FILES, MEMORY_MEM0],
-      selected: [binding("memory_files"), binding("memory_mem0")],
-    });
-
-    await openCapability("Memory files");
-
-    expect(screen.getByText(/does not reach/)).toBeInTheDocument();
-  });
-
   it("offers no clear for a capability that keeps nothing", async () => {
     renderWorkbench({ selected: [binding("charts")] });
 
@@ -275,6 +280,12 @@ describe("the capability workbench", () => {
 
     await openCapability("Charts");
 
+    expect(screen.queryByText("For example")).not.toBeInTheDocument();
+    await userEvent.click(
+      within(screen.getByRole("group", { name: "Charts" })).getByRole("button", {
+        name: "More information",
+      }),
+    );
     expect(screen.getByText("For example")).toBeInTheDocument();
     expect(screen.getByText("Sales this month by region, as bars")).toBeInTheDocument();
     expect(screen.getByText("Never changes the data it draws.")).toBeInTheDocument();
@@ -867,37 +878,6 @@ describe("image generation, whose model is a provider and a model", () => {
   });
 });
 
-describe("tables, whose grants are a table and its operations", () => {
-  const TABLES: CapabilityCatalogEntry = {
-    ...CHARTS,
-    id: "virtual_tables",
-    name: "Tables",
-    category: "data",
-    description: "Read and write the Virtual Tables this agent is granted.",
-    tools: [],
-    contracts: [],
-    config_schema: null,
-  };
-
-  it("opens its own panel rather than the generated form", async () => {
-    renderWorkbench({ catalog: [TABLES, CHARTS], selected: [binding("virtual_tables")] });
-
-    await openCapability("Tables");
-
-    expect(screen.getByRole("checkbox", { name: "Let the agent use Leads" })).toBeVisible();
-  });
-
-  it("grants it from the panel's own switch", async () => {
-    const onToggle = vi.fn();
-    renderWorkbench({ catalog: [TABLES, CHARTS], selected: [binding("virtual_tables")], onToggle });
-
-    await openCapability("Tables");
-    await userEvent.click(screen.getByRole("switch", { name: "Tables enabled" }));
-
-    expect(onToggle).toHaveBeenCalledWith("virtual_tables");
-  });
-});
-
 describe("workflows, whose grants are the workflows it may start", () => {
   const WORKFLOWS: CapabilityCatalogEntry = {
     ...CHARTS,
@@ -929,17 +909,18 @@ describe("workflows, whose grants are the workflows it may start", () => {
   });
 });
 
-it("routes new workflow and table tools through MCP while keeping old bindings editable", () => {
+it("routes workflows through MCP while keeping stored workflow bindings editable", async () => {
   renderWorkbench({
     catalog: [
       { ...CHARTS, id: "workflows", name: "Workflows" },
-      { ...CHARTS, id: "virtual_tables", name: "Tables" },
+      { ...CHARTS, id: "knowledge", name: "Knowledge" },
       CHARTS,
     ],
     selected: [],
   });
   expect(screen.queryByRole("button", { name: "Workflows" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Tables" })).toBeNull();
+  await userEvent.click(screen.getByRole("button", { name: "More information" }));
   expect(
     screen.getByText(/Workflows and Tables are tools in the AgenticOS MCP server/),
   ).toBeVisible();
@@ -1164,5 +1145,36 @@ describe("the workbench as illustrated cards", () => {
     });
 
     expect(screen.getAllByText("Recommended")).toHaveLength(1);
+  });
+});
+
+describe("the virtual terminal", () => {
+  const MIRAGE: CapabilityCatalogEntry = {
+    ...CHARTS,
+    id: "mirage",
+    name: "Mirage (virtual terminal)",
+    category: "files",
+    description: "Mounts services as folders.",
+    tools: [],
+    contracts: [],
+    config_schema: null,
+  };
+
+  it("opens its own panel, where each folder picks a service", async () => {
+    renderWorkbench({ catalog: [MIRAGE, CHARTS], selected: [binding("mirage")] });
+
+    await openCapability("Mirage (virtual terminal)");
+
+    expect(screen.getByRole("button", { name: "Add integration" })).toBeVisible();
+  });
+
+  it("routes the terminal switch to its capability binding", async () => {
+    const onToggle = vi.fn();
+    renderWorkbench({ catalog: [MIRAGE], selected: [binding("mirage")], onToggle });
+    await openCapability("Mirage (virtual terminal)");
+    await userEvent.click(
+      screen.getByRole("switch", { name: "Mirage (virtual terminal) enabled" }),
+    );
+    expect(onToggle).toHaveBeenCalledWith("mirage");
   });
 });

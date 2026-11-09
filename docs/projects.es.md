@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "3f798c416272"
+source_sha: "e9573cb4bf21"
 ---
 
 # Proyectos { #projects }
@@ -156,6 +156,65 @@ aplicación web. Al soltarlos sobre un archivo se usa su carpeta; el espacio vac
 cualquiera de los dos paneles usa la raíz del proyecto. Blobby y el Dock conservan su
 función de adjuntar al chat.
 
+## Vista de grafo { #graph-view }
+
+En el explorador de archivos, elige **Graph view** para explorar notas Markdown
+enlazadas. La misma vista funciona con archivos compartidos del proyecto,
+workspaces del sandbox y una carpeta Desktop autorizada. Cada ubicación conserva
+su propio grafo; las notas locales no se suben al servidor.
+
+El grafo se abre a pantalla completa con puntos de colores, enlaces finos y etiquetas
+al ampliar o seleccionar una nota. Las flechas de dirección y etiquetas permanentes
+son opcionales. La búsqueda, archivos, detalles y zoom están en paneles flotantes.
+Los grupos colorean las notas por carpeta de forma predeterminada o por su primera
+etiqueta. Puedes ocultar grupos, filtrar una carpeta con sus subcarpetas y restablecer
+los filtros. El explorador usa el mismo árbol de carpetas e iconos que otros espacios.
+
+Solo las notas Markdown indexadas son nodos; los demás archivos se abren en el visor
+compartido. Arrastrar puntos solo organiza la vista, sin modificar archivos ni enlaces.
+El control de pantalla completa o Escape restaura la vista incrustada; la flecha
+atrás vuelve a los archivos.
+
+Conecta notas con `[[notes/topic|etiqueta]]`, enlaces Markdown en línea como
+`[Tema](topic.md)` o relaciones en el frontmatter:
+
+```yaml
+---
+title: Memoria del agent
+aliases: [Memory]
+tags: [agents, research]
+related: ["[[notes/retrieval]]"]
+sources: [sources/report.md]
+---
+```
+
+`links`, `related` y `sources` aceptan un texto o una lista de textos. Las URL
+externas siguen siendo citas. Los wikilinks resuelven rutas exactas o nombres de
+archivo, títulos o alias únicos; los nombres duplicados quedan sin resolver. Los
+enlaces Markdown son relativos a su nota. Se ignoran ejemplos de código y
+comentarios HTML.
+
+Busca por título, ruta, alias o tag. Selecciona un nodo para ver sus enlaces,
+enlaces entrantes y referencias sin resolver; **Open note** abre la nota. Los
+archivos compartidos conservan **Edit file** y sus permisos existentes. Usa los
+controles de zoom y arrastra el fondo vacío para desplazarte; la lista de notas
+también funciona con teclado.
+
+La vista relee los archivos cada 30 segundos mientras está abierta, al volver a
+la ventana o con **Refresh**. Los agentes actualizan notas y enlaces sin generar
+HTML. Las Apps ya actualizan bindings de tablas y logs de workflows, pero no
+tienen un binding de archivos del workspace; este grafo lee las notas directamente.
+Actualizar el grafo no inicia un agent para verificar hechos o fuentes.
+
+Un escaneo incluye hasta 200 archivos Markdown, 256 KiB por archivo y 8 MiB en
+total, dentro de los límites de la lista de origen. Se permiten hasta 256
+relaciones por nota y 2048 en todo el grafo; alcanzar un límite también marca
+el grafo como incompleto. Los alias y las etiquetas comparten un límite de
+128 entradas por nota y 4096 en todo el grafo. La vista identifica archivos
+omitidos o ilegibles, YAML inválido y listas incompletas. Una referencia ausente
+puede indicar una nota omitida. La actualización es periódica; las ediciones
+simultáneas pueden aparecer en escaneos diferentes.
+
 ## Carpetas locales en la aplicación de escritorio { #local-folders-in-the-desktop-app }
 
 La pestaña **Archivos** separa **Archivos compartidos del proyecto** de **Este equipo**. Una carpeta autorizada al crear el proyecto se abre automáticamente en esa instalación; sin conexión se muestran primero los archivos compartidos. Elige Este equipo para conectar una carpeta. Los ajustes de carpeta permiten cambiarla o desconectarla; ruta y modo de acceso siguen visibles sin repetir el formulario.
@@ -225,8 +284,8 @@ borró su cuenta: solo el proyecto llegaba a él, así que se va con el proyecto
 
 ## Dónde aparecen los proyectos { #where-projects-show-up }
 
-- **Proyectos** en la barra lateral muestra los cinco usados más recientemente,
-  encima del enlace a todos.
+- **Proyectos** en la barra lateral muestra los tres usados más recientemente,
+  encima del enlace a todos. Un icono indica los proyectos con una respuesta de chat que todavía no has leído.
 - La lista de chats agrupa cada chat de los proyectos que puedes ver - los tuyos y
   los de tus compañeros - bajo el nombre del proyecto, encima de los chats que no
   están en ningún proyecto.
@@ -234,3 +293,15 @@ borró su cuenta: solo el proyecto llegaba a él, así que se va con el proyecto
   en cada uno.
 - `GET /api/v1/projects` y sus subrutas forman parte de la API pública, así que un
   script puede crear un proyecto y llenarlo de archivos. Consulta [la API](api.md).
+
+
+## Mantener un proyecto al día { #keep-a-project-on-track }
+
+En la página del proyecto, elige **Mantener el proyecto al día**. Selecciona un agente publicado que puedas editar, revisa sus recursos y cuentas conectadas, nombra el nuevo agente y la tabla de tareas, elige la frecuencia y confirma expresamente la publicación y el inicio. Se crean una copia privada del agente, una tabla de tareas (privada salvo que elijas la organización), vistas guardadas de todas las tareas, tablero, tareas abiertas y bloqueos, y una rutina fijada a la nueva versión. El agente original no cambia.
+
+La rutina actúa como tú dentro del proyecto y publica informes en su conversación. Lee las tareas, verifica avances con las fuentes aprobadas, actualiza próximos pasos y señala bloqueos y plazos. Enviar mensajes externos sigue requiriendo la autorización habitual. Las fuentes nuevas, un nuevo consentimiento de cuenta o la sustitución del espacio de trabajo requieren otra revisión de fuentes. Perder acceso al proyecto detiene las herramientas siguientes; las notificaciones pendientes vuelven a comprobar el acceso actual del destinatario. Un intento idéntico reutiliza los recursos existentes. Gestiona la frecuencia y las fuentes en Rutinas y abre la tabla desde el proyecto.
+
+Una conversación programada sin propietario dentro de un proyecto puede ser renombrada, archivada o eliminada por quien tenga permiso para editar ese proyecto. Los chats iniciados por otra persona siguen bajo la gestión de esa persona.
+
+
+Eliminar un proyecto también borra sus entradas de memoria y copias compartidas derivadas e intenta retirar los webhooks registrados antes de eliminar sus rutinas en cascada. Un proveedor no disponible se registra y no bloquea la eliminación.

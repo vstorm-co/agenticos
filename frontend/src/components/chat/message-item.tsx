@@ -1,6 +1,8 @@
 "use client";
 
-import { memo } from "react";
+import type { Delegation } from "@/types";
+
+import { memo, useId, useState } from "react";
 
 import { MentionChip } from "./mention-chip";
 import { stillMentioned } from "@/lib/mentions";
@@ -24,7 +26,7 @@ import { TURN_ACTION } from "./turn-action";
 import { SkillShortcut } from "./skill-shortcut";
 import { TurnShortcuts } from "./turn-shortcuts";
 import { RatingButtons } from "./rating-buttons";
-import { useChatStore, useFilePreviewStore } from "@/stores";
+import { useChatStore, useFilePreviewStore, useWorkingStore } from "@/stores";
 import { useMcpToolServers } from "@/hooks";
 import { useInChatScope } from "@/stores/chat-scope-context";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
@@ -32,6 +34,7 @@ import {
   Bot,
   CornerUpLeft,
   Mic,
+  MoreHorizontal,
   OctagonPause,
   Paperclip,
   Pause,
@@ -47,12 +50,20 @@ import { KeptImage } from "./kept-image";
 import { isRenderSafeImage } from "@/lib/file-kinds";
 import { FileCard, FileIcon } from "@/components/files";
 import { extractSources, toolCallsOf } from "@/lib/chat-sources";
+import { draftsOf, withDraftText } from "@/lib/drafts";
 import type { DelegateRef } from "@/lib/delegations";
 import type { AskedBefore } from "@/components/datasets/follows-on";
 import { publishedApps, PublishedArtifactResult } from "./tool-results/artifact";
+import { writtenRoutines, RoutineResult } from "./tool-results/routine";
+import { writtenWatches, WatchResult } from "./tool-results/watch";
+
+import { PlatformObjects } from "./tool-results/platform-objects";
+
+import { TurnFiles } from "./turn-files";
 import { TurnExtras } from "./turn-extras";
 
 interface MessageItemProps {
+  delegations?: Delegation[];
   message: ChatMessage;
   /**
    * Open this turn's last tool step on mount.
@@ -108,6 +119,7 @@ interface MessageItemProps {
 
 export const MessageItem = memo(function MessageItem({
   message,
+  delegations,
   agent,
   groupPosition,
   continuesTurn = false,
@@ -122,6 +134,9 @@ export const MessageItem = memo(function MessageItem({
 }: MessageItemProps) {
   const t = useTranslations("chat");
   const tInput = useTranslations("chat.input");
+  const tc = useTranslations("common");
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const actionsId = useId();
   const isUser = message.role === "user";
   // A mention sits in the text it was typed into; only one the text does not
   // carry - a turn sent before that was so - is shown as a chip beside it.
@@ -160,8 +175,13 @@ export const MessageItem = memo(function MessageItem({
   // stopped indicator, timestamp and cost.
   const hasBody = Boolean(message.content) || (!isUser && (message.parts?.length ?? 0) > 0);
   const sources = !isUser ? extractSources(message, t) : [];
+  const canShowActions = !message.isStreaming && hasBody && endsTurn;
   const hasSources = sources.length > 0 && !message.isStreaming;
   const apps = !isUser ? publishedApps(toolCallsOf(message)) : [];
+  const routines = !isUser && authUser ? writtenRoutines(toolCallsOf(message)) : [];
+  const watches = !isUser && authUser ? writtenWatches(toolCallsOf(message)) : [];
+  // What the Copy action takes: the answer and the drafts the turn wrote, as plain text.
+  const copyText = withDraftText(message.content, isUser ? [] : draftsOf(toolCallsOf(message)));
   const onCiteClick = hasSources ? (index: number) => openSources(sources, index) : undefined;
 
   const avatar = (
@@ -236,26 +256,49 @@ export const MessageItem = memo(function MessageItem({
           switched agents mid-way says so, instead of relabelling the whole thread
           with whatever is selected now. The version, where the transcript
           recorded one, because this turn was answered by one frozen spec. */}
-      {!continuesTurn && (
-        <div className={cn("flex items-center gap-2", isUser && "flex-row-reverse")}>
-          {avatar}
-          <span
-            className={cn(
-              "truncate font-medium",
-              compact ? "text-muted-foreground text-xs" : "text-foreground text-sm",
-            )}
-          >
-            {teammate
-              ? teammate.name
-              : former
-                ? t("rail.formerMember")
-                : isUser
-                  ? t("rail.you")
-                  : (agent?.name ?? t("rail.agent"))}
-            {!isUser && message.agentVersion !== undefined && (
-              <span className="text-muted-foreground font-normal"> · v{message.agentVersion}</span>
-            )}
-          </span>
+      {(!continuesTurn || canShowActions) && (
+        <div
+          className={cn(
+            "flex items-center gap-2",
+            isUser && "flex-row-reverse",
+            continuesTurn && "sm:hidden",
+          )}
+        >
+          {!continuesTurn && avatar}
+          {!continuesTurn && (
+            <span
+              className={cn(
+                "truncate font-medium",
+                compact ? "text-muted-foreground text-xs" : "text-foreground text-sm",
+              )}
+            >
+              {teammate
+                ? teammate.name
+                : former
+                  ? t("rail.formerMember")
+                  : isUser
+                    ? t("rail.you")
+                    : (agent?.name ?? t("rail.agent"))}
+              {!isUser && message.agentVersion !== undefined && (
+                <span className="text-muted-foreground font-normal">
+                  {" "}
+                  · v{message.agentVersion}
+                </span>
+              )}
+            </span>
+          )}
+          {canShowActions && (
+            <button
+              type="button"
+              aria-label={tc("showMore")}
+              aria-expanded={actionsOpen}
+              aria-controls={actionsId}
+              onClick={() => setActionsOpen((open) => !open)}
+              className="text-muted-foreground hover:bg-muted flex size-11 shrink-0 items-center justify-center rounded-lg sm:hidden"
+            >
+              <MoreHorizontal className="size-4" aria-hidden />
+            </button>
+          )}
         </div>
       )}
       <div
@@ -327,7 +370,7 @@ export const MessageItem = memo(function MessageItem({
             );
           })()}
 
-        {message.replyTo && (
+        {message.replyTo && !isUser && (
           <ReplyQuote reply={message.replyTo} agents={agents} align={isUser ? "end" : "start"} />
         )}
         <MessageBody
@@ -340,7 +383,25 @@ export const MessageItem = memo(function MessageItem({
           onCiteClick={onCiteClick}
         />
 
-        {!isUser && !message.isStreaming && apps.length > 0 && (
+        {!isUser && <PlatformObjects calls={toolCallsOf(message)} />}
+
+        {!isUser && routines.length > 0 && (
+          <div className="mt-1 max-w-xl space-y-2">
+            {routines.map((routine) => (
+              <RoutineResult key={routine.id} routine={routine} />
+            ))}
+          </div>
+        )}
+
+        {!isUser && watches.length > 0 && (
+          <div className="mt-1 max-w-xl space-y-2">
+            {watches.map((watchId) => (
+              <WatchResult key={watchId} watchId={watchId} />
+            ))}
+          </div>
+        )}
+
+        {!isUser && apps.length > 0 && (
           // What the turn made, under what it said: the app is the answer to
           // "build me a dashboard", and it used to be one line inside the folded
           // work above the reply.
@@ -351,8 +412,13 @@ export const MessageItem = memo(function MessageItem({
           </div>
         )}
 
-        {!isUser && !message.isStreaming && endsTurn && (
-          <TurnDelegations toolCalls={toolCallsOf(message)} parent={agent} agents={agents} />
+        {!isUser && !message.isStreaming && (
+          <TurnDelegations
+            toolCalls={toolCallsOf(message)}
+            delegations={delegations}
+            parent={agent}
+            agents={agents}
+          />
         )}
 
         {hasSources && !isUser && (
@@ -363,41 +429,57 @@ export const MessageItem = memo(function MessageItem({
 
         {/* Under what the turn said and above its time and actions: a card the
             answer introduces belongs with the answer, not after its receipt. */}
+        <TurnFiles message={message} />
         <TurnExtras message={message} agentName={agent?.name} />
 
-        {!message.isStreaming && hasBody && endsTurn && (
-          // The time and the cost surface on hover with the actions beside them:
-          // a column of receipts under every turn is noise while reading, and the
-          // numbers are one pointer move away when somebody wants them.
-          <div className={cn("flex items-center gap-0.5", isUser && "flex-row-reverse")}>
-            {!isUser && message.wasStopped === true && !stopFolded && (
-              /* A stopped run leaves whatever had been written when the socket
+        {canShowActions &&
+          ((!isUser && message.wasStopped === true && !stopFolded) ||
+            message.turnId !== undefined ||
+            message.interrupted) && (
+            <div className="text-muted-foreground flex flex-wrap items-center gap-2">
+              {!isUser && message.wasStopped === true && !stopFolded && (
+                /* A stopped run leaves whatever had been written when the socket
                  closed, and that reads exactly like a finished answer - so a
                  reader takes a truncated one as everything the agent had to say.
                  First in the row, where it is read before the time and the cost;
                  a turn whose work folded says it in that line instead. */
-              <span className="text-muted-foreground flex items-center gap-1 text-xs">
-                <OctagonPause className="h-3 w-3" aria-hidden />
-                {t("turnWasStopped")}
-              </span>
-            )}
-            {/* A turn spoken in a call (#54), and one the caller talked over -
+                <span className="text-muted-foreground flex items-center gap-1 text-xs">
+                  <OctagonPause className="h-3 w-3" aria-hidden />
+                  {t("turnWasStopped")}
+                </span>
+              )}
+              {/* A turn spoken in a call (#54), and one the caller talked over -
                 whose text is cut to roughly what was heard. */}
-            {message.turnId !== undefined && (
-              <span className="text-muted-foreground flex items-center gap-1 text-[11px]">
-                <Mic className="h-3 w-3" aria-hidden />
-                {t("voice.view.voice")}
-              </span>
+              {message.turnId !== undefined && (
+                <span className="text-muted-foreground flex items-center gap-1 text-[11px]">
+                  <Mic className="h-3 w-3" aria-hidden />
+                  {t("voice.view.voice")}
+                </span>
+              )}
+              {message.interrupted && (
+                <span
+                  title={t("voice.view.interruptedTitle")}
+                  className="text-foreground flex items-center gap-1 text-[11px] font-medium"
+                >
+                  <Pause className="text-warning h-3 w-3" aria-hidden />
+                  {t("voice.view.interrupted")}
+                </span>
+              )}
+            </div>
+          )}
+
+        {canShowActions && (
+          // The time and the cost surface on hover with the actions beside them:
+          // a column of receipts under every turn is noise while reading, and the
+          // numbers are one pointer move away when somebody wants them.
+          <div
+            id={actionsId}
+            className={cn(
+              "flex flex-wrap items-center gap-0.5 max-sm:[&_button]:opacity-100",
+              isUser && "flex-row-reverse",
+              !actionsOpen && "max-sm:hidden",
             )}
-            {message.interrupted && (
-              <span
-                title={t("voice.view.interruptedTitle")}
-                className="text-foreground flex items-center gap-1 text-[11px] font-medium"
-              >
-                <Pause className="text-warning h-3 w-3" aria-hidden />
-                {t("voice.view.interrupted")}
-              </span>
-            )}
+          >
             {/* When and what it cost, as one quiet group before the actions. */}
             {message.timestamp && (
               <span
@@ -418,9 +500,9 @@ export const MessageItem = memo(function MessageItem({
                 )}
               </span>
             )}
-            {message.content && (
+            {copyText && (
               <CopyButton
-                text={message.content}
+                text={copyText}
                 className={cn(TURN_ACTION, "p-0 sm:opacity-0 sm:group-hover:opacity-100")}
               />
             )}
@@ -429,7 +511,11 @@ export const MessageItem = memo(function MessageItem({
             )}
             {/* What was asked, kept: on a schedule, or as an agent of its own (#2301). */}
             {isUser && !pins && !message.isTemporaryId && message.content && (
-              <TurnShortcuts request={message.content} agentId={agent?.id ?? null} />
+              <TurnShortcuts
+                request={message.content}
+                agentId={agent?.id ?? null}
+                conversationId={message.conversationId}
+              />
             )}
             {/* Stored messages only: a reply names the row it answers, and a
                 message still on this tab's own id has none yet. */}
@@ -524,6 +610,11 @@ function MessageBody({
   endsTurn: boolean;
   onCiteClick?: (index: number) => void;
 }) {
+  const workingSince = useWorkingStore((state) =>
+    message.isStreaming && message.conversationId ? state.since[message.conversationId] : undefined,
+  );
+  const startedAt =
+    (workingSince ? new Date(workingSince) : message.runStartedAt) ?? message.timestamp;
   const t = useTranslations("chat");
   const parts = message.parts ?? [];
   const useParts = !isUser && parts.length > 0;
@@ -562,11 +653,12 @@ function MessageBody({
           mcpServers={mcpServers}
           agents={agents}
           openLastStep={openLastStep}
-          conversationId={message.conversationId}
+          fileSource={message.fileSource}
           onCiteClick={onCiteClick}
-          startedAt={message.timestamp}
+          startedAt={startedAt}
           durationMs={endsTurn ? message.runDurationMs : undefined}
           stopped={message.wasStopped === true}
+          waitingFor={message.runWaitingFor}
         />
       ) : (
         /* Legacy fallback: user / pre-parts messages. */
@@ -578,9 +670,11 @@ function MessageBody({
               isStreaming={Boolean(message.isStreaming)}
             />
           )}
-          {message.content && (
+          {(message.content || (isUser && message.replyTo)) && (
             <TextBubble
               text={message.content}
+              replyTo={isUser ? message.replyTo : undefined}
+              replyAgents={agents}
               showCursor={!isUser && Boolean(message.isStreaming)}
               isUser={isUser}
               onCiteClick={onCiteClick}
@@ -594,7 +688,7 @@ function MessageBody({
                   <ToolCallCard
                     key={toolCall.id}
                     toolCall={toolCall}
-                    conversationId={message.conversationId}
+                    fileSource={message.fileSource}
                     mcpServers={mcpServers}
                     agents={agents}
                     startOpen={openLastStep && step === legacyCalls.length - 1}

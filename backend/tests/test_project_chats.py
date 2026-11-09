@@ -5,6 +5,7 @@ That the queries really scope to a project, and that a teammate's turn lands
 with their name on it, is `tests/integration/test_project_chats.py`'s job.
 """
 
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -23,6 +24,14 @@ MODULE = "app.services.conversation"
 ORG = uuid4()
 OWNER = uuid4()
 TEAMMATE = uuid4()
+
+
+@pytest.fixture(autouse=True)
+def coding_participants_repo() -> Iterator[AsyncMock]:
+    with patch(
+        f"{MODULE}.conversation_repo.coding_agents_in_conversations", AsyncMock(return_value={})
+    ) as mocked:
+        yield mocked
 
 
 def _chat(*, project_id: UUID | None = None, user_id: UUID = OWNER) -> SimpleNamespace:
@@ -380,7 +389,7 @@ class TestTheProjectsChatList:
             patch(
                 f"{MODULE}.conversation_repo.agents_in_conversations", AsyncMock(return_value={})
             ),
-            patch(f"{MODULE}.conversation_repo.running_since", AsyncMock(return_value={})),
+            patch(f"{MODULE}.conversation_repo.running_activity", AsyncMock(return_value={})),
             patch(f"{MODULE}.conversation_repo.unread_ids", AsyncMock(return_value=set())),
             patch(
                 f"{MODULE}.conversation_repo.readers_of",
@@ -413,3 +422,31 @@ class TestTheProjectsChatList:
         present.assert_awaited_once_with([str(chat.id), str(quiet.id)])
         empty = ProjectChatRead.model_validate(items[1])
         assert (empty.owner, empty.seen_by, empty.working, empty.here) == (None, [], None, [])
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("owner", [None, OWNER])
+@pytest.mark.parametrize("may_edit", [False, True])
+async def test_only_project_editors_manage_ownerless_automation_logs(owner, may_edit):
+    chat = _chat(project_id=uuid4())
+    chat.user_id = owner
+    allowed = {Perm.PROJECTS_VIEW, Perm.PROJECTS_USE}
+    if may_edit:
+        allowed.add(Perm.PROJECTS_EDIT)
+    with _Access(allows=allowed):
+        assert await _service(chat)._may_write(chat, TEAMMATE) is (owner is None and may_edit)
+
+
+async def test_deletion_preserves_the_callers_project_grant_context():
+    chat = _chat(project_id=uuid4())
+    chat.user_id = None
+    ctx = AuthContext(user_id=TEAMMATE, organization_id=ORG, role=OrgRoleName.VIEWER)
+    service = _service(chat)
+    with (
+        patch.object(service, "get_conversation", AsyncMock(return_value=chat)) as get,
+        patch.object(service, "forget_stored_files", AsyncMock()),
+        patch(f"{MODULE}.conversation_repo.delete_conversation", AsyncMock()) as delete,
+    ):
+        await service.delete_conversation(chat.id, organization_id=ORG, user_id=TEAMMATE, ctx=ctx)
+    assert get.await_args.kwargs["ctx"] is ctx
+    delete.assert_awaited_once_with(service.db, db_conversation=chat)

@@ -193,6 +193,7 @@ def _notifier() -> MagicMock:
     """`NotificationService` with its every-run department check awaited, not called."""
     service = MagicMock()
     service.return_value.department_budget_warnings = AsyncMock()
+    service.return_value.routine_result = AsyncMock()
     return service
 
 
@@ -205,7 +206,7 @@ class TestRunNotifications:
         with patch(
             "app.services.agent_runner.NotificationService", new=_notifier()
         ) as notifications:
-            notifications.return_value.budget_exceeded = AsyncMock()
+            notifications.return_value.budget_exceeded = AsyncMock(return_value=set())
             await AgentRunnerService(MagicMock())._notify(
                 MagicMock(),
                 agent=MagicMock(),
@@ -215,6 +216,7 @@ class TestRunNotifications:
                 budget_scope=BudgetScope.ORGANIZATION,
             )
 
+        notifications.return_value.routine_result.assert_awaited_once()
         kwargs = notifications.return_value.budget_exceeded.call_args.kwargs
         assert kwargs["reason"] == "Monthly budget exhausted"
         # Carried through, not re-derived: it decides whether the agent's own

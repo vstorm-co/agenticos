@@ -4,6 +4,7 @@ description: Turns merged changes into notes a user can act on, grouped by what 
   mean.
 capabilities:
 - ask_user
+- drafts
 - knowledge
 - skills
 - web_fetch

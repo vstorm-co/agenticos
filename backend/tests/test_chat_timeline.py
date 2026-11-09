@@ -4,6 +4,8 @@ The timeline exists so a reloaded conversation is the one somebody watched. Ever
 test here is a way the two could drift apart again.
 """
 
+import pytest
+
 from app.services.chat_timeline import TurnTimeline
 
 
@@ -85,6 +87,7 @@ class TestAccumulatingOneTurn:
         timeline = TurnTimeline()
 
         timeline.add_thinking("Counting.")
+        timeline.next_response()
         timeline.add_thinking("Now checking.")
 
         assert timeline.thinking == "Counting. Now checking."
@@ -195,3 +198,50 @@ class TestWhatThePersonAdded:
         timeline.add_steer("stop")
 
         assert timeline.stored() == timeline.parts
+
+
+def test_file_origin_is_kept_even_for_a_single_part_and_survives_serialization() -> None:
+    from uuid import uuid4
+
+    from app.schemas.conversation import LocalMessageFileSource, MessagePart
+
+    source = LocalMessageFileSource(id=uuid4())
+    timeline = TurnTimeline(file_source=source)
+    timeline.add_tool("generated-file")
+    stored = timeline.stored()
+    assert stored is not None
+    reloaded = [MessagePart.model_validate(part.model_dump(mode="json")) for part in stored]
+    assert reloaded[0].file_source == source
+    assert "root" not in source.model_dump()
+    assert timeline.text == ""
+
+
+def test_legacy_local_file_origins_are_redacted_without_losing_the_turn() -> None:
+    from app.schemas.conversation import MessagePart
+
+    part = MessagePart.model_validate(
+        {
+            "type": "text",
+            "text": "Done",
+            "file_source": {"kind": "local", "root": "/Users/alice/private"},
+        }
+    )
+    assert part.text == "Done"
+    assert part.file_source is None
+    assert "/Users/alice" not in part.model_dump_json()
+
+
+@pytest.mark.parametrize(
+    "chunks",
+    [
+        ["I'm no", "ticing a ", "mismatch"],
+        ["Principal Eng", "ineer at Vstor", "m"],
+        ["word", " ", "with", " spaces"],
+    ],
+)
+def test_reasoning_deltas_preserve_word_boundaries(chunks: list[str]) -> None:
+    timeline = TurnTimeline()
+    for chunk in chunks:
+        timeline.add_thinking(chunk)
+    assert timeline.thinking == "".join(chunks)
+    assert timeline.parts[0].text == "".join(chunks)

@@ -9,8 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec
 from app.agents.system_agents import IMPROVER
-from app.core.exceptions import NotFoundError
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.exceptions import AuthorizationError, NotFoundError
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
@@ -234,7 +234,7 @@ async def test_a_run_served_another_version_of_the_skill_is_not_its_evidence(db:
 
 
 @pytest.mark.security
-async def test_a_reader_without_runs_view_gets_a_skill_problem_without_its_quotes(
+async def test_a_reader_without_runs_view_reads_no_skill_problem(
     db: AsyncSession,
 ):
     ctx, agent, run = await _setup(db)
@@ -255,13 +255,10 @@ async def test_a_reader_without_runs_view_gets_a_skill_problem_without_its_quote
     await _improve(db, ctx, agent, model)
 
     member = await _member(db, ctx, OrgRoleName.MEMBER)
-    hidden = (await AuthoringService(db).for_agent(member, agent.id)).latest
+    with pytest.raises(AuthorizationError, match="runs:view"):
+        await AuthoringService(db).for_agent(member, agent.id)
     shown = (await AuthoringService(db).for_agent(ctx, agent.id)).latest
 
-    assert hidden is not None and hidden.report is not None
-    [problem] = hidden.report["skill_problems"]
-    assert problem["evidence"] == [{"run_id": str(run.id)}]
-    assert problem["problem"] == "It says ninety days"
     assert shown is not None and shown.report is not None
     assert shown.report["skill_problems"][0]["evidence"][0]["quote"] == COMMENT
 
@@ -324,7 +321,8 @@ async def test_a_reader_who_may_not_see_a_skill_reads_nothing_the_improver_drew_
     )
     await db.flush()
 
-    hidden = (await AuthoringService(db).for_agent(member, agent.id)).latest
+    with _with_runs_view():
+        hidden = (await AuthoringService(db).for_agent(member, agent.id)).latest
     shown = (await AuthoringService(db).for_agent(ctx, agent.id)).latest
 
     assert hidden is not None and hidden.report is not None
@@ -340,7 +338,7 @@ async def test_a_reader_who_may_not_see_a_skill_reads_nothing_the_improver_drew_
         for index, item in enumerate(request.report["rejected"])
         if item["kind"] == "create_skill"
     )
-    with pytest.raises(NotFoundError):
+    with _with_runs_view(), pytest.raises(NotFoundError):
         await AuthoringService(db).decide_idea(
             member, agent.id, request.id, idea, IdeaDecision(action="dismiss")
         )
@@ -358,8 +356,19 @@ async def test_a_reader_who_may_not_see_a_skill_reads_nothing_the_improver_drew_
     verify.status = "completed"
     verify.report = {"findings": [], "proposed": 0, "recorded": 0}
     await db.flush()
-    checked = (await AuthoringService(db).for_agent(member, agent.id)).verify
+    with _with_runs_view():
+        checked = (await AuthoringService(db).for_agent(member, agent.id)).verify
     assert checked is not None and checked.report == verify.report
+
+
+def _with_runs_view():
+    """The caller's role, plus `runs:view` - so only a skill's own access can hide it."""
+    held = AuthContext.has
+
+    def has(ctx: AuthContext, perm: Perm) -> bool:
+        return perm == Perm.RUNS_VIEW or held(ctx, perm)
+
+    return patch.object(AuthContext, "has", has)
 
 
 async def test_the_improver_reads_no_skill_the_person_who_started_it_may_not_see(

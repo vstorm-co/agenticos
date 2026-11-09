@@ -5,7 +5,7 @@
 # is a copy that disagrees with the one contributors read. The nav below decides
 # what an outside reader meets first; nothing is duplicated for them.
 site_name: AgenticOS
-site_description: Build agents in your browser, connect documents and tools, and run them on infrastructure you control.
+site_description: Open-source, self-hosted AI agent platform for your company's AI teammates.
 site_url: https://vstorm-co.github.io/agenticos/
 repo_url: https://github.com/vstorm-co/agenticos
 repo_name: vstorm-co/agenticos
@@ -160,11 +160,11 @@ plugins:
           default: true
           name: English
           build: true
-          site_description: Build agents in your browser, connect documents and tools, and run them on infrastructure you control.
+          site_description: Open-source, self-hosted AI agent platform for your company's AI teammates.
         - locale: pl
           name: Polski
           build: true
-          site_description: Buduj agentów w przeglądarce, podłącz dokumenty i narzędzia, uruchamiaj na własnej infrastrukturze.
+          site_description: Otwarta platforma agentów AI na własnej infrastrukturze — dla współpracowników AI w Twojej firmie. # codespell:ignore platforma
           nav_translations:
             Features: Funkcje
             Learn: Nauka
@@ -184,7 +184,7 @@ plugins:
         - locale: de
           name: Deutsch
           build: true
-          site_description: Agents im Browser erstellen, Dokumente und Werkzeuge verbinden und auf eigener Infrastruktur betreiben.
+          site_description: Open-Source-Plattform für die KI-Teammates Ihres Unternehmens, auf eigener Infrastruktur.
           nav_translations:
             Features: Funktionen
             Learn: Lernen
@@ -204,7 +204,7 @@ plugins:
         - locale: es
           name: Español
           build: true
-          site_description: Crea agents en el navegador, conecta documentos y herramientas y usa infraestructura bajo tu control.
+          site_description: Plataforma de agentes de IA de código abierto y autoalojada para los compañeros de IA de tu empresa.
           nav_translations:
             Features: Funciones
             Learn: Aprende
@@ -304,6 +304,9 @@ nav:
       - about/sauna.md
       - about/openai-dots.md
       - about/grok-bot.md
+      - about/openbot.md
+      - about/muse.md
+      - about/claude-duet.md
       - about/openai-frontier.md
       - about/microsoft-agent-365.md
       - about/claude-managed-agents.md
@@ -343,6 +346,7 @@ nav:
           - voice.md
           - artifacts.md
           - desktop.md
+          - howto/macos-warning.md
           - mobile.md
           - rollout.md
           - deployment.md
@@ -399,5 +403,8 @@ nav:
 
 extra:
   social:
+    - icon: material/web
+      name: AgenticOS website
+      link: https://vstorm-co.github.io/vstormos-landing/
     - icon: fontawesome/brands/github
       link: https://github.com/vstorm-co/agenticos

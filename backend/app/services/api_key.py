@@ -18,7 +18,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.audit import record_audit
+from app.core.audit import current_impersonator, record_audit
 from app.core.exceptions import AuthenticationError, InternalError, NotFoundError
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
@@ -266,7 +266,9 @@ class ApiKeyService:
         )
         return key
 
-    async def issue_for_run(self, ctx: AuthContext, *, agent_id: UUID | None = None) -> str | None:
+    async def issue_for_run(
+        self, ctx: AuthContext, *, agent_id: UUID | None = None, conversation_id: UUID | None = None
+    ) -> str | None:
         """A short-lived credential carrying `ctx`, for the in-app assistant (#1798).
 
         The assistant operates the platform through the public API as the person
@@ -294,8 +296,20 @@ class ApiKeyService:
             oauth_grant_id=None,
             internal=True,
         )
+        provenance: dict[str, UUID] = {}
         if agent_id is not None:
-            await api_key_repo.update(self.db, key=_row, update_data={"source_agent_id": agent_id})
+            provenance["source_agent_id"] = agent_id
+        if (
+            conversation_id is not None
+            and ctx.api_key_id is None
+            and ctx.key_scopes is None
+            and ctx.fired_as_creator is None
+            and ctx.routine_id is None
+            and current_impersonator() is None
+        ):
+            provenance["source_conversation_id"] = conversation_id
+        if provenance:
+            await api_key_repo.update(self.db, key=_row, update_data=provenance)
         return key
 
     async def list_keys(self, ctx: AuthContext) -> ApiKeyList:
@@ -393,6 +407,7 @@ class ApiKeyService:
                 role=membership.role,
                 api_key_id=key.id,
                 key_scopes=frozenset(Perm(scope) for scope in key.scopes if scope in Perm),
+                source_conversation_id=key.source_conversation_id if key.internal else None,
             ),
         )
 
@@ -452,7 +467,9 @@ async def job_context(
     )
 
 
-async def mint_for_run(ctx: AuthContext, *, agent_id: UUID | None = None) -> str | None:
+async def mint_for_run(
+    ctx: AuthContext, *, agent_id: UUID | None = None, conversation_id: UUID | None = None
+) -> str | None:
     """:meth:`ApiKeyService.issue_for_run`, committed before it returns.
 
     The credential is presented by an in-process request on a session of its
@@ -461,4 +478,6 @@ async def mint_for_run(ctx: AuthContext, *, agent_id: UUID | None = None) -> str
     flushed on the run's session would not be seen until the run ended.
     """
     async with get_db_context() as db:
-        return await ApiKeyService(db).issue_for_run(ctx, agent_id=agent_id)
+        return await ApiKeyService(db).issue_for_run(
+            ctx, agent_id=agent_id, conversation_id=conversation_id
+        )

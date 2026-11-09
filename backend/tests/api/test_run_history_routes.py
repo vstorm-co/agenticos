@@ -425,3 +425,39 @@ class TestTheDetailReadCarriesItsNeighbours:
         assert response.json()["origin"] is None
         evals.case_link.assert_awaited_once()
         service.origins.assert_awaited_once()
+
+
+class TestARunSaysWhereItsContinuationGoes:
+    async def test_a_run_read_says_whether_it_continues_in_its_chat(self):
+        destination = {"bot_id": str(uuid4()), "platform_chat_id": "C1:1.0", "private_chat": False}
+
+        async def read(surface: str) -> dict[str, Any]:
+            run = AgentRun(
+                id=uuid4(),
+                organization_id=_ORGANIZATION_ID,
+                agent_id=uuid4(),
+                surface=surface,
+                status="awaiting_approval",
+                paused_state={"channel_destination": destination},
+                input_tokens=0,
+                output_tokens=0,
+                tool_args_repaired=0,
+                cache_read_tokens=0,
+                cache_write_tokens=0,
+                cost_usd=Decimal("0"),
+                cost_is_partial=False,
+                modality="text",
+                is_test=False,
+            )
+            service = _service()
+            service.get_run = AsyncMock(return_value=run)
+            service.down_rated_run_ids = AsyncMock(return_value=set())
+            service.trace_url = AsyncMock(return_value=None)
+            service.neighbor_run_ids = AsyncMock(return_value=(None, None))
+            async with _client(service) as client:
+                response = await client.get(f"/api/v1/runs/{run.id}")
+            assert response.status_code == 200, response.text
+            return response.json()
+
+        assert (await read("slack"))["continues_in_chat"] is True
+        assert (await read("web"))["continues_in_chat"] is False

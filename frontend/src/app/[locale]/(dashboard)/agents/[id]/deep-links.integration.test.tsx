@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen } from "@testing-library/react";
-import { Suspense } from "react";
+import { Suspense, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import AgentBuilderPage from "./page";
@@ -134,12 +134,16 @@ vi.mock("@/hooks/use-eval-runs", () => ({
 }));
 vi.mock("@/components/evals/draft-eval-note", () => ({ DraftEvalNote: () => null }));
 vi.mock("@/components/evals/evals-panel", () => ({
-  EvalsPanel: () => <div data-testid="eval-results" />,
+  EvalsPanel: ({ actions }: { actions?: ReactNode }) => (
+    <div data-testid="eval-results">{actions}</div>
+  ),
 }));
 vi.mock("@/components/evals/suites/eval-suites-card", () => ({
   EvalSuitesCard: () => <div data-testid="eval-suites" />,
 }));
-vi.mock("@/components/authoring/assistant-strip", () => ({ AssistantStrip: () => null }));
+vi.mock("@/components/authoring/assistant-strip", () => ({
+  AssistantStrip: () => <div data-testid="suggestions">Suggestions</div>,
+}));
 vi.mock("@/components/evals/start-eval-dialog", () => ({ StartEvalDialog: () => null }));
 vi.mock("@/components/knowledge-gaps/knowledge-gaps-panel", () => ({
   KnowledgeGapsPanel: () => null,
@@ -164,7 +168,7 @@ vi.mock("@/components/agents/model-settings-form", () => ({ ModelSettingsForm: (
 vi.mock("@/components/agents/voice-card", () => ({ VoiceCard: () => null }));
 vi.mock("@/components/agents/thinking-setting", () => ({ ThinkingSetting: () => null }));
 vi.mock("@/components/ui/markdown-editor", () => ({
-  MarkdownEditor: () => null,
+  MarkdownEditor: ({ toolbar }: { toolbar?: ReactNode }) => <>{toolbar}</>,
   MarkdownModeToggle: () => null,
 }));
 // What the Availability tab holds is covered where each panel lives; here the
@@ -274,18 +278,27 @@ describe("the detail page's Knowledge gaps tab", () => {
 });
 
 describe("the detail page's way into Improve", () => {
-  it("sits among the header's other actions, Publish staying the primary one", async () => {
+  it("keeps Build focused on instructions and puts Improve and suggestions in Evals", async () => {
     allowed = new Set([Perm.runsView]);
     await mount();
-    const improve = await screen.findByRole("button", { name: "Improve" });
-    expect(improve).not.toHaveClass("bg-action");
-    expect(improve.querySelector("svg.lucide-trending-up")).toBeInTheDocument();
-    expect(improve.className).toBe(screen.getByRole("button", { name: "Share" }).className);
+    await screen.findByRole("tab", { name: "Build" });
+    expect(screen.queryByRole("button", { name: "Improve" })).toBeNull();
+    expect(screen.queryByTestId("suggestions")).toBeNull();
     expect(screen.getByRole("button", { name: "Publish" })).toHaveClass("bg-action");
+  });
+
+  it("offers one Improve entry in Evals", async () => {
+    allowed = new Set([Perm.runsView]);
+    page.params = "tab=evals";
+    await mount();
+    expect(await screen.findByRole("button", { name: "Improve" })).not.toHaveClass("bg-action");
+    expect(screen.getAllByRole("button", { name: "Improve" })).toHaveLength(1);
+    expect(screen.getByTestId("suggestions")).toBeVisible();
   });
 
   it("says why when people rated answers down, without taking the lead from Publish", async () => {
     allowed = new Set([Perm.runsView]);
+    page.params = "tab=evals";
     page.attention = [{ agent_id: "a1", rated_down: 7, failed_runs: 1 }];
     await mount();
     const improve = await screen.findByRole("button", {
@@ -301,54 +314,24 @@ describe("the detail page's way into Improve", () => {
     page.params = "tab=gaps";
     await mount();
     const link = await screen.findByRole("link", { name: "Improve this agent from these gaps" });
-    expect(link).toHaveAttribute("href", "/agents/a1/improve/new?resume=1");
+    expect(link).toHaveAttribute("href", "/agents/a1?improve=resume");
     expect(link.querySelector("svg.lucide-trending-up")).toHaveAttribute("aria-hidden", "true");
   });
 });
 
-describe("a system agent's page", () => {
-  it("opens Build for a link naming a tab it has not", async () => {
-    allowed = new Set([Perm.runsView, Perm.agentsEdit]);
-    page.kind = "drafter";
-    page.params = "tab=gaps";
-    await mount();
-
-    expect(await screen.findByRole("tab", { name: "Build" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
-    for (const name of ["MCP servers", "Availability", "Evals", "Knowledge gaps"]) {
-      expect(screen.queryByRole("tab", { name })).toBeNull();
-    }
-  });
-
-  it("opens its Toolbox when a link names it", async () => {
-    allowed = new Set([Perm.agentsEdit]);
-    page.kind = "judge";
-    page.params = "tab=toolbox";
-    await mount();
-
-    expect(await screen.findByRole("tab", { name: "Toolbox" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
-  });
-
-  it.each(["judge", "generator"] as const)(
-    "offers a %s the same tabs as an ordinary agent, without MCP servers, exposure or evals",
-    async (kind) => {
+describe("legacy helper deep links", () => {
+  it.each(["tab=gaps", "tab=toolbox", "tab=datasets"])(
+    "keeps helpers out of the builder for %s",
+    async (query) => {
       allowed = new Set([Perm.runsView, Perm.agentsEdit]);
-      page.kind = kind;
+      page.kind = "judge";
+      page.params = query;
       await mount();
-
-      await screen.findByRole("tab", { name: "History" });
-      const tabs = screen.getAllByRole("tab").map((tab) => tab.getAttribute("data-tour"));
-      expect(tabs).toContain("agent-tab-toolbox");
-      expect(tabs).not.toContain("agent-tab-mcp");
-      expect(tabs).not.toContain("agent-tab-availability");
-      expect(tabs).not.toContain("agent-tab-evals");
-      expect(tabs).not.toContain("agent-tab-gaps");
-      expect(screen.queryByRole("tab", { name: "Datasets" }) !== null).toBe(kind === "judge");
+      expect(await screen.findByRole("link", { name: "Back to agents" })).toHaveAttribute(
+        "href",
+        "/agents",
+      );
+      expect(screen.queryByRole("tab", { name: "Build" })).toBeNull();
     },
   );
 });

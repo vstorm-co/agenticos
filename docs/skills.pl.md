@@ -1,5 +1,5 @@
 ---
-source_sha: "c51b82d830dd"
+source_sha: "605060a8b119"
 ---
 
 # Skille { #skills }
@@ -91,6 +91,8 @@ części rozmów nie musi siedzieć w treści, którą wczytuje każda istotna r
 `legal`, `security`, `marketing`, …) i steruje filtrem na liście skilli. Nie ma
 wpływu na to, co widzi agent — model wybiera po `description`, nigdy po
 kategorii.
+
+Długie zasoby tekstowe są stronicowane, aby całe podręczniki nie trafiały do każdego żądania modelu: domyślna strona ma 8 000 znaków, maksymalnie 20 000. Przekaż `args` z `offset` i `limit` do `read_skill_resource`; odpowiedź podaje kolejny offset. Czytaj potrzebne fragmenty i wykorzystuj już wczytany materiał.
 
 ## Jak agent go czyta { #how-an-agent-reads-one }
 
@@ -194,9 +196,8 @@ inny agent, wewnątrz rozmowy, której nikt nie przegląda, a kolejny czytelnik 
 miałby jak odróżnić przemyślanego ulepszenia od zahalucynowanego.
 
 Dlatego zapis staje się **propozycją** i pojawia się nad listą na stronie Skills
-temu, kto może edytować ten skill - jego właścicielowi albo komuś z grantem edycji
-na nim - a dla skilla, którego jeszcze nie ma, każdemu, kto może tworzyć skille.
-Nikt inny jej nie widzi:
+każdemu, kto może edytować ten skill. Propozycja nowego skilla pojawia się każdemu,
+kto ma `skills:edit`. Nikt inny nie może jej zobaczyć na liście ani otworzyć:
 
 - **Check on agents** uruchamia zmianę na każdym agencie linii, dla której
   powstała, a jej zastosowanie - następna wersja tej linii, którą ci agenci
@@ -604,42 +605,49 @@ czyimś imieniu albo kończy się decyzją, którą ta osoba podejmuje sama.
 
 **Napisz go.** Skills → New, w UI. To zwykła droga.
 
-**Te dołączone już tam są.** Repozytorium dostarcza pięć: trzy przykłady z
-rozwiązaniem — `refund-policy`, `code-review` i `incident-report` — a do tego
-`artifact-pages`, który uczy agenta budować stronę dla capability
-[Aplikacje](artifacts.md#the-library-set), oraz `visual-design`, który uczy go,
-kiedy i jak [rysować](artifacts.md#visuals) odpowiedź. Każda organizacja zaczyna z nimi. Utworzenie organizacji kopiuje całą dostarczoną
-bibliotekę jako zwykłe skille, należące do właściciela (owner) organizacji i
-widoczne dla organizacji.
+**Wbudowana biblioteka instaluje się automatycznie.** Nowe organizacje dostają
+procedury budowania platformy, długiej pracy, researchu, wizualizacji, Apps i
+prezentacji. Lista Skills oznacza te kopie jako `built-in`. To zwykłe skille
+organizacji, a nie odwołania do zewnętrznego rejestru.
 
-Strona skilli pokazuje jedną listę, z odznaką `built-in` przy wszystkim, czego
-nazwa pasuje do dostarczonej biblioteki. Tych pięciu się nie wybiera — one po
-prostu przychodzą, raz, przy tworzeniu organizacji.
+Etykieta `built-in` obejmuje też zainstalowane kopie z galerii dostarczanej z platformą, w tym skille przypinane przez agentów startowych. Oznacza pochodzenie z platformy, a nie automatyczny sposób instalacji. Galeria nadal wymaga wyboru skilla, a istniejące modyfikacje można edytować.
 
-**Architekt przynosi własne.** Konfiguracja [Architekta AI](console.md)
-organizacji instaluje też skille, które on czyta: dziesięć z półki software w
-galerii — `agenticos-guide`, `agent-design`, `agent-instructions`,
-`agent-testing`, `agent-budgets`, `model-choice`, `rag-setup`,
-`workflow-builder`, `virtual-tables` i `pydantic-ai-import` — obok dołączonego
-`visual-design`. Dlatego nowa organizacja ma na liście piętnaście skilli. To
-także zwykłe skille, a strona skilli oznacza jedenaście skilli Architekta
+Istniejące instalacje dostają nowe skille przy odświeżaniu dostarczonych agentów
+po otwarciu konsoli; tworzenie agenta z domyślnego wzorca również uruchamia
+synchronizację. Nie trzeba ręcznie wywoływać seed. Niezmienione kopie aktualizują
+się wraz z zasobami; edytowane i różniące się kopie bez historii zostają zachowane.
+Potwierdzenia instalacji pozwalają rozpoznać celowe usunięcie: automatyczna
+aktualizacja nie przywraca wycofanego skilla. Jawna komenda seed może go przywrócić.
+Sama lista skilli nie zapisuje danych.
+
+Strona skilli oznacza też skille, które przypina [Architekt AI](console.md),
 odznaką `Architekt`, bo zmiana któregoś z nich zmienia sposób pracy Architekta.
 
-**I od tej chwili są wasze.** Zaseedowany skill to zwykły wiersz: można go
-edytować albo usunąć. Nic nie przywraca usuniętego.
+AgenticOS, Architect i nowi domyślni agenci mają podpięte:
+`platform-agents`, `platform-workflows`, `platform-automation`, `durable-work`, `document-production`, `research-and-evidence`.
 
-To jest zmiana. Lista wcześniej sama się uzupełniała — dokopiowywała każdą
-dołączoną nazwę, której organizacja nie miała, przy każdym otwarciu strony —
-więc usunięty built-in wracał przy następnej wizycie, a wyłączenie było jedynym
-sposobem na jego wycofanie. Oznaczało to też stronę, która zapisuje wiersze
-w trakcie czytania. Galeria jest miejscem, w którym wybiera się skill, a komenda
-seed poniżej jest sposobem, w jaki deployment rozsyła nowy dołączony skill
-świadomie.
+Opcjonalne `platform-tables`, `platform-context`, `platform-skills` i poradniki API z galerii pozostają w bibliotece, ale nie są już podpięte domyślnie. Zwykły odczyt lub edycja przez MCP nie wymaga ładowania skilla. Aktualne opisy narzędzi określają operacje, parametry i uprawnienia; skille dodają zasady projektowania i weryfikacji. Szczegółowe przepisy wizualne są zasobami ładowanymi na żądanie.
 
-!!! info "Organizacja utworzona przed nowym dołączonym skillem nie dostanie go sama"
+Dostają też procedury Apps, wizualizacji i prezentacji, w tym planowanie narracji
+i review. Skille ładują się stopniowo: najpierw nazwy i opisy, następnie potrzebne
+treści i zasoby. Nie nadają narzędzi, kont ani kompilatora. Architect ma też
+capabilities Apps i Charts.
 
-    Uruchom dla niej `seed-skills` albo zainstaluj skill z galerii. Obie drogi są
-    świadome i o to chodzi: nic nie pojawia się przy wczytaniu strony.
+Odświeżanie domyślnych agentów chroni osobno zmienione pola promptu, narzędzi i
+powiązań skilli. Zmiana samego modelu nie blokuje aktualizacji pozostałych
+niezmienionych ustawień. Nowe domyślne ustawienia dotyczą nowo tworzonych agentów;
+istniejący agenci napisani przez użytkownika nie są przepisywani.
+
+Platform MCP pozwala wyszukiwać, tworzyć i edytować Context, podpinać `context_ids`
+do draftu oraz czytać i edytować skille i dodawać zasoby tekstowe. Context ma tryb
+`inject` dla stałego kontekstu i `link` dla odczytu na żądanie. Edycja podpiętego
+pliku działa od kolejnego uruchomienia; zmiana powiązania draftu wymaga publikacji.
+Zapisy nadal podlegają uprawnieniom i zatwierdzeniom.
+
+Skill dokumentowy zawiera źródła startowe LaTeX oraz procedurę budowania i oceny
+renderów. HTML Apps i prezentacje przeglądarkowe różnią się od skompilowanego PDF
+czy edytowalnego PPTX. Agent sprawdza dostępny kompilator, generator i renderer;
+brak wykonanej kompilacji lub oceny wizualnej musi jasno wskazać.
 
 Komenda seed robi to samo z terminala, na potrzeby skryptowanych instalacji:
 
@@ -684,7 +692,7 @@ zainstalujesz, a **Zainstalowany** otwiera własną kopię organizacji.
 
 !!! info "Galeria działa na zaproszenie i na tym polega cała różnica"
 
-    Dołączona piątka mieszka w `app/core/catalog/skills/` i jest kopiowana
+    Wbudowana biblioteka mieszka w `app/core/catalog/skills/` i jest kopiowana
     automatycznie do **każdej** organizacji. Galeria mieszka w
     `app/core/catalog/skill_gallery/` i nie jest kopiowana do **żadnej** — czyta
     ją ten sam parser, z drugiego katalogu, i nigdy nie jest seedowana.
@@ -975,7 +983,7 @@ usunięty po publikacji jest pomijany z ostrzeżeniem, zamiast przerywać run.
 - Podpięcie skilla **wypożycza** go, więc publikujący musi móc go zobaczyć — a w
   czasie runa nic nie jest sprawdzane ponownie.
 - **Galeria** to siedemdziesiąt gotowych skilli według branż, instalowanych na
-  życzenie — w odróżnieniu od dołączonej piątki, która przychodzi sama.
+  życzenie — w odróżnieniu od wbudowanej biblioteki, która przychodzi sama.
 
 ### Propozycja nowego skilla { #proposing-a-new-skill }
 

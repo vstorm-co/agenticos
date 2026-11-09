@@ -1,5 +1,5 @@
 ---
-source_sha: "f186947f1867"
+source_sha: "07ab4376c975"
 ---
 
 # La API HTTP { #the-http-api }
@@ -22,6 +22,12 @@ Tres formas de entrar, para tres llamantes distintos.
 | **Clave de API de la organización** | `Authorization: Bearer aos_…`          | Un script, un cliente HTTP como Postman o un cliente MCP. Actúa como el miembro que la emitió, limitada a los permisos con los que se emitió |
 | **JWT**                             | `Authorization: Bearer <access token>` | Una persona, o algo que actúa en su nombre. De vida corta, renovado con un refresh token                                                     |
 | **Cookie de sesión**                | la pone la consola                     | Solo el navegador: el token es HttpOnly y nunca llega a JavaScript                                                                           |
+
+Las claves de organización usan `Authorization: Bearer aos_…`. `X-API-Key` es una credencial
+independiente de los servicios del despliegue; enviar una clave `aos_…` allí no autentica una
+petición de organización. Las rutas de la bóveda como `GET /api/v1/secrets` y la ruta de mensajes de
+la consola requieren una sesión iniciada. Los clientes API leen conversaciones mediante `GET
+/api/v1/conversations/{id}/transcript`.
 
 ### Claves de API de la organización { #organization-api-keys }
 
@@ -192,6 +198,19 @@ pruebas del Builder: un run de prueba, para una clave cuyo emisor puede editar e
 agent, rechazado con el motivo cuando el borrador no se publicaría, y nunca con
 `Prefer: respond-async`.
 
+Las ejecuciones síncronas, incluidas las pruebas de borradores, devuelven `status: awaiting_answer`
+y `questions` cuando el agente pregunta a la persona. Responde con `POST
+/api/v1/runs/{run_id}/answers` y `{"responses":{"<tool_call_id>":[{"selected":["Opción"]}]}}`;
+`answer` admite texto libre y `skipped: true` omite la pregunta expresamente. La ausencia de
+respuesta no se considera un rechazo automático. El MCP de la plataforma ofrece el mismo flujo con
+`test_agent_draft` y `answer_agent_questions`.
+
+El historial conserva las respuestas de las tarjetas y las cargas correctas de capabilities
+diferidas. Los skills registrados actualmente reciben sus instrucciones vigentes en el siguiente
+turno; los eliminados no recuperan acceso. Los resultados históricos de tablas no sustituyen los
+datos actuales. El campo superior `starters` del agente describe la versión publicada; los del
+borrador están en `draft_spec.starters`.
+
 Una clave también llega a las rutinas de un agent - `GET /api/v1/triggers` y
 `GET`, `POST`, `PATCH` y `DELETE` bajo `/api/v1/agents/{agent_id}/triggers`, más
 `POST .../{trigger_id}/run` para lanzar una ahora - y a los modelos de la
@@ -220,6 +239,18 @@ persona. Lo mismo con una ejecución aparcada: una clave reanuda o responde solo
 ejecución que inició una clave, y una que inició la persona responde `403`, porque
 continuarla actúa en su nombre. La conversación se guarda en la lista de chats de quien emitió la clave con
 la etiqueta **API** y queda oculta hasta que las muestre allí con un interruptor.
+
+Un run planteado en un chat es la excepción a reanudarlo uno mismo. Cuando una
+persona decide su última aprobación pendiente o responde sus preguntas, el servidor
+continúa el run como ella y publica la respuesta en el chat. La decisión de una
+clave no continúa nada: una persona tiene que reanudar ese run desde la consola en
+aproximadamente una hora desde la última decisión, o se termina.
+
+`continues_in_chat` lo indica: está en `ApprovalRead`, en `AgentRunRead` (lectura individual) y en el
+resultado de una reanudación y de una respuesta. En `POST /agents/{id}/run` es
+siempre false, y también para una clave de API. Cuando es true, no llames a
+`/resume`. Un `/resume` que llega en segundo lugar recibe el `400` existente, con el
+`status` del run. Véase [Decidido fuera del chat](channels.md#decided-outside-the-chat).
 
 `GET /api/v1/conversations/{id}/transcript` lee una de las conversaciones de
 quien emitió la clave turno a turno, con las herramientas que llamó cada turno y
@@ -681,7 +712,7 @@ la sesión, así que una llamada no sobrevive a un cierre de sesión.
 | `approval` | `id`, `decision` (`approve` o `deny`)                                                                                                     | Al decidir una aprobación que la llamada está esperando |
 | `mute`     | `muted`                                                                                                                                   | El relay: el micrófono silenciado                       |
 | `played`   | `bytes`                                                                                                                                   | El relay: cuánto audio del agent se ha reproducido      |
-| `end`      | -                                                                                                                                         | Colgar                                                  |
+| `end`      | ---                                                                                                                                       | Colgar                                                  |
 | _binario_  | PCM de 16 bits a la frecuencia de entrada del modelo                                                                                      | El relay: el audio de quien llama                       |
 
 **El servidor envía:**
@@ -699,7 +730,7 @@ la sesión, así que una llamada no sobrevive a un cierre de sesión.
 | `approval_settled`     | `id`, `outcome` (`approved`, `denied` o `expired`)                                                                                    | Cómo terminó una aprobación                                                                                    |
 | `notice`               | `kind`, `message` (opcional)                                                                                                          | Algo que decir con palabras: un guardrail que salta, un límite que se alcanza                                  |
 | `limit`                | `seconds_left`                                                                                                                        | El tiempo de la llamada casi se ha agotado                                                                     |
-| `clear_playback`       | -                                                                                                                                     | El relay: descartar el audio del agent en cola                                                                 |
+| `clear_playback`       | ---                                                                                                                                   | El relay: descartar el audio del agent en cola                                                                 |
 | `ended`                | `reason`, `message`                                                                                                                   | La llamada ha terminado                                                                                        |
 | _binario_              | PCM de 16 bits a la frecuencia de salida del modelo                                                                                   | El relay: el audio del agent                                                                                   |
 
@@ -885,3 +916,5 @@ solo avanza.
   que consultar, así que un run largo no mantiene una conexión abierta.
 - **La API pública está en `/api/v1/public/openapi.json`** y dentro de v1 solo
   cambia de forma aditiva, con 90 días de deprecación; todavía no hay SDK.
+
+Los skills cuya carga exige aprobación deben aprobarse de nuevo en cada turno; las cargas históricas nunca omiten ese control.

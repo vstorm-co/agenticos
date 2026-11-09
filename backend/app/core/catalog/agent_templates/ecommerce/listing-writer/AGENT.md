@@ -4,6 +4,7 @@ description: Writes product copy from the spec sheet without inventing an attrib
   and never omits the fit note.
 capabilities:
 - ask_user
+- drafts
 - knowledge
 - skills
 - context

@@ -6,12 +6,16 @@ same way, so the response is built here rather than twice.
 """
 
 from app.core.permissions import AuthContext
-from app.schemas.agent import AgentRunResult, RunStep, SettledCall
+from app.schemas.agent import AgentRunResult, RunStep, SettledCall, SettledDelegation
 from app.services.agent_runner import AgentRunnerService, RunSegment
 
 
 async def run_result(
-    service: AgentRunnerService, ctx: AuthContext, segment: RunSegment
+    service: AgentRunnerService,
+    ctx: AuthContext,
+    segment: RunSegment,
+    *,
+    continues_in_chat: bool = False,
 ) -> AgentRunResult:
     """The continuation, with what it did and what it is waiting on now."""
     run = segment.run
@@ -49,9 +53,14 @@ async def run_result(
             SettledCall(tool_call_id=tool_call_id, result=result)
             for tool_call_id, result in segment.settled.items()
         ],
+        delegations=[
+            SettledDelegation(task_id=delegation.task_id, status=delegation.status)
+            for delegation in segment.delegations
+        ],
         # Empty unless the continuation stopped again, which it does whenever the
         # agent reaches a second gated call or asks a second question. Without
         # them a caller was told the run is still waiting and given nothing to do.
         parked=await service.parked_calls(ctx, run),
         questions=await service.parked_questions(ctx, run),
+        continues_in_chat=continues_in_chat,
     )

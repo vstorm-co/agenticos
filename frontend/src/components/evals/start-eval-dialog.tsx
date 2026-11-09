@@ -14,11 +14,6 @@ import {
   DialogHeader,
   DialogTitle,
   Label,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
 } from "@/components/ui";
 import {
   useDatasetEvalRuns,
@@ -27,10 +22,12 @@ import {
   useEveryDataset,
 } from "@/hooks/use-eval-runs";
 import { usePermissions } from "@/hooks/use-permissions";
-import { ApiError, getErrorMessage } from "@/lib/api-error";
+import { ApiError, getErrorMessage, problemList } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { isRunnable } from "@/lib/datasets";
-import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
+import { AgentSelect } from "@/components/agents/agent-select";
+import { cn } from "@/lib/utils";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_WIDE } from "@/lib/dialog-sizes";
 import { useOrgStore } from "@/stores/org-store";
 import type { EvalRunRequest } from "@/types/eval-runs";
 import { Perm } from "@/types/permissions";
@@ -74,6 +71,7 @@ export function StartEvalDialog({
 }: StartEvalDialogProps) {
   const t = useTranslations("evals");
   const tErrors = useTranslations("errors");
+  const tc = useTranslations("common");
   const locale = useLocale();
   const router = useRouter();
   const { can } = usePermissions();
@@ -86,7 +84,12 @@ export function StartEvalDialog({
     ...BLANK,
     dataset_id: givenDataset ?? "",
   });
-  const { agents } = useEveryAgent({ enabled: givenAgent === null });
+  const {
+    agents,
+    isLoading: agentsLoading,
+    error: agentsError,
+  } = useEveryAgent({ enabled: givenAgent === null });
+  const agentListError = givenAgent === null ? agentsError : null;
   const { runs: datasetRuns } = useDatasetEvalRuns(givenDataset ?? "", {
     enabled: givenAgent === null && givenDataset !== undefined,
   });
@@ -98,8 +101,15 @@ export function StartEvalDialog({
     null;
   const agentId = givenAgent ?? chosenAgent ?? offeredAgent;
   const { runs, estimate, start } = useEvalRuns(agentId);
-  const { datasets } = useEveryDataset();
-  const { currentVersion, draftDiffers, targets, preferred } = useEvalTarget(agentId);
+  const { datasets, isLoading: datasetsLoading, error: datasetsError } = useEveryDataset();
+  const {
+    currentVersion,
+    draftDiffers,
+    targets,
+    preferred,
+    isLoading: targetLoading,
+    error: targetError,
+  } = useEvalTarget(agentId);
 
   const runnable = datasets.filter(isRunnable);
   const offered =
@@ -114,7 +124,12 @@ export function StartEvalDialog({
       ? chosenTarget
       : preferred;
   const full: EvalRunRequest | null =
-    agentId === null || target === null || datasetId === ""
+    agentId === null ||
+    target === null ||
+    targetLoading ||
+    datasetsLoading ||
+    Boolean(agentListError || datasetsError || targetError) ||
+    !runnable.some((item) => item.id === datasetId)
       ? null
       : {
           ...request,
@@ -134,7 +149,7 @@ export function StartEvalDialog({
       ESTIMATE_DEBOUNCE_MS,
     );
     return () => clearTimeout(timer);
-  }, [asked, quote, clearQuote]);
+  }, [agentId, asked, quote, clearQuote]);
 
   async function run(chosen: EvalRunRequest) {
     const created = await start.mutateAsync(chosen);
@@ -142,7 +157,7 @@ export function StartEvalDialog({
     router.push(`${ROUTES.AGENTS}/${agentId}/evals/${created.id}`);
   }
 
-  const failure = estimate.error ?? start.error;
+  const failure = agentListError ?? datasetsError ?? targetError ?? estimate.error ?? start.error;
   // Only the judge could decide a case and AI assistance is off: whoever may
   // turn it on is shown where.
   const assistanceOff =
@@ -154,41 +169,39 @@ export function StartEvalDialog({
   // next is debounced must not be the price a click agrees to.
   const priced =
     asked !== null && JSON.stringify(estimate.variables) === asked ? estimate.data : undefined;
+  const problems = problemList(failure);
   const dataset = runnable.find((item) => item.id === datasetId);
   return (
     <Dialog open onOpenChange={onOpenChange}>
-      <DialogContent className={`${DIALOG_FORM} ${DIALOG_SCROLL}`}>
+      <DialogContent className={cn(DIALOG_WIDE, DIALOG_COLUMN)}>
         <DialogHeader>
           <DialogTitle>{t("startTitle")}</DialogTitle>
           <DialogDescription>{t("startBody")}</DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
+        <div className={cn(DIALOG_BODY, "space-y-4")}>
           {givenAgent === null && (
             <div className="space-y-1.5">
               <Label>{t("fields.agent")}</Label>
-              <Select
+              <AgentSelect
+                aria-label={t("fields.agent")}
+                agents={testable}
                 value={agentId ?? ""}
-                onValueChange={(id) => {
+                loading={agentsLoading}
+                placeholder={t("fields.agentPlaceholder")}
+                onChange={(id) => {
                   setChosenAgent(id);
                   setChosenTarget(null);
-                  // An environment is one agent's: another agent's would be refused.
                   setRequest(({ environment_id: _theirs, ...rest }) => rest);
                 }}
-              >
-                <SelectTrigger aria-label={t("fields.agent")}>
-                  <SelectValue placeholder={t("fields.agentPlaceholder")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {testable.map((agent) => (
-                    <SelectItem key={agent.id} value={agent.id}>
-                      {agent.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
             </div>
           )}
-          {agentId !== null && (
+          {agentId !== null && targetLoading && (
+            <p role="status" className="text-muted-foreground text-sm">
+              {tc("loading")}
+            </p>
+          )}
+          {agentId !== null && !targetLoading && !targetError && (
             <TargetChoice
               targets={targets}
               value={target}
@@ -199,50 +212,71 @@ export function StartEvalDialog({
           )}
           <StartEvalFields
             agentId={agentId}
-            datasets={runnable}
+            datasets={datasets.filter((item) => item.can_run)}
+            loading={datasetsLoading}
             datasetId={datasetId}
             request={request}
             onChange={setRequest}
+            onOpenCases={() => onOpenChange(false)}
           />
-        </div>
-        {priced && agentId !== null && (
-          <EstimateSummary
-            agentId={agentId}
-            estimate={priced}
-            scoring={dataset?.scoring ?? null}
-            judgeName={dataset?.judge_name ?? null}
-          />
-        )}
-        {target === "version" && (besideBaseline || priced?.missing_baseline_version != null) && (
-          <div className="space-y-2 text-sm">
-            {!besideBaseline && <p className="text-warning text-xs">{t("noEarlierRun")}</p>}
-            <Toggle
-              checked={besideBaseline}
-              onChange={setBesideBaseline}
-              label={t("besideBaseline")}
-              hint={t("besideBaselineHint")}
+          {priced && agentId !== null && (
+            <EstimateSummary
+              agentId={agentId}
+              estimate={priced}
+              scoring={dataset?.scoring ?? null}
+              judgeName={dataset?.judge_name ?? null}
             />
-          </div>
-        )}
-        {failure && (
-          <div role="alert" className="text-destructive space-y-1 text-sm">
-            <p>{getErrorMessage(failure, tErrors)}</p>
-            {assistanceOff && (
-              <Link
-                href={`${ROUTES.ORGS}/${activeOrgId}/members`}
-                className="text-foreground underline underline-offset-4"
-              >
-                {t("aiSettings")}
-              </Link>
-            )}
-          </div>
-        )}
-        <DialogFooter>
+          )}
+          {target === "version" && (besideBaseline || priced?.missing_baseline_version != null) && (
+            <div className="space-y-2 text-sm">
+              {!besideBaseline && <p className="text-warning-ink text-xs">{t("noEarlierRun")}</p>}
+              <Toggle
+                checked={besideBaseline}
+                onChange={setBesideBaseline}
+                label={t("besideBaseline")}
+                hint={t("besideBaselineHint")}
+              />
+            </div>
+          )}
+          {failure && (
+            <div role="alert" className="text-destructive-ink space-y-1 text-sm">
+              <p>{getErrorMessage(failure, tErrors)}</p>
+              {problems && (
+                <>
+                  <ul className="list-disc space-y-1 pl-5 break-words">
+                    {problems.map((problem) => (
+                      <li key={problem}>{problem}</li>
+                    ))}
+                  </ul>
+                  {agentId && (
+                    <Link
+                      href={`${ROUTES.AGENTS}/${agentId}?tab=build`}
+                      onClick={() => onOpenChange(false)}
+                      className="text-foreground inline-block py-2 underline underline-offset-4"
+                    >
+                      {t("actions.backToBuild")}
+                    </Link>
+                  )}
+                </>
+              )}
+              {assistanceOff && (
+                <Link
+                  href={`${ROUTES.ORGS}/${activeOrgId}/members`}
+                  className="text-foreground underline underline-offset-4"
+                >
+                  {t("aiSettings")}
+                </Link>
+              )}
+            </div>
+          )}
+        </div>
+        <DialogFooter className="border-t">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("cancel")}
           </Button>
           <Button
             data-tour="eval-run-start"
+            loading={start.isPending}
             disabled={!priced || !priced.affordable || start.isPending}
             onClick={() => full && void run(full).catch(() => undefined)}
           >

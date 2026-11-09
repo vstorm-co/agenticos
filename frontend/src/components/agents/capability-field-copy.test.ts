@@ -56,14 +56,19 @@ it.each([
   },
 ])("narrows optional choice translations before displaying them: %j", (raw) => {
   const original = renderHook(() => intl.useTranslations("capabilityConfig")).result.current;
-  const translator = Object.assign(original, {
-    has: () => true,
-    raw: (key: string): unknown =>
-      key.endsWith(".title")
-        ? "Environment"
-        : key.endsWith(".description")
-          ? "Choose an environment"
-          : raw,
+  const translator = new Proxy(original, {
+    get(target, property, receiver) {
+      if (property === "has") return () => true;
+      if (property === "raw") {
+        return (key: string): unknown =>
+          key.endsWith(".title")
+            ? "Environment"
+            : key.endsWith(".description")
+              ? "Choose an environment"
+              : raw;
+      }
+      return Reflect.get(target, property, receiver);
+    },
   });
   vi.spyOn(intl, "useTranslations").mockReturnValue(translator);
   const { result } = renderHook(() => useCapabilityFieldCopy("computer_use"));
@@ -73,4 +78,12 @@ it.each([
       valid: { label: "Local", description: "Use this computer" },
     });
   } else expect(result.current("desktop")?.options).toBeUndefined();
+});
+
+it("offers the personal coding account alongside the other execution modes", () => {
+  const { result } = renderHook(() => useCapabilityFieldCopy("coding_agent"));
+  expect(result.current("runs_on")?.description).toContain("initiating person's profile account");
+  expect(result.current("runs_on")?.options?.personal_sandbox?.label).toBe(
+    "Private cloud task with my account",
+  );
 });

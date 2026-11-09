@@ -1,5 +1,5 @@
 ---
-source_sha: "759491a1f3dc"
+source_sha: "ae8b5a53d44f"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -121,6 +121,7 @@ Text in seinem Prompt.
 | **Dokument (OpenDocument)** | …opendocument.text | .odt | Absätze über `odfpy`. Als Kontext an den Prompt angehängt. |
 | **E-Mail** | application/vnd.ms-outlook | .msg | Kopfzeilen und Text aus den OLE/MAPI-Streams über `olefile` (BSD) gelesen; eingebettete Anhänge werden nur namentlich aufgelistet, nicht rekursiv extrahiert. Als Kontext an den Prompt angehängt. |
 | **Text** | text/plain, text/markdown, text/csv, text/html, text/xml, application/xml, application/json | .txt, .md, .csv, .html, .xml, .json | Direkt als UTF-8 dekodiert (XML nach seiner deklarierten BOM/Kodierung). Als Kontext an den Prompt angehängt. |
+| **Archiv** | application/zip, application/x-zip-compressed, application/gzip, application/x-gzip | .zip, .tar.gz, .tgz | Beim Hochladen vollständig gelesen und abgelehnt, wenn es unsicher ist (siehe [Archive](#archives)). Sein Text ist die Liste dessen, was es enthält. Wird in den Workspace entpackt; ein Agent ohne Workspace lehnt es ab. |
 
 ### Wohin ein Anhang geht, hängt vom Agent ab { #where-an-attachment-goes-depends-on-the-agent }
 
@@ -139,6 +140,58 @@ bekommt die Datei statt des Textes:
 | pdf, docx, spreadsheet, document, presentation, email | geparster Text inline eingefügt | nach `uploads/` geschrieben, mit dem extrahierten Text daneben, sofern die Laufzeitumgebung sie nicht selbst lesen kann (`email` bekommt ihn immer — `lit` kann `.msg` nicht lesen); Referenz und die ersten 20 Zeilen |
 | Bild | `BinaryContent` | `BinaryContent` **und** geschrieben; die Referenz nennt den Pfad |
 | tiff | PNG-Seite(n) als `BinaryContent`, Seitengrenze vermerkt | Original-`.tiff` geschrieben; PNG-Seite(n) angezeigt, Seitengrenze vermerkt |
+| Archiv (`.zip`, `.tar.gz`) | abgelehnt: dem Modell wird gesagt, dass der Agent keinen Workspace hat, in den er es entpacken könnte, und nichts davon kommt in den Prompt | nach `uploads/<id>-<name>/` entpackt; der Verweis nennt den Ordner und den Anfang des Baums |
+
+### Archive { #archives }
+
+Ein `.zip` oder `.tar.gz` ist der Weg, einem Agent ein Repository oder einen
+beliebigen Ordner mit Dateien zu geben. Die Plattform entpackt es auf dem Server,
+bevor der Agent läuft, statt es dem Agent zum Entpacken zu übergeben. Ein
+gespeicherter Workspace hat keine Shell, in der `unzip` laufen könnte, ein
+Sandbox-Image hat es nicht sicher, und ein Archiv ist ein bekannter Weg, außerhalb
+eines Ordners zu schreiben. Eine Prüfung auf dem Server lässt sich testen; ein
+Agent, der `tar -xf` auf das Erhaltene ausführt, nicht.
+
+Das Archiv wird beim Hochladen vollständig gelesen. Das Hochladen wird mit 400
+abgelehnt und nichts gespeichert, wenn:
+
+- der Pfad eines Members aus dem Archiv herausführt (`../`), an der Wurzel
+  (`/etc/x`) oder an einem Laufwerk (`C:/`) beginnt, einen Backslash oder ein
+  Steuerzeichen enthält;
+- ein Member ein symbolischer Link, ein Hardlink, eine Gerätedatei oder ein FIFO
+  ist;
+- derselbe Pfad zweimal vorkommt oder zugleich als Datei und als Ordner;
+- ein Member verschlüsselt ist oder die Datei nicht das Archiv ist, das ihr Name
+  sagt;
+- es mehr als `WORKSPACE_ARCHIVE_MAX_ENTRIES` Dateien und Ordner enthält (5000),
+  auf mehr als `WORKSPACE_ARCHIVE_MAX_BYTES` (200 MiB) entpackt oder auf mehr als
+  `WORKSPACE_ARCHIVE_MAX_RATIO`-mal seine eigene Größe (100) — eine
+  Dekompressionsbombe. Größen werden beim Lesen der Members gemessen, nicht aus
+  den Kopfdaten des Archivs übernommen, die falsch sein können;
+- eine Datei darin auf mehr als `WORKSPACE_ARCHIVE_MAX_MEMBER_BYTES` (50 MiB)
+  entpackt, denn beim Entpacken liegt immer eine Datei auf einmal im Speicher.
+
+Die Upload-Grenze `CHAT_MAX_UPLOAD_SIZE_MB` gilt für das Archiv selbst.
+
+Für einen Agent mit Workspace werden die Members unter
+`uploads/<erste 8 Hex-Zeichen der Datei-ID>-<Archivname ohne .zip>/` geschrieben,
+ihre Ordner bleiben erhalten — `repo.zip` mit `repo/src/app.py` wird zu
+`uploads/3f2a1b9c-repo/repo/src/app.py`. Der Verweis nennt diesen Ordner und
+beginnt mit den ersten Zeilen der Member-Liste. Die Members werden einzeln
+geschrieben, sodass immer nur einer im Speicher liegt. Lehnt der Workspace einen
+Schreibvorgang mittendrin ab oder wird der Turn während des Entpackens gestoppt,
+wird der Ordner entfernt: Dem Modell wird gesagt, dass das Archiv nicht
+geschrieben werden konnte, und ein halb entpackter Baum wird nie für einen ganzen
+gehalten.
+
+Ein Agent ohne Workspace hat keinen Ort zum Entpacken. Dem Modell wird gesagt,
+dass es das Archiv nicht öffnen kann, und es bekommt die Member-Liste nicht, denn
+eine Liste von Pfaden ließe es Fragen zu Code beantworten, den es nicht lesen
+kann.
+
+Um Dateien wieder herauszuholen, bietet der Bereich **Files** im Chat jeden
+Ordner und den ganzen Workspace als `.zip` an — siehe
+[Sandbox: einen Ordner herunterladen](sandbox.md#downloading-a-folder-as-a-zip).
 
 **Ein späterer Zug hat die Datei noch.** Was der Anhang dem Prompt hinzugefügt
 hat - der eingefügte Text oder der Verweis mit seinen ersten Zeilen - wird neben
@@ -291,7 +344,9 @@ zusammenbaut.
 
 Chat-Anhänge werden mit **PyMuPDF** gelesen, und das ist nicht konfigurierbar.
 Ein Anhang gehört zu keiner Collection, es gibt also keine gespeicherte
-Konfiguration, aus der eine Parser-Wahl gelesen werden könnte.
+Konfiguration, aus der eine Parser-Wahl gelesen werden könnte. NUL-Zeichen
+werden vor dem Speichern aus dem extrahierten Text entfernt, damit PostgreSQL
+den Upload annehmen kann. Die Originalbytes der PDF-Datei bleiben erhalten.
 
 Die Variable `CHAT_PDF_PARSER`, die früher zwischen drei Parsern wählte, gibt es
 nicht mehr. Beide Alternativen waren in `except Exception: return
@@ -382,6 +437,11 @@ Dateitypen und das Größenlimit für Chat-Uploads: Von den Anhängen, die ein P
 liefert, werden nur die ersten 10 pro Nachricht berücksichtigt, und 25 MiB pro
 Nachricht. Ein ausgelassener Anhang wird mit dem Grund aufgeführt, und ein Testlauf
 holt nichts ab.
+
+Ein `.zip` oder `.tar.gz` wird als `type_not_allowed`
+ausgelassen: Ein Chat prüft ein Archiv Member für Member, bevor er es entpackt
+(siehe [Archive](#archives)), und ein Archiv, das ein Workflow erhält, prüft
+nichts.
 
 Eine HTML-Datei in einem Workflow, etwa eine gespeicherte Seite oder ein Anhang,
 wird von [`html.parse`](reference/workflow-nodes.md#html-parse) gelesen, nicht von
@@ -869,6 +929,26 @@ Ein Name, den ein Aufrufer nicht angibt, wird aus dem Anzeigenamen plus sechs
 zufälligen Hexzeichen abgeleitet und auf demselben Weg beansprucht, statt ihm
 wegen seiner Zufälligkeit zu vertrauen.
 
+**Auch ein Name mit Inhalt, den keine Basis besitzt, ist nicht frei.** `rag-ingest`
+schreibt Tracking-Zeilen und eine `rag_<name>`-Tabelle ohne Wissensbasis und ohne
+Organisation. Deshalb lehnt `claim` einen Namen, den keine Basis hält, ab, solange er
+keiner Basis zugeordnete Zeilen mit Chunks eines anderen Tenants als der Organisation
+des Aufrufers hält, oder eine Vektortabelle mit solchen Chunks. Früher konnte ein
+Mitglied mit `collections:edit` eine Basis auf der Collection eines Operators anlegen
+und löschen und damit dessen Chunks verwerfen
+([#2747](https://github.com/vstorm-co/agenticos/issues/2747)). Ein Name, den eine
+Basis hält, wird nicht geprüft: Der Aufrufer darf jede dieser Basen schreiben und
+könnte sie ohnehin alle löschen oder leeren. Ein App-Admin darf einen solchen Namen
+übernehmen; eine fehlgeschlagene Zeile ohne Vektor-Id beschreibt keinen Chunk und hält
+den Namen nicht. Ein mitten in einer Datei abgebrochenes `rag-ingest` hinterlässt eine
+`processing`-Zeile, die den Namen hält, bis ein App-Admin ihn übernimmt oder `rag-drop
+<name>` ausführt.
+
+Inhalt, der *nach* dem Beanspruchen durch eine Basis unter den Namen kommt, lässt sich
+hier nicht ablehnen, deshalb schont ihn der Abbau: Die Tabelle der letzten Basis bleibt,
+solange sie einen nicht zugeordneten Chunk hält, den die Basis nicht übernimmt, wie
+unten beim Löschen einer Basis beschrieben.
+
 **Und ein Name mitten im Abbau ist auch nicht frei.** Eine Collection zu löschen
 entfernt ihre Wissensdatenbank-Zeilen in der Anfrage, lässt die physische
 Vektortabelle `rag_<name>` aber erst *nach* dem Commit der Anfrage fallen, einem
@@ -890,9 +970,11 @@ am `still_wanted`-Tor unmittelbar vor dem Vektorschreiben, ein Sync in eine
 geleerte Vorgabe (deren Zeile das Leeren behält) hält also an, statt eine Tabelle
 neu zu füllen, die gerade gelöscht wird (#1382). Beides sind
 Best-Effort-Prüfungen der Reservierung und keine mit Sperren serialisierte
-Abfolge: die Teardown-Sperre über einen Schreibvorgang zu halten würde gegen eine
-Organisationsbereinigung verklemmen, die zuerst die `organizations`-Zeile sperrt,
-das Schließen des letzten schmalen Fensters bleibt deshalb #1382 überlassen.
+Abfolge. Ein Schreibvorgang, der unter einer Basis abgelegt ist, stützt sich auf sie
+und auf die Sperren seiner Basis und Zeile, und das Schließen des letzten schmalen
+Fensters bleibt #1382 überlassen. Ein Chunk-Schreibvorgang ohne Basis hält die
+Teardown-Sperre bis zu seinem Commit, wie unten beim Teardown der letzten Basis
+beschrieben.
 
 Eine Reservierung, deren Löschen nie lief — verloren durch einen Absturz zwischen
 Commit und Anstoß oder durch ein Löschen, das endgültig scheitert — würde ihren
@@ -927,6 +1009,10 @@ Jetzt leert es die eine Basis, die den Namen hält, oder löscht einen Namen ohn
 lehnt es ab und listet ihre IDs; `--knowledge-base <id>` nennt die zu leerende Basis,
 und die Tabelle bleibt für die anderen. Ein Worker löscht Tabelle und Dateien, nachdem
 der Befehl committet hat (#2560).
+
+Die Tabelle der letzten Basis geht, gleich was sie hält: Der Operator hat das Löschen
+verlangt, und ihm gehört der Inhalt, den ein Löschen in der Konsole schonen würde
+(#2747).
 
 `documents` war auch die **Vorgabe**-Collection, der CLI-Schnellstart zielte also
 früher auf die Verfolgungstabelle; die Vorgabe ist jetzt `default`. Eine
@@ -1050,6 +1136,57 @@ und listet sie noch - dieselbe Regel wie beim Löschen einer Collection ([#2560]
 Sonst bleiben nicht zugeordnete Chunks und passen über ihren Tenant, und nicht
 zugeordnete Dokumentzeilen bleiben in den Basen ihres Tenants gelistet ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
+Hält keine andere Basis den Namen, löschen beide Wege und `rag-drop` dieselben
+Zeilen mit ihren Dateien, und der Aufräum-Job löscht die Tabelle: die eigenen Zeilen
+der Basis und die nicht zugeordneten Zeilen ihres Tenants. Das sind für eine Basis
+einer Organisation oder eine persönliche Basis die Zeilen ihrer Organisation, für eine
+app-scoped Basis die Zeilen ohne Organisation (die `rag-ingest` schreibt) und für eine
+persönliche Basis außerhalb einer Organisation keine.
+
+Beide Routen behalten die Tabelle danach, wenn sie einen nicht zugeordneten Chunk hält,
+den die Basis nicht übernimmt: ein `rag-ingest` oder eine CLI-Synchronisierung des
+Operators in den gehaltenen Namen oder einen Chunk eines anderen Tenants. Ein Claim
+kann Inhalt, der erst danach kommt, nicht ablehnen, und der Aufrufer hat keine
+Befugnis darüber. Nur die Chunks, die die Basis übernimmt, werden entfernt, und die
+übrigen Zeilen unter dem Namen bleiben unverändert.
+
+Außer bei einer Standardbasis, die auf dem Namen bleibt, ist der Name so, wie
+`rag-ingest` ihn hinterlässt: Keine Basis hält ihn, `rag-drop <name>` entfernt ihn, und
+`claim` lehnt ihn für alle ab außer einem App-Admin und einer Organisation, deren Chunks
+als einzige übrig sind ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
+
+Ein Chunk-Schreibvorgang ohne Basis hält den Namen bis zu seinem Commit. Die Tabelle wird
+deshalb erst geprüft, wenn jeder bereits laufende Schreibvorgang dieser Art beendet ist.
+Ein Schreibvorgang, der den Namen erreicht, solange er reserviert ist, wird abgelehnt, und
+die Datei muss erneut indexiert werden. Der Bereinigungsjob löscht nur einen reservierten
+Namen, ein erneuter Lauf lässt also einen Schreibvorgang nach seinem ersten Löschen
+bestehen.
+
+Ein großes Dokument kann den Namen mehrere Sekunden lang halten. Ein Anlegen auf
+diesem Namen (`POST /kb`, `POST /rag/collections/{name}`) wartet eine Sekunde und
+antwortet dann mit 409 und der Bitte, es erneut zu versuchen, denn jede wartende
+Anfrage belegt eine Datenbankverbindung, und genug davon lassen alle anderen Anfragen
+scheitern. Ein Löschen wartet, bis der Schreibvorgang beendet ist.
+
+Eine persönliche Basis außerhalb einer Organisation übernimmt keinen nicht zugeordneten
+Chunk, doch ein Chunk, den ihre eigenen Zeilen nennen, geht mit ihr. Ein Alt-Chunk ohne
+Basis, ohne Organisation und ohne Zeile lässt sich nicht von dem eines Operators
+unterscheiden: Auch er behält die Tabelle, bleibt bis `rag-drop <name>` und gehört dem
+App-Scope, sodass eine app-scoped Basis auf dem Namen ihn liest.
+
+Andernfalls, und bei `rag-drop` immer, löscht der Aufräum-Job die Tabelle. Nicht
+zugeordnete Zeilen eines anderen Tenants unter dem Namen bleiben mit ihren Dateien,
+denn der Aufrufer hat keine Befugnis über sie. Ohne die Tabelle steht nichts mehr
+hinter ihnen, deshalb werden sie als fehlgeschlagen markiert: Die nächste Basis dieses
+Tenants mit dem Namen listet sie als fehlgeschlagen, ein hochgeladenes Dokument muss
+erneut hochgeladen werden, und eine Synchronisierung indexiert ein synchronisiertes
+Dokument neu.
+
+Vorher ließ `DELETE /kb/{id}` die nicht zugeordneten Zeilen des Tenants hinter der
+gelöschten Tabelle zurück, weiter als indexiert gelistet, und das Löschen einer
+Collection löschte jede Zeile unter dem Namen, gleich welchem Tenant sie gehörte
+([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
+
 Ein Upload oder eine Synchronisierung, die beim Löschen der Basis noch eine Datei
 für sie indexiert, hinterlässt keine Chunks. Der Schreibvorgang nimmt eine
 Sperre auf der Zeile der Basis, die mit der des Löschens kollidiert, in der
@@ -1059,6 +1196,15 @@ nichts und schlägt im Indexierungsschritt fehl, und ein Schreibvorgang, der als
 erster kommt, wird vor dem Löschen festgeschrieben, dessen Aufräumen seine Chunks
 danach entfernt
 ([#2561](https://github.com/vstorm-co/agenticos/issues/2561)).
+
+Auch ein einzelnes Dokument, das während der Indexierung gelöscht wird, hinterlässt
+keine Chunks. Seine Zeile hat keine Vektordokument-ID, bis der Ingest eine
+einträgt, sodass das Löschen womöglich nichts zu entfernen hat; der Worker, der
+beim Festhalten des Ergebnisses die Zeile nicht mehr findet, reiht in derselben
+Transaktion einen Job ein, der die gerade geschriebenen Chunks entfernt und bei
+einem Fehlschlag wiederholt wird. Ein Löschen, das die neu eingetragene ID entdeckt, reiht denselben dauerhaften
+Job anhand der ID der gelöschten Zeile ein
+([#2565](https://github.com/vstorm-co/agenticos/issues/2565)).
 
 Eine lokale Synchronisierung, die für eine vor ihrem Start gelöschte Basis
 eingereiht ist, endet mit einem Fehler und schreibt nichts
@@ -1189,7 +1335,7 @@ hat. Eine Adresse `NULL` trifft auf keinen Vergleich zu, und das ist die
 gewünschte Antwort und keine, die zu umgehen wäre, und es ist das, was jede vor
 der Spalte geschriebene Zeile hält.
 
-Drei Dinge entscheiden, was eine Außerdienststellung mitnehmen darf, und jedes
+Vier Dinge entscheiden, was eine Außerdienststellung mitnehmen darf, und jedes
 davon war zuerst falsch:
 
 - **Nach Adresse, nie nach Dateiname.** Das ist die Kollision, die
@@ -1197,6 +1343,12 @@ davon war zuerst falsch:
   beseitigt hat, aus der anderen Richtung erreicht: `a/readme.md` und
   `b/readme.md` in einem Bucket teilen sich einen Basisnamen, ein Namenstreffer
   löscht also die Zeile der anderen Datei.
+- **Im Bereich der neuen Zeile, nie nach Collection-Namen.** Ein Name ist nicht
+  eindeutig, also können zwei Organisationen oder zwei Basen einer Organisation
+  denselben Pfad hinein synchronisieren. Eine einer Basis zugeordnete Zeile nimmt nur
+  die Zeilen, die diese Basis auflistet - ihre eigenen und die keiner Basis
+  zugeordneten ihres Tenants -, eine Zeile ohne Basis nur die Zeilen ohne Basis ihrer
+  eigenen Organisation ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
 - **`ERROR`, nicht "hat keine Vektor-Id".** Das sind verschiedene Mengen, und sie
   als eine zu behandeln ist eine Race Condition: eine `PROCESSING`-Zeile gehört zu
   einem noch laufenden Versuch, und bei zwei überlappenden Ingestionen einer
@@ -1228,6 +1380,12 @@ das keine gespeicherte Datei hat — eines, das älter ist als das Aufbewahren d
 Uploads, oder eines, das ein Sync eingelesen hat — wird mit einer 400 abgelehnt,
 statt nach `processing` versetzt zu werden
 ([#441](https://github.com/vstorm-co/agenticos/issues/441)).
+
+Der Retry lehnt auch ein Dokument einer Organisation ab, das keiner Wissensbasis
+zugeordnet ist: Seine Chunks würden deploymentweit geschrieben, wo die Basis der
+Organisation, die es listet, nicht liest, also muss es erneut hochgeladen werden.
+Eines ohne Organisation gehört einer app-scoped Basis, die dort liest, und wird
+erneut versucht ([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
 
 ### Was eine gescheiterte Ingestion sagt { #what-a-failed-ingest-says }
 
@@ -1714,8 +1872,12 @@ sie nicht anbietet, ist das Löschen eines Profils: das gehört dorthin, wo die
 Modelle einer Organisation verwaltet werden, und ein Profil, das Agents nutzen,
 lässt sich gar nicht löschen.
 
-Die erzeugten Beschreibungen werden in den Dokumenttext aufgenommen,
-für eine bessere semantische Suche.
+PyMuPDF überspringt die Extraktion eingebetteter Bilder, wenn die
+Bildbeschreibung ausgeschaltet ist. Ist sie eingeschaltet, wird jeder Bild-xref
+nur einmal pro Dokument extrahiert; wiederholte Verweise auf einer Seite werden
+zusammengefasst und identische Bildbytes nur einmal beschrieben. Jede Seite mit
+einem Bildverweis erhält dessen Beschreibung im Text für die semantische Suche.
+Chunks enthalten diesen Text, ohne die eingebetteten Bilder der Seite zu kopieren.
 
 ## Aus einem Kanal { #from-a-channel }
 

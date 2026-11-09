@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, X } from "lucide-react";
+import { Bot, Plus, UserRound, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -12,6 +12,7 @@ import {
   SelectValue,
   Textarea,
 } from "@/components/ui";
+import { DatasetChip } from "./dataset-chip";
 import type { TurnDraft } from "./case-form";
 
 interface CaseHistoryEditorProps {
@@ -29,36 +30,48 @@ export function CaseHistoryEditor({ turns, onChange }: CaseHistoryEditorProps) {
   return (
     <div className="space-y-2">
       {turns.map((turn, index) => (
-        <div key={index} className="flex items-start gap-2">
-          <Select
-            value={turn.role}
-            onValueChange={(role) => change(index, { role: role as TurnDraft["role"] })}
-          >
-            <SelectTrigger
-              className="w-32 shrink-0"
-              aria-label={t("turnRole", { number: index + 1 })}
+        <div key={index} className="bg-muted/20 min-w-0 space-y-2 rounded-lg border p-3">
+          <div className="flex items-center justify-between gap-2">
+            <Select
+              value={turn.role}
+              onValueChange={(role) => change(index, { role: role as TurnDraft["role"] })}
             >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="user">{t("role.user")}</SelectItem>
-              <SelectItem value="assistant">{t("role.assistant")}</SelectItem>
-            </SelectContent>
-          </Select>
+              <SelectTrigger
+                className="h-8 w-36 min-w-0"
+                aria-label={t("turnRole", { number: index + 1 })}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="user" textValue={t("role.user")}>
+                  <DatasetChip tone="blue" icon={UserRound}>
+                    {t("role.user")}
+                  </DatasetChip>
+                </SelectItem>
+                <SelectItem value="assistant" textValue={t("role.assistant")}>
+                  <DatasetChip tone="purple" icon={Bot}>
+                    {t("role.assistant")}
+                  </DatasetChip>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={t("removeTurn", { number: index + 1 })}
+              onClick={() => onChange(turns.filter((_, at) => at !== index))}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
           <Textarea
+            className="min-h-20 w-full min-w-0"
             rows={2}
+            placeholder={t("historyMessagePlaceholder")}
             value={turn.content}
             aria-label={t("turnContent", { number: index + 1 })}
             onChange={(event) => change(index, { content: event.target.value })}
           />
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={t("removeTurn", { number: index + 1 })}
-            onClick={() => onChange(turns.filter((_, at) => at !== index))}
-          >
-            <X className="h-4 w-4" />
-          </Button>
         </div>
       ))}
       <Button

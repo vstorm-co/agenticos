@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 /** How far the wheel and the buttons may take the scale, either way. */
-const MIN_SCALE = 0.4;
+const MIN_SCALE = 0.15;
 const MAX_SCALE = 2.5;
 
 export interface View {

@@ -108,13 +108,15 @@ export function ApiKeysManager() {
 
   return (
     <section
-      className="border-border bg-card flex min-h-0 flex-1 flex-col rounded-xl border"
+      className="bg-card border-foreground/[0.07] shadow-card flex min-h-0 flex-col rounded-2xl border"
       data-tour="api-keys"
     >
-      <header className="border-border flex flex-wrap items-start justify-between gap-3 border-b px-5 py-4">
+      <header className="border-foreground/[0.06] flex flex-wrap items-start justify-between gap-3 border-b px-5 py-4 sm:px-6">
         <div className="min-w-0 flex-1">
-          <h2 className="text-foreground text-sm font-semibold">{t("title")}</h2>
-          <p className="text-muted-foreground mt-1 text-xs">{t("why")}</p>
+          <div className="space-y-1">
+            <h2 className="text-foreground text-sm font-semibold">{t("title")}</h2>
+            <p className="text-muted-foreground max-w-2xl text-xs leading-5">{t("why")}</p>
+          </div>
         </div>
         {canCreate && catalog && (
           <Button size="sm" onClick={() => setCreating(true)}>
@@ -131,7 +133,7 @@ export function ApiKeysManager() {
           className="flex-1 border-0 bg-transparent"
         />
       ) : (
-        <div className="px-5 py-5">
+        <div className="p-5 sm:p-6">
           <DataTable
             className="rounded-none border-0"
             columns={columns}

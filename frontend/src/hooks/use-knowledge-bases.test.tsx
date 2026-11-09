@@ -22,6 +22,12 @@ vi.mock("@/lib/api-client", async () => {
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
+/** What the caller holds; a test that takes one away puts it back in `beforeEach`. */
+const held = new Set<string>();
+vi.mock("@/hooks/use-permissions", () => ({
+  usePermissions: () => ({ can: (permission: string) => held.has(permission) }),
+}));
+
 /** Hoisted so a test can read the cache directly, which is where the leak is. */
 let client: QueryClient;
 
@@ -129,6 +135,8 @@ async function sent(index = 0) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  held.clear();
+  held.add("collections:view").add("collections:edit").add("connections:manage");
   client = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
   });
@@ -442,6 +450,44 @@ describe("one collection's page", () => {
     expect(result.current.syncSources).toEqual([]);
     expect(result.current.error).toBeNull();
     expect(result.current.sectionFailures.syncSources).toBe(true);
+  });
+
+  it("does not ask for the organization's integrations without connections:manage", async () => {
+    // #2745: they are every base's integrations, so the route refuses a reader of
+    // one base - and a refusal would read as an offer that failed to load.
+    held.delete("connections:manage");
+    serveDetail();
+    const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+
+    await waitFor(() => expect(result.current.connectors).toHaveLength(1));
+
+    expect(apiClient.get).not.toHaveBeenCalledWith("/kb/kb-1/sync-sources/org-integrations");
+    expect(result.current.orgIntegrations).toEqual([]);
+    expect(result.current.sectionFailures.orgIntegrations).toBe(false);
+  });
+
+  it("stops offering the organization's integrations once connections:manage is lost", async () => {
+    // A disabled query keeps its last answer, so a member downgraded while this
+    // page is open would go on being offered every base's integrations (#2745).
+    serveDetail();
+    const { result, rerender } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+    await waitFor(() => expect(result.current.orgIntegrations).toHaveLength(1));
+
+    held.delete("connections:manage");
+    rerender();
+
+    expect(result.current.orgIntegrations).toEqual([]);
+  });
+
+  it("does not report a failed integrations read once connections:manage is lost", async () => {
+    serveDetail({ integrations: new Error("Nope") });
+    const { result, rerender } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+    await waitFor(() => expect(result.current.sectionFailures.orgIntegrations).toBe(true));
+
+    held.delete("connections:manage");
+    rerender();
+
+    expect(result.current.sectionFailures.orgIntegrations).toBe(false);
   });
 
   it("says what went wrong when the collection itself cannot be read", async () => {

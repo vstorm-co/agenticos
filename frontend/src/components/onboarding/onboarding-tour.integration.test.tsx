@@ -488,6 +488,57 @@ describe("OnboardingTour's light", () => {
     expect(activateTab).not.toHaveBeenCalled();
   });
 
+  it("selects an inactive tab even when its target is already mounted and visible", async () => {
+    const trigger = tab("agent-tab-build", "inactive");
+    trigger.setAttribute("role", "tab");
+    trigger.setAttribute("aria-expanded", "true");
+    const target = document.createElement("div");
+    target.dataset.tour = "agent-instructions-header";
+    document.body.append(trigger, target);
+    try {
+      serveElements(trigger, target);
+      openBuilderHelp();
+      useOnboardingStore.setState({
+        index: stepsForPage("/agents/agent-1", () => true).findIndex(
+          (step) => step.id === "agent-instructions",
+        ),
+      });
+      render(<OnboardingTour />, { wrapper });
+
+      await waitFor(() => expect(light.focus).toHaveBeenCalledWith(target));
+      expect(activateTab).toHaveBeenCalledWith(trigger);
+    } finally {
+      trigger.remove();
+      target.remove();
+    }
+  });
+
+  it("leaves a disclosure closed when its target is visible outside it", async () => {
+    const trigger = document.createElement("button");
+    trigger.dataset.tour = "agent-tab-build";
+    trigger.setAttribute("aria-expanded", "false");
+    trigger.setAttribute("aria-controls", "secondary-actions");
+    const target = document.createElement("div");
+    target.dataset.tour = "agent-instructions-header";
+    document.body.append(trigger, target);
+    try {
+      serveElements(trigger, target);
+      openBuilderHelp();
+      useOnboardingStore.setState({
+        index: stepsForPage("/agents/agent-1", () => true).findIndex(
+          (step) => step.id === "agent-instructions",
+        ),
+      });
+      render(<OnboardingTour />, { wrapper });
+
+      await waitFor(() => expect(light.focus).toHaveBeenCalledWith(target));
+      expect(activateTab).not.toHaveBeenCalled();
+    } finally {
+      trigger.remove();
+      target.remove();
+    }
+  });
+
   it("skips an absent optional stop at once on a page that has finished loading", async () => {
     // Seven optional settings stops live on the other settings pages; each waited
     // its turn, and the caption of the stop before them sat unchanged meanwhile.
@@ -527,7 +578,7 @@ describe("OnboardingTour's light", () => {
         return element;
       });
     const tabs = steps
-      .flatMap((one) => (one.activate ? [tab(one.activate, "active")] : []))
+      .flatMap((one) => [one.activate ?? []].flat().map((id) => tab(id, "active")))
       .filter(
         (element, i, all) => all.findIndex((x) => x.dataset.tour === element.dataset.tour) === i,
       );

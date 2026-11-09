@@ -18,7 +18,7 @@ keep in step, and the ordering is only true if there is one.
 
 from dataclasses import dataclass, field
 
-from app.schemas.conversation import MessagePart
+from app.schemas.conversation import MessageFileSource, MessagePart
 
 
 @dataclass
@@ -32,6 +32,7 @@ class TurnTimeline:
     """
 
     parts: list[MessagePart] = field(default_factory=list)
+    file_source: MessageFileSource | None = None
     _sealed: bool = field(default=False, repr=False)
     """Whether the open part ended with the model response that wrote it."""
 
@@ -50,18 +51,12 @@ class TurnTimeline:
         self._sealed = True
 
     def add_thinking(self, delta: str) -> None:
-        """Extend the open reasoning part, or open one.
+        """Extend the reasoning exactly as streamed; deltas may split a word.
 
-        Separate reasoning blocks are joined by a space when they meet, which is
-        what the collector this replaced did: providers emit a block per thought
-        with no trailing whitespace, and concatenating them ran the last word of
-        one into the first of the next.
+        `next_response` seals distinct model responses. Their separate parts are
+        joined for the flat trace by `thinking`, never between individual deltas.
         """
-        open_part = self.parts[-1] if self.parts else None
-        if open_part is not None and open_part.type == "thinking" and open_part.text:
-            self._append("thinking", f" {delta}")
-        else:
-            self._append("thinking", delta)
+        self._append("thinking", delta)
 
     def add_tool(self, tool_call_id: str) -> None:
         """Record a tool call at this point in the turn.
@@ -137,6 +132,10 @@ class TurnTimeline:
         to fall back to, so dropping it as "a turn of one part" would lose the
         question and the answer outright (#502).
         """
+        # Tool output can carry file links even when no prose followed it.
+        if self.file_source is not None and any(part.type == "tool" for part in self.parts):
+            self.parts[0].file_source = self.file_source
+            return self.parts
         if len(self.parts) > 1:
             return self.parts
         if self.parts and self.parts[0].type in ("ask_user", "steer"):

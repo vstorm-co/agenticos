@@ -1,24 +1,27 @@
 "use client";
 
+import { useId } from "react";
 import { useRouter } from "next/navigation";
 import {
   CartesianGrid,
-  Line,
-  LineChart,
+  Area,
+  AreaChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
 
-import { LINE_WIDTH } from "@/lib/dashboard/system";
+import { CHART_TOOLTIP_CONTENT, CHART_TOOLTIP_ITEM, CHART_TOOLTIP_LABEL } from "@/lib/chart-styles";
+
+import { AREA_FILL_OPACITY, LINE_WIDTH } from "@/lib/dashboard/system";
 
 export interface PassRatePoint {
   /** The run's place in order, oldest first - the x axis, so runs sit evenly apart. */
   index: number;
   /** 0..1. */
   rate: number;
-  /** When it ran, as short as the axis has room for: "07:55" today, "Oct 21" before. */
+  /** When it ran: times within a single day, dates across days. */
   tick: string;
   /** A draft is drawn hollow: it is not a version anyone is talking to. */
   draft: boolean;
@@ -85,10 +88,13 @@ function PointTip({ active, payload }: { active?: boolean; payload?: { payload: 
   const point = payload?.[0]?.payload.point;
   if (!active || point === undefined) return null;
   return (
-    <div className="bg-card space-y-0.5 rounded-xl border px-3 py-2 text-xs shadow-sm">
-      <p className="font-medium">{point.title}</p>
+    <div
+      style={CHART_TOOLTIP_CONTENT}
+      className="max-w-[min(20rem,calc(100vw-2rem))] space-y-1 break-words"
+    >
+      <p style={CHART_TOOLTIP_ITEM}>{point.title}</p>
       {point.details.map((line) => (
-        <p key={line} className="text-muted-foreground">
+        <p key={line} style={CHART_TOOLTIP_LABEL}>
           {line}
         </p>
       ))}
@@ -104,6 +110,8 @@ function PointTip({ active, payload }: { active?: boolean; payload?: { payload: 
  */
 export function PassRateLinesImpl({ lines }: { lines: PassRateLine[] }) {
   const router = useRouter();
+  const washId = `eval-wash-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
+  const filled = lines.length === 1 ? lines[0] : undefined;
   const data = rows(lines);
   const axis = axisTicks(data);
   const dot = (
@@ -122,7 +130,7 @@ export function PassRateLinesImpl({ lines }: { lines: PassRateLine[] }) {
         cy={props.cy}
         r={radius}
         stroke={point.color}
-        strokeWidth={2}
+        strokeWidth={LINE_WIDTH}
         fill={point.draft ? "var(--color-card)" : point.color}
         className="cursor-pointer"
         onClick={() => router.push(point.href)}
@@ -131,8 +139,8 @@ export function PassRateLinesImpl({ lines }: { lines: PassRateLine[] }) {
   };
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <LineChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
-        <CartesianGrid stroke="oklch(from var(--color-foreground) l c h / 0.07)" vertical={false} />
+      <AreaChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+        <CartesianGrid stroke="oklch(from var(--color-foreground) l c h / 0.06)" vertical={false} />
         <XAxis
           dataKey="index"
           type="number"
@@ -141,11 +149,12 @@ export function PassRateLinesImpl({ lines }: { lines: PassRateLine[] }) {
           tickFormatter={(index: number) => axis.label.get(index) ?? ""}
           padding={{ left: 12, right: 12 }}
           interval="preserveStartEnd"
-          minTickGap={16}
+          minTickGap={28}
+          tickMargin={8}
           fontSize={11}
           tickLine={false}
           axisLine={false}
-          tick={{ fill: AXIS }}
+          tick={{ fontFamily: "var(--font-mono)", fill: AXIS }}
         />
         <YAxis
           domain={[0, 1]}
@@ -155,14 +164,24 @@ export function PassRateLinesImpl({ lines }: { lines: PassRateLine[] }) {
           tickLine={false}
           axisLine={false}
           width={36}
-          tick={{ fill: AXIS }}
+          tick={{ fontFamily: "var(--font-mono)", fill: AXIS }}
         />
         <Tooltip
           content={<PointTip />}
-          cursor={{ stroke: "oklch(from var(--color-foreground) l c h / 0.15)" }}
+          cursor={{ stroke: "var(--color-muted-foreground)", strokeOpacity: 0.3 }}
         />
+        {filled && (
+          <defs>
+            <linearGradient id={washId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={filled.color} stopOpacity={AREA_FILL_OPACITY} />
+              <stop offset="100%" stopColor={filled.color} stopOpacity={0} />
+            </linearGradient>
+          </defs>
+        )}
         {lines.map((line) => (
-          <Line
+          <Area
+            type="monotone"
+            fill={filled ? `url(#${washId})` : "none"}
             key={line.key}
             dataKey={line.key}
             name={line.name}
@@ -171,11 +190,11 @@ export function PassRateLinesImpl({ lines }: { lines: PassRateLine[] }) {
             strokeDasharray={line.dash}
             connectNulls
             isAnimationActive={false}
-            dot={(props: { cx?: number; cy?: number; payload?: Row }) => dot(props, line, 5)}
-            activeDot={(props: { cx?: number; cy?: number; payload?: Row }) => dot(props, line, 7)}
+            dot={(props: { cx?: number; cy?: number; payload?: Row }) => dot(props, line, 3.5)}
+            activeDot={(props: { cx?: number; cy?: number; payload?: Row }) => dot(props, line, 5)}
           />
         ))}
-      </LineChart>
+      </AreaChart>
     </ResponsiveContainer>
   );
 }

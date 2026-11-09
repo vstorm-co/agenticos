@@ -100,6 +100,10 @@ def _turns(answer: str = "hi", history: list[MagicMock] | None = None):
     with (
         patch("app.services.embed_session.AgentRunnerService") as runner_cls,
         patch(
+            "app.services.embed_session.conversation_repo.capability_loads_in_messages",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch(
             "app.services.embed_session.conversation_repo.create_conversation",
             new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
         ),
@@ -480,13 +484,15 @@ class TestTheWidgetRemembersWhatWasSaid:
 
     @staticmethod
     def _message(role: str, content: str) -> MagicMock:
-        # The fields a stored turn always has: nobody named, nothing replied to.
+        # The fields a stored turn always has: nobody named, nothing replied to,
+        # no run a guardrail could have stopped.
         return MagicMock(
             role=role,
             content=content,
             attachment_context=None,
             author_user_id=None,
             reply_to_message_id=None,
+            guardrail_refused=False,
         )
 
     @pytest.mark.anyio

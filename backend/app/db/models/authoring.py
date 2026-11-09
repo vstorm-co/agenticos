@@ -26,6 +26,7 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import Any
 
+from pydantic import JsonValue
 from sqlalchemy import (
     CheckConstraint,
     DateTime,
@@ -138,6 +139,10 @@ class AuthoringRequest(Base):
     """One Improve or Verify, from consent to the proposal it produced."""
 
     __tablename__ = "authoring_requests"
+
+    helper_settings: Mapped[dict[str, JsonValue]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
 
     improver_agent_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), nullable=True

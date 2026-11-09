@@ -1,5 +1,5 @@
 ---
-source_sha: "7bd15584abde"
+source_sha: "a41c7a2c6e87"
 ---
 
 # Despliega en un servidor { #deploy-to-a-server }
@@ -31,7 +31,7 @@ despliegues - está [Escalar más allá de un host](scaling.md).
 | | |
 |---|---|
 | **Un host** | 4 vCPU y 8 GB de RAM lo hacen funcionar. Ver [dimensionado](#sizing-the-host) |
-| **Docker** | Engine 24+ con el plugin Compose (2.24 o posterior), y tu usuario en el grupo `docker`. En el host no se construye nada: las imágenes se descargan de GHCR |
+| **Motor de contenedores** | Engine 24+ con el plugin Compose (2.24 o posterior), y tu usuario en el grupo `docker`. En el host no se construye nada: las imágenes se descargan de GHCR. Como alternativa, usa la [ruta manual de Podman](#podman-support). |
 | **Dos nombres de host** | uno para el sitio, otro para la API — ver [por qué dos](#why-two-hostnames) |
 | **Un proxy inverso** | [Traefik](#option-a-traefik) o [Nginx](#option-b-nginx). Termina el TLS |
 | **Ninguna clave de provider** | los modelos de chat y los embeds llevan ambos su clave por organización, en el vault del producto. El entorno no guarda credenciales para ninguno de los dos — consulta [Protección de datos](data-protection.md#nothing-leaves-by-default) |
@@ -49,6 +49,95 @@ certificado propio.
 `app.example.com` y `api.example.com` es la forma. Pueden ser dos nombres
 cualesquiera; lo que no pueden ser es un solo nombre con un prefijo de ruta,
 porque las cookies de la API y las del sitio están limitadas al host.
+
+### Compatibilidad con Podman { #podman-support }
+
+**Podman está soportado mediante la instalación manual con Docker Compose como
+proveedor.** Se probaron Podman 6.1.4 y Docker Compose v2.40.3 en Fedora CoreOS
+44 (VM de Podman en macOS, ARM64, cgroups v2, SELinux enforcing). El archivo
+distribuido requiere Compose 2.24 o posterior.
+
+**No uses `podman-compose` 1.6.0.** Arrancó el stack y un agente respondió, pero
+una migración que falló de forma controlada no impidió iniciar la app dependiente.
+Docker Compose rechazó correctamente ese inicio. Los proveedores tienen versiones
+independientes; `podman-compose` 1.6.0 no es Docker Compose 1.6.0.
+
+El inicio rápido sigue limitado a Docker y dirige Podman detectado a esta ruta
+manual, también con `--no-sandbox`. Desde la raíz del repositorio configurado,
+elige el ejecutable real de Docker Compose (binario independiente o plugin CLI):
+
+```bash
+export PODMAN_COMPOSE_PROVIDER=/absolute/path/to/docker-compose
+podman compose version
+podman compose -f docker-compose.yml up -d
+```
+
+Comprueba que `podman compose version` identifica Docker Compose. El `-f`
+explícito excluye el override local de compilación desde fuentes; esta
+instalación usa imágenes publicadas. Tras iniciar los servicios, sigue
+[Instalación](install.md) para configurar la organización y el modelo.
+
+**Sandbox opcional.** `pydantic-ai-backend` 0.2.39 funcionó con sockets Podman
+rootful y rootless. No necesita un backend ni una versión nuevos. Usa
+`docker-compose-podman.yml` para adaptar los montajes del socket y workspace;
+prepara sus permisos antes de activar el perfil.
+
+En Linux nativo con Podman rootless:
+
+```bash
+systemctl --user enable --now podman.socket
+export SANDBOX_DOCKER_SOCKET="$XDG_RUNTIME_DIR/podman/podman.sock"
+export SANDBOX_WORKSPACE_ROOT="$HOME/.local/share/agenticos/sandbox-workspaces"
+mkdir -p "$SANDBOX_WORKSPACE_ROOT"
+podman unshare chown 10001:10001 "$SANDBOX_WORKSPACE_ROOT"
+export DOCKER_GID=0
+```
+
+Para Linux rootful, activa el `podman.socket` del sistema, establece
+`SANDBOX_DOCKER_SOCKET=/run/podman/podman.sock` y prepara el workspace con
+`sudo install -d -o 10001 -g 10001 "$SANDBOX_WORKSPACE_ROOT"`. Dirige Compose a
+ese motor rootful. El grupo del socket suele ser 0; para un socket rootful
+personalizado, indica su grupo real en `DOCKER_GID`.
+
+En una VM Podman rootless en macOS, ambos orígenes bind pertenecen a la VM Linux,
+no a macOS. Prepáralos dentro de esa VM:
+
+```bash
+export SANDBOX_DOCKER_SOCKET="$(podman machine ssh 'printf "%s/podman/podman.sock" "$XDG_RUNTIME_DIR"')"
+export SANDBOX_WORKSPACE_ROOT=/tmp/agenticos-sandbox-workspaces
+podman machine ssh 'mkdir -p /tmp/agenticos-sandbox-workspaces && podman unshare chown 10001:10001 /tmp/agenticos-sandbox-workspaces'
+export DOCKER_GID=0
+```
+
+Conserva las claves existentes del despliegue. Configura un `SANDBOXD_TOKEN`
+no vacío y `SANDBOX_URL=http://sandboxd:8080` en el archivo env que lee el stack,
+como se describe en [configuración de sandbox](sandbox.md). Después, inicia con
+ambos archivos:
+
+```bash
+podman compose -f docker-compose.yml -f docker-compose-podman.yml \
+  --profile sandbox up -d
+```
+
+El override desactiva el etiquetado SELinux solo para `sandboxd`, que ya posee
+el socket del motor. Comparte la etiqueta del workspace con `:z`, pues también
+lo montan las sandboxes hermanas. Los contenedores sandbox conservan sus etiquetas
+y `no-new-privileges`; no cambies la etiqueta del socket ni desactives SELinux
+globalmente. En rootless, la propiedad del socket se mapea al grupo 0 dentro
+del espacio de nombres de usuario.
+
+En un servidor usa una ruta persistente para el workspace: `/tmp` es solo un
+ejemplo local. Conserva los ajustes de socket, workspace y grupo en el entorno
+del operador para los siguientes comandos Compose. `DOCKER_HOST` en el host no
+cambia el montaje del socket dentro de `sandboxd`.
+
+Se verificaron un run por HTTP con finalización persistida, archivos de workspace,
+códigos de error, timeouts, límites RAM/CPU/PID efectivos y builds de runtimes.
+La imagen workbench distribuida leyó/escribió XLSX, generó un gráfico y ejecutó
+Node y LibreOffice. El modelo fue un servidor de prueba determinista compatible
+con OpenAI; no se probaron el runtime desktop ni todas las distribuciones Linux.
+El [informe de pruebas](https://github.com/vstorm-co/agenticos/blob/main/docs/audits/podman-2026-11-03.md)
+registra versiones, alcance y reproducción del fallo de migración.
 
 ## Dimensionar el host { #sizing-the-host }
 
@@ -472,6 +561,55 @@ demonio a través de una *conexión* de sandbox que alguien crea en la consola, 
 
 ## Desplegar un cambio { #deploying-a-change }
 
+### Memoria nativa y continuidad de rutinas { #native-memory-upgrade }
+
+Antes de actualizar, crea [copias de la base, los medios y las claves del vault](#backups)
+y coordina el despliegue de API y workers. Usa el paso normal de migración del
+despliegue; no copies filas ni crees horarios sustitutos manualmente.
+
+Antes de aplicar `0285_member_proactivity.py`, detén API y productores de barridos, espera a que finalicen los jobs proactivos activos y detén los workers. La migración rechaza jobs de modelo de vigilancia o nocturnos en ejecución y añade a los pendientes una clave compartida de concurrencia por persona. Actualiza API y workers juntos para que los nuevos jobs usen la misma clave; una vigilancia y una revisión nocturna de una persona no deben gastar independientemente el mismo presupuesto restante.
+
+- `0248_drop_memory_mem0.py` detiene la actualización mientras `memory_mem0` siga
+  en algún borrador guardado o spec publicada. Antes de reintentar, inventaría todos
+  los endpoints y las asignaciones de credenciales del vault desde la copia,
+  elimina los recuerdos externos y verifica la finalización en cada proveedor.
+  Solo entonces retira explícitamente esos vínculos de `agents.draft_spec` y
+  `agent_versions.spec`. Exportar no equivale a borrar. Conserva las pruebas de
+  limpieza, revisa claves del vault sin uso y revoca credenciales retiradas.
+  La migración no hace peticiones remotas ni presupone un borrado correcto.
+  Si una versión de desarrollo anterior ya eliminó los vínculos, recupera el
+  inventario desde la copia previa y realiza la misma limpieza; el borrado nativo
+  de personas o agentes no alcanza esos datos externos.
+- `0251_primary_conversations.py` y `0258_primary_channel_history.py` establecen
+  chats privados principales. Una asignación existente prevalece. Solo se adopta
+  una vez el historial demostrablemente privado de un canal vinculado; los
+  historiales de proyecto, grupo o dudosos siguen separados. No repitas la carga
+  después de que una persona vacíe su chat principal.
+- Se conservan los ID de rutinas, horarios y registros existentes.
+  `0255_trigger_delivery.py` asigna `run_log` a las rutinas antiguas; las nuevas
+  usan por defecto el chat principal o su conversación de origen de confianza.
+  Revisa destino, persona actuante, fin y presupuesto en **Rutinas**, en lugar
+  de crear copias.
+- `0259_trigger_version_pin.py` permite fijar versiones inmutables. Un pin y un
+  entorno con nombre se excluyen. Retira el pin antes de borrar su versión.
+  Un run aparcado conserva su versión admitida; `0260_routine_run_origin.py`
+  conserva su origen para que borrar la rutina no libere su control de acceso.
+- `0261_watch_attempt_status.py` comienza el registro explícito de intentos sin
+  inventar éxitos o fallos anteriores. Una comprobación no disponible o
+  incompleta no avanza la fecha de éxito. Revisa las observaciones existentes
+  y su acceso a cuentas: las filas históricas no prueban cómo se otorgó el
+  consentimiento original.
+
+Elige explícitamente un modelo antes de activar el mantenimiento de memoria;
+el briefing diario conserva los ajustes de modelo/presupuesto de la organización.
+Desde `0262_watch_agent_sources.py`, las vigilancias ejecutan el agente elegido
+y retienen las fuentes aprobadas en el run. Las existentes requieren seleccionar
+un agente y aprobar fuentes; conservan sus IDs y hallazgos. Revisa
+[gobernanza](governance.md#proactive-work) y la [configuración de canales](channels.md#sms),
+incluidos `PUBLIC_BASE_URL` y los vínculos SMS caducados. En una organización de
+prueba verifica un chat privado, Actividad/entrega de una rutina, pausa/caducidad
+y una observación con fuente no disponible antes de ampliar el despliegue.
+
 ### El límite del formato del historial en 1.25.0 { #retry-history-upgrade }
 
 La versión 1.25.0 adopta los resultados de herramientas `retried` y los mensajes
@@ -522,9 +660,9 @@ eso lleva.
 
 ### Desde GitHub, con una aprobación { #from-github-with-an-approval }
 
-`.github/workflows/deploy.yml` ofrece cada merge a `main` para desplegarlo y
+`.github/workflows/deploy.yml` ofrece cada release estable publicado para desplegarlo y
 espera a que alguien lo apruebe. Esa barrera es **un ajuste del repositorio, no
-un paso del archivo** — sin ella, el workflow despliega cada merge sin
+un paso del archivo** — sin ella, el workflow despliega cada release estable publicado sin
 supervisión.
 
 Configúralo una vez:
@@ -540,7 +678,7 @@ Configúralo una vez:
     Todas las ejecuciones comparten el grupo de concurrencia `deploy-production`,
     y una ejecución parada en la barrera de aprobación lo retiene. No caduca por
     sí sola — GitHub cancela una sin atender después de 30 días — así que hasta
-    que alguien la apruebe o la cancele, los merges posteriores hacen cola detrás
+    que alguien la apruebe o la cancele, los releases posteriores hacen cola detrás
     de una decisión que nadie va a tomar, y el servidor sigue ejecutando lo
     último que se desplegó.
 
@@ -552,8 +690,8 @@ Configúralo una vez:
     `deploy-queue.yml` es lo que ocurre cuando se deja de todos modos: cada seis
     horas cancela una ejecución de Deploy que lleve más de doce esperando una
     aprobación, y abre una incidencia que nombra esa ejecución y dice cuánto se ha
-    alejado `main` del último despliegue correcto. No aprueba nada ni despliega
-    nada — vacía la cola para que el siguiente merge llegue a la barrera, y dice
+    alejado el último release estable del último despliegue correcto. No aprueba nada ni despliega
+    nada — vacía la cola para que el siguiente release publicado llegue a la barrera, y dice
     que lo ha hecho. A mano, con `gh workflow run deploy-queue.yml`.
 
 !!! danger "Aprobar desde la cola del entorno aprueba la ejecución **más antigua**"
@@ -562,7 +700,7 @@ Configúralo una vez:
     momento en que la cola se atascó, no el que se acaba de empujar — así llegó a
     este servidor un commit de hace dos semanas. Aprueba desde la página de la
     ejecución del commit que quieres, o arranca una nueva con
-    `gh workflow run deploy.yml --ref main` y aprueba esa.
+    `gh workflow run deploy.yml --ref main -f ref=v1.34.3` y aprueba esa.
 
 | Secreto | Qué |
 |---|---|

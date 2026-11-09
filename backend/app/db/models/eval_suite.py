@@ -73,7 +73,7 @@ class EvalSuiteResultStatus(StrEnum):
     failed outright."""
 
     SKIPPED = "skipped"
-    """Never ran: the budget, the cost ceiling, AI assistance off, or nothing to run."""
+    """Never ran: the budget, the cost ceiling, an unavailable model, or nothing to run."""
 
     ERROR = "error"
     """The eval run ended without a result - failed or out of budget."""

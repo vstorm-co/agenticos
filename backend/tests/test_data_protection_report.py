@@ -71,6 +71,10 @@ def _db(*row_lists: list[tuple], counts: list[int] | None = None) -> MagicMock:
     return db
 
 
+def _external_db(*row_lists: list[tuple]) -> MagicMock:
+    return _db(*row_lists, [])
+
+
 def _cells(section: Section) -> list[str]:
     return [str(cell) for row in section.rows for cell in row]
 
@@ -144,7 +148,7 @@ class TestWhatItReports:
         assert [row[5] for row in section.rows] == ["yes", "no"]
 
     async def test_external_connections_cover_mcp_sync_and_channels(self) -> None:
-        db = _db(
+        db = _external_db(
             [("org", "linear", "https://mcp.linear.app/sse", "oauth")],
             [],
             [("gdrive", "Handbook drive", "handbook")],
@@ -157,7 +161,7 @@ class TestWhatItReports:
         assert section.rows[0][1] == "org/linear"
 
     async def test_sync_source_without_a_collection_still_reports(self) -> None:
-        db = _db([], [], [("s3", "Bucket", None)], [])
+        db = _external_db([], [], [("s3", "Bucket", None)], [])
 
         section = await _external_connections(db)
 
@@ -165,14 +169,16 @@ class TestWhatItReports:
 
     async def test_a_portal_grant_is_not_reported_as_an_mcp_server(self) -> None:
         """A Gmail grant a trigger reads is not an address tool arguments reach."""
-        db = _db([], [("org", "gmail", "gmail")], [], [])
+        db = _external_db([], [("org", "gmail", "gmail")], [], [])
 
         section = await _external_connections(db)
 
         assert section.rows == [["Trigger portal", "org/gmail", "gmail", "grant"]]
 
     async def test_a_query_string_is_redacted_because_it_can_be_the_credential(self) -> None:
-        db = _db([("org", "hosted", "https://mcp.example/sse?key=live-token", "none")], [], [], [])
+        db = _external_db(
+            [("org", "hosted", "https://mcp.example/sse?key=live-token", "none")], [], [], []
+        )
 
         section = await _external_connections(db)
 
@@ -180,21 +186,21 @@ class TestWhatItReports:
         assert "live-token" not in str(section.rows)
 
     async def test_a_bot_with_no_server_of_its_own_reports_its_platform(self) -> None:
-        db = _db([], [], [], [("slack", "city-bot", None)])
+        db = _external_db([], [], [], [("slack", "city-bot", None)])
 
         section = await _external_connections(db)
 
         assert section.rows == [["Channel bot", "city-bot", "slack", "slack"]]
 
     async def test_a_sync_source_row_keeps_its_shape_when_a_url_has_no_query(self) -> None:
-        db = _db([("org", "hosted", "https://mcp.example/sse", "none")], [], [], [])
+        db = _external_db([("org", "hosted", "https://mcp.example/sse", "none")], [], [], [])
 
         section = await _external_connections(db)
 
         assert section.rows[0][2] == "https://mcp.example/sse"
 
     async def test_a_self_hosted_bot_reports_the_server_it_posts_to(self) -> None:
-        db = _db([], [], [], [("mattermost", "city-bot", "https://chat.city.example")])
+        db = _external_db([], [], [], [("mattermost", "city-bot", "https://chat.city.example")])
 
         section = await _external_connections(db)
 
@@ -214,7 +220,7 @@ class TestCapabilityDestinations:
 
         section = await _capability_destinations(db)
 
-        assert len(section.rows) == 1
+        assert len(section.rows) == 2
         assert section.rows[0][:3] == ["agent research", "default v4", "web_research"]
         assert "DuckDuckGo" in section.rows[0][3]
 
@@ -224,6 +230,43 @@ class TestCapabilityDestinations:
         section = await _capability_destinations(db)
 
         assert section.rows[0][1] == "environment production v2"
+
+    @pytest.mark.parametrize(
+        "config", [{"runs_on": "this_computer"}, {"runs_on": "sandbox"}, {}, None]
+    )
+    async def test_coding_agent_destination_follows_the_published_execution_target(
+        self, config: dict[str, str] | None
+    ) -> None:
+        db = _db(
+            [("coder", 3, {"capabilities": [{"id": "coding_agent", "config": config}]})],
+            [],
+        )
+        section = await _capability_destinations(db)
+        destination = section.rows[0][3]
+        if config and config.get("runs_on") == "this_computer":
+            assert "directly from that computer" in destination
+            assert "does not control its model, endpoint or sign-in" in destination
+            assert "sandbox" not in destination
+        else:
+            assert "from the agent's sandbox" in destination
+
+    @pytest.mark.parametrize(
+        "bindings", [[], [{"id": "coding_agent", "config": {"runs_on": "sandbox"}}]]
+    )
+    async def test_runtime_local_coding_is_reported_independently_of_the_published_spec(
+        self, bindings: list[dict[str, object]]
+    ) -> None:
+        section = await _capability_destinations(
+            _db([("agent", 1, {"capabilities": bindings})], [])
+        )
+        row = section.rows[-1]
+        assert row[:3] == [
+            "desktop chat",
+            "per-conversation override",
+            "coding_agent (this computer)",
+        ]
+        assert "directly from that computer" in row[3]
+        assert "not evidence" in section.note
 
     def test_every_registered_capability_is_classified(self) -> None:
         """A new capability fails here rather than leaving the inventory short."""
@@ -412,7 +455,6 @@ class TestTheReportItself:
         monkeypatch.setattr(settings, "LOGFIRE_TOKEN", "pylf_v1_eu_secret")
         monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", "client-id.apps.googleusercontent.com")
         monkeypatch.setattr(settings, "POSTGRES_SSLMODE", "require")
-        monkeypatch.setattr(settings, "MEM0_ALLOWED_HOSTS", ["mem0.internal"])
 
         cells = _cells(_settings_section())
 
@@ -420,7 +462,6 @@ class TestTheReportItself:
         assert "client-id.apps.googleusercontent.com" not in cells
         assert cells.count("set") == 2
         assert "require" in cells
-        assert "mem0.internal" in cells
 
     def test_an_unconfigured_deployment_reports_the_quiet_answer(
         self, monkeypatch: pytest.MonkeyPatch
@@ -428,7 +469,6 @@ class TestTheReportItself:
         monkeypatch.setattr(settings, "LOGFIRE_TOKEN", None)
         monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", "")
         monkeypatch.setattr(settings, "POSTGRES_SSLMODE", "")
-        monkeypatch.setattr(settings, "MEM0_ALLOWED_HOSTS", [])
 
         cells = _cells(_settings_section())
 
@@ -447,7 +487,7 @@ class TestTheReportItself:
         self, monkeypatch: pytest.MonkeyPatch, hosts: list[str], shown: str
     ) -> None:
         """Each listed host is one this deployment may reach inside its own
-        network, so a reviewer should find it here, with the mem0 and browser
+        network, so a reviewer should find it here, with the browser
         allowlists. Read by row: `none` in the cells could come from either of
         those."""
         monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", hosts)
@@ -541,3 +581,45 @@ class TestTheReportItself:
         assert result.exit_code == 0
         assert "## Model destinations" in result.output
         assert "processing agreement" in result.output
+
+
+async def test_connected_accounts_are_reported_without_any_agent_binding() -> None:
+    section = await _external_connections(
+        _db(
+            [],
+            [],
+            [],
+            [],
+            [
+                ("user", "ana@example.com", "google", "https://www.googleapis.com"),
+                ("org", "ops@example.com", "google", "https://www.googleapis.com"),
+            ],
+        )
+    )
+    assert section.rows == [
+        [
+            "Connected account",
+            "user/ana@example.com",
+            "https://www.googleapis.com",
+            "google OAuth grant",
+        ],
+        [
+            "Connected account",
+            "org/ops@example.com",
+            "https://www.googleapis.com",
+            "google OAuth grant",
+        ],
+    ]
+
+
+def test_mirage_allowlist_is_auditable_in_the_deployment_report(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        settings, "MIRAGE_ALLOWED_HOSTS", ["db.acme.internal", "search.acme.internal"]
+    )
+    rows = {row[0]: row[1] for row in _settings_section().rows}
+    assert rows["MIRAGE_ALLOWED_HOSTS"] == "db.acme.internal, search.acme.internal"
+    monkeypatch.setattr(settings, "MIRAGE_ALLOWED_HOSTS", [])
+    rows = {row[0]: row[1] for row in _settings_section().rows}
+    assert rows["MIRAGE_ALLOWED_HOSTS"] == "none"

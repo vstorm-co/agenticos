@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { AnswerStyleFields, REACTION_PATTERN } from "@/components/channels/answer-style-fields";
 import { ChannelPlatformIcon } from "@/components/channels/channel-platform-icon";
 import { SlackTransport } from "@/components/channels/slack-transport";
+import { ImessageSetup } from "@/components/channels/imessage-setup";
 import {
   Button,
   Dialog,
@@ -33,6 +34,7 @@ import { DIALOG_FORM, DIALOG_SCROLL_GUTTER } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import type { AnswerStyle, ChannelBot, ChannelBotUpdate, ChannelPlatform } from "@/types/channels";
 import { MentionPolicyFields } from "./mention-policy-fields";
+import { DiscordGuildsField, parseDiscordGuilds, validDiscordGuilds } from "./discord-guilds-field";
 import { useTranslations } from "next-intl";
 
 const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
@@ -41,6 +43,13 @@ const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
   mattermost: "Mattermost",
   // i18n-exempt: a product\'s own name, written the same in every language
   teams: "Microsoft Teams",
+  // i18n-exempt: Twilio is the provider's own name
+  sms: "SMS (Twilio)",
+  // i18n-exempt: the name of the protocol, written the same in every language
+  email: "Email",
+  imessage: "iMessage",
+
+  discord: "Discord",
 };
 
 const MAX_NAME = 255;
@@ -59,6 +68,7 @@ export interface ChannelBotDraft {
   /** Slack: whether Slack calls this deployment, or the deployment connects out. */
   webhookMode: boolean;
   respondToBroadcasts: boolean;
+  discordGuilds: string;
   answerStyle: AnswerStyle;
   transcription: TranscriptionChoice;
 }
@@ -89,13 +99,15 @@ export function botPatch(bot: ChannelBot, draft: ChannelBotDraft): ChannelBotUpd
   const token = draft.token.trim();
   if (token) patch.token = token;
 
-  if (bot.platform === "mattermost") {
+  if (bot.platform === "mattermost" || bot.platform === "imessage") {
     const serverUrl = draft.serverUrl.trim();
     if (serverUrl && serverUrl !== bot.api_base_url) patch.api_base_url = serverUrl;
-    const webhookSecret = draft.webhookSecret.trim();
-    if (webhookSecret) patch.webhook_secret = webhookSecret;
-    const commandToken = draft.commandToken.trim();
-    if (commandToken) patch.command_token = commandToken;
+    if (bot.platform === "mattermost") {
+      const webhookSecret = draft.webhookSecret.trim();
+      if (webhookSecret) patch.webhook_secret = webhookSecret;
+      const commandToken = draft.commandToken.trim();
+      if (commandToken) patch.command_token = commandToken;
+    }
   }
 
   if (bot.platform === "slack") {
@@ -117,6 +129,17 @@ export function botPatch(bot: ChannelBot, draft: ChannelBotDraft): ChannelBotUpd
       ...bot.access_policy,
       respond_to_broadcasts: draft.respondToBroadcasts,
     };
+  }
+  if (bot.platform === "discord") {
+    const guilds = parseDiscordGuilds(draft.discordGuilds);
+    const storedGuilds = parseDiscordGuilds((bot.access_policy.discord_guild_ids ?? []).join(" "));
+    if (guilds.join(",") !== storedGuilds.join(",")) {
+      patch.access_policy = {
+        ...bot.access_policy,
+        ...patch.access_policy,
+        discord_guild_ids: guilds,
+      };
+    }
   }
   Object.assign(patch, transcriptionPatch(bot, draft.transcription));
   return patch;
@@ -186,6 +209,7 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
     commandToken: "",
     webhookMode: bot.webhook_mode,
     respondToBroadcasts: bot.access_policy.respond_to_broadcasts ?? false,
+    discordGuilds: (bot.access_policy.discord_guild_ids ?? []).join(", "),
     answerStyle: {
       ack_reaction: bot.ack_reaction,
       stream_answers: bot.stream_answers,
@@ -349,6 +373,37 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
         {bot.platform === "slack" && <SlackManifest botId={bot.id} />}
 
         {bot.platform === "teams" && <TeamsSetup bot={bot} />}
+        {bot.platform === "imessage" && (
+          <FormField
+            label={t("imessageServerUrl")}
+            htmlFor="edit-imessage-server-url"
+            description={t("imessageServerUrlHint")}
+            error={errors.api_base_url}
+            required
+          >
+            <Input
+              id="edit-imessage-server-url"
+              value={draft.serverUrl}
+              onChange={(event) => set("serverUrl", event.target.value)}
+              maxLength={MAX_URL}
+            />
+          </FormField>
+        )}
+        {bot.platform === "imessage" && (
+          <ImessageSetup
+            botId={bot.id}
+            unsaved={draft.serverUrl.trim() !== bot.api_base_url || draft.token.trim() !== ""}
+          />
+        )}
+        {bot.platform === "sms" && <SmsSetup bot={bot} />}
+        {bot.platform === "email" && (
+          <EmailSetup
+            bot={bot}
+            secret={draft.webhookSecret}
+            error={errors.webhook_secret}
+            onSecret={(value) => set("webhookSecret", value)}
+          />
+        )}
 
         {bot.platform === "slack" &&
           (draft.webhookMode ? (
@@ -381,6 +436,13 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
             </FormField>
           ))}
 
+        {bot.platform === "discord" && (
+          <DiscordGuildsField
+            idPrefix="edit-channel"
+            value={draft.discordGuilds}
+            onChange={(discordGuilds) => setDraft((current) => ({ ...current, discordGuilds }))}
+          />
+        )}
         <MentionPolicyFields
           idPrefix="edit-channel"
           platform={bot.platform}
@@ -413,7 +475,12 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
         <Button
           onClick={submit}
           loading={isPending}
-          disabled={nothingToSave || shortToken || badReaction}
+          disabled={
+            nothingToSave ||
+            shortToken ||
+            badReaction ||
+            (bot.platform === "discord" && !validDiscordGuilds(draft.discordGuilds))
+          }
         >
           {t("save")}
         </Button>
@@ -501,6 +568,63 @@ function SlackManifest({ botId }: { botId: string }) {
  * A Teams bot, set up in two steps (#1985): its messaging endpoint goes into the
  * Azure Bot resource, and the app package into the tenant's app catalog.
  */
+function SmsSetup({ bot }: { bot: ChannelBot }) {
+  const t = useTranslations("pages.channels");
+  if (!bot.messaging_endpoint) return null;
+  return (
+    <div className="border-border space-y-1 rounded-lg border p-3">
+      <p className="text-sm font-medium">{t("smsEndpoint")}</p>
+      <p className="text-muted-foreground text-xs">{t("smsEndpointHint")}</p>
+      <code className="bg-muted block rounded-md px-2 py-1.5 text-xs break-all">
+        {bot.messaging_endpoint}
+      </code>
+    </div>
+  );
+}
+
+/** An e-mail bot: where the mail relay posts, and the secret it signs with (#2082). */
+function EmailSetup({
+  bot,
+  secret,
+  error,
+  onSecret,
+}: {
+  bot: ChannelBot;
+  secret: string;
+  error?: string;
+  onSecret: (value: string) => void;
+}) {
+  const t = useTranslations("pages.channels");
+  return (
+    <div className="border-border space-y-3 rounded-lg border p-3">
+      {bot.messaging_endpoint && (
+        <div className="space-y-1">
+          <p className="text-sm font-medium">{t("emailEndpoint")}</p>
+          <p className="text-muted-foreground text-xs">{t("emailEndpointHint")}</p>
+          <code className="bg-muted block rounded-md px-2 py-1.5 text-xs break-all">
+            {bot.messaging_endpoint}
+          </code>
+        </div>
+      )}
+      <FormField
+        label={t("emailRelaySecret")}
+        htmlFor="edit-channel-relay-secret"
+        error={error}
+        description={bot.has_webhook_secret ? t("credentialStored") : t("emailRelaySecretHint")}
+      >
+        <Input
+          id="edit-channel-relay-secret"
+          type="password"
+          value={secret}
+          onChange={(event) => onSecret(event.target.value)}
+          autoComplete="off"
+          maxLength={MAX_NAME}
+        />
+      </FormField>
+    </div>
+  );
+}
+
 function TeamsSetup({ bot }: { bot: ChannelBot }) {
   const t = useTranslations("pages.channels");
   const download = useDownloadTeamsPackage();

@@ -70,6 +70,7 @@ const BUILDER_STEPS = [
   "agent-test",
   "agent-share",
   "agent-publish",
+  "agent-editor-fullscreen",
 ];
 
 // Every collection-detail stop, in the order the "?" walks them. The launch
@@ -94,11 +95,20 @@ const ORG_STEPS = [
   "org-public-live-data",
   "org-voice",
   "org-assistant",
+  "org-system-agents",
   "org-members",
   "org-roles",
 ];
 
 describe("pageKey", () => {
+  it("identifies the canvas without treating the all-runs list as a canvas", () => {
+    expect(pageKey("/workflows/wf-1")).toBe("workflow-detail");
+    expect(pageKey("/workflows/runs")).toBe("/workflows/runs");
+    expect(stepsForPage("/workflows/wf-1", () => true).map((step) => step.id)).toEqual([
+      "workflow-canvas-fullscreen",
+      "workflow-step-view",
+    ]);
+  });
   it("collapses every concrete builder route onto the one builder identity", () => {
     expect(pageKey("/agents/abc-123")).toBe(AGENT_BUILDER);
     expect(pageKey("/agents/abc-123/anything")).toBe(AGENT_BUILDER);
@@ -261,6 +271,11 @@ describe("stepsForPage", () => {
       "chat-start",
       "chat-agent-picker",
       "chat-composer",
+      "chat-local-skills",
+      "chat-coding-accounts",
+      "chat-local-coding",
+      "chat-coding-settings",
+      "chat-background-tasks",
       "chat-plan",
       "chat-visual",
       "chat-model-picker",
@@ -301,6 +316,7 @@ describe("stepsForPage", () => {
       "agent-history",
       "agent-share",
       "agent-publish",
+      "agent-editor-fullscreen",
     ]);
   });
 
@@ -333,9 +349,15 @@ describe("stepsForPage", () => {
     // memory, sign-in and API key stops are optional - each card renders on one
     // tab only.
     expect(stepsForPage(ROUTES.SETTINGS_NOTIFICATIONS, () => true).map((s) => s.id)).toEqual([
+      "phone-contact",
+      "phone-dial",
       "settings-tabs",
+      "personal-coding-accounts",
+      "desktop-local-agents",
       "settings-appearance",
+      "memory-views",
       "my-memory",
+      "my-claims",
       "sign-in-to-site",
       "my-sign-ins",
       "settings-api-usage",
@@ -344,7 +366,9 @@ describe("stepsForPage", () => {
       "settings-connected-apps",
     ]);
     expect(stepsForPage("/documents/some-id", () => true).map((s) => s.id)).toEqual([
+      "workspace-file-fullscreen",
       "workspaces-detail",
+      "workspace-graph",
     ]);
   });
 
@@ -473,7 +497,7 @@ describe("stepsForPage", () => {
       "members",
     ]) {
       expect(steps.find((step) => step.id === `org-${section}`)?.activate).toBe(
-        `org-tab-${section}`,
+        `org-tab-${section === "voice" ? "profile" : section}`,
       );
     }
   });
@@ -489,6 +513,7 @@ describe("stepsForPage", () => {
       "org-governance",
       "org-proactivity",
       "org-proactivity-model",
+      "org-system-agents",
       "org-members",
       "org-roles",
     ]);
@@ -622,8 +647,13 @@ describe("the Routines page", () => {
     );
     const allowed = stepsForPage(ROUTES.ROUTINES, () => true).map((step) => step.id);
 
-    expect(refused).toEqual(["routines-list", "routines-watches"]);
-    expect(allowed).toEqual(["routines-list", "routines-watches", "routines-create"]);
+    expect(refused).toEqual(["routines-list", "routine-access"]);
+    expect(allowed).toEqual([
+      "routines-list",
+      "routine-access",
+      "routines-create",
+      "routine-advanced",
+    ]);
   });
 });
 
@@ -733,4 +763,9 @@ it("describes every stage of an improvement on its own page", () => {
       "improvement-accept",
     ],
   );
+});
+
+it("uses the improvement walkthrough while the start modal is open over an agent", () => {
+  expect(pageKey("/agents/a1?improve=new")).toBe(IMPROVEMENT_START);
+  expect(pageKey("/agents/a1?tab=evals&improve=baseline")).toBe(IMPROVEMENT_START);
 });

@@ -129,7 +129,7 @@ export function WorkflowMinimap() {
         maskStrokeColor="color-mix(in srgb, var(--color-foreground) 40%, transparent)"
         maskStrokeWidth={1}
         offsetScale={12}
-        style={{ width: 220, height: 140 }}
+        style={{ width: 160, height: 100 }}
         className="!bg-background !mb-14 !overflow-hidden !rounded-xl !border shadow-sm"
       />
     </Wires.Provider>

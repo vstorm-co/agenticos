@@ -49,6 +49,7 @@ import {
 import { SlashCommandPalette } from "./slash-command-palette";
 import { ComposerEditor, type ComposerEditorHandle } from "./composer-editor";
 import { ComposerHints } from "./composer-hints";
+import { LocalAgentChip } from "./local-agent-chip";
 import { MentionPalette } from "./mention-palette";
 import { useMentionables } from "@/hooks/use-mentionables";
 import {
@@ -122,11 +123,20 @@ interface Attachment {
   pasted: boolean;
 }
 
-/** What the file picker offers: the types an attachment may be. */
+/**
+ * What the file picker offers: the types an attachment may be.
+ *
+ * Archives included (#2479): an agent with a workspace unpacks one into it, and one
+ * without says it cannot - the composer does not know which agent will answer.
+ */
 const ACCEPTED =
-  "image/jpeg,image/png,image/gif,image/webp,image/tiff,.tiff,.tif,.txt,.md,.csv,.json,.py,.js,.ts,.tsx,.html,.css,.yaml,.yml,.toml,.xml,.sql,.sh,.pdf,.docx,.doc,.xlsx,.xlsm,.xls,.pptx,.odt,.ods,.odp,.msg,application/msword,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-outlook,application/vnd.oasis.opendocument.text,application/vnd.oasis.opendocument.spreadsheet,application/vnd.oasis.opendocument.presentation,application/xml";
+  "image/jpeg,image/png,image/gif,image/webp,image/tiff,.tiff,.tif,.txt,.md,.csv,.json,.py,.js,.ts,.tsx,.html,.css,.yaml,.yml,.toml,.xml,.sql,.sh,.pdf,.docx,.doc,.xlsx,.xlsm,.xls,.pptx,.odt,.ods,.odp,.msg,application/msword,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-outlook,application/vnd.oasis.opendocument.text,application/vnd.oasis.opendocument.spreadsheet,application/vnd.oasis.opendocument.presentation,application/xml,.zip,.tar.gz,.tgz,application/zip,application/x-zip-compressed,application/gzip,application/x-gzip";
 
 interface ChatInputProps {
+  /** Focus once the composer becomes writable on entry to the main chat. */
+  autoFocus?: boolean;
+  /** Re-arm entry focus for an explicit New chat without remounting the editor. */
+  focusRequest?: number;
   onSend: (
     message: string,
     fileIds?: string[],
@@ -240,12 +250,17 @@ export interface IncomingFiles {
   text?: string;
 }
 
+const PRIMARY_ACTION_FACE =
+  "chat-input-primary-face bg-action text-action-foreground border-foreground/10 group-hover:bg-action-hover group-active:bg-action-active flex size-9 items-center justify-center rounded-lg border";
+
 /** Whether typing happens on a touch keyboard - a phone or a tablet. */
 function touchKeyboard(): boolean {
   return typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches === true;
 }
 
 export function ChatInput({
+  autoFocus = false,
+  focusRequest = 0,
   onSend,
   disabled,
   isProcessing,
@@ -284,6 +299,7 @@ export function ChatInput({
   const tDictation = useTranslations("chat.dictation");
   const { chatMaxUploadSizeMb } = usePublicConfig();
   const [message, setMessage] = useState("");
+  const [editing, setEditing] = useState(false);
   const drafting = message.trim().length > 0;
   useEffect(() => onDraftChange?.(drafting), [drafting, onDraftChange]);
   const [attachedFiles, setAttachedFiles] = useState<Attachment[]>([]);
@@ -295,6 +311,53 @@ export function ChatInput({
   // caller wired a context - without one, commands have nothing to do.
   const [paletteIndex, setPaletteIndex] = useState(0);
   const editorRef = useRef<ComposerEditorHandle>(null);
+  const entryFocusRequested = useRef(autoFocus);
+  const initialFocusAttempted = useRef(false);
+  const interactedWhileConnecting = useRef(false);
+  const previousFocusRequest = useRef(focusRequest);
+  useLayoutEffect(() => {
+    if (previousFocusRequest.current === focusRequest) return;
+    previousFocusRequest.current = focusRequest;
+    entryFocusRequested.current = autoFocus;
+    initialFocusAttempted.current = false;
+    interactedWhileConnecting.current = false;
+  }, [autoFocus, focusRequest]);
+  useEffect(() => {
+    if (!entryFocusRequested.current || !disabled || initialFocusAttempted.current) return;
+    const noteInteraction = (event: Event) => {
+      if (
+        event.target instanceof Element &&
+        event.target.closest(
+          "button, a[href], input, textarea, select, [contenteditable='true'], [role='combobox']",
+        )
+      )
+        interactedWhileConnecting.current = true;
+    };
+    document.addEventListener("pointerdown", noteInteraction, true);
+    document.addEventListener("focusin", noteInteraction, true);
+    return () => {
+      document.removeEventListener("pointerdown", noteInteraction, true);
+      document.removeEventListener("focusin", noteInteraction, true);
+    };
+  }, [disabled, focusRequest]);
+  useEffect(() => {
+    if (!entryFocusRequested.current || disabled || initialFocusAttempted.current) return;
+    initialFocusAttempted.current = true;
+    // A phone must not open its keyboard or switch the composer's layout while
+    // the person is reaching for an action after navigation.
+    if (touchKeyboard()) return;
+    // A navigation button may still be focused on arrival. Only preserve an
+    // editable field, a dialog, or a control used after this composer mounted.
+    if (
+      interactedWhileConnecting.current ||
+      document.activeElement?.closest("[role='dialog'], [role='alertdialog'], [role='menu']") ||
+      document.activeElement?.matches(
+        "input, textarea, select, [contenteditable='true'], [role='combobox']",
+      )
+    )
+      return;
+    editorRef.current?.focus();
+  }, [disabled, focusRequest]);
   // Reply was just chosen on a message: the person goes on to type the answer.
   useEffect(() => {
     if (replyTo) editorRef.current?.focus();
@@ -438,7 +501,9 @@ export function ChatInput({
   if (useChanged(`${filteredCommands.length}|${message}`)) setPaletteIndex(0);
 
   useEffect(() => {
-    if (!isProcessing && !isUploading) editorRef.current?.focus();
+    // Phones enter writing deliberately, rather than reopening the keyboard
+    // on arrival or when a reply finishes while the person is reading.
+    if (!isProcessing && !isUploading && !touchKeyboard()) editorRef.current?.focus();
   }, [isProcessing, isUploading]);
 
   const runSlashCommand = useCallback(
@@ -545,6 +610,11 @@ export function ChatInput({
         setMessage("");
         return;
       }
+    }
+    if (e.key === "Escape" && replyTo) {
+      e.preventDefault();
+      setReplyTo(null);
+      return;
     }
     // On a touch keyboard Enter is a new line, as in every messaging app: there
     // is no Shift to hold for one, and the send button is a thumb away (#2066).
@@ -819,7 +889,23 @@ export function ChatInput({
           server?.actions.cancel();
         }
       }}
-      className="relative"
+      className="chat-input-form relative"
+      data-editing={editing || undefined}
+      data-drafting={drafting || undefined}
+      onFocusCapture={(event) => {
+        if (
+          event.target instanceof HTMLElement &&
+          event.target.getAttribute("contenteditable") === "true"
+        )
+          setEditing(true);
+      }}
+      onBlurCapture={(event) => {
+        if (
+          !(event.relatedTarget instanceof Node) ||
+          !event.currentTarget.contains(event.relatedTarget)
+        )
+          setEditing(false);
+      }}
     >
       <span role="status" aria-live="polite" className="sr-only">
         {announcement}
@@ -868,7 +954,19 @@ export function ChatInput({
           </AttachmentRow>,
         )}
 
-      {replyTo && <ReplyingTo reply={replyTo} onCancel={() => setReplyTo(null)} />}
+      {replyTo && (
+        <div className="chat-input-reply">
+          <ReplyingTo
+            reply={replyTo}
+            onCancel={() => {
+              setReplyTo(null);
+              editorRef.current?.focus();
+            }}
+          />
+        </div>
+      )}
+
+      <LocalAgentChip />
 
       {/* The text has the box to itself, and every control is on one row under
           it. The buttons used to sit *beside* the textarea, which is fine on
@@ -877,36 +975,37 @@ export function ChatInput({
       {/* Plain text with real chips in it: a picked mention and a settled
           address are drawn as what they name, and the message is still the
           one string it always was. */}
-      <ComposerEditor
-        ref={editorRef}
-        value={message}
-        mentions={mentions}
-        onChange={typed}
-        onKeyDown={handleKeyDown}
-        onPaste={handlePaste}
-        placeholder={offline ? t("reconnecting") : t("placeholder")}
-        idle={
-          hints && !disabled ? (
-            <ComposerHints
-              offered={offered.items}
-              commands={allCommands.map((command) => command.name)}
-            />
-          ) : undefined
-        }
-        disabled={disabled}
-        readOnly={dictating}
-        // What a phone's keyboard offers: a return key that reads as a line
-        // break where Enter makes one. 16px text, never less: iOS zooms the
-        // page into any field smaller than that when it is focused (#2066).
-        enterKeyHint={touchKeyboard() ? "enter" : "send"}
-      />
-
+      <div className="chat-input-editor min-w-0">
+        <ComposerEditor
+          ref={editorRef}
+          value={message}
+          mentions={mentions}
+          onChange={typed}
+          onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
+          placeholder={offline ? t("reconnecting") : t("placeholder")}
+          idle={
+            hints && !disabled ? (
+              <ComposerHints
+                offered={offered.items}
+                commands={allCommands.map((command) => command.name)}
+              />
+            ) : undefined
+          }
+          disabled={disabled}
+          readOnly={dictating}
+          // What a phone's keyboard offers: a return key that reads as a line
+          // break where Enter makes one. 16px text, never less: iOS zooms the
+          // page into any field smaller than that when it is focused (#2066).
+          enterKeyHint={touchKeyboard() ? "enter" : "send"}
+        />
+      </div>
       {/* `min-w-0` and a shrinkable right group: at 390px the controls used to
           run 27px past the composer's own edge, measured on an iPhone 15. */}
       {/* Inert rather than hidden while dictating: the composer does not change
           under the page's dictation pill, and the agent the recording goes to
           must not change under it either. */}
-      <div className="flex items-center gap-1.5 pt-0.5 pb-1" inert={dictating}>
+      <div className="chat-input-actions flex items-center gap-1.5 pt-0.5 pb-1" inert={dictating}>
         <input
           ref={fileInputRef}
           type="file"
@@ -934,10 +1033,10 @@ export function ChatInput({
         />
         {isUploading && <Spinner className="text-muted-foreground h-4 w-4 shrink-0" />}
         {controlsSlot ? (
-          <div className="flex min-w-0 items-center gap-1">{controlsSlot}</div>
+          <div className="chat-input-selection flex min-w-0 items-center gap-1">{controlsSlot}</div>
         ) : null}
 
-        <div className="ml-auto flex shrink-0 items-center gap-1">
+        <div className="chat-input-send ml-auto flex shrink-0 items-center gap-1">
           {actionsSlot}
           {/* Beside Send and the call, as in ChatGPT; the `+` offers it too. A
               server recording takes the box over with its own bar, so this
@@ -948,7 +1047,7 @@ export function ChatInput({
             size="icon"
             onClick={server ? startDictation : toggleMic}
             disabled={disabled}
-            className="h-9 w-9 shrink-0"
+            className="chat-input-mic h-9 w-9 shrink-0"
             title={isListening ? t("stopRecording") : t("voiceInput")}
             aria-label={isListening ? t("stopRecording") : t("voiceInput")}
           >
@@ -965,10 +1064,13 @@ export function ChatInput({
               size="icon"
               onClick={onStop}
               disabled={stopDisabled}
-              className="h-9 w-9 shrink-0 rounded-lg"
+              variant="ghost"
+              className="chat-input-primary group h-9 w-9 shrink-0 rounded-lg hover:bg-transparent active:bg-transparent"
               title={t("stopGenerating")}
             >
-              <span className="h-3 w-3 rounded-[3px] bg-current" aria-hidden="true" />
+              <span className={PRIMARY_ACTION_FACE} aria-hidden>
+                <span className="size-3 rounded-[3px] bg-current" />
+              </span>
               <span className="sr-only">{t("stopGenerating")}</span>
             </Button>
           ) : idleSlot && !isProcessing && !message.trim() && attachedFiles.length === 0 ? (
@@ -977,10 +1079,13 @@ export function ChatInput({
             <Button
               type="submit"
               size="icon"
-              className="shrink-0 transition-transform active:scale-90"
+              variant="ghost"
+              className="chat-input-primary group shrink-0 transition-transform hover:bg-transparent active:scale-90 active:bg-transparent"
               disabled={disabled || isUploading || (!message.trim() && attachedFiles.length === 0)}
             >
-              {isProcessing ? <Spinner className="h-4 w-4" /> : <Send className="h-4 w-4" />}
+              <span className={PRIMARY_ACTION_FACE} aria-hidden>
+                {isProcessing ? <Spinner className="size-4" /> : <Send className="size-4" />}
+              </span>
               <span className="sr-only">{t("send")}</span>
             </Button>
           )}

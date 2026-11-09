@@ -17,20 +17,27 @@ it("keeps destructive-action warnings visible before any help is opened", () => 
   expect(screen.queryByRole("button", { name: "More information" })).not.toBeInTheDocument();
 });
 
-it.each([SectionCard, SettingsSection])(
-  "offers secondary guidance without hiding fields",
-  async (Section) => {
-    render(
-      <Section title="Preferences" description="How these settings work">
-        <label>
-          Required name
-          <input required />
-        </label>
-      </Section>,
-    );
-    expect(screen.getByLabelText("Required name")).toBeVisible();
-    expect(screen.queryByText("How these settings work")).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "More information" }));
-    expect(await screen.findByText("How these settings work")).toBeVisible();
-  },
-);
+it("offers contextual guidance in organization settings without hiding fields", async () => {
+  render(
+    <SettingsSection title="Preferences" description="How these settings work">
+      <label>
+        Required name
+        <input required />
+      </label>
+    </SettingsSection>,
+  );
+  expect(screen.getByLabelText("Required name")).toBeVisible();
+  expect(screen.queryByText("How these settings work")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "More information" }));
+  expect(await screen.findByText("How these settings work")).toBeVisible();
+});
+
+it("shows personal settings descriptions without opening a tooltip", () => {
+  render(
+    <SectionCard title="Security" description="Manage your sessions">
+      <button>Manage</button>
+    </SectionCard>,
+  );
+  expect(screen.getByText("Manage your sessions")).toBeVisible();
+  expect(screen.queryByRole("button", { name: "More information" })).not.toBeInTheDocument();
+});

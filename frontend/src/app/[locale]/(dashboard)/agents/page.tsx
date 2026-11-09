@@ -11,8 +11,6 @@ import {
   AgentLimitNotice,
   isAtAgentLimit,
 } from "@/components/agents/agent-limit-notice";
-import { CatalogSection } from "@/components/agents/catalog-section";
-import { SystemAgentsSection } from "@/components/agents/system-agents-section";
 import { AgentTemplateDialog } from "@/components/agents/agent-template-dialog";
 import { CreateAgentDialog } from "@/components/agents/create-agent-dialog";
 import { LabelFilter } from "@/components/agents/label-filter";
@@ -66,6 +64,7 @@ function AgentsCard({
     <ListCard
       fill
       namedByPage
+      layout="grid"
       title={t("catalog")}
       counted={
         visible === null
@@ -210,32 +209,34 @@ export default function AgentsPage() {
   );
 
   return (
-    <div className="flex flex-1 flex-col space-y-6">
+    <div className="flex flex-1 flex-col space-y-4">
       <PageHeader
         title={t("agents")}
         description={t("agentConfigurationNotCode")}
+        secondaryActions={
+          canEdit ? (
+            <Button
+              variant="outline"
+              data-tour="agents-templates"
+              disabled={!ceilingKnown}
+              onClick={() => setTemplatesOpen(true)}
+            >
+              <Library className="h-4 w-4" />
+              {tTemplates("browse")}
+            </Button>
+          ) : undefined
+        }
         actions={
           canEdit ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                variant="outline"
-                data-tour="agents-templates"
-                disabled={!ceilingKnown}
-                onClick={() => setTemplatesOpen(true)}
-              >
-                <Library className="h-4 w-4" />
-                {tTemplates("browse")}
-              </Button>
-              <Button
-                data-tour="agents-new"
-                disabled={!ceilingKnown || atLimit}
-                aria-describedby={atLimit ? AGENT_LIMIT_NOTICE_ID : undefined}
-                onClick={() => setCreateOpen(true)}
-              >
-                <Plus className="h-4 w-4" />
-                {t("newAgent")}
-              </Button>
-            </div>
+            <Button
+              data-tour="agents-new"
+              disabled={!ceilingKnown || atLimit}
+              aria-describedby={atLimit ? AGENT_LIMIT_NOTICE_ID : undefined}
+              onClick={() => setCreateOpen(true)}
+            >
+              <Plus className="h-4 w-4" />
+              {t("newAgent")}
+            </Button>
           ) : undefined
         }
       />
@@ -244,95 +245,87 @@ export default function AgentsPage() {
         <AgentLimitNotice ceiling={ceiling} id={AGENT_LIMIT_NOTICE_ID} />
       ) : null}
 
-      <CatalogSection
-        title={t("agentsCount", { count: total })}
-        defaultOpen
-        storageKey="agents.catalog.agents"
-      >
-        {/* The header and the controls are static, so they stay put while the
-            list loads rather than being replaced by a placeholder of themselves.
-            The panel below is equally static - loading, empty and populated all
-            render inside the same frame. */}
-        {isLoading ? (
-          <AgentsCard visible={null} total={0} controls={galleryControls}>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {[0, 1, 2].map((row) => (
-                <div key={row} className="border-border rounded-xl border p-4">
-                  <div className="flex items-start gap-3">
-                    <Skeleton className="h-10 w-10 shrink-0 rounded-lg" />
-                    <div className="min-w-0 flex-1 space-y-2">
-                      <Skeleton className="h-4 w-32" />
-                      <Skeleton className="h-3 w-24" />
-                      <Skeleton className="h-3 w-full" />
-                    </div>
+      {/* The header and the controls are static, so they stay put while the
+          list loads rather than being replaced by a placeholder of themselves.
+          The panel below is equally static - loading, empty and populated all
+          render inside the same frame. */}
+      {isLoading ? (
+        <AgentsCard visible={null} total={0} controls={galleryControls}>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {[0, 1, 2].map((row) => (
+              <div key={row} className="border-border rounded-xl border p-4">
+                <div className="flex items-start gap-3">
+                  <Skeleton className="h-10 w-10 shrink-0 rounded-lg" />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-3 w-24" />
+                    <Skeleton className="h-3 w-full" />
                   </div>
                 </div>
+              </div>
+            ))}
+          </div>
+        </AgentsCard>
+      ) : (
+        <AgentsCard visible={visible.length} total={total} controls={galleryControls}>
+          {visible.length === 0 ? (
+            <ListCardEmpty
+              icon={Bot}
+              title={filtersActive ? t("nothingMatches") : t("noAgentsYet")}
+              description={
+                filtersActive
+                  ? t("noAgentHereMatches")
+                  : canEdit
+                    ? !ceilingKnown
+                      ? undefined
+                      : atLimit
+                        ? tLimit("emptyGallery")
+                        : t("createOneGiveInstructions")
+                    : t("nobodyHasSharedAgent")
+              }
+              cta={
+                filtersActive
+                  ? {
+                      label: t("clearFilters"),
+                      onClick: clearFilters,
+                    }
+                  : canEdit && ceilingKnown && !atLimit
+                    ? {
+                        label: (
+                          <>
+                            <Plus className="h-3.5 w-3.5" />
+                            {t("newAgent")}
+                          </>
+                        ),
+                        onClick: () => setCreateOpen(true),
+                      }
+                    : undefined
+              }
+            />
+          ) : (
+            <div className="rise-in grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {visible.map((agent) => (
+                <AgentCard
+                  key={agent.id}
+                  agent={agent}
+                  canEdit={canEdit}
+                  attention={attention.get(agent.id)}
+                  busy={busyId === agent.id}
+                  actions={{
+                    onDuplicate: () =>
+                      clone.mutate(agent.id, {
+                        onSuccess: (created) => router.push(ROUTES.AGENT_DETAIL(created.id)),
+                      }),
+                    onArchive: () => setPendingArchive(agent),
+                    onRestore: () => unarchive.mutate(agent.id),
+                    onDelete: () => setPendingDelete(agent),
+                  }}
+                />
               ))}
             </div>
-          </AgentsCard>
-        ) : (
-          <AgentsCard visible={visible.length} total={total} controls={galleryControls}>
-            {visible.length === 0 ? (
-              <ListCardEmpty
-                icon={Bot}
-                title={filtersActive ? t("nothingMatches") : t("noAgentsYet")}
-                description={
-                  filtersActive
-                    ? t("noAgentHereMatches")
-                    : canEdit
-                      ? !ceilingKnown
-                        ? undefined
-                        : atLimit
-                          ? tLimit("emptyGallery")
-                          : t("createOneGiveInstructions")
-                      : t("nobodyHasSharedAgent")
-                }
-                cta={
-                  filtersActive
-                    ? {
-                        label: t("clearFilters"),
-                        onClick: clearFilters,
-                      }
-                    : canEdit && ceilingKnown && !atLimit
-                      ? {
-                          label: (
-                            <>
-                              <Plus className="h-3.5 w-3.5" />
-                              {t("newAgent")}
-                            </>
-                          ),
-                          onClick: () => setCreateOpen(true),
-                        }
-                      : undefined
-                }
-              />
-            ) : (
-              <div className="rise-in grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {visible.map((agent) => (
-                  <AgentCard
-                    key={agent.id}
-                    agent={agent}
-                    canEdit={canEdit}
-                    attention={attention.get(agent.id)}
-                    busy={busyId === agent.id}
-                    actions={{
-                      onDuplicate: () =>
-                        clone.mutate(agent.id, {
-                          onSuccess: (created) => router.push(ROUTES.AGENT_DETAIL(created.id)),
-                        }),
-                      onArchive: () => setPendingArchive(agent),
-                      onRestore: () => unarchive.mutate(agent.id),
-                      onDelete: () => setPendingDelete(agent),
-                    }}
-                  />
-                ))}
-              </div>
-            )}
-          </AgentsCard>
-        )}
-      </CatalogSection>
-
-      <SystemAgentsSection query={query} agentsMatched={visible.length > 0} />
+          )}
+        </AgentsCard>
+      )}
 
       <AgentTemplateDialog open={templatesOpen} onOpenChange={setTemplatesOpen} ceiling={ceiling} />
       <CreateAgentDialog

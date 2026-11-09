@@ -1,5 +1,7 @@
 "use client";
 
+import { MarkdownContent } from "@/components/chat/markdown-content";
+
 import Link from "next/link";
 import { AlertTriangle, ChevronRight } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
@@ -35,7 +37,7 @@ function Attempt({ attempt }: { attempt: EvalAttempt }) {
   const why = attempt.outcome === null ? (attempt.score?.unscored_reason ?? null) : null;
   const known = reasonKeyOf(why);
   return (
-    <div className="overflow-hidden rounded-md border">
+    <div className="min-w-0 overflow-hidden rounded-md border wrap-anywhere">
       <div className="bg-muted/40 flex flex-wrap items-center gap-x-3 gap-y-1 border-b px-3 py-2">
         <p className="text-sm font-semibold">
           {attempt.attempt === 0 ? t("firstAnswer") : t("rerun", { n: attempt.attempt })}
@@ -57,9 +59,19 @@ function Attempt({ attempt }: { attempt: EvalAttempt }) {
       </div>
       <div className="space-y-2 p-3">
         {attempt.answer !== null && (
-          <p className="text-foreground text-sm whitespace-pre-wrap">{attempt.answer}</p>
+          <div className="prose-sm min-w-0 text-sm leading-relaxed wrap-anywhere">
+            <MarkdownContent content={attempt.answer} inertImages />
+          </div>
         )}
-        {attempt.error && <p className="text-destructive text-xs">{attempt.error}</p>}
+        {attempt.error && (
+          <div
+            role="alert"
+            className="bg-destructive/5 text-destructive-ink border-destructive/15 flex items-start gap-2 rounded-lg border p-3 text-sm leading-relaxed"
+          >
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
+            <p>{attempt.error}</p>
+          </div>
+        )}
         {attempt.calls.length > 0 && (
           <ul className="space-y-1">
             {attempt.calls.map((call, index) => (

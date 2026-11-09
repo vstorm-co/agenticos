@@ -3,6 +3,7 @@
 Contains database operations for RAGDocument entities.
 """
 
+import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Self, cast
@@ -12,6 +13,7 @@ from sqlalchemy import (
     ColumnElement,
     String,
     and_,
+    case,
     column,
     exists,
     func,
@@ -30,12 +32,15 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import BadRequestError
 from app.db.base import Base
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.models.rag_document_claim import RAGDocumentClaim
 from app.db.models.sync_source import SyncSource
 from app.db.vector_tables import VECTOR_TABLE_PREFIX, validate_collection_name
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -384,8 +389,26 @@ async def get_superseded(
     return list(result.scalars().all())
 
 
-async def discard_failed(db: AsyncSession, *, collection_name: str, source_path: str) -> int:
-    """Drop this file's *failed* attempts, and count them.
+async def discard_failed(
+    db: AsyncSession,
+    *,
+    collection_name: str,
+    source_path: str,
+    organization_id: UUID | None,
+    scope: CollectionScope | None,
+) -> int:
+    """Drop this file's *failed* attempts in the new row's scope, and count them.
+
+    **The scope, not the name.** A collection name is not unique - two
+    organizations, or two bases of one organization, can hold the same name and
+    sync the same path - so matching by name and path deleted another tenant's
+    failed rows, their error and their retry with them (#2747). `scope` is the
+    base the new row is filed under, and the rows retired are the ones that base
+    lists (`in_collection_scope`): its own, and its tenant's unfiled ones when it
+    takes them - which is how a failure `mark_unindexed` left for the tenant's
+    next base on the name is retired by that base's sync. With no base, the new
+    row is unfiled and only unfiled rows tagged `organization_id` go, `None`
+    matching only rows with no organization.
 
     A failed parse writes no vectors, so the row it leaves has no
     `vector_document_id` - and `complete_ingestion`'s retirement matches on
@@ -410,6 +433,7 @@ async def discard_failed(db: AsyncSession, *, collection_name: str, source_path:
         await db.execute(
             sql_delete(RAGDocument).where(
                 RAGDocument.collection_name == collection_name,
+                in_collection_scope(scope) if scope is not None else _unfiled_of(organization_id),
                 RAGDocument.source_path == source_path,
                 RAGDocument.status == DocumentStatus.ERROR,
                 RAGDocument.vector_document_id.is_(None),
@@ -723,14 +747,13 @@ async def delete_by_collection(db: AsyncSession, collection_name: str) -> list[s
     """Delete a collection's document rows, returning their stored file paths.
 
     Keyed on `collection_name`, so it removes every knowledge base's rows for
-    that physical collection, in every organization. Only for a name no base
-    other than the one being cleared holds - the last holder's drop, or
-    `rag-drop` of a name no base holds, under the teardown lock - where every
-    row left is one nothing can read once the table is dropped; a base of its
-    own goes by `delete_by_knowledge_base` (#913, #2560). The
-    returned `storage_path`s are the uploads the caller still has to unlink; a
-    `NULL` one (nothing was stored) is dropped. The bulk delete used to return
-    only a rowcount, so the files were orphaned on disk (#1265).
+    that physical collection, in every organization. Only for `rag-drop` of a
+    name no base holds, an operator's command, under the teardown lock. A base
+    goes by `delete_by_knowledge_base` and the unfiled rows of its own tenant,
+    even as the last holder: another tenant's rows are not its to delete (#913,
+    #2560, #2568). The returned `storage_path`s are the uploads the caller still
+    has to unlink; a `NULL` one (nothing was stored) is dropped. The bulk delete
+    used to return only a rowcount, so the files were orphaned on disk (#1265).
     """
     result = await db.execute(
         sql_delete(RAGDocument)
@@ -756,7 +779,7 @@ async def delete_by_knowledge_base(db: AsyncSession, kb_id: UUID) -> list[str]:
 
 @dataclass(frozen=True)
 class DeletedDocuments:
-    """What a base's deleted document rows leave behind outside the database."""
+    """What deleted document rows leave behind outside the database."""
 
     storage_paths: list[str]
     vector_document_ids: list[str]
@@ -773,18 +796,186 @@ async def delete_by_knowledge_base_with_vectors(db: AsyncSession, kb_id: UUID) -
     return await _delete_returning(db, RAGDocument.knowledge_base_id == kb_id)
 
 
+async def delete_with_vectors(db: AsyncSession, doc_id: UUID) -> DeletedDocuments:
+    """Delete one document row, returning its stored file and vector document id.
+
+    Read from the delete itself rather than the loaded row: under READ COMMITTED a
+    `DELETE` that waited on a settlement's row lock re-reads the committed row, so
+    a vector id recorded after the caller loaded it is still returned (#2565).
+    """
+    return await _delete_returning(db, RAGDocument.id == doc_id)
+
+
+async def is_present(db: AsyncSession, doc_id: UUID) -> bool:
+    """Whether the row is there now, read past the session's identity map."""
+    return await db.scalar(select(RAGDocument.id).where(RAGDocument.id == doc_id)) is not None
+
+
+async def processing_among(db: AsyncSession, doc_ids: Sequence[UUID]) -> set[UUID]:
+    """Which of these documents are still `processing` - a job may yet parse them."""
+    result = await db.execute(
+        select(RAGDocument.id).where(
+            RAGDocument.id.in_(doc_ids), RAGDocument.status == DocumentStatus.PROCESSING
+        )
+    )
+    return set(result.scalars().all())
+
+
 async def delete_unfiled_with_vectors(db: AsyncSession, scope: CollectionScope) -> DeletedDocuments:
     """Delete the unfiled rows a base takes under its name - its tenant's.
 
-    For a base cleared while other bases hold the name, none of them taking these
-    rows: left behind, a kept default would go on listing and serving them, and
-    a deleted base's would come back with the tenant's next base on the name
-    (#2560). Only for a scope that `takes_unfiled`; the caller decides that.
+    For a base torn down when no other base of its tenant on the name takes these
+    rows: on a kept table, or as the last holder before its table is dropped. Left
+    behind, a kept default would go on listing and serving them, and a deleted
+    base's would come back with the tenant's next base on the name (#2560,
+    #2568). Only for a scope that `takes_unfiled`; the caller decides that.
     """
     return await _delete_returning(
         db,
         and_(RAGDocument.collection_name == scope.collection_name, _unfiled_of(scope.tenant)),
     )
+
+
+async def holds_unfiled_outside(db: AsyncSession, *, collection_name: str, tenant: UUID) -> bool:
+    """Whether the name holds unfiled rows of another tenant that describe chunks.
+
+    Unfiled is filed under no base: `rag-ingest`, a sync with no base, a base
+    since deleted. Another tenant's is tagged with any organization but
+    `tenant`, or with none. A failed row with no vector id describes no chunk -
+    `mark_unindexed` leaves those when a table is dropped - so it is left out:
+    nothing of it is lost if the name's table goes again.
+    """
+    describes_chunks = or_(
+        RAGDocument.status != DocumentStatus.ERROR,
+        RAGDocument.vector_document_id.is_not(None),
+    )
+    result = await db.execute(
+        select(
+            exists().where(
+                RAGDocument.collection_name == collection_name,
+                RAGDocument.knowledge_base_id.is_(None),
+                RAGDocument.organization_id.is_distinct_from(tenant),
+                describes_chunks,
+            )
+        )
+    )
+    return bool(result.scalar())
+
+
+# A chunk's `metadata` column in a `rag_<name>` table, which no model maps.
+_CHUNK_METADATA = column("metadata", JSONB)
+
+
+async def table_holds_chunks_outside(
+    db: AsyncSession, *, collection_name: str, tenant: UUID
+) -> bool:
+    """Whether the name's vector table holds a chunk tagged other than `tenant`.
+
+    For a name no base holds, where every chunk is unowned: one with no tag, or
+    another organization's, is not this tenant's to adopt. A table that does not
+    exist holds nothing. No index serves `IS DISTINCT FROM` (the tag's is a hash
+    index), so a table holding only the caller's chunks is scanned to the end;
+    asked only when a name no base holds is claimed, which is rare.
+    """
+    return await _table_holds(
+        db,
+        collection_name,
+        _CHUNK_METADATA["organization_id"].astext.is_distinct_from(str(tenant)),
+    )
+
+
+async def table_holds_unfiled_outside(db: AsyncSession, scope: CollectionScope) -> bool:
+    """Whether the base's table holds an unfiled chunk the base does not take.
+
+    For the last holder of a name, whose caller has no authority over such a chunk:
+    `rag-ingest` and the CLI syncs write them into a held name, the syncs with no
+    tracking row, so the table is asked rather than the rows (#2747). The answer
+    covers every such write in flight: each holds the name through its commit, and
+    one that comes later finds the reservation, the kept table or a free name. A filed one
+    is never in the way: with no other base on the name it is the base's own, or
+    a deleted base's awaiting its purge. A name from before a naming rule cannot
+    be asked about, and refusing here would make its base impossible to delete.
+    Nothing is lost by answering no: the store refuses to drop that name's table.
+    """
+    try:
+        validate_collection_name(scope.collection_name, metadata=Base.metadata)
+    except BadRequestError:
+        logger.warning("Not probing the table of legacy name %s", scope.collection_name)
+        return False
+    outside = _CHUNK_METADATA["knowledge_base_id"].astext.is_(None)
+    if scope.takes_unfiled:
+        tenant = None if scope.tenant is None else str(scope.tenant)
+        outside = and_(outside, _CHUNK_METADATA["organization_id"].astext.is_distinct_from(tenant))
+    return await _table_holds(db, scope.collection_name, outside)
+
+
+async def _table_holds(
+    db: AsyncSession, collection_name: str, matching: ColumnElement[bool]
+) -> bool:
+    """Whether the name's vector table holds a chunk `matching` selects.
+
+    A table that does not exist holds nothing. The name is validated first: a
+    name colliding with a model's table would otherwise reach that table.
+    """
+    validate_collection_name(collection_name, metadata=Base.metadata)
+    name = f"{VECTOR_TABLE_PREFIX}{collection_name}"
+    if await db.scalar(select(func.to_regclass(f"public.{name}"))) is None:
+        return False
+    runtime = table(name, schema="public")
+    result = await db.execute(select(exists().select_from(runtime).where(matching)))
+    return bool(result.scalar())
+
+
+UNINDEXED_BY_DROP = (
+    "The collection's search index was dropped with the last knowledge base on its "
+    "name. Upload the document again, or sync its source, to index it again."
+)
+
+
+async def mark_unindexed(db: AsyncSession, collection_name: str) -> None:
+    """Fail the unfiled rows left under a name whose table is about to be dropped.
+
+    For the last holder's teardown, after it has deleted its own rows and its
+    tenant's unfiled ones: what is left is another tenant's, kept because the
+    caller holds no authority over it, but its chunks go with the dropped table.
+    Left `DONE`, its tenant's next base on the name would list it as indexed with
+    nothing behind it. As `ERROR` with no vector id it lists as failed, saying an
+    upload has to be made again, and a sync retires it with `discard_failed`
+    (#2568). `retry_ingestion` refuses it, being filed under no base, which also
+    keeps it from returning to `PROCESSING` under a stale attempt's write.
+
+    A row still being ingested is failed too, under `FOR UPDATE` first: that waits
+    out anything holding the row `FOR KEY SHARE` (`hold_for_vector_write`), though
+    a chunk write holds the name as well and has committed by now if it began. The
+    bumped attempt makes that ingest's settlement stale, and a write that reaches
+    its hold after this commits finds the row no longer `PROCESSING` and is
+    refused, rather than recreating the dropped table. A row already failed
+    keeps its attempt but loses its index metadata too: a failed retry can still
+    name the version an earlier attempt indexed, and its chunks go with the table.
+    """
+    left = and_(
+        RAGDocument.collection_name == collection_name,
+        RAGDocument.knowledge_base_id.is_(None),
+    )
+    await db.execute(select(RAGDocument.id).where(left).with_for_update())
+    await db.execute(
+        sql_update(RAGDocument)
+        .where(left)
+        .values(
+            status=DocumentStatus.ERROR,
+            error_message=UNINDEXED_BY_DROP,
+            vector_document_id=None,
+            chunk_count=0,
+            ingestion_attempt=case(
+                (
+                    RAGDocument.status != DocumentStatus.ERROR,
+                    RAGDocument.ingestion_attempt + 1,
+                ),
+                else_=RAGDocument.ingestion_attempt,
+            ),
+        )
+    )
+    await db.flush()
 
 
 async def _delete_returning(db: AsyncSession, where: ColumnElement[bool]) -> DeletedDocuments:
@@ -841,6 +1032,9 @@ async def hold_for_vector_write(
     The base lock alone cannot reject a stale insert after a default was cleared:
     its base survives. The tracking row does not, and its KEY SHARE conflicts
     with the clear's delete. Acquire after the base lock, matching teardown order.
+    Every write targets the row its own attempt opened as `PROCESSING`, so a row
+    in any other state refuses it: a last holder's teardown fails another
+    tenant's rows under the name it drops (`mark_unindexed`, #2568).
     """
     result = await db.execute(
         select(RAGDocument.id)
@@ -848,6 +1042,7 @@ async def hold_for_vector_write(
             RAGDocument.id == document_id,
             RAGDocument.collection_name == collection,
             RAGDocument.knowledge_base_id == knowledge_base_id,
+            RAGDocument.status == DocumentStatus.PROCESSING,
         )
         .with_for_update(read=True, key_share=True)
     )

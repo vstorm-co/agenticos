@@ -23,6 +23,12 @@ export function activateTab(
   trigger: HTMLElement,
   { moveFocus = true }: { moveFocus?: boolean } = {},
 ): void {
+  // driver.js adds disclosure attributes to its highlighted tab. Its role still
+  // owns activation; treating those attributes as a popover leaves it inactive.
+  if (trigger.getAttribute("role") !== "tab" && trigger.hasAttribute("aria-expanded")) {
+    if (trigger.getAttribute("aria-expanded") !== "true") trigger.click();
+    return;
+  }
   // Only a Radix tab selects on a press. A popover's trigger - the chat's settings,
   // whose stops sit inside it - or a wizard's step button opens on a click, and
   // pressing one left the walk waiting out its timeout for a section that never

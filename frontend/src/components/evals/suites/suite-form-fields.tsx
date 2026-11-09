@@ -141,32 +141,34 @@ export function SuiteWhenFields({ form, onChange }: FieldsProps) {
   return (
     <fieldset className="space-y-3">
       <legend className="text-sm font-medium">{t("when")}</legend>
-      <Toggle
-        checked={form.onPublish}
-        onChange={(onPublish) => onChange({ onPublish })}
-        label={t("onPublish")}
-        hint={t("onPublishHint")}
-      />
-      <Toggle
-        checked={form.onPromotion}
-        onChange={(onPromotion) => onChange({ onPromotion })}
-        label={t("onPromotion")}
-        hint={t("onPromotionHint")}
-      />
-      <Toggle
-        checked={form.onDependency}
-        onChange={(onDependency) => onChange({ onDependency })}
-        label={t("onDependency")}
-        hint={t("onDependencyHint")}
-      />
-      <Toggle
-        checked={form.scheduled}
-        onChange={(scheduled) => onChange({ scheduled })}
-        label={t("onSchedule")}
-        hint={t("onScheduleHint")}
-      />
+      <div className="grid items-stretch gap-2 sm:grid-cols-2">
+        <Toggle
+          checked={form.onPublish}
+          onChange={(onPublish) => onChange({ onPublish })}
+          label={t("onPublish")}
+          hint={t("onPublishHint")}
+        />
+        <Toggle
+          checked={form.onPromotion}
+          onChange={(onPromotion) => onChange({ onPromotion })}
+          label={t("onPromotion")}
+          hint={t("onPromotionHint")}
+        />
+        <Toggle
+          checked={form.onDependency}
+          onChange={(onDependency) => onChange({ onDependency })}
+          label={t("onDependency")}
+          hint={t("onDependencyHint")}
+        />
+        <Toggle
+          checked={form.scheduled}
+          onChange={(scheduled) => onChange({ scheduled })}
+          label={t("onSchedule")}
+          hint={t("onScheduleHint")}
+        />
+      </div>
       {form.scheduled && (
-        <div className="grid gap-3 pl-6 sm:grid-cols-2">
+        <div className="bg-muted/30 grid gap-4 rounded-lg border p-4 sm:grid-cols-2">
           <Field label={t("frequency")}>
             {(id) => (
               <Select

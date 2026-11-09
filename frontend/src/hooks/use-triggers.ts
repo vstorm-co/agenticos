@@ -31,10 +31,14 @@ export function useTriggers(agentId: string | null) {
   const tErrors = useTranslations("errors");
   const base = `/agents/${agentId}/triggers`;
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.triggers.list(agentId ?? ""),
     queryFn: () => apiClient.get<TriggerList>(base),
     enabled: !!agentId,
+    refetchInterval: (query) =>
+      query.state.data?.items.some((trigger) => trigger.is_active && trigger.local_target != null)
+        ? 30_000
+        : false,
   });
 
   const invalidate = useCallback(
@@ -106,8 +110,10 @@ export function useTriggers(agentId: string | null) {
   });
 
   return {
-    triggers: (data?.items ?? []) as Trigger[],
+    triggers: data?.items ?? [],
     isLoading,
+    error,
+    refetch,
     create,
     update,
     setActive,

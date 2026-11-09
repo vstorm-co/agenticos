@@ -66,16 +66,16 @@ function NavLink({
       title={collapsed ? label : undefined}
       aria-label={collapsed ? label : undefined}
       className={cn(
-        "touch:min-h-11 relative flex items-center rounded-xl text-sm font-medium transition-colors",
+        "touch:min-h-11 focus-visible:ring-ring relative flex items-center rounded-xl text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset",
         // One row height in both states, so collapsing the column moves no icon
         // up or down - the rail is the same list with its words taken away.
-        collapsed ? "h-9 w-9 justify-center" : "h-9 gap-2.5 px-2.5",
+        collapsed ? "touch:min-w-11 h-8 w-8 justify-center" : "h-8 gap-2.5 px-2.5",
         // Selected is a neutral raised pill with a dark label. Section hues live
         // on the page's own tile, not here: a column of coloured pills competed
         // with the content it points at.
         active
           ? "bg-accent text-foreground"
-          : "text-foreground/90 hover:bg-accent/60 hover:text-foreground",
+          : "text-foreground/80 hover:bg-foreground/5 hover:text-foreground",
       )}
     >
       <NavIcon icon={item.icon} />
@@ -115,7 +115,7 @@ function NavIcon({ icon: Icon }: { icon: NavItem["icon"] }) {
   return pending ? (
     <Loader2 className="h-4 w-4 shrink-0 animate-spin motion-reduce:animate-none" aria-hidden />
   ) : (
-    <Icon className="h-4 w-4 shrink-0" strokeWidth={1.7} aria-hidden />
+    <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} aria-hidden />
   );
 }
 
@@ -143,7 +143,7 @@ export function SidebarNav({
   return (
     <nav
       aria-label={t("primary")}
-      className={cn("flex flex-col gap-4 py-4", collapsed ? "items-center px-2" : "px-3")}
+      className={cn("flex flex-col gap-3 py-3", collapsed ? "items-center px-2" : "px-3")}
     >
       {groups.map((group) => (
         <NavGroupBlock
@@ -170,6 +170,7 @@ function NavGroupBlock({
   const pathname = usePathname();
   const mounted = useMounted();
   const openGroups = useSidebarStore((state) => state.openGroups);
+  const closedGroups = useSidebarStore((state) => state.closedGroups);
   const toggleGroup = useSidebarStore((state) => state.toggleGroup);
   const key = group.labelKey ?? "main";
   // The page you are on is never hidden behind a folded heading. The stored
@@ -178,7 +179,10 @@ function NavGroupBlock({
   // The rail folds too: a group closed in the column is closed on the rail, so
   // the two show the same destinations rather than the rail every one of them.
   const folds = !!group.collapsible;
-  const open = !folds || holdsActive || (mounted && openGroups.includes(key));
+  const open =
+    !folds ||
+    holdsActive ||
+    (mounted && (openGroups.includes(key) || (key === "knowledge" && !closedGroups.includes(key))));
 
   return (
     <div className={cn("flex flex-col gap-0.5", collapsed && "w-full items-center")}>
@@ -197,7 +201,7 @@ function NavGroupBlock({
               aria-expanded={open}
               aria-label={t(group.labelKey)}
               title={t(group.labelKey)}
-              className="text-muted-foreground hover:text-foreground flex h-6 w-9 items-center justify-center gap-0.5 rounded-md disabled:cursor-default"
+              className="text-muted-foreground hover:text-foreground touch:min-h-11 touch:min-w-11 flex h-6 w-8 items-center justify-center gap-0.5 rounded-md disabled:cursor-default"
             >
               <span aria-hidden className="bg-border h-px w-3" />
               <ChevronRight
@@ -264,7 +268,7 @@ export function AppSidebar() {
     <aside
       data-collapsed={collapsed ? "" : undefined}
       className={cn(
-        "bg-sidebar hidden shrink-0 border-r md:flex md:flex-col",
+        "bg-sidebar hidden shrink-0 md:flex md:flex-col",
         mounted && "transition-[width] duration-200",
         collapsed ? "w-14" : "w-[240px]",
       )}
@@ -285,7 +289,7 @@ export function AppSidebar() {
         data-titlebar
         data-tauri-drag-region="deep"
         className={cn(
-          "flex h-14 shrink-0 items-center border-b",
+          "flex h-14 shrink-0 items-center",
           collapsed ? "justify-center px-2" : "gap-1 px-3",
         )}
       >

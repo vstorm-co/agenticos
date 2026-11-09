@@ -1,5 +1,5 @@
 ---
-source_sha: "f82996cb48c3"
+source_sha: "9fe09e5e598b"
 ---
 
 # Ramas y qué las protege { #branches-and-what-protects-them }
@@ -367,3 +367,46 @@ clic en vez de un ensayo.
 - `main` está exenta de la cancelación, y la manera en que lo está es un grupo de
   concurrencia que lleva `github.run_id` — único por ejecución, así que ninguna
   ejecución de `main` cancela otra.
+
+## Cortes y versiones con varios cambios { #release-cuts-and-release-trains }
+
+Primero fusiona los PR funcionales y después prepara un único corte para el grupo.
+Elige el mayor incremento incluido: `make release-cut BUMP=patch` o `BUMP=minor`
+muestra un plan desde `origin/main` actualizado. Añade `CREATE_PR=1` para crear
+un worktree dedicado, actualizar changelog y tres versiones de aplicación, hacer
+commit y push y abrir el PR con tu sesión `gh`. Rechaza secciones Unreleased
+vacías y otros PR de corte abiertos. No fusiona ni publica. Tras fusionar el corte,
+crea release y etiqueta juntos sobre su commit de merge, según `AGENTS.md`.
+
+CI y CodeQL reconocen el corte mediante los árboles reales de git. Solo pueden
+variar CHANGELOG y las versiones de aplicación; dependencias, configuración,
+modos de archivo y demás código deben coincidir con una ejecución completa
+correcta anterior. CI exige las tres suites grandes correctas y CodeQL los cuatro
+análisis. Los jobs omitidos no sirven de prueba. Para PR se registra el SHA del merge
+sintético realmente comprobado, no el SHA de la rama informado por la API.
+
+Se buscan las últimas 30
+ejecuciones correctas; sin prueba o ante errores de API se ejecutan las comprobaciones
+completas. Se aplica al PR de corte y a su merge en `main`. Los cambios normales
+mantienen sus comprobaciones y CodeQL programado sigue siendo completo.
+El ruleset y la protección de merge por code scanning siguen activos.
+
+Reutilizar CodeQL exige además los cuatro informes SARIF conservados de un análisis
+completo. Se suben para el nuevo commit y se espera su procesamiento, de modo que
+la protección de merge recibe resultados para ese commit. Las ejecuciones que
+reutilizan informes no permiten otra reutilización; los análisis programados siguen completos.
+
+Backend y frontend se siguen construyendo para el SHA del corte porque contienen
+la versión de aplicación. La etiqueta reutiliza los manifiestos de ese mismo SHA;
+los escaneos y los seis SBOM se ejecutan igualmente y se adjuntan al release existente.
+Cada imagen que falte se construye por separado. Browser puede reutilizar un
+manifiesto identificado por todo su contexto Docker, el digest fijado de la base
+Debian y la semana ISO: la primera construcción de cada semana actualiza paquetes.
+Los alias de SHA y versión siguen disponibles para despliegue y rollback.
+
+El despliegue de producción se ofrece al publicar un release estable; borradores
+y versiones preliminares no lo ofrecen. Se mantienen aprobación de producción,
+comprobación de pertenencia a main y `workflow_dispatch` manual; elige explícitamente
+commit o etiqueta para rollback. El monitor de cola compara con el último release
+estable y no con commits sin publicar de main; tras un despliegue manual informa
+que se desconoce el retraso.

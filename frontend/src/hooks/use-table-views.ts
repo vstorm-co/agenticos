@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
+import { updateTable } from "@/lib/tables-api";
 import { createView, deleteView, listViews, updateView } from "@/lib/table-views-api";
 import type { TableViewCreate, TableViewUpdate, ViewKind } from "@/types/tables";
 
@@ -64,4 +65,43 @@ export function useTableViews(tableId: string | null, kind?: ViewKind) {
     update,
     remove,
   };
+}
+
+/** Choose a shared saved view for everyone opening this table without a URL override. */
+export function useTableDefaultView(tableId: string) {
+  const client = useQueryClient();
+  const t = useTranslations("pages.tables.views");
+  const errors = useTranslations("errors");
+  return useMutation({
+    mutationFn: async ({
+      view,
+      kind,
+      config,
+      names,
+    }: {
+      view: import("@/types/tables").TableViewRead | null;
+      kind: ViewKind;
+      config: import("@/types/tables").TableViewConfig;
+      names: string[];
+    }) => {
+      let selected = view?.can_manage ? view : null;
+      if (selected?.can_manage)
+        selected = await updateView(tableId, selected.id, { visibility: "shared", config });
+      if (!selected) {
+        const base = t("defaultName", { kind });
+        let name = base;
+        for (let suffix = 2; names.includes(name); suffix += 1) name = `${base} ${suffix}`;
+        selected = await createView(tableId, { name, kind, visibility: "shared", config });
+      }
+      await updateTable(tableId, { default_view_id: selected.id });
+      return selected;
+    },
+    onSuccess: async () => {
+      await client.invalidateQueries({ queryKey: qk.tables.views(tableId) });
+      await client.invalidateQueries({ queryKey: qk.tables.detail(tableId) });
+      await client.invalidateQueries({ queryKey: qk.tables.lists() });
+      toast.success(t("defaultSaved"));
+    },
+    onError: (error) => toast.error(getErrorMessage(error, errors)),
+  });
 }

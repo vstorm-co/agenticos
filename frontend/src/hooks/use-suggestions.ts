@@ -26,7 +26,17 @@ export function useSuggestions() {
     queryKey: qk.suggestions.mine(),
     queryFn: listSuggestions,
   });
-  const settle = { onSettled: () => client.invalidateQueries({ queryKey: qk.suggestions.mine() }) };
+  const settle = {
+    onSettled: () =>
+      Promise.all([
+        client.invalidateQueries({ queryKey: qk.suggestions.mine() }),
+        client.invalidateQueries({ queryKey: qk.outcomes.all() }),
+        client.invalidateQueries({ queryKey: qk.durableTasks.root() }),
+        client.invalidateQueries({ queryKey: qk.tables.all() }),
+        client.invalidateQueries({ queryKey: qk.notifications.all() }),
+        client.invalidateQueries({ queryKey: qk.watches.mine() }),
+      ]),
+  };
   const accept = useMutation({ mutationFn: (id: string) => acceptSuggestion(id), ...settle });
   const dismiss = useMutation({ mutationFn: (id: string) => dismissSuggestion(id), ...settle });
 
@@ -45,9 +55,14 @@ export function useSuggestions() {
  * (#2301) - kept per membership, since they are drawn from this organization's
  * week. Mounted only where they are offered: the starter agent's empty chat.
  */
-export function usePersonalStarters(): string[] {
-  const { data } = useQuery({ queryKey: qk.suggestions.starters(), queryFn: listPersonalStarters });
-  return data ?? [];
+export function usePersonalStarterQuery(enabled = true) {
+  return useQuery({
+    queryKey: qk.suggestions.starters(),
+    queryFn: listPersonalStarters,
+    enabled,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
 }
 
 /**
@@ -62,7 +77,15 @@ export function useSuggestionHistory() {
   });
   const restore = useMutation({
     mutationFn: (id: string) => restoreSuggestion(id),
-    onSettled: () => client.invalidateQueries({ queryKey: qk.suggestions.mine() }),
+    onSettled: () =>
+      Promise.all([
+        client.invalidateQueries({ queryKey: qk.suggestions.mine() }),
+        client.invalidateQueries({ queryKey: qk.outcomes.all() }),
+        client.invalidateQueries({ queryKey: qk.durableTasks.root() }),
+        client.invalidateQueries({ queryKey: qk.tables.all() }),
+        client.invalidateQueries({ queryKey: qk.notifications.all() }),
+        client.invalidateQueries({ queryKey: qk.watches.mine() }),
+      ]),
   });
   return {
     history: data ?? ([] as Suggestion[]),

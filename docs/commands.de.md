@@ -1,5 +1,5 @@
 ---
-source_sha: "e492362297a1"
+source_sha: "d4abbedc1b4e"
 ---
 
 # Befehle { #commands }
@@ -594,7 +594,8 @@ uv run agenticos cmd rag-drop docs --knowledge-base <knowledge-base-id> --yes
 und ein Worker entfernt die Vektortabelle und die gespeicherten Dateien, nachdem der
 Befehl committet hat. Ein Name, den mehrere Wissensbasen halten - auch in verschiedenen
 Organisationen -, wird mit ihren IDs abgelehnt, bis `--knowledge-base` eine nennt; die
-Tabelle bleibt dann für die anderen.
+Tabelle bleibt dann für die anderen. Anders als das Löschen in der Konsole entfernt es
+auch die Tabelle der letzten Basis, wenn sie Chunks hält, die keiner Basis gehören.
 
 #### Google-Drive-Sync { #google-drive-sync }
 

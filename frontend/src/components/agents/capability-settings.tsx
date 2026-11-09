@@ -9,6 +9,7 @@ import { getErrorMessage } from "@/lib/api-error";
 import type { FieldProblem } from "@/lib/api-error";
 import { useCapabilityFieldCopy } from "@/components/agents/capability-field-copy";
 import { SchemaForm } from "@/components/agents/schema-form";
+import { ContextHelp } from "@/components/ui/context-help";
 import {
   Badge,
   Button,
@@ -419,7 +420,7 @@ export function CapabilityDetail({
     // Grouped and named, so the tool rows are read as belonging to this
     // capability rather than to the page.
     <Card role="group" aria-label={definition.name}>
-      <CardContent className="space-y-4 p-5">
+      <CardContent className="space-y-4 p-4 sm:p-5">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium">{definition.name}</span>
           <span className="text-muted-foreground font-mono text-xs">{definition.id}</span>
@@ -447,8 +448,10 @@ export function CapabilityDetail({
           )}
         </div>
 
-        <p className="text-muted-foreground text-sm">{definition.description}</p>
-        <CapabilityGuideNotes capabilityId={definition.id} />
+        <div className="flex items-start gap-2">
+          <p className="text-muted-foreground flex-1 text-sm">{definition.description}</p>
+          <CapabilityGuideNotes capabilityId={definition.id} />
+        </div>
 
         {/* Always the tab shell, even for the capability whose Settings is one
             select: every panel then reads the same way, and "this one looks
@@ -558,7 +561,7 @@ interface SecretFieldProps {
 }
 
 /**
- * What the key chosen here would be for - "tavily", "mem0" - or null when
+ * What the key chosen here would be for - "tavily", "llamaparse" - or null when
  * nothing says.
  *
  * Where `purposesOf` has no mapping to read, it is the one service the slot
@@ -569,7 +572,7 @@ interface SecretFieldProps {
  * has the answer. A capability with one service needs its key unconditionally, so
  * there is no condition to read and the requirement names the service outright.
  *
- * Reading only the condition is what left the mem0 picker offering every API key
+ * Reading only the condition is what left the picker offering every API key
  * in the vault, and storing an inline-created one as `custom` (#1470).
  */
 function purposeOf(binding: CapabilityBindingSpec, requirement: SecretRequirement): string | null {
@@ -865,7 +868,7 @@ function signInFor(binding: CapabilityBindingSpec): "chatgpt" | "claudeToken" | 
  * What a key added through the inline form is stored as.
  *
  * The one API-key service this slot narrows to: web search's chosen method,
- * mem0's own service, or Codex's `openai` - its other purpose is the ChatGPT
+ * LlamaParse's own service, or Codex's `openai` - its other purpose is the ChatGPT
  * sign-in, a kind of its own that this form does not make. Stored as `custom`,
  * a Codex key was offered to Claude Code after a harness switch and published,
  * to fail at run time (#2485). Claude Code's key stays `custom`: it may be a
@@ -1107,7 +1110,7 @@ function ToolRow({ binding, tool, contract, onChange, disabled, approvals }: Too
             aria-invalid={nameError !== null}
             aria-describedby={nameError === null ? undefined : `${fieldId("name")}-error`}
             onChange={(event) => edit("name", event.target.value)}
-            className="font-mono text-sm"
+            className="font-mono text-base md:text-sm"
           />
         </ToolField>
 
@@ -1161,7 +1164,7 @@ function ToolRow({ binding, tool, contract, onChange, disabled, approvals }: Too
           }
           disabled={disabled}
           rows={6}
-          className="text-xs leading-relaxed"
+          className="text-base leading-relaxed md:text-xs"
           onChange={(event) => edit("description", event.target.value)}
         />
       </ToolField>
@@ -1395,19 +1398,21 @@ function CapabilityGuideNotes({ capabilityId }: { capabilityId: string }) {
   const guide = useCapabilityGuide()(capabilityId);
   if (!guide) return null;
   return (
-    <dl className="grid gap-x-4 gap-y-2 text-xs sm:grid-cols-[auto_minmax(0,1fr)]">
-      <dt className="text-muted-foreground font-medium">{t("capabilityForExample")}</dt>
-      <dd>
-        <ul className="list-disc space-y-0.5 pl-4">
-          {guide.examples.map((example) => (
-            <li key={example}>{example}</li>
-          ))}
-        </ul>
-      </dd>
-      <dt className="text-muted-foreground font-medium">{t("capabilityNeeds")}</dt>
-      <dd>{guide.needs}</dd>
-      <dt className="text-muted-foreground font-medium">{t("capabilityNever")}</dt>
-      <dd>{guide.never}</dd>
-    </dl>
+    <ContextHelp>
+      <dl className="grid gap-2 text-xs">
+        <dt className="text-muted-foreground font-medium">{t("capabilityForExample")}</dt>
+        <dd>
+          <ul className="list-disc space-y-0.5 pl-4">
+            {guide.examples.map((example) => (
+              <li key={example}>{example}</li>
+            ))}
+          </ul>
+        </dd>
+        <dt className="text-muted-foreground font-medium">{t("capabilityNeeds")}</dt>
+        <dd>{guide.needs}</dd>
+        <dt className="text-muted-foreground font-medium">{t("capabilityNever")}</dt>
+        <dd>{guide.never}</dd>
+      </dl>
+    </ContextHelp>
   );
 }

@@ -551,8 +551,15 @@ class TestVisibility:
         )
 
 
-async def _stream(socket: _Socket, organization: Organization, token: str) -> None:
-    await change_feed.stream_changes(socket, organization_id=organization.id, auth_token=token)
+async def _stream(
+    socket: _Socket, organization: Organization, token: str, conversation_events: bool = False
+) -> None:
+    await change_feed.stream_changes(
+        socket,
+        organization_id=organization.id,
+        auth_token=token,
+        conversation_events=conversation_events,
+    )
 
 
 async def _settled(event: anyio.Event) -> None:
@@ -745,3 +752,30 @@ class TestDatasetVisibility:
             db, _ctx(organization, granted, OrgRoleName.VIEWER), hidden
         )
         assert await change_feed.visible(db, _ctx(organization, owner, OrgRoleName.OWNER), hidden)
+
+
+@pytest.mark.parametrize("opted_in", [False, True])
+async def test_conversation_changes_preserve_legacy_socket_vocabulary(
+    db: AsyncSession, bus: _Bus, opted_in: bool
+) -> None:
+    from app.db.models.conversation import Conversation
+
+    owner = await _person(db)
+    organization = await _organization(db, owner)
+    chat = Conversation(organization_id=organization.id, user_id=owner.id, title="Private")
+    db.add(chat)
+    await db.commit()
+    socket = _Socket()
+    async with anyio.create_task_group() as tasks:
+        tasks.start_soon(
+            _stream, socket, organization, create_access_token(str(owner.id)), opted_in
+        )
+        await _settled(bus.listening)
+        await change_feed.publish(_event(organization, owner, resource="conversation", id=chat.id))
+        await change_feed.publish(
+            _event(organization, owner, resource="organization", id=organization.id)
+        )
+        await bus.pubsubs[0].end()
+    assert [event["resource"] for event in socket.sent] == (
+        ["conversation", "organization"] if opted_in else ["organization"]
+    )

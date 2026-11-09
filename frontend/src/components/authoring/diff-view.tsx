@@ -169,7 +169,7 @@ export function DiffView({
           ))}
         </div>
       )}
-      <div className="max-h-96 overflow-auto rounded-md border">
+      <div className="overflow-auto rounded-md border md:max-h-96">
         <table className="w-full table-fixed border-collapse font-mono text-xs leading-5">
           {/* A fixed table sizes its columns from the first row, which may be a fold. */}
           <colgroup>

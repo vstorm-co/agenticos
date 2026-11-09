@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   MessageList,
   askedBefore,
+  coalesceActivity,
   continuesTurn,
   endsTurn,
   lastToolTurnIndex,
@@ -234,9 +235,9 @@ describe("the transcript", () => {
       />,
     );
 
-    expect(rendered("m-1")?.groupPosition).toBe("first");
-    expect(rendered("m-2")?.groupPosition).toBe("middle");
-    expect(rendered("m-3")?.groupPosition).toBe("last");
+    expect(rendered("m-1")).toBeUndefined();
+    expect(rendered("m-2")).toBeUndefined();
+    expect(rendered("m-3")?.groupPosition).toBe("single");
   });
 
   it("calls a group of one a single", () => {
@@ -407,8 +408,8 @@ describe("one run drawn as one turn", () => {
       />,
     );
 
-    expect(rendered("m-1")?.continuesTurn).toBe(false);
-    expect(rendered("m-2")?.continuesTurn).toBe(true);
+    expect(rendered("m-1")).toBeUndefined();
+    expect(rendered("m-2")?.continuesTurn).toBe(false);
   });
 });
 
@@ -624,4 +625,88 @@ it("reads group identities linearly even for one long segmented turn", () => {
   expect(layout[0]?.groupPosition).toBe("first");
   expect(layout[500]?.groupPosition).toBe("middle");
   expect(layout[999]?.groupPosition).toBe("last");
+});
+
+describe("chronological run segments", () => {
+  it("keeps one activity history and the delegate when later segments arrive", () => {
+    const task = {
+      id: "task-1",
+      name: "task",
+      args: { subagent_type: "architect" },
+      status: "completed" as const,
+      result: "Recommendation",
+    };
+    const first = message({ id: "segment-1", runId: "run-1", content: "", toolCalls: [task] });
+    const next = message({
+      id: "segment-2",
+      runId: "run-1",
+      content: "",
+      toolCalls: [{ id: "create", name: "agenticos_create_task", args: {}, status: "completed" }],
+    });
+    const final = message({ id: "segment-3", runId: "run-1", content: "Finished." });
+    const result = coalesceActivity([first, next, final]);
+    expect(result).toHaveLength(1);
+    expect(result[0]?.toolCalls?.map((call) => call.id)).toEqual(["task-1", "create"]);
+    expect(result[0]?.content).toBe("Finished.");
+    expect(result[0]?.renderKey).toBe("segment-1");
+    expect(result[0]?.id).toBe("segment-3");
+    expect(first.toolCalls).toEqual([task]);
+  });
+  it("retains intermediate prose inside its run and separates different runs", () => {
+    const messages = [
+      message({ runId: "r1", content: "Checking the project." }),
+      message({ id: "m2", runId: "r1", content: "" }),
+      message({ id: "m3", runId: "r2", content: "Next turn" }),
+    ];
+    const result = coalesceActivity(messages);
+    expect(result).toHaveLength(2);
+    expect(result[0]?.parts?.map((part) => part.content)).toContain("Checking the project.");
+    expect(result[1]).toBe(messages[2]);
+  });
+});
+
+it("joins commentary and tool segments into one stable run without changing their order", () => {
+  const first = message({
+    id: "first",
+    runId: "run",
+    agentId: "main",
+    content: "Checking Poland.",
+    parts: [{ id: "intro", type: "text", content: "Checking Poland." }],
+  });
+  const work = message({
+    id: "work",
+    runId: "run",
+    agentId: "main",
+    content: "Checking Norway.",
+    parts: [
+      { id: "tool", type: "tool", toolCall: TOOL },
+      { id: "progress", type: "text", content: "Checking Norway." },
+    ],
+  });
+  const final = message({
+    id: "final",
+    runId: "run",
+    agentId: "main",
+    content: "Comparison.",
+    parts: [{ id: "answer", type: "text", content: "Comparison." }],
+  });
+  const [combined] = coalesceActivity([first, work, final]);
+  expect(combined?.renderKey).toBe("first");
+  expect(combined?.id).toBe("final");
+  expect(combined?.content).toBe("Comparison.");
+  expect(combined?.parts?.map((part) => part.id)).toEqual(["intro", "tool", "progress", "answer"]);
+  expect(first.parts).toHaveLength(1);
+});
+
+it("does not combine another agent or cross a user reply", () => {
+  const first = message({ id: "first", runId: "run", agentId: "main" });
+  const specialist = message({ id: "child", runId: "run", agentId: "reviewer" });
+  const user = message({ id: "user", role: "user", content: "Continue." });
+  const next = message({ id: "next", runId: "run", agentId: "reviewer" });
+  expect(coalesceActivity([first, specialist, user, next])).toEqual([
+    first,
+    specialist,
+    user,
+    next,
+  ]);
 });

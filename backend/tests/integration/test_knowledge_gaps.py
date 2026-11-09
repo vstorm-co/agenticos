@@ -35,7 +35,6 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from app.agents.capabilities.knowledge import KnowledgeSearchLog
 from app.agents.spec import AgentSpec
 from app.core.exceptions import (
-    AiAssistanceDisabledError,
     AuthorizationError,
     BadRequestError,
     NotFoundError,
@@ -1151,22 +1150,23 @@ async def test_a_draft_cites_only_the_documents_and_questions_it_was_shown(db) -
     assert [t.has_draft for t in listed.items] == [True]
 
 
-async def test_with_ai_assistance_off_no_draft_is_asked_for_or_kept(db) -> None:
+async def test_legacy_ai_flag_does_not_block_a_requested_draft(db) -> None:
     ctx = await _owner(db)
-    _, _, topic_id = await _a_topic(db, ctx)
+    _, agent, topic_id = await _a_topic(db, ctx)
     organization = await db.get(Organization, ctx.organization_id)
     organization.ai_assistance_enabled = False
     await db.flush()
-
-    with pytest.raises(AiAssistanceDisabledError):
+    run, _ = await _turn(db, ctx, agent)
+    with _drafter(
+        KnowledgeGapDraft(
+            title="Visitor parking", content="Visitors can park on level 2.", questions=[1]
+        ),
+        run,
+    ) as calls:
         await KnowledgeGapService(db).draft(ctx, topic_id)
-
+    calls.assert_awaited_once()
     topic = await db.get(KnowledgeGapTopic, topic_id)
-    assert topic is not None and topic.draft_content is None
-    drafter_runs = await db.execute(
-        select(func.count()).select_from(AgentRun).where(AgentRun.surface == "eval")
-    )
-    assert drafter_runs.scalar_one() == 0
+    assert topic is not None and topic.draft_content is not None
 
 
 async def test_a_drafting_run_that_ends_without_an_answer_keeps_no_draft(db) -> None:

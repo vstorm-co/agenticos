@@ -110,7 +110,6 @@ from app.schemas.skill_version import (
 )
 from app.services import skill_check_rules as rules
 from app.services.access import AGENT, DATASET, SKILL, accessible_ids
-from app.services.ai_assistance import AiAssistanceService
 from app.services.api_key import job_context
 from app.services.background_jobs import enqueue
 from app.services.dataset import DatasetService
@@ -2351,10 +2350,9 @@ class SkillCheckService:
             ),
             skill_id=skill.id,
         )
-        if await AiAssistanceService(self.db).is_enabled(organization_id=ctx.organization_id):
-            # The questions' answers are graded as an agent's test set's are, by
-            # the default judge, since no one agent's model is the one to avoid.
-            created = await ScoringService(self.db).judge_by_reference(ctx, created.id, None)
+        # The questions' answers are graded as an agent's test set's are, by the
+        # default judge, since no one agent's model is the one to avoid.
+        created = await ScoringService(self.db).judge_by_reference(ctx, created.id, None)
         if data.from_evidence:
             await self._add_evidence(ctx, skill, created.id, window_days=data.window_days)
             return await self.datasets.read(ctx, created.id)
@@ -2387,7 +2385,6 @@ def _chosen_for_fork(
 
 _SKIPPED_FOR = {
     "no_scorer": UnknownReason.UNSCORABLE,
-    "ai_assistance_off": UnknownReason.UNSCORABLE,
     "all_evidence": UnknownReason.ALL_EVIDENCE,
     "only_anonymised": UnknownReason.NO_QUESTIONS,
 }

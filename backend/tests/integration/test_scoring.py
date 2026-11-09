@@ -17,14 +17,13 @@ from decimal import Decimal
 import pytest
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
-from sqlalchemy import select, update
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy import select, text, update
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.agents.model_resolver import ModelRequestSpec
 from app.agents.spec import AgentSpec
 from app.agents.system_agents import JUDGE
 from app.core.exceptions import (
-    AiAssistanceDisabledError,
     AuthorizationError,
     BadRequestError,
     NotFoundError,
@@ -796,7 +795,9 @@ class TestADatasetsOwnJudge:
 
         assert [c.name for c in made.scoring.judge.criteria] == ["correctness", "tone"]
 
-    async def test_with_ai_assistance_off_creating_it_only_picks_it(self, db, judge) -> None:
+    async def test_a_legacy_ai_flag_does_not_disable_a_legacy_judge_creation(
+        self, db, judge
+    ) -> None:
         tenant = await _tenant(db)
         await _model(db, tenant)
         dataset, _ = await _dataset(db, tenant, scoring=DatasetScoring())
@@ -808,8 +809,8 @@ class TestADatasetsOwnJudge:
         )
 
         assert made.scoring.judge.agent_id is not None
-        assert (made.scoring.judge.enabled, made.scoring.judge.criteria) == (False, [])
-        assert made.scoring.reference.enabled is False
+        assert made.scoring.judge.enabled and made.scoring.judge.criteria
+        assert made.scoring.reference.enabled is True
 
     async def test_creating_it_and_changing_grading_are_audited_by_section(self, db, judge) -> None:
         """A guard reads what grades a dataset, so who changed it is on record - and only
@@ -985,9 +986,7 @@ class TestADatasetsOwnJudge:
 
 
 class TestWhenTheJudgeCannotRun:
-    async def test_switched_off_the_judge_is_skipped_and_the_checks_still_score(
-        self, db, judge
-    ) -> None:
+    async def test_legacy_ai_flag_does_not_skip_required_grading(self, db, judge) -> None:
         tenant = await _tenant(db)
         await _model(db, tenant)
         dataset, case = await _dataset(db, tenant, scoring=_rubric())
@@ -1003,11 +1002,9 @@ class TestWhenTheJudgeCannotRun:
         assert by_scorer["check"].status == "pass"
         assert by_scorer["trajectory"].status == "pass"
         judged = [r for r in score.results if r.scorer == "judge"]
-        assert {(r.status, r.reason_code) for r in judged} == {("skipped", "ai_assistance_off")}
-        assert score.passed is None
-        assert (score.judge, score.judge_model) == (None, None)
-        assert judge.calls == 0
-        assert await _eval_runs(db, tenant) == []
+        assert judged and all(r.reason_code != "ai_assistance_off" for r in judged)
+        assert judge.calls > 0
+        assert await _eval_runs(db, tenant)
 
     async def test_a_deleted_judge_model_skips_the_judge_and_the_checks_still_score(
         self, db, judge
@@ -1405,9 +1402,6 @@ class TestGradingAgain:
         before = len(await _eval_runs(db, tenant))
         tenant.organization.ai_assistance_enabled = False
         await db.flush()
-
-        with pytest.raises(AiAssistanceDisabledError):
-            await scoring.rescore(tenant.ctx, dataset.id, RescoreRequest(score_ids=[failed.id]))
 
         tenant.organization.ai_assistance_enabled = True
         await db.flush()
@@ -2295,30 +2289,27 @@ class TestRefusals:
                 member, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
             )
 
-    async def test_a_model_named_for_the_judge_is_accepted_and_dropped(self, db, judge) -> None:
+    @pytest.mark.security
+    async def test_a_grading_model_from_another_tenant_is_refused(self, db, judge) -> None:
         mine, theirs = await _tenant(db), await _tenant(db)
         foreign = await _model(db, theirs)
         dataset, _ = await _dataset(db, mine, scoring=DatasetScoring())
-
-        saved = await ScoringService(db).set_scoring(
-            mine.ctx,
-            dataset.id,
-            _change(
-                DatasetScoring.model_validate(
-                    {
-                        "judge": {
-                            "enabled": True,
-                            "criteria": [c.model_dump() for c in RUBRIC],
-                            "model_profile_id": str(foreign.id),
+        with pytest.raises(BadRequestError, match="this organization"):
+            await ScoringService(db).set_scoring(
+                mine.ctx,
+                dataset.id,
+                _change(
+                    DatasetScoring.model_validate(
+                        {
+                            "judge": {
+                                "enabled": True,
+                                "criteria": [c.model_dump() for c in RUBRIC],
+                                "model_profile_id": str(foreign.id),
+                            }
                         }
-                    }
-                )
-            ),
-        )
-
-        assert saved.scoring.judge.model_profile_id is None
-        row = await dataset_repo.get(db, dataset.id, organization_id=mine.organization.id)
-        assert row is not None and row.scoring["judge"]["model_profile_id"] is None
+                    )
+                ),
+            )
 
     @pytest.mark.parametrize(
         ("scoring", "field"),
@@ -2350,7 +2341,7 @@ class TestRefusals:
             (DatasetScoring(reference=ReferenceScorer(enabled=True)), "reference.enabled"),
         ],
     )
-    async def test_the_judge_cannot_be_turned_on_while_ai_assistance_is_off(
+    async def test_a_legacy_ai_flag_does_not_lock_grading_settings(
         self, db, judge, scoring, field
     ) -> None:
         tenant = await _tenant(db)
@@ -2358,11 +2349,8 @@ class TestRefusals:
         tenant.organization.ai_assistance_enabled = False
         await db.flush()
 
-        with pytest.raises(BadRequestError) as refused:
-            await ScoringService(db).set_scoring(tenant.ctx, dataset.id, _change(scoring))
-
-        assert [problem["field"] for problem in refused.value.details["fields"]] == [field]
-        assert "AI assistance is off" in refused.value.message
+        saved = await ScoringService(db).set_scoring(tenant.ctx, dataset.id, _change(scoring))
+        assert saved.scoring.model_dump()[field.split(".")[0]]["enabled"] is True
 
     async def test_a_judge_already_on_stays_while_the_rules_change_with_ai_off(
         self, db, judge
@@ -2587,3 +2575,74 @@ class TestChangingTheGrading:
         assert [problem["field"] for problem in refused.value.details["fields"]] == [
             "checks.enabled"
         ]
+
+
+async def test_dataset_grading_keeps_an_explicit_chat_model_and_refuses_embedding_models(
+    db: AsyncSession, judge
+) -> None:
+    tenant = await _tenant(db)
+    profile = await _model(db, tenant)
+    dataset, _ = await _dataset(db, tenant, scoring=DatasetScoring())
+    service = ScoringService(db)
+    changed = DatasetScoringUpdate.model_validate({"judge": {"model_profile_id": str(profile.id)}})
+    saved = await service.set_scoring(tenant.ctx, dataset.id, changed)
+    assert saved.scoring.judge.model_profile_id == profile.id
+    profile.model = "text-embedding-3-small"
+    await db.flush()
+    with pytest.raises(BadRequestError, match="answers messages"):
+        await service.set_scoring(tenant.ctx, dataset.id, changed)
+
+
+async def test_concurrent_scoring_patches_keep_both_sections(engine: AsyncEngine) -> None:
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+    async with sessions() as setup:
+        tenant = await _tenant(setup)
+        dataset, _ = await _dataset(
+            setup, tenant, scoring=DatasetScoring(checks=ChecksScorer(enabled=True))
+        )
+        dataset_id = dataset.id
+        await setup.commit()
+    ready = asyncio.Barrier(2)
+    processes: asyncio.Queue[int] = asyncio.Queue()
+
+    async def save(changes: DatasetScoringUpdate) -> None:
+        async with sessions() as session:
+            process = await session.scalar(text("SELECT pg_backend_pid()"))
+            assert isinstance(process, int)
+            await processes.put(process)
+            service = ScoringService(session)
+            stale = await service.datasets.get(tenant.ctx, dataset_id)
+            await ready.wait()
+            await service.set_scoring(tenant.ctx, dataset_id, changes)
+            assert stale.id == dataset_id
+            await session.commit()
+
+    async with sessions() as blocker:
+        await dataset_repo.lock(blocker, dataset_id, organization_id=tenant.ctx.organization_id)
+        async with asyncio.TaskGroup() as group:
+            group.create_task(
+                save(DatasetScoringUpdate.model_validate({"checks": {"required": False}}))
+            )
+            group.create_task(
+                save(DatasetScoringUpdate.model_validate({"review": {"select": "all"}}))
+            )
+            pids = [await processes.get(), await processes.get()]
+            async with asyncio.timeout(5):
+                while True:
+                    waiting = [
+                        bool(
+                            await blocker.scalar(
+                                text("SELECT pg_blocking_pids(:pid) <> '{}'::int[]"), {"pid": pid}
+                            )
+                        )
+                        for pid in pids
+                    ]
+                    if all(waiting):
+                        break
+                    await asyncio.sleep(0.01)
+            await blocker.commit()
+    async with sessions() as session:
+        stored = await DatasetService(session).get(tenant.ctx, dataset_id)
+        scoring = DatasetScoring.model_validate(stored.scoring)
+        assert scoring.checks.required is False
+        assert scoring.review.select == "all"

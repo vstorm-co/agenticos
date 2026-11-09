@@ -1,5 +1,5 @@
 ---
-source_sha: "b37ba36230db"
+source_sha: "840fe6e181cf"
 ---
 
 # Słownik { #glossary }
@@ -46,7 +46,7 @@ skrypt napisany pod nie nie przestał działać po zmianie nazwy.
 | W konsoli | Co to jest | W API i spec |
 |---|---|---|
 | Czat | Rozmowa z agentem w przeglądarce | `conversation` |
-| Kanał | Slack, Telegram albo Mattermost, gdzie ludzie piszą do agenta | `channel_bot` |
+| Kanał | Slack, Telegram, Mattermost albo Discord, gdzie ludzie piszą do agenta | `channel_bot` |
 | Rutyna | Agent działający sam, według harmonogramu albo zdarzenia | `trigger` |
 | Suita ewaluacji | Dataset, na którym sprawdzany jest agent, uruchamiany według harmonogramu, po publikacji albo promocji, albo po zmianie | `eval_suite` |
 | Run | Jedna odpowiedź agenta, z jej kosztem i krokami | `agent_run` |
@@ -70,7 +70,7 @@ skrypt napisany pod nie nie przestał działać po zmianie nazwy.
 | Budget | Limit wydatków, który zatrzymuje runy po osiągnięciu | `budget` |
 | Zabezpieczenia | Kontrole, które redagują albo blokują to, co przepływa przez run | `guardrails` |
 | Vault | Miejsce na klucze i tokeny, zapieczętowane i nigdy więcej niepokazywane | `secret` |
-| Wsparcie AI | Przełącznik organizacji dla modeli, które oceniają odpowiedzi, przygotowują przypadki, proponują zmiany i szkicują brakującą wiedzę, także w Popraw; wyłączone, dopóki ktoś go nie włączy | `ai_assistance_enabled` |
+| Pomocnicy ewaluacji | Procesy oceniania, generowania i ulepszania zdefiniowane w kodzie i konfigurowane na datasecie | `scoring.judge`, `helper_settings` |
 
 ## Jak to jest testowane { #how-it-is-tested }
 
@@ -123,8 +123,10 @@ w [Capabilities](capabilities.md).
 |---|---|
 | Aplikacje | `artifacts` |
 | Pytania do użytkownika | `ask_user` |
+| Wersje robocze | `drafts` |
 | Przeglądarka | `browser_use` |
 | Informacje o kanale czatu | `channel_tools` |
+| Połączenia telefoniczne | `phone_calls` |
 | Wykresy | `charts` |
 | Data i godzina | `clock` |
 | Obliczenia | `code_execution` |
@@ -139,9 +141,11 @@ w [Capabilities](capabilities.md).
 | Wyszukiwanie wiedzy | `knowledge` |
 | Odciążenie z obrazów | `media` |
 | Pamięć | `memory_files` |
-| Pamięć (mem0) | `memory_mem0` |
+| Mirage (wirtualny terminal) | `mirage` |
 | Planowanie | `planning` |
 | Praca w trakcie narzędzi | `background_tools` |
+| Tematy w tle | `background_tasks` |
+| Obserwuj polecenie | `monitor` |
 | Sandbox | `sandbox` |
 | Skille | `skills` |
 | Subagenci | `subagents` |
@@ -154,5 +158,5 @@ w [Capabilities](capabilities.md).
 | Wizualizacje | `visuals` |
 | Czytanie stron | `web_fetch` |
 | Wyszukiwanie w internecie | `web_research` |
-| Tabele | `virtual_tables` |
+| Tabele | AgenticOS MCP: `list_virtual_tables`, `query_virtual_table` |
 | Workflowy | `workflows` |

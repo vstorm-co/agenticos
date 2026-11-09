@@ -18,7 +18,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui";
-import { useAiAssistance } from "@/hooks/use-organizations";
 import { usePermissions } from "@/hooks/use-permissions";
 import { ROUTES } from "@/lib/constants";
 import { Perm } from "@/types/permissions";
@@ -81,8 +80,6 @@ export function SkillPageHeader({
   const { can } = usePermissions();
   // Improving and merging read the line's runs, so they are an editor's who may read them.
   const merger = skill.can_edit === true && can(Perm.runsView);
-  // Improving and catching up call a model, which the organization may have switched off.
-  const aiOff = useAiAssistance().enabled === false;
   const rare = merger && (merges?.toMain || merges?.empty || onReturn);
   return (
     <PageHeader
@@ -100,15 +97,7 @@ export function SkillPageHeader({
       }
       actions={
         <>
-          {merger && aiOff && (
-            <Held
-              icon={Sparkles}
-              label={line === null ? t("improve") : t("improveFork", { name: line })}
-              reason={t("aiOff")}
-              tour="skill-improve"
-            />
-          )}
-          {merger && !aiOff && (
+          {merger && (
             <Button variant="outline" asChild data-tour="skill-improve">
               <Link href={improveHref}>
                 <Sparkles className="h-4 w-4" aria-hidden />
@@ -123,15 +112,7 @@ export function SkillPageHeader({
               reason={t("nothingToMerge")}
             />
           )}
-          {merger && merges?.catchUp && aiOff && (
-            <Held
-              icon={GitMerge}
-              label={t("catchUp", { name: merges.fork })}
-              reason={t("aiOff")}
-              tour="skill-catch-up"
-            />
-          )}
-          {merger && merges?.catchUp && !aiOff && (
+          {merger && merges?.catchUp && (
             <Button variant="outline" asChild data-tour="skill-catch-up">
               <Link href={merges.catchUp}>
                 <GitMerge className="h-4 w-4" aria-hidden />
@@ -216,20 +197,17 @@ export function SkillPageHeader({
 }
 
 /**
- * An action held back, with why: a fork with nothing of its own to merge yet, or AI
- * assistance switched off. Marked rather than disabled, so the pointer and the keyboard
- * both reach the reason.
+ * An action held back, with why: a fork with nothing of its own to merge yet. Marked
+ * rather than disabled, so the pointer and the keyboard both reach the reason.
  */
 function Held({
   icon: Icon,
   label,
   reason,
-  tour,
 }: {
   icon: typeof GitMerge;
   label: string;
   reason: string;
-  tour?: string;
 }) {
   const hint = useId();
   return (
@@ -243,7 +221,6 @@ function Held({
             variant="outline"
             aria-disabled
             aria-describedby={hint}
-            data-tour={tour}
             className="cursor-not-allowed opacity-50"
           >
             <Icon className="h-4 w-4" aria-hidden />

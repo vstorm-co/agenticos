@@ -15,6 +15,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use agenticos_shell_core::device::{backoff, AppFrame, Capabilities, Endpoints, EndpointsAnswer, ServerFrame};
+use agenticos_shell_core::routine_grants::{DeviceIdentity, StoredDeviceIdentity};
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -55,6 +56,8 @@ pub struct DeviceStatus {
     pub linked: bool,
     /// The socket is open right now.
     pub connected: bool,
+    /// Public identity only; credentials remain in the OS keychain.
+    pub identity: Option<DeviceIdentity>,
 }
 
 #[derive(Deserialize)]
@@ -88,14 +91,52 @@ fn stored_refresh(server: &Url) -> Option<String> {
     keychain(server).ok()?.get_password().ok()
 }
 
-fn store_refresh(server: &Url, token: &str) -> Result<(), String> {
+fn store_refresh(server: &Url, pair: &TokenPair) -> Result<(), String> {
+    let identity = StoredDeviceIdentity::new(
+        server.origin().ascii_serialization(),
+        &pair.access_token,
+        &pair.refresh_token,
+    )
+    .map_err(str::to_owned)?;
+    let stored =
+        serde_json::to_string(&identity).map_err(|_| "The device session identity could not be saved".to_owned())?;
     keychain(server)?
-        .set_password(token)
-        .map_err(|e| format!("The keychain refused the session: {e}"))
+        .set_password(&pair.refresh_token)
+        .map_err(|e| format!("The keychain refused the session: {e}"))?;
+    identity_keychain(server)?
+        .set_password(&stored)
+        .map_err(|_| "The keychain refused the device identity".to_owned())
+}
+
+fn identity_keychain(server: &Url) -> Result<keyring::Entry, String> {
+    keyring::Entry::new(
+        KEYCHAIN_SERVICE,
+        &format!("device-identity:{}", server.origin().ascii_serialization()),
+    )
+    .map_err(|_| "The device identity keychain cannot be opened".to_owned())
+}
+
+pub(crate) fn identity(app: &AppHandle) -> Result<DeviceIdentity, String> {
+    let server = settings::current(app)
+        .server_url
+        .ok_or("Connect this app to a server first")?;
+    let refresh = stored_refresh(&server).ok_or("Link this computer before configuring a routine")?;
+    let stored = identity_keychain(&server)?
+        .get_password()
+        .map_err(|_| "Link this computer before configuring a routine".to_owned())?;
+    let session: StoredDeviceIdentity = serde_json::from_str(&stored)
+        .map_err(|_| "Reconnect this computer to review its routine permissions".to_owned())?;
+    if !session.matches(&refresh) || session.identity.origin != server.origin().ascii_serialization() {
+        return Err("The device connection changed; link this computer again".into());
+    }
+    Ok(session.identity)
 }
 
 fn forget(server: &Url) {
     if let Ok(entry) = keychain(server) {
+        let _ = entry.delete_credential();
+    }
+    if let Ok(entry) = identity_keychain(server) {
         let _ = entry.delete_credential();
     }
 }
@@ -146,7 +187,11 @@ fn status(app: &AppHandle) -> DeviceStatus {
         .connected
         .lock()
         .unwrap_or_else(|e| e.into_inner());
-    DeviceStatus { linked, connected }
+    DeviceStatus {
+        linked,
+        connected,
+        identity: identity(app).ok(),
+    }
 }
 
 fn set_connected(app: &AppHandle, value: bool) {
@@ -227,7 +272,7 @@ pub async fn device_link(app: AppHandle, code: String) -> Result<DeviceStatus, S
             .and_then(reqwest::Response::error_for_status)
             .map_err(|e| e.to_string())?;
         ensure_connection(&app, &server, &revision)?;
-        store_refresh(&server, &pair.refresh_token)
+        store_refresh(&server, &pair)
     }
     .await;
     if let Err(error) = activated {
@@ -294,6 +339,7 @@ pub(crate) async fn clear_authority(app: &AppHandle) -> Result<(), String> {
     stop(app);
     crate::screen::stop(app);
     crate::computer_access::clear(app)?;
+    crate::routine_access::clear(app)?;
     settings::update(app, settings::clear_local_authority)?;
     crate::local_browser::close_all(app).await;
     set_connected(app, false);
@@ -329,10 +375,15 @@ pub fn start(app: &AppHandle) {
         let mut failures = 0;
         loop {
             let ended = tokio::select! {
-                _ = stopper.notified() => return,
+                _ = stopper.notified() => {
+                    crate::agent_session::close_all(&app).await;
+                    return;
+                }
                 ended = connection(&app, &server) => ended,
             };
             set_connected(&app, false);
+            // Nothing is left to hear what a started agent writes.
+            crate::agent_session::close_all(&app).await;
             match ended {
                 Ended::Revoked => {
                     if let Err(error) = clear_authority(&app).await {
@@ -372,7 +423,7 @@ async fn connection(app: &AppHandle, server: &Url) -> Ended {
         Ok(pair) => pair,
         Err(ended) => return ended,
     };
-    if let Err(e) = store_refresh(server, &pair.refresh_token) {
+    if let Err(e) = store_refresh(server, &pair) {
         return Ended::Failed(e);
     }
     let mut request = match endpoints.device_socket().as_str().into_client_request() {
@@ -441,7 +492,7 @@ where
                         let app = app.clone();
                         let task = tauri::async_runtime::spawn(async move {
                             let _working = Working::start(&app);
-                            let outcome = run(&app, &op, args).await;
+                            let outcome = run(&app, &op, args, &call_id).await;
                             let _ = answers.send(AppFrame::answer(call_id, outcome));
                         });
                         running.0.insert(id, task);
@@ -449,7 +500,9 @@ where
                     Ok(ServerFrame::Cancel { id }) => {
                         if let Some(task) = running.0.remove(&id) {
                             task.abort();
+                            let _ = task.await;
                         }
+                        crate::agent_session::cancel_call(app, &id).await;
                     }
                     Err(_) => continue,
                 }
@@ -483,6 +536,7 @@ fn capabilities() -> Capabilities {
     Capabilities {
         sandbox_modes: crate::local_work::modes(),
         screen: true,
+        routine_grants: true,
     }
 }
 
@@ -515,7 +569,11 @@ async fn run(
     app: &AppHandle,
     op: &str,
     args: Map<String, Value>,
+    call_id: &str,
 ) -> Result<Map<String, Value>, (String, &'static str)> {
+    if op == "routine.check" {
+        return crate::routine_access::preflight(app, &args).map_err(|error| (error, "denied"));
+    }
     if op.starts_with("browser.") {
         return crate::local_browser::run(app, op, &args)
             .await
@@ -525,6 +583,16 @@ async fn run(
         return crate::local_services::run(app, op, &args)
             .await
             .map_err(|e| (e, "denied"));
+    }
+    if op.starts_with("local.") {
+        return crate::local_skills::run(app, op, &args)
+            .await
+            .map_err(|refusal| (refusal.message, refusal.kind));
+    }
+    if op.starts_with("agent.") {
+        return crate::agent_session::run(app, op, &args, call_id)
+            .await
+            .map_err(|refusal| (refusal.message, refusal.kind));
     }
     if op.starts_with("screen.") {
         return crate::screen::run(app, op, &args).await;

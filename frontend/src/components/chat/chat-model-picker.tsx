@@ -210,19 +210,34 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
     }
   };
 
+  const currentSummary = current ? (
+    <>
+      <span className="bg-foreground/[0.05] text-foreground flex size-9 shrink-0 items-center justify-center rounded-lg">
+        <ProviderIcon provider={current.provider} className="size-5" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm leading-5 font-medium break-words whitespace-normal">
+          {current.label}
+        </span>
+        {currentDetail !== null && (
+          <span className="text-muted-foreground mt-1 block truncate font-mono text-[11px]">
+            {currentDetail}
+          </span>
+        )}
+      </span>
+    </>
+  ) : (
+    t("changeModel")
+  );
+
   return (
     <div className="space-y-4">
-      {current && (
-        <p className="border-border bg-accent/40 flex items-center gap-2 rounded-lg border px-3 py-2 text-xs">
-          <ProviderIcon provider={current.provider} />
-          <span className="min-w-0 flex-1 truncate">
-            <span className="font-medium">{current.label}</span>
-            {currentDetail !== null && (
-              <span className="text-muted-foreground block truncate font-mono">
-                {currentDetail}
-              </span>
-            )}
-          </span>
+      {current && !can(Perm.connectionsManage) && (
+        <p
+          data-tour="chat-model-picker"
+          className="bg-background/60 flex items-center gap-2 rounded-lg border border-transparent px-3 py-2 text-xs"
+        >
+          {currentSummary}
           <span className="text-muted-foreground shrink-0 text-[11px]">
             {value === null ? t("agentModel") : t("thisChat")}
           </span>
@@ -235,23 +250,28 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
         <div>
           <Button
             type="button"
-            variant="ghost"
+            variant="outline"
             size="sm"
-            className="-ml-2 gap-2"
+            className="h-auto min-h-16 w-full items-start justify-start gap-3 rounded-xl px-3.5 py-3 text-left text-[13px]"
+            aria-label={t("changeModel")}
+            data-tour="chat-model-picker"
             aria-expanded={expanded}
             aria-controls={panelId}
             onClick={() => setExpanded((open) => !open)}
           >
-            {t("changeModel")}
+            {currentSummary}
+            <span className="text-muted-foreground mt-0.5 shrink-0 text-[11px]">
+              {value === null ? t("agentModel") : t("thisChat")}
+            </span>
             <ChevronDown
               aria-hidden
-              className={`h-3.5 w-3.5 transition-transform motion-reduce:transition-none ${expanded ? "rotate-180" : ""}`}
+              className={`mt-1 h-3.5 w-3.5 shrink-0 transition-transform motion-reduce:transition-none ${expanded ? "rotate-180" : ""}`}
             />
           </Button>
           {expanded && (
             <div
               id={panelId}
-              className="animate-in fade-in space-y-4 pt-3 duration-150 motion-reduce:animate-none"
+              className="animate-in fade-in space-y-4 pt-5 duration-150 motion-reduce:animate-none"
             >
               {profilesStatus === "failed" && (
                 <p role="alert" className="text-destructive text-xs">
@@ -344,7 +364,7 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
                   />
                 ))}
 
-              <Button type="button" size="sm" disabled={!canApply} onClick={apply}>
+              <Button type="button" className="w-full" disabled={!canApply} onClick={apply}>
                 {t("runModel")}
               </Button>
             </div>

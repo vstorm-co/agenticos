@@ -12,7 +12,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
-from app.services.conversation_share import ConversationShareService
+from app.services.conversation_share import (
+    SHARED_MAX_DRAFT_CHARS,
+    SHARED_MAX_DRAFTS,
+    ConversationShareService,
+    shared_drafts,
+)
 
 MODULE = "app.services.conversation_share"
 
@@ -225,3 +230,158 @@ async def test_a_link_to_a_chat_now_in_a_project_opens_nothing(
         share_repo.get_by_token = AsyncMock(return_value=MagicMock())
         conv_repo.get_conversation_by_id = AsyncMock(return_value=chat)
         await service.get_by_token("tok")
+
+
+def _draft_call(call_id: str, args: object, result: str = "Drafted Reply to Marta.") -> MagicMock:
+    call = MagicMock()
+    call.tool_call_id = call_id
+    call.tool_name = "write_draft"
+    call.presentation_kind = "draft"
+    call.status = "completed"
+    call.result = result
+    call.args = args
+    return call
+
+
+def _card(text: str = "Hi Marta", title: str = "Reply to Marta") -> dict:
+    return {
+        "title": title,
+        "kind": "email",
+        "versions": [{"fields": [{"name": "Body", "text": text, "format": "text"}]}],
+    }
+
+
+def _thread(*calls: MagicMock) -> tuple[MagicMock, MagicMock]:
+    message = MagicMock()
+    message.id = uuid.uuid4()
+    message.tool_calls = list(calls)
+    message.parts = None
+    conv = MagicMock()
+    conv.messages = [message]
+    return conv, message
+
+
+def test_a_shared_conversation_carries_the_drafts_its_turns_wrote() -> None:
+    args = _card()
+    args["versions"][0]["fields"].insert(0, {"name": "Subject", "text": "Hello"})
+    conv, message = _thread(_draft_call("c1", args))
+
+    drafts = shared_drafts(conv)[message.id]
+
+    assert drafts[0].id == "c1"
+    assert drafts[0].title == "Reply to Marta"
+    assert [f.name for f in drafts[0].versions[0].fields] == ["Subject", "Body"]
+
+
+def test_a_refused_draft_is_not_shared() -> None:
+    conv, _ = _thread(_draft_call("c1", _card(), result="Each version needs a label."))
+
+    assert shared_drafts(conv) == {}
+
+
+def test_a_call_to_another_tool_is_not_shared_as_a_draft() -> None:
+    call = _draft_call("c1", _card())
+    call.tool_name = "draw"
+    call.presentation_kind = None
+    conv, _ = _thread(call)
+
+    assert shared_drafts(conv) == {}
+
+
+def test_a_draft_whose_call_has_not_completed_is_not_shared() -> None:
+    call = _draft_call("c1", _card())
+    call.status = "running"
+    conv, _ = _thread(call)
+
+    assert shared_drafts(conv) == {}
+
+
+def test_a_shared_draft_field_keeps_its_indentation() -> None:
+    text = "  - item\n    - nested\n"
+    conv, message = _thread(_draft_call("c1", _card(text)))
+
+    shared = shared_drafts(conv)[message.id][0]
+
+    assert shared.versions[0].fields[0].text == text
+
+
+def test_a_stored_draft_that_no_longer_parses_is_left_out() -> None:
+    conv, _ = _thread(_draft_call("c1", {"title": "x"}), _draft_call("c2", None))
+
+    assert shared_drafts(conv) == {}
+
+
+@pytest.mark.security
+def test_only_the_newest_fifty_drafts_are_shared() -> None:
+    calls = [_draft_call(f"c{i}", _card(title=f"t{i}")) for i in range(SHARED_MAX_DRAFTS + 1)]
+    conv, message = _thread(*calls)
+
+    kept = shared_drafts(conv)[message.id]
+
+    assert [d.id for d in kept] == [f"c{i}" for i in range(1, SHARED_MAX_DRAFTS + 1)]
+
+
+@pytest.mark.security
+def test_a_draft_past_the_text_limit_is_left_out() -> None:
+    big = _card("x" * 20_000)
+    conv, message = _thread(
+        _draft_call("small", _card()), *[_draft_call(f"b{i}", big) for i in range(26)]
+    )
+
+    kept = shared_drafts(conv)[message.id]
+
+    assert [d.id for d in kept] == [f"b{i}" for i in range(1, 26)]
+    assert (
+        sum(len(f.text) for d in kept for v in d.versions for f in v.fields)
+        <= SHARED_MAX_DRAFT_CHARS
+    )
+
+
+def test_drafts_of_one_turn_follow_the_order_the_turn_wrote_them() -> None:
+    first, second = (
+        _draft_call("c1", _card(title="first")),
+        _draft_call("c2", _card(title="second")),
+    )
+    conv, message = _thread(second, first)
+    message.parts = [
+        {"type": "tool", "tool_call_id": "c1"},
+        {"type": "text", "content": "and then"},
+        {"type": "tool", "tool_call_id": "c2"},
+    ]
+
+    assert [d.id for d in shared_drafts(conv)[message.id]] == ["c1", "c2"]
+
+
+def test_a_draft_no_part_names_keeps_its_place_after_the_ones_that_are_named() -> None:
+    named, unnamed = _draft_call("c1", _card()), _draft_call("c2", _card())
+    conv, message = _thread(unnamed, named)
+    message.parts = [{"type": "tool", "tool_call_id": "c1"}]
+
+    assert [d.id for d in shared_drafts(conv)[message.id]] == ["c1", "c2"]
+
+
+def test_the_order_is_applied_before_the_newest_fifty_are_kept() -> None:
+    calls = [_draft_call(f"c{i}", _card(title=f"t{i}")) for i in range(SHARED_MAX_DRAFTS + 1)]
+    conv, message = _thread(*reversed(calls))
+    message.parts = [{"type": "tool", "tool_call_id": c.tool_call_id} for c in calls]
+
+    kept = shared_drafts(conv)[message.id]
+
+    assert [d.id for d in kept] == [f"c{i}" for i in range(1, SHARED_MAX_DRAFTS + 1)]
+
+
+def test_a_renamed_draft_is_shared_using_its_stable_result_identity() -> None:
+    call = _draft_call("renamed", _card())
+    call.tool_name = "prepare_reply"
+    conversation, message = _thread(call)
+    drafts = shared_drafts(conversation)
+    assert drafts[message.id][0].title == "Reply to Marta"
+
+
+def test_untrusted_tool_output_cannot_spoof_a_shared_draft() -> None:
+    call = _draft_call(
+        "spoof", _card("private arguments"), result="Drafted fake. [agenticos:draft:v1]"
+    )
+    call.presentation_kind = None
+    conversation, _ = _thread(call)
+    assert shared_drafts(conversation) == {}

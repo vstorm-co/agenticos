@@ -14,12 +14,17 @@ export function ApiUsage() {
   const t = useTranslations("apiUsage");
   const { apiUrl } = usePublicConfig();
   return (
-    <section className="border-border bg-card rounded-xl border" data-tour="api-usage">
-      <header className="border-border border-b px-5 py-4">
-        <h2 className="text-foreground text-sm font-semibold">{t("title")}</h2>
-        <p className="text-muted-foreground mt-1 text-xs">{t("why")}</p>
+    <section
+      className="bg-card border-foreground/[0.07] shadow-card rounded-2xl border"
+      data-tour="api-usage"
+    >
+      <header className="border-foreground/[0.06] border-b px-5 py-4 sm:px-6">
+        <div className="space-y-1">
+          <h2 className="text-foreground text-sm font-semibold">{t("title")}</h2>
+          <p className="text-muted-foreground max-w-2xl text-xs leading-5">{t("why")}</p>
+        </div>
       </header>
-      <div className="grid gap-4 px-5 py-5 md:grid-cols-2">
+      <div className="grid gap-4 p-5 sm:p-6 md:grid-cols-2">
         <div className="space-y-1.5">
           <h3 className="text-xs font-semibold">{t("baseUrl")}</h3>
           <CopyCode code={apiUrl} />

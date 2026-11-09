@@ -187,7 +187,12 @@ class MattermostAdapter(ChannelAdapter):
         self._base_urls[bot_id] = api_base_url.rstrip("/")
 
     def prepare_connection(
-        self, bot_id: str, *, api_base_url: str | None, app_token: str | None
+        self,
+        bot_id: str,
+        *,
+        api_base_url: str | None,
+        app_token: str | None,
+        approved_guild_ids: tuple[str, ...] = (),
     ) -> None:
         if api_base_url:
             self.remember_server(bot_id, api_base_url)

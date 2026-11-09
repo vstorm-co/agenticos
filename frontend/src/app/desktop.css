@@ -450,3 +450,8 @@
     padding: 1.25rem;
   }
 }
+
+/* Window controls stay above even a viewport-filling file viewer. */
+:root[data-shell="macos"][data-shell-window="main"] {
+  --dialog-inset-top: max(var(--shell-inset-top, 0px), 2rem);
+}

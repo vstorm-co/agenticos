@@ -1,5 +1,5 @@
 ---
-source_sha: "248c67b73df6"
+source_sha: "c428b004a390"
 title: "Lagunas de conocimiento"
 description: "Las lagunas de conocimiento muestran las preguntas para las que un agent no encontró nada relevante en su base de conocimiento, o respondió sin saber, agrupadas por tema, para saber qué documento falta."
 ---
@@ -19,14 +19,7 @@ un borrador - y lo añade a la base de conocimiento como documento, y antes pued
 convertir las preguntas del tema en casos de un [dataset](datasets.md), para
 que un eval muestre si el nuevo documento cambió las respuestas.
 
-Los editores eligen **Ayudantes de IA** en la pestaña de lagunas: un
-clasificador y redactor publicados propios o los predeterminados de la organización.
-Los campos son `gap_classifier_agent_id` y `gap_drafter_agent_id`; null restaura
-el valor predeterminado y omitir el campo mantiene la selección. Las llamadas
-de pago vuelven a comprobar acceso y tipo; una selección eliminada se rechaza
-explícitamente. Las bases compartidas por todo el despliegue usan los valores
-de cada organización, porque una configuración global no puede referirse al
-ayudante privado de una sola organización.
+La clasificación de lagunas y la redacción usan ayudantes definidos en el código. Conservan identidades internas para acceso, presupuestos y Activity; la consola no muestra un catálogo separado ni un editor de instrucciones de agentes auxiliares. Las selecciones históricas de ayudantes mediante la API siguen siendo legibles para las bases existentes.
 
 ## Cómo una pregunta se convierte en laguna { #how-a-question-becomes-a-gap }
 
@@ -59,15 +52,7 @@ caracteres de una consulta.
 
 ## Respuestas y comentarios { #answers-and-comments }
 
-Una búsqueda puede encontrar un fragmento y el agent aun así no saber la
-respuesta, y un lector puede valorar negativamente una respuesta porque faltaba
-algo. La búsqueda sola no ve ninguna de las dos cosas. **Revisar N respuestas**,
-en la pestaña Lagunas de conocimiento de la base de conocimiento, pide a un
-modelo que lea sus respuestas recientes en busca de ellas. Se ofrece mientras la
-[asistencia de IA](governance.md#ai-assistance) está activada, y cuenta las
-respuestas aún sin leer. Mientras el interruptor está apagado, la pestaña dice
-cuántas respuestas esperan, con un enlace al interruptor para quien puede
-cambiarlo.
+Revisar respuestas recientes y redactar contenido ausente requiere una acción explícita, acceso a recursos, un modelo disponible y budget. Activity registra las llamadas. Agrupar preguntas sin llamar a un modelo sigue disponible.
 
 El modelo es el **Knowledge gap classifier**, un
 [agent del sistema](concepts.md#system-agents) que tiene cada organización. Lee
@@ -244,7 +229,7 @@ Un borrador se escribe en segundo plano, como tú, con tu acceso tal como esté
 cuando se ejecuta. El tema dice **Drafting…** hasta que el borrador está listo,
 y una página abierta lo muestra sin recargar; pedirlo de nuevo mientras tanto no
 inicia nada más. Un borrador que no se pudo escribir, porque se agotó un
-presupuesto o se desactivó la asistencia de IA mientras tanto, lo indica, con **Try again**.
+presupuesto o el modelo dejó de estar disponible, lo indica, con **Try again**.
 Un borrador escrito a partir de las preguntas de una sola persona también lo
 indica: revísalo sabiendo que se basa en lo que preguntó una persona.
 
@@ -259,9 +244,7 @@ añadir contenido. **Redraft** sustituye el borrador. Cuando se añade un
 documento a la base de conocimiento después de escribir un borrador, el borrador
 indica que la base de conocimiento cambió después de él: puede repetir el nuevo
 documento o contradecirlo, así que **Redraft** lo escribe de nuevo según lo que
-la base de conocimiento contiene ahora. Quien puede editar el drafter encuentra **Edit the drafter's
-instructions** en el borrador, y el propio drafter en **System agents**, en la
-página Agents.
+la base de conocimiento contiene ahora.
 
 Un borrador nombra sus fuentes: los documentos de la base de conocimiento en
 los que se apoya, los archivos de contexto que sigue y las preguntas del tema
@@ -274,14 +257,7 @@ fuentes. Una fuente borrada después deja de mostrarse.
 Si cambias un borrador en el editor, pasa a ser tu contenido: su run y sus
 fuentes dejan de mostrarse, porque lo que citó el modelo ya no habla por él.
 
-Un borrador es un run de modelo como cualquier otro. Se deniega mientras la
-organización tiene la [asistencia de IA](governance.md#ai-assistance)
-desactivada, y lo está hasta que alguien con `org:settings` la activa; hasta
-entonces el tema lo dice, con un enlace al interruptor para quien puede
-cambiarlo. Se comprueban el presupuesto del redactor y el de la organización
-antes de llamar al modelo, y su coste aparece en Activity. Agrupar preguntas en
-temas no pide a ningún modelo que escriba nada, así que funciona sea cual sea
-el interruptor.
+Revisar respuestas recientes y redactar contenido ausente requiere una acción explícita, acceso a recursos, un modelo disponible y budget. Activity registra las llamadas. Agrupar preguntas sin llamar a un modelo sigue disponible.
 
 ## Acceso { #access }
 

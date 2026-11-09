@@ -1,5 +1,5 @@
 ---
-source_sha: "21569b3f9ec9"
+source_sha: "17ca6408dd22"
 ---
 
 # Funktionen { #features }
@@ -93,8 +93,8 @@ sagen.
 
 | Der Agent kann… | Einschalten |
 |---|---|
-| **Aus dem antworten, was Ihr Unternehmen weiß** — Ihre Dokumente, Ihre schriftlichen Abläufe und was auch immer an diese Unterhaltung angehängt wurde | Knowledge search · Skills · Context |
-| **Sich erinnern und nachschlagen** — Notizen über Unterhaltungen hinweg führen, eine Tatsache dem Sinn nach abrufen oder finden, was in einer früheren Unterhaltung tatsächlich gesagt wurde, und es nachlesen | Memory · Memory (mem0) · Past conversations |
+| **Aus dem antworten, was Ihr Unternehmen weiß** — Ihre Dokumente, Ihre schriftlichen Abläufe, was auch immer an diese Unterhaltung angehängt wurde, und die als Ordner eingebundenen Dienste, etwa ein Drive oder ein Repository | Knowledge search · Skills · Context · Virtual terminal |
+| **Sich erinnern und nachschlagen** — Notizen über Unterhaltungen hinweg führen, eine Tatsache dem Sinn nach abrufen oder finden, was in einer früheren Unterhaltung tatsächlich gesagt wurde, und es nachlesen | Memory · Past conversations |
 | **Losziehen und es herausfinden** — im Web suchen, eine Seite richtig lesen oder einen echten Browser durch eine Website steuern, die Klicks verlangt | Web search · Read web pages · Web browser |
 | **Die Arbeit erledigen, statt sie zu beschreiben** — Python über eine Datei laufen lassen, einen Workspace mit einer Shell führen, ein Diagramm zeichnen, ein Bild erzeugen, einen Text vorlesen oder einen kurzen Clip machen | Calculations · Sandbox · Charts · Image generation · Text to speech · Video generation |
 | **Arbeit bewältigen, die für eine Antwort zu groß ist** — an Spezialisten delegieren, eine Aufgabenliste führen, vor der Antwort länger nachdenken, eine lange Unterhaltung führen, ohne ihren Anfang zu verlieren | Delegation · Planning · Thinking · Long conversations |
@@ -178,12 +178,12 @@ Einmal veröffentlichen. Derselbe Runner antwortet auf all diesen:
 - **Eine gehostete Seite**, auf die Sie jemandem einen Link schicken können
 - **Ein einbettbares Widget** für Ihre eigene Website
 - **Die HTTP-API** und ein rohes WebSocket für Streaming
-- **Slack**, **Telegram** und **Mattermost**, wo eine `@mention` als die Person
+- **Slack**, **Telegram**, **Mattermost** und **Discord**, wo eine `@mention` als die Person
   läuft, die sie geschickt hat — nicht als der Bot
 
 Spracherkennung läuft auch hier über den eigenen Provider der Organisation:
 Diktieren im Web-Chat, auf einer gehosteten Seite und im Widget sowie
-transkribierte Sprachnachrichten in Slack, Telegram und Mattermost.
+transkribierte Sprachnachrichten in Slack, Telegram, Mattermost und Discord.
 
 **Sprachanrufe** lassen eine Person mit einem veröffentlichten Agent sprechen und
 ihn unterbrechen, im Web-Chat, auf einer gehosteten Seite oder im Widget. Der

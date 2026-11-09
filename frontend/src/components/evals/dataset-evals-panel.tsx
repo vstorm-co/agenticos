@@ -1,10 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronRight, FlaskConical, Play } from "lucide-react";
+import { ArrowRight, ClipboardCheck, FlaskConical, Play } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
-import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Button, ListCard, Pager } from "@/components/ui";
 import { useDataset } from "@/hooks/use-datasets";
@@ -13,8 +12,9 @@ import { getErrorMessage } from "@/lib/api-error";
 import type { Agent } from "@/types/agents";
 import type { EvalRun } from "@/types/eval-runs";
 import { NeedsRunsView } from "./needs-runs-view";
-import { PassRateChart, passRateLines } from "./pass-rate-chart";
-import { EvalRunRow } from "./run-row";
+import { EvalTrend } from "./eval-trend";
+import { passRateLines } from "./pass-rate-chart";
+import { RunsTable } from "./runs-table";
 import { StartEvalDialog } from "./start-eval-dialog";
 
 /**
@@ -65,7 +65,15 @@ function byAgent(runs: EvalRun[]): { id: string; runs: EvalRun[] }[] {
  * pass-rate trend and its runs with their verdicts, in a card whose header
  * counts them once they are read.
  */
-export function DatasetEvalsPanel({ datasetId, title }: { datasetId: string; title: string }) {
+export function DatasetEvalsPanel({
+  datasetId,
+  title,
+  onReview,
+}: {
+  datasetId: string;
+  title: string;
+  onReview?: () => void;
+}) {
   const t = useTranslations("evals");
   const [page, setPage] = useState(0);
   const { runs, total, isLoading, error, refetch } = useDatasetEvalRuns(datasetId, {
@@ -84,7 +92,18 @@ export function DatasetEvalsPanel({ datasetId, title }: { datasetId: string; tit
         ? t("runCount", { count: total })
         : t("dataset.counted", { runs: total, agents: groups.length });
   return (
-    <ListCard title={title} counted={counted}>
+    <ListCard
+      fill
+      namedByPage
+      title={title}
+      counted={counted}
+      contentClassName="p-0"
+      controls={
+        onReview && runs.some((run) => run.status === "completed") ? (
+          <ReviewResultsButton onClick={onReview} />
+        ) : undefined
+      }
+    >
       {isLoading ? (
         <LoadingState variant="skeleton-list" rows={3} />
       ) : (
@@ -138,8 +157,9 @@ function Groups({
   }
   if (groups.length === 0) {
     return (
-      <div className="space-y-3">
+      <div className="flex flex-1 flex-col justify-center gap-3">
         <EmptyState
+          className="border-0 bg-transparent"
           icon={FlaskConical}
           title={t("dataset.emptyTitle")}
           description={t("dataset.emptyBody")}
@@ -151,43 +171,36 @@ function Groups({
     );
   }
   return (
-    <div className="space-y-4" data-tour="dataset-evals">
-      {groups.map((group, index) => {
-        const agent = known.get(group.id);
-        const name = agent?.name ?? t("dataset.unnamedAgent");
-        return (
-          <details key={group.id} open={index === 0} className="group rounded-lg border p-3">
-            <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium">
-              <ChevronRight
-                className="h-3.5 w-3.5 transition-transform group-open:rotate-90"
-                aria-hidden
-              />
-              {agent && (
-                <AgentAvatar
-                  agentId={agent.id}
-                  slug={agent.slug}
-                  hasAvatar={agent.has_avatar}
-                  colorSlot={agent.avatar_color}
-                  size="sm"
-                />
-              )}
-              {t("group", { name, count: group.runs.length })}
-            </summary>
-            <div className="mt-3 space-y-3">
-              <PassRateChart
-                compact
-                rangeKey={`runs-${group.id.slice(0, 8)}`}
-                lines={passRateLines(group.runs, () => ({ key: group.id, name }), t, locale)}
-              />
-              <ul className="divide-border divide-y">
-                {group.runs.map((run) => (
-                  <EvalRunRow key={run.id} run={run} />
-                ))}
-              </ul>
-            </div>
-          </details>
-        );
-      })}
+    <div className="min-w-0" data-tour="dataset-evals">
+      <EvalTrend
+        rangeKey={`dataset-${datasetId}`}
+        lines={passRateLines(
+          groups.flatMap((group) => group.runs),
+          (run) => ({
+            key: run.agent_id,
+            name: known.get(run.agent_id)?.name ?? t("dataset.unnamedAgent"),
+          }),
+          t,
+          locale,
+        )}
+      />
+      <RunsTable
+        runs={groups
+          .flatMap((group) => group.runs)
+          .sort((a, b) => b.created_at.localeCompare(a.created_at))}
+        agentName={(id) => known.get(id)?.name ?? t("dataset.unnamedAgent")}
+      />
     </div>
+  );
+}
+
+function ReviewResultsButton({ onClick }: { onClick: () => void }) {
+  const t = useTranslations("datasets.journey");
+  return (
+    <Button size="sm" variant="outline" onClick={onClick}>
+      <ClipboardCheck className="size-4" aria-hidden />
+      {t("reviewAction")}
+      <ArrowRight className="size-3.5" aria-hidden />
+    </Button>
   );
 }

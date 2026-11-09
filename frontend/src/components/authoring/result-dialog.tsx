@@ -16,7 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui";
 import { useEvalCases, useEvalRun } from "@/hooks/use-eval-runs";
-import { DIALOG_BODY, DIALOG_BROAD, DIALOG_COLUMN } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_CANVAS, DIALOG_FILL } from "@/lib/dialog-sizes";
 import { expectedEffect } from "@/lib/authoring-text";
 import { ROUTES } from "@/lib/constants";
 import type {
@@ -98,7 +98,7 @@ export function AuthoringResultDialog({
   const checkId = batch?.check_eval_run_ids.at(-1);
   return (
     <Dialog open onOpenChange={onOpenChange}>
-      <DialogContent className={`${DIALOG_BROAD} ${DIALOG_COLUMN}`}>
+      <DialogContent className={`${DIALOG_CANVAS} ${DIALOG_FILL}`}>
         <DialogHeader>
           <DialogTitle>{t("title")}</DialogTitle>
           <DialogDescription>
@@ -254,7 +254,7 @@ export function CheckedAnswers({ runId }: { runId: string }) {
   const t = useTranslations("authoring.result");
   if (error)
     return (
-      <p role="alert" className="text-destructive text-sm">
+      <p role="alert" className="text-destructive-ink text-sm">
         {t("unavailable")}
       </p>
     );
@@ -291,7 +291,7 @@ function AnswerRows({
   const t = useTranslations("authoring.result");
   if (error)
     return (
-      <p role="alert" className="text-destructive text-sm">
+      <p role="alert" className="text-destructive-ink text-sm">
         {t("unavailable")}
       </p>
     );

@@ -120,7 +120,7 @@ export function SuiteRow({ suite, canManage }: { suite: EvalSuite; canManage: bo
           <Button
             variant="ghost"
             size="icon"
-            className="hover:text-destructive h-8 w-8"
+            className="hover:text-destructive-ink h-8 w-8"
             aria-label={t("delete")}
             disabled={remove.isPending}
             onClick={() => setDeleting(true)}

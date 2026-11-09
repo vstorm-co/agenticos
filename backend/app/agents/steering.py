@@ -12,7 +12,8 @@ It stays unapplied, and the surface sends it as an ordinary message once the tur
 is over rather than losing it.
 """
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Generator
+from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING
 
@@ -26,7 +27,7 @@ if TYPE_CHECKING:
 
     from app.agents.deps import AgentDeps
 
-__all__ = ["STEER_PREFIX", "Steer", "Steering", "SteeringInbox"]
+__all__ = ["STEER_PREFIX", "Steer", "Steering", "SteeringInbox", "screen_steer"]
 
 STEER_PREFIX = "[Added by the person while you were working - take it into account from here]"
 
@@ -54,9 +55,36 @@ class SteeringInbox:
     is screened here - redacted, or the run refused - before it is appended."""
     _steers: list[Steer] = field(default_factory=list)
 
+    _listeners: list[tuple[str, SteeringInbox]] = field(default_factory=list, repr=False)
+
+    @contextmanager
+    def listen(self, session: str) -> Generator[SteeringInbox]:
+        """Give a coding session its own cursor over targeted corrections.
+
+        `[session:api] ...` targets sessions named api. With a single active
+        session, an unaddressed correction reaches it as before. With several,
+        unaddressed corrections stay with the parent rather than changing the
+        wrong task. The parent records the correction once when it continues.
+        """
+        child = SteeringInbox(screen=self.screen)
+        for text in self.unapplied():
+            target, words = _session_correction(text)
+            if target == session or (target is None and not self._listeners):
+                child.add(words)
+        listener = (session, child)
+        self._listeners.append(listener)
+        try:
+            yield child
+        finally:
+            self._listeners = [entry for entry in self._listeners if entry is not listener]
+
     def add(self, text: str) -> Steer:
         steer = Steer(text=text)
         self._steers.append(steer)
+        target, words = _session_correction(text)
+        for session, listener in self._listeners:
+            if target == session or (target is None and len(self._listeners) == 1):
+                listener.add(words)
         return steer
 
     def take(self) -> list[Steer]:
@@ -69,6 +97,15 @@ class SteeringInbox:
     def unapplied(self) -> list[str]:
         """What arrived too late for any request - to be sent as a message of its own."""
         return [steer.text for steer in self._steers if not steer.applied]
+
+
+def _session_correction(text: str) -> tuple[str | None, str]:
+    """An explicit session address, or unaddressed text for the parent."""
+    if text.startswith("[session:"):
+        address, separator, words = text.partition("]")
+        if separator and words.strip():
+            return address.removeprefix("[session:"), words.lstrip()
+    return None, text
 
 
 class Steering(AbstractCapability["AgentDeps"]):
@@ -98,7 +135,7 @@ class Steering(AbstractCapability["AgentDeps"]):
             return request_context
         # Screened once, and the screened words are what the transcript keeps
         # too: a redacted secret must not come back in the next turn's history.
-        said = [_screened(inbox, steer.text) for steer in steers]
+        said = [screen_steer(inbox, steer.text) for steer in steers]
         added = UserPromptPart(content="\n\n".join([STEER_PREFIX, *said]))
         # The persistent history and this request's own list are separate lists
         # (usually holding the same message), so each takes the words explicitly:
@@ -113,7 +150,7 @@ class Steering(AbstractCapability["AgentDeps"]):
         return replace(request_context, messages=[*messages[:-1], tail])
 
 
-def _screened(inbox: SteeringInbox, text: str) -> str:
+def screen_steer(inbox: SteeringInbox, text: str) -> str:
     """The steer as the input guardrail leaves it; a blocked one raises, ending the run."""
     if inbox.screen is None:
         return text

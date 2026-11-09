@@ -1,9 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 
-import { Badge } from "@/components/ui";
+import { MarkdownContent } from "@/components/chat/markdown-content";
+import { Badge, Button } from "@/components/ui";
+import { cn } from "@/lib/utils";
 import { ROUTES } from "@/lib/constants";
 import { describeCheck } from "@/lib/scoring";
 import type { CaseScore } from "@/types/scoring";
@@ -21,6 +24,36 @@ type Expected = Pick<
   | "checks"
 >;
 
+/** Keep a long reference close enough to the actual answer to compare them. */
+function ReferenceAnswer({ answer }: { answer: string }) {
+  const t = useTranslations("datasets.scoring");
+  const [open, setOpen] = useState(false);
+  const long = answer.length > 240;
+  return (
+    <div className="space-y-2">
+      <div
+        className={cn(
+          "prose-sm min-w-0 leading-relaxed wrap-anywhere",
+          long && !open && "line-clamp-3",
+        )}
+      >
+        <MarkdownContent content={answer} inertImages />
+      </div>
+      {long && (
+        <Button
+          variant="link"
+          size="sm"
+          className="h-auto px-0"
+          aria-expanded={open}
+          onClick={() => setOpen((value) => !value)}
+        >
+          {open ? t("showLess") : t("showAll")}
+        </Button>
+      )}
+    </div>
+  );
+}
+
 /**
  * What the scored revision of the case asked and expected: the question - a link
  * opening the case - with its tags, the reference answer, the tool calls in
@@ -29,7 +62,7 @@ type Expected = Pick<
 export function ScoreExpectation({ score }: { score: Expected }) {
   const t = useTranslations("datasets.scoring");
   return (
-    <dl className="bg-muted/40 space-y-2 rounded-md px-3 py-2 text-sm">
+    <dl className="bg-muted/20 min-w-0 space-y-4 rounded-lg border p-4 text-sm">
       <div>
         <dt className="text-muted-foreground text-xs">{t("question")}</dt>
         <dd className="space-y-1">
@@ -53,7 +86,9 @@ export function ScoreExpectation({ score }: { score: Expected }) {
       {score.reference_answer && (
         <div>
           <dt className="text-muted-foreground text-xs">{t("referenceAnswer")}</dt>
-          <dd className="break-words whitespace-pre-wrap">{score.reference_answer}</dd>
+          <dd className="prose-sm mt-2 min-w-0 leading-relaxed wrap-anywhere">
+            <ReferenceAnswer key={score.reference_answer} answer={score.reference_answer} />
+          </dd>
         </div>
       )}
       {score.expected_tool_calls.length > 0 && (

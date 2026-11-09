@@ -16,7 +16,6 @@ from app.core.exceptions import (
 from app.db.models.authoring import AuthoringRequest
 from app.db.models.eval_run import EvalRun
 from app.db.models.improvement import ImprovementRun
-from app.db.models.organization import Organization
 from app.services.improvement_pipeline import ImprovementPipelineService
 from tests.integration.test_authoring import _environment as _environment
 from tests.integration.test_improvement_evidence import _serial_worker as _serial_worker
@@ -33,7 +32,6 @@ pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("_environment")]
         "authorization",
         "missing_grant",
         "bad_request",
-        "ai_disabled",
         "budget",
         "provider",
     ],
@@ -47,13 +45,7 @@ async def test_boundary_failure_is_recorded_before_a_paid_child_can_start(
     assert row is not None
     row.stage = "proposing"
     await db.flush()
-    if boundary == "ai_disabled":
-        org = await db.get(Organization, ctx.organization_id)
-        assert org is not None
-        org.ai_assistance_enabled = False
-        await db.flush()
-        await service.advance(session.id, ctx.organization_id)
-    elif boundary in {"budget", "provider"}:
+    if boundary in {"budget", "provider"}:
         error = (
             PaymentRequiredError(message="No remaining funds")
             if boundary == "budget"
@@ -176,3 +168,22 @@ async def test_a_waiting_session_without_a_selected_round_makes_no_authoring_dec
     await service.advance(ready.id, ctx.organization_id)
     assert (await service.read(ctx, agent.id, ready.id)).status == "ready"
     assert agent.draft_spec == before
+
+
+@pytest.mark.security
+async def test_a_session_whose_organization_disappears_refuses_steps_and_stops(
+    db: AsyncSession,
+) -> None:
+    ctx, agent, _, session = await _started(db)
+    service = ImprovementPipelineService(db)
+    row = await db.get(ImprovementRun, session.id)
+    assert row is not None
+    with patch(
+        "app.services.improvement_pipeline.organization_repo.get_by_id",
+        AsyncMock(return_value=None),
+    ):
+        with pytest.raises(AuthorizationError, match="Organization is no longer available"):
+            await service._current_inputs(ctx, row)
+        await service.advance(session.id, ctx.organization_id)
+    read = await service.read(ctx, agent.id, session.id)
+    assert (read.status, read.stop_reason) == ("stopped", "permission")

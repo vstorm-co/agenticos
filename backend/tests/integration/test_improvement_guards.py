@@ -145,7 +145,7 @@ async def test_a_resource_removed_before_its_write_lock_is_not_found(
 
 
 @pytest.mark.security
-async def test_paid_restarts_recheck_ai_assistance_and_refuse_an_unstarted_round(
+async def test_paid_restarts_ignore_legacy_ai_flag_but_refuse_an_unstarted_round(
     db: AsyncSession,
 ) -> None:
     ctx, agent, session = await _ready_proposal(db)
@@ -154,13 +154,11 @@ async def test_paid_restarts_recheck_ai_assistance_and_refuse_an_unstarted_round
     assert organization is not None
     organization.ai_assistance_enabled = False
     await db.flush()
-    with pytest.raises(AuthorizationError, match="switched off"):
+    with pytest.raises(BadRequestError, match="attempt limit"):
         await service.estimate_continuation(
             ctx, agent.id, session.id, ImprovementContinue(budget_usd=Decimal("5"))
         )
-    with pytest.raises(AuthorizationError, match="disabled"):
-        await service.ensure_current(ctx, session.id, allow_finished=True)
-    organization.ai_assistance_enabled = True
+    await service.ensure_current(ctx, session.id, allow_finished=True)
     row = await db.get(ImprovementRun, session.id)
     assert row is not None
     row.iteration = 2

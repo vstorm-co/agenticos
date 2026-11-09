@@ -298,6 +298,8 @@ function useConsent(scope: Scope, { returnTo, keepThisTab }: ConsentOptions) {
         const refresh = () => {
           window.removeEventListener("focus", refresh);
           void queryClient.invalidateQueries({ queryKey: qk.mcpConnections.all() });
+          void queryClient.invalidateQueries({ queryKey: qk.mcpServers.lists() });
+          void queryClient.invalidateQueries({ queryKey: qk.mcpServers.entries() });
         };
         window.addEventListener("focus", refresh);
         tab.location.href = authorization_url;

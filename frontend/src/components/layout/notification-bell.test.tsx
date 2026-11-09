@@ -81,6 +81,26 @@ describe("NotificationBell", () => {
     });
   }
 
+  it("takes an approval notification to the decision queue without settlement buttons", async () => {
+    renderBell("row", {
+      notifications: [
+        notification({
+          event_type: "approval_requested",
+          outcome_id: "o-1",
+          summary: "Finance needs approval",
+          context_url: "/runs?tab=approvals",
+        }),
+      ],
+    });
+    await userEvent.click(screen.getByRole("button", { name: /Notifications/ }));
+    expect(await screen.findByRole("link", { name: /Finance needs approval/ })).toHaveAttribute(
+      "href",
+      "/runs?tab=approvals",
+    );
+    for (const name of ["Seen", "Done", "Stop asking"])
+      expect(screen.queryByRole("button", { name })).toBeNull();
+  });
+
   it("closes phone navigation when opening a notification destination", async () => {
     const query = window.matchMedia("(max-width: 767px)");
     vi.spyOn(window, "matchMedia").mockReturnValue({ ...query, matches: true });

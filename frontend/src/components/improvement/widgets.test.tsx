@@ -38,9 +38,9 @@ it("lays tiles out by how many there are, under the name that says them as a sen
 });
 
 it.each([
-  ["good", "bg-success/10", "text-success"],
-  ["bad", "bg-destructive/10", "text-destructive"],
-  ["warn", "bg-warning/10", "text-warning"],
+  ["good", "bg-success/10", "text-success-ink"],
+  ["bad", "bg-destructive/10", "text-destructive-ink"],
+  ["warn", "bg-warning/10", "text-warning-ink"],
   ["neutral", "bg-muted", "text-muted-foreground"],
 ] as const)("says a %s state with an icon as well as a colour", (tone, chip, ink) => {
   render(<StateBadge tone={tone}>Said</StateBadge>);
@@ -74,12 +74,12 @@ it("shows before and after against one total, with the difference and its direct
     <BeforeAfter title="All test questions" label="3 → 4 of 4" before={3} after={4} total={4} />,
   );
   const figure = screen.getByRole("figure");
-  expect(within(figure).getByText("+1")).toHaveClass("text-success");
+  expect(within(figure).getByText("+1")).toHaveClass("text-success-ink");
   expect(screen.getByRole("img", { name: "3 → 4 of 4" })).toHaveTextContent(
     "Before3 of 4After4 of 4",
   );
   view.rerender(<BeforeAfter title="All" label="4 → 2 of 4" before={4} after={2} total={4} />);
-  expect(screen.getByText("-2")).toHaveClass("text-destructive");
+  expect(screen.getByText("-2")).toHaveClass("text-destructive-ink");
   expect(screen.getByText("2 of 4").previousElementSibling!.firstElementChild).toHaveClass(
     "bg-destructive",
   );
@@ -102,7 +102,7 @@ it("marks each stage with an icon and a word, and the running one as current", (
     screen.getByRole("list", { name: "Testing the changes" }),
   ).getAllByRole("listitem");
   expect(asking).toHaveTextContent("AskingDone");
-  expect(asking!.querySelector("svg")).toHaveClass("text-success");
+  expect(asking!.querySelector("svg")).toHaveClass("text-success-ink");
   expect(grading).toHaveAttribute("aria-current", "step");
   expect(grading!.querySelector("svg")).toHaveClass("animate-spin");
   expect(repeating).not.toHaveAttribute("aria-current");

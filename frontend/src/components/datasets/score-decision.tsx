@@ -1,5 +1,6 @@
 "use client";
 
+import { Check, X, Undo2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
@@ -13,9 +14,6 @@ export type Verdict = { passed: boolean | null; note: string | null };
 interface ScoreDecisionProps {
   /** The decision on record, if somebody made one. */
   decided: boolean | null;
-  /** A model graded the answer, so overturning it says the judge was wrong. */
-  judged?: boolean;
-  compact?: boolean;
   caseTags?: string[];
   note: string | null;
   onVerdict?: (verdict: Verdict) => void;
@@ -29,8 +27,6 @@ interface ScoreDecisionProps {
 /** A person's review decision on a score, with the note that says why. */
 export function ScoreDecision({
   decided,
-  judged = false,
-  compact = false,
   caseTags = [],
   note,
   onVerdict,
@@ -40,14 +36,19 @@ export function ScoreDecision({
 }: ScoreDecisionProps) {
   const t = useTranslations("datasets.scoring");
   const [written, setWritten] = useState(note ?? "");
+  const [storedNote, setStoredNote] = useState(note);
+  if (storedNote !== note) {
+    setStoredNote(note);
+    if (written === (storedNote ?? "")) setWritten(note ?? "");
+  }
   const decide = (passed: boolean | null) =>
     onVerdict?.({ passed, note: passed === null || written.trim() === "" ? null : written });
 
   return (
     <footer className={cn("space-y-2 border-t pt-3", busy && "opacity-60")}>
       <p className="text-xs font-medium">{t("decision")}</p>
-      {(!onVerdict || compact) && note && <p className="text-sm">{note}</p>}
-      {onVerdict && !compact && (
+      {!onVerdict && note && <p className="text-sm">{note}</p>}
+      {onVerdict && (
         <>
           <Textarea
             value={written}
@@ -58,23 +59,21 @@ export function ScoreDecision({
           />
           <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="outline" disabled={busy} onClick={() => decide(true)}>
-              {judged ? t("markPassed") : t("markPassedUngraded")}
+              <Check className="size-4" aria-hidden />
+              {t("markPassed")}
             </Button>
             <Button size="sm" variant="outline" disabled={busy} onClick={() => decide(false)}>
+              <X className="size-4" aria-hidden />
               {t("markFailed")}
             </Button>
             {decided !== null && (
               <Button size="sm" variant="ghost" disabled={busy} onClick={() => decide(null)}>
+                <Undo2 className="size-4" aria-hidden />
                 {t("withdrawVerdict")}
               </Button>
             )}
           </div>
         </>
-      )}
-      {compact && decided !== null && onVerdict && (
-        <Button size="sm" variant="ghost" disabled={busy} onClick={() => decide(null)}>
-          {t("withdrawVerdict")}
-        </Button>
       )}
       {onNoteToCriterion && note && (
         <div className="text-muted-foreground flex flex-wrap items-center gap-1 text-xs">

@@ -20,6 +20,7 @@ import { EstimateSummary } from "./estimate-summary";
 import { EvalRunVerdict } from "./eval-run-verdict";
 import { EvalStatusBadge } from "./eval-status-badge";
 import { EvalsPanel } from "./evals-panel";
+import { RunsTable } from "./runs-table";
 import { VerdictChip } from "./run-row";
 import { sideName } from "./names";
 import { PassRateChart, passRateLines, trendRange } from "./pass-rate-chart";
@@ -166,6 +167,19 @@ describe("passRateLines", () => {
 
   afterEach(() => vi.useRealTimers());
 
+  it("excludes setup failures from quality trends and pass rates", () => {
+    const failed = evalRun({
+      arms: [arm({ failed_alike: "Workspace unavailable" })],
+    });
+    expect(
+      passRateLines([failed], (run) => ({ key: run.dataset_id, name: run.dataset_name }), t, "en"),
+    ).toEqual([]);
+    render(<RunsTable runs={[failed]} />);
+    expect(screen.getByText("Could not run")).toBeInTheDocument();
+    expect(screen.queryByText("0%")).toBeNull();
+    expect(screen.queryByText(/of .* passed/)).toBeNull();
+  });
+
   it("puts finished runs in order, a line per group by its dash, each point in its verdict's colour", () => {
     // On the reader's wall clock, so "today" is the same day in every time zone.
     const at = (day: number, hour: number) => new Date(2026, 9, day, hour).toISOString();
@@ -194,10 +208,10 @@ describe("passRateLines", () => {
       "en",
     );
 
-    // Verdict colours are the verdicts' alone: lines share a neutral ink and differ by dash.
+    // Verdict colours are the verdicts' alone: lines share the dashboard ink and differ by dash.
     expect(lines.map((line) => [line.name, line.color, line.dash])).toEqual([
-      ["refunds", "var(--color-muted-foreground)", undefined],
-      ["shipping", "var(--color-muted-foreground)", "6 4"],
+      ["refunds", "var(--color-chart)", undefined],
+      ["shipping", "var(--color-chart)", "6 4"],
     ]);
     const [refunds, shipping] = lines;
     expect(refunds?.points.map((p) => [p.index, p.draft, p.color])).toEqual([
@@ -210,9 +224,7 @@ describe("passRateLines", () => {
       expect.stringMatching(/^\d{2}:\d{2}/),
     ]);
     // A first result has no verdict, so nothing to colour it with.
-    expect(shipping?.points.map((p) => [p.index, p.color])).toEqual([
-      [1, "var(--color-muted-foreground)"],
-    ]);
+    expect(shipping?.points.map((p) => [p.index, p.color])).toEqual([[1, "var(--color-chart)"]]);
     const late = refunds?.points[1];
     expect(late?.href).toBe("/agents/agent-1/evals/late");
     expect(late?.title).toBe("sideModel:version:7|gpt-4.1");
@@ -226,6 +238,26 @@ describe("passRateLines", () => {
       "trend.rate:75%",
       "trend.verdict:none",
     ]);
+  });
+  it("keeps past runs within the same day distinguishable by time", () => {
+    vi.useFakeTimers({ now: new Date(2026, 10, 4, 12), toFake: ["Date"] });
+    const lines = passRateLines(
+      [
+        evalRun({ id: "morning", created_at: new Date(2026, 10, 3, 9, 30).toISOString() }),
+        evalRun({ id: "afternoon", created_at: new Date(2026, 10, 3, 14, 45).toISOString() }),
+        evalRun({
+          id: "unmeasured-other-day",
+          created_at: new Date(2026, 10, 2, 12).toISOString(),
+          arms: [],
+        }),
+      ],
+      (run) => ({ key: run.dataset_id, name: run.dataset_name }),
+      t,
+      "en",
+    );
+    const ticks = lines.flatMap((line) => line.points.map((point) => point.tick));
+    expect(new Set(ticks).size).toBe(2);
+    expect(ticks.every((tick) => /\d{2}:\d{2}/.test(tick))).toBe(true);
   });
 });
 
@@ -244,6 +276,11 @@ describe("PassRateChart", () => {
       title: "v1",
       details: [],
     })),
+  });
+
+  it("shows no chart or range controls without measured points", () => {
+    const { container } = render(<PassRateChart lines={[]} />);
+    expect(container).toBeEmptyDOMElement();
   });
 
   const drawn = () => screen.findByText(/^drawn:/);
@@ -317,7 +354,7 @@ describe("EvalsPanel", () => {
     expect(evalRuns.asked.at(-1)).toEqual(["agent-1", { skip: 100, limit: 100 }]);
   });
 
-  it("draws the trend, then every run by dataset with its verdict", async () => {
+  it("draws the trend and lists all runs with their comparison and model rates", async () => {
     evalRuns.value = {
       ...evalRuns.value,
       runs: [
@@ -342,18 +379,21 @@ describe("EvalsPanel", () => {
     render(<EvalsPanel agentId="agent-1" canStart />);
 
     expect(screen.getByRole("group", { name: "Pass rate by run" })).toBeInTheDocument();
-    expect(screen.getByText(/click it to open the run/)).toBeInTheDocument();
-    expect(screen.getByText("refunds · 2 runs")).toBeInTheDocument();
-    expect(screen.getByText("shipping · 1 run")).toBeInTheDocument();
-
+    expect(screen.queryByText(/click it to open the run/)).toBeNull();
+    expect(screen.getByRole("table")).toBeInTheDocument();
     const compared = screen.getByRole("link", { name: /v7 vs v6/ });
     expect(compared).toHaveAttribute("href", "/agents/agent-1/evals/run-1");
-    expect(within(compared).getByText("Breaks 4")).toBeInTheDocument();
-    expect(within(compared).getByText("gpt-4.1 75%")).toBeInTheDocument();
-    expect(within(compared).getByText("claude 75%")).toBeInTheDocument();
-    expect(within(compared).queryByText("Completed")).toBeNull();
-    const first = screen.getByRole("link", { name: /^v7.*First result/ });
-    expect(first).toHaveAttribute("href", "/agents/agent-1/evals/run-0");
+    const row = compared.closest("tr");
+    if (!row) throw new Error("An evaluation has no table row");
+    expect(within(row).getAllByText("Breaks 4").length).toBeGreaterThan(0);
+    expect(within(row).getAllByText("gpt-4.1").length).toBeGreaterThan(0);
+    expect(within(row).getAllByText("75%")).toHaveLength(2);
+    expect(within(row).getAllByText("claude").length).toBeGreaterThan(0);
+    expect(
+      screen
+        .getAllByRole("link")
+        .some((link) => link.getAttribute("href") === "/agents/agent-1/evals/run-0"),
+    ).toBe(true);
     const live = screen.getByRole("link", { name: /Draft vs v7/ });
     expect(within(live).getByText("Pending")).toBeInTheDocument();
     expect(within(live).getByText("Running")).toBeInTheDocument();
@@ -371,7 +411,7 @@ describe("EvalsPanel", () => {
     evalRuns.value = { ...evalRuns.value, runs: [evalRun({ status: "queued" })] };
     rerender(<EvalsPanel agentId="agent-1" canStart />);
     expect(screen.queryByRole("group", { name: "Pass rate by run" })).toBeNull();
-    expect(screen.getByText("Pending")).toBeInTheDocument();
+    expect(screen.getAllByText("Pending").length).toBeGreaterThan(0);
   });
 
   it("keys each line when runs of several datasets finished", () => {
@@ -382,6 +422,17 @@ describe("EvalsPanel", () => {
     render(<EvalsPanel agentId="agent-1" canStart />);
     expect(screen.getByText("refunds", { selector: "li" })).toBeInTheDocument();
     expect(screen.getByText("shipping", { selector: "li" })).toBeInTheDocument();
+  });
+
+  it("shows unresolved cases separately from a model's pass rate", () => {
+    evalRuns.value = {
+      ...evalRuns.value,
+      runs: [
+        evalRun({ arms: [arm({ summary: { ...arm().summary, incomplete: 1, ungraded: 1 } })] }),
+      ],
+    };
+    render(<EvalsPanel agentId="agent-1" canStart />);
+    expect(screen.getByText("2 undecided")).toBeInTheDocument();
   });
 
   it("lists a run that has no candidate side without naming one", () => {
@@ -443,6 +494,32 @@ describe("EvalsPanel", () => {
 });
 
 describe("EstimateSummary", () => {
+  it.each([
+    { agent: "-0.12", org: "98", exceeded: "$0.12" },
+    { agent: "2", org: "-0.30", exceeded: "$0.30" },
+    { agent: "0", org: "0", exceeded: null },
+  ])(
+    "distinguishes remaining funds from exceeding a budget: $agent / $org",
+    ({ agent, org, exceeded }) => {
+      render(
+        <EstimateSummary
+          agentId="agent-1"
+          judgeName={null}
+          scoring={null}
+          estimate={{ ...ESTIMATE, agent_after_usd: agent, org_after_usd: org }}
+        />,
+      );
+      expect(screen.getByText("Agent budget after this run")).toBeInTheDocument();
+      expect(screen.getByText("Organization budget after this run")).toBeInTheDocument();
+      if (exceeded) {
+        expect(screen.getByText(`Over by ${exceeded}`)).toHaveClass("text-destructive-ink");
+        expect(screen.queryByText(`-${exceeded}`)).not.toBeInTheDocument();
+      } else {
+        expect(screen.queryByText(/Over by/)).not.toBeInTheDocument();
+      }
+    },
+  );
+
   it("warns when the judge would grade on the model it grades", () => {
     const { unmount } = render(
       <EstimateSummary agentId="agent-1" judgeName={null} estimate={ESTIMATE} scoring={null} />,
@@ -552,6 +629,17 @@ describe("EstimateSummary", () => {
 });
 
 describe("ComparisonCard", () => {
+  it("does not claim confirmed changes for an invalid comparison", () => {
+    const { container } = render(
+      <ComparisonCard
+        agentId="agent-1"
+        comparison={comparison({ verdict: "invalid" })}
+        tag={null}
+      />,
+    );
+    expect(container).toBeEmptyDOMElement();
+  });
+
   it("shows both sides, the changes with what confirmed means, and the efficiency axis", () => {
     render(<ComparisonCard agentId="agent-1" comparison={comparison()} tag={null} />);
     expect(screen.getByText("How the two compare")).toBeInTheDocument();
@@ -656,7 +744,8 @@ describe("ArmsTable", () => {
       />,
     );
     expect(screen.getByRole("link", { name: "reused" })).toBeVisible();
-    expect(screen.getByRole("columnheader", { name: "Pending" })).toBeVisible();
+    expect(screen.getByText("Pending")).toBeVisible();
+    expect(screen.getByText("Run metrics")).toBeVisible();
   });
 
   it("shows the earlier run an older run was measured against beside it", () => {
@@ -764,7 +853,7 @@ describe("CaseDetail", () => {
     expect(screen.getByText("Rerun 1")).toBeInTheDocument();
     expect(screen.getByText("boom")).toBeInTheDocument();
     expect(screen.getByText("undecided")).toHaveClass("bg-secondary");
-    expect(screen.getAllByText("pass")[0]).toHaveClass("bg-success/10");
+    expect(screen.getAllByText("pass")[0]).toHaveClass("bg-success/12");
     expect(screen.getByText("not graded: The judge's run did not finish.")).toHaveClass(
       "whitespace-normal",
     );
@@ -927,7 +1016,7 @@ it.each([
         })}
       />,
     );
-    expect(screen.getByText(label)).toHaveClass("bg-destructive/10");
+    expect(screen.getByText(label)).toHaveClass("bg-destructive/12");
     expect(screen.queryByText("First result")).not.toBeInTheDocument();
     expect(screen.queryByText("Inconclusive")).not.toBeInTheDocument();
   },

@@ -8,8 +8,7 @@ import { Lock } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
-import { BackLink } from "@/components/layout/back-link";
-import { RestartTourButton } from "@/components/onboarding/restart-tour-button";
+import { PageHeader } from "@/components/dashboard/page-header";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui";
 import { useAgent } from "@/hooks/use-agents";
@@ -56,7 +55,6 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
   const [arm, setArm] = useUrlState("arm");
   const [tag, setTag] = useUrlState("tag");
   const [brokenParam, setBrokenParam] = useUrlState("broken");
-  const broken = brokenParam === "1";
   const [testingAgain, setTestingAgain] = useState(false);
   // `?case=` names one case to open - how Activity hands a case back to its run.
   const params = useSearchParams();
@@ -108,6 +106,8 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
     );
   }
 
+  const comparable = comparison?.verdict !== "invalid";
+  const broken = brokenParam === "1" && comparable;
   const tags = [...new Set(run.arms.flatMap((item) => Object.keys(item.by_tag)))].sort();
   const candidate = candidates.find((item) => item.id === focus);
   const check: SideCheck | null | undefined =
@@ -133,22 +133,28 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
     .map((item) => item.case_id);
 
   return (
-    <div className="space-y-6">
-      {/* No PageHeader here, so the page's help sits beside the way back. */}
-      <div className="flex items-center justify-between gap-2">
-        <BackLink
-          href={`${ROUTES.AGENTS}/${agentId}?tab=evals`}
-          label={t("back")}
-          className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm"
-        />
-        <RestartTourButton />
-      </div>
+    <div className="w-full min-w-0 space-y-4 pb-6">
+      <PageHeader
+        title={t("resultTitle")}
+        breadcrumbs={[
+          { label: agent?.name ?? t("back"), href: `${ROUTES.AGENTS}/${agentId}?tab=evals` },
+          { label: run.dataset_name, href: ROUTES.DATASET_DETAIL(run.dataset_id) },
+          { label: t("resultTitle") },
+        ]}
+        description={t("runTitle", {
+          dataset: run.dataset_name,
+          version: run.dataset_version,
+          candidate: candidate ? sideName(candidate, t, check) : "",
+        })}
+        descriptionMode="summary"
+      />
       {run.review && <ReviewReevaluationNote review={run.review} />}
       <VerdictHeader
         agentId={agentId}
         run={named}
         candidate={candidate}
         canPublish={agent?.can_publish === true}
+        canEditDataset={dataset?.can_edit === true}
         comparison={live ? undefined : comparison}
         onCancel={
           live && (run.created_by_user_id === me || agent?.can_edit === true)
@@ -243,7 +249,7 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
         <StartEvalDialog
           agentId={agentId}
           datasetId={run.dataset_id}
-          target="compare"
+          target={candidate?.source === "version" ? "version" : "compare"}
           onOpenChange={setTestingAgain}
         />
       )}
@@ -251,7 +257,7 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
         <CaseTable
           run={named}
           arm={focus}
-          comparison={live ? undefined : comparison}
+          comparison={live || !comparable ? undefined : comparison}
           tag={tag}
           caseIds={only !== null ? [only] : broken ? brokenIds.slice(0, CASE_IDS) : null}
           brokenTotal={brokenIds.length}

@@ -161,7 +161,7 @@ export function ContinueSession({
         !emphasis && <p className="text-muted-foreground text-sm">{t("continuationStopped")}</p>
       )}
       {open && canContinue && (
-        <div className="max-w-xl space-y-3">
+        <div className="min-w-0 space-y-3">
           <p className="text-muted-foreground text-sm">{t("continuationBody")}</p>
           {attempt && (
             <div className="space-y-2">
@@ -178,6 +178,7 @@ export function ContinueSession({
           <Label htmlFor="continuation-budget">{t("budget")}</Label>
           <Input
             id="continuation-budget"
+            className="max-w-sm"
             inputMode="decimal"
             value={budget}
             onChange={(event) => setBudget(event.target.value)}
@@ -229,7 +230,7 @@ export function ContinueSession({
         </div>
       )}
       {error && (
-        <p role="alert" className="text-destructive text-sm">
+        <p role="alert" className="text-destructive-ink text-sm">
           {error}
         </p>
       )}
@@ -241,7 +242,7 @@ export function ContinueSession({
           <>
             {t("discardBody")}
             {discardError && (
-              <span role="alert" className="text-destructive mt-2 block">
+              <span role="alert" className="text-destructive-ink mt-2 block">
                 {discardError}
               </span>
             )}

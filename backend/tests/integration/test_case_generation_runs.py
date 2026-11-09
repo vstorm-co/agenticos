@@ -12,8 +12,8 @@ The claims:
   and is refused up front when the generator could not run for this caller;
 - twenty knowledge drafts become twenty proposals, each citing a document of the
   agent's own knowledge base, and the rest of a generator's answer is dropped;
-- the organization's AI switch turned off after a start fails the generation
-  with that reason and calls no model; every other way a run ends is recorded,
+- a legacy organization AI flag does not change a queued generation, while
+  lost caller or agent access still refuses it; every way a run ends is recorded,
   an unreadable answer keeps why on the run, and a source deleted meanwhile
   fails the generation rather than leaving it running;
 - a credential the generator wrote is redacted before a proposal is stored.
@@ -25,6 +25,7 @@ from contextlib import asynccontextmanager
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
@@ -32,7 +33,6 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 
 from app.core.exceptions import (
-    AiAssistanceDisabledError,
     AuthorizationError,
     BadRequestError,
     SystemAgentOutputError,
@@ -55,7 +55,8 @@ from app.repositories import agent_run_repo, project_repo
 from app.schemas.api_key import ApiKeyCreate
 from app.schemas.case_generation import CaseGenerationRequest
 from app.schemas.change_event import ChangeEvent
-from app.schemas.dataset import DatasetCreate
+from app.schemas.dataset import DatasetCreate, DatasetUpdate
+from app.schemas.dataset_helpers import DatasetHelper, DatasetHelpers
 from app.services import agent_runner, change_feed
 from app.services.api_key import KEY_GONE, ApiKeyService
 from app.services.case_generation import CaseGenerationService, worker
@@ -112,8 +113,7 @@ async def _setup(db, *, with_model: bool = True):
     person = await world.user(db)
     org = await world.org(db, person)
     owner = await world.member(db, org, OrgRoleName.OWNER, person)
-    if with_model:
-        await _profile(db, org)
+    profile = await _profile(db, org) if with_model else None
     collection = await world.collection(db, org)
     documents = [
         await world.document(db, collection, DocumentStatus.DONE, f"doc{n}.md", vector_id=f"v{n}")
@@ -126,6 +126,7 @@ async def _setup(db, *, with_model: bool = True):
         draft_spec={
             "name": "Clerk",
             "instructions": "Answer about returns.",
+            "model_profile_id": str(profile.id) if profile else None,
             "collection_ids": [str(collection.id)],
             "capabilities": [{"id": "knowledge"}],
         },
@@ -205,38 +206,36 @@ async def test_an_estimate_prices_the_material_and_starts_no_run(db, monkeypatch
     assert await db.scalar(select(func.count(CaseGeneration.id))) == 0
 
 
-async def test_an_estimate_prices_on_the_generator_s_own_model_or_says_it_cannot(db) -> None:
+async def test_an_estimate_uses_the_dataset_model_without_choosing_one_by_price(db) -> None:
     owner, org, agent, dataset, _ = await _setup(db, with_model=False)
     request = _request(agent, "agent")
-
-    async def price() -> Decimal | None:
-        return (await _service(db).estimate(owner, dataset.id, request)).estimated_cost_usd
-
-    assert await price() is None
-    draft = await SystemAgentService(db).ensure(organization_id=org.id, key="case_generator")
-    assert draft.current_version_id is None
-    assert await price() is None
-
-    await _profile(db, org)
-    await db.delete(draft)
-    await db.flush()
-    unseeded = await price()
-    assert unseeded is not None
-    assert unseeded > 0
-    published = await SystemAgentService(db).ensure(organization_id=org.id, key="case_generator")
-    assert published.current_version_id is not None
-    assert await price() == unseeded
+    assert (await _service(db).estimate(owner, dataset.id, request)).estimated_cost_usd is None
+    chosen = await _profile(db, org)
+    assert (await _service(db).estimate(owner, dataset.id, request)).estimated_cost_usd is None
+    await DatasetService(db).update(
+        owner,
+        dataset.id,
+        DatasetUpdate(
+            helper_settings=DatasetHelpers(
+                generator=DatasetHelper(model_profile_id=chosen.id),
+            )
+        ),
+    )
+    cost = (await _service(db).estimate(owner, dataset.id, request)).estimated_cost_usd
+    assert cost is not None and cost > 0
 
 
-async def test_with_ai_assistance_off_neither_an_estimate_nor_a_start_is_made(db) -> None:
+async def test_a_legacy_organization_ai_flag_does_not_gate_dataset_work(db, monkeypatch) -> None:
     owner, org, agent, dataset, _ = await _setup(db)
     org.ai_assistance_enabled = False
     await db.flush()
-
-    for attempt in (_service(db).estimate, _service(db).start):
-        with pytest.raises(AiAssistanceDisabledError):
-            await attempt(owner, dataset.id, _request(agent, "agent"))
-    assert await db.scalar(select(func.count(CaseGeneration.id))) == 0
+    runnable = AsyncMock()
+    monkeypatch.setattr(SystemAgentRunner, "require_runnable", runnable)
+    estimate = await _service(db).estimate(owner, dataset.id, _request(agent, "agent"))
+    assert estimate.estimated_cost_usd is not None
+    started = await _service(db).start(owner, dataset.id, _request(agent, "agent"))
+    assert started.status == "running"
+    runnable.assert_awaited_once()
 
 
 async def test_a_start_queues_a_running_generation_as_a_job(db, monkeypatch) -> None:
@@ -370,27 +369,6 @@ async def test_twenty_knowledge_drafts_become_proposals_citing_the_agent_s_docum
     assert [p.input for p in proposals[:2]] == ["Q0?", "Q1?"]
 
 
-async def test_switching_ai_off_after_a_start_fails_it_without_calling_a_model(
-    db, monkeypatch
-) -> None:
-    owner, org, agent, dataset, _ = await _setup(db)
-    row, material, quotas = await _generation(db, owner, dataset, agent, [CaseOrigin.AGENT], 3)
-    model = AsyncMock(side_effect=AssertionError("no model may be called"))
-    monkeypatch.setattr(agent_runner.AgentRunnerService, "execute", model)
-    org.ai_assistance_enabled = False
-    await db.flush()
-
-    await generate(
-        db, generation_id=row.id, ctx=owner, prompt="p", material=material, quotas=quotas
-    )
-
-    await db.refresh(row)
-    assert row.status == "failed"
-    assert row.error is not None
-    assert "AI assistance is switched off" in row.error
-    model.assert_not_awaited()
-
-
 async def test_every_other_way_a_run_ends_is_recorded_on_the_generation(db, monkeypatch) -> None:
     owner, _, agent, dataset, _ = await _setup(db)
     run = await _run_row(db, owner, agent)
@@ -439,7 +417,15 @@ async def test_an_unreadable_answer_keeps_why_on_the_generator_s_run(db, monkeyp
 
 def _model_answers(monkeypatch, agent, run: AgentRun, cases: list[dict]) -> None:
     """Stand in for the model under the real runner, which reads the answer itself."""
-    monkeypatch.setattr(SystemAgentRunner, "require_runnable", AsyncMock(return_value=agent))
+    monkeypatch.setattr(
+        SystemAgentRunner,
+        "require_runnable",
+        AsyncMock(
+            return_value=SimpleNamespace(
+                id=agent.id, name=agent.name, current_version_id=uuid.uuid4()
+            )
+        ),
+    )
     monkeypatch.setattr(
         agent_runner.AgentRunnerService,
         "execute",
@@ -735,11 +721,18 @@ async def test_a_queued_generation_runs_as_its_requester_and_says_so(db, monkeyp
     await CaseGenerationWorker(uuid.uuid4(), owner.organization_id, sessions=_sessions(db)).run()
 
 
-async def test_a_queued_generation_fails_when_its_requester_or_agent_is_gone(
+async def test_a_queued_generation_checks_its_requester_and_agent_but_not_legacy_ai_flag(
     db, monkeypatch
 ) -> None:
     owner, org, agent, dataset, _ = await _setup(db)
-    calls = _answer(monkeypatch, RuntimeError("no model may be called"))
+    run = await _run_row(db, owner, agent)
+    calls = _answer(
+        monkeypatch,
+        DraftedCases(
+            cases=[DraftedCase(origin="agent", input="Can I return it?", reference_answer="Yes.")]
+        ),
+        run=run,
+    )
     monkeypatch.setattr(change_feed, "publish", AsyncMock())
     left = await _queued(db, owner, agent, dataset)
     left.requested_by_user_id = None
@@ -758,9 +751,8 @@ async def test_a_queued_generation_fails_when_its_requester_or_agent_is_gone(
         ("failed", worker.REQUESTER_GONE),
         ("failed", worker.AGENT_GONE),
     ]
-    assert refused.status == "failed"
-    assert refused.error is not None and "AI assistance is switched off" in refused.error
-    calls.assert_not_awaited()
+    assert (refused.status, refused.error) == ("ready", None)
+    calls.assert_awaited_once()
 
 
 async def test_a_requester_who_left_the_organization_is_no_one_to_run_as(db) -> None:

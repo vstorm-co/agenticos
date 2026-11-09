@@ -1,4 +1,5 @@
 import { act, fireEvent, render, renderHook, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useTurnElapsed, WorkFold, WorkingLine } from "./work-fold";
@@ -61,6 +62,16 @@ describe("WorkingLine", () => {
   });
 });
 
+it("lets the live progress line expand and collapse with the keyboard", async () => {
+  const toggle = vi.fn();
+  render(<WorkingLine elapsedMs={5000} expanded={false} onToggle={toggle} />);
+  const button = screen.getByRole("button", { name: "Working for 5s…" });
+  expect(button).toHaveAttribute("aria-expanded", "false");
+  button.focus();
+  await userEvent.keyboard("{Enter}");
+  expect(toggle).toHaveBeenCalledOnce();
+});
+
 describe("WorkFold", () => {
   it("names the work and its length, and opens onto it", () => {
     render(
@@ -119,4 +130,61 @@ describe("WorkFold", () => {
     );
     expect(screen.getByRole("button", { name: "Stopped" })).toBeInTheDocument();
   });
+});
+
+describe("waiting activity", () => {
+  it("shows a waiting state instead of a ticking working status", () => {
+    render(
+      <WorkFold steps={4} durationMs={600_000} waiting="awaiting_answer">
+        <span>tools</span>
+      </WorkFold>,
+    );
+    expect(screen.getByRole("button", { name: "Waiting for an answer" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(screen.queryByText(/Working/)).toBeNull();
+  });
+});
+
+it("updates one compact live disclosure without exposing its detailed steps", async () => {
+  const { rerender } = render(
+    <WorkFold steps={7} durationMs={18_000} running activity="List inbox cases">
+      <p>Detailed tool arguments</p>
+    </WorkFold>,
+  );
+  const toggle = screen.getByRole("button", { name: /Working for 18s/ });
+  expect(toggle).toHaveTextContent("List inbox cases");
+  expect(screen.queryByText("Detailed tool arguments")).toBeNull();
+  rerender(
+    <WorkFold steps={7} durationMs={19_000} running activity="Thinking...">
+      <p>Detailed tool arguments</p>
+    </WorkFold>,
+  );
+  expect(screen.getByRole("button", { name: /Working for 19s/ })).toBe(toggle);
+  expect(toggle).toHaveTextContent("Thinking...");
+  expect(screen.queryByText("List inbox cases")).toBeNull();
+  await userEvent.click(toggle);
+  expect(screen.getByText("Detailed tool arguments")).toBeVisible();
+  expect(screen.queryByText("Thinking...")).toBeNull();
+});
+
+it("opens the full history as a labelled keyboard-accessible scroll region", async () => {
+  render(
+    <WorkFold steps={40} durationMs={120_000}>
+      {Array.from({ length: 40 }, (_, index) => (
+        <p key={index}>Step {index + 1}</p>
+      ))}
+    </WorkFold>,
+  );
+  const toggle = screen.getByRole("button", { name: /Worked for 2m/ });
+  expect(screen.queryByRole("region")).toBeNull();
+  await userEvent.click(toggle);
+  const history = screen.getByRole("region", { name: /Worked for 2m/ });
+  expect(toggle).toHaveAttribute("aria-controls", history.id);
+  expect(screen.getByText("Step 40")).toBeInTheDocument();
+  await userEvent.tab();
+  expect(history).toHaveFocus();
+  await userEvent.click(toggle);
+  expect(screen.queryByRole("region")).toBeNull();
 });

@@ -63,7 +63,7 @@ function StateBadge({ state }: { state: DecidedState }) {
     <span className={badgeVariants({ variant: taken ? "success" : "secondary" })}>
       {state !== "notDecided" && (
         <Icon
-          className={cn("h-3 w-3", taken ? "text-success" : "text-muted-foreground")}
+          className={cn("h-3 w-3", taken ? "text-success-ink" : "text-muted-foreground")}
           aria-hidden
         />
       )}

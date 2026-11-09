@@ -339,10 +339,11 @@ class PromotionGateService:
         Such a guard could not pass anyway; set up, it would read whatever the
         dataset's first cases turned out to be.
         """
-        dataset = await dataset_repo.get(
+        dataset = await dataset_repo.lock(
             self.db, suite.dataset_id, organization_id=suite.organization_id
         )
-        assert dataset is not None, "a suite's dataset outlives it"
+        if dataset is None:
+            raise refused_field("guard_suite_ids", "This guard's dataset no longer exists.")
         if dataset.latest_version == 0:
             raise refused_field(
                 "guard_suite_ids",
@@ -452,6 +453,14 @@ class PromotionGateService:
         from app.services.eval_suite import EvalSuiteService
 
         org = agent.organization_id
+        held = await agent_repo.try_lock(self.db, agent.id, organization_id=org)
+        if held is None:
+            return False
+        agent = held
+        current = await agent_environment_repo.get(self.db, environment.id, organization_id=org)
+        if current is None or not current.tracks_latest:
+            return False
+        environment = current
         serving = await agent_repo.get_version(self.db, environment.version_id, organization_id=org)
         assert serving is not None, "an environment is always pinned"
         if serving.version >= version.version:

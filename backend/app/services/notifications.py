@@ -43,6 +43,7 @@ no spec can redirect it.
 """
 
 import hashlib
+import logging
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -50,6 +51,7 @@ from typing import Literal
 from urllib.parse import urlencode
 from uuid import UUID
 
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.budget import BudgetScope
@@ -58,7 +60,7 @@ from app.core.background import spawn_after_commit
 from app.core.config import settings
 from app.core.permissions import OrgRoleName
 from app.db.models.agent import Agent, AgentVersion
-from app.db.models.agent_run import AgentRun, ToolApproval
+from app.db.models.agent_run import AgentRun, RunStatus, ToolApproval
 from app.db.models.artifact import Artifact
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.case_generation import CaseGeneration, GenerationStatus
@@ -66,30 +68,48 @@ from app.db.models.context import ContextFile
 from app.db.models.eval_run import EvalRun, EvalRunPurpose, EvalRunStatus
 from app.db.models.eval_suite import EvalSuite, EvalSuiteResult, EvalSuiteResultStatus
 from app.db.models.mcp_connection import McpConnection
-from app.db.models.notification import NotificationEventType
+from app.db.models.notification import NotificationChannel, NotificationEventType
 from app.db.models.promotion_gate import PromotionOverride
 from app.db.models.rag_document import RAGDocument
 from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill
+from app.db.models.watch import Watch, WatchAttemptStatus
 from app.db.models.workflow import Workflow
 from app.db.models.workflow_log_alert import WorkflowLogAlertRule
 from app.repositories import agent as agent_repo
+from app.repositories import agent_exposure as agent_exposure_repo
 from app.repositories import agent_run as agent_run_repo
+from app.repositories import agent_trigger as agent_trigger_repo
+from app.repositories import channel_bot as channel_bot_repo
+from app.repositories import channel_identity as channel_identity_repo
 from app.repositories import eval_suite as eval_suite_repo
 from app.repositories import group as group_repo
 from app.repositories import member as member_repo
 from app.repositories import organization as organization_repo
 from app.repositories import user as user_repo
+from app.repositories import watch as watch_repo
 from app.schemas.change_event import ChangeEvent
 from app.schemas.eval_suite import EvalSuiteSummary, ThresholdReason
 from app.schemas.improvement import NextStepBlocked
 from app.services.notification_center import NotificationCenterService, absolute_context_url
+from app.services.outcome import OutcomeService, routine_failure_cause
 from app.services.spend import month_start, organization_spend_since
+
+logger = logging.getLogger(__name__)
 
 # Who answers for the organization. Owners and admins because they answer for
 # the spend; a builder can create an agent but is not who gets called when the
 # organization's month runs out.
 _ESCALATION_ROLES = [OrgRoleName.OWNER.value, OrgRoleName.ADMIN.value]
+
+_CHAT_PLATFORM_NAMES: dict[str, str] = {
+    "slack": "Slack",
+    "telegram": "Telegram",
+    "mattermost": "Mattermost",
+    "teams": "Microsoft Teams",
+    "discord": "Discord",
+    "whatsapp": "WhatsApp",
+}
 
 # The console page a security event's `context_url` opens, by the audited
 # entry's `target_type` - the same resource an admin would go check. A type
@@ -134,6 +154,28 @@ def agent_face(agent: Agent) -> dict[str, str | bool | int | None]:
     }
 
 
+def _outcome_links(run: AgentRun) -> dict[str, str]:
+    """Where the outcome this notification opens came from: the run, and the chat it is in.
+
+    Kept in `render_context` with the rest, so the shared outcome can show its card in
+    that chat and close when the run's approvals are decided (#2575).
+    """
+    links = {"run_id": str(run.id)}
+    if run.routine_origin_id is not None:
+        links.update(routine_origin_id=str(run.routine_origin_id), routine_kind=run.routine_kind)
+    if run.routine_kind == "watch" and run.routine_origin_id is not None:
+        links["cause"] = f"watch:{run.routine_origin_id}"
+    if run.conversation_id is not None:
+        links["conversation_id"] = str(run.conversation_id)
+    policy = (run.routine_policy or {}).get("approved_sources")
+    if isinstance(policy, dict) and policy.get("project_id") is not None:
+        try:
+            links["project_id"] = str(UUID(str(policy["project_id"])))
+        except ValueError:
+            links["project_id"] = ""  # An invalid stored binding remains ineligible for delivery.
+    return links
+
+
 def _security_event_summary(entry: AppAdminAuditLog) -> str:
     return _SECURITY_EVENT_SUMMARY.get(
         entry.action, f"A privileged action was recorded: {entry.action}"
@@ -176,7 +218,7 @@ class NotificationService:
         spec: AgentSpec,
         reason: str,
         scope: BudgetScope,
-    ) -> None:
+    ) -> set[UUID]:
         """The run stopped because a limit was reached.
 
         Which limit decides who hears. An agent's own cap is its author's to
@@ -190,7 +232,7 @@ class NotificationService:
         if scope is BudgetScope.RUN:
             # A ceiling one caller set for one run - a workflow step's - is
             # reported by that caller: the workflow run fails with it.
-            return
+            return set()
         if scope is BudgetScope.ORGANIZATION:
             recipients = await self._administrator_ids(run.organization_id)
         elif scope is BudgetScope.GROUP:
@@ -206,8 +248,85 @@ class NotificationService:
                 initiator_user_id=run.user_id,
             )
         if not recipients:
-            return
+            return set()
 
+        native_context: dict[str, str] = {}
+        owner: UUID | None = None
+        incident_reason: Literal["run", "check", "delivery"] = "run"
+        clock = run.ended_at or run.started_at
+        if (
+            run.routine_origin_id is not None
+            and run.parent_run_id is None
+            and clock is not None
+            and scope is BudgetScope.AGENT
+        ):
+            if run.routine_kind == "trigger":
+                trigger = await agent_trigger_repo.get_by_id(
+                    self.db, run.routine_origin_id, fresh=True, for_update=True
+                )
+                if (
+                    trigger is not None
+                    and trigger.organization_id == run.organization_id
+                    and trigger.is_active
+                    and (run.user_id is None or run.user_id == trigger.created_by_user_id)
+                ):
+                    owner = trigger.created_by_user_id
+            elif run.routine_kind == "watch":
+                watch = await watch_repo.get_by_id(
+                    self.db, run.routine_origin_id, fresh=True, for_update=True
+                )
+                if (
+                    watch is not None
+                    and watch.organization_id == run.organization_id
+                    and watch.is_active
+                    and run.user_id == watch.user_id
+                ):
+                    owner = watch.user_id
+                    incident_reason = "check"
+            if owner is not None:
+                kind: Literal["trigger", "watch"] = (
+                    "watch" if run.routine_kind == "watch" else "trigger"
+                )
+                cause = routine_failure_cause(kind, run.routine_origin_id, incident_reason)
+                if owner in recipients and kind == "trigger":
+                    latest = await agent_run_repo.latest_terminal_for_trigger(
+                        self.db,
+                        organization_id=run.organization_id,
+                        trigger_id=run.routine_origin_id,
+                    )
+                    if latest != run.id:
+                        recipients.discard(owner)
+                if owner in recipients and kind == "watch":
+                    activation = run.routine_activation_at or run.started_at
+                    if (
+                        watch is not None
+                        and watch.last_attempt_at is not None
+                        and (activation is None or watch.last_attempt_at > activation)
+                    ):
+                        recipients.discard(owner)
+                if owner in recipients:
+                    occurrence = await OutcomeService(self.db).routine_failure_occurrence(
+                        organization_id=run.organization_id,
+                        user_id=owner,
+                        cause=cause,
+                        observed_at=clock,
+                        summary=f"{agent.name} stopped: {reason}",
+                        run_id=run.id,
+                    )
+                    if occurrence is None:
+                        recipients.discard(owner)
+                native_context = {
+                    "routine_failure_owner_id": str(owner),
+                    "routine_origin_id": str(run.routine_origin_id),
+                    "routine_kind": kind,
+                    "routine_failure_reason": incident_reason,
+                    "routine_observed_at": clock.isoformat(),
+                    "cause": cause,
+                    **_outcome_links(run),
+                }
+                native_context["cause"] = cause
+        if not recipients:
+            return set()
         organization = await organization_repo.get_by_id(self.db, run.organization_id)
         organization_name = organization.name if organization else "your organization"
         run_path = self._link(f"/agents/{agent.id}", run.organization_id)
@@ -219,8 +338,9 @@ class NotificationService:
             "spent": f"{run.cost_usd:.2f}" if run.cost_usd is not None else "0.00",
             "run_url": absolute_context_url(run_path),
             "app_name": settings.PROJECT_NAME,
+            **native_context,
         }
-        await self._center.write(
+        written = await self._center.write(
             recipients=list(recipients),
             event_type=NotificationEventType.BUDGET_EXCEEDED,
             occurrence_id=str(run.id),
@@ -232,6 +352,8 @@ class NotificationService:
             # transaction that just recorded the run's own outcome.
             use_savepoint=True,
         )
+
+        return {notification.recipient_user_id for notification in written}
 
     async def department_budget_warnings(self, run: AgentRun) -> None:
         """Warn when a department this run's person is in has used 80% of its month (#2072).
@@ -328,10 +450,13 @@ class NotificationService:
             f"{approval.tool_id} ({approval.account})" if approval.account else approval.tool_id
             for approval in approvals
         ]
+        asked_by, summary = await self._asked_by(run, agent)
         render_context = {
             "agent_name": agent.name,
             **agent_face(agent),
+            **_outcome_links(run),
             "tools": ", ".join(tools) if tools else "a tool call",
+            "asked_by": asked_by,
             "approvals_url": absolute_context_url(approvals_path),
             "app_name": settings.PROJECT_NAME,
         }
@@ -352,12 +477,50 @@ class NotificationService:
             occurrence_id=hashlib.sha256(
                 ":".join(sorted(str(approval.id) for approval in approvals)).encode()
             ).hexdigest(),
-            summary=f"{agent.name} is waiting on your approval",
+            summary=summary,
             context_url=approvals_path,
             render_context=render_context,
             organization_id=run.organization_id,
             use_savepoint=True,
         )
+
+    async def _asked_by(self, run: AgentRun, agent: Agent) -> tuple[str, str]:
+        """The sentence naming who asked, and the in-app summary, for an approval.
+
+        A chat message from an unlinked person runs as the binding's publisher,
+        so "your approval" would be wrong for the publisher who gets this and
+        the email would otherwise never say a stranger asked. Wording only: the
+        audience is still resolved from `run.user_id`.
+        """
+        summary = f"{agent.name} is waiting on your approval"
+        if not (run.initiated_by_publisher_fallback and run.channel_identity_id is not None):
+            return "", summary
+        identity = await channel_identity_repo.get_by_id(self.db, run.channel_identity_id)
+        if identity is None:
+            return "", summary
+        platform = _CHAT_PLATFORM_NAMES.get(identity.platform, identity.platform.title())
+        name = agent_run_repo.chat_account_name(identity)
+        asked = f"asked in {platform} by {name} (unverified)"
+        bot_name = await self._chat_bot_name(run)
+        through = f", through {bot_name}" if bot_name else ""
+        return (
+            f"Asked in {platform} by {name} (unverified){through}.",
+            f"{agent.name} is waiting on an approval {asked}",
+        )
+
+    async def _chat_bot_name(self, run: AgentRun) -> str | None:
+        """The bot the run's chat reached the agent through, or none once it is unbound."""
+        if run.exposure_id is None:
+            return None
+        exposure = await agent_exposure_repo.get(
+            self.db, run.exposure_id, organization_id=run.organization_id
+        )
+        if exposure is None:
+            return None
+        bot = await channel_bot_repo.get_for_org(
+            self.db, exposure.channel_bot_id, organization_id=run.organization_id
+        )
+        return bot.name if bot else None
 
     async def run_completed(self, run: AgentRun, *, agent: Agent) -> None:
         """A run finished on a surface nobody was watching live.
@@ -411,6 +574,7 @@ class NotificationService:
         routine_name: str | None,
         creator_id: UUID | None,
         answer: str,
+        source_conversation_id: UUID | None = None,
     ) -> None:
         """A routine finished, told to whoever set it up with the start of what it said (#2301).
 
@@ -431,7 +595,10 @@ class NotificationService:
         excerpt = " ".join(answer.split())
         if len(excerpt) > ROUTINE_EXCERPT_CHARS:
             excerpt = excerpt[: ROUTINE_EXCERPT_CHARS - 1].rstrip() + "…"
-        path = self._link("/routines", run.organization_id)
+        target = (
+            "/routines" if source_conversation_id is None else f"/chat/{source_conversation_id}"
+        )
+        path = self._link(target, run.organization_id)
         await self._center.write(
             recipients=list(recipients),
             event_type=NotificationEventType.RUN_COMPLETED,
@@ -441,6 +608,12 @@ class NotificationService:
             render_context={
                 "agent_name": agent.name,
                 "routine_name": name,
+                **_outcome_links(run),
+                **(
+                    {"conversation_id": str(source_conversation_id)}
+                    if source_conversation_id is not None
+                    else {}
+                ),
                 "excerpt": excerpt,
                 **agent_face(agent),
                 "app_name": settings.PROJECT_NAME,
@@ -448,6 +621,321 @@ class NotificationService:
             },
             organization_id=run.organization_id,
             use_savepoint=True,
+        )
+
+    async def routine_budget_paused(
+        self,
+        *,
+        organization_id: UUID,
+        owner_user_id: UUID | None,
+        routine_id: UUID,
+        routine_kind: Literal["trigger", "watch"],
+        name: str | None,
+        limit: Decimal,
+        spent: Decimal,
+        period_start: datetime,
+    ) -> None:
+        """Tell the owner once per monthly limit, without inventing a failed run."""
+        if owner_user_id is None:
+            return
+        recipients = await member_repo.list_member_ids_for(
+            self.db, organization_id=organization_id, user_ids=[owner_user_id]
+        )
+        if not recipients:
+            return
+        budget_name = (
+            "your monthly proactive-work budget"
+            if routine_kind == "watch"
+            else "its monthly routine budget"
+        )
+        remedy = (
+            "Ask an administrator to review the limit"
+            if routine_kind == "watch"
+            else "Increase the limit"
+        )
+        cause = f"routine:{routine_kind}:{routine_id}:budget:{period_start.date().isoformat()}"
+        path = self._link("/routines", organization_id)
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.BUDGET_EXCEEDED,
+            occurrence_id=f"{cause}:{limit.normalize()}",
+            summary=(
+                f"{name or 'Your routine'} is waiting: {budget_name} of "
+                f"${limit:.2f} is used up (${spent:.2f} spent). {remedy} "
+                "or wait for the next month to resume."
+            ),
+            context_url=path,
+            render_context={
+                "routine_budget_paused": True,
+                "routine_origin_id": str(routine_id),
+                "routine_kind": routine_kind,
+                "cause": cause,
+                "limit": str(limit),
+                "spent": str(spent),
+                "period_start": period_start.isoformat(),
+            },
+            organization_id=organization_id,
+            use_savepoint=True,
+        )
+
+    async def routine_blocked(
+        self,
+        *,
+        organization_id: UUID,
+        owner_user_id: UUID | None,
+        routine_id: UUID,
+        routine_kind: Literal["trigger", "watch"],
+        reason: Literal["run", "check", "delivery"],
+        name: str,
+        detail: str,
+        observed_at: datetime,
+        run: AgentRun | None = None,
+        conversation_id: UUID | None = None,
+        budget: bool = False,
+        external_delivery: bool = True,
+        auto_stopped_at: datetime | None = None,
+    ) -> None:
+        """Keep continuing failures quiet while their single case remains actionable.
+
+        `detail` is platform-authored copy, never a provider exception or prompt.
+        """
+        if owner_user_id is None:
+            return
+        recipients = await member_repo.list_member_ids_for(
+            self.db, organization_id=organization_id, user_ids=[owner_user_id]
+        )
+        if not recipients:
+            return
+        summary = f"{name} needs attention: {detail}"
+        cause = routine_failure_cause(routine_kind, routine_id, reason)
+        occurrence = await OutcomeService(self.db).routine_failure_occurrence(
+            organization_id=organization_id,
+            user_id=owner_user_id,
+            cause=cause,
+            observed_at=observed_at,
+            summary=summary,
+            run_id=run.id if run is not None else None,
+            escalation_at=auto_stopped_at,
+        )
+        if occurrence is None:
+            return
+        path = self._link("/routines", organization_id)
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.BUDGET_EXCEEDED
+            if budget
+            else NotificationEventType.RUN_FAILED,
+            occurrence_id=occurrence,
+            summary=summary,
+            context_url=path,
+            render_context={
+                "cause": cause,
+                "routine_origin_id": str(routine_id),
+                "routine_kind": routine_kind,
+                "routine_failure_reason": reason,
+                "routine_observed_at": observed_at.isoformat(),
+                **(
+                    {"routine_auto_stopped_at": auto_stopped_at.isoformat()}
+                    if auto_stopped_at is not None
+                    else {}
+                ),
+                **(
+                    {"routine_failure_owner_id": str(owner_user_id), "routine_budget_result": True}
+                    if budget
+                    else {}
+                ),
+                **({"run_id": str(run.id)} if run is not None else {}),
+                **(
+                    {"conversation_id": str(conversation_id)} if conversation_id is not None else {}
+                ),
+            },
+            organization_id=organization_id,
+            channels=None if external_delivery else {NotificationChannel.IN_APP},
+            use_savepoint=True,
+        )
+
+    async def watch_blocked(
+        self,
+        watch: Watch,
+        status: WatchAttemptStatus,
+        *,
+        run: AgentRun | None = None,
+        observed_at: datetime | None = None,
+        external_delivery: bool = True,
+    ) -> None:
+        details = {
+            WatchAttemptStatus.NEEDS_AGENT: "Select its agent and approve its sources.",
+            WatchAttemptStatus.ACCESS_REVOKED: "Review its account connection and current access.",
+            WatchAttemptStatus.SOURCE_UNAVAILABLE: "Its source cannot currently be read.",
+            WatchAttemptStatus.NOT_COMPLETED: "Its check did not complete successfully; review Activity.",
+            WatchAttemptStatus.BUDGET_PAUSED: "Its check reached a run limit; review Activity and its budget.",
+            WatchAttemptStatus.DELIVERY_UNAVAILABLE: "Its source chat is unavailable. Review its delivery destination.",
+        }
+        if watch.ends_at is not None and watch.ends_at <= datetime.now(UTC):
+            await OutcomeService(self.db).resolve_routine_attention(
+                organization_id=watch.organization_id,
+                user_id=watch.user_id,
+                routine_id=watch.id,
+                routine_kind="watch",
+            )
+            return
+        detail = details.get(status)
+        stopped = watch.auto_stopped_at
+        if stopped is not None and status is WatchAttemptStatus.DELIVERY_UNAVAILABLE:
+            return
+        if (not watch.is_active and stopped is None) or detail is None:
+            return
+        if stopped is not None:
+            detail = f"Paused automatically after {watch.consecutive_failures} unsuccessful checks. Review Activity and resume when ready."
+        clock = (
+            stopped
+            or observed_at
+            or (run.routine_activation_at or run.started_at if run is not None else None)
+            or watch.last_attempt_at
+        )
+        if clock is None:
+            return
+        await self.routine_blocked(
+            organization_id=watch.organization_id,
+            owner_user_id=watch.user_id,
+            routine_id=watch.id,
+            routine_kind="watch",
+            reason="delivery" if status is WatchAttemptStatus.DELIVERY_UNAVAILABLE else "check",
+            name=watch.title,
+            detail=detail,
+            observed_at=clock,
+            budget=status is WatchAttemptStatus.BUDGET_PAUSED,
+            external_delivery=external_delivery,
+            run=run,
+            conversation_id=watch.source_conversation_id,
+            auto_stopped_at=stopped,
+        )
+
+    async def routine_result(
+        self, run: AgentRun, *, budget_recipients: set[UUID] | None = None
+    ) -> None:
+        """A shared runner terminal callback covers initial and resumed routine runs."""
+        if (
+            run.parent_run_id is not None
+            or run.routine_origin_id is None
+            or run.routine_kind not in ("trigger", "watch")
+        ):
+            return
+        terminal = {
+            RunStatus.COMPLETED.value,
+            RunStatus.FAILED.value,
+            RunStatus.LOOP_STOPPED.value,
+            RunStatus.BUDGET_EXCEEDED.value,
+            RunStatus.GUARDRAIL_BLOCKED.value,
+        }
+        if run.status not in terminal:
+            return
+        opened = False
+        try:
+            async with self.db.begin_nested():
+                opened = True
+                await self._routine_result(
+                    run,
+                    origin_id=run.routine_origin_id,
+                    budget_recipients=budget_recipients or set(),
+                )
+        except SQLAlchemyError as error:
+            if not opened or not self.db.is_active:
+                raise
+            logger.warning(
+                "routine_health_write_failed",
+                extra={"run_id": str(run.id), "error_type": type(error).__name__},
+            )
+
+    async def _routine_result(
+        self, run: AgentRun, *, origin_id: UUID, budget_recipients: set[UUID]
+    ) -> None:
+        if run.routine_kind == "watch":
+            if run.status == RunStatus.COMPLETED.value:
+                return  # The watch must validate its source receipt and reading first.
+            watch = await watch_repo.get_by_id(self.db, origin_id, fresh=True, for_update=True)
+            if (
+                watch is None
+                or watch.organization_id != run.organization_id
+                or run.user_id != watch.user_id
+            ):
+                return
+            activation = run.routine_activation_at or run.started_at
+            if (
+                watch.auto_stopped_at is None
+                and watch.last_attempt_at is not None
+                and (activation is None or watch.last_attempt_at > activation)
+            ):
+                return
+            await self.watch_blocked(
+                watch,
+                WatchAttemptStatus.BUDGET_PAUSED
+                if run.status == RunStatus.BUDGET_EXCEEDED.value
+                else WatchAttemptStatus.NOT_COMPLETED,
+                run=run,
+                external_delivery=watch.user_id not in budget_recipients,
+            )
+            return
+        trigger = await agent_trigger_repo.get_by_id(
+            self.db, origin_id, fresh=True, for_update=True
+        )
+        if (
+            trigger is None
+            or trigger.organization_id != run.organization_id
+            or (run.user_id is not None and run.user_id != trigger.created_by_user_id)
+        ):
+            return
+        if trigger.ends_at is not None and trigger.ends_at <= datetime.now(UTC):
+            await OutcomeService(self.db).resolve_routine_attention(
+                organization_id=trigger.organization_id,
+                user_id=trigger.created_by_user_id,
+                routine_id=trigger.id,
+                routine_kind="trigger",
+            )
+            return
+        if not trigger.is_active and trigger.auto_stopped_at is None:
+            return
+        latest = await agent_run_repo.latest_terminal_for_trigger(
+            self.db, organization_id=run.organization_id, trigger_id=trigger.id
+        )
+        if latest != run.id and trigger.auto_stopped_at is None:
+            return
+        clock = trigger.auto_stopped_at or run.ended_at or run.started_at
+        if clock is None:
+            return
+        if run.status == RunStatus.COMPLETED.value:
+            if trigger.auto_stopped_at is not None:
+                return
+            await OutcomeService(self.db).resolve_routine_failure(
+                organization_id=run.organization_id,
+                user_id=trigger.created_by_user_id,
+                routine_id=trigger.id,
+                routine_kind="trigger",
+                reason="run",
+                recovered_at=run.ended_at or run.started_at,
+            )
+            return
+        detail = "The run did not finish successfully. Review Activity before retrying."
+        if run.status == RunStatus.BUDGET_EXCEEDED.value:
+            detail = "The run stopped on a spending limit. Review its budget and Activity."
+        elif run.status == RunStatus.GUARDRAIL_BLOCKED.value:
+            detail = "A guardrail stopped the run. Review Activity and its policy."
+        if trigger.auto_stopped_at is not None:
+            detail = f"Paused automatically after {trigger.consecutive_failures} unsuccessful executions. Review Activity and resume when ready."
+        await self.routine_blocked(
+            organization_id=run.organization_id,
+            owner_user_id=trigger.created_by_user_id,
+            routine_id=trigger.id,
+            routine_kind="trigger",
+            reason="run",
+            name=trigger.name or "Your routine",
+            detail=detail,
+            observed_at=clock,
+            budget=run.status == RunStatus.BUDGET_EXCEEDED.value,
+            external_delivery=trigger.created_by_user_id not in budget_recipients,
+            run=run,
+            conversation_id=run.conversation_id,
+            auto_stopped_at=trigger.auto_stopped_at,
         )
 
     async def capability_requested(
@@ -529,7 +1017,19 @@ class NotificationService:
         )
 
     async def finding(
-        self, *, organization_id: UUID, user_id: UUID, finding_id: UUID, title: str
+        self,
+        *,
+        organization_id: UUID,
+        user_id: UUID,
+        finding_id: UUID,
+        title: str,
+        conversation_id: UUID | None = None,
+        run_id: UUID | None = None,
+        watch_id: UUID | None = None,
+        external_delivery: bool = True,
+        routine_id: UUID | None = None,
+        routine_kind: Literal["trigger", "watch"] = "watch",
+        revision: str | None = None,
     ) -> None:
         """A watch found something its person asked to hear about at once (#2301).
 
@@ -546,9 +1046,29 @@ class NotificationService:
         await self._center.write(
             recipients=list(recipients),
             event_type=NotificationEventType.FINDING,
-            occurrence_id=str(finding_id),
+            channels={NotificationChannel.IN_APP} if not external_delivery else None,
+            occurrence_id=str(finding_id)
+            if revision is None
+            else f"{finding_id}:{hashlib.sha256(revision.encode()).hexdigest()[:32]}",
             summary=title,
             context_url=path,
+            render_context={
+                "finding_id": str(finding_id),
+                **(
+                    {"routine_origin_id": str(routine_id), "routine_kind": routine_kind}
+                    if routine_id is not None
+                    else {}
+                ),
+                **(
+                    {"routine_origin_id": str(watch_id), "routine_kind": "watch"}
+                    if watch_id is not None
+                    else {}
+                ),
+                **(
+                    {"conversation_id": str(conversation_id)} if conversation_id is not None else {}
+                ),
+                **({"run_id": str(run_id)} if run_id is not None else {}),
+            },
             organization_id=organization_id,
             use_savepoint=True,
         )
@@ -584,6 +1104,8 @@ class NotificationService:
         """The mirror of `run_completed`, for the run that did not finish
         cleanly - same audience, same surface exclusion, same publisher-
         fallback exclusion, a different fact."""
+        if run.routine_origin_id is not None and run.routine_kind in ("trigger", "watch"):
+            return  # The routine callback owns its creator's incident, including resumes.
         if run.user_id is None or run.initiated_by_publisher_fallback:
             return
         recipients = await member_repo.list_member_ids_for(
@@ -612,6 +1134,7 @@ class NotificationService:
             render_context={
                 "agent_name": agent.name,
                 **agent_face(agent),
+                **_outcome_links(run),
                 "app_name": settings.PROJECT_NAME,
                 "run_url": absolute_context_url(run_path),
             },
@@ -1266,8 +1789,9 @@ class NotificationService:
         notify about, and never after it. `record_audit` holds a
         transaction-scoped lock on the organization's audit chain, and the
         notification write that follows reaches for a key-share lock on every
-        recipient's `users` row - while `UserService.admin_delete` takes those
-        rows exclusively *first* and the chain lock second. Two transactions,
+        recipient's `users` row - while `UserService.admin_update` takes those
+        rows exclusively *first* and the chain lock second (and
+        `UserService.admin_delete` the deleted account's own row). Two transactions,
         the same two locks, opposite orders: Postgres aborts one, and the side
         that loses can lose its mandatory security notification inside the
         per-recipient savepoint while the audit entry commits regardless
@@ -1284,7 +1808,7 @@ class NotificationService:
 
     async def hold_configuration_audience(self) -> list[UUID]:
         """The same, for `configuration_changed`, whose audience is always the
-        deployment's app admins - which is exactly the set `admin_delete` locks
+        deployment's app admins - which is exactly the set `admin_update` locks
         exclusively, so this is the half of #1763 with the shortest cycle."""
         audience = sorted(await member_repo.list_app_admin_ids(self.db))
         await user_repo.hold_key_share(self.db, audience)

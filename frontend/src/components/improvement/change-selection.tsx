@@ -95,7 +95,7 @@ export function ChangeSelection({
           <MeasuredChange hunk={hunk} sources={sources} />
           {hunk.expected_effect && (
             <div className="bg-success/5 border-success/30 flex items-start gap-2 rounded-lg border p-3 text-sm">
-              <Target className="text-success mt-0.5 size-4 shrink-0" aria-hidden />
+              <Target className="text-success-ink mt-0.5 size-4 shrink-0" aria-hidden />
               <div className="min-w-0">
                 <h4 className="text-xs font-medium">{t("shouldFix")}</h4>
                 <p className="break-words">{hunk.expected_effect}</p>
@@ -163,7 +163,7 @@ export function ChangeSelection({
         </div>
       )}
       {error && (
-        <p role="alert" className="text-destructive text-sm">
+        <p role="alert" className="text-destructive-ink text-sm">
           {error}
         </p>
       )}

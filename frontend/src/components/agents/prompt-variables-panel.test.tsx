@@ -108,3 +108,15 @@ describe("PromptVariablesPanel", () => {
     expect(props.onTimeZoneChange).toHaveBeenCalledWith("Europe/Berlin");
   });
 });
+
+it("opens variables by default and preserves a draft when reopened", async () => {
+  mount({ custom: [] });
+  expect(screen.getByText("{{user_name}}")).toBeVisible();
+  await userEvent.type(screen.getByLabelText("Name"), "draft_name");
+  await userEvent.type(screen.getByLabelText("Value"), "Draft value");
+  await userEvent.click(screen.getByText("Variables"));
+  expect(screen.getByText("{{user_name}}")).not.toBeVisible();
+  await userEvent.click(screen.getByText("Variables"));
+  expect(screen.getByLabelText("Name")).toHaveValue("draft_name");
+  expect(screen.getByLabelText("Value")).toHaveValue("Draft value");
+});

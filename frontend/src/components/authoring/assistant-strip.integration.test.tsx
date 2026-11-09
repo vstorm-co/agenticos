@@ -1,9 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/components/agents/improve-link", () => ({
-  ImproveButton: ({ agentId }: { agentId: string }) => <button>Improve {agentId}</button>,
-}));
 import { agentAuthoring } from "@/test-utils/authoring";
 import type { AgentSpec } from "@/types/agents";
 import { Perm, type Permission } from "@/types/permissions";
@@ -77,11 +74,11 @@ beforeEach(() => {
 });
 
 describe("the assistant's controls, by permission", () => {
-  it("lets a member who may edit but not read runs decide what waits, and ask for nothing", () => {
+  it("hides generated suggestions from an editor who may not read runs", () => {
     held.permissions = new Set([Perm.agentsEdit, Perm.skillsEdit]);
     surfaces();
-    expect(screen.getByRole("button", { name: "Accept" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Dismiss all" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Accept" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Dismiss all" })).toBeNull();
     for (const name of [
       "Improve",
       "Verify my edits",
@@ -92,11 +89,11 @@ describe("the assistant's controls, by permission", () => {
     }
   });
 
-  it("offers asking, verifying and checking to a reader of runs", () => {
+  it("offers suggestion checks to a reader of runs without duplicating builder actions", () => {
     held.permissions = new Set([Perm.agentsEdit, Perm.skillsEdit, Perm.runsView]);
     surfaces();
-    expect(screen.getByRole("button", { name: "Improve agent-1" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Verify my edits" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Improve agent-1" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Verify my edits" })).toBeNull();
     expect(screen.getByRole("button", { name: "Check with evals" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Improve with the assistant" })).toBeInTheDocument();
   });
@@ -104,7 +101,7 @@ describe("the assistant's controls, by permission", () => {
   it("offers no check on the agent to a reader of runs who may not run its draft on a dataset", () => {
     held.permissions = new Set([Perm.agentsEdit, Perm.skillsEdit, Perm.runsView]);
     surfaces({ canCheck: false });
-    expect(screen.getByRole("button", { name: "Improve agent-1" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Improve agent-1" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Check with evals" })).toBeNull();
   });
 });

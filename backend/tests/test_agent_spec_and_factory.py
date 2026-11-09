@@ -251,6 +251,32 @@ class TestStarters:
     def test_a_spec_written_before_them_has_none(self):
         assert AgentSpec.model_validate({"name": "Support"}).starters == []
 
+    def test_old_specs_need_no_icons_and_new_icons_round_trip(self) -> None:
+        assert (
+            AgentSpec.model_validate({"name": "Support", "starters": ["Help"]}).starter_icons == {}
+        )
+        spec = AgentSpec(
+            name="Support",
+            starters=["Help"],
+            starter_icons={"Help": "compass"},
+            starter_titles={"Help": "Get help"},
+        )
+        assert AgentSpec.from_yaml(spec.to_yaml()) == spec
+        assert spec.model_dump()["starter_icons"] == {"Help": "compass"}
+
+    def test_title_metadata_is_optional_bounded_and_trimmed(self) -> None:
+        assert AgentSpec(name="Support").starter_titles == {}
+        assert AgentSpec(
+            name="Support", starter_titles={"Help": "  Get help  "}
+        ).starter_titles == {"Help": "Get help"}
+        with pytest.raises(ValidationError):
+            AgentSpec(name="Support", starter_titles={"Help": "x" * 81})
+
+    @pytest.mark.parametrize("icons", [{"Help": "unknown"}, {str(i): "mail" for i in range(5)}])
+    def test_invalid_or_unbounded_icon_metadata_is_refused(self, icons: dict[str, str]) -> None:
+        with pytest.raises(ValidationError):
+            AgentSpec.model_validate({"name": "Support", "starter_icons": icons})
+
     def test_a_blank_one_is_dropped_and_the_rest_trimmed(self):
         """The Builder saves as it is typed; a starter cleared to retype it is not an error."""
         spec = AgentSpec(name="Support", starters=["  What can you do?  ", "", "   "])
@@ -1310,8 +1336,8 @@ class TestVoiceSpec:
             VoiceSpec(max_call_seconds=3001)
 
     def test_the_spec_version_did_not_move(self):
-        # 14 is the skill binding; an optional section with a default adds none.
-        assert SPEC_VERSION == 14
+        # 15 is the skill binding; an optional section with a default adds none.
+        assert SPEC_VERSION == 15
 
 
 class TestSkillBindings:
@@ -1320,10 +1346,10 @@ class TestSkillBindings:
     SKILL = uuid.UUID("2f1d0c6e-5b4a-4c3d-9e8f-7a6b5c4d3e2f")
     FORK = uuid.UUID("9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d")
 
-    def test_a_version_13_document_reads_every_skill_from_main(self):
+    def test_a_version_14_document_reads_every_skill_from_main(self):
         """Stored before skills had versions, and loaded exactly as it was written."""
         spec = AgentSpec.from_yaml(
-            "spec_version: 13\n"
+            "spec_version: 14\n"
             "name: Clerk\n"
             "instructions: Answer briefly.\n"
             f"skill_ids:\n  - {self.SKILL}\n"
@@ -1440,3 +1466,49 @@ def test_browser_history_pruning_runs_after_compaction_and_before_reminders(
     )
     assert isinstance(browser, WebBrowser)
     assert ("press" in browser.report_tool_names) is (override == "name")
+
+
+def test_the_factory_hands_guardrails_the_tools_whose_arguments_are_the_answer():
+    from app.agents.capabilities.guardrails._capability import ScreenedToolArgs
+
+    spec = AgentSpec(
+        name="Writer",
+        capabilities=[
+            {"id": "drafts"},
+            {"id": "guardrails", "config": {"redact_secrets_out": True}},
+        ],
+    )
+
+    built = build_agent(spec, _model_spec(), organization_id=uuid.uuid4())
+
+    (guardrails,) = [c for c in built.capabilities if type(c).__name__ == "CombinedCapability"]
+    (answer,) = [c for c in guardrails.capabilities if isinstance(c, ScreenedToolArgs)]
+    assert answer.tools == frozenset({"write_draft"})
+
+
+@pytest.mark.anyio
+async def test_routine_tool_policy_is_bound_to_the_exact_agent_and_published_spec() -> None:
+    from pydantic_ai.tools import ToolDefinition
+
+    from app.agents.routine_actions import RoutineToolDecision
+    from app.core.exceptions import BadRequestError
+
+    spec = AgentSpec(name="Routine")
+    policy = AsyncMock(return_value=RoutineToolDecision(required=True))
+    with pytest.raises(BadRequestError, match="agent identity"):
+        build_agent(spec, _model_spec(), organization_id=uuid.uuid4(), routine_action_check=policy)
+    agent_id = uuid.uuid4()
+    built = build_agent(
+        spec,
+        _model_spec(),
+        organization_id=uuid.uuid4(),
+        agent_id=agent_id,
+        routine_action_check=policy,
+    )
+    attached: list[object] = []
+    built.agent.root_capability.apply(attached.append)
+    gate = next(one for one in attached if isinstance(one, ApprovalGate))
+    assert gate.routine_policy is not None
+    tool = ToolDefinition(name="send", parameters_json_schema={})
+    assert (await gate.routine_policy(tool)).required
+    policy.assert_awaited_once_with(agent_id, spec, tool)

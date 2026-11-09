@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { ROUTES } from "@/lib/constants";
 import { useId } from "react";
 import { useTranslations } from "next-intl";
 
@@ -39,36 +41,55 @@ export function TargetChoice({
   onChange: (target: EvalTarget) => void;
 }) {
   const t = useTranslations("evals.fields");
+  const group = useId();
   if (targets.length === 0) {
     return <p className="text-muted-foreground text-sm">{t("noTarget")}</p>;
   }
   return (
-    <div role="radiogroup" aria-label={t("target")} className="space-y-1" data-tour="eval-target">
-      <p className="text-sm font-medium">{t("target")}</p>
-      {targets.map((target) => (
-        <button
-          key={target}
-          type="button"
-          role="radio"
-          aria-checked={value === target}
-          disabled={target === "compare" && !draftDiffers}
-          onClick={() => onChange(target)}
-          className={cn(
-            "min-h-11 w-full rounded-lg border px-3 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50",
-            value === target ? "border-primary bg-primary/5" : "hover:bg-accent/40",
-          )}
-        >
-          <span className="block text-sm font-medium">
-            {t(`targetOption.${target}`, { version: currentVersion ?? 0 })}
-          </span>
-          <span className="text-muted-foreground block text-xs">
-            {target === "compare" && !draftDiffers
-              ? t("noChanges")
-              : t(`targetHint.${target}`, { version: currentVersion ?? 0 })}
-          </span>
-        </button>
-      ))}
-    </div>
+    <fieldset className="min-w-0 space-y-2" data-tour="eval-target">
+      <legend className="text-sm font-medium">{t("target")}</legend>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {targets.map((target) => (
+          <label
+            key={target}
+            className={cn(
+              "has-[:focus-visible]:ring-ring grid min-w-0 cursor-pointer grid-cols-[auto_minmax(0,1fr)] content-start gap-x-3 gap-y-1 rounded-xl border p-3 transition-colors has-[:focus-visible]:ring-2",
+              value === target
+                ? "border-foreground/40 bg-accent/50"
+                : "border-border hover:bg-accent/40",
+              target === "compare" && !draftDiffers && "cursor-not-allowed opacity-50",
+            )}
+          >
+            <input
+              type="radio"
+              name={group}
+              value={target}
+              checked={value === target}
+              disabled={target === "compare" && !draftDiffers}
+              onChange={() => onChange(target)}
+              className="sr-only"
+            />
+            <span
+              aria-hidden
+              className={cn(
+                "row-span-2 mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border",
+                value === target ? "border-primary bg-primary" : "border-muted-foreground/40",
+              )}
+            >
+              {value === target && <span className="bg-primary-foreground size-1.5 rounded-full" />}
+            </span>
+            <span className="text-sm font-medium">
+              {t(`targetOption.${target}`, { version: currentVersion ?? 0 })}
+            </span>{" "}
+            <span className="text-muted-foreground col-start-2 text-xs leading-relaxed">
+              {target === "compare" && !draftDiffers
+                ? t("noChanges")
+                : t(`targetHint.${target}`, { version: currentVersion ?? 0 })}
+            </span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
   );
 }
 
@@ -85,13 +106,29 @@ export function Toggle({
 }) {
   const id = useId();
   return (
-    <div className="flex items-start gap-2">
-      <Checkbox id={id} checked={checked} onCheckedChange={(value) => onChange(value === true)} />
-      <div className="space-y-0.5">
-        <Label htmlFor={id}>{label}</Label>
-        <p className="text-muted-foreground text-xs">{hint}</p>
-      </div>
-    </div>
+    <label
+      htmlFor={id}
+      className={cn(
+        "has-[:focus-visible]:ring-ring flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors has-[:focus-visible]:ring-2",
+        checked ? "border-foreground/30 bg-accent/40" : "hover:bg-accent/30",
+      )}
+    >
+      <Checkbox
+        id={id}
+        aria-labelledby={`${id}-label`}
+        aria-describedby={`${id}-hint`}
+        checked={checked}
+        onCheckedChange={(value) => onChange(value === true)}
+      />
+      <span className="min-w-0 space-y-1">
+        <span id={`${id}-label`} className="block text-sm font-medium">
+          {label}
+        </span>
+        <span id={`${id}-hint`} className="text-muted-foreground block text-xs leading-relaxed">
+          {hint}
+        </span>
+      </span>
+    </label>
   );
 }
 
@@ -102,17 +139,21 @@ export function Toggle({
 export function StartEvalFields({
   agentId,
   datasets,
+  loading,
   datasetId,
   request,
   onChange,
+  onOpenCases,
 }: {
   agentId: string | null;
   /** The datasets with a case to run. */
   datasets: Dataset[];
+  loading?: boolean;
   /** The dataset chosen or offered; empty while there is none to offer. */
   datasetId: string;
   request: EvalRunRequest;
   onChange: (next: EvalRunRequest) => void;
+  onOpenCases: () => void;
 }) {
   const t = useTranslations("evals.fields");
   const { environments } = useAgentEnvironments(agentId);
@@ -122,13 +163,17 @@ export function StartEvalFields({
     <div className="space-y-4">
       <div className="space-y-1.5">
         <Label>{t("dataset")}</Label>
-        <Select value={datasetId} onValueChange={(id) => set({ dataset_id: id })}>
+        <Select
+          value={datasetId}
+          onValueChange={(id) => set({ dataset_id: id })}
+          disabled={loading || datasets.length === 0}
+        >
           <SelectTrigger aria-label={t("dataset")}>
-            <SelectValue placeholder={t("datasetPlaceholder")} />
+            <SelectValue placeholder={loading ? t("loadingDatasets") : t("datasetPlaceholder")} />
           </SelectTrigger>
           <SelectContent>
             {datasets.map((dataset) => (
-              <SelectItem key={dataset.id} value={dataset.id}>
+              <SelectItem key={dataset.id} value={dataset.id} disabled={dataset.case_count === 0}>
                 {t("datasetOption", {
                   name: dataset.name,
                   count: dataset.case_count,
@@ -138,6 +183,21 @@ export function StartEvalFields({
             ))}
           </SelectContent>
         </Select>
+        {!loading && datasets.length === 0 && (
+          <p className="text-muted-foreground text-sm">{t("noDatasets")}</p>
+        )}
+        {datasets.some((item) => item.id === datasetId && item.case_count === 0) && (
+          <p className="text-muted-foreground text-sm">
+            {t("emptyDataset")}{" "}
+            <Link
+              className="text-foreground underline underline-offset-4"
+              href={`${ROUTES.DATASET_DETAIL(datasetId)}?tab=cases`}
+              onClick={onOpenCases}
+            >
+              {t("openCases")}
+            </Link>
+          </p>
+        )}
       </div>
 
       <MoreOptions label={t("advanced")}>

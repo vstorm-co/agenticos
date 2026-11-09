@@ -1,5 +1,5 @@
 ---
-source_sha: "c099c87e9633"
+source_sha: "8ca784f8a0b0"
 ---
 
 # El código de la consola { #the-consoles-code }
@@ -217,7 +217,7 @@ razón para conservar un spec que monta más de lo que leen sus assertions.
 
 Las pruebas reutilizan `PageHeader`, `ListCard`, tamaños de diálogo, pestañas y `WizardSteps`. Los cambios actualizan las consultas registradas mediante `/ws/events`; una evaluación humana también actualiza suites, sesiones de mejora y protecciones de entorno. Un error de lectura ofrece reintentar en lugar de una vista vacía de éxito. Las vistas estrechas conservan campos de 16 px y espacio para el Arquitecto.
 
-Los datasets mantienen sus propios permisos y opciones para compartir. Se reutilizan entre agentes y departamentos, por lo que la consola no deduce un departamento del agente que los prueba. Los evaluadores siguen siendo agentes tipificados, con los grupos y permisos del catálogo. Las relaciones se eligen en la pestaña de pruebas del agente y la de evaluación del dataset; no se crea una segunda relación competidora para añadirlos a un agente.
+Los datasets conservan sus permisos y grants y pueden reutilizarse entre agents. El modelo e instrucciones de calificación pertenecen al dataset; generación y mejora tienen Settings. Los ayudantes definidos en código conservan identidades internas para atribución sin aparecer en el catálogo de agents de usuario. Casos y evals usan las tablas compartidas de la consola; los detalles de casos y review se abren en paneles laterales.
 
 El Arquitecto no recibe una nueva capability para escribir datasets en este hito. Crear preguntas es una acción expresamente estimada y autorizada del flujo de mejora; el asistente de la esquina no puede iniciar silenciosamente ese trabajo de pago. Su botón sigue accesible junto a las vistas de pruebas.
 

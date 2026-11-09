@@ -12,7 +12,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import ROLE_PERMS, AuthContext, OrgRoleName, Perm, Scope
 from app.db.models.resource_grant import GrantLevel, ResourceGrant
 from app.db.models.skill import Skill
 from app.db.models.skill_proposal import SkillProposal
@@ -48,7 +48,15 @@ async def _skill_with_change(db: AsyncSession, owner: AuthContext, name: str) ->
 
 
 @pytest.mark.security
-async def test_each_member_reads_and_decides_only_the_changes_to_skills_they_may_edit(db):
+async def test_each_member_reads_and_decides_only_the_changes_to_skills_they_may_edit(
+    db, monkeypatch
+):
+    # Keep resource grants narrow while allowing access to model-derived run evidence.
+    monkeypatch.setitem(
+        ROLE_PERMS,
+        OrgRoleName.MEMBER,
+        {**ROLE_PERMS[OrgRoleName.MEMBER], Perm.RUNS_VIEW: Scope.ALL},
+    )
     owner = await _owner(db)
     ann = await _member(db, owner, OrgRoleName.MEMBER)
     bob = await _member(db, owner, OrgRoleName.MEMBER)

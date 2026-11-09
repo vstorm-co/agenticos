@@ -1,5 +1,5 @@
 ---
-source_sha: "21569b3f9ec9"
+source_sha: "17ca6408dd22"
 ---
 
 # Funciones { #features }
@@ -89,8 +89,8 @@ capability que está desactivada, diga lo que diga en sus instrucciones.
 
 | El agent puede… | Qué activar |
 |---|---|
-| **Responder a partir de lo que tu empresa sabe** — tus documentos, tus procedimientos escritos y lo que se haya adjuntado a esta conversación | Knowledge search · Skills · Context |
-| **Recordar, y consultarlo** — llevar notas de una conversación a otra, recuperar un dato por su significado, o encontrar lo que se dijo realmente en una conversación pasada y releerlo | Memory · Memory (mem0) · Past conversations |
+| **Responder a partir de lo que tu empresa sabe** — tus documentos, tus procedimientos escritos, lo que se haya adjuntado a esta conversación y los servicios que montas como carpetas, como un Drive o un repositorio | Knowledge search · Skills · Context · Virtual terminal |
+| **Recordar, y consultarlo** — llevar notas de una conversación a otra, recuperar un dato por su significado, o encontrar lo que se dijo realmente en una conversación pasada y releerlo | Memory · Past conversations |
 | **Ir a averiguarlo** — buscar en la web, leer una página como es debido, o conducir un navegador real por un sitio que exige clics | Web search · Read web pages · Web browser |
 | **Hacer el trabajo, no describirlo** — ejecutar Python sobre un archivo, mantener un workspace con una shell, dibujar un gráfico, generar una imagen, leer un texto en voz alta o hacer un clip corto | Calculations · Sandbox · Charts · Image generation · Text to speech · Video generation |
 | **Afrontar trabajo demasiado grande para una sola respuesta** — delegar en especialistas, llevar una lista de tareas, pensar más antes de responder, sostener una conversación larga sin perder su principio | Delegation · Planning · Thinking · Long conversations |
@@ -173,12 +173,12 @@ Publica una vez. El mismo runner responde en todas estas:
 - **Una página alojada** cuyo enlace puedes mandarle a alguien
 - **Un widget embebible** para tu propio sitio
 - **La API HTTP**, y un WebSocket en crudo para streaming
-- **Slack**, **Telegram** y **Mattermost**, donde una `@mention` se ejecuta como
+- **Slack**, **Telegram**, **Mattermost** y **Discord**, donde una `@mention` se ejecuta como
   la persona que la envió — no como el bot
 
 La transcripción de voz también funciona en ellas con el propio provider de la
 organización: dictado en el chat web, en una página alojada y en el widget, y
-notas de voz transcritas en Slack, Telegram y Mattermost.
+notas de voz transcritas en Slack, Telegram, Mattermost y Discord.
 
 **Las llamadas de voz** permiten a una persona hablar con un agent publicado e
 interrumpirlo, en el chat web, en una página alojada o en el widget. El agent

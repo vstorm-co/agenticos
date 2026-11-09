@@ -26,6 +26,7 @@ vi.mock("./quick-ask-history", () => ({
         {
           id: "saved",
           title: "Saved conversation",
+          coding_agents: ["claude_code", "codex"],
           agents: [
             { id: "history-agent", name: "Research agent", slug: "research", has_avatar: false },
           ],
@@ -161,7 +162,7 @@ it("closes inline history with Escape without closing the current draft", async 
   await user.type(screen.getByRole("textbox", { name: "Draft" }), "keep this draft");
   await user.click(screen.getByRole("button", { name: "Recent conversations" }));
   expect(screen.getByRole("region", { name: "Recent conversations" })).toBeVisible();
-  expect(screen.getByText("Research agent")).toBeVisible();
+  expect(screen.getByText("Research agent, Claude Code, Codex")).toBeVisible();
   await user.keyboard("{Escape}");
   expect(screen.queryByRole("region", { name: "Recent conversations" })).toBeNull();
   expect(screen.getByRole("textbox", { name: "Draft" })).toHaveValue("keep this draft");

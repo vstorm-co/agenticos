@@ -1,5 +1,5 @@
 ---
-source_sha: "38e2a0c76864"
+source_sha: "0ec608602ddd"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -26,21 +26,9 @@ Er tut drei Dinge:
   die sie gelesen haben. Ein Skill wird Schritt für Schritt auf seiner eigenen
   Seite verbessert - siehe [Einen Skill verbessern](skills.md#improving-a-skill).
 
-Der Assistent ist ein eigener [System-Agent](concepts.md#system-agents),
-aufgeführt mit den übrigen System-Agents der Organisation. Ein Administrator
-bearbeitet seine Anweisungen wie die jedes Agents - einen System-Agent zu ändern
-braucht `org:settings` -, und seine Runs sind gewöhnliche Runs: budgetiert,
-bepreist und in **Aktivität** (Activity) aufgeführt. Er ist nie der Agent, um
-den es bei einem Improve oder Verify geht. Wenn er die
-[Wissensbasis durchsucht](concepts.md#system-agent-spec), liest er die
-Wissensbasen des Agents, den er verbessert.
+Im Agent Builder enthält **Bauen** die Konfiguration und **Test** öffnet das interaktive Testpanel für den Entwurf. Öffnen Sie **Evals**, um einen Entwurf mit einer veröffentlichten Version auf einem Dataset zu vergleichen oder **Verbessern** zu starten. Vor der Ausführung erscheint die Kostenschätzung. Der ältere evidenzbasierte Verify-Endpunkt bleibt für API-Kompatibilität verfügbar.
 
-Öffnen Sie **Verbesserungsassistent** beim Verbessern oder Verifizieren und
-wählen Sie einen veröffentlichten Assistenten. Eine neue Auswahl löscht die alte
-Schätzung; die Zustimmung gilt damit für Preis und Budget des gewählten Agents.
-`improver_agent_id` bleibt in der Aufgabe gespeichert, auch für Hintergrundsitzungen.
-Der Worker prüft Typ, Veröffentlichung und aktuelle Zugriffsrechte erneut.
-Eine gelöschte Auswahl führt zur Ablehnung statt zum Rückfall auf den Standard.
+**Improve** öffnet eine Verbesserungssitzung. Modell und Anweisungen stehen in den **Einstellungen** des gewählten Datasets; Helfer haben Code-Vorgaben und keine bearbeitbare Katalogseite. Der Dialog zum Verbessern einer Context-Datei wählt ein Modell direkt. Budgetprüfungen und Aktivität-Aufzeichnungen bleiben bestehen.
 
 ## Was er liest { #what-it-reads }
 
@@ -61,6 +49,8 @@ Delegierten.
 Gibt es mehr zu lesen, als in eine Anfrage passt, werden die Runs zuerst in
 Gruppen gelesen, und die Vorschläge entstehen aus dem, was jede Gruppe zeigte.
 
+Wird das Konto einer Person, deren Daten als Beleg dienen, während der Modellverarbeitung gelöscht, wird das gesamte erzeugte Ergebnis verworfen: Zusammenfassungen, vorgeschlagene Inhalte und die aufgezeichneten Modelleingaben und -ausgaben des Helfers. Der Auftrag endet mit einer Erklärung und kann mit aktuellen Belegen neu gestartet werden. Bereits entstandene Kosten bleiben erfasst.
+
 ### Jedes Zitat wird geprüft { #every-quote-is-checked }
 
 Jeder Vorschlag hat eine Begründung und die Belege dahinter: die Runs, auf die er
@@ -68,8 +58,9 @@ sich stützt, und Zitate daraus. Bevor jemand einen Vorschlag sieht, wird jedes
 Zitat Wort für Wort mit dem Run abgeglichen, den es nennt. Ein Zitat, das dort
 nicht steht, ein Run, der nicht zu den gelesenen gehört, und alles über zwölf
 Einträge oder sechshundert Zeichen hinaus wird verworfen, und der Vorschlag sagt,
-wie viele es waren. Wer kein `runs:view` hat, sieht, auf welche Runs sich ein
-Vorschlag stützt, aber nicht, was darin gesagt wurde.
+wie viele es waren. Das Lesen von Assistentenaufträgen, Ergebnissen und
+vorgeschlagenem Text erfordert `runs:view`: erzeugte Zusammenfassungen und
+Änderungen können auch ohne ausdrückliche Zitate Gesprächsinhalte enthalten.
 
 Die Prüfung belegt, dass ein Zitat in seinem Run steht, nicht, dass es zu dem
 passt, was es stützt: Ein echtes Zitat über etwas anderes besteht sie. Deshalb
@@ -78,16 +69,16 @@ Zeile muss Teil der Änderung sein. Die Leiste zeigt sie über den Zitaten des
 Befunds, damit der Leser beurteilen kann, ob sie sie stützen. Ein Befund, die
 Änderung sei belegt, dem kein prüfbares Zitat bleibt, wird nicht gezeigt.
 
-Endet eine Anfrage an den Assistenten - Prüfen oder Verbessern über die API - bei geöffnetem Builder, zeigt ein Ergebnisdialog die Anzahl geprüfter Antworten, vorgeschlagene und gespeicherte Änderungen sowie abgelehnte Vorschläge mit Gründen. **Ergebnis ansehen** öffnet ihn erneut. Ein leeres Ergebnis erklärt, dass nichts anwendbar war, ohne erwartete Wirkung. Wirkungstext mit rohen Run-Kennungen wird durch eine Beschreibung mit der Anzahl verlinkter Quellantworten ersetzt.
+Endet eine Anfrage an den Assistenten - Prüfen oder Verbessern über die API - bei geöffnetem Evals-Tab, zeigt ein Ergebnisdialog die Anzahl geprüfter Antworten, vorgeschlagene und gespeicherte Änderungen sowie abgelehnte Vorschläge mit Gründen. **Ergebnis ansehen** öffnet ihn erneut. Ein leeres Ergebnis erklärt, dass nichts anwendbar war, ohne erwartete Wirkung. Wirkungstext mit rohen Run-Kennungen wird durch eine Beschreibung mit der Anzahl verlinkter Quellantworten ersetzt.
 
 Jeder geänderte Text - Anweisungen, eine Tool-Beschreibung, eine Context-Datei - erscheint als Diff: entfernte und hinzugefügte Zeilen mit markierten geänderten Wörtern, einige unveränderte Zeilen um jede Änderung und der Rest eingeklappt, einheitlich oder auf einem breiten Bildschirm nebeneinander. Jede Änderung behält Begründung und verlinkte Belege; jeder Beleg ist nach dem benannt, was er ist - eine Testfrage aus dem Dataset (**Testfrage 2**) oder ein echtes Gespräch (**Gespräch 1**) - mit der gestellten Frage, und der Helfer wird angewiesen, ihn genau unter dieser Bezeichnung zu zitieren. Run-Kennungen in einer Begründung erscheinen unter derselben Bezeichnung.
 
-Nach einer abgeschlossenen Prüfung können Leser mit `runs:view` Antworten beider Seiten im Dialog vergleichen und die vollständige Prüfung öffnen. Vorher fordert der Dialog zum Prüfen auf. Ohne bewertete Chats oder Trainingsbelege erscheint der Assistent als kompakte Zeile über den Anweisungen.
+Nach einer abgeschlossenen Prüfung können Leser mit `runs:view` Antworten beider Seiten im Dialog vergleichen und die vollständige Prüfung öffnen. Vorher fordert der Dialog zum Prüfen auf. Ohne Vorschläge wird keine Vorschlagskarte angezeigt.
 
 ## Vorschläge { #suggestions }
 
 Vorschläge aus einer Verbesserungssitzung, aus Prüfen oder aus der API warten in der
-**Assistentenleiste** auf dem Tab **Bauen** (Build) des Agents. Jeder Vorschlag zeigt die Passage, die er ändert, in ihrem Umfeld, die
+Sektion **Vorschläge** auf dem Tab **Evals** des Agents. Jeder Vorschlag zeigt die Passage, die er ändert, in ihrem Umfeld, die
 Begründung und die Belege, und über jeden wird einzeln entschieden:
 
 | Aktion | Was passiert |
@@ -324,24 +315,19 @@ Die Aufbewahrung der Aktivität erhält die Gesamtkosten gelöschter bezahlter R
 |---|---|
 | Verbessern oder Prüfen an einem Agent zu starten | `runs:view`, Bearbeitungsrechte am Agent und die Nutzung des Assistenten |
 | Einen Skill zu verbessern | `runs:view`, Bearbeitungsrechte am Skill und die Nutzung des Assistenten |
-| Einen Vorschlag anzunehmen, zu verwerfen oder rückgängig zu machen | Bearbeitungsrechte am Agent |
+| Einen Vorschlag anzunehmen, zu verwerfen oder rückgängig zu machen | `runs:view` und Bearbeitungsrechte am Agent |
 | Eine Context-Datei zu verbessern | `runs:view`, `context:edit` an der Datei und die Nutzung des Assistenten |
 | Einen Vorschlag anzunehmen, der etwas bindet oder erreicht | Zusätzlich den Zugriff, es von Hand zu binden |
-| Eine Skill-Änderung anzuwenden oder zu verwerfen | `skills:edit` am Skill |
-| Eine Änderung an einer Context-Datei anzuwenden oder zu verwerfen | `context:edit` an der Datei |
+| Eine Skill-Änderung anzuwenden oder zu verwerfen | `skills:edit` am Skill und `runs:view` |
+| Eine Änderung an einer Context-Datei anzuwenden oder zu verwerfen | `context:edit` an der Datei und `runs:view` |
 | Mit Evals zu prüfen | Was ein [Eval Run](evals.md#access) braucht, und Bearbeitungsrechte am Agent |
 
 Grants zählen: Ein Mitglied mit einem Bearbeitungs-Grant an einem Agent darf
 diesen Agent verbessern.
 
-## Wenn KI-Unterstützung ausgeschaltet ist { #when-ai-assistance-is-off }
+## Verfügbarkeit und Kosten { #when-ai-assistance-is-off }
 
-Ist der Schalter **KI-Unterstützung** der Organisation aus, läuft der Assistent
-nicht: Verbessern, Prüfen und das Verbessern einer Context-Datei lehnt der Server
-ab, und die Konsole zeigt sie deaktiviert mit einem Link zum Schalter. Eine
-Sitzung zum Verbessern eines Skills hält vor ihrem nächsten Schritt an. Bereits
-wartende Vorschläge lassen sich weiterhin annehmen, verwerfen und rückgängig
-machen, und ein Eval Run, der keinen Bewerter braucht, läuft weiterhin.
+Verfügbarkeit hängt von Ressourcenzugriff, Modellbereitschaft und Budgets ab. Es gibt keinen organisationsweiten KI-Schalter. Bezahlte Arbeit benötigt einen ausdrücklichen Start; das Annehmen oder Verwerfen vorhandener Vorschläge ruft kein Modell auf.
 
 ## Verbesserungssitzungen im Hintergrund { #background-improvement-sessions }
 
@@ -386,7 +372,7 @@ oder ein unentschiedenes samt Wiederholung erscheinen im Ergebnis als Hinweis,
 dass ein weiterer Versuch kaum hilft, nicht als Halt.
 
 Wer eine Sitzung für den Agent starten darf - Bearbeitungsrechte, `runs:view` und
-eingeschaltete KI-Unterstützung -, darf auch ihren nächsten Schritt ausführen oder
+ -, darf auch ihren nächsten Schritt ausführen oder
 es erneut versuchen. Die Sitzung hält fest, wer das tat, und die folgenden
 Schritte laufen mit den aktuellen Rechten und Zugangsdaten dieser Person; eine
 vom Architekten gestartete Sitzung lässt sich daher in der Konsole weiterführen.
@@ -462,7 +448,7 @@ nicht das gemeinsame Urteil des Versuchs.
 
 ### Der Verbessern-Assistent { #the-improve-wizard }
 
-Öffnen Sie **Verbessern** im Agentenkopf oder in der Assistentenleiste auf dem Tab Bauen, über das Abzeichen **Braucht Aufmerksamkeit** in der Agentenliste, über die Dashboard-Karte oder über den Tab **Wissenslücken** des Agents. Es steht zwischen den anderen Aktionen im Kopf; hatte die Version, die der Agent jetzt ausliefert, in den letzten 30 Tagen negativ bewertete Antworten oder fehlgeschlagene Runs, trägt es einen Punkt und sein Name sagt, warum. Die Dashboard-Karte **Verbesserungen, die auf Sie warten** listet die Sitzungen, die für eine Entscheidung angehalten haben.
+Öffnen Sie **Verbessern** in der Werkzeugleiste des Agententabs **Evals**, über das Abzeichen **Braucht Aufmerksamkeit** in der Agentenliste, über die Dashboard-Karte oder über **Wissenslücken**. Hatte die aktuelle veröffentlichte Version in den letzten 30 Tagen negativ bewertete Antworten oder fehlgeschlagene Runs, trägt Verbessern einen Hinweispunkt. Die Dashboard-Karte **Verbesserungen, die auf Sie warten** zeigt Sitzungen, die auf eine Entscheidung warten.
 
 Jedes **Verbessern** öffnet die offene Sitzung des Agents - laufend, auf Sie wartend, beim Ergebnis oder angehalten oder fehlgeschlagen - und startet eine neue, sobald diese Sitzung als Entwurf behalten, veröffentlicht, verworfen, abgebrochen oder geschlossen wurde; sie bleibt dann im [Verbesserungsverlauf](#improvement-history) des Agents. **Beenden und eine neue starten** neben einer offenen Sitzung beendet sie zuerst.
 
@@ -470,7 +456,9 @@ Eine Sitzung liegt unter `/agents/<agent>/improve/<session>`; die Seite lässt s
 
 Ein Schritt öffnet sich, sobald er Arbeit zu zeigen oder eine Entscheidung zu erfragen hat. Die Seite folgt dem Schritt, auf dem die Sitzung steht; nachdem Sie einen anderen geöffnet haben, führt **Zum aktuellen Schritt** dorthin zurück. An einem Halt trägt die Fußzeile den nächsten Schritt mit seinem Preis, zum Beispiel **Nächster Schritt: Änderungen schreiben · ca. $0.04**; nichts wird ausgegeben, bevor Sie ihn drücken. Hat sich der Preis seit der Anzeige bewegt, sagt die Fußzeile das - **Der Preis hat sich auf ca. $0.05 geändert. Drücken Sie erneut, um fortzufahren.** -, und kostet der Schritt mehr, als der Sitzung bleibt, lässt sich ihr Limit gleich dort erhöhen.
 
-**Start.** Drei Zahlen aus den letzten 30 Tagen, dann die eigenen Testfragen des Agents, bereits gewählt und geschätzt: Die Schätzung deckt das Lesen dessen ab, was schiefging, erscheint samt ungefährer Dauer ohne Klick und gibt nichts aus, daher ist **Verbesserung starten** die einzige Entscheidung. Jeder nächste Schritt wird geschätzt, bevor Sie ihn drücken, und das Limit begrenzt die ganze Sitzung. Andere Testfragen, das Ausgabenlimit, der Hilfsagent und ein Test der heutigen Antworten liegen unter **Details anzeigen**. Ein Agent ohne Testfragen bekommt **Testfragen für mich schreiben**: Bewertete Antworten werden zu Fragen, weitere entstehen für Themen ohne Beispiel, und die Schätzung folgt, sobald sie bereit sind. Bleiben zu wenige Fragen, um eine Änderung zu messen, bietet der Bildschirm an, so viele zu schreiben, wie der Sitzung fehlen. Der Hinweis nach der ersten Veröffentlichung öffnet diesen Bildschirm, um einen Ausgangswert festzulegen.
+**Start.** Improve öffnet einen Dialog über dem Agent Builder. Wählen Sie das Dataset im Hauptformular; der eigene Testsatz des Agents ist ausgewählt, wenn er vorhanden ist. Feedback-Zähler fassen die Belege zusammen. Fehlt ein geeigneter Satz, schätzt **Testfragen für mich schreiben** zunächst die Kosten für Fragen aus bewerteten Antworten und Themen ohne Beispiele, bevor etwas geschrieben wird.
+
+Analysekosten und Ausgabenlimit der gesamten Sitzung erscheinen vor **Verbesserung starten**. Jeder weitere Schritt hat eine eigene Schätzung und wartet auf Ihre Entscheidung. **Details anzeigen** enthält das Ausgabenlimit, die Fragenaufteilung, den heutigen Test und einen Link zu den Helfereinstellungen des Datasets. Nach dem Start öffnet die laufende Sitzung ihre eigene Seite. Das Schließen des Einrichtungsdialogs führt zum Agent zurück; bestehende `/improve/new`-Links öffnen denselben Dialog.
 
 1. **Verstehen.** Ein Satz und ein Balken zählen die Probleme, die im Agent zu beheben sind, und die Informationen, die in der Wissensdatenbank fehlen. Beispiele, deren Lücken in ein Wissenslücken-Thema fielen, bilden eine Karte, ebenso eine Frage, die sowohl als Testfrage als auch in einem Gespräch gestellt wurde. Eine Karte zeigt die Frage und lässt sich zur Antwort, zu den Kommentaren, zur Bewertung einer Testantwort - der Note, die der Bewerter jedem Kriterium gab, und ob jede Regel erfüllt ist - und zum Grund aufklappen, warum sie zählt: die Bewertungen, bei denen sie durchfiel, wie eine Person sie bewertete und warum der Klassifikator sie dort einordnete. Positiv bewertete Antworten und solche, an denen der Klassifikator nichts auszusetzen fand, landen automatisch unter **Kein zu behebendes Problem**; in diesem Schritt wird nichts von Hand eingestellt. Eine Antwort, deren Thema inzwischen ein Dokument abdeckt, zählt unter **Schon in der Wissensdatenbank**, mit diesem Dokument und dem Tag, an dem es hinzugefügt wurde: Für sie gibt es nichts mehr zu entwerfen. Die Sitzung hält hier immer an; **Nächster Schritt: Änderungen schreiben** bittet den Helfer um Änderungen.
 2. **Änderungen.** Wie viele Änderungen vorgeschlagen und wie viele enthalten sind, dann jede Änderung als Diff mit Soll beheben, darunter eingeklappt Warum und Grundlage. Am Halt hat jede Änderung **Änderung N im Test berücksichtigen**, wovon mindestens eine angehakt bleibt, und **Formulierung ändern**, das Ihre Formulierung statt der des Helfers testet: Die Änderung ist dann mit **Von Ihnen umformuliert** markiert, und **Zurück zur vorgeschlagenen Formulierung** macht das rückgängig. **Nächster Schritt: ausgewählte Änderungen testen** startet den Test, bepreist mit dem Höchstbetrag, darunter, was er wahrscheinlich kostet - ohne die Wiederholung, die ein unentschiedenes Ergebnis bekommt; solange er läuft, lässt sich die Liste lesen, aber nicht ändern. Wissensentwürfe bilden eine eigene Spalte mit den Entwürfen, die jemand angefordert hat. Wurde keine Änderung gefunden, listet der Bildschirm auf, was jeder Versuch probiert hat.

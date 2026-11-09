@@ -51,6 +51,7 @@ function draft(overrides: Partial<ChannelBotDraft> = {}): ChannelBotDraft {
     commandToken: "",
     webhookMode: false,
     respondToBroadcasts: false,
+    discordGuilds: "",
     answerStyle: {
       ack_reaction: null,
       stream_answers: true,
@@ -345,4 +346,32 @@ it("changes group mention participation without replacing access restrictions", 
   expect(botPatch(current, draft())).toEqual({
     access_policy: { ...current.access_policy, respond_to_broadcasts: false },
   });
+});
+
+it("updates server approvals without discarding the bot's other access rules", () => {
+  const current = bot({ platform: "discord" });
+  current.access_policy = {
+    ...current.access_policy,
+    mode: "group_only",
+    allowed_groups: ["900"],
+    discord_guild_ids: ["100"],
+    rate_limit_rpm: 3,
+  };
+  expect(
+    botPatch(current, draft({ discordGuilds: "200, 100", respondToBroadcasts: true })),
+  ).toEqual({
+    access_policy: {
+      ...current.access_policy,
+      discord_guild_ids: ["100", "200"],
+      respond_to_broadcasts: true,
+    },
+  });
+  expect(botPatch(current, draft({ discordGuilds: "100 100" }))).toEqual({});
+  expect(botPatch(current, draft({ discordGuilds: "" }))).toEqual({
+    access_policy: { ...current.access_policy, discord_guild_ids: [] },
+  });
+});
+
+it("does not add a policy patch for an old Discord bot with no saved approvals", () => {
+  expect(botPatch(bot({ platform: "discord" }), draft())).toEqual({});
 });

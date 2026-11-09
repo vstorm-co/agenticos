@@ -25,6 +25,7 @@ from app.db.vector_tables import (
     VECTOR_KB_INDEX_SUFFIX,
     VECTOR_ORG_INDEX_SUFFIX,
     VECTOR_ORGUNIT_INDEX_SUFFIX,
+    VECTOR_PARENT_INDEX_SUFFIX,
     VECTOR_SOURCE_INDEX_SUFFIX,
     VECTOR_SOURCE_PATH_INDEX_SUFFIX,
     VECTOR_TABLE_PREFIX,
@@ -32,7 +33,7 @@ from app.db.vector_tables import (
     is_runtime_vector_table,
     validate_collection_name,
 )
-from app.repositories import knowledge_base_repo, rag_document_repo
+from app.repositories import collection_teardown_repo, knowledge_base_repo, rag_document_repo
 from app.schemas.rag import RAGDocumentItem, RAGDocumentList
 from app.services.rag.filters import AppScope, RetrievalQuery, RetrievalScope, TenantScope
 from app.services.rag.models import (
@@ -50,7 +51,7 @@ logger = logging.getLogger(__name__)
 
 
 class KnowledgeBaseRemovedError(NotFoundError):
-    """The knowledge base or tracked document is gone; no chunks were inserted."""
+    """The base, the tracked document or the table is going; no chunks were inserted."""
 
 
 def _document_is_unaddressed(doc: DocumentInfo) -> bool:
@@ -370,11 +371,12 @@ class BaseVectorStore(ABC):
         document: Document,
         scope: VectorScope,
     ) -> dict[str, Any]:
+        image_count = len(chunk.images) if chunk.image_count is None else chunk.image_count
         metadata: dict[str, Any] = {
             "page_num": chunk.page_num,
             "chunk_num": chunk.chunk_num,
-            "has_images": bool(getattr(chunk, "images", None)),
-            "image_count": len(getattr(chunk, "images", [])),
+            "has_images": image_count > 0,
+            "image_count": image_count,
             **document.metadata.model_dump(),
         }
         # The tenant tag. `document.metadata.organization_id` already carries it in
@@ -813,6 +815,15 @@ class PgVectorStore(BaseVectorStore):
                         f"ON {table} USING hash ((metadata->>'{key}'))"
                     )
                 )
+            # The document key the per-document reads and deletes filter by
+            # (#2552); `0252_index_rag_parent_doc_id` says why it is plain and
+            # builds it on collections that predate it.
+            await session.execute(
+                text(
+                    f"CREATE INDEX IF NOT EXISTS {table}{VECTOR_PARENT_INDEX_SUFFIX} "
+                    f"ON {table} (parent_doc_id)"
+                )
+            )
             # The base key the scope narrows to (#2537). A btree rather than a hash:
             # the value is a UUID, so bounded, and one table usually holds a
             # handful of bases - a hash bucket of one value grows an overflow
@@ -887,10 +898,17 @@ class PgVectorStore(BaseVectorStore):
             ON CONFLICT (id) DO UPDATE SET content = :content, embedding = :embedding, metadata = :metadata
         """)
         async with self.async_session() as session:
+            if scope.knowledge_base_id is None:
+                # No base row to hold, and a CLI sync has no tracking row either, so
+                # the name is what a last holder's teardown waits on before it asks
+                # the table what is in it (#2747). Taken first, as a teardown takes it.
+                if not await collection_teardown_repo.hold_unreserved(session, collection_name):
+                    raise KnowledgeBaseRemovedError(
+                        message="The collection is being deleted",
+                        details={"collection": collection_name},
+                    )
             # In this transaction, before the rows: see `hold_key_share` (#2561).
-            if scope.knowledge_base_id is not None and not await knowledge_base_repo.hold_key_share(
-                session, scope.knowledge_base_id
-            ):
+            elif not await knowledge_base_repo.hold_key_share(session, scope.knowledge_base_id):
                 raise KnowledgeBaseRemovedError(
                     message="The knowledge base was deleted while this file was being indexed",
                     details={
@@ -911,8 +929,8 @@ class PgVectorStore(BaseVectorStore):
                     message="The document was cleared while this file was being indexed",
                     details={"collection": collection_name},
                 )
-            # Both target locks remain held through creation and the chunk commit,
-            # so a completed teardown cannot be followed by an empty replacement.
+            # The target locks remain held through creation and the chunk commit, so
+            # a completed teardown cannot be followed by an empty replacement.
             await self._ensure_collection(collection_name)
             for batch in batched(
                 enumerate(document.chunked_pages), _CHUNK_INSERT_BATCH, strict=False
@@ -1143,6 +1161,11 @@ class PgVectorStore(BaseVectorStore):
     async def delete_document(
         self, collection_name: str, document_id: str, scope: VectorScope
     ) -> None:
+        # A missing table is a no-op, as in `delete_knowledge_base_chunks`: a
+        # collection dropped while its document indexed already took the chunks
+        # the ingest's settlement comes to remove (#2565).
+        if not await self._collection_exists(collection_name):
+            return
         table = self._table(collection_name)
         sanitized = self._sanitize_id(document_id)
         # The document is named by its own id, so its unfiled chunks - written
@@ -1400,13 +1423,18 @@ class PgVectorStore(BaseVectorStore):
 
         The order makes a fallback that matches several rows pick the one the
         reference scan would, rather than whichever the heap returns (#548).
+        It sorts by `parent_doc_id || ''`, the same order, so the btree on
+        `parent_doc_id` (#2552) cannot serve it: with `LIMIT 1` the planner
+        would otherwise walk that whole index in order when the key value is
+        common elsewhere in the table and absent from the scope, instead of
+        reading the key's own index.
         `where` is built from literals here and every value it reads is bound,
         so the only interpolation is the already-validated `table`.
         """
         result = await session.execute(
             text(
                 f"SELECT parent_doc_id, metadata FROM {table} "
-                f"WHERE {where} ORDER BY parent_doc_id, id LIMIT 1"
+                f"WHERE {where} ORDER BY parent_doc_id || '', id LIMIT 1"
             ),
             params,
         )

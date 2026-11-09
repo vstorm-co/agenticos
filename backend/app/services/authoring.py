@@ -9,9 +9,9 @@ publishes and nothing changes an agent without that decision.
 
 **Who may do what.** Starting one needs `runs:view` - the evidence is runs -
 edit access to the target through its own grants, and use of the organization's
-improver, which also refuses while AI assistance is switched off. Deciding needs
-edit access to the agent and nothing more: a decision is not a model call, so it
-stays possible with the switch off.
+improver with a runnable model and available budget. Deciding needs edit access
+to the agent and `runs:view`: generated proposal text can contain run evidence,
+even when its explicit quotes are removed. Accepting calls no model.
 
 **A decision is one transaction with what it writes.** It locks the agent row
 and reads its draft afresh, so two decisions on one draft serialize instead of
@@ -99,6 +99,7 @@ from app.schemas.authoring import (
     ProposedSkill,
     ProposedSkillCreated,
 )
+from app.schemas.dataset_helpers import DatasetHelper
 from app.schemas.eval_run import (
     EvalRunEstimate,
     EvalRunRead,
@@ -242,14 +243,20 @@ class AuthoringService:
         self.evidence = EvidenceService(db)
         self.models = ModelProfileService(db)
 
-    async def _improver(self, ctx: AuthContext, agent_id: UUID | None = None) -> Agent:
+    async def _improver(
+        self, ctx: AuthContext, agent_id: UUID | None = None, helper: DatasetHelper | None = None
+    ) -> Agent:
         """The improver, once it is known the caller may run it now.
 
         Raises:
-            AiAssistanceDisabledError: The organization switched AI assistance off.
             SystemAgentUnavailableError: It cannot run for this caller.
         """
-        return await self.runner.require_runnable(ctx, key=IMPROVER.key, agent_id=agent_id)
+        return await self.runner.require_runnable(
+            ctx,
+            key=IMPROVER.key,
+            agent_id=agent_id,
+            model_profile_id=None if helper is None else helper.model_profile_id,
+        )
 
     @staticmethod
     def _require_runs_view(ctx: AuthContext) -> None:
@@ -261,6 +268,7 @@ class AuthoringService:
 
     async def _editable(self, ctx: AuthContext, agent_id: UUID) -> Agent:
         agent = await self.registry.get(ctx, agent_id, perm=Perm.AGENTS_EDIT)
+        self._require_runs_view(ctx)
         # Its runs are all eval runs, which the assistant never reads as evidence.
         refuse_system_agent(agent, action="the authoring assistant's suggestions")
         if agent.status == AgentStatus.ARCHIVED.value:
@@ -296,7 +304,7 @@ class AuthoringService:
         """
         self._require_runs_view(ctx)
         agent = await self._editable(ctx, agent_id)
-        improver = await self._improver(ctx, body.improver_agent_id)
+        improver = await self._improver(ctx, body.improver_agent_id, body.helper_settings)
         if body.kind == AuthoringKind.VERIFY.value:
             base = await agent_repo.newest_version(
                 self.db, agent_id=agent.id, organization_id=ctx.organization_id
@@ -304,7 +312,9 @@ class AuthoringService:
             if base is None or AgentSpec.model_validate(base.spec) == AgentSpec.model_validate(
                 agent.draft_spec
             ):
-                return await self._estimate(ctx, improver, EvidencePack(), "no_draft_change")
+                return await self._estimate(
+                    ctx, improver, EvidencePack(), "no_draft_change", helper=body.helper_settings
+                )
         if evidence is not None:
             pack = evidence
         elif improvement_run_id is None:
@@ -331,7 +341,12 @@ class AuthoringService:
             )
             skill_chars = improver_skill_chars(skills, used)
         return await self._estimate(
-            ctx, improver, pack, None if pack.runs else "no_evidence", skill_chars=skill_chars
+            ctx,
+            improver,
+            pack,
+            None if pack.runs else "no_evidence",
+            helper=body.helper_settings,
+            skill_chars=skill_chars,
         )
 
     async def estimate_skill(
@@ -345,9 +360,11 @@ class AuthoringService:
                 message="A skill has no draft to verify; review its pending change instead",
                 details={"kind": body.kind},
             )
-        improver = await self._improver(ctx, body.improver_agent_id)
+        improver = await self._improver(ctx, body.improver_agent_id, body.helper_settings)
         pack = await self.evidence.for_skill(ctx, skill.id, window_days=body.window_days)
-        return await self._estimate(ctx, improver, pack, None if pack.runs else "no_evidence")
+        return await self._estimate(
+            ctx, improver, pack, None if pack.runs else "no_evidence", helper=body.helper_settings
+        )
 
     async def estimate_context(
         self, ctx: AuthContext, context_id: UUID, body: AuthoringStart
@@ -360,9 +377,11 @@ class AuthoringService:
                 message="A context file has no draft to verify; review its pending change instead",
                 details={"kind": body.kind},
             )
-        improver = await self._improver(ctx, body.improver_agent_id)
+        improver = await self._improver(ctx, body.improver_agent_id, body.helper_settings)
         pack = await self.evidence.for_context(ctx, file.id, window_days=body.window_days)
-        return await self._estimate(ctx, improver, pack, None if pack.runs else "no_evidence")
+        return await self._estimate(
+            ctx, improver, pack, None if pack.runs else "no_evidence", helper=body.helper_settings
+        )
 
     async def estimate_pack(
         self, ctx: AuthContext, pack: EvidencePack, *, improver_agent_id: UUID | None = None
@@ -436,6 +455,7 @@ class AuthoringService:
         pack: EvidencePack,
         reason: str | None,
         *,
+        helper: DatasetHelper | None = None,
         skill_chars: int = 0,
     ) -> AuthoringEstimate:
         """`skill_chars` is the skill text the call proposing the change reads beside the runs."""
@@ -443,9 +463,11 @@ class AuthoringService:
         calls = 0 if not groups else (1 if len(groups) == 1 else len(groups) + 1)
         evidence_chars = sum(len(run.render()) for run in pack.runs) + len(pack.training_feedback)
         share = evidence_chars // max(1, len(groups))
-        per_call = await self._per_call(ctx, improver, share)
+        per_call = await self._per_call(ctx, improver, share, helper=helper)
         proposing = (
-            await self._per_call(ctx, improver, share + skill_chars) if skill_chars else per_call
+            await self._per_call(ctx, improver, share + skill_chars, helper=helper)
+            if skill_chars
+            else per_call
         )
         total = (per_call * (calls - 1) + proposing if calls else Decimal(0)).quantize(_CENT)
         improver_left = await self._improver_left(ctx, improver)
@@ -460,7 +482,9 @@ class AuthoringService:
             reason=reason,
         )
 
-    async def _per_call(self, ctx: AuthContext, improver: Agent, chars: int) -> Decimal:
+    async def _per_call(
+        self, ctx: AuthContext, improver: Agent, chars: int, *, helper: DatasetHelper | None = None
+    ) -> Decimal:
         """One improver call: its recent average, which holds the searches it made, or a
         call this size at its model's price, once per request it may make."""
         average = await agent_run_repo.average_cost(
@@ -469,9 +493,12 @@ class AuthoringService:
             agent_id=improver.id,
             sample=settings.EVAL_ESTIMATE_SAMPLE,
         )
-        if average is not None:
+        if average is not None and (helper is None or helper.model_profile_id is None):
             return average
         published = await self._improver_spec(ctx, improver)
+        if helper is not None and helper.model_profile_id is not None:
+            published = published.model_copy(update={"model_profile_id": helper.model_profile_id})
+            chars += len(helper.instructions or IMPROVER.instructions)
         if published.model_profile_id is not None:
             model = await self.models.resolve(ctx, profile_id=published.model_profile_id)
             usage = RunUsage(
@@ -600,6 +627,24 @@ class AuthoringService:
                 ),
                 details={"estimate_usd": str(estimate.estimate_usd)},
             )
+        improver = await self._improver(ctx, body.improver_agent_id, body.helper_settings)
+        helper = body.helper_settings or DatasetHelper()
+        version = (
+            await agent_repo.get_version(
+                self.db, improver.current_version_id, organization_id=ctx.organization_id
+            )
+            if improver.current_version_id is not None
+            else None
+        )
+        if version is None:
+            raise NotFoundError(message="The improvement helper has no published version")
+        spec = AgentSpec.model_validate(version.spec)
+        helper = helper.model_copy(
+            update={
+                "model_profile_id": helper.model_profile_id or spec.model_profile_id,
+                "instructions": helper.instructions or IMPROVER.instructions,
+            }
+        )
         request = await authoring_repo.create_request(
             self.db,
             organization_id=ctx.organization_id,
@@ -615,6 +660,7 @@ class AuthoringService:
             excluded_message_ids=excluded_message_ids,
             improvement_run_id=improvement_run_id,
             improver_agent_id=body.improver_agent_id,
+            helper_settings=helper.model_dump(mode="json"),
         )
         await record_audit(
             self.db,
@@ -656,6 +702,7 @@ class AuthoringService:
 
     async def for_agent(self, ctx: AuthContext, agent_id: UUID) -> AgentAuthoringRead:
         """The open batch - or the last one - and the newest requests, for the Builder."""
+        self._require_runs_view(ctx)
         agent = await self.registry.get(ctx, agent_id)
         return await self._read(ctx, agent)
 
@@ -728,9 +775,10 @@ class AuthoringService:
         """The newest requests on one skill, for its page.
 
         A session's steps are left out: the session shows them to its own readers.
-        A quote is shown only to a reader of runs, and only from an agent they may
-        see; evidence from any other agent's run is dropped, run id and all.
+        Evidence is kept only from runs of an agent the reader may see; evidence
+        from any other agent's run is dropped, run id and all.
         """
+        self._require_runs_view(ctx)
         skill = await self.skills.get(ctx, skill_id)
         requests = [
             await self.settled(request)
@@ -755,11 +803,11 @@ class AuthoringService:
             self.db, ctx, list(agents.values()), Perm.AGENTS_VIEW, resource_type=AGENT
         )
         shown = {run_id for run_id, agent_id in owners.items() if agent_id in visible}
-        quotes = ctx.has(Perm.RUNS_VIEW)
-        return [_skill_request(request, shown, quotes=quotes) for request in requests]
+        return [_skill_request(request, shown) for request in requests]
 
     async def for_context(self, ctx: AuthContext, context_id: UUID) -> list[AuthoringRequestRead]:
         """The newest requests on one context file, for its page."""
+        self._require_runs_view(ctx)
         file = await self.contexts.get(ctx, context_id)
         return [
             AuthoringRequestRead.model_validate(await self.settled(request))
@@ -814,46 +862,25 @@ class AuthoringService:
             ),
             None,
         )
-        quotes = ctx.has(Perm.RUNS_VIEW)
         has_evidence = None
-        if quotes and not requests and batch is None:
+        if not requests and batch is None:
             has_evidence = bool((await self.evidence.for_agent(ctx, agent.id, window_days=30)).runs)
         return AgentAuthoringRead(
             has_evidence=has_evidence,
             batch=None if batch is None else await self._batch(ctx, agent, batch),
-            latest=(
-                None
-                if not requests
-                else await self._request(ctx, agent, requests[0], quotes=quotes)
-            ),
-            verify=None
-            if verify is None
-            else await self._request(ctx, agent, verify, quotes=quotes),
+            latest=None if not requests else await self._request(ctx, agent, requests[0]),
+            verify=None if verify is None else await self._request(ctx, agent, verify),
         )
 
     async def _request(
-        self, ctx: AuthContext, agent: Agent, request: AuthoringRequest, *, quotes: bool
+        self, ctx: AuthContext, agent: Agent, request: AuthoringRequest
     ) -> AuthoringRequestRead:
-        """A request as a reader sees it - the runs' quotes only for a reader of runs, and
-        nothing drawn from one of the agent's skills the reader may not see."""
+        """A request as a reader sees it: nothing drawn from one of the agent's skills
+        the reader may not see."""
         read = AuthoringRequestRead.model_validate(request)
         if read.report is None:
             return read
         report = await self._without_hidden_skills(ctx, agent, read.report)
-        if not quotes:
-            report |= {
-                key: [
-                    {
-                        **item,
-                        "evidence": [
-                            {"run_id": quote["run_id"]} for quote in item.get("evidence", [])
-                        ],
-                    }
-                    for item in items
-                ]
-                for key in REPORT_EVIDENCE
-                if isinstance(items := report.get(key), list)
-            }
         return read.model_copy(update={"report": report})
 
     async def _without_hidden_skills(
@@ -895,7 +922,6 @@ class AuthoringService:
         hunks = await authoring_repo.list_hunks(
             self.db, organization_id=ctx.organization_id, batch_id=batch.id
         )
-        quotes = ctx.has(Perm.RUNS_VIEW)
         names = await ConfigurationService(self.db).names(ctx, hunks)
         waiting = [hunk for hunk in hunks if hunk.status == HunkStatus.PENDING.value]
         measured = (
@@ -937,8 +963,7 @@ class AuthoringService:
             expected_effect=batch.expected_effect,
             request_id=batch.request_id,
             hunks=[
-                self._hunk(spec, hunk, quotes=quotes, names=names, blocked=gates.get(hunk.id))
-                for hunk in hunks
+                self._hunk(spec, hunk, names=names, blocked=gates.get(hunk.id)) for hunk in hunks
             ],
             check_eval_run_ids=list(batch.check_eval_run_ids),
             created_at=batch.created_at,
@@ -948,6 +973,7 @@ class AuthoringService:
         self, ctx: AuthContext, agent: Agent, batch_id: UUID, hunk_ids: list[UUID] | None
     ) -> list[HunkRead]:
         """Some of one batch's changes as the Builder reads them, open or long closed."""
+        self._require_runs_view(ctx)
         hunks = [
             hunk
             for hunk in await authoring_repo.list_hunks(
@@ -957,10 +983,7 @@ class AuthoringService:
         ]
         spec = AgentSpec.model_validate(agent.draft_spec)
         names = await ConfigurationService(self.db).names(ctx, hunks)
-        return [
-            self._hunk(spec, hunk, quotes=ctx.has(Perm.RUNS_VIEW), names=names, blocked=None)
-            for hunk in hunks
-        ]
+        return [self._hunk(spec, hunk, names=names, blocked=None) for hunk in hunks]
 
     async def _model_gate(
         self,
@@ -1022,11 +1045,10 @@ class AuthoringService:
         spec: AgentSpec,
         hunk: SpecProposalHunk,
         *,
-        quotes: bool,
         names: dict[str, str],
         blocked: str | None,
     ) -> HunkRead:
-        """One hunk as a reader sees it - quotes only for a reader of runs."""
+        """One hunk for a caller authorized to read its derived evidence."""
         return HunkRead(
             id=hunk.id,
             kind=hunk.kind,
@@ -1057,7 +1079,7 @@ class AuthoringService:
             evidence=[
                 EvidenceItemRead(
                     run_id=UUID(item["run_id"]),
-                    quote=item.get("quote") if quotes else None,
+                    quote=item.get("quote"),
                     source=item.get("source"),
                     number=item.get("number"),
                 )
@@ -1906,11 +1928,8 @@ class AuthoringService:
         return started
 
 
-def _skill_request(
-    request: AuthoringRequest, shown: set[UUID], *, quotes: bool
-) -> AuthoringRequestRead:
-    """A skill's request as one reader sees it: evidence from the runs in `shown`, quoted
-    only for a reader of runs."""
+def _skill_request(request: AuthoringRequest, shown: set[UUID]) -> AuthoringRequestRead:
+    """A skill's request as one reader sees it: evidence from the runs in `shown` only."""
     read = AuthoringRequestRead.model_validate(request)
     if read.report is None:
         return read
@@ -1919,9 +1938,7 @@ def _skill_request(
             {
                 **item,
                 "evidence": [
-                    quote if quotes else {"run_id": quote["run_id"]}
-                    for quote in item.get("evidence", [])
-                    if UUID(quote["run_id"]) in shown
+                    quote for quote in item.get("evidence", []) if UUID(quote["run_id"]) in shown
                 ],
             }
             for item in items

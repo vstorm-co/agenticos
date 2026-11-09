@@ -8,7 +8,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { Badge, Button } from "@/components/ui";
 import type { NoteTarget } from "@/hooks/use-scoring";
 import { ROUTES } from "@/lib/constants";
-import { judgedBy, reasonKey, reasonKeyOf } from "@/lib/scoring";
+import { reasonKey, reasonKeyOf } from "@/lib/scoring";
 import { formatDateTime } from "@/lib/utils";
 import type { CaseScore, ScorerResult } from "@/types/scoring";
 import { ScoreAnswer } from "./score-answer";
@@ -61,7 +61,13 @@ function ResultRow({ result, linksRuns }: { result: ScorerResult; linksRuns: boo
       </Badge>
       <div className="min-w-0 flex-1">
         <p className="font-medium">
-          {t(`scorer.${result.scorer}`)} · <span className="font-mono text-xs">{result.name}</span>
+          {t(`scorer.${result.scorer}`)}
+          {(result.scorer === "judge" || result.scorer === "check") && (
+            <>
+              {" "}
+              · <span className="font-mono text-xs">{result.name}</span>
+            </>
+          )}
           {!result.required && (
             <span className="text-muted-foreground ml-2 text-xs">{t("optional")}</span>
           )}
@@ -226,7 +232,7 @@ export function ScoreCard({
   const decided = score.human_passed !== null;
 
   return (
-    <article className="space-y-3 rounded-lg border p-4">
+    <article className="@container space-y-5">
       <header className="flex flex-wrap items-center gap-2">
         <OutcomeBadge outcome={score.outcome} />
         {decided && <span className="text-muted-foreground text-xs">{t("decidedByPerson")}</span>}
@@ -240,18 +246,23 @@ export function ScoreCard({
           {t("judgeSameModel", { model: score.judge_model })}
         </p>
       )}
-      <ScoreExpectation score={score} />
-      <ScoreAnswer answer={score.answer} hidden={score.answer_hidden} />
+      <div className="grid items-start gap-4 @[48rem]:grid-cols-2">
+        <ScoreExpectation score={score} />
+        <ScoreAnswer answer={score.answer} hidden={score.answer_hidden} />
+      </div>
 
       {score.passed === null && score.unscored_reason !== null && (
         <NotGraded code={score.unscored_reason} onRescore={onRescore} busy={busy} />
       )}
-      <Results results={score.results} linksRuns={linksRuns} />
+      {score.results.length > 0 && (
+        <div className="rounded-lg border px-4 py-2">
+          <Results results={score.results} linksRuns={linksRuns} />
+        </div>
+      )}
 
       {(onVerdict || sendable || (decided && score.human_note)) && (
         <ScoreDecision
           decided={score.human_passed}
-          judged={judgedBy(score)}
           caseTags={score.case_tags}
           note={score.human_note}
           onVerdict={onVerdict}

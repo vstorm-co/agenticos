@@ -205,6 +205,10 @@ class ImprovementRun(Base):
 
     __tablename__ = "improvement_runs"
 
+    helper_settings: Mapped[dict[str, JsonValue]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+
     improver_agent_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), nullable=True
     )

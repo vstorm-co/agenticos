@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -66,7 +66,9 @@ export function useOnboardingTour(): OnboardingTourState {
   const tErrors = useTranslations("errors");
   const { isOpen, index, mode, openTour, close, setIndex, systemAgentPage } = useOnboardingStore();
 
-  const path = stripLocale(pathname);
+  const improve = useSearchParams().get("improve");
+  const path =
+    stripLocale(pathname) + (improve === null ? "" : `?improve=${encodeURIComponent(improve)}`);
 
   // Freeze the page a "?" replay was opened on. Its walk steps into detail views
   // (the builder, a collection, an organization), and recomputing the step list

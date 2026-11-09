@@ -1,5 +1,7 @@
 "use client";
 
+import { CHART_TOOLTIP_CONTENT, CHART_TOOLTIP_ITEM, CHART_TOOLTIP_LABEL } from "@/lib/chart-styles";
+
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 
 export interface DonutSegment {
@@ -28,12 +30,9 @@ export function DonutChartImpl({
     <ResponsiveContainer width="100%" height="100%">
       <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
         <Tooltip
-          contentStyle={{
-            background: "var(--color-card)",
-            border: "1px solid var(--color-border)",
-            borderRadius: "0.75rem",
-            fontSize: "12px",
-          }}
+          contentStyle={CHART_TOOLTIP_CONTENT}
+          itemStyle={CHART_TOOLTIP_ITEM}
+          labelStyle={CHART_TOOLTIP_LABEL}
         />
         {/* The gap between arcs is the card showing through, not a paddingAngle:
             a rotational gap grows with the arc it precedes, so a 1% sliver
@@ -71,7 +70,7 @@ export function DonutChartImpl({
           textAnchor="middle"
           dominantBaseline="middle"
           fill="var(--color-muted-foreground)"
-          fontSize={11}
+          fontSize={12}
         >
           {centerSub}
         </text>

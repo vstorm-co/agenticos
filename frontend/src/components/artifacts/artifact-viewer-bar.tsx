@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useId, useRef, useState } from "react";
+import { cn } from "@/lib/utils";
 import Link from "next/link";
 import {
   Archive,
@@ -13,6 +15,8 @@ import {
   GitPullRequest,
   Trash2,
   UserPlus,
+  SlidersHorizontal,
+  X,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -98,14 +102,34 @@ export function ArtifactViewerBar({
 }: ArtifactViewerBarProps) {
   const t = useTranslations("artifacts");
   const tc = useTranslations("common");
+  const [controlsOpen, setControlsOpen] = useState(false);
+  const controlsId = useId();
+  const controlsButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!controlsOpen) return;
+    const close = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      setControlsOpen(false);
+      controlsButton.current?.focus();
+    };
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [controlsOpen]);
   return (
-    <header className="flex min-h-16 shrink-0 flex-wrap items-center gap-2 border-b px-2 py-2 sm:min-h-12 sm:px-3 sm:py-1.5">
-      <IconButton asChild aria-label={t("backToArtifacts")}>
+    <header
+      data-tour="artifact-strip"
+      className="grid shrink-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2 gap-y-1 border-b px-2 py-2 max-sm:pointer-events-none max-sm:fixed max-sm:inset-x-3 max-sm:top-[calc(max(var(--shell-inset-top,0px),env(safe-area-inset-top))+0.75rem)] max-sm:z-40 max-sm:flex max-sm:justify-between max-sm:border-0 max-sm:p-0 sm:flex sm:min-h-12 sm:gap-2 sm:px-3 sm:py-1.5"
+    >
+      <IconButton
+        asChild
+        aria-label={t("backToArtifacts")}
+        className="max-sm:bg-background/95 max-sm:pointer-events-auto max-sm:size-11 max-sm:rounded-full max-sm:border max-sm:shadow-sm"
+      >
         <Link href={ROUTES.ARTIFACTS}>
           <ArrowLeft className="h-4 w-4" />
         </Link>
       </IconButton>
-      <div className="flex min-w-0 flex-1 items-center gap-3" data-tour="artifact-strip">
+      <div className="flex min-w-0 flex-1 items-center gap-3 max-sm:sr-only">
         {artifact !== null && (
           <>
             <h1 className="text-foreground truncate text-sm font-medium">{artifact.title}</h1>
@@ -118,13 +142,49 @@ export function ArtifactViewerBar({
                 {artifact.environment_name}
               </Badge>
             )}
-            {live !== undefined && <LiveBadge health={live} className="shrink-0" />}
             <AccessBadge artifact={artifact} />
           </>
         )}
       </div>
+      {live !== undefined && (
+        <span className="max-sm:bg-background/95 shrink-0 max-sm:rounded-full max-sm:border max-sm:px-3 max-sm:py-2 max-sm:shadow-sm">
+          <LiveBadge health={live} />
+        </span>
+      )}
       {artifact !== null && (
-        <div className="flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2">
+        <IconButton
+          ref={controlsButton}
+          aria-label={t("viewerControls")}
+          aria-expanded={controlsOpen}
+          aria-controls={controlsId}
+          aria-describedby={waitingRequests > 0 ? `${controlsId}-waiting` : undefined}
+          onClick={() => setControlsOpen(!controlsOpen)}
+          className="bg-background/95 pointer-events-auto relative size-11 rounded-full border shadow-sm sm:hidden"
+        >
+          {controlsOpen ? <X aria-hidden /> : <SlidersHorizontal aria-hidden />}
+          {waitingRequests > 0 && (
+            <>
+              <span id={`${controlsId}-waiting`} className="sr-only">
+                {t("requests.waiting", { count: waitingRequests })}
+              </span>
+              <Badge variant="warning" aria-hidden className="absolute -top-1 -right-1">
+                {waitingRequests}
+              </Badge>
+            </>
+          )}
+        </IconButton>
+      )}
+      {artifact !== null && (
+        <div
+          id={controlsId}
+          className={cn(
+            "max-sm:bg-background col-span-2 flex min-w-0 items-center justify-start gap-1 overflow-x-auto max-sm:pointer-events-auto max-sm:absolute max-sm:top-14 max-sm:right-0 max-sm:left-0 max-sm:flex-wrap max-sm:rounded-xl max-sm:border max-sm:p-2 max-sm:shadow-lg sm:max-w-full sm:shrink-0 sm:flex-wrap sm:justify-end sm:gap-2",
+            !controlsOpen && "max-sm:hidden",
+          )}
+        >
+          <p className="w-full truncate px-1 pb-1 text-sm font-medium sm:hidden">
+            {artifact.title}
+          </p>
           {children}
           <ArtifactActionsMenu actions={actions} />
           <RestartTourButton />

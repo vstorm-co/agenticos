@@ -19,6 +19,11 @@ Three ways in, for three different callers.
 | **JWT** | `Authorization: Bearer <access token>` | A person, or something acting as one. Short-lived, refreshed with a refresh token |
 | **Session cookie** | set by the console | The browser only — the token is HttpOnly and never reaches JavaScript |
 
+Use `Authorization: Bearer aos_…` for organization keys. `X-API-Key` is a separate deployment
+service credential; sending an `aos_…` key there does not authenticate an organization request.
+Vault routes such as `GET /api/v1/secrets` and the console messages route require a signed-in
+session. API clients read conversation messages through `GET /api/v1/conversations/{id}/transcript`.
+
 ### Organization API keys
 
 A key is issued by a member, in one organization, from **Settings → API**
@@ -175,6 +180,17 @@ shows the same object as a JSON block.
 does: a test run, for a key whose issuer may edit the agent, refused with the
 reason when the draft would not publish, and never with `Prefer: respond-async`.
 
+Synchronous runs, including draft tests, return `status: awaiting_answer` and `questions` when the
+agent asks the person. Answer with `POST /api/v1/runs/{run_id}/answers`, using
+`{"responses":{"<tool_call_id>":[{"selected":["Choice"]}]}}`; use `answer` for custom text or
+`skipped: true` to skip deliberately. No response is treated as a refusal automatically. Platform
+MCP exposes the same flow as `test_agent_draft` and `answer_agent_questions`.
+
+Conversation history retains answered question cards and successful deferred capability loads.
+Current registered skills resolve their current instructions on the next turn; revoked skills are
+not re-enabled. Historical table results are not cached as current data. Top-level agent `starters`
+describes the published version; draft starters live under `draft_spec.starters`.
+
 A key also reaches an agent's routines - `GET /api/v1/triggers` and
 `GET`, `POST`, `PATCH` and `DELETE` under `/api/v1/agents/{agent_id}/triggers`,
 plus `POST .../{trigger_id}/run` to fire one now - and the organization's models
@@ -199,8 +215,20 @@ else's, answers `404`; one of the issuer's own conversations from the console or
 channel answers `400` - a key that may run agents was not given the person's chats.
 So does a parked run: a key resumes or answers only a run a key started, and
 one the person started answers `403`, since continuing it acts as them.
-The conversation is filed in the issuer's chat list,
-labelled **API** and hidden until they switch such conversations on there.
+The conversation is filed in the issuer's chat list, labelled **API** and hidden
+until they switch such conversations on there.
+
+A run asked in a chat is the exception to resuming it yourself. When a person
+decides its last pending approval, or answers its questions, the server continues
+the run as them and posts the answer to the chat. A key's decision continues
+nothing: a person has to resume that run from the console within about an hour of
+the last decision, or it is ended.
+
+`continues_in_chat` says so: it is on `ApprovalRead`, on `AgentRunRead` (the single
+read) and on the result of a resume and of an answer. It is always false on
+`POST /agents/{id}/run`, and for an API key. When it is true, do not call
+`/resume`. A `/resume` that arrives second gets the existing `400`, with the run's
+`status`. See [Decided outside the chat](channels.md#decided-outside-the-chat).
 
 `GET /api/v1/conversations/{id}/transcript` reads one of the issuer's
 conversations turn by turn, with the tools each turn called and what it cost,
@@ -844,3 +872,6 @@ only moves forward.
   poll, so a long run does not hold a connection open.
 - **The public API is in `/api/v1/public/openapi.json`** and changes only
   additively within v1, with 90 days' deprecation; there is no SDK yet.
+
+
+Skills whose load requires approval must be approved again in each turn; historical loads never bypass that gate.

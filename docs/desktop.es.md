@@ -1,5 +1,5 @@
 ---
-source_sha: "8d5ef23b70de"
+source_sha: "700737c6ce4e"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -35,32 +35,42 @@ y el estilo **Glass**. Una elección explícita guardada tiene prioridad.
 
 En **Chat controls → Computer use**, selecciona **Local computer** para dar a esta conversación herramientas de capturas de pantalla, ratón y teclado, aunque el agente no tenga la capacidad Computer use. La elección es independiente de Browser y Work on: no concede acceso a carpetas ni comandos y no modifica el agente publicado. La persona debe tener conectado su propio dispositivo emparejado; siguen siendo necesarios el consentimiento nativo para la pantalla y los permisos del sistema operativo.
 
+Al volver de Ajustes del Sistema se actualiza el estado aunque la vista web siga visible. Si la grabación de pantalla está activada pero el acceso sigue denegado, cierra y vuelve a abrir la copia en ejecución y actualiza el estado. Los permisos pueden diferir entre una versión instalada y una copia de prueba con firma ad hoc.
+
+Las tareas ACP locales terminan tras 16.384 eventos entrantes u 8 MiB acumulados de actualizaciones serializadas, incluida la reproducción de la sesión. El error es explícito y se cierra el adaptador.
+
+Un pin del certificado del editor registrado exige el material de firma correspondiente: si falta MACOS_SELF_SIGNED_P12, la versión falla. La firma ad hoc solo se permite en distribuciones sin pin.
+
 ## Instalar la aplicación { #installing-the-app }
 
 Descarga el paquete para tu ordenador desde la [versión en GitHub](https://github.com/vstorm-co/agenticos/releases/latest). Instalar una versión no requiere Rust ni herramientas de desarrollo.
 
 - **macOS:** elige Apple silicon o Intel, abre el `.dmg` y arrastra AgenticOS a **Applications** siguiendo la flecha. Inícialo desde Applications y expulsa la imagen de disco.
+- **macOS sin la advertencia:** `curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/install_macos.sh | bash` descarga la versión, comprueba su SHA-256 con el publicado junto a ella, copia la aplicación a Applications y quita la marca de descarga de esa sola aplicación. `brew install --cask vstorm-co/agenticos/agenticos` hace lo mismo mediante [el tap del proyecto](https://github.com/vstorm-co/homebrew-agenticos). Las versiones no están notarizadas por Apple, así que un `.dmg` descargado en el navegador sigue pidiendo **Abrir igualmente**. Cuando el proyecto fije el certificado con el que firma sus versiones (`scripts/macos_signing_identity.txt`), el script también rechazará una aplicación firmada con cualquier otro.
 - **Windows:** abre el instalador `setup.exe`. Utiliza el idioma del sistema e instala para tu usuario sin permisos de administrador. Abre AgenticOS desde el menú Inicio. También hay un paquete `.msi` para instalaciones administradas.
 - **Linux:** abre `.deb` o `.rpm` en el instalador de software de tu distribución. Para una instalación portátil, permite ejecutar el `.AppImage` en sus propiedades y ábrelo.
 
 El primer inicio te guía para conectarte a un servidor o crear una instancia local. Solo las instancias locales necesitan Docker; el asistente lo detecta y ofrece descargarlo si falta. La instalación no concede acceso a la pantalla ni al micrófono.
 
+[Por qué macOS muestra esta advertencia](howto/macos-warning.md).
+
 ### Widgets de escritorio en macOS { #desktop-widgets-on-macos }
 
 En macOS 14 o posterior, inicia una vez la aplicación instalada, haz clic derecho en el escritorio, elige **Editar widgets** y busca **AgenticOS**. El pequeño abre Quick Ask; el mediano también Chat, Inbox y Activity. Siguen la apariencia del sistema y solo contienen accesos directos, sin datos de la cuenta. Un clic nunca inicia una grabación ni una llamada.
 
-La CI de versiones crea paquetes nativos para Mac (Apple silicon e Intel), Windows y Linux. Por defecto, los paquetes macOS usan firma ad-hoc sin notarización de Apple. Copia la aplicación a Applications e intenta abrirla. Si macOS la bloquea porque no puede verificar al desarrollador, selecciona **Ajustes del Sistema → Privacidad y seguridad → Abrir igualmente** y confirma. Los ordenadores administrados pueden impedir esta excepción. Consulta las [instrucciones de Apple](https://support.apple.com/es-es/102445). Las actualizaciones descargadas siguen requiriendo una firma válida con la clave de actualización de la versión.
+La CI de versiones crea paquetes nativos para Mac (Apple silicon e Intel), Windows y Linux. Los paquetes macOS usan el certificado autofirmado estable configurado, o firma ad-hoc solo en una distribución sin pin. Estas compilaciones no están notarizadas por Apple. Copia la aplicación a Applications e intenta abrirla. Si macOS la bloquea porque no puede verificar al desarrollador, selecciona **Ajustes del Sistema → Privacidad y seguridad → Abrir igualmente** y confirma. Los ordenadores administrados pueden impedir esta excepción. Consulta las [instrucciones de Apple](https://support.apple.com/es-es/102445). Las actualizaciones descargadas siguen requiriendo una firma válida con la clave de actualización de la versión.
 
 Tras una actualización con firma ad-hoc, macOS puede volver a solicitar acceso al micrófono, grabación de pantalla, accesibilidad o llavero. Si se pierde el emparejamiento del dispositivo, vuelve a conectarlo. Las firmas de actualización verifican el paquete, pero no proporcionan una identidad de firma estable de Apple.
+
+Cuando el workflow de versiones tiene un certificado autofirmado estable (`scripts/create_macos_signing_cert.sh` crea uno), macOS conserva los permisos de grabación de pantalla y micrófono entre actualizaciones, porque están ligados a la identidad de firma. Créalo una vez y no lo sustituyas nunca: un certificado nuevo vuelve a preguntar a todos. Autofirmar no elimina la advertencia de Gatekeeper; solo lo hacen la firma Developer ID y la notarización.
 
 ## Ejecutarla { #running-it }
 
 Antes de elegir una instalación local o conectar con un servidor, el asistente inicial
-ofrece permisos opcionales de grabación de pantalla y accesibilidad en macOS. Cada botón
+ofrece permisos opcionales de grabación de pantalla, accesibilidad y micrófono en macOS. Cada botón
 abre los ajustes del sistema correspondientes; la configuración no captura la pantalla
-ni controla el equipo. Se puede continuar sin ambos permisos. Al volver de Ajustes se
-actualiza su estado; macOS puede requerir reiniciar la aplicación. El acceso al
-micrófono y las carpetas se solicita al usar esas funciones.
+ni controla el equipo. Se puede continuar sin ninguno. Al volver de Ajustes se
+actualiza su estado; macOS puede requerir reiniciar la aplicación. El acceso a las carpetas se solicita al usarlo. El micrófono lo pide macOS con el aviso habitual; los otros dos abren los ajustes del sistema. La primera ventana se abre al 80 % de la pantalla, centrada, y después recuerda su tamaño y posición.
 
 Hacen falta Rust de [rustup](https://rustup.rs) y el webview de la plataforma -
 WebKit en macOS, WebView2 en Windows, WebKitGTK en Linux; la
@@ -113,12 +123,48 @@ propietario y proveedor. **Cancel** vuelve a la lista de instancias. Blobby se
 oculta durante la configuración y regresa con la consola según su preferencia
 de visibilidad guardada.
 
-En macOS, **Download Docker Desktop** descarga el instalador oficial para Apple
-silicon o Intel, muestra el progreso y abre la imagen de disco. Termina la
-instalación en la ventana del sistema y elige **Open Docker Desktop** y **Check
-again**. La aplicación también detecta la CLI de Docker instalada para el usuario.
-Otros sistemas abren la página de descarga de Docker. Una comprobación de estado
-por sí sola no inicia la instalación.
+Elige **Set up this computer** para preparar el entorno local. AgenticOS descarga
+Docker Desktop 4.97.0 para tu procesador y verifica su suma SHA-256 fijada. macOS
+comprueba el instalador con Gatekeeper, verifica la identidad de firma de Docker
+Inc y solicita autorización del sistema.
+Windows ejecuta el instalador firmado y prepara las funciones WSL que falten con
+autorización del sistema. Si Windows solicita reiniciarse, vuelve a abrir AgenticOS
+para continuar. Ubuntu, Debian y Fedora en x86-64 usan el instalador de paquetes
+del sistema. Completa los términos propios de Docker al iniciarlo por primera
+vez.
+
+En Linux, la configuración añade la fuente de paquetes firmada de Docker si
+falta y solicita autorización de administrador para los paquetes y el acceso a KVM.
+Reinicia cuando se solicite. Una comprobación de estado nunca instala software por
+sí sola.
+
+Antes de instalar, AgenticOS comprueba que haya 4 GB de almacenamiento libre. El
+entorno local también requiere al menos 3 GB de memoria visibles para su motor.
+Son comprobaciones de inicio, no garantías de capacidad para cualquier tarea. Las
+descargas de imágenes muestran progreso y tienen un límite de 30 minutos.
+**Retry** continúa la misma instancia conservando sus claves. El uso normal de
+la app no requiere Git, Python, uv ni Node.js en el equipo.
+
+Las instancias nuevas fijan la versión de plataforma incluida con la app.
+Actualizar la app de escritorio no cambia automáticamente una instancia en uso.
+**Update** descarga las imágenes correspondientes, pausa las escrituras y guarda
+una copia de la base de datos, los archivos multimedia y las claves de despliegue
+en el directorio privado `backups/` antes de actualizar. Si falla la copia, se
+bloquea la actualización. Las copias contienen datos personales y requieren
+protección. Se notifican los errores de migración; no se revierte automáticamente
+el esquema de la base de datos.
+
+Al abrir AgenticOS se inicia automáticamente el espacio local administrado y
+guardado si está detenido, incluido el entorno instalado en sistemas compatibles. No se inician
+servidores externos ni entornos de desarrollo no administrados. La app transmite
+a los procesos secundarios los directorios de la CLI y de los asistentes de
+credenciales de Docker, incluso al abrirla desde Finder; no necesitas editar la
+configuración de credenciales de Docker ni el perfil de tu shell.
+
+Las imágenes públicas del producto usan una configuración privada y anónima del
+registro para evitar avisos de los asistentes de credenciales y del llavero. Tu
+configuración de Docker existente no cambia. La instalación local rechaza los
+contextos que apuntan a un motor remoto.
 
 Elige **New instance**, asígnale un nombre e introduce la organización y su
 propietario. La aplicación asigna puertos loopback libres y crea un proyecto Compose
@@ -133,6 +179,12 @@ La pantalla local muestra las instancias guardadas, sus direcciones y estado.
 interrumpida conservando archivos y claves. Start, Stop y Update del menú actúan
 sobre la instancia administrada conectada. Conectarse a un entorno de desarrollo
 iniciado externamente no lo convierte en una instancia administrada.
+
+Una instancia local ejecuta la API, el worker, la consola, la base de datos y
+Redis, sin servicio de sandbox, servicio de navegador ni almacén de objetos. Los
+agentes reciben el espacio de trabajo solo de archivos. En **Chat controls → Tools & files**,
+elige **Work on → This computer** para carpetas y **Browser → Local browser**
+para navegar. **Computer use** concede pantalla, ratón y teclado por separado.
 
 Los metadatos están en `local-instances.json` en el directorio de configuración;
 los archivos nuevos en `local-stacks/<id>/` en el directorio de datos. Las
@@ -326,14 +378,15 @@ la app compara con ellos: una carpeta que nunca elegiste, un modo más amplio qu
 el permitido o una ruta que sale de la carpeta se rechazan en el ordenador, pida
 lo que pida el servidor. La elección se recuerda por conversación. Los chats nuevos heredan la última
 carpeta y las herramientas de esta cuenta y organización; los ajustes del proyecto
-tienen prioridad. El consentimiento para todo el ordenador nunca se hereda.
+tienen prioridad. El consentimiento para todo el ordenador dado en un chat nunca se
+hereda; el dado a un agente vale para ese agente (ver **Todo el equipo**).
 
 **Solo tus propios runs.** Un chat llega a tu ordenador solo cuando es tuyo -
 nunca una clave de API, un visitante del widget o el chat de otra persona - y un
 [trigger](triggers.md) solo cuando actúa como su creador, que le asigna una carpeta
 de su ordenador en el campo **Trabajar en** del trigger.
 
-**Cuando el ordenador no está.** Un run que pidió este ordenador y encuentra la app
+**En el chat interactivo: cuando el ordenador no está.** Un run que pidió este ordenador y encuentra la app
 sin conectar la espera hasta diez minutos, y el chat lo dice. Una operación que
 encuentra la app desconectada a mitad del run - tapa cerrada, red cambiada -
 espera hasta cinco minutos a que vuelva en la misma sesión y luego sigue. Mientras
@@ -344,19 +397,24 @@ El servidor comprueba la sesión antes de reenviar cada operación local. Las se
 
 En el Builder, **Sandbox → Computer** guarda `backend: local` sin rutas ni
 consentimiento nativo. Cada persona autoriza su propio destino en el chat de
-escritorio. Sin selección, la ejecución la solicita en lugar de abrir una sandbox
-en la nube. Al crear un proyecto, **Project sandbox → Computer · your files** abre
+escritorio. Ese agente no tiene espacio en la nube, así que **Work on** no le
+ofrece la nube. Su primer mensaje pregunta una vez dónde puede trabajar - **Todo el
+equipo** o una carpeta - y la respuesta se recuerda para ese agente en este equipo,
+de modo que sus chats posteriores empiezan allí sin preguntar. Al crear un proyecto, **Project sandbox → Computer · your files** abre
 el selector de carpeta personal; los demás miembros conservan el espacio compartido.
 
 **Todo el equipo.** El chat de escritorio ofrece **Todo el equipo** sin
-selector de carpetas. Una advertencia nativa autoriza el acceso para esta conversación:
+selector de carpetas. Una advertencia nativa autoriza el acceso: para un agente con
+espacio **Computer**, la advertencia nombra al agente y el consentimiento vale para
+él en cada conversación; si no, vale para esta conversación.
 las herramientas de archivos pueden usar rutas absolutas accesibles para tu cuenta
 y los comandos se ejecutan como tú, sin confirmaciones nativas individuales. Siguen
 vigentes los permisos del sistema y las reglas de aprobación del agente.
 **Revocar acceso a todo el equipo** o elegir **Nube** bloquea nuevas operaciones;
 los comandos en curso no se interrumpen. El consentimiento sobrevive a reinicios,
-se limita a este servidor y conversación, y un borrador se vincula en su primera
-operación. Un chat nuevo necesita su propio consentimiento. Este modo no recorre el
+se limita a este servidor y al agente o la conversación, y un borrador vincula el
+consentimiento de una conversación en su primera operación. Un chat nuevo con otro
+agente necesita su propio consentimiento. Este modo no recorre el
 directorio personal ni recoge archivos automáticamente como adjuntos.
 
 Las herramientas locales de navegador y archivos están disponibles en el chat de
@@ -459,6 +517,61 @@ despliegue tiene que coincidir en el esquema - `DESKTOP_DEEP_LINK_SCHEME`,
   para que cualquier host de API o worker llegue a un ordenador, y
   `DeviceWorkspace`, el workspace de la sandbox que ejecuta la app.
 
+## Coding agents en este equipo { #coding-agents-on-this-computer }
+
+**Settings → Desktop app → Coding agents on this computer** muestra versiones y
+estado de sesión. **Set up** prepara Node.js 24.19.0 privado y los adaptadores
+fijados mediante un archivo de bloqueo, con comprobaciones de integridad. No
+necesitas instalar herramientas de desarrollo por separado. **Sign in** inicia el
+flujo OAuth propio del agente en el navegador; AgenticOS no lee ni copia
+credenciales. **Refresh status** comprueba la sesión de forma explícita. Volver
+a la app no consulta repetidamente el almacén de credenciales; el inicio de sesión
+y la preparación correctos actualizan el estado automáticamente.
+
+En la aplicación de escritorio, elige **Controles del chat → Herramientas y archivos → Agente de programación** y selecciona **Claude Code** o **Codex**, aunque la capacidad publicada esté desactivada o ausente. La aplicación prepara las herramientas de archivos locales y abre el selector nativo de carpetas, salvo que la carpeta actual ya tenga acceso completo. Cancelar conserva los ajustes anteriores. **Usar configuración del agente** restaura la configuración publicada.
+
+La selección pertenece a este chat. Se mantienen las reglas de solo lectura y aprobación; la autorización nativa de inicio puede recordarse para este agente y carpeta. Cambiar a la nube elimina la selección local de esta conversación. Los controles del chat se despliegan sobre el campo de mensajes. Sus pestañas son **Model**, **Herramientas y archivos** (Coding agent, Work on, Browser, Computer use y skills) y **Preferencias** (aprobaciones y notificaciones).
+
+Configura la capability **Coding agent** como **On this computer**, elige una
+carpeta en **Work on** y concédele acceso completo. La autorización nativa se
+recuerda para ese agente, carpeta, versión del adaptador y conexión. Eliminar o
+volver a seleccionar la carpeta borra la autorización y detiene sus agentes;
+cambiar de cuenta o servidor también borra las autorizaciones. El adaptador se
+ejecuta con tu cuenta del sistema: la carpeta indica el directorio de trabajo,
+no una sandbox del sistema. El acceso a todo el equipo también inicia un coding
+agent, en tu carpeta personal o una carpeta dentro de ella.
+Siguen vigentes las aprobaciones de tareas y los permisos del sistema.
+
+La aprobación de la capability se aplica una vez por tarea. `edit` permite las operaciones solicitadas y `read_only` rechaza cambios. Claude desactiva la omisión de permisos en modo lectura y ofrece solo herramientas de lectura. Codex selecciona su sandbox nativa de solo lectura. Los agentes locales usan su propia configuración de modelo. El uso de suscripción no tiene precio registrado; el coste mostrado del run es un mínimo.
+
+Las tareas posteriores reanudan la sesión con nombre (`main` cuando una tarea no indica ninguna) para la conversación, agente, harness, carpeta, cuenta y política de acceso; varias sesiones se ejecutan a la vez, hasta ocho en un ordenador, cada una en la carpeta del chat o en una carpeta dentro de ella. `fresh_session` comienza de nuevo explícitamente. Los identificadores quedan en los ajustes del escritorio, fuera del repositorio, y se borran al desvincular o cambiar de cuenta. Si no se puede cargar una sesión guardada, la tarea falla explícitamente; inicia una nueva cuando corresponda. La desconexión detiene el proceso, pero permite reanudar el historial guardado del harness.
+
+Una corrección enviada durante la tarea local interrumpe el turno ACP actual. Tras confirmar el adaptador la parada, la misma sesión continúa con la corrección. La transcripción registra la corrección aplicada. Un mensaje que llega tras finalizar queda disponible para el agente principal.
+
+Tras elegir el agente de programación y una carpeta autorizada, **Modelo de programación** y **Nivel de razonamiento** muestran las opciones del agente instalado. Se guardan para esta conversación y se aplican antes de una tarea nueva o reanudada. Deja los campos vacíos para conservar los ajustes del agente. Cambiar de agente elimina las opciones incompatibles. Actualiza la lista explícitamente después de cambiar el inicio de sesión o la configuración; otra ventana no vuelve a comprobar la cuenta. Una opción eliminada o no compatible se muestra y se rechaza, sin sustituirla silenciosamente. Consultar las opciones no inicia una respuesta del modelo ni concede permisos de herramientas.
+
+## Tus skills e instrucciones { #your-own-skills-and-instructions }
+
+**Chat controls → Work on → My skills and instructions** elige las fuentes de una conversación: `~/.agents/skills`, `~/.claude/skills` y `~/.codex/skills`. Cada chat nuevo las tiene desactivadas. Los archivos se leen en su ubicación, sin copiar ni sincronizar credenciales o configuración.
+
+Entre las fuentes activadas, los nombres coincidentes se resuelven por `.agents`, después `.claude` y luego `.codex`. Los contadores respetan la selección actual. El escritorio deduplica los enlaces a la misma carpeta de skill. Las instrucciones globales usan el archivo activado más reciente entre `~/.codex/AGENTS.md`, `~/.claude/AGENTS.md` y `~/.claude/CLAUDE.md`, incluidos enlaces simbólicos a Markdown.
+
+Después se leen `AGENTS.md` y `CLAUDE.md` de la carpeta aprobada. Antes de trabajar en una subcarpeta, el agente puede usar `load_local_instructions` para leer la jerarquía desde la raíz aprobada hasta ella. Los archivos específicos siguen a los de sus padres. El lector no sale de la carpeta aprobada ni sigue enlaces simbólicos del proyecto. Las instrucciones no amplían los permisos del run.
+
+El texto de skills e instrucciones cargado pasa por tu servidor al modelo configurado del agente. El selector controla ese contexto de AgenticOS; los coding agents locales conservan su propia configuración y búsqueda de instrucciones.
+
+## Diagnóstico { #diagnostics }
+
+**Help → Export Diagnostics…** escribe un archivo JSON en el lugar que elijas, para adjuntarlo a un informe de error. Contiene la versión, el sistema operativo, lo que macOS ha permitido, si Claude Code y Codex están instalados y con sesión iniciada, la dirección del servidor (solo esquema, host y puerto) y los últimos fallos. No contiene credenciales, tokens, conversaciones ni rutas dentro de tu carpeta personal, y no se envía nada a ninguna parte. Un fallo se escribe en `crash.log` en la carpeta de datos de la aplicación en el momento en que ocurre.
+
+Si la aplicación de escritorio 1.38.1 permanece en **Linked — reconnecting…**
+y los chats locales muestran **Waiting for your computer**, busca `rustls` /
+`crypto/mod.rs` entre las ubicaciones de los fallos en el diagnóstico exportado.
+Este error de inicio de TLS está corregido en una versión de escritorio posterior.
+Instálala y vuelve a abrir la aplicación; actualizar solo el servidor no sustituye
+al cliente de escritorio. Esta corrección no requiere restablecer el emparejamiento
+ni los permisos de las carpetas.
+
 ## Navegador, modelos y MCP locales { #local-browser-models-and-mcp }
 
 Tras emparejar la aplicación, selecciona **Navegador → Navegador local** para
@@ -527,9 +640,15 @@ simulador iOS. Las comprobaciones completas se ejecutan en CI; `make desktop-che
 sigue disponible para cambios locales concretos. **App release** adjunta
 instaladores, archivos de actualización firmados, un APK y un cask Homebrew a una
 versión estable ya publicada `v1.MINOR.PATCH` cuyo commit pertenece a `main`.
-No crea una versión de la plataforma. El cask es un archivo descargable; publicar
-un tap Homebrew es una operación separada. **Check for Updates…** requiere un
+No crea una versión de la plataforma. El cask también se publica en el tap Homebrew si se configura una clave de despliegue o un token. **Check for Updates…** requiere un
 build con la clave pública y verifica la firma antes de instalar.
+
+Los builds de versiones de escritorio se ejecutan en paralelo. Cada uno sube
+sus paquetes firmados; un job final valida los cuatro targets nativos y publica
+`latest.json`. CI nativo guarda los resultados de compilación por sistema operativo,
+arquitectura, compilador, target y perfil de build. Las versiones solo restauran
+las dependencias descargadas del caché compartido. Un build fallido impide publicar
+el manifiesto de actualización.
 
 La publicación móvil está desactivada actualmente. La variable del repositorio
 `AGENTICOS_MOBILE_RELEASES_ENABLED=true` habilita las versiones firmadas de Android;
@@ -539,9 +658,11 @@ habituales de CI siguen activas. Hasta habilitar la distribución, consulta la
 
 Configura el entorno GitHub `apps-release` antes de publicar:
 
+- Firma estable macOS: secretos `MACOS_SELF_SIGNED_P12`, `MACOS_SELF_SIGNED_P12_PASSWORD` y variable `MACOS_SELF_SIGNED_IDENTITY`. Publica la huella pública en `scripts/macos_signing_identity.txt`.
+- Homebrew: secreto `HOMEBREW_TAP_DEPLOY_KEY`, una clave de despliegue con escritura limitada al repositorio del tap. `HOMEBREW_TAP_TOKEN` sigue siendo una alternativa. Los archivos temporales se borran también si falla la publicación.
 - Variable `AGENTICOS_UPDATER_PUBLIC_KEY`; secretos `TAURI_SIGNING_PRIVATE_KEY`
   y `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (pareja de claves persistente).
-- Firma opcional macOS Developer ID: establece la variable del repositorio `AGENTICOS_MACOS_SIGNING_ENABLED=true` y configura las siguientes credenciales de Apple. Si faltan datos, la compilación falla sin recurrir a firma ad-hoc. Sin la variable o con false, se usa firma ad-hoc sin notarización y se ignoran las credenciales de Apple.
+- Firma opcional macOS Developer ID: establece la variable del repositorio `AGENTICOS_MACOS_SIGNING_ENABLED=true` y configura las siguientes credenciales de Apple. Si faltan datos, la compilación falla sin recurrir a firma ad-hoc. Sin la variable o con false, se usa el certificado autofirmado estable configurado, o firma ad-hoc solo en una distribución sin pin. Ninguno tiene notarización; se ignoran las credenciales de Apple.
 - macOS: `APPLE_CERTIFICATE` (P12 en base64), `APPLE_CERTIFICATE_PASSWORD`,
   `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD` (contraseña de aplicación)
   y `APPLE_TEAM_ID` para firma Developer ID y notarización.
@@ -575,3 +696,21 @@ cuentas del operador; no pueden verificarse con un build local sin firma.
 Quick Ask admite hasta ocho pestañas independientes por ventana. Cada una conserva su borrador, adjuntos, agente y respuestas en curso. Conversaciones recientes abre una lista con búsqueda y reutiliza una pestaña ya abierta; los chats guardados recuperan mensajes e historial anterior. Las pestañas inactivas no capturan archivos, atajos de dictado ni el foco. Conversaciones recientes muestra avatares de agentes en una sección desplegable que ocupa solo el espacio necesario. Nuevo chat es la única acción para abrir una pestaña nueva. La barra lateral del navegador ofrece la descarga de escritorio; cerrar el aviso lo silencia durante 14 días para esa cuenta en ese navegador.
 
 Quick Ask tiene un botón de micrófono para iniciar el dictado con un clic, además del atajo de mantener pulsado. Las llamadas usan los mismos controles que el chat, con el transporte configurado del agente seleccionado, subtítulos, aprobaciones y preguntas. Los turnos hablados se guardan en la conversación. El envío de texto y el dictado esperan durante una llamada. Cambiar de pestaña o agente finaliza la llamada y libera el micrófono.
+
+## Rutinas locales { #local-routines }
+
+Crea una rutina local con **Ejecutar como yo**, elige una carpeta y selecciona por separado lectura, escritura y ejecución de comandos. Los comandos requieren escritura. Al guardar se crea primero una rutina pausada; después la aplicación de escritorio pide confirmación nativa para su ID, organización, servidor, carpeta y operaciones. Cancelar mantiene la misma rutina pausada; reintentar completa su configuración sin duplicarla. Un permiso general de carpeta del chat no autoriza una rutina.
+
+**Ajustes → Escritorio → Permisos de rutinas** muestra los permisos de la cuenta y organización actuales en este ordenador. Revocar uno detiene operaciones posteriores. Volver a vincular, desvincular, cerrar sesión o cambiar de servidor elimina estos permisos. Cambiar de carpeta o ampliar operaciones requiere nueva confirmación nativa. Quedan fuera navegador, pantalla, modelos locales, servicios MCP locales y acceso a todo el ordenador. El agente publicado ya debe tener Sandbox habilitado; un destino local no habilita capacidades.
+
+Si el ordenador concreto autorizado está desconectado antes de ejecutar, una activación duradera espera en PostgreSQL. La fila de la rutina muestra cuántas esperan. Las activaciones programadas y manuales se agrupan mientras esperan; los eventos entrantes distintos conservan su contexto e ID de activación. El worker existente comprueba la reconexión cada minuto. Las comprobaciones de disponibilidad no llaman al modelo ni consumen intentos de inicio fallidos. La admisión se confirma con la ejecución antes de la primera llamada al modelo. Una activación iniciada no se repite automáticamente tras una caída del worker; una operación de archivo o comando incierta no genera otra ejecución.
+
+Pausar, cambiar la tarea o el permiso local, eliminar la rutina o alcanzar su fin cancela el trabajo pendiente anterior en lugar de redirigirlo a otra carpeta. Una sesión de dispositivo revocada requiere revisión. Tres trabajos muertos o perdidos antes de la admisión detienen la rutina y crean un incidente para su propietario. El contexto del evento fallido sigue disponible en su exportación de datos. Los contextos iniciados y cancelados se borran de inmediato. Los metadatos terminados y contextos fallidos siguen la retención del historial de ejecuciones de la organización; el trabajo desconectado activo permanece hasta su admisión, cancelación o eliminación.
+
+Actualiza API, workers y escritorio juntos y drena los workers antiguos antes de habilitar el contrato. Las aplicaciones antiguas no confirman permisos de rutinas; las rutinas locales existentes requieren revisión explícita. La migración `0272_routine_device_waits.py` añade esperas sin cambiar la identidad de la rutina. Antes de revertirla, pausa las rutinas locales y drena sus trabajos: la reversión elimina el contexto pendiente y no lo ejecuta. Las ejecuciones locales antiguas suspendidas sin instantánea del destino necesitan una ejecución nueva.
+
+La elección de acceso local pertenece al agente seleccionado, no a un valor global heredado por otros agentes. Revocar una carpeta también elimina las elecciones guardadas y los consentimientos de programación de sus subcarpetas. Las aplicaciones de escritorio antiguas conservan el consentimiento para todo el equipo solo en una conversación; actualiza la aplicación para reutilizarlo en las conversaciones del mismo agente.
+
+La corrección `[session:api] Usa las cifras de la UE` llega a la sesión `api`. Con una sola sesión activa, también recibe las correcciones sin destinatario; con varias, estas quedan para el agente principal para no modificar otra tarea. El agente principal registra la corrección una vez cuando continúa.
+
+ Las tareas de programación en sandbox del mismo conjunto de herramientas se ejecutan en secuencia para evitar que se superpongan sus instantáneas de archivos; las sesiones locales independientes siguen en paralelo.

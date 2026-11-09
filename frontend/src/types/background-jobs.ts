@@ -17,6 +17,7 @@ export const JOB_STATUSES: readonly JobStatus[] = [
 ];
 
 export interface BackgroundJob {
+  retry_refusal: string | null;
   id: string;
   kind: string;
   pool: JobPool;

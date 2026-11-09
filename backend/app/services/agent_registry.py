@@ -18,7 +18,7 @@ import re
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 import yaml
@@ -50,6 +50,8 @@ from app.agents.capabilities.computer_use import (
 )
 from app.agents.capabilities.context import ContextBody
 from app.agents.capabilities.follow_ups import FollowUpsConfig
+from app.agents.capabilities.mirage import MirageConfig, OrganizationAccount
+from app.agents.capabilities.mirage import backend as mirage_backend
 from app.agents.capabilities.sandbox import SandboxConfig
 from app.agents.capabilities.skills import SkillBody
 from app.agents.capabilities.subagents import SubagentsConfig
@@ -77,6 +79,7 @@ from app.agents.system_agents import (
     unusable_parts,
 )
 from app.core.audit import current_impersonator, record_audit
+from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
@@ -127,6 +130,8 @@ from app.schemas.agent import (
     CapabilityEnabled,
     DelegationTree,
     DelegationTreeNode,
+    LocalCodingAgent,
+    PublishedCodingAgent,
     PublishedModel,
     TemplateIndustryRead,
     TemplateInstallResult,
@@ -134,6 +139,7 @@ from app.schemas.agent import (
 )
 from app.schemas.context import ContextFileCreate
 from app.schemas.skill import SkillCreate
+from app.schemas.telephony import PhoneCallsConfig
 from app.services import (
     agent_templates,
     authoring_fields,
@@ -163,6 +169,7 @@ from app.services.file_storage import (
     avatar_filename,
     get_file_storage,
 )
+from app.services.mirage_mounts import address_fields, default_address, hosts_of
 from app.services.model_outputs import model_outputs, not_chat_refusal
 from app.services.model_profile import (
     MAX_FALLBACK_DEPTH,
@@ -253,6 +260,9 @@ class PublishedCandidate:
     skill_bodies: Mapping[UUID, SkillBody] = field(default_factory=dict)
     context_bodies: Mapping[UUID, ContextBody] = field(default_factory=dict)
     """Proposed skill bodies served in place of the stored ones, by skill id."""
+
+    instructions: str | None = None
+    """Dataset-owned pipeline instructions; the published identity remains auditable."""
 
 
 @dataclass(frozen=True)
@@ -359,14 +369,33 @@ async def _sandbox_connection(
 def _coding_agent_problems(spec: AgentSpec) -> list[str]:
     """A coding agent with nowhere to run its harness.
 
-    Claude Code and Codex run as commands in the agent's sandbox, so they need a
-    container-backed one with the shell on. Every other shape publishes and then
-    answers each task with "no shell here", which is the run-time surprise
-    publish exists to prevent.
+    A server-side harness needs a container-backed sandbox with the shell on.
+    A harness on this computer uses the paired desktop's approved folder instead,
+    so it has no server workspace dependency. Publish catches a missing server
+    shell before a task can answer "no shell here".
     """
-    if not any(binding.id == CODING_AGENT_ID and binding.enabled for binding in spec.capabilities):
+    binding = next(
+        (
+            binding
+            for binding in spec.capabilities
+            if binding.id == CODING_AGENT_ID and binding.enabled
+        ),
+        None,
+    )
+    if binding is None:
+        return []
+    try:
+        coding = CodingAgentConfig.model_validate(binding.config)
+    except ValidationError:
+        # The capability validation reports the invalid field separately.
+        return []
+    if coding.runs_on == "this_computer":
         return []
     config = sandbox_config(spec)
+    if coding.runs_on == "personal_sandbox" and (config is None or config.backend != "service"):
+        return [
+            "Personal cloud coding requires a server sandbox connection for isolated task containers."
+        ]
     if config is None or config.backend not in {"service", "local"} or not config.include_execute:
         return [
             "The coding agent runs in the agent's sandbox, so it needs the Sandbox "
@@ -1096,6 +1125,22 @@ def _published_models(
     }
 
 
+def _local_coding_agent(binding: PublishedCodingAgent | None) -> LocalCodingAgent | None:
+    """The coding agent a version runs in the person's own folder, where it does."""
+    if binding is None or binding.runs_on != "this_computer":
+        return None
+    return LocalCodingAgent(harness=binding.harness, access=binding.access)
+
+
+def _personal_coding_harness(
+    binding: PublishedCodingAgent | None,
+) -> Literal["claude_code", "codex"] | None:
+    """The harness a version runs as a private cloud task on the person's account."""
+    if binding is None or binding.runs_on != "personal_sandbox":
+        return None
+    return binding.harness
+
+
 def _yaml_refusal(exc: yaml.YAMLError) -> str:
     """Where the document stopped parsing, without quoting any of it.
 
@@ -1304,6 +1349,37 @@ class AgentRegistryService:
         )
         return bool(agents)
 
+    async def accessible_delegates(
+        self, ctx: AuthContext, *, exclude: frozenset[UUID]
+    ) -> list[SubagentRef]:
+        """Current published pins for a caller-opted-in interactive delegation catalog."""
+        if ctx.user_id is None or ctx.subject_is_publisher_fallback:
+            return []
+        grants = await visible_resource_ids(self.db, ctx, resource_type=AGENT, perm=Perm.AGENTS_RUN)
+        cursor: UUID | None = None
+        refs: list[SubagentRef] = []
+        while True:
+            page = await agent_repo.delegation_candidates(
+                self.db,
+                organization_id=ctx.organization_id,
+                user_id=ctx.subject_id,
+                see_all=grants is None,
+                shared_ids=grants or [],
+                after=cursor,
+            )
+            if not page:
+                return refs
+            for agent in page:
+                if (
+                    agent.id not in exclude
+                    and agent.current_version_id is not None
+                    and await self.may_run(ctx, agent)
+                ):
+                    refs.append(
+                        SubagentRef(agent_id=agent.id, agent_version_id=agent.current_version_id)
+                    )
+            cursor = page[-1].id
+
     async def list_labels(
         self,
         ctx: AuthContext,
@@ -1392,7 +1468,13 @@ class AgentRegistryService:
         version_ids = [agent.current_version_id for agent in agents if agent.current_version_id]
         budget_caps = await agent_repo.published_budget_caps(self.db, version_ids=version_ids)
         starters = await agent_repo.published_starters(self.db, version_ids=version_ids)
+        starter_icons = await agent_repo.published_starter_icons(self.db, version_ids=version_ids)
+        starter_titles = await agent_repo.published_starter_titles(self.db, version_ids=version_ids)
         published_capabilities = await agent_repo.published_capabilities(
+            self.db, version_ids=version_ids
+        )
+        coding_agents = await agent_repo.published_coding_agents(self.db, version_ids=version_ids)
+        local_workspaces = await agent_repo.published_local_workspaces(
             self.db, version_ids=version_ids
         )
         profile_ids = await agent_repo.published_model_profiles(self.db, version_ids=version_ids)
@@ -1450,6 +1532,17 @@ class AgentRegistryService:
                 published_capabilities=published_capabilities.get(agent.current_version_id, [])
                 if agent.current_version_id
                 else [],
+                local_coding_agent=_local_coding_agent(
+                    coding_agents.get(agent.current_version_id)
+                    if agent.current_version_id
+                    else None
+                ),
+                personal_coding_harness=_personal_coding_harness(
+                    coding_agents.get(agent.current_version_id)
+                    if agent.current_version_id
+                    else None
+                ),
+                local_workspace=agent.current_version_id in local_workspaces,
                 published_model=(
                     published_models.get(agent.current_version_id)
                     if agent.current_version_id
@@ -1457,6 +1550,16 @@ class AgentRegistryService:
                 ),
                 starters=(
                     starters.get(agent.current_version_id, []) if agent.current_version_id else []
+                ),
+                starter_titles=(
+                    starter_titles.get(agent.current_version_id, {})
+                    if agent.current_version_id
+                    else {}
+                ),
+                starter_icons=(
+                    starter_icons.get(agent.current_version_id, {})
+                    if agent.current_version_id
+                    else {}
                 ),
                 created_at=agent.created_at,
                 updated_at=agent.updated_at,
@@ -1537,7 +1640,11 @@ class AgentRegistryService:
         )
 
     async def template_skills(
-        self, ctx: AuthContext, template: agent_templates.AgentTemplate
+        self,
+        ctx: AuthContext,
+        template: agent_templates.AgentTemplate,
+        *,
+        install_missing: bool = True,
     ) -> list[Skill]:
         """The skills a template expects, installed where missing and readable by `ctx`.
 
@@ -1553,7 +1660,7 @@ class AgentRegistryService:
             if (entry := skill_library.get(key)) is not None
         }
         gallery_keys = [key for key in template.skills if key not in bundled]
-        if gallery_keys:
+        if gallery_keys and install_missing:
             await SkillService(self.db).install_gallery(ctx, gallery_keys)
 
         wanted = sorted(
@@ -1587,8 +1694,9 @@ class AgentRegistryService:
 
         It starts as the organization's own AgenticOS agent does: its
         instructions, which lead with the agent's own `{{agent_name}}`, and
-        whatever of its capabilities, skills, platform tools, starters and budget
-        the caller left empty. The author then edits the first paragraph and
+        whatever of its common capabilities, skills, platform tools, starters and budget
+        the caller left empty. Computer use, browser and coding remain explicit choices
+        outside the shipped AgenticOS. The author then edits the first paragraph and
         switches off what this agent should not do. Asked for rather than implied
         by an empty spec: an integration creating a bare agent over the API is
         not asking for a sandbox, the platform's tools and a budget.
@@ -1602,15 +1710,19 @@ class AgentRegistryService:
             else template.instructions
         }
         if not spec.capabilities:
-            update["capabilities"] = agent_templates.for_this_deployment(
-                template.capabilities,
-                container_workspace=await SandboxConnectionService(self.db).can_provide(
-                    ctx.organization_id
-                ),
+            update["capabilities"] = list(
+                agent_templates.starter_capabilities(
+                    container_workspace=await SandboxConnectionService(self.db).can_provide(
+                        ctx.organization_id
+                    )
+                ).values()
             )
         if not spec.mcp_servers:
             update["mcp_servers"] = list(template.mcp_servers)
         if not spec.skill_ids:
+            from app.services.shipped_agents import ShippedAgentService
+
+            await ShippedAgentService(self.db).ensure_skills(ctx.organization_id)
             update["skill_ids"] = [row.id for row in await self.template_skills(ctx, template)]
         if not spec.starters:
             update["starters"] = list(template.starters)
@@ -1673,6 +1785,16 @@ class AgentRegistryService:
             starters=list(template.starters),
         )
         agent = await self.create(ctx, spec, visibility=visibility)
+        if key in ("general/agenticos", "general/platform-assistant"):
+            from app.services.agent_defaults import baseline
+
+            await agent_repo.update(
+                self.db,
+                agent=agent,
+                update_data={
+                    "shipped_template": baseline(key, AgentSpec.model_validate(agent.draft_spec)),
+                },
+            )
         if template.avatar is not None:
             agent = await self.set_avatar(
                 ctx, agent.id, file_data=template.avatar.read_bytes(), content_type="image/png"
@@ -1706,6 +1828,7 @@ class AgentRegistryService:
         user_ids: list[UUID] | None = None,
         from_starter: bool = False,
         choose_model: bool = True,
+        pipeline_kind: AgentKind | None = None,
     ) -> Agent:
         """Create an agent in draft.
 
@@ -1732,7 +1855,10 @@ class AgentRegistryService:
                 deployment that has never set one has - see
                 `DeploymentSettings.max_agents_per_organization`.
         """
-        await self._refuse_past_the_ceiling(ctx)
+        if pipeline_kind is None:
+            await self._refuse_past_the_ceiling(ctx)
+        elif pipeline_kind == AgentKind.AGENT:
+            raise ValueError("A pipeline identity must have a helper kind")
         if from_starter:
             spec = await self._from_the_starter(ctx, spec)
         elif not spec.instructions.strip():
@@ -1772,6 +1898,10 @@ class AgentRegistryService:
             categories=categories or [],
             tags=tags or [],
         )
+        if pipeline_kind is not None:
+            agent = await agent_repo.update(
+                self.db, agent=agent, update_data={"kind": pipeline_kind.value}
+            )
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -2173,7 +2303,20 @@ class AgentRegistryService:
                 problems.add(await self.model_profile_problems(ctx, config.step_model_profile_id))
             if isinstance(config, FollowUpsConfig) and config.model_profile_id is not None:
                 problems.add(await self.model_profile_problems(ctx, config.model_profile_id))
+            if isinstance(config, PhoneCallsConfig):
+                from app.services.telephony.policy import PhonePolicyService
+
+                try:
+                    await PhonePolicyService(self.db).load_endpoint(
+                        config.endpoint_id, organization_id=ctx.organization_id
+                    )
+                except (AuthorizationError, BadRequestError, NotFoundError) as exc:
+                    problems.merge(
+                        _SpecProblems.at("capabilities.phone_calls.config.endpoint_id", exc.message)
+                    )
             problems.add(ungateable_tool_problems(binding, definition, config))
+            if isinstance(config, MirageConfig):
+                problems.add(await self._mirage_problems(ctx, config))
         # A tool_approval key that matches nothing is the dangerous kind of
         # typo: it is not an error at run time, it is silence - the tool the
         # author meant to gate runs unapproved and nobody is told.
@@ -2187,6 +2330,65 @@ class AgentRegistryService:
             )
         problems.add(_tool_override_problems(binding, definition))
         problems.add(await self._secret_problems(ctx, binding, definition))
+        return problems
+
+    async def _mirage_problems(self, ctx: AuthContext, config: MirageConfig) -> list[str]:
+        """What a virtual terminal's folders point at that this publisher cannot lend.
+
+        The config itself validated already - known services, the right credential
+        fields - so this is the part only the database can answer: each secret is
+        this organization's and the publisher may use it, each organization account
+        is still connected, each typed host is one the operator allowed. A host held
+        inside a secret (a Postgres DSN) cannot be read here; the run checks it.
+        """
+        problems: list[str] = []
+        allowed = {host.lower() for host in settings.MIRAGE_ALLOWED_HOSTS}
+        for mount in config.mounts:
+            info = mirage_backend(mount.backend)
+            if info is None:
+                continue
+            for credential, secret_id in mount.secrets.items():
+                secret = await organization_secret_repo.get(
+                    self.db, secret_id, organization_id=ctx.organization_id
+                )
+                if secret is None or not await resolve_access(
+                    self.db, ctx, secret, Perm.SECRETS_VIEW, resource_type=SECRET
+                ):
+                    problems.append(
+                        f"{mount.path} points at a secret this organization does not have: "
+                        f"{secret_id}"
+                    )
+                    continue
+                expected = (
+                    SecretKind.ENTRA_APP if info.credential == "microsoft" else SecretKind.API_KEY
+                )
+                if secret.kind != expected.value:
+                    problems.append(
+                        f"{mount.path} needs a {expected.value} secret for {credential}, but "
+                        f"'{secret.name}' holds a {secret.kind}"
+                    )
+                elif secret.purpose not in (*info.secret_purposes, "custom"):
+                    problems.append(
+                        f"{mount.path} needs a {' or '.join(info.secret_purposes)} secret for "
+                        f"{credential}, but '{secret.name}' is for {secret.purpose}"
+                    )
+            if isinstance(mount.account, OrganizationAccount):
+                account = await mcp_connection_repo.get_account(
+                    self.db, mount.account.connection_id
+                )
+                if account is None or account.organization_id != ctx.organization_id:
+                    problems.append(
+                        f"{mount.path} reads an account the organization has not connected"
+                    )
+            for address in address_fields(info, mount.options):
+                value = mount.options.get(address) or default_address(info, address)
+                if isinstance(value, str) and (
+                    not (hosts := hosts_of(value)) or not set(hosts) <= allowed
+                ):
+                    problems.append(
+                        f"{mount.path}: {address} names a host this deployment does not allow; "
+                        "an operator adds it to MIRAGE_ALLOWED_HOSTS"
+                    )
         return problems
 
     async def model_profile_problems(self, ctx: AuthContext, profile_id: UUID) -> list[str]:
@@ -3330,6 +3532,9 @@ class AgentRegistryService:
         keys, or by an administrator impersonating them, it is somebody else's
         publish: the rule `agent_trigger._acts_as_themselves` sets for granting
         the consent holds for keeping it.
+
+        An explicitly pinned routine keeps its immutable spec, so changing the
+        default or an environment does not withdraw its unchanged consent.
         """
         in_person = ctx.api_key_id is None and current_impersonator() is None
         withdrawn = await agent_trigger_repo.withdraw_creator_consent(
@@ -3716,7 +3921,10 @@ class AgentRegistryService:
         # so the provider side is swept first, best-effort. Imported locally:
         # the trigger service imports this module at module scope.
         from app.services.agent_trigger import AgentTriggerService
+        from app.services.tasks import TaskService
 
+        await agent_repo.fence_deletion(self.db, agent.id, organization_id=ctx.organization_id)
+        await TaskService(self.db).require_no_agent_execution(ctx, agent.id)
         await AgentTriggerService(self.db).deregister_agent_webhooks(ctx, agent.id)
         # The grant table is generic and has no foreign key to the agent, so
         # nothing cascades on its behalf.
@@ -4377,7 +4585,10 @@ class AgentRegistryService:
                 message=f"That version is not one of agent '{agent.name}'s",
                 details={"agent_id": agent.id, "version_id": candidate.version_id},
             )
-        return agent, AgentSpec.model_validate(version.spec), version.id
+        spec = AgentSpec.model_validate(version.spec)
+        if candidate.instructions is not None:
+            spec = spec.model_copy(update={"instructions": candidate.instructions})
+        return agent, spec, version.id
 
     async def _runnable(self, ctx: AuthContext, agent_id: UUID) -> Agent:
         agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_RUN)

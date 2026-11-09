@@ -18,8 +18,8 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.core.exceptions import AlreadyExistsError, ConcurrentChangeError
-from app.core.permissions import AuthContext, OrgRoleName, Perm
+from app.core.exceptions import AlreadyExistsError, AuthorizationError, ConcurrentChangeError
+from app.core.permissions import ROLE_PERMS, AuthContext, OrgRoleName, Perm, Scope
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.context import ContextFile
@@ -251,7 +251,15 @@ async def test_applying_goes_live_where_served_and_says_so_everywhere(db):
 
 
 @pytest.mark.security
-async def test_a_reader_learns_only_how_many_agents_they_may_not_see_and_no_suite_names(db):
+async def test_a_reader_learns_only_how_many_agents_they_may_not_see_and_no_suite_names(
+    db, monkeypatch
+):
+    # Keep resource grants narrow while allowing access to model-derived run evidence.
+    monkeypatch.setitem(
+        ROLE_PERMS,
+        OrgRoleName.MEMBER,
+        {**ROLE_PERMS[OrgRoleName.MEMBER], Perm.RUNS_VIEW: Scope.ALL},
+    )
     ctx, agent, file, run_id = await _bound(db)
     await _served_and_guarded(db, ctx, agent)
     stranger = await _member(db, ctx, OrgRoleName.MEMBER)
@@ -266,7 +274,7 @@ async def test_a_reader_learns_only_how_many_agents_they_may_not_see_and_no_suit
     assert (read.reaches, read.reaches_hidden) == ([], 1)
 
 
-async def test_a_reader_without_runs_view_counts_the_suites_without_their_names(db):
+async def test_a_reader_without_runs_view_cannot_open_derived_proposal_text(db):
     ctx, agent, file, run_id = await _bound(db)
     await _served_and_guarded(db, ctx, agent)
     await _improve_context(db, ctx, file, _proposes(db, run_id))
@@ -274,9 +282,8 @@ async def test_a_reader_without_runs_view_counts_the_suites_without_their_names(
     member = await _member(db, ctx, OrgRoleName.MEMBER)
     assert not member.has(Perm.RUNS_VIEW)
 
-    (item,) = (await ContextProposalService(db).read(member, proposal.id)).reaches
-
-    assert (item.runs_now, item.runs_now_count) == ([], 1)
+    with pytest.raises(AuthorizationError, match="runs:view"):
+        await ContextProposalService(db).read(member, proposal.id)
 
 
 async def test_deleting_a_file_queues_the_suites_of_the_agents_that_read_it(db):

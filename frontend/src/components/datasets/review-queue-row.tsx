@@ -1,16 +1,15 @@
 "use client";
 
+import { PanelRightOpen } from "lucide-react";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { Badge } from "@/components/ui";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui";
 import { useEvalRun } from "@/hooks/use-eval-runs";
 import { useAgentEvalSuites } from "@/hooks/use-eval-suites";
 import { ReviewReevaluationNote } from "@/components/evals/review-reevaluation-note";
 import type { NoteTarget } from "@/hooks/use-scoring";
 import type { CaseScore } from "@/types/scoring";
 import { ScoreCard, type Verdict } from "./score-card";
-import { ScoreDecision } from "./score-decision";
-import { ScoreOrigin } from "./score-origin";
 
 interface Props {
   score: CaseScore;
@@ -24,47 +23,42 @@ interface Props {
 
 /** Compact by default; a decided answer stays in place with its effect and criterion offer. */
 export function ReviewQueueRow(props: Props) {
-  const { score, busy, onVerdict, onNoteToCriterion, linksRuns } = props;
+  const { score, linksRuns } = props;
   const t = useTranslations("datasets.scoring");
   const [expanded, setExpanded] = useState(false);
   const decided = score.human_passed !== null;
   return (
-    <div className="rounded-lg border">
-      <details open={expanded} onToggle={(event) => setExpanded(event.currentTarget.open)}>
-        <summary className="cursor-pointer space-x-2 px-4 py-3 text-sm">
-          <Badge variant={score.outcome === false ? "destructive" : "secondary"}>
-            {t(score.outcome === true ? "passed" : score.outcome === false ? "failed" : "unscored")}
-          </Badge>
-          <span className="font-medium break-words">
-            {score.case_masked ? t("maskedConversation") : score.question}
-          </span>
-          {!expanded && <ScoreOrigin score={score} />}
-        </summary>
-        {expanded && (
-          <div className="px-3 pb-3">
+    <div className="min-w-0">
+      <button
+        type="button"
+        aria-haspopup="dialog"
+        className="group flex min-h-10 w-full min-w-0 items-center justify-start gap-3 bg-transparent p-0 text-left text-sm font-medium whitespace-normal outline-none"
+        onClick={() => setExpanded(true)}
+      >
+        <span className="line-clamp-2 min-w-0 flex-1 break-words">
+          {score.case_masked ? t("maskedConversation") : score.question}
+        </span>
+        <PanelRightOpen className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
+      </button>
+      <Sheet open={expanded} onOpenChange={setExpanded}>
+        <SheetContent side="right" className="bg-background w-full sm:max-w-5xl">
+          <SheetHeader className="shrink-0 py-4">
+            <SheetTitle>{t("reviewCard.title")}</SheetTitle>
+            <SheetClose onClick={() => setExpanded(false)} />
+          </SheetHeader>
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 sm:p-6">
+            {decided && (
+              <p role="status" className="text-sm">
+                {t(score.human_passed ? "countsAsPassed" : "countsAsFailed")}
+              </p>
+            )}
             <ScoreCard {...props} />
+            {decided && linksRuns && score.eval_run_id && score.agent_id && (
+              <ReviewEffect runId={score.eval_run_id} agentId={score.agent_id} />
+            )}
           </div>
-        )}
-      </details>
-      {decided && !expanded && (
-        <div className="space-y-2 px-4 pb-3">
-          <p role="status" className="text-sm">
-            {t(score.human_passed ? "countsAsPassed" : "countsAsFailed")}
-          </p>
-          {linksRuns && score.eval_run_id && score.agent_id && (
-            <ReviewEffect runId={score.eval_run_id} agentId={score.agent_id} />
-          )}
-          <ScoreDecision
-            compact
-            decided={score.human_passed}
-            note={score.human_note}
-            caseTags={score.case_tags}
-            onVerdict={onVerdict}
-            onNoteToCriterion={onNoteToCriterion}
-            busy={busy}
-          />
-        </div>
-      )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

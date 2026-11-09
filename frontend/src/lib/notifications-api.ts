@@ -32,6 +32,8 @@ export interface Notification {
     stage?: string | null;
     next_step_blocked?: NextStepBlocked | null;
   } | null;
+  /** The shared outcome this row is one delivery of, when it is something to act on (#2575). */
+  outcome_id?: string | null;
 }
 
 export interface NotificationAgent {

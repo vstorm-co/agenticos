@@ -19,6 +19,8 @@ import { GET as hostedLogo } from "./embed/[publicKey]/logo/route";
 import { GET as userAvatar } from "./users/avatar/[userId]/route";
 import { POST as setOwnAvatar } from "./users/me/avatar/route";
 import { backendFetch } from "@/lib/server-api";
+import { ACCESS_TOKEN_COOKIE } from "@/lib/session-cookie";
+import { ACCOUNT_OAUTH_COOKIE } from "@/lib/connected-account-oauth";
 
 vi.mock("@/lib/server-api", async () => {
   const actual = await vi.importActual<typeof import("@/lib/server-api")>("@/lib/server-api");
@@ -1003,4 +1005,50 @@ it("serves pasted table images with the explicit tenant and session cookie", asy
   expect(options.headers["X-Organization-Id"]).toBe("org");
   expect(options.headers.Authorization).toBe("Bearer at");
   expect(new Uint8Array(await response.arrayBuffer())).toEqual(new Uint8Array([137, 80, 78, 71]));
+});
+
+describe("connected-account callback identity", () => {
+  it.each([true, false])(
+    "forwards the signed-in browser only with its account nonce: %s",
+    async (hasNonce) => {
+      vi.mocked(backendFetch).mockResolvedValue({
+        ok: true,
+        connection_name: "Google",
+        error: null,
+      });
+      const cookie = `${ACCESS_TOKEN_COOKIE}=initiating-session${hasNonce ? `; ${ACCOUNT_OAUTH_COOKIE}=browser-nonce` : ""}`;
+      const response = await callback(
+        new NextRequest(
+          "http://localhost:3000/api/me/mcp-connections/oauth/callback?code=abc&state=xyz",
+          { headers: { cookie } },
+        ),
+      );
+      expect(backendFetch).toHaveBeenCalledWith("/api/v1/me/mcp-connections/oauth/callback", {
+        method: "POST",
+        ...(hasNonce ? { headers: { Authorization: "Bearer initiating-session" } } : {}),
+        body: JSON.stringify({
+          code: "abc",
+          state: "xyz",
+          ...(hasNonce ? { browser_nonce: "browser-nonce" } : {}),
+        }),
+      });
+      expect(response.headers.get("set-cookie")).toContain(`${ACCOUNT_OAUTH_COOKIE}=`);
+      expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
+    },
+  );
+
+  it("keeps the backend refusal when the initiating session is absent", async () => {
+    vi.mocked(backendFetch).mockResolvedValue({ ok: false, error: "Restart account consent" });
+    const response = await callback(
+      new NextRequest(
+        "http://localhost:3000/api/me/mcp-connections/oauth/callback?code=abc&state=xyz",
+        { headers: { cookie: `${ACCOUNT_OAUTH_COOKIE}=browser-nonce` } },
+      ),
+    );
+    expect(backendFetch).toHaveBeenCalledWith("/api/v1/me/mcp-connections/oauth/callback", {
+      method: "POST",
+      body: JSON.stringify({ code: "abc", state: "xyz", browser_nonce: "browser-nonce" }),
+    });
+    expect(response.headers.get("location")).toContain("mcp_oauth=error");
+  });
 });

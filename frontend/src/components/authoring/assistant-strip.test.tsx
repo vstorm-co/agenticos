@@ -2,9 +2,6 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/components/agents/improve-link", () => ({
-  ImproveButton: ({ agentId }: { agentId: string }) => <button>Improve {agentId}</button>,
-}));
 import { agentAuthoring, authoringRequest, batch, hunk } from "@/test-utils/authoring";
 import { evalRun } from "@/test-utils/eval-runs";
 import type { AgentAuthoring } from "@/types/authoring";
@@ -23,22 +20,14 @@ vi.mock("sonner", () => ({ toast: { error: toastError, success: toastSuccess } }
 
 const state = vi.hoisted(() => ({
   authoring: null as AgentAuthoring | null,
-  enabled: true as boolean | null,
   runsView: true,
   skillsEdit: true,
   createSkill: vi.fn(),
-  published: undefined as { spec: unknown } | undefined,
   decide: vi.fn(),
   dismissAll: vi.fn(),
   decideIdea: vi.fn(),
   isLoading: false,
   error: null as Error | null,
-}));
-vi.mock("@/hooks/use-organizations", () => ({
-  useAiAssistance: () => ({ orgId: "org-1", enabled: state.enabled }),
-}));
-vi.mock("@/hooks", () => ({
-  useDraftBase: () => ({ base: state.published }),
 }));
 vi.mock("@/hooks/use-permissions", () => ({
   usePermissions: () => ({
@@ -83,7 +72,7 @@ const CHECK_ESTIMATE = vi.hoisted(
 const DRAFT = { name: "Clerk", instructions: "Be brief." } as AgentSpec;
 
 function strip(persist = vi.fn().mockResolvedValue(true), onDraft = vi.fn()) {
-  render(
+  const view = render(
     <AssistantStrip
       agentId="agent-1"
       storedDraft={DRAFT}
@@ -92,7 +81,7 @@ function strip(persist = vi.fn().mockResolvedValue(true), onDraft = vi.fn()) {
       onDraft={onDraft}
     />,
   );
-  return { persist, onDraft };
+  return { ...view, persist, onDraft };
 }
 
 beforeEach(() => {
@@ -100,8 +89,6 @@ beforeEach(() => {
   state.skillsEdit = true;
   state.createSkill = vi.fn();
   state.authoring = agentAuthoring();
-  state.enabled = true;
-  state.published = { spec: DRAFT };
   state.decide = vi.fn();
   state.dismissAll = vi.fn();
   state.isLoading = false;
@@ -176,14 +163,11 @@ describe("AssistantStrip", () => {
     await waitFor(() => expect(toastError).toHaveBeenCalledWith("No longer fits"));
   });
 
-  it("offers Verify once the draft differs, and Improve as the wizard's own button", async () => {
-    state.published = { spec: { ...DRAFT, instructions: "Old." } };
+  it("keeps suggestions separate from starting another improvement or testing a draft", () => {
     strip();
-    await userEvent.click(screen.getByRole("button", { name: "Verify my edits" }));
-    expect(await screen.findByRole("heading", { name: "Verify your edits" })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    expect(screen.getByRole("button", { name: "Improve agent-1" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Improve this agent" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Improve/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Verify my edits" })).toBeNull();
+    expect(screen.getByText("Suggestions")).toBeVisible();
   });
 
   it("dismisses everything waiting and opens the check", async () => {
@@ -194,67 +178,17 @@ describe("AssistantStrip", () => {
     expect(await screen.findByRole("heading", { name: "Check with evals" })).toBeInTheDocument();
   });
 
-  it("says a check with evals needs runs:view to somebody who may not read runs", async () => {
+  it("hides suggestions without permission to read runs", () => {
     state.runsView = false;
-    const { rerender } = render(
-      <AssistantStrip
-        agentId="agent-1"
-        storedDraft={DRAFT}
-        canCheck={false}
-        checkNeedsRunsView
-        persist={vi.fn()}
-        onDraft={vi.fn()}
-      />,
-    );
-
-    expect(screen.queryByRole("button", { name: /^Improve/ })).toBeNull();
-    const check = screen.getByRole("button", { name: /Check with evals/ });
-    expect(check).toHaveAttribute("aria-disabled", "true");
-    expect(check).toHaveAttribute("title", "Needs permission to read runs");
-    await userEvent.click(check);
-    expect(screen.queryByRole("heading", { name: "Check with evals" })).toBeNull();
-
-    // Nothing to run a check on either: reading runs would not be enough, so no reason is given.
-    rerender(
-      <AssistantStrip
-        agentId="agent-1"
-        storedDraft={DRAFT}
-        canCheck={false}
-        persist={vi.fn()}
-        onDraft={vi.fn()}
-      />,
-    );
-    expect(screen.queryByRole("button", { name: /Check with evals/ })).toBeNull();
+    const { container } = strip();
+    expect(container).toBeEmptyDOMElement();
   });
 
-  it("offers no new request until it knows whether one is already at work", () => {
-    state.published = { spec: { ...DRAFT, instructions: "Old." } };
-    state.isLoading = true;
-    const { unmount } = render(
-      <AssistantStrip
-        agentId="agent-1"
-        storedDraft={DRAFT}
-        canCheck
-        persist={vi.fn()}
-        onDraft={vi.fn()}
-      />,
-    );
-    expect(screen.getByRole("button", { name: "Verify my edits" })).toBeDisabled();
-    unmount();
-
-    state.isLoading = false;
+  it("shows a failed suggestions read instead of an empty result", () => {
+    state.authoring = null;
     state.error = new Error("502");
-    state.published = { spec: { ...DRAFT, instructions: "Old." } };
     strip();
-    expect(screen.getByRole("button", { name: "Verify my edits" })).toBeDisabled();
-  });
-
-  it("is visibly off, with the way to turn it on, while AI assistance is", () => {
-    state.enabled = false;
-    state.published = { spec: { ...DRAFT, instructions: "Old." } };
-    strip();
-    expect(screen.getByRole("button", { name: "Verify my edits" })).toBeDisabled();
-    expect(screen.getByRole("link", { name: "Turn it on" })).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("502");
   });
 
   it("shows a request at work, a failed one, and the verify report", () => {
@@ -291,7 +225,7 @@ describe("AssistantStrip", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Nothing to learn from yet.");
   });
 
-  it("explains itself before it was ever asked, and hides the batch actions of a closed batch", () => {
+  it("hides an empty suggestions section and the actions of a closed batch", () => {
     state.authoring = null;
     const { unmount } = render(
       <AssistantStrip
@@ -302,7 +236,7 @@ describe("AssistantStrip", () => {
         onDraft={vi.fn()}
       />,
     );
-    expect(screen.getByText(/The assistant reads what people rated down/)).toBeInTheDocument();
+    expect(screen.queryByText("Suggestions")).toBeNull();
     unmount();
     state.authoring = agentAuthoring({
       batch: batch({ status: "published", hunks: [hunk({ status: "accepted" })] }),
@@ -418,7 +352,7 @@ describe("AssistantStrip", () => {
   });
 });
 
-it("keeps the assistant to one line for an agent without learning evidence", () => {
+it("does not show an empty suggestions card", () => {
   state.authoring = agentAuthoring({
     batch: null,
     latest: null,
@@ -426,7 +360,18 @@ it("keeps the assistant to one line for an agent without learning evidence", () 
     has_evidence: false,
   });
   strip();
-  expect(screen.getByRole("button", { name: "Improve agent-1" })).toBeInTheDocument();
+  expect(screen.queryByText("Suggestions")).toBeNull();
   expect(screen.queryByText("No suggestions yet")).not.toBeInTheDocument();
   expect(screen.queryByTestId("suggestion")).not.toBeInTheDocument();
+});
+
+it("hides cached generated text after permission to read runs is removed", () => {
+  state.runsView = false;
+  state.authoring = agentAuthoring({
+    latest: authoringRequest({ report: { summary: "Confidential source summary" } }),
+  });
+  strip();
+  expect(screen.queryByText("Confidential source summary")).toBeNull();
+  expect(screen.queryByRole("button", { name: "Dismiss all" })).toBeNull();
+  expect(screen.queryByRole("tab", { name: /To review/ })).toBeNull();
 });

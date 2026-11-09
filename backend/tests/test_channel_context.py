@@ -112,6 +112,7 @@ async def test_failed_context_is_unknown_without_leaking_provider_details(error)
 @pytest.mark.parametrize(
     "platform, expected",
     [
+        ("discord", "Discord"),
         ("mattermost", "Mattermost"),
         ("slack", "Slack"),
         ("teams", "Microsoft Teams"),
@@ -191,7 +192,7 @@ async def test_untrusted_metadata_never_reaches_system_instructions_through_cust
 @pytest.mark.security
 def test_channel_mcp_preserves_read_access_and_requires_approval_for_writes(surface):
     from app.db.models.agent_run import RunSurface
-    from app.services.agent_runner import _with_channel_mcp_approval
+    from app.services.agent_runner import _with_channel_service_approval
 
     spec = AgentSpec(
         name="A",
@@ -199,10 +200,10 @@ def test_channel_mcp_preserves_read_access_and_requires_approval_for_writes(surf
             {"account": "personal", "catalog_key": "notion", "approval": "none"},
         ],
     )
-    result = _with_channel_mcp_approval(spec, RunSurface(surface), linked_sender=True)
+    result = _with_channel_service_approval(spec, RunSurface(surface), linked_sender=True)
     assert result.mcp_servers[0].approval == "writes"
     assert spec.mcp_servers[0].approval == "none"
-    assert _with_channel_mcp_approval(spec, RunSurface.WEB) is spec
+    assert _with_channel_service_approval(spec, RunSurface.WEB) is spec
 
 
 @pytest.mark.security
@@ -210,7 +211,7 @@ def test_channel_mcp_approval_includes_organization_and_platform_connections():
     from uuid import uuid4
 
     from app.db.models.agent_run import RunSurface
-    from app.services.agent_runner import _with_channel_mcp_approval
+    from app.services.agent_runner import _with_channel_service_approval
 
     spec = AgentSpec(
         name="A",
@@ -219,7 +220,7 @@ def test_channel_mcp_approval_includes_organization_and_platform_connections():
             {"account": "platform", "approval": "none"},
         ],
     )
-    result = _with_channel_mcp_approval(spec, RunSurface.SLACK, linked_sender=True)
+    result = _with_channel_service_approval(spec, RunSurface.SLACK, linked_sender=True)
     assert [ref.approval for ref in result.mcp_servers] == ["writes", "writes"]
     assert [ref.approval for ref in spec.mcp_servers] == ["writes", "none"]
 
@@ -245,7 +246,7 @@ def test_file_delivery_requires_approval_only_when_granted(granted):
 @pytest.mark.parametrize("surface", ["mattermost", "slack", "teams", "telegram"])
 def test_explicit_all_policy_is_preserved_in_channels(surface: str) -> None:
     from app.db.models.agent_run import RunSurface
-    from app.services.agent_runner import _with_channel_mcp_approval
+    from app.services.agent_runner import _with_channel_service_approval
 
     spec = AgentSpec(
         name="A",
@@ -254,7 +255,7 @@ def test_explicit_all_policy_is_preserved_in_channels(surface: str) -> None:
         ],
     )
     assert (
-        _with_channel_mcp_approval(spec, RunSurface(surface), linked_sender=True)
+        _with_channel_service_approval(spec, RunSurface(surface), linked_sender=True)
         .mcp_servers[0]
         .approval
         == "all"
@@ -303,11 +304,11 @@ def test_unlinked_channel_senders_still_need_approval_for_mcp_reads(surface: str
     from uuid import uuid4
 
     from app.db.models.agent_run import RunSurface
-    from app.services.agent_runner import _with_channel_mcp_approval
+    from app.services.agent_runner import _with_channel_service_approval
 
     spec = AgentSpec(name="A", mcp_servers=[{"connection_id": uuid4(), "approval": "writes"}])
     assert (
-        _with_channel_mcp_approval(spec, RunSurface(surface), linked_sender=False)
+        _with_channel_service_approval(spec, RunSurface(surface), linked_sender=False)
         .mcp_servers[0]
         .approval
         == "all"
@@ -406,3 +407,36 @@ async def test_input_redaction_changes_text_values_without_rewriting_platform_id
     )
     assert "alice@example.com" not in str(seen) and "bob@example.com" not in str(seen)
     assert '"user_id": "1234567890"' in str(seen)
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("surface", ["mattermost", "slack", "teams", "telegram", "web"])
+@pytest.mark.parametrize("linked", [False, True])
+def test_unlinked_channels_gate_all_mirage_tools_even_with_author_overrides(
+    surface: str, linked: bool
+) -> None:
+    from app.agents.capabilities import get
+    from app.agents.capabilities.approval import approval_required_tools
+    from app.db.models.agent_run import RunSurface
+    from app.services.agent_runner import _with_channel_service_approval
+
+    tools = get("mirage").tool_ids
+    spec = AgentSpec.model_validate(
+        {
+            "name": "A",
+            "capabilities": [
+                {
+                    "id": "mirage",
+                    "approval": "never",
+                    "tool_approval": dict.fromkeys(tools, "never"),
+                    "config": {"mounts": [{"path": "/data/", "backend": "ram"}]},
+                }
+            ],
+        }
+    )
+    original = spec.model_dump()
+    result = _with_channel_service_approval(spec, RunSurface(surface), linked_sender=linked)
+    assert approval_required_tools(result) == (
+        tools if not linked and surface != "web" else frozenset()
+    )
+    assert spec.model_dump() == original

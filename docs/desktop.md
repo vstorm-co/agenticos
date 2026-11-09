@@ -30,32 +30,42 @@ look. An explicit saved theme or look takes precedence.
 
 In **Chat controls → Computer use**, select **Local computer** to give this conversation screenshot, mouse and keyboard tools even when the agent has no Computer use binding. The choice is independent of Browser and Work on: it does not grant a folder or command access, and the published agent stays unchanged. The initiating person must have their own paired device connected; native screen consent and operating-system permissions still apply.
 
+Returning from System Settings refreshes readiness even when the webview stays visible. If Screen Recording is enabled but access is still denied, quit and reopen the running copy, then refresh. Permissions can differ between an installed build and an ad-hoc test copy.
+
+Local ACP tasks stop after 16,384 inbound events or 8 MiB of cumulative serialized updates, including session replay. The error is explicit and the adapter is closed.
+
+A committed publisher certificate pin requires the matching signing material: a missing MACOS_SELF_SIGNED_P12 stops the release. Ad-hoc release signing is available only with an unpinned distribution.
+
 ## Installing the app
 
 Download the package for your computer from the [GitHub release](https://github.com/vstorm-co/agenticos/releases/latest). You do not need Rust or development tools to install a release.
 
 - **macOS:** choose Apple silicon or Intel, open the `.dmg`, then drag AgenticOS to **Applications** along the arrow. Launch it from Applications and eject the disk image.
+- **macOS without the warning:** `curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/install_macos.sh | bash` downloads the release, checks its SHA-256 against the one published with it, copies the app to Applications and clears the download flag from that one app. `brew install --cask vstorm-co/agenticos/agenticos` does the same through [the project's tap](https://github.com/vstorm-co/homebrew-agenticos). Releases are not notarized by Apple, so a `.dmg` downloaded in a browser still asks for **Open Anyway**. Once the project pins the certificate its releases are signed with (`scripts/macos_signing_identity.txt`), the script also refuses an app signed by any other.
 - **Windows:** open the `setup.exe` installer. It follows your system language and installs for your user without requiring administrator rights. Open AgenticOS from the Start menu. An `.msi` package is also available for managed deployments.
 - **Linux:** open the `.deb` or `.rpm` package in your distribution's software installer. For a portable installation, mark the `.AppImage` executable in its file properties and open it.
 
 The first launch guides you through connecting to a server or creating a local instance. Docker is needed only for a local instance; the wizard detects it and offers a download when missing. Installation does not grant screen or microphone access.
 
+[Why macOS shows this warning](howto/macos-warning.md).
+
 ### Desktop widgets on macOS
 
 On macOS 14 or later, launch the installed app once, then right-click the desktop, choose **Edit Widgets** and search for **AgenticOS**. The small widget opens Quick Ask; the medium widget also opens Chat, Inbox and Activity. Widgets follow the system appearance and contain shortcuts only, with no account data. A widget click never starts recording or a call.
 
-Release CI builds native packages for Mac (Apple silicon and Intel), Windows and Linux. By default, macOS packages use ad-hoc signing and are not notarized by Apple. After copying the app to Applications, try opening it once. If macOS blocks it because the developer cannot be verified, choose **System Settings → Privacy & Security → Open Anyway** and confirm. Managed computers may prohibit this exception. See [Apple’s instructions](https://support.apple.com/en-us/102445). Updater downloads still require a valid signature from the release updater key.
+Release CI builds native packages for Mac (Apple silicon and Intel), Windows and Linux. macOS packages use the configured stable self-signed certificate, with ad-hoc signing only for an unpinned distribution. These builds are not notarized by Apple. After copying the app to Applications, try opening it once. If macOS blocks it because the developer cannot be verified, choose **System Settings → Privacy & Security → Open Anyway** and confirm. Managed computers may prohibit this exception. See [Apple’s instructions](https://support.apple.com/en-us/102445). Updater downloads still require a valid signature from the release updater key.
 
 After an ad-hoc update, macOS may request microphone, Screen Recording, Accessibility or Keychain access again. If device pairing is lost, reconnect the device. Updater signatures verify the package but do not provide a stable Apple signing identity.
+
+When the release workflow has a stable self-signed certificate (`scripts/create_macos_signing_cert.sh` makes one), macOS keeps the Screen Recording and Microphone grants across updates, because they are bound to the signing identity. Create it once and never replace it: a new certificate asks every user again. Self-signing does not remove the Gatekeeper warning; only Developer ID signing and notarization do.
 
 ## Running it
 
 Before choosing a local installation or connecting to a server, the first-run wizard
-offers optional Screen Recording and Accessibility permissions on macOS. Each button
+offers optional Screen Recording, Accessibility and Microphone permissions on macOS. Each button
 opens the relevant system settings; setup never captures the screen or controls the
 computer. Continue works without either permission. Returning from System Settings
-refreshes their status; macOS may require an app restart. Microphone and folder access
-remain requested when those features are used.
+refreshes their status; macOS may require an app restart. Folder access remains requested when it is used. The Microphone prompt is a normal macOS one; the other two open System Settings. The first window opens at 80% of the screen, centred, and afterwards remembers its size and place.
 
 Rust from [rustup](https://rustup.rs) and the platform's webview - WebKit on macOS,
 WebView2 on Windows, WebKitGTK on Linux - are the prerequisites; Tauri's own
@@ -106,11 +116,42 @@ Creating an instance opens a dedicated step with grouped workspace, owner and
 provider fields. **Cancel** returns to the instance list. Blobby stays hidden
 during setup and returns with the console, following its saved visibility setting.
 
-On macOS, **Download Docker Desktop** downloads the official installer for Apple
-silicon or Intel, shows progress and opens the disk image. Finish installation
-in the system window, then choose **Open Docker Desktop** and **Check again**.
-The app also finds Docker's per-user CLI installation. Other operating systems
-open Docker's download page. No installation starts from a status check alone.
+Choose **Set up this computer** to prepare the local runtime. AgenticOS downloads
+Docker Desktop 4.97.0 for your processor and verifies its pinned SHA-256 checksum.
+macOS checks the installer with Gatekeeper, verifies Docker Inc's signing identity
+and requests system authorization.
+Windows runs the signed installer; missing WSL features are prepared with system
+authorization. Restart Windows when requested and reopen AgenticOS to continue.
+x86-64 Ubuntu, Debian and Fedora use their system package installer. Complete
+Docker's own first-run terms.
+
+On Linux, setup adds Docker's signed package source
+when missing and requests administrator authorization for packages and KVM access.
+Restart when requested. A status check alone never installs software.
+
+Before installation, AgenticOS checks for 4 GB of free storage; the local stack
+also requires at least 3 GB of memory visible to its engine. These are startup
+checks, not workload sizing guarantees. Image downloads show progress and have a
+30-minute limit. **Retry** continues the same instance with its existing keys.
+Git, Python, uv and Node.js are not required on the host for ordinary app use.
+
+New instances pin the platform version shipped with the app. Updating the desktop
+app does not silently replace a running instance's version. **Update** downloads
+the matching platform images, pauses writers and backs up the database, media and
+deployment keys under the instance's private `backups/` directory before applying
+the update. A failed backup blocks the update. Backups contain personal data and
+must be protected. A failed migration is reported; database downgrades are not
+automatic.
+
+Opening AgenticOS restarts its saved managed local workspace automatically when
+it is stopped, including its installed desktop runtime on supported systems. External servers and
+unmanaged development stacks are not started. The app passes Docker's CLI and
+credential-helper directories to child processes, including launches from Finder;
+you do not need to edit Docker's credential configuration or shell profile.
+
+Public product images use a private anonymous registry configuration, avoiding
+credential-helper and keychain prompts. Your existing Docker configuration stays
+unchanged. Local installation refuses contexts pointing at a remote engine.
 
 Choose **New instance**, name it and enter its organization and owner. The app
 assigns free loopback ports and creates a separate Compose project with its own
@@ -124,6 +165,12 @@ running. **Start and connect** starts the selected instance; **Finish setup**
 retries an interrupted installation using its existing files and keys. The menu
 bar's Start, Stop and Update act on the connected managed instance. Connecting
 to an externally started development stack does not make it managed by the app.
+
+A local instance runs the API, the worker, the console, the database and Redis,
+and no sandbox service, browser service or object store. Agents get the
+files-only workspace. In **Chat controls → Tools & files**, choose
+**Work on → This computer** for folder access and **Browser → Local browser**
+for browsing. **Computer use** grants screen, mouse and keyboard access separately.
 
 Metadata lives in `local-instances.json` in the configuration directory; new
 instance files are under `local-stacks/<id>/` in the app's data directory. Existing
@@ -306,14 +353,15 @@ the app checks against them: a folder you never picked, a mode wider than you
 allowed, or a path that climbs out of the folder is refused on the computer,
 whatever the server asked. The choice is remembered per conversation. New chats inherit the last folder
 and tool preferences for this account and organization; project settings take
-precedence. Whole-computer consent is never inherited.
+precedence. Whole-computer consent given in a chat is never inherited; consent
+given to an agent holds for that agent (see **Whole computer**).
 
 **Only your own runs.** A chat reaches your computer only when it is your own -
 never an API key, a widget visitor or someone else's chat - and a
 [trigger](triggers.md) only when it acts as its creator, who points it at a folder
 of their computer under the trigger's **Work on**.
 
-**When the computer is away.** A run that asked for this computer and finds the app
+**When the computer is away.** An interactive chat run that asked for this computer and finds the app
 not connected waits up to ten minutes for it, and the chat says so. An operation
 that finds the app gone mid-run - a closed lid, a changed network - waits up to five
 minutes for it to come back on the same session, then carries on. While a run's
@@ -322,19 +370,25 @@ operation is in flight, the tray says an agent is working on this computer.
 The server checks the sign-in before forwarding each local operation. Revoked or expired sessions refuse new work; the heartbeat also closes idle connections. Operations already in progress are cancelled when the desktop socket closes.
 
 In the Builder, **Sandbox → Computer** stores `backend: local` with no path or
-native consent. Each person approves their own target in desktop chat. Without a
-selection, the run asks for it instead of opening a cloud sandbox. When creating a
+native consent. Each person approves their own target in desktop chat. Such an
+agent has no cloud workspace, so **Work on** offers no Cloud for it. Its first
+message asks once where it may work - **Whole computer** or a folder - and the
+answer is remembered for that agent on this computer, so its later chats start
+there without asking. When creating a
 project, **Project sandbox → Computer · your files** opens the personal folder
 selector; other members keep the project’s shared workspace.
 
 **Whole computer.** Desktop chat also offers **Whole computer** without a folder
-picker. One native warning grants access for this conversation: file tools can reach
+picker. One native warning grants access: for an agent whose workspace is
+**Computer**, the warning names the agent and the consent holds for it in every
+conversation; otherwise it is for this conversation. File tools can reach
 absolute paths anywhere your account can access and commands run as you, without
 individual native prompts. Operating system permissions and the agent's approval
 rules still apply. **Revoke whole-computer access** or choosing **Cloud** blocks new
 operations; commands already running are not interrupted. Consent survives app
-restarts, is scoped to this server and conversation, and a draft binds on its first
-operation. A new chat needs its own consent. This mode does not crawl the home
+restarts and is scoped to this server and to the agent or conversation; a draft binds
+a conversation's consent on its first operation. A new chat with another agent needs
+its own consent. This mode does not crawl the home
 directory or automatically collect files as attachments.
 
 Local browser and file tools are available in desktop chat even when the agent has
@@ -431,6 +485,57 @@ and about its own public address.
   API host or worker reaches a computer, and `DeviceWorkspace`, the sandbox
   workspace carried out by the app.
 
+## Coding agents on this computer { #coding-agents-on-this-computer }
+
+**Settings → Desktop app → Coding agents on this computer** shows versions and
+sign-in status. **Set up** prepares private Node.js 24.19.0 and the pinned coding
+adapters from a lockfile, with download integrity checks. You do not need to
+install developer tools separately. **Sign in** starts the agent's own browser
+OAuth flow; AgenticOS does not read or copy credentials. **Refresh status** checks
+sign-in explicitly. Returning focus to the app does not repeatedly probe the
+credential store; successful sign-in and setup refresh the status automatically.
+
+In desktop **Chat controls → Tools & files → Coding agent**, choose **Claude Code** or **Codex**, even when the published capability is disabled or absent. The app prepares local file tools and opens the native folder picker unless the current folder already has a full-access grant. Cancelling leaves the previous settings unchanged. **Use agent setting** restores the published configuration.
+
+The choice belongs to this chat. Existing read-only and approval rules still apply, and native startup approval can be remembered for this agent and folder. Switching to Cloud clears the conversation's local coding choice. Chat controls opens above the composer. Its tabs are **Model**, **Tools & files** (Coding agent, Work on, Browser, Computer use and skills) and **Preferences** (approvals and notifications).
+
+Set the **Coding agent** capability to **On this computer**, choose a folder
+under **Work on**, and grant it full access. Native approval is remembered for
+this agent, folder, adapter version and connection. Removing or reselecting the
+folder clears its approval and stops its running agents; account and server
+changes clear approvals too. The adapter runs as your operating-system account:
+the folder selects its working directory, not an OS sandbox. Whole-computer
+access starts a coding agent too, in your home folder or a folder inside it. Task approval and OS permissions still apply.
+
+The capability's approval applies once per task. Inside it, `edit` allows requested operations and `read_only` refuses changes. Claude read-only disables bypass permissions and exposes only reading tools. Codex read-only selects its native read-only sandbox mode. Local agents use their own model settings; subscription usage is unpriced, so the run's reported cost is a floor.
+
+Later tasks resume the named session (`main` when a task names none) for this conversation, agent, harness, folder, account and access policy; several sessions run at once, up to eight on one computer, each in the chat's folder or a folder inside it. `fresh_session` explicitly starts over. Resume identifiers stay in desktop settings, outside your repository, and are cleared when you unlink or change accounts. If a saved session cannot load, the task fails explicitly; start fresh when appropriate. Processes stop on disconnect, but their saved harness history can be resumed.
+
+A correction sent while a local task is running interrupts its current ACP turn. After the adapter confirms the stop, the same session continues with the correction. The transcript records the applied correction; a message arriving after completion stays available to the parent agent.
+
+After choosing the harness and an approved folder, **Coding model** and **Reasoning level** list choices reported by that installed harness. They belong to this conversation and are applied before a new or resumed task starts. Leave either unset to retain the harness’s own setting. Switching harness clears incompatible overrides. Refresh choices explicitly after changing sign-in or configuration; opening another window does not probe the account again. A removed or unsupported choice is shown and refused, rather than silently substituted. Reading choices starts no model turn and grants no tool permission.
+
+## Your own skills and instructions { #your-own-skills-and-instructions }
+
+**Chat controls → Work on → My skills and instructions** selects which sources a conversation may use: `~/.agents/skills`, `~/.claude/skills` and `~/.codex/skills`. Every new chat starts with these sources off. Files are read in place, without copying or syncing credentials or configuration.
+
+Among enabled sources, a name clash goes to `.agents`, then `.claude`, then `.codex`. Counts reflect the current selection. Links to the same skill folder are deduplicated by the desktop reader. Global instructions use the newer enabled `~/.codex/AGENTS.md`, `~/.claude/AGENTS.md` or `~/.claude/CLAUDE.md` file, including Markdown symlinks.
+
+The approved working folder's `AGENTS.md` and `CLAUDE.md` follow the global instructions. Before entering a subfolder, the agent can call `load_local_instructions` to read the hierarchy from the approved root down to that directory. More specific files follow parent files. This reader never traverses above the approved folder or follows project symlinks. Instruction files cannot widen the run's permissions.
+
+Loaded skill and instruction text travels through your server to the agent's configured model. The source switch controls this AgenticOS context; locally running coding agents retain their own configuration and instruction discovery.
+
+## Diagnostics { #diagnostics }
+
+**Help → Export Diagnostics…** writes one JSON file to a place you choose, to attach to a bug report. It holds the version, the operating system, what macOS has allowed, whether Claude Code and Codex are installed and signed in, the server's address (scheme, host and port only) and the last crashes. It holds no credentials, tokens, conversations or paths under your home folder, and nothing is sent anywhere. A crash is written to `crash.log` in the app's data folder as it happens.
+
+If desktop 1.38.1 stays at **Linked — reconnecting…** and local chats say
+**Waiting for your computer**, check the exported crash locations for
+`rustls` / `crypto/mod.rs`. This desktop TLS startup defect is fixed in a newer
+desktop release. Install that release and reopen the app; updating only the
+server does not replace the desktop client. Existing pairing and folder grants
+do not need to be reset for this fix.
+
 ## Local browser, models and MCP
 
 After pairing the desktop app, select **Browser → Local browser** to override
@@ -495,10 +600,15 @@ Linux and builds Android debug APKs and an iOS simulator app. Full native checks
 run in CI. Local `make desktop-check` remains available for a focused change.
 The **App release** workflow attaches installers, signed updater artifacts, an
 Android APK and a Homebrew cask to an existing published stable `v1.MINOR.PATCH`
-release whose commit is on `main`. It does not create a platform release. The cask
-is a downloadable asset; publishing a Homebrew tap is a separate operator step.
+release whose commit is on `main`. It does not create a platform release. The cask is also published to the Homebrew tap when a deploy key or token is configured.
 The desktop menu's **Check for Updates…** requires a build with the updater public
 key and verifies the downloaded signature before installation.
+
+Desktop release builds run in parallel. Each uploads its own signed packages;
+one final job validates all four native targets and publishes `latest.json`.
+Native CI caches build outputs by operating system, architecture, compiler,
+target and build profile. Releases only restore shared dependency downloads.
+A failed platform build prevents updater publication.
 
 Mobile publishing is currently disabled. Set the repository variable
 `AGENTICOS_MOBILE_RELEASES_ENABLED=true` to opt in to signed Android releases;
@@ -508,6 +618,8 @@ builds. Until distribution is enabled, follow
 
 Configure the `apps-release` GitHub environment before running a release:
 
+- Stable macOS signing: secrets `MACOS_SELF_SIGNED_P12`, `MACOS_SELF_SIGNED_P12_PASSWORD` and variable `MACOS_SELF_SIGNED_IDENTITY`. Publish its public fingerprint in `scripts/macos_signing_identity.txt`.
+- Homebrew: secret `HOMEBREW_TAP_DEPLOY_KEY`, a write deploy key restricted to the tap repository. `HOMEBREW_TAP_TOKEN` remains an alternative. Temporary key files are removed on success and failure.
 - Variable `AGENTICOS_UPDATER_PUBLIC_KEY`; secrets `TAURI_SIGNING_PRIVATE_KEY`
   and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (one persistent updater key pair).
 - Optional macOS Developer ID signing: set the repository variable
@@ -516,8 +628,7 @@ Configure the `apps-release` GitHub environment before running a release:
   `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD` (app-specific),
   and `APPLE_TEAM_ID` for Developer ID signing and notarization. When enabled,
   missing credentials stop the build; there is no fallback to ad-hoc signing.
-  With the flag unset or false, macOS uses ad-hoc signing without notarization.
-  Apple credentials are ignored in that mode.
+  With the flag unset or false, macOS uses the configured stable self-signed certificate, or ad-hoc signing when none is configured. Neither is notarized; Apple credentials are ignored in that mode.
 - Optional Windows Authenticode: `WINDOWS_CERTIFICATE_BASE64` (PFX) and
   `WINDOWS_CERTIFICATE_PASSWORD`. Without them the installer is unsigned.
 - Android: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
@@ -548,3 +659,21 @@ cannot be verified by an unsigned local build.
 Quick Ask supports up to eight independent tabs in each window. The tab bar keeps drafts, attachments, selected agents and running answers separate. Recent conversations opens a searchable list and reuses an already open tab; saved chats restore messages and offer earlier history. Inactive tabs do not capture file drops, dictation shortcuts or focus. Recent conversations shows agent avatars in a compact expandable section. It uses only the space its contents need, without reserving blank window height. New chat is the single action for opening a fresh tab. The browser sidebar offers the desktop download; dismissing it pauses reminders for 14 days in that browser account.
 
 Quick Ask has a microphone button for click-to-start dictation as well as hold-to-talk, and the same live voice call controls as chat. Calls use the selected agent’s configured transport, show captions, approvals and questions, and save spoken turns in the conversation. Text sending and dictation wait while a call is active. Leaving the tab or changing its agent ends the call and releases the microphone.
+
+## Local routines { #local-routines }
+
+Create a local routine with **Run as me**, choose its folder and select read, write and command access separately. Commands require write access. Saving first creates a paused routine, then the desktop app asks native confirmation for that routine's ID, organization, server, folder and operations. Cancelling keeps the same routine paused; retrying completes its setup without creating another routine. A general chat folder grant never authorizes a routine.
+
+**Settings → Desktop → Routine permissions** lists the current account and organization's grants on this computer. Revoke one there to stop future operations. Re-pairing, unlinking, signing out or changing server clears these grants. Changing a folder or increasing operations needs fresh native confirmation. Browser, screen, local models, local MCP services and whole-computer access are outside a routine folder grant. The published agent must already enable Sandbox; choosing a local target does not enable capabilities.
+
+When the exact approved computer is offline before execution, a durable activation waits in PostgreSQL. The routine row shows the pending count. Scheduled/manual occurrences coalesce while waiting; distinct incoming events retain their own context and activation ID. The existing minute worker checks for reconnection. Offline readiness checks make no model call and do not consume dispatch failure attempts. Start admission commits with the run before its first model call. A started activation is never automatically replayed after a worker crash; an uncertain file or shell operation is never turned into a new run.
+
+Pausing, changing the task or native authority, deleting the routine or reaching its end cancels the old waiting work rather than moving it to another folder. A revoked device session requires review. Three dead or missing pre-admission dispatches stop the routine and create an owner incident; the failed event context remains available in the owner's data export. Completed/cancelled contexts are cleared immediately. Finished wait metadata and failed context follow the organization's run-history retention; live offline waits remain until admission, cancellation or deletion.
+
+Deploy API, workers and desktop together and drain old workers before enabling this contract. Older desktops cannot confirm routine grants; legacy local routines need explicit review. Migration `0272_routine_device_waits.py` adds the waits without changing routine identity. Before downgrading, pause local routines and drain their jobs: downgrade removes pending wait context and does not run it again. Existing parked local runs without the native-target snapshot require a fresh run.
+
+Local access choices belong to the selected agent, not to a global default inherited by other agents. Revoking a folder also removes its remembered choices and coding consents for folders inside it. Older desktop apps keep whole-computer consent within one conversation; upgrade the app to remember it across an agent’s conversations.
+
+While local coding sessions run, `[session:api] Use the EU numbers` redirects the session named `api`. With one active session, an unaddressed correction reaches it; with several, it stays with the parent agent to avoid changing an unrelated task. The parent records the correction once when it continues.
+
+ Sandbox coding tasks in the same toolset queue so their workspace snapshots do not overlap; independent local sessions still run in parallel.

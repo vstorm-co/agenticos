@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -7,17 +7,34 @@ import { Perm } from "@/types/permissions";
 import { UnsavedChangesGuard } from "@/components/layout/unsaved-changes-guard";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import { GenerateCasesDialog } from "./generate-cases-dialog";
+import { GeneratePanel } from "./generate-panel";
 
 const { estimate, start, granted } = vi.hoisted(() => ({
   estimate: { mutateAsync: vi.fn(), isPending: false },
   start: { mutateAsync: vi.fn(), isPending: false },
-  granted: { perms: [] as string[] },
+  granted: { perms: [] as string[], agentsError: null as Error | null, refetch: vi.fn() },
 }));
 vi.mock("@/hooks/use-case-generation", () => ({
   useGenerateCases: () => ({ estimate, start }),
+  useCaseGenerations: () => ({ generations: [] }),
+  useCaseProposals: () => ({
+    proposals: [],
+    total: 0,
+    hidden: 0,
+    isLoading: false,
+    error: null,
+    isDeciding: false,
+    refetch: vi.fn(),
+    accept: { mutate: vi.fn(), mutateAsync: vi.fn() },
+    dismiss: { mutate: vi.fn() },
+  }),
 }));
 vi.mock("@/hooks/use-agents", () => ({
-  useAgents: () => ({ agents: [{ id: "a1", name: "Support clerk" }] }),
+  useAgents: () => ({
+    agents: [{ id: "a1", slug: "support-clerk", name: "Support clerk" }],
+    error: granted.agentsError,
+    refetch: granted.refetch,
+  }),
   useAgentsOfKind: () => ({
     agents: [
       {
@@ -51,8 +68,11 @@ const ESTIMATE = {
 
 function mount() {
   const onOpenChange = vi.fn();
-  render(<GenerateCasesDialog datasetId="d1" open onOpenChange={onOpenChange} />);
-  return { onOpenChange };
+  const onStarted = vi.fn();
+  render(
+    <GenerateCasesDialog datasetId="d1" open onOpenChange={onOpenChange} onStarted={onStarted} />,
+  );
+  return { onOpenChange, onStarted };
 }
 
 async function chooseAgent() {
@@ -63,14 +83,44 @@ async function chooseAgent() {
 beforeEach(() => {
   vi.clearAllMocks();
   granted.perms = [Perm.runsView];
+  granted.agentsError = null;
   useUnsavedChangesStore.setState({ sources: {}, prompt: null, saving: false });
 });
 
 describe("GenerateCasesDialog", () => {
+  it("shows an agent-list error and lets the reader retry", async () => {
+    granted.agentsError = new Error("Agents unavailable");
+    mount();
+    expect(screen.getByRole("alert")).toHaveTextContent("Agents unavailable");
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(granted.refetch).toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Estimate cost" })).toBeDisabled();
+  });
+
+  it("starts from the empty queue and returns there after the confirmed generation", async () => {
+    estimate.mutateAsync.mockResolvedValue(ESTIMATE);
+    start.mutateAsync.mockResolvedValue({ id: "g1" });
+    render(<GeneratePanel datasetId="d1" />);
+    expect(screen.getByText("No generated cases yet")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Generate cases" }));
+    await chooseAgent();
+    await userEvent.click(screen.getByRole("button", { name: "Estimate cost" }));
+    await screen.findByText("20 cases, estimated $0.12");
+    expect(start.mutateAsync).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Generate" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(start.mutateAsync).toHaveBeenCalledWith({
+      agent_id: "a1",
+      sources: ["agent", "red_team"],
+      count: 20,
+    });
+    expect(screen.getByRole("button", { name: "Generate cases" })).toBeVisible();
+  });
+
   it("estimates first, then starts exactly what was estimated", async () => {
     estimate.mutateAsync.mockResolvedValue(ESTIMATE);
     start.mutateAsync.mockResolvedValue({ id: "g1" });
-    const { onOpenChange } = mount();
+    const { onOpenChange, onStarted } = mount();
     expect(screen.getByRole("button", { name: "Estimate cost" })).toBeDisabled();
     expect(screen.getByText(/Nothing is run against it\./)).toBeInTheDocument();
 
@@ -93,7 +143,50 @@ describe("GenerateCasesDialog", () => {
       count: 20,
     });
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(onStarted).toHaveBeenCalledOnce();
     expect(toast.success).toHaveBeenCalled();
+  });
+
+  it("requires a whole number of cases before estimating", async () => {
+    mount();
+    await chooseAgent();
+    const count = screen.getByLabelText("Number of cases");
+    await userEvent.clear(count);
+    await userEvent.type(count, "2.5");
+    expect(screen.getByRole("button", { name: "Estimate cost" })).toBeDisabled();
+    expect(estimate.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("ignores a quote that arrives after the generation request changes", async () => {
+    let resolveQuote: (value: typeof ESTIMATE) => void = () => {
+      throw new Error("Estimate has not started");
+    };
+    estimate.mutateAsync.mockReturnValueOnce(
+      new Promise<typeof ESTIMATE>((resolve) => {
+        resolveQuote = resolve;
+      }),
+    );
+    mount();
+    await chooseAgent();
+    await userEvent.click(screen.getByRole("button", { name: "Estimate cost" }));
+    const count = screen.getByLabelText("Number of cases");
+    await userEvent.clear(count);
+    await userEvent.type(count, "50");
+    await act(async () => resolveQuote(ESTIMATE));
+
+    expect(screen.queryByRole("button", { name: "Generate" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Estimate cost" })).toBeEnabled();
+    expect(start.mutateAsync).not.toHaveBeenCalled();
+
+    estimate.mutateAsync.mockResolvedValueOnce({ ...ESTIMATE, count: 50 });
+    start.mutateAsync.mockResolvedValueOnce({ id: "g1" });
+    await userEvent.click(screen.getByRole("button", { name: "Estimate cost" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Generate" }));
+    expect(start.mutateAsync).toHaveBeenCalledWith({
+      agent_id: "a1",
+      sources: ["agent", "red_team"],
+      count: 50,
+    });
   });
 
   it("opens on the agent and count it was given, and estimates those", async () => {
@@ -121,8 +214,6 @@ describe("GenerateCasesDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: "Estimate cost" }));
     await screen.findByText("20 cases, estimated $0.12");
 
-    expect(screen.queryByLabelText("Number of cases")).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "More options · 20 cases" }));
     const count = screen.getByLabelText("Number of cases");
     await userEvent.clear(count);
     await userEvent.type(count, "8");
@@ -208,17 +299,8 @@ describe("GenerateCasesDialog", () => {
   });
 });
 
-it("discards the old quote when its generator changes", async () => {
-  estimate.mutateAsync.mockResolvedValue(ESTIMATE);
+it("uses dataset settings instead of choosing an agent for generation", () => {
   mount();
-  await chooseAgent();
-  await userEvent.click(screen.getByRole("button", { name: "Estimate cost" }));
-  await userEvent.click(screen.getByText("Case generator"));
-  await userEvent.click(screen.getByRole("combobox", { name: "Run with" }));
-  await userEvent.click(screen.getByRole("option", { name: "Selected generator" }));
-  expect(screen.queryByRole("button", { name: "Generate" })).not.toBeInTheDocument();
-  await userEvent.click(screen.getByRole("button", { name: "Estimate cost" }));
-  expect(estimate.mutateAsync).toHaveBeenLastCalledWith(
-    expect.objectContaining({ generator_agent_id: "generator" }),
-  );
+  expect(screen.getByText(/Uses the model and instructions saved/)).toBeInTheDocument();
+  expect(screen.queryByRole("combobox", { name: "Run with" })).toBeNull();
 });

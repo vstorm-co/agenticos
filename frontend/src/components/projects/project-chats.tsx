@@ -2,7 +2,8 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
-import { MessageSquare, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
+import { ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 import { useLocale, useTranslations } from "next-intl";
 
 import { ConversationAgents } from "@/components/agents/conversation-agents";
@@ -93,11 +94,12 @@ function useChatColumns(): Column<ProjectChat>[] {
       {
         key: "title",
         header: t("columnChat"),
-        className: "w-full max-w-0",
+        className: "w-full max-w-0 sm:w-[40%]",
         sortable: true,
         sortValue: (chat) => (chat.title || "").toLowerCase(),
         cell: (chat) => (
           <Link
+            title={chat.title || t("untitledChat")}
             href={`${ROUTES.CHAT}?id=${chat.id}`}
             className="flex min-w-0 items-center gap-2"
             onClick={(event) => event.stopPropagation()}
@@ -144,7 +146,9 @@ function useChatColumns(): Column<ProjectChat>[] {
         hideBelow: "lg",
         className: "whitespace-nowrap",
         cell: (chat) =>
-          (chat.agents ?? []).length > 0 ? <ConversationAgents agents={chat.agents ?? []} /> : null,
+          (chat.agents ?? []).length > 0 || chat.coding_agents?.length ? (
+            <ConversationAgents agents={chat.agents ?? []} codingAgents={chat.coding_agents} />
+          ) : null,
       },
       {
         key: "activity",

@@ -468,6 +468,7 @@ class McpOAuthCallback(BaseSchema):
     """Payload the frontend callback route forwards from the provider redirect."""
 
     state: str = Field(..., min_length=1, max_length=128)
+    browser_nonce: str | None = Field(default=None, max_length=128)
     code: str = Field(..., min_length=1, max_length=4096)
 
 

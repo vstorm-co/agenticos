@@ -4,6 +4,7 @@ description: Drives the close through its dependencies and reports what is actua
   blocking it.
 capabilities:
 - ask_user
+- drafts
 - knowledge
 - skills
 - code_execution

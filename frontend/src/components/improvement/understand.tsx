@@ -1,4 +1,5 @@
 "use client";
+import { MarkdownContent } from "@/components/chat/markdown-content";
 
 import Link from "next/link";
 import { BookCheck, MessageSquareQuote, Sparkles } from "lucide-react";
@@ -6,6 +7,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useImprovementEvidence } from "@/hooks/use-improvements";
 import { subjectOf } from "@/lib/improvement-subject";
 import { ROUTES } from "@/lib/constants";
+import { cn } from "@/lib/utils";
 import type { Improvement, ImprovementEvidenceItem, KnowledgeAdded } from "@/types/improvement";
 import { Grades, WhyCause } from "./evidence-grades";
 import { StepError } from "./step-error";
@@ -84,6 +86,9 @@ export function Understand({ session }: { session: Improvement }) {
     knowledge_added: inColumn("knowledge_added"),
     not_a_problem: inColumn("not_a_problem"),
   };
+  const activeColumns = (["agent", "missing_knowledge"] as const).filter(
+    (column) => topics[column].length > 0,
+  );
   const card = (group: ImprovementEvidenceItem[]) => (
     <TopicCard key={group[0]!.run_id} items={group} />
   );
@@ -129,8 +134,8 @@ export function Understand({ session }: { session: Improvement }) {
       {items.some((item) => item.branch === "unknown") && (
         <p className="text-muted-foreground text-sm">{t("unknownCauses")}</p>
       )}
-      <div className="grid gap-4 md:grid-cols-2">
-        {(["agent", "missing_knowledge"] as const).map((column) => (
+      <div className={cn("grid items-start gap-4", activeColumns.length > 1 && "md:grid-cols-2")}>
+        {activeColumns.map((column) => (
           <section
             key={column}
             className="bg-muted/30 min-w-0 space-y-3 rounded-xl border p-3"
@@ -151,11 +156,14 @@ export function Understand({ session }: { session: Improvement }) {
               </span>
               <span className="sr-only">({topics[column].length})</span>
             </h3>
-            {topics[column].length ? (
-              topics[column].map(card)
-            ) : (
-              <p className="text-muted-foreground text-sm">{t("noExamplesInGroup")}</p>
-            )}
+            <div
+              className={cn(
+                "grid items-start gap-3",
+                activeColumns.length === 1 && "lg:grid-cols-2",
+              )}
+            >
+              {topics[column].map(card)}
+            </div>
           </section>
         ))}
       </div>
@@ -240,7 +248,9 @@ function TopicCard({ items }: { items: ImprovementEvidenceItem[] }) {
           </span>
         </summary>
         <div className="space-y-3 border-t p-3">
-          <p className="break-words whitespace-pre-wrap">{item.answer || t("unavailableAnswer")}</p>
+          <div className="prose-sm min-w-0 leading-relaxed wrap-anywhere">
+            <MarkdownContent content={item.answer || t("unavailableAnswer")} inertImages />
+          </div>
           {comments.map((comment, index) => (
             <blockquote
               key={index}

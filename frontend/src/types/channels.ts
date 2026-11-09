@@ -1,6 +1,9 @@
-/** Channel bots - the organization-level bindings to Slack, Telegram, Mattermost, Teams. */
+/** Channel bots - the organization-level bindings to Slack, Telegram, Mattermost, Teams, Discord. */
 
-export type ChannelPlatform = "telegram" | "slack" | "mattermost" | "teams";
+import type { OrgRole } from "./organization";
+
+export type ChannelPlatform =
+  "telegram" | "slack" | "mattermost" | "teams" | "discord" | "sms" | "email" | "imessage";
 
 /** How a streamed answer shows its tool calls: one row each, or one plan (#2084). */
 export type StepDisplay = "timeline" | "plan";
@@ -40,6 +43,8 @@ export interface ChannelAccessPolicy {
   mode: "open" | "whitelist" | "jwt_linked" | "group_only";
   whitelist: string[];
   allowed_groups: string[];
+  /** Explicit server approvals for Discord; absent or empty permits DMs only. */
+  discord_guild_ids?: string[];
   require_link: boolean;
   rate_limit_rpm: number;
   denied_message: string;
@@ -251,4 +256,49 @@ export interface ChannelBotUpdate {
   speech_to_text_model?: string | null;
   /** The key goes with the pair: sent whenever the pair or the key moved. */
   speech_to_text_secret_id?: string | null;
+}
+
+/**
+ * A role in one of a Discord bot's servers, mapped to a group here (#2569).
+ *
+ * A linked member holding the role is placed in the group before each turn and
+ * by a periodic sync, and leaves it when the role is taken away. With `role`
+ * set, a linked holder who is not a member yet is admitted with that role.
+ */
+export interface DiscordRoleMapping {
+  id: string;
+  channel_bot_id: string;
+  guild_id: string;
+  guild_name: string;
+  discord_role_id: string;
+  discord_role_name: string;
+  group_id: string;
+  /** Resolved for display; null when the group could not be named. */
+  group_name: string | null;
+  role: OrgRole | null;
+  created_at: string;
+}
+
+export interface DiscordRoleMappingList {
+  items: DiscordRoleMapping[];
+  total: number;
+}
+
+export interface DiscordRoleMappingCreate {
+  guild_id: string;
+  discord_role_id: string;
+  group_id: string;
+  role: OrgRole | null;
+}
+
+/** A server the bot is in, with the roles a mapping may name - not `@everyone`, not managed ones. */
+export interface DiscordServer {
+  id: string;
+  name: string;
+  roles: { id: string; name: string }[];
+}
+
+export interface DiscordServerList {
+  items: DiscordServer[];
+  total: number;
 }

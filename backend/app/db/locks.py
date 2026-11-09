@@ -21,7 +21,11 @@ from enum import IntEnum, unique
 from uuid import UUID
 
 from sqlalchemy import Integer, cast, func, select
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
+
+#: The SQLSTATE of a `NOWAIT` refused or a `lock_timeout` run out.
+LOCK_NOT_AVAILABLE = "55P03"
 
 
 @unique
@@ -29,10 +33,14 @@ class LockScope(IntEnum):
     """What a lock is about. The value is half of the advisory key."""
 
     #: How many organizations one account may own.
+    CONVERSATION_TURN = 23
+    CONVERSATION_TASKS = 24
+    CONNECTED_ACCOUNTS = 25
     ORGANIZATIONS_PER_USER = 1
     #: How many agents one organization may hold.
     AGENTS_PER_ORGANIZATION = 2
-    #: A collection name's claim-and-create against its vector-table drop (#1355).
+    #: A collection name's claim-and-create against its vector-table drop (#1355),
+    #: and a chunk write with no base through its commit (#2747).
     COLLECTION_TEARDOWN = 3
     #: Which of a member's accounts on one service is the default. The partial
     #: unique index allows one, and the write is read-then-clear-then-set - so
@@ -90,6 +98,13 @@ class LockScope(IntEnum):
     VIRTUAL_TABLE_EXPORT_PER_ORG = 18
     #: Cumulative inline results across retained runs, before run-row locks.
     WORKFLOW_INLINE_RESULTS_PER_ORG = 19
+    #: Telephone reservations, opt-in changes and endpoint admission share one order.
+    PHONE_CALLS_PER_ORG = 28
+    #: Retained inbound email bodies and receipt counts, before durable enqueue.
+    EMAIL_DELIVERY_STORAGE_PER_ORG = 29
+    #: Read/compare/write of claims within one organization, owner and agent scope.
+    MEMORY_CLAIMS_PER_SCOPE = 26
+    TASK_BOARD = 27
     #: One organization's generated-media quota (#2310). Each call read what was
     #: used before its paid generation and recorded its file only after it, so
     #: every call admitted at once passed the same check and together ran past it.
@@ -107,24 +122,24 @@ class LockScope(IntEnum):
     MODEL_PROFILE_REFERENCES = 14
     #: One case's place in its dataset's review queue: a send reads which score
     #: waits, then queues or replaces it, and two at once must not both read none.
-    REVIEW_PER_CASE = 23
+    REVIEW_PER_CASE = 30
     #: How many eval cases one organization runs at once: two workers counting
     #: together would otherwise both start one past the limit.
-    EVAL_CASES_PER_ORGANIZATION = 24
+    EVAL_CASES_PER_ORGANIZATION = 31
     #: One knowledge base's grouping pass: it reads the misses no topic holds
     #: and then places them, so two passes at once would put a question in two
     #: topics.
-    KNOWLEDGE_GAPS_PER_KNOWLEDGE_BASE = 25
+    KNOWLEDGE_GAPS_PER_KNOWLEDGE_BASE = 32
     #: One knowledge base's check of its answers: two at once would pay twice for
     #: the same answers. Session-scoped, since a check spans many runs.
-    KNOWLEDGE_GAP_CHECKS_PER_KNOWLEDGE_BASE = 26
+    KNOWLEDGE_GAP_CHECKS_PER_KNOWLEDGE_BASE = 33
     #: How many case revisions one organization's datasets store. Each edit
     #: locks its own dataset only, so two edits of two datasets would both read
     #: the count under the ceiling and together go past it.
-    DATASET_REVISIONS_PER_ORGANIZATION = 27
+    DATASET_REVISIONS_PER_ORGANIZATION = 34
     #: Starting a check of one skill by hand: two starts at once would both find no
     #: check of the same text running and pay for it twice.
-    SKILL_CHECK_STARTS_PER_SKILL = 28
+    SKILL_CHECK_STARTS_PER_SKILL = 35
 
 
 def _key(subject: UUID) -> int:
@@ -226,6 +241,36 @@ async def hold_name(db: AsyncSession, scope: LockScope, name: str) -> None:
     answer, because `hashtext` and the scope are the whole key.
     """
     await db.execute(select(func.pg_advisory_xact_lock(scope.value, func.hashtext(name))))
+
+
+async def hold_name_within(db: AsyncSession, scope: LockScope, name: str, *, wait_ms: int) -> bool:
+    """Take the lock for a string subject, waiting no longer than `wait_ms`.
+
+    :func:`hold_name` for a request, where waiting costs a pooled connection for as
+    long as the holder takes: enough such waiters starve every other request. True
+    means this transaction holds it until it ends, exactly as `hold_name` would.
+    False means it was still held when the wait ran out, and the caller answers
+    that rather than waiting on.
+
+    A `lock_timeout` running out is an error, and an error aborts the transaction,
+    so the wait has a savepoint of its own. Rolling that back leaves the session
+    usable and undoes the setting; releasing it keeps both the lock, which belongs
+    to the transaction from there, and the setting, so it is put back first: a
+    later statement of this transaction waits as it would have (`SET LOCAL`, as
+    `set_config(..., true)`). `wait_ms` must be at least 1: Postgres reads `0` as no
+    limit.
+    """
+    try:
+        async with db.begin_nested():
+            setting = await db.scalar(select(func.current_setting("lock_timeout")))
+            await db.execute(select(func.set_config("lock_timeout", f"{wait_ms}ms", True)))
+            await hold_name(db, scope, name)
+            await db.execute(select(func.set_config("lock_timeout", setting, True)))
+    except DBAPIError as failed:
+        if getattr(failed.orig, "sqlstate", None) != LOCK_NOT_AVAILABLE:
+            raise
+        return False
+    return True
 
 
 async def try_hold_name(db: AsyncSession, scope: LockScope, name: str) -> bool:

@@ -45,7 +45,7 @@ export function KnowledgeGapRow({ topic, showKnowledgeBase, onOpen }: KnowledgeG
             </Badge>
           ) : topic.draft_failed ? (
             <Badge variant="outline">
-              <CircleAlert className="text-destructive h-3 w-3" aria-hidden />
+              <CircleAlert className="text-destructive-ink h-3 w-3" aria-hidden />
               {t("draftFailedBadge")}
             </Badge>
           ) : (

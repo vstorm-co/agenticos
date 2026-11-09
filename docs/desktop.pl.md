@@ -1,5 +1,5 @@
 ---
-source_sha: "8d5ef23b70de"
+source_sha: "700737c6ce4e"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -35,32 +35,42 @@ Bez zapisanej preferencji desktop uruchamia się z motywem **Systemowym** i styl
 
 W **Chat controls → Computer use** wybierz **Lokalny komputer**, aby udostępnić tej rozmowie narzędzia zrzutów ekranu, myszy i klawiatury, nawet jeśli agent nie ma zdolności Computer use. Wybór jest niezależny od Browser i Work on: nie daje dostępu do folderu ani komend i nie zmienia opublikowanego agenta. Osoba rozpoczynająca pracę musi mieć połączone własne, sparowane urządzenie; nadal obowiązują natywna zgoda na ekran i uprawnienia systemu operacyjnego.
 
+Powrót z ustawień systemowych odświeża gotowość również wtedy, gdy webview pozostaje widoczny. Jeśli Screen Recording jest włączone, ale dostęp nadal jest odrzucany, zamknij i otwórz uruchomioną kopię aplikacji, a następnie odśwież status. Uprawnienia mogą różnić się między zainstalowaną wersją a testową kopią z podpisem ad-hoc.
+
+Lokalne zadania ACP kończą się po 16 384 zdarzeniach wejściowych lub 8 MiB łącznych zserializowanych aktualizacji, wliczając odtworzenie sesji. Błąd jest jawny, a adapter zostaje zamknięty.
+
+Zapisany pin certyfikatu wydawcy wymaga właściwego materiału podpisu: brak MACOS_SELF_SIGNED_P12 zatrzymuje wydanie. Podpis ad-hoc jest dostępny wyłącznie w dystrybucji bez pinu.
+
 ## Instalacja aplikacji { #installing-the-app }
 
 Pobierz paczkę dla swojego komputera z [wydania na GitHubie](https://github.com/vstorm-co/agenticos/releases/latest). Instalacja wydania nie wymaga Rusta ani narzędzi programistycznych.
 
 - **macOS:** wybierz Apple silicon lub Intel, otwórz `.dmg` i przeciągnij AgenticOS do **Applications** zgodnie ze strzałką. Uruchom aplikację z Applications i wysuń obraz dysku.
+- **macOS bez ostrzeżenia:** `curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/install_macos.sh | bash` pobiera wydanie, sprawdza jego SHA-256 z opublikowaną sumą, kopiuje aplikację do Applications i zdejmuje z tej jednej aplikacji flagę pobrania. `brew install --cask vstorm-co/agenticos/agenticos` robi to samo przez [tap projektu](https://github.com/vstorm-co/homebrew-agenticos). Wydania nie są notaryzowane przez Apple, więc `.dmg` pobrany w przeglądarce nadal wymaga **Otwórz mimo to**. Gdy projekt przypnie certyfikat, którym podpisuje wydania (`scripts/macos_signing_identity.txt`), skrypt odmawia też instalacji aplikacji podpisanej czymkolwiek innym.
 - **Windows:** otwórz instalator `setup.exe`. Wybierze język systemu i zainstaluje aplikację dla Twojego użytkownika bez uprawnień administratora. Uruchom AgenticOS z menu Start. Pakiet `.msi` jest również dostępny dla zarządzanych wdrożeń.
 - **Linux:** otwórz `.deb` lub `.rpm` w instalatorze oprogramowania swojej dystrybucji. W wersji przenośnej nadaj plikowi `.AppImage` prawo wykonywania we właściwościach i otwórz go.
 
 Pierwsze uruchomienie prowadzi przez połączenie z serwerem lub stworzenie lokalnej instancji. Docker jest potrzebny tylko lokalnej instancji; kreator wykrywa go i proponuje pobranie, jeśli go brakuje. Instalacja nie przyznaje dostępu do ekranu ani mikrofonu.
 
+[Dlaczego macOS pokazuje ostrzeżenie](howto/macos-warning.md).
+
 ### Widgety na pulpicie macOS { #desktop-widgets-on-macos }
 
 Na macOS 14 lub nowszym uruchom zainstalowaną aplikację raz, kliknij pulpit prawym przyciskiem, wybierz **Edytuj widżety** i wyszukaj **AgenticOS**. Mały widget otwiera Quick Ask, a średni również Chat, Inbox i Activity. Widgety korzystają z wyglądu systemowego i zawierają tylko skróty, bez danych konta. Kliknięcie widgetu nigdy nie rozpoczyna nagrywania ani połączenia.
 
-CI wydania buduje natywne paczki dla Maca (Apple silicon i Intel), Windowsa i Linuksa. Domyślnie paczki macOS mają podpis ad-hoc, bez notaryzacji Apple. Po skopiowaniu aplikacji do Applications spróbuj ją uruchomić. Jeśli macOS blokuje ją z powodu niezweryfikowanego dewelopera, wybierz **Ustawienia systemowe → Prywatność i ochrona → Otwórz mimo to** i potwierdź. Zarządzane komputery mogą zabraniać tego wyjątku. Zobacz [instrukcję Apple](https://support.apple.com/pl-pl/102445). Pobierane aktualizacje nadal wymagają poprawnego podpisu kluczem aktualizacji wydania.
+CI wydania buduje natywne paczki dla Maca (Apple silicon i Intel), Windowsa i Linuksa. Paczki macOS używają stałego, samopodpisanego certyfikatu. Podpis ad-hoc jest możliwy tylko w dystrybucji bez pinu wydawcy; paczki nie mają notaryzacji Apple. Po skopiowaniu aplikacji do Applications spróbuj ją uruchomić. Jeśli macOS blokuje ją z powodu niezweryfikowanego dewelopera, wybierz **Ustawienia systemowe → Prywatność i ochrona → Otwórz mimo to** i potwierdź. Zarządzane komputery mogą zabraniać tego wyjątku. Zobacz [instrukcję Apple](https://support.apple.com/pl-pl/102445). Pobierane aktualizacje nadal wymagają poprawnego podpisu kluczem aktualizacji wydania.
 
 Po aktualizacji z podpisem ad-hoc macOS może ponownie poprosić o dostęp do mikrofonu, nagrywania ekranu, dostępności lub Pęku kluczy. Jeśli urządzenie utraci sparowanie, połącz je ponownie. Podpis aktualizacji weryfikuje paczkę, ale nie zapewnia stałej tożsamości podpisu Apple.
+
+Gdy workflow wydania ma stały, samopodpisany certyfikat (tworzy go `scripts/create_macos_signing_cert.sh`), macOS zachowuje zgody na nagrywanie ekranu i mikrofon po aktualizacjach, bo są związane z tożsamością podpisu. Utwórz go raz i nigdy nie wymieniaj: nowy certyfikat ponownie pyta wszystkich użytkowników. Samopodpisanie nie usuwa ostrzeżenia Gatekeepera; robi to tylko podpis Developer ID z notaryzacją.
 
 ## Uruchamianie { #running-it }
 
 Przed wyborem lokalnej instalacji lub połączeniem z serwerem kreator pierwszego
-uruchomienia oferuje opcjonalne uprawnienia Screen Recording i Accessibility na macOS.
+uruchomienia oferuje opcjonalne uprawnienia Screen Recording, Accessibility i Microphone na macOS.
 Każdy przycisk otwiera odpowiednie ustawienia systemowe; konfiguracja niczego nie
-przechwytuje ani nie steruje komputerem. Można kontynuować bez obu uprawnień. Powrót z
-ustawień odświeża ich status; macOS może wymagać restartu aplikacji. Dostęp do mikrofonu
-i folderów jest nadal żądany przy użyciu tych funkcji.
+przechwytuje ani nie steruje komputerem. Można kontynuować bez żadnego z nich. Powrót z
+ustawień odświeża ich status; macOS może wymagać restartu aplikacji. Dostęp do folderów jest nadal żądany przy użyciu. Mikrofon macOS prosi zwykłym okienkiem; pozostałe dwa otwierają Ustawienia systemowe. Pierwsze okno otwiera się na 80% ekranu, wyśrodkowane, a potem pamięta rozmiar i miejsce.
 
 Wymagane są Rust z [rustup](https://rustup.rs) i webview platformy - WebKit na
 macOS, WebView2 na Windows, WebKitGTK na Linuksie; listę dla każdej platformy ma
@@ -111,11 +121,44 @@ Tworzenie instancji otwiera osobny krok z pogrupowanymi polami przestrzeni,
 właściciela i dostawcy. **Cancel** wraca do listy instancji. Blobby jest ukryty
 podczas konfiguracji i wraca razem z konsolą zgodnie z zapisanym ustawieniem.
 
-Na macOS **Download Docker Desktop** pobiera oficjalny instalator dla Apple silicon
-lub Intela, pokazuje postęp i otwiera obraz dysku. Dokończ instalację w oknie
-systemowym, a potem wybierz **Open Docker Desktop** i **Check again**. Aplikacja
-wykrywa też CLI Dockera zainstalowane dla użytkownika. Na innych systemach otwiera
-stronę pobierania Dockera. Samo sprawdzenie stanu nie uruchamia instalacji.
+Wybierz **Set up this computer**, aby przygotować lokalne środowisko. AgenticOS
+pobiera Docker Desktop 4.97.0 dla Twojego procesora i sprawdza przypiętą sumę
+SHA-256. macOS sprawdza instalator przez Gatekeeper, weryfikuje tożsamość podpisu
+Docker Inc i prosi o autoryzację systemową.
+Windows uruchamia podpisany instalator; brakujące funkcje WSL są przygotowywane
+po autoryzacji systemowej. Jeśli wymagany jest restart Windows, uruchom potem
+AgenticOS, aby kontynuować. Ubuntu, Debian i Fedora na x86-64 korzystają z
+instalatora pakietów systemu. Zaakceptuj warunki pierwszego uruchomienia Dockera.
+
+W Linuksie konfiguracja dodaje podpisane źródło pakietów Dockera, jeśli go brakuje,
+i prosi o uprawnienia administratora do instalacji pakietów i dostępu do KVM.
+Uruchom komputer ponownie, jeśli zostaniesz o to poproszony. Samo sprawdzenie stanu
+nie instaluje oprogramowania.
+
+Przed instalacją AgenticOS sprawdza dostępność 4 GB wolnego miejsca. Lokalny stos
+wymaga też co najmniej 3 GB pamięci widocznej dla jego silnika. To kontrola startu,
+a nie gwarancja zasobów dla każdego zadania. Pobieranie obrazów pokazuje postęp i
+ma limit 30 minut. **Retry** kontynuuje tę samą instancję z zachowaniem kluczy.
+Zwykłe korzystanie z aplikacji nie wymaga Gita, Pythona, uv ani Node.js na hoście.
+
+Nowe instancje mają przypiętą wersję platformy dostarczoną z aplikacją. Aktualizacja
+aplikacji desktopowej nie zmienia automatycznie wersji działającej instancji.
+**Update** pobiera pasujące obrazy platformy, wstrzymuje zapis i przed aktualizacją
+tworzy kopię bazy, plików multimedialnych i kluczy wdrożenia w prywatnym katalogu
+`backups/` instancji. Nieudana kopia blokuje aktualizację. Kopie zawierają dane
+osobowe i wymagają ochrony. Błąd migracji jest zgłaszany; baza nie jest automatycznie
+cofana do wcześniejszego schematu.
+
+Otwarcie AgenticOS automatycznie uruchamia zapisaną, zarządzaną lokalną instancję,
+jeśli jest zatrzymana, wraz z zainstalowanym środowiskiem na wspieranych systemach. Serwery zewnętrzne
+i niezarządzane środowiska deweloperskie nie są uruchamiane. Aplikacja przekazuje
+procesom potomnym katalogi CLI i narzędzi poświadczeń Dockera, także po uruchomieniu
+z Findera; nie musisz edytować konfiguracji poświadczeń Dockera ani profilu powłoki.
+
+Publiczne obrazy produktu są pobierane z prywatną, anonimową konfiguracją rejestru,
+co pozwala uniknąć monitów narzędzi poświadczeń i pęku kluczy. Twoja istniejąca
+konfiguracja Dockera pozostaje bez zmian. Instalacja lokalna odrzuca konteksty
+wskazujące na zdalny silnik.
 
 Wybierz **New instance**, nadaj nazwę i podaj organizację oraz konto właściciela.
 Aplikacja przydziela wolne porty loopback i tworzy osobny projekt Compose z własną
@@ -129,6 +172,12 @@ connect** uruchamia wybraną instancję; **Finish setup** ponawia przerwaną ins
 z zachowaniem jej plików i kluczy. Start, Stop i Update w menu dotyczą połączonej,
 zarządzanej instancji. Połączenie do samodzielnie uruchomionego stosu deweloperskiego
 nie przekazuje aplikacji zarządzania nim.
+
+Lokalna instancja uruchamia API, workera, konsolę, bazę danych i Redis, bez
+usługi sandboxa, usługi przeglądarki i magazynu obiektów. Agenci dostają
+workspace przechowujący same pliki. W **Chat controls → Tools & files** wybierz
+**Work on → This computer** dla dostępu do folderów oraz **Browser → Local browser**
+dla przeglądania. **Computer use** oddzielnie udostępnia ekran, mysz i klawiaturę.
 
 Metadane znajdują się w `local-instances.json` w katalogu konfiguracji; pliki nowych
 instancji w `local-stacks/<id>/` w katalogu danych aplikacji. Istniejące instalacje
@@ -316,14 +365,15 @@ nimi porównuje: folder, którego nie wybrałeś, tryb szerszy niż dozwolony al
 ścieżka wychodząca poza folder są odrzucane na komputerze, cokolwiek serwer
 poprosił. Wybór jest zapamiętywany dla każdej rozmowy. Nowe czaty dziedziczą ostatni folder
 i narzędzia dla konta i organizacji; ustawienia projektu mają pierwszeństwo.
-Zgoda na cały komputer nigdy nie przechodzi do innej rozmowy.
+Zgoda na cały komputer udzielona w czacie nigdy nie przechodzi do innej rozmowy;
+zgoda udzielona agentowi obowiązuje dla tego agenta (zob. **Cały komputer**).
 
 **Tylko twoje runy.** Czat sięga twojego komputera tylko wtedy, gdy jest twój -
 nigdy klucz API, gość widżetu czy czat kogoś innego - a
 [trigger](triggers.md) tylko wtedy, gdy działa jako jego twórca, który wskazuje mu
 folder swojego komputera w polu **Pracuj na** triggera.
 
-**Gdy komputera nie ma.** Run, który poprosił o ten komputer i zastał aplikację
+**Gdy komputera nie ma — czat interaktywny.** Run, który poprosił o ten komputer i zastał aplikację
 bez połączenia, czeka na nią do dziesięciu minut, a czat o tym mówi. Operacja,
 która zastanie aplikację rozłączoną w trakcie runa - zamknięta klapa, zmiana sieci
 
@@ -334,18 +384,24 @@ Serwer sprawdza sesję przed przekazaniem każdej lokalnej operacji. Odwołana l
 
 W Builderze **Sandbox → Komputer** zapisuje `backend: local`, bez ścieżki i
 natywnej zgody. Każda osoba zatwierdza własne miejsce pracy w czacie desktopowym.
-Bez wyboru uruchomienie prosi o niego zamiast otwierać sandbox w chmurze. Przy
+Taki agent nie ma przestrzeni w chmurze, więc **Work on** nie oferuje dla niego
+chmury. Pierwsza wiadomość pyta raz, gdzie może pracować - **Cały komputer** albo
+folder - a odpowiedź jest zapamiętywana dla tego agenta na tym komputerze, więc jego
+kolejne czaty startują tam bez pytania. Przy
 tworzeniu projektu **Sandbox projektu → Komputer · Twoje pliki** otwiera wybór
 prywatnego folderu; inni członkowie zachowują wspólny obszar projektu.
 
 **Cały komputer.** Czat desktopowy oferuje też **Cały komputer**, bez wyboru
-folderu. Jedno natywne ostrzeżenie zatwierdza dostęp dla tej rozmowy: narzędzia
+folderu. Jedno natywne ostrzeżenie zatwierdza dostęp: dla agenta z obszarem
+**Komputer** ostrzeżenie wymienia agenta, a zgoda obowiązuje dla niego w każdej
+rozmowie; w pozostałych przypadkach dotyczy tej rozmowy. Narzędzia
 plików mogą korzystać ze ścieżek bezwzględnych wszędzie, gdzie sięga twoje konto,
 a polecenia działają jako ty, bez osobnych natywnych potwierdzeń. Uprawnienia systemu
 i reguły zatwierdzania agenta nadal obowiązują. **Cofnij dostęp do całego komputera**
 lub wybór **Chmura** blokuje nowe operacje; działające polecenia nie są przerywane.
-Zgoda przetrwa restart aplikacji i dotyczy tego serwera oraz rozmowy; nowy szkic
-wiąże ją przy pierwszej operacji. Nowy czat wymaga własnej zgody. Ten tryb nie
+Zgoda przetrwa restart aplikacji i dotyczy tego serwera oraz agenta lub rozmowy;
+nowy szkic wiąże zgodę rozmowy przy pierwszej operacji. Nowy czat z innym agentem
+wymaga własnej zgody. Ten tryb nie
 przeszukuje katalogu domowego ani nie zbiera automatycznie załączników.
 
 Lokalna przeglądarka i narzędzia plików są dostępne w czacie desktopowym także bez
@@ -441,6 +497,58 @@ ktoś to zmienił - i co do własnego publicznego adresu.
   każdy host API i worker sięgał komputera, oraz `DeviceWorkspace`, workspace
   sandboxa wykonywany przez aplikację.
 
+## Coding agents na tym komputerze { #coding-agents-on-this-computer }
+
+**Settings → Desktop app → Coding agents on this computer** pokazuje wersje i
+stan logowania. **Set up** przygotowuje prywatny Node.js 24.19.0 oraz przypięte
+adaptery z lockfile, sprawdzając integralność pobieranych plików. Nie musisz osobno
+instalować narzędzi deweloperskich. **Sign in** uruchamia logowanie OAuth agenta
+w przeglądarce; AgenticOS nie odczytuje ani nie kopiuje poświadczeń. **Refresh
+status** jawnie sprawdza logowanie. Powrót do aplikacji nie odpytuje ciągle
+magazynu poświadczeń; udane logowanie i przygotowanie automatycznie odświeżają stan.
+
+W aplikacji desktopowej wybierz **Ustawienia czatu → Narzędzia i pliki → Agent programistyczny**, a następnie **Claude Code** lub **Codex**, również gdy opublikowana capability jest wyłączona lub nieobecna. Aplikacja przygotowuje lokalne narzędzia plikowe i otwiera natywny wybór folderu, chyba że bieżący folder ma już grant pełnego dostępu. Anulowanie pozostawia poprzednie ustawienia. **Użyj ustawienia agenta** przywraca opublikowaną konfigurację.
+
+Wybór dotyczy tego czatu. Reguły trybu tylko do odczytu i zatwierdzania nadal obowiązują, a natywną zgodę na start można zapamiętać dla agenta i folderu. Przejście do chmury usuwa wybór lokalnego coding agenta dla tej rozmowy. Ustawienia czatu rozwijają się nad polem wiadomości. Ma karty **Model**, **Narzędzia i pliki** (Coding agent, Work on, Browser, Computer use i skille) oraz **Preferencje** (zatwierdzanie i powiadomienia).
+
+Ustaw capability **Coding agent** na **On this computer**, wybierz folder w
+**Work on** i przyznaj mu pełny dostęp. Natywna zgoda jest zapamiętywana dla tego
+agenta, folderu, wersji adaptera i połączenia. Usunięcie lub ponowne wybranie
+folderu usuwa zgodę i zatrzymuje działających w nim agentów; zmiana konta lub
+serwera też usuwa zgody. Adapter działa jako Twoje konto systemowe: folder
+wyznacza katalog roboczy, a nie sandbox systemu. Dostęp do całego komputera
+uruchamia też coding agenta, w katalogu domowym albo folderze wewnątrz niego. Zgody na zadania i uprawnienia systemowe nadal obowiązują.
+
+Zgoda capability obowiązuje raz na zadanie. W jego trakcie `edit` zezwala na żądane operacje, a `read_only` odmawia zmian. Claude w trybie odczytu wyłącza bypass uprawnień i udostępnia tylko narzędzia do czytania. Codex wybiera swój natywny sandbox tylko do odczytu. Lokalny agent używa własnych ustawień modelu; użycie subskrypcji nie jest wyceniane, więc koszt runu stanowi dolną granicę.
+
+Kolejne zadania wznawiają nazwaną sesję (`main`, gdy zadanie nie wskazuje żadnej) dla danej rozmowy, agenta, harnessu, folderu, konta i polityki dostępu; kilka sesji działa naraz, do ośmiu na jednym komputerze, każda w folderze czatu albo folderze wewnątrz niego. `fresh_session` jawnie zaczyna od nowa. Identyfikatory sesji pozostają w ustawieniach desktopu, poza repozytorium, i są usuwane po odłączeniu lub zmianie konta. Niedostępna zapisana sesja kończy zadanie jawnym błędem; w razie potrzeby zacznij od nowa. Odłączenie zatrzymuje proces, ale zapisaną historię harnessu można wznowić.
+
+Korekta wysłana podczas lokalnego zadania przerywa bieżącą turę ACP. Po potwierdzeniu zatrzymania przez adapter ta sama sesja kontynuuje z korektą. Transkrypt zapisuje zastosowaną korektę; wiadomość po zakończeniu pozostaje dostępna dla nadrzędnego agenta.
+
+Po wybraniu agenta kodującego i zatwierdzonego folderu pola **Model kodujący** i **Poziom myślenia** pokazują opcje zgłoszone przez zainstalowanego agenta. Dotyczą tej rozmowy i są stosowane przed nowym lub wznowionym zadaniem. Puste pole zachowuje własne ustawienie agenta. Zmiana agenta usuwa niezgodne nadpisania. Odśwież opcje po zmianie logowania lub konfiguracji; otwarcie kolejnego okna nie sprawdza ponownie konta. Usunięta albo nieobsługiwana opcja jest widoczna i odrzucana, zamiast cichej zamiany. Odczyt opcji nie uruchamia modelu i nie udziela zgody na narzędzia.
+
+## Twoje skills i instrukcje { #your-own-skills-and-instructions }
+
+**Chat controls → Work on → My skills and instructions** wybiera źródła dostępne w rozmowie: `~/.agents/skills`, `~/.claude/skills` i `~/.codex/skills`. W nowym czacie są wyłączone. Pliki są czytane w miejscu, bez kopiowania ani synchronizowania credentials i konfiguracji.
+
+Wśród włączonych źródeł kolizję nazw rozstrzyga kolejność `.agents`, `.claude`, `.codex`. Liczniki uwzględniają bieżący wybór. Desktop deduplikuje linki do tego samego folderu skilla. Globalne instrukcje pochodzą z nowszego włączonego pliku `~/.codex/AGENTS.md`, `~/.claude/AGENTS.md` lub `~/.claude/CLAUDE.md`, także poprzez symlink do Markdowna.
+
+Po globalnych instrukcjach następują `AGENTS.md` i `CLAUDE.md` zatwierdzonego folderu. Przed pracą w podfolderze agent może wywołać `load_local_instructions`, aby odczytać hierarchię od zatwierdzonego katalogu do wskazanego miejsca. Bardziej szczegółowe pliki następują po nadrzędnych. Czytnik nie wychodzi ponad zatwierdzony folder i nie podąża za projektowymi symlinkami. Instrukcje nie rozszerzają uprawnień runu.
+
+Odczytany tekst skilli i instrukcji trafia przez Twój serwer do skonfigurowanego modelu agenta. Przełącznik źródeł steruje tym kontekstem AgenticOS; lokalne coding agents zachowują własną konfigurację i wykrywanie instrukcji.
+
+## Diagnostyka { #diagnostics }
+
+**Help → Export Diagnostics…** zapisuje jeden plik JSON w wybranym miejscu, do załączenia do zgłoszenia błędu. Zawiera wersję, system operacyjny, na co zezwolił macOS, czy Claude Code i Codex są zainstalowane i zalogowane, adres serwera (tylko schemat, host i port) oraz ostatnie awarie. Nie zawiera poświadczeń, tokenów, rozmów ani ścieżek w folderze domowym, a nic nie jest nigdzie wysyłane. Awaria jest zapisywana w `crash.log` w folderze danych aplikacji w chwili, gdy się zdarzy.
+
+Jeśli aplikacja desktopowa 1.38.1 pozostaje w stanie **Linked — reconnecting…**,
+a lokalne czaty pokazują **Waiting for your computer**, sprawdź, czy lokalizacje
+awarii w wyeksportowanej diagnostyce zawierają `rustls` / `crypto/mod.rs`.
+Ten błąd inicjalizacji TLS poprawiono w nowszym wydaniu aplikacji desktopowej.
+Zainstaluj je i otwórz aplikację ponownie; aktualizacja samego serwera nie
+aktualizuje klienta desktopowego. Ta poprawka nie wymaga resetowania parowania
+ani zgód na foldery.
+
 ## Lokalna przeglądarka, modele i MCP { #local-browser-models-and-mcp }
 
 Po sparowaniu aplikacji wybierz **Przeglądarka → Lokalna przeglądarka**, aby
@@ -506,9 +614,15 @@ natywne wykonuje CI; lokalne `make desktop-check` pozostaje dostępne do zmian
 wybranego obszaru. Workflow **App release** dołącza instalatory, podpisane pliki
 aktualizacji, APK i cask Homebrew do istniejącego, opublikowanego stabilnego wydania
 `v1.MINOR.PATCH`, którego commit należy do `main`. Nie tworzy wydania platformy.
-Cask jest plikiem do pobrania; publikacja tapu Homebrew pozostaje zadaniem operatora.
+Cask trafia też do tapu Homebrew, gdy skonfigurujesz deploy key lub token.
 Menu **Sprawdź aktualizacje…** wymaga buildu z publicznym kluczem aktualizatora i
 weryfikuje podpis przed instalacją.
+
+Buildy wydań desktopowych działają równolegle. Każdy wysyła własne podpisane
+paczki; jeden końcowy job sprawdza cztery natywne targety i publikuje `latest.json`.
+CI aplikacji natywnych zapisuje wyniki kompilacji według systemu, architektury,
+kompilatora, targetu i profilu buildu. Wydania tylko odczytują wspólny cache
+pobranych zależności. Nieudany build platformy blokuje publikację manifestu aktualizacji.
 
 Publikacja mobile jest obecnie wyłączona. Zmienna repozytorium
 `AGENTICOS_MOBILE_RELEASES_ENABLED=true` włącza podpisane wydania Androida;
@@ -518,9 +632,11 @@ aktywne. Do czasu uruchomienia dystrybucji skorzystaj z instrukcji
 
 Przed wydaniem skonfiguruj środowisko GitHub `apps-release`:
 
+- Stały podpis macOS: sekrety `MACOS_SELF_SIGNED_P12`, `MACOS_SELF_SIGNED_P12_PASSWORD` i zmienna `MACOS_SELF_SIGNED_IDENTITY`. Opublikuj publiczny fingerprint w `scripts/macos_signing_identity.txt`.
+- Homebrew: sekret `HOMEBREW_TAP_DEPLOY_KEY`, deploy key z zapisem wyłącznie do repozytorium tapu. Alternatywą jest `HOMEBREW_TAP_TOKEN`. Tymczasowe pliki klucza są usuwane także przy błędzie.
 - Zmienna `AGENTICOS_UPDATER_PUBLIC_KEY`; sekrety `TAURI_SIGNING_PRIVATE_KEY`
   i `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (stała para kluczy aktualizatora).
-- Opcjonalny podpis macOS Developer ID: ustaw zmienną repozytorium `AGENTICOS_MACOS_SIGNING_ENABLED=true` i skonfiguruj poniższe dane Apple. Brak danych zatrzymuje build, bez przejścia na podpis ad-hoc. Gdy flaga nie jest ustawiona lub jest fałszywa, paczki używają podpisu ad-hoc bez notaryzacji, a dane Apple są ignorowane.
+- Opcjonalny podpis macOS Developer ID: ustaw zmienną repozytorium `AGENTICOS_MACOS_SIGNING_ENABLED=true` i skonfiguruj poniższe dane Apple. Brak danych zatrzymuje build, bez przejścia na podpis ad-hoc. Gdy flaga nie jest ustawiona lub jest fałszywa, paczki używają skonfigurowanego stałego certyfikatu samopodpisanego albo podpisu ad-hoc przy jego braku. Oba warianty są bez notaryzacji; dane Apple są ignorowane.
 - macOS: `APPLE_CERTIFICATE` (P12 w base64), `APPLE_CERTIFICATE_PASSWORD`,
   `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD` (hasło aplikacji)
   i `APPLE_TEAM_ID` do podpisu Developer ID i notaryzacji.
@@ -554,3 +670,21 @@ nie potwierdzi ich niepodpisany lokalny build.
 Quick Ask obsługuje do ośmiu niezależnych zakładek w oknie. Każda zachowuje własny szkic, załączniki, wybranego agenta i trwającą odpowiedź. Ostatnie rozmowy otwiera przeszukiwaną listę i przełącza na istniejącą zakładkę, jeśli rozmowa jest już otwarta; zapisane rozmowy wczytują wiadomości i wcześniejszą historię. Nieaktywne zakładki nie przechwytują plików, skrótów dyktowania ani fokusu. Ostatnie rozmowy pokazują avatary agentów w rozwijanej sekcji. Zajmuje ona tylko potrzebne miejsce, bez rezerwowania pustej wysokości okna. Nowy czat jest jedyną akcją otwierającą nową zakładkę. Sidebar w przeglądarce proponuje pobranie desktopu; zamknięcie przypomnienia wycisza je na 14 dni dla tego konta w tej przeglądarce.
 
 Quick Ask ma przycisk mikrofonu do włączania dyktowania kliknięciem, obok istniejącego skrótu przytrzymywanego. Połączenia głosowe korzystają z tych samych kontrolek co chat: konfiguracji wybranego agenta, napisów, zatwierdzeń i pytań. Wypowiedziane tury zapisują się w rozmowie. Wysyłanie tekstu i dyktowanie czekają podczas połączenia. Przejście do innej zakładki lub zmiana agenta kończy połączenie i zwalnia mikrofon.
+
+## Rutyny lokalne { #local-routines }
+
+Utwórz rutynę z opcją **Uruchamiaj jako ja**, wybierz folder oraz osobno odczyt, zapis i uruchamianie poleceń. Polecenia wymagają zapisu. Zapis najpierw tworzy wstrzymaną rutynę, a potem aplikacja komputerowa prosi w natywnym oknie o zgodę na jej identyfikator, organizację, serwer, folder i operacje. Anulowanie pozostawia tę samą rutynę wstrzymaną; ponowienie kończy konfigurację bez tworzenia kolejnej. Ogólna zgoda na folder w czacie nie upoważnia rutyny.
+
+**Ustawienia → Desktop → Uprawnienia rutyn** pokazuje zgody bieżącego konta i organizacji na tym komputerze. Cofnij zgodę, aby zatrzymać kolejne operacje. Ponowne parowanie, odłączenie, wylogowanie lub zmiana serwera usuwa te zgody. Zmiana folderu lub zwiększenie uprawnień wymaga nowego potwierdzenia natywnego. Zgoda na folder nie obejmuje przeglądarki, ekranu, lokalnych modeli, lokalnych usług MCP ani całego komputera. Opublikowany agent musi już mieć włączony Sandbox; lokalny cel nie włącza możliwości.
+
+Gdy konkretny zatwierdzony komputer jest offline przed wykonaniem, trwała aktywacja czeka w PostgreSQL. Wiersz rutyny pokazuje liczbę oczekujących aktywacji. Wywołania harmonogramu i ręczne łączą się podczas oczekiwania; odrębne zdarzenia zachowują własny kontekst i identyfikator aktywacji. Istniejący worker sprawdza połączenie co minutę. Sprawdzanie gotowości nie wywołuje modelu i nie zużywa prób błędnych uruchomień. Dopuszczenie do wykonania zatwierdza się z przebiegiem przed pierwszym wywołaniem modelu. Rozpoczęta aktywacja nie jest automatycznie powtarzana po awarii workera; niepewna operacja plikowa lub polecenie nie tworzy nowego przebiegu.
+
+Wstrzymanie, zmiana zadania lub zgody lokalnej, usunięcie rutyny albo osiągnięcie jej końca anuluje stare oczekiwanie zamiast przenosić je do innego folderu. Cofnięta sesja urządzenia wymaga ponownego przeglądu. Trzy martwe lub utracone zadania przed dopuszczeniem zatrzymują rutynę i tworzą incydent właściciela; kontekst nieudanego zdarzenia pozostaje dostępny w eksporcie jego danych. Kontekst po rozpoczęciu lub anulowaniu jest od razu usuwany. Zakończone metadane i nieudany kontekst podlegają retencji historii przebiegów organizacji; aktywne oczekiwanie trwa do dopuszczenia, anulowania lub usunięcia.
+
+Wdrażaj API, workery i aplikację komputerową razem; przed włączeniem kontraktu opróżnij stare workery. Starsze aplikacje nie potwierdzają zgód rutyn; istniejące rutyny lokalne wymagają jawnego przeglądu. Migracja `0272_routine_device_waits.py` dodaje oczekiwanie bez zmiany tożsamości rutyny. Przed cofnięciem migracji wstrzymaj rutyny lokalne i opróżnij ich zadania: cofnięcie usuwa oczekujący kontekst i go nie wykonuje. Stare zaparkowane przebiegi bez migawki celu lokalnego wymagają nowego uruchomienia.
+
+Wybór lokalnego dostępu należy do wybranego agenta, a nie do globalnego ustawienia dziedziczonego przez innych agentów. Cofnięcie dostępu do folderu usuwa także zapamiętane wybory i zgody coding agentów dla jego podfolderów. Starsze aplikacje desktopowe zachowują zgodę na cały komputer tylko w jednej rozmowie; aktualizacja pozwala zapamiętać ją we wszystkich rozmowach agenta.
+
+Korekta `[session:api] Użyj danych z UE` trafia do sesji `api`. Przy jednej aktywnej sesji trafiają do niej także korekty bez adresu; przy wielu pozostają u agenta nadrzędnego, aby nie zmieniać innego zadania. Agent nadrzędny zapisuje korektę raz po wznowieniu pracy.
+
+ Zadania coding w sandboxie w tym samym zestawie narzędzi wykonują się kolejno, aby ich migawki plików się nie nakładały; niezależne sesje lokalne nadal działają równolegle.

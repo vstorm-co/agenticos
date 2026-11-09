@@ -14,6 +14,28 @@ const TabsList = React.forwardRef<
 >(({ className, ...props }, ref) => {
   const strip = React.useRef<HTMLDivElement | null>(null);
   useScrollFade(strip);
+  React.useEffect(() => {
+    const list = strip.current;
+    if (!list) return;
+    const reveal = () => {
+      const active = list.querySelector<HTMLElement>('[role="tab"][data-state="active"]');
+      if (!active) return;
+      const bounds = list.getBoundingClientRect();
+      const tab = active.getBoundingClientRect();
+      // Move only the strip: scrollIntoView can also displace the whole page.
+      if (tab.left < bounds.left) list.scrollLeft += tab.left - bounds.left;
+      else if (tab.right > bounds.right) list.scrollLeft += tab.right - bounds.right;
+    };
+    reveal();
+    const selection = new MutationObserver(reveal);
+    selection.observe(list, { subtree: true, attributes: true, attributeFilter: ["data-state"] });
+    const size = new ResizeObserver(reveal);
+    size.observe(list);
+    return () => {
+      selection.disconnect();
+      size.disconnect();
+    };
+  }, []);
   return (
     <TabsPrimitive.List
       ref={(node) => {
@@ -30,7 +52,7 @@ const TabsList = React.forwardRef<
         // The strip's line is an inset shadow, not a border: a scroll container
         // clips to inside its border, so a border here cut the active tab's
         // 2px underline to a hairline nobody could tell from the line itself.
-        "text-foreground/80 relative flex max-w-full min-w-0 scrollbar-none gap-4 overflow-x-auto overflow-y-hidden overscroll-x-contain bg-transparent shadow-[inset_0_-1px_0_var(--color-border)] sm:gap-6 [&>*]:shrink-0",
+        "text-foreground/80 relative flex max-w-full min-w-0 scrollbar-none gap-2 overflow-x-auto overflow-y-hidden overscroll-x-contain bg-transparent shadow-[inset_0_-1px_0_var(--color-border)] sm:gap-4 [&>*]:shrink-0",
         SCROLL_FADE,
         className,
       )}
@@ -49,7 +71,7 @@ const TabsTrigger = React.forwardRef<
     className={cn(
       // The active tab is the one carrying the ink: a bottom border in the
       // foreground colour, the label darkening with it - no pill, no fill.
-      "focus-visible:ring-ring inline-flex min-h-11 touch-manipulation items-center justify-center gap-2 border-b-2 border-transparent px-2 py-2.5 text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-50",
+      "focus-visible:ring-ring touch:min-h-11 inline-flex min-h-9 touch-manipulation items-center justify-center gap-2 border-b-2 border-transparent px-2 py-2 text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-50",
       "hover:text-foreground data-[state=active]:border-foreground data-[state=active]:text-foreground",
       className,
     )}

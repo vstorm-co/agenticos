@@ -1,13 +1,7 @@
 "use client";
 
 import { useCallback, useMemo } from "react";
-import {
-  keepPreviousData,
-  useMutation,
-  useQueries,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { agentListParams, canonicalFacet } from "@/lib/agent-facets";
@@ -19,7 +13,6 @@ import { invalidateSpeechSettings } from "@/lib/dictation-api";
 import { readThrough } from "@/lib/offline/device-cache";
 import { qk } from "@/lib/query-keys";
 import { specFixes, type SpecFix } from "@/lib/spec-fixes";
-import { SYSTEM_AGENT_KINDS } from "@/lib/system-agents";
 import { useOnboardingStore } from "@/stores/onboarding-store";
 import { useCapabilityGuide } from "./use-capability-guide";
 import type { Visibility } from "@/types/sharing";
@@ -49,25 +42,10 @@ export interface PromoteSpecialist {
 
 /**
  * The organization's judges - the default eval judge and each dataset's own - which
- * every other agent list leaves out. Opened and edited like any agent; never run by hand.
+ * every other agent list leaves out. Kept here for run attribution and historical scores.
  */
 export function useJudges({ enabled = true } = {}) {
   return useAgentsOfKind("judge", { enabled });
-}
-
-/** What New agent sends to add a system agent of the organization's own. */
-export interface SystemAgentCreate {
-  kind: SystemAgentKind;
-  name: string;
-}
-
-/** Add a system agent from its kind's definition. */
-export function useCreateSystemAgent() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (data: SystemAgentCreate) => apiClient.post<Agent>("/agents/system", data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.agents.all() }),
-  });
 }
 
 /** The organization's system agents of one kind, which every other agent list leaves out. */
@@ -78,41 +56,6 @@ export function useAgentsOfKind(kind: SystemAgentKind, { enabled = true } = {}) 
     enabled,
   });
   return { agents: data?.items ?? [], total: data?.total ?? 0, isLoading, error };
-}
-
-/** One kind of system agent and the agents of it the caller may see. */
-export interface SystemAgentGroup {
-  kind: SystemAgentKind;
-  agents: Agent[];
-}
-
-/**
- * The organization's system agents, one group per kind in `SYSTEM_AGENT_KINDS`
- * order, which every other agent list leaves out. A kind with none is still a
- * group, holding nothing; `total` counts them all.
- */
-export function useSystemAgents() {
-  const results = useQueries({
-    queries: SYSTEM_AGENT_KINDS.map((kind) => ({
-      queryKey: qk.agents.ofKind(kind),
-      queryFn: () => apiClient.get<AgentList>("/agents", { params: { kind, limit: "100" } }),
-    })),
-  });
-  const groups: SystemAgentGroup[] = SYSTEM_AGENT_KINDS.map((kind, index) => ({
-    kind,
-    agents: results[index]?.data?.items ?? [],
-  }));
-  const total = results.reduce((sum, result) => sum + (result.data?.total ?? 0), 0);
-  return { groups, total };
-}
-
-/**
- * The organization's case generator, the system agent that drafts dataset cases;
- * null where the caller cannot see it. Every other agent list leaves it out.
- */
-export function useCaseGenerator({ enabled = true } = {}) {
-  const { agents } = useAgentsOfKind("generator", { enabled });
-  return agents.find((agent) => agent.system_key === "case_generator") ?? null;
 }
 
 /**
@@ -409,7 +352,7 @@ export function useAgent(agentId: string | null) {
   const queryClient = useQueryClient();
   const t = useTranslations("agents");
 
-  const { data, isLoading, error, dataUpdatedAt } = useQuery({
+  const { data, isLoading, dataUpdatedAt, error, refetch } = useQuery({
     queryKey: qk.agents.detail(agentId ?? ""),
     queryFn: () => apiClient.get<AgentDetail>(`/agents/${agentId}`),
     enabled: !!agentId,
@@ -561,6 +504,7 @@ export function useAgent(agentId: string | null) {
      *  refetch it did not start watches for. A failed refetch does not count:
      *  it has not shown what changed. */
     fetchedAt: dataUpdatedAt,
+    refetch,
     saveDraft,
     validate,
     publish,

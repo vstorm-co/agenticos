@@ -6,11 +6,11 @@ import { ProposedChanges } from "./proposed-changes";
 import type { SkillChangeRecord } from "@/lib/skill-changes-api";
 
 const state = vi.hoisted(() => ({
+  runsView: true,
   changes: [] as SkillChangeRecord[],
   error: null as string | null,
   apply: vi.fn(),
   discard: vi.fn(),
-  runsView: true,
 }));
 
 vi.mock("@/hooks/use-permissions", () => ({
@@ -63,9 +63,9 @@ function change(overrides: Partial<SkillChangeRecord> = {}): SkillChangeRecord {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  state.runsView = true;
   state.changes = [change()];
   state.error = null;
-  state.runsView = true;
 });
 
 describe("ProposedChanges", () => {
@@ -255,12 +255,11 @@ describe("ProposedChanges", () => {
     );
     expect(screen.getByText("checking p-1 on fork-1")).toBeInTheDocument();
   });
+});
 
-  it("explains instead of checking for somebody who may not read runs", () => {
-    state.runsView = false;
-    render(<ProposedChanges canEdit />);
-
-    const button = screen.getByRole("button", { name: /Check on agents/ });
-    expect(button).toHaveAttribute("aria-disabled", "true");
-  });
+it("hides cached proposal text after permission to read runs is removed", () => {
+  state.runsView = false;
+  state.changes = [change()];
+  const { container } = render(<ProposedChanges canEdit />);
+  expect(container).toBeEmptyDOMElement();
 });

@@ -18,13 +18,7 @@ itself. A person writes the missing content in the topic - a model can draft it
 topic's questions into [dataset](datasets.md) cases, so an eval can show
 whether the new document changed the answers.
 
-Editors can choose **AI helpers** on a knowledge base's gaps tab: its own
-published classifier and drafter, or the organization's defaults. The fields
-are `gap_classifier_agent_id` and `gap_drafter_agent_id`; sending null restores
-the default, while omitting a field keeps its choice. Paid calls recheck access
-and kind, and a deleted choice fails explicitly. Deployment-wide knowledge
-bases use each organization's defaults because a deployment-wide setting cannot
-reference one organization's private helper.
+Knowledge-gap classification and drafting use code-defined helpers. They keep internal run identities for access checks, budgets and Activity; the console does not expose a separate helper-agent catalog or instruction editor. Legacy API helper selections remain readable for existing knowledge bases.
 
 ## How a question becomes a gap { #how-a-question-becomes-a-gap }
 
@@ -54,13 +48,7 @@ query are kept.
 
 ## Answers and comments { #answers-and-comments }
 
-A search can find a passage and the agent still not know the answer, and a
-reader can rate an answer down because something was missing. Retrieval alone
-sees neither. **Check N answers**, on the knowledge base's Knowledge gaps tab,
-asks a model to read the knowledge base's recent answers for them. It is
-offered while [AI assistance](governance.md#ai-assistance) is on, and counts
-the answers not read yet. While the switch is off, the tab says how many
-answers wait, with a link to the switch for whoever may change it.
+Checking recent answers and drafting missing content require explicit user actions, resource access, a runnable model and budget. Calls are metered in Activity. Grouping questions without a model call remains available.
 
 The model is the **Knowledge gap classifier**, a
 [system agent](concepts.md#system-agents) every organization has. It reads each
@@ -226,8 +214,7 @@ too. Either way a draft does not repeat what a document already says.
 A draft is written in the background, as you, with your access as it is when
 it runs. The topic says **Drafting…** until the draft is ready, and an open page
 shows it without reloading; asking again meanwhile starts nothing more. A draft
-that could not be written, because a budget was spent or AI assistance was
-switched off meanwhile, says so, with **Try again**. A draft written from one
+that could not be written, because a budget was spent or the model became unavailable, says so, with **Try again**. A draft written from one
 person's questions says so too: check it knowing it rests on what one person
 asked.
 
@@ -242,8 +229,7 @@ dismiss the topic instead of adding content. **Redraft** replaces the draft.
 Once a document is added to the knowledge base after a draft was written, the
 draft says the knowledge base changed after it: it may repeat or contradict the
 new document, so **Redraft** writes it again against what the knowledge base
-holds now. Whoever may edit the drafter finds **Edit the drafter's instructions** on
-the draft, and the drafter itself under **System agents** on the Agents page.
+holds now.
 
 A draft names its sources: the documents of the knowledge base it builds on,
 the context files it follows, and the topic's questions it answers. Each one is
@@ -255,13 +241,7 @@ draft. At most 12 sources are kept. A source deleted later is no longer shown.
 Change a draft in the editor and it is your content: its run and its sources
 are no longer shown, since what the model cited no longer speaks for it.
 
-A draft is a model run like any other. It is refused while the organization
-has [AI assistance](governance.md#ai-assistance) switched off, which it is
-until someone with `org:settings` turns it on; until then the topic says so,
-with a link to the switch for whoever may change it. It is checked
-against the drafter's budget and the organization's before the model is
-called, and its cost is listed in Activity. Grouping questions into topics
-asks no model to write anything, so it runs whatever the switch says.
+Checking recent answers and drafting missing content require explicit user actions, resource access, a runnable model and budget. Calls are metered in Activity. Grouping questions without a model call remains available.
 
 ## Access { #access }
 

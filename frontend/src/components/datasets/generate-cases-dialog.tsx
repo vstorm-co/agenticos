@@ -15,21 +15,14 @@ import {
   DialogTitle,
   FormField,
   Input,
-  Label,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
 } from "@/components/ui";
-import { MoreOptions } from "@/components/ui/more-options";
-import { SystemAgentChoice } from "@/components/agents/system-agent-choice";
+import { AgentSelect } from "@/components/agents/agent-select";
 import { useAgents } from "@/hooks/use-agents";
 import { useGenerateCases } from "@/hooks/use-case-generation";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
-import { submitFailure } from "@/lib/api-error";
-import { DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
+import { getErrorMessage, submitFailure } from "@/lib/api-error";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_WIDE } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import {
@@ -52,6 +45,7 @@ interface GenerateCasesDialogProps {
   datasetId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onStarted?: () => void;
   /** What the form opens with, when the caller already knows the agent and how many. */
   initial?: { agentId: string; count: number };
 }
@@ -68,28 +62,37 @@ export function GenerateCasesDialog({
   open,
   onOpenChange,
   initial,
+  onStarted,
 }: GenerateCasesDialogProps) {
   const t = useTranslations("datasets");
   const tErrors = useTranslations("errors");
   const { can } = usePermissions();
-  const { agents } = useAgents();
+  const { agents, isLoading: agentsLoading, error: agentsError, refetch } = useAgents();
+  const tc = useTranslations("common");
   const { estimate, start } = useGenerateCases(datasetId);
-  const [generatorId, setGeneratorId] = useState<string | null>(null);
   const [agentId, setAgentId] = useState(initial?.agentId ?? "");
   const [sources, setSources] = useState<CaseOrigin[]>(DEFAULT_SOURCES);
   const [count, setCount] = useState(initial?.count ?? DEFAULT_COUNT);
-  const [estimated, setEstimated] = useState<CaseGenerationEstimate | null>(null);
+  const [quote, setQuote] = useState<{ key: string; value: CaseGenerationEstimate } | null>(null);
   const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
 
   const request: CaseGenerationRequest = {
     agent_id: agentId,
     sources,
     count,
-    ...(generatorId ? { generator_agent_id: generatorId } : {}),
   };
-  const valid = agentId !== "" && sources.length > 0 && count >= 1 && count <= MAX_GENERATED;
+  const requestKey = `${datasetId}:${JSON.stringify(request)}`;
+  const estimated = quote?.key === requestKey ? quote.value : null;
+  const valid =
+    !agentsError &&
+    !agentsLoading &&
+    agentId !== "" &&
+    sources.length > 0 &&
+    Number.isInteger(count) &&
+    count >= 1 &&
+    count <= MAX_GENERATED;
   const changed = () => {
-    setEstimated(null);
+    setQuote(null);
     setErrors({});
   };
   // Starting spends, so leaving offers no Save: only discarding the choices or staying.
@@ -97,8 +100,7 @@ export function GenerateCasesDialog({
   useUnsavedChanges(source, {
     dirty:
       open &&
-      (generatorId !== null ||
-        agentId !== (initial?.agentId ?? "") ||
+      (agentId !== (initial?.agentId ?? "") ||
         sources.join() !== DEFAULT_SOURCES.join() ||
         count !== (initial?.count ?? DEFAULT_COUNT)),
     discard: () => onOpenChange(false),
@@ -109,12 +111,13 @@ export function GenerateCasesDialog({
   async function submit(step: "estimate" | "start") {
     try {
       if (step === "estimate") {
-        setEstimated(await estimate.mutateAsync(request));
+        setQuote({ key: requestKey, value: await estimate.mutateAsync(request) });
         return;
       }
       await start.mutateAsync(request);
       toast.success(t("generationStarted", { count }));
       onOpenChange(false);
+      onStarted?.();
     } catch (error) {
       const failure = submitFailure(error, { fields: [...FIELDS] }, tErrors);
       setErrors(failure.fields);
@@ -124,21 +127,21 @@ export function GenerateCasesDialog({
 
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent className={cn(DIALOG_COLUMN, DIALOG_FORM)}>
+      <DialogContent className={cn(DIALOG_COLUMN, DIALOG_WIDE)}>
         <DialogHeader>
           <DialogTitle>{t("generateCases")}</DialogTitle>
           <DialogDescription>{t("generateCasesBody")}</DialogDescription>
         </DialogHeader>
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-0.5 py-1">
-          <SystemAgentChoice
-            kind="generator"
-            value={generatorId}
-            onChange={(value) => {
-              setGeneratorId(value);
-              changed();
-            }}
-            disabled={start.isPending || estimate.isPending}
-          />
+        <div className={cn(DIALOG_BODY, "space-y-6")}>
+          <p className="text-muted-foreground text-sm">{t("helpers.generationUsesSettings")}</p>
+          {agentsError && (
+            <div role="alert" className="space-y-2 text-sm">
+              <p className="text-destructive-ink">{getErrorMessage(agentsError, tErrors)}</p>
+              <Button variant="outline" size="sm" onClick={() => void refetch()}>
+                {tc("retry")}
+              </Button>
+            </div>
+          )}
           <FormField
             htmlFor="generate-agent"
             label={t("agent")}
@@ -146,31 +149,32 @@ export function GenerateCasesDialog({
             error={errors.agent_id}
             required
           >
-            <Select
+            <AgentSelect
+              id="generate-agent"
+              agents={agents}
               value={agentId}
-              onValueChange={(next) => {
+              loading={agentsLoading}
+              placeholder={t("chooseAgent")}
+              onChange={(next) => {
                 setAgentId(next);
                 changed();
               }}
-            >
-              <SelectTrigger id="generate-agent">
-                <SelectValue placeholder={t("chooseAgent")} />
-              </SelectTrigger>
-              <SelectContent>
-                {agents.map((agent) => (
-                  <SelectItem key={agent.id} value={agent.id}>
-                    {agent.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            />
           </FormField>
           <FormField htmlFor="generate-sources" label={t("sources")} error={errors.sources}>
-            <div id="generate-sources" className="space-y-2">
+            <div id="generate-sources" className="grid gap-3 sm:grid-cols-2">
               {CASE_ORIGINS.map((origin) => {
                 const locked = origin === "conversation" && !can(Perm.runsView);
                 return (
-                  <div key={origin} className="flex items-start gap-2">
+                  <label
+                    key={origin}
+                    htmlFor={`source-${origin}`}
+                    className={cn(
+                      "has-[:focus-visible]:ring-ring flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition-colors has-[:focus-visible]:ring-2",
+                      sources.includes(origin) && "border-foreground/30 bg-accent/40",
+                      locked ? "cursor-not-allowed opacity-50" : "hover:bg-accent/40",
+                    )}
+                  >
                     <Checkbox
                       id={`source-${origin}`}
                       disabled={locked}
@@ -184,53 +188,55 @@ export function GenerateCasesDialog({
                         changed();
                       }}
                     />
-                    <Label htmlFor={`source-${origin}`} className="space-y-0.5 font-normal">
-                      <span className="block text-sm">{t(`origin.${origin}`)}</span>
-                      <span className="text-muted-foreground block text-xs">
+                    <span className="space-y-0.5 text-sm font-medium">
+                      {t(`origin.${origin}`)}
+                      <span className="text-muted-foreground block text-xs font-normal">
                         {t(locked ? "sourceNeedsRunsView" : `sourceHint.${origin}`)}
                       </span>
-                    </Label>
-                  </div>
+                    </span>
+                  </label>
                 );
               })}
             </div>
           </FormField>
-          {/* Opened by a refusal of the count, so the field it names is in view. */}
-          <MoreOptions
-            label={t("generateMore", { count })}
-            open={errors.count !== undefined ? true : undefined}
+          <FormField
+            htmlFor="generate-count"
+            label={t("caseNumber")}
+            description={t("caseNumberHint", { max: MAX_GENERATED })}
+            error={errors.count}
           >
-            <FormField
-              htmlFor="generate-count"
-              label={t("caseNumber")}
-              description={t("caseNumberHint", { max: MAX_GENERATED })}
-              error={errors.count}
-            >
-              <Input
-                id="generate-count"
-                type="number"
-                min={1}
-                max={MAX_GENERATED}
-                value={count}
-                onChange={(event) => {
-                  setCount(Number(event.target.value));
-                  changed();
-                }}
-              />
-            </FormField>
-          </MoreOptions>
+            <Input
+              id="generate-count"
+              type="number"
+              min={1}
+              max={MAX_GENERATED}
+              value={count}
+              onChange={(event) => {
+                setCount(Number(event.target.value));
+                changed();
+              }}
+            />
+          </FormField>
           {estimated !== null && <GenerationEstimate estimate={estimated} />}
         </div>
-        <DialogFooter>
+        <DialogFooter className="border-t">
           <Button variant="outline" onClick={close}>
             {t("cancel")}
           </Button>
           {estimated === null ? (
-            <Button disabled={!valid || estimate.isPending} onClick={() => void submit("estimate")}>
+            <Button
+              loading={estimate.isPending}
+              disabled={!valid || estimate.isPending}
+              onClick={() => void submit("estimate")}
+            >
               {t("estimateCost")}
             </Button>
           ) : (
-            <Button disabled={start.isPending} onClick={() => void submit("start")}>
+            <Button
+              loading={start.isPending}
+              disabled={start.isPending}
+              onClick={() => void submit("start")}
+            >
               {t("generate")}
             </Button>
           )}

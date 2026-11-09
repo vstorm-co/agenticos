@@ -82,16 +82,23 @@ export function useMcpConnections(): UseMcpConnectionsResult {
     : null;
 
   const writeCache = useCallback(
-    (updater: (prev: McpConnectionRecord[]) => McpConnectionRecord[]) =>
+    (updater: (prev: McpConnectionRecord[]) => McpConnectionRecord[]) => {
       queryClient.setQueryData<McpConnectionRecord[]>(qk.mcpConnections.list(), (prev = []) =>
         updater(prev),
-      ),
+      );
+      void queryClient.invalidateQueries({ queryKey: qk.mcpServers.lists() });
+      void queryClient.invalidateQueries({ queryKey: qk.mcpServers.entries() });
+    },
     [queryClient],
   );
 
   const refresh = useCallback(async () => {
-    await refetch();
-  }, [refetch]);
+    await Promise.all([
+      refetch(),
+      queryClient.invalidateQueries({ queryKey: qk.mcpServers.lists() }),
+      queryClient.invalidateQueries({ queryKey: qk.mcpServers.entries() }),
+    ]);
+  }, [refetch, queryClient]);
 
   const create = useCallback<UseMcpConnectionsResult["create"]>(
     async (input) => {
@@ -123,10 +130,10 @@ export function useMcpConnections(): UseMcpConnectionsResult {
     async (id) => {
       const result = await testMcpConnection(id);
       // The test persists last_status/last_checked_at server-side.
-      await refetch();
+      await refresh();
       return result;
     },
-    [refetch],
+    [refresh],
   );
 
   return { connections, isLoading, isFetching, error, refresh, create, update, remove, test };

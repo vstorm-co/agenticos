@@ -17,7 +17,7 @@ import pytest
 from sqlalchemy import select
 
 from app.core.exceptions import AuthorizationError, BadRequestError
-from app.core.permissions import OrgRoleName
+from app.core.permissions import ROLE_PERMS, OrgRoleName, Perm, Scope
 from app.db.models.agent_run import AgentRun
 from app.db.models.authoring import SpecProposalHunk
 from app.db.models.credential import ModelProfile
@@ -175,7 +175,13 @@ async def test_the_person_who_asked_only_stages_what_they_may_grant(db):
     assert private.name not in model.prompts[-1]
 
 
-async def test_accept_writes_the_draft_as_the_person_accepting_it(db):
+async def test_accept_writes_the_draft_as_the_person_accepting_it(db, monkeypatch):
+    # Keep resource grants narrow while allowing access to model-derived run evidence.
+    monkeypatch.setitem(
+        ROLE_PERMS,
+        OrgRoleName.MEMBER,
+        {**ROLE_PERMS[OrgRoleName.MEMBER], Perm.RUNS_VIEW: Scope.ALL},
+    )
     owner, agent, run = await _setup(db)
     builder = await _member(db, owner, OrgRoleName.MEMBER)
     db.add(

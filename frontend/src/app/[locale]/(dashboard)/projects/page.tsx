@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { FolderKanban, Lock, Plus } from "lucide-react";
+import { Lock, Plus } from "lucide-react";
+import { ProjectIcon as FolderKanban } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -65,7 +66,7 @@ export default function ProjectsPage() {
 
   if (!isLoadingPermissions && !can(Perm.projectsView)) {
     return (
-      <div className="flex flex-1 flex-col space-y-6">
+      <div className="flex flex-1 flex-col space-y-4">
         {header}
         <EmptyState icon={Lock} title={t("cannotSee")} description={t("askForAccess")} />
       </div>
@@ -73,7 +74,7 @@ export default function ProjectsPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col space-y-6">
+    <div className="flex flex-1 flex-col space-y-4">
       {header}
       <ListCard
         fill

@@ -26,8 +26,20 @@ describe("staleQueries", () => {
       qk.assistant(change("organization").organization_id),
     ]);
     expect(staleQueries(change("trigger"))).toEqual([qk.triggers.all()]);
-    expect(staleQueries(change("notification"))).toEqual([qk.notifications.all()]);
-    expect(staleQueries(change("run"))).toEqual([qk.runs.all(), qk.conversations.list()]);
+    expect(staleQueries(change("notification"))).toEqual([
+      qk.notifications.all(),
+      qk.outcomes.all(),
+    ]);
+    expect(staleQueries(change("conversation"))).toEqual([
+      qk.conversations.all(),
+      qk.projects.all(),
+    ]);
+    expect(staleQueries(change("run"))).toEqual([
+      qk.runs.all(),
+      qk.conversations.list(),
+      qk.outcomes.all(),
+      qk.projects.all(),
+    ]);
     expect(staleQueries(change("eval_suite"))).toEqual([qk.evalSuites.all(), qk.evalRuns.all()]);
     expect(staleQueries(change("eval_run"))).toEqual([
       qk.evalRuns.all(),
@@ -63,6 +75,8 @@ describe("staleQueries", () => {
     expect(staleQueries(change("secret"))).toEqual([qk.secrets.all(), qk.sharing.all()]);
     expect(staleQueries(change("mcp_connection"))).toEqual([
       qk.mcpConnections.all(),
+      qk.mcpServers.lists(),
+      qk.mcpServers.entries(),
       qk.sharing.all(),
     ]);
     expect(staleQueries(change("dataset"))).toEqual([

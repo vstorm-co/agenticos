@@ -42,6 +42,21 @@ async def get_by_id_for_update(db: AsyncSession, org_id: UUID) -> Organization |
     return result.scalar_one_or_none()
 
 
+async def hold_key_share(db: AsyncSession, org_id: UUID) -> None:
+    """Take `FOR KEY SHARE` on the organization row.
+
+    What a foreign key referencing the row takes on insert, taken earlier: a
+    transaction about to lock a row inside the organization and then insert
+    something referencing it holds the organization first, the order a
+    teardown that locks the organization `FOR UPDATE` takes them in (#2682).
+    """
+    await db.execute(
+        select(Organization.id)
+        .where(Organization.id == org_id)
+        .with_for_update(read=True, key_share=True)
+    )
+
+
 async def list_all(db: AsyncSession) -> list[Organization]:
     """Every organization on the deployment.
 
@@ -326,27 +341,6 @@ async def set_chat_approval_waiver(
     argument and so cannot express a boolean somebody deliberately set to false.
     """
     org.chat_may_waive_approvals = allowed
-    await db.flush()
-    await db.refresh(org)
-    return org
-
-
-async def set_grading_model(
-    db: AsyncSession, org: Organization, *, profile_id: UUID | None
-) -> Organization:
-    """Name the model new judges grade on, or clear it."""
-    org.grading_model_profile_id = profile_id
-    await db.flush()
-    await db.refresh(org)
-    return org
-
-
-async def set_ai_assistance(db: AsyncSession, org: Organization, *, enabled: bool) -> Organization:
-    """Switch the model-backed eval and authoring features on or off.
-
-    Its own function for the reason :func:`set_chat_approval_waiver` is.
-    """
-    org.ai_assistance_enabled = enabled
     await db.flush()
     await db.refresh(org)
     return org

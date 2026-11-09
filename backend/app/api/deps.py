@@ -95,6 +95,9 @@ from app.services.ws_auth import authenticate_socket_key, authenticate_socket_to
 from app.services.device_pairing import DevicePairingService
 from app.services.oauth_exchange import OAuthExchangeService
 from app.services.conversation import ConversationService
+from app.services.coding_task_changes import CodingTaskChangeService
+from app.services.conversation_tasks import ConversationTaskService
+from app.services.tasks import TaskService
 from app.services.visual import VisualService
 from app.services.local_service import LocalServiceService
 from app.services.ml import MLService
@@ -165,6 +168,20 @@ def get_push_service(db: DBSession) -> PushService:
 PushSvc = Annotated[PushService, Depends(get_push_service)]
 
 
+def get_conversation_task_service(db: DBSession) -> ConversationTaskService:
+    return ConversationTaskService(db)
+
+
+ConversationTaskSvc = Annotated[ConversationTaskService, Depends(get_conversation_task_service)]
+
+
+def get_coding_task_change_service(db: DBSession) -> CodingTaskChangeService:
+    return CodingTaskChangeService(db)
+
+
+CodingTaskChangeSvc = Annotated[CodingTaskChangeService, Depends(get_coding_task_change_service)]
+
+
 def get_conversation_service(db: DBSession) -> ConversationService:
     """Create ConversationService instance with database session."""
     return ConversationService(db)
@@ -228,6 +245,24 @@ def get_channel_bot_service(db: DBSession) -> ChannelBotService:
 
 
 ChannelBotSvc = Annotated[ChannelBotService, Depends(get_channel_bot_service)]
+
+from app.services.imessage_webhook import ImessageWebhookService
+
+
+def get_imessage_webhook_service(db: DBSession) -> ImessageWebhookService:
+    return ImessageWebhookService(db)
+
+
+ImessageWebhookSvc = Annotated[ImessageWebhookService, Depends(get_imessage_webhook_service)]
+
+from app.services.channels.sms_media import SmsMediaService
+
+
+def get_sms_media_service(redis: Redis) -> SmsMediaService:
+    return SmsMediaService(redis)
+
+
+SmsMediaSvc = Annotated[SmsMediaService, Depends(get_sms_media_service)]
 
 
 from app.services.channels.feedback import ChannelFeedback
@@ -477,6 +512,16 @@ def get_project_service(db: DBSession) -> ProjectService:
 
 
 ProjectSvc = Annotated[ProjectService, Depends(get_project_service)]
+
+from app.services.project_tracking import ProjectTrackingService
+
+
+def get_project_tracking_service(db: DBSession) -> ProjectTrackingService:
+    return ProjectTrackingService(db)
+
+
+ProjectTrackingSvc = Annotated[ProjectTrackingService, Depends(get_project_tracking_service)]
+
 from app.services.change_feed import CONSOLE_TAB_HEADER, ChangeOrigin, console_tab
 from app.schemas.change_event import ChangeSurface
 
@@ -605,6 +650,23 @@ async def get_current_user(
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
+async def get_optional_current_user(
+    request: Request,
+    token: Annotated[str | None, Depends(oauth2_scheme_optional)],
+    user_service: UserSvc,
+    impersonation: ImpersonationSvc,
+    session: SessionSvc,
+    api_keys: ApiKeySvc,
+) -> User | None:
+    """Authenticate a supplied session; keep state-only OAuth callbacks reachable."""
+    if token is None:
+        return None
+    return await get_current_user(request, token, user_service, impersonation, session, api_keys)
+
+
+OptionalCurrentUser = Annotated[User | None, Depends(get_optional_current_user)]
+
+
 async def get_current_session_id(
     token: Annotated[str | None, Depends(oauth2_scheme_optional)],
 ) -> UUID | None:
@@ -709,6 +771,18 @@ def get_org_channel_bot_service(db: DBSession, org: ActiveOrg) -> ChannelBotServ
 
 OrgChannelBotSvc = Annotated[ChannelBotService, Depends(get_org_channel_bot_service)]
 
+from app.services.discord_role_mapping import DiscordRoleMappingService
+
+
+def get_discord_role_mapping_service(db: DBSession) -> DiscordRoleMappingService:
+    """Create DiscordRoleMappingService instance with database session."""
+    return DiscordRoleMappingService(db)
+
+
+DiscordRoleMappingSvc = Annotated[
+    DiscordRoleMappingService, Depends(get_discord_role_mapping_service)
+]
+
 from app.services.model_profile import ModelProfileService
 
 
@@ -729,15 +803,15 @@ def get_agent_registry_service(db: DBSession) -> AgentRegistryService:
 
 AgentRegistrySvc = Annotated[AgentRegistryService, Depends(get_agent_registry_service)]
 
-from app.services.system_agents import SystemAgentService
+from app.services.system_agents import SystemAgentService as EvalHelperService
 
 
-def get_system_agent_service(db: DBSession) -> SystemAgentService:
+def get_eval_helper_service(db: DBSession) -> EvalHelperService:
     """Create SystemAgentService instance with database session."""
-    return SystemAgentService(db)
+    return EvalHelperService(db)
 
 
-SystemAgentSvc = Annotated[SystemAgentService, Depends(get_system_agent_service)]
+EvalHelperSvc = Annotated[EvalHelperService, Depends(get_eval_helper_service)]
 
 
 from app.services.knowledge_reach import KnowledgeReachService
@@ -817,6 +891,18 @@ def get_approval_service(db: DBSession) -> ApprovalService:
 
 AgentRunnerSvc = Annotated[AgentRunnerService, Depends(get_agent_runner_service)]
 ApprovalSvc = Annotated[ApprovalService, Depends(get_approval_service)]
+
+from app.services.parked_runs import ParkedRunService
+
+
+def get_parked_run_service(
+    db: DBSession, runner: AgentRunnerSvc, approvals: ApprovalSvc
+) -> ParkedRunService:
+    """Create ParkedRunService from the runner and approvals services of the same request."""
+    return ParkedRunService(db, runner=runner, approvals=approvals)
+
+
+ParkedRunSvc = Annotated[ParkedRunService, Depends(get_parked_run_service)]
 
 from app.services.run_export import RunExportService
 
@@ -1045,6 +1131,9 @@ ArtifactPublicDataSvc = Annotated[
 ]
 
 from app.services.memory import MemoryService
+from app.services.outcome import OutcomeService
+from app.services.primary_conversation import PrimaryConversationService
+from app.services.system_agent import SystemAgentService
 
 
 def get_memory_service(db: DBSession) -> MemoryService:
@@ -1053,6 +1142,39 @@ def get_memory_service(db: DBSession) -> MemoryService:
 
 
 MemorySvc = Annotated[MemoryService, Depends(get_memory_service)]
+
+
+def get_system_agent_service(db: DBSession) -> SystemAgentService:
+    """Create SystemAgentService instance with database session."""
+    return SystemAgentService(db)
+
+
+SystemAgentSvc = Annotated[SystemAgentService, Depends(get_system_agent_service)]
+
+
+def get_durable_task_service(db: DBSession) -> TaskService:
+    return TaskService(db)
+
+
+DurableTaskSvc = Annotated[TaskService, Depends(get_durable_task_service)]
+
+
+def get_outcome_service(db: DBSession) -> OutcomeService:
+    """Create OutcomeService instance with database session."""
+    return OutcomeService(db)
+
+
+OutcomeSvc = Annotated[OutcomeService, Depends(get_outcome_service)]
+
+
+def get_primary_conversation_service(db: DBSession) -> PrimaryConversationService:
+    """Create PrimaryConversationService instance with database session."""
+    return PrimaryConversationService(db)
+
+
+PrimaryConversationSvc = Annotated[
+    PrimaryConversationService, Depends(get_primary_conversation_service)
+]
 
 
 def get_browser_sign_in_service(db: DBSession) -> BrowserSignInService:
@@ -2158,6 +2280,14 @@ def get_notification_center_service(db: DBSession) -> NotificationCenterService:
 NotificationCenterSvc = Annotated[
     NotificationCenterService, Depends(get_notification_center_service)
 ]
+from app.services.notification_routes import NotificationRouteService
+
+
+def get_notification_route_service(db: DBSession) -> NotificationRouteService:
+    return NotificationRouteService(db)
+
+
+NotificationRouteSvc = Annotated[NotificationRouteService, Depends(get_notification_route_service)]
 from app.services.notification_delivery import NotificationDeliveryService
 
 
@@ -2290,3 +2420,35 @@ def get_update_service() -> UpdateService:
 
 
 UpdateSvc = Annotated[UpdateService, Depends(get_update_service)]
+
+
+from app.services.telephony.policy import PhonePolicyService
+from app.services.telephony.calls import PhoneCallService
+from app.services.telephony.webhooks import PhoneWebhookService
+
+
+def get_phone_policy(db: DBSession) -> PhonePolicyService:
+    return PhonePolicyService(db)
+
+
+def get_phone_calls(db: DBSession) -> PhoneCallService:
+    return PhoneCallService(db)
+
+
+def get_phone_webhooks(db: DBSession) -> PhoneWebhookService:
+    return PhoneWebhookService(db)
+
+
+PhonePolicySvc = Annotated[PhonePolicyService, Depends(get_phone_policy)]
+PhoneCallsSvc = Annotated[PhoneCallService, Depends(get_phone_calls)]
+PhoneWebhooksSvc = Annotated[PhoneWebhookService, Depends(get_phone_webhooks)]
+
+
+from app.services.coding_accounts import CodingAccountService
+
+
+def get_coding_account_service(db: DBSession) -> CodingAccountService:
+    return CodingAccountService(db)
+
+
+CodingAccountSvc = Annotated[CodingAccountService, Depends(get_coding_account_service)]

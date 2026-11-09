@@ -19,15 +19,17 @@ recovers an old conversation's agents would list every delegate the orchestrator
 called as a participant the user never chose.
 """
 
+import json
 import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
-from app.db.models.conversation import Conversation, Message
+from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.organization import Organization
 from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
@@ -287,3 +289,68 @@ class TestWhoAnsweredHere:
 
     async def test_asking_about_nothing_asks_the_database_nothing(self, db) -> None:
         assert await conversation_repo.agents_in_conversations(db, []) == {}
+
+
+class TestConversationCodingAgents:
+    async def test_historical_reports_are_distinct_ordered_and_scoped(
+        self, db: AsyncSession
+    ) -> None:
+        organization = await _org(db)
+        owner = await _user(db)
+        mine = await _conversation(db, organization, owner)
+        other = await _conversation(db, organization, owner)
+        first = Message(id=uuid.uuid4(), conversation_id=mine.id, role="assistant", content="done")
+        second = Message(
+            id=uuid.uuid4(), conversation_id=other.id, role="assistant", content="done"
+        )
+        db.add_all([first, second])
+        await db.flush()
+        reports = [
+            (
+                first,
+                "run_coding_agent",
+                json.dumps({"harness": "claude_code", "outcome": "completed"}),
+            ),
+            (
+                first,
+                "run_coding_agent",
+                json.dumps({"kind": "coding_agent", "harness": "codex", "outcome": "failed"}),
+            ),
+            (
+                first,
+                "run_coding_agent",
+                json.dumps({"harness": "claude_code", "outcome": "timed_out"}),
+            ),
+            (first, "run_coding_agent", "refused: folder not approved"),
+            (first, "run_coding_agent", None),
+            (first, "run_coding_agent", "42"),
+            (first, "run_coding_agent", '{"harness":[],"outcome":[]}'),
+            (first, "run_coding_agent", '{"harness":"unknown","outcome":"completed"}'),
+            (first, "run_coding_agent", '{"harness":"codex","outcome":"not_started"}'),
+            (first, "read_file", '{"harness":"codex","outcome":"completed"}'),
+            (second, "run_coding_agent", '{"harness":"codex","outcome":"completed"}'),
+        ]
+        for index, (message, name, report) in enumerate(reports):
+            db.add(
+                ToolCall(
+                    id=uuid.uuid4(),
+                    message_id=message.id,
+                    tool_call_id=f"call-{index}",
+                    tool_name=name,
+                    args={},
+                    result=report,
+                    status="completed",
+                    started_at=_START + timedelta(seconds=index),
+                )
+            )
+        await db.flush()
+        assert await conversation_repo.coding_agents_in_conversations(db, [mine.id]) == {
+            mine.id: ["claude_code", "codex"]
+        }
+        assert await conversation_repo.coding_agents_in_conversations(db, [other.id]) == {
+            other.id: ["codex"]
+        }
+
+    async def test_no_history_or_no_conversations_has_no_harness(self, db: AsyncSession) -> None:
+        assert await conversation_repo.coding_agents_in_conversations(db, []) == {}
+        assert await conversation_repo.coding_agents_in_conversations(db, [uuid.uuid4()]) == {}

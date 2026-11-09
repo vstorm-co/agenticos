@@ -1,5 +1,5 @@
 ---
-source_sha: "38e2a0c76864"
+source_sha: "0ec608602ddd"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -26,21 +26,9 @@ Robi trzy rzeczy:
   czytały. Skill poprawia się krok po kroku na jego własnej stronie - zobacz
   [Poprawianie skilla](skills.md#improving-a-skill).
 
-Asystent jest osobnym [agentem systemowym](concepts.md#system-agents), widocznym
-razem z pozostałymi agentami systemowymi organizacji. Administrator edytuje jego
-instrukcje jak instrukcje każdego agenta - zmiana agenta systemowego wymaga
-`org:settings` - a jego runy są zwykłymi runami: objęte budżetem, wycenione i
-widoczne w **Aktywności** (Activity). Nigdy nie jest agentem, którego dotyczy
-Improve albo Verify. Ustawiony na
-[przeszukiwanie bazy wiedzy](concepts.md#system-agent-spec) czyta bazy wiedzy
-agenta, którego ulepsza.
+W Agent Builderze **Budowa** zawiera konfigurację, a **Test** otwiera interaktywny panel wersji roboczej. Otwórz **Ewaluacje**, aby porównać wersję roboczą z opublikowaną wersją na datasecie lub uruchomić **Popraw**. Wycena pojawia się przed wykonaniem. Dawny endpoint sprawdzania na podstawie dowodów pozostaje dostępny dla zgodności API.
 
-Rozwiń **Asystent poprawiania** podczas poprawiania lub weryfikacji, aby
-wybrać opublikowanego asystenta. Zmiana usuwa poprzedni szacunek, więc zgoda
-dotyczy ceny i budżetu wybranego asystenta. Zadanie zachowuje `improver_agent_id`;
-sesja poprawiania w tle przyjmuje ten sam wybór. Worker ponownie sprawdza rodzaj,
-publikację i aktualne uprawnienia użytkownika. Usunięty wybór powoduje odmowę,
-zamiast powrotu do domyślnego agenta.
+**Improve** otwiera sesję ulepszania. Model i instrukcje ulepszania należą do **Ustawień** wybranego datasetu; pomocnicy mają domyślne instrukcje w kodzie i nie mają strony edycji w katalogu agentów. Dialog ulepszania pliku kontekstowego wybiera model bezpośrednio. Nadal obowiązują budżety i zapisy runów w Aktywności.
 
 ## Co czyta { #what-it-reads }
 
@@ -60,14 +48,17 @@ test z panelu testowego Buildera ani run delegata.
 Gdy do przeczytania jest więcej, niż mieści jedno zapytanie, runy są najpierw
 czytane grupami, a sugestie powstają z tego, co pokazała każda grupa.
 
+Jeśli konto osoby będącej źródłem danych zostanie usunięte podczas pracy modelu, cały wygenerowany wynik jest odrzucany, łącznie z podsumowaniami, proponowaną treścią i zapisem wejścia oraz wyjścia modelu pomocnika. Żądanie kończy się błędem z wyjaśnieniem; można uruchomić je ponownie na aktualnych danych. Poniesione koszty pozostają zapisane.
+
 ### Każdy cytat jest sprawdzany { #every-quote-is-checked }
 
 Każda sugestia ma uzasadnienie i dowody: runy, na których się opiera, i cytaty z
 nich. Zanim ktokolwiek zobaczy sugestię, każdy cytat jest sprawdzany słowo w
 słowo z runem, który wskazuje. Cytat, którego tam nie ma, run spoza tych, które
 asystent przeczytał, oraz wszystko ponad dwanaście pozycji albo sześćset znaków
-jest odrzucane, a sugestia podaje, ile tego było. Czytelnik bez `runs:view`
-widzi, na których runach opiera się sugestia, ale nie to, co w nich powiedziano.
+jest odrzucane, a sugestia podaje, ile tego było. Odczyt zleceń asystenta,
+ustaleń i proponowanej treści wymaga `runs:view`: wygenerowane podsumowania
+i zmiany mogą zawierać treść rozmów nawet bez jawnych cytatów.
 
 Sprawdzenie dowodzi, że cytat jest w swoim runie, a nie że dotyczy tego, co
 popiera: prawdziwy cytat o czymś innym je przechodzi. Dlatego ustalenie Sprawdź
@@ -76,16 +67,16 @@ pokazuje ją nad cytatami ustalenia, żeby czytelnik ocenił, czy go popierają.
 Ustalenie, że edycja ma poparcie, któremu nie został żaden cytat do sprawdzenia,
 nie jest pokazywane.
 
-Gdy żądanie asystenta - Sprawdź albo Ulepsz przez API - kończy się przy otwartym Builderze, dialog wyniku pokazuje liczbę przejrzanych odpowiedzi, zaproponowane i zapisane zmiany oraz odrzucone propozycje z powodami. Można otworzyć go ponownie przyciskiem **Zobacz wynik**. Pusty wynik informuje, że niczego nie można zastosować, bez oczekiwanego efektu. Opis efektu zawierający surowe identyfikatory runów jest zastępowany opisem z liczbą podlinkowanych odpowiedzi źródłowych.
+Gdy żądanie asystenta - Sprawdź albo Ulepsz przez API - kończy się przy otwartej zakładce Ewaluacje, dialog wyniku pokazuje liczbę przejrzanych odpowiedzi, zaproponowane i zapisane zmiany oraz odrzucone propozycje z powodami. Można otworzyć go ponownie przyciskiem **Zobacz wynik**. Pusty wynik informuje, że niczego nie można zastosować, bez oczekiwanego efektu. Opis efektu zawierający surowe identyfikatory runów jest zastępowany opisem z liczbą podlinkowanych odpowiedzi źródłowych.
 
 Każdy zmieniony tekst - instrukcje, opis narzędzia, plik kontekstowy - jest pokazany jako diff: usunięte i dodane linie z zaznaczonymi zmienionymi słowami, kilka niezmienionych linii wokół każdej zmiany i zwinięta reszta, jednolicie albo obok siebie na szerokim ekranie. Każda zmiana zachowuje uzasadnienie i linki do materiału źródłowego; każdy element materiału źródłowego jest nazwany tym, czym jest - pytaniem testowym z datasetu (**Pytanie testowe 2**) albo prawdziwą rozmową (**Rozmowa 1**) - razem z zadanym pytaniem, a pomocnik ma polecenie cytować go dokładnie pod tą etykietą. Identyfikatory runów w uzasadnieniu są pokazane pod tą samą etykietą.
 
-Po zakończeniu sprawdzenia osoby z `runs:view` mogą porównać odpowiedzi obu stron w dialogu i otworzyć pełne sprawdzenie. Wcześniej dialog proponuje jego uruchomienie. Agent bez ocenionych rozmów ani materiału treningowego ma nad instrukcjami zwięzły wiersz asystenta.
+Po zakończeniu sprawdzenia osoby z `runs:view` mogą porównać odpowiedzi obu stron w dialogu i otworzyć pełne sprawdzenie. Wcześniej dialog proponuje jego uruchomienie. Agent bez sugestii nie pokazuje karty Sugestie.
 
 ## Sugestie { #suggestions }
 
-Sugestie z sesji poprawy, ze Sprawdź albo z API czekają na **pasku asystenta** na
-zakładce **Budowa** (Build) agenta. Każda
+Sugestie z sesji poprawy, ze Sprawdź albo z API czekają na sekcji **Sugestie** na
+zakładce **Ewaluacje** agenta. Każda
 sugestia pokazuje zmieniany fragment w jego otoczeniu, powód i dowody, a o
 każdej decyduje się osobno:
 
@@ -309,23 +300,18 @@ Retencja aktywności zachowuje łączny koszt usuniętych płatnych runów sesji
 | Uruchomić Ulepsz albo Sprawdź na agencie | `runs:view`, uprawnień edycji agenta i możliwości użycia asystenta |
 | Ulepszyć skill | `runs:view`, uprawnień edycji skilla i możliwości użycia asystenta |
 | Ulepszyć plik kontekstowy | `runs:view`, `context:edit` na pliku i możliwości użycia asystenta |
-| Przyjąć, odrzucić albo cofnąć sugestię | Uprawnień edycji agenta |
+| Przyjąć, odrzucić albo cofnąć sugestię | `runs:view` i uprawnień edycji agenta |
 | Przyjąć sugestię, która coś podpina albo do czegoś sięga | Także dostępu, by podpiąć to ręcznie |
-| Zastosować albo odrzucić zmianę skilla | `skills:edit` na skillu |
-| Zastosować albo odrzucić zmianę pliku kontekstowego | `context:edit` na pliku |
+| Zastosować albo odrzucić zmianę skilla | `skills:edit` na skillu i `runs:view` |
+| Zastosować albo odrzucić zmianę pliku kontekstowego | `context:edit` na pliku i `runs:view` |
 | Sprawdzić w ewaluacji | Tego, czego wymaga [run ewaluacji](evals.md#access), i uprawnień edycji agenta |
 
 Granty się liczą: członek z grantem edycji na jednym agencie może ulepszać tego
 agenta.
 
-## Gdy wsparcie AI jest wyłączone { #when-ai-assistance-is-off }
+## Dostępność i koszt { #when-ai-assistance-is-off }
 
-Gdy przełącznik **wsparcia AI** organizacji jest wyłączony, asystent nie działa:
-Ulepsz, Sprawdź i ulepszanie pliku kontekstowego są odrzucane przez serwer, a
-konsola pokazuje je jako wyłączone z linkiem do przełącznika. Sesja poprawiania
-skilla zatrzymuje się przed swoim następnym krokiem. Sugestie, które już
-czekają, nadal można przyjmować, odrzucać i cofać, a run ewaluacji, który nie
-potrzebuje sędziego, nadal działa.
+Dostępność wynika z dostępu do zasobów, gotowości modelu i budżetów. Nie ma organizacyjnego przełącznika wsparcia AI. Płatna praca wymaga jawnego startu; przyjęcie lub odrzucenie istniejącej propozycji nie wywołuje modelu.
 
 ## Sesje poprawiania w tle { #background-improvement-sessions }
 
@@ -365,8 +351,7 @@ ramach budżetu. Dwa wyniki z rzędu bez zmiany albo nierozstrzygnięty wynik i
 jego powtórzenie pokazują się na wyniku jako podpowiedź, że kolejna próba raczej
 nie pomoże, a nie jako zatrzymanie.
 
-Kto może rozpocząć sesję dla agenta - prawo edycji, `runs:view` i włączone
-wsparcie AI - może też wykonać jej następny krok albo spróbować ponownie. Sesja
+Kto może rozpocząć sesję dla agenta - prawo edycji, `runs:view` i  - może też wykonać jej następny krok albo spróbować ponownie. Sesja
 zapisuje, kto to zrobił, a dalsze kroki idą z aktualnymi uprawnieniami i
 poświadczeniem tej osoby, więc sesję rozpoczętą przez Architekta można
 poprowadzić dalej w konsoli.
@@ -436,7 +421,7 @@ próby.
 
 ### Kreator Popraw { #the-improve-wizard }
 
-Otwórz **Popraw** w nagłówku agenta albo na pasku asystenta na zakładce Budowa, z plakietki **Wymaga uwagi** na liście agentów, z karty na dashboardzie albo z zakładki **Luki w wiedzy** agenta. Stoi wśród pozostałych akcji nagłówka; gdy wersja, którą agent teraz serwuje, miała w ostatnich 30 dniach odpowiedzi ocenione negatywnie albo nieudane runy, nosi kropkę, a jego nazwa mówi dlaczego. Karta **Poprawki czekające na Ciebie** na dashboardzie wymienia sesje zatrzymane na decyzję.
+Otwórz **Popraw** z paska narzędzi zakładki **Ewaluacje** agenta, z plakietki **Wymaga uwagi** na liście agentów, z karty na dashboardzie albo z zakładki **Luki w wiedzy**. Gdy bieżąca opublikowana wersja miała w ostatnich 30 dniach odpowiedzi ocenione negatywnie lub nieudane runy, przycisk Popraw ma kropkę uwagi. Karta **Poprawki czekające na Ciebie** na dashboardzie pokazuje sesje czekające na decyzję.
 
 Każde **Popraw** otwiera otwartą sesję agenta - pracującą, czekającą na Ciebie, na wyniku albo zatrzymaną lub nieudaną - a nową zaczyna, gdy ta sesja zostanie zachowana jako wersja robocza, opublikowana, odrzucona, anulowana albo zamknięta; zostaje wtedy w [historii usprawnień](#improvement-history) agenta. **Zakończ ją i zacznij nową** obok otwartej sesji najpierw ją kończy.
 
@@ -444,7 +429,9 @@ Sesja ma adres `/agents/<agent>/improve/<session>`; stronę można zamknąć i o
 
 Krok otwiera się, gdy ma pracę do pokazania albo decyzję do podjęcia. Strona podąża za krokiem, na którym jest sesja, a po otwarciu innego kroku **Przejdź do bieżącego kroku** wraca do niego. Na postoju stopka zawiera następny krok z ceną, na przykład **Następny krok: napisz zmiany · ok. $0.04**; nic nie jest wydawane, zanim go naciśniesz. Gdy cena zmieniła się od pokazania, stopka to mówi - **Cena zmieniła się na ok. $0.05. Naciśnij jeszcze raz, aby przejść dalej.** - a gdy krok kosztuje więcej, niż zostało sesji, pozwala od razu podnieść jej limit.
 
-**Start.** Trzy liczby z ostatnich 30 dni, potem własne pytania testowe agenta, już wybrane i wycenione: szacunek obejmuje odczytanie, co poszło źle, razem z przybliżonym czasem, pojawia się bez kliknięcia i niczego nie wydaje, więc **Zacznij poprawianie** to jedyna decyzja. Każdy następny krok jest wyceniany, zanim go naciśniesz, a limit ogranicza całą sesję. Inne pytania testowe, limit wydatków, agent pomocniczy i test dzisiejszych odpowiedzi są pod **Pokaż szczegóły**. Agent bez pytań testowych dostaje **Napisz dla mnie pytania testowe**: ocenione odpowiedzi stają się pytaniami, kolejne powstają dla tematów bez przykładu, a szacunek pojawia się, gdy są gotowe. Gdy zostaje za mało pytań, by zmierzyć zmianę, ekran proponuje napisanie tylu, ilu brakuje sesji. Podpowiedź po pierwszej publikacji otwiera ten ekran, by ustalić punkt odniesienia.
+**Start.** Improve otwiera okno nad Agent Builderem. Dataset wybierasz w głównym formularzu; własny zestaw testowy agenta jest wybrany, jeśli istnieje. Liczniki feedbacku podsumowują materiał do analizy. Jeśli nie ma odpowiedniego zestawu, **Napisz dla mnie pytania testowe** wycenia utworzenie pytań z ocenionych odpowiedzi i tematów bez przykładów, zanim cokolwiek zostanie napisane.
+
+Koszt analizy i limit wydatków całej sesji pojawiają się przed **Zacznij poprawianie**. Każdy kolejny krok ma osobną wycenę i czeka na twoją decyzję. **Pokaż szczegóły** zawiera pole limitu wydatków, podział pytań, dzisiejszy test i link do ustawień pomocnika w datasecie. Uruchomiona sesja otwiera własną stronę. Zamknięcie okna konfiguracji wraca do agenta; istniejące linki `/improve/new` otwierają to samo okno.
 
 1. **Zrozumienie.** Jedno zdanie i pasek liczą problemy do poprawy w agencie i informacje, których brakuje w bazie wiedzy. Przykłady, których braki trafiły do jednego tematu luk w wiedzy, tworzą jedną kartę, podobnie jak pytanie zadane zarówno jako pytanie testowe, jak i w rozmowie. Karta pokazuje pytanie i rozwija się do odpowiedzi, komentarzy, sposobu oceny odpowiedzi testowej - ocena sędziego dla każdego kryterium i to, czy każda reguła jest spełniona - oraz powodu, dla którego się liczy: oceny, których nie przeszła, jak ktoś ją ocenił i dlaczego klasyfikator ją tam przydzielił. Odpowiedzi ocenione pozytywnie albo takie, w których klasyfikator nie znalazł błędu, trafiają do **Nie wymaga poprawy** automatycznie; na tym kroku nic nie ustawia się ręcznie. Odpowiedź, której temat obejmuje już dokument dodany od tego czasu, jest liczona w grupie **Już w bazie wiedzy** razem z tym dokumentem i dniem jego dodania: nie ma już dla niej czego szkicować. Sesja zawsze się tu zatrzymuje; **Następny krok: napisz zmiany** prosi pomocnika o zmiany.
 2. **Zmiany.** Ile zmian zaproponowano i ile włączono, a potem każda zmiana jako diff z sekcją Powinno naprawić oraz zwiniętymi sekcjami Dlaczego i Na podstawie. Na postoju każda zmiana ma **Uwzględnij zmianę N w teście**, z czego co najmniej jedna zostaje zaznaczona, oraz **Zmień sformułowanie**, które testuje Twoje sformułowanie zamiast sformułowania pomocnika: zmiana jest wtedy oznaczona **Przeredagowane przez Ciebie**, a **Wróć do proponowanego sformułowania** to cofa. **Następny krok: przetestuj zaznaczone zmiany** uruchamia test, wyceniony na najwyższą możliwą kwotę, a pod nim to, ile najpewniej kosztuje - bez powtórzenia, które dostaje nierozstrzygnięty wynik; w jego trakcie listę można czytać, ale nie zmieniać. Szkice wiedzy tworzą osobną kolumnę, w której są szkice, o które ktoś poprosił. Gdy nie znaleziono zmiany, ekran wymienia, czego próbowała każda próba.

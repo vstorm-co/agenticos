@@ -17,7 +17,7 @@ vi.mock("@/hooks/use-memory", () => ({
 beforeEach(() => {
   vi.clearAllMocks();
   pending = false;
-  mutateAsync.mockResolvedValue({ notes_deleted: 2, mem0_agents_cleared: 1 });
+  mutateAsync.mockResolvedValue({ notes_deleted: 2 });
 });
 
 describe("ForgetMe", () => {

@@ -54,7 +54,7 @@ from app.db.models.agent_run import RunStatus
 from app.db.models.run_manifest import RunManifest
 from app.repositories import run_manifest_repo
 from app.schemas.run_manifest import ManifestCodeRun
-from app.services.agent_runner import AgentRunnerService
+from app.services.agent_runner import AdmittedAs, AgentRunnerService
 
 pytestmark = pytest.mark.anyio
 
@@ -545,7 +545,7 @@ class TestTheRunnerWritesItHoweverTheRunEnded:
 
     @staticmethod
     def _prepared(recorder: RunRecorder) -> MagicMock:
-        prepared = MagicMock(earlier_attachments_checked=False)
+        prepared = MagicMock(earlier_attachments_checked=False, admitted_as=AdmittedAs())
         prepared.run = MagicMock(id=_RUN, organization_id=_ORG, conversation_id=None)
         prepared.built.ledger = MagicMock(
             input_tokens=10, output_tokens=2, total_usd=Decimal("0.01"), has_unpriced_models=False

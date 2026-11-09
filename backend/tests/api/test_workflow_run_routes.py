@@ -26,6 +26,7 @@ from app.db.models.resource_grant import Visibility
 from app.db.models.workflow import WorkflowStatus
 from app.db.models.workflow_run import WorkflowRunMode, WorkflowRunStatus
 from app.main import app
+from app.schemas.reply_expectation import ReplyExpectation
 from app.services.workflow_execution.facade import WorkflowExecutionService, _read
 from app.workflows.graph.model import NodeInstance, NodePosition, WorkflowGraph
 
@@ -138,6 +139,37 @@ def _no_dispatch_trigger():
         "app.services.workflow_execution.facade.dispatch_queue.queue_dispatch", new=AsyncMock()
     ):
         yield
+
+
+class TestReplyExpectationRoute:
+    async def test_put_delegates_typed_private_criteria(self, owner_client: OpenClient):
+        now = datetime.now(UTC)
+        expectation = ReplyExpectation(
+            provider="google",
+            connection_id=uuid.uuid4(),
+            authorization_generation=uuid.uuid4(),
+            thread_id="thread",
+            expected_sender="a@example.com",
+            not_before=now,
+            deadline=now + timedelta(hours=1),
+            paused=True,
+        )
+        run_id, step_id = uuid.uuid4(), uuid.uuid4()
+        body = expectation.model_dump(
+            mode="json",
+            exclude={"provider", "connection_id", "authorization_generation", "mailbox", "kind"},
+        )
+        body["review_mailbox"] = False
+        with patch.object(
+            WorkflowExecutionService, "edit_reply_expectation", AsyncMock(return_value=expectation)
+        ) as edit:
+            async with owner_client() as http:
+                response = await http.put(
+                    f"/api/v1/workflow-runs/{run_id}/steps/{step_id}/reply-expectation", json=body
+                )
+        assert response.status_code == 200
+        assert response.json()["paused"] is True
+        assert edit.await_args is not None and edit.await_args.args[1:3] == (run_id, step_id)
 
 
 class TestStartRoute:

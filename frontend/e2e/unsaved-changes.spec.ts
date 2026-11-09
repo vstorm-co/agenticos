@@ -44,7 +44,7 @@ test("an edit left without saving asks first, and comes back when the page is op
   await page.getByRole("button", { name: /How long is the return window\?/ }).click();
   const editor = page.getByRole("dialog", { name: "Case" });
   await editor.getByRole("button", { name: "Edit", exact: true }).click();
-  const input = editor.getByLabel(/^Input/);
+  const input = editor.getByLabel(/^User message/);
   await input.fill("How long is the return window for shoes?");
 
   // Closing the editor asks first; Stay keeps the edit where it is.
@@ -64,7 +64,7 @@ test("an edit left without saving asks first, and comes back when the page is op
   await expect(offer).toBeVisible();
   await offer.getByRole("button", { name: "Restore" }).click();
   await expect(offer).toBeHidden();
-  await expect(page.getByRole("dialog", { name: "Case" }).getByLabel(/^Input/)).toHaveValue(
+  await expect(page.getByRole("dialog", { name: "Case" }).getByLabel(/^User message/)).toHaveValue(
     "How long is the return window for shoes?",
   );
 });

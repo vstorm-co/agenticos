@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
 import { usd } from "@/components/evals/format";
 import { ReviewReevaluationNote } from "@/components/evals/review-reevaluation-note";
+import { IncomparableResult } from "./incomparable-result";
 import { ChangedAnswers } from "./changed-answers";
 import { BeforeAfter, Details, StateBadge } from "./widgets";
 import { useEvalComparison, useEvalRun } from "@/hooks/use-eval-runs";
@@ -76,7 +77,7 @@ export function RoundResults({
         {extra}
       </Details>
       {error && (
-        <p role="alert" className="text-destructive text-sm">
+        <p role="alert" className="text-destructive-ink text-sm">
           {error}
         </p>
       )}
@@ -121,11 +122,12 @@ function MeasuredResult({
     );
   const baseline = run.arms.find((arm) => arm.role === "baseline");
   const candidate = run.arms.find((arm) => arm.role === "candidate");
+  const comparable = comparison?.verdict !== "invalid";
   // Red or green only for a change asking again confirmed; anything else may be noise.
   const tone = (delta: number): "good" | "bad" | "neutral" =>
-    delta > 0 && comparison?.fixed_confirmed
+    comparable && delta > 0 && comparison?.fixed_confirmed
       ? "good"
-      : delta < 0 && comparison?.regressions_confirmed
+      : comparable && delta < 0 && comparison?.regressions_confirmed
         ? "bad"
         : "neutral";
   const allDelta = baseline && candidate ? candidate.summary.passed - baseline.summary.passed : 0;
@@ -167,11 +169,19 @@ function MeasuredResult({
           />
         )}
       </div>
-      {comparison && (
+      {comparison && comparable && (
         <ChangeCounts comparison={comparison} deltas={[allDelta, heldDelta]} noise={noise} />
       )}
       {comparison && <AnswerCost comparison={comparison} />}
+      {comparison && !comparable && (
+        <IncomparableResult
+          agentId={run.agent_id}
+          runId={runId}
+          reason={comparison.invalid_reason}
+        />
+      )}
       {comparison &&
+        comparable &&
         (comparison.baseline &&
         comparison.cases.some((c) => c.flip === "regression" || c.flip === "fixed") ? (
           <ChangedAnswers
@@ -212,7 +222,7 @@ function HowMeasured({ runId }: { runId: string }) {
         </p>
       )}
       {missing > 0 && (
-        <p role="status" className="text-warning text-sm">
+        <p role="status" className="text-warning-ink text-sm">
           {t("needed", { count: missing })}
         </p>
       )}

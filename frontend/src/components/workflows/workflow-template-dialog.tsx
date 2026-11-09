@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, Database, FlaskConical, Workflow } from "lucide-react";
+import { ArrowLeft, Database, FlaskConical } from "lucide-react";
+import { WorkflowIcon as Workflow } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
 import {
   Button,
@@ -11,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui";
-import { DIALOG_CANVAS, DIALOG_FILL, DIALOG_SCROLL_GUTTER } from "@/lib/dialog-sizes";
+import { DIALOG_COLUMN, DIALOG_WIDE, DIALOG_SCROLL_GUTTER } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { WORKFLOW_TEMPLATES } from "@/lib/workflows/templates";
 import type { WorkflowCreateChoice } from "./workflow-create-dialog";
@@ -34,7 +35,7 @@ export function WorkflowTemplateDialog({
   const [category, setCategory] = useState<Category | null>(null);
   const templates =
     category === "automations"
-      ? (["publicApi", "markdownNotes"] as const).map((id) => ({
+      ? (["publicApi", "markdownNotes", "awaitReply"] as const).map((id) => ({
           id,
           graph: null,
           template_id: id,
@@ -48,7 +49,7 @@ export function WorkflowTemplateDialog({
         onOpenChange(next);
       }}
     >
-      <DialogContent className={cn(DIALOG_FILL, DIALOG_CANVAS)}>
+      <DialogContent className={cn(DIALOG_COLUMN, DIALOG_WIDE)}>
         <DialogHeader>
           <DialogTitle>{t("templateLibrary")}</DialogTitle>
           <DialogDescription>{t("templateLibraryDescription")}</DialogDescription>
@@ -60,9 +61,12 @@ export function WorkflowTemplateDialog({
                 <ArrowLeft className="size-4" />
                 {t("templateCategories")}
               </Button>
-              <div className="grid items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid items-stretch gap-4 sm:grid-cols-2">
                 {templates.map((template) => (
-                  <div key={template.id} className="flex flex-col gap-4 rounded-xl border p-5">
+                  <div
+                    key={template.id}
+                    className="bg-muted flex flex-col gap-4 rounded-xl border p-5"
+                  >
                     <Workflow className="text-muted-foreground size-8" aria-hidden />
                     <div className="flex-1 space-y-2">
                       <h3 className="font-semibold">{t(`templates.${template.id}.name`)}</h3>
@@ -72,9 +76,13 @@ export function WorkflowTemplateDialog({
                     </div>
                     <Button
                       variant="outline"
-                      disabled={!!template.template_id && !canProvisionTables}
+                      disabled={
+                        !!template.template_id &&
+                        template.id !== "awaitReply" &&
+                        !canProvisionTables
+                      }
                       title={
-                        template.template_id && !canProvisionTables
+                        template.template_id && template.id !== "awaitReply" && !canProvisionTables
                           ? t("templatesNeedTables")
                           : undefined
                       }
@@ -94,7 +102,7 @@ export function WorkflowTemplateDialog({
               </div>
             </div>
           ) : (
-            <div className="grid gap-4 p-1 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 p-1 sm:grid-cols-2">
               {(["automations", "examples"] as const).map((id) => {
                 const Icon = id === "automations" ? Database : FlaskConical;
                 return (
@@ -102,15 +110,18 @@ export function WorkflowTemplateDialog({
                     type="button"
                     key={id}
                     onClick={() => setCategory(id)}
-                    className="hover:bg-accent hover:border-foreground/30 flex flex-col items-center gap-3 rounded-lg border p-8 text-center transition-colors"
+                    className="bg-muted hover:bg-accent focus-visible:ring-ring/40 grid grid-cols-[2rem_minmax(0,1fr)] items-center gap-x-3 gap-y-1 rounded-lg border p-4 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none sm:flex sm:flex-col sm:gap-2 sm:p-5 sm:text-center"
                   >
-                    <Icon className="text-muted-foreground size-10" aria-hidden />
+                    <Icon
+                      className="text-muted-foreground row-span-4 size-7 sm:size-8"
+                      aria-hidden
+                    />
                     <span className="font-semibold">
                       {t(id === "automations" ? "automationsHeading" : "examplesHeading")}
                     </span>
                     <span className="text-muted-foreground text-sm">
                       {t("templateCount", {
-                        count: id === "automations" ? 2 : WORKFLOW_TEMPLATES.length,
+                        count: id === "automations" ? 3 : WORKFLOW_TEMPLATES.length,
                       })}
                     </span>
                     <span className="text-muted-foreground text-sm">

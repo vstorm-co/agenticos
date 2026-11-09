@@ -24,7 +24,7 @@ Past one host - a managed Postgres, several API hosts, several deployments - is
 | | |
 |---|---|
 | **A host** | 4 vCPU and 8 GB of RAM runs it. See [sizing](#sizing-the-host) |
-| **Docker** | Engine 24+ with the Compose plugin (2.24 or later), and your user in the `docker` group. Nothing is built on the host: the images are pulled from GHCR |
+| **Container engine** | Engine 24+ with the Compose plugin (2.24 or later), and your user in the `docker` group. Nothing is built on the host: the images are pulled from GHCR. Alternatively, use the [manual Podman path](#podman-support). |
 | **Two hostnames** | one for the site, one for the API — see [why two](#why-two-hostnames) |
 | **A reverse proxy** | [Traefik](#option-a-traefik) or [Nginx](#option-b-nginx). It terminates TLS |
 | **No provider key** | chat models and embeddings are both keyed per organization, in the product's vault. The environment holds no credential for either — see [Data protection](data-protection.md#nothing-leaves-by-default) |
@@ -41,6 +41,93 @@ name a browser can resolve and a certificate of its own.
 `app.example.com` and `api.example.com` is the shape. They can be any two names;
 what they must not be is one name with a path prefix, because the API's cookies
 and the site's are scoped to the host.
+
+### Podman support
+
+**Podman is supported through the manual deployment path with Docker Compose
+as its provider.** The runtime checks used Podman 6.1.4 and Docker Compose
+v2.40.3 on Fedora CoreOS 44 (a macOS Podman machine, ARM64, cgroups v2,
+SELinux enforcing). The shipped file needs Compose 2.24 or later.
+
+**Do not use `podman-compose` 1.6.0.** It started the stack and an agent
+answered, but a controlled failed migration still started the dependent app.
+Docker Compose correctly refused that start. The providers' version numbers
+are independent; `podman-compose` 1.6.0 is not Docker Compose 1.6.0.
+
+The quickstart remains Docker-only and directs detected Podman to this manual
+path, including with `--no-sandbox`. From the configured repository root, choose
+the actual Docker Compose executable (a standalone binary or CLI plugin):
+
+```bash
+export PODMAN_COMPOSE_PROVIDER=/absolute/path/to/docker-compose
+podman compose version
+podman compose -f docker-compose.yml up -d
+```
+
+Check that `podman compose version` identifies Docker Compose. Using `-f`
+explicitly keeps the clone's source-build override out of this published-image
+installation. Follow [Install](install.md) to bootstrap the organization and
+model after the services start.
+
+**Optional sandbox.** `pydantic-ai-backend` 0.2.39 worked against both rootful
+and rootless Podman sockets. It does not need a new backend or release. Use
+`docker-compose-podman.yml` to adapt the socket and workspace mounts; prepare
+their permissions before enabling the profile.
+
+On native Linux with rootless Podman:
+
+```bash
+systemctl --user enable --now podman.socket
+export SANDBOX_DOCKER_SOCKET="$XDG_RUNTIME_DIR/podman/podman.sock"
+export SANDBOX_WORKSPACE_ROOT="$HOME/.local/share/agenticos/sandbox-workspaces"
+mkdir -p "$SANDBOX_WORKSPACE_ROOT"
+podman unshare chown 10001:10001 "$SANDBOX_WORKSPACE_ROOT"
+export DOCKER_GID=0
+```
+
+For rootful Linux, enable the system `podman.socket` instead, set
+`SANDBOX_DOCKER_SOCKET=/run/podman/podman.sock`, and prepare the workspace with
+`sudo install -d -o 10001 -g 10001 "$SANDBOX_WORKSPACE_ROOT"`. Run Compose
+against that rootful engine. Its socket group is normally 0; a customized
+rootful socket needs its actual group in `DOCKER_GID`.
+
+On a rootless macOS Podman machine, both bind sources belong to the Linux VM,
+not to macOS. Provision them inside that VM:
+
+```bash
+export SANDBOX_DOCKER_SOCKET="$(podman machine ssh 'printf "%s/podman/podman.sock" "$XDG_RUNTIME_DIR"')"
+export SANDBOX_WORKSPACE_ROOT=/tmp/agenticos-sandbox-workspaces
+podman machine ssh 'mkdir -p /tmp/agenticos-sandbox-workspaces && podman unshare chown 10001:10001 /tmp/agenticos-sandbox-workspaces'
+export DOCKER_GID=0
+```
+
+Keep the deployment's existing keys. Set a nonempty `SANDBOXD_TOKEN` and
+`SANDBOX_URL=http://sandboxd:8080` in the env file the stack reads, as described
+under [sandbox configuration](sandbox.md). Then start with both files:
+
+```bash
+podman compose -f docker-compose.yml -f docker-compose-podman.yml \
+  --profile sandbox up -d
+```
+
+The override disables SELinux labeling only for `sandboxd`, which already
+holds the engine socket. It shares the workspace label with `:z` because sibling
+sandboxes also mount it. Sandbox containers retain their own labels and
+`no-new-privileges`; do not relabel the socket or disable SELinux globally.
+Rootless socket ownership maps to group 0 inside the user namespace.
+
+Use a persistent workspace path on a server: `/tmp` is only a local example.
+Persist the socket, workspace and group settings in the operator's environment
+for subsequent Compose commands. A host `DOCKER_HOST` does not change the socket
+mounted inside `sandboxd`.
+
+Verified paths include an HTTP agent run, persisted completion, workspace files,
+nonzero exits, timeouts, enforced memory/CPU/PID limits and runtime image builds.
+The shipped workbench image also read/wrote XLSX, rendered a plot and ran Node
+and LibreOffice. The model was a deterministic OpenAI-compatible test server;
+the desktop runtime and every Linux distribution were not tested. See the
+[recorded checks](https://github.com/vstorm-co/agenticos/blob/main/docs/audits/podman-2026-11-03.md)
+for versions, scope and the migration failure reproduction.
 
 ## Sizing the host
 
@@ -446,6 +533,50 @@ deployment's own.
 
 ## Deploying a change
 
+### Native memory and routine continuity { #native-memory-upgrade }
+
+Before this upgrade, take the [database, media and vault-key backups](#backups)
+and coordinate the API and worker rollout. Use the deployment's normal migration
+step; do not copy rows or create replacement schedules manually.
+
+Before applying `0285_member_proactivity.py`, stop API/sweep producers and drain active proactive jobs, then stop workers. The migration refuses while a watch or nightly model job is running and backfills queued work with a shared per-member concurrency key. Update API and workers together so new jobs use the same key; a watch and a nightly look for one person must not independently spend the same remaining allowance.
+
+- `0248_drop_memory_mem0.py` refuses the upgrade while `memory_mem0` remains in
+  any stored draft or published spec. Before retrying, inventory every endpoint
+  and vault credential mapping from the backup, erase the external memories and
+  verify completion at each provider. Only then remove those bindings explicitly
+  from `agents.draft_spec` and `agent_versions.spec`. An export alone is not an
+  erasure. Keep the cleanup evidence, review unused vault keys and revoke retired
+  credentials. The migration makes no remote request and never assumes a purge
+  succeeded. If an earlier development build already stripped the bindings,
+  recover the inventory from its pre-upgrade backup and perform the same purge;
+  native person/agent erasure cannot reach that external data.
+- `0251_primary_conversations.py` and `0258_primary_channel_history.py` establish
+  primary private chats. An existing mapping wins. Only demonstrably private,
+  linked channel history is adopted once; project/group and ambiguous histories
+  remain separate. Do not rerun the backfill after somebody clears a primary chat.
+- Existing routine IDs, schedules and logs remain in place. The delivery migration
+  `0255_trigger_delivery.py` gives old routines `run_log`; new routines default to
+  a primary chat or their trusted source conversation. Review the destination,
+  acting person, end and budget under **Routines**, rather than creating copies.
+- `0259_trigger_version_pin.py` supports immutable version pins. A pin and a named
+  environment are exclusive. Clear a pin before deleting its version. A parked
+  run retains its admitted version; `0260_routine_run_origin.py` retains its
+  origin so deleting a routine does not release its authorization guard.
+- `0261_watch_attempt_status.py` starts explicit attempt tracking without guessing
+  older success/failure history. An unavailable or incomplete check does not
+  advance the success timestamp. Review existing watches and their account
+  access: historical rows do not prove how consent was originally given.
+
+Choose a model explicitly before enabling memory maintenance; the daily briefing
+keeps the existing organization model/budget settings. With `0262_watch_agent_sources.py`, watches use their selected agent and retain
+approved sources on runs. Existing watches require the owner to select an agent
+and approve its sources before running again; IDs and findings are preserved. Check
+[governance](governance.md#proactive-work) and the [channel setup](channels.md#sms),
+including `PUBLIC_BASE_URL` and expired SMS identity links. In a test organization,
+verify one private chat, one routine's Activity/delivery, pause/expiry and one
+unavailable-source watch before enabling a wider rollout.
+
 ### The retry-history boundary in 1.25.0 { #retry-history-upgrade }
 
 Version 1.25.0 adopts Pydantic AI 2.61's `retried` tool outcomes and separate
@@ -491,9 +622,9 @@ the site is unavailable for the few seconds that takes.
 
 ### From GitHub, with an approval
 
-`.github/workflows/deploy.yml` offers every merge to `main` for deployment and
+`.github/workflows/deploy.yml` offers each published stable release for deployment and
 waits for somebody to approve it. That gate is **a repository setting, not a step
-in the file** — without it, the workflow deploys every merge unattended.
+in the file** — without it, the workflow deploys each published stable release unattended.
 
 Set it up once:
 
@@ -508,7 +639,7 @@ Set it up once:
     Every run shares the `deploy-production` concurrency group, and a run sitting
     at the approval gate holds it. It does not expire on its own — GitHub cancels
     an unactioned one after 30 days — so until somebody approves or cancels it,
-    later merges queue behind a decision nobody is going to make, and the server
+    later releases queue behind a decision nobody is going to make, and the server
     keeps running whatever was deployed last.
 
     So a deploy you have decided against is cancelled, not left. One left waiting
@@ -517,9 +648,9 @@ Set it up once:
 
     `deploy-queue.yml` is what happens when it is left anyway: every six hours it
     cancels a Deploy run that has waited more than twelve for an approval, and
-    opens an issue naming the run and how far `main` has drifted from the last
+    opens an issue naming the run and how far the latest stable release has advanced from the last
     successful deploy. It approves nothing and deploys nothing — it drains the
-    queue so the next merge reaches the gate, and says that it did. Run it by
+    queue so the next published release reaches the gate, and says that it did. Run it by
     hand with `gh workflow run deploy-queue.yml`.
 
 !!! danger "Approving from the environment's queue approves the **oldest** run"
@@ -528,7 +659,7 @@ Set it up once:
     whenever the queue jammed, not the commit that was just pushed — that is how
     a fortnight-old commit reached this server. Approve from the run page of the
     commit you mean, or start a fresh one with
-    `gh workflow run deploy.yml --ref main` and approve that.
+    `gh workflow run deploy.yml --ref main -f ref=v1.34.3` and approve that.
 
 | Secret | What |
 |---|---|

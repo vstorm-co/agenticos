@@ -5,9 +5,9 @@ import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
-import { delegateNamed, taskOutcome, type DelegateRef } from "@/lib/delegations";
+import { delegateNamed, delegateOf, taskOutcome, type DelegateRef } from "@/lib/delegations";
 import { cn } from "@/lib/utils";
-import type { DelegationStatus, ToolCall } from "@/types";
+import type { Delegation, DelegationStatus, ToolCall } from "@/types";
 
 import { DelegateFace } from "./delegate-face";
 import { DelegationSheet, type SheetDelegation } from "./delegation-sheet";
@@ -16,29 +16,23 @@ import { HARNESS_NAME, parseCodingReport } from "./tool-results/coding-agent";
 /** The tool the `coding_agent` capability hands a task to Claude Code or Codex through. */
 const CODING_TOOL = "run_coding_agent";
 
-/** Claude Code or Codex, by the mark and name their report says - or the capability's when it says none. */
-function harnessOf(report: ReturnType<typeof parseCodingReport>, fallback: string): DelegateRef {
-  if (report === null) return delegateNamed(fallback, []);
-  return {
-    id: null,
-    slug: report.harness,
-    name: HARNESS_NAME[report.harness],
-    harness: report.harness,
-  };
-}
-
 /** One coding task as an exchange: what it was asked, what it answered, every step it took. */
-function codingExchange(call: ToolCall): SheetDelegation {
-  const result = typeof call.result === "string" ? call.result : "";
-  const report = parseCodingReport(result);
+function codingExchange(
+  call: ToolCall,
+  report: NonNullable<ReturnType<typeof parseCodingReport>>,
+): SheetDelegation {
   return {
     key: call.id,
-    delegate: harnessOf(report, "coding-agent"),
-    status:
-      report === null ? statusOf(call) : report.outcome === "completed" ? "completed" : "failed",
+    delegate: {
+      id: null,
+      slug: report.harness,
+      name: HARNESS_NAME[report.harness],
+      harness: report.harness,
+    },
+    status: report.outcome === "completed" ? "completed" : "failed",
     brief: typeof call.args.task === "string" ? call.args.task : null,
-    answer: report?.answer ?? result,
-    steps: (report?.steps ?? []).map((step, index) => ({
+    answer: report.answer,
+    steps: (report.steps ?? []).map((step, index) => ({
       id: `${call.id}-${index}`,
       name: step.kind,
       ok: step.failed !== true,
@@ -73,10 +67,12 @@ function statusOf(call: ToolCall): DelegationStatus {
  */
 export function TurnDelegations({
   toolCalls,
+  delegations = [],
   parent,
   agents,
 }: {
   toolCalls: ToolCall[];
+  delegations?: Delegation[];
   parent?: DelegateRef;
   agents: readonly DelegateRef[];
 }) {
@@ -85,26 +81,44 @@ export function TurnDelegations({
   const [opened, setOpened] = useState<string | null>(null);
   // A coding agent's task is an exchange like a delegation's: Claude Code or Codex
   // is a separate agent the answer was worked out with.
-  const exchanges = toolCalls.filter(
-    (call) =>
-      (call.name === "task" && typeof call.args.subagent_type === "string") ||
-      (call.name === CODING_TOOL && call.status !== "pending" && call.status !== "running"),
-  );
-  if (exchanges.length === 0) return null;
-
-  const items: SheetDelegation[] = exchanges.map((call) => {
-    if (call.name === CODING_TOOL) return codingExchange(call);
+  const exchanges: SheetDelegation[] = delegations
+    .filter((item) => item.harness === null && item.mode !== "async" && item.specialist === null)
+    .map((item) => ({
+      key: item.taskId,
+      delegate: delegateOf(item, agents),
+      status: item.status,
+      brief: item.prompt,
+      answer: item.text || item.error || "",
+      thinking: item.thinking,
+      steps: item.steps,
+      costUsd: item.costUsd,
+      inputTokens: item.inputTokens,
+      outputTokens: item.outputTokens,
+      runId: item.runId,
+    }));
+  const fromCalls = toolCalls.flatMap((call): SheetDelegation[] => {
+    if (call.name === CODING_TOOL) {
+      if (call.status === "pending" || call.status === "running") return [];
+      const report = parseCodingReport(String(call.result ?? ""));
+      return report === null ? [] : [codingExchange(call, report)];
+    }
+    if (exchanges.length > 0 || call.name !== "task" || typeof call.args.subagent_type !== "string")
+      return [];
     // A background start answers with its handle; what it came to is read from
     // the check of its task later in the turn, or it is still working.
     const background = taskOutcome(call, toolCalls);
-    return {
-      key: call.id,
-      delegate: delegateNamed(call.args.subagent_type as string, agents),
-      status: background?.status ?? statusOf(call),
-      brief: typeof call.args.description === "string" ? call.args.description : null,
-      answer: background?.answer ?? (typeof call.result === "string" ? call.result : ""),
-    };
+    return [
+      {
+        key: call.id,
+        delegate: delegateNamed(call.args.subagent_type, agents),
+        status: background?.status ?? statusOf(call),
+        brief: typeof call.args.description === "string" ? call.args.description : null,
+        answer: background?.answer ?? (typeof call.result === "string" ? call.result : ""),
+      },
+    ];
   });
+  const items = [...exchanges, ...fromCalls];
+  if (items.length === 0) return null;
   const team = [...new Map(items.map((item) => [item.delegate.slug, item])).values()];
   const names = new Intl.ListFormat(locale, { type: "conjunction" }).format(
     team.map((item) => item.delegate.name),

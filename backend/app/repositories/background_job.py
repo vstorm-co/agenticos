@@ -873,3 +873,18 @@ async def for_project_moves(db: AsyncSession, ids: list[UUID]) -> dict[UUID, Bac
         return {}
     rows = await db.execute(select(BackgroundJob).where(BackgroundJob.id.in_(ids)))
     return {row.id: row for row in rows.scalars().all()}
+
+
+async def retained_payload_usage(
+    db: AsyncSession, *, organization_id: UUID, kind: str
+) -> tuple[int, int]:
+    """Count all retained deliveries, including completed/dead bodies, before admission."""
+    count, size = (
+        await db.execute(
+            select(
+                func.count(),
+                func.coalesce(func.sum(func.octet_length(BackgroundJob.payload["body"].astext)), 0),
+            ).where(BackgroundJob.organization_id == organization_id, BackgroundJob.kind == kind)
+        )
+    ).one()
+    return count, size

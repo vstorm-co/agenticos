@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { MessageSquare, Unlink } from "lucide-react";
+import { Unlink } from "lucide-react";
+import { ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 import { toast } from "sonner";
 
 import { getErrorMessage } from "@/lib/api-error";
@@ -15,6 +16,7 @@ const PLATFORM_LABEL: Record<string, string> = {
   telegram: "Telegram",
   slack: "Slack",
   mattermost: "Mattermost",
+  discord: "Discord",
 };
 
 /**

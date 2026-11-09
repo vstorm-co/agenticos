@@ -82,7 +82,6 @@ from app.repositories import (
     agent_repo,
     agent_run_repo,
     authoring_repo,
-    organization_repo,
     skill_check_repo,
     skill_improvement_repo,
     skill_repo,
@@ -135,7 +134,6 @@ from app.schemas.skill_version import PersonRef, ReturnToMain
 from app.services import authoring_hunks
 from app.services import improvement_states as rules
 from app.services.access import AGENT, SKILL, accessible_ids, resolve_access
-from app.services.ai_assistance import AiAssistanceService
 from app.services.api_key import job_context
 from app.services.authoring import AuthoringService
 from app.services.authoring_evidence import EvidencePack
@@ -172,11 +170,10 @@ class SkillStanding:
 
     edits_skill: bool
     views_runs: bool
-    ai_assistance: bool
 
     @property
     def allowed(self) -> bool:
-        return self.edits_skill and self.views_runs and self.ai_assistance
+        return self.edits_skill and self.views_runs
 
 
 _RESUMABLE = (StopReason.BUDGET.value, StopReason.PERMISSION.value)
@@ -1217,7 +1214,6 @@ class SkillImprovementService:
             raise BadRequestError(
                 message="Only a result is checked again", details={"status": run.status}
             )
-        await AiAssistanceService(self.db).require_enabled(organization_id=ctx.organization_id)
         base = await self._base(line)
         iteration = await self._iteration(run)
         start = await self._check_start(ctx, run, line, iteration, mode, base=base)
@@ -1327,7 +1323,6 @@ class SkillImprovementService:
             await self._retry_merge_checks(ctx, run, line)
             return
         self._refuse_moved(run, line)
-        await AiAssistanceService(self.db).require_enabled(organization_id=ctx.organization_id)
         iteration = await self._iteration(run)
         failed = await self._check(run)
         assert failed is not None, "a failed check is the attempt's"
@@ -1361,7 +1356,6 @@ class SkillImprovementService:
         """Check the merge again as it was checked; main alone again only if it did not
         finish with a verdict, which stands otherwise."""
         await self._refuse_merge_moved(run, line.skill)
-        await AiAssistanceService(self.db).require_enabled(organization_id=ctx.organization_id)
         iteration = await self._iteration(run)
         failed = await self._check(run)
         assert failed is not None, "a failed check is the attempt's"
@@ -1556,13 +1550,11 @@ class SkillImprovementService:
         skill = await skill_repo.get(self.db, run.skill_id, organization_id=organization_id)
         assert skill is not None, "a session goes with its skill and its fork"
         line = await self._line_of(skill, run)
-        organization = await organization_repo.get_by_id(self.db, organization_id)
         standing = SkillStanding(
             edits_skill=await resolve_access(
                 self.db, ctx, line.skill, Perm.SKILLS_EDIT, resource_type=SKILL
             ),
             views_runs=ctx.has(Perm.RUNS_VIEW),
-            ai_assistance=organization is not None and organization.ai_assistance_enabled,
         )
         moved = rules.checked(
             stage,
@@ -2115,7 +2107,6 @@ class SkillImprovementService:
                 details={"status": run.status, "stage": run.stage},
             )
         await self._refuse_merge_moved(run, line.skill)
-        await AiAssistanceService(self.db).require_enabled(organization_id=ctx.organization_id)
         starts = await self._merge_starts(run, line, mode, main_alone=main_alone)
         checks = [
             await self.checks.estimate(ctx, run.skill_id, start, files=files)
@@ -2263,7 +2254,6 @@ class SkillImprovementService:
             # chosen edits, applied to what the line serves now.
             if line.archived:
                 self._refuse_moved(run, line)
-            await AiAssistanceService(self.db).require_enabled(organization_id=ctx.organization_id)
             iteration = await self._iteration(run)
             start = await self._check_start(
                 ctx, run, line, iteration, mode, base=await self._base(line)

@@ -76,27 +76,6 @@ function mount(overrides: Partial<Agent> = {}, { canEdit = true, busy = false } 
  * the accessible names, which is the only way that stays true.
  */
 describe("AgentCard", () => {
-  it("keeps the beam off the element the gallery's entrance animates", () => {
-    // `rise-in` animates each grid child; on the beam's own wrapper, the beam's
-    // animation displaced it and handed it back at opacity 0 when the hover ended.
-    const { container } = render(
-      <AgentCard
-        agent={agent({})}
-        canEdit
-        actions={{
-          onDuplicate: vi.fn(),
-          onArchive: vi.fn(),
-          onRestore: vi.fn(),
-          onDelete: vi.fn(),
-        }}
-      />,
-    );
-
-    expect(container.children).toHaveLength(1);
-    expect(container.firstElementChild).not.toHaveAttribute("data-beam");
-    expect(container.querySelector("[data-beam]")).not.toBeNull();
-  });
-
   it("flags an agent that needs attention, saying why on hover", () => {
     render(
       <AgentCard
@@ -119,7 +98,7 @@ describe("AgentCard", () => {
     );
   });
 
-  it("leads an editor from the attention badge to the Improve wizard", () => {
+  it("keeps an agent with attention on the normal builder route", () => {
     render(
       <AgentCard
         agent={agent({ id: "a9", name: "Refund desk" })}
@@ -135,10 +114,12 @@ describe("AgentCard", () => {
       />,
     );
 
-    expect(screen.getByText("Needs attention").closest("a")).toHaveAttribute(
+    expect(screen.getByText("Needs attention").closest("a")).toBeNull();
+    expect(screen.getByRole("link", { name: "Open Refund desk" })).toHaveAttribute(
       "href",
-      "/agents/a9/improve/new?resume=1",
+      "/agents/a9",
     );
+    expect(screen.queryByRole("link", { name: /Improve/ })).toBeNull();
   });
 
   it("only describes the attention to a reader who may not improve the agent", () => {

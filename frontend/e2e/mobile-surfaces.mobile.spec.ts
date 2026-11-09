@@ -1,5 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
 import type { ArtifactDetail } from "../src/types/artifact";
+import type { CostSummary } from "../src/types/runs";
 
 import { expect, test } from "./fixtures";
 import { AUTH_STATE } from "./helpers";
@@ -156,12 +157,14 @@ for (const platform of ["ios", "android"] as const) {
       await expect(dialog).toBeHidden();
 
       await page.goto("/chat");
-      const picker = page.getByRole("button", { name: /^Agent:/ });
+      await page.getByRole("button", { name: "Add to message", exact: true }).tap();
+      const attachmentSheet = page.getByRole("dialog");
+      await expect(attachmentSheet).toBeVisible();
+      const picker = attachmentSheet.getByRole("button", { name: /^Agent:/ });
       await expectTouchTarget(picker);
       await picker.tap();
       await expect(page.getByRole("radiogroup")).toBeVisible();
       await page.keyboard.press("Escape");
-      await page.getByRole("button", { name: "Add to message", exact: true }).tap();
       await expect(
         page.getByRole("dialog").getByRole("button", { name: "Files", exact: true }),
       ).toBeVisible();
@@ -266,7 +269,7 @@ for (const platform of ["ios", "android"] as const) {
       }
     });
 
-    test("gives app preview actions vertical breathing room and equal touch targets", async ({
+    test("floats app controls above the preview and discloses sharing actions", async ({
       page,
     }) => {
       // This is a toolbar-layout contract. Publishing apps requires an agent
@@ -348,11 +351,19 @@ for (const platform of ["ios", "android"] as const) {
       for (const width of [320, 390]) {
         await page.setViewportSize({ width, height: 844 });
         await page.goto(href);
+        const controls = page.getByRole("button", { name: "App controls", exact: true });
+        await expectTouchTarget(controls);
+        const floating = await controls.boundingBox();
+        if (!floating) throw new Error("Expected the floating app controls");
+        expect(floating.y).toBeGreaterThanOrEqual((platform === "ios" ? 54 : 28) + 12);
         const share = page.getByRole("button", { name: "Share", exact: true });
+        await expect(share).toBeHidden();
+        await controls.tap();
+        await expect(controls).toHaveAttribute("aria-expanded", "true");
         await expectTouchTarget(share);
         const follow = page.getByRole("button", { name: /^(Follow|Unfollow)$/ });
         await expectTouchTarget(follow);
-        const bar = page.locator("header").filter({ has: share });
+        const bar = page.locator("header > div[id]").filter({ has: share });
         const bounds = await bar.boundingBox();
         const action = await share.boundingBox();
         if (!bounds || !action) throw new Error("Expected the app toolbar bounds");
@@ -400,6 +411,32 @@ for (const platform of ["ios", "android"] as const) {
     });
 
     test("contains CSV exports inside every Activity tab header", async ({ page }) => {
+      // This layout probe must not depend on a journey in another CI shard creating spend.
+      const spend: CostSummary = {
+        period_days: 30,
+        from_date: "2026-11-01T00:00:00Z",
+        to_date: null,
+        month_to_date_usd: "1.25",
+        partial_run_count: 0,
+        by_agent: [
+          {
+            agent_id: "00000000-0000-4000-8000-000000000001",
+            agent_slug: "e2e-layout",
+            agent_name: "E2E layout spend",
+            model_label: null,
+            cost_usd: "1.25",
+            run_count: 1,
+            partial_run_count: 0,
+            month_to_date_usd: "1.25",
+            monthly_cap_usd: null,
+          },
+        ],
+        by_provider: [],
+        by_key: [],
+        by_day: [],
+        cache_by_agent_model: [],
+      };
+      await page.route(/\/api\/spend(?:\?|$)/, (route) => route.fulfill({ json: spend }));
       for (const width of [320, 390]) {
         await page.setViewportSize({ width, height: 844 });
         await page.goto("/runs");

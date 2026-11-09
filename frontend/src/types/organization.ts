@@ -11,8 +11,10 @@ export type OrgRole = "owner" | "admin" | "builder" | "operator" | "member" | "v
  * sync keeps that row in step with the directory, changing and removing it.
  * `manual` is everything else, which the sync never touches. Changing a
  * directory member's role by hand takes the membership over: it becomes `manual`.
+ * `discord` is the Discord role sync (#2569): a Discord role mapping placed a
+ * linked member, and the sync removes the row when they lose the role.
  */
-export type MembershipSource = "manual" | "directory";
+export type MembershipSource = "manual" | "directory" | "discord";
 
 /**
  * How a hosted page's or a widget's microphone turns speech into text.
@@ -110,18 +112,6 @@ export interface Organization {
   chat_may_waive_approvals: boolean;
   /** Whether a page's data may reach anonymous visitors of its public link or embeds. */
   public_live_data: boolean;
-  /**
-   * Whether models may assist evals and authoring here - the eval judge, the case
-   * generator, the authoring assistant. Off, the backend refuses those runs;
-   * deterministic checks and a person's verdicts stay available.
-   */
-  ai_assistance_enabled: boolean;
-  /**
-   * The model profile new judges grade on, one of the organization's chat models.
-   * Null picks one per agent: a model that costs more than the agent's it grades.
-   * Judges that already exist keep their model either way.
-   */
-  grading_model_profile_id?: string | null;
   /**
    * A provider from the speech-to-text catalog: the default agents and channel
    * bots inherit when they transcribe with a provider.

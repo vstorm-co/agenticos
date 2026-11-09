@@ -8,6 +8,8 @@ The public surface of the package (#1773):
   whose identity provider reports groups too.
 - `DirectoryMappingService` - an organization's mappings from directory groups to
   roles and groups.
+- `winning_role` - which role several matching mappings resolve to, shared with
+  the Discord role sync.
 - `build_directory` / `build_ticket_acceptor` - the adapters the deployment's
   settings describe, for the composition root to inject.
 
@@ -21,7 +23,7 @@ from app.services.directory.kerberos import GssapiTicketAcceptor
 from app.services.directory.ldap_directory import LdapConfig, LdapDirectory
 from app.services.directory.mappings import DirectoryMappingService
 from app.services.directory.sign_in import DirectorySignInService
-from app.services.directory.sync import DirectorySyncService
+from app.services.directory.sync import DirectorySyncService, retained_role, winning_role
 
 
 def build_directory(settings: Settings) -> Directory | None:
@@ -46,4 +48,6 @@ __all__ = [
     "DirectorySyncService",
     "build_directory",
     "build_ticket_acceptor",
+    "retained_role",
+    "winning_role",
 ]

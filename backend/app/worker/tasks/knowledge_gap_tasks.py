@@ -156,7 +156,7 @@ async def draft_knowledge_gap(job: DraftTopic) -> bool:
     """Draft the passage one topic is missing, as whoever asked for it, with their access now.
 
     Nothing is drafted for a person no longer a member. A refusal - a spent
-    budget, AI assistance switched off, the topic gone - fails the job, which the
+    budget, unavailable model, the topic gone - fails the job, which the
     topic then shows as a draft that failed. Either way an open Knowledge gaps
     page hears that the draft is over.
 

@@ -59,11 +59,22 @@
             </div>
             <button type="button" class="secondary">Open settings</button>
           </div>
+          <div class="permission-row" data-permission="microphone">
+            <div>
+              <strong>Microphone</strong>
+              <p>
+                Dictate a message and talk to an agent in a voice call. Nothing
+                is recorded during setup.
+              </p>
+              <span data-permission-status role="status">Checking…</span>
+            </div>
+            <button type="button" class="secondary">Open settings</button>
+          </div>
         </div>
         <p class="hint">
           macOS may require an app restart after enabling screen recording.
-          Agents still ask before using your screen. Microphone and folder
-          access are requested when you use those features.
+          Agents still ask before using your screen. Folder access is requested
+          when you use it.
         </p>
         <p class="error" role="alert" hidden></p>
         <div class="actions">
@@ -154,7 +165,7 @@
             <div class="local-copy">
               <strong data-local-title>Checking this computer</strong>
               <p data-local-message role="status">
-                Looking for AgenticOS and Docker…
+                Checking your local workspace…
               </p>
             </div>
             <span class="local-status" aria-hidden="true"></span>
@@ -162,7 +173,7 @@
           <div class="actions" data-local-actions hidden>
             <button type="button" class="link" data-go="where">Back</button>
             <button type="button" class="secondary" data-action="docker" hidden>
-              Download Docker Desktop
+              Set up this computer
             </button>
             <button
               type="button"
@@ -170,7 +181,7 @@
               data-action="open-docker"
               hidden
             >
-              Open Docker Desktop
+              Start workspace
             </button>
             <button type="button" class="secondary" data-action="check" hidden>
               Check again
@@ -304,8 +315,10 @@
           <li data-step="start">Starting</li>
           <li data-step="owner">Creating your organization</li>
         </ol>
+        <p class="hint" role="status" data-progress-detail hidden></p>
         <p class="error" role="alert" hidden></p>
         <div class="actions" data-progress-actions hidden>
+          <button type="button" class="primary" data-retry-setup>Retry</button>
           <button type="button" class="link" data-go="local">Back</button>
         </div>
       </section>

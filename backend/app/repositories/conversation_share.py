@@ -160,3 +160,19 @@ async def delete(db: AsyncSession, share_id: UUID) -> bool:
     await db.delete(share)
     await db.flush()
     return True
+
+
+async def lock_private_publication(
+    db: AsyncSession, conversation_id: UUID, organization_id: UUID
+) -> bool:
+    """Fence coding-result publication against making its workspace editable."""
+    return (
+        await db.scalar(
+            select(Conversation.id)
+            .where(
+                Conversation.id == conversation_id, Conversation.organization_id == organization_id
+            )
+            .with_for_update()
+        )
+        is not None
+    )

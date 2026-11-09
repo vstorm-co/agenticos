@@ -46,6 +46,7 @@ from app.db.models.organization import Organization
 from app.db.models.purged_run_spend import PurgedRunSpend
 from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.models.resource_grant import ResourceGrant
+from app.db.models.routine_device_wait import RoutineDeviceWait
 from app.db.models.virtual_table import (
     VirtualTableOutbox,
     VirtualTableReceipt,
@@ -588,3 +589,26 @@ async def delete_table_history(
         ),
     )
     return result.rowcount or 0
+
+
+async def delete_finished_device_waits(
+    db: AsyncSession, *, organization_id: UUID, cutoff: datetime, limit: int
+) -> int:
+    """Use the organization's run-history period, never deleting live offline work."""
+    candidates = (
+        select(RoutineDeviceWait.id)
+        .where(
+            RoutineDeviceWait.organization_id == organization_id,
+            RoutineDeviceWait.finished_at < cutoff,
+            RoutineDeviceWait.status != "waiting",
+        )
+        .order_by(RoutineDeviceWait.finished_at, RoutineDeviceWait.id)
+        .limit(limit)
+        .with_for_update(skip_locked=True)
+    )
+    removed = await db.scalars(
+        delete(RoutineDeviceWait)
+        .where(RoutineDeviceWait.id.in_(candidates))
+        .returning(RoutineDeviceWait.id)
+    )
+    return len(removed.all())

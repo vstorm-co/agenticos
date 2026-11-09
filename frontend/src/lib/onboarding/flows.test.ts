@@ -22,6 +22,7 @@ import {
   SKILL_IMPROVEMENT,
   SKILL_IMPROVEMENT_START,
   TABLE_DETAIL,
+  PROJECT_DETAIL,
 } from "@/lib/onboarding/tour";
 import { Perm, type Permission } from "@/types/permissions";
 
@@ -243,6 +244,8 @@ describe("create-dataset", () => {
     expect(groups.map((step) => step.target)).toEqual([
       "case-group-question",
       "case-group-answers",
+      "case-group-history",
+      "case-group-counter",
       "case-group-tools",
       "case-group-checks",
       "case-group-labels",
@@ -261,12 +264,12 @@ describe("create-dataset", () => {
       signal: { kind: "created", resource: "case" },
     });
     expect(save?.blockSubmit).toBeUndefined();
-    expect(sources?.target).toBe("datasets-menu");
+    expect(sources?.target).toBe("datasets-case-tools");
     expect(sources?.signal).toBeUndefined();
-    expect(next).toMatchObject({ target: "datasets-grading-tab", page: DATASET_DETAIL });
+    expect(next).toMatchObject({ target: "datasets-settings-tab", page: DATASET_DETAIL });
     expect(generate).toMatchObject({
       target: "datasets-generate",
-      activate: "datasets-generated-tab",
+      activate: "datasets-generate-action",
       page: DATASET_DETAIL,
     });
   });
@@ -714,4 +717,16 @@ it("walks a session from its questions to the guard that holds a publish", () =>
   expect(steps.find((step) => step.id === "flow-improvement-review")?.activate).toBe(
     "improvement-step-check",
   );
+});
+
+it("only offers project tracker publication when every required permission and capacity is present", () => {
+  expect(flowForPage(PROJECT_DETAIL)).toBe("create-project-tracker");
+  const state = { ...EMPTY, hasRunnableAgent: true };
+  const flow = FLOWS["create-project-tracker"];
+  expect(stepsForFlow(flow, state, allow, {})).toHaveLength(1);
+  for (const permission of [Perm.agentsPublish, Perm.tablesCreate]) {
+    expect(stepsForFlow(flow, state, (p) => p !== permission, {})).toHaveLength(0);
+  }
+  expect(stepsForFlow(flow, { ...state, hasRoomForAgent: false }, allow, {})).toHaveLength(0);
+  expect(stepsForFlow(flow, EMPTY, allow, {})).toHaveLength(0);
 });

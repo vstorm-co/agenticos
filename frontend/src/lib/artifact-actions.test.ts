@@ -59,6 +59,27 @@ describe("inputProblems", () => {
   const kinds = (fields: ArtifactActionField[], input: Record<string, unknown>) =>
     inputProblems(fields, input).map((problem) => problem.kind);
 
+  it("accepts text arrays for workflow actions and rejects scalars or mixed items", () => {
+    const fields = [field("string_list", { required: true })];
+    expect(kinds(fields, { f: ["leaf-01", "leaf-02"] })).toEqual([]);
+    expect(kinds(fields, { f: [] })).toEqual([]);
+    expect(kinds(fields, { f: "leaf-01" })).toEqual(["string_list"]);
+    expect(kinds(fields, { f: ["leaf-01", 2] })).toEqual(["string_list"]);
+    expect(kinds(fields, { f: [null] })).toEqual(["string_list"]);
+    expect(kinds(fields, {})).toEqual(["required"]);
+    expect(kinds(fields, { f: null })).toEqual(["required"]);
+    expect(kinds([field("string_list")], { f: null })).toEqual([]);
+  });
+
+  it.each([
+    ["all holes", new Array<string>(2)],
+    ["leading hole", Object.assign(new Array<string>(2), { 1: "leaf-01" })],
+    ["middle hole", Object.assign(new Array<string>(3), { 0: "leaf-01", 2: "leaf-02" })],
+    ["trailing hole", Object.assign(new Array<string>(2), { 0: "leaf-01" })],
+  ])("rejects a text list with %s before confirmation", (_label, value) => {
+    expect(kinds([field("string_list")], { f: value })).toEqual(["string_list"]);
+  });
+
   it("accepts what fits", () => {
     expect(kinds([field("text", { required: true })], { f: "x" })).toEqual([]);
     expect(kinds([field("number")], { f: 1.5 })).toEqual([]);

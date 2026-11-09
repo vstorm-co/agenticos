@@ -3,7 +3,7 @@ import { ROUTES } from "@/lib/constants";
 
 /**
  * Where a fresh session lands: the deep link the visitor was headed to when
- * it is safe to honour, the dashboard otherwise.
+ * it is safe to honour, the conversation workspace otherwise.
  *
  * Every sign-in path - password, the OAuth callback, the magic link - resolves
  * its redirect here. Each of them establishes a session by a different route,
@@ -16,7 +16,7 @@ import { ROUTES } from "@/lib/constants";
  * page - a role fork here quietly splits one product into two.
  */
 export function postSignInDestination(returnTo?: string | null): string {
-  return isSafeReturnPath(returnTo, window.location.origin) ? returnTo : ROUTES.DASHBOARD;
+  return isSafeReturnPath(returnTo, window.location.origin) ? returnTo : ROUTES.CHAT;
 }
 
 /**

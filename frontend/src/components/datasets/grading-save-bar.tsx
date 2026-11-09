@@ -28,7 +28,7 @@ export function GradingSaveBar({ problem, saving, onSave, onDiscard }: GradingSa
       {problem === null ? (
         <p className="text-sm font-medium">{t("unsavedChanges")}</p>
       ) : (
-        <p role="alert" className="text-destructive text-sm">
+        <p role="alert" className="text-destructive-ink text-sm">
           {problem}
         </p>
       )}

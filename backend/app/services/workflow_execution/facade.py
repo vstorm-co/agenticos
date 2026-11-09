@@ -40,6 +40,7 @@ from app.repositories import workflow as workflow_repo
 from app.repositories import workflow_file as workflow_file_repo
 from app.repositories import workflow_log_entry as workflow_log_repo
 from app.repositories import workflow_run as workflow_run_repo
+from app.schemas.reply_expectation import ReplyExpectation, ReplyExpectationEdit
 from app.schemas.workflow import StoredWorkflowSettings
 from app.schemas.workflow_log_entry import (
     LogFilters,
@@ -739,6 +740,85 @@ class WorkflowExecutionService:
         await delivery.deliver_result(self.db, run=run)
         return _read(run, can_cancel=True)
 
+    async def edit_reply_expectation(
+        self, ctx: AuthContext, run_id: UUID, node_run_id: UUID, body: ReplyExpectationEdit
+    ) -> ReplyExpectation:
+        """Correct or pause a parked expectation under the step-resolution authority.
+
+        Mailbox replacement is never inferred. `review_mailbox` explicitly accepts
+        renewed consent on the same selected account; another account needs a new run.
+        An executing check must finish before it can be corrected.
+        """
+        from app.services.mcp_connection import McpConnectionService
+        from app.services.reply_expectation import store_expectation
+
+        run, workflow = await self._load_with_workflow(ctx, run_id, Perm.WORKFLOWS_VIEW)
+        if not await self._may_resolve(ctx, run, workflow):
+            raise AuthorizationError(
+                message="Only the run's principal or a workflow editor may correct its reply expectation"
+            )
+        await hold_subject(self.db, LockScope.WORKFLOW_FILE_BYTES, ctx.organization_id)
+        await hold_subject(self.db, LockScope.WORKFLOW_INLINE_RESULTS_PER_ORG, ctx.organization_id)
+        locked = await workflow_run_repo.get_run_for_update(
+            self.db, run_id, organization_id=ctx.organization_id
+        )
+        if locked is None:
+            raise WorkflowRunNotFoundError(run_id=run_id)
+        if WorkflowRunStatus(locked.status).is_terminal:
+            raise WorkflowRunAlreadyTerminalError(run_id=locked.id, status=locked.status)
+        step = await workflow_run_repo.get_node_run_by_id_for_update(self.db, node_run_id)
+        if step is None or step.workflow_run_id != locked.id:
+            raise WorkflowStepNotFoundError(node_run_id=node_run_id)
+        graph = await dispatcher.resolve_graph(self.db, locked)
+        definition = next(
+            (node.definition_id for node in graph.nodes if node.id == step.node_instance_id), None
+        )
+        if (
+            definition != "flow.await_reply"
+            or step.resume_payload is None
+            or step.status not in (NodeRunStatus.WAITING.value, NodeRunStatus.NEEDS_ATTENTION.value)
+            or body.deadline > step.created_at + timedelta(days=30)
+        ):
+            raise WorkflowStepNotResolvableError(
+                run_id=run_id,
+                node_run_id=node_run_id,
+                reason="reply_not_parked_or_deadline_too_long",
+            )
+        expectation = ReplyExpectation.model_validate(step.resume_payload)
+        generation = expectation.authorization_generation
+        if body.review_mailbox:
+            service = McpConnectionService(self.db)
+            grant = await service.get_org_portal_grant(
+                ctx, "google" if expectation.provider == "google" else "microsoft"
+            )
+            if grant is None or grant.id != expectation.connection_id or not grant.is_enabled:
+                raise NotFoundError(message="The selected mailbox is unavailable")
+            generation = grant.authorization_generation
+        corrected = ReplyExpectation(
+            **body.model_dump(exclude={"review_mailbox"}),
+            provider=expectation.provider,
+            connection_id=expectation.connection_id,
+            authorization_generation=generation,
+            mailbox=expectation.mailbox,
+        )
+        await store_expectation(self.db, run=locked, step=step, expectation=corrected)
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="workflow.reply_expectation_updated",
+            target_type="workflow_run",
+            target_id=str(run_id),
+            details={
+                "node_run_id": str(node_run_id),
+                "paused": corrected.paused,
+                "review_mailbox": body.review_mailbox,
+            },
+        )
+        if step.status == NodeRunStatus.WAITING.value:
+            await dispatch_queue.wake_now(self.db, run=locked, node_run_id=step.id)
+        return corrected
+
     async def resolve_step(
         self, ctx: AuthContext, run_id: UUID, node_run_id: UUID, body: WorkflowStepResolve
     ) -> WorkflowRunRead:
@@ -969,9 +1049,20 @@ class WorkflowExecutionService:
         by_run: dict[UUID, list[NodeAttempt]] = {}
         for attempt in attempts:
             by_run.setdefault(attempt.node_run_id, []).append(attempt)
-        return WorkflowNodeRunList(
-            items=[node_run_read(row, by_run.get(row.id, [])) for row in rows], total=total
-        )
+        awaited: set[UUID] = set()
+        if any(
+            isinstance(row.resume_payload, dict) and row.resume_payload.get("kind") == "mail_reply"
+            for row in rows
+        ):
+            graph = await dispatcher.resolve_graph(self.db, run)
+            awaited = {node.id for node in graph.nodes if node.definition_id == "flow.await_reply"}
+        items = []
+        for row in rows:
+            read = node_run_read(row, by_run.get(row.id, []))
+            if row.node_instance_id in awaited and row.resume_payload is not None:
+                read.reply_expectation = ReplyExpectation.model_validate(row.resume_payload)
+            items.append(read)
+        return WorkflowNodeRunList(items=items, total=total)
 
     async def workflow_logs(
         self,

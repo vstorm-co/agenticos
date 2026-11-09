@@ -30,6 +30,7 @@ ChangeResource = Literal[
     "dataset",
     "knowledge_gap",
     "improvement",
+    "conversation",
 ]
 """What changed. A `trigger` or `eval_suite` event names the agent whose routines
 or suites changed, since that is what a subscriber's access to them is decided by;

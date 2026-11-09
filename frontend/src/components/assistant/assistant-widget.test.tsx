@@ -3,14 +3,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { toast } from "sonner";
 
+import { AgentAvatar } from "@/components/agents/agent-avatar";
 import type { ChatPrompt } from "@/components/chat/chat-container";
 import type { IncomingFiles } from "@/components/chat/chat-input";
 import { useAuthStore, useOrgStore } from "@/stores";
 import { useArchitectAskStore } from "@/stores/architect-ask-store";
+import { useArchitectMarkStore } from "@/stores/architect-mark-store";
 import type { AssistantState } from "@/types/assistant";
 
 import { BUBBLE_VISIBLE_MS } from "./assistant-bubble";
-import { WidgetRoot } from "./assistant-launcher";
+import { AssistantFace, WidgetRoot } from "./assistant-launcher";
 import { AssistantWidget, DOCK_AFTER_MS } from "./assistant-widget";
 
 const state = vi.hoisted(() => ({
@@ -135,6 +137,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  act(() => useArchitectMarkStore.setState({ agentId: null }));
   delete window.__AGENTICOS_SHELL__;
   vi.useRealTimers();
   vi.restoreAllMocks();
@@ -143,6 +146,22 @@ afterEach(() => {
 });
 
 describe("the Architect widget", () => {
+  it.each([null, 4])("matches the agent avatar after clearing its picture (colour %s)", (color) => {
+    act(() => useArchitectMarkStore.setState({ agentId: "a1" }));
+    const cleared = assistant({ avatar_color: color });
+    const { container } = render(
+      <>
+        <AgentAvatar agentId="a1" slug="ai-architect" colorSlot={color} size="lg" />
+        <AssistantFace assistant={cleared} agentId="a1" size="sm" />
+        <AssistantFace assistant={cleared} agentId="a1" size="lg" />
+      </>,
+    );
+    const drawings = Array.from(container.querySelectorAll("g.mo-root"), (face) => face.innerHTML);
+    expect(drawings).toHaveLength(3);
+    expect(new Set(drawings).size).toBe(1);
+    expect(container.querySelector('svg rect[fill="#2557d6"]')).toBeNull();
+  });
+
   it("keeps the web launcher at the edge in the native desktop console", () => {
     state.assistant = assistant();
     window.__AGENTICOS_SHELL__ = {
@@ -170,13 +189,14 @@ describe("the Architect widget", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("is the Architect in the reader's language until it is renamed, and wears its mark", () => {
+  it("is the Architect in the reader's language until it is renamed, and uses its generated face when its picture is cleared", () => {
     // Installed beside an agent that took its handle: the name had to differ,
     // the console still calls it the Architect.
     state.assistant = assistant({ name: "Architect (AgenticOS)" });
     const { unmount } = render(<AssistantWidget />);
     expect(screen.getByRole("button", { name: "Open Architect" })).toBeInTheDocument();
-    expect(document.querySelector('svg rect[fill="#2557d6"]')).not.toBeNull();
+    expect(document.querySelector("g.mo-root")).not.toBeNull();
+    expect(document.querySelector('svg rect[fill="#2557d6"]')).toBeNull();
     unmount();
 
     state.assistant = assistant({

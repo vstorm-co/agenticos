@@ -70,6 +70,7 @@ def _export() -> PersonalDataExport:
         runs=[],
         knowledge_searches=[],
         memory=[],
+        memory_claims=[],
         channel_identities=[],
         slash_commands=[],
         dashboard_layouts=[],

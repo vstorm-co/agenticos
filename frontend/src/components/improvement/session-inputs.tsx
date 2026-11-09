@@ -8,12 +8,13 @@ import { Button } from "@/components/ui";
 import { useImprovementEvidence } from "@/hooks/use-improvements";
 import { useDataset, useDatasetCases } from "@/hooks/use-datasets";
 import { useAgentAttention } from "@/hooks/use-usage-stats";
+import { cn } from "@/lib/utils";
 import { getErrorMessage } from "@/lib/api-error";
 import type { Improvement } from "@/types/improvement";
 import type { Dataset, DatasetCase } from "@/types/datasets";
 import { WriteQuestions } from "./write-questions";
 import { StepError } from "./step-error";
-import { Details, Proportion, StateBadge, Tiles } from "./widgets";
+import { Details, Proportion, StateBadge } from "./widgets";
 import { useReadOnly } from "./read-only";
 
 export function StartSignals({ agentId, datasetId }: { agentId: string; datasetId: string }) {
@@ -37,18 +38,16 @@ export function StartSignals({ agentId, datasetId }: { agentId: string; datasetI
         <p role="status">{t("loading")}</p>
       ) : (
         <>
-          <Tiles
-            tiles={[
+          <dl className="grid grid-cols-2 gap-2">
+            {[
               {
                 label: t("ratedSignals"),
                 value: counts?.rated_down ?? 0,
-                tone: "rose",
                 icon: ThumbsDown,
               },
               {
                 label: t("failedSignals"),
                 value: counts?.failed_runs ?? 0,
-                tone: "amber",
                 icon: AlertTriangle,
               },
               ...(evidence.training_failures > 0
@@ -56,13 +55,33 @@ export function StartSignals({ agentId, datasetId }: { agentId: string; datasetI
                     {
                       label: t("trainSignals"),
                       value: evidence.training_failures,
-                      tone: "violet" as const,
                       icon: ListX,
                     },
                   ]
                 : []),
-            ]}
-          />
+            ].map(({ label, value, icon: Icon }) => (
+              <div
+                key={label}
+                className={cn(
+                  "flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center",
+                  Icon === ListX && "col-span-2 flex-row items-center",
+                )}
+              >
+                <dt className="text-muted-foreground flex min-w-0 flex-1 items-start gap-2 text-xs">
+                  <Icon className="size-4 shrink-0" aria-hidden />
+                  <span>{label}</span>
+                </dt>
+                <dd
+                  className={cn(
+                    "mt-auto text-lg font-semibold tabular-nums sm:mt-0",
+                    Icon === ListX && "mt-0",
+                  )}
+                >
+                  {value}
+                </dd>
+              </div>
+            ))}
+          </dl>
           <p className="text-muted-foreground text-xs">{t("signalWindow")}</p>
           {evidence.items.length === 0 && (
             <p className="text-muted-foreground text-sm">{t("noLearningExamples")}</p>

@@ -55,7 +55,7 @@ export default function EvalRunsPage() {
 
   if (!isLoadingPermissions && !mayRead) {
     return (
-      <div className="space-y-6">
+      <div className="flex flex-1 flex-col gap-4">
         {header}
         <EmptyState icon={Lock} title={t("noAccess")} description={t("noAccessBody")} />
       </div>
@@ -63,9 +63,10 @@ export default function EvalRunsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-1 flex-col gap-4">
       {header}
       <ListCard
+        fill
         headerTour="evals-all"
         namedByPage
         title={t("title")}
@@ -86,7 +87,7 @@ export default function EvalRunsPage() {
             cta={{ label: t("empty.cta"), onClick: () => router.push(ROUTES.DATASETS) }}
           />
         ) : (
-          <div className="space-y-4">
+          <div className="flex flex-1 flex-col gap-4">
             <ul className="divide-border divide-y">
               {runs.map((run) => (
                 <EvalRunRow key={run.id} run={run} agentName={names.get(run.agent_id)} />

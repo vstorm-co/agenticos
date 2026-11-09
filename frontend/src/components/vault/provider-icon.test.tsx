@@ -9,15 +9,15 @@ vi.mock("@/components/icons/custom-icons", async () => {
   const actual = await vi.importActual<typeof import("@/components/icons/custom-icons")>(
     "@/components/icons/custom-icons",
   );
-  return { ...actual, useCustomIcons: () => new Set(["acme"]) };
+  return { ...actual, useCustomIcons: () => new Set(["acme", "otari", "keenable"]) };
 });
 
 describe("ProviderIcon", () => {
-  it("draws a deployment-supplied mark for a provider the compiled set does not know", () => {
-    const { container } = render(<ProviderIcon provider="acme" />);
+  it.each(["acme", "otari", "keenable"])("draws a deployment-supplied mark for %s", (provider) => {
+    const { container } = render(<ProviderIcon provider={provider} />);
     const mark = container.firstElementChild as HTMLElement;
 
-    expect(mark.style.maskImage).toBe('url("/api/catalog/icons/acme")');
+    expect(mark.style.maskImage).toBe(`url("/api/catalog/icons/${provider}")`);
     expect(mark.style.backgroundColor).toBe("currentcolor");
   });
 

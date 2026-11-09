@@ -1,5 +1,5 @@
 ---
-source_sha: "49565e4aa998"
+source_sha: "6be4e8d3a870"
 ---
 
 # Secretos y el vault { #secrets-and-the-vault }
@@ -224,13 +224,27 @@ atender llamadas hasta que se elija otra.
 dado — nunca una instancia. El código dice «necesito una clave de API»; la
 `secret_id` de un binding dice cuál. Donde el binding nombra el servicio para el
 que es la clave - el provider elegido, o el único servicio de la capability, como
-mem0 -, publicar rechaza una clave guardada para otro servicio, porque se enviaría
+LlamaParse -, publicar rechaza una clave guardada para otro servicio, porque se enviaría
 al provider equivocado en cada llamada. Una clave `custom`, como lo es toda clave
 guardada antes de que existieran los propósitos, se acepta. Mira
 [el catálogo de capabilities](reference/capabilities.md#what-a-binding-may-change).
 
 **Conexiones MCP.** Bearer tokens y cargas útiles de OAuth, selladas a la
 organización o al miembro. Mira [MCP](mcp.md#authentication).
+
+<a id="connected-accounts"></a>
+
+**Cuentas conectadas.** Una cuenta de Google como la que lee una carpeta del
+[terminal virtual](reference/capabilities.md#mirage), conectada desde la página del
+vault. Una persona conecta sus propias cuentas, y un agent que monta «las cuentas
+propias de cada persona» las encuentra cuando esa persona habla con él. Las cuentas
+de la organización requieren `mcp:manage` para conectar o desconectar y
+`connections:view` para listarlas, y una carpeta nombra una por su id. El
+consentimiento usa el secreto `google_oauth_app` de la organización y pide Drive,
+Gmail, Calendar, Docs, Sheets y Slides a la vez. Google permite negar cualquiera de
+ellos, y una carpeta que necesita uno negado lo dice. La concesión es un payload de
+OAuth sellado como el de una conexión MCP, y una respuesta da la dirección de la
+cuenta y los scopes concedidos, nunca un token.
 
 **Bots de canal.** Todas las credenciales de la fila, selladas a la organización
 del bot bajo una misma `key_version`: el token del bot, el signing secret y el app
@@ -275,7 +289,6 @@ organización puede traer su propia clave:
 | Exa | `web_research` |
 | Logfire | [Observabilidad](reference/spec.md#observability) por agent — trazas a un proyecto propio |
 | LlamaParse | Parseo de PDF, facturado a la clave propia de la organización |
-| mem0 | [`memory_mem0`](reference/capabilities.md#memory-mem0) — la capability entera, que guarda las memorias semánticas de un agent en un servicio mem0 (en la nube o autoalojado) en vez de aquí. En este despliegue no se guarda nada, así que mem0 factura su propio embedding por fuera y enviar memorias a la nube de mem0 es una decisión de residencia de datos que nombra el Builder. Una `base_url` autoalojada tiene que ser https y estar en la lista de permitidos `MEM0_ALLOWED_HOSTS`, para que la clave del vault nunca se envíe a un origen controlado por el agent. No hay consola de operador para estas memorias: mem0 tiene su propio almacén, su propio listado y su propio borrado. |
 | ElevenLabs | [`text_to_speech`](reference/capabilities.md#text-to-speech) — voz con las voces de la cuenta de ElevenLabs de la organización |
 | BytePlus ModelArk | [`video_generation`](reference/capabilities.md#video-generation) — los modelos de vídeo Seedance de ByteDance |
 
@@ -389,3 +402,6 @@ de salir a producción con un valor por defecto generado.
 - La rotación es **por etapas** — configura ambas versiones,
   `vault-rotate --dry-run`, rota, y luego elimina la clave antigua cuando informe
   de cero fallos.
+
+
+El consentimiento de fuentes A2A externas también vincula la generación de autorización de la credencial de bóveda referenciada. Sustituir el valor invalida la revisión aunque conserve su identificador. Cambiar el nombre y mantener las claves de cifrado conserva esa generación. Las revisiones A2A existentes requieren una nueva revisión tras actualizar.

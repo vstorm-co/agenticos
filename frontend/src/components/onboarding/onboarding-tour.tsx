@@ -1,9 +1,11 @@
 "use client";
 
+import { isRendered } from "@/lib/rendered";
+
 import "driver.js/dist/driver.css";
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 import type { AllowedButtons, DriveStep, Driver } from "driver.js";
@@ -98,6 +100,8 @@ export function OnboardingTour() {
   const t = useTranslations("onboarding");
   const router = useRouter();
   const pathname = usePathname();
+  const improve = useSearchParams().get("improve");
+  const tourPath = pathname + (improve === null ? "" : `?improve=${encodeURIComponent(improve)}`);
   const locale = useLocale() as Locale;
   const chooseLocale = useChooseLocale();
   const saveContext = useSaveAgentContext();
@@ -153,10 +157,10 @@ export function OnboardingTour() {
     if (mode === "tour") {
       openOffer("create-agent");
     } else if (mode === "page") {
-      const flow = flowForPage(pageKey(stripLocale(pathname)), systemAgentPage);
+      const flow = flowForPage(pageKey(stripLocale(tourPath)), systemAgentPage);
       if (flow) openOffer(flow);
     }
-  }, [closeWalk, mode, openOffer, pathname, systemAgentPage]);
+  }, [closeWalk, mode, openOffer, tourPath, systemAgentPage]);
 
   // The arrows walk the tour, which is what a reader who has already read the
   // caption reaches for rather than moving a mouse to a pinned button. Capture
@@ -200,7 +204,7 @@ export function OnboardingTour() {
     spotlightRef.current ??= createTourSpotlight(prefersReducedMotion());
     const light = spotlightRef.current;
 
-    const here = stripLocale(pathname);
+    const here = stripLocale(tourPath);
     if (arrivedRef.current.path !== here)
       arrivedRef.current = { path: here, at: performance.now() };
     const detail = step.page ? detailTargets[step.page] : undefined;
@@ -307,11 +311,19 @@ export function OnboardingTour() {
       // On the right page. Reveal the tab that opens the section, switch to it,
       // then land the spotlight on the target — the caption never having moved.
       let pressed = false;
-      if (step.activate) {
+      const targetIsVisible = step.target
+        ? [...document.querySelectorAll(`[data-tour="${step.target}"]`)].some(isRendered)
+        : false;
+      const activations =
+        typeof step.activate === "string" ? [step.activate] : (step.activate ?? []);
+      for (const activation of activations) {
+        // A mounted target does not establish which tab is selected.
+        if (targetIsVisible && !document.querySelector(`[data-tour="${activation}"][role="tab"]`))
+          continue;
         // An optional step's tab can itself be conditional (the Memory tab renders only
         // when the capability is bound), so the activate wait takes the short timeout too.
         const trigger = await waitForElement(
-          `[data-tour="${step.activate}"]`,
+          `[data-tour="${activation}"]`,
           signal,
           step.optional ? OPTIONAL_WAIT_MS : undefined,
         );
@@ -323,7 +335,9 @@ export function OnboardingTour() {
         if (
           trigger instanceof HTMLElement &&
           !OPEN_STATES.has(trigger.getAttribute("data-state") ?? "") &&
-          !trigger.closest('[aria-current="step"]')
+          !trigger.closest('[aria-current="step"]') &&
+          (trigger.getAttribute("role") === "tab" ||
+            trigger.getAttribute("aria-expanded") !== "true")
         ) {
           await show(trigger);
           if (signal.aborted) return;
@@ -376,7 +390,7 @@ export function OnboardingTour() {
     steps.length,
     isFirst,
     isLast,
-    pathname,
+    tourPath,
     router,
     next,
     back,

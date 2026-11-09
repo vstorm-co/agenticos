@@ -9,7 +9,7 @@ import hashlib
 import json
 from collections.abc import AsyncGenerator, Sequence
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Literal
@@ -25,7 +25,7 @@ from app.agents.capabilities.knowledge._capability import KnowledgeConfig
 from app.agents.capabilities.skills import SkillBody
 from app.agents.factory import DEFAULT_MAX_STEPS
 from app.agents.spec import AgentSpec
-from app.agents.system_agents import refuse_system_agent
+from app.agents.system_agents import IMPROVER, refuse_system_agent
 from app.core.audit import record_audit
 from app.core.background import spawn_after_commit
 from app.core.config import settings
@@ -86,6 +86,7 @@ from app.repositories import (
 from app.repositories.agent_run import RunFilter
 from app.schemas.authoring import AuthoringStart, HunkDecision, HunkRead, ProposalCheck
 from app.schemas.change_event import ChangeEvent
+from app.schemas.dataset_helpers import DatasetHelper, DatasetHelpers
 from app.schemas.eval_run import (
     EvalComparisonRead,
     EvalRunRead,
@@ -135,7 +136,6 @@ from app.services import authoring_fields, authoring_hunks, change_feed
 from app.services import improvement_states as rules
 from app.services.access import SKILL, accessible_ids
 from app.services.agent_registry import AgentRegistryService
-from app.services.ai_assistance import AiAssistanceService
 from app.services.api_key import job_context
 from app.services.authoring import AuthoringService
 from app.services.authoring_evidence import MAX_EVIDENCE_RUNS, EvidencePack
@@ -178,6 +178,7 @@ class Inputs:
     suite: EvalSuiteRead | None
     judge_version_id: UUID | None
     base_version_id: UUID | None
+    helper_settings: DatasetHelper = field(default_factory=DatasetHelper)
 
     @property
     def suite_hash(self) -> str | None:
@@ -302,6 +303,13 @@ class ImprovementPipelineService:
             if target.suite_id is None
             else await EvalSuiteService(self.db).get(ctx, agent.id, target.suite_id)
         )
+        helper = DatasetHelpers.model_validate(dataset.helper_settings or {}).improver
+        helper = helper.model_copy(
+            update={
+                "model_profile_id": helper.model_profile_id or draft.model_profile_id,
+                "instructions": helper.instructions or IMPROVER.instructions,
+            }
+        )
         return Inputs(
             agent,
             checked.request.model_copy(update={"dataset_version": plan.dataset_version.number}),
@@ -312,6 +320,7 @@ class ImprovementPipelineService:
             if checked.judge_pinned
             else (judge.current_version_id if judge else None),
             None if version is None else version.id,
+            helper,
         )
 
     async def knowledge_sources(
@@ -515,7 +524,9 @@ class ImprovementPipelineService:
             ctx,
             inputs.agent.id,
             AuthoringStart(
-                window_days=target.window_days, improver_agent_id=target.improver_agent_id
+                window_days=target.window_days,
+                improver_agent_id=target.improver_agent_id,
+                helper_settings=inputs.helper_settings,
             ),
             evidence=pack,
         )
@@ -631,6 +642,7 @@ class ImprovementPipelineService:
                 run=run,
                 values={
                     "pinned_scoring": inputs.scoring.model_dump(mode="json"),
+                    "helper_settings": inputs.helper_settings.model_dump(mode="json"),
                     "chat_evidence_run_ids": [
                         item.run_id for item in pack.runs if item.evidence_kind == "chat"
                     ],
@@ -1109,6 +1121,8 @@ class ImprovementPipelineService:
                 comparison = await self.evals.compare(ctx, iteration.eval_run_ids[-1])
             except NotFoundError:
                 continue
+            if comparison.verdict == "invalid":
+                continue
             attempts.append(
                 rules.CheckedAttempt(
                     number=iteration.number,
@@ -1274,7 +1288,6 @@ class ImprovementPipelineService:
         a session's next step, trying again, resuming or retrying asks of them."""
         await self.authoring._editable(ctx, agent_id)
         self.authoring._require_runs_view(ctx)
-        await AiAssistanceService(self.db).require_enabled(organization_id=ctx.organization_id)
 
     @staticmethod
     def _resumes(run: ImprovementRun) -> bool:
@@ -1337,7 +1350,6 @@ class ImprovementPipelineService:
             and agent.status != AgentStatus.ARCHIVED.value
             and ctx.has(Perm.RUNS_VIEW)
             and await self.registry.may_edit(ctx, agent)
-            and await AiAssistanceService(self.db).is_enabled(organization_id=ctx.organization_id)
         )
 
     @staticmethod
@@ -1583,7 +1595,9 @@ class ImprovementPipelineService:
                 ctx,
                 run.agent_id,
                 AuthoringStart(
-                    window_days=run.window_days, improver_agent_id=run.improver_agent_id
+                    window_days=run.window_days,
+                    improver_agent_id=run.improver_agent_id,
+                    helper_settings=DatasetHelper.model_validate(run.helper_settings or {}),
                 ),
                 improvement_run_id=run.id,
                 excluded_message_ids=await self._knowledge_exclusions(ctx, run),
@@ -2242,8 +2256,8 @@ class ImprovementPipelineService:
 
     async def _current_inputs(self, ctx: AuthContext, run: ImprovementRun) -> Inputs:
         organization = await organization_repo.get_by_id(self.db, ctx.organization_id)
-        if organization is None or not organization.ai_assistance_enabled:
-            raise AuthorizationError(message="AI assistance is disabled")
+        if organization is None:
+            raise AuthorizationError(message="Organization is no longer available")
         inputs = await self._inputs(
             ctx,
             run.agent_id,
@@ -2332,7 +2346,7 @@ class ImprovementPipelineService:
             )
             return
         organization = await organization_repo.get_by_id(self.db, organization_id)
-        if organization is None or not organization.ai_assistance_enabled:
+        if organization is None:
             await self._move(
                 run,
                 rules.Transition(
@@ -2448,7 +2462,9 @@ class ImprovementPipelineService:
                     ctx,
                     run.agent_id,
                     AuthoringStart(
-                        window_days=run.window_days, improver_agent_id=run.improver_agent_id
+                        window_days=run.window_days,
+                        improver_agent_id=run.improver_agent_id,
+                        helper_settings=DatasetHelper.model_validate(run.helper_settings or {}),
                     ),
                     improvement_run_id=run.id,
                     excluded_message_ids=excluded,
@@ -2467,7 +2483,9 @@ class ImprovementPipelineService:
                     ctx,
                     run.agent_id,
                     AuthoringStart(
-                        window_days=run.window_days, improver_agent_id=run.improver_agent_id
+                        window_days=run.window_days,
+                        improver_agent_id=run.improver_agent_id,
+                        helper_settings=DatasetHelper.model_validate(run.helper_settings or {}),
                     ),
                     improvement_run_id=run.id,
                     excluded_message_ids=excluded,

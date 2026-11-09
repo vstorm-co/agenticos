@@ -6,28 +6,27 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { ErrorState, LoadingState } from "@/components/states";
-import { ListCard, ListCardEmpty, PAGE_SIZE, Pager } from "@/components/ui";
+import { Button, ListCard, ListCardEmpty, PAGE_SIZE, Pager } from "@/components/ui";
 import { usePermissions } from "@/hooks/use-permissions";
 import { type NoteTarget, useNoteToCriterion, useScores } from "@/hooks/use-scoring";
 import { getErrorMessage } from "@/lib/api-error";
-import { groupScores } from "@/lib/scoring";
 import type { Dataset } from "@/types/datasets";
 import { Perm } from "@/types/permissions";
 import type { CaseScore } from "@/types/scoring";
 import { ReviewFilters, type ReviewFilter } from "./review-filters";
-import { ReviewGroupHeading } from "./review-group";
+import { ReviewResultsTable } from "./review-results-table";
 import type { Verdict } from "./score-card";
 import { ReviewQueueRow } from "./review-queue-row";
 import { useOrgStore } from "@/stores/org-store";
 
-const OPENING: ReviewFilter = { pending: true, outcome: null, agentId: null, tag: null };
+const OPENING: ReviewFilter = { outcome: null, agentId: null, tag: null };
 
 /**
- * A dataset's graded answers, waiting for a decision first, each eval run's together.
+ * Every graded answer in the dataset, shown together with its source run.
  *
  * Grading happens elsewhere - an eval run, or a run graded against a case - so
  * this is where a person reads what the scorers said and decides what they were
- * unsure of. Every result is a filter away, and a decision can be undone from
+ * unsure of. Results stay visible after a decision, which can be undone from
  * the toast that confirms it.
  */
 export function ReviewPanel({ dataset }: { dataset: Dataset }) {
@@ -36,22 +35,20 @@ export function ReviewPanel({ dataset }: { dataset: Dataset }) {
   const tErrors = useTranslations("errors");
   const [filter, setFilter] = useState<ReviewFilter>(OPENING);
   const [page, setPage] = useState(0);
-  const { pending, ...narrowed } = filter;
   const orgId = useOrgStore((state) => state.activeOrgId);
   const scope = JSON.stringify([orgId, dataset.id, page, filter]);
   const [kept, setKept] = useState<{
     scope: string;
     order: string[];
-    scores: Record<string, CaseScore>;
+    scores: Record<string, { score: CaseScore; listing: CaseScore[] }>;
   }>({ scope, order: [], scores: {} });
   if (kept.scope !== scope) setKept({ scope, order: [], scores: {} });
   const scores = useScores(dataset.id, {
-    pending,
-    ...narrowed,
+    pending: false,
+    ...filter,
     skip: page * PAGE_SIZE,
     limit: PAGE_SIZE,
   });
-  const other = useScores(dataset.id, { pending: !pending, ...narrowed, limit: 1 });
   const { can } = usePermissions();
   // An eval run's page and Activity both refuse a reader without `runs:view`.
   const linksRuns = can(Perm.runsView);
@@ -61,10 +58,12 @@ export function ReviewPanel({ dataset }: { dataset: Dataset }) {
   const toCriterion = useNoteToCriterion(dataset);
   const currentKept = kept.scope === scope ? kept : { order: [], scores: {} };
   const visible = new Map(scores.scores.map((score) => [score.id, score]));
-  for (const score of Object.values(currentKept.scores)) {
+  for (const { score, listing } of Object.values(currentKept.scores)) {
     const fresh = visible.get(score.id);
-    // A new privacy mask takes precedence over the locally retained decision.
-    if (!fresh?.case_masked && !fresh?.answer_hidden) visible.set(score.id, score);
+    // Keep the optimistic decision only against the listing it replaced. A new
+    // server listing owns remote decisions and privacy masks.
+    if (!fresh || (listing === scores.scores && !fresh.case_masked && !fresh.answer_hidden))
+      visible.set(score.id, score);
   }
   const ids = [...new Set([...currentKept.order, ...scores.scores.map((score) => score.id)])];
   const visibleScores = ids
@@ -75,9 +74,12 @@ export function ReviewPanel({ dataset }: { dataset: Dataset }) {
     Math.ceil(scores.total / PAGE_SIZE),
     Object.keys(currentKept.scores).length ? page + 1 : 1,
   );
-  // A decision takes the last score off the last page of the queue; step back to
-  // the page that still exists, the adjust-state-while-rendering way.
+  // A refreshed listing may lose its last page; keep pagination on an existing page.
   if (!scores.isLoading && !scores.verdict.isPending && page >= pageCount) setPage(pageCount - 1);
+  const ungraded = visibleScores.filter((score) => score.unscored_reason !== null);
+  const waiting = visibleScores.filter(
+    (score) => score.review_state === "pending" && score.human_passed === null,
+  );
   const busy =
     scores.verdict.isPending ||
     scores.review.isPending ||
@@ -94,7 +96,10 @@ export function ReviewPanel({ dataset }: { dataset: Dataset }) {
           : {
               ...before,
               order: before.order.length ? before.order : visibleScores.map((item) => item.id),
-              scores: { ...before.scores, [decided.id]: decided },
+              scores: {
+                ...before.scores,
+                [decided.id]: { score: decided, listing: scores.scores },
+              },
             },
       );
       const undo = () =>
@@ -149,58 +154,68 @@ export function ReviewPanel({ dataset }: { dataset: Dataset }) {
   };
 
   return (
-    <ListCard
-      title={t("scores")}
-      counted={t("scoreCount", { count: scores.total })}
-      controls={
-        <ReviewFilters
-          filter={filter}
-          onChange={(next) => {
-            setFilter(next);
-            setPage(0);
-          }}
-          waiting={pending ? scores.total : other.total}
-          all={pending ? other.total : scores.total}
-          tags={dataset.stats.top_tags.map((entry) => entry.tag)}
-        />
-      }
-    >
-      {scores.isLoading ? (
-        <LoadingState variant="skeleton-cards" rows={2} />
-      ) : scores.error ? (
-        <ErrorState
-          description={getErrorMessage(scores.error, tErrors)}
-          cta={{ label: tc("retry"), onClick: () => void scores.refetch() }}
-        />
-      ) : visibleScores.length === 0 ? (
-        <ListCardEmpty
-          icon={ClipboardCheck}
-          title={pending ? t("nothingAwaitingReview") : t("noScores")}
-          description={pending ? t("nothingAwaitingReviewBody") : t("noScoresBody")}
-        />
-      ) : (
-        <div className="space-y-6">
-          {groupScores(visibleScores).map((group, index) => (
-            <section key={`${group.key}:${index}`} className="space-y-3">
-              <ReviewGroupHeading
-                group={group}
-                busy={busy}
-                linksRuns={linksRuns}
-                onWithdraw={
-                  canDecide && pending && group.scores.some((score) => score.human_passed === null)
-                    ? () =>
-                        void withdraw(
-                          group.scores
-                            .filter((score) => score.human_passed === null)
-                            .map((score) => score.id),
-                        )
-                    : undefined
-                }
-                onRescore={canRescore ? (ids) => void rescore(ids) : undefined}
-              />
-              {group.scores.map((score) => (
+    <div className="flex flex-1 flex-col gap-4">
+      <ListCard
+        fill
+        title={t("scores")}
+        counted={t("scoreCount", { count: scores.total })}
+        contentClassName="p-0"
+        controls={
+          <ReviewFilters
+            filter={filter}
+            onChange={(next) => {
+              setFilter(next);
+              setPage(0);
+            }}
+            tags={dataset.stats.top_tags.map((entry) => entry.tag)}
+          />
+        }
+      >
+        {scores.isLoading ? (
+          <LoadingState variant="skeleton-cards" rows={2} />
+        ) : scores.error ? (
+          <ErrorState
+            description={getErrorMessage(scores.error, tErrors)}
+            cta={{ label: tc("retry"), onClick: () => void scores.refetch() }}
+          />
+        ) : visibleScores.length === 0 ? (
+          <ListCardEmpty
+            icon={ClipboardCheck}
+            title={t("noScores")}
+            description={t("noScoresBody")}
+          />
+        ) : (
+          <div className="space-y-4">
+            {((canRescore && ungraded.length > 1) || (canDecide && waiting.length > 0)) && (
+              <div className="flex flex-wrap justify-end gap-2 px-4">
+                {canRescore && ungraded.length > 1 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={busy}
+                    onClick={() => void rescore(ungraded.map((score) => score.id))}
+                  >
+                    {t("rescoreGroup", { count: ungraded.length })}
+                  </Button>
+                )}
+                {canDecide && waiting.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={busy}
+                    onClick={() => void withdraw(waiting.map((score) => score.id))}
+                  >
+                    {t("withdrawGroup", { count: waiting.length })}
+                  </Button>
+                )}
+              </div>
+            )}
+            <ReviewResultsTable
+              scores={visibleScores}
+              linksRuns={linksRuns}
+              question={(score) => (
                 <ReviewQueueRow
-                  key={`${score.id}:${score.reviewed_at ?? "undecided"}`}
+                  key={`${score.id}:${score.case_masked ?? false}:${score.answer_hidden}`}
                   score={score}
                   busy={busy}
                   linksRuns={linksRuns}
@@ -211,19 +226,19 @@ export function ReviewPanel({ dataset }: { dataset: Dataset }) {
                     canDecide ? (target) => void noteToCriterion(score, target) : undefined
                   }
                 />
-              ))}
-            </section>
-          ))}
-          <Pager
-            page={page}
-            pageCount={pageCount}
-            matched={scores.total}
-            total={scores.total}
-            onPage={setPage}
-            counted={t("scoreCount", { count: scores.total })}
-          />
-        </div>
-      )}
-    </ListCard>
+              )}
+            />
+            <Pager
+              page={page}
+              pageCount={pageCount}
+              matched={scores.total}
+              total={scores.total}
+              onPage={setPage}
+              counted={t("scoreCount", { count: scores.total })}
+            />
+          </div>
+        )}
+      </ListCard>
+    </div>
   );
 }

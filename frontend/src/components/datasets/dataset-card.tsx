@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
 import { Building2, FlaskConical, Lock, Puzzle, Trash2, Users } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { Badge, Button } from "@/components/ui";
-import { Beam } from "@/components/ui/beam";
 import { ROUTES } from "@/lib/constants";
+import { DatasetChip, DatasetIcon } from "./dataset-chip";
+import { datasetNextStep } from "./dataset-journey";
 import { timeAgo } from "@/lib/utils";
 import type { Dataset } from "@/types/datasets";
 
@@ -28,19 +28,13 @@ export function DatasetCard({ dataset, onDelete }: DatasetCardProps) {
   const tc = useTranslations("common");
   const tt = useTranslations("time");
   const locale = useLocale();
-  const [hovered, setHovered] = useState(false);
   const VisibilityIcon = VISIBILITY_ICON[dataset.visibility];
+  const next = datasetNextStep(dataset);
   const edited = dataset.updated_at ?? dataset.created_at;
 
   return (
-    <Beam
-      size="md"
-      borderRadius={12}
-      active={hovered}
-      onHoverChange={setHovered}
-      className="h-full rounded-xl"
-    >
-      <div className="border-border bg-card hover:border-foreground/25 relative flex h-full flex-col gap-3 rounded-xl border p-4 transition-colors">
+    <div className="h-full">
+      <div className="border-foreground/8 bg-card hover:border-foreground/25 relative flex h-full flex-col gap-3 rounded-xl border p-4 transition-colors">
         <Link
           href={ROUTES.DATASET_DETAIL(dataset.id)}
           data-tour="dataset-card-open"
@@ -48,9 +42,7 @@ export function DatasetCard({ dataset, onDelete }: DatasetCardProps) {
           aria-label={tc("openNamed", { name: dataset.name })}
         />
         <div className="pointer-events-none relative flex items-start gap-3">
-          <span className="bg-foreground/[0.04] text-muted-foreground flex size-10 shrink-0 items-center justify-center rounded-lg">
-            <FlaskConical aria-hidden="true" className="size-5" />
-          </span>
+          <DatasetIcon tone="blue" icon={FlaskConical} className="size-10" />
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-2">
               <p className="text-foreground truncate font-medium">{dataset.name}</p>
@@ -60,15 +52,22 @@ export function DatasetCard({ dataset, onDelete }: DatasetCardProps) {
                 </Badge>
               )}
             </div>
-            <p className="text-muted-foreground text-xs">
-              {t("caseCount", { count: dataset.case_count })}
-            </p>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <span className="text-muted-foreground text-xs">
+                {t("caseCount", { count: dataset.case_count })}
+              </span>
+              <DatasetChip
+                tone={next === "cases" ? "blue" : next === "grading" ? "yellow" : "green"}
+              >
+                {t(`journey.status.${next}`)}
+              </DatasetChip>
+            </div>
             <p className="text-muted-foreground mt-2 line-clamp-2 min-h-10 text-sm">
               {dataset.description}
             </p>
           </div>
         </div>
-        <div className="text-muted-foreground relative mt-auto flex items-center gap-2 border-t pt-3 text-xs">
+        <div className="text-muted-foreground relative mt-auto flex min-w-0 flex-wrap items-center gap-2 border-t pt-3 text-xs">
           <span
             role="img"
             aria-label={t(`visibility.${dataset.visibility}`)}
@@ -78,7 +77,7 @@ export function DatasetCard({ dataset, onDelete }: DatasetCardProps) {
             <VisibilityIcon className="h-3.5 w-3.5" aria-hidden />
             <span>{t(`visibility.${dataset.visibility}`)}</span>
           </span>
-          <span className="pointer-events-none">
+          <span className="pointer-events-none min-w-0 flex-1 break-words">
             {t("editedWhen", { when: timeAgo(edited, tt, locale) })}
           </span>
           {dataset.skill_id && (
@@ -103,6 +102,6 @@ export function DatasetCard({ dataset, onDelete }: DatasetCardProps) {
           )}
         </div>
       </div>
-    </Beam>
+    </div>
   );
 }

@@ -8,19 +8,25 @@ import { usePathname } from "next/navigation";
 import { Check, HelpCircle, SlidersHorizontal, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PersonalCodingAccount } from "@/components/settings/coding-accounts";
+import { RememberedApprovals } from "./remembered-approvals";
 import { ChatModelPicker } from "./chat-model-picker";
 import { WorkOn, ConversationNotifications } from "./work-on";
 import { YourConnections } from "./your-connections";
 import { ContextHelp } from "@/components/ui/context-help";
-import { IconButton, Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useModelProviders, useOrganizationList, usePermissions } from "@/hooks";
-import { useOrgStore } from "@/stores";
+import { useAgentSelectionStore, useOrgStore } from "@/stores";
+import { useAgents } from "@/hooks/use-agents";
 import { useOnboardingStore } from "@/stores/onboarding-store";
 import type { PublishedModel } from "@/types/agents";
 import { Perm } from "@/types/permissions";
 import { stripLocale } from "@/lib/active-route";
 import { pageHasSteps } from "@/lib/onboarding/tour";
 import { cn } from "@/lib/utils";
+import { useShell } from "@/hooks/use-shell";
+import { isDesktopShell } from "@/lib/desktop/shell";
 
 /** Offered in this order: what the agent says, then looser, then tighter. */
 const APPROVAL_MODES: readonly ApprovalMode[] = ["follow_agent", "approve_all", "ask_all"];
@@ -78,13 +84,33 @@ export function ChatControls({
   agentCapabilities = null,
 }: ChatControlsProps) {
   const t = useTranslations("chat.controls");
-  const tc = useTranslations("common");
   const panel = useRef<HTMLDivElement>(null);
+  const tCommon = useTranslations("common");
   const waiverHintId = useId();
   const tOnboarding = useTranslations("onboarding");
   const pathname = usePathname();
   const openPage = useOnboardingStore((state) => state.openPage);
   const [open, setOpen] = useState(false);
+  const desktop = isDesktopShell(useShell());
+  const [tab, setTab] = useState("model");
+  const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
+  const { agents } = useAgents();
+  const selectedAgent = agents.find((agent) => agent.id === selectedAgentId);
+  const personalHarness = selectedAgent?.personal_coding_harness ?? null;
+  // What the agent reaches, kept apart from the model it runs on: the folder,
+  // browser, screen and coding agent on the desktop, and the coding account an
+  // agent that codes on the person's own account needs anywhere.
+  // A delegate can need either personal harness, even when the selected agent
+  // has no coding binding itself. Keep both connection doors in that case.
+  const delegates =
+    (agentCapabilities ?? selectedAgent?.published_capabilities)?.includes("subagents") === true;
+  const harnesses = delegates
+    ? (["claude_code", "codex"] as const)
+    : personalHarness
+      ? [personalHarness]
+      : [];
+  const tools = desktop || harnesses.length > 0;
+  const selectedTab = !tools && tab === "tools" ? "model" : tab;
   const { profiles } = useModelProviders();
   const { can } = usePermissions();
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
@@ -119,13 +145,13 @@ export function ChatControls({
           type="button"
           aria-label={t("label")}
           title={triggerTitle}
-          // The /settings slash command opens this popover by clicking the
+          // The /settings slash command opens these settings by clicking the
           // trigger through this attribute - see ChatContainer's slashContext.
           data-chat-settings-trigger
           data-tour="chat-settings"
           // One icon beside the microphone: the model is a choice made once
           // and remembered across chats; its name took the width of the row it sat in.
-          // The dot is what an override leaves visible once the popover closes.
+          // The dot is what an override leaves visible once the settings close.
           className={cn(
             "hover:bg-foreground/[0.06] hover:text-foreground relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors",
             hasOverride ? "text-foreground" : "text-muted-foreground",
@@ -144,179 +170,226 @@ export function ChatControls({
 
       <PopoverContent
         ref={panel}
+        style={{ backgroundColor: "var(--color-card)" }}
         aria-label={t("label")}
         onOpenAutoFocus={(event) => {
           event.preventDefault();
           panel.current?.focus();
         }}
+        side="top"
         align="end"
-        sideOffset={8}
-        className="border-border bg-popover relative flex max-h-[var(--radix-popover-content-available-height)] w-[380px] max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-xl border p-0 shadow-md outline-none"
-        // The page tour walks through this popover's sections. Its caption takes
+        sideOffset={12}
+        tabIndex={-1}
+        className="bg-card flex max-h-[min(680px,var(--radix-popover-content-available-height))] w-[480px] flex-col overflow-hidden rounded-xl p-0 shadow-2xl"
+        // The page tour walks through these settings sections. Its caption takes
         // focus and its overlay takes the pointer - both outside - and closing on
         // either left the next stop pinned to a section that had gone.
         onInteractOutside={(event) => {
-          if (document.querySelector(".driver-popover")) event.preventDefault();
+          if (
+            document.querySelector(".driver-popover") ||
+            (event.target instanceof Element &&
+              event.target.closest("[data-coding-account-connect]"))
+          )
+            event.preventDefault();
         }}
       >
-        <div className="flex shrink-0 items-center justify-between border-b px-4 py-2">
-          <h2 className="text-sm font-semibold">{t("label")}</h2>
-          <IconButton aria-label={tc("close")} onClick={() => setOpen(false)}>
-            <X />
-          </IconButton>
+        <div className="flex shrink-0 items-center justify-between px-5 pt-4 pb-3">
+          <h2 className="text-base font-semibold tracking-tight">{t("label")}</h2>
+          <button
+            type="button"
+            aria-label={tCommon("close")}
+            onClick={() => setOpen(false)}
+            className="text-foreground/75 hover:bg-accent hover:text-foreground flex size-8 items-center justify-center rounded-md"
+          >
+            <X className="size-4" aria-hidden />
+          </button>
         </div>
-        <div className="max-h-[420px] min-h-0 flex-1 scrollbar-thin overflow-y-auto p-4">
-          <div className="mb-2 flex items-center gap-1">
-            <h3 className="text-foreground/85 text-[13px] font-medium">{t("modelSection")}</h3>
-            <ContextHelp>{t("whichModelRunsHere")}</ContextHelp>
-          </div>
-          <ChatModelPicker
-            value={profileId}
-            agentModel={agentModel}
-            onChange={(next) => {
-              setProfileId(next);
-              onModelProfileChange?.(next);
-            }}
-            // "No override" is not "the organization default": an agent names its
-            // own model, and leaving that alone is the default here - so there is
-            // no row for one.
-          />
-          {profileId !== null && (
-            <button
-              type="button"
-              onClick={() => {
-                setProfileId(null);
-                onModelProfileChange?.(null);
-              }}
-              className="text-muted-foreground hover:text-foreground mt-3 text-xs underline-offset-2 hover:underline"
+        <Tabs value={selectedTab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col">
+          <TabsList className="mx-5 shrink-0 gap-5">
+            <TabsTrigger value="model" data-tour="chat-settings-model" className="px-0">
+              {t("modelSection")}
+            </TabsTrigger>
+            {tools && (
+              <TabsTrigger value="tools" data-tour="chat-settings-tools" className="px-0">
+                {t("toolsTab")}
+              </TabsTrigger>
+            )}
+            <TabsTrigger value="preferences" data-tour="chat-settings-preferences" className="px-0">
+              {t("preferencesTab")}
+            </TabsTrigger>
+          </TabsList>
+          <div className="min-h-0 flex-1 scrollbar-thin overflow-y-auto overscroll-contain px-5 py-5">
+            <TabsContent value="model" forceMount hidden={selectedTab !== "model"} className="mt-0">
+              <p className="text-muted-foreground mb-4 text-[13px] leading-5">
+                {t("whichModelRunsHere")}
+              </p>
+              <ChatModelPicker
+                value={profileId}
+                agentModel={agentModel}
+                onChange={(next) => {
+                  setProfileId(next);
+                  onModelProfileChange?.(next);
+                }}
+                // "No override" is not "the organization default": an agent names its
+                // own model, and leaving that alone is the default here - so there is
+                // no row for one.
+              />
+              {profileId !== null && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProfileId(null);
+                    onModelProfileChange?.(null);
+                  }}
+                  className="text-muted-foreground hover:text-foreground mt-3 text-xs underline-offset-2 hover:underline"
+                >
+                  {t("backAgentAposS")}
+                </button>
+              )}
+            </TabsContent>
+            {tools && (
+              <TabsContent
+                value="tools"
+                forceMount
+                hidden={selectedTab !== "tools"}
+                className="mt-0"
+              >
+                {harnesses.map((harness) => (
+                  <PersonalCodingAccount key={harness} harness={harness} />
+                ))}
+                {desktop && <WorkOn agentCapabilities={agentCapabilities} />}
+              </TabsContent>
+            )}
+            <TabsContent
+              value="preferences"
+              forceMount
+              hidden={selectedTab !== "preferences"}
+              className="mt-0"
             >
-              {t("backAgentAposS")}
-            </button>
-          )}
-
-          <WorkOn agentCapabilities={agentCapabilities} />
-
-          <div className="border-foreground/10 mt-4 border-t pt-4" data-tour="chat-approval-mode">
-            <div className="mb-2 flex items-center gap-1">
-              <h3 className="text-foreground/85 text-[13px] font-medium">
-                {t("permissionsSection")}
-              </h3>
-              <ContextHelp>
-                <p>{t("howMuchToBeAsked")}</p>
-                <ul className="mt-3 space-y-3">
-                  {APPROVAL_MODES.map((mode) => (
-                    <li key={mode}>
-                      <strong className="font-medium">{t(`mode.${mode}`)}</strong>
-                      <p className="text-muted-foreground mt-1">{t(`modeHint.${mode}`)}</p>
-                    </li>
-                  ))}
-                </ul>
-              </ContextHelp>
-            </div>
-            <div
-              role="radiogroup"
-              aria-label={t("approvalMode")}
-              aria-describedby={!mayWaive ? waiverHintId : undefined}
-              className="space-y-1"
-            >
-              {APPROVAL_MODES.map((mode) => {
-                // Rendered but unavailable, rather than hidden: "you cannot waive
-                // approvals here" is a fact worth reading, where a menu that is
-                // one item shorter for some people is a menu nobody can reason
-                // about. The reason is said beneath it.
-                const offered = mode !== "approve_all" || mayWaive;
-                return (
-                  <button
-                    key={mode}
-                    type="button"
-                    role="radio"
-                    aria-checked={approvalMode === mode}
-                    disabled={!offered}
-                    onClick={() => {
-                      setApprovalMode(mode);
-                      onApprovalModeChange?.(mode);
-                    }}
-                    className={cn(
-                      "focus-visible:ring-ring flex w-full items-start gap-2.5 rounded-lg px-3 py-2.5 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset",
-                      approvalMode === mode
-                        ? "bg-foreground/[0.06] text-foreground"
-                        : "text-foreground/70 hover:bg-foreground/[0.04]",
-                      !offered && "cursor-not-allowed opacity-45",
-                    )}
-                  >
-                    <span
-                      aria-hidden
-                      className={cn(
-                        "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border",
-                        approvalMode === mode
-                          ? "border-foreground bg-foreground text-background"
-                          : "border-input",
-                      )}
-                    >
-                      {approvalMode === mode && <Check className="size-3" />}
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block text-[13px] font-medium">{t(`mode.${mode}`)}</span>
-                      {approvalMode === mode && (
-                        <span className="text-muted-foreground mt-1 block text-xs leading-relaxed">
-                          {t(`modeHint.${mode}`)}
+              <div className="space-y-4" data-tour="chat-approval-mode">
+                <div className="mb-2 flex items-center gap-1">
+                  <h3 className="text-foreground/85 text-[13px] font-medium">
+                    {t("permissionsSection")}
+                  </h3>
+                  <ContextHelp>
+                    <p>{t("howMuchToBeAsked")}</p>
+                    <ul className="mt-3 space-y-3">
+                      {APPROVAL_MODES.map((mode) => (
+                        <li key={mode}>
+                          <strong className="font-medium">{t(`mode.${mode}`)}</strong>
+                          <p className="text-muted-foreground mt-1">{t(`modeHint.${mode}`)}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  </ContextHelp>
+                </div>
+                <div
+                  role="radiogroup"
+                  aria-label={t("approvalMode")}
+                  aria-describedby={!mayWaive ? waiverHintId : undefined}
+                  className="space-y-2"
+                >
+                  {APPROVAL_MODES.map((mode) => {
+                    // Rendered but unavailable, rather than hidden: "you cannot waive
+                    // approvals here" is a fact worth reading, where a menu that is
+                    // one item shorter for some people is a menu nobody can reason
+                    // about. The reason is said beneath it.
+                    const offered = mode !== "approve_all" || mayWaive;
+                    return (
+                      <button
+                        key={mode}
+                        type="button"
+                        role="radio"
+                        aria-checked={approvalMode === mode}
+                        aria-label={t(`mode.${mode}`)}
+                        aria-describedby={`${waiverHintId}-${mode}`}
+                        disabled={!offered}
+                        onClick={() => {
+                          setApprovalMode(mode);
+                          onApprovalModeChange?.(mode);
+                        }}
+                        className={cn(
+                          "focus-visible:ring-ring flex w-full items-start justify-between gap-4 rounded-xl border px-3.5 py-3 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset",
+                          approvalMode === mode
+                            ? "border-foreground/20 bg-foreground/[0.04] text-foreground"
+                            : "border-border/60 text-foreground/80 hover:bg-foreground/[0.025]",
+                          !offered && "text-muted-foreground cursor-not-allowed border-dashed",
+                        )}
+                      >
+                        <span
+                          aria-hidden
+                          className={cn(
+                            "order-last mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border",
+                            approvalMode === mode
+                              ? "border-foreground bg-foreground text-background"
+                              : "border-input",
+                          )}
+                        >
+                          {approvalMode === mode && <Check className="size-3" />}
                         </span>
+                        <span className="min-w-0">
+                          <span className="block text-[13px] font-medium">{t(`mode.${mode}`)}</span>
+                          <span
+                            id={`${waiverHintId}-${mode}`}
+                            className="text-muted-foreground mt-1 block text-xs leading-relaxed"
+                          >
+                            {t(`modeHint.${mode}`)}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {can(Perm.approvalsDecide) && <RememberedApprovals />}
+                {!mayWaive && (
+                  <div className="text-muted-foreground mt-2 space-y-2 text-xs leading-relaxed">
+                    <p id={waiverHintId}>
+                      {t(
+                        !can(Perm.approvalsDecide)
+                          ? "waiverPermission"
+                          : typeof activeOrg?.chat_may_waive_approvals !== "boolean"
+                            ? "waiverUnknown"
+                            : "waiverOrg",
                       )}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            {!mayWaive && (
-              <div className="text-muted-foreground mt-2 space-y-2 text-xs leading-relaxed">
-                <p id={waiverHintId}>
-                  {t(
-                    !can(Perm.approvalsDecide)
-                      ? "waiverPermission"
-                      : typeof activeOrg?.chat_may_waive_approvals !== "boolean"
-                        ? "waiverUnknown"
-                        : "waiverOrg",
-                  )}
-                </p>
-                {can(Perm.approvalsDecide) && activeOrg?.chat_may_waive_approvals === false && (
-                  <Link
-                    href={`/orgs/${activeOrg.id}/members?tab=governance`}
-                    onClick={() => setOpen(false)}
-                    className="text-foreground underline underline-offset-4"
-                  >
-                    {t("waiverSettings")}
-                  </Link>
+                    </p>
+                    {can(Perm.approvalsDecide) && activeOrg?.chat_may_waive_approvals === false && (
+                      <Link
+                        href={`/orgs/${activeOrg.id}/members?tab=governance`}
+                        onClick={() => setOpen(false)}
+                        className="text-foreground underline underline-offset-4"
+                      >
+                        {t("waiverSettings")}
+                      </Link>
+                    )}
+                  </div>
                 )}
               </div>
-            )}
-          </div>
-          <ConversationNotifications />
-          <YourConnections />
-          {/* Chat has no PageHeader, so its tips are replayed from here - beside
+              <ConversationNotifications />
+              <YourConnections />
+              {/* Chat has no PageHeader, so its tips are replayed from here - beside
               the other controls, rather than under the composer (#2301). Closed
-              first: the tour walks through this very popover. */}
-          {pageHasSteps(stripLocale(pathname ?? "/")) && (
-            <div className="border-foreground/10 mt-4 border-t pt-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setOpen(false);
-                  openPage();
-                }}
-                className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-xs transition-colors"
-              >
-                <HelpCircle className="h-3.5 w-3.5" aria-hidden />
-                {tOnboarding("pageHelp")}
-              </button>
-            </div>
-          )}
-        </div>
+              first: the tour walks through these settings. */}
+              {pageHasSteps(stripLocale(pathname ?? "/")) && (
+                <div className="border-foreground/10 mt-4 border-t pt-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpen(false);
+                      openPage();
+                    }}
+                    className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-xs transition-colors"
+                  >
+                    <HelpCircle className="h-3.5 w-3.5" aria-hidden />
+                    {tOnboarding("pageHelp")}
+                  </button>
+                </div>
+              )}
+            </TabsContent>
+          </div>
+        </Tabs>
 
-        <div className="border-foreground/10 text-muted-foreground flex shrink-0 items-center justify-between border-t px-4 py-2 text-[11px]">
-          <span className="inline-flex items-center gap-1.5">
-            <span aria-hidden className="bg-foreground inline-block h-1 w-1 rounded-full" />
-            {t("savedPreferences")}
-          </span>
+        <div className="text-muted-foreground flex shrink-0 items-center justify-between px-5 pt-1 pb-4 text-[11px]">
+          <span className="inline-flex items-center gap-1.5">{t("savedAutomatically")}</span>
           <span>{t("escToClose")}</span>
         </div>
       </PopoverContent>

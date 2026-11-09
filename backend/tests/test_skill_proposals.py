@@ -24,17 +24,19 @@ import pytest
 
 from app.core.exceptions import (
     AlreadyExistsError,
+    AuthorizationError,
     ConcurrentChangeError,
     ConflictError,
     NotFoundError,
 )
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.skill_proposal import ProposalStatus, SkillProposal
 from app.db.models.skill_version import SkillVersionSource
 from app.repositories import skill_proposal_repo, skill_repo, skill_version_repo
 from app.schemas.resource_usage import ProposalDecision
 from app.services import proposal_reach
 from app.services import skill_proposal as skill_proposal_module
+from app.services import skill_proposal as skill_proposals
 from app.services.skill_check import SkillCheckService
 from app.services.skill_proposal import SkillProposalService
 from app.services.skill_versions import SkillVersionService
@@ -532,6 +534,7 @@ class TestListing:
         service = _service(monkeypatch)
         listed = AsyncMock(return_value=[])
         monkeypatch.setattr(skill_proposal_repo, "list_for_organization", listed)
+        monkeypatch.setattr(skill_proposals, "accessible_ids", AsyncMock(return_value=set()))
         ctx = _ctx()
 
         await service.list_proposals(ctx, status="pending")
@@ -570,7 +573,7 @@ class TestReading:
         )
 
     @pytest.mark.security
-    async def test_a_reviewer_without_runs_view_gets_the_runs_but_not_the_words(self, monkeypatch):
+    async def test_a_reviewer_without_runs_view_cannot_read_generated_text(self, monkeypatch):
         service = _service(monkeypatch)
         proposal = self._proposal()
         monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
@@ -581,11 +584,33 @@ class TestReading:
             user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.MEMBER.value
         )
 
-        hidden = await service.read(member, proposal.id)
+        with pytest.raises(AuthorizationError, match="runs:view"):
+            await service.read(member, proposal.id)
+        assert await service.list_read(member) == []
         shown = await service.list_read(_ctx())
 
-        assert hidden.evidence == [{"run_id": "run-1", "quote": None}]
         assert shown[0].evidence == [{"run_id": "run-1", "quote": "Thirty days"}]
+
+    @pytest.mark.parametrize("has_request", [True, False])
+    async def test_generated_authoring_content_needs_runs_view_even_without_quotes(
+        self, monkeypatch, has_request
+    ):
+        service = _service(monkeypatch)
+        proposal = self._proposal()
+        proposal.authoring_request_id = uuid.uuid4() if has_request else None
+        proposal.evidence = []
+        proposal.content = "Private content copied into the proposed skill"
+        monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
+        monkeypatch.setattr(
+            skill_proposal_repo, "list_for_organization", AsyncMock(return_value=[proposal])
+        )
+        member = AuthContext(
+            user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.MEMBER.value
+        )
+        with pytest.raises(AuthorizationError, match="runs:view"):
+            await service.read(member, proposal.id)
+        assert await service.list_read(member) == []
+        assert (await service.read(_ctx(), proposal.id)).content == proposal.content
 
 
 class TestRevision:
@@ -618,3 +643,54 @@ class TestRevision:
             await service.discard(_ctx(), proposal.id, _DECISION)
 
         service.skills.update.assert_not_called()
+
+    async def test_only_proposals_the_caller_may_decide_are_listed(self, monkeypatch):
+        """A proposal for a skill the caller may not edit is somebody else's decision,
+        and its body somebody else's draft (#2422); a new skill's is anyone's here."""
+        service = _service(monkeypatch)
+        mine, theirs, new = _proposal(), _proposal(), _proposal(skill_id=None)
+        monkeypatch.setattr(
+            skill_proposal_repo,
+            "list_for_organization",
+            AsyncMock(return_value=[mine, theirs, new]),
+        )
+        skills = {mine.skill_id: MagicMock(), theirs.skill_id: MagicMock()}
+        got_many = AsyncMock(return_value=skills)
+        monkeypatch.setattr(skill_repo, "get_many", got_many)
+        editable = AsyncMock(return_value={mine.skill_id})
+        monkeypatch.setattr(skill_proposals, "accessible_ids", editable)
+        ctx = _ctx()
+
+        assert await service.list_proposals(ctx) == [mine, new]
+        assert sorted(got_many.await_args.args[1]) == sorted(skills)
+        assert list(editable.await_args.args[2]) == list(skills.values())
+        assert editable.await_args.args[3] is Perm.SKILLS_EDIT
+
+    async def test_a_proposal_for_a_skill_the_caller_cannot_edit_reads_as_missing(
+        self, monkeypatch
+    ):
+        """Applying and discarding read it the same way, so neither is reachable either."""
+        service = _service(monkeypatch)
+        proposal = _proposal()
+        monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
+        resolve = AsyncMock(return_value=False)
+        monkeypatch.setattr(skill_proposals, "resolve_access", resolve)
+
+        for decide in (service.get, service.apply, service.discard):
+            with pytest.raises(NotFoundError) as refused:
+                await decide(
+                    _ctx(), proposal.id, _DECISION
+                ) if decide != service.get else await decide(_ctx(), proposal.id)
+            assert refused.value.details == {"proposal_id": str(proposal.id)}
+
+        assert resolve.await_args.args[3] is Perm.SKILLS_EDIT
+        service.skills.update.assert_not_called()
+
+    async def test_a_proposal_whose_skill_is_gone_reads_as_missing(self, monkeypatch):
+        service = _service(monkeypatch)
+        proposal = _proposal()
+        monkeypatch.setattr(skill_proposal_repo, "get", AsyncMock(return_value=proposal))
+        monkeypatch.setattr(skill_repo, "get", AsyncMock(return_value=None))
+
+        with pytest.raises(NotFoundError):
+            await service.get(_ctx(), proposal.id)

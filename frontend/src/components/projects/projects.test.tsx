@@ -174,6 +174,7 @@ describe("ProjectCard", () => {
       />,
     );
     expect(screen.getByRole("link")).toHaveAttribute("href", "/projects/p-1");
+    expect(screen.getByText("L")).toHaveAttribute("aria-hidden", "true");
     expect(screen.getByText("2 chats")).toBeInTheDocument();
     expect(screen.getByText("Starts with Writer")).toBeInTheDocument();
     expect(screen.getByText(/Active/)).toBeInTheDocument();
@@ -655,7 +656,7 @@ describe("ProjectSettings", () => {
   it("shows a reader who may not change it the instructions, rendered and read-only", async () => {
     wrap(<ProjectSettings project={aProject({ can_edit: false })} />);
     // Opened on the preview, as somebody who may only read them reads them.
-    expect(screen.getByRole("button", { name: "Preview" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Source" })).toBeInTheDocument();
     expect(await screen.findByText(/Be brief/)).toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "Instructions" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();

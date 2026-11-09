@@ -22,7 +22,7 @@ export function BrandLink({ markOnly = false }: { markOnly?: boolean }) {
   const { appName } = useBranding();
   return (
     <Link
-      href={ROUTES.DASHBOARD}
+      href={ROUTES.CHAT}
       title={markOnly ? appName : undefined}
       aria-label={markOnly ? appName : undefined}
       className="focus-visible:ring-ring flex items-center gap-2 rounded-md text-sm font-bold tracking-tight outline-none focus-visible:ring-1"

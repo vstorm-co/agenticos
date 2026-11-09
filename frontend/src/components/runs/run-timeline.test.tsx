@@ -29,8 +29,25 @@ vi.mock("@/components/chat/markdown-content", () => ({
 }));
 
 vi.mock("@/components/datasets/add-to-dataset-button", () => ({
-  AddToDatasetButton: ({ messageId, ratedDown }: { messageId: string; ratedDown: boolean }) => (
-    <button type="button" data-message={messageId} data-rated-down={String(ratedDown)}>
+  AddToDatasetButton: ({
+    messageId,
+    ratedDown,
+    asked,
+    answer,
+  }: {
+    messageId: string;
+    ratedDown: boolean;
+    asked?: { question: string; earlier: boolean };
+    answer?: string;
+  }) => (
+    <button
+      type="button"
+      data-message={messageId}
+      data-rated-down={String(ratedDown)}
+      data-question={asked?.question}
+      data-earlier={String(asked?.earlier)}
+      data-answer={answer}
+    >
       Add to dataset
     </button>
   ),
@@ -309,6 +326,23 @@ describe("what people said about it", () => {
 });
 
 describe("adding an answer to a dataset", () => {
+  it("carries the question and prior history across run groups into the add flow", () => {
+    serve({
+      items: [
+        turn({ id: "q0", role: "user", run_id: "run-0", content: "Previous question" }),
+        turn({ id: "a0", run_id: "run-0", content: "Previous answer" }),
+        turn({ id: "q1", role: "user", content: "And what about Canada?" }),
+        turn({ id: "a1", content: "  First part. " }),
+        turn({ id: "a2", content: " Second part.  " }),
+      ],
+    });
+    renderTimeline();
+    const action = screen.getByRole("button", { name: "Add to dataset" });
+    expect(action).toHaveAttribute("data-question", "And what about Canada?");
+    expect(action).toHaveAttribute("data-earlier", "true");
+    expect(action).toHaveAttribute("data-answer", "First part.\n\nSecond part.");
+  });
+
   it("offers a reply written in steps once, on its last step, as rated down by any", () => {
     serve({
       items: [

@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import AuthorizationError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
@@ -17,6 +18,7 @@ from app.db.models.skill import Skill
 from app.repositories import skill_improvement_repo
 from app.services.authoring import AuthoringService
 from tests.integration.test_authoring import _member, _owner, _published
+from tests.integration.test_authoring_skill_problems import _with_runs_view
 from tests.integration.test_skill_bindings import _skill
 
 pytestmark = pytest.mark.anyio
@@ -73,17 +75,15 @@ def _quoted(*runs: AgentRun) -> dict[str, Any]:
 
 class TestASkillsRequests:
     @pytest.mark.security
-    async def test_a_reader_without_runs_view_sees_no_quote(self, db):
+    async def test_a_reader_without_runs_view_reads_none_of_its_requests(self, db):
         owner = await _owner(db)
         viewer = await _member(db, owner, OrgRoleName.VIEWER)
         skill = await _skill(db, owner)
         run = await _run(db, await _published(db, owner, name="Desk", spec={"name": "Desk"}))
         await _request(db, owner, skill, _quoted(run))
 
-        [read] = await AuthoringService(db).for_skill(viewer, skill.id)
-
-        assert read.report is not None
-        assert read.report["findings"][0]["evidence"] == [{"run_id": str(run.id)}]
+        with pytest.raises(AuthorizationError, match="runs:view"):
+            await AuthoringService(db).for_skill(viewer, skill.id)
 
     @pytest.mark.security
     async def test_a_hidden_agents_run_is_left_out_with_its_quote(self, db):
@@ -97,7 +97,8 @@ class TestASkillsRequests:
         await _request(db, owner, skill, _quoted(seen, unseen))
 
         [as_owner] = await AuthoringService(db).for_skill(owner, skill.id)
-        [as_member] = await AuthoringService(db).for_skill(builder, skill.id)
+        with _with_runs_view():
+            [as_member] = await AuthoringService(db).for_skill(builder, skill.id)
 
         assert as_owner.report is not None and as_member.report is not None
         assert len(as_owner.report["findings"][0]["evidence"]) == 2

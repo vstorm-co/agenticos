@@ -2,11 +2,11 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Clock } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import {
   Button,
   ConfirmDialog,
+  DialogFooter,
   Input,
   Label,
   Select,
@@ -15,7 +15,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { SystemAgentChoice } from "@/components/agents/system-agent-choice";
+import { cn } from "@/lib/utils";
+import { DIALOG_BODY } from "@/lib/dialog-sizes";
 import { StartQuestionSet, StartSignals } from "./session-inputs";
 import { TodayCheck } from "./today-check";
 import { WriteQuestions } from "./write-questions";
@@ -24,37 +25,43 @@ import { useDatasets } from "@/hooks/use-datasets";
 import { useAgentEvalSuites } from "@/hooks/use-eval-suites";
 import { useImprovement, useImprovements } from "@/hooks/use-improvements";
 import { subjectOf } from "@/lib/improvement-subject";
-import { getErrorMessage } from "@/lib/api-error";
+import { getErrorMessage, problemList } from "@/lib/api-error";
 import { isActive, openImprovement } from "@/lib/improvement-steps";
 import { useOrgStore } from "@/stores/org-store";
 import type { Improvement, ImprovementEstimate } from "@/types/improvement";
 
 /**
- * Screen 0: the agent's own test set is chosen and priced before anything is
- * asked, so the one decision is Start improving. Another set, the spending limit
- * and the helper sit under Show details; an agent without a test set gets one
- * written here.
+ * Configure a session over the Agent Builder, with its dataset and price visible.
+ * The agent's own test set is preferred; the limit and detailed checks expand
+ * when needed. Creating test questions has its own estimate before it starts.
  */
-export function StartSession({ agentId }: { agentId: string }) {
+export function StartSession({ agentId, onClose }: { agentId: string; onClose: () => void }) {
   const t = useTranslations("improvement");
+  const tc = useTranslations("common");
   const tr = useTranslations("authoring.improve");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
   const router = useRouter();
   const params = useSearchParams();
-  const baselineFirst = params.get("baseline") === "1";
+  const mode = params.get("improve") ?? "";
+  const baselineFirst = params.get("baseline") === "1" || mode.includes("baseline");
   const organizationId = useOrgStore((state) => state.activeOrgId);
   const datasets = useDatasets({ limit: 100 });
   const own = useDatasets({ agent: agentId, sort: "updated", limit: 5 });
   const sessions = useImprovements(agentId);
   const suites = useAgentEvalSuites(agentId);
   const [startedId, setStartedId] = useState<string | null>(null);
-  const [chosen, setChosen] = useState<string | null>(params.get("dataset"));
+  const [chosen, setChosen] = useState<string | null>(
+    params.get("improveDataset") ?? params.get("dataset"),
+  );
   const [written, setWritten] = useState(0);
-  const [helper, setHelper] = useState<string | null>(null);
   const [budget, setBudget] = useState<string | null>(null);
   const [quoted, setQuote] = useState<{ key: string; value: ImprovementEstimate } | null>(null);
-  const [refusal, setRefusal] = useState<{ key: string; message: string } | null>(null);
+  const [refusal, setRefusal] = useState<{
+    key: string;
+    message: string;
+    problems: string[] | null;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [details, setDetails] = useState(false);
   // A set made for this agent wins over one it was only run against or guarded by.
@@ -63,7 +70,6 @@ export function StartSession({ agentId }: { agentId: string }) {
     chosen ?? (runnable.find((dataset) => dataset.agent_id === agentId) ?? runnable[0])?.id ?? "";
   const body = {
     dataset_id: target,
-    ...(helper ? { improver_agent_id: helper } : {}),
     max_iterations: 3,
   };
   const asked = JSON.stringify(body);
@@ -71,7 +77,10 @@ export function StartSession({ agentId }: { agentId: string }) {
   const quote = quoted?.key === key ? quoted.value : null;
   const refused = refusal?.key === key ? refusal.message : null;
   const limit = budget !== null ? limitValue(budget) : quote ? sessionLimit(quote) : "";
-  const choices = datasets.datasets.filter((dataset) => dataset.can_run);
+  const choices = [
+    ...own.datasets,
+    ...datasets.datasets.filter((dataset) => !own.datasets.some((item) => item.id === dataset.id)),
+  ].filter((dataset) => dataset.can_run);
   const estimateSession = sessions.estimate.mutateAsync;
   // An estimate spends nothing, so the price and the time are on screen as soon
   // as there is something to price; only starting asks for a click.
@@ -80,10 +89,18 @@ export function StartSession({ agentId }: { agentId: string }) {
     let current = true;
     estimateSession(JSON.parse(asked)).then(
       (priced) => {
-        if (current) setQuote({ key, value: priced });
+        if (current) {
+          setQuote({ key, value: priced });
+          setRefusal(null);
+        }
       },
       (failure: unknown) => {
-        if (current) setRefusal({ key, message: getErrorMessage(failure, tErrors) });
+        if (current)
+          setRefusal({
+            key,
+            message: getErrorMessage(failure, tErrors),
+            problems: problemList(failure),
+          });
       },
     );
     return () => {
@@ -95,7 +112,7 @@ export function StartSession({ agentId }: { agentId: string }) {
     setWritten((count) => count + 1);
   }, []);
   const open = openImprovement(sessions.sessions);
-  const resume = params.get("resume") === "1";
+  const resume = params.get("resume") === "1" || mode.includes("resume");
   // A link to Improve cannot know which session is open, so it lands here to be sent on.
   useEffect(() => {
     if (resume && open) router.replace(`/agents/${agentId}/improve/${open.id}`);
@@ -103,7 +120,7 @@ export function StartSession({ agentId }: { agentId: string }) {
   const loading = (own.isLoading || (runnable.length === 0 && datasets.isLoading)) && !chosen;
   const picker = (
     <div className="space-y-2" data-tour="improvement-test-set">
-      <Label htmlFor="improvement-target">{t("testSet")}</Label>
+      <Label htmlFor="improvement-target">{t("startDataset")}</Label>
       <Select value={target} onValueChange={setChosen}>
         <SelectTrigger id="improvement-target">
           <SelectValue placeholder={t("chooseQuestions")} />
@@ -119,148 +136,210 @@ export function StartSession({ agentId }: { agentId: string }) {
           })}
         </SelectContent>
       </Select>
-      {datasets.error && <p role="alert">{getErrorMessage(datasets.error, tErrors)}</p>}
+      <p className="text-muted-foreground text-xs">{t("startDatasetHint")}</p>
     </div>
   );
+  const writeOwn = (
+    <details className="text-sm">
+      <summary className="text-muted-foreground hover:text-foreground cursor-pointer">
+        {t("writeOwnInstead")}
+      </summary>
+      <div className="mt-3">
+        <WriteQuestions agentId={agentId} onReady={questionsReady} />
+      </div>
+    </details>
+  );
+  async function start() {
+    setError(null);
+    try {
+      const started = await sessions.start.mutateAsync({ ...body, budget_usd: limit });
+      setStartedId(started.id);
+      if (useOrgStore.getState().activeOrgId === organizationId)
+        router.push(`/agents/${agentId}/improve/${started.id}`);
+    } catch (failure) {
+      setError(getErrorMessage(failure, tErrors));
+    }
+  }
   return (
-    <div className="space-y-6" data-tour="improvement-start">
-      <p className="text-muted-foreground max-w-2xl text-sm">{t("intro")}</p>
-      <StartSignals agentId={agentId} datasetId={target} />
-      {sessions.error && <p role="alert">{getErrorMessage(sessions.error, tErrors)}</p>}
-      {open && open.id !== startedId && (
-        <div className="space-y-2 rounded-lg border p-3">
-          <Link
-            className="block text-sm underline underline-offset-4"
-            href={`/agents/${agentId}/improve/${open.id}`}
-          >
-            {t("resumeOpen", {
-              date: new Date(open.created_at).toLocaleString(locale),
-              status: t(`status.${open.status}`),
-            })}
-          </Link>
-          <EndOpen session={open} />
-        </div>
-      )}
-      <div className="max-w-xl space-y-3">
-        {baselineFirst && <p className="font-medium">{t("baselineFirst")}</p>}
-        {loading ? (
-          <p role="status">{t("loading")}</p>
-        ) : !target && choices.length > 0 ? (
-          <>
-            {picker}
-            <details className="rounded-xl border p-3">
-              <summary className="cursor-pointer text-sm font-medium">
-                {t("writeOwnInstead")}
-              </summary>
-              <div className="mt-3">
-                <WriteQuestions agentId={agentId} onReady={questionsReady} />
-              </div>
-            </details>
-          </>
-        ) : !target ? (
-          <WriteQuestions agentId={agentId} onReady={questionsReady} />
-        ) : (
-          baselineFirst && <TodayCheck agentId={agentId} datasetId={target} />
-        )}
-        {refused !== null && (
-          <p role="alert" className="text-destructive text-sm">
-            {refused}
+    <>
+      <div className={cn(DIALOG_BODY, "space-y-5")} data-tour="improvement-start">
+        {datasets.error && (
+          <p role="alert" className="text-destructive-ink text-sm">
+            {getErrorMessage(datasets.error, tErrors)}
           </p>
         )}
-        {target && <StartQuestionSet datasetId={target} heldOut={quote?.held_out ?? undefined} />}
-        {target && !quote && refused === null && <p role="status">{t("estimating")}</p>}
-        {quote && (
-          <section
-            className="border-primary/30 bg-primary/5 space-y-3 rounded-xl border p-4"
-            data-tour="improvement-quote"
-          >
-            <p className="flex items-start gap-2">
-              <Clock className="text-primary mt-0.5 size-4 shrink-0" aria-hidden />
-              {t("sessionQuote", {
-                cost: usd(quote.total_usd, locale),
-                answers: quote.evidence_runs,
-                minutes: Math.max(1, Math.round(quote.estimated_minutes / quote.max_iterations)),
-                perRound: usd(quote.per_round_usd, locale),
-                limit: usd(limit, locale),
-              })}
-            </p>
-            {quote.reason && <p role="status">{tr(`reason.${quote.reason}`)}</p>}
-            <Button
-              disabled={
-                !quote.affordable ||
-                quote.reason !== null ||
-                !Number.isFinite(Number(limit)) ||
-                Number(limit) <= 0 ||
-                sessions.start.isPending ||
-                startedId !== null
-              }
-              onClick={() =>
-                void (async () => {
-                  setError(null);
-                  try {
-                    const started = await sessions.start.mutateAsync({
-                      ...body,
-                      budget_usd: limit,
-                    });
-                    setStartedId(started.id);
-                    if (useOrgStore.getState().activeOrgId === organizationId)
-                      router.push(`/agents/${agentId}/improve/${started.id}`);
-                  } catch (failure) {
-                    setError(getErrorMessage(failure, tErrors));
-                  }
-                })()
-              }
+        {sessions.error && (
+          <p role="alert" className="text-destructive-ink text-sm">
+            {getErrorMessage(sessions.error, tErrors)}
+          </p>
+        )}
+        {open && open.id !== startedId && (
+          <div className="space-y-2 rounded-lg border p-3">
+            <Link
+              className="block text-sm underline underline-offset-4"
+              href={`/agents/${agentId}/improve/${open.id}`}
             >
-              {t("start")}
-            </Button>
+              {t("resumeOpen", {
+                date: new Date(open.created_at).toLocaleString(locale),
+                status: t(`status.${open.status}`),
+              })}
+            </Link>
+            <EndOpen session={open} />
+          </div>
+        )}
+        {baselineFirst && <p className="text-muted-foreground text-sm">{t("baselineFirst")}</p>}
+        {loading ? (
+          <p role="status" className="text-muted-foreground text-sm">
+            {t("loading")}
+          </p>
+        ) : choices.length > 0 ? (
+          <>
+            {picker}
+            {!target && writeOwn}
+          </>
+        ) : (
+          <WriteQuestions agentId={agentId} onReady={questionsReady} />
+        )}
+        {refused !== null && (
+          <div
+            role="alert"
+            className="bg-destructive/5 border-destructive/20 space-y-3 rounded-lg border p-4 text-sm"
+          >
+            <p className="text-destructive-ink font-medium">{refused}</p>
+            {refusal?.problems && (
+              <ul className="text-muted-foreground list-disc space-y-1 pl-5 break-words">
+                {refusal.problems.map((problem) => (
+                  <li key={problem}>{problem}</li>
+                ))}
+              </ul>
+            )}
+            {refusal?.problems && (
+              <Button variant="outline" size="sm" asChild>
+                <Link href={`/agents/${agentId}?tab=build`} onClick={onClose}>
+                  {t("openAgent")}
+                </Link>
+              </Button>
+            )}
+          </div>
+        )}
+        {target && !quote && refused === null && (
+          <p role="status" className="text-muted-foreground text-sm">
+            {t("estimating")}
+          </p>
+        )}
+        {quote && (
+          <section className="space-y-3 rounded-lg border p-4" data-tour="improvement-quote">
+            <dl className="grid grid-cols-2 gap-4">
+              <div>
+                <dt className="text-muted-foreground text-xs">{t("analysisEstimate")}</dt>
+                <dd className="mt-1 text-lg font-semibold tabular-nums">
+                  {usd(quote.total_usd, locale)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground text-xs">{t("budget")}</dt>
+                <dd className="mt-1 text-lg font-semibold tabular-nums">
+                  {Number.isFinite(Number(limit)) && Number(limit) > 0 ? usd(limit, locale) : "—"}
+                </dd>
+              </div>
+            </dl>
+            <p className="text-muted-foreground text-xs">
+              {t("startCostHint", { cost: usd(quote.per_round_usd, locale) })}
+            </p>
+            {quote.reason && (
+              <p role="status" className="text-sm">
+                {tr(`reason.${quote.reason}`)}
+              </p>
+            )}
           </section>
         )}
+        <StartSignals agentId={agentId} datasetId={target} />
+        {target && (
+          <details
+            className="border-t pt-4"
+            data-tour="improvement-details"
+            onToggle={(event) => setDetails(event.currentTarget.open)}
+          >
+            <summary className="cursor-pointer text-sm font-medium">{t("showDetails")}</summary>
+            <div className="mt-4 min-w-0 space-y-4">
+              {choices.length > 0 && writeOwn}
+              {quote && (
+                <>
+                  <p className="text-muted-foreground text-sm">
+                    {t("sessionQuote", {
+                      cost: usd(quote.total_usd, locale),
+                      answers: quote.evidence_runs,
+                      minutes: Math.max(
+                        1,
+                        Math.round(quote.estimated_minutes / quote.max_iterations),
+                      ),
+                      perRound: usd(quote.per_round_usd, locale),
+                      limit: usd(limit, locale),
+                    })}
+                  </p>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="improvement-budget">{t("budget")}</Label>
+                    <Input
+                      id="improvement-budget"
+                      inputMode="decimal"
+                      value={budget ?? limitText(sessionLimit(quote), locale)}
+                      onChange={(event) => setBudget(event.target.value)}
+                    />
+                    <p className="text-muted-foreground text-xs">
+                      {t("limitHint", {
+                        analysis: usd(quote.total_usd, locale),
+                        perRound: usd(quote.per_round_usd, locale),
+                      })}
+                    </p>
+                  </div>
+                  {quote.knowledge_usd && Number(quote.knowledge_usd) > 0 && (
+                    <p className="text-muted-foreground text-sm">
+                      {t("knowledgeEstimate", { cost: usd(quote.knowledge_usd, locale) })}
+                    </p>
+                  )}
+                </>
+              )}
+              {target && (
+                <StartQuestionSet datasetId={target} heldOut={quote?.held_out ?? undefined} />
+              )}
+              {details && target && <TodayCheck agentId={agentId} datasetId={target} />}
+              {target && (
+                <Link
+                  className="text-sm underline underline-offset-4"
+                  href={`/datasets/${target}?tab=settings`}
+                >
+                  {t("pipelineSettings")}
+                </Link>
+              )}
+            </div>
+          </details>
+        )}
         {error && (
-          <p role="alert" className="text-destructive text-sm">
+          <p role="alert" className="text-destructive-ink text-sm">
             {error}
           </p>
         )}
-        <details
-          className="rounded-xl border p-3"
-          data-tour="improvement-details"
-          onToggle={(event) => setDetails(event.currentTarget.open)}
-        >
-          <summary className="cursor-pointer text-sm font-medium">{t("showDetails")}</summary>
-          <div className="mt-3 space-y-4">
-            {quote && (
-              <div className="text-muted-foreground space-y-1 text-sm">
-                <p>{t("evidence", { count: quote.evidence_runs })}</p>
-                {quote.knowledge_usd && Number(quote.knowledge_usd) > 0 && (
-                  <p>{t("knowledgeEstimate", { cost: usd(quote.knowledge_usd, locale) })}</p>
-                )}
-              </div>
-            )}
-            {target && picker}
-            {quote && (
-              <div className="space-y-2">
-                <Label htmlFor="improvement-budget">{t("budget")}</Label>
-                <Input
-                  id="improvement-budget"
-                  inputMode="decimal"
-                  value={budget ?? limitText(sessionLimit(quote), locale)}
-                  onChange={(e) => setBudget(e.target.value)}
-                />
-                <p className="text-muted-foreground text-xs">
-                  {t("limitHint", {
-                    analysis: usd(quote.total_usd, locale),
-                    perRound: usd(quote.per_round_usd, locale),
-                  })}
-                </p>
-              </div>
-            )}
-            {details && target && !baselineFirst && (
-              <TodayCheck agentId={agentId} datasetId={target} />
-            )}
-            <SystemAgentChoice kind="improver" value={helper} onChange={setHelper} wizard />
-          </div>
-        </details>
       </div>
-    </div>
+      <DialogFooter className="border-t">
+        <Button variant="outline" onClick={onClose}>
+          {tc("cancel")}
+        </Button>
+        <Button
+          loading={sessions.start.isPending}
+          disabled={
+            !quote ||
+            !quote.affordable ||
+            quote.reason !== null ||
+            !Number.isFinite(Number(limit)) ||
+            Number(limit) <= 0 ||
+            startedId !== null
+          }
+          onClick={() => void start()}
+        >
+          {t("start")}
+        </Button>
+      </DialogFooter>
+    </>
   );
 }
 
@@ -289,7 +368,7 @@ function EndOpen({ session }: { session: Improvement }) {
           <>
             {t("body")}
             {error && (
-              <span role="alert" className="text-destructive mt-2 block">
+              <span role="alert" className="text-destructive-ink mt-2 block">
                 {error}
               </span>
             )}

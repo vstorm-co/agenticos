@@ -11,10 +11,6 @@ import type { MergeKind, SkillMergeEstimate } from "@/types/skill-merge";
 import { MergeStart } from "./merge-start";
 
 const push = vi.fn();
-const ai = vi.hoisted(() => ({ enabled: true as boolean | null }));
-vi.mock("@/hooks/use-organizations", () => ({
-  useAiAssistance: () => ({ orgId: "o1", enabled: ai.enabled }),
-}));
 vi.mock("next/navigation", async (original) => ({
   ...(await original<typeof import("next/navigation")>()),
   useRouter: () => ({ push }),
@@ -47,7 +43,6 @@ function mount(kind: MergeKind = "catch_up") {
 }
 
 beforeEach(() => {
-  ai.enabled = true;
   vi.clearAllMocks();
   estimate = ESTIMATE;
   vi.mocked(apiClient.get).mockResolvedValue([]);
@@ -59,15 +54,6 @@ beforeEach(() => {
 });
 
 describe("MergeStart", () => {
-  it("says AI assistance is off rather than failing, and prices nothing", async () => {
-    ai.enabled = false;
-    mount();
-
-    expect(await screen.findByText(/AI assistance is switched off/)).toBeVisible();
-    expect(apiClient.post).not.toHaveBeenCalled();
-    expect(screen.queryByRole("alert")).toBeNull();
-  });
-
   it("says what a catch-up merges and costs, and starts it within the limit", async () => {
     mount();
 

@@ -33,9 +33,11 @@ export function ProposalRow({ proposal, disabled, onAccept, onEdit, onDismiss }:
         ? { label: t("proposedCounterExample"), text: proposal.counter_example }
         : null;
   return (
-    <li className="flex flex-wrap items-start gap-3 border-b py-3 last:border-b-0">
+    <li className="flex min-w-0 flex-col gap-4 border-b py-4 last:border-b-0 sm:flex-row sm:items-start">
       <div className="min-w-0 flex-1 space-y-1.5">
-        <span className="text-foreground line-clamp-2 block text-sm">{proposal.input}</span>
+        <span className="text-foreground line-clamp-2 block text-sm font-medium break-words">
+          {proposal.input}
+        </span>
         <span className="flex flex-wrap items-center gap-1.5">
           <Badge variant="secondary">{t(`origin.${proposal.origin}`)}</Badge>
           {proposal.reference_answer !== null && (
@@ -64,7 +66,7 @@ export function ProposalRow({ proposal, disabled, onAccept, onEdit, onDismiss }:
           <span className="text-muted-foreground block text-xs">{proposal.note}</span>
         )}
       </div>
-      <div className="flex shrink-0 items-center gap-1">
+      <div className="flex min-w-0 shrink-0 flex-wrap items-center justify-end gap-1 self-end sm:self-start">
         <Button
           variant="ghost"
           size="sm"

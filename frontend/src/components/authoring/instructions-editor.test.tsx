@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 
@@ -53,4 +53,22 @@ it("shows the two versions as tabs on a phone, and warns about an edit outside t
   expect(screen.getByLabelText("Current instructions")).toBeInTheDocument();
   expect(screen.queryByRole("textbox")).toBeNull();
   expect(screen.getByRole("alert")).toHaveTextContent(/outside the suggested passage/);
+});
+
+it("keeps proposed wording when its full-window editor closes", async () => {
+  render(<Editor />);
+  await userEvent.click(screen.getByRole("button", { name: /expand.*proposed/i }));
+  const dialog = screen.getByRole("dialog", { name: "Proposed instructions, editable" });
+  const proposed = within(dialog).getByRole("textbox", {
+    name: "Proposed instructions, editable",
+  });
+  await userEvent.clear(proposed);
+  await userEvent.type(proposed, "Refunds take 7 days.");
+  await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(screen.getByRole("textbox", { name: "Proposed instructions, editable" })).toHaveValue(
+    "Refunds take 7 days.",
+  );
+  expect(screen.getByText(diffLine("Refunds take 7 days."))).toBeInTheDocument();
 });

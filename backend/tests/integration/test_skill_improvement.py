@@ -21,7 +21,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.exceptions import (
-    AiAssistanceDisabledError,
     AlreadyExistsError,
     AuthorizationError,
     BadRequestError,
@@ -33,7 +32,7 @@ from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
 from app.db.models.authoring import AuthoringRequest, AuthoringStatus, HunkKind
-from app.db.models.organization import Organization, OrganizationMember
+from app.db.models.organization import OrganizationMember
 from app.db.models.skill import Skill
 from app.db.models.skill_check import (
     AgentState,
@@ -2374,22 +2373,6 @@ class TestReviewFixes:
         )
 
         assert woken == [run.id]
-
-    async def test_the_check_step_is_refused_with_ai_assistance_off(
-        self, db, evidence, monkeypatch
-    ):
-        _checked(db, monkeypatch)
-        ctx = await _owner(db)
-        run = await _at_changes(db, ctx)
-        organization = await db.get(Organization, ctx.organization_id)
-        assert organization is not None
-        organization.ai_assistance_enabled = False
-        await db.flush()
-
-        with pytest.raises(AiAssistanceDisabledError):
-            await SkillImprovementService(db).estimate_continuation(
-                ctx, run.skill_id, run.id, SkillContinue()
-            )
 
 
 async def _owner_of(db: AsyncSession, run: SkillImprovementRun) -> AuthContext:

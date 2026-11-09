@@ -9,7 +9,7 @@
   and Verify adds to what is waiting instead of replacing it.
 - Check with evals runs the projection, leaves the evidence's cases out, and
   leaves the draft as it was.
-- AI assistance off, no `runs:view`, no edit access, another organization, no
+- No `runs:view`, no edit access, another organization, no
   evidence and no budget each refuse before anything is written.
 """
 
@@ -31,7 +31,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.system_agents import IMPROVER
 from app.core.exceptions import (
-    AiAssistanceDisabledError,
     AuthorizationError,
     BadRequestError,
     ConcurrentChangeError,
@@ -657,14 +656,8 @@ class TestVerify:
         assert read.verify.report["findings"][0]["evidence"][0]["quote"] == "You have 90 days."
 
         member = await _member(db, ctx, OrgRoleName.MEMBER)
-        hidden = await service.for_agent(member, agent.id)
-        assert hidden.verify is not None and hidden.verify.report is not None
-        assert hidden.latest is not None and hidden.latest.report == hidden.verify.report
-        (finding,) = hidden.verify.report["findings"]
-        assert finding["evidence"] == [
-            {"run_id": request.report["findings"][0]["evidence"][0]["run_id"]}
-        ]
-        assert finding["text"] == "Dropped the brevity rule"
+        with pytest.raises(AuthorizationError, match="runs:view"):
+            await service.for_agent(member, agent.id)
 
     async def test_verify_with_nothing_waiting_opens_a_batch(self, db):
         ctx, agent, _ = await _setup(db)
@@ -967,7 +960,7 @@ class TestSkills:
 
 class TestRefusals:
     @pytest.mark.security
-    async def test_ai_assistance_off_refuses_every_start_but_not_a_decision(self, db):
+    async def test_legacy_ai_flag_does_not_block_requests_or_decisions(self, db):
         ctx, agent, _ = await _setup(db)
         await _improve(db, ctx, agent, Improver(db))
         org = await db.get(Organization, ctx.organization_id)
@@ -976,10 +969,10 @@ class TestRefusals:
         await db.flush()
         service = AuthoringService(db)
 
-        with pytest.raises(AiAssistanceDisabledError):
-            await service.start_agent(ctx, agent.id, AuthoringStart())
-        with pytest.raises(AiAssistanceDisabledError):
-            await service.estimate_agent(ctx, agent.id, AuthoringStart(kind="verify"))
+        started = await service.start_agent(ctx, agent.id, AuthoringStart())
+        assert started.status == "queued"
+        estimate = await service.estimate_agent(ctx, agent.id, AuthoringStart(kind="verify"))
+        assert estimate.reason == "no_draft_change"
         batch = (await service.for_agent(ctx, agent.id)).batch
         assert batch is not None
         decided = await service.decide(
@@ -1017,15 +1010,13 @@ class TestRefusals:
         assert await db.scalar(select(func.count()).select_from(AuthoringRequest)) == 0
 
     @pytest.mark.security
-    async def test_quotes_are_hidden_from_a_reader_without_runs_view(self, db):
+    async def test_derived_suggestions_are_hidden_from_a_reader_without_runs_view(self, db):
         ctx, agent, _ = await _setup(db)
         await _improve(db, ctx, agent, Improver(db))
         member = await _member(db, ctx, OrgRoleName.MEMBER)
 
-        read = await AuthoringService(db).for_agent(member, agent.id)
-
-        assert read.batch is not None
-        assert {item.quote for item in read.batch.hunks[0].evidence} == {None}
+        with pytest.raises(AuthorizationError, match="runs:view"):
+            await AuthoringService(db).for_agent(member, agent.id)
 
 
 class TestWorker:
@@ -1778,5 +1769,35 @@ async def test_new_agent_reports_no_learning_evidence_without_running_a_model(db
     await _rated(db, ctx, agent)
     ready = await service.for_agent(ctx, agent.id)
     assert ready.has_evidence is True
-    with _without_runs_view():
-        assert (await service.for_agent(ctx, agent.id)).has_evidence is None
+    with _without_runs_view(), pytest.raises(AuthorizationError, match="runs:view"):
+        await service.for_agent(ctx, agent.id)
+
+
+async def test_a_helper_losing_its_publication_after_estimation_cannot_start(
+    db: AsyncSession,
+) -> None:
+    from app.db.models.authoring import AuthoringTarget
+    from app.schemas.authoring import AuthoringEstimate
+    from app.services.system_agents import SystemAgentService
+
+    ctx, agent, _ = await _setup(db)
+    helper = await SystemAgentService(db).ensure(
+        organization_id=ctx.organization_id, key=IMPROVER.key
+    )
+    helper.current_version_id = None
+    await db.flush()
+    service = AuthoringService(db)
+    with (
+        patch.object(service, "_improver", AsyncMock(return_value=helper)),
+        pytest.raises(NotFoundError, match="no published version"),
+    ):
+        await service._start(
+            ctx,
+            AuthoringEstimate(
+                runs=1, rated_down=1, calls=1, estimate_usd=Decimal("0.01"), affordable=True
+            ),
+            AuthoringStart(),
+            target=AuthoringTarget.AGENT,
+            agent_id=agent.id,
+            skill_id=None,
+        )

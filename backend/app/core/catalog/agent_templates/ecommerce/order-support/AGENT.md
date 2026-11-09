@@ -4,6 +4,7 @@ description: Answers where-is-my-order, returns and exchanges from the order rec
   and decides what it can on the spot.
 capabilities:
 - ask_user
+- drafts
 - id: knowledge
   config:
     default_top_k: 3

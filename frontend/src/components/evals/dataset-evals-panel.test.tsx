@@ -42,7 +42,18 @@ beforeEach(() => {
 });
 
 describe("DatasetEvalsPanel", () => {
-  it("folds the runs by agent, each with its trend and verdicts", () => {
+  it.each(["failed", "cancelled"] as const)(
+    "keeps %s status in the mobile run summary",
+    (status) => {
+      state.runs = { ...state.runs, runs: [evalRun({ status, outcome: null })], total: 1 };
+      render(<DatasetEvalsPanel datasetId="ds-1" title="Evals" />);
+      const link = screen.getByRole("link", { name: /Refund desk/ });
+      expect(
+        within(link).getByText(status === "failed" ? "Failed" : "Stopped"),
+      ).toBeInTheDocument();
+    },
+  );
+  it("shows every run in one table with its agent, pass rate and result", () => {
     state.runs = {
       ...state.runs,
       runs: [
@@ -55,17 +66,20 @@ describe("DatasetEvalsPanel", () => {
     render(<DatasetEvalsPanel datasetId="ds-1" title="Evals" />);
 
     expect(screen.getByText("3 runs of 2 agents")).toBeInTheDocument();
-    const desk = screen.getByText("Refund desk · 2 runs").closest("details")!;
-    expect(desk).toHaveAttribute("open");
-    expect(within(desk).getByRole("group", { name: "Pass rate by run" })).toBeInTheDocument();
-    expect(within(desk).getByRole("link", { name: /^Draft/ })).toHaveAttribute(
-      "href",
-      "/agents/agent-1/evals/run-2",
-    );
-    expect(desk.querySelector("summary .rounded-full")).not.toBeNull();
-    const other = screen.getByText("An agent you cannot see · 1 run").closest("details")!;
-    expect(other).not.toHaveAttribute("open");
-    expect(other.querySelector("summary .rounded-full")).toBeNull();
+    expect(screen.getByRole("table")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Pass rate" })).toBeInTheDocument();
+    expect(
+      screen
+        .getAllByRole("link")
+        .some((link) => link.getAttribute("href") === "/agents/agent-1/evals/run-2"),
+    ).toBe(true);
+    expect(screen.getAllByText(/An agent you cannot see/).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: "Pass-rate trend" })).toBeNull();
+    const trend = screen.getByRole("region", { name: "Pass-rate trend" });
+    expect(trend).toBeVisible();
+    expect(
+      trend.compareDocumentPosition(screen.getByRole("table")) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("pages through a history longer than one page, counting every run", async () => {
@@ -135,4 +149,17 @@ describe("DatasetRunEvalsButton", () => {
     await userEvent.click(button);
     expect(state.dialog).toEqual([]);
   });
+});
+
+it("offers review only when a completed evaluation exists", async () => {
+  const onReview = vi.fn();
+  state.runs = { ...state.runs, runs: [evalRun({ status: "running" })], total: 1 };
+  const { rerender } = render(
+    <DatasetEvalsPanel datasetId="ds-1" title="Evals" onReview={onReview} />,
+  );
+  expect(screen.queryByRole("button", { name: "Review results" })).toBeNull();
+  state.runs = { ...state.runs, runs: [evalRun({ status: "completed" })] };
+  rerender(<DatasetEvalsPanel datasetId="ds-1" title="Evals" onReview={onReview} />);
+  await userEvent.click(screen.getByRole("button", { name: "Review results" }));
+  expect(onReview).toHaveBeenCalledOnce();
 });

@@ -4,6 +4,9 @@ import { useState } from "react";
 import { SearchX } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { useWorkspaceFullscreen } from "@/hooks/use-workspace-fullscreen";
+import { WorkspaceFullscreenButton } from "@/components/ui/workspace-fullscreen-button";
+
 import { ErrorState, LoadingState } from "@/components/states";
 import {
   ListCard,
@@ -16,7 +19,6 @@ import { useKnowledgeGaps, type KnowledgeGapPanelScope } from "@/hooks/use-knowl
 import type { KnowledgeGapStatus } from "@/types/knowledge-gaps";
 import { KnowledgeGapDialog } from "./knowledge-gap-dialog";
 import { KnowledgeGapRow } from "./knowledge-gap-row";
-import { CheckAnswersAiOff } from "./knowledge-gaps-check";
 import { KnowledgeGapsToolbar } from "./knowledge-gaps-toolbar";
 
 const EMPTY = {
@@ -46,6 +48,7 @@ export function KnowledgeGapsPanel({
   status?: KnowledgeGapStatus;
   onStatusChange?: (status: KnowledgeGapStatus) => void;
 }) {
+  const { ref, expanded, toggle } = useWorkspaceFullscreen();
   const t = useTranslations("knowledgeGaps");
   const [ownStatus, setOwnStatus] = useState<KnowledgeGapStatus>("open");
   const status = onStatusChange ? (heldStatus ?? "open") : ownStatus;
@@ -64,19 +67,28 @@ export function KnowledgeGapsPanel({
   return (
     <>
       <ListCard
+        fill
+        ref={ref}
+        role={expanded ? "dialog" : undefined}
+        aria-modal={expanded || undefined}
+        aria-label={t("title")}
+        className={expanded ? "fixed inset-0 z-40 overflow-y-auto rounded-none" : undefined}
         title={t("title")}
         counted={isLoading ? null : t("topicCount", { count: total })}
         controls={
-          <KnowledgeGapsToolbar
-            scope={scope}
-            canRegroup={canRegroup}
-            unchecked={unchecked}
-            status={status}
-            onStatus={(next) => {
-              setStatus(next);
-              setPage(0);
-            }}
-          />
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <WorkspaceFullscreenButton expanded={expanded} onToggle={toggle} />
+            <KnowledgeGapsToolbar
+              scope={scope}
+              canRegroup={canRegroup}
+              unchecked={unchecked}
+              status={status}
+              onStatus={(next) => {
+                setStatus(next);
+                setPage(0);
+              }}
+            />
+          </div>
         }
         contentClassName="p-0"
       >
@@ -84,7 +96,6 @@ export function KnowledgeGapsPanel({
           {scope.kind === "collection" ? t("descriptionCollection") : t("descriptionAgent")}{" "}
           {t("nothingAutomatic")}
         </p>
-        {canRegroup && <CheckAnswersAiOff unchecked={unchecked} />}
         {ungrouped > 0 && (
           <p className="border-border bg-muted/40 text-muted-foreground border-b px-4 py-2 text-xs sm:px-5">
             {t("ungrouped", { count: ungrouped })}

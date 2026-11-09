@@ -529,6 +529,32 @@ class TestTheExport:
             "created_at",
         }
 
+    async def test_it_carries_the_claims_recorded_about_them_corrected_ones_too(self, db):
+        from app.repositories.memory_claim import ClaimScope
+        from app.services.memory import claims
+
+        user = await _person(db, "export-claims@example.com")
+        user_id = user.id
+        organization, agent = await _org_and_agent(db)
+        scope = ClaimScope(person_owner_key(user_id), agent.id)
+        first = (
+            await claims.remember(
+                db,
+                organization_id=organization.id,
+                scope=scope,
+                statement="Lives in Kraków",
+                subject="home",
+            )
+        ).claim
+        await claims.correct(db, claim=first, statement="Lives in Gdańsk", author_user_id=user_id)
+
+        export = await PersonalDataService(db).export(user_id, actor_user_id=user_id)
+
+        assert {(row["statement"], row["status"]) for row in export.memory_claims} == {
+            ("Lives in Kraków", "superseded"),
+            ("Lives in Gdańsk", "current"),
+        }
+
     async def test_it_carries_the_notifications_addressed_to_them(self, db):
         """`docs/data-protection.md` classifies these rows as personal data, and
         the same page promises everything held about a person comes back from
@@ -913,10 +939,10 @@ class TestWhatDeletionRemoves:
         await user_repo.delete(db, user_id)
         await db.flush()
 
-        written = await _native._person_still_exists(db, person_owner_key(user_id))
+        written = await _native.person_still_exists(db, person_owner_key(user_id))
 
         assert written is False
-        assert await _native._person_still_exists(db, "room:slack:C123") is True
+        assert await _native.person_still_exists(db, "room:slack:C123") is True
 
     async def test_nobody_else_s_notes_or_identities_are_touched(self, db):
         """The purge is keyed on the person, and a key built from a uuid is not a
@@ -1191,3 +1217,139 @@ async def test_channel_authors_are_erased_without_copying_labels_into_message_bo
     assert other.content == "A colleague's text."
     assert await db.get(User, going_id) is None
     assert await db.get(Conversation, chat.id) is not None
+
+
+async def test_export_includes_every_owned_outcome_and_bounds_the_full_content(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.db.models.outcome import Outcome
+
+    user = await _person(db, f"outcomes-{uuid4()}@example.com")
+    other = await _person(db, f"other-outcomes-{uuid4()}@example.com")
+    org, _ = await _org_and_agent(db)
+    now = datetime.now(UTC)
+    records = [
+        Outcome(
+            organization_id=org.id,
+            user_id=user.id,
+            kind="finding",
+            dedupe_key="no-phone",
+            summary="Needs attention",
+            context_url="/chat",
+            last_observed_at=now,
+        ),
+        Outcome(
+            organization_id=org.id,
+            user_id=user.id,
+            kind="finding",
+            dedupe_key="settled",
+            summary="Already resolved",
+            status="resolved",
+            settled_at=now,
+            settled_via="chat",
+            phone_attempted_at=now,
+        ),
+        Outcome(
+            organization_id=org.id,
+            user_id=other.id,
+            kind="finding",
+            dedupe_key="private",
+            summary="Another person's case",
+        ),
+    ]
+    db.add_all(records)
+    await db.flush()
+    service = PersonalDataService(db)
+    export = await service.export(user.id, actor_user_id=user.id)
+    assert {row.id for row in export.outcomes} == {records[0].id, records[1].id}
+    assert next(row for row in export.outcomes if row.id == records[0].id).last_observed_at == now
+    assert {row.id for row in export.phone_case_attempts} == {records[1].id}
+    records[0].summary = "x" * 50_000
+    records[0].context_url = "https://example.com/" + "x" * 50_000
+    await db.flush()
+    monkeypatch.setattr(settings, "PERSONAL_DATA_EXPORT_MAX_CHARS", 80_000)
+    with pytest.raises(BadRequestError, match="more conversation text"):
+        await service.export(user.id, actor_user_id=user.id)
+
+
+async def test_coding_changes_are_exported_only_with_accessible_conversations_and_bounded(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.db.models.coding_task_change import CodingTaskChange
+
+    user = await _person(db, f"coding-{uuid4()}@example.com")
+    other = await _person(db, f"other-coding-{uuid4()}@example.com")
+    org, _ = await _org_and_agent(db)
+    chats = [
+        Conversation(organization_id=org.id, user_id=person.id, title="Coding")
+        for person in (user, other)
+    ]
+    db.add_all(chats)
+    await db.flush()
+    changes = [
+        CodingTaskChange(
+            organization_id=org.id,
+            conversation_id=chat.id,
+            harness="codex",
+            files=[{"path": "report.py", "patch": "+print('hello')"}],
+        )
+        for chat in chats
+    ]
+    db.add_all(changes)
+    await db.flush()
+    service = PersonalDataService(db)
+    exported = await service.export(user.id, actor_user_id=user.id)
+    assert [row.id for row in exported.coding_task_changes] == [changes[0].id]
+    assert exported.coding_task_changes[0].files[0]["patch"] == "+print('hello')"
+    changes[0].files = [{"path": "report.py", "patch": "x" * 50_000}]
+    await db.flush()
+    monkeypatch.setattr(settings, "PERSONAL_DATA_EXPORT_MAX_CHARS", 40_000)
+    with pytest.raises(BadRequestError, match="more conversation text"):
+        await service.export(user.id, actor_user_id=user.id)
+
+
+async def test_private_tasks_export_values_history_schemas_and_enforce_the_size_limit(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.repositories import personal_data_repo
+    from app.schemas.task import TaskCreate, TaskUpdate
+    from app.services.tasks import TaskService
+    from tests.integration.test_tasks import world
+
+    data = await world(db)
+    tasks = TaskService(db)
+    own = await tasks.create(
+        data.contexts[0], TaskCreate(title="My reminder", description="Private notes")
+    )
+    await tasks.create(data.contexts[1], TaskCreate(title="Other person's reminder"))
+    await tasks.create(
+        data.contexts[0],
+        TaskCreate(title="Team reminder", scope="organization", scope_id=data.org.id),
+    )
+    await tasks.update(
+        data.contexts[0],
+        own.id,
+        TaskUpdate(title="Updated reminder", expected_revision=own.revision),
+    )
+    service = PersonalDataService(db)
+    exported = await service.export(data.users[0].id, actor_user_id=data.users[0].id)
+    assert [record.id for record in exported.private_task_records] == [own.id]
+    assert [board.table_id for board in exported.private_task_boards] == [own.table_id]
+    assert all(row.table_id == own.table_id for row in exported.private_task_history)
+    assert all(row.table_id == own.table_id for row in exported.private_task_schemas)
+    encoded = exported.model_dump_json()
+    assert "Private notes" in encoded and "Updated reminder" in encoded
+    assert "Other person's reminder" not in encoded and "Team reminder" not in encoded
+    before = await personal_data_repo.private_task_export_size(db, data.users[0].id)
+    latest = await tasks.get(data.contexts[0], own.id)
+    await tasks.update(
+        data.contexts[0],
+        own.id,
+        TaskUpdate(title=latest.title, description="x" * 9000, expected_revision=latest.revision),
+    )
+    after = await personal_data_repo.private_task_export_size(db, data.users[0].id)
+    assert after > before + 18000
+    assert await personal_data_repo.private_task_export_size(db, uuid4()) == 0
+    monkeypatch.setattr(settings, "PERSONAL_DATA_EXPORT_MAX_CHARS", before + 1000)
+    with pytest.raises(BadRequestError, match="more conversation text"):
+        await service.export(data.users[0].id, actor_user_id=data.users[0].id)

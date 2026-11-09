@@ -89,10 +89,12 @@ export function ListCard({
           )}
         >
           <CardTitle className="sr-only">{title}</CardTitle>
-          <div className="text-muted-foreground shrink-0 text-sm">
+          {controls && (
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">{controls}</div>
+          )}
+          <div className="text-muted-foreground shrink-0 text-xs tabular-nums sm:ml-auto">
             {counted === null ? <Skeleton className="h-4 w-24" /> : counted}
           </div>
-          {controls}
         </CardHeader>
         <CardContent
           className={cn(
@@ -231,7 +233,7 @@ export function ListCardEmpty({
   cta?: { label: ReactNode; onClick: () => void };
 }) {
   return (
-    <div className="flex min-h-64 flex-1 flex-col items-center justify-center px-6 py-12 text-center">
+    <div className="flex min-h-48 flex-1 flex-col items-center justify-center px-5 py-6 text-center">
       <SectionGlyph icon={Icon} className="mx-auto" />
       <p className="text-foreground mt-4 text-sm font-medium">{title}</p>
       {description && (

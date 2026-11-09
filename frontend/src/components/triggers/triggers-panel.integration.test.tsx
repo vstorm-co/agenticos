@@ -24,6 +24,21 @@ vi.mock("@/components/triggers/new-event-trigger-dialog", () => ({
     open ? <div role="dialog" aria-label="New event trigger" /> : null,
 }));
 
+const watchState = vi.hoisted(() => ({ allowed: false }));
+vi.mock("@/components/watches/watches-card", () => ({
+  useCanWatch: () => watchState.allowed,
+  WatchesCard: ({ agentId }: { agentId: string }) => (
+    <div data-testid="agent-watches">{agentId}</div>
+  ),
+}));
+vi.mock("@/components/watches/watch-dialog", () => ({
+  WatchDialog: ({ open, agentId }: { open: boolean; agentId: string }) =>
+    open ? (
+      <div role="dialog" aria-label="Monitor and inform">
+        {agentId}
+      </div>
+    ) : null,
+}));
 const AGENT_ID = "a1";
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -88,11 +103,31 @@ async function mount({ canCreate = true } = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  watchState.allowed = false;
   // A new schedule is read in its maker's zone; pinned so no run reads the laptop's.
   useAuthStore.setState({ user: { id: "me", time_zone: "Europe/Warsaw" } as never });
 });
 
 describe("TriggersPanel", () => {
+  it("shows a failed chat delivery beside the routine without calling it a failed run", async () => {
+    serve([trigger({ last_delivery_status: "unavailable" })]);
+    await mount();
+    expect(await screen.findByText("Last answer unavailable in chat")).toBeInTheDocument();
+  });
+  it("starts a watch with this agent only where the person may create it", async () => {
+    watchState.allowed = true;
+    serve([]);
+    await mount();
+    await userEvent.click(await screen.findByRole("button", { name: "Monitor and inform" }));
+    expect(screen.getByRole("dialog", { name: "Monitor and inform" })).toHaveTextContent(AGENT_ID);
+    expect(screen.getByTestId("agent-watches")).toHaveTextContent(AGENT_ID);
+  });
+  it("does not offer watches without agent-level creation access", async () => {
+    watchState.allowed = true;
+    serve([]);
+    await mount({ canCreate: false });
+    expect(screen.queryByRole("button", { name: "Monitor and inform" })).not.toBeInTheDocument();
+  });
   it("says the agent runs only when messaged rather than showing an empty box", async () => {
     serve([]);
     await mount();
@@ -446,7 +481,7 @@ describe("TriggersPanel", () => {
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     // The message field is the same MarkdownEditor the agent's instructions use,
     // so it carries that field's source/preview toggle rather than a bare box.
-    expect(within(dialog).getByRole("button", { name: "Source" })).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Source" })).toBeNull();
     expect(within(dialog).getByRole("button", { name: "Preview" })).toBeInTheDocument();
   });
 
@@ -565,9 +600,10 @@ describe("TriggersPanel", () => {
     await user.click(await screen.findByRole("button", { name: "Edit" }));
     const dialog = await screen.findByRole("dialog");
     const zone = within(dialog).getByLabelText("Time zone");
-    expect(zone).toHaveValue("UTC");
-    await user.clear(zone);
-    await user.type(zone, "Europe/Warsaw");
+    expect(zone).toHaveTextContent("UTC");
+    await user.click(zone);
+    await user.type(screen.getByRole("combobox", { name: "Search city or time zone…" }), "Warsaw");
+    await user.click(screen.getByRole("option", { name: "Europe/Warsaw" }));
     expect(
       within(dialog).getByText("Runs every day at 09:00 (Europe/Warsaw)."),
     ).toBeInTheDocument();
@@ -580,7 +616,7 @@ describe("TriggersPanel", () => {
     });
   });
 
-  it("refuses a zone the server would not know, before anything is sent", async () => {
+  it("keeps the selected zone while a search matches nothing", async () => {
     const user = userEvent.setup();
     serve([]);
     await mount();
@@ -591,12 +627,17 @@ describe("TriggersPanel", () => {
     await user.type(within(dialog).getByLabelText("Message"), "Daily digest");
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     const zone = within(dialog).getByLabelText("Time zone");
-    expect(zone).toHaveValue("Europe/Warsaw");
-    await user.clear(zone);
-    await user.type(zone, "Mars/Olympus");
-
-    expect(within(dialog).getByRole("alert")).toHaveTextContent(/Choose a time zone/);
-    expect(within(dialog).getByRole("button", { name: "Create" })).toBeDisabled();
+    expect(zone).toHaveTextContent("Europe/Warsaw");
+    await user.click(zone);
+    await user.type(
+      screen.getByRole("combobox", { name: "Search city or time zone…" }),
+      "Mars/Olympus",
+    );
+    expect(screen.getByText("No time zones found. Try another city.")).toBeInTheDocument();
+    expect(zone).toHaveTextContent("Europe/Warsaw");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(within(dialog).getByRole("button", { name: "Create" })).toBeEnabled();
     expect(apiClient.post).not.toHaveBeenCalled();
   });
 

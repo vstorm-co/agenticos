@@ -1,32 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Lightbulb, TriangleAlert } from "lucide-react";
+import { ArrowRight, Lightbulb, ListChecks, Scale, TriangleAlert } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
-import {
-  Button,
-  FormField,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui";
-import { useAiAssistance } from "@/hooks/use-organizations";
-import { usePermissions } from "@/hooks/use-permissions";
+import { Button } from "@/components/ui";
 import { useSetScoring } from "@/hooks/use-scoring";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { getErrorMessage } from "@/lib/api-error";
 import { scoringProblem, ungradedCases } from "@/lib/scoring";
 import type { CaseCheck, Dataset } from "@/types/datasets";
-import { Perm } from "@/types/permissions";
-import type { DatasetScoring, ReviewSelect } from "@/types/scoring";
-import { AiAssistanceNotice } from "./ai-assistance-notice";
+import type { DatasetScoring } from "@/types/scoring";
 import { CaseChecksEditor } from "./case-checks-editor";
 import { checkDraft, checksOf, sameCheck, type CheckDraft } from "./case-form";
-import { CreateJudgeDialog } from "./create-judge-dialog";
 import { GradingCard } from "./grading-card";
 import { GradingSaveBar } from "./grading-save-bar";
 import { JudgeSettings } from "./judge-settings";
@@ -35,7 +22,6 @@ import { ScorerRow } from "./scorer-row";
 type Part = keyof DatasetScoring;
 const PASSES: Part[] = ["checks", "trajectory"];
 const JUDGING: Part[] = ["judge", "reference"];
-const REVIEW: Part[] = ["review"];
 
 /** What a kept copy of the panel's unsaved change holds. */
 export interface GradingCopy {
@@ -43,22 +29,16 @@ export interface GradingCopy {
   defaults: CheckDraft[];
 }
 
-/**
- * How a dataset's cases are graded, in three cards - when a case passes, which
- * judge grades it and how, and what waits for a person - saved together from one
- * bar that holds while any of them has a change.
- *
- * The rules and the expected tool calls cost nothing; the judge and the reference
- * comparison are runs of the judge, refused while AI assistance is off. Scores
- * already kept keep the configuration they were graded with.
- */
+/** Dataset grading: deterministic rules and model-backed criteria, saved together. */
 export function GradingPanel({
   dataset,
   onDirtyChange,
   localCopy,
   restore,
+  onContinue,
 }: {
   dataset: Dataset;
+  onContinue?: () => void;
   /** Told whether any card holds a change not yet saved, so the page can say so. */
   onDirtyChange?: (dirty: boolean) => void;
   /** Where an unsaved change is kept in this browser, and the version it is made on. */
@@ -67,17 +47,14 @@ export function GradingPanel({
   restore?: { value: GradingCopy; at: number };
 }) {
   const t = useTranslations("datasets.scoring");
+  const journey = useTranslations("datasets.journey");
   const tDatasets = useTranslations("datasets");
   const tErrors = useTranslations("errors");
   const save = useSetScoring(dataset.id);
-  const { can } = usePermissions();
-  const { enabled: aiEnabled } = useAiAssistance();
   const stored = dataset.scoring;
   const [draft, setDraft] = useState<DatasetScoring>(stored);
   const [defaults, setDefaults] = useState<CheckDraft[]>(stored.checks.defaults.map(checkDraft));
   const [defaultsProblem, setDefaultsProblem] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [focusRubric, setFocusRubric] = useState(0);
   const [restored, setRestored] = useState<number | null>(null);
   if (restore !== undefined && restore.at !== restored) {
     setRestored(restore.at);
@@ -86,9 +63,7 @@ export function GradingPanel({
   }
   const canEdit = dataset.can_edit;
   const disabled = !canEdit || save.isPending;
-  // The judge and the reference comparison are model runs, so they stay as stored
-  // and cannot be changed while the organization has AI assistance off.
-  const modelBacked = disabled || aiEnabled === false;
+  const modelBacked = disabled;
   const set = <K extends Part>(key: K, value: DatasetScoring[K]) =>
     setDraft((current) => ({ ...current, [key]: value }));
   const dirty = (parts: Part[]) =>
@@ -96,7 +71,7 @@ export function GradingPanel({
     (parts.includes("checks") &&
       JSON.stringify(defaults) !== JSON.stringify(stored.checks.defaults.map(checkDraft)));
   const problem = scoringProblem(draft);
-  const unsaved = dirty(PASSES) || dirty(JUDGING) || dirty(REVIEW);
+  const unsaved = dirty(PASSES) || dirty(JUDGING);
   const ungraded = ungradedCases(draft, dataset.stats, defaults.length);
   const of = (count: number) => t("coverage", { count, total: dataset.case_count });
   // A rule suggested under a criterion joins the checks every case gets, and turns them on.
@@ -145,14 +120,12 @@ export function GradingPanel({
 
   const unreferenced =
     canEdit &&
-    aiEnabled !== false &&
     dataset.stats.with_reference > 0 &&
     !draft.reference.enabled &&
     !stored.reference.enabled;
 
   return (
-    <div className="space-y-4" data-tour="datasets-grading">
-      <AiAssistanceNotice />
+    <div className="flex flex-1 flex-col gap-4" data-tour="datasets-grading">
       {canEdit && problem === null && ungraded > 0 && (
         <p
           role="status"
@@ -178,112 +151,81 @@ export function GradingPanel({
         </div>
       )}
 
-      <GradingCard
-        title={t("passes.title")}
-        description={t("passes.description")}
-        dirty={dirty(PASSES)}
-      >
-        <ScorerRow
-          label={t("scorer.check")}
-          hint={t("checksHint")}
-          enabled={draft.checks.enabled}
-          mustPass={draft.checks.required}
-          coverage={of(dataset.stats.with_checks)}
-          onChange={(next) => set("checks", { ...draft.checks, ...next })}
-          disabled={disabled}
+      <div className="grid items-stretch gap-4 xl:grid-cols-2">
+        <GradingCard
+          title={t("passes.title")}
+          icon={ListChecks}
+          tone="blue"
+          description={t("passes.description")}
+          dirty={dirty(PASSES)}
         >
-          <fieldset className="space-y-2" disabled={disabled}>
-            <legend className="text-sm font-medium">{t("defaults")}</legend>
-            <CaseChecksEditor checks={defaults} onChange={setDefaults} disabled={disabled} />
-            {defaultsProblem && <p className="text-destructive text-xs">{defaultsProblem}</p>}
-          </fieldset>
-        </ScorerRow>
-        <ScorerRow
-          label={t("scorer.trajectory")}
-          hint={t("trajectoryHint")}
-          enabled={draft.trajectory.enabled}
-          mustPass={draft.trajectory.required}
-          coverage={of(dataset.stats.with_tool_calls)}
-          onChange={(next) => set("trajectory", { ...draft.trajectory, ...next })}
-          disabled={disabled}
-        />
-      </GradingCard>
-
-      <GradingCard
-        title={t("judgeCard.title")}
-        description={t("judgeCard.description")}
-        dirty={dirty(JUDGING)}
-        tour="datasets-grading-judge"
-      >
-        <JudgeSettings
-          tagGroups={dataset.stats.tag_groups}
-          totalCases={dataset.case_count}
-          referenceCoverage={of(dataset.stats.with_reference)}
-          counterExampleCoverage={of(dataset.stats.with_counter_example)}
-          judge={draft.judge}
-          stored={stored.judge}
-          reference={draft.reference}
-          onJudge={(judge) => set("judge", judge)}
-          onReference={(reference) => set("reference", reference)}
-          disabled={modelBacked}
-          onCreate={canEdit && can(Perm.agentsEdit) ? () => setCreating(true) : undefined}
-          focusRubric={focusRubric}
-          rules={rules}
-        />
-      </GradingCard>
-
-      <GradingCard
-        title={t("reviewCard.title")}
-        description={t("reviewCard.description")}
-        dirty={dirty(REVIEW)}
-      >
-        <FormField htmlFor="scoring-review" label={t("reviewSelect")}>
-          <Select
-            value={draft.review.select}
-            onValueChange={(select) => set("review", { select: select as ReviewSelect })}
+          <ScorerRow
+            label={t("scorer.check")}
+            hint={t("checksHint")}
+            enabled={draft.checks.enabled}
+            mustPass={draft.checks.required}
+            coverage={of(dataset.stats.with_checks)}
+            onChange={(next) => set("checks", { ...draft.checks, ...next })}
             disabled={disabled}
           >
-            <SelectTrigger id="scoring-review">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">{t("review.none")}</SelectItem>
-              <SelectItem value="failed">{t("review.failed")}</SelectItem>
-              <SelectItem value="all">{t("review.all")}</SelectItem>
-            </SelectContent>
-          </Select>
-        </FormField>
-      </GradingCard>
+            <fieldset className="space-y-2" disabled={disabled}>
+              <legend className="text-sm font-medium">{t("defaults")}</legend>
+              <CaseChecksEditor checks={defaults} onChange={setDefaults} disabled={disabled} />
+              {defaultsProblem && <p className="text-destructive-ink text-xs">{defaultsProblem}</p>}
+            </fieldset>
+          </ScorerRow>
+          <ScorerRow
+            label={t("scorer.trajectory")}
+            hint={t("trajectoryHint")}
+            enabled={draft.trajectory.enabled}
+            mustPass={draft.trajectory.required}
+            coverage={of(dataset.stats.with_tool_calls)}
+            onChange={(next) => set("trajectory", { ...draft.trajectory, ...next })}
+            disabled={disabled}
+          />
+        </GradingCard>
 
+        <GradingCard
+          title={t("judgeCard.title")}
+          icon={Scale}
+          tone="purple"
+          description={t("judgeCard.description")}
+          dirty={dirty(JUDGING)}
+          tour="datasets-grading-judge"
+        >
+          <JudgeSettings
+            tagGroups={dataset.stats.tag_groups}
+            totalCases={dataset.case_count}
+            referenceCoverage={of(dataset.stats.with_reference)}
+            counterExampleCoverage={of(dataset.stats.with_counter_example)}
+            judge={draft.judge}
+            defaultInstructions={dataset.helper_defaults?.judge}
+            stored={stored.judge}
+            reference={draft.reference}
+            onJudge={(judge) => set("judge", judge)}
+            onReference={(reference) => set("reference", reference)}
+            disabled={modelBacked}
+            rules={rules}
+          />
+        </GradingCard>
+      </div>
       <p className="text-muted-foreground text-xs">{t("mustPassRule")}</p>
 
+      {!unsaved && problem === null && ungraded === 0 && dataset.case_count > 0 && onContinue && (
+        <div className="bg-card flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4">
+          <p className="text-muted-foreground text-sm">{journey("guidance.evals")}</p>
+          <Button onClick={onContinue}>
+            {journey("next.evals")}
+            <ArrowRight className="size-4" aria-hidden />
+          </Button>
+        </div>
+      )}
       {canEdit && unsaved && (
         <GradingSaveBar
           problem={problem === null ? null : t(problem)}
           saving={save.isPending}
           onSave={() => void submit()}
           onDiscard={discard}
-        />
-      )}
-
-      {creating && (
-        <CreateJudgeDialog
-          dataset={dataset}
-          onOpenChange={setCreating}
-          onCreated={(updated) => {
-            // The server switched grading on as it stored it; criteria typed here
-            // and not saved yet stay in the draft rather than being replaced.
-            const { judge, reference } = updated.scoring;
-            setDraft((current) => ({
-              ...current,
-              reference,
-              judge:
-                current.judge.criteria.length > 0
-                  ? { ...judge, criteria: current.judge.criteria }
-                  : judge,
-            }));
-            if (judge.enabled) setFocusRubric((count) => count + 1);
-          }}
         />
       )}
     </div>

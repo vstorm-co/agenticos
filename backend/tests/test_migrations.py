@@ -222,6 +222,51 @@ class TestMigrations:
         )
 
 
+@pytest.mark.parametrize(
+    "starting_revision",
+    [
+        "0248_merge_self_improvement",
+        "0250_discord_channel",
+        "0252_index_rag_parent_doc_id",
+        "0253_helper_snapshots",
+        "0254_merge_eval_rag_index",
+        "0295_tool_approval_consent",
+    ],
+)
+def test_improvement_merge_upgrades_either_existing_history(starting_revision: str) -> None:
+    down = _alembic("downgrade", "base")
+    assert down.returncode == 0, down.stderr
+    prior = _alembic("upgrade", starting_revision)
+    assert prior.returncode == 0, prior.stderr
+    user_id = uuid4()
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO users (id, email, is_active, is_app_admin) "
+                    "VALUES (:id, 'merge-upgrade@example.com', true, false)"
+                ),
+                {"id": user_id},
+            )
+        upgraded = _alembic("upgrade", "head")
+        assert upgraded.returncode == 0, upgraded.stderr
+        with engine.connect() as connection:
+            assert (
+                connection.execute(
+                    text("SELECT email FROM users WHERE id = :id"), {"id": user_id}
+                ).scalar_one()
+                == "merge-upgrade@example.com"
+            )
+            assert connection.execute(
+                text("SELECT version_num FROM alembic_version")
+            ).scalar_one() == ("0304_skill_check_reasons")
+        check = _alembic("check")
+        assert check.returncode == 0, check.stderr
+    finally:
+        engine.dispose()
+
+
 class TestBotTranscriptionSwitch:
     """`0151_bot_transcription_switch.py`: no bot starts transcribing on upgrade.
 
@@ -831,6 +876,58 @@ class TestMessageClientCorrelation:
             engine.dispose()
 
 
+class TestChatNoticeColumn:
+    def test_parked_runs_survive_upgrade_and_downgrade_and_the_models_match_head(self):
+        reset = _alembic("downgrade", "base")
+        assert reset.returncode == 0, reset.stderr
+        up = _alembic("upgrade", "0254_model_profile_region")
+        assert up.returncode == 0, up.stderr
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        run_id = uuid4()
+        try:
+            with engine.begin() as connection:
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                connection.execute(
+                    text(
+                        "INSERT INTO agent_runs (id, organization_id, agent_id, status, surface, modality, "
+                        "started_at, input_tokens, output_tokens, cache_read_tokens, "
+                        "cache_write_tokens, cost_usd, cost_is_partial, tool_args_repaired) "
+                        "VALUES (:id, :org, :agent, 'awaiting_approval', 'slack', 'text', now(), "
+                        "0, 0, 0, 0, 0, false, 0)"
+                    ),
+                    {"id": run_id, "org": uuid4(), "agent": uuid4()},
+                )
+            up = _alembic("upgrade", "head")
+            assert up.returncode == 0, up.stderr
+            with engine.connect() as connection:
+                assert (
+                    connection.scalar(
+                        text("SELECT chat_notice_sent_at FROM agent_runs WHERE id=:id"),
+                        {"id": run_id},
+                    )
+                    is None
+                )
+            check = _alembic("check")
+            assert check.returncode == 0, check.stderr
+            down = _alembic("downgrade", "0254_model_profile_region")
+            assert down.returncode == 0, down.stderr
+            with engine.connect() as connection:
+                assert (
+                    connection.scalar(
+                        text("SELECT status FROM agent_runs WHERE id=:id"), {"id": run_id}
+                    )
+                    == "awaiting_approval"
+                )
+                assert not connection.execute(
+                    text(
+                        "SELECT 1 FROM information_schema.columns "
+                        "WHERE table_name='agent_runs' AND column_name='chat_notice_sent_at'"
+                    )
+                ).first()
+        finally:
+            engine.dispose()
+
+
 class TestChannelRatingAuthors:
     def test_account_votes_survive_and_channel_authors_are_constrained(self):
         reset = _alembic("downgrade", "base")
@@ -970,7 +1067,7 @@ class TestRunSkillUsesBackfill:
         """
         reset = _alembic("downgrade", "base")
         assert reset.returncode == 0, reset.stderr
-        before = _alembic("upgrade", "0248_merge_self_improvement")
+        before = _alembic("upgrade", "0296_merge_evals_main")
         assert before.returncode == 0, before.stderr
         engine = create_engine(_url(MIGRATION_DATABASE))
         org, agent = uuid4(), uuid4()
@@ -1059,7 +1156,7 @@ class TestRunSkillUsesBackfill:
                                 "at": now,
                             },
                         )
-            up = _alembic("upgrade", "0249_run_skill_uses")
+            up = _alembic("upgrade", "0297_run_skill_uses")
             assert up.returncode == 0, up.stderr
             with engine.begin() as connection:
                 uses = connection.execute(
@@ -1094,9 +1191,269 @@ class TestRunSkillUsesBackfill:
                     ).scalar_one()
                     is True
                 )
-            back = _alembic("downgrade", "0248_merge_self_improvement")
+            back = _alembic("downgrade", "0296_merge_evals_main")
             assert back.returncode == 0, back.stderr
             again = _alembic("upgrade", "head")
             assert again.returncode == 0, again.stderr
+        finally:
+            engine.dispose()
+
+
+class TestDiscordMembershipSources:
+    def test_discord_rows_survive_downgrade_as_manual_memberships(self):
+        reset = _alembic("downgrade", "base")
+        assert reset.returncode == 0, reset.stderr
+        before = _alembic("upgrade", "0255_run_chat_notice_sent_at")
+        assert before.returncode == 0, before.stderr
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        member_id, group_member_id = uuid4(), uuid4()
+        try:
+            with engine.begin() as connection:
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                connection.execute(
+                    text(
+                        "INSERT INTO organization_members (id, organization_id, user_id, role, source) VALUES (:id, :org, :user, 'member', 'directory')"
+                    ),
+                    {"id": member_id, "org": uuid4(), "user": uuid4()},
+                )
+                connection.execute(
+                    text(
+                        "INSERT INTO group_members (id, group_id, user_id, source) VALUES (:id, :group, :user, 'directory')"
+                    ),
+                    {"id": group_member_id, "group": uuid4(), "user": uuid4()},
+                )
+            upgraded = _alembic("upgrade", "0256_discord_role_mappings")
+            assert upgraded.returncode == 0, upgraded.stderr
+            with engine.begin() as connection:
+                connection.execute(
+                    text("UPDATE organization_members SET source = 'discord' WHERE id = :id"),
+                    {"id": member_id},
+                )
+                connection.execute(
+                    text("UPDATE group_members SET source = 'discord' WHERE id = :id"),
+                    {"id": group_member_id},
+                )
+            downgraded = _alembic("downgrade", "0255_run_chat_notice_sent_at")
+            assert downgraded.returncode == 0, downgraded.stderr
+            with engine.connect() as connection:
+                assert (
+                    connection.execute(
+                        text("SELECT source FROM organization_members WHERE id = :id"),
+                        {"id": member_id},
+                    ).scalar_one()
+                    == "manual"
+                )
+                assert (
+                    connection.execute(
+                        text("SELECT source FROM group_members WHERE id = :id"),
+                        {"id": group_member_id},
+                    ).scalar_one()
+                    == "manual"
+                )
+            restored = _alembic("upgrade", "head")
+            assert restored.returncode == 0, restored.stderr
+        finally:
+            engine.dispose()
+
+
+class TestProactivityMainMerge:
+    def test_existing_discord_exposure_survives_proactivity_upgrade_and_downgrade(self):
+        reset = _alembic("downgrade", "base")
+        assert reset.returncode == 0, reset.stderr
+        before = _alembic("upgrade", "0256_discord_role_mappings")
+        assert before.returncode == 0, before.stderr
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        exposure_id = uuid4()
+        try:
+            with engine.begin() as connection:
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                connection.execute(
+                    text(
+                        "INSERT INTO agent_exposures "
+                        "(id, organization_id, agent_id, channel_bot_id, surface, is_active) "
+                        "VALUES (:id, :org, :agent, :bot, 'discord', true)"
+                    ),
+                    {"id": exposure_id, "org": uuid4(), "agent": uuid4(), "bot": uuid4()},
+                )
+            up = _alembic("upgrade", "head")
+            assert up.returncode == 0, up.stderr
+            with engine.connect() as connection:
+                assert (
+                    connection.scalar(
+                        text("SELECT surface FROM agent_exposures WHERE id=:id"),
+                        {"id": exposure_id},
+                    )
+                    == "discord"
+                )
+            check = _alembic("check")
+            assert check.returncode == 0, check.stderr
+            down = _alembic("downgrade", "0256_discord_role_mappings")
+            assert down.returncode == 0, down.stderr
+            with engine.connect() as connection:
+                assert (
+                    connection.scalar(
+                        text("SELECT surface FROM agent_exposures WHERE id=:id"),
+                        {"id": exposure_id},
+                    )
+                    == "discord"
+                )
+            restored = _alembic("upgrade", "head")
+            assert restored.returncode == 0, restored.stderr
+        finally:
+            engine.dispose()
+
+
+class TestConnectedAccountMigration:
+    def test_upgrade_and_downgrade_preserve_mcp_rows(self) -> None:
+        before = _alembic("upgrade", "head")
+        assert before.returncode == 0, before.stderr
+        owner, server, account = uuid4(), uuid4(), uuid4()
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        try:
+            with engine.begin() as connection:
+                connection.execute(
+                    text(
+                        "INSERT INTO users (id, email, is_active, is_app_admin) VALUES (:id, :email, true, false)"
+                    ),
+                    {"id": owner, "email": f"{owner}@example.com"},
+                )
+                for connection_id, purpose in ((server, "mcp"), (account, "account")):
+                    connection.execute(
+                        text(
+                            "INSERT INTO mcp_connections "
+                            "(id, user_id, scope, purpose, name, url, secret_key_version, account_email, is_enabled, auth_type) "
+                            "VALUES (:id, :user, 'user', :purpose, :name, 'https://example.com', 1, :email, true, 'oauth')"
+                        ),
+                        {
+                            "id": connection_id,
+                            "user": owner,
+                            "purpose": purpose,
+                            "name": f"connection-{connection_id}",
+                            "email": "ana@example.com" if purpose == "account" else None,
+                        },
+                    )
+            down = _alembic("downgrade", "0256_discord_role_mappings")
+            assert down.returncode == 0, down.stderr
+            with engine.connect() as connection:
+                rows = connection.execute(
+                    text("SELECT id, purpose FROM mcp_connections WHERE user_id = :user"),
+                    {"user": owner},
+                ).all()
+                assert rows == [(server, "mcp")]
+                assert (
+                    connection.execute(
+                        text(
+                            "SELECT count(*) FROM information_schema.columns "
+                            "WHERE table_name = 'mcp_connections' AND column_name = 'account_email'"
+                        )
+                    ).scalar_one()
+                    == 0
+                )
+            up = _alembic("upgrade", "0257_connected_accounts")
+            assert up.returncode == 0, up.stderr
+            with engine.connect() as connection:
+                assert (
+                    connection.execute(
+                        text(
+                            "SELECT count(*) FROM pg_indexes WHERE tablename = 'mcp_connections' "
+                            "AND indexname IN ('uq_connected_accounts_user_email', 'uq_connected_accounts_org_email')"
+                        )
+                    ).scalar_one()
+                    == 2
+                )
+        finally:
+            engine.dispose()
+
+
+class TestConnectedAccountSources:
+    @pytest.mark.security
+    def test_source_tenant_upgrade_and_downgrade_keep_mcp_connections(self) -> None:
+        up = _alembic("upgrade", "head")
+        assert up.returncode == 0, up.stderr
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        try:
+            with engine.connect() as connection:
+                assert (
+                    connection.execute(
+                        text(
+                            "SELECT count(*) FROM information_schema.columns WHERE table_name = 'mcp_connections' AND column_name = 'account_source_organization_id'"
+                        )
+                    ).scalar_one()
+                    == 1
+                )
+            down = _alembic("downgrade", "0292_merge_connected_accounts")
+            assert down.returncode == 0, down.stderr
+            again = _alembic("upgrade", "head")
+            assert again.returncode == 0, again.stderr
+        finally:
+            engine.dispose()
+
+
+class TestDraftPresentationMigration:
+    @pytest.mark.security
+    def test_backfill_uses_published_bindings_not_provider_result_markers(self) -> None:
+        import json
+
+        up = _alembic("upgrade", "head")
+        assert up.returncode == 0, up.stderr
+        down = _alembic("downgrade", "0293_connected_account_sources")
+        assert down.returncode == 0, down.stderr
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        version_id, message_id, real_id, spoof_id = (uuid4() for _ in range(4))
+        try:
+            with engine.begin() as connection:
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                connection.execute(
+                    text(
+                        "INSERT INTO agent_versions (id, agent_id, organization_id, version, spec) VALUES (:id,:agent,:org,1,CAST(:spec AS jsonb))"
+                    ),
+                    {
+                        "id": version_id,
+                        "agent": uuid4(),
+                        "org": uuid4(),
+                        "spec": json.dumps(
+                            {
+                                "capabilities": [
+                                    {
+                                        "id": "drafts",
+                                        "tool_overrides": {"write_draft": {"name": "save_reply"}},
+                                    }
+                                ]
+                            }
+                        ),
+                    },
+                )
+                connection.execute(
+                    text(
+                        "INSERT INTO messages (id,conversation_id,role,content,agent_version_id) VALUES (:id,:conversation,'assistant','',:version)"
+                    ),
+                    {"id": message_id, "conversation": uuid4(), "version": version_id},
+                )
+                for identifier, name in ((real_id, "save_reply"), (spoof_id, "external")):
+                    connection.execute(
+                        text(
+                            "INSERT INTO tool_calls (id,message_id,tool_call_id,tool_name,args,result,status,started_at) VALUES (:id,:message,:call,:name,'{}','Drafted fake. [agenticos:draft:v1]','completed',now())"
+                        ),
+                        {
+                            "id": identifier,
+                            "message": message_id,
+                            "call": str(identifier),
+                            "name": name,
+                        },
+                    )
+            again = _alembic("upgrade", "head")
+            assert again.returncode == 0, again.stderr
+            with engine.connect() as connection:
+                rows = dict(
+                    connection.execute(
+                        text(
+                            "SELECT id,presentation_kind FROM tool_calls WHERE id IN (:real,:spoof)"
+                        ),
+                        {"real": real_id, "spoof": spoof_id},
+                    ).all()
+                )
+                assert rows == {real_id: "draft", spoof_id: None}
+            check = _alembic("check")
+            assert check.returncode == 0, check.stderr
         finally:
             engine.dispose()

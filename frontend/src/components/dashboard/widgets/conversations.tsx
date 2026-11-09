@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUpRight, MessageSquare } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
+import { ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 import { useLocale, useTranslations } from "next-intl";
 
 import { ConversationAgents } from "@/components/agents/conversation-agents";
@@ -46,8 +47,13 @@ export function ConversationsWidget({ title, hint, seeAll, options }: DashboardW
                     same faces, the same stack when a thread changed agent
                     mid-way. A thread with no agent is the general assistant,
                     which has no face and takes the bubble instead. */}
-                {conversation.agents?.length ? (
-                  <ConversationAgents agents={conversation.agents} showName={false} size="md" />
+                {conversation.agents?.length || conversation.coding_agents?.length ? (
+                  <ConversationAgents
+                    agents={conversation.agents}
+                    codingAgents={conversation.coding_agents}
+                    showName={false}
+                    size="md"
+                  />
                 ) : (
                   <span
                     className="bg-muted text-muted-foreground grid size-8 shrink-0 place-items-center rounded-full"

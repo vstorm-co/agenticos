@@ -25,15 +25,13 @@ import {
   Textarea,
 } from "@/components/ui";
 import { useAgents, useCapabilityCatalog } from "@/hooks";
-import { useCreateSystemAgent } from "@/hooks/use-agents";
 import { submitFailure } from "@/lib/api-error";
-import type { Agent, SystemAgentKind } from "@/types/agents";
+import type { Agent } from "@/types/agents";
 import { useTranslations } from "next-intl";
 import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { MAX_AGENT_CATEGORIES, MAX_AGENT_TAGS } from "@/lib/agent-labels";
 import { DescribeWithArchitect } from "@/components/authoring/describe-with-architect";
-import { SystemAgentKinds } from "@/components/agents/system-agent-kinds";
 
 /** What the backend will accept, so a longer name is refused before it is sent. */
 const MAX_NAME = 128;
@@ -83,9 +81,6 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
   const t = useTranslations("agents");
   const tAgents = useTranslations("pages.agents");
   const { create, categoryOptions, tagOptions } = useAgents();
-  const createSystem = useCreateSystemAgent();
-  const [making, setMaking] = useState<"agent" | "system">("agent");
-  const [kind, setKind] = useState<SystemAgentKind>("judge");
   // A new agent starts with what the starter agent has - the Claude Code like
   // template - so it can ask, plan, search, work in a sandbox and delegate from
   // its first run; its author switches off what it should not do.
@@ -123,16 +118,13 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
 
   async function handleCreate() {
     try {
-      const agent =
-        making === "system" ? await createSystem.mutateAsync({ kind, name }) : await createAgent();
+      const agent = await createAgent();
       setName("");
       setDescription("");
       setAudience(EVERYONE);
       setCategories([]);
       setTags([]);
       setErrors({});
-      setMaking("agent");
-      setKind("judge");
       onOpenChange(false);
       onCreated(agent);
     } catch (error) {
@@ -182,137 +174,100 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
       <DialogContent className={cn(DIALOG_FORM, DIALOG_COLUMN)}>
         <DialogHeader>
           <DialogTitle>{t("newAgent")}</DialogTitle>
-          <DialogDescription>
-            {making === "system" ? t("systemStartsAs") : t("startsAsDraftNothing")}
-          </DialogDescription>
+          <DialogDescription>{t("startsAsDraftNothing")}</DialogDescription>
         </DialogHeader>
         {/* `min-h-0` because a flex child refuses to shrink without it, which is
             how the body grows past the dialog's own ceiling instead of scrolling
             inside it. The side padding keeps a focus ring off the scroller's
             edge, where it would be sliced. */}
         <div className={cn(DIALOG_BODY, "space-y-4")}>
-          <div role="radiogroup" aria-label={t("newKindLabel")} className="grid grid-cols-2 gap-2">
-            {(["agent", "system"] as const).map((option) => (
-              <Button
-                key={option}
-                type="button"
-                role="radio"
-                aria-checked={making === option}
-                variant={making === option ? "default" : "outline"}
-                onClick={() => setMaking(option)}
-              >
-                {option === "agent" ? t("newKindAgent") : t("newKindSystem")}
-              </Button>
-            ))}
+          <DescribeWithArchitect onAsked={() => onOpenChange(false)} />
+          <FormField
+            label={t("name4")}
+            htmlFor="agent-name"
+            error={errors.name}
+            description={
+              <>
+                {t.rich("handleDescription", {
+                  handle: deriveHandle(name || t("handlePlaceholder")),
+                  at: (chunks) => <span className="font-mono">@{chunks}</span>,
+                })}
+              </>
+            }
+          >
+            <Input
+              value={name}
+              onChange={(event) => edit("name", event.target.value)}
+              placeholder={t("supportCopilot")}
+              maxLength={MAX_NAME}
+            />
+          </FormField>
+          <div className="space-y-1.5">
+            <Label>{t("whoCanFindIt")}</Label>
+            <AudiencePicker value={audience} onChange={setAudience} />
           </div>
-          {making === "system" ? (
-            <>
-              <SystemAgentKinds value={kind} onChange={setKind} />
-              <FormField
-                label={t("name4")}
-                htmlFor="system-agent-name"
-                error={errors.name}
-                description={t("systemRunsOn")}
-              >
-                <Input
-                  value={name}
-                  onChange={(event) => edit("name", event.target.value)}
-                  placeholder={t("systemNamePlaceholder")}
-                  maxLength={MAX_NAME}
-                />
-              </FormField>
-            </>
-          ) : (
-            <>
-              <DescribeWithArchitect onAsked={() => onOpenChange(false)} />
-              <FormField
-                label={t("name4")}
-                htmlFor="agent-name"
-                error={errors.name}
-                description={
-                  <>
-                    {t.rich("handleDescription", {
-                      handle: deriveHandle(name || t("handlePlaceholder")),
-                      at: (chunks) => <span className="font-mono">@{chunks}</span>,
-                    })}
-                  </>
-                }
-              >
-                <Input
-                  value={name}
-                  onChange={(event) => edit("name", event.target.value)}
-                  placeholder={t("supportCopilot")}
-                  maxLength={MAX_NAME}
-                />
-              </FormField>
-              <div className="space-y-1.5">
-                <Label>{t("whoCanFindIt")}</Label>
-                <AudiencePicker value={audience} onChange={setAudience} />
-              </div>
 
-              {/* Optional, and folded: a draft needs a name and an audience, and the
+          {/* Optional, and folded: a draft needs a name and an audience, and the
               catalog details can wait for the detail page - which changes them
               later without a publish. */}
-              <MoreOptions label={t("moreOptions")}>
-                <FormField
-                  label={t("description")}
-                  htmlFor="agent-description"
-                  error={errors.description}
-                >
-                  <Textarea
-                    value={description}
-                    onChange={(event) => edit("description", event.target.value)}
-                    placeholder={t("answersCustomerQuestionsFrom")}
-                    maxLength={MAX_DESCRIPTION}
-                    rows={2}
-                  />
-                </FormField>
-                {/* Side by side: two halves of one question. */}
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <Label>{tAgents("categories")}</Label>
-                    <ChipsInput
-                      values={categories}
-                      onChange={setCategories}
-                      inputLabel={tAgents("addCategory")}
-                      removeLabel={(value) => tAgents("removeCategory", { value })}
-                      placeholder={tAgents("addCategoryPlaceholder")}
-                      suggestions={categoryOptions}
-                      suggestionsLabel={tAgents("inCategoryUse")}
-                      maxItems={MAX_AGENT_CATEGORIES}
-                      maxLength={MAX_LABEL}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>{tAgents("tags")}</Label>
-                    <ChipsInput
-                      values={tags}
-                      onChange={setTags}
-                      inputLabel={tAgents("addTag")}
-                      removeLabel={(value) => tAgents("removeTag", { value })}
-                      placeholder={tAgents("addTagPlaceholder")}
-                      suggestions={tagOptions}
-                      suggestionsLabel={tAgents("inTagUse")}
-                      maxItems={MAX_AGENT_TAGS}
-                      maxLength={MAX_LABEL}
-                    />
-                  </div>
-                </div>
-              </MoreOptions>
-            </>
-          )}
+          <MoreOptions label={t("moreOptions")}>
+            <FormField
+              label={t("description")}
+              htmlFor="agent-description"
+              error={errors.description}
+            >
+              <Textarea
+                value={description}
+                onChange={(event) => edit("description", event.target.value)}
+                placeholder={t("answersCustomerQuestionsFrom")}
+                maxLength={MAX_DESCRIPTION}
+                rows={2}
+              />
+            </FormField>
+            {/* Side by side: two halves of one question. */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>{tAgents("categories")}</Label>
+                <ChipsInput
+                  values={categories}
+                  onChange={setCategories}
+                  inputLabel={tAgents("addCategory")}
+                  removeLabel={(value) => tAgents("removeCategory", { value })}
+                  placeholder={tAgents("addCategoryPlaceholder")}
+                  suggestions={categoryOptions}
+                  suggestionsLabel={tAgents("inCategoryUse")}
+                  maxItems={MAX_AGENT_CATEGORIES}
+                  maxLength={MAX_LABEL}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>{tAgents("tags")}</Label>
+                <ChipsInput
+                  values={tags}
+                  onChange={setTags}
+                  inputLabel={tAgents("addTag")}
+                  removeLabel={(value) => tAgents("removeTag", { value })}
+                  placeholder={tAgents("addTagPlaceholder")}
+                  suggestions={tagOptions}
+                  suggestionsLabel={tAgents("inTagUse")}
+                  maxItems={MAX_AGENT_TAGS}
+                  maxLength={MAX_LABEL}
+                />
+              </div>
+            </div>
+          </MoreOptions>
         </div>
         <DialogFooter className="items-center">
           <p className="text-muted-foreground mr-auto hidden text-xs sm:block">
-            {making === "agent" && t("startsWithRecommended", { count: starter.length })}
+            {t("startsWithRecommended", { count: starter.length })}
           </p>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("cancel2")}
           </Button>
           <Button
             onClick={handleCreate}
-            loading={create.isPending || createSystem.isPending}
-            disabled={!name.trim() || (making === "agent" && catalogFetching)}
+            loading={create.isPending}
+            disabled={!name.trim() || catalogFetching}
           >
             {t("create")}
           </Button>

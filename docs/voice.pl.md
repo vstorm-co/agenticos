@@ -1,5 +1,5 @@
 ---
-source_sha: "dc7308008f49"
+source_sha: "f415e83adfe5"
 title: "Rozmowy głosowe"
 seo_title: "Rozmowy głosowe: rozmawiaj z opublikowanym agentem"
 description: "Zadzwoń do opublikowanego agenta i porozmawiaj z nim: modele realtime, zatwierdzenia w rozmowie, limity czasu i budżety, bezpieczne rozłączanie i transkrypcje."
@@ -154,7 +154,7 @@ rozmowa przekazuje zamiast tego modelowi tekstowemu agenta.
 
 | Głosowo | Capabilities |
 |---|---|
-| Bez zmian | zegar (czas w instrukcjach jest ustalany w chwili połączenia), kontekst, wiedza, research w sieci, pobieranie stron, wykresy, artefakty, wykonywanie kodu, wyszukiwanie w konwersacjach, pliki pamięci, pamięć mem0, planowanie, limity wyjścia narzędzi, generowanie obrazów, zamiana tekstu na mowę |
+| Bez zmian | zegar (czas w instrukcjach jest ustalany w chwili połączenia), kontekst, wiedza, research w sieci, pobieranie stron, wykresy, artefakty, wykonywanie kodu, wyszukiwanie w konwersacjach, pliki pamięci, planowanie, limity wyjścia narzędzi, generowanie obrazów, zamiana tekstu na mowę |
 | Na ekranie | pytania do użytkownika: w `/chat` karta pytań pojawia się w widoku rozmowy i jest też czytana na głos, a rozmówca stuka odpowiedź albo ją mówi; rozmowa z widgetu ani strony hostowanej ich nie dostaje |
 | Dostosowane | skille: ładowane na żądanie jako instrukcje, bez narzędzi, którymi run tekstowy je czyta |
 | Pominięte | wyszukiwanie narzędzi: narzędzia MCP, które by odroczyło, są przekazywane rozmowie bezpośrednio |
@@ -199,7 +199,7 @@ rozmowie nie może zrobić. Po nich następują własne uwagi do głosu agenta.
 
 Przez WebRTC agent jest rozwiązywany dwa razy: raz, żeby odpowiedzieć na ofertę,
 i raz dla połączenia sideband. Serwery MCP są łączone dwa razy, a dynamiczne
-instrukcje wykonują się dwa razy, więc za wyszukiwanie w pamięci mem0 płaci się
+instrukcje wykonują się dwa razy, więc za wyszukiwanie w pamięci płaci się
 podwójnie; oba są mierzone na runie.
 
 ## Zatwierdzenia w rozmowie { #approvals-in-a-call }
@@ -404,3 +404,25 @@ Gniazdo się zamyka, a serwer rozłącza rozmowę u providera i zapisuje jej cza
 koszt. Jeśli zatrzymał się sam serwer, przemiatanie rozłącza rozmowę w ciągu
 mniej więcej minuty od jej ostatniego heartbeatu. Tury wypowiedziane przed
 zamknięciem karty są już zapisane w konwersacji.
+
+
+## Połączenia telefoniczne { #telephone-calls }
+
+W Kanałach skonfiguruj istniejącego bota SMS Twilio z poświadczeniami w sejfie i włącz jego trasę telefoniczną. Ustaw HTTPS w `PUBLIC_BASE_URL`, skopiuj pokazany adres przychodzący do webhooka Voice numeru (POST) i zapewnij dostęp do podpisanych callbacków stanu. Dla połączeń przychodzących wybierz opublikowany publiczny embed głosowy. Numer dzwoniącego nie uwierzytelnia gościa. Istniejący model realtime korzysta z serwerowego przekaźnika audio; platforma zapisuje transkrypcję tekstową, bez nagrania audio.
+
+W Ustawieniach → Powiadomienia wybierz zweryfikowaną tożsamość SMS i osobno zezwól na rozmowy, raporty głosowe lub przekierowania. Ustaw strefę czasową, ciszę nocną, limit dzienny i język raportu. Zgody są niezależne od powiadomień SMS. Raport może trafić na pocztę głosową; zgoda na raporty obejmuje tę możliwość. Zgodę możesz odwołać. Administrator określa czas rozmowy, współbieżność, liczbę połączeń, kontakty przekierowań i budżet telefoniczny.
+
+Osobisty formularz pozwala zamówić rozmowę lub raport. Capability `phone_calls` wskazuje jedną trasę: `call_me` dzwoni wyłącznie do kontaktu zalogowanego członka, który wyraził zgodę. Rutyny mogą przekazywać raporty głosowe, ale nie rozpoczynają interaktywnej rozmowy z szerszym dostępem do źródeł. `list_phone_transfer_contacts` zwraca dozwolone identyfikatory; `transfer_phone_call` i `end_phone_call` dotyczą wyłącznie bieżącej zaufanej sesji telefonicznej. Przekierowanie zachowuje pierwotny limit czasu i wymaga oddzielnej zgody odbiorcy.
+
+Każde żądanie wychodzące ma trwały klucz idempotencji. Niepewny wynik u operatora oczekuje na podpisany callback i nie wywołuje automatycznego ponownego telefonu. Zgody, członkostwo, uprawnienia do źródeł i generacja trasy są sprawdzane przed wykonaniem i podczas rozmowy. Przygotowany raport nie potwierdza odsłuchania. Karty pokazują stan operatora, szacowany koszt i dostępne transkrypcje. Prywatny czat może zachować ciągłość; wspólny czat projektu otrzymuje potwierdzenie bez prywatnej transkrypcji.
+
+Podaj ostrożną stawkę minutową obejmującą kierunek, syntezę głosu i pozostałe opłaty. Platforma rezerwuje zaokrąglone minuty, także możliwy dodatkowy odcinek przekierowania, przed telefonem. Szacunki są niezależne od budżetu modelu AI i nie stanowią faktury Twilio. Potwierdzenia wygasają po 30 dniach; rozmowy podlegają zwykłej retencji. Eksport osobisty obejmuje zgody i historię bez poświadczeń operatora. Na własnym koncie Twilio sprawdź rzeczywiste numery, audio, pocztę głosową, przekierowania i rozliczenia.
+
+
+Wybierz agentów, którzy mogą zamawiać telefony i raporty. Kontakt w ważnej sprawie wymaga dodatkowej zgody i opisanych przez Ciebie kryteriów ważności. Agent odczytuje zasady i otwarte sprawy bieżącej rozmowy przez `get_phone_contact_policy`, a do `call_me` podaje istniejący identyfikator sprawy i uzasadnienie. Ustaw 0 dla kontaktu natychmiastowego albo opóźnienie od pierwszego nieprzeczytanego powiadomienia.
+
+Potwierdzenie, rozwiązanie lub wyciszenie tej sprawy oraz odczytanie jej powiadomienia anuluje oczekujący telefon i zleca zakończenie połączenia rozpoczętego lub aktywnego. Rozpoczęcie telefonu i zmiana powiadomienia korzystają ze wspólnych blokad bazy; żądanie wysłane do operatora zostaje przerwane po otrzymaniu identyfikatora połączenia. Jedna sprawa dopuszcza jedną próbę telefoniczną; deduplikacja przeżywa wygaśnięcie potwierdzenia. Nadal obowiązują kontekst źródłowy i bieżące uprawnienia.
+
+Usuwanie konta i organizacji jest odrzucane, dopóki istnieją niezakończone połączenia telefoniczne. Zakończ je i poczekaj na stan końcowy przed ponownym usuwaniem; zachowuje to obsługę callbacków dostawcy i limity czasu. Eksport osobisty obejmuje wszystkie sprawy, także bez próby połączenia, a pełna treść jest wliczana do limitu rozmiaru eksportu.
+
+Zmiana danych uwierzytelniających bota SMS jest także blokowana do zakończenia jego połączeń telefonicznych. Anulowanie podczas wysyłania żądania połączenia zapisuje zamiar przerwania i rozłącza po nadejściu identyfikatora od dostawcy. Procedura kończenia zatwierdza ten zapis przed kontaktem z dostawcą, dzięki czemu podpisane callbacki stanu mogą równolegle rozliczyć połączenie.

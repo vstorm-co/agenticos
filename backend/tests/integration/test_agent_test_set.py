@@ -42,7 +42,6 @@ from app.db.models.background_job import BackgroundJob
 from app.db.models.case_generation import CaseGeneration
 from app.db.models.conversation import Message
 from app.db.models.credential import ModelProfile
-from app.db.models.dataset import Dataset
 from app.db.models.message_rating import MessageRating
 from app.db.models.organization import Organization
 from app.db.models.user import User
@@ -135,10 +134,8 @@ def _sessions(db):
     return session
 
 
-async def test_an_agent_with_rated_answers_gets_a_test_set_graded_on_another_model(
-    db, monkeypatch
-) -> None:
-    org, owner, colleague, agent, (_, other) = await _world(db)
+async def test_rated_answers_get_a_test_set_on_the_explicit_parent_model(db, monkeypatch) -> None:
+    org, owner, colleague, agent, (parent, _) = await _world(db)
     _generator(monkeypatch)
     await _rate(db, org, agent, owner, "How long do refunds take?", rating=1, minutes=1)
     _, bad, _ = await _rate(
@@ -182,11 +179,9 @@ async def test_an_agent_with_rated_answers_gets_a_test_set_graded_on_another_mod
     assert cases["How long do refunds take?"].reference_answer == "An answer."
     scoring = DatasetScoring.model_validate(dataset.scoring)
     assert scoring.judge.enabled and scoring.reference.enabled and scoring.judge.criteria
-    assert built.judge.independent and built.judge.agent_id == scoring.judge.agent_id
-    judge = await agent_repo.get(db, scoring.judge.agent_id, organization_id=org.id)
-    assert judge is not None and judge.name == "Clerk - grader"
-    version = await agent_repo.get_version(db, judge.current_version_id, organization_id=org.id)
-    assert version is not None and version.spec["model_profile_id"] == str(other.id)
+    assert not built.judge.independent and scoring.judge.agent_id is None
+    assert scoring.judge.model_profile_id == parent.id
+    assert (await db.execute(select(Agent).where(Agent.kind == "judge"))).first() is None
     assert (built.gradable, built.too_few) == (3, False)
     job = (await db.execute(select(BackgroundJob))).scalar_one()
     assert job.payload["generation_id"] == str(built.generation_id)
@@ -286,8 +281,8 @@ async def test_with_one_model_the_default_judge_grades_and_the_reason_is_given(
     assert built.judge.model_dump() == {
         "agent_id": None,
         "independent": False,
-        "reason": REASONS["one_model"],
-        "reason_code": "one_model",
+        "reason": REASONS["shares_model"],
+        "reason_code": "shares_model",
         "kept": False,
     }
     scoring = DatasetScoring.model_validate(
@@ -296,33 +291,18 @@ async def test_with_one_model_the_default_judge_grades_and_the_reason_is_given(
     assert scoring.judge.enabled and scoring.judge.agent_id is None and scoring.reference.enabled
 
 
-async def test_an_existing_judge_on_another_model_is_kept(db, monkeypatch) -> None:
-    org, owner, _, agent, _ = await _world(db)
-    _generator(monkeypatch)
-    first = await _service(db).bootstrap_for_agent(owner, agent.id, more=1)
-    again = await _service(db).bootstrap_for_agent(owner, agent.id, more=1)
-
-    assert again.judge.agent_id == first.judge.agent_id and again.judge.independent
-    judges = (await db.execute(select(Agent).where(Agent.kind == "judge"))).scalars().all()
-    assert len(judges) == 1
-
-
-async def test_with_ai_assistance_off_nothing_is_graded_or_written_and_it_says_why(
-    db, monkeypatch
-) -> None:
+async def test_legacy_ai_flag_does_not_block_building_a_test_set(db, monkeypatch) -> None:
     org, owner, _, agent, _ = await _world(db)
     _generator(monkeypatch)
     await _rate(db, org, agent, owner, "How long do refunds take?", rating=1, minutes=1)
     org.ai_assistance_enabled = False
     await db.flush()
-
     built = await _service(db).bootstrap_for_agent(owner, agent.id)
-
-    assert (built.judge.reason_code, built.generation_skipped) == ("ai_off", "ai_off")
-    assert built.judge.reason == REASONS["ai_off"]
-    assert (built.gradable, built.too_few) == (0, True)
+    assert built.judge.reason_code == "shares_model"
+    assert built.generation_skipped is None
+    assert built.counts.rated_good == 1
     estimate = await _service(db).estimate_bootstrap(owner, agent.id)
-    assert estimate.model_dump() == {"cost_usd": Decimal(0), "priced": True, "generate": 0}
+    assert estimate.generate > 0 and estimate.priced
 
 
 async def test_too_few_questions_are_said_to_be_too_few(db, monkeypatch) -> None:
@@ -423,13 +403,13 @@ async def test_a_test_set_the_caller_may_not_edit_is_left_for_one_of_their_own(
     assert theirs.judge.model_dump() == {
         "agent_id": None,
         "independent": False,
-        "reason": REASONS["cannot_publish"],
-        "reason_code": "cannot_publish",
+        "reason": REASONS["shares_model"],
+        "reason_code": "shares_model",
         "kept": False,
     }
     scoring = DatasetScoring.model_validate(named.scoring)
     assert scoring.judge.enabled and scoring.judge.agent_id is None
-    assert (await db.execute(select(Agent).where(Agent.kind == "judge"))).first() is not None
+    assert (await db.execute(select(Agent).where(Agent.kind == "judge"))).first() is None
     monkeypatch.setattr(agent_test_set, "_NAME_TRIES", 1)
     stranger = await world.member(db, org, OrgRoleName.MEMBER)
     with pytest.raises(BadRequestError, match="Every name for this agent's test set is taken"):
@@ -455,38 +435,14 @@ async def test_grading_somebody_set_up_is_left_as_it_is_and_its_model_reported(
 
     assert again.judge.model_dump() == {
         "agent_id": first.judge.agent_id,
-        "independent": False,
-        "reason": REASONS["shares_model"],
-        "reason_code": "shares_model",
+        "independent": True,
+        "reason": None,
+        "reason_code": None,
         "kept": True,
     }
     kept = DatasetScoring.model_validate((await service.read(owner, first.dataset_id)).scoring)
     assert (kept.judge.agent_id, kept.reference.enabled) == (first.judge.agent_id, False)
-    assert len((await db.execute(select(Agent).where(Agent.kind == "judge"))).all()) == 1
-
-
-async def test_a_grader_takes_the_next_free_name_and_gives_up_after_a_few(db, monkeypatch) -> None:
-    org, owner, _, agent, (claude, _) = await _world(db)
-    _generator(monkeypatch)
-    await _service(db).bootstrap_for_agent(owner, agent.id, more=1)
-
-    async def namesake() -> Agent:
-        other = await world.agent(db, org, visibility="org")
-        spec = {"name": "Clerk", "instructions": "Answer.", "model_profile_id": str(claude.id)}
-        await world.publish(db, other, spec)
-        return other
-
-    second = await _service(db).bootstrap_for_agent(owner, (await namesake()).id, more=1)
-
-    judge = await agent_repo.get(db, second.judge.agent_id, organization_id=org.id)
-    assert judge is not None and judge.name == "Clerk - grader (2)"
-    # The test set's own name freed, so only the grader's name is left taken.
-    for row in (await db.execute(select(Dataset).where(Dataset.agent_id.is_not(None)))).scalars():
-        row.name = f"Renamed {row.id}"
-    await db.flush()
-    monkeypatch.setattr(agent_test_set, "_NAME_TRIES", 1)
-    with pytest.raises(BadRequestError, match="Every name for this agent's grader is taken"):
-        await _service(db).bootstrap_for_agent(owner, (await namesake()).id, more=1)
+    assert len((await db.execute(select(Agent).where(Agent.kind == "judge"))).all()) == 0
 
 
 async def test_rated_answers_already_held_or_not_the_caller_s_never_crowd_out_the_rest(
@@ -563,18 +519,16 @@ async def test_a_rated_answer_with_no_question_before_it_adds_nothing(db, monkey
     assert (built.version, built.counts.skipped, built.counts.rated_good) == (0, 1, 0)
 
 
-async def test_an_admin_gets_a_published_judge_on_another_model(db, monkeypatch) -> None:
-    org, _, _, agent, (_, other) = await _world(db)
+async def test_an_admin_configures_grading_without_creating_an_agent(db, monkeypatch) -> None:
+    org, _, _, agent, (parent, _) = await _world(db)
     _generator(monkeypatch)
     admin = await world.member(db, org, OrgRoleName.ADMIN)
-
     built = await _service(db).bootstrap_for_agent(admin, agent.id, more=1)
-
-    assert (built.judge.independent, built.judge.kept, built.visibility) == (True, False, "private")
-    judge = await agent_repo.get(db, built.judge.agent_id, organization_id=org.id)
-    assert judge is not None and judge.current_version_id is not None
-    version = await agent_repo.get_version(db, judge.current_version_id, organization_id=org.id)
-    assert version is not None and version.spec["model_profile_id"] == str(other.id)
+    read = await DatasetService(db).read(admin, built.dataset_id)
+    assert read.scoring.judge.model_profile_id == parent.id
+    assert not built.judge.independent
+    assert built.judge.agent_id is None
+    assert (await db.execute(select(Agent).where(Agent.kind == "judge"))).first() is None
 
 
 async def test_a_judge_that_would_not_run_grades_nothing(db, monkeypatch) -> None:
@@ -624,53 +578,30 @@ async def test_the_listing_finds_an_agents_test_set_by_the_agent(db) -> None:
     assert [item.id for item in found.items] == [made.id]
 
 
-async def _grader_model(db, org: Organization, built) -> uuid.UUID:
-    judge = await agent_repo.get(db, built.judge.agent_id, organization_id=org.id)
-    assert judge is not None
-    version = await agent_repo.get_version(db, judge.current_version_id, organization_id=org.id)
-    assert version is not None
-    return uuid.UUID(version.spec["model_profile_id"])
-
-
-async def test_the_organization_s_grading_model_grades_a_new_test_set(db, monkeypatch) -> None:
-    org, owner, _, agent, (_, other) = await _world(db)
-    chosen = await _profile(db, org, "gpt-4o", "openai")
-    org.grading_model_profile_id = chosen.id
-    await db.flush()
-    _generator(monkeypatch)
-    await _rate(db, org, agent, owner, "Refunds?", rating=1, minutes=1)
-
-    built = await _service(db).bootstrap_for_agent(owner, agent.id)
-
-    assert built.judge.independent
-    assert await _grader_model(db, org, built) == chosen.id != other.id
-
-
-async def test_without_a_grading_model_a_dearer_model_grades_a_new_test_set(
+async def test_org_preferences_and_expensive_models_do_not_choose_a_dataset_grader(
     db, monkeypatch
 ) -> None:
-    org, owner, _, agent, (_, cheaper) = await _world(db)
+    org, owner, _, agent, (parent, _) = await _world(db)
     dearer = await _profile(db, org, "claude-opus-4-1", "anthropic")
+    org.grading_model_profile_id = dearer.id
+    await db.flush()
     _generator(monkeypatch)
-    await _rate(db, org, agent, owner, "Refunds?", rating=1, minutes=1)
-
     built = await _service(db).bootstrap_for_agent(owner, agent.id)
+    read = await DatasetService(db).read(owner, built.dataset_id)
+    assert read.scoring.judge.model_profile_id == parent.id
+    assert read.helper_settings.generator.model_profile_id == parent.id
+    assert read.helper_settings.improver.model_profile_id == parent.id
+    assert not built.judge.independent
 
-    assert await _grader_model(db, org, built) == dearer.id != cheaper.id
 
-
-async def test_an_existing_judge_keeps_its_model_when_a_grading_model_is_chosen(
-    db, monkeypatch
-) -> None:
+async def test_explicit_dataset_grader_is_kept_on_subsequent_builds(db, monkeypatch) -> None:
     org, owner, _, agent, (_, other) = await _world(db)
     _generator(monkeypatch)
-    await _rate(db, org, agent, owner, "Refunds?", rating=1, minutes=1)
     first = await _service(db).bootstrap_for_agent(owner, agent.id)
-    chosen = await _profile(db, org, "gpt-4o", "openai")
-    org.grading_model_profile_id = chosen.id
-    await db.flush()
-
+    scoring = (await DatasetService(db).read(owner, first.dataset_id)).scoring
+    scoring.judge.model_profile_id = other.id
+    await ScoringService(db).set_scoring(owner, first.dataset_id, scoring)
     again = await _service(db).bootstrap_for_agent(owner, agent.id)
-
-    assert again.judge.agent_id == first.judge.agent_id
-    assert await _grader_model(db, org, again) == other.id
+    read = await DatasetService(db).read(owner, first.dataset_id)
+    assert read.scoring.judge.model_profile_id == other.id
+    assert again.judge.independent and again.judge.kept

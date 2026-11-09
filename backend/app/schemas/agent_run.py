@@ -63,6 +63,14 @@ class AgentRunRead(BaseSchema):
     agent_version_id: UUID | None = None
     user_id: UUID | None = None
     surface: str
+    system_role: str | None = Field(
+        default=None,
+        description=(
+            "The platform role that did this run when no agent's instructions ran - "
+            "`daily_briefing` or `memory_maintenance` (#2575). The run is recorded under the "
+            "starter agent so it has a row, a cost and a trace; this says whose work it was"
+        ),
+    )
     is_test: bool = Field(
         default=False, description="Started from the Builder's test panel (#2074)"
     )
@@ -175,6 +183,14 @@ class AgentRunRead(BaseSchema):
             "For a platform agent's run - the judge, the assistant, the knowledge-gap "
             "and case helpers - which one and what it worked on. Null for the "
             "organization's own agents"
+        ),
+    )
+    continues_in_chat: bool = Field(
+        default=False,
+        description=(
+            "Whether the run is parked on a chat platform with its chat recorded and "
+            "the caller is a person, so that its continuation is posted to that chat "
+            "and a client should not resume it itself. Never true for an API key"
         ),
     )
     error: str | None = None
@@ -328,6 +344,22 @@ class RunTranscript(BaseSchema):
     total: int
 
 
+class ChatAskerRead(BaseSchema):
+    """The chat account that asked, for a run that ran as the binding's publisher.
+
+    Unverified: the name is what the account's owner typed on the platform.
+    """
+
+    platform: str
+    name: str = Field(
+        description="The display name, else the handle with an `@`, else the platform's user id"
+    )
+    bot_name: str | None = Field(
+        default=None,
+        description="The bot the chat reached the agent through; null once its binding is gone",
+    )
+
+
 class ApprovalRead(BaseSchema):
     """A parked tool call awaiting a decision."""
 
@@ -375,6 +407,15 @@ class ApprovalRead(BaseSchema):
     triggered_by_email: str | None = Field(
         default=None, description="That person, for a queue somebody has to read"
     )
+    asked_in_chat: ChatAskerRead | None = Field(
+        default=None,
+        description=(
+            "The chat account that asked, when the run is a chat message from an "
+            "unlinked person and so ran as the binding's publisher. Then "
+            "`triggered_by_user_id` and `triggered_by_email` are null: the publisher "
+            "did not trigger it. The account is unverified"
+        ),
+    )
     decided_by_email: str | None = Field(
         default=None,
         description=(
@@ -421,6 +462,14 @@ class ApprovalRead(BaseSchema):
     )
     note: str | None = None
     created_at: datetime | None = None
+    continues_in_chat: bool = Field(
+        default=False,
+        description=(
+            "Whether the run is parked on a chat platform with its chat recorded and "
+            "the caller is a person, so that its continuation is posted to that chat "
+            "and a client should not resume it itself. Never true for an API key"
+        ),
+    )
 
 
 class ApprovalList(BaseSchema):
@@ -429,6 +478,7 @@ class ApprovalList(BaseSchema):
 
 
 class ApprovalDecision(BaseSchema):
+    remember_scope: Literal["conversation", "agent"] | None = None
     approved: bool
     note: str | None = Field(default=None, max_length=500)
 
@@ -611,3 +661,14 @@ class CostSummary(BaseSchema):
             "busts first; empty when every cache held"
         ),
     )
+
+
+class ToolConsentRead(BaseSchema):
+    """A person's revocable remembered approval, without the call's arguments."""
+
+    agent_name: str
+    id: UUID
+    agent_id: UUID
+    tool_id: str
+    account: str | None
+    remember_scope: Literal["conversation", "agent"]

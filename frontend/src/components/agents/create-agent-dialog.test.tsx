@@ -320,46 +320,9 @@ describe("CreateAgentDialog", () => {
     expect(apiClient.post).not.toHaveBeenCalled();
   });
 
-  it("adds a judge as a system agent, asking only for its name", async () => {
-    const judge = { id: "j2", name: "Second opinion", kind: "judge" };
-    vi.mocked(apiClient.post).mockResolvedValue(judge);
-    const { onCreated } = open();
-
-    await userEvent.click(screen.getByRole("radio", { name: "System agent" }));
-    const judgeKind = screen.getByRole("radio", { name: /^Judge/ });
-    await userEvent.click(judgeKind);
-    expect(judgeKind).toHaveAttribute("aria-checked", "true");
-    expect(screen.queryByText("Describe it to the Architect")).toBeNull();
-    expect(screen.getByText(/A draft system agent cannot run\./)).toBeInTheDocument();
-    await userEvent.type(name(), "Second opinion");
-    await userEvent.click(create());
-
-    await waitFor(() =>
-      expect(apiClient.post).toHaveBeenCalledWith("/agents/system", {
-        kind: "judge",
-        name: "Second opinion",
-      }),
-    );
-    expect(onCreated).toHaveBeenCalledWith(judge);
-    // Opened again, it starts from an ordinary agent.
-    expect(screen.getByRole("radio", { name: "Agent" })).toHaveAttribute("aria-checked", "true");
-  });
-
-  it("lets every system kind be selected where it can now run", async () => {
+  it("creates user agents without a separate system-agent mode", () => {
     open();
-    await userEvent.click(screen.getByRole("radio", { name: "System agent" }));
-    for (const kind of [
-      /^Case generator/,
-      /^Gap drafter/,
-      /^Gap classifier/,
-      /^Authoring assistant/,
-    ]) {
-      const option = screen.getByRole("radio", { name: kind });
-      expect(option).toBeEnabled();
-      await userEvent.click(option);
-      expect(option).toHaveAttribute("aria-checked", "true");
-    }
-    await userEvent.click(screen.getByRole("radio", { name: "Agent" }));
+    expect(screen.queryByRole("radio", { name: "System agent" })).toBeNull();
     expect(screen.getByText("Describe it to the Architect")).toBeInTheDocument();
   });
 });

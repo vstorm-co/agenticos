@@ -71,6 +71,7 @@ async def test_file_and_shell_operations_keep_the_native_root_and_mode(
     assert call.call_args.args[2] == {
         "root": "/work",
         "mode": "read_only",
+        "work_context": {"kind": "interactive"},
         "path": "a",
         "data": "bmV3",
     }
@@ -206,6 +207,34 @@ async def test_whole_computer_never_collects_home_directory_as_attachments(
     assert args["computer_grant"] == str(grant)
     assert args["conversation_id"] == str(chat)
     assert args["path"] == "/another/volume/file.txt"
+    assert "agent_id" not in args
+
+
+async def test_whole_computer_operations_name_the_agent_the_consent_may_be_bound_to(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    grant, chat, agent = uuid4(), uuid4(), uuid4()
+    target = LocalTarget(folder="/Users/person", mode="full_access", computer_grant=grant)
+    device = module.DeviceWorkspace(uuid4(), uuid4(), target, conversation_id=chat, agent_id=agent)
+    call = AsyncMock(return_value={"exists": True})
+    monkeypatch.setattr(module._hub, "call", call)
+    assert await device.exists("/Users/person/app")
+    args = call.call_args.args[2]
+    assert (args["computer_grant"], args["conversation_id"], args["agent_id"]) == (
+        str(grant),
+        str(chat),
+        str(agent),
+    )
+
+
+async def test_a_folder_operation_sends_no_agent(monkeypatch: pytest.MonkeyPatch) -> None:
+    device = module.DeviceWorkspace(
+        uuid4(), uuid4(), LocalTarget(folder="/work"), conversation_id=uuid4(), agent_id=uuid4()
+    )
+    call = AsyncMock(return_value={"exists": True})
+    monkeypatch.setattr(module._hub, "call", call)
+    assert await device.exists("/work/a")
+    assert "agent_id" not in call.call_args.args[2]
 
 
 def test_whole_computer_target_requires_full_access_and_a_working_directory() -> None:
@@ -217,3 +246,18 @@ def test_whole_computer_target_requires_full_access_and_a_working_directory() ->
     ]:
         with pytest.raises(ValidationError, match="Whole-computer access"):
             LocalTarget.model_validate({**payload, "computer_grant": str(uuid4())})
+
+
+@pytest.mark.parametrize("platform", ["macos", "linux", "windows"])
+async def test_native_platform_is_read_from_the_resolved_device(
+    monkeypatch: pytest.MonkeyPatch,
+    platform: str,
+) -> None:
+    workspace = module.DeviceWorkspace(uuid4(), uuid4(), LocalTarget(folder="/work"))
+    call = AsyncMock(return_value={"platform": platform})
+    monkeypatch.setattr(module._hub, "call", call)
+    assert await workspace.platform() == platform
+    assert call.call_args.args[1] == "system.info"
+    call.return_value = {}
+    with pytest.raises(WorkspaceUnavailableError, match="did not identify"):
+        await workspace.platform()

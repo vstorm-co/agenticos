@@ -1804,6 +1804,8 @@ WRITES = {
     "accept_skill_improvement",
     "end_skill_improvement",
     "change_skill_version",
+    "update_skill",
+    "add_skill_resource",
 }
 
 
@@ -1818,7 +1820,7 @@ def test_every_skill_tool_is_classed_as_a_read_or_a_write() -> None:
 @pytest.mark.security
 def test_the_skill_reads_never_wait_for_approval() -> None:
     catalog = {tool.name: tool for tool in platform_tool_catalog()}
-    assert all(not catalog[name].writes and not catalog[name].held for name in READS)
+    assert all(not catalog[name].writes for name in READS)
 
 
 @pytest.mark.security

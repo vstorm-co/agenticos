@@ -14,8 +14,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { Conversation } from "@/types/conversation";
 import { ConversationSidebar } from "./conversation-sidebar";
 import { apiClient } from "@/lib/api-client";
 import * as invalidation from "@/lib/coalesced-invalidation";
@@ -60,7 +61,7 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/chat",
 }));
 
-function conversation(id: string, title: string, favourite = false) {
+function conversation(id: string, title: string, favourite = false): Conversation {
   return {
     id,
     title,
@@ -96,13 +97,15 @@ function mount() {
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
   );
-  return render(<ConversationSidebar />, { wrapper });
+  return { ...render(<ConversationSidebar />, { wrapper }), client };
 }
 
 /** The desktop list. `ConversationSidebar` also renders a mobile sheet. */
 function list(): HTMLElement {
   return screen.getAllByRole("complementary")[0] as HTMLElement;
 }
+
+afterEach(() => vi.useRealTimers());
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -194,25 +197,41 @@ describe("a sidebar that leaves while refreshing", () => {
     expect(useConversationStore.getState().currentConversationId).toBe("c-reopen");
   });
 
-  it("does not open a linked thread after unmount during invalidation", async () => {
+  it("does not restore a linked transcript after unmount during invalidation", async () => {
     window.history.replaceState({}, "", "/chat?id=c-late");
     let finish = () => {};
     const pending = new Promise<void>((resolve) => {
       finish = resolve;
     });
+    let finishTranscript = (_: unknown) => {};
+    const transcript = new Promise((resolve) => {
+      finishTranscript = resolve;
+    });
+    const ordinaryGet = vi.mocked(apiClient.get).getMockImplementation();
+    vi.mocked(apiClient.get).mockImplementation(async (path, options) => {
+      if (path === "/conversations/c-late/messages?latest=true&limit=101") return transcript;
+      return ordinaryGet?.(path, options);
+    });
     const invalidate = vi.spyOn(invalidation, "invalidateSoon").mockReturnValue(pending);
     try {
       const { unmount } = mount();
       await waitFor(() => expect(invalidate).toHaveBeenCalled());
+      await waitFor(() =>
+        expect(vi.mocked(apiClient.get).mock.calls.map(([path]) => path)).toContain(
+          "/conversations/c-late/messages?latest=true&limit=101",
+        ),
+      );
       unmount();
       await act(async () => {
         finish();
-        await pending;
+        finishTranscript({
+          items: [{ id: "m-late", role: "assistant", content: "Late" }],
+          total: 1,
+        });
+        await Promise.all([pending, transcript]);
       });
-      expect(vi.mocked(apiClient.get).mock.calls.map(([path]) => path)).not.toContain(
-        "/conversations/c-late/messages?latest=true&limit=101",
-      );
       expect(useConversationStore.getState().currentConversationId).toBeNull();
+      expect(useConversationStore.getState().currentMessages).toEqual([]);
     } finally {
       invalidate.mockRestore();
     }
@@ -267,6 +286,11 @@ describe("what the sidebar says about the list", () => {
     const other = within(list()).getByText("Other one").closest("[class*='group']") as HTMLElement;
     expect(within(other).queryByText(/Working/)).toBeNull();
 
+    act(() => useWorkingStore.getState().setWaiting("c-2", "awaiting_answer"));
+    expect(within(asked).getByText("Waiting for an answer")).toBeInTheDocument();
+    expect(within(asked).queryByText(/Working/)).toBeNull();
+    act(() => useWorkingStore.getState().setWaiting("c-2", null));
+    expect(within(asked).getByText(/Working/)).toBeInTheDocument();
     act(() => useWorkingStore.getState().stop("c-2"));
     expect(within(asked).queryByText(/Working/)).toBeNull();
   });
@@ -289,6 +313,65 @@ describe("what the sidebar says about the list", () => {
       .getByText("Left mid-answer")
       .closest("[class*='group']") as HTMLElement;
     expect(within(row).getByText(/Working/)).toBeInTheDocument();
+  });
+
+  it("keeps the local turn clock authoritative and ignores an already completed listed run", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const now = Date.now();
+    useWorkingStore.getState().start("c-2", new Date(now - 3_000).toISOString());
+    serve([
+      {
+        ...conversation("c-2", "Queued turns"),
+        running_since: new Date(now - 120_000).toISOString(),
+      },
+    ]);
+    const { client } = mount();
+    await screen.findAllByText("Queued turns");
+    const row = within(list()).getByText("Queued turns").closest("[class*='group']") as HTMLElement;
+    act(() => vi.advanceTimersByTime(1000));
+    expect(within(row).getByText(/Working for 4s/)).toBeInTheDocument();
+    act(() => {
+      useWorkingStore.getState().finish("c-2");
+      useWorkingStore.getState().stop("c-2");
+    });
+    expect(within(row).queryByText(/Working/)).not.toBeInTheDocument();
+    // A genuinely new server-side turn still appears after the local completion.
+    serve([
+      {
+        ...conversation("c-2", "Queued turns"),
+        running_since: new Date(Date.now() + 1_000).toISOString(),
+      },
+    ]);
+    await act(() => client.invalidateQueries());
+    await waitFor(() => expect(within(row).getByText(/Working/)).toBeInTheDocument());
+    vi.useRealTimers();
+  });
+
+  it("keeps an overlapping run visible after another run in that chat finishes", async () => {
+    const started = new Date(Date.now() - 120_000).toISOString();
+    serve([
+      {
+        ...conversation("c-2", "Overlapping work"),
+        running_since: started,
+        running_run_ids: ["done", "other"],
+      },
+    ]);
+    const { client } = mount();
+    await screen.findAllByText("Overlapping work");
+    const row = within(list())
+      .getByText("Overlapping work")
+      .closest("[class*='group']") as HTMLElement;
+    act(() => useWorkingStore.getState().finish("c-2", "done"));
+    expect(within(row).getByText(/Working/)).toBeInTheDocument();
+    serve([
+      {
+        ...conversation("c-2", "Overlapping work"),
+        running_since: started,
+        running_run_ids: ["done"],
+      },
+    ]);
+    await act(() => client.invalidateQueries());
+    await waitFor(() => expect(within(row).queryByText(/Working/)).not.toBeInTheDocument());
   });
 
   it("lets a handed-off mark go when the listing never shows the run", async () => {
@@ -818,4 +901,18 @@ it("lets the chat header drag the desktop window while keeping its actions acces
   expect(header).toHaveAttribute("data-tauri-drag-region", "deep");
   await userEvent.click(within(list()).getByRole("button", { name: "Search conversations" }));
   expect(await screen.findByRole("dialog", { name: "Search conversations" })).toBeVisible();
+});
+
+it("shows the coding harness kept by the list API after reopening the sidebar", async () => {
+  const saved: Conversation = {
+    ...conversation("coding-history", "Landing page"),
+    agents: [{ id: "assistant", slug: "assistant", name: "AgenticOS", has_avatar: false }],
+    coding_agents: ["claude_code"],
+  };
+  serve([saved]);
+  const view = mount();
+  expect(await screen.findByText(/AgenticOS · Claude Code/)).toBeVisible();
+  view.unmount();
+  mount();
+  expect(await screen.findByText(/AgenticOS · Claude Code/)).toBeVisible();
 });

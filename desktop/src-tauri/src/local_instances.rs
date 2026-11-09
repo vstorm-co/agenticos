@@ -169,7 +169,7 @@ pub fn write_environment(dir: &Path, instance: &Instance) -> Result<(), String> 
         fs::set_permissions(&workspace, fs::Permissions::from_mode(0o777)).map_err(|e| e.to_string())?;
     }
     let secret = || format!("{}{}", uuid::Uuid::new_v4().simple(), uuid::Uuid::new_v4().simple());
-    let content = format!("SECRET_KEY={}\nVAULT_MASTER_KEY={}\nPOSTGRES_PASSWORD={}\nSANDBOXD_TOKEN={}\nPUBLIC_SITE_URL=http://127.0.0.1:{}\nPUBLIC_API_URL=http://127.0.0.1:{}\nPUBLIC_WS_URL=ws://127.0.0.1:{}\nFRONTEND_URL=http://127.0.0.1:{}\nCORS_ORIGINS=[\"http://127.0.0.1:{}\"]\nSANDBOX_WORKSPACE_ROOT=\"{}\"\n", secret(), secret(), secret(), secret(), instance.frontend_port, instance.api_port, instance.api_port, instance.frontend_port, instance.frontend_port, workspace.to_string_lossy().replace('\\', "/"));
+    let content = format!("AGENTICOS_VERSION={}\nSECRET_KEY={}\nVAULT_MASTER_KEY={}\nPOSTGRES_PASSWORD={}\nPUBLIC_SITE_URL=http://127.0.0.1:{}\nPUBLIC_API_URL=http://127.0.0.1:{}\nPUBLIC_WS_URL=ws://127.0.0.1:{}\nFRONTEND_URL=http://127.0.0.1:{}\nCORS_ORIGINS=[\"http://127.0.0.1:{}\"]\nSANDBOX_WORKSPACE_ROOT=\"{}\"\n", env!("AGENTICOS_PLATFORM_VERSION"), secret(), secret(), secret(), instance.frontend_port, instance.api_port, instance.api_port, instance.frontend_port, instance.frontend_port, workspace.to_string_lossy().replace('\\', "/"));
     let mut options = fs::OpenOptions::new();
     options.write(true).create_new(true);
     #[cfg(unix)]
@@ -248,6 +248,9 @@ mod tests {
         write_environment(&dir, &value).unwrap();
         assert_eq!(first, fs::read_to_string(dir.join(".env")).unwrap());
         assert!(first.contains("PUBLIC_API_URL=http://127.0.0.1:8100"));
+        // The app never starts `sandboxd`; a token would advertise one, and the
+        // platform would then give agents container workspaces publish refuses.
+        assert!(!first.contains("SANDBOXD_TOKEN"));
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;

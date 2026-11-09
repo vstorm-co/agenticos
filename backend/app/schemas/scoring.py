@@ -27,6 +27,7 @@ from pydantic import (
 )
 
 from app.schemas.base import BaseSchema
+from app.schemas.dataset_helpers import PipelineInstructions
 
 MAX_PATTERN = 500
 MAX_CHECK_VALUE = 2000
@@ -233,20 +234,12 @@ class _JudgeSettings(BaseSchema):
     agent_id: UUID | None = None
     model_profile_id: UUID | None = Field(
         default=None,
-        description=(
-            "Withdrawn: a judge grades on the model its own page publishes it on. "
-            "Still accepted, so an older client's request validates, and always null."
-        ),
-        json_schema_extra={"deprecated": True},
+        description="The model grading this dataset; null uses the normal default model.",
     )
+    instructions: PipelineInstructions | None = None
     scale_max: int = Field(default=5, ge=2, le=10)
     pass_at: int = Field(default=4, ge=1, le=10, validate_default=True)
     criteria: list[RubricCriterion] = Field(default_factory=list, max_length=20)
-
-    @field_validator("model_profile_id")
-    @classmethod
-    def _withdrawn(cls, _: UUID | None) -> None:
-        return None
 
     @model_validator(mode="after")
     def _criteria_named_once(self) -> Self:
@@ -329,7 +322,7 @@ class ScorerResult(BaseSchema):
     """What one scorer found.
 
     `score` is normalized to 0..1. `reason_code` names why a scorer was skipped or
-    failed to run - `ai_assistance_off`, `judge_unpublished`, `judge_budget` - so
+    failed to run - `judge_unpublished`, `judge_budget` - so
     each can be shown, and fixed, on its own. `unverified_quotes` are the parts of
     the answer the judge quoted that the answer does not hold. `rule` is the rule
     the judge says its grade follows from; `unverified` marks a top grade with
@@ -418,6 +411,7 @@ class JudgePin(BaseSchema):
     agent_version_id: UUID | None = None
     spec_version: int | None = None
     rubric_hash: str
+    instructions_hash: str | None = None
     prompt_version: int | None = None
 
 

@@ -17,3 +17,21 @@ it("keeps the last channel selected and lets an invalid empty draft be repaired"
   rerender(<NotificationChannels value={[]} onChange={onChange} />);
   expect(screen.getByRole("checkbox", { name: "In-app notification" })).not.toBeChecked();
 });
+
+it("offers every supported channel while preserving an explicit selection", async () => {
+  const change = vi.fn();
+  render(<NotificationChannels value={["in_app"]} onChange={change} />);
+  for (const name of [
+    "Device notifications",
+    "Slack",
+    "Telegram",
+    "Mattermost",
+    "Microsoft Teams",
+    "SMS",
+    "iMessage",
+  ]) {
+    expect(screen.getByRole("checkbox", { name })).not.toBeChecked();
+  }
+  await userEvent.click(screen.getByRole("checkbox", { name: "Telegram" }));
+  expect(change).toHaveBeenCalledWith(["in_app", "telegram"]);
+});

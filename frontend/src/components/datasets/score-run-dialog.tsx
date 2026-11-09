@@ -28,7 +28,7 @@ import { useScoreRun } from "@/hooks/use-scoring";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { callsJudge } from "@/lib/scoring";
-import { DIALOG_SCROLL, DIALOG_WIDE } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_WIDE } from "@/lib/dialog-sizes";
 import type { Dataset, DatasetCase } from "@/types/datasets";
 import type { CaseScore, DatasetScoring } from "@/types/scoring";
 import { AddToDatasetDialog } from "./add-to-dataset-dialog";
@@ -101,7 +101,7 @@ function GradedBy({ dataset }: { dataset: Dataset }) {
           {t("changeDatasetJudge")}
         </Link>
         {judge !== undefined && (
-          <Link href={ROUTES.AGENT_DETAIL(judge.id)} className="underline">
+          <Link href={`${ROUTES.DATASET_DETAIL(dataset.id)}?tab=grading`} className="underline">
             {t("changeJudgeModel")}
           </Link>
         )}
@@ -193,131 +193,133 @@ export function ScoreRunDialog({ open, onOpenChange, runId }: ScoreRunDialogProp
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={`${DIALOG_WIDE} ${DIALOG_SCROLL}`}>
+      <DialogContent className={`${DIALOG_WIDE} ${DIALOG_COLUMN}`}>
         <DialogHeader>
           <DialogTitle>{t("scoreRun")}</DialogTitle>
           <DialogDescription>{t("scoreRunBody")}</DialogDescription>
         </DialogHeader>
-        {result !== null ? (
-          <ScoreCard score={result} linksRuns />
-        ) : listed.error ? (
-          <ErrorState
-            description={getErrorMessage(listed.error, tErrors)}
-            cta={{ label: tc("retry"), onClick: () => void listed.refetch() }}
-          />
-        ) : !isLoading && datasets.length === 0 && query === "" ? (
-          <p className="text-muted-foreground text-sm">
-            {t.rich("noDatasetToScore", {
-              link: (chunks) => (
-                <Link href={ROUTES.DATASETS} className="underline">
-                  {chunks}
-                </Link>
-              ),
-            })}
-          </p>
-        ) : (
-          <div className="space-y-4">
-            {(listed.total > listed.datasets.length || search !== "") && (
-              <SearchInput value={search} onChange={setSearch} placeholder={t("findDataset")} />
-            )}
-            <FormField htmlFor="score-dataset" label={td("dataset")}>
-              <Select
-                value={chosen}
-                onValueChange={(next) => {
-                  setDatasetId(next);
-                  setCaseId("");
-                  setPage(0);
-                }}
-              >
-                <SelectTrigger id="score-dataset">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {offered.map((dataset) => (
-                    <SelectItem key={dataset.id} value={dataset.id}>
-                      {dataset.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FormField>
-            {holding.length > 1 && query === "" && (
-              <p className="text-muted-foreground text-xs">
-                {t("askedInSeveral", { count: holding.length })}
-              </p>
-            )}
-            <FormField htmlFor="score-case" label={td("case")} error={failure}>
-              <Select value={target} onValueChange={setCaseId} disabled={cases.length === 0}>
-                <SelectTrigger id="score-case">
-                  <SelectValue
-                    placeholder={
-                      chosen === ""
-                        ? t("pickDatasetFirst")
-                        : listing.isLoading
-                          ? t("loadingCases")
-                          : cases.length === 0
-                            ? t("noCaseToScore")
-                            : t("pickCase")
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {cases.map((item) => (
-                    <SelectItem key={item.case_id} value={item.case_id}>
-                      {item.input.length > 80 ? `${item.input.slice(0, 80)}…` : item.input}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FormField>
-            {question !== null &&
-              asked === undefined &&
-              caseId === "" &&
-              !listing.isLoading &&
-              chosen !== "" && (
-                <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
-                  <span>{t("noCaseAsks")}</span>
-                  {answerId !== null && (
-                    <Button
-                      variant="link"
-                      size="sm"
-                      className="h-auto px-0"
-                      onClick={() => setAdding(true)}
-                    >
-                      {t("addAsCase")}
-                    </Button>
-                  )}
-                </div>
+        <div className={DIALOG_BODY}>
+          {result !== null ? (
+            <ScoreCard score={result} linksRuns />
+          ) : listed.error ? (
+            <ErrorState
+              description={getErrorMessage(listed.error, tErrors)}
+              cta={{ label: tc("retry"), onClick: () => void listed.refetch() }}
+            />
+          ) : !isLoading && datasets.length === 0 && query === "" ? (
+            <p className="text-muted-foreground text-sm">
+              {t.rich("noDatasetToScore", {
+                link: (chunks) => (
+                  <Link href={ROUTES.DATASETS} className="underline">
+                    {chunks}
+                  </Link>
+                ),
+              })}
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {(listed.total > listed.datasets.length || search !== "") && (
+                <SearchInput value={search} onChange={setSearch} placeholder={t("findDataset")} />
               )}
-            {listing.error ? (
-              <ErrorState
-                description={getErrorMessage(listing.error, tErrors)}
-                cta={{ label: tc("retry"), onClick: () => void listing.refetch() }}
-              />
-            ) : (
-              listing.total > SHOWN && (
-                <Pager
-                  page={page}
-                  pageCount={Math.ceil(listing.total / SHOWN)}
-                  matched={listing.total}
-                  total={listing.total}
-                  onPage={(next) => {
-                    setPage(next);
+              <FormField htmlFor="score-dataset" label={td("dataset")}>
+                <Select
+                  value={chosen}
+                  onValueChange={(next) => {
+                    setDatasetId(next);
                     setCaseId("");
+                    setPage(0);
                   }}
-                  counted={td("caseCount", { count: listing.total })}
+                >
+                  <SelectTrigger id="score-dataset">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {offered.map((dataset) => (
+                      <SelectItem key={dataset.id} value={dataset.id}>
+                        {dataset.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
+              {holding.length > 1 && query === "" && (
+                <p className="text-muted-foreground text-xs">
+                  {t("askedInSeveral", { count: holding.length })}
+                </p>
+              )}
+              <FormField htmlFor="score-case" label={td("case")} error={failure}>
+                <Select value={target} onValueChange={setCaseId} disabled={cases.length === 0}>
+                  <SelectTrigger id="score-case">
+                    <SelectValue
+                      placeholder={
+                        chosen === ""
+                          ? t("pickDatasetFirst")
+                          : listing.isLoading
+                            ? t("loadingCases")
+                            : cases.length === 0
+                              ? t("noCaseToScore")
+                              : t("pickCase")
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {cases.map((item) => (
+                      <SelectItem key={item.case_id} value={item.case_id}>
+                        {item.input.length > 80 ? `${item.input.slice(0, 80)}…` : item.input}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
+              {question !== null &&
+                asked === undefined &&
+                caseId === "" &&
+                !listing.isLoading &&
+                chosen !== "" && (
+                  <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
+                    <span>{t("noCaseAsks")}</span>
+                    {answerId !== null && (
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="h-auto px-0"
+                        onClick={() => setAdding(true)}
+                      >
+                        {t("addAsCase")}
+                      </Button>
+                    )}
+                  </div>
+                )}
+              {listing.error ? (
+                <ErrorState
+                  description={getErrorMessage(listing.error, tErrors)}
+                  cta={{ label: tc("retry"), onClick: () => void listing.refetch() }}
                 />
-              )
-            )}
-            {dataset !== undefined && scoring !== undefined && (
-              <>
-                <ScorersToRun scoring={scoring} kase={kase} />
-                <GradedBy dataset={dataset} />
-              </>
-            )}
-          </div>
-        )}
-        <DialogFooter>
+              ) : (
+                listing.total > SHOWN && (
+                  <Pager
+                    page={page}
+                    pageCount={Math.ceil(listing.total / SHOWN)}
+                    matched={listing.total}
+                    total={listing.total}
+                    onPage={(next) => {
+                      setPage(next);
+                      setCaseId("");
+                    }}
+                    counted={td("caseCount", { count: listing.total })}
+                  />
+                )
+              )}
+              {dataset !== undefined && scoring !== undefined && (
+                <>
+                  <ScorersToRun scoring={scoring} kase={kase} />
+                  <GradedBy dataset={dataset} />
+                </>
+              )}
+            </div>
+          )}
+        </div>
+        <DialogFooter className="border-t">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {result === null ? td("cancel") : t("close")}
           </Button>

@@ -1,5 +1,5 @@
 ---
-source_sha: "c099c87e9633"
+source_sha: "8ca784f8a0b0"
 ---
 
 # Der Code der Konsole { #the-consoles-code }
@@ -223,7 +223,7 @@ Assertions lesen.
 
 Tests verwenden `PageHeader`, `ListCard`, Dialoggrößen, Registerkarten und `WizardSteps` der Konsole. Datenänderungen aktualisieren registrierte Abfragen über `/ws/events`; menschliche Bewertungen aktualisieren auch Prüfungssuiten, Verbesserungssitzungen und Umgebungsschutz. Ein Lesefehler bietet einen erneuten Versuch statt einer leeren Erfolgsansicht. Schmale Ansichten behalten 16-px-Formularfelder und Platz für den Architekten.
 
-Datasets behalten eigene Freigaben und Ressourcenrechte. Sie werden von mehreren Agenten und Abteilungen verwendet; daher wird ihre Abteilung nicht aus einem testenden Agenten abgeleitet. Bewertungsagenten bleiben typisierte Agenten mit Freigaben und Gruppen des Agentenkatalogs. Die Zuordnung erfolgt im Test-Tab des Agenten und im Bewertungs-Tab des Datasets; eine zweite konkurrierende Beziehung zum Hinzufügen entsteht nicht.
+Datasets behalten ihre Freigaben und Ressourcengrants und sind über mehrere Agenten nutzbar. Bewertungsmodell und Anweisungen gehören zum Dataset; Generierung und Verbesserung haben einen Einstellungstab. Code-definierte Helfer behalten interne Run-Identitäten zur Zuordnung, erscheinen aber nicht im Benutzeragentenkatalog. Fälle und Evals verwenden gemeinsame Konsolentabellen; Fall- und Reviewdetails öffnen Seitenpanels.
 
 Der Architekt erhält in diesem Meilenstein keine neue Capability zum Schreiben von Datasets. Fragen werden durch eine ausdrücklich geschätzte, berechtigungsgeprüfte Aktion im Verbesserungsablauf erstellt; der Eckassistent kann diese kostenpflichtige Arbeit nicht still starten. Seine Schaltfläche bleibt neben den Testansichten erreichbar.
 

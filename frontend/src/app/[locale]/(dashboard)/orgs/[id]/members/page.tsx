@@ -1,11 +1,10 @@
 "use client";
 
-import { use, useEffect, useMemo, useRef, useState } from "react";
+import { use, useEffect, useId, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Camera,
   Building2,
-  Mic,
   Sparkles,
   Radar,
   Link2,
@@ -25,17 +24,27 @@ import { ErrorState } from "@/components/states";
 import {
   InviteLinkDialog,
   InviteMemberDialog,
-  OrgAiAssistance,
   OrgApprovalWaiver,
   OrgAssistant,
   OrgPublicLiveData,
   OrgProactivity,
+  OrgSystemAgents,
   OrgSpendingLimit,
   OrgVoiceSettings,
 } from "@/components/teams";
+import { SetupIndicator } from "@/components/settings/setup-indicator";
+import { useSystemAgents } from "@/hooks/use-system-agents";
+import {
+  voiceSetupHints,
+  proactivitySetupHints,
+  systemAgentSetupHints,
+  architectSetupHints,
+  type SetupHint,
+} from "@/lib/setup-hints";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ForgetMemberMemory } from "@/components/memory/forget-member-memory";
 import { DirectoryBadge } from "@/components/orgs/directory-badge";
+import { DiscordBadge } from "@/components/orgs/discord-badge";
 import {
   Badge,
   Button,
@@ -94,8 +103,11 @@ export default function OrgMembersPage({ params }: PageProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("pages.orgs");
   const tc = useTranslations("common");
+  const tSetup = useTranslations("setupHints");
+  const setupId = useId();
   const tGroups = useTranslations("groups");
   const tDirectory = useTranslations("directory");
+  const tDiscord = useTranslations("discordRoles");
   const locale = useLocale();
   const { id } = use(params);
   const { user } = useAuth();
@@ -127,6 +139,20 @@ export default function OrgMembersPage({ params }: PageProps) {
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const tenantId = useTenantId();
   const [tabParam, setTabParam] = useUrlState("tab");
+  const canConfigureAssistant =
+    activeOrgId === id && !!assistant?.can_configure && !!assistant.agent_id;
+  const canSystemServices = can(Perm.budgetsManage) && tenantId === id;
+  const { roles: systemRoles, error: systemRolesError } = useSystemAgents(canSystemServices);
+  const hints: Record<string, SetupHint[]> = {
+    profile: org && canSettings ? voiceSetupHints(org) : [],
+    proactivity: org && can(Perm.budgetsManage) ? proactivitySetupHints(org) : [],
+    assistant: [
+      ...(canConfigureAssistant && assistant ? architectSetupHints(assistant) : []),
+      ...(canSystemServices && !systemRolesError
+        ? (systemRoles ?? []).flatMap(systemAgentSetupHints)
+        : []),
+    ],
+  };
   const sections = [
     { id: "members", label: "members", icon: Users, visible: true },
     { id: "profile", label: "tabProfile", icon: Building2, visible: true },
@@ -142,15 +168,16 @@ export default function OrgMembersPage({ params }: PageProps) {
       icon: Radar,
       visible: tenantId !== id || can(Perm.budgetsManage) || canSettings,
     },
-    { id: "voice", label: "tabVoice", icon: Mic, visible: canSettings },
     {
       id: "assistant",
       label: "tabAssistant",
       icon: Sparkles,
-      visible: activeOrgId === id && !!assistant?.can_configure && !!assistant.agent_id,
+      visible: canConfigureAssistant || canSystemServices,
     },
   ].filter((section) => section.visible);
-  const tab = sections.find((section) => section.id === tabParam)?.id ?? "members";
+  // Existing bookmarks and settings links keep opening the moved voice controls.
+  const requestedTab = tabParam === "voice" && canSettings ? "profile" : tabParam;
+  const tab = sections.find((section) => section.id === requestedTab)?.id ?? "members";
   const pendingInvitations = invitations.filter((i) => i.status === "pending");
 
   // Workspace profile state - name edits stay local until "Save" lands the
@@ -252,11 +279,13 @@ export default function OrgMembersPage({ params }: PageProps) {
           // the role the member holds now, which is what stops a peer Admin getting a
           // selector whose only result is a 403 toast (#700).
           //
-          // A membership the directory sync made says so beside the role, since
-          // changing that role here is also what takes the row off the sync.
+          // A membership the directory or Discord sync made says so beside the
+          // role, since changing that role here is also what takes the row off the sync.
           const synced =
             m.source === "directory" ? (
               <DirectoryBadge explanation={tDirectory("memberHint")} />
+            ) : m.source === "discord" ? (
+              <DiscordBadge explanation={tDiscord("memberHint")} />
             ) : null;
           if (canManage && !isOwner && !isSelf && m.can_change_role && assignable.length > 0) {
             return (
@@ -348,7 +377,7 @@ export default function OrgMembersPage({ params }: PageProps) {
   }, [canManage, user?.id, assignable, changeRole, removeMember, tDirectory]);
 
   return (
-    <div className="flex flex-1 flex-col space-y-6">
+    <div className="flex flex-1 flex-col space-y-4">
       <PageHeader
         title={org?.name ?? t("members")}
         description={t("membersDescription", { count: total })}
@@ -356,7 +385,7 @@ export default function OrgMembersPage({ params }: PageProps) {
           { label: t("organizations"), href: ROUTES.ORGS },
           { label: org?.name ?? t("members2") },
         ]}
-        actions={
+        secondaryActions={
           // Wrapping, because four links are wider than a phone (#2075).
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" asChild>
@@ -404,13 +433,17 @@ export default function OrgMembersPage({ params }: PageProps) {
                   <Link2 className="h-4 w-4" />
                   {t("inviteLink")}
                 </Button>
-                <Button onClick={() => setInviteOpen(true)}>
-                  <UserPlus className="h-4 w-4" />
-                  {t("inviteTeammate")}
-                </Button>
               </>
             ) : null}
           </div>
+        }
+        actions={
+          canManage && (
+            <Button onClick={() => setInviteOpen(true)}>
+              <UserPlus className="h-4 w-4" />
+              {t("inviteTeammate")}
+            </Button>
+          )
         }
       />
 
@@ -429,10 +462,26 @@ export default function OrgMembersPage({ params }: PageProps) {
       >
         <TabsList data-tour="org-tabs">
           {sections.map((section) => (
-            <TabsTrigger key={section.id} value={section.id} data-tour={`org-tab-${section.id}`}>
-              <section.icon className="mr-1.5 size-4 shrink-0" aria-hidden />
-              {t(section.label)}
-            </TabsTrigger>
+            <div key={section.id} className="relative pt-2">
+              <TabsTrigger
+                value={section.id}
+                data-tour={`org-tab-${section.id}`}
+                aria-describedby={
+                  hints[section.id]?.length ? `${setupId}-${section.id}` : undefined
+                }
+              >
+                <section.icon className="mr-1.5 size-4 shrink-0" aria-hidden />
+                {t(section.label)}
+              </TabsTrigger>
+              <span id={`${setupId}-${section.id}`} className="sr-only">
+                {(hints[section.id] ?? []).map((hint) => tSetup(hint)).join(" ")}
+              </span>
+              <SetupIndicator
+                hints={hints[section.id] ?? []}
+                className="absolute top-0 right-0"
+                focusable={false}
+              />
+            </div>
           ))}
         </TabsList>
         {/* Keep drafts mounted while another section is open. Hidden panels take
@@ -564,6 +613,9 @@ export default function OrgMembersPage({ params }: PageProps) {
           forceMount
           className="space-y-6 data-[state=inactive]:hidden"
         >
+          <p className="text-muted-foreground max-w-3xl text-sm leading-6">
+            {t("workspaceSettingsHint")}
+          </p>
           {org && (
             <section
               data-tour="org-profile"
@@ -638,7 +690,7 @@ export default function OrgMembersPage({ params }: PageProps) {
                   />
                   {canManage && name.trim() !== org.name && name.trim() !== "" && (
                     <Button onClick={handleSaveName} disabled={savingName}>
-                      {savingName ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                      {savingName ? <Loader2 className="h-4 w-4 animate-spin" /> : tc("save")}
                     </Button>
                   )}
                 </div>
@@ -654,6 +706,7 @@ export default function OrgMembersPage({ params }: PageProps) {
               </div>
             </section>
           )}
+          {org && canSettings && <OrgVoiceSettings org={org} />}
         </TabsContent>
         <TabsContent
           value="governance"
@@ -664,7 +717,6 @@ export default function OrgMembersPage({ params }: PageProps) {
         >
           {org && <OrgSpendingLimit org={org} />}
           {org && <OrgApprovalWaiver org={org} />}
-          {org && <OrgAiAssistance org={org} />}
           {org && <OrgPublicLiveData org={org} />}
         </TabsContent>
         <TabsContent
@@ -677,20 +729,14 @@ export default function OrgMembersPage({ params }: PageProps) {
           {org && <OrgProactivity org={org} />}
         </TabsContent>
         <TabsContent
-          value="voice"
-          hidden={tab !== "voice"}
-          forceMount
-          className="space-y-6 data-[state=inactive]:hidden"
-        >
-          {org && <OrgVoiceSettings org={org} />}
-        </TabsContent>
-        <TabsContent
           value="assistant"
           hidden={tab !== "assistant"}
           forceMount
           className="space-y-6 data-[state=inactive]:hidden"
         >
-          <OrgAssistant orgId={id} />
+          <p className="text-muted-foreground max-w-3xl text-sm leading-6">{t("aiServicesHint")}</p>
+          {canConfigureAssistant && <OrgAssistant orgId={id} />}
+          {org && canSystemServices && <OrgSystemAgents org={org} />}
         </TabsContent>
       </Tabs>
 

@@ -394,8 +394,12 @@ async def persist_assistant_turn(
     run_id: UUID | None = None,
     parked_tool_call_ids: Collection[str] = (),
     mcp_origins: Mapping[str, UUID] | None = None,
+    draft_tools: Collection[str] = (),
 ) -> str | None:
     """Persist the assistant message and any tool calls. Returns the saved message id.
+
+    A failed write or commit is logged and returns `None`. Callers must tell
+    the reader that the streamed reply could not be saved.
 
     `organization_id` is the session's active organization, and it is checked
     rather than trusted: `conversation_id` reaches here from the socket, where
@@ -518,6 +522,7 @@ async def persist_assistant_turn(
                         ),
                         parked=tc["tool_call_id"] in parked_tool_call_ids and not stopped,
                         mcp_connection_id=(mcp_origins or {}).get(tc["tool_name"]),
+                        presentation_kind="draft" if tc["tool_name"] in draft_tools else None,
                     )
                     result = tc.get("result")
                     if stopped and tc["tool_call_id"] in parked_tool_call_ids:
@@ -537,7 +542,7 @@ async def persist_assistant_turn(
     except Exception:
         # Broad on purpose, unlike its sibling above: by this point the answer
         # has been streamed and raising cannot un-stream it, so the caller is
-        # told with `None` and the turn completes. `exception` rather than
+        # told with `None` to surface a save failure. `exception` rather than
         # `warning` because that is the whole of the record - #5 sat behind a
         # one-line warning here and in `persist_user_turn` for as long as it
         # took somebody to bind the signature by hand.

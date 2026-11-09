@@ -6,7 +6,6 @@ import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui";
 import { useContextAuthoring } from "@/hooks/use-authoring";
-import { useAiAssistance } from "@/hooks/use-organizations";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Perm } from "@/types/permissions";
 import { ImproveDialog } from "./improve-dialog";
@@ -26,9 +25,10 @@ export function ImproveContextButton({
   unsaved?: boolean;
 }) {
   const t = useTranslations("authoring.context");
+  const canReadRuns = usePermissions().can(Perm.runsView);
   return (
     <ImproveButton
-      assistant={useContextAuthoring(contextId)}
+      assistant={useContextAuthoring(contextId, { enabled: canReadRuns })}
       labels={{ improve: t("improve"), working: t("working"), aiOff: t("aiOff") }}
       held={unsaved ? t("saveFirst") : null}
     />
@@ -46,7 +46,6 @@ function ImproveButton({
   held?: string | null;
 }) {
   const t = useTranslations("authoring");
-  const { enabled } = useAiAssistance();
   const [asking, setAsking] = useState(false);
   const working = assistant.latest?.status === "queued" || assistant.latest?.status === "running";
   // The assistant reads runs, which takes runs:view.
@@ -56,8 +55,8 @@ function ImproveButton({
     <>
       <Button
         variant="outline"
-        disabled={enabled === false || working || held !== null}
-        title={enabled === false ? labels.aiOff : (held ?? undefined)}
+        disabled={working || held !== null}
+        title={held ?? undefined}
         onClick={() => setAsking(true)}
       >
         {working ? (
@@ -68,7 +67,7 @@ function ImproveButton({
         {working ? labels.working : labels.improve}
       </Button>
       {assistant.latest?.status === "failed" && (
-        <p role="alert" className="text-destructive text-xs">
+        <p role="alert" className="text-destructive-ink text-xs">
           {assistant.latest.error}
         </p>
       )}

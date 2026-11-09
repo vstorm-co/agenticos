@@ -264,11 +264,11 @@ describe("a tool call in the transcript", () => {
     expect(screen.getByText("https://acme.example/help")).toBeInTheDocument();
   });
 
-  it("says nothing about the input while the tool is still running", () => {
+  it("keeps the search subject visible while the tool is running", () => {
     // The caption already occupies that line.
     card({ name: "web_search", args: { query: "refund law" }, status: "running" });
 
-    expect(screen.queryByText("refund law")).toBeNull();
+    expect(screen.getByText("refund law")).toBeVisible();
   });
 
   it("opens and closes on the row", async () => {
@@ -280,6 +280,26 @@ describe("a tool call in the transcript", () => {
 
     await open();
     expect(screen.queryByText("the output")).toBeNull();
+  });
+
+  it("keeps generic results closed even when the caller requests automatic expansion", async () => {
+    render(
+      <ToolCallCard
+        mcpServers={[]}
+        autoExpand={false}
+        startOpen
+        toolCall={{
+          id: "tc-1",
+          name: "agenticos_list_projects",
+          args: {},
+          status: "completed",
+          result: "large result",
+        }}
+      />,
+    );
+    expect(screen.queryByText("large result")).toBeNull();
+    await open();
+    expect(screen.getByText("large result")).toBeInTheDocument();
   });
 
   it("is a button, so a keyboard opens it without a handler of its own", () => {
@@ -338,7 +358,7 @@ describe("a tool call in the transcript", () => {
       <ToolCallCard
         mcpServers={servers.list}
         startOpen
-        conversationId="c-1"
+        fileSource={{ kind: "conversation", id: "c-1" }}
         toolCall={{
           id: "tc-1",
           name: "write_file",
@@ -355,7 +375,11 @@ describe("a tool call in the transcript", () => {
   it("keeps the agent's bookkeeping folded even as the turn's last step", () => {
     // A note the agent wrote itself for next time opened over the answer it came
     // after. The same generic step that is not bookkeeping opens as before.
-    const props = { mcpServers: servers.list, startOpen: true, conversationId: "c-1" };
+    const props = {
+      mcpServers: servers.list,
+      startOpen: true,
+      fileSource: { kind: "conversation" as const, id: "c-1" },
+    };
     const memory = render(
       <ToolCallCard
         {...props}
@@ -518,7 +542,7 @@ describe("a tool call in the transcript", () => {
     const { rerender } = render(
       <ToolCallCard
         mcpServers={servers.list}
-        conversationId="c-1"
+        fileSource={{ kind: "conversation", id: "c-1" }}
         toolCall={{ ...live, status: "running" }}
       />,
     );
@@ -527,7 +551,7 @@ describe("a tool call in the transcript", () => {
     rerender(
       <ToolCallCard
         mcpServers={servers.list}
-        conversationId="c-1"
+        fileSource={{ kind: "conversation", id: "c-1" }}
         toolCall={{ ...live, status: "completed", result: "Wrote 1 lines" }}
       />,
     );
@@ -759,4 +783,14 @@ it("does not stringify a collapsed result, and computes it only when opened (#24
   } finally {
     stringify.mockRestore();
   }
+});
+
+it("shows the task being worked on before the platform tool finishes", () => {
+  card({
+    name: "agenticos_create_task",
+    args: { task: { title: "Review supplier draft" } },
+    status: "running",
+  });
+  expect(screen.getByText("Create task")).toBeVisible();
+  expect(screen.getByText("Review supplier draft")).toBeVisible();
 });

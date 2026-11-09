@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   checkDraft,
+  caseContentFromJson,
   checksOf,
   contentOf,
   draftOf,
@@ -194,5 +195,33 @@ describe("sameCheck", () => {
     expect(sameCheck(most, checkDraft({ type: "length", unit: "words", max: 50, path: "a" }))).toBe(
       false,
     );
+  });
+});
+
+describe("pasted case JSON", () => {
+  it("preserves valid nested content and fills omitted optional fields", () => {
+    expect(caseContentFromJson(CASE)).toEqual(CASE);
+    expect(caseContentFromJson({ input: "Refund?" })).toMatchObject({
+      input: "Refund?",
+      history: [],
+      tags: [],
+      checks: [],
+      reference_answer: null,
+      order_mode: "any",
+    });
+  });
+  it.each([
+    null,
+    [],
+    "question",
+    { input: 4 },
+    { input: "Q", history: "not an array" },
+    { input: "Q", history: [{ role: "system", content: "X" }] },
+    { input: "Q", expected_tool_calls: [{ tool: "search", args: [] }] },
+    { input: "Q", tags: [4] },
+    { input: "Q", checks: [{ value: "x" }] },
+    { input: "Q", order_mode: "guess" },
+  ])("refuses malformed content before opening the visual editor: %j", (value) => {
+    expect(caseContentFromJson(value)).toBeNull();
   });
 });

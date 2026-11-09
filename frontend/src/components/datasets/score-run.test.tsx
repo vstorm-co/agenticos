@@ -336,7 +336,7 @@ describe("Score against a case", () => {
     );
     expect(screen.getByRole("link", { name: "Change the judge's model" })).toHaveAttribute(
       "href",
-      "/agents/j1",
+      "/datasets/d1?tab=grading",
     );
   });
 

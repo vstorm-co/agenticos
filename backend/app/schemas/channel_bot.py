@@ -1,14 +1,14 @@
 """Channel bot, identity, and session schemas."""
 
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
 from pydantic import Field, computed_field, model_validator
 
 from app.schemas.base import BaseSchema
 from app.schemas.urls import ServiceAddress
-from app.services.channels.webhooks import inbound_command_url, inbound_webhook_url
+from app.services.channels.webhooks import STREAM_ONLY, inbound_command_url, inbound_webhook_url
 from app.services.speech_to_text import is_offered
 
 
@@ -18,6 +18,11 @@ class AccessPolicy(BaseSchema):
     mode: Literal["open", "whitelist", "jwt_linked", "group_only"] = "open"
     whitelist: list[str] = []
     allowed_groups: list[str] = []
+    discord_guild_ids: list[Annotated[str, Field(pattern=r"^[1-9][0-9]{0,19}$")]] = Field(
+        default_factory=list,
+        max_length=2500,
+        description="Discord server IDs explicitly approved by the operator. Empty permits DMs only.",
+    )
     require_link: bool = False
     respond_to_broadcasts: bool = Field(
         default=False,
@@ -84,8 +89,8 @@ class ChannelBotCreate(BaseSchema):
         default=None,
         max_length=500,
         description=(
-            "The bot's own Mattermost server, e.g. https://mattermost.acme.internal. "
-            "Required for Mattermost and refused for the others, which have one "
+            "The bot's own Mattermost or BlueBubbles server URL. "
+            "Required for Mattermost/iMessage and refused for platforms with one "
             "address for everybody."
         ),
     )
@@ -157,7 +162,7 @@ class ChannelBotCreate(BaseSchema):
         pattern=ACK_REACTION_PATTERN,
         description=(
             "The emoji the bot reacts to a question with as it arrives, by the "
-            "platform's name for it (`eyes`). Slack and Mattermost; null for none."
+            "platform's name for it (`eyes`). Slack, Mattermost and optional iMessage tapbacks; null for none."
         ),
     )
     transcribe_voice_notes: bool = Field(
@@ -239,6 +244,15 @@ class ChannelBotCreate(BaseSchema):
         return self
 
     @model_validator(mode="after")
+    def _a_gateway_bot_has_no_webhook(self) -> ChannelBotCreate:
+        """A Discord bot is reached over its Gateway connection, never a webhook (#2079)."""
+        if self.platform in STREAM_ONLY and (self.webhook_mode or self.webhook_secret is not None):
+            raise ValueError(
+                f"A {self.platform} bot connects over its own Gateway connection and takes no webhook"
+            )
+        return self
+
+    @model_validator(mode="after")
     def _a_self_hosted_bot_carries_its_server(self) -> ChannelBotCreate:
         """A Mattermost bot is saved with its server's URL, or not saved.
 
@@ -255,16 +269,23 @@ class ChannelBotCreate(BaseSchema):
         Telegram and Slack have one address for everybody, so a server URL on
         one of those is a value nothing will ever read.
         """
-        if self.platform == "mattermost" and self.api_base_url is None:
+        if self.platform in {"mattermost", "imessage"} and self.api_base_url is None:
             raise ValueError(
-                "A Mattermost bot needs its server's URL - it is self-hosted, so "
+                "A self-hosted bot needs its server's URL - "
                 "there is no default address to fall back to"
             )
-        if self.platform != "mattermost" and self.api_base_url is not None:
+        if self.platform not in {"mattermost", "imessage"} and self.api_base_url is not None:
             raise ValueError(
                 f"A server URL is for a self-hosted platform - a {self.platform} bot "
                 "has one address for everybody"
             )
+        if self.platform == "imessage":
+            from urllib.parse import urlsplit
+
+            endpoint = urlsplit(self.api_base_url or "")
+            if endpoint.query or endpoint.fragment:
+                raise ValueError("An iMessage bridge endpoint cannot contain query or fragment")
+            self.webhook_mode = True
         return self
 
 
@@ -396,8 +417,17 @@ class ChannelBotRead(BaseSchema):
     @computed_field  # type: ignore[prop-decorator]  # pydantic's documented form
     @property
     def messaging_endpoint(self) -> str | None:
-        """A Teams bot's messaging endpoint, to paste into its Azure Bot resource (#1985)."""
-        return inbound_webhook_url("teams", self.id) if self.platform == "teams" else None
+        """The address a bot receives on, for the platforms that are told it by hand.
+
+        A Teams bot's messaging endpoint goes into its Azure Bot resource (#1985); an SMS
+        bot's is pasted into the Twilio number's incoming-message setting, an e-mail bot's into
+        the mail relay (#2082).
+        """
+        return (
+            inbound_webhook_url(self.platform, self.id)
+            if self.platform in ("teams", "sms", "email")
+            else None
+        )
 
     speech_to_text_provider: str | None = None
     speech_to_text_model: str | None = None

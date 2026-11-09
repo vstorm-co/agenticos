@@ -92,7 +92,7 @@ export function AttemptChoice({ session, agent }: { session: Improvement; agent:
         </div>
       )}
       {error && (
-        <p role="alert" className="text-destructive text-sm">
+        <p role="alert" className="text-destructive-ink text-sm">
           {error}
         </p>
       )}
@@ -105,7 +105,7 @@ export function NotBetterWarning({ round, agent }: { round: ImprovementIteration
   const t = useTranslations("improvement.keep");
   const broken = Number(round.verdict_detail?.broken ?? 0);
   return (
-    <p role="status" className="text-warning text-sm">
+    <p role="status" className="text-warning-ink text-sm">
       {round.verdict === "regression" && broken > 0
         ? t("broke", { number: round.number, broken, agent })
         : t("notBetter", { number: round.number, agent })}

@@ -212,7 +212,7 @@ export function CreateSkillDialog({ open, onOpenChange, onCreated }: CreateSkill
 
         <div className="flex min-h-0 flex-1 flex-col gap-3 max-md:flex-none">
           <div className="flex flex-wrap items-start gap-4 rounded-md border p-3">
-            <div className="w-56 shrink-0 space-y-1.5" data-tour="skill-dialog-name">
+            <div className="w-full shrink-0 space-y-1.5 md:w-56" data-tour="skill-dialog-name">
               <Label htmlFor="new-skill-name">{t("name")}</Label>
               <Input
                 id="new-skill-name"
@@ -240,7 +240,7 @@ export function CreateSkillDialog({ open, onOpenChange, onCreated }: CreateSkill
               />
               <FieldNote error={errors.description}>{t("onlyPartModelReads")}</FieldNote>
             </div>
-            <div className="w-56 shrink-0 space-y-1.5">
+            <div className="w-full shrink-0 space-y-1.5 md:w-56">
               <Label htmlFor="new-skill-category">{t("category")}</Label>
               <CategoryInput
                 id="new-skill-category"
@@ -280,7 +280,7 @@ export function CreateSkillDialog({ open, onOpenChange, onCreated }: CreateSkill
                 <UploadButton icon={Upload} label={t("folder")} directory onPick={addFiles} />
               </div>
 
-              <div className="min-h-0 flex-1 overflow-auto rounded-md border p-1 max-md:max-h-48 max-md:min-h-24">
+              <div className="bg-background min-h-0 flex-1 overflow-auto rounded-xl border p-1 max-md:max-h-48 max-md:min-h-24">
                 <button
                   type="button"
                   onClick={() => {

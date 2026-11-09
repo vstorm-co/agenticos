@@ -150,7 +150,11 @@ export function ImprovementShell({
     <ReadOnlyProvider value={readOnly}>
       <div className="space-y-6">
         <SessionLine session={session} working={working} />
-        <nav data-tour="improvement-steps" aria-label={t("stepsLabel")}>
+        <nav
+          data-tour="improvement-steps"
+          aria-label={t("stepsLabel")}
+          className="bg-card sticky top-0 z-20 rounded-xl border p-4 shadow-sm sm:p-5"
+        >
           <WizardSteps
             responsive
             steps={STEPS.map((id) => ({
@@ -194,7 +198,11 @@ export function ImprovementShell({
             <p className="mt-2 break-words">{session.error}</p>
           </details>
         )}
-        <div ref={content} data-step-panel className="space-y-6">
+        <div
+          ref={content}
+          data-step-panel
+          className="bg-card min-w-0 space-y-6 rounded-2xl border p-4 sm:p-6 [&_h2]:scroll-mt-40 [&_h3]:scroll-mt-40"
+        >
           {panel({ step, current, views, goTo, followCurrent, act })}
           {step === stopOf(session) && (
             <NextStep
@@ -280,7 +288,7 @@ export function ImprovementShell({
           </Link>
         </div>
         {error && (
-          <p role="alert" className="text-destructive text-sm">
+          <p role="alert" className="text-destructive-ink text-sm">
             {error}
           </p>
         )}

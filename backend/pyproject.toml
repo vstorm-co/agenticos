@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "1.34.2"
+version = "1.54.0"
 description = "OS for your agents."
 requires-python = ">=3.15"
 license = { text = "Apache-2.0" }
@@ -86,9 +86,10 @@ dependencies = [
     # store, tools and cache-safe tail reminder) and `compaction` (the
     # context-window handling and its strategies). Uncapped for the same reason
     # Pydantic AI is: this is where those are maintained, and pinning would
-    # freeze the detectors and the model registry they read. 0.52.0 is the
-    # floor: the first release on the slim that brought workspaces.
-    "pydantic-ai-harness[e2b]>=0.61.0",
+    # freeze the detectors and the model registry they read. Every agent also
+    # wraps RepairToolArguments, whose json-repair dependency is selected by
+    # its capability extra in the 0.64 release.
+    "pydantic-ai-harness[e2b,repair-tool-arguments]>=0.64.0",
     "websockets>=15.0",
     # Required, not optional: hybrid retrieval fuses BM25 with the vector search
     # and a deployment cannot choose otherwise. It is also the only reason
@@ -189,8 +190,6 @@ dependencies = [
     # and any raw crontab do - and getting DST and month lengths right by hand is
     # the kind of arithmetic a dependency exists to own.
     "croniter>=3.0.0",
-    "mem0ai>=2.2.1",
-    "requests>=2.34.2",
     "xlrd>=2.0.2",
     "odfpy>=1.4.1",
     "python-pptx>=1.0.2",
@@ -208,7 +207,6 @@ dependencies = [
     # Checks an `agent.run` step's structured answer against the JSON Schema the
     # step declares, before anything downstream reads it (#1789). MIT; already
     # installed through the MCP SDK.
-    "jsonschema>=4.23.0",
     # The `guardrails` phone detector, which the harness's PII patterns lack. The
     # lite build: the same `phonenumbers` module and numbering-plan metadata,
     # without the 20 MB of carrier, geocoding and time zone data nothing here reads.
@@ -225,6 +223,7 @@ dependencies = [
     # (RFC 8291) and the VAPID signature (RFC 8292) every push service demands.
     # MPL-2.0, reviewed in licenses/policy.toml.
     "pywebpush>=2",
+    "pydantic-ai-otari>=0.1.0,<0.2",
 ]
 
 [project.optional-dependencies]
@@ -259,6 +258,11 @@ browser = [
 kerberos = [
     "gssapi>=1.9.0",
 ]
+# Mirage is optional; its exact pin is shared with the test environment.
+# The S3 family remains unavailable because aioboto3 pins an incompatible boto3.
+mirage = [
+    "mirage-ai[pydantic-ai,ssh,mongodb,gridfs,postgres,redis,email,nextcloud,hf-buckets,chroma,mem0,langfuse,qdrant,lancedb]==0.0.8",
+]
 
 # PEP 735 dependency group — installed by `uv sync` / `uv sync --dev` and
 # excluded by `--no-dev`. (A `dev` extra under [project.optional-dependencies]
@@ -266,6 +270,8 @@ kerberos = [
 # could skip it on some uv versions and leave pre-commit/ruff/ty unspawnable.)
 [dependency-groups]
 dev = [
+    # The `mirage` extra's pin, for the suite - see the extra.
+    "mirage-ai[pydantic-ai,ssh,mongodb,gridfs,postgres,redis,email,nextcloud,hf-buckets,chroma,mem0,langfuse,qdrant,lancedb]==0.0.8",
     "pytest>=9.0.0",
     "anyio[trio]>=4.15.1",
     "pytest-cov>=6.1.0",
@@ -391,10 +397,6 @@ DEP002 = [
     "greenlet",         # SQLAlchemy's async bridge
     "itsdangerous",     # Starlette signs `SessionMiddleware` cookies with it
     "aiohttp",          # `slack_sdk.socket_mode.aiohttp` imports it; nothing here does
-    # `mem0/client/main.py` imports `requests` and does not declare it, so the SDK
-    # works only while something else happens to pull it in. Declared here so that
-    # accident becomes a dependency (#1470).
-    "requests",
 ]
 
 [tool.ruff]
@@ -406,6 +408,8 @@ line-length = 100
 per-file-target-version = { "../deploy/updater/*.py" = "py312", "../scripts/ci_changed_scope.py" = "py312", "../scripts/dependency_snapshot.py" = "py312" }
 
 [tool.ruff.lint]
+# Dotless i is a distinct Turkish letter used in localized messages.
+allowed-confusables = ["ı"]
 # The rule set is deliberately wide. A linter that only catches formatting is a
 # linter people stop reading; these are the categories that catch real defects
 # in an async, multi-tenant service — swallowed exceptions, blocking calls in a
@@ -720,6 +724,8 @@ include = [
     "app/services/agent_registry.py",
     "app/services/agent_runner.py",
     "app/services/agent_templates.py",
+    "app/services/agent_defaults.py",
+    "app/services/shipped_agents.py",
     "app/services/agent_session.py",
     # The turn loop itself, shared by the dashboard chat and the embedded
     # widget since #634. One frame vocabulary for both sockets, and the sink a
@@ -748,6 +754,10 @@ include = [
     "app/services/sandbox_runtimes.py",
     "app/services/sandbox_workspace.py",
     "app/services/sandboxd_compat.py",
+    # A `.zip` or `.tar.gz` unpacked into a workspace, and a folder zipped out
+    # (#2479). Every refusal here - a `../` member, a link, a device, a bomb - is
+    # what stops an upload from writing outside its folder.
+    "app/services/workspace_archive.py",
     "app/services/usage_report.py",
     "app/services/skill_agents.py",
     "app/services/skill_catch_up.py",
@@ -756,6 +766,7 @@ include = [
     "app/services/skill_versions.py",
     "app/services/skill_workspace.py",
     "app/services/channels/attachments.py",
+    "app/services/channels/sms_media.py",
     "app/services/channels/dedupe.py",
     "app/services/channels/stream_lease.py",
     "app/services/channels/feedback.py",
@@ -766,11 +777,18 @@ include = [
     "app/services/channels/prompts.py",
     # Next steps offered as buttons, a press of which is the next message (#2301).
     "app/services/channels/next_steps.py",
+    "app/services/channels/notification_send.py",
+
+    "app/services/channels/handback.py",
+    "app/services/channels/continuation.py",
+    "app/services/parked_runs.py",
     "app/services/channels/slack_answer.py",
     "app/services/channels/slack_app.py",
     "app/services/channels/slack_manifest.py",
     "app/services/channels/telegram_format.py",
     "app/services/channels/telegram_press.py",
+    # What the Discord adapter says and reads, without the I/O (#2079).
+    "app/services/channels/discord_protocol.py",
     "app/repositories/channel_prompt.py",
     "app/services/collection_access.py",
     "app/repositories/collection_teardown.py",
@@ -799,6 +817,7 @@ include = [
     "app/services/email/templates.py",
     "app/services/ingestion_config.py",
     "app/services/rag/failures.py",
+    "app/services/rag_scratch.py",
     # Who hears that a run stopped on its budget or parked on an approval. The
     # emails are the only signal for a run nobody was watching — a Slack
     # mention, a schedule — so a silent failure here is indistinguishable from
@@ -807,6 +826,9 @@ include = [
     "app/services/notification_catalog.py",
     "app/services/notification_center.py",
     "app/services/notification_delivery.py",
+    "app/services/notification_routes.py",
+    "app/repositories/notification_route.py",
+    "app/schemas/notification_route.py",
     "app/repositories/notification.py",
     "app/api/routes/v1/notifications.py",
     # The one action in this feature no organization-scoped role can reach.
@@ -827,11 +849,14 @@ include = [
     "app/services/portals/google_calendar.py",
     "app/services/portals/google_drive.py",
     "app/services/portals/mail_auth.py",
+    "app/services/portals/reply_metadata.py",
+    "app/services/reply_expectation.py",
     "app/services/portals/mail_thread.py",
     "app/services/portals/microsoft_files.py",
     "app/services/portals/outlook_calendar.py",
     "app/services/portals/registry.py",
     "app/services/mcp_connection.py",
+    "app/services/mirage_mounts.py",
     # Which providers can draw an image, derived from the SDK. What it decides is
     # what the Builder offers, and a probe that quietly starts answering "no"
     # would empty that picker without a single test failing.
@@ -947,6 +972,7 @@ include = [
     "app/api/routes/v1/context.py",
     "app/db/models/dataset.py",
     "app/schemas/dataset.py",
+    "app/schemas/dataset_helpers.py",
     "app/repositories/dataset.py",
     "app/repositories/_visibility.py",
     "app/services/dataset.py",
@@ -965,7 +991,6 @@ include = [
     "app/repositories/knowledge_gap.py",
     "app/services/knowledge_gaps.py",
     "app/api/routes/v1/knowledge_gaps.py",
-    "app/services/ai_assistance.py",
     "app/services/system_agents.py",
     "app/services/system_agent_runner.py",
     "app/db/models/case_score.py",
@@ -1053,6 +1078,7 @@ include = [
     "app/services/device_hub/_protocol.py",
     "app/services/device_hub/workspace.py",
     "app/services/device_hub/services.py",
+    "app/services/device_hub/local_context.py",
     "app/services/device_hub/exceptions.py",
     "app/api/routes/v1/device_hub.py",
     "app/db/models/organization_assistant.py",
@@ -1064,8 +1090,54 @@ include = [
     "app/services/resource_usage.py",
     "app/services/knowledge_reach.py",
     "app/repositories/memory.py",
+    "app/repositories/memory_claim.py",
+    "app/repositories/system_agent.py",
+    "app/repositories/outcome.py",
     "app/services/memory/_native.py",
+    "app/services/memory/_claims.py",
+    "app/services/memory/_runtime.py",
+    "app/services/memory/extraction.py",
     "app/services/memory/facade.py",
+    "app/services/primary_conversation.py",
+    "app/services/outcome.py",
+    "app/services/system_agent.py",
+    "app/services/routine_authority.py",
+    "app/services/routine_devices.py",
+    "app/services/routine_health.py",
+    "app/repositories/routine_health.py",
+    "app/db/models/routine_health.py",
+    "app/services/imessage_webhook.py",
+    "app/api/routes/v1/imessage_webhook.py",
+    "app/repositories/routine_device_wait.py",
+    "app/db/models/routine_device_wait.py",
+    "app/schemas/local_target.py",
+    "app/agents/routine_authority.py",
+    "app/agents/routine_actions.py",
+    "app/db/models/task_board.py",
+    "app/repositories/task.py",
+    "app/schemas/task.py",
+    "app/services/tasks.py",
+    "app/services/task_access.py",
+    "app/services/task_columns.py",
+    "app/services/task_execution.py",
+    "app/api/routes/v1/tasks.py",
+    "app/worker/tasks/task_tasks.py",
+    "app/services/project_tracking.py",
+    "app/schemas/project_tracking.py",
+    "app/schemas/decision_episode.py",
+    "app/schemas/telephony.py",
+    "app/db/models/telephony.py",
+    "app/repositories/telephony.py",
+    "app/services/telephony/*.py",
+    "app/agents/capabilities/phone_calls/*.py",
+    "app/repositories/project_tracking.py",
+    "app/db/models/project_tracking.py",
+    "app/services/routine_sources.py",
+    "app/schemas/routine_sources.py",
+    "app/services/routine_actions.py",
+    "app/schemas/routine_actions.py",
+    "app/services/routine_delivery.py",
+    "app/repositories/routine_delivery.py",
     "app/api/routes/v1/memory.py",
     "app/db/models/eval_run.py",
     "app/repositories/eval_run.py",
@@ -1124,12 +1196,36 @@ include = [
     "app/services/context_proposal.py",
     "app/services/proposal_reach.py",
     "app/api/routes/v1/context_changes.py",
+    "app/api/routes/v1/primary_conversations.py",
+    "app/api/routes/v1/outcomes.py",
+    "app/api/routes/v1/system_agents.py",
+    "app/worker/tasks/memory_tasks.py",
     # Which past conversations an agent may search, and the full-text query over
     # them. The predicate is the whole of it - a way in added here is a way in for
     # every agent at once - so it is held to the same bar as the permission code
     # (#789).
     "app/repositories/conversation_search.py",
     "app/services/conversation_search.py",
+    "app/db/models/conversation_task.py",
+    "app/schemas/conversation_task.py",
+    "app/repositories/conversation_task.py",
+    "app/services/conversation_tasks.py",
+    # What a coding-agent task changed, read under the conversation's own reader
+    # check (#2480).
+    "app/db/models/coding_task_change.py",
+    "app/schemas/coding_task_change.py",
+    "app/repositories/coding_task_change.py",
+    "app/services/coding_task_changes.py",
+    "app/db/models/coding_account.py",
+    "app/schemas/coding_account.py",
+    "app/repositories/coding_account.py",
+    "app/services/coding_accounts.py",
+    "app/services/personal_codex.py",
+    "app/services/coding_account_lease.py",
+    "app/services/personal_coding_snapshot.py",
+    "app/services/personal_coding.py",
+    "app/services/conversation_turns.py",
+    "app/worker/tasks/conversation_tasks.py",
     "app/db/models/generated_media.py",
     "app/repositories/generated_media.py",
     "app/services/generated_media.py",
@@ -1225,6 +1321,13 @@ include = [
     "app/api/routes/v1/directory_mappings.py",
     "app/api/routes/v1/directory_auth.py",
     "app/api/routes/v1/_directory_handoff.py",
+    # Discord server roles mapped to groups, and the sync that applies them (#2569).
+    "app/db/models/discord_role_mapping.py",
+    "app/repositories/discord_role_mapping.py",
+    "app/schemas/discord_role_mapping.py",
+    "app/services/discord_role_mapping.py",
+    "app/services/channels/discord_roles.py",
+    "app/worker/tasks/channel_tasks.py",
     # Node contracts, registry and graph validation (#1786). Mirrors the
     # capability registry's split: typed definitions in code, a graph checked
     # against them before it can be published.
@@ -1326,6 +1429,10 @@ include = [
     "app/worker/tasks/proactive_tasks.py",
     # Watches over a person's own connections, and the presets they start from.
     "app/services/watches.py",
+    "app/services/watch_sources.py",
+    "app/services/routine_notifications.py",
+    "app/schemas/routine_notifications.py",
+    "app/schemas/watch_sources.py",
     "app/services/watch_presets.py",
     "app/repositories/watch.py",
     "app/api/routes/v1/me_watches.py",
@@ -1480,6 +1587,8 @@ include = [
     "app/services/agent_registry.py",
     "app/services/agent_runner.py",
     "app/services/agent_templates.py",
+    "app/services/agent_defaults.py",
+    "app/services/shipped_agents.py",
     # The whole dashboard chat wire format: every frame the WebSocket sends and
     # every frame it accepts. It sat outside both gates while `use-chat.ts`
     # switched on its names, which is the drift #144 describes.
@@ -1511,6 +1620,10 @@ include = [
     "app/services/sandbox_runtimes.py",
     "app/services/sandbox_workspace.py",
     "app/services/sandboxd_compat.py",
+    # A `.zip` or `.tar.gz` unpacked into a workspace, and a folder zipped out
+    # (#2479). Every refusal here - a `../` member, a link, a device, a bomb - is
+    # what stops an upload from writing outside its folder.
+    "app/services/workspace_archive.py",
     "app/services/usage_report.py",
     "app/services/skill_agents.py",
     "app/services/skill_catch_up.py",
@@ -1519,6 +1632,7 @@ include = [
     "app/services/skill_versions.py",
     "app/services/skill_workspace.py",
     "app/services/channels/attachments.py",
+    "app/services/channels/sms_media.py",
     "app/services/channels/dedupe.py",
     "app/services/channels/stream_lease.py",
     "app/services/channels/feedback.py",
@@ -1529,11 +1643,18 @@ include = [
     "app/services/channels/prompts.py",
     # Next steps offered as buttons, a press of which is the next message (#2301).
     "app/services/channels/next_steps.py",
+    "app/services/channels/notification_send.py",
+
+    "app/services/channels/handback.py",
+    "app/services/channels/continuation.py",
+    "app/services/parked_runs.py",
     "app/services/channels/slack_answer.py",
     "app/services/channels/slack_app.py",
     "app/services/channels/slack_manifest.py",
     "app/services/channels/telegram_format.py",
     "app/services/channels/telegram_press.py",
+    # What the Discord adapter says and reads, without the I/O (#2079).
+    "app/services/channels/discord_protocol.py",
     "app/repositories/channel_prompt.py",
     "app/services/collection_access.py",
     "app/repositories/collection_teardown.py",
@@ -1592,6 +1713,7 @@ include = [
     # what leaves a worker for a stored column the whole organization reads —
     # the same judgement the vault and the exception handlers are held to.
     "app/services/rag/failures.py",
+    "app/services/rag_scratch.py",
     # Who hears that a run stopped on its budget or parked on an approval. The
     # emails are the only signal for a run nobody was watching — a Slack
     # mention, a schedule — so a silent failure here is indistinguishable from
@@ -1600,6 +1722,9 @@ include = [
     "app/services/notification_catalog.py",
     "app/services/notification_center.py",
     "app/services/notification_delivery.py",
+    "app/services/notification_routes.py",
+    "app/repositories/notification_route.py",
+    "app/schemas/notification_route.py",
     "app/repositories/notification.py",
     "app/api/routes/v1/notifications.py",
     # The one action in this feature no organization-scoped role can reach.
@@ -1620,11 +1745,14 @@ include = [
     "app/services/portals/google_calendar.py",
     "app/services/portals/google_drive.py",
     "app/services/portals/mail_auth.py",
+    "app/services/portals/reply_metadata.py",
+    "app/services/reply_expectation.py",
     "app/services/portals/mail_thread.py",
     "app/services/portals/microsoft_files.py",
     "app/services/portals/outlook_calendar.py",
     "app/services/portals/registry.py",
     "app/services/mcp_connection.py",
+    "app/services/mirage_mounts.py",
     # Which providers can draw an image, derived from the SDK. What it decides is
     # what the Builder offers, and a probe that quietly starts answering "no"
     # would empty that picker without a single test failing.
@@ -1740,6 +1868,7 @@ include = [
     "app/api/routes/v1/context.py",
     "app/db/models/dataset.py",
     "app/schemas/dataset.py",
+    "app/schemas/dataset_helpers.py",
     "app/repositories/dataset.py",
     "app/repositories/_visibility.py",
     "app/services/dataset.py",
@@ -1758,7 +1887,6 @@ include = [
     "app/repositories/knowledge_gap.py",
     "app/services/knowledge_gaps.py",
     "app/api/routes/v1/knowledge_gaps.py",
-    "app/services/ai_assistance.py",
     "app/services/system_agents.py",
     "app/services/system_agent_runner.py",
     "app/db/models/case_score.py",
@@ -1846,6 +1974,7 @@ include = [
     "app/services/device_hub/_protocol.py",
     "app/services/device_hub/workspace.py",
     "app/services/device_hub/services.py",
+    "app/services/device_hub/local_context.py",
     "app/services/device_hub/exceptions.py",
     "app/api/routes/v1/device_hub.py",
     "app/db/models/organization_assistant.py",
@@ -1857,8 +1986,54 @@ include = [
     "app/services/resource_usage.py",
     "app/services/knowledge_reach.py",
     "app/repositories/memory.py",
+    "app/repositories/memory_claim.py",
+    "app/repositories/system_agent.py",
+    "app/repositories/outcome.py",
     "app/services/memory/_native.py",
+    "app/services/memory/_claims.py",
+    "app/services/memory/_runtime.py",
+    "app/services/memory/extraction.py",
     "app/services/memory/facade.py",
+    "app/services/primary_conversation.py",
+    "app/services/outcome.py",
+    "app/services/system_agent.py",
+    "app/services/routine_authority.py",
+    "app/services/routine_devices.py",
+    "app/services/routine_health.py",
+    "app/repositories/routine_health.py",
+    "app/db/models/routine_health.py",
+    "app/services/imessage_webhook.py",
+    "app/api/routes/v1/imessage_webhook.py",
+    "app/repositories/routine_device_wait.py",
+    "app/db/models/routine_device_wait.py",
+    "app/schemas/local_target.py",
+    "app/agents/routine_authority.py",
+    "app/agents/routine_actions.py",
+    "app/db/models/task_board.py",
+    "app/repositories/task.py",
+    "app/schemas/task.py",
+    "app/services/tasks.py",
+    "app/services/task_access.py",
+    "app/services/task_columns.py",
+    "app/services/task_execution.py",
+    "app/api/routes/v1/tasks.py",
+    "app/worker/tasks/task_tasks.py",
+    "app/services/project_tracking.py",
+    "app/schemas/project_tracking.py",
+    "app/schemas/decision_episode.py",
+    "app/schemas/telephony.py",
+    "app/db/models/telephony.py",
+    "app/repositories/telephony.py",
+    "app/services/telephony/*.py",
+    "app/agents/capabilities/phone_calls/*.py",
+    "app/repositories/project_tracking.py",
+    "app/db/models/project_tracking.py",
+    "app/services/routine_sources.py",
+    "app/schemas/routine_sources.py",
+    "app/services/routine_actions.py",
+    "app/schemas/routine_actions.py",
+    "app/services/routine_delivery.py",
+    "app/repositories/routine_delivery.py",
     "app/api/routes/v1/memory.py",
     "app/db/models/eval_run.py",
     "app/repositories/eval_run.py",
@@ -1917,12 +2092,36 @@ include = [
     "app/services/context_proposal.py",
     "app/services/proposal_reach.py",
     "app/api/routes/v1/context_changes.py",
+    "app/api/routes/v1/primary_conversations.py",
+    "app/api/routes/v1/outcomes.py",
+    "app/api/routes/v1/system_agents.py",
+    "app/worker/tasks/memory_tasks.py",
     # Which past conversations an agent may search, and the full-text query over
     # them. The predicate is the whole of it - a way in added here is a way in for
     # every agent at once - so it is held to the same bar as the permission code
     # (#789).
     "app/repositories/conversation_search.py",
     "app/services/conversation_search.py",
+    "app/db/models/conversation_task.py",
+    "app/schemas/conversation_task.py",
+    "app/repositories/conversation_task.py",
+    "app/services/conversation_tasks.py",
+    # What a coding-agent task changed, read under the conversation's own reader
+    # check (#2480).
+    "app/db/models/coding_task_change.py",
+    "app/schemas/coding_task_change.py",
+    "app/repositories/coding_task_change.py",
+    "app/services/coding_task_changes.py",
+    "app/db/models/coding_account.py",
+    "app/schemas/coding_account.py",
+    "app/repositories/coding_account.py",
+    "app/services/coding_accounts.py",
+    "app/services/personal_codex.py",
+    "app/services/coding_account_lease.py",
+    "app/services/personal_coding_snapshot.py",
+    "app/services/personal_coding.py",
+    "app/services/conversation_turns.py",
+    "app/worker/tasks/conversation_tasks.py",
     "app/db/models/generated_media.py",
     "app/repositories/generated_media.py",
     "app/services/generated_media.py",
@@ -2018,6 +2217,13 @@ include = [
     "app/api/routes/v1/directory_mappings.py",
     "app/api/routes/v1/directory_auth.py",
     "app/api/routes/v1/_directory_handoff.py",
+    # Discord server roles mapped to groups, and the sync that applies them (#2569).
+    "app/db/models/discord_role_mapping.py",
+    "app/repositories/discord_role_mapping.py",
+    "app/schemas/discord_role_mapping.py",
+    "app/services/discord_role_mapping.py",
+    "app/services/channels/discord_roles.py",
+    "app/worker/tasks/channel_tasks.py",
     # Node contracts, registry and graph validation (#1786). Mirrors the
     # capability registry's split: typed definitions in code, a graph checked
     # against them before it can be published.
@@ -2119,6 +2325,10 @@ include = [
     "app/worker/tasks/proactive_tasks.py",
     # Watches over a person's own connections, and the presets they start from.
     "app/services/watches.py",
+    "app/services/watch_sources.py",
+    "app/services/routine_notifications.py",
+    "app/schemas/routine_notifications.py",
+    "app/schemas/watch_sources.py",
     "app/services/watch_presets.py",
     "app/repositories/watch.py",
     "app/api/routes/v1/me_watches.py",

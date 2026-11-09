@@ -51,6 +51,7 @@ function wrapper({ children }: { children: ReactNode }) {
 async function page(overrides: Partial<typeof SETTINGS> = {}) {
   vi.mocked(apiClient.get).mockResolvedValue({ ...SETTINGS, ...overrides });
   render(<DeploymentSettingsPage />, { wrapper });
+  await userEvent.click(await screen.findByRole("button", { name: "Voice & mobile" }));
   return screen.findByRole("switch", { name: "Accept compressed recordings (WebM, Ogg, MP4)" });
 }
 

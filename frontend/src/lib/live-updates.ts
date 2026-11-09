@@ -42,14 +42,20 @@ const STALE: Record<ChangeResource, (orgId: string) => QueryKey[]> = {
   trigger: () => [qk.triggers.all()],
   // A bot is also the surface an agent is exposed on.
   channel: () => [qk.channelBots.list(), qk.exposures.all()],
-  notification: () => [qk.notifications.all()],
+  notification: () => [qk.notifications.all(), qk.outcomes.all()],
   secret: () => [qk.secrets.all(), qk.sharing.all()],
-  mcp_connection: () => [qk.mcpConnections.all(), qk.sharing.all()],
+  mcp_connection: () => [
+    qk.mcpConnections.all(),
+    qk.mcpServers.lists(),
+    qk.mcpServers.entries(),
+    qk.sharing.all(),
+  ],
   // Run history, the approvals inbox and spend all live under `runs`; the chat
   // list reads its running, unread and order state off runs too - a run started
   // by the API, a routine or another tab would otherwise leave it stale. The
   // lists only: refetching an open thread's messages under a stream is not this.
-  run: () => [qk.runs.all(), qk.conversations.list()],
+  run: () => [qk.runs.all(), qk.conversations.list(), qk.outcomes.all(), qk.projects.all()],
+  conversation: () => [qk.conversations.all(), qk.projects.all()],
   // A suite's result names the eval run behind it, so the runs move with it.
   eval_suite: () => [qk.evalSuites.all(), qk.evalRuns.all()],
   eval_run: () => [qk.evalRuns.all(), qk.datasets.all(), qk.improvements.all()],

@@ -1,6 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { bytesKey, documentName, readFileBytes, readFileText, textKey } from "./workspace-files";
+import {
+  bytesKey,
+  documentName,
+  downloadConversationFolder,
+  readFileBytes,
+  readFileText,
+  textKey,
+  workspaceFileAccess,
+} from "./workspace-files";
 import { apiClient } from "./api-client";
 import { readLocalFile } from "./desktop/commands";
 
@@ -103,5 +111,69 @@ describe("native file source", () => {
     expect(blob.size).toBe(512 * 1024 + 1);
     expect(textKey(source, "a")).not.toEqual(textKey({ kind: "local", root: "/other" }, "a"));
     expect(bytesKey(source, "a")).not.toEqual(textKey(source, "a"));
+  });
+});
+
+it("prepares linked local CSS through the same root and leaves Source unchanged", async () => {
+  const html = '<link rel="stylesheet" href="style.css"><h1>Hello</h1>';
+  vi.mocked(readLocalFile).mockImplementation(async (_root, path) =>
+    new TextEncoder().encode(path.endsWith(".css") ? "h1{color:green}" : html),
+  );
+  const access = workspaceFileAccess({ kind: "local", root: "/approved" }, "site/index.html");
+  await expect(access.readPreview?.()).resolves.toMatchObject({
+    content: expect.stringContaining("<style>h1{color:green}</style>"),
+  });
+  expect(readLocalFile).toHaveBeenCalledWith("/approved", "site/style.css");
+  await expect(access.readText()).resolves.toEqual({ content: html, truncated: false });
+});
+
+it("loads CSS image bytes through the original local root", async () => {
+  const html = '<link rel="stylesheet" href="style.css">';
+  vi.mocked(readLocalFile).mockImplementation(async (_root, path) =>
+    new TextEncoder().encode(
+      path.endsWith(".css")
+        ? 'body{background:url("image.png")}'
+        : path.endsWith(".png")
+          ? "image-bytes"
+          : html,
+    ),
+  );
+  const preview = await workspaceFileAccess(
+    { kind: "local", root: "/original" },
+    "site/index.html",
+  ).readPreview?.();
+  expect(preview?.content).toContain("data:image/png;base64,");
+  expect(readLocalFile).toHaveBeenCalledWith("/original", "site/image.png");
+});
+
+/**
+ * A folder out as one `.zip` (#2479): through the conversation, as one file is, and
+ * saved under the folder's own name - or `workspace.zip` for the whole of it.
+ */
+describe("downloading a folder", () => {
+  it.each([
+    ["uploads/3f2a1b9c-repo", "uploads%2F3f2a1b9c-repo", "3f2a1b9c-repo.zip"],
+    ["/out/", "%2Fout%2F", "out.zip"],
+    ["", "", "workspace.zip"],
+    [".", ".", "workspace.zip"],
+  ])("asks the archive route for %j and saves it as %s", async (folder, encoded, saved) => {
+    const names: string[] = [];
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      names.push(this.download);
+    });
+    Object.assign(URL, { createObjectURL: () => "blob:x", revokeObjectURL: vi.fn() });
+    vi.mocked(apiClient.raw).mockResolvedValueOnce({
+      blob: async () => new Blob(["PK"]),
+    } as unknown as Response);
+
+    await downloadConversationFolder("c1", folder);
+
+    expect(vi.mocked(apiClient.raw).mock.calls.at(-1)?.[0]).toBe(
+      `/conversations/c1/workspace/archive?path=${encoded}`,
+    );
+    expect(names).toEqual([saved]);
+    click.mockRestore();
   });
 });

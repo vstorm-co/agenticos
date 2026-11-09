@@ -19,7 +19,7 @@ import { useEvalSuites } from "@/hooks/use-eval-suites";
 import { usePermissions } from "@/hooks/use-permissions";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
-import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_WIDE } from "@/lib/dialog-sizes";
 import { useOrgStore } from "@/stores/org-store";
 import type { EvalSuite, EvalSuiteInput, EvalSuiteSchedule } from "@/types/eval-suites";
 import { Perm } from "@/types/permissions";
@@ -157,75 +157,81 @@ export function SuiteFormDialog({
 
   return (
     <Dialog open onOpenChange={onOpenChange}>
-      <DialogContent className={`${DIALOG_FORM} ${DIALOG_SCROLL}`}>
+      <DialogContent className={`${DIALOG_WIDE} ${DIALOG_COLUMN}`}>
         <DialogHeader>
           <DialogTitle>{suite ? t("editTitle") : t("newTitle")}</DialogTitle>
           <DialogDescription>{t("intro")}</DialogDescription>
         </DialogHeader>
-        <div className="space-y-6">
-          <SuiteWhatFields
-            form={form}
-            onChange={(patch) => setForm({ ...form, ...patch })}
-            datasets={runnable}
-            environments={environments}
-          />
-          <SuiteWhenFields form={form} onChange={(patch) => setForm({ ...form, ...patch })} />
-          <SuiteThresholdFields form={form} onChange={(patch) => setForm({ ...form, ...patch })} />
-        </div>
-        {priced && (
-          <div className="bg-muted/50 space-y-1 rounded-lg p-3 text-sm">
-            <p>
-              {t("estimateRun", {
-                amount: usd(
-                  String(Number(priced.run.total_usd) + Number(priced.run.rerun_ceiling_usd)),
-                  locale,
-                ),
-                count: priced.run.cases,
-              })}
-            </p>
-            {priced.paired_run && (
-              <p className="text-muted-foreground text-xs">
-                {t("estimatePaired", {
+        <div className={`${DIALOG_BODY} space-y-6`}>
+          <div className="space-y-6">
+            <SuiteWhatFields
+              form={form}
+              onChange={(patch) => setForm({ ...form, ...patch })}
+              datasets={runnable}
+              environments={environments}
+            />
+            <SuiteWhenFields form={form} onChange={(patch) => setForm({ ...form, ...patch })} />
+            <SuiteThresholdFields
+              form={form}
+              onChange={(patch) => setForm({ ...form, ...patch })}
+            />
+          </div>
+          {priced && (
+            <div className="bg-muted/50 space-y-1 rounded-lg p-3 text-sm">
+              <p>
+                {t("estimateRun", {
                   amount: usd(
-                    String(
-                      Number(priced.paired_run.total_usd) +
-                        Number(priced.paired_run.rerun_ceiling_usd),
-                    ),
+                    String(Number(priced.run.total_usd) + Number(priced.run.rerun_ceiling_usd)),
                     locale,
                   ),
+                  count: priced.run.cases,
                 })}
               </p>
-            )}
-            {priced.monthly_usd !== null && priced.fires_per_month !== null && (
-              <p className="text-muted-foreground text-xs">
-                {t("estimateMonth", {
-                  amount: usd(priced.monthly_usd, locale),
-                  count: priced.fires_per_month,
-                })}
-              </p>
-            )}
-            <p className="text-muted-foreground text-xs">{t("runsAsYou")}</p>
-            <UngradedWarning count={priced.run.ungraded_cases} />
-          </div>
-        )}
-        {failure && (
-          <div role="alert" className="text-destructive space-y-1 text-sm">
-            <p>{getErrorMessage(failure, tErrors)}</p>
-            {assistanceOff && (
-              <Link
-                href={`${ROUTES.ORGS}/${activeOrgId}/members`}
-                className="text-foreground underline underline-offset-4"
-              >
-                {t("enableAi")}
-              </Link>
-            )}
-          </div>
-        )}
-        <DialogFooter>
+              {priced.paired_run && (
+                <p className="text-muted-foreground text-xs">
+                  {t("estimatePaired", {
+                    amount: usd(
+                      String(
+                        Number(priced.paired_run.total_usd) +
+                          Number(priced.paired_run.rerun_ceiling_usd),
+                      ),
+                      locale,
+                    ),
+                  })}
+                </p>
+              )}
+              {priced.monthly_usd !== null && priced.fires_per_month !== null && (
+                <p className="text-muted-foreground text-xs">
+                  {t("estimateMonth", {
+                    amount: usd(priced.monthly_usd, locale),
+                    count: priced.fires_per_month,
+                  })}
+                </p>
+              )}
+              <p className="text-muted-foreground text-xs">{t("runsAsYou")}</p>
+              <UngradedWarning count={priced.run.ungraded_cases} />
+            </div>
+          )}
+          {failure && (
+            <div role="alert" className="text-destructive-ink space-y-1 text-sm">
+              <p>{getErrorMessage(failure, tErrors)}</p>
+              {assistanceOff && (
+                <Link
+                  href={`${ROUTES.ORGS}/${activeOrgId}/members`}
+                  className="text-foreground underline underline-offset-4"
+                >
+                  {t("enableAi")}
+                </Link>
+              )}
+            </div>
+          )}
+        </div>
+        <DialogFooter className="border-t">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("cancel")}
           </Button>
           <Button
+            loading={saving}
             disabled={!ready || saving}
             onClick={() =>
               void save(inputFor(form))

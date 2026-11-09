@@ -20,6 +20,8 @@ import {
 } from "@/lib/test-panel-state";
 import type { ChatPrompt } from "@/components/chat/chat-container";
 import { cn } from "@/lib/utils";
+import { WorkspaceFullscreenButton } from "@/components/ui/workspace-fullscreen-button";
+import { useWorkspaceFullscreen } from "@/hooks/use-workspace-fullscreen";
 import { ChatScope } from "@/stores";
 import type { AgentEnvironment, AgentSpec } from "@/types/agents";
 import { DraftChanges } from "./draft-changes";
@@ -66,6 +68,7 @@ export function TestPanel({
   const [ask, setAsk] = useState<ChatPrompt | null>(null);
   const [state, setState] = useState<TestPanelState>(() => readTestPanel(agentId));
   const [showingChanges, setShowingChanges] = useState(false);
+  const [mobilePane, setMobilePane] = useState(0);
   const published = currentVersionId !== null;
   // An environment removed since it was chosen, or anything but the draft on an
   // agent with nothing published, falls back to what can answer.
@@ -77,6 +80,7 @@ export function TestPanel({
       ? state.compare
       : null;
   const modes = compare === null ? [mode] : [mode, compare];
+  const { ref, expanded, toggle: toggleFullscreen } = useWorkspaceFullscreen(compare !== null);
   const width = compare === null ? state.width : state.compareWidth;
   const sized = (from: TestPanelState, next: number): TestPanelState =>
     compare === null ? { ...from, width: next } : { ...from, compareWidth: next };
@@ -132,10 +136,11 @@ export function TestPanel({
     window.addEventListener("pointerup", stop);
   };
 
-  const toggleCompare = () =>
-    update({
-      compare: compare === null ? (choices.find((value) => value !== mode) ?? null) : null,
-    });
+  const toggleCompare = () => {
+    const next = compare === null ? (choices.find((value) => value !== mode) ?? null) : null;
+    update({ compare: next });
+    if ((next !== null) !== expanded) toggleFullscreen();
+  };
 
   const picker = (value: string, onChange: (next: string) => void, name: string) => (
     <Select value={value} onValueChange={onChange}>
@@ -154,27 +159,35 @@ export function TestPanel({
 
   return (
     <aside
+      ref={ref}
+      data-expanded={expanded}
       aria-label={t("testPanel")}
       data-tour="agent-test-panel"
       style={{ "--test-panel-width": `${width}px` } as React.CSSProperties}
       // One gutter from the window's top and bottom, scrolled or not. The page
       // scrolls inside a padded container. Read its actual inset so browser and
       // desktop keep the same gutter; the native drag strip stays outside it.
-      className="bg-background fixed inset-0 z-40 flex flex-col lg:sticky lg:top-[calc(1rem-var(--page-inset-top,2rem))] lg:z-auto lg:-mt-(--page-inset-top) lg:h-[calc(100dvh-2rem-var(--window-drag-height,0px))] lg:w-[var(--test-panel-width)] lg:shrink-0 lg:rounded-xl lg:border"
+      className={cn(
+        "bg-background fixed inset-0 z-40 flex flex-col lg:shrink-0 lg:rounded-xl lg:border",
+        expanded
+          ? "lg:inset-4 lg:w-auto"
+          : "lg:sticky lg:top-[calc(1rem-var(--page-inset-top,2rem))] lg:z-auto lg:-mt-(--page-inset-top) lg:h-[calc(100dvh-2rem-var(--window-drag-height,0px))] lg:w-[var(--test-panel-width)]",
+      )}
     >
       <div
         role="separator"
         aria-orientation="vertical"
         aria-label={t("testPanelResize")}
         onPointerDown={startResize}
-        className="hover:bg-border absolute inset-y-0 -left-1.5 hidden w-3 cursor-col-resize rounded lg:block"
+        className={cn(
+          "hover:bg-border absolute inset-y-0 -left-1.5 hidden w-3 cursor-col-resize rounded",
+          !expanded && "lg:block",
+        )}
       />
       <header className="flex flex-col gap-2 border-b px-3 py-2.5">
         <div className="flex items-center gap-1.5">
-          <h2 className="mr-1 text-sm font-semibold">{t("testPanel")}</h2>
-          {picker(mode, (value) => update({ mode: value }), t("testPanelWhatAnswers"))}
-          {compare !== null &&
-            picker(compare, (value) => update({ compare: value }), t("testPanelComparedWith"))}
+          <h2 className="mr-auto hidden text-sm font-semibold sm:block">{t("testPanel")}</h2>
+          <WorkspaceFullscreenButton expanded={expanded} onToggle={toggleFullscreen} />
           {choices.length > 1 && (
             <Button
               variant={compare === null ? "ghost" : "secondary"}
@@ -230,6 +243,11 @@ export function TestPanel({
             <PanelRightClose className="h-4 w-4" />
           </Button>
         </div>
+        <div className="flex min-w-0 gap-2">
+          {picker(mode, (value) => update({ mode: value }), t("testPanelWhatAnswers"))}
+          {compare !== null &&
+            picker(compare, (value) => update({ compare: value }), t("testPanelComparedWith"))}
+        </div>
         {/* What answers is said in the conversation's own opening, as `/chat`
             says it (#2075); this line is left for what changes while you look. */}
         <p className="text-muted-foreground min-h-0 text-xs empty:hidden" role="status">
@@ -249,11 +267,37 @@ export function TestPanel({
           />
         )}
       </header>
+      {compare !== null && (
+        <div
+          className="flex gap-1 px-3 py-2 lg:hidden"
+          role="group"
+          aria-label={t("testPanelCompare")}
+        >
+          {modes.map((value, index) => (
+            <Button
+              key={value}
+              variant={mobilePane === index ? "secondary" : "ghost"}
+              size="sm"
+              className="min-w-0 flex-1"
+              aria-pressed={mobilePane === index}
+              onClick={() => setMobilePane(index)}
+            >
+              <span className="truncate">{label(value)}</span>
+            </Button>
+          ))}
+        </div>
+      )}
       <div className={cn("flex min-h-0 flex-1 flex-col lg:flex-row", compare && "lg:divide-x")}>
-        {modes.map((value) => (
-          <div key={value} className="flex min-h-0 min-w-0 flex-1 flex-col">
+        {modes.map((value, index) => (
+          <div
+            key={value}
+            className={cn(
+              "min-h-0 min-w-0 flex-1 flex-col",
+              compare !== null && mobilePane !== index ? "hidden lg:flex" : "flex",
+            )}
+          >
             {compare !== null && (
-              <p className="text-muted-foreground border-b px-3 py-1.5 text-xs font-medium">
+              <p className="text-muted-foreground hidden border-b px-3 py-1.5 text-xs font-medium lg:block">
                 {label(value)}
               </p>
             )}

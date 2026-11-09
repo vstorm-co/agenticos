@@ -4,6 +4,7 @@ description: Writes matter updates that say where things are, what they cost and
   happens next.
 capabilities:
 - ask_user
+- drafts
 - knowledge
 - skills
 - context

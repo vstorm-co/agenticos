@@ -3,9 +3,13 @@
 <img src="docs/assets/readme-banner.webp" alt="AgenticOS: open-source AI teammates for your company. Agents, drawn as blobs, work with the Toolbox's capabilities: knowledge search, a web browser, subagents, a sandbox, charts, apps, skills and guardrails." width="100%">
 
 <p>
-  <b>The self-hosted agent layer: build, run and govern AI agents on your own infrastructure.</b><br>
-  Your team and its agents in one live chat, with Claude Code and Codex on hand, a real browser, MCP and an API, under budgets, approvals and a recorded run.<br>
+  <b>Open-source, self-hosted AI agent platform for your company's AI teammates.</b><br>
+  Build, run and govern agents on your own servers and models: shared chat, RAG, skills, a real browser, MCP, budgets, approvals and an audit trail.<br>
   <sub>Apache-2.0 &middot; built on Pydantic AI</sub>
+</p>
+
+<p>
+  🏆 <b>Built by Vstorm — a recipient of the 2026 Open Agentic AI Innovation Award.</b><br>Recognized by the Agentic AI Foundation for adopting AGENTS.md and integrating MCP in its open-source framework.<br><a href="https://aaif.io/blog/winners-of-the-first-aaif-annual-technical-excellence-awards">Read the AAIF announcement</a> &middot; <a href="https://vstorm.co/agentic-ai/open-agentic-ai-standards-aaif-award/">The work behind the award</a>
 </p>
 
 <p>
@@ -13,6 +17,7 @@
   <a href="#-highlights">Highlights</a> &middot;
   <a href="#-what-is-agenticos">What is it?</a> &middot;
   <a href="#-quick-start">Quick start</a> &middot;
+  <a href="#run-on-your-server-open-it-anywhere">Server, desktop &amp; mobile</a> &middot;
   <a href="#-connect-the-apps-your-team-already-uses">Integrations</a> &middot;
   <a href="#-build-share-and-operate">Product tour</a> &middot;
   <a href="#-find-your-path">Find your path</a> &middot;
@@ -39,11 +44,22 @@
 
 </div>
 
-<a href="docs/assets/readme/highlight-hero.webp"><img src="docs/assets/readme/highlight-hero.webp" alt="Dark mode, two people in a project chat: the Chief of Staff tells Tom it applied his budget change and Peter's confirmation to the launch plan, shows the new split and lists what is still open for the team." width="100%"></a>
+<a href="docs/assets/readme/highlight-hero.webp"><img src="docs/assets/readme/highlight-hero.webp" alt="Prepared Revenue Pulse sales review in the full AgenticOS chat: revenue vs target and team contribution." width="100%"></a>
+
+*Prepared conversation with fictional sales data in the real Visuals renderer. No live CRM or new model-generation run is represented.*
 
 AgenticOS gives every team AI teammates: agents that work with files, run code, browse the web and use your company's tools and knowledge. Your colleagues and your agents work in the same live chat, and any agent can hand code to Claude Code or Codex, on the ChatGPT or Claude subscription you already pay for. It is open source (Apache-2.0) and self-hosted, a layer you run on your own infrastructure. Build and publish agents in the browser, share them with colleagues, and manage their access, cost and results in one place.
 
 **New here?** Click through the [17-slide introduction](https://vstorm-co.github.io/agenticos/presentation/): the problem, the idea, the product on real screens, its controls and limits, and how to start. For every screen in detail, open the [47-slide product tour](https://vstorm-co.github.io/agenticos/presentation/tour/). Arrow keys step through either deck; `O` lists every slide.
+
+## New in the latest releases
+
+- **Your local Claude Code or Codex, inside desktop chat.** Choose a coding agent per conversation, work in an approved local folder, resume its session and apply corrections while it works. Sign in through the coding agent's own terminal flow.
+- **Your skills and project instructions.** Opt a desktop conversation into local skills and `AGENTS.md` / `CLAUDE.md`, read from your computer. Each new chat starts with this sharing off.
+- **Discord joins Slack, Teams, Telegram and Mattermost.** Answer mentions, direct messages and `/ask`; review approvals and questions in the channel. [Set up a channel](https://vstorm-co.github.io/agenticos/channels/).
+- **More useful Visuals and Apps.** Draw country maps, pins and routes with the bundled `AOWorldMap`, or use the presentation skills to build a deck as an App. A command watcher can follow test or log output while an agent works.
+
+[Release notes](https://github.com/vstorm-co/agenticos/releases) · [Desktop guide](https://vstorm-co.github.io/agenticos/desktop/)
 
 ## ⚡ Highlights
 
@@ -51,7 +67,7 @@ AgenticOS gives every team AI teammates: agents that work with files, run code, 
 
 A project gives everyone the same files, instructions and a computer for the agents. Invite colleagues and work the way a team works: see who is here, watch a teammate's agent answer as it is written, and bring in any agent, tool or document with an `@`.
 
-<a href="docs/assets/readme/highlight-projects.webp"><img src="docs/assets/readme/highlight-projects.webp" alt="A project chat for the Fall launch: two people are in the room, Jordan Reed asks the Coder agent to build the launch page with the coding agent, and Codex's steps run under the answer" width="100%"></a>
+<a href="docs/assets/readme/highlight-projects.webp"><img src="docs/assets/readme/highlight-projects.webp" alt="A shared project chat with a launch brief and channel budget, shown with the complete console navigation." width="100%"></a>
 
 ### Reply to anyone, and the agent knows who said what
 
@@ -63,13 +79,17 @@ Reply to a person or an agent's answer, and the agent applies the change and say
 
 Any agent can hand software work to Claude Code or Codex. They build in the agent's own computer, on your ChatGPT or Claude subscription, and report what they changed, what they checked and what they need from you.
 
-<a href="docs/assets/readme/highlight-coding.webp"><img src="docs/assets/readme/highlight-coding.webp" alt="The Coder agent's answer after Codex built the launch page: the colours and headline it used, what it left out, the checks that passed and two decisions for the team" width="100%"></a>
+<a href="docs/assets/readme/highlight-coding.webp"><img src="docs/assets/readme/highlight-coding.webp" alt="Prepared interface example: Claude Code implements a supplier portal and Codex reviews it in read-only mode. Fictional handoffs; no coding CLI execution is represented." width="100%"></a>
+
+*Prepared interface example: Claude Code implements a supplier portal and Codex reviews it in read-only mode. Fictional handoffs; no coding CLI execution is represented.*
 
 ### Ask how it works, get a drawing you can use
 
 An agent draws while it writes: a diagram from your documents, a calculator with sliders, a chart or a 3D scene, live under its message. One click saves it as an app your team opens by link.
 
-<a href="docs/assets/readme/highlight-visuals.webp"><img src="docs/assets/readme/highlight-visuals.webp" alt="An ROI calculator the Visuals Lab agent drew in the chat: sliders for invoices, minutes per invoice, hourly cost and time saved, the dollars saved per year and a bar chart of monthly cost before and after" width="100%"></a>
+<a href="docs/assets/readme/highlight-visuals.webp"><img src="docs/assets/readme/highlight-visuals.webp" alt="A prepared manufacturing Visual inside chat: a supply network, inbound delivery exceptions and assembly windows. Interactive fictional data; no ERP, machine connection or live model call is represented." width="100%"></a>
+
+*A prepared manufacturing Visual inside chat: a supply network, inbound delivery exceptions and assembly windows. Interactive fictional data; no ERP, machine connection or live model call is represented.*
 
 ### Write to an agent and leave
 
@@ -81,7 +101,7 @@ Ask for research that takes a while and close the tab. The agent keeps working, 
 
 Open the console to what your agents did, the calls waiting on you and the conversations to pick up again - with a tour of what they can do that is easy to miss.
 
-<a href="docs/assets/readme/highlight-dashboard.webp"><img src="docs/assets/readme/highlight-dashboard.webp" alt="The Me tab of the dashboard: a greeting, a getting-started checklist, a carousel of features with isometric illustrations, and this period's runs, completion and spend" width="100%"></a>
+<a href="docs/assets/readme/highlight-dashboard.webp"><img src="docs/assets/readme/highlight-dashboard.webp" alt="The personal Me dashboard with an actionable briefing, team knowledge follow-ups and a carousel of AgenticOS capabilities." width="100%"></a>
 
 ### Agents that work as a team
 
@@ -93,19 +113,38 @@ A lead agent hands parts of a task to colleagues and writes up what they found -
 
 Watch it click through sites, take over when a sign-in needs you, point at a spot to comment.
 
-<a href="docs/assets/readme/highlight-browser.webp"><img src="docs/assets/readme/highlight-browser.webp" alt="A Sales Researcher's live browser under its message in the chat, open on NASA's Artemis III mission page, with the answer it wrote from the page below" width="100%"></a>
+<a href="docs/assets/readme/highlight-browser.webp"><img src="docs/assets/readme/highlight-browser.webp" alt="The Sales Researcher’s recorded browser steps and sourced answer about Ramp pricing." width="100%"></a>
 
 ### Build, equip and test in one window
 
-Switch tools on from illustrated cards, then give the draft a real job in the test chat beside them - here it charts a quarter's revenue against costs and reads the margin, before anyone else sees the agent.
+Enable tools and try a real task in the draft test panel before publishing the agent for colleagues.
 
-<a href="docs/assets/readme/highlight-builder-test.webp"><img src="docs/assets/readme/highlight-builder-test.webp" alt="The Finance Analyst's toolbox with isometric capability cards, and its test chat drawing a chart of Q3 revenue against costs" width="100%"></a>
+<a href="docs/assets/readme/highlight-builder-test.webp"><img src="docs/assets/readme/highlight-builder-test.webp" alt="Finance Analyst calculating a sample invoice in the builder’s draft test panel: subtotal €6,180, VAT €1,421.40 and total €7,601.40." width="100%"></a>
 
 ### Apps, not just answers
 
 An agent publishes a dashboard or a report as a page with a stable link and versions.
 
-<a href="docs/assets/readme/highlight-app.webp"><img src="docs/assets/readme/highlight-app.webp" alt="An ROI calculator a Visuals Lab agent drew in chat, saved as an app with its own link: sliders for invoices, minutes and hourly cost, $69,120 saved per year, and monthly cost before and after" width="100%"></a>
+<a href="docs/assets/readme/highlight-app.webp"><img src="docs/assets/readme/highlight-app.webp" alt="Northline manufacturing App: supplier routes, delivery exceptions and an assembly plan." width="100%"></a>
+
+*Northline: a prepared supply and production planning App with fictional shipments, local delay simulation and assembly windows.*
+
+<details>
+<summary>More prepared Apps: motor assembly and sales intelligence</summary>
+
+Working local demonstrations with fictional data. Motor Atlas lets you inspect a conceptual assembly and its component records; Revenue Pulse recalculates sales metrics by region and period. No equipment, ERP or CRM is connected.
+
+<a href="docs/assets/readme/highlight-revenue.webp"><img src="docs/assets/readme/highlight-revenue.webp" alt="Revenue Pulse App with sales targets, pipeline and team contribution." width="100%"></a>
+
+</details>
+
+### A website widget, on your own site
+
+The actual AgenticOS widget runs a published, read-only agent on the fictional Trail Supply website. In the recorded local test it answered using the seeded catalog in its instructions. Live inventory, purchases and payments are not connected.
+
+<a href="docs/assets/readme/highlight-widget.webp"><img src="docs/assets/readme/highlight-widget.webp" alt="Fictional Trail Supply website with the actual AgenticOS widget answering a daypack question." width="100%"></a>
+
+[Build and publish a website widget](https://vstorm-co.github.io/agenticos/howto/support-widget/)
 
 ### 4,700+ MCP servers
 
@@ -121,18 +160,35 @@ AgenticOS is an MCP server. Add it with one command and sign in through the brow
 
 ## 📸 See it in action
 
-<a href="https://github.com/user-attachments/assets/9d2a7923-a52e-4ee6-ab6a-734692824d5a"><img src="docs/assets/screens/agenticos-intro-play.webp" alt="The agenticos logo among the console's blob characters, with a play button: AgenticOS in two minutes" width="100%"></a>
+Browse the [current product gallery](https://vstorm-co.github.io/agenticos/screens/). Motor Atlas below is a prepared, interactive assembly explorer with fictional component records and telemetry; it is not a CAD drawing.
 
-<p align="center"><sub><b>AgenticOS in two minutes.</b> A recorded session: a chief of staff hands work to other agents, the Architect drafts a new agent for approval, a finance agent gets its tools, is tested and publishes a dashboard, another browses GitHub, and one reads Notion over MCP. Narrated with a synthetic voice. <a href="https://github.com/user-attachments/assets/9d2a7923-a52e-4ee6-ab6a-734692824d5a">Watch (2:11)</a></sub></p>
+<a href="docs/assets/readme/highlight-motor.webp"><img src="docs/assets/readme/highlight-motor.webp" alt="Motor Atlas App with an interactive exploded motor assembly and component register." width="100%"></a>
 
+## 🧩 Build useful work around your agents
+
+Use [Workflows](https://vstorm-co.github.io/agenticos/workflows/) to connect typed steps, agent calls and MCP tools on a visual canvas. Store structured results in [Virtual Tables](https://vstorm-co.github.io/agenticos/virtual-tables/), start work with [Routines](https://vstorm-co.github.io/agenticos/triggers/), and review runs and approvals. [Voice calls](https://vstorm-co.github.io/agenticos/voice/) and the [desktop app](https://vstorm-co.github.io/agenticos/desktop/) provide other ways to work with the same published agents.
+
+**Visual workflows, from lead intake to a human-reviewed handoff.**
+
+<a href="docs/assets/readme/highlight-workflows.webp"><img src="docs/assets/readme/highlight-workflows.webp" alt="Illustrative 30-step draft with Google Workspace, Microsoft 365, HubSpot, Salesforce, Notion, Slack, agents and approvals. Connections are demo placeholders; this is not an executed integration." width="100%"></a>
+
+Illustrative 30-step draft with Google Workspace, Microsoft 365, HubSpot, Salesforce, Notion, Slack, agents and approvals. Connections are demo placeholders; this is not an executed integration.
+
+**Structured work your agents and your team can read together.**
+
+<a href="docs/assets/readme/highlight-tables.webp"><img src="docs/assets/readme/highlight-tables.webp" alt="The complete AgenticOS window showing a fictional sales pipeline as a Kanban board." width="100%"></a>
+
+Virtual Tables with fictional companies, typed fields, stages and next actions. Switch between a grid and a kanban board.
+
+Start with a recognizable task: an [LLM wiki in a Project](https://vstorm-co.github.io/agenticos/projects/), a [website agent widget](https://vstorm-co.github.io/agenticos/channels/), or a team working from shared project files and instructions. A widget supplies the conversation surface; recommendations and cart actions still need your catalog, tool integration and permission checks.
 
 ## 💡 What is AgenticOS?
 
-**AgenticOS is an open-source (Apache-2.0), self-hosted layer for building, sharing and governing AI agents across a company.** Teams configure an agent in the browser by writing its instructions, choosing a model and switching on tools. They connect it to company documents and apps, and publish it to web chat, Slack, Mattermost, Telegram, a website widget or an API. Administrators control who can use each agent, what it may spend and which actions need a person's approval. Every run is recorded.
+**AgenticOS is an open-source (Apache-2.0), self-hosted layer for building, sharing and governing AI agents across a company.** Teams configure an agent in the browser by writing its instructions, choosing a model and switching on tools. They connect it to company documents and apps, and publish it to web chat, Slack, Teams, Discord, Mattermost, Telegram, a website widget or an API. Administrators control who can use each agent, what it may spend and which actions need a person's approval. Every run is recorded.
 
 Most agent frameworks give you a library, so every change to an agent's behaviour is a pull request, a review and a release. That is the wrong shape for the small agents a company actually wants, because the person who knows what the agent should say is not the person with commit access. **Code defines, configuration composes:** engineers extend what there is to assemble, and configuration can only ever reach what code registered.
 
-It runs on your own infrastructure with Docker Compose and works with 28 model providers, including your ChatGPT subscription and local models through Ollama and vLLM. Agents run on [Pydantic AI](https://ai.pydantic.dev) and [pydantic-ai-harness](https://github.com/pydantic/pydantic-ai-harness); the layer around them uses FastAPI, PostgreSQL with pgvector and Next.js. It is maintained by [Vstorm](https://vstorm.co).
+It runs on your own infrastructure with Docker Compose and works with 28 model providers, including your ChatGPT subscription and local models through Ollama and vLLM. Agents run on [Pydantic AI](https://ai.pydantic.dev) and [pydantic-ai-harness](https://pydantic.dev/docs/ai/harness/); the layer around them uses FastAPI, PostgreSQL with pgvector and Next.js. It is maintained by [Vstorm](https://vstorm.co).
 
 **Who it is for:**
 
@@ -147,9 +203,7 @@ It runs on your own infrastructure with Docker Compose and works with 28 model p
 
 **How AgenticOS fits into a company:** departments such as finance, operations or the board use shared agents in web chat, Slack or a private workspace. Your systems call agents through the API, and events or schedules start them automatically. Every request passes the same controls: roles, budgets, approvals, guardrails and a recorded run. Your data, vectors, code sandboxes, the credential vault and optional local models stay on your infrastructure. Hosted models, SaaS tools and document sources outside are used only when you configure them.
 
-<img src="docs/assets/readme/figures.webp" alt="29 built-in capabilities, switched on per agent; 8 places an agent answers; 28 model providers, hosted, your cloud or local; 5 document sync sources; 4,700+ MCP servers in the gallery; 30 tutorials, each with a check you can run." width="100%">
-
-<p align="center"><sub><b>At a glance:</b> 29 built-in capabilities · 8 places an agent answers · 28 model providers · 5 document sync sources · 4,700+ MCP servers · 30 tutorials.</sub></p>
+28 model providers · 4,700+ MCP gallery entries · shared chat and Projects · visual workflows and virtual tables · web, desktop, API and messaging channels. Configure availability and tools for each published agent.
 
 ## ✨ What you can do
 
@@ -163,6 +217,21 @@ It runs on your own infrastructure with Docker Compose and works with 28 model p
 | [Organize company access](#-organize-teams-with-roles-and-groups) | Combine roles, department groups and company sign-in |
 
 ## 🚀 Quick start
+
+### Choose how you want to start
+
+**One company workspace, many ways to connect.** The server runs AgenticOS; the desktop app connects to it. Joining an existing workspace needs no Docker or developer tools.
+
+| Your situation | Next step |
+|---|---|
+| Your company already has AgenticOS | Ask for the workspace URL and sign in through your browser, or [install the desktop app](#install-the-desktop-app). |
+| You want a workspace for your company | Have your IT team [deploy a server](#deploy-a-company-server), or [ask Vstorm to help](https://vstorm.co/contact-us/). |
+| You are a developer exploring locally | [Run the Docker quickstart](#try-it-locally). |
+
+### Try it locally
+
+<details id="local-quickstart">
+<summary>For developers: try AgenticOS locally with Docker</summary>
 
 Start with Docker Compose and access to a model provider. On macOS or Linux, run:
 
@@ -186,6 +255,97 @@ curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/qu
 For manual Docker Compose setup, pinned versions and troubleshooting, follow the [installation guide](https://vstorm-co.github.io/agenticos/install/). For development from source, see [Contributing](https://vstorm-co.github.io/agenticos/help/).
 
 </details>
+
+</details>
+
+## Run on your server. Open it anywhere.
+
+The server holds the workspace. The browser, desktop app and phone connect to that deployment with its accounts, agents and access controls.
+
+<a id="server-setup"></a>
+
+### Deploy a company server
+
+Your IT team sets up the workspace once, then shares an HTTPS address and creates your account. You can use that address in a browser or in the desktop app. For an assisted rollout, [talk to Vstorm](https://vstorm.co/contact-us/).
+
+<details>
+<summary>Server setup for IT and developers</summary>
+
+Use a Linux host with **4 vCPU and 8 GB RAM**, Docker Engine 24+, Compose 2.24+ and `make`. Point two DNS names at it — for example `app.example.com` and `api.example.com` — and allow HTTPS through a reverse proxy. The supported deployment is Docker Compose on one host.
+
+```bash
+# On the server. Start from a released version so code and images stay aligned.
+git clone --branch v1.38.2 --depth 1 https://github.com/vstorm-co/agenticos.git
+cd agenticos
+bash scripts/server-init.sh
+```
+
+The setup asks for the site/API hostnames and certificate email, then generates `backend/.env`. Set `AGENTICOS_VERSION=1.38.2` there to pin this release. For a new host using the bundled Traefik proxy:
+
+```bash
+docker network create traefik_webgateway
+docker compose --env-file backend/.env -f docker-compose-traefik.yml up -d
+make prod PROXY=traefik
+make prod-frontend PROXY=traefik
+```
+
+Then [bootstrap the first organization, owner and agent](https://vstorm-co.github.io/agenticos/deploy/#start-it-and-create-the-first-account), open your site's HTTPS address and add your organization's model credentials. The guide also covers an existing proxy, Nginx, updates and backups. Keep a backup of the database **and the vault key in `backend/.env`**.
+
+```bash
+docker compose --env-file backend/.env -f docker-compose-prod.yml \
+  exec -T app agenticos cmd bootstrap \
+  --email you@example.com --password '<your-password>' \
+  --org 'Your Company' --provider anthropic --api-key '<your-api-key>'
+```
+
+[Complete server deployment guide](https://vstorm-co.github.io/agenticos/deploy/) · [Configuration checklist](https://vstorm-co.github.io/agenticos/configuration/#production-checklist)
+
+</details>
+
+<a id="desktop-install"></a>
+
+### Install the desktop app
+
+Download an installer from [release v1.38.2](https://github.com/vstorm-co/agenticos/releases/tag/v1.38.2):
+
+| System | Download v1.38.2 | What to do |
+|---|---|---|
+| <img src="docs/assets/readme/platforms/apple.svg" width="18" height="18" alt="" /> **macOS** | [Apple silicon · DMG](https://github.com/vstorm-co/agenticos/releases/download/v1.38.2/AgenticOS_1.38.2_aarch64.dmg) · [Intel · DMG](https://github.com/vstorm-co/agenticos/releases/download/v1.38.2/AgenticOS_1.38.2_x64.dmg) | Open the DMG and drag AgenticOS into Applications. |
+| <img src="docs/assets/readme/platforms/windows.svg" width="18" height="18" alt="" /> **Windows x64** | [EXE](https://github.com/vstorm-co/agenticos/releases/download/v1.38.2/AgenticOS_1.38.2_x64-setup.exe) · [MSI](https://github.com/vstorm-co/agenticos/releases/download/v1.38.2/AgenticOS_1.38.2_x64_en-US.msi) | Open the EXE and follow the installer. MSI is for managed IT deployment. |
+| <img src="docs/assets/readme/platforms/linux.svg" width="18" height="18" alt="" /> **Linux x64** | [DEB](https://github.com/vstorm-co/agenticos/releases/download/v1.38.2/AgenticOS_1.38.2_amd64.deb) · [RPM](https://github.com/vstorm-co/agenticos/releases/download/v1.38.2/AgenticOS-1.38.2-1.x86_64.rpm) · [AppImage](https://github.com/vstorm-co/agenticos/releases/download/v1.38.2/AgenticOS_1.38.2_amd64.AppImage) | Open DEB/RPM in your software installer. For AppImage, allow execution in file properties. |
+
+On a Mac, choose **Apple menu → About This Mac**: “Chip” identifies Apple silicon; “Processor: Intel” identifies an Intel Mac.
+
+**Prefer Homebrew on macOS?**
+
+The project’s [Homebrew tap](https://github.com/vstorm-co/homebrew-agenticos) chooses the correct Mac installer. Its cask clears the download quarantine flag for AgenticOS; it does not provide Apple notarization:
+
+```bash
+brew install --cask vstorm-co/agenticos/agenticos
+```
+
+**After installing:** open AgenticOS, enter the HTTPS workspace address your team gave you and sign in. Connecting to an existing server needs no local Docker. To create a local workspace instead, choose the local-instance option in the wizard; that needs Docker.
+
+On macOS, builds are not Apple-notarized; a browser-downloaded DMG may need **System Settings → Privacy & Security → Open Anyway**. See the [installation guide](https://vstorm-co.github.io/agenticos/desktop/#installing-the-app).
+
+Beyond the console, desktop adds Quick Ask, local files and computer access with your consent, and local Claude Code / Codex. Under **Settings → Desktop app**, check the installed coding agents and sign in through their terminal. Choose one in **Chat controls**, grant a working folder full access and confirm the task in the native dialog. **My skills and instructions** is a separate, optional choice for each chat.
+
+[Desktop setup and local agents](https://vstorm-co.github.io/agenticos/desktop/)
+
+### Use AgenticOS on your phone
+
+**Available now without a build:** open your deployment's HTTPS address in a mobile browser and sign in. Use the install prompt on a supported browser; on iPhone, choose **Share → Add to Home Screen**. The console adapts to a phone, including chat, files and approvals.
+
+**Native iOS and Android:** the source is included in `mobile/`, with biometric locking, sharing, widgets and native notification integrations. These are currently **development builds**, with no public App Store, Google Play, TestFlight or supported release download. To try the native app, install Rust plus Xcode on macOS (iOS), or the Android SDK/NDK and JDK (Android), then:
+
+```bash
+cd mobile
+bun install --frozen-lockfile
+bun run ios        # iOS development on macOS
+# or: bun run android
+```
+
+Install with your own platform signing/provisioning where required. Enter a server address reachable from the phone, or pair from **Settings → Mobile app** using the one-time QR code and confirm the account. `localhost` on a phone refers to the phone itself. Native push needs the deployment's platform-specific configuration; the [mobile guide](https://vstorm-co.github.io/agenticos/mobile/) covers build prerequisites, pairing and notifications.
 
 ## 🔌 Connect the apps your team already uses
 
@@ -314,15 +474,15 @@ Security is layered. Credentials sit in an envelope-encrypted vault. Code runs i
 
 ## 📦 What ships today
 
-<img src="docs/assets/readme/capabilities.webp" alt="29 built-in capabilities in six groups: knowledge and memory, web, files code and output, how it works, safety and limits, chat channels." width="100%">
+<img src="docs/assets/readme/capabilities.webp" alt="Selected built-in capabilities in six groups: knowledge and memory, web, files code and output, how it works, safety and limits, chat channels." width="100%">
 
 <details>
-<summary>All 31 built-in capabilities, as text</summary>
+<summary>All 37 built-in capabilities, as text</summary>
 
-- **Knowledge and memory:** knowledge search with citations, skills, context, memory, memory through mem0, past conversations.
-- **Web:** web search (DuckDuckGo by default; Tavily, Brave or Exa with a key), reading web pages, and a web browser the agent drives and you can take over.
-- **Files, code and output:** calculations in Python, a sandbox with files and a shell, a coding agent that hands work to Claude Code or Codex, charts, drawings (diagrams, calculators, 3D scenes), image generation (OpenAI or Google), speech (OpenAI, ElevenLabs or Google), video clips (Google, BytePlus, xAI or Alibaba), apps.
-- **How it works:** subagents, planning, thinking, work while tools run, tool search, date and time, instruction reminders, asking the user.
+- **Knowledge and memory:** knowledge search with citations, skills, context, memory, past conversations.
+- **Web:** web search (DuckDuckGo by default; Tavily, Brave or Exa with a key), reading web pages, a web browser the agent drives and you can take over, and computer use with your permission.
+- **Files, code and output:** calculations in Python, a sandbox with files and a shell, a coding agent that hands work to Claude Code or Codex, charts, drawings (diagrams, calculators, 3D scenes), image generation (OpenAI or Google), speech (OpenAI, ElevenLabs or Google), video clips (Google, BytePlus, xAI or Alibaba), command watches, Tables, Workflows and apps.
+- **How it works:** subagents, planning, thinking, work while tools run, tool search, date and time, instruction reminders, asking the user, drafts and follow-up suggestions.
 - **Safety and limits:** guardrails that redact secrets and personal data, long conversations, media offload, tool output limits.
 - **Chat channels:** chat channel lookup for Slack, Telegram and Mattermost bots.
 
@@ -333,10 +493,10 @@ Plus any tool from a connected MCP server, and capabilities your engineers add i
 <details>
 <summary>Where agents answer, and which models they use</summary>
 
-<img src="docs/assets/readme/eight-surfaces.webp" alt="Eight places one agent can answer." width="100%">
+<img src="docs/assets/readme/eight-surfaces.webp" alt="Examples of places one agent can answer." width="100%">
 <img src="docs/assets/readme/model-providers.webp" alt="28 model providers: hosted, your subscription, your cloud contract, or on your hardware." width="100%">
 
-**Where agents answer:** web chat, a website widget, a hosted page, the HTTP API, a streaming WebSocket, Slack, Mattermost and Telegram.
+**Where agents answer:** web chat, a website widget, a hosted page, the HTTP API, a streaming WebSocket, Slack, Teams, Discord, Mattermost and Telegram.
 
 **Model providers:**
 - **Hosted (22):** OpenAI, Anthropic, Google Gemini, OpenRouter, Mistral, DeepSeek, xAI, Cohere, Groq, Cerebras, Together, Fireworks, Hugging Face, GitHub Models, Alibaba, Moonshot, Z.AI, Nebius, OVHcloud, SambaNova, Heroku and Vercel AI Gateway.
@@ -362,7 +522,7 @@ AI teammates are arriving in every vendor's cloud. AgenticOS is the one you run 
 
 Choose it when a team has repeated document or tool-based work, subject experts who can maintain the instructions, and someone responsible for operating a self-hosted deployment. Know where it stops today:
 
-<img src="docs/assets/readme/limits.webp" alt="Eight limits with alternatives: source permissions, Microsoft 365 triggers, visual workflow builder, MFA/SAML/SCIM, search quality tools, scale-out, budgets under load, results." width="100%">
+Source-system permissions are not mirrored automatically; an agent can lend its bound knowledge to its users. Self-hosting also requires an operator, and model quality, tool configuration and workload determine results. Read the current [limits and tradeoffs](https://vstorm-co.github.io/agenticos/about/comparison/#what-agenticos-does-not-do-yet).
 
 ## 🔐 Own your deployment, models and access
 
@@ -380,7 +540,7 @@ AgenticOS is built with FastAPI, Pydantic AI, PostgreSQL with pgvector, Redis an
 |---|---|
 | Console | Next.js |
 | API | FastAPI |
-| Agent runtime | [Pydantic AI](https://ai.pydantic.dev) and [pydantic-ai-harness](https://github.com/pydantic/pydantic-ai-harness), one runner behind every surface |
+| Agent runtime | [Pydantic AI](https://ai.pydantic.dev) and [pydantic-ai-harness](https://pydantic.dev/docs/ai/harness/), one runner behind every surface |
 | Background work | A job queue in PostgreSQL, served by `python -m app.worker` |
 | Data | PostgreSQL with pgvector |
 | Code execution | Containers started by `sandboxd` |
@@ -389,7 +549,7 @@ Call a published agent with `POST /api/v1/agents/{id}/run` as an authenticated m
 
 [Architecture](https://vstorm-co.github.io/agenticos/architecture/) · [API](https://vstorm-co.github.io/agenticos/api/) · [Add a capability](https://vstorm-co.github.io/agenticos/howto/add-capability/) · [Capability reference](https://vstorm-co.github.io/agenticos/reference/capabilities/) · [Contributing](https://vstorm-co.github.io/agenticos/help/)
 
-The [operating-system analogy](https://vstorm-co.github.io/agenticos/about/) explains the architecture. The optional [desktop app](https://vstorm-co.github.io/agenticos/desktop/) adds a dedicated window, a pet and a macOS screenshot shortcut.
+The [operating-system analogy](https://vstorm-co.github.io/agenticos/about/) explains the architecture. The optional [desktop app](https://vstorm-co.github.io/agenticos/desktop/) adds Quick Ask, approved local files and computer access, and local Claude Code or Codex. The [mobile guide](https://vstorm-co.github.io/agenticos/mobile/) covers the home-screen console and native development builds.
 
 ## ❓ Frequently asked questions
 

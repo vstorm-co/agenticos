@@ -16,7 +16,7 @@ import {
   Textarea,
 } from "@/components/ui";
 import { getErrorMessage } from "@/lib/api-error";
-import { DIALOG_BODY, DIALOG_BROAD, DIALOG_COLUMN } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_CANVAS, DIALOG_FILL } from "@/lib/dialog-sizes";
 import type { ProposedSkill, RejectedChange } from "@/types/authoring";
 
 /** Below this many distinct answers the assistant does not add a new skill on its own. */
@@ -71,14 +71,14 @@ export function IdeaSkillDialog({
 
   return (
     <Dialog open onOpenChange={onOpenChange}>
-      <DialogContent className={`${DIALOG_BROAD} ${DIALOG_COLUMN}`}>
+      <DialogContent className={`${DIALOG_CANVAS} ${DIALOG_FILL}`}>
         <DialogHeader>
           <DialogTitle>{t("title")}</DialogTitle>
           <DialogDescription>{t("description")}</DialogDescription>
         </DialogHeader>
         <div className={`${DIALOG_BODY} space-y-4`}>
           {answers < RECORDED_FROM_ANSWERS && (
-            <p role="status" className="text-warning text-sm">
+            <p role="status" className="text-warning-ink text-sm">
               {t("fewAnswers", { count: answers })}
             </p>
           )}
@@ -94,7 +94,9 @@ export function IdeaSkillDialog({
             />
             <p
               id="idea-skill-name-hint"
-              className={nameValid ? "text-muted-foreground text-xs" : "text-destructive text-xs"}
+              className={
+                nameValid ? "text-muted-foreground text-xs" : "text-destructive-ink text-xs"
+              }
             >
               {t("nameHint")}
             </p>
@@ -118,7 +120,7 @@ export function IdeaSkillDialog({
             />
           </div>
           {error && (
-            <p role="alert" className="text-destructive text-sm">
+            <p role="alert" className="text-destructive-ink text-sm">
               {error}
             </p>
           )}

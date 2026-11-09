@@ -78,6 +78,7 @@ beforeEach(() => {
     proposals: [],
     total: 0,
     hidden: 0,
+    isLoading: false,
     error: null,
   };
 });
@@ -85,21 +86,33 @@ beforeEach(() => {
 describe("ProposedCases", () => {
   it("draws nothing for a reader who may not decide", () => {
     proposals.current.total = 3;
-    const { container } = render(<ProposedCases datasetId="d1" canEdit={false} />);
+    const { container } = render(
+      <ProposedCases onGenerate={vi.fn()} datasetId="d1" canEdit={false} />,
+    );
     expect(container).toBeEmptyDOMElement();
     expect(asked).toHaveBeenCalledWith(expect.objectContaining({ enabled: false }));
   });
 
-  it("draws nothing when no draft waits and nothing is being drafted", () => {
+  it("keeps the empty queue and generation action when no draft waits", async () => {
     generations.current = [{ ...RUNNING, status: "ready" }];
-    const { container } = render(<ProposedCases datasetId="d1" canEdit />);
-    expect(container).toBeEmptyDOMElement();
+    const onGenerate = vi.fn();
+    render(<ProposedCases onGenerate={onGenerate} datasetId="d1" canEdit />);
+    expect(screen.getByText("No generated cases yet")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Generate cases" }));
+    expect(onGenerate).toHaveBeenCalledOnce();
+  });
+
+  it("waits for the proposals read before claiming the queue is empty", () => {
+    proposals.current.isLoading = true;
+    render(<ProposedCases onGenerate={vi.fn()} datasetId="d1" canEdit />);
+    expect(screen.queryByText("No generated cases yet")).toBeNull();
+    expect(screen.getByRole("button", { name: "Generate cases" })).toBeEnabled();
   });
 
   it("counts the drafts from chats a reader may not see, and shows none of them", () => {
     generations.current = [{ ...RUNNING, status: "ready" }];
     proposals.current.hidden = 2;
-    render(<ProposedCases datasetId="d1" canEdit />);
+    render(<ProposedCases onGenerate={vi.fn()} datasetId="d1" canEdit />);
     expect(
       screen.getByText("2 drafts from chats need permission to view runs"),
     ).toBeInTheDocument();
@@ -108,7 +121,7 @@ describe("ProposedCases", () => {
 
   it("says a generation is running before any draft has arrived", () => {
     generations.current = [RUNNING];
-    render(<ProposedCases datasetId="d1" canEdit />);
+    render(<ProposedCases onGenerate={vi.fn()} datasetId="d1" canEdit />);
     expect(screen.getByText("Nothing waiting")).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Drafting 5 cases…");
     expect(screen.queryByRole("button", { name: "Accept all" })).toBeNull();
@@ -118,7 +131,7 @@ describe("ProposedCases", () => {
     proposals.current.proposals = [proposal("p1", "First?"), proposal("p2", "Second?")];
     proposals.current.total = 2;
     proposals.current.accept.mutateAsync.mockResolvedValue({});
-    render(<ProposedCases datasetId="d1" canEdit />);
+    render(<ProposedCases onGenerate={vi.fn()} datasetId="d1" canEdit />);
 
     expect(screen.getByText("2 cases waiting for a decision")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Accept all" }));
@@ -150,7 +163,7 @@ describe("ProposedCases", () => {
   it("closes the editor without deciding when it is cancelled", async () => {
     proposals.current.proposals = [proposal("p1", "First?")];
     proposals.current.total = 1;
-    render(<ProposedCases datasetId="d1" canEdit />);
+    render(<ProposedCases onGenerate={vi.fn()} datasetId="d1" canEdit />);
     await userEvent.click(screen.getByRole("button", { name: "Edit proposed case" }));
     await userEvent.click(await screen.findByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(screen.queryByDisplayValue("First?")).toBeNull());
@@ -160,7 +173,7 @@ describe("ProposedCases", () => {
   it("pages when the drafts outnumber a page", async () => {
     proposals.current.proposals = [proposal("p1", "First?")];
     proposals.current.total = 120;
-    render(<ProposedCases datasetId="d1" canEdit />);
+    render(<ProposedCases onGenerate={vi.fn()} datasetId="d1" canEdit />);
     await userEvent.click(screen.getByRole("button", { name: /next/i }));
     expect(asked).toHaveBeenLastCalledWith(expect.objectContaining({ skip: 50 }));
   });
@@ -168,19 +181,19 @@ describe("ProposedCases", () => {
   it("steps back a page when deciding empties the last one", async () => {
     proposals.current.proposals = [proposal("p1", "First?")];
     proposals.current.total = 120;
-    const { rerender } = render(<ProposedCases datasetId="d1" canEdit />);
+    const { rerender } = render(<ProposedCases onGenerate={vi.fn()} datasetId="d1" canEdit />);
     await userEvent.click(screen.getByRole("button", { name: /next/i }));
     await userEvent.click(screen.getByRole("button", { name: /next/i }));
     expect(asked).toHaveBeenLastCalledWith(expect.objectContaining({ skip: 100 }));
 
     proposals.current.total = 60;
-    rerender(<ProposedCases datasetId="d1" canEdit />);
+    rerender(<ProposedCases onGenerate={vi.fn()} datasetId="d1" canEdit />);
     expect(asked).toHaveBeenLastCalledWith(expect.objectContaining({ skip: 50 }));
   });
 
   it("says a failed read out loud and retries it", async () => {
     proposals.current.error = new Error("boom");
-    render(<ProposedCases datasetId="d1" canEdit />);
+    render(<ProposedCases onGenerate={vi.fn()} datasetId="d1" canEdit />);
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(proposals.current.refetch).toHaveBeenCalled();
   });

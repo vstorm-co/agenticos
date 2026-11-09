@@ -1,5 +1,5 @@
 ---
-source_sha: "c4e55a03d561"
+source_sha: "b09bb9e252b2"
 ---
 
 # Die Konsole { #the-console }
@@ -43,6 +43,50 @@ Die Chat-Einstellungen haben eine feste Überschrift und Schließen-Schaltfläch
 Die Agenten einer Unterhaltung sind nach ihrer letzten Nachricht oder ihrem letzten übergeordneten Lauf sortiert, die neuesten zuerst. Die eingeklappte Chat-Leiste behält die volle Avatargröße bei, überlagert bis zu drei Bilder und blendet ältere Teilnehmer aus; die vollständige Liste bleibt im Tooltip verfügbar.
 
 Ist **Approve everything** nicht verfügbar, unterscheiden die Chat-Einstellungen zwischen fehlender Entscheidungsberechtigung und einer Organisationsrichtlinie, die pauschale Zustimmung deaktiviert. Wer Genehmigungen entscheiden darf, erhält einen Link zu **Budget und Genehmigungen**, um die Richtlinie ausdrücklich zu ändern. Der Chat ändert die Organisationsrichtlinie niemals automatisch.
+
+Dialoge behalten auf dem Smartphone an allen Rändern 12 px Abstand. Kompakte Seitenköpfe zeigen Titel und Aktionen in einer Zeile, wenn genug Platz ist. Die Context-Beschreibung öffnet sich über die Editorleiste.
+
+Auf dem Smartphone bleiben die Hauptaktionen sichtbar; weitere Befehle öffnet **Weitere Seitenaktionen**. Inbox-Filter und Tabellenformat werden über Auswahllisten gewählt. Einstellungen mit vielen Bereichen haben ein Bereichsmenü; der MCP-Client wird aus einer Liste gewählt. Projekt- und Workspace-Dateien öffnen sich im Vollbildleser; der Zurück-Pfeil führt zu den Ordnern. Im Workflow-Schritteditor wählst du Einstellungen, Eingabe oder Ausgabe. Beim Wechsel bleiben Änderungen erhalten; auf dem Desktop stehen die Bereiche weiterhin nebeneinander.
+
+Jede ausdrückliche Aktion **New chat** fokussiert den Editor erneut, auch bei einem leeren Entwurf; die Vergabe einer Gesprächs-ID während des Schreibens fordert keinen Fokus an.
+
+Markdown-Felder und Dateieditoren bieten ebenfalls eine Schaltfläche zum Vergrößern, ohne den aktuellen Entwurf zu verwerfen. Beschreibung und Kategorie eines Skills lassen sich über dem Editor aufklappen. Das Chat-Eingabefeld benötigt weniger Platz und begrenzt lange Entwürfe anhand der verfügbaren Bildschirmhöhe. Beim Öffnen der Navigation erhält das Panel den Fokus; mit Tab sind dessen Bedienelemente weiterhin erreichbar. Der Workflow-Canvas bietet auf Telefonen eine schwebende Vollbild-Schaltfläche und eine kleinere Minimap.
+
+Auf Telefonen bleiben Beschreibung, Kategorie und Dateiverwaltung in Skill- und Kontexteditoren beim Schreiben eingeklappt. Eine Schaltfläche wechselt zwischen Quelltext und Vorschau. Apps bietet schwebende Zurück- und Optionsschaltflächen; die Optionen zeigen Titel, Version, Design und Freigabe.
+
+Seitenüberschriften verwenden die Abstände des umgebenden Layouts ohne Verdopplung. Karten, Seitenleistenzeilen, Tabs und leere Zustände haben auf dem Desktop kompaktere Abstände; Bedienelemente behalten größere Touchflächen.
+
+Sekundäre Schaltflächen und Filter teilen eine deutlichere Füllfläche, kontrastreiche Beschriftungen und klare Zustände bei Hover, Betätigung und geöffnetem Menü. Die Modellauswahl im Chat verwendet denselben Stil.
+
+Persönliche Einstellungen behalten horizontale Tabs am oberen Rand, einschließlich der Desktop-Seiten innerhalb der App. Beschreibungen stehen direkt im Panel; Formulare passen sich ihrem Inhalt an. Konto enthält Passwortänderung und aktive Sitzungen; die Passwortaktion steht unter den Feldern.
+
+Profilfelder stehen bei genügend Platz nebeneinander; **Änderungen speichern** ist erst nach einer Bearbeitung verfügbar. Eine Fähigkeitskarte hat einen Bereich zum Öffnen der Einstellungen und einen separaten Schalter zum Aktivieren. Beispiele stehen im Einstellungsbereich hinter dem Informationssymbol; die Illustration der Galerie wird dort nicht wiederholt.
+
+Dialoge für Vorlagenkategorien passen sich ihrem Inhalt an; die Auswahl einer Branche für Agenten oder Skills öffnet die größere Bibliothek. Auf dem Telefon erscheinen die Stile als kompakte Zeilen mit Miniaturen.
+
+Anweisungen für Agenten und Projekte haben eine kompakte gemeinsame Leiste für Titel, Hilfe, Quelltext/Vorschau und Vergrößern. Vergrößerte Markdown-Ansichten behalten den gewählten Modus. Ungenutzte Prompt-Variablen sind zunächst eingeklappt; vorhandene eigene Variablen oder eine eigene Zeitzone halten den Bereich offen. Vergrößerte Text- und Dateieditoren behalten auf dem Telefon gleichmäßige Außenabstände. Texteingaben nutzen dort größere Schrift, ohne Desktop-Felder zu vergrößern.
+
+Auf dem Telefon wechselt das Nachrichtenfeld beim Fokussieren in eine kompakte Schreibzeile mit Anhängen und Senden. Agentenauswahl und Spracheingabe bleiben unter **+** erreichbar. Begrüßung und Verbindungsvorschläge treten beim Schreiben zurück; Ergänzungsmenüs passen sich der verfügbaren Höhe an. Beim Fokuswechsel zum Senden bleibt das Layout stabil.
+
+Beim Öffnen des Hauptchats erhält das Eingabefeld den Fokus, sobald es beschreibbar ist, auch wenn während des Verbindungsaufbaus noch die Navigationsschaltfläche fokussiert war. Ein währenddessen bewusst verwendetes Bedienelement behält den Fokus.
+
+Auf dem Smartphone sind die Aktionen unter Nachrichten von Nutzern und Agenten zunächst ausgeblendet. Die Schaltfläche **Mehr** neben dem Absender blendet Kopieren, Antworten, Bewertungen und weitere verfügbare Aktionen ein oder aus. Am Desktop erscheinen die Bedienelemente weiterhin beim Darüberfahren.
+
+CSS-Importe, Bilder und Fonts werden relativ zum Stylesheet über dieselbe autorisierte Dateiquelle aufgelöst. Vorschauen erlauben vier verschachtelte Ebenen, 64 Ressourcen, 8 MiB Eingabedaten und 16 MiB expandierte Ausgabe. Dateilinks behalten ihre ursprüngliche Konversation oder ihren lokalen Ordner, gespeichert mit dem Verlauf des Turns. Eine Änderung von Work on leitet sie nicht um. Ältere Turns ohne gespeicherte Herkunft erhalten keine geratenen Links. Lokale Dateien benötigen weiterhin eine aktuelle native Ordnerfreigabe.
+
+Dateilink-Metadaten speichern für lokale Schritte nur eine opake Herkunftskennung. Die Ordnerzuordnung bleibt auf dem initiierenden Desktop und ist auf Konto und Organisation begrenzt; andere Teilnehmer und Computer können diese Links nicht auflösen. Ältere Herkunftsangaben mit einem lokalen Pfad werden beim Lesen gespeicherter Schritte weggelassen.
+
+Die **Visual map** im Agenten-Builder passt die gesamte Konfiguration beim Öffnen und bei Größenänderungen ein. **Reset view** passt sie nach Verschieben oder Zoomen erneut ein. Große Gruppen zeigen sechs Einträge und die verbleibende Anzahl; wählen Sie eine Gruppe für die vollständige, scrollbare Liste. Die Workflow-Minimap zeigt den gesamten Graphen und wechselt den Ausschnitt, ohne den Zoom zu ändern.
+
+Das Testpanel im Builder lässt sich auf den ganzen Arbeitsbereich erweitern, ohne Unterhaltung oder ungesendeten Text zurückzusetzen. Der Vergleich zweier Versionen öffnet diesen Bereich automatisch; die Vollbild-Schaltfläche oder Escape führt zum Builder zurück. Die Versionsauswahl hat eine eigene Zeile, damit die Teststeuerung auch in schmalen Panels nutzbar bleibt. Auf dem Telefon wechseln die Versionsschaltflächen zwischen den verglichenen Chats; beide Gespräche laufen weiter und behalten ihre Entwürfe. Der gemeinsame Prompt erreicht weiterhin beide gleichzeitig.
+
+Die Navigation erhält gemeinsame Seitenlayouts beim Wechsel zwischen Bereichen und blendet kurz über, statt den Rahmen neu aufzubauen. Reduzierte Bewegung deaktiviert den Effekt. Dashboard-Karten warten auf die gespeicherte Anordnung, berechtigungsabhängige Seiten auf deren Prüfung und die Benutzerliste der Administration beginnt mit einem Ladezustand statt einer vermeintlich leeren Liste. Gruppen- und App-Autorenfilter reservieren ihren Platz beim Laden. Quellenmarkierungen im Inbox warten auf Katalogmetadaten; Links zur Arbeitskonversation öffnen dieselbe Chat-Route wie die Seitenleiste.
+
+Auf dem Smartphone halten gesendete Nachrichten unterhalb der schwebenden Chat-Schaltflächen an, damit das Benutzerbild sichtbar bleibt. Der Gesprächsanfang und der reservierte Platz für eine Antwort berücksichtigen denselben Abstand zur Werkzeugleiste; Desktop und eingebettete Chats behalten ihren kleineren Abstand.
+
+Standardagenten schließen einmalige Anfragen ab, ohne die Antwort durch eine optionale Automatisierungsfrage offen zu halten. Fragen klären notwendige Entscheidungen zur aktuellen Aufgabe oder zu einer angefragten beziehungsweise akzeptierten Automatisierung. Optionale Einrichtungskarten bleiben unverbindliche Vorschläge und blockieren den Abschluss nicht.
+
+Die kompakte Quellen-Schaltfläche unter einer Antwort öffnet Sources neben dem Gespräch, auf dem Smartphone als vollbreites Panel. Files und Sources teilen sich den Seitenbereich: Das Öffnen eines Panels ersetzt das andere. Webquellen zeigen das ohne Referrer geladene Favicon oder ein bekanntes Dienstlogo; bei fehlendem Symbol bleibt der Globus. Wissensquellen behalten ihre Dateisymbole und die Originaldokumentansicht.
 
 ## Das Dashboard { #the-dashboard }
 
@@ -161,12 +205,20 @@ Zeitplan oder Ereignis mit seinen Werkzeugen; die Läufe erscheinen in Activity.
 Ergebnisse in den privaten Posteingang. Jeder Tab hat eigene Erstellungsaktionen.
 `/routines?tab=watches` öffnet die Beobachtungen.
 
+Organisation → Proaktivität trennt Vorschläge, Überwachung, gemeinsame Limits, Zustellungszeiten und Begrüßungen. Ungespeicherte Änderungen lassen sich verwerfen. Hintergrunddienste zeigen Status und Verbrauch; Modell- und Budgeteinstellungen werden pro Dienst aufgeklappt.
+
+Zeitgesteuerte, ereignisgesteuerte und überwachende Routinen verwenden denselben Dialograhmen mit festem Kopfbereich und Navigation sowie einem scrollbaren Formular. Das Erstellen einer Überwachung führt durch Konfiguration, Nachricht und Zeitplan; Zurück erhält den Entwurf. Die Agentenauswahl zeigt dieselben Avatare wie der Chat. Ausführungs- und Zustelloptionen einer Überwachung stehen gemeinsam in einem Bereich für erweiterte Optionen.
+
 Discover beginnt auf dem Dashboard mit illustrierten Fähigkeiten. Beim Überfahren
 einer Kurve in _Your period_ erscheinen Zeitabschnitt und Wert; Ausgaben werden
 als Geldbetrag formatiert. Projekte zeigen Beschreibungen, Agentenzeilen dieselben
 Avatare wie im Chat.
 
 Dashboard-Karten verwenden einheitliche kompakte Zeilen, Dienstsymbole und Statusbezeichnungen. Kennzahlen und Diagramme passen sich der Kartenbreite an, auch in eigenen Anordnungen. Ladeplatzhalter entsprechen dem Inhaltstyp; ein nicht verfügbares Briefing bietet einen erneuten Versuch an, statt fälschlich keine Vorschläge zu melden.
+
+Ein leerer Chat begrüßt nach lokaler Tageszeit und zeigt zuerst das Eingabefeld, darunter bis zu vier Nachrichtenvorschläge. Veröffentlichte Agentenvorschläge haben Vorrang; AgenticOS kann persönliche Vorschläge nutzen, die fünf Minuten im Cache der aktuellen Kontositzung bleiben. Platzhalter reservieren den Raum, bis die Quelle feststeht. Posteingangs- und Hintergrundvorschauen sowie Tastenkürzel bleiben vom Startbildschirm entfernt; öffne dafür Inbox oder Background work über die Navigation.
+
+Gespeicherte Chats zeigen sofort Verlaufsplatzhalter, ohne Begrüßungsblitz; Seitenleiste und Verlauf laden unabhängig. Manuell gesendete Nachrichten gleiten nach oben, Nachrichten aus der Warteschlange verschieben den Leser nicht. Scrollen, Berührung und Tastatur brechen die Bewegung ab. Gemeinsame Menüs und Dialoge verwenden kleine, sanfte Übergänge; die Motion-Einstellung deaktiviert Bewegung.
 
 ## Der Posteingang { #the-inbox }
 
@@ -270,7 +322,8 @@ Seite.
 
 ## Der Assistent { #the-assistant }
 
-Unten rechts auf jeder Seite sitzt der **Architekt**: ein Agent, den jede
+Auf dem Smartphone sitzt der **Architekt** oben neben den Benachrichtigungen,
+auf dem Desktop unten rechts: ein Agent, den jede
 Organisation bekommt, ohne etwas zu installieren, gemeinsam für alle, die Agents
 ausführen dürfen (`agents:run`). Er ist an
 [den MCP-Server dieser Plattform](mcp.md#agenticos-as-an-mcp-server) gebunden.
@@ -335,6 +388,36 @@ Einstellungen der Organisation ändern darf, weil ihn alle in der Organisation
 ausführen. Auf der Seite der Organisation schaltet eine Karte ihn für alle ab und
 legt seine Begrüßung fest. **Einstellungen → Assistent** enthält nur noch Ihre
 eigenen Tipps.
+
+## Mitgelieferte Agenten { #shipped-agent-defaults }
+
+AgenticOS, Architect und die Vorgaben für neue Agenten enthalten keine Werkzeuge für vorläufige Arbeitspläne. Agenten melden ihren Fortschritt im Chat und verwenden verwaltete Tasks über AgenticOS MCP für dauerhaft zu speichernde Arbeit.
+
+Beide Startagenten und neue Konsolenagenten enthalten Watch a command, Background topics, Work while tools run, begrenzte Suche in früheren Gesprächen und lokale BM25-Werkzeugsuche mit fünf Ergebnissen. Sie erhalten research-, explore- und review-Spezialisten, dynamische Spezialisten und automatische sync/async-Delegation. Monitore benötigen eine dauerhafte Shell und enden mit dem Turn; Hintergrundthemen bleiben danach bestehen. Frühere Gespräche werden nur bei Bedarf durchsucht: zuerst Ausschnitte, dann begrenzte Transkriptfenster. Gruppen und unbeaufsichtigte Läufe können keine private Historie durchsuchen.
+
+Nur der mitgelieferte AgenticOS enthält Computer use, Webbrowser und Coding agent. Desktop-Steuerung und Programmierung verwenden standardmäßig den genehmigten Desktop; Sandbox-Programmierung benötigt konfigurierte Zugangsdaten. Auch der mitgelieferte Browser verwendet den gekoppelten Desktop; alternativ kann ein Administrator einen Browser-Endpunkt des Deployments konfigurieren. Neue Agenten erben die gemeinsame Einrichtung ohne diese drei Werkzeuge. AgenticOS beantwortet Plattformfragen direkt mit seinem Leitfaden und AgenticOS MCP. Die Vorgaben pinnen Architect nicht mehr; die Aktualisierung entfernt den unveränderten mitgelieferten Pin und behält eigene Delegierte.
+
+Jede Organisation erhält **AgenticOS** für allgemeine Aufgaben und **Architect**
+für die Einrichtung der Plattform. Beide haben Gedächtnis. Neue Agenten in der
+Konsole beginnen mit der aktuellen AgenticOS-Vorlage; anschließend lassen sich
+Prompt und Werkzeuge anpassen. AgenticOS kann den veröffentlichten Architect
+über AgenticOS MCP um Hilfe bitten. Berechtigungen, Budgets und Genehmigungen
+gelten weiterhin.
+
+Beim Öffnen der Konsole werden mitgelieferte Einstellungen geprüft. Unveränderte
+Anweisungen, Capabilities, MCP-Bindungen, Skills und Gesprächseinstiege erhalten
+Updates. Ein anderes Modell oder Budget blockiert diese Updates nicht; die
+gewählten Werte bleiben erhalten. Eigene Prompts und Werkzeugeinstellungen
+werden geschützt. Unveröffentlichte Änderungen bleiben Entwürfe und werden beim
+Update des laufenden Agenten nicht mitveröffentlicht. Archivierte Agenten bleiben
+archiviert. Ältere Installationen werden anhand ihrer Herkunft oder bekannter
+historischer Vorgaben erkannt, nicht allein am Namen.
+
+Der Chat zeigt bestätigte Gedächtnisspeicherungen und Korrekturen mit einem Link
+zu **Your memory**. Ablehnungen und strittige Angaben gelten nicht als erfolgreiche
+Speicherung. Vorschläge für Routinen und Beobachtungen erscheinen als Karten zur
+Prüfung vor der Aktivierung. Ausführungs- und Zustelloptionen stehen unter
+**Erweiterte Optionen**; ihre bisherigen Standardwerte bleiben erhalten.
 
 ## Änderungen von anderswo { #changes-made-elsewhere }
 
@@ -434,6 +517,26 @@ Agents, im Builder unter seinen Instruktionen gesetzt; ein Agent ohne sie bietet
 die vier des Chats an, darunter eine, die fragt, was er kann, und eine, die eine
 Routine einrichtet.
 
+Unterhaltungslisten behalten den Hauptagenten bei und nennen zusätzlich Claude Code oder Codex, wenn gespeicherte Aufgabenberichte ihre Mitarbeit belegen. Sidebar, Projektchats, Dashboard und Quick-Ask-Verlauf verwenden dieselben Symbole und Beschriftungen. Jeder Coding-Harness erscheint einmal, bleibt nach dem Aktualisieren sichtbar und ist unabhängig von aktuellen Chat-Einstellungen. Die Auswahl ohne Ausführung fügt ihn nicht zum Verlauf hinzu.
+
+Das Files-Panel gruppiert Dateien nach Ordnern und unterscheidet gleiche Namen in verschiedenen Verzeichnissen. HTML-Vorschauen laden lokale Stylesheets und ihre verschachtelten Ressourcen über denselben Dateizugriff wie die Seite. Vorschau und Quelltext bleiben getrennt; Skripte sind deaktiviert. Ist ein Stylesheet nicht lesbar, nennt die Vorschau die betroffene Datei. Unter einer Antwort stehen Links zu den in diesem Turn geänderten Dateien, anhand der von erfolgreichen Schreib-/Bearbeitungswerkzeugen oder dem Coding-Harness gemeldeten Pfade. Die Links öffnen aktuelle Workspace-Dateien, keine versionierte Kopie.
+
+Während der Arbeit erscheinen Fortschrittsmeldungen und die jeweils folgenden Tool-Aufrufe in ihrer Eingangsreihenfolge in einem aufgeklappten Verlauf. Erst nach Abschluss wird der Verlauf unter einem „Worked for…“- oder „Thought for…“-Schalter eingeklappt; darunter bleibt nur die finale Antwort. Aufklappen zeigt dieselben Nachrichten und Tool-Gruppen wieder chronologisch. Begründungen bleiben separat aufklappbar; ihre Überschriften erzeugen keine Prozessphasen. Fragen und Freigaben behalten ihren Wartestatus bis zur Entscheidung, auch bei delegierten Anfragen. Aktive Freigabekarten und visuelle Ergebnisse bleiben außerhalb des abgeschlossenen Verlaufs sichtbar.
+
+Aufeinanderfolgende Tool-Aufrufe zwischen Nachrichten bilden eine eingeklappte Gruppe; öffnen Sie diese für einzelne Aufrufe.
+
+Chat-Freigaben bleiben eine kompakte Karte neben dem Eingabefeld: Operation, Symbol und Aufgaben- oder Objekttitel, weitere Argumente unter Details. Approve und Reject stehen daneben, auf schmalen Bildschirmen darunter. Abgeschlossene Aktivität erhält ein dezentes Abschlusszeichen, wartende Schritte einen eigenen Status. Laufende Schritte behalten ihr Operationssymbol statt einer animierten Kugel pro Aufruf.
+
+Beim erneuten Öffnen eines Chats werden auch Freigaben und Fragen delegierter Werkzeuge wiederhergestellt, die in der Zeitleiste des übergeordneten Agenten fehlen. Während seiner genehmigten HTTP-Fortsetzung wird ein pausierter Subagent als arbeitend angezeigt. Ein abgeschlossener veröffentlichter Unteragent behält sein eigenes Ergebnis, wenn der übergeordnete Agent auf eine weitere Entscheidung wartet.
+
+Eingehender Text bleibt lesbar, während das Markdown-Modul lädt. Das Eingabefeld hat eine undurchsichtige Fläche und einen dezenten Fokuszustand, ohne bewegten Rahmen oder Hintergrundunschärfe.
+
+Der laufende Verlauf folgt dem Seitenfluss; der aufgeklappte abgeschlossene Verlauf hat eine begrenzte Höhe und einen eigenen Scrollbereich. Aufeinanderfolgende Segmente desselben Agentenlaufs teilen Zusammenfassung und Startzeit, einschließlich Fortschrittsmeldungen zwischen Tools und Fortsetzungen nach Freigaben. Ein anderer Agent oder eine dazwischenliegende Nutzernachricht beginnt einen eigenen Turn. Abgeschlossene und verschachtelte Agentenaustausche bleiben verfügbar, einschließlich Coding-Agent-Berichten; öffnen Sie einen Austausch für Anweisungen, Antwort und eingeklappte Begründung.
+
+Erfolgreiche MCP-Schreibvorgänge zeigen verlinkte Karten für Projekte, Tabellen, Aufgaben, Datensätze, Agenten, Workflows, Skills und Context. Fehler erzeugen keine Erfolgskarten. Gesendete Nachrichten stehen nahe am oberen Rand mit Platz für die Antwort; manuelles Scrollen behält Ihre Position bei. Person- und Agent-Listen scrollen im Datensatzdialog. Fragen funktionieren auch nach genehmigten HTTP-Fortsetzungen.
+
+Auch Ergebnisbenachrichtigungen stehen neben dem Eingabefeld. Solange ein Entscheidungspanel sichtbar ist oder der Chat arbeitet, werden Freigabebenachrichtigungen auch älterer Läufe ausgeblendet. Andernfalls führen sie zur Freigabewarteschlange. Sie bieten niemals Gesehen, Erledigt oder Nicht mehr fragen: Nur die eigentliche Genehmigung oder Ablehnung entscheidet über die Operation. Inbox und Glocke behalten ihre Benachrichtigungen.
+
 **Unter einer Antwort.** Ein Agent mit
 [Nächsten Schritten](reference/capabilities.md#follow-ups) bietet unter seiner
 neuesten Antwort bis zu drei nächste Schritte als Schaltflächen an, und ein Klick
@@ -487,6 +590,8 @@ sie: Sie sind Wissen für den Agent, kein Zeitplan.
 
 Beim erneuten Öffnen eines Gesprächs sehen Sie die neuesten Nachrichten. Mit **Ältere Nachrichten laden** über dem Verlauf lesen Sie frühere Beiträge. Laufende Antworten und ungespeicherte Ergebnisse bleiben sichtbar, während der gespeicherte Verlauf aktualisiert wird.
 
+Wenn eine Antwort des Assistenten nicht gespeichert werden kann, fordert der Chat Sie auf, benötigten Text vor dem Verlassen des Gesprächs zu kopieren. Das gilt auch für Teilantworten aus unterbrochenen Ausführungen. Der live übertragene Text bleibt sichtbar, kann aber beim erneuten Öffnen des Gesprächs fehlen.
+
 **Während der Agent arbeitet**, wartet das, was Sie senden, auf seine Antwort, wie
 in jedem Chat: Es steht in einer Warteschlange über dem Eingabefeld und geht
 hinaus, wenn der Run endet. Ziehen Sie eine Nachricht in der Warteschlange oder
@@ -527,6 +632,12 @@ Teilen. Meldet eine Zeichnung einen Fehler, weiß der Agent schon davon; **Beheb
 fragt erneut. Auf einem Telefon öffnet ein Tippen sie im Vollbild.
 Die Karte **Neueste Visuals** auf dem Dashboard zeigt die zuletzt für Sie
 gezeichneten, jede öffnet das Gespräch, in dem sie entstand.
+
+**Entwürfe.** Ein Agent mit [Entwürfen](reference/capabilities.md#drafts) zeigt Text,
+den Sie anderswo versenden oder einfügen - eine E-Mail, eine Antwort, einen Beitrag -
+als Karte in seiner Antwort. Jeder Teil hat ein eigenes Kopiersymbol, das reinen Text
+kopiert; mehrere Varianten eines Entwurfs sind Tabs in derselben Karte. Das eigene
+**Kopieren** einer Nachricht enthält auch ihre Entwürfe.
 
 **Einem Durchlauf zusehen.** Der [Webbrowser](reference/capabilities.md#browser-automation)
 öffnet sich automatisch in einem Panel in voller Höhe neben dem Gespräch.
@@ -779,6 +890,20 @@ aller Verbindungen summiert. Die Dashboard-Karte **Sprachminuten (Voice
 minutes)**, im Nutzungsband für jemanden mit `runs:view`, zeigt die
 Anrufminuten und Anrufe des Zeitraums und die drei häufigsten Agents.
 
+### Hintergrundthemen { #background-topics }
+
+Aktiviere **Hintergrundthemen** bei einem veröffentlichten Agenten und bitte etwa: „Untersuche den Exportfehler in einem neuen Thema, während wir den Release planen“ oder „Lass den Finanzagenten diese Zahlen prüfen, während wir das Angebot besprechen“. Der Agent verwendet seine eigene festgelegte Version oder einen im Spec festgelegten veröffentlichten Delegaten. Starte aus einem eigenen Gespräch; das neue Thema gehört zum selben Projekt und enthält den Auftrag des Agenten und einen Rücklink, ohne das ursprüngliche Protokoll zu kopieren.
+
+Die Leiste **Hintergrundthemen** über dem Eingabefeld zeigt wartende, arbeitende und pausierte Aufgaben. Öffne das eigene Thema, um die Arbeit zu prüfen oder eine gewöhnliche Freigabe bzw. Frage zu beantworten. **Stoppen** beendet weitere Arbeit, macht aber bereits erfolgte Dateiänderungen oder externe Aktionen nicht rückgängig. Dieselben Aufgaben stehen im Dashboard. Pro Person sind vier aktive Aufgaben möglich; Aufgaben und ihre Ergebnisantworten können keine weiteren Hintergrundthemen starten.
+
+Nach Abschluss antwortet der ursprüngliche Agent mit der aktuellen Gesprächshistorie. Er wartet laufende Antworten ab und fasst ohne Werkzeuge zusammen: Aufgabenausgaben erteilen keine neue Handlungserlaubnis. Gewähltes Hauptmodell und Denktiefe bleiben erhalten; lokale Inferenz bleibt lokal. Lokale Coding-Arbeit bleibt auf dem konkreten gekoppelten Computer und im freigegebenen Ordner. Budgets und Freigaben des Kindes gelten weiter. Das Schließen des Chats beendet die Aufgabe nicht. Ein Worker-Abbruch wird gemeldet; externe Aktionen werden nicht automatisch wiederholt. Freigaben setzen pausierte Aufgaben fort; verlorene Mitgliedschaft oder Projektberechtigung stoppt neue Arbeit und Ergebnisübermittlung.
+
+Das ist ausdrückliche Delegation, getrennt von Gedächtnis, Überwachungen und Routinen. Vorhandene asynchrone Subagenten und Werkzeuge bleiben an einen Lauf gebunden; für Arbeit über dessen Antwort hinaus nutze **Hintergrundthemen**.
+
+### Auf ein anderes Gespräch verweisen { #conversation-references }
+
+Ein Agent mit **Frühere Gespräche** bietet im `@`-Menü die dreißig jüngsten zugänglichen Gespräche an. Wähle eines und stelle eine konkrete Frage dazu. Die Erwähnung benennt das Thema, kopiert aber kein Protokoll und wechselt den antwortenden Agenten nicht. Der Agent liest passende Ausschnitte mit dem bestehenden Gesprächswerkzeug und dessen Zugriffs- und Empfängerprüfung. Einschränkungen für Gruppenchats bleiben bestehen. Für ältere Themen füge Link oder ID ein und bitte den Agenten, sie zu lesen.
+
 ## Aktivität { #activity }
 
 **Aktivität** (Activity) zeigt Inhabern von `runs:view` jeden Run der
@@ -801,13 +926,18 @@ die die Liste zeigt.
 
 ## Wofür jeder Bereich da ist { #what-each-area-is-for }
 
-Die Seitenleiste gruppiert sie. **Build** enthält Agents, Routines, Apps und
-Activity; **Knowledge** enthält Knowledge bases, Documents, Skills und Context.
-Zwei Gruppen sind bis zum Öffnen auf ihre Überschrift eingeklappt, weil man sie
-einmal einrichtet und selten besucht: **Connections** (MCP servers, Channels,
-Remote agents, Vault, Sandboxes) und **Organization** (Organizations, Groups). Eine eingeklappte
-Gruppe öffnet sich auf jeder Seite in ihr von selbst und bleibt, wie Sie sie
-verlassen haben.
+**Overview** (Dashboard), **Chat** und **Inbox** stehen oben in der Seitenleiste.
+**Build & manage** zeigt Agents, Workflows, Routines und Apps ohne Aufklappen;
+danach folgen Projects.
+
+**Knowledge** ist standardmäßig geöffnet und enthält Knowledge bases, Tables,
+Skills, Context und Documents. Die manuelle Wahl zwischen geöffnet und geschlossen
+wird gespeichert. **Monitoring** enthält Activity und Background work und ist
+standardmäßig eingeklappt.
+
+**Connections** (MCP servers, Channels, Remote agents, Vault, Sandboxes) und
+**Organization** (Organizations, Groups) bleiben einklappbar und speichern Ihre
+Wahl. Eine Gruppe mit der aktuellen Seite öffnet sich immer, damit diese sichtbar bleibt.
 
 | Bereich           | Er hält                                                                                     | Lesen Sie                                                                    |
 | ----------------- | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
@@ -845,18 +975,17 @@ entschieden wurde und was sie gekostet hat. Eine abgeschlossene Sitzung öffnet
 ihren Assistenten nur zum Lesen, mit der Entscheidung im letzten Schritt; siehe
 [Verbesserungsverlauf](authoring.md#improvement-history).
 
-Die Organisationsdetails sind in Registerkarten gegliedert: **Mitglieder**, **Profil**,
-**Budget und Freigaben**, **Proaktivität**, **Sprache** und **AI Architect**.
-Administrative Registerkarten richten sich nach deinen Berechtigungen; AI Architect
-erscheint, wenn er konfiguriert werden kann. Die ausgewählte Registerkarte steht in der
-URL (zum Beispiel `?tab=voice`); beim Wechsel bleiben ungespeicherte Formularwerte
-erhalten.
+Die Organisationsdetails haben fünf Registerkarten: **Mitglieder** für Personen und Einladungen; **Arbeitsbereich** für Profil und Standard-Spracheinstellungen; **Budget und Freigaben** für Ausgaben und Zugriffsregeln; **Proaktivität** für Vorschläge, Überwachung und Zustellung; **KI und Dienste** für Architect und Systemdienste. Jedes Formular behält seine Berechtigungsprüfung. Budgetverantwortliche erreichen KI und Dienste auch ohne Architect-Konfiguration. Die Auswahl steht in der URL, Entwürfe bleiben beim Wechsel erhalten, und bisherige `?tab=voice`-Links öffnen Arbeitsbereich.
+
+Bernsteinfarbene Punkte markieren Organisationstabs und die zugehörigen Karten für Sprache, nächtliche Vorschläge, Gedächtnispflege und Architect bei unvollständiger Konfiguration oder ausgeschalteten Vorschlägen. Hover oder Tastaturfokus zeigt die Erklärung; Klicken oder Tippen hält sie geöffnet. Die Hinweise verwenden gespeicherte Einstellungen, verschwinden nach der Einrichtung und beachten Bearbeitungsrechte. Ausgeschaltete Vorschläge gelten als optionale Einrichtung, nicht als Fehler. Auch die iPhone-Push-Karte markiert einen fehlenden Apple-Schlüssel. Bei reduzierter Bewegung entfällt das Pulsieren.
+
+Gespeicherte Browser-Anmeldungen stehen in einem kompakten Einstellungsbereich über die volle Breite, statt einen Eintrag auf die ganze Seite zu strecken. Bekannte Dienste verwenden mitgelieferte Markenlogos; andere Seiten ihr eigenes Favicon ohne Referrer und bei fehlendem Bild ein Globussymbol.
 
 ## Sprachen { #languages }
 
-Die Konsole spricht Englisch, Polnisch und Deutsch, vollständig bis auf die
-rechtlichen Seiten, die Englisch bleiben. Die erste Karte des Rundgangs bietet die
-drei an, und das Kontomenü wechselt die Sprache jederzeit; die Wahl wird in Ihrem
+Die Konsole spricht Englisch, Polnisch, Deutsch und Türkisch. Die erste Karte des
+Rundgangs bietet die vier an, und das Kontomenü wechselt die Sprache jederzeit;
+die Wahl wird in Ihrem
 Konto gespeichert, sodass die Konsole auf jedem Gerät, auf dem Sie sich anmelden,
 in ihr öffnet. Sie können auch einen Agent bitten - "auf Englisch umstellen" -, und
 die Seite wechselt, während er antwortet, ohne Neuladen. Jeder Agent antwortet in
@@ -913,10 +1042,12 @@ Eine neuere stabile AgenticOS-Version hebt die Versionsnummer mit einem grünen 
 
 Nach der Anmeldung zeigt **Was ist neu** einmal pro Konto auf diesem Gerät die öffentlichen GitHub-Versionshinweise der installierten Version. Das Fenster wartet, bis das Onboarding geschlossen ist. Schließen markiert die Version als gelesen; fehlende Hinweise oder Netzwerkfehler unterbrechen die Sitzung nicht. Funktionen einer neueren, noch nicht installierten Version stehen nur hinter dem Update-Hinweis.
 
-Chat controls merkt sich Modell, Freigabemodus und lokale Werkzeuge pro Konto und Organisation über Chats hinweg. Projektdateieinstellungen haben Vorrang. Die Zustimmung zum gesamten Computer gilt weiterhin nur für eine Unterhaltung. Das Überspringen von Freigaben benötigt weiterhin die aktuelle Berechtigung und Organisationsrichtlinie. Agent setting (oder Cloud für Dateien) ist deaktiviert, wenn dem veröffentlichten Agenten diese Fähigkeit fehlt; lokale Alternativen werden nicht automatisch aktiviert. Ein Klick auf die ausgewählte lokale Option schaltet sie aus.
+Chat controls merkt sich Modell, Freigabemodus und lokale Werkzeuge pro Konto und Organisation über Chats hinweg. Projektdateieinstellungen haben Vorrang. Die Zustimmung zum gesamten Computer gilt für eine Unterhaltung oder für einen Agenten, wenn dieser auf Ihrem Computer arbeitet. Das Überspringen von Freigaben benötigt weiterhin die aktuelle Berechtigung und Organisationsrichtlinie. Agent setting (oder Cloud für Dateien) ist deaktiviert, wenn dem veröffentlichten Agenten diese Fähigkeit fehlt; lokale Alternativen werden nicht automatisch aktiviert. Ein Klick auf die ausgewählte lokale Option schaltet sie aus.
 
 Die Benachrichtigungsstummschaltung hat ein Glockensymbol; das Eingabefeld wiederholt die Ordner- und Zugriffsanzeige nicht mehr. Agentenporträts überlappen in voller Größe und spreizen sich in der erweiterten Chatliste beim Darüberfahren leicht auf.
 
 Listenfußzeilen bleiben am unteren Rand ihres Panels mit einheitlichen Abständen und deckendem Hintergrund. Paginierte Verwaltungstabellen scrollen ihre Zeilen unabhängig, während Spaltenüberschriften und Seitennavigation sichtbar bleiben. Leere Ergebnisse und Fehler bleiben im selben Scrollbereich.
 
 Das Organisationsverzeichnis der Administration zeigt das hochgeladene Bild oder Initialen in der gewählten Farbe, wenn kein Bild hinterlegt ist. Der Bildzugriff in diesem Bereich bleibt auf Deployment-Administratoren beschränkt; der reguläre Avatar-Endpunkt verlangt weiterhin eine Mitgliedschaft.
+
+**Chat controls → Tools & files** zeigt das Coding-Konto, das ein Agent braucht, wenn sein Coding agent als **Private cloud task with my account** läuft: nur diesen Harness, mit Logo und Zustimmungsstatus. Verbinde oder verwalte es direkt im Chat; alle Konten stehen unter **Settings → Profile**. Das Verbinden ändert den Ausführungsmodus des Agenten nicht: Private Cloud-Aufgaben benötigen weiterhin **Private cloud task with my account**, während Desktop-Coding eine separate lokale Anmeldung verwendet.

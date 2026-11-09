@@ -41,3 +41,24 @@ export function importTemplate(): Blob {
   const rows = [IMPORT_COLUMNS.join(","), IMPORT_COLUMNS.map((c) => cell(EXAMPLE[c])).join(",")];
   return new Blob([`${rows.join("\n")}\n`], { type: "text/csv" });
 }
+
+/** A JSONL case uses arrays and objects directly, rather than JSON in CSV cells. */
+export function jsonlTemplate(): Blob {
+  return new Blob(
+    [
+      JSON.stringify({
+        input: EXAMPLE.input,
+        reference_answer: EXAMPLE.reference_answer,
+        checks: JSON.parse(EXAMPLE.checks),
+        tags: ["refunds", "billing"],
+      }) + "\n",
+    ],
+    { type: "application/x-ndjson" },
+  );
+}
+
+// i18n-exempt: import examples are literal file content in the importer's vocabulary
+export const IMPORT_PREVIEW = {
+  csv: "input,reference_answer\nHow long does a refund take?,Within 5 working days.\n",
+  jsonl: '{"input":"How long does a refund take?","reference_answer":"Within 5 working days."}\n',
+};

@@ -24,12 +24,19 @@ HEADING = {
     "en": "{count} new from your watches:",
     "pl": "Znaleziska z twoich obserwacji ({count}):",
     "de": "Neu aus Ihren Beobachtungen ({count}):",
+    "tr": "Watch'larınızdan {count} yeni bulgu:",
 }
-MORE = {"en": "…and {count} more.", "pl": "…i jeszcze {count}.", "de": "…und {count} weitere."}
+MORE = {
+    "en": "…and {count} more.",
+    "pl": "…i jeszcze {count}.",
+    "de": "…und {count} weitere.",
+    "tr": "…ve {count} bulgu daha.",
+}
 OPEN = {
     "en": "All of it in your inbox: {url}",
     "pl": "Wszystko w twoim inboksie: {url}",
     "de": "Alles in Ihrem Posteingang: {url}",
+    "tr": "Tümünü Inbox'ınızda görün: {url}",
 }
 
 

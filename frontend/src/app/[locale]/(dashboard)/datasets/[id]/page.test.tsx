@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "@/lib/api-error";
+import { datasetFixture } from "@/test-utils/datasets";
 import { DEFAULT_SCORING } from "@/lib/scoring";
 import DatasetPage from "./page";
 
@@ -14,6 +15,7 @@ const state = vi.hoisted(() => ({
   skips: [] as number[],
   canEdit: true,
   tab: null as string | null,
+  version: null as string | null,
   linked: null as string | null,
   linkedCase: undefined as unknown,
   linkedError: null as Error | null,
@@ -28,13 +30,14 @@ vi.mock("next/navigation", async (original) => ({
   useSearchParams: () =>
     new URLSearchParams({
       ...(state.tab === null ? {} : { tab: state.tab }),
+      ...(state.version === null ? {} : { version: state.version }),
       ...(state.linked === null ? {} : { case: state.linked }),
     }),
   usePathname: () => "/datasets/d1",
 }));
 vi.mock("@/hooks/use-datasets", () => ({
   useDataset: () => ({
-    dataset: {
+    dataset: datasetFixture({
       id: "d1",
       name: "refunds",
       description: null,
@@ -43,7 +46,7 @@ vi.mock("@/hooks/use-datasets", () => ({
       can_edit: state.canEdit,
       pending_proposals: 0,
       scoring: DEFAULT_SCORING,
-    },
+    }),
     error: state.datasetError,
     update: { mutateAsync: vi.fn(), isPending: false },
     remove: { mutateAsync: state.remove, isPending: false },
@@ -86,7 +89,11 @@ vi.mock("@/components/datasets/grading-panel", () => ({
     </button>
   ),
 }));
+vi.mock("@/components/datasets/helper-settings", () => ({
+  HelperSettings: () => <p>helper settings</p>,
+}));
 vi.mock("@/components/datasets/review-panel", () => ({ ReviewPanel: () => <p>review</p> }));
+vi.mock("@/components/datasets/generate-panel", () => ({ GeneratePanel: () => <p>generated</p> }));
 
 const CASE = {
   id: "r1",
@@ -135,12 +142,52 @@ describe("the dataset page", () => {
     state.skips = [];
     state.canEdit = true;
     state.tab = null;
+    state.version = null;
     state.linked = null;
     state.linkedCase = undefined;
     state.linkedError = null;
     state.push.mockReset();
     state.remove.mockReset();
   });
+
+  it("keeps both creation buttons mounted and disabled while reading a pinned version", async () => {
+    state.cases = [CASE];
+    state.total = 1;
+    const refresh = await mount();
+    const add = screen.getByRole("button", { name: "Add case" });
+    const more = screen.getByRole("button", { name: "More ways to add" });
+    expect(add).toBeEnabled();
+    expect(more).toBeEnabled();
+    state.version = "2";
+    refresh();
+    expect(screen.getByRole("button", { name: "Add case" })).toBe(add);
+    expect(screen.getByRole("button", { name: "More ways to add" })).toBe(more);
+    expect(add).toBeDisabled();
+    expect(more).toBeDisabled();
+    await userEvent.click(add);
+    await userEvent.click(more);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("menu")).toBeNull();
+    state.version = null;
+    refresh();
+    expect(add).toBeEnabled();
+    expect(more).toBeEnabled();
+  });
+
+  it.each(["cases", "generated", "grading", "evals", "review"])(
+    "expands the %s workspace in place and keeps its selected tab on Escape",
+    async (tab) => {
+      state.tab = tab;
+      await mount();
+      const tabs = screen.getByRole("tablist");
+      await userEvent.click(screen.getByRole("button", { name: "Full screen" }));
+      expect(screen.getByRole("dialog", { name: "refunds" })).toContainElement(tabs);
+      await userEvent.keyboard("{Escape}");
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(screen.getByRole("tablist")).toBe(tabs);
+      expect(state.tab).toBe(tab);
+    },
+  );
 
   it("steps back to the last page that still exists once its cases are gone", async () => {
     state.total = 51;
@@ -189,7 +236,7 @@ describe("the dataset page", () => {
     });
     await mount();
     await userEvent.click(screen.getAllByRole("button", { name: "Add case" }).at(-1)!);
-    await userEvent.type(screen.getByLabelText(/^Input/), "how long is the return window?");
+    await userEvent.type(screen.getByLabelText(/^User message/), "how long is the return window?");
     await userEvent.type(screen.getByLabelText("Reference answer"), "30 days");
     await userEvent.click(screen.getByRole("button", { name: "Save case" }));
 
@@ -234,8 +281,8 @@ describe("the dataset page", () => {
   it("keeps the tab in the address, so Back to the dataset opens it again", async () => {
     window.history.replaceState({}, "", "/datasets/d1");
     await mount();
-    await userEvent.click(screen.getByRole("tab", { name: /Grading/ }));
-    expect(new URL(window.location.href).searchParams.get("tab")).toBe("grading");
+    await userEvent.click(screen.getByRole("tab", { name: /Settings/ }));
+    expect(new URL(window.location.href).searchParams.get("tab")).toBe("settings");
   });
 
   it("opens a listed case as a step of its own, which Back closes", async () => {
@@ -315,14 +362,33 @@ describe("the dataset page", () => {
     state.tab = "review";
     await mount();
     expect(screen.getByText("review")).toBeInTheDocument();
+    expect(screen.queryByText("Your dataset, step by step")).toBeNull();
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
       "Cases",
-      "Generated",
-      "Grading",
-      "Evals",
-      "Review",
+      "Results",
+      "Settings",
     ]);
   });
+});
+
+it.each([
+  ["generated", "Cases"],
+  ["grading", "Settings"],
+  ["evals", "Results"],
+  ["review", "Results"],
+])("keeps the %s deep link inside %s", async (route, section) => {
+  state.tab = route;
+  await mount();
+  expect(screen.getByRole("tab", { name: section })).toHaveAttribute("aria-selected", "true");
+});
+
+it("offers run history and answer review under one Results section", async () => {
+  state.tab = "review";
+  await mount();
+  expect(screen.getByRole("tab", { name: "Results" })).toHaveAttribute("aria-selected", "true");
+  expect(screen.getByText("review")).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "Test runs" }));
+  expect(new URL(window.location.href).searchParams.get("tab")).toBe("evals");
 });
 
 it.each([403, 404])("shows a no-access view for an unreadable dataset (%s)", async (status) => {

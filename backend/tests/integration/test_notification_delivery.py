@@ -28,6 +28,7 @@ from app.db.models.user import User
 from app.repositories import deployment_settings_repo
 from app.services.email.providers.base import SendResult
 from app.services.email.service import EmailKey
+from app.services.email.templates import render_email
 from app.services.notification_delivery import NotificationDeliveryService
 
 pytestmark = pytest.mark.anyio
@@ -816,6 +817,37 @@ class TestRenderDispatch:
             context = service.send.call_args.kwargs["context"]
             assert ("approvals_url" in context) is keeps_link
 
+    @pytest.mark.security
+    async def test_an_approval_stored_before_the_asker_line_renders_without_a_placeholder(self, db):
+        owner = await _user(db)
+        org = await _org(db, owner)
+        decider = await _member(db, org, role="operator")
+        non_decider = await _member(db, org, role="member")
+        now = datetime.now(UTC)
+
+        for recipient in (decider, non_decider):
+            delivery = await _delivery(
+                db,
+                recipient=recipient,
+                organization_id=org.id,
+                event_type=NotificationEventType.APPROVAL_REQUESTED,
+                render_context={"tools": "x", "approvals_url": "https://app.example.com/runs"},
+                claimed_at=now,
+                attempts=1,
+            )
+            service = AsyncMock()
+            service.send = AsyncMock(
+                return_value=SendResult(provider_message_id="x", accepted=True)
+            )
+            with patch(f"{MODULE}.get_email_service", return_value=service):
+                await NotificationDeliveryService(db).send_and_settle(delivery.id, claimed_at=now)
+            context = service.send.call_args.kwargs["context"]
+            key = service.send.call_args.kwargs["key"]
+            _, html, text = render_email(key.value, context)
+            assert context["asked_by"] == ""
+            assert "[[asked_by]]" not in html
+            assert "[[asked_by]]" not in text
+
     async def test_an_app_admin_always_counts_as_a_decider(self, db):
         owner = await _user(db)
         org = await _org(db, owner)
@@ -844,7 +876,7 @@ class TestRenderDispatch:
 
 
 class TestOutcomesAndRetry:
-    async def test_a_dangling_notification_fails_the_row(self, db):
+    async def test_a_deleted_notification_revokes_the_delivery_claim(self, db):
         owner = await _user(db)
         org = await _org(db, owner)
         recipient = await _member(db, org, role="member")
@@ -859,7 +891,7 @@ class TestOutcomesAndRetry:
 
         outcome = await NotificationDeliveryService(db).send_and_settle(delivery.id, claimed_at=now)
 
-        assert outcome == "failed"
+        assert outcome == "lost_claim"
 
     async def test_a_provider_rejection_with_attempts_remaining_retries(self, db):
         owner = await _user(db)

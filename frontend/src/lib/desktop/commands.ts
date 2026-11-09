@@ -7,6 +7,8 @@
  * `ShellError`, not a settings page drawn from `undefined`.
  */
 
+import { deviceIdentitySchema, type DeviceIdentity } from "@/lib/desktop/routine-work";
+
 import { isLook, type Look } from "@/lib/appearance";
 import { invokeShell, ShellError } from "@/lib/desktop/shell";
 import type { Theme } from "@/stores/theme-store";
@@ -311,6 +313,7 @@ export async function hideQuickAsk(): Promise<void> {
 
 /** This computer's own connection to the server, as the shell reports it (#2305). */
 export interface DeviceStatus {
+  identity?: DeviceIdentity | null;
   /** The app holds a session of its own for this server. */
   linked: boolean;
   /** Its socket is open right now: the person's runs can reach this computer. */
@@ -322,7 +325,10 @@ export const DEVICE_STATUS_EVENT = "device-status";
 
 export function parseDeviceStatus(value: unknown): DeviceStatus {
   const fields = record(value, "a device status");
+  const identity = fields.identity == null ? null : deviceIdentitySchema.safeParse(fields.identity);
+  if (identity !== null && !identity.success) throw new ShellError("malformed", "device identity");
   return {
+    ...(identity === null ? {} : { identity: identity.data }),
     linked: field(fields, "linked", isBoolean),
     connected: field(fields, "connected", isBoolean),
   };
@@ -349,12 +355,26 @@ const isLocalMode = (value: unknown): value is LocalMode =>
   LOCAL_MODES.some((mode) => mode === value);
 
 /** Where a run works on the person's own computer: a granted folder and a mode within it. */
+/** Where skills live on a computer, in the order that settles a name clash. */
+export type SkillSource = "agents" | "claude" | "codex";
+export const SKILL_SOURCES: readonly SkillSource[] = ["agents", "claude", "codex"];
+
 export interface LocalTarget {
+  device_id?: string;
+  routine_grant?: string;
+  operations?: { read: boolean; write: boolean; execute: boolean };
   folder: string;
+  /** The skill folders a chat reads in place; empty or absent uses none. */
+  skills?: SkillSource[];
   mode: LocalMode;
   computer_grant?: string;
+  /** Native consent owner; absent on older desktop apps. Never inferred from the request. */
+  computer_grant_agent?: string;
   browser?: boolean;
   computer?: boolean;
+  coding_agent?: "claude_code" | "codex";
+  coding_model?: string | null;
+  coding_effort?: string | null;
   model_service?: string | null;
   mcp_services?: string[];
 }
@@ -369,6 +389,7 @@ export interface LocalGrant {
 export interface LocalState {
   grants: LocalGrant[];
   modes: LocalMode[];
+  computer_grants?: string[];
 }
 
 function parseLocalGrant(value: unknown): LocalGrant {
@@ -382,7 +403,13 @@ export function parseLocalState(value: unknown): LocalState {
     throw new ShellError("malformed", "the granted folders");
   const grants = fields.grants;
   const modes = fields.modes;
-  return { grants: grants.map(parseLocalGrant), modes: modes.filter(isLocalMode) };
+  return {
+    grants: grants.map(parseLocalGrant),
+    modes: modes.filter(isLocalMode),
+    ...(Array.isArray(fields.computer_grants) && fields.computer_grants.every(isString)
+      ? { computer_grants: fields.computer_grants }
+      : {}),
+  };
 }
 
 export async function getLocalState(): Promise<LocalState> {
@@ -395,17 +422,28 @@ export async function pickLocalFolder(mode: LocalMode): Promise<LocalGrant | nul
   return picked === null ? null : parseLocalGrant(picked);
 }
 
-/** Explicit native consent, saved for one conversation; null when cancelled. */
+/**
+ * Ask the person, natively, to let agents use the whole computer.
+ *
+ * With an agent, the consent holds for that agent in every conversation, so the
+ * person is asked once per agent; without one it belongs to this conversation.
+ */
 export async function allowWholeComputer(
   conversationId: string | null,
+  agent?: { id: string; name: string },
 ): Promise<LocalTarget | null> {
-  const result = await invokeShell("local_allow_computer", { conversationId });
+  const result = await invokeShell("local_allow_computer", {
+    conversationId,
+    agentId: agent?.id ?? null,
+    agentName: agent?.name ?? null,
+  });
   if (result === null) return null;
   const grant = record(result, "whole-computer consent");
   return {
     folder: field(grant, "path", isString),
     mode: "full_access",
     computer_grant: field(grant, "id", isString),
+    ...(typeof grant.agent_id === "string" ? { computer_grant_agent: grant.agent_id } : {}),
   };
 }
 
@@ -493,6 +531,134 @@ export async function saveLocalService(service: LocalService): Promise<LocalServ
 
 export async function removeLocalService(id: string): Promise<LocalService[]> {
   return parseLocalServices(await invokeShell("local_remove_service", { id }));
+}
+
+/** A coding agent installed on this computer, as the app found it (#2576). */
+export interface LocalAgent {
+  id: "claude_code" | "codex";
+  name: string;
+  installed: boolean;
+  path: string | null;
+  version: string | null;
+  /** `null` when the agent is missing or its answer was not understood. */
+  signed_in: boolean | null;
+}
+
+const isStringOrNull = (value: unknown): value is string | null =>
+  value === null || isString(value);
+const isBooleanOrNull = (value: unknown): value is boolean | null =>
+  value === null || isBoolean(value);
+
+function parseLocalAgent(value: unknown): LocalAgent {
+  const fields = record(value, "a local agent");
+  const id = fields.id;
+  if (id !== "claude_code" && id !== "codex") throw new ShellError("malformed", "an agent id");
+  return {
+    id,
+    name: field(fields, "name", isString),
+    installed: field(fields, "installed", isBoolean),
+    path: field(fields, "path", isStringOrNull),
+    version: field(fields, "version", isStringOrNull),
+    signed_in: field(fields, "signed_in", isBooleanOrNull),
+  };
+}
+
+/** The agent returned by a sign-out, or every agent from a status check. */
+export function parseLocalAgents(value: unknown): LocalAgent[] {
+  if (!Array.isArray(value)) throw new ShellError("malformed", "local agents");
+  return value.map(parseLocalAgent);
+}
+
+export async function getLocalAgents(): Promise<LocalAgent[]> {
+  return parseLocalAgents(await invokeShell("local_agents"));
+}
+
+export interface CodingChoice {
+  value: string;
+  name: string;
+}
+
+export interface CodingModelChoice extends CodingChoice {
+  efforts: CodingChoice[];
+}
+
+export interface LocalCodingOptions {
+  models: CodingModelChoice[];
+  current_model: string | null;
+  current_effort: string | null;
+}
+
+function parseCodingChoice(value: unknown): CodingChoice {
+  const fields = record(value, "a coding agent setting");
+  return { value: field(fields, "value", isString), name: field(fields, "name", isString) };
+}
+
+export function parseLocalCodingOptions(value: unknown): LocalCodingOptions {
+  const fields = record(value, "coding agent settings");
+  const models = fields.models;
+  if (!Array.isArray(models) || models.length === 0 || models.length > 128)
+    throw new ShellError("malformed", "coding model choices");
+  return {
+    current_model: field(fields, "current_model", isStringOrNull),
+    current_effort: field(fields, "current_effort", isStringOrNull),
+    models: models.map((model: unknown) => {
+      const entry = record(model, "a coding model");
+      if (!Array.isArray(entry.efforts) || entry.efforts.length > 16)
+        throw new ShellError("malformed", "coding reasoning choices");
+      return { ...parseCodingChoice(model), efforts: entry.efforts.map(parseCodingChoice) };
+    }),
+  };
+}
+
+export async function getLocalCodingOptions(id: LocalAgent["id"]): Promise<LocalCodingOptions> {
+  return parseLocalCodingOptions(await invokeShell("local_agent_options", { id }));
+}
+
+/** The agent opens browser OAuth; credentials stay with its native process. */
+export async function signInLocalAgent(id: LocalAgent["id"]): Promise<void> {
+  await invokeShell("local_agent_sign_in", { id });
+}
+
+export async function prepareLocalAgent(id: LocalAgent["id"]): Promise<LocalAgent> {
+  return parseLocalAgent(await invokeShell("local_agent_prepare", { id }));
+}
+
+export async function signOutLocalAgent(id: LocalAgent["id"]): Promise<LocalAgent> {
+  return parseLocalAgent(await invokeShell("local_agent_sign_out", { id }));
+}
+
+/** A skill found on this computer, as the app lists it (#2576). */
+export interface LocalSkill {
+  /** Local display identity: aliases share this without disclosing a home path. */
+  shared_id?: string;
+  name: string;
+  description: string;
+  source: SkillSource;
+  /** The source whose skill of the same name this one lost to, if it lost. */
+  shadowed_by: SkillSource | null;
+}
+
+const isSkillSource = (value: unknown): value is SkillSource =>
+  value === "agents" || value === "claude" || value === "codex";
+const isSkillSourceOrNull = (value: unknown): value is SkillSource | null =>
+  value === null || isSkillSource(value);
+
+function parseLocalSkill(value: unknown): LocalSkill {
+  const fields = record(value, "a local skill");
+  return {
+    ...(fields.shared_id === undefined ? {} : { shared_id: field(fields, "shared_id", isString) }),
+    name: field(fields, "name", isString),
+    description: field(fields, "description", isString),
+    source: field(fields, "source", isSkillSource),
+    shadowed_by: field(fields, "shadowed_by", isSkillSourceOrNull),
+  };
+}
+
+/** The skills in these sources, read in place; nothing is copied. */
+export async function getLocalSkills(sources: readonly SkillSource[]): Promise<LocalSkill[]> {
+  const answer = await invokeShell("local_skills", { sources });
+  if (!Array.isArray(answer)) throw new ShellError("malformed", "local skills");
+  return answer.map(parseLocalSkill);
 }
 
 /** Native focus policy: a pinned panel stays above other applications. */

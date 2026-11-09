@@ -19,6 +19,7 @@ from collections.abc import Iterator
 
 import pytest
 from sqlalchemy import create_engine, text
+from sqlalchemy.exc import IntegrityError
 
 from app.core.config import settings
 
@@ -185,3 +186,33 @@ def test_existing_profiles_keep_the_api_they_were_built_on() -> None:
     finally:
         engine.dispose()
     assert "api" not in columns
+
+
+def test_profile_region_migration_preserves_rows_and_checks_values() -> None:
+    _alembic("downgrade", "base")
+    _alembic("upgrade", _BASE_REVISION)
+    _seed_profiles_at_base()
+    _alembic("upgrade", "0253_background_topics")
+    _alembic("upgrade", "0254_model_profile_region")
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    try:
+        with engine.connect() as conn:
+            regions = conn.execute(text("SELECT region FROM model_profiles")).scalars().all()
+            assert regions and all(region is None for region in regions)
+        for region in ("eu", "eea", "global", None):
+            with engine.begin() as conn:
+                conn.execute(text("UPDATE model_profiles SET region = :region"), {"region": region})
+        with pytest.raises(IntegrityError), engine.begin() as conn:
+            conn.execute(text("UPDATE model_profiles SET region = 'invalid'"))
+        _alembic("downgrade", "0253_background_topics")
+        with engine.connect() as conn:
+            assert not conn.execute(
+                text(
+                    "SELECT 1 FROM information_schema.columns "
+                    "WHERE table_name = 'model_profiles' AND column_name = 'region'"
+                )
+            ).first()
+        _alembic("upgrade", "0254_model_profile_region")
+    finally:
+        engine.dispose()
+        _alembic("downgrade", "base")

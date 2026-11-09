@@ -8,14 +8,15 @@ copy of the configuration used. A person's verdict is written beside it later
 and never replaces what the scorers said.
 
 The judge is the platform's seeded system agent, run as the person asking for the
-score: budget-checked, recorded, visible in Activity. When it cannot run - AI
-assistance switched off, the judge unpublished, the budget spent - its criteria
+score: budget-checked, recorded, visible in Activity. When it cannot run - its
+model unavailable, the judge unpublished, the budget spent - its criteria
 are recorded as skipped with the reason, the rule-based scorers still score, and
 a case whose required judge was skipped or errored is left unscored rather than
 passed or failed - and can be graded again, on the same answer, once the cause is
 fixed.
 """
 
+import hashlib
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -25,10 +26,10 @@ from pydantic import ValidationError
 from pydantic_ai_harness.guardrails.detectors import redact_secrets
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.spec import AgentSpec
 from app.agents.system_agents import JUDGE
 from app.core.audit import record_audit
 from app.core.exceptions import (
-    AiAssistanceDisabledError,
     AuthorizationError,
     BadRequestError,
     NotFoundError,
@@ -92,8 +93,8 @@ from app.services.access import (
     visible_resource_ids,
 )
 from app.services.agent_runner import AgentRunnerService
-from app.services.ai_assistance import AiAssistanceService
 from app.services.dataset import DatasetService
+from app.services.model_outputs import model_outputs
 from app.services.scorers import (
     JUDGE_PROMPT_VERSION,
     CaseView,
@@ -298,11 +299,10 @@ class ScoringService:
             BadRequestError: The settings changed do not fit the ones kept, such
                 as a pass mark above the stored scale; every scorer is off, the
                 judge is on with nothing to grade, the judge picked is not one of
-                the organization's judges, or the judge or the reference
-                comparison is turned on while AI assistance is off. One already
-                on stays on, and is skipped.
+                the organization's judges, or the selected model is not a
+                usable chat profile of this organization.
         """
-        dataset = await self.datasets.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
+        dataset = await self.datasets.lock_for_edit(ctx, dataset_id)
         stored = DatasetScoring.model_validate(dataset.scoring)
         kept = stored.model_dump(mode="json", by_alias=True)
         changed = changes.model_dump(mode="json", by_alias=True, exclude_unset=True)
@@ -313,27 +313,23 @@ class ScoringService:
                 message="These settings do not fit the ones the dataset keeps",
                 details={"fields": field_problems(exc.errors(), root="")},
             ) from exc
-        turned_on = [
-            field
-            for field, now, before in (
-                ("judge.enabled", data.judge.enabled, stored.judge.enabled),
-                ("reference.enabled", data.reference.enabled, stored.reference.enabled),
-            )
-            if now and not before
-        ]
-        if turned_on and not await AiAssistanceService(self.db).is_enabled(
-            organization_id=ctx.organization_id
-        ):
-            raise refused_field(
-                turned_on[0],
-                "AI assistance is off in this organization, so the judge cannot be "
-                "turned on. Ask an admin to enable AI assistance.",
-            )
         scorers = (data.checks, data.trajectory, data.judge, data.reference)
         if not any(scorer.enabled for scorer in scorers):
             raise refused_field("checks.enabled", "Turn on at least one scorer")
         if data.judge.enabled and not data.judge.criteria:
             raise refused_field("judge.criteria", "Give the judge at least one criterion")
+        if data.judge.model_profile_id is not None:
+            profile = await credential_repo.get_profile(
+                self.db, data.judge.model_profile_id, organization_id=ctx.organization_id
+            )
+            if profile is None:
+                raise refused_field(
+                    "judge.model_profile_id", "Choose a model from this organization"
+                )
+            if not model_outputs(profile.provider, profile.model, base_url=profile.base_url).chat:
+                raise refused_field(
+                    "judge.model_profile_id", "Choose a model that answers messages"
+                )
         judge_id = data.judge.agent_id
         if judge_id is not None and judge_id != stored.judge.agent_id:
             judge = await agent_repo.get(self.db, judge_id, organization_id=ctx.organization_id)
@@ -370,10 +366,9 @@ class ScoringService:
         were graded by. What the judge must know is added to its instructions
         under its own heading.
 
-        Where AI assistance is on, the judge is switched on in the same write, so
-        the dataset grades from the next score: on its rubric, or on one starting
-        criterion when it has none, and on the reference answer as well once a
-        case has one. Where it is off, only the judge picked changes.
+        The judge is enabled in the same write, so the dataset grades from the
+        next score: on its rubric, or on one starting criterion when it has
+        none, and on the reference answer as well once a case has one.
 
         Raises:
             NotFoundError: The dataset is not one the caller may edit, or the
@@ -397,15 +392,14 @@ class ScoringService:
         )
         scoring = DatasetScoring.model_validate(dataset.scoring)
         scoring.judge.agent_id = judge.id
-        if await AiAssistanceService(self.db).is_enabled(organization_id=ctx.organization_id):
-            scoring.judge.enabled = True
-            if not scoring.judge.criteria:
-                scoring.judge.criteria = [STARTING_CRITERION]
-            stats = await dataset_repo.case_stats(
-                self.db, [dataset.id], organization_id=ctx.organization_id
-            )
-            if dataset.id in stats and stats[dataset.id].with_reference > 0:
-                scoring.reference.enabled = True
+        scoring.judge.enabled = True
+        if not scoring.judge.criteria:
+            scoring.judge.criteria = [STARTING_CRITERION]
+        stats = await dataset_repo.case_stats(
+            self.db, [dataset.id], organization_id=ctx.organization_id
+        )
+        if dataset.id in stats and stats[dataset.id].with_reference > 0:
+            scoring.reference.enabled = True
         await dataset_repo.update(
             self.db,
             dataset=dataset,
@@ -548,6 +542,9 @@ class ScoringService:
                 this case - nothing is kept, and the judge is not called.
         """
         config = scoring or DatasetScoring.model_validate(dataset.scoring)
+        if not judge_pinned and config.judge.instructions is None:
+            config = config.model_copy(deep=True)
+            config.judge.instructions = JUDGE.instructions
         evaluation = await self.evaluate(
             ctx,
             _case_view(case),
@@ -599,7 +596,6 @@ class ScoringService:
                 no score with one of the ids.
             AuthorizationError: An answer is read from its run, and the caller
                 may not read runs.
-            AiAssistanceDisabledError: AI assistance is still off.
             SystemAgentUnavailableError: The judge still cannot run, and why.
             BadRequestError: A score's answer can no longer be read, or an eval
                 run's judge has been published anew since it failed.
@@ -643,7 +639,7 @@ class ScoringService:
     async def _judge_unchanged(self, ctx: AuthContext, score: CaseScore) -> None:
         """Refuse to grade a score again when its judge cannot run, or an eval run's has changed.
 
-        The cause a judge was skipped for - AI assistance off, the judge gone or
+        The cause a judge was skipped for - model unavailable, the judge gone or
         unpublished - is refused as it stands rather than recorded again. A judge
         published anew since its run failed, or a judge prompt changed since the
         score was pinned, would grade with other instructions, so a score of an
@@ -653,7 +649,6 @@ class ScoringService:
         is graded by the version published now, which its pin then names.
 
         Raises:
-            AiAssistanceDisabledError: AI assistance is off.
             SystemAgentUnavailableError: The judge cannot run, and why.
             BadRequestError: An eval run's judge has a newer version, or a newer
                 prompt, than the one that graded it.
@@ -871,15 +866,12 @@ class ScoringService:
                 prompt=judge_prompt(case, answer, criteria, scale_max=scoring.judge.scale_max),
                 output_type=JudgeVerdict,
                 agent_id=scoring.judge.agent_id,
+                model_profile_id=scoring.judge.model_profile_id,
+                instructions=scoring.judge.instructions,
                 version_id=judge_version_id,
                 improvement_run_id=improvement_run_id,
                 knowledge_base_ids=await self._answering_bases(ctx, answer),
             )
-        except AiAssistanceDisabledError as exc:
-            skipped = not_graded(
-                criteria, skipped=True, code="ai_assistance_off", reason=exc.message
-            )
-            return Evaluation(skipped)
         except SystemAgentUnavailableError as exc:
             skipped = not_graded(
                 criteria, skipped=True, code=f"judge_{exc.reason}", reason=exc.message
@@ -982,10 +974,19 @@ class ScoringService:
         published = None if version is None else version.spec.get("model_profile_id")
         return JudgePin(
             agent_id=run.agent_id,
-            model_profile_id=published,
+            model_profile_id=scoring.judge.model_profile_id or published,
             agent_version_id=run.agent_version_id,
             spec_version=None if version is None else version.version,
             rubric_hash=rubric_hash(criteria, scale_max=scoring.judge.scale_max),
+            instructions_hash=(
+                hashlib.sha256(scoring.judge.instructions.encode()).hexdigest()
+                if scoring.judge.instructions is not None
+                else hashlib.sha256(
+                    AgentSpec.model_validate(version.spec).instructions.encode()
+                ).hexdigest()
+                if version is not None
+                else None
+            ),
             prompt_version=JUDGE_PROMPT_VERSION,
         )
 

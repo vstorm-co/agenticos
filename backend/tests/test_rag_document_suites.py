@@ -6,6 +6,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.db.models.rag_document import RAGDocument
+from app.db.vector_tables import VectorScope
+from app.repositories import rag_document_repo
 from app.services.rag_document import RAGDocumentService
 
 pytestmark = pytest.mark.anyio
@@ -70,3 +72,41 @@ async def test_forgetting_a_document_already_gone_changes_nothing() -> None:
 
     delete.assert_not_awaited()
     changed.assert_not_awaited()
+
+
+async def test_deleting_a_document_keeps_concurrent_vector_cleanup_and_suite_dispatch() -> None:
+    doc = RAGDocument(
+        id=uuid.uuid4(),
+        organization_id=uuid.uuid4(),
+        knowledge_base_id=uuid.uuid4(),
+        collection_name="docs",
+        vector_document_id="previous-vector",
+    )
+    scope = VectorScope(tenant=doc.organization_id, knowledge_base_id=doc.knowledge_base_id)
+    service = RAGDocumentService(MagicMock())
+    with (
+        patch.object(service, "get_document", AsyncMock(return_value=doc)),
+        patch.object(service, "vector_scope", AsyncMock(return_value=scope)),
+        patch.object(service, "discard_untracked", AsyncMock()) as cleanup,
+        patch.object(
+            rag_document_repo,
+            "delete_with_vectors",
+            AsyncMock(
+                return_value=rag_document_repo.DeletedDocuments(
+                    vector_document_ids=["settled-during-delete"], storage_paths=[]
+                )
+            ),
+        ) as delete,
+        patch(
+            "app.services.eval_suite.EvalSuiteService.dependency_changed", AsyncMock()
+        ) as changed,
+    ):
+        await service.delete_document(str(doc.id), MagicMock())
+
+    delete.assert_awaited_once_with(service.db, doc.id)
+    cleanup.assert_awaited_once_with("docs", "settled-during-delete", scope=scope)
+    changed.assert_awaited_once_with(
+        organization_id=doc.organization_id,
+        kind="knowledge_base",
+        resource_id=doc.knowledge_base_id,
+    )

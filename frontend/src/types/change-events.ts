@@ -22,7 +22,8 @@ export type ChangeResource =
   | "eval_run"
   | "dataset"
   | "knowledge_gap"
-  | "improvement";
+  | "improvement"
+  | "conversation";
 
 export type ChangeAction = "created" | "updated" | "deleted";
 
@@ -69,4 +70,12 @@ export interface SystemChange extends ChangeEventBase {
   actor_name: null;
 }
 
-export type ChangeEvent = MadeChange | RunChange | SystemChange;
+/** A persisted routine answer or its delivery state changed after the run ended. */
+export interface RoutineChange extends ChangeEventBase {
+  resource: "conversation" | "trigger";
+  surface: "run";
+  actor_user_id: string | null;
+  actor_name: null;
+}
+
+export type ChangeEvent = MadeChange | RunChange | RoutineChange | SystemChange;

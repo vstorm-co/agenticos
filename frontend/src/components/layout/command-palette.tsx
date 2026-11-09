@@ -5,16 +5,8 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { Command } from "cmdk";
-import {
-  ArrowRight,
-  BookOpen,
-  Bot,
-  Database,
-  LogOut,
-  MessageSquare,
-  Plus,
-  Search,
-} from "lucide-react";
+import { ArrowRight, BookOpen, Bot, Database, LogOut, Plus, Search } from "lucide-react";
+import { ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 import type { LucideIcon } from "lucide-react";
 
 import { ADMIN_TABS } from "@/app/[locale]/(dashboard)/admin/admin-tabs";
@@ -25,10 +17,11 @@ import { useAuth } from "@/hooks";
 import { usePermissions } from "@/hooks/use-permissions";
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { apiClient } from "@/lib/api-client";
+import { DIALOG_COMMAND } from "@/lib/dialog-sizes";
 import { ROUTES } from "@/lib/constants";
 import { useSidebarStore } from "@/stores/sidebar-store";
 import { qk } from "@/lib/query-keys";
-import { isAppAdmin } from "@/lib/utils";
+import { cn, isAppAdmin } from "@/lib/utils";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import { Perm } from "@/types/permissions";
 import type { AgentList } from "@/types/agents";
@@ -151,7 +144,7 @@ export function CommandPalette() {
       label={t("commandPalette")}
       shouldFilter
       overlayClassName="fixed inset-0 z-[60] bg-black/40"
-      contentClassName="panel text-foreground fixed left-1/2 top-[calc(var(--shell-inset-top,0px)+1rem)] z-[61] flex max-h-[var(--dialog-available-height)] w-[min(92vw,640px)] -translate-x-1/2 flex-col overflow-hidden rounded-2xl"
+      contentClassName={cn("panel text-foreground z-[61] flex", DIALOG_COMMAND)}
     >
       <div className="border-foreground/10 flex items-center gap-3 border-b px-4 py-3">
         <Search className="text-muted-foreground h-4 w-4" />
@@ -167,7 +160,7 @@ export function CommandPalette() {
         </kbd>
       </div>
 
-      <Command.List className="max-h-[60dvh] min-h-0 scrollbar-thin overflow-y-auto overscroll-contain px-2 py-2">
+      <Command.List className="max-h-[min(55dvh,28rem)] min-h-0 scrollbar-thin overflow-y-auto overscroll-contain px-2 py-2">
         <Command.Empty className="text-muted-foreground px-4 py-10 text-center text-sm">
           {t("noMatches")}
         </Command.Empty>

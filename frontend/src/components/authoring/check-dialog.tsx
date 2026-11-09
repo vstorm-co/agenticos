@@ -24,7 +24,7 @@ import {
 import { useEveryAgent, useEveryDataset } from "@/hooks/use-eval-runs";
 import { useAgentEvalSuites } from "@/hooks/use-eval-suites";
 import { getErrorMessage } from "@/lib/api-error";
-import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import type { ProposalCheck } from "@/types/authoring";
 import type { EvalRun, EvalRunEstimate } from "@/types/eval-runs";
 
@@ -115,7 +115,7 @@ export function CheckDialog({
 
   return (
     <Dialog open onOpenChange={onOpenChange}>
-      <DialogContent className={`${DIALOG_FORM} ${DIALOG_SCROLL}`}>
+      <DialogContent className={`${DIALOG_FORM} ${DIALOG_COLUMN}`}>
         <DialogHeader>
           <DialogTitle>{t("title")}</DialogTitle>
           <DialogDescription>
@@ -126,7 +126,7 @@ export function CheckDialog({
                 : t("contextBody")}
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
+        <div className={`${DIALOG_BODY} space-y-4`}>
           {agentId === null && (
             <div className="space-y-1.5">
               <Label>{agentLabel}</Label>
@@ -190,12 +190,12 @@ export function CheckDialog({
             />
           )}
           {error !== null && (
-            <p role="alert" className="text-destructive text-sm">
+            <p role="alert" className="text-destructive-ink text-sm">
               {error}
             </p>
           )}
         </div>
-        <DialogFooter>
+        <DialogFooter className="border-t">
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             {t("cancel")}
           </Button>

@@ -98,9 +98,9 @@ const CHIP: Record<Tone, string> = {
 };
 
 const INK: Record<Tone, string> = {
-  good: "text-success",
-  bad: "text-destructive",
-  warn: "text-warning",
+  good: "text-success-ink",
+  bad: "text-destructive-ink",
+  warn: "text-warning-ink",
   neutral: "text-muted-foreground",
 };
 
@@ -256,8 +256,8 @@ export function BeforeAfter({
             reads === "neutral"
               ? "text-muted-foreground"
               : reads === "good"
-                ? "text-success"
-                : "text-destructive",
+                ? "text-success-ink"
+                : "text-destructive-ink",
           )}
         >
           <Arrow className="size-4" aria-hidden />
@@ -331,7 +331,7 @@ export function Stepper({
               className={cn(
                 "mt-0.5 size-5 shrink-0",
                 stage.state === "done"
-                  ? "text-success"
+                  ? "text-success-ink"
                   : stage.state === "running"
                     ? "text-chart animate-spin"
                     : "text-muted-foreground",

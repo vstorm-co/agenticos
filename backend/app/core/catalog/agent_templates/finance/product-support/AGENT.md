@@ -4,6 +4,7 @@ description: Answers questions about rates, fees and terms by quoting the curren
   document and its version.
 capabilities:
 - ask_user
+- drafts
 - id: knowledge
   config:
     default_top_k: 4

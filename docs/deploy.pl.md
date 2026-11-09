@@ -1,5 +1,5 @@
 ---
-source_sha: "7bd15584abde"
+source_sha: "a41c7a2c6e87"
 ---
 
 # Wdrożenie na serwer { #deploy-to-a-server }
@@ -29,7 +29,7 @@ Poza jeden host - zarządzany Postgres, kilka hostów API, kilka wdrożeń - pro
 | | |
 |---|---|
 | **Host** | 4 vCPU i 8 GB RAM to uruchamia. Zobacz [dobór rozmiaru](#sizing-the-host) |
-| **Docker** | Engine 24+ z wtyczką Compose (2.24 lub nowszą) i twój użytkownik w grupie `docker`. Nic nie jest budowane na hoście: obrazy są ściągane z GHCR |
+| **Silnik kontenerów** | Engine 24+ z wtyczką Compose (2.24 lub nowszą) i twój użytkownik w grupie `docker`. Nic nie jest budowane na hoście: obrazy są ściągane z GHCR. Alternatywnie użyj [ręcznej ścieżki Podmana](#podman-support). |
 | **Dwie nazwy hostów** | jedna dla witryny, jedna dla API — zobacz [dlaczego dwie](#why-two-hostnames) |
 | **Reverse proxy** | [Traefik](#option-a-traefik) albo [Nginx](#option-b-nginx). To on terminuje TLS |
 | **Bez klucza providera** | modele czatowe i embedy są kluczowane per organizacja, w vaulcie produktu. Środowisko nie trzyma poświadczeń ani dla jednych, ani dla drugich — zobacz [Ochrona danych](data-protection.md#nothing-leaves-by-default) |
@@ -47,6 +47,94 @@ certyfikatu.
 `app.example.com` i `api.example.com` to ten kształt. Mogą to być dowolne dwie
 nazwy; czym być nie mogą, to jedną nazwą z prefiksem ścieżki, bo ciasteczka API i
 ciasteczka witryny są ograniczone do hosta.
+
+### Obsługa Podmana { #podman-support }
+
+**Podman jest wspierany w ręcznym wdrożeniu z Docker Compose jako providerem.**
+Testy wykonano na Podmanie 6.1.4 i Docker Compose v2.40.3, Fedora CoreOS 44
+(VM Podmana na macOS, ARM64, cgroups v2, SELinux enforcing). Dostarczany plik
+wymaga Compose 2.24 lub nowszego.
+
+**Nie używaj `podman-compose` 1.6.0.** Uruchomił stack i agent odpowiedział,
+ale kontrolowana nieudana migracja nie zatrzymała startu zależnej aplikacji.
+Docker Compose poprawnie odmówił startu. Providerzy mają osobne numery wersji;
+`podman-compose` 1.6.0 nie oznacza Docker Compose 1.6.0.
+
+Quickstart pozostaje przeznaczony dla Dockera i odsyła wykrytego Podmana do
+tej ręcznej ścieżki, także z `--no-sandbox`. W skonfigurowanym katalogu głównym
+repozytorium wskaż rzeczywisty plik wykonywalny Docker Compose (osobny program
+lub plugin CLI):
+
+```bash
+export PODMAN_COMPOSE_PROVIDER=/absolute/path/to/docker-compose
+podman compose version
+podman compose -f docker-compose.yml up -d
+```
+
+Sprawdź, czy `podman compose version` identyfikuje Docker Compose. Jawne `-f`
+pomija lokalny override budujący ze źródeł: ta instalacja używa opublikowanych
+obrazów. Po starcie usług wykonaj bootstrap organizacji i modelu zgodnie z
+[Instalacją](install.md).
+
+**Opcjonalny sandbox.** `pydantic-ai-backend` 0.2.39 działał z socketami Podmana
+rootful i rootless. Nie wymaga nowego backendu ani wydania. Użyj pliku
+`docker-compose-podman.yml`, aby dostosować montowanie socketu i workspace;
+przygotuj uprawnienia przed włączeniem profilu.
+
+Na natywnym Linuksie z rootless Podmanem:
+
+```bash
+systemctl --user enable --now podman.socket
+export SANDBOX_DOCKER_SOCKET="$XDG_RUNTIME_DIR/podman/podman.sock"
+export SANDBOX_WORKSPACE_ROOT="$HOME/.local/share/agenticos/sandbox-workspaces"
+mkdir -p "$SANDBOX_WORKSPACE_ROOT"
+podman unshare chown 10001:10001 "$SANDBOX_WORKSPACE_ROOT"
+export DOCKER_GID=0
+```
+
+Dla rootful Linuksa włącz systemowy `podman.socket`, ustaw
+`SANDBOX_DOCKER_SOCKET=/run/podman/podman.sock` i przygotuj workspace przez
+`sudo install -d -o 10001 -g 10001 "$SANDBOX_WORKSPACE_ROOT"`. Uruchom Compose
+przeciw temu silnikowi rootful. Grupa socketu to zwykle 0; przy niestandardowym
+sockecie rootful podaj jego rzeczywistą grupę w `DOCKER_GID`.
+
+Na rootless VM Podmana w macOS oba źródła bind mountów należą do linuksowej VM,
+a nie macOS. Przygotuj je wewnątrz VM:
+
+```bash
+export SANDBOX_DOCKER_SOCKET="$(podman machine ssh 'printf "%s/podman/podman.sock" "$XDG_RUNTIME_DIR"')"
+export SANDBOX_WORKSPACE_ROOT=/tmp/agenticos-sandbox-workspaces
+podman machine ssh 'mkdir -p /tmp/agenticos-sandbox-workspaces && podman unshare chown 10001:10001 /tmp/agenticos-sandbox-workspaces'
+export DOCKER_GID=0
+```
+
+Zachowaj istniejące klucze wdrożenia. Ustaw niepusty `SANDBOXD_TOKEN` i
+`SANDBOX_URL=http://sandboxd:8080` w pliku env czytanym przez stack, zgodnie z
+[konfiguracją sandboxa](sandbox.md). Następnie uruchom oba pliki:
+
+```bash
+podman compose -f docker-compose.yml -f docker-compose-podman.yml \
+  --profile sandbox up -d
+```
+
+Override wyłącza etykietowanie SELinux tylko dla `sandboxd`, który już ma
+socket silnika. Udostępnia etykietę workspace przez `:z`, ponieważ montują go
+również sąsiednie sandboxy. Kontenery sandboxów zachowują własne etykiety i
+`no-new-privileges`; nie zmieniaj etykiety socketu ani nie wyłączaj globalnie
+SELinux. W rootless właściciel socketu mapuje się na grupę 0 w user namespace.
+
+Na serwerze użyj trwałej ścieżki workspace: `/tmp` to tylko lokalny przykład.
+Zachowaj ustawienia socketu, workspace i grupy w środowisku operatora dla
+kolejnych poleceń Compose. Hostowe `DOCKER_HOST` nie zmienia socketu montowanego
+wewnątrz `sandboxd`.
+
+Zweryfikowano run agenta przez HTTP i zapis ukończenia, pliki workspace,
+niezerowe kody wyjścia, timeouty, egzekwowane limity RAM/CPU/PID i budowanie
+obrazów runtime. Dostarczany obraz workbench czytał/zapisywał XLSX, renderował
+wykres oraz uruchamiał Node i LibreOffice. Model był deterministycznym serwerem
+testowym zgodnym z OpenAI; nie testowano runtime desktop ani każdej dystrybucji
+Linuksa. [Raport testów](https://github.com/vstorm-co/agenticos/blob/main/docs/audits/podman-2026-11-03.md)
+zawiera wersje, zakres i reprodukcję błędnej obsługi migracji.
 
 ## Dobór rozmiaru hosta { #sizing-the-host }
 
@@ -453,6 +541,51 @@ deploymentu.
 
 ## Wdrażanie zmiany { #deploying-a-change }
 
+### Pamięć natywna i ciągłość rutyn { #native-memory-upgrade }
+
+Przed aktualizacją wykonaj [kopie bazy, mediów i kluczy sejfu](#backups)
+i skoordynuj wdrożenie API oraz workerów. Użyj zwykłego kroku migracji wdrożenia;
+nie kopiuj ręcznie wierszy ani nie twórz zastępczych harmonogramów.
+
+Przed zastosowaniem `0285_member_proactivity.py` zatrzymaj API i procesy zlecające sweepy, poczekaj na zakończenie aktywnych zadań proaktywnych, a następnie zatrzymaj workery. Migracja odmawia działania, gdy trwa zadanie modelu obserwacji lub nocnego przeglądu, i uzupełnia kolejkę o wspólny klucz współbieżności na osobę. Aktualizuj API i workery razem, aby nowe zadania używały tego samego klucza; obserwacja i nocny przegląd jednej osoby nie mogą niezależnie wydać tego samego pozostałego limitu.
+
+- `0248_drop_memory_mem0.py` zatrzymuje aktualizację, jeśli `memory_mem0` pozostaje
+  w którymkolwiek zapisanym szkicu lub opublikowanej specyfikacji. Przed ponowieniem
+  zinwentaryzuj wszystkie endpointy i powiązania poświadczeń sejfu z kopii zapasowej,
+  usuń zewnętrzne wspomnienia i potwierdź zakończenie u każdego dostawcy. Dopiero
+  potem jawnie usuń te bindingi z `agents.draft_spec` i `agent_versions.spec`.
+  Sam eksport nie oznacza usunięcia. Zachowaj dowody czyszczenia, przejrzyj nieużywane
+  klucze sejfu i unieważnij wycofane poświadczenia. Migracja nie wykonuje zdalnych
+  żądań ani nie zakłada udanego usunięcia. Jeśli wcześniejsza wersja rozwojowa już
+  usunęła bindingi, odtwórz inwentarz z kopii sprzed aktualizacji i wykonaj to samo
+  czyszczenie; natywne usuwanie pamięci osoby lub agenta nie dociera do tych danych.
+- `0251_primary_conversations.py` i `0258_primary_channel_history.py` ustanawiają
+  główne czaty prywatne. Istniejące przypisanie ma pierwszeństwo. Tylko dowodnie
+  prywatna historia powiązanego kanału jest przejmowana jednorazowo; historie
+  projektowe, grupowe i niejednoznaczne pozostają oddzielne. Nie uruchamiaj
+  ponownie uzupełnienia po wyczyszczeniu głównego czatu przez osobę.
+- Istniejące identyfikatory rutyn, harmonogramy i logi pozostają na miejscu.
+  `0255_trigger_delivery.py` nadaje starym rutynom `run_log`; nowe domyślnie
+  wybierają główny czat albo zaufaną rozmowę źródłową. W **Rutynach** sprawdź
+  odbiorcę wyniku, działającą osobę, koniec i budżet, zamiast tworzyć kopie.
+- `0259_trigger_version_pin.py` dodaje przypięcie niezmiennej wersji. Pin i nazwane
+  środowisko wzajemnie się wykluczają. Usuń pin przed usunięciem wersji.
+  Zaparkowany run zachowuje przyjętą wersję; `0260_routine_run_origin.py` zachowuje
+  jego pochodzenie, więc usunięcie rutyny nie zwalnia kontroli uprawnień.
+- `0261_watch_attempt_status.py` zaczyna jawne śledzenie prób bez zgadywania starszej
+  historii sukcesów i błędów. Niedostępne lub nieukończone sprawdzenie nie przesuwa
+  daty sukcesu. Przejrzyj istniejące obserwacje i ich dostęp do kont: historyczne
+  wiersze nie dowodzą, w jaki sposób pierwotnie udzielono zgody.
+
+Przed włączeniem utrzymania pamięci wybierz model jawnie; poranny briefing
+zachowuje dotychczasowe ustawienia modelu i budżetu organizacji. Od `0262_watch_agent_sources.py` obserwacje wykonuje wybrany agent, a runy
+zachowują zatwierdzone źródła. Istniejące obserwacje wymagają wybrania agenta
+i zatwierdzenia źródeł; identyfikatory i ustalenia pozostają. Sprawdź [zarządzanie](governance.md#proactive-work)
+i [konfigurację kanałów](channels.md#sms), w tym `PUBLIC_BASE_URL` i wygasłe
+powiązania SMS. W organizacji testowej sprawdź prywatny czat, Aktywność i dostawę
+jednej rutyny, pauzę/wygaśnięcie oraz obserwację niedostępnego źródła, zanim
+rozszerzysz wdrożenie.
+
 ### Granica formatu historii w 1.25.0 { #retry-history-upgrade }
 
 Wersja 1.25.0 przechodzi na wyniki narzędzi `retried` i osobne wiadomości
@@ -499,9 +632,9 @@ zmienił, więc witryna jest niedostępna przez te kilka sekund, które to zajmu
 
 ### Z GitHuba, z zatwierdzeniem { #from-github-with-an-approval }
 
-`.github/workflows/deploy.yml` oferuje każdy merge do `main` do wdrożenia i czeka,
+`.github/workflows/deploy.yml` oferuje każde opublikowane stabilne wydanie do wdrożenia i czeka,
 aż ktoś to zatwierdzi. Ta bramka jest **ustawieniem repozytorium, a nie krokiem w
-pliku** — bez niej workflow wdraża każdy merge bez nadzoru.
+pliku** — bez niej workflow wdraża każde opublikowane stabilne wydanie bez nadzoru.
 
 Skonfiguruj to raz:
 
@@ -517,7 +650,7 @@ Skonfiguruj to raz:
     Każde uruchomienie dzieli grupę współbieżności `deploy-production`, a
     uruchomienie siedzące przy bramce zatwierdzenia ją trzyma. Nie wygasa samo z
     siebie — GitHub anuluje takie, na które nie zareagowano, po 30 dniach — więc
-    dopóki ktoś go nie zatwierdzi albo nie anuluje, późniejsze merge'e stoją w
+    dopóki ktoś go nie zatwierdzi albo nie anuluje, późniejsze wydania'e stoją w
     kolejce za decyzją, której nikt nie podejmie, a serwer dalej uruchamia to, co
     zostało wdrożone ostatnio.
 
@@ -528,9 +661,9 @@ Skonfiguruj to raz:
     `deploy-queue.yml` jest tym, co dzieje się, kiedy mimo wszystko zostanie
     zostawione: co sześć godzin anuluje uruchomienie Deploy czekające na
     zatwierdzenie dłużej niż dwanaście i zakłada zgłoszenie z nazwą tego
-    uruchomienia oraz z tym, jak daleko `main` odjechał od ostatniego udanego
+    uruchomienia oraz z tym, ile commitów dzieli najnowsze stabilne wydanie od ostatniego udanego
     wdrożenia. Niczego nie zatwierdza i niczego nie wdraża — opróżnia kolejkę, żeby
-    następny merge dotarł do bramki, i mówi, że to zrobił. Ręcznie uruchamiasz je
+    następne opublikowane wydanie dotarło do bramki, i mówi, że to zrobił. Ręcznie uruchamiasz je
     przez `gh workflow run deploy-queue.yml`.
 
 !!! danger "Zatwierdzanie z kolejki środowiska zatwierdza **najstarsze** uruchomienie"
@@ -539,7 +672,7 @@ Skonfiguruj to raz:
     w której kolejka się zakleszczyła, a nie ten dopiero co wypchnięty — tak właśnie
     na ten serwer trafił commit sprzed dwóch tygodni. Zatwierdzaj ze strony
     uruchomienia dla commita, o który ci chodzi, albo zacznij nowe przez
-    `gh workflow run deploy.yml --ref main` i zatwierdź je.
+    `gh workflow run deploy.yml --ref main -f ref=v1.34.3` i zatwierdź je.
 
 | Sekret | Co |
 |---|---|

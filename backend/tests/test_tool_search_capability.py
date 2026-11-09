@@ -14,6 +14,7 @@ from pydantic_ai.capabilities import ToolSearch
 from app.agents.capabilities import build, get
 from app.agents.capabilities._registry import CapabilityBinding, CapabilityBuildContext
 from app.agents.capabilities.tool_search import ToolSearchConfig, build_tool_search
+from app.core.exceptions import BadRequestError
 
 
 def _built(config: dict | None = None) -> ToolSearch[object]:
@@ -41,6 +42,22 @@ class TestStrategy:
 
 
 class TestConfig:
+    def test_existing_config_preserves_mcp_only_deferral(self) -> None:
+        config = ToolSearchConfig.model_validate({"strategy": "keywords", "max_results": 5})
+        assert config.defer_mcp_servers is True
+        assert config.defer_capabilities is False
+        assert config.exclude_capabilities == []
+        assert config.exclude_mcp_servers == []
+        assert config.exclude_tools == []
+
+    @pytest.mark.parametrize(
+        "field", ["exclude_capabilities", "exclude_mcp_servers", "exclude_tools"]
+    )
+    def test_exclusions_require_names_at_config_validation(self, field: str) -> None:
+        with pytest.raises(BadRequestError) as exc:
+            get("tool_search").validate_config({field: [42]})
+        assert exc.value.details["fields"][0]["field"] == f"config.{field}.0"
+
     def test_max_results_is_bounded(self):
         """A local search that returns nothing, or the whole toolset, is not a search."""
         with pytest.raises(ValidationError):
@@ -73,3 +90,72 @@ class TestContributesNoTool:
         """`search_tools` appears only once it wraps a toolset with deferred tools,
         which the factory arranges - so on its own it offers the model nothing."""
         assert _built().get_toolset() is None
+
+
+class TestLocalBm25:
+    def test_portable_strategy_uses_local_ranking(self) -> None:
+        from app.agents.capabilities.tool_search._ranking import rank_tools
+
+        assert build_tool_search("local_bm25", 5).strategy is rank_tools
+
+    def test_ranker_matches_identifiers_and_arguments_without_inventing_tools(self) -> None:
+        from pydantic_ai.models.test import TestModel
+        from pydantic_ai.tools import RunContext, ToolDefinition
+        from pydantic_ai.usage import RunUsage
+
+        from app.agents.capabilities.tool_search._ranking import rank_tools
+
+        ctx = RunContext(deps=object(), model=TestModel(), usage=RunUsage())
+        tools = [
+            ToolDefinition(name="mail_send", description="Send an email"),
+            ToolDefinition(name="mail_list", description="List recent messages"),
+            ToolDefinition(
+                name="calendar_createEvent",
+                parameters_json_schema={
+                    "type": "object",
+                    "properties": {"attendee": {"type": "string"}},
+                },
+            ),
+        ]
+        assert rank_tools(ctx, ["send email"], tools)[0] == "mail_send"
+        assert rank_tools(ctx, ["calendar attendee"], tools) == ["calendar_createEvent"]
+        assert rank_tools(ctx, ["payroll"], tools) == []
+        assert rank_tools(ctx, ["   "], tools) == []
+        assert rank_tools(ctx, ["send"], []) == []
+
+    def test_rare_operations_beat_repeated_generic_words(self) -> None:
+        from pydantic_ai.models.test import TestModel
+        from pydantic_ai.tools import RunContext, ToolDefinition
+        from pydantic_ai.usage import RunUsage
+
+        from app.agents.capabilities.tool_search._ranking import rank_tools
+
+        ctx = RunContext(deps=object(), model=TestModel(), usage=RunUsage())
+        tools = [ToolDefinition(name="reports", description="Search " * 80)]
+        tools += [
+            ToolDefinition(name=f"search_{n}", description="Search documents") for n in range(8)
+        ]
+        tools.append(ToolDefinition(name="refund_create", description="Issue a refund"))
+        assert rank_tools(ctx, ["search refund"], tools)[0] == "refund_create"
+
+
+def test_exact_platform_operation_beats_unrelated_nested_configuration_schemas() -> None:
+    from pydantic_ai.models.test import TestModel
+    from pydantic_ai.tools import RunContext, ToolDefinition
+    from pydantic_ai.usage import RunUsage
+
+    from app.agents.capabilities.tool_search._ranking import rank_tools
+
+    ctx = RunContext(deps=None, model=TestModel(), usage=RunUsage())
+    tools = [
+        ToolDefinition(
+            name="agenticos_update_agent_draft",
+            description="Update an agent",
+            parameters_json_schema={
+                "properties": {"config": {"description": "get virtual table " * 100}}
+            },
+        ),
+        ToolDefinition(name="agenticos_get_virtual_table", description="Read a table schema"),
+    ]
+    assert rank_tools(ctx, ["get_virtual_table"], tools)[0] == "agenticos_get_virtual_table"
+    assert rank_tools(ctx, ["table schema"], tools)[0] == "agenticos_get_virtual_table"

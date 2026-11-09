@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import type { ReactNode } from "react";
+import { CircleHelp, Coins, Gauge, Hash, Timer } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
@@ -44,27 +46,38 @@ function SideLabel({
 }
 
 /** One side's numbers, a dash where it has none under the tag read. */
-function SummaryCells({ summary }: { summary: ArmSummary | undefined }) {
+function SummaryCell({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <td className="flex min-w-0 items-start justify-between gap-4 py-1.5 md:table-cell md:py-2 md:pr-3">
+      <span className="text-muted-foreground text-xs md:hidden">{label}</span>
+      <span className="min-w-0 text-right break-words md:text-left">{children}</span>
+    </td>
+  );
+}
+
+function SummaryCells({ summary, live }: { summary: ArmSummary | undefined; live: boolean }) {
   const t = useTranslations("evals.arms");
   const locale = useLocale();
   return (
     <>
-      <td className="py-2 pr-3">{percent(summary?.pass_rate ?? null, locale)}</td>
-      <td className="py-2 pr-3">
+      <SummaryCell label={t("passRate")}>{percent(summary?.pass_rate ?? null, locale)}</SummaryCell>
+      <SummaryCell label={live ? t("pending") : t("undecided")}>
         {summary === undefined ? "—" : summary.incomplete + summary.ungraded}
-      </td>
-      <td className="py-2 pr-3">{usd(summary?.cost_per_pass_usd ?? null, locale)}</td>
-      <td className="py-2 pr-3">
+      </SummaryCell>
+      <SummaryCell label={t("costPerPass")}>
+        {usd(summary?.cost_per_pass_usd ?? null, locale)}
+      </SummaryCell>
+      <SummaryCell label={t("tokens")}>
         {summary === undefined || summary.avg_tokens === null
           ? "—"
           : Math.round(summary.avg_tokens)}
-      </td>
-      <td className="py-2 pr-3">
+      </SummaryCell>
+      <SummaryCell label={t("latency")}>
         {t("p50p95", {
           p50: seconds(summary?.p50_ms ?? null, locale),
           p95: seconds(summary?.p95_ms ?? null, locale),
         })}
-      </td>
+      </SummaryCell>
     </>
   );
 }
@@ -104,14 +117,76 @@ export function ArmsTable({
     baseline !== null && baselineSummary !== null && !arms.some((arm) => arm.role === "baseline")
       ? baseline
       : null;
+  const single = arms.length === 1 && earlier === null ? arms[0] : undefined;
+  const summary =
+    single?.failed_alike != null ? undefined : tag === null ? single?.summary : single?.by_tag[tag];
+  const metrics = [
+    { label: t("passRate"), value: percent(summary?.pass_rate ?? null, locale), icon: Gauge },
+    {
+      label: live ? t("pending") : t("undecided"),
+      value: summary ? summary.incomplete + summary.ungraded : "—",
+      icon: CircleHelp,
+    },
+    {
+      label: t("costPerPass"),
+      value: usd(summary?.cost_per_pass_usd ?? null, locale),
+      icon: Coins,
+    },
+    {
+      label: t("tokens"),
+      value:
+        summary?.avg_tokens == null
+          ? "—"
+          : new Intl.NumberFormat(locale).format(Math.round(summary.avg_tokens)),
+      icon: Hash,
+    },
+    {
+      label: t("latency"),
+      value: t("p50p95", {
+        p50: seconds(summary?.p50_ms ?? null, locale),
+        p95: seconds(summary?.p95_ms ?? null, locale),
+      }),
+      icon: Timer,
+    },
+  ];
+  if (single?.failed_alike != null) return null;
+  if (single)
+    return (
+      <Card>
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
+          <CardTitle>{tag === null ? t("singleTitle") : t("singleTitleTag", { tag })}</CardTitle>
+          <p className="text-muted-foreground min-w-0 text-xs break-words">
+            <SideLabel agentId={agentId} arm={single} baseline={baseline} check={check} />
+          </p>
+        </CardHeader>
+        <CardContent className="border-t pt-4">
+          <dl className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+            {metrics.map((metric) => (
+              <div
+                key={metric.label}
+                className="bg-background/40 min-w-0 space-y-3 rounded-xl border p-4 last:col-span-2 xl:last:col-span-1"
+              >
+                <dt className="text-muted-foreground flex items-center gap-2 text-xs">
+                  <metric.icon className="size-3.5 shrink-0" aria-hidden />
+                  {metric.label}
+                </dt>
+                <dd className="text-xl font-semibold tracking-tight tabular-nums">
+                  {metric.value}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </CardContent>
+      </Card>
+    );
   return (
     <Card>
       <CardHeader>
         <CardTitle>{tag === null ? t("title") : t("titleTag", { tag })}</CardTitle>
       </CardHeader>
-      <CardContent className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="text-muted-foreground text-left text-xs">
+      <CardContent className="min-w-0 overflow-x-auto">
+        <table className="block w-full text-sm md:table">
+          <thead className="text-muted-foreground hidden text-left text-xs md:table-header-group">
             <tr>
               <th className="py-1 pr-3 font-normal">{t("side")}</th>
               <th className="py-1 pr-3 font-normal">{t("passRate")}</th>
@@ -121,19 +196,31 @@ export function ArmsTable({
               <th className="py-1 pr-3 font-normal">{t("latency")}</th>
             </tr>
           </thead>
-          <tbody className="tabular-nums">
+          <tbody className="block tabular-nums md:table-row-group">
             {arms.map((arm) => (
-              <tr key={arm.id} className="border-t">
-                <td className="py-2 pr-3">
+              <tr
+                key={arm.id}
+                className="block border-b py-3 last:border-b-0 md:table-row md:border-t md:border-b-0 md:py-0"
+              >
+                <td className="block py-2 font-medium break-words md:table-cell md:pr-3 md:font-normal">
                   <SideLabel agentId={agentId} arm={arm} baseline={baseline} check={check} />
                 </td>
                 {/* An arm with no case under the tag has no entry for it. */}
-                <SummaryCells summary={tag === null ? arm.summary : arm.by_tag[tag]} />
+                <SummaryCells
+                  summary={
+                    arm.failed_alike != null
+                      ? undefined
+                      : tag === null
+                        ? arm.summary
+                        : arm.by_tag[tag]
+                  }
+                  live={live}
+                />
               </tr>
             ))}
             {earlier !== null && (
-              <tr className="border-t">
-                <td className="py-2 pr-3">
+              <tr className="block border-b py-3 last:border-b-0 md:table-row md:border-t md:border-b-0 md:py-0">
+                <td className="block py-2 font-medium break-words md:table-cell md:pr-3 md:font-normal">
                   {tSide("sideModel", {
                     name: sideName(earlier, tSide),
                     model: earlier.model_label,
@@ -150,7 +237,10 @@ export function ArmsTable({
                       : tSide("arms.reused")}
                   </Link>
                 </td>
-                <SummaryCells summary={tag === null ? (baselineSummary ?? undefined) : undefined} />
+                <SummaryCells
+                  summary={tag === null ? (baselineSummary ?? undefined) : undefined}
+                  live={live}
+                />
               </tr>
             )}
           </tbody>

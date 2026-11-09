@@ -123,7 +123,15 @@ class FollowUpService:
             return []
         if (
             parent.surface
-            in {RunSurface.SLACK, RunSurface.TELEGRAM, RunSurface.MATTERMOST, RunSurface.TEAMS}
+            in {
+                RunSurface.SLACK,
+                RunSurface.TELEGRAM,
+                RunSurface.MATTERMOST,
+                RunSurface.TEAMS,
+                RunSurface.SMS,
+                RunSurface.EMAIL,
+                RunSurface.DISCORD,
+            }
             and channel is None
         ):
             # The channel router starts its copy only after posting the answer.

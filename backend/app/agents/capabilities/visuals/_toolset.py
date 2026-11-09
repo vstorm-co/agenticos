@@ -223,6 +223,11 @@ class VisualsToolset:
           "three/addons/": "./lib/three-0.186.0/addons/"}}</script>`, then
           `import * as THREE from "three"` and
           `import { OrbitControls } from "three/addons/controls/OrbitControls.js"`.
+        - a world map - countries shaded by a value, pins, routes - with no tile server:
+          `lib/topojson-client-3.1.0.min.js`, `lib/world-atlas-2.0.2-110m.js` and
+          `lib/agenticos-worldmap-1.js` after d3, then `AOWorldMap.draw(element,
+          {countries: {Poland: 12}, pins: [{name, lat, lng}], routes: [{from, to}]})`.
+          Prefer it to the itinerary map for anything about countries or regions;
         - a map: `lib/leaflet-1.9.4/leaflet.css`, `lib/leaflet-1.9.4/leaflet.js` and
           `lib/agenticos-map-2.js`, then `AOMap.itinerary(element, {stops: [{name, lat,
           lng, day, note}]})` - numbered pins dropped in order, pause and replay, and
@@ -243,6 +248,14 @@ class VisualsToolset:
         in a box. Write `<style>` first, then the markup, then the scripts: the drawing
         shows as it streams. Before a first drawing, load the `visual-design` skill if
         it is available - it has the house style and a template for each kind of answer.
+
+        Give the drawing one clear explanatory purpose and make its controls work.
+        Label sourced values, units and assumptions; do not fill a template with
+        invented numbers. Inspect the rendered result with the available visual
+        tools and revise defects before claiming it is checked. This tool renders
+        SVG, Mermaid or HTML; it does not compile LaTeX or export editable slides.
+        For a paper or native presentation load document-production when available
+        and use a workspace compiler/generator and renderer instead.
 
         Args:
             title: What the drawing shows, in a few words, e.g. `Order flow`.

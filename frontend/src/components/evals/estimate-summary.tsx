@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 
 import { ROUTES } from "@/lib/constants";
-import { formatDateTime } from "@/lib/utils";
+import { cn, formatDateTime } from "@/lib/utils";
 import type { ArmEstimate, EvalRunEstimate, ProposalCheckRecord } from "@/types/eval-runs";
 import type { DatasetScoring } from "@/types/scoring";
 import { usd } from "./format";
@@ -37,7 +37,7 @@ export function graders(
 export function UngradedWarning({ count }: { count: number }) {
   const t = useTranslations("evals.estimate");
   if (count === 0) return null;
-  return <p className="text-warning text-xs">{t("ungraded", { count })}</p>;
+  return <p className="text-warning-ink text-xs">{t("ungraded", { count })}</p>;
 }
 
 function ArmLine({
@@ -102,7 +102,7 @@ export function EstimateSummary({
       arm.model_profile_id === estimate.judge_model_profile_id,
   );
   return (
-    <div className="bg-muted/40 space-y-3 rounded-lg border p-4 text-sm">
+    <div className="bg-background/50 space-y-3 rounded-xl border p-4 text-sm">
       <ul className="space-y-1">
         {estimate.arms.map((arm, index) => (
           <li key={index} className="flex items-center justify-between gap-3">
@@ -117,7 +117,7 @@ export function EstimateSummary({
           </li>
         )}
       </ul>
-      <p className="flex items-center justify-between gap-3 font-medium">
+      <p className="flex items-center justify-between gap-3 border-t pt-3 font-medium">
         <span>{t("total", { count: estimate.cases })}</span>
         <span className="tabular-nums">{usd(estimate.total_usd, locale)}</span>
       </p>
@@ -129,21 +129,35 @@ export function EstimateSummary({
       <p className="text-muted-foreground text-xs">
         {t("reruns", { amount: usd(estimate.rerun_ceiling_usd, locale) })}
       </p>
-      <p className="text-xs">
-        {t.rich("after", {
-          agent:
-            estimate.agent_after_usd === null ? t("noCap") : usd(estimate.agent_after_usd, locale),
-          org: estimate.org_after_usd === null ? t("noCap") : usd(estimate.org_after_usd, locale),
-          b: (chunk) => <strong>{chunk}</strong>,
-        })}
-      </p>
+      <dl className="space-y-1 text-xs">
+        {[
+          { label: "budgetAgentAfter", balance: estimate.agent_after_usd },
+          { label: "budgetOrgAfter", balance: estimate.org_after_usd },
+        ].map(({ label, balance }) => (
+          <div key={label} className="flex items-baseline justify-between gap-3">
+            <dt className="text-muted-foreground min-w-0 flex-1">{t(label)}</dt>
+            <dd
+              className={cn(
+                "max-w-[60%] text-right font-medium tabular-nums",
+                balance !== null && Number(balance) < 0 && "text-destructive-ink",
+              )}
+            >
+              {balance === null
+                ? t("noCap")
+                : Number(balance) < 0
+                  ? t("overBudget", { amount: usd(String(-Number(balance)), locale) })
+                  : usd(balance, locale)}
+            </dd>
+          </div>
+        ))}
+      </dl>
       {judgedOwnModel && (
-        <p className="text-warning text-xs">
+        <p className="text-warning-ink text-xs">
           {t("judgeSameModel", { model: judgedOwnModel.model_label })}
         </p>
       )}
       <UngradedWarning count={estimate.ungraded_cases} />
-      {!estimate.affordable && <p className="text-destructive text-xs">{t("unaffordable")}</p>}
+      {!estimate.affordable && <p className="text-destructive-ink text-xs">{t("unaffordable")}</p>}
     </div>
   );
 }

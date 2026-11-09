@@ -60,6 +60,11 @@ export default defineConfig({
         "src/components/authoring/**/*.tsx",
         "src/components/improvement/**/*.tsx",
         "src/components/skill-improvement/**/*.tsx",
+        "src/components/triggers/source-consents-panel.tsx",
+        "src/components/triggers/routine-options.tsx",
+        "src/components/chat/tool-results/memory.tsx",
+        "src/components/projects/project-tracking-control.tsx",
+        "src/components/projects/project-tracking-dialog.tsx",
         // The workflow editor's client-side validation mirror (#1787): pure TS
         // over the in-memory graph, held to the gate the way the agents
         // components above are.
@@ -77,6 +82,7 @@ export default defineConfig({
         "src/components/dashboard/widgets/sandbox-*.tsx",
         // The routines card, held to the gate by #594's own "done when".
         "src/components/dashboard/widgets/routines.tsx",
+        "src/components/dashboard/widgets/background-tasks.tsx",
         // What the nightly look proposed (#2301).
         "src/components/dashboard/widgets/authoring-suggestions.tsx",
         "src/components/dashboard/widgets/recent-visuals.tsx",
@@ -126,6 +132,7 @@ export default defineConfig({
         "src/components/settings/create-api-key-dialog.tsx",
         "src/components/settings/scope-picker.tsx",
         "src/components/settings/connected-apps.tsx",
+        "src/components/settings/notification-routes.tsx",
         "src/components/settings/api-reference/**",
         "src/components/settings/api-usage.tsx",
         // What the MCP catalog check found, on a server's card (#2103).
@@ -198,6 +205,7 @@ export default defineConfig({
         "src/components/inbox/inbox-page.tsx",
         "src/components/inbox/suggestion-rows.tsx",
         "src/components/chat/turn-extras.tsx",
+        "src/components/chat/turn-files.tsx",
         "src/components/chat/turn-shortcuts.tsx",
         "src/components/chat/setup-proposals.tsx",
         "src/components/chat/skill-shortcut.tsx",
@@ -252,6 +260,8 @@ export default defineConfig({
         // Voice calls (#54): the call button, the approval card, captions, the
         // level meter, the controls and the status line. New, so inside the gate.
         "src/components/voice/**/*.tsx",
+        "src/components/chat/draft-card.tsx",
+        "src/components/chat/draft-segment.tsx",
         "src/components/chat/file-preview-panel.tsx",
         "src/components/chat/markdown-content.impl.tsx",
         "src/components/chat/markdown-content.tsx",
@@ -295,6 +305,9 @@ export default defineConfig({
         "src/components/skills/**/*.tsx",
         "src/components/context/**/*.tsx",
         "src/components/memory/**/*.tsx",
+        "src/components/phone/**/*.tsx",
+        "src/lib/phone-api.ts",
+        "src/hooks/use-phone.ts",
         "src/components/tables/**/*.{ts,tsx}",
         // The workflows visual editor's undo/redo history leaf (#1787).
         "src/components/workflows/history.ts",
@@ -343,6 +356,9 @@ export default defineConfig({
         // The one key field every speech-to-text level names its key with
         // (#1797), new and so inside the gate.
         "src/components/vault/speech-key-field.tsx",
+        // The connected accounts a virtual terminal reads as (#2191), new and so
+        // inside the gate.
+        "src/components/vault/connected-accounts-card.tsx",
       ],
       exclude: [
         "node_modules",
@@ -364,24 +380,28 @@ export default defineConfig({
       // Each is a narrowing, not a behaviour, and faking one would mean testing
       // the type checker. What is *left* to widen is the `include` list, not
       // these numbers - see `docs/plans/frontend-coverage.md`.
-      thresholds: {
-        statements: 100,
-        // 97.5, down from 98, and the code did not get worse - the ruler
-        // changed. coverage-v8 4 counts the untaken side of `??` and `||`,
-        // which version 2 did not, and this codebase reaches for that idiom
-        // everywhere: `activeOrgId ?? ""`, `error.message || "Failed to …"`,
-        // `path.split(".").pop()?.toLowerCase() ?? ""`. Eighty-eight of them
-        // across forty-seven files went from uncounted to uncovered on the
-        // upgrade, with no test and no line of source changing.
-        //
-        // Writing eighty-eight tests that assert a fallback string appears
-        // would buy the number back and nothing else. Statements, functions
-        // and lines stay at 100, which is where a real gap shows up; this one
-        // is set just under the measured 97.51 so it still ratchets.
-        branches: 97.5,
-        functions: 100,
-        lines: 100,
-      },
+      // Shards defer the same thresholds to the complete merged report.
+      thresholds:
+        process.env.VITEST_SHARD === "true"
+          ? undefined
+          : {
+              statements: 100,
+              // 97.5, down from 98, and the code did not get worse - the ruler
+              // changed. coverage-v8 4 counts the untaken side of `??` and `||`,
+              // which version 2 did not, and this codebase reaches for that idiom
+              // everywhere: `activeOrgId ?? ""`, `error.message || "Failed to …"`,
+              // `path.split(".").pop()?.toLowerCase() ?? ""`. Eighty-eight of them
+              // across forty-seven files went from uncounted to uncovered on the
+              // upgrade, with no test and no line of source changing.
+              //
+              // Writing eighty-eight tests that assert a fallback string appears
+              // would buy the number back and nothing else. Statements, functions
+              // and lines stay at 100, which is where a real gap shows up; this one
+              // is set just under the measured 97.51 so it still ratchets.
+              branches: 97.5,
+              functions: 100,
+              lines: 100,
+            },
     },
   },
   resolve: {

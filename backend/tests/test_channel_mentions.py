@@ -528,6 +528,7 @@ class TestAnswer:
             ("slack", RunSurface.SLACK),
             ("telegram", RunSurface.TELEGRAM),
             ("mattermost", RunSurface.MATTERMOST),
+            ("imessage", RunSurface.IMESSAGE),
             ("something-new", RunSurface.API),
         ],
     )
@@ -1152,7 +1153,7 @@ class TestWhoseAccountsAPersonalBindingSpeaksThrough:
         )
 
 
-@pytest.mark.parametrize("platform", ["mattermost", "slack", "teams", "telegram"])
+@pytest.mark.parametrize("platform", ["mattermost", "slack", "teams", "telegram", "imessage"])
 @pytest.mark.parametrize("mentioned", [True, False])
 async def test_each_turn_keeps_author_context_separate_from_persisted_text_after_mention_parsing(
     platform: str, mentioned: bool

@@ -34,8 +34,8 @@ export function audiencePayload(audience: Audience): AudiencePayload {
 }
 
 /**
- * The one control that decides who a new agent, skill, knowledge base, context
- * file or MCP server reaches (#2072).
+ * The one control that decides who a new agent, skill, knowledge base, dataset,
+ * context file or MCP server reaches (#2072).
  *
  * The organization by default, because a company's agents and knowledge are the
  * company's; narrowed to the creator, or to departments and people found by
@@ -48,11 +48,14 @@ export function AudiencePicker({
   onChange,
   disabled,
   withOnlyMe = true,
+  withChosen = true,
 }: {
   value: Audience;
   onChange: (audience: Audience) => void;
   disabled?: boolean;
   withOnlyMe?: boolean;
+  /** Hide individual grants where the create endpoint only accepts visibility. */
+  withChosen?: boolean;
 }) {
   const t = useTranslations("audience");
 
@@ -61,7 +64,9 @@ export function AudiencePicker({
     ...(withOnlyMe
       ? [{ mode: "private", icon: Lock, label: t("onlyMe"), hint: t("onlyMeHint") } as const]
       : []),
-    { mode: "chosen", icon: Users, label: t("chosen"), hint: t("chosenHint") },
+    ...(withChosen
+      ? [{ mode: "chosen", icon: Users, label: t("chosen"), hint: t("chosenHint") } as const]
+      : []),
   ] as const;
 
   return (
@@ -69,7 +74,7 @@ export function AudiencePicker({
       <div
         role="radiogroup"
         aria-label={t("label")}
-        className={cn("grid gap-2", withOnlyMe ? "sm:grid-cols-3" : "sm:grid-cols-2")}
+        className={cn("grid gap-2", options.length === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2")}
       >
         {options.map((option) => (
           <button
@@ -87,7 +92,9 @@ export function AudiencePicker({
             }
             className={cn(
               "flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors disabled:opacity-50",
-              value.mode === option.mode ? "border-foreground/40 bg-accent" : "hover:bg-accent/50",
+              value.mode === option.mode
+                ? "border-foreground/20 bg-accent"
+                : "bg-background hover:bg-muted",
             )}
           >
             <span className="flex items-start gap-1.5 text-sm font-medium">
@@ -98,7 +105,7 @@ export function AudiencePicker({
           </button>
         ))}
       </div>
-      {value.mode === "chosen" && (
+      {withChosen && value.mode === "chosen" && (
         <AudienceSearch value={value} onChange={onChange} disabled={disabled} />
       )}
     </div>

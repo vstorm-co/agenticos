@@ -18,6 +18,8 @@ import {
   Switch,
 } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import { needsGoogleOAuthClient } from "@/lib/mcp-oauth";
+
 import { McpOAuthClientFields } from "@/components/mcp/mcp-oauth-client-fields";
 import {
   AudiencePicker,
@@ -225,8 +227,10 @@ function ConnectionForm({
   // A client registered at the provider by hand: optional for most servers, so
   // folded with the rest - and unfolded when the probe says this one needs it.
   const ownClient = auth === "oauth" && draft.existing === null;
+  const googleClient = ownClient && needsGoogleOAuthClient(url);
   const needsClient =
-    signIn !== null && signIn !== "checking" && signIn.sign_in && !signIn.registers_clients;
+    googleClient ||
+    (signIn !== null && signIn !== "checking" && signIn.sign_in && !signIn.registers_clients);
 
   // The hint under the radio group. It used to be rendered as the *key* -
   // `authTokenHint` on screen, in every locale (#446).
@@ -244,7 +248,7 @@ function ConnectionForm({
         onBlur={probe}
         placeholder="https://example.com/mcp"
         maxLength={2048}
-        className="mt-1.5 font-mono text-sm"
+        className="mt-1.5 font-mono text-base md:text-sm"
       />
       {signIn !== null && (
         <p className="text-muted-foreground mt-1 text-xs" role="status">
@@ -385,6 +389,33 @@ function ConnectionForm({
 
         {!known && authField}
 
+        {auth === "oauth" && draft.row.tokenHint && (
+          <p className="text-muted-foreground text-sm">{draft.row.tokenHint}</p>
+        )}
+
+        {googleClient && (
+          <div className="bg-muted/50 space-y-4 rounded-xl p-4">
+            <p className="text-sm">{t("googleOAuthClientRequired")}</p>
+            {draft.row.entry?.docs_url && (
+              <a
+                href={draft.row.entry.docs_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-medium underline underline-offset-4"
+              >
+                {t("googleOAuthSetupGuide")}
+              </a>
+            )}
+            <McpOAuthClientFields
+              clientId={clientId}
+              clientSecret={clientSecret}
+              onClientIdChange={setClientId}
+              onClientSecretChange={setClientSecret}
+              required
+            />
+          </div>
+        )}
+
         <div className={cn(auth !== "token" && "hidden")}>
           <Label htmlFor="mcp-token">{t("accessToken")}</Label>
           {/* The catalog's own advice for *this* server, which used to sit on
@@ -407,7 +438,7 @@ function ConnectionForm({
               draft.existing?.has_auth_token ? "•••••• (stored - type to replace)" : t("pasteHere")
             }
             maxLength={4096}
-            className="mt-1.5 font-mono text-sm"
+            className="mt-1.5 font-mono text-base md:text-sm"
           />
           <p className="text-muted-foreground mt-1 text-xs">
             {scope === "organization"
@@ -454,7 +485,7 @@ function ConnectionForm({
             // may use it are the decisions, and the address and names under
             // here are the catalog's. Open only when it holds something
             // required - a provider that hands out no client of its own.
-            defaultOpen={needsClient}
+            defaultOpen={needsClient && !googleClient}
           >
             {known && (
               <>
@@ -465,7 +496,7 @@ function ConnectionForm({
             )}
             {/* Only for a connection being made: editing saves fields, it does
                 not start a consent, so a client typed here would go nowhere. */}
-            {ownClient && (
+            {ownClient && !googleClient && (
               <McpOAuthClientFields
                 clientId={clientId}
                 clientSecret={clientSecret}

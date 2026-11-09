@@ -142,3 +142,21 @@ describe("TableListView", () => {
     expect(onOpenRecord).toHaveBeenCalledWith(rec);
   });
 });
+
+it("offers record creation in the same unframed empty state as the grid", async () => {
+  const add = vi.fn();
+  render(
+    <TableListView
+      columns={columns}
+      records={[]}
+      isLoading={false}
+      onOpenRecord={vi.fn()}
+      onAddRecord={add}
+    />,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Add record" }));
+  expect(add).toHaveBeenCalledOnce();
+  expect(screen.getByText("No records yet").parentElement?.parentElement).toHaveClass(
+    "[&>*]:border-0",
+  );
+});

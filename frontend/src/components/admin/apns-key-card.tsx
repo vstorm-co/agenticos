@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
+import { SetupIndicator } from "@/components/settings/setup-indicator";
 import { getErrorMessage } from "@/lib/api-error";
 import {
   apnsSetup,
@@ -81,7 +82,11 @@ export function ApnsKeyCard() {
   const complete = keyId.trim() && teamId.trim() && topic.trim() && privateKey;
 
   return (
-    <ListCard title={t("title")} counted={t("hint")}>
+    <ListCard
+      title={t("title")}
+      counted={t("hint")}
+      controls={<SetupIndicator hints={data.configured ? [] : ["mobilePush"]} />}
+    >
       {data.configured && !replacing ? (
         <div className="border-border flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4">
           <div className="min-w-0">

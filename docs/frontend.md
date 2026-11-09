@@ -203,7 +203,7 @@ keep a spec that mounts more than its assertions read.
 
 Evals reuse the console's `PageHeader`, `ListCard`, dialog sizes, tabs and `WizardSteps`. Data changes invalidate the registered query families through `/ws/events`; a manual verdict also refreshes suites, improvement sessions and environment guards. A read failure has a retry action instead of an empty-success state. Narrow layouts keep form fields at 16 px and leave bottom space for the Architect.
 
-Datasets keep their own sharing and resource grants. They are reusable across agents and departments, so the console does not infer a department from an agent that happens to test them. Judges remain typed agents, using the agent catalog's sharing and groups. Dataset selection in an agent's Evals tab and grader selection in a dataset's Grading tab are the attachment paths; there is no second, competing “Add to an agent” relationship.
+Datasets retain their own sharing and resource grants and can be reused across agents. Grading model and instructions belong to the dataset; generation and improvement settings have their own Settings tab. Code-defined helpers keep internal run identities for attribution without appearing in the user-agent catalog. Cases and evals use the console's shared tables; case and review details open in side panels.
 
 The Architect does not receive a new dataset-writing capability in this milestone. Creating questions is an explicitly estimated, permission-checked action in the improvement flow; the corner assistant cannot silently start that paid work. Its button remains reachable beside the eval views.
 

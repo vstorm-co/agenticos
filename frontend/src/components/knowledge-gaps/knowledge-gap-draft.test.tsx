@@ -120,25 +120,14 @@ describe("KnowledgeGapDraftPanel", () => {
     expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
   });
 
-  it("with AI assistance off, sends somebody who may turn it on to the switch", () => {
-    state.granted = [Perm.agentsRun, Perm.orgSettings];
-    state.org = { id: "o1", ai_assistance_enabled: false };
-    render(<KnowledgeGapDraftPanel topic={DRAFTED} />);
-    expect(screen.queryByRole("button", { name: /^Redraft/ })).toBeNull();
-    expect(screen.getByText(/AI assistance is off/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Enable AI assistance" })).toHaveAttribute(
-      "href",
-      "/orgs/o1/members?tab=governance#org-ai-assistance",
-    );
-    expect(screen.getByText("editor Parental leave")).toBeInTheDocument();
-  });
-
-  it("with AI assistance off, tells anybody else who can turn it on", () => {
+  it("allows redrafting despite a stored legacy organization flag", async () => {
     state.granted = [Perm.agentsRun];
     state.org = { id: "o1", ai_assistance_enabled: false };
-    render(<KnowledgeGapDraftPanel topic={TOPIC} />);
+    render(<KnowledgeGapDraftPanel topic={DRAFTED} />);
+    await userEvent.click(screen.getByRole("button", { name: /^Redraft/ }));
+    expect(state.mutate).toHaveBeenCalledWith("t1");
     expect(screen.queryByRole("link", { name: "Enable AI assistance" })).toBeNull();
-    expect(screen.getByText(/Ask an admin to turn it on/)).toBeInTheDocument();
+    expect(screen.getByText("editor Parental leave")).toBeInTheDocument();
   });
 
   it("says nothing about the switch before the organization is known", () => {

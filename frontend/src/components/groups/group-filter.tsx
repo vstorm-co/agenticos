@@ -1,5 +1,7 @@
 "use client";
 
+import { Skeleton } from "@/components/ui/skeleton";
+
 import { Users } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -37,11 +39,17 @@ export function GroupFilter({
 }) {
   const t = useTranslations("groups.filter");
   const orgId = useOrgStore((state) => state.activeOrgId) ?? "";
-  const { groups } = useGroups(orgId);
+  const { groups, isLoading } = useGroups(orgId);
+  if (isLoading) return <Skeleton aria-hidden className="h-8 w-full sm:w-48" />;
   if (groups.length === 0 && value === null) return null;
   return (
     <Select value={value ?? EVERY} onValueChange={(next) => onChange(next === EVERY ? null : next)}>
-      <SelectTrigger className="w-full sm:w-48" aria-label={t("label")} data-tour="group-filter">
+      <SelectTrigger
+        size="sm"
+        className="w-full sm:w-48"
+        aria-label={t("label")}
+        data-tour="group-filter"
+      >
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

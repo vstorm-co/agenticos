@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useIsMutating } from "@tanstack/react-query";
 import { qk } from "@/lib/query-keys";
 
@@ -260,7 +260,11 @@ export function useOnboardingFlow(): OnboardingFlowState {
   // the builder's autosave and publish invalidations refresh it here too.
   const agentDetail = useAgent(flowAgentId);
   const creatingAgent = useIsMutating({ mutationKey: qk.agents.create() }) > 0;
-  const here = pageKey(stripLocale(usePathname()));
+  const pathname = usePathname();
+  const improve = useSearchParams().get("improve");
+  const here = pageKey(
+    stripLocale(pathname) + (improve === null ? "" : `?improve=${encodeURIComponent(improve)}`),
+  );
   // The chat run's tail keys off the chat stores rather than a list: which agent
   // is selected, and how many messages are *on screen* — sending appends one
   // optimistically, so the count growing is the send. Read here so `signalMet` can

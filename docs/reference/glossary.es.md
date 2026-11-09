@@ -1,5 +1,5 @@
 ---
-source_sha: "b37ba36230db"
+source_sha: "840fe6e181cf"
 ---
 
 # Glosario { #glossary }
@@ -48,7 +48,7 @@ tal como se ven en pantalla.
 | En la consola | Qué es | En la API y el spec |
 |---|---|---|
 | Chat | La conversación web con un agent | `conversation` |
-| Channel | Slack, Telegram o Mattermost, donde las personas hablan con un agent | `channel_bot` |
+| Channel | Slack, Telegram, Mattermost o Discord, donde las personas hablan con un agent | `channel_bot` |
 | Routine | Un agent que se ejecuta solo, con un horario o un evento | `trigger` |
 | Suite de evals | Un dataset con el que se mide un agent, ejecutado con un horario, al publicar o promocionar, o tras un cambio | `eval_suite` |
 | Run | Una vez que un agent respondió, con su coste y sus pasos | `agent_run` |
@@ -72,7 +72,7 @@ tal como se ven en pantalla.
 | Budget | Un límite de gasto que detiene los runs al alcanzarse | `budget` |
 | Guardrails | Comprobaciones que redactan o bloquean lo que pasa por un run | `guardrails` |
 | Vault | Donde se guardan claves y tokens, sellados y nunca más mostrados | `secret` |
-| AI assistance | El interruptor de la organización para los modelos que califican respuestas, redactan casos, proponen cambios y redactan el conocimiento que falta, Improve incluido; desactivado hasta que alguien lo activa | `ai_assistance_enabled` |
+| Ayudantes de evaluación | Procesos de calificación, generación y mejora definidos en código y configurados en el dataset | `scoring.judge`, `helper_settings` |
 
 ## Cómo se prueba { #how-it-is-tested }
 
@@ -125,8 +125,10 @@ se describe en [Capabilities](capabilities.md).
 |---|---|
 | Apps | `artifacts` |
 | Ask the user | `ask_user` |
+| Borradores | `drafts` |
 | Web browser | `browser_use` |
 | Chat channel lookup | `channel_tools` |
+| Llamadas telefónicas | `phone_calls` |
 | Charts | `charts` |
 | Date and time | `clock` |
 | Calculations | `code_execution` |
@@ -141,9 +143,11 @@ se describe en [Capabilities](capabilities.md).
 | Knowledge search | `knowledge` |
 | Media offload | `media` |
 | Memory | `memory_files` |
-| Memory (mem0) | `memory_mem0` |
+| Mirage (terminal virtual) | `mirage` |
 | Planning | `planning` |
 | Work while tools run | `background_tools` |
+| Temas en segundo plano | `background_tasks` |
+| Watch a command | `monitor` |
 | Sandbox | `sandbox` |
 | Skills | `skills` |
 | Subagents | `subagents` |
@@ -156,5 +160,5 @@ se describe en [Capabilities](capabilities.md).
 | Visuals | `visuals` |
 | Read web pages | `web_fetch` |
 | Web search | `web_research` |
-| Tables | `virtual_tables` |
+| Tables | AgenticOS MCP: `list_virtual_tables`, `query_virtual_table` |
 | Workflows | `workflows` |

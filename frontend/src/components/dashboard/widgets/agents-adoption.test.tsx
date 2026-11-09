@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -26,7 +26,7 @@ vi.mock("@/hooks", () => ({
 
 const PERIOD: Period = { preset: "30d", from: "2026-07-19", to: "2026-08-18" };
 
-function renderWidget() {
+function renderWidget(dense = false) {
   useUsageStatsMock.mockReturnValue({
     usage: {
       total_runs: 141,
@@ -51,6 +51,37 @@ function renderWidget() {
       },
     ],
   });
+  if (dense) {
+    const ranked = ["AgenticOS", "Haiku", "Sonnet", "Glossary radar", "Opus"];
+    const idle = [
+      "Antoni Ghostwriter",
+      "Client analysis",
+      "Buying journey verifier",
+      "vincent_v2",
+      "oss-dashboard",
+    ];
+    useUsageStatsMock.mockReturnValue({
+      usage: {
+        total_runs: 331,
+        by_agent: ranked.map((name, index) => ({
+          agent_id: `a-${index}`,
+          name,
+          runs: 104 - index * 15,
+        })),
+      },
+      isLoading: false,
+      error: null,
+    });
+    useAgentsMock.mockReturnValue({
+      agents: [...ranked, ...idle].map((name, index) => ({
+        id: `a-${index}`,
+        slug: name,
+        name,
+        status: "published",
+        has_avatar: false,
+      })),
+    });
+  }
   return render(
     <NextIntlClientProvider locale="en" messages={messages}>
       <TooltipProvider>
@@ -66,6 +97,23 @@ beforeEach(() => {
 });
 
 describe("the agent adoption widget", () => {
+  it("keeps all five ranked agents and all five idle agents in the card", () => {
+    renderWidget(true);
+    for (const name of ["AgenticOS", "Haiku", "Sonnet", "Glossary radar", "Opus"]) {
+      expect(screen.getByRole("link", { name })).toBeInTheDocument();
+    }
+    for (const name of [
+      "Antoni Ghostwriter",
+      "Client analysis",
+      "Buying journey verifier",
+      "vincent_v2",
+      "oss-dashboard",
+    ]) {
+      expect(screen.getByText(name, { exact: true })).toBeInTheDocument();
+    }
+    expect(screen.getByText(/Published but idle this period:/)).toBeInTheDocument();
+  });
+
   it("draws each agent's face at the size the run table draws it", () => {
     // jsdom loads no image, so Radix stays in its fallback state - the generated
     // face, which is what an organization that uploaded nothing actually sees.

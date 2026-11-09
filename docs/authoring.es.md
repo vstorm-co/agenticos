@@ -1,5 +1,5 @@
 ---
-source_sha: "38e2a0c76864"
+source_sha: "0ec608602ddd"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -26,21 +26,9 @@ Hace tres cosas:
   runs que lo leyeron. Un skill se mejora paso a paso en su propia página - ver
   [Mejorar un skill](skills.md#improving-a-skill).
 
-El asistente es un [agent de sistema](concepts.md#system-agents) propio, que
-aparece con los demás agents de sistema de la organización. Un administrador
-edita sus instrucciones como las de cualquier agent - cambiar un agent de
-sistema requiere `org:settings` -, y sus runs son runs normales: con budget, con
-precio y visibles en Activity. Nunca es el agent del que trata un Improve o un
-Verify. Configurado para
-[buscar en la base de conocimiento](concepts.md#system-agent-spec), lee las
-bases de conocimiento del agent que mejora.
+En Agent Builder, **Build** contiene la configuración y **Test** abre el panel interactivo del borrador. Abre **Evals** para comparar un borrador con una versión publicada en un dataset o iniciar **Improve**. La estimación aparece antes de la ejecución. El antiguo endpoint de verificación basada en evidencias sigue disponible por compatibilidad de API.
 
-Expande **Asistente de mejora** al mejorar o verificar para elegir un
-asistente publicado. Cambiar la selección borra la estimación anterior, de modo
-que el consentimiento corresponde al precio y presupuesto elegidos.
-`improver_agent_id` se conserva en la tarea; las sesiones en segundo plano aceptan
-la misma selección. El worker vuelve a comprobar tipo, publicación y acceso
-actual. Una selección eliminada falla en lugar de volver al valor predeterminado.
+**Improve** abre una sesión de mejora. El modelo y las instrucciones pertenecen a **Settings** del dataset elegido; los ayudantes tienen valores definidos en código y no tienen página editable en el catálogo. El diálogo para mejorar un archivo de contexto elige un modelo directamente. Se conservan controles de budget y registros en Activity.
 
 ## Qué lee { #what-it-reads }
 
@@ -59,6 +47,8 @@ del panel de pruebas del Builder ni el run de un delegado.
 Cuando hay más que leer de lo que cabe en una petición, los runs se leen primero
 en grupos y las sugerencias se escriben a partir de lo que mostró cada grupo.
 
+Si se elimina la cuenta de una persona cuyos datos sirven como evidencia mientras trabaja el modelo, se descarta todo el resultado generado, incluidos los resúmenes, los contenidos propuestos y las entradas y salidas del modelo registradas por el ayudante. La solicitud termina con una explicación y puede iniciarse de nuevo con evidencias actuales. Los costes ya incurridos siguen registrados.
+
 ### Cada cita se comprueba { #every-quote-is-checked }
 
 Cada sugerencia lleva una justificación y la evidencia que la respalda: los runs
@@ -66,8 +56,9 @@ en los que se apoya y citas de ellos. Antes de que nadie vea una sugerencia, cad
 cita se compara palabra por palabra con el run que nombra. Una cita que no está
 ahí, un run que no está entre los que leyó el asistente y todo lo que pase de
 doce elementos o seiscientos caracteres se descarta, y la sugerencia dice
-cuántos fueron. Quien no tiene `runs:view` ve en qué runs se apoya una
-sugerencia, no lo que se dijo en ellos.
+cuántos fueron. Leer solicitudes del asistente, hallazgos y texto propuesto
+requiere `runs:view`: los resúmenes y cambios generados pueden contener texto
+de las conversaciones incluso sin citas explícitas.
 
 La comprobación demuestra que una cita está en su run, no que tenga que ver con
 lo que respalda: una cita real sobre otra cosa la supera. Por eso un hallazgo de
@@ -76,16 +67,16 @@ que formar parte de la edición. La barra muestra esa línea encima de las citas
 del hallazgo, para que el lector juzgue si la respaldan. Un hallazgo de que la
 edición está respaldada sin ninguna cita que se pueda comprobar no se muestra.
 
-Cuando termina una solicitud al asistente - Verificar, o Mejorar por la API - con el Builder abierto, un diálogo muestra la cantidad de respuestas revisadas, cambios propuestos y guardados, y propuestas rechazadas con sus motivos. **Ver resultado** permite abrirlo de nuevo. Un resultado vacío explica que no se pudo aplicar nada, sin efecto esperado. El texto del efecto que contiene identificadores de runs se sustituye por una descripción con la cantidad de respuestas fuente enlazadas.
+Cuando termina una solicitud al asistente - Verificar, o Mejorar por la API - con la pestaña Evals abierta, un diálogo muestra la cantidad de respuestas revisadas, cambios propuestos y guardados, y propuestas rechazadas con sus motivos. **Ver resultado** permite abrirlo de nuevo. Un resultado vacío explica que no se pudo aplicar nada, sin efecto esperado. El texto del efecto que contiene identificadores de runs se sustituye por una descripción con la cantidad de respuestas fuente enlazadas.
 
 Cada texto cambiado - instrucciones, la descripción de una herramienta, un archivo de contexto - aparece como diff: líneas eliminadas y añadidas con las palabras cambiadas marcadas, unas pocas líneas sin cambios alrededor de cada cambio y el resto plegado, unificado o lado a lado en una pantalla ancha. Cada cambio conserva su justificación y la evidencia enlazada; cada elemento de evidencia se nombra por lo que es - una pregunta de prueba del dataset (**Test question 2**) o un chat real (**Conversation 1**) - con la pregunta que se hizo, y se indica al asistente que lo cite exactamente con esa etiqueta. Los identificadores de runs en una justificación aparecen con la misma etiqueta.
 
-Tras completar una comprobación, las personas con `runs:view` pueden comparar respuestas de ambos lados en el diálogo y abrir la comprobación completa. Antes, el diálogo propone ejecutarla. Un agente sin chats valorados ni evidencia de entrenamiento muestra una línea compacta del asistente sobre sus instrucciones.
+Tras completar una comprobación, las personas con `runs:view` pueden comparar respuestas de ambos lados en el diálogo y abrir la comprobación completa. Antes, el diálogo propone ejecutarla. Un agente sin sugerencias no muestra la tarjeta de sugerencias.
 
 ## Sugerencias { #suggestions }
 
 Las sugerencias de una sesión de mejora, de Verificar o de la API esperan en la
-**barra del asistente** de la pestaña Build del agent. Cada sugerencia muestra el fragmento que cambia en su contexto, el porqué
+sección **Sugerencias** de la pestaña **Evals** del agent. Cada sugerencia muestra el fragmento que cambia en su contexto, el porqué
 y la evidencia, y cada una se decide por separado:
 
 | Acción | Qué ocurre |
@@ -315,24 +306,18 @@ La retención de actividad conserva el coste total de los runs pagados eliminado
 | Iniciar Mejorar o Verificar en un agent | `runs:view`, permiso de edición del agent y poder usar el asistente |
 | Mejorar un skill | `runs:view`, permiso de edición del skill y poder usar el asistente |
 | Mejorar un archivo de contexto | `runs:view`, `context:edit` en el archivo y poder usar el asistente |
-| Aceptar, descartar o deshacer una sugerencia | Permiso de edición del agent |
+| Aceptar, descartar o deshacer una sugerencia | `runs:view` y permiso de edición del agent |
 | Aceptar una sugerencia que vincula algo o da alcance a algo | También el acceso para vincularlo a mano |
-| Aplicar o descartar un cambio a un skill | `skills:edit` en el skill |
-| Aplicar o descartar un cambio a un archivo de contexto | `context:edit` en el archivo |
+| Aplicar o descartar un cambio a un skill | `skills:edit` en el skill y `runs:view` |
+| Aplicar o descartar un cambio a un archivo de contexto | `context:edit` en el archivo y `runs:view` |
 | Comprobar con evals | Lo que pide un [eval run](evals.md#access), y permiso de edición del agent |
 
 Los grants cuentan: un miembro con un grant de edición sobre un agent puede
 mejorar ese agent.
 
-## Cuando la asistencia de IA está desactivada { #when-ai-assistance-is-off }
+## Disponibilidad y coste { #when-ai-assistance-is-off }
 
-Con el interruptor de **asistencia de IA** de la organización desactivado, el
-asistente no se ejecuta: el servidor rechaza Mejorar, Verificar y mejorar un
-archivo de contexto, y la consola los muestra desactivados con un enlace al
-interruptor. Una sesión para mejorar un skill se detiene antes de su siguiente
-paso. Las
-sugerencias que ya esperan se pueden seguir aceptando, descartando y deshaciendo,
-y un eval run que no necesita juez sigue ejecutándose.
+La disponibilidad depende del acceso a recursos, la preparación del modelo y los budgets. No hay interruptor organizacional de asistencia de IA. El trabajo de pago requiere un inicio explícito; aceptar o descartar propuestas existentes no llama a ningún modelo.
 
 ## Sesiones de mejora en segundo plano { #background-improvement-sessions }
 
@@ -374,7 +359,7 @@ resultado como una pista de que otro intento probablemente no ayudará, no como
 una parada.
 
 Quien puede empezar una sesión del agente - permiso de edición, `runs:view` y la
-asistencia de IA activada - puede también dar su siguiente paso o volver a
+ - puede también dar su siguiente paso o volver a
 intentarlo. La sesión registra quién lo hizo, y los pasos siguientes se ejecutan
 con los permisos y la credencial actuales de esa persona, así que una sesión que
 empezó el Architect se puede continuar en la consola.
@@ -446,7 +431,7 @@ intento.
 
 ### El asistente Improve { #the-improve-wizard }
 
-Abra **Improve** en la cabecera del agente o en la barra del asistente de la pestaña Build, desde la insignia **Needs attention** de la lista de agentes, desde la tarjeta del dashboard o desde la pestaña **Knowledge gaps** del agente. Está entre las demás acciones de la cabecera; cuando la versión que el agente sirve ahora tuvo respuestas valoradas negativamente o runs fallidos en los últimos 30 días, lleva un punto y su nombre dice por qué. La tarjeta **Improvements waiting for you** del dashboard lista las sesiones detenidas a la espera de una decisión.
+Abre **Improve** desde la barra de herramientas de **Evals** del agente, desde la insignia **Needs attention** en la lista de agentes, desde la tarjeta del dashboard o desde **Knowledge gaps**. Si la versión publicada actual tuvo respuestas valoradas negativamente o runs fallidos en los últimos 30 días, Improve muestra un punto de atención. La tarjeta **Improvements waiting for you** del dashboard muestra sesiones que esperan una decisión.
 
 Cada **Improve** abre la sesión abierta del agente - trabajando, esperándole, en su resultado o detenida o fallida - y empieza una nueva cuando esa sesión se guarda como borrador, se publica, se descarta, se cancela o se cierra; queda entonces en el [historial de mejoras](#improvement-history) del agente. **End it and start a new one**, junto a una sesión abierta, la termina primero.
 
@@ -456,7 +441,9 @@ Una línea sobre los pasos da el estado de la sesión - **Working** mientras un 
 
 Un paso se abre cuando tiene trabajo que mostrar o una decisión que pedir. La página sigue el paso en el que está la sesión y, tras abrir otro, **Go to the current step** vuelve a él. En una parada, el pie lleva el siguiente paso con su precio, por ejemplo **Next step: write the changes · about $0.04**; nada se gasta antes de pulsarlo. Si el precio cambió desde que se mostró, el pie lo dice - **The price changed to about $0.05. Press again to go on.** - y, cuando el paso cuesta más de lo que le queda a la sesión, permite subir su límite allí mismo.
 
-**Inicio.** Tres cifras de los últimos 30 días y luego las preguntas de prueba propias del agente, ya elegidas y estimadas: la estimación cubre leer lo que salió mal, con su duración aproximada, aparece sin hacer clic y no gasta nada, así que **Start improving** es la única decisión. Cada paso siguiente se estima antes de pulsarlo, y el límite cubre toda la sesión. Otras preguntas de prueba, el límite de gasto, el agente auxiliar y una prueba de las respuestas actuales están bajo **Show details**. Un agente sin preguntas de prueba recibe **Write test questions for me**: las respuestas valoradas se convierten en preguntas, se escriben más para temas sin ejemplo y la estimación llega cuando están listas. Cuando quedan demasiado pocas preguntas para medir un cambio, la pantalla ofrece escribir tantas como le faltan a la sesión. La sugerencia tras la primera publicación abre esta pantalla para fijar una referencia.
+**Inicio.** Improve abre un diálogo sobre el Agent Builder. Elige el dataset en el formulario principal; el conjunto de pruebas propio del agent aparece seleccionado cuando existe. Los contadores de feedback resumen las evidencias. Si no hay un conjunto adecuado, **Write test questions for me** estima primero crear preguntas a partir de respuestas valoradas y temas sin ejemplos, antes de escribir nada.
+
+El coste del análisis y el límite de gasto de toda la sesión aparecen antes de **Start improving**. Cada paso posterior tiene su propia estimación y espera tu decisión. **Show details** contiene el límite de gasto, la distribución de preguntas, la prueba actual y un enlace a los ajustes del ayudante en el dataset. La sesión en curso abre su propia página después de iniciarla. Cerrar la configuración vuelve al agent; los enlaces existentes `/improve/new` abren el mismo diálogo.
 
 1. **Comprender.** Una frase y una barra cuentan los problemas que corregir en el agente y la información que falta en la base de conocimiento. Los ejemplos cuyas carencias se unieron a un mismo tema de lagunas de conocimiento forman una tarjeta, igual que una pregunta hecha a la vez como pregunta de prueba y en una conversación. Una tarjeta muestra la pregunta y se abre a la respuesta, los comentarios, cómo se calificó una respuesta de prueba - la nota que el juez dio a cada criterio y si se cumplió cada regla - y por qué cuenta: las calificaciones que no superó, cómo la valoró una persona y por qué el clasificador la puso ahí. Las respuestas valoradas positivamente, o en las que el clasificador no encontró nada mal, se colocan en **Not a problem to fix** automáticamente; en este paso no se ajusta nada a mano. Una respuesta cuyo tema ya cubre un documento añadido después cuenta en **Already in the knowledge base**, con ese documento y el día en que se añadió: ya no queda nada que redactar para ella. La sesión siempre se detiene aquí; **Next step: write the changes** pide los cambios al asistente.
 2. **Cambios.** Cuántos cambios se propusieron y cuántos se incluyen, y luego cada cambio como diff con Debería corregir, Por qué y Basado en plegados debajo. En la parada, cada cambio tiene **Include change N in the test**, de los que al menos uno sigue marcado, y **Change the wording**, que prueba su redacción en lugar de la del asistente: el cambio queda marcado **Reworded by you**, y **Back to the proposed wording** lo deshace. **Next step: test the selected changes** inicia la prueba, con el precio máximo que puede costar y debajo lo que probablemente costará - sin la repetición que recibe un resultado no concluyente; mientras avanza, la lista se puede leer pero no cambiar. Los borradores de conocimiento forman su propia columna, con los borradores que alguien pidió. Si no se encontró ningún cambio, la pantalla enumera lo que probó cada intento.

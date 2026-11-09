@@ -1,5 +1,5 @@
 ---
-source_sha: "dba106dd80cc"
+source_sha: "1297bb7c3062"
 ---
 
 # Das Deployment selbst { #the-deployment-itself }
@@ -20,6 +20,8 @@ kein Rebuild.
 
     Es ist dieselbe Autorität, die Nutzer und Tenants bereits über die gesamte
     Installation hinweg verwaltet.
+
+Die Konsole gliedert die Einstellungen in Identität, Zugang und Konten, Mitteilungen, Sprache und Mobilgerät sowie Wartung. Beim Abschnittswechsel bleiben ungespeicherte Änderungen erhalten. Speichern übernimmt die bearbeiteten Felder aller Abschnitte; Änderungen verwerfen stellt deren gespeicherte Werte wieder her. Bilduploads und Zugangsdaten für mobile Push-Benachrichtigungen werden weiterhin separat gespeichert.
 
 ## Identität { #identity }
 
@@ -710,7 +712,10 @@ Karte.
 
 Drei Aktionen, jede mit dem Handelnden auditiert:
 
-- **Retry** gibt einem toten Job eine neue Reihe von Versuchen.
+- **Retry** gibt einem toten Job eine neue Reihe von Versuchen. Ein toter
+  Dokument-Ingest wird abgelehnt: seine Parse-Kopie ist mit ihm gegangen, also
+  wiederholen Sie das Dokument aus seiner Wissensbasis, die die gespeicherte Datei
+  erneut parst.
 - **Cancel** zieht einen Job zurück, den noch niemand begonnen hat.
 - **Resume** lässt die Worker eine pausierte Art wieder abholen.
 
@@ -721,7 +726,8 @@ E-Mail, und die Benachrichtigung lässt sich nicht abschalten - Arbeit dieser Ar
 staut sich, bis einer von ihnen sie fortsetzt. Eine Pause nennt die
 Organisation, deren Jobs sie ausgelöst haben, und für alle anderen läuft die Art
 weiter. Versuchen Sie die toten Jobs erst
-erneut, wenn die Ursache behoben ist, sonst sterben sie auf dieselbe Weise. Die
+erneut, wenn die Ursache behoben ist, sonst sterben sie auf dieselbe Weise - einen toten Dokument-Ingest
+stattdessen aus seiner Wissensbasis. Die
 Einstellungen stehen unter [Konfiguration](configuration.md#background-work).
 
 ## Zusammenfassung { #recap }

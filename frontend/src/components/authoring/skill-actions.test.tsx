@@ -13,7 +13,6 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 const state = vi.hoisted(() => ({
   runsView: true,
   latest: null as AuthoringRequest | null,
-  enabled: true as boolean | null,
   assistant: { can_use: true, status: "ready", agent_id: "architect", name: "Architect" } as {
     can_use: boolean;
     status: string;
@@ -25,8 +24,11 @@ const state = vi.hoisted(() => ({
 vi.mock("@/hooks/use-permissions", () => ({
   usePermissions: () => ({ can: () => state.runsView }),
 }));
-vi.mock("@/hooks/use-organizations", () => ({
-  useAiAssistance: () => ({ orgId: "org-1", enabled: state.enabled }),
+vi.mock("@/hooks/use-model-providers", () => ({
+  useModelProviders: () => ({ profiles: [], profilesStatus: "ready" }),
+}));
+vi.mock("@/components/agents/model-profile-picker", () => ({
+  ModelProfilePicker: () => <p>Model selection</p>,
 }));
 vi.mock("@/hooks/use-assistant", () => ({ useAssistant: () => ({ assistant: state.assistant }) }));
 vi.mock("@/stores/architect-ask-store", () => ({
@@ -64,18 +66,12 @@ vi.mock("@/hooks/use-authoring", () => {
 beforeEach(() => {
   state.runsView = true;
   state.latest = null;
-  state.enabled = true;
   state.assistant = { can_use: true, status: "ready", agent_id: "architect", name: "Architect" };
   state.ask = vi.fn();
 });
 
 describe("the assistant's Improve button", () => {
-  it("is off while AI assistance is, busy while it works, and says when it failed", () => {
-    state.enabled = false;
-    const { unmount } = render(<ImproveContextButton contextId="context-1" />);
-    expect(screen.getByRole("button", { name: "Improve with the assistant" })).toBeDisabled();
-    unmount();
-    state.enabled = true;
+  it("is busy while it works and says when it failed", () => {
     state.latest = authoringRequest({ status: "queued" });
     const second = render(<ImproveContextButton contextId="context-1" />);
     expect(screen.getByRole("button", { name: "Reading the runs…" })).toBeDisabled();
@@ -162,12 +158,7 @@ describe("DescribeWithArchitect", () => {
     expect(onAsked).toHaveBeenCalled();
   });
 
-  it("is absent while the Architect or AI assistance is off", () => {
-    state.enabled = false;
-    const { container, unmount } = render(<DescribeWithArchitect onAsked={vi.fn()} />);
-    expect(container).toBeEmptyDOMElement();
-    unmount();
-    state.enabled = true;
+  it("is absent while the Architect is unavailable", () => {
     state.assistant = null;
     const second = render(<DescribeWithArchitect onAsked={vi.fn()} />);
     expect(second.container).toBeEmptyDOMElement();

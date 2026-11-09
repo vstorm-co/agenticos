@@ -205,15 +205,22 @@ async def test_apply_writes_the_file_once_and_refuses_a_file_that_moved(db):
     assert (await service.list_read(ctx, status="applied")).total == 1
 
 
-async def test_a_reviewer_sees_quotes_only_with_runs_view_and_nothing_of_a_hidden_file(db):
+async def test_a_reviewer_needs_runs_view_for_generated_text_and_access_to_the_file(db):
     ctx, _, file, run_id = await _bound(db)
     await _improve_context(db, ctx, file, _proposes(db, run_id))
     (proposal,) = await _pending(db, file)
     member = await _member(db, ctx, OrgRoleName.MEMBER)
     service = ContextProposalService(db)
 
-    read = await service.read(member, proposal.id)
-    assert [item["quote"] for item in read.evidence] == [None]
+    with pytest.raises(AuthorizationError, match="runs:view"):
+        await service.read(member, proposal.id)
+    assert (await service.list_read(member)).items == []
+    proposal.authoring_request_id = None
+    proposal.evidence = []
+    await db.flush()
+    with pytest.raises(AuthorizationError, match="runs:view"):
+        await service.read(member, proposal.id)
+    assert (await service.list_read(member)).items == []
 
     file.visibility = "private"
     await db.flush()

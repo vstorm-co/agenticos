@@ -68,8 +68,8 @@ async def start_agent_authoring(
 ) -> Any:
     """Start an Improve or Verify in the background.
 
-    Refused with 403 while AI assistance is off, 400 with nothing to read or
-    nothing to verify, and 402 when the estimate is more than a budget has left.
+    Refused with 403 for missing authority, 400 with nothing to read or verify,
+    and 402 when the estimate is more than a budget has left.
     """
     return await service.start_agent(ctx, agent_id, data)
 

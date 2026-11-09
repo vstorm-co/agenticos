@@ -63,6 +63,10 @@ export default function AdminUsersPage() {
 
   // Debounced fetch - the server does filtering, sorting, and pagination.
   useEffect(() => {
+    if (!search.trim()) {
+      load(page, search, sort.by, sort.dir);
+      return;
+    }
     const timer = setTimeout(() => {
       load(page, search, sort.by, sort.dir);
     }, 300);
@@ -79,7 +83,7 @@ export default function AdminUsersPage() {
       {
         key: "email",
         header: t("user"),
-        className: "pl-5",
+        className: "w-full max-w-0 sm:w-[30%] pl-3 sm:pl-5",
         sortable: true,
         cell: (u) => (
           <div className="flex min-w-0 items-center gap-3">
@@ -106,7 +110,9 @@ export default function AdminUsersPage() {
                   </Badge>
                 )}
               </div>
-              <p className="text-muted-foreground truncate text-xs">{u.email}</p>
+              <p title={u.email} className="text-muted-foreground truncate text-xs">
+                {u.email}
+              </p>
             </div>
           </div>
         ),
@@ -149,6 +155,7 @@ export default function AdminUsersPage() {
       },
       {
         key: "actions",
+        hideBelow: "sm",
         header: "",
         align: "right",
         className: "w-0 pr-5",

@@ -22,6 +22,8 @@ import type { Delegation, DelegationStatus, SpecialistDefinition } from "@/types
 import { AgentStep } from "./agent-step";
 import { MarkdownContent } from "./markdown-content";
 
+const FINISHED: ReadonlySet<DelegationStatus> = new Set(["completed", "failed", "cancelled"]);
+
 /**
  * What the specialists are doing, one collapsible block per delegation.
  *
@@ -52,34 +54,47 @@ export function DelegationPanels({
   /** The agent that handed the work out, at the head of the strip. */
   parent?: DelegateRef;
   /**
-   * The turn is over. A delegation that answered in it is then the "Asked …" step
-   * and the team under the answer, so its panel goes; so does one the person
-   * stopped, which the step now reads as "Stopped asking …". One still out in the
-   * background, one that failed, and a specialist that can still be kept stay.
+   * The turn has answered. A finished exchange it waited for is drawn under the
+   * answer as "Talked it through with…", and a coding task as its saved report,
+   * so only work that outlives the turn stays here.
    */
   settled?: boolean;
   /** The turn is still running: draw the delegations as a conversation. */
   conversation?: boolean;
 }) {
-  const roots = rootsOf(delegations).filter(
+  const retained = delegations.filter(
     (delegation) =>
-      !settled ||
-      delegation.specialist !== null ||
-      (delegation.status === "completed"
-        ? delegation.mode === "async"
-        : delegation.status !== "cancelled"),
+      !(
+        settled &&
+        FINISHED.has(delegation.status) &&
+        (delegation.harness !== null ||
+          (delegation.specialist === null && delegation.mode !== "async"))
+      ),
   );
+  // A finished parent may leave a promotable child behind. Keep that child at
+  // the root rather than nesting it under a panel no longer on screen.
+  const retainedIds = new Set(retained.map((delegation) => delegation.taskId));
+  const visible = retained.map((delegation) =>
+    delegation.parentTaskId !== null && !retainedIds.has(delegation.parentTaskId)
+      ? { ...delegation, parentTaskId: null }
+      : delegation,
+  );
+  const roots = rootsOf(visible);
   if (roots.length === 0) return null;
-  // While the turn runs, the team is drawn as the exchange it is - see
-  // `DelegationChat`; the panels are what remains once it is over.
-  if (conversation) return <DelegationChat delegations={roots} agents={agents} parent={parent} />;
+  // Preserve the exchange after completion; promotable specialists retain their controls.
+  if (
+    conversation ||
+    (settled &&
+      visible.every((delegation) => delegation.harness === null && delegation.specialist === null))
+  )
+    return <DelegationChat delegations={visible} agents={agents} parent={parent} />;
   return (
     <div className="space-y-1 pb-2">
       {roots.map((delegation) => (
         <DelegationPanel
           key={delegation.taskId}
           delegation={delegation}
-          all={delegations}
+          all={visible}
           agents={agents}
         />
       ))}

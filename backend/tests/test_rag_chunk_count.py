@@ -353,7 +353,7 @@ class TestRetiringWhatAReplacementDeleted:
 
         db = _deferring_db()
         service = RAGDocumentService(db)
-        monkeypatch.setattr(service, "get_document", AsyncMock(return_value=current))
+        monkeypatch.setattr(rag_document_repo, "get_by_id", AsyncMock(return_value=current))
         await service.complete_ingestion(
             str(current.id),
             vector_document_id="new-vector-doc",
@@ -387,8 +387,8 @@ class TestRetiringWhatAReplacementDeleted:
         db = _deferring_db()
         service = RAGDocumentService(db)
         monkeypatch.setattr(
-            service,
-            "get_document",
+            rag_document_repo,
+            "get_by_id",
             AsyncMock(
                 return_value=MagicMock(
                     id=uuid.uuid4(),
@@ -399,7 +399,7 @@ class TestRetiringWhatAReplacementDeleted:
             ),
         )
         await service.complete_ingestion(
-            "doc",
+            str(uuid.uuid4()),
             vector_document_id="new-vector-doc",
             chunk_count=9,
             replaced_document_id="old-vector-doc",
@@ -418,8 +418,8 @@ class TestRetiringWhatAReplacementDeleted:
 
         service = RAGDocumentService(MagicMock())
         monkeypatch.setattr(
-            service,
-            "get_document",
+            rag_document_repo,
+            "get_by_id",
             AsyncMock(
                 return_value=MagicMock(
                     id=uuid.uuid4(),
@@ -430,7 +430,7 @@ class TestRetiringWhatAReplacementDeleted:
             ),
         )
         await service.complete_ingestion(
-            "doc",
+            str(uuid.uuid4()),
             vector_document_id="new-vector-doc",
             chunk_count=9,
             replaced_document_id=None,

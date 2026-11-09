@@ -1,5 +1,5 @@
 ---
-source_sha: "49147fff94d0"
+source_sha: "e0f27fa2e9f9"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -21,19 +21,18 @@ encuentren con el mismo provider el mismo día.
 
 ## En la consola { #in-the-console }
 
-La pestaña **Evals** de un agent se abre con un gráfico de líneas de su tasa de
+La pestaña **Evals** de un agent muestra un gráfico compacto sobre el historial cuando hay resultados medidos. El gráfico permanece visible. Cada fila muestra versiones comparadas, estado, veredicto, modelo, porcentaje y número de casos aprobados sobre el total. El gráfico muestra la tasa de
 aprobados run a run, el más antiguo a la izquierda, una línea por dataset, cada
 una con su propio trazo. Un punto es rojo donde el run rompió casos, verde donde
 los arregló, ámbar donde hizo ambas cosas y hueco para un borrador; al pasar el
 cursor dice qué se ejecutó, frente a qué y cuándo, y un clic abre el run.
 
-El eje nombra los runs por cuándo empezaron: la hora para un run de hoy, la
-fecha para los anteriores, una vez por día. Con más de 10 runs, un selector
+El eje muestra horas cuando el historial cabe en un día, incluso uno pasado. Si abarca varios días, muestra fechas para runs anteriores y horas para los de hoy, sin repetir etiquetas idénticas. La ayuda emergente conserva la fecha y hora completas de inicio. Con más de 10 runs, un selector
 encima del gráfico muestra los últimos 10, los últimos 30 o todos; se abre con
 los últimos 10, y la elección queda en la dirección de la página, así que Atrás
 y un enlace la conservan.
 
-Debajo están sus runs, agrupados por dataset, cada uno indicando qué se probó
+La tabla muestra los runs del más reciente al más antiguo, cada uno indicando qué se probó
 frente a qué, su veredicto (Breaks 2, Worse overall · 4 broke, First result,
 Pending) y la tasa de aprobados de cada modelo, con la tasa de las primeras
 respuestas al pasar el ratón.
@@ -97,9 +96,7 @@ agent que aún espera, que sale de la cola sin decisión - un run dice cuántas
 como `routed_replacing` - y una respuesta más antigua que la que espera no se
 envía. La respuesta de otro agent al caso espera a su lado.
 
-La propia pestaña **Evals** de un dataset lista cada agent medido en él, cada
-uno con su tendencia y sus runs, y **Run evals** en su encabezado abre el
-diálogo de inicio en el dataset y pregunta qué agent probar.
+La vista **Results → Test runs** del dataset muestra todos los agents medidos en un gráfico compartido y una tabla de runs. **Run evals** abre el diálogo en el dataset y pregunta qué agent probar. Los runs cuyas respuestas fallan todas con el mismo error de configuración muestran **Could not run** en lugar de una tasa de aprobación y se excluyen de la tendencia de calidad.
 
 La tarjeta **Eval runs** del dashboard lista los runs más recientes de la
 organización con su agent y su veredicto. Los casos de un eval y la
@@ -132,13 +129,9 @@ El body indica el dataset (`dataset_id`, `dataset_version`), el candidato
 `environment_id`, los `model_profile_ids` que se comparan y `paired_baseline`.
 La estimación es el coste medio de un run del agent en cada modelo, según sus
 runs completados recientes, por el número de casos, más una llamada al juez por
-caso cuando un juez puntúa el dataset y AI assistance está activado.
+caso cuando un juez puntúa el dataset .
 
-AI assistance está desactivado en una organización hasta que alguien con
-`org:settings` lo activa. Mientras está desactivado el juez no se ejecuta: un
-caso se decide por sus checks y sus llamadas a herramientas esperadas, los
-criterios del juez se registran como omitidos y la estimación no cuenta el
-juez.
+La estimación incluye la calificación con modelo siempre que el dataset la requiera, al precio del modelo elegido en Grading. Ningún interruptor organizacional desactiva ese calificador.
 
 Un agent sin historial en un modelo se estima como un caso típico -
 `EVAL_FALLBACK_INPUT_TOKENS` de entrada, `EVAL_FALLBACK_OUTPUT_TOKENS` de
@@ -173,12 +166,7 @@ supera cualquier límite porcentual.
 Un run que no podría decirle nada a nadie se rechaza antes de estimarse:
 
 - una versión del dataset sin casos;
-- una puntuación sin ningún evaluador obligatorio que pueda decidir algún caso
-  de la versión: ningún check que aplicar, ninguna llamada a herramienta
-  esperada y ningún juez. Cuando el juez es el único evaluador y AI assistance
-  está desactivado, el rechazo lo dice: el juez necesita AI assistance, que está
-  desactivado en esta organización, así que actívalo en los ajustes de la
-  organización o añade un check;
+- calificación sin un evaluador obligatorio aplicable a algún caso: añade una comprobación, una herramienta esperada o criterios;
 - un agent que nunca se publicó, para el que se pide una versión: ejecuta su
   borrador en su lugar;
 - un baseline para una primera versión, que no tiene nada antes.
@@ -221,6 +209,11 @@ contra ella, una herramienta de la que se sabe que solo lee se ejecuta en la
 conexión normal, y todo lo que escribe sin conexión de prueba no se ejecuta: la
 llamada y sus argumentos se guardan como una llamada prevista, que la
 puntuación de trayectoria sigue juzgando.
+
+Cada intento aislado utiliza un workspace temporal para su propio run, aunque
+el agent normalmente comparta archivos por conversación, usuario o agent. No
+necesita una conversación ni reutiliza esos archivos persistentes. El workspace
+se libera al finalizar el run.
 
 Un caso tomado de una conversación puede responderse **desde la grabación** del
 run del que salió (`from_recordings`): una llamada que coincide con la
@@ -305,9 +298,7 @@ Cada intento sale de una de cuatro maneras (`state` en el intento):
 - **incompleto** cuando el provider falló tras sus reintentos (un error 5xx,
   408 o 429, o ninguna respuesta), un evaluador lanzó una excepción, el run se
   canceló o se quedó sin budget, o sus intentos empataron;
-- **sin calificar** cuando nada califica la respuesta: no aplica ningún
-  evaluador obligatorio, o solo podría el juez y la asistencia de IA está
-  desactivada.
+- calificación sin un evaluador obligatorio aplicable a algún caso: añade una comprobación, una herramienta esperada o criterios;
 
 Ninguno de los dos últimos es nunca un aprobado; el resumen los cuenta aparte
 (`incomplete`, `ungraded`).
@@ -452,11 +443,7 @@ preguntar de nuevo dentro de un intento, o la versión de hoy se movió entre
 intentos en las preguntas apartadas que compartían; menos de cinco compartidas
 son demasiado pocas para juzgarlo.
 
-Lo que estabiliza la calificación: criterios de sí o no en lugar de una escala,
-una comprobación determinista de longitud y formato en lugar de la opinión de un
-juez, más casos - unas 30 apartadas para una sesión de Improve - y un modelo de
-juez más potente, que el [Grading model](governance.md#ai-assistance) de la
-organización fija para los jueces nuevos.
+Usa criterios claros de sí/no, comprobaciones deterministas de formato y longitud y suficientes casos representativos. Elige explícitamente un modelo de evaluación independiente adecuado en **Evaluación** del dataset; el precio del modelo no demuestra la calidad de sus evaluaciones.
 
 ### Cuán estables son las respuestas { #how-steady-the-answers-are }
 
@@ -607,10 +594,7 @@ sea cual sea su comparación: el mínimo no necesita baseline. Un resultado cuyo
 eval run se canceló también queda sin conclusión, y lo dice; uno cuyo run falló
 es un error.
 
-Un resultado **no se ejecutó** cuando costaría
-más de lo que le queda a un presupuesto o más que el límite propio de la
-suite, cuando solo el juez podría puntuarlo y la asistencia de IA está
-desactivada, o cuando no hay una versión publicada que comprobar.
+La estimación incluye la calificación con modelo siempre que el dataset la requiera, al precio del modelo elegido en Grading. Ningún interruptor organizacional desactiva ese calificador.
 
 Las
 ejecuciones por horario y por dependencia se comparan con la última ejecución

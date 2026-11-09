@@ -9,6 +9,7 @@ export const ROUTES = {
   INVITATION_PENDING: "/invitations/pending",
   FORGOT_PASSWORD: "/forgot-password",
   DASHBOARD: "/dashboard",
+  WORK: "/work",
   CHAT: "/chat",
   INBOX: "/inbox",
   PROFILE: "/profile",

@@ -26,13 +26,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.isolation import capability_tools
 from app.agents.spec import AgentSpec
-from app.agents.system_agents import JUDGE
+from app.agents.system_agents import CASE_GENERATOR, IMPROVER, JUDGE
 from app.core.audit import record_audit
 from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
     BadRequestError,
+    ConcurrentChangeError,
     EvalSuiteInUseError,
     NotFoundError,
 )
@@ -49,6 +50,7 @@ from app.repositories import (
     agent_run_repo,
     case_generation_repo,
     conversation_repo,
+    credential_repo,
     dataset_repo,
     message_rating_repo,
     personal_data_repo,
@@ -77,12 +79,14 @@ from app.schemas.dataset import (
     DatasetVersionRead,
     EditedCaseContent,
 )
+from app.schemas.dataset_helpers import DatasetHelperDefaults, DatasetHelpers
 from app.schemas.resource_grant import as_visibility
 from app.schemas.scoring import DatasetScoring, ExpectedToolCall
 from app.services import dataset_files
 from app.services.access import DATASET, accessible_ids, resolve_access, visible_resource_ids
 from app.services.conversation import ConversationService
 from app.services.exporting import MAX_EXPORT_ROWS, ExportResult, stamp
+from app.services.model_outputs import model_outputs
 
 logger = logging.getLogger(__name__)
 
@@ -320,6 +324,12 @@ def _dataset_read(
         run_needs=run_needs,
         pending_proposals=pending if can_edit else 0,
         scoring=DatasetScoring.model_validate(dataset.scoring),
+        helper_settings=DatasetHelpers.model_validate(dataset.helper_settings or {}),
+        helper_defaults=DatasetHelperDefaults(
+            judge=JUDGE.instructions,
+            generator=CASE_GENERATOR.instructions,
+            improver=IMPROVER.instructions,
+        ),
         created_at=dataset.created_at,
         updated_at=dataset.updated_at,
     )
@@ -599,9 +609,52 @@ class DatasetService:
         return await self.read(ctx, dataset.id)
 
     async def update(self, ctx: AuthContext, dataset_id: UUID, data: DatasetUpdate) -> DatasetRead:
-        """Rename or redescribe a dataset. Its cases, and so its version, do not change."""
-        dataset = await self.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
+        """Update dataset metadata and helper settings without changing its case version."""
+        changes_helpers = "helper_settings" in data.model_fields_set
+        dataset = (
+            await self._locked(ctx, dataset_id)
+            if changes_helpers
+            else await self.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
+        )
         update_data = writable(data, over=Dataset)
+        if changes_helpers:
+            kept = DatasetHelpers.model_validate(dataset.helper_settings or {})
+            if data.helper_settings is None:
+                kept = DatasetHelpers()
+            else:
+                for name, helper, current in (
+                    ("generator", data.helper_settings.generator, kept.generator),
+                    ("improver", data.helper_settings.improver, kept.improver),
+                ):
+                    if name in data.helper_settings.model_fields_set:
+                        setattr(
+                            kept,
+                            name,
+                            current.model_copy(update=helper.model_dump(exclude_unset=True)),
+                        )
+            update_data["helper_settings"] = kept.model_dump(mode="json")
+        if data.helper_settings is not None:
+            for name, helper in (
+                ("generator", data.helper_settings.generator),
+                ("improver", data.helper_settings.improver),
+            ):
+                if helper.model_profile_id is None:
+                    continue
+                profile = await credential_repo.get_profile(
+                    self.db, helper.model_profile_id, organization_id=ctx.organization_id
+                )
+                if profile is None:
+                    raise refused_field(
+                        f"helper_settings.{name}.model_profile_id",
+                        "Choose a model from this organization",
+                    )
+                if not model_outputs(
+                    profile.provider, profile.model, base_url=profile.base_url
+                ).chat:
+                    raise refused_field(
+                        f"helper_settings.{name}.model_profile_id",
+                        "Choose a model that answers messages",
+                    )
         if "name" in update_data and update_data["name"] != dataset.name:
             await self._refuse_taken_name(ctx, update_data["name"])
         try:
@@ -629,7 +682,7 @@ class DatasetService:
             EvalSuiteInUseError: An eval suite checking it guards an environment;
                 its suites would go with it and leave that environment unguarded.
         """
-        dataset = await self.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
+        dataset = await self._locked(ctx, dataset_id)
         name = dataset.name
         guarded = await promotion_gate_repo.guarded_by_dataset(
             self.db, dataset.id, organization_id=ctx.organization_id
@@ -974,6 +1027,32 @@ class DatasetService:
             NotFoundError: As :meth:`get` does, for a dataset the caller may not edit.
         """
         return await self._locked(ctx, dataset_id)
+
+    async def hold_generated_sources(self, ctx: AuthContext, cases: list[GeneratedCase]) -> None:
+        """Hold source accounts and their erasure locks before claiming proposed cases.
+
+        Account deletion takes user rows before personal-data locks. Use that
+        same order, before the dataset/proposal locks, so a deletion either sees
+        the accepted cases or finishes before they can be claimed.
+        """
+        people: set[UUID] = set()
+        for case in cases:
+            authors = await self._generated_from(ctx, case)
+            people.update(
+                person
+                for person in (authors.asked_by, authors.noted_by, *authors.history)
+                if person is not None
+            )
+        if not people:
+            return
+        ordered = sorted(people)
+        await user_repo.hold_key_share(self.db, ordered)
+        for person in ordered:
+            await hold_subject(self.db, LockScope.PERSONAL_DATA_PER_USER, person)
+        if await user_repo.existing_ids(self.db, ordered) != people:
+            raise ConcurrentChangeError(
+                message="A proposed case's source account was erased. Reload the proposed cases."
+            )
 
     async def add_generated(
         self, ctx: AuthContext, dataset: Dataset, cases: list[GeneratedCase]

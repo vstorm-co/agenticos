@@ -5,11 +5,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GroupFilter, NothingSharedWithGroup } from "./group-filter";
 import type { Group } from "@/types/groups";
 
-const state = vi.hoisted(() => ({ groups: [] as Group[], orgIds: [] as string[] }));
+const state = vi.hoisted(() => ({ groups: [] as Group[], orgIds: [] as string[], loading: false }));
 vi.mock("@/hooks", () => ({
   useGroups: (orgId: string) => {
     state.orgIds.push(orgId);
-    return { groups: state.groups };
+    return { groups: state.groups, isLoading: state.loading };
   },
 }));
 
@@ -28,10 +28,22 @@ function group(id: string, name: string): Group {
 
 beforeEach(() => {
   state.groups = [];
+  state.loading = false;
   state.orgIds = [];
 });
 
 describe("GroupFilter", () => {
+  it("reserves the filter width while groups load", () => {
+    state.loading = true;
+    const view = render(<GroupFilter value={null} onChange={vi.fn()} />);
+    expect(view.container.querySelector(".animate-pulse")).not.toBeNull();
+    expect(screen.queryByRole("combobox")).toBeNull();
+    state.groups = [group("fin", "Finance")];
+    state.loading = false;
+    view.rerender(<GroupFilter value={null} onChange={vi.fn()} />);
+    expect(screen.getByRole("combobox")).toBeInTheDocument();
+  });
+
   it("offers nothing to an organization with no groups", () => {
     const { container } = render(<GroupFilter value={null} onChange={vi.fn()} />);
     expect(container).toBeEmptyDOMElement();

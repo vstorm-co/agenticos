@@ -94,38 +94,38 @@ describe("InboxPage", () => {
     expect(screen.getByRole("heading", { name: "Inbox" })).toBeInTheDocument();
     expect(screen.getByText("3 waiting")).toBeInTheDocument();
     expect(state.shown).toEqual([finding, urgent, routine]);
-    await userEvent.click(screen.getByRole("radio", { name: "Urgent" }));
+    await chooseFilter("Urgent");
     expect(state.shown).toEqual([urgent]);
-    await userEvent.click(screen.getByRole("radio", { name: "From watches" }));
+    await chooseFilter("Routine results");
     expect(state.shown).toEqual([finding, urgent]);
-    await userEvent.click(screen.getByRole("radio", { name: "Suggestions" }));
+    await chooseFilter("Suggestions");
     expect(state.shown).toEqual([routine]);
-    await userEvent.click(screen.getByRole("radio", { name: "All" }));
+    await chooseFilter("All");
     expect(state.shown).toEqual([finding, urgent, routine]);
   });
 
   it("says nothing waits, and sends the person to set up a watch", async () => {
     render(<InboxPage />);
     expect(screen.getByText("Nothing waits here")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Set up a watch" }));
-    expect(state.push).toHaveBeenCalledWith("/routines?tab=watches");
+    await userEvent.click(screen.getByRole("button", { name: "Set up a routine" }));
+    expect(state.push).toHaveBeenCalledWith("/routines");
 
     // Nothing urgent is not a reason to set up a watch.
-    await userEvent.click(screen.getByRole("radio", { name: "Urgent" }));
-    expect(screen.queryByRole("button", { name: "Set up a watch" })).toBeNull();
+    await chooseFilter("Urgent");
+    expect(screen.queryByRole("button", { name: "Set up a routine" })).toBeNull();
   });
 
   it("opens already narrowed to what a link asked for, and ignores what it does not know", () => {
     state.open = [item("f", { kind: "finding" }), item("r")];
     state.filter = "watches";
     const { unmount } = render(<InboxPage />);
-    expect(screen.getByRole("radio", { name: "From watches" })).toBeChecked();
+    expect(screen.getByRole("combobox", { name: "Show" })).toHaveTextContent("Routine results");
     expect(state.shown.map((each) => each.id)).toEqual(["f"]);
     unmount();
 
     state.filter = "spam";
     render(<InboxPage />);
-    expect(screen.getByRole("radio", { name: "All" })).toBeChecked();
+    expect(screen.getByRole("combobox", { name: "Show" })).toHaveTextContent("All");
   });
 
   it("lists what was answered and brings a declined one back", async () => {
@@ -135,7 +135,7 @@ describe("InboxPage", () => {
       item("no", { status: "dismissed" }),
     ];
     render(<InboxPage />);
-    await userEvent.click(screen.getByRole("radio", { name: "Done" }));
+    await chooseFilter("Done");
 
     expect(screen.queryByText("Title open")).toBeNull();
     expect(screen.getByText("Saved")).toBeInTheDocument();
@@ -148,14 +148,14 @@ describe("InboxPage", () => {
     state.history = [item("no", { status: "dismissed" })];
     state.restore.mockRejectedValue(new Error("Server down"));
     const { unmount } = render(<InboxPage />);
-    await userEvent.click(screen.getByRole("radio", { name: "Done" }));
+    await chooseFilter("Done");
     await userEvent.click(screen.getByRole("button", { name: "Bring back" }));
     await waitFor(() => expect(toastError).toHaveBeenCalled());
     unmount();
 
     state.history = [];
     render(<InboxPage />);
-    await userEvent.click(screen.getByRole("radio", { name: "Done" }));
+    await chooseFilter("Done");
     expect(screen.getByText("Nothing answered yet")).toBeInTheDocument();
   });
 });
@@ -187,7 +187,7 @@ it("applies a watch-filter link while the inbox is already open", () => {
 it("lets the person retry a failed Done history read", async () => {
   state.error = new Error("offline");
   render(<InboxPage />);
-  await userEvent.click(screen.getByRole("radio", { name: "Done" }));
+  await chooseFilter("Done");
   await userEvent.click(screen.getByRole("button", { name: "Retry" }));
   expect(state.refetch).toHaveBeenCalledOnce();
 });
@@ -201,4 +201,17 @@ it("keeps Done history in a loading state until its read finishes", () => {
   state.history = [item("done", { status: "accepted" })];
   rerender(<InboxPage />);
   expect(screen.getByText("Title done")).toBeInTheDocument();
+});
+
+async function chooseFilter(name: string) {
+  await userEvent.click(screen.getByRole("combobox", { name: "Show" }));
+  await userEvent.click(screen.getByRole("option", { name }));
+}
+
+it("changes the desktop filters without opening a duplicate select", async () => {
+  render(<InboxPage />);
+  await userEvent.click(screen.getByRole("button", { name: "Urgent" }));
+  expect(screen.getByRole("button", { name: "Urgent" })).toHaveAttribute("aria-pressed", "true");
+  await userEvent.click(screen.getByRole("button", { name: "All" }));
+  expect(screen.getByRole("button", { name: "All" })).toHaveAttribute("aria-pressed", "true");
 });

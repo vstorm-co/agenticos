@@ -401,13 +401,13 @@ describe("signing in", () => {
     await act(async () => {
       await result.current.login({ email: "a@example.com", password: "x" });
     });
-    expect(push).toHaveBeenLastCalledWith(ROUTES.DASHBOARD);
+    expect(push).toHaveBeenLastCalledWith(ROUTES.CHAT);
 
     vi.mocked(apiClient.post).mockResolvedValue({ user: user(), access_token: "t", message: "ok" });
     await act(async () => {
       await result.current.login({ email: "b@example.com", password: "x" });
     });
-    expect(push).toHaveBeenLastCalledWith(ROUTES.DASHBOARD);
+    expect(push).toHaveBeenLastCalledWith(ROUTES.CHAT);
   });
 
   it("resumes the deep link the visitor was headed to", async () => {
@@ -451,7 +451,7 @@ describe("signing in", () => {
       await result.current.login({ email: "a@example.com", password: "x" }, "//evil.example/a");
     });
 
-    expect(push).toHaveBeenLastCalledWith(ROUTES.DASHBOARD);
+    expect(push).toHaveBeenLastCalledWith(ROUTES.CHAT);
   });
 
   it("does not ask who is signed in after a login that just said so", async () => {
@@ -875,4 +875,98 @@ describe("keeping the in-memory token fresh", () => {
 
     expect(apiClient.get).not.toHaveBeenCalled();
   });
+});
+
+describe("a page that found nobody signed in", () => {
+  it("asks again when it is shown, once the console has signed in (2026-11-06)", async () => {
+    // Quick Ask is built beside the console and kept loaded; built before the
+    // sign-in, it said "sign in" until the app restarted.
+    vi.mocked(apiClient.get).mockRejectedValueOnce(new ApiError(401, "Not authenticated"));
+    renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(useAuthStore.getState().isLoading).toBe(false));
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ ...user(), access_token: "after" });
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+
+    await waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(true));
+    expect(useAuthStore.getState().accessToken).toBe("after");
+  });
+
+  it("asks again on focus too", async () => {
+    vi.mocked(apiClient.get).mockRejectedValueOnce(new ApiError(401, "Not authenticated"));
+    renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(useAuthStore.getState().isLoading).toBe(false));
+
+    vi.mocked(apiClient.get).mockResolvedValueOnce(user());
+    act(() => window.dispatchEvent(new Event("focus")));
+
+    await waitFor(() => expect(useAuthStore.getState().user?.id).toBe("u-1"));
+  });
+
+  it("does not ask on every focus once somebody is signed in", async () => {
+    renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(true));
+    const asked = vi.mocked(apiClient.get).mock.calls.length;
+
+    act(() => window.dispatchEvent(new Event("focus")));
+
+    expect(vi.mocked(apiClient.get).mock.calls.length).toBe(asked);
+  });
+});
+
+it("shows loading while a signed-out panel checks the session again", async () => {
+  vi.mocked(apiClient.get).mockRejectedValueOnce(new ApiError(401, "Not authenticated"));
+  const { result } = renderHook(() => useAuth(), { wrapper });
+  await waitFor(() => expect(result.current.isLoading).toBe(false));
+  let finish!: (answer: User) => void;
+  vi.mocked(apiClient.get).mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  act(() => window.dispatchEvent(new Event("focus")));
+  expect(result.current.isLoading).toBe(true);
+  await act(async () => {
+    finish(user());
+  });
+  expect(result.current.isAuthenticated).toBe(true);
+});
+
+it("refreshes a visible signed-out panel when another window establishes a session", async () => {
+  vi.mocked(apiClient.get).mockRejectedValueOnce(new ApiError(401, "Not authenticated"));
+  const { result } = renderHook(() => useAuth(), { wrapper });
+  await waitFor(() => expect(result.current.isLoading).toBe(false));
+  vi.mocked(apiClient.get).mockResolvedValueOnce(user());
+  act(() =>
+    window.dispatchEvent(
+      new StorageEvent("storage", {
+        key: "auth-storage",
+        oldValue: "signed-out",
+        newValue: "signed-in",
+      }),
+    ),
+  );
+  await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
+});
+
+it("ignores unrelated storage changes and shares one session read across hook consumers", async () => {
+  renderHook(() => useAuth(), { wrapper });
+  renderHook(() => useAuth(), { wrapper });
+  await waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(true));
+  vi.mocked(apiClient.get).mockClear();
+  act(() => {
+    window.dispatchEvent(new StorageEvent("storage", { key: "preferences", newValue: "changed" }));
+    window.dispatchEvent(
+      new StorageEvent("storage", { key: "auth-storage", oldValue: "same", newValue: "same" }),
+    );
+  });
+  expect(apiClient.get).not.toHaveBeenCalled();
+  await act(async () => {
+    window.dispatchEvent(
+      new StorageEvent("storage", { key: "auth-storage", oldValue: "old", newValue: "new" }),
+    );
+  });
+  expect(apiClient.get).toHaveBeenCalledTimes(1);
 });

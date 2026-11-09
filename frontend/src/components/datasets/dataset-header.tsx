@@ -64,9 +64,24 @@ export function DatasetHeader({
       description={dataset.description ?? undefined}
       breadcrumbs={[{ label: t("title"), href: ROUTES.DATASETS }, { label: dataset.name }]}
       badges={
-        dataset.latest_version > 0 ? (
-          <Badge variant="outline">{t("versionNumber", { number: dataset.latest_version })}</Badge>
-        ) : undefined
+        <>
+          {dataset.latest_version > 0 && (
+            <Badge variant="outline">
+              {t("versionNumber", { number: dataset.latest_version })}
+            </Badge>
+          )}
+          {(version === null || version === dataset.latest_version) &&
+            dataset.stats?.train_cases !== undefined &&
+            dataset.stats.holdout_cases !== undefined &&
+            dataset.stats.train_cases + dataset.stats.holdout_cases > 0 && (
+              <span className="text-muted-foreground text-xs">
+                {t("improvementSplit.counts", {
+                  train: dataset.stats.train_cases,
+                  holdout: dataset.stats.holdout_cases,
+                })}
+              </span>
+            )}
+        </>
       }
       actions={
         <>
@@ -135,7 +150,7 @@ export function DatasetHeader({
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
-                    className="text-destructive focus:text-destructive"
+                    className="text-destructive-ink focus:text-destructive-ink"
                     onSelect={onDelete}
                   >
                     <Trash2 className="h-4 w-4" />

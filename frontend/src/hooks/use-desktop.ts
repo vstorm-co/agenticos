@@ -7,7 +7,15 @@ import { toast } from "sonner";
 
 import {
   changeServer,
+  getLocalAgents,
+  getLocalCodingOptions,
+  getLocalSkills,
+  SKILL_SOURCES,
   getLocalServices,
+  signInLocalAgent,
+  prepareLocalAgent,
+  signOutLocalAgent,
+  type LocalAgent,
   saveLocalService,
   removeLocalService,
   type LocalService,
@@ -40,6 +48,7 @@ import { isDesktopShell, listenShell, reportShellFailure } from "@/lib/desktop/s
 import { createPairingCode } from "@/lib/pairing-api";
 import { qk } from "@/lib/query-keys";
 import { useShell } from "@/hooks/use-shell";
+import { useWorkOnStore } from "@/stores/work-on-store";
 
 /** Open the trusted server picker without depending on blobby or the tray. */
 export function useChangeServer() {
@@ -217,7 +226,10 @@ export function useLocalFolders() {
   });
   const revoke = useMutation({
     mutationFn: revokeLocalFolder,
-    onSuccess: (next) => queryClient.setQueryData(qk.desktop.local(), next),
+    onSuccess: (next, path) => {
+      useWorkOnStore.getState().forgetFolder(path);
+      queryClient.setQueryData(qk.desktop.local(), next);
+    },
     onError: (error) => reportShellFailure("revoking a folder", error),
   });
   return { state, pick, revoke };
@@ -261,6 +273,7 @@ export function useLocalWorkspace(root: string | null, ownerLabel: string) {
       total: items.length,
       bytes_total: items.reduce((sum, file) => sum + (file.size ?? 0), 0),
       bytes_limit: null,
+      truncated: items.length >= 500,
       unreadable_reason: null,
     };
   }, [enabled, data, ownerLabel]);
@@ -285,4 +298,67 @@ export function useLocalServices() {
     onError: failed,
   });
   return { state, save, remove };
+}
+
+/**
+ * Credential probes can show native keychain prompts. Refresh after explicit
+ * actions and requests instead of repeating them whenever the app regains focus.
+ */
+export function useLocalAgents() {
+  const shell = useShell();
+  const client = useQueryClient();
+  const state = useQuery({
+    queryKey: qk.desktop.agents(),
+    queryFn: getLocalAgents,
+    enabled: isDesktopShell(shell),
+    refetchOnWindowFocus: false,
+    staleTime: 5 * 60 * 1000,
+  });
+  const failed = (error: Error) => reportShellFailure("changing a coding agent", error);
+  const signIn = useMutation({
+    mutationFn: signInLocalAgent,
+    onError: failed,
+    onSuccess: () => client.invalidateQueries({ queryKey: qk.desktop.agents() }),
+  });
+  const signOut = useMutation({
+    mutationFn: signOutLocalAgent,
+    onSuccess: (agent) =>
+      client.setQueryData<LocalAgent[]>(qk.desktop.agents(), (agents) =>
+        agents?.map((known) => (known.id === agent.id ? agent : known)),
+      ),
+    onError: failed,
+  });
+  const prepare = useMutation({
+    mutationFn: prepareLocalAgent,
+    onSuccess: () => client.invalidateQueries({ queryKey: qk.desktop.agents() }),
+    onError: failed,
+  });
+  return { state, signIn, signOut, prepare };
+}
+
+export function useLocalCodingOptions(harness: LocalAgent["id"] | null) {
+  const shell = useShell();
+  return useQuery({
+    queryKey: qk.desktop.codingOptions(harness),
+    queryFn: harness === null ? skipToken : () => getLocalCodingOptions(harness),
+    enabled: isDesktopShell(shell) && harness !== null,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+}
+
+/**
+ * The skills on this computer in every source, so a chat can show what turning a
+ * source on would offer. Read in place by the app; refreshed when the window regains
+ * focus, since a person edits these files outside AgenticOS.
+ */
+export function useLocalSkills() {
+  const shell = useShell();
+  return useQuery({
+    queryKey: qk.desktop.skills(),
+    queryFn: () => getLocalSkills(SKILL_SOURCES),
+    enabled: isDesktopShell(shell),
+    refetchOnWindowFocus: "always",
+  });
 }

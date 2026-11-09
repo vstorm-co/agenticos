@@ -9,7 +9,7 @@ import TableDetailPage from "./page";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { toast } from "sonner";
 import { PAGE_SIZE } from "@/components/ui";
-import type { RecordRead, TableRead, TableViewList } from "@/types/tables";
+import type { RecordRead, TableRead, TableViewList, TableViewCreate } from "@/types/tables";
 
 /**
  * The table detail page: tab/URL wiring, the `can_edit` gate on the columns
@@ -373,6 +373,18 @@ beforeEach(() => {
 });
 
 describe("the table detail page", () => {
+  it("switches format through the phone select and keeps it in the URL", async () => {
+    serve();
+    await act(async () => {
+      renderPage();
+    });
+    await screen.findByTestId("grid-view");
+    await userEvent.click(screen.getByRole("combobox", { name: "Format" }));
+    await userEvent.click(screen.getByRole("option", { name: "List" }));
+    expect(await screen.findByTestId("list-view")).toBeInTheDocument();
+    expect(new URLSearchParams(window.location.search).get("view")).toBe("list");
+  });
+
   it("shows a loading state before the table arrives", async () => {
     vi.mocked(apiClient.get).mockReturnValue(new Promise(() => {}));
 
@@ -1057,12 +1069,26 @@ describe("the table detail page", () => {
   it("asks which column makes the lanes when several columns can group records", async () => {
     const fixture = table();
     const status = fixture.columns.find((column) => column.type === "single_select")!;
+    const saved = views({ items: [] });
     serve({
-      viewsFixture: views({ items: [] }),
+      viewsFixture: saved,
       tableFixture: {
         ...fixture,
         columns: [...fixture.columns, { ...status, id: "c3", label: "Priority" }],
       },
+    });
+    const post = vi.mocked(apiClient.post).getMockImplementation()!;
+    vi.mocked(apiClient.post).mockImplementation((path, body) => {
+      if (path !== "/tables/t1/views") return post(path, body);
+      const input = body as TableViewCreate;
+      const created = {
+        ...views().items[0]!,
+        ...input,
+        id: "v-created",
+        config: { ...emptyConfig, ...input.config },
+      };
+      saved.items.push(created);
+      return Promise.resolve(created);
     });
     const user = userEvent.setup();
     renderPage();
@@ -1090,6 +1116,195 @@ describe("the table detail page", () => {
     await user.click(screen.getByRole("tab", { name: "Kanban" }));
     expect(await screen.findByText(/This table has none yet/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add a column" })).toBeInTheDocument();
+  });
+
+  it("opens the saved default Kanban without a URL override", async () => {
+    serve({ tableFixture: table({ default_view_id: "v-kanban" }) });
+    renderPage();
+    expect(await screen.findByTestId("kanban-view")).toHaveAttribute("data-group-by", "c2");
+    expect(screen.getByRole("button", { name: "Default view" })).toBeDisabled();
+  });
+
+  it("sets the current Kanban and its grouping as the default", async () => {
+    serve();
+    arriveAt("view=kanban&viewId=v-kanban");
+    vi.mocked(apiClient.patch).mockImplementation((path) =>
+      Promise.resolve(path.endsWith("/v-kanban") ? views().items[0] : table()),
+    );
+    renderPage();
+    await screen.findByTestId("kanban-view");
+    await userEvent.click(screen.getByRole("button", { name: "Set as default" }));
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith("/tables/t1", {
+        default_view_id: "v-kanban",
+      }),
+    );
+    expect(apiClient.patch).toHaveBeenCalledWith("/tables/t1/views/v-kanban", {
+      visibility: "shared",
+      config: expect.objectContaining({ group_by: "c2" }),
+    });
+  });
+
+  it("saves a grouping change and restores it after reopening the saved board", async () => {
+    const fixture = views();
+    const board = fixture.items[0]!;
+    const extra = { ...table().columns[1]!, id: "c4", label: "Priority" };
+    const tableFixture = table({ columns: [...table().columns, extra] });
+    serve({ tableFixture, viewsFixture: fixture });
+    arriveAt("view=kanban&viewId=v-kanban");
+    vi.mocked(apiClient.patch).mockImplementation((_path, body) => {
+      Object.assign(board, body);
+      return Promise.resolve(board);
+    });
+    const page = renderPage();
+    await screen.findByTestId("kanban-view");
+    const grouping = screen.getByRole("combobox", { name: "Group by" });
+    expect(grouping.closest("[data-table-view-toolbar]")).not.toBeNull();
+    expect(grouping.closest("[data-table-view-content]")).toBeNull();
+    await userEvent.click(grouping);
+    await userEvent.click(screen.getByRole("option", { name: "Priority" }));
+    await waitFor(() =>
+      expect(screen.getByTestId("kanban-view")).toHaveAttribute("data-group-by", "c4"),
+    );
+    expect(apiClient.patch).toHaveBeenCalledWith("/tables/t1/views/v-kanban", {
+      config: { ...emptyConfig, group_by: "c4" },
+    });
+    page.unmount();
+    renderPage();
+    expect(await screen.findByTestId("kanban-view")).toHaveAttribute("data-group-by", "c4");
+  });
+
+  it("creates a private saved Kanban for a grouping picked without an active view", async () => {
+    const fixture = views({ items: [], total: 0 });
+    serve({
+      tableFixture: table({
+        columns: [
+          ...table().columns,
+          {
+            ...table().columns[1]!,
+            id: "c4",
+            label: "Priority",
+          },
+        ],
+      }),
+      viewsFixture: fixture,
+    });
+    const post = vi.mocked(apiClient.post).getMockImplementation()!;
+    vi.mocked(apiClient.post).mockImplementation((path, body) => {
+      if (path !== "/tables/t1/views") return post(path, body);
+      const input = body as TableViewCreate;
+      const created = {
+        ...views().items[0]!,
+        ...input,
+        id: "v-created",
+        config: { ...emptyConfig, ...input.config },
+      };
+      fixture.items.push(created);
+      return Promise.resolve(created);
+    });
+    arriveAt("view=kanban");
+    const page = renderPage();
+    await screen.findByRole("combobox", { name: "Group by" });
+    await userEvent.click(screen.getByRole("combobox", { name: "Group by" }));
+    await userEvent.click(screen.getByRole("option", { name: "Priority" }));
+    await waitFor(() =>
+      expect(screen.getByTestId("kanban-view")).toHaveAttribute("data-group-by", "c4"),
+    );
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/tables/t1/views",
+      expect.objectContaining({
+        kind: "kanban",
+        visibility: "private",
+        config: expect.objectContaining({ group_by: "c4" }),
+      }),
+    );
+    const query = window.location.search.slice(1);
+    expect(new URLSearchParams(query).get("viewId")).toBe("v-created");
+    page.unmount();
+    arriveAt(query);
+    renderPage();
+    expect(await screen.findByTestId("kanban-view")).toHaveAttribute("data-group-by", "c4");
+  });
+
+  it("lets a reader change grouping temporarily without writing a view or default", async () => {
+    serve({
+      tableFixture: table({
+        can_edit: false,
+        columns: [
+          ...table().columns,
+          {
+            ...table().columns[1]!,
+            id: "c4",
+            label: "Priority",
+          },
+        ],
+      }),
+    });
+    arriveAt("view=kanban&viewId=v-kanban");
+    renderPage();
+    await screen.findByTestId("kanban-view");
+    await userEvent.click(screen.getByRole("combobox", { name: "Group by" }));
+    await userEvent.click(screen.getByRole("option", { name: "Priority" }));
+    expect(screen.getByTestId("kanban-view")).toHaveAttribute("data-group-by", "c4");
+    expect(apiClient.patch).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Set as default" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the previous grouping when saving is refused", async () => {
+    serve({
+      tableFixture: table({
+        columns: [
+          ...table().columns,
+          {
+            ...table().columns[1]!,
+            id: "c4",
+            label: "Priority",
+          },
+        ],
+      }),
+    });
+    arriveAt("view=kanban&viewId=v-kanban");
+    vi.mocked(apiClient.patch).mockRejectedValue(new Error("refused"));
+    renderPage();
+    await screen.findByTestId("kanban-view");
+    await userEvent.click(screen.getByRole("combobox", { name: "Group by" }));
+    await userEvent.click(screen.getByRole("option", { name: "Priority" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(screen.getByTestId("kanban-view")).toHaveAttribute("data-group-by", "c2");
+  });
+
+  it("does not reuse a saved Kanban when setting the Table format as default", async () => {
+    serve();
+    arriveAt("view=kanban&viewId=v-kanban");
+    const post = vi.mocked(apiClient.post).getMockImplementation()!;
+    vi.mocked(apiClient.post).mockImplementation((path, body) =>
+      path === "/tables/t1/views"
+        ? Promise.resolve({ ...views().items[1]!, id: "v-default-table" })
+        : post(path, body),
+    );
+    vi.mocked(apiClient.patch).mockResolvedValue(table());
+    renderPage();
+    await screen.findByTestId("kanban-view");
+    await userEvent.click(screen.getByRole("tab", { name: "Table" }));
+    await screen.findByTestId("grid-view");
+    // The old Kanban remains in the URL, but belongs to another format.
+    expect(screen.getByRole("combobox", { name: "Select a table view" })).toHaveTextContent(
+      "All records",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Set as default" }));
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith("/tables/t1", {
+        default_view_id: "v-default-table",
+      }),
+    );
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/tables/t1/views",
+      expect.objectContaining({
+        kind: "table",
+        visibility: "shared",
+        config: expect.objectContaining({ group_by: null }),
+      }),
+    );
   });
 
   it("draws the kanban board once a grouped view is active, passing its grouping column through", async () => {

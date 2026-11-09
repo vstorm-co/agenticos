@@ -40,6 +40,26 @@ async function openMenu() {
 describe("DatasetHeader", () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it("keeps split metadata beside the version and hides current counts on old versions", () => {
+    const current = dataset({
+      stats: {
+        by_source: { manual: 24, import: 0, conversation: 0, synthetic: 0 },
+        top_tags: [],
+        expectation_mix: [],
+        with_reference: 24,
+        with_counter_example: 0,
+        with_tool_calls: 0,
+        with_checks: 0,
+        train_cases: 10,
+        holdout_cases: 14,
+      },
+    });
+    const { rerender } = render(<DatasetHeader dataset={current} version={null} {...handlers()} />);
+    expect(screen.getByText("10 training · 14 holdout")).toBeInTheDocument();
+    rerender(<DatasetHeader dataset={current} version={1} {...handlers()} />);
+    expect(screen.queryByText("10 training · 14 holdout")).toBeNull();
+  });
+
   it("adds a case from the button and puts every rarer action in the menu", async () => {
     const onAddCase = vi.fn();
     const on = handlers();

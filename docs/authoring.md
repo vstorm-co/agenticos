@@ -25,20 +25,9 @@ It does three things:
   skill is improved step by step on its own page - see
   [Improving a skill](skills.md#improving-a-skill).
 
-The assistant is a [system agent](concepts.md#system-agents) of its own, listed with
-the organization's other system agents. An administrator edits its instructions
-like any agent's - changing a system agent takes `org:settings` - and its runs
-are ordinary runs: budgeted, priced and listed in Activity. It is never the
-agent an Improve or a Verify is about. Set to
-[search the knowledge base](concepts.md#system-agent-spec), it reads the
-knowledge bases of the agent it improves.
+In Agent Builder, **Build** contains the configuration and **Test** opens the interactive draft panel. Open **Evals** to compare a draft with a published version on a dataset or start **Improve**. The estimate appears before execution. The legacy evidence-based verify endpoint remains available for API compatibility.
 
-Expand **Authoring assistant** in Improve or Verify to choose a published
-assistant. Changing the selection clears the previous estimate, so consent
-applies to the chosen assistant's price and budget. `improver_agent_id` is kept
-on the queued request; background improvement sessions accept the same choice.
-The worker rechecks the selected agent's kind, publication and current caller
-access. A deleted selection fails rather than reverting to the default.
+**Improve** opens the improvement session. The selected dataset's **Settings** owns the improvement model and instructions; helpers have code defaults and no editable agent-catalog page. The context file improvement dialog chooses a model directly. Runs retain the existing budget checks and Activity records.
 
 ## What it reads { #what-it-reads }
 
@@ -57,14 +46,17 @@ a test from the Builder's test panel, nor a delegate's run.
 When there is more to read than fits one request, the runs are read in groups
 first and the suggestions are written from what each group showed.
 
+If an evidence source account is erased while the model is working, the entire generated result is discarded, including summaries, proposed bodies and the helper's recorded model input/output. The request fails with an explanation so it can be started again using current evidence. Already incurred costs remain recorded.
+
 ### Every quote is checked { #every-quote-is-checked }
 
 Each suggestion carries a rationale and the evidence behind it: the runs it rests
 on and quotes from them. Before anybody sees a suggestion, each quote is checked,
 word for word, against the run it names. A quote that is not there, a run that is
 not among those the assistant read, and anything past twelve items or six hundred
-characters is dropped, and the suggestion says how many were. A reader without
-`runs:view` sees which runs a suggestion rests on, not what was said in them.
+characters is dropped, and the suggestion says how many were. Reading assistant
+requests, findings and proposed text requires `runs:view`: generated summaries
+and changes can contain conversation content even when explicit quotes are absent.
 
 The check proves that a quote is in its run, not that it bears on what it backs:
 a real quote about something else passes it. So a Verify finding names the line
@@ -73,16 +65,16 @@ that line above the finding's quotes, for the reader to judge whether they back
 it. A finding that the edit is supported, left with no quote that could be
 checked, is not shown.
 
-When an assistant request - a Verify, or an Improve through the API - finishes while the Builder is open, a result dialog shows the reviewed answer count, proposed and recorded changes, and rejected proposals with their reasons. You can reopen it with **Review result**. An empty result says that nothing could be applied and shows no expected effect. Expected-effect prose containing raw run identifiers is replaced with a description counting the linked source answers.
+When an assistant request - a Verify, or an Improve through the API - finishes while the Evals tab is open, a result dialog shows the reviewed answer count, proposed and recorded changes, and rejected proposals with their reasons. You can reopen it with **Review result**. An empty result says that nothing could be applied and shows no expected effect. Expected-effect prose containing raw run identifiers is replaced with a description counting the linked source answers.
 
 Every changed text - instructions, a tool description, a context file - shows as a diff: removed and added lines with the changed words marked, a few unchanged lines around each change and the rest folded, unified or side by side on a wide screen. Each change keeps its rationale and linked evidence; each piece of evidence is named by what it is - a test question from the dataset (**Test question 2**) or a real chat (**Conversation 1**) - with the question that was asked, and the improver is told to cite it by exactly that label. Run identifiers in a rationale show under the same label.
 
-After a check completes, readers with `runs:view` can compare answers from both arms in the dialog and open the full check. Before a check, it asks you to run one. An agent with no rated chat or training evidence has a compact assistant line above its instructions.
+After a check completes, readers with `runs:view` can compare answers from both arms in the dialog and open the full check. Before a check, it asks you to run one. An agent with no suggestions shows no Suggestions card.
 
 ## Suggestions { #suggestions }
 
 Suggestions from an improvement session, a Verify or the API wait on the
-**assistant strip** on the agent's Build tab. Each
+**Suggestions** section on the agent's **Evals** tab. Each
 suggestion shows the passage it changes in its surroundings, why, and the
 evidence, and each is decided on its own:
 
@@ -298,22 +290,17 @@ Activity retention keeps the combined cost of a session’s deleted paid runs, w
 | Start Improve or Verify on an agent | `runs:view`, edit access to the agent, and use of the assistant |
 | Improve a skill | `runs:view`, edit access to the skill, and use of the assistant |
 | Improve a context file | `runs:view`, `context:edit` on the file, and use of the assistant |
-| Accept, dismiss or undo a suggestion | Edit access to the agent |
+| Accept, dismiss or undo a suggestion | `runs:view` and edit access to the agent |
 | Accept a suggestion that binds or reaches something | Also the access to bind it by hand |
-| Apply or discard a skill change | `skills:edit` on the skill |
-| Apply or discard a context file change | `context:edit` on the file |
+| Apply or discard a skill change | `skills:edit` on the skill and `runs:view` |
+| Apply or discard a context file change | `context:edit` on the file and `runs:view` |
 | Check with evals | What an [eval run](evals.md#access) needs, and edit access to the agent |
 
 Grants count: a member with an edit grant on one agent may improve that agent.
 
-## When AI assistance is off { #when-ai-assistance-is-off }
+## Availability and cost { #when-ai-assistance-is-off }
 
-With the organization's **AI assistance** switch off, the assistant does not run:
-Improve, Verify and Improve on a context file are refused by the server, and the console
-shows them disabled with a link to the switch. A skill's Improve session stops
-before its next step. Suggestions already waiting can
-still be accepted, dismissed and undone, and an eval run that needs no judge
-still runs.
+Availability follows resource access, model readiness and budgets. There is no organization AI-assistance switch. Paid work requires explicit start; accepting or dismissing an existing proposal calls no model.
 
 ## Background improvement sessions { #background-improvement-sessions }
 
@@ -353,8 +340,7 @@ within its budget. Two unchanged results in a row, or an inconclusive one and it
 repeat, show on the result as a hint that another attempt is unlikely to help, not
 as a stop.
 
-Whoever may start a session on the agent - edit access, `runs:view` and AI
-assistance on - may take its next step or try again. The session records who did,
+Whoever may start a session on the agent - edit access, `runs:view`  - may take its next step or try again. The session records who did,
 and the steps after it run with that person's current permissions and credential,
 so a session the Architect started can be taken further in the console.
 
@@ -420,7 +406,7 @@ not accept, publish or replace the attempt's combined verdict.
 
 ### The Improve wizard { #the-improve-wizard }
 
-Open **Improve** in the agent header or on the Build tab's assistant strip, from the **Needs attention** badge on the agent list, from the dashboard card or from the agent's **Knowledge gaps** tab. It sits among the header's other actions; when the version it serves now had answers rated down or failed runs in the last 30 days, it wears a dot and its name says why. The dashboard card **Improvements waiting for you** lists the sessions stopped for a decision.
+Open **Improve** from the agent’s **Evals** toolbar, from the **Needs attention** badge on the agent list, from the dashboard card or from the agent’s **Knowledge gaps** tab. When the current published version had answers rated down or failed runs in the last 30 days, Improve carries an attention dot. The dashboard card **Improvements waiting for you** lists sessions waiting for a decision.
 
 Every **Improve** opens the agent's open session - working, waiting for you, at its result, or stopped or failed - and starts a new one once that session is kept as a draft, published, discarded, cancelled or closed, after which it stays in the agent's [improvement history](#improvement-history). **End it and start a new one** beside an open session ends it first.
 
@@ -428,7 +414,9 @@ A session lives at `/agents/<agent>/improve/<session>`; the page can be closed a
 
 A step opens once it has work to show or a decision to ask for; the page follows the step the session is on, and after you open another one, **Go to the current step** brings it back. At a stop the footer holds the next step with its price, for example **Next step: write the changes · about $0.04**; nothing is spent before you press it. When the price moved since it was shown, the footer says so - **The price changed to about $0.05. Press again to go on.** - and when the step costs more than the session has left, it offers to raise the session's limit right there.
 
-**Start.** Three figures from the last 30 days, then the agent's own test questions, already chosen and priced: the estimate covers reading what went wrong, with about how long that takes, appears without a click and spends nothing, so **Start improving** is the one decision. Each next step is priced before you press it, and the limit caps the whole session. Other test questions, the spending limit, the helper and a test of today's answers sit under **Show details**. An agent without test questions gets **Write test questions for me**: rated answers become questions, more are written for topics with no example, and the estimate follows once they are ready. When too few questions are left to measure a change, it offers to write as many more as the session lacks. The hint after a first publish opens this screen to set a baseline.
+**Start.** Improve opens a dialog over the Agent Builder. Choose the dataset in the main form; the agent's own test set is selected when available. Feedback counts summarize the evidence. Without a suitable set, **Write test questions for me** estimates creating questions from rated answers and topics without examples before anything is written.
+
+The analysis cost and whole-session spending limit appear before **Start improving**. Each later step has its own estimate and waits for your decision. **Show details** holds the spending-limit input, question distribution, today's test and a link to the dataset's helper settings. The running session opens its own page after you start. Closing the setup dialog returns to the agent; existing `/improve/new` links open the same dialog.
 
 1. **Understand.** One sentence and a bar count the problems to fix in the agent and the information missing from the knowledge base. Examples whose misses joined one knowledge gap topic form one card, and so does a question asked both as a test question and in a conversation. A card shows the question and opens to the answer, the comments, how a test answer was graded - the grade the judge gave each criterion, and whether each rule was met - and why it counts: the grades it failed, how a person rated it, and why the classifier put it there. Answers rated up, or in which the classifier found nothing wrong, are sorted under **Not a problem to fix** automatically; nothing on this step is set by hand. An answer whose topic a document has covered since counts under **Already in the knowledge base**, with that document and the day it was added: nothing is left to draft for it. The session always stops here; **Next step: write the changes** asks the helper for changes.
 2. **Changes.** How many changes were proposed and how many are included, then each change as a diff with Should fix, Why and Based on folded under it. At the stop each change has **Include change N in the test**, of which at least one stays ticked, and **Change the wording**, which tests your wording instead of the helper's: the change is then marked **Reworded by you**, and **Back to the proposed wording** undoes it. **Next step: test the selected changes** starts the test, priced at the most it may cost, with what it most likely costs beneath - without the repeat an inconclusive result gets; while it runs, the list can be read but not changed. Knowledge drafts form their own column, holding the drafts somebody asked for. When no change was found, the screen lists what each attempt tried.

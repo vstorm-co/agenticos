@@ -51,7 +51,7 @@ export function SuiteResultsSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="bg-background w-full sm:max-w-xl">
         <SheetHeader className="px-5">
-          <SheetTitle className="text-sm">{suite.name}</SheetTitle>
+          <SheetTitle className="min-w-0 text-sm break-words">{suite.name}</SheetTitle>
           <SheetClose onClick={() => onOpenChange(false)} />
         </SheetHeader>
         {open && <SuitePin suite={suite} />}

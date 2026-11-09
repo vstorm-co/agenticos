@@ -77,16 +77,21 @@ const score = caseScore({
   human_note: "Use policy",
   outcome: true,
 });
-it("keeps the corrected run and suite results beside the decided answer", () => {
+it("keeps the corrected run and suite results beside the decided answer", async () => {
   render(<ReviewQueueRow score={score} busy={false} linksRuns />);
+  await userEvent.click(screen.getByRole("button", { name: score.question }));
   expect(screen.getByText(/Re-evaluated after review by Ada/)).toBeInTheDocument();
   expect(screen.getByText("Run: better")).toBeInTheDocument();
   expect(screen.getByText("Refund smoke: Passed after review")).toBeInTheDocument();
   expect(screen.queryByText(/Other run/)).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Close" }));
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(screen.getByRole("button", { name: score.question })).toBeInTheDocument();
 });
-it("explains a missing run and never replaces a failure with a successful result", () => {
+it("explains a missing run and never replaces a failure with a successful result", async () => {
   state.error = true;
   const { rerender } = render(<ReviewQueueRow score={score} busy={false} linksRuns />);
+  await userEvent.click(screen.getByRole("button", { name: score.question }));
   expect(screen.getByText(/updated run could not be read/)).toBeInTheDocument();
   expect(screen.queryByText("Run: better")).not.toBeInTheDocument();
   state.error = false;
@@ -94,18 +99,20 @@ it("explains a missing run and never replaces a failure with a successful result
   rerender(<ReviewQueueRow score={score} busy={false} linksRuns />);
   expect(screen.getByText("Refreshing the result…")).toBeInTheDocument();
 });
-it("labels an undone review without revealing an identity that no longer resolves", () => {
+it("labels an undone review without revealing an identity that no longer resolves", async () => {
   state.undo = true;
   render(<ReviewQueueRow score={score} busy={false} linksRuns />);
+  await userEvent.click(screen.getByRole("button", { name: score.question }));
   expect(
     screen.getByText(/Re-evaluated after review was undone by a reviewer/),
   ).toBeInTheDocument();
   expect(screen.queryByText(/Ada/)).not.toBeInTheDocument();
 });
 
-it("distinguishes a completed unpaired run from a run that did not finish", () => {
+it("distinguishes a completed unpaired run from a run that did not finish", async () => {
   state.noComparison = true;
   const { rerender } = render(<ReviewQueueRow score={score} busy={false} linksRuns />);
+  await userEvent.click(screen.getByRole("button", { name: score.question }));
   expect(screen.getByText("Run: no baseline comparison was requested.")).toBeInTheDocument();
   state.failed = true;
   rerender(<ReviewQueueRow score={score} busy={false} linksRuns />);
@@ -114,11 +121,11 @@ it("distinguishes a completed unpaired run from a run that did not finish", () =
   ).toBeInTheDocument();
   expect(screen.queryByText("Refreshing the result…")).not.toBeInTheDocument();
 });
-it("says where an answer came from once, in its summary or, opened, in its card", async () => {
+it("says where an answer came from in its card, the table's source column saying it closed", async () => {
   render(<ReviewQueueRow score={{ ...score, human_passed: null }} busy={false} linksRuns />);
-  expect(screen.getAllByText("Eval run")).toHaveLength(1);
+  expect(screen.queryByText("Eval run")).toBeNull();
 
-  await userEvent.click(screen.getByText(score.question));
+  await userEvent.click(screen.getByRole("button", { name: score.question }));
 
   expect(screen.getAllByText("Eval run")).toHaveLength(1);
 });

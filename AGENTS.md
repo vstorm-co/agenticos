@@ -51,6 +51,9 @@ template-inherited subsystems have different coverage gates, described below.
   the response is written. A bare `Depends(get_db_session)` has different timing.
   The agent run paths in `AgentRunnerService._run` and `ChatAgentRunner.run`
   explicitly commit before the model call and in terminal cleanup;
+  `app.services.telephony.runtime` commits telephone admission, submission, transfer, hang-up and
+  single-use media claims before external effects; unknown acceptance is retained
+  for signed callbacks and cleanup, never automatic redial.
   `VoiceCallStarter.start` commits a call's row and its run before the call
   connects and `VoiceCallSession` commits again in its teardown (per-turn
   messages, heartbeats and approval writes use their own `get_db_context()`
@@ -241,6 +244,7 @@ retranslated is how a stale translation stops being visible.
 | Eval runs — estimate, isolation, baselines, confirmed regressions, model comparison | `docs/evals.md` |
 | Authoring assistant — suggestions from evidence, decisions, checking with evals | `docs/authoring.md` |
 | Virtual Tables — typed records, schema versions, revisions, idempotent writes, the `/tables` API | `docs/virtual-tables.md` |
+| Agent and team tasks: research and proposal only | `docs/design/agent-tasks.md` (repo only) |
 | Workflows — the visual editor: canvas, palette, bindings, autosave, publish, versions | `docs/workflows.md` |
 | Projects: shared files, instructions and chats | `docs/projects.md` |
 | Knowledge gaps — questions the knowledge base could not answer, grouped into topics | `docs/knowledge-gaps.md` |
@@ -249,6 +253,7 @@ retranslated is how a stale translation stops being visible.
 | Voice conversations: calls, realtime models, limits, hang-up | `docs/voice.md` |
 | Published pages: artifacts, versions, public links, isolation | `docs/artifacts.md` |
 | The desktop app: the console, blobby, quick ask, local work and the screen | `docs/desktop.md` |
+| macOS Gatekeeper warnings, install verification and release signing | `docs/howto/macos-warning.md` |
 | The phone app: live activities, widgets, push, offline | `docs/mobile.md` |
 | Upload, parsing, ingestion | `docs/file-processing.md` |
 | The console: dashboard widgets, chat, slash commands, the map | `docs/console.md` |
@@ -328,6 +333,10 @@ judged by someone running a deployment, not by the size of the diff:
   `backend/pyproject.toml`, `backend/uv.lock` and `frontend/package.json`. Feature
   PRs write their changelog entries under `[Unreleased]`; the cut does not add new
   ones.
+- Prepare a release train with `make release-cut BUMP=patch` (or `minor`); add
+  `CREATE_PR=1` to create the cut PR from fresh `origin/main`. The default only
+  prints a plan. CI and CodeQL may reuse successful full runs for a proven
+  version-only cut; missing evidence runs full checks. See `docs/branching.md`.
 - After the cut merges, publish the release and its tag in one step:
   `gh release create vX.Y.Z --target <cut merge commit> --notes-file <its changelog
   section>`. Never push the tag first: it starts `images.yml` at once, and that

@@ -7,6 +7,7 @@ describe("localePrefixOf", () => {
     expect(localePrefixOf("/pl/agents")).toBe("pl");
     expect(localePrefixOf("/pl")).toBe("pl");
     expect(localePrefixOf("/en/agents")).toBe("en");
+    expect(localePrefixOf("/tr/login")).toBe("tr");
   });
 
   it("answers null for a path that carries none", () => {
@@ -32,6 +33,7 @@ describe("localePrefixOf", () => {
 describe("pickedLocale", () => {
   it("names a locale this deployment serves", () => {
     expect(pickedLocale("pl")).toBe("pl");
+    expect(pickedLocale("tr")).toBe("tr");
   });
 
   it("answers null for the default, which needs no prefix", () => {

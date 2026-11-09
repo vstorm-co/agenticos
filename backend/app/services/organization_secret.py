@@ -16,7 +16,7 @@ straight into its transport, never returning credentials to an API caller.
 """
 
 from typing import TYPE_CHECKING, cast
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -285,6 +285,7 @@ class OrganizationSecretService:
         if value is not None:
             self._refuse_kind_change(secret, value)
             sealed = seal_secret(value, scope=VaultScope.organization(ctx.organization_id))
+            update_data["authorization_generation"] = uuid4()
             update_data["sealed_secret"] = sealed.ciphertext
             update_data["hint"] = sealed.hint
             update_data["key_version"] = sealed.key_version
@@ -367,27 +368,27 @@ class OrganizationSecretService:
             for secret_id, row in rows.items()
         }
 
-    async def listing_key(self, ctx: AuthContext, provider: str) -> str | None:
-        """A bearer token for asking one provider what models it offers.
-
-        Any of this organization's keys for that provider will do - a catalog is
-        the same whichever one asks - so the first is taken rather than making
-        somebody choose. The other secret shapes (an AWS pair, a service-account
-        JSON) are not bearer tokens and no listing endpoint accepts one, so they
-        are skipped rather than mangled into a header.
-
-        Deliberately *not* narrowed the way :meth:`list_secrets` is. Visibility
-        decides which keys a caller may see and account for, and a member who
-        cannot see the organization's OpenAI key is still shown the same model
-        list as everybody else: what leaves here is a catalog, and the plaintext
-        goes to the provider rather than to the caller. Narrowing it would make
-        the field's suggestions depend on who is looking at it.
-
-        Returns:
-            The key, or `None` when this organization stores no API key for that
-            provider - which is not an error. Providers that publish a public list
-            are asked without one.
-        """
+    async def listing_key(
+        self, ctx: AuthContext, provider: str, *, secret_id: UUID | None = None
+    ) -> str | None:
+        """Open a visible selected key, or an organization key for a fixed provider URL."""
+        if secret_id is not None:
+            secret = await organization_secret_repo.get(
+                self.db, secret_id, organization_id=ctx.organization_id
+            )
+            if secret is None or not await resolve_access(
+                self.db, ctx, secret, Perm.SECRETS_VIEW, resource_type=SECRET
+            ):
+                raise BadRequestError(message="That key is not in this organization's vault")
+            if secret.purpose != provider or secret.kind != SecretKind.API_KEY.value:
+                raise BadRequestError(message="Choose an API key for this provider")
+            value = unseal_kind(
+                secret.sealed_secret,
+                model=ApiKeySecret,
+                scope=VaultScope.organization(ctx.organization_id),
+                key_version=secret.key_version,
+            )
+            return value.api_key.get_secret_value()
         secrets = await organization_secret_repo.list_secrets(
             self.db, organization_id=ctx.organization_id, purposes=[provider]
         )
@@ -523,6 +524,12 @@ class OrganizationSecretService:
         )
 
     async def oauth_app(self, ctx: AuthContext, *, kind: SecretKind) -> OAuthAppSecret:
+        value, _, _ = await self.oauth_app_identity(ctx, kind=kind)
+        return value
+
+    async def oauth_app_identity(
+        self, ctx: AuthContext, *, kind: SecretKind
+    ) -> tuple[OAuthAppSecret, UUID, UUID]:
         """Unseal the organization's OAuth client credentials for a token exchange.
 
         The third plaintext reader here, and deliberately the narrowest: it opens one
@@ -586,7 +593,7 @@ class OrganizationSecretService:
         # `unseal_secret` refuses anything whose sealed kind is not the one asked
         # for, so this is the concrete type - the cast narrows it without a branch
         # that could never run.
-        return cast(OAuthAppSecret, value)
+        return cast(OAuthAppSecret, value), row.id, row.authorization_generation
 
     async def app_secret(self, organization_id: UUID, *, kind: SecretKind) -> SecretValue:
         """The organization's single org-visible secret of one kind, by id alone.

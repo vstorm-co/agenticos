@@ -35,6 +35,8 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from functools import partial
+from urllib.parse import urlsplit
+from uuid import UUID
 
 import httpx2
 from mcp.client.auth import PKCEParameters
@@ -280,6 +282,11 @@ class McpOAuthPayload(BaseModel):
     refresh_token: SealedStr | None = None
     expires_at: float | None = None
     provider: str | None = None
+    browser_nonce_digest: str | None = None
+    account_initiator_id: UUID | None = None
+    account_source_organization_id: UUID | None = None
+    account_source_secret_id: UUID | None = None
+    account_source_generation: UUID | None = None
 
 
 @dataclass(frozen=True)
@@ -437,6 +444,13 @@ async def register_client(server: DiscoveredServer, redirect_uri: str) -> tuple[
     Public clients (no registration or no secret returned) get `None` for the
     secret and use PKCE alone.
     """
+    if urlsplit(server.authorization_endpoint).hostname == "accounts.google.com":
+        raise OAuthError(
+            "Google requires an OAuth client created in Google Cloud. Open this server's "
+            "connection settings, enter its Client ID and client secret, and register the "
+            "displayed redirect URL in Google Cloud. Select 'Use this client for an "
+            "AI-powered agent' on that client."
+        )
     metadata = client_metadata(redirect_uri, server.scope)
     try:
         request = create_client_registration_request(
@@ -460,7 +474,14 @@ async def register_client(server: DiscoveredServer, redirect_uri: str) -> tuple[
             # The SDK puts the server's response body in the message - keep it
             # in the log, hand the user a fixed string.
             logger.warning("MCP dynamic client registration failed at %s: %s", request.url, exc)
-            raise OAuthError("This server rejected the client registration request.") from exc
+            raise OAuthError(
+                "The provider could not automatically register AgenticOS for sign-in. "
+                "Open this server's connection settings > More options and enter a "
+                "Client ID from an app registered with the provider, plus its client "
+                "secret if required. Register the displayed redirect URL exactly. "
+                "Check the provider's setup guide or ask its administrator if you "
+                "do not have these credentials."
+            ) from exc
     if not info.client_id:
         raise OAuthError("The server did not return a client_id during registration.")
     return info.client_id, info.client_secret
@@ -490,6 +511,16 @@ def authorization_url(
         # token, only after an explicit consent prompt.
         if "offline_access" in server.scope.split():
             params["prompt"] = "consent"
+    endpoint = httpx2.URL(server.authorization_endpoint)
+    if (
+        endpoint.scheme == "https"
+        and endpoint.host == "accounts.google.com"
+        and endpoint.port in (None, 443)
+    ):
+        # Google uses access_type, not the OIDC offline_access scope. Consent
+        # also requests a refresh token when this client was authorized before.
+        params["access_type"] = "offline"
+        params["prompt"] = "consent"
     query = httpx2.QueryParams(params)
     sep = "&" if "?" in server.authorization_endpoint else "?"
     return f"{server.authorization_endpoint}{sep}{query}"

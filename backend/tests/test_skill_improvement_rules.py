@@ -89,18 +89,11 @@ class TestFilter:
 
 
 @pytest.mark.parametrize(
-    ("edits", "runs", "ai", "allowed"),
-    [
-        (True, True, True, True),
-        (False, True, True, False),
-        (True, False, True, False),
-        (True, True, False, False),
-    ],
+    ("edits", "runs", "allowed"),
+    [(True, True, True), (False, True, False), (True, False, False)],
 )
-def test_a_person_goes_on_only_with_edit_access_runs_view_and_ai_assistance(
-    edits, runs, ai, allowed
-):
-    standing = SkillStanding(edits_skill=edits, views_runs=runs, ai_assistance=ai)
+def test_a_person_goes_on_only_with_edit_access_and_runs_view(edits, runs, allowed):
+    standing = SkillStanding(edits_skill=edits, views_runs=runs)
 
     assert standing.allowed is allowed
 

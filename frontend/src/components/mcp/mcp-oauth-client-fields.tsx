@@ -6,6 +6,7 @@ import { usePublicConfig } from "@/components/public-config/public-config-provid
 import { Input, Label } from "@/components/ui";
 
 interface McpOAuthClientFieldsProps {
+  required?: boolean;
   clientId: string;
   clientSecret: string;
   onClientIdChange: (value: string) => void;
@@ -25,6 +26,7 @@ interface McpOAuthClientFieldsProps {
  * the dead end.
  */
 export function McpOAuthClientFields({
+  required = false,
   clientId,
   clientSecret,
   onClientIdChange,
@@ -42,8 +44,12 @@ export function McpOAuthClientFields({
   return (
     <div className="space-y-3">
       <div>
-        <p className="text-sm font-medium">{t("oauthOwnClient")}</p>
-        <p className="text-muted-foreground mt-1 text-xs">{t("oauthOwnClientHint")}</p>
+        <p className="text-sm font-medium">
+          {t(required ? "oauthRequiredClient" : "oauthOwnClient")}
+        </p>
+        <p className="text-muted-foreground mt-1 text-xs">
+          {t(required ? "googleOAuthClientHint" : "oauthOwnClientHint")}
+        </p>
       </div>
       <div>
         <Label>{t("oauthRedirectUrl")}</Label>
@@ -61,7 +67,7 @@ export function McpOAuthClientFields({
             onChange={(event) => onClientIdChange(event.target.value)}
             maxLength={512}
             autoComplete="off"
-            className="mt-1.5 font-mono text-sm"
+            className="mt-1.5 font-mono text-base md:text-sm"
           />
         </div>
         <div>
@@ -73,9 +79,11 @@ export function McpOAuthClientFields({
             onChange={(event) => onClientSecretChange(event.target.value)}
             maxLength={4096}
             autoComplete="new-password"
-            className="mt-1.5 font-mono text-sm"
+            className="mt-1.5 font-mono text-base md:text-sm"
           />
-          <p className="text-muted-foreground mt-1 text-xs">{t("oauthClientSecretHint")}</p>
+          <p className="text-muted-foreground mt-1 text-xs">
+            {t(required ? "storedEncryptedNeverShown" : "oauthClientSecretHint")}
+          </p>
         </div>
       </div>
     </div>

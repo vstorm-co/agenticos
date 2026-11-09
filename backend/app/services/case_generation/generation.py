@@ -1,7 +1,7 @@
 """One generation, run by its job after the request that started it has answered.
 
 The generator is a system agent, so it runs through `SystemAgentRunner` as the
-person who asked - which checks the organization's AI switch, the agent's state
+person who asked - which checks model readiness, the agent's state
 and the caller's `agents:run` again here, because any of them may have changed
 between the request and this run. Every way it can end is recorded on the
 generation: `ready` with its drafts, or `failed` with a reason this platform
@@ -20,6 +20,7 @@ from app.core.permissions import AuthContext
 from app.db.locks import LockScope, hold_subject
 from app.db.models.case_generation import CaseOrigin, CaseProposal, GenerationStatus
 from app.repositories import case_generation_repo, user_repo
+from app.schemas.dataset_helpers import DatasetHelper
 from app.services.case_generation.drafts import Draft, DraftedCases, keep
 from app.services.case_generation.sources import Material
 from app.services.dataset import redacted_case
@@ -74,6 +75,7 @@ async def generate(
     material: Material,
     quotas: dict[CaseOrigin, int],
     generator_agent_id: UUID | None = None,
+    helper_settings: DatasetHelper | None = None,
 ) -> None:
     """Run the generator once and record what it drafted. Never raises.
 
@@ -92,6 +94,8 @@ async def generate(
             ctx,
             key=CASE_GENERATOR.key,
             agent_id=generator_agent_id,
+            model_profile_id=helper_settings.model_profile_id if helper_settings else None,
+            instructions=helper_settings.instructions if helper_settings else None,
             prompt=prompt,
             output_type=DraftedCases,
             knowledge_base_ids=material.knowledge_base_ids,
@@ -143,6 +147,7 @@ async def _still_asked(db: AsyncSession, drafts: list[Draft], material: Material
         return () if message_id is None else askers.get(message_id, ())
 
     people = sorted({person for draft in drafts for person in of(draft)})
+    await user_repo.hold_key_share(db, people)
     for person in people:
         await hold_subject(db, LockScope.PERSONAL_DATA_PER_USER, person)
     present = await user_repo.existing_ids(db, people)

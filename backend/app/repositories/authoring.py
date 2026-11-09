@@ -8,6 +8,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
+from pydantic import JsonValue
 from sqlalchemy import ColumnElement, and_, case, exists, func, or_, select, true, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -52,8 +53,10 @@ async def create_request(
     improvement_run_id: UUID | None = None,
     improver_agent_id: UUID | None = None,
     skill_improvement_run_id: UUID | None = None,
+    helper_settings: dict[str, JsonValue] | None = None,
 ) -> AuthoringRequest:
     request = AuthoringRequest(
+        helper_settings=helper_settings or {},
         organization_id=organization_id,
         kind=kind,
         improver_agent_id=improver_agent_id,

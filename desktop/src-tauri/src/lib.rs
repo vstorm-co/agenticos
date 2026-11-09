@@ -14,18 +14,27 @@
 //! shell's; `console.rs` is what those pages may ask of the shell, and from where.
 
 mod activity;
+mod agent_session;
 mod appearance;
 mod blobby;
+mod coding_options;
+mod coding_runtime;
 mod computer_access;
 mod console;
 mod context;
 mod device;
+mod diagnostics;
 mod docker_install;
+mod docker_runtime;
 mod dropped;
+mod local_agents;
+mod local_backup;
 mod local_browser;
 mod local_fs;
 mod local_instances;
+mod local_preflight;
 mod local_services;
+mod local_skills;
 mod local_stack;
 mod local_work;
 mod managed;
@@ -35,9 +44,13 @@ mod onboarding_permissions;
 mod pinned;
 mod quick_ask;
 mod readiness;
+mod routine_access;
+
+mod runtime_installer;
 mod screen;
 mod settings;
 mod shortcuts;
+mod tls;
 mod updater;
 mod webview_profile;
 mod widgets;
@@ -82,6 +95,7 @@ const OPEN_CONSOLE: &str = "open-console";
 const BACK: &str = "back";
 const FORWARD: &str = "forward";
 const DOCUMENTATION: &str = "documentation";
+const EXPORT_DIAGNOSTICS: &str = "export-diagnostics";
 const DOCUMENTATION_URL: &str = "https://vstorm-co.github.io/agenticos/desktop/";
 /// Review this server connection and any missing account or macOS setup.
 const CONNECTION_SETUP: &str = "desktop/readiness?connection=1";
@@ -458,6 +472,14 @@ async fn connect(app: AppHandle, window: WebviewWindow, url: String) -> Result<(
 /// Point the shell at a console that answers, remember where it lives, and
 /// review this connection, including for an existing account.
 async fn arrive(app: &AppHandle, window: &WebviewWindow, server: Url, deployment: Deployment) -> Result<(), String> {
+    if deployment == Deployment::Server {
+        let pending = runtime_installer::pending_path(app)?;
+        match std::fs::remove_file(pending) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.to_string()),
+        }
+    }
     let _transition = device::transition(app).await;
     managed::check(app, &server)?;
     app.state::<SignInProof>().clear()?;
@@ -485,6 +507,7 @@ struct OnboardingState {
     server_url: Option<Url>,
     deployment: Option<Deployment>,
     platform: &'static str,
+    local_setup_pending: bool,
 }
 
 #[tauri::command]
@@ -494,6 +517,7 @@ fn onboarding_state(app: AppHandle) -> OnboardingState {
         server_url: settings.server_url,
         deployment: settings.deployment,
         platform: appearance::platform(),
+        local_setup_pending: runtime_installer::pending_path(&app).is_ok_and(|path| path.is_file()),
     }
 }
 
@@ -547,9 +571,49 @@ async fn set_up_local(app: AppHandle, window: WebviewWindow, owner: local_stack:
     arrive(&app, &window, console, Deployment::Local).await
 }
 
+/// Resume only the saved managed instance, preserving its connection and session.
+#[tauri::command]
+async fn resume_local(app: AppHandle, window: WebviewWindow) -> Result<bool, String> {
+    let settings = settings::current(&app);
+    if settings.deployment != Some(Deployment::Local) {
+        return Ok(false);
+    }
+    let Some(instance) = local_instances::selected(&app)?.filter(|instance| instance.installed) else {
+        return Ok(false);
+    };
+    let url = instance.url();
+    managed::check(&app, &url)?;
+    let handle = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        local_stack::control_instance(&handle, &instance, local_stack::Control::Start)?;
+        local_stack::wait_for_instance(&instance)?;
+        local_stack::verify_instance_sessions(&instance)
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+    let _transition = device::transition(&app).await;
+    if settings::current(&app).connection_revision != settings.connection_revision {
+        return Err("The connection changed while the workspace was starting.".into());
+    }
+    managed::check(&app, &url)?;
+    console::grant(&app, &url)?;
+    window.navigate(home(&url)).map_err(|e| e.to_string())?;
+    start_companions(&app, &url, &settings);
+    Ok(true)
+}
+
 /// Use the AgenticOS already answering on this computer - a `make dev` stack, or one set up before.
 #[tauri::command]
 async fn use_local(app: AppHandle, window: WebviewWindow, instance_id: Option<String>) -> Result<(), String> {
+    if settings::current(&app).deployment == Some(Deployment::Local) {
+        if let Some(selected) = local_instances::selected(&app)?.filter(|instance| instance.installed) {
+            let same = instance_id.as_deref().is_some_and(|id| id == selected.id)
+                || (instance_id.is_none() && selected.url().as_str() == local_stack::CONSOLE);
+            if same {
+                return resume_local(app, window).await.map(|_| ());
+            }
+        }
+    }
     let console = if let Some(id) = instance_id {
         let instance = local_instances::find(&app, &id)?;
         if !instance.installed {
@@ -561,7 +625,7 @@ async fn use_local(app: AppHandle, window: WebviewWindow, instance_id: Option<St
         let destination = url.clone();
         tauri::async_runtime::spawn_blocking(move || {
             local_stack::control_instance(&handle, &instance, local_stack::Control::Start)?;
-            local_stack::wait_for_console(&url)?;
+            local_stack::wait_for_instance(&instance)?;
             local_stack::verify_instance_sessions(&instance)
         })
         .await
@@ -762,6 +826,29 @@ fn loading_color(appearance: Appearance, system: Theme) -> Color {
     }
 }
 
+/// What share of the screen the first window takes: large enough to be the
+/// app rather than a dialog, with the Dock and menu bar still in view.
+const FIRST_WINDOW_SHARE: f64 = 0.8;
+const MIN_WINDOW: (f64, f64) = (900.0, 600.0);
+
+/// The first window's size in logical pixels for a monitor of this physical size.
+fn first_window_size(width: u32, height: u32, scale: f64) -> (f64, f64) {
+    let logical = |pixels: u32| f64::from(pixels) / scale * FIRST_WINDOW_SHARE;
+    (
+        logical(width).max(MIN_WINDOW.0).round(),
+        logical(height).max(MIN_WINDOW.1).round(),
+    )
+}
+
+/// Whether the window plugin has no saved size to restore, so this is the
+/// first time the console opens on this computer.
+fn is_first_window(app: &AppHandle) -> bool {
+    app.path()
+        .app_config_dir()
+        .map(|dir| !dir.join(tauri_plugin_window_state::DEFAULT_FILENAME).exists())
+        .unwrap_or(false)
+}
+
 fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow> {
     let handle = app.clone();
     let appearance = settings::current(app).appearance;
@@ -773,7 +860,7 @@ fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow>
         .disable_drag_drop_handler()
         .initialization_script(appearance::shell_script(&version, WINDOW))
         .inner_size(1280.0, 800.0)
-        .min_inner_size(900.0, 600.0)
+        .min_inner_size(MIN_WINDOW.0, MIN_WINDOW.1)
         .theme(appearance::theme(appearance.mode))
         // Transparent wherever a material can be drawn behind it, so glass can
         // be switched on without rebuilding the window; the loading colour is
@@ -801,6 +888,13 @@ fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow>
             }
             false
         });
+    if is_first_window(app) {
+        if let Some(monitor) = app.primary_monitor()? {
+            let size = monitor.size();
+            let (width, height) = first_window_size(size.width, size.height, monitor.scale_factor());
+            builder = builder.inner_size(width, height).center();
+        }
+    }
     #[cfg(target_os = "macos")]
     {
         builder = builder
@@ -1110,13 +1204,10 @@ impl ShellMenu {
             app,
             "Help",
             true,
-            &[&MenuItem::with_id(
-                app,
-                DOCUMENTATION,
-                "AgenticOS Documentation",
-                true,
-                None::<&str>,
-            )?],
+            &[
+                &MenuItem::with_id(app, DOCUMENTATION, "AgenticOS Documentation", true, None::<&str>)?,
+                &MenuItem::with_id(app, EXPORT_DIAGNOSTICS, "Export Diagnostics…", true, None::<&str>)?,
+            ],
         )?;
         Menu::with_items(
             app,
@@ -1250,6 +1341,10 @@ fn install_menu(app: &AppHandle, settings: &Settings) -> tauri::Result<TrayIcon>
                 screenshot_to_chat(app);
                 Ok(())
             }
+            EXPORT_DIAGNOSTICS => {
+                tauri::async_runtime::spawn(diagnostics::export(app.clone()));
+                Ok(())
+            }
             DOCUMENTATION => app
                 .opener()
                 .open_url(DOCUMENTATION_URL, None::<&str>)
@@ -1306,6 +1401,7 @@ fn install_menu(app: &AppHandle, settings: &Settings) -> tauri::Result<TrayIcon>
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    tls::initialize();
     tauri::Builder::default()
         // First, and it has to be: on Windows and Linux opening a registered
         // scheme *starts the executable again*, and a desktop sign-in always
@@ -1320,6 +1416,7 @@ pub fn run() {
             }
         }))
         .manage(local_browser::Browsers::default())
+        .manage(agent_session::Sessions::default())
         .manage(native_browser::NativeBrowsers::default())
         .plugin({
             let builder = tauri_plugin_updater::Builder::new();
@@ -1382,6 +1479,7 @@ pub fn run() {
             local_instances,
             set_up_local,
             use_local,
+            resume_local,
             open_docker_download,
             docker_install::download_docker,
             docker_install::open_docker,
@@ -1404,8 +1502,18 @@ pub fn run() {
             local_work::local_grants,
             local_work::local_pick_folder,
             local_work::local_revoke,
+            routine_access::routine_choose_folder,
+            routine_access::routine_allow,
+            routine_access::routine_grants,
+            routine_access::routine_revoke,
             local_work::local_files,
             local_work::local_file,
+            local_agents::local_agents,
+            local_agents::local_agent_prepare,
+            coding_options::local_agent_options,
+            local_agents::local_agent_sign_in,
+            local_agents::local_agent_sign_out,
+            local_skills::local_skills,
             local_services::local_services,
             local_services::local_save_service,
             local_services::local_remove_service
@@ -1422,7 +1530,9 @@ pub fn run() {
         .manage(dropped::Dropped::default())
         .manage(device::Device::default())
         .manage(computer_access::Access::default())
+        .manage(routine_access::Access::default())
         .setup(|app| {
+            diagnostics::install_panic_hook(app.handle());
             let handle = app.handle();
             let (mut settings, unreadable) = settings::load_or_quarantine(handle);
             if let Some(typed) = server_argument(std::env::args().skip(1)) {
@@ -1453,7 +1563,15 @@ pub fn run() {
             // Right-click on the Dock icon: "New Chat With" the pinned agents.
             #[cfg(target_os = "macos")]
             pinned::dock::install(handle, &settings.pinned_agents);
-            let (start, notice) = console_start(settings.server_url.clone());
+            let local = (settings.deployment == Some(Deployment::Local)).then(|| local_instances::selected(handle));
+            let (start, notice) = match local {
+                Some(Ok(Some(instance))) if instance.installed => (
+                    WebviewUrl::App("index.html".into()),
+                    Some("Starting your saved workspace.".into()),
+                ),
+                Some(Err(error)) => (WebviewUrl::App("index.html".into()), Some(error)),
+                _ => console_start(settings.server_url.clone()),
+            };
             app.manage(StartupNotice(Mutex::new(notice.or(unreadable))));
             app.manage(PendingScreenshot(Mutex::new(None)));
             let reached = matches!(start, WebviewUrl::External(_));
@@ -1542,6 +1660,18 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn first_window_takes_four_fifths_of_the_screen() {
+        // A 14" MacBook Pro at its default scale: 3024x1964 physical, factor 2.
+        assert_eq!(super::first_window_size(3024, 1964, 2.0), (1210.0, 786.0));
+        assert_eq!(super::first_window_size(3840, 2160, 1.0), (3072.0, 1728.0));
+    }
+
+    #[test]
+    fn first_window_never_goes_below_the_minimum() {
+        assert_eq!(super::first_window_size(1024, 640, 1.0), (900.0, 600.0));
+    }
+
     use std::net::TcpListener;
     use std::time::{Duration, Instant};
 

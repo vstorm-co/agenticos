@@ -9,6 +9,12 @@ sharing.
 Each takes the caller's context rather than only its organization, so a loader
 can refuse what the resource's own read path refuses: an archived artifact is
 found only by a caller who may edit it.
+
+A row the caller may neither view nor edit is reported exactly as a missing id - same
+message, same `details` - so the sharing routes cannot be used to tell a
+private resource apart from one that does not exist (#2619). A caller who can
+view but not edit gets past the loader and is refused with a 403 by the
+service.
 """
 
 from uuid import UUID
@@ -28,69 +34,94 @@ from app.db.models.project import Project
 from app.db.models.skill import Skill
 from app.db.models.virtual_table import VirtualTable
 from app.db.models.workflow import Workflow
+from app.services.access import (
+    AGENT,
+    ARTIFACT,
+    COLLECTION,
+    CONTEXT,
+    MCP_CONNECTION,
+    PROJECT,
+    SECRET,
+    SKILL,
+    TABLE,
+    WORKFLOW,
+    OwnedResource,
+    ResourceType,
+    resolve_access,
+)
 from app.services.artifact import ArtifactService
 
 
+async def _visible[R: OwnedResource](
+    db: AsyncSession,
+    ctx: AuthContext,
+    row: R | None,
+    resource_type: ResourceType,
+    missing: NotFoundError,
+) -> R:
+    """`row`, when it is the caller's organization's and they may view or edit it; `missing`
+    otherwise.
+
+    Edit admits on its own because an API key can be issued for `edit` without `view`,
+    and such a key may still change the resource everywhere else - refusing it its
+    sharing would make sharing the one edit it cannot make. Every role's view reaches
+    at least as far as its edit, so for a session this is the view check.
+    """
+    if row is None or row.organization_id != ctx.organization_id:
+        raise missing
+    for perm in dict.fromkeys((resource_type.view, resource_type.edit)):
+        if await resolve_access(db, ctx, row, perm, resource_type=resource_type):
+            return row
+    raise missing
+
+
 async def load_agent(db: AsyncSession, agent_id: UUID, ctx: AuthContext) -> Agent:
-    agent = await db.get(Agent, agent_id)
-    if agent is None or agent.organization_id != ctx.organization_id:
-        raise NotFoundError(message="Agent not found", details={"agent_id": str(agent_id)})
-    return agent
+    missing = NotFoundError(message="Agent not found", details={"agent_id": str(agent_id)})
+    return await _visible(db, ctx, await db.get(Agent, agent_id), AGENT, missing)
 
 
 async def load_collection(db: AsyncSession, kb_id: UUID, ctx: AuthContext) -> KnowledgeBase:
-    collection = await db.get(KnowledgeBase, kb_id)
-    if collection is None or collection.organization_id != ctx.organization_id:
-        raise NotFoundError(message="Collection not found", details={"kb_id": str(kb_id)})
-    return collection
+    missing = NotFoundError(message="Collection not found", details={"kb_id": str(kb_id)})
+    return await _visible(db, ctx, await db.get(KnowledgeBase, kb_id), COLLECTION, missing)
 
 
 async def load_skill(db: AsyncSession, skill_id: UUID, ctx: AuthContext) -> Skill:
-    skill = await db.get(Skill, skill_id)
-    if skill is None or skill.organization_id != ctx.organization_id:
-        raise NotFoundError(message="Skill not found", details={"skill_id": str(skill_id)})
-    return skill
+    missing = NotFoundError(message="Skill not found", details={"skill_id": str(skill_id)})
+    return await _visible(db, ctx, await db.get(Skill, skill_id), SKILL, missing)
 
 
 async def load_context(db: AsyncSession, context_id: UUID, ctx: AuthContext) -> ContextFile:
-    file = await db.get(ContextFile, context_id)
-    if file is None or file.organization_id != ctx.organization_id:
-        raise NotFoundError(
-            message="Context file not found", details={"context_id": str(context_id)}
-        )
-    return file
+    missing = NotFoundError(
+        message="Context file not found", details={"context_id": str(context_id)}
+    )
+    return await _visible(db, ctx, await db.get(ContextFile, context_id), CONTEXT, missing)
 
 
 async def load_table(db: AsyncSession, table_id: UUID, ctx: AuthContext) -> VirtualTable:
-    table = await db.get(VirtualTable, table_id)
-    if table is None or table.organization_id != ctx.organization_id:
-        raise NotFoundError(message="Table not found", details={"table_id": str(table_id)})
-    return table
+    missing = NotFoundError(message="Table not found", details={"table_id": str(table_id)})
+    return await _visible(db, ctx, await db.get(VirtualTable, table_id), TABLE, missing)
 
 
 async def load_project(db: AsyncSession, project_id: UUID, ctx: AuthContext) -> Project:
-    project = await db.get(Project, project_id)
-    if project is None or project.organization_id != ctx.organization_id:
-        raise NotFoundError(message="Project not found", details={"project_id": str(project_id)})
-    return project
+    missing = NotFoundError(message="Project not found", details={"project_id": str(project_id)})
+    return await _visible(db, ctx, await db.get(Project, project_id), PROJECT, missing)
 
 
 async def load_secret(db: AsyncSession, secret_id: UUID, ctx: AuthContext) -> OrganizationSecret:
-    secret = await db.get(OrganizationSecret, secret_id)
-    if secret is None or secret.organization_id != ctx.organization_id:
-        raise NotFoundError(message="Secret not found", details={"secret_id": str(secret_id)})
-    return secret
+    missing = NotFoundError(message="Secret not found", details={"secret_id": str(secret_id)})
+    return await _visible(db, ctx, await db.get(OrganizationSecret, secret_id), SECRET, missing)
 
 
 async def load_workflow(db: AsyncSession, workflow_id: UUID, ctx: AuthContext) -> Workflow:
-    workflow = await db.get(Workflow, workflow_id)
-    if workflow is None or workflow.organization_id != ctx.organization_id:
-        raise NotFoundError(message="Workflow not found", details={"workflow_id": str(workflow_id)})
-    return workflow
+    missing = NotFoundError(message="Workflow not found", details={"workflow_id": str(workflow_id)})
+    return await _visible(db, ctx, await db.get(Workflow, workflow_id), WORKFLOW, missing)
 
 
 async def load_artifact(db: AsyncSession, artifact_id: UUID, ctx: AuthContext) -> Artifact:
-    return await ArtifactService(db).load(ctx, artifact_id)
+    """Found by `ArtifactService.load`, which hides an archived page; then the view check."""
+    artifact = await ArtifactService(db).load(ctx, artifact_id)
+    missing = NotFoundError(message="App not found", details={"artifact_id": str(artifact_id)})
+    return await _visible(db, ctx, artifact, ARTIFACT, missing)
 
 
 async def load_dataset(db: AsyncSession, dataset_id: UUID, ctx: AuthContext) -> Dataset:
@@ -105,12 +136,9 @@ async def load_mcp_connection(
 ) -> McpConnection:
     """An organization's MCP server; a member's own is nobody else's to share."""
     connection = await db.get(McpConnection, connection_id)
-    if (
-        connection is None
-        or connection.scope != "org"
-        or connection.organization_id != ctx.organization_id
-    ):
-        raise NotFoundError(
-            message="MCP connection not found", details={"connection_id": str(connection_id)}
-        )
-    return connection
+    missing = NotFoundError(
+        message="MCP connection not found", details={"connection_id": str(connection_id)}
+    )
+    if connection is not None and connection.scope != "org":
+        raise missing
+    return await _visible(db, ctx, connection, MCP_CONNECTION, missing)

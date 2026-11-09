@@ -44,6 +44,11 @@ class DocumentPageChunk(DocumentPage):
     chunk_content: str
     chunk_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     chunk_num: int = 0
+    image_count: int | None = Field(
+        default=None,
+        ge=0,
+        description="Image count on the source page; None derives it from legacy inline images.",
+    )
 
 
 class DocumentMetadata(BaseModel):

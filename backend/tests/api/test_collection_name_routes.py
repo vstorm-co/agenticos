@@ -29,6 +29,7 @@ from app.db.models.resource_grant import Visibility
 from app.db.vector_tables import MAX_COLLECTION_NAME_LENGTH
 from app.main import app
 from app.repositories import knowledge_base_repo
+from app.repositories.rag_document import DeletedDocuments
 
 pytestmark = pytest.mark.anyio
 
@@ -37,6 +38,14 @@ _ANOTHER_ORGANIZATION = uuid.uuid4()
 _CALLER = uuid.uuid4()
 
 _TOO_LONG = "a" * (MAX_COLLECTION_NAME_LENGTH + 1)
+
+
+@pytest.fixture(autouse=True)
+def _a_free_name(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These run on a stand-in session, which has no savepoint for the bounded wait."""
+    monkeypatch.setattr(
+        "app.services.collection_access.hold_name_within", AsyncMock(return_value=True)
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -156,9 +165,20 @@ class TestDroppingACollection:
         deleted = AsyncMock()
         monkeypatch.setattr(knowledge_base_repo, "delete", deleted)
         monkeypatch.setattr(knowledge_base_repo, "lock", AsyncMock())
-        # No other base holds the name, so the drop takes every row under it.
+        # No other base holds the name, so the drop takes the base's rows and its
+        # organization's unfiled ones - never every row under the name (#2568).
         documents = AsyncMock(return_value=[])
-        monkeypatch.setattr("app.repositories.rag_document_repo.delete_by_collection", documents)
+        monkeypatch.setattr(
+            "app.repositories.rag_document_repo.delete_by_knowledge_base", documents
+        )
+        unfiled = AsyncMock(return_value=DeletedDocuments(storage_paths=[], vector_document_ids=[]))
+        monkeypatch.setattr(
+            "app.repositories.rag_document_repo.table_holds_unfiled_outside",
+            AsyncMock(return_value=False),
+        )
+        monkeypatch.setattr(
+            "app.repositories.rag_document_repo.delete_unfiled_with_vectors", unfiled
+        )
         dispatch = AsyncMock()
         monkeypatch.setattr(
             "app.worker.tasks.teardown_tasks.queue_external_state_cleanup", dispatch
@@ -169,6 +189,7 @@ class TestDroppingACollection:
         assert response.status_code == 204
         deleted.assert_awaited_once()
         documents.assert_awaited_once()
+        unfiled.assert_awaited_once()
 
 
 class TestCreatingAKnowledgeBase:

@@ -1059,6 +1059,26 @@ class TestTheLibrarySet:
             assert data
             assert served_type == media_type
 
+    async def test_the_world_map_needs_no_tile_server_and_its_outlines_are_unaltered(self) -> None:
+        """The map draws from files the deployment serves and from nothing else."""
+        data, _ = await artifacts.library_file("world-atlas-2.0.2-110m.js")
+        text = data.decode()
+        prefix, suffix = "window.AO_WORLD_110M=", ";\n"
+        assert text.startswith(prefix) and text.endswith(suffix)
+        topology = json.loads(text[len(prefix) : -len(suffix)])
+        names = {g["properties"]["name"] for g in topology["objects"]["countries"]["geometries"]}
+        assert len(names) == 177 and {"Poland", "Czechia", "United States of America"} <= names
+
+        kit = (await artifacts.library_file("agenticos-worldmap-1.js"))[0].decode()
+        assert "fetch(" not in kit and "XMLHttpRequest" not in kit and "leaflet" not in kit.lower()
+        for needed in (
+            "d3-7.9.0.min.js",
+            "topojson-client-3.1.0.min.js",
+            "world-atlas-2.0.2-110m.js",
+        ):
+            assert needed in kit
+            assert needed in artifacts.ARTIFACT_LIBRARY
+
     async def test_a_file_is_read_once(self) -> None:
         artifacts._library_bytes.pop("agenticos-1.css", None)
         with patch(f"{PATH}.asyncio.to_thread", new=AsyncMock(return_value=b"css")) as read:
@@ -1360,15 +1380,23 @@ class TestTheBundledSkill:
             "templates/dashboard.html",
             "templates/live-table.html",
             "templates/report.html",
+            "references/design-recipes.md",
         }
 
     def test_its_class_table_is_exactly_what_kit_3_defines(self) -> None:
         """Every class the skill names is real, and every real one is named."""
-        named = set(re.findall(r"(?<![\w-])ao-[a-z0-9]+(?:-[a-z0-9]+)*", self._skill().content))
+        recipes = next(
+            resource.content
+            for resource in self._skill().resources
+            if resource.name == "references/design-recipes.md"
+        )
+        named = set(re.findall(r"(?<![\w-])ao-[a-z0-9]+(?:-[a-z0-9]+)*", recipes))
         assert named == KIT_CLASSES[3]
 
     def test_every_template_is_built_on_kit_3_and_passes_the_lint(self) -> None:
         for resource in self._skill().resources:
+            if not resource.name.startswith("templates/"):
+                continue
             assert "lib/agenticos-3.css" in resource.content, resource.name
             assert "lib/agenticos-3.js" in resource.content, resource.name
             bound = ["tickets"] if resource.name == "templates/live-table.html" else []

@@ -26,6 +26,7 @@ export function SendToReviewButton({ run, arm }: { run: EvalRun; arm: EvalRunArm
     <Button
       size="sm"
       variant="outline"
+      className="h-auto max-w-full text-left whitespace-normal"
       disabled={send.isPending}
       onClick={() =>
         send.mutate(arm.id, {

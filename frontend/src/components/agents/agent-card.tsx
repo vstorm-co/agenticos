@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import {
   ArchiveRestore,
   Archive,
@@ -18,7 +18,6 @@ import {
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { AgentStatusBadge } from "@/components/agents/status-badge";
 import { SystemAgentBadge } from "@/components/agents/system-agent-badge";
-import { Beam } from "@/components/ui/beam";
 import {
   Badge,
   DropdownMenu,
@@ -37,7 +36,6 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { groupsLabel } from "@/components/sharing/audience-chip";
 import { attentionParts } from "@/lib/attention";
-import { ImproveLink } from "@/components/agents/improve-link";
 import type { AgentAttention } from "@/types/stats";
 
 /** Chip labels for the surfaces an agent answers on. Unknown values pass through. */
@@ -101,160 +99,146 @@ export function AgentCard({
   const tc = useTranslations("common");
   const locale = useLocale();
   const archived = agent.status === "archived";
-  const [hovered, setHovered] = useState(false);
 
   return (
-    // The gallery's `rise-in` animates each grid child, and the beam sets its own
-    // `animation` on its wrapper while lit. Sharing one element, the beam would
-    // displace the entrance and hand it back at opacity 0 when it went out - the
-    // card blinking away under the cursor. The plain div keeps the two apart.
-    // Full height of its grid row, so cards side by side end on one line
-    // whatever their tags make of them.
     <div className="h-full">
-      {/* The beam is mounted for every card and runs on the one under the cursor.
-        Mounting it on hover instead would rebuild the card the mouse is over. */}
-      <Beam
-        size="md"
-        borderRadius={12}
-        active={hovered}
-        onHoverChange={setHovered}
-        className="h-full rounded-xl"
+      <div
+        className={cn(
+          "border-foreground/8 bg-card relative flex h-full flex-col rounded-xl border p-4 transition-colors",
+          "hover:border-foreground/25",
+          busy && "pointer-events-none opacity-50",
+        )}
       >
-        <div
-          className={cn(
-            "border-border bg-card relative flex h-full flex-col rounded-xl border p-4 transition-colors",
-            "hover:border-foreground/25",
-            busy && "pointer-events-none opacity-50",
-          )}
-        >
-          <Link
-            href={ROUTES.AGENT_DETAIL(agent.id)}
-            className="focus-visible:ring-ring absolute inset-0 rounded-xl outline-none focus-visible:ring-2"
-            aria-label={tc("openNamed", { name: agent.name })}
-          />
+        <Link
+          href={ROUTES.AGENT_DETAIL(agent.id)}
+          className="focus-visible:ring-ring absolute inset-0 rounded-xl outline-none focus-visible:ring-2"
+          aria-label={tc("openNamed", { name: agent.name })}
+        />
 
-          <div className="pointer-events-none relative mb-3 grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3 sm:flex">
-            <AgentAvatar
-              agentId={agent.id}
-              slug={agent.slug}
-              hasAvatar={agent.has_avatar}
-              colorSlot={agent.avatar_color}
-              size="lg"
-              className="max-sm:size-12"
-            />
-            <div className="contents sm:block sm:min-w-0 sm:flex-1">
-              <div className="flex min-w-0 flex-col items-start gap-1.5 sm:flex-row sm:justify-between sm:gap-2">
-                <div className="w-full min-w-0 sm:w-auto">
-                  <h3
-                    className={cn(
-                      "text-foreground line-clamp-2 font-semibold break-words sm:truncate",
-                      archived && "text-muted-foreground",
-                    )}
+        <div className="pointer-events-none relative mb-3 grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3 sm:flex">
+          <AgentAvatar
+            agentId={agent.id}
+            slug={agent.slug}
+            hasAvatar={agent.has_avatar}
+            colorSlot={agent.avatar_color}
+            size="lg"
+            className="max-sm:size-12"
+          />
+          <div className="contents sm:block sm:min-w-0 sm:flex-1">
+            <div className="flex min-w-0 flex-col items-start gap-1.5 sm:flex-row sm:justify-between sm:gap-2">
+              <div className="w-full min-w-0 sm:w-auto">
+                <h3
+                  className={cn(
+                    "text-foreground line-clamp-2 font-semibold break-words sm:truncate",
+                    archived && "text-muted-foreground",
+                  )}
+                >
+                  {agent.name}
+                </h3>
+              </div>
+              <AgentStatusBadge status={agent.status} />
+            </div>
+            <p className="text-foreground/85 col-span-2 line-clamp-2 min-h-[2.5rem] text-sm sm:mt-2">
+              {agent.description || t("noDescription")}
+            </p>
+            <div className="col-span-2 flex flex-wrap items-center gap-1.5 sm:mt-2">
+              <AccessChip agent={agent} />
+              {attention && <AttentionBadge attention={attention} />}
+              {isSystemAgent(agent.kind) &&
+                (agent.system_key ? (
+                  <Badge
+                    variant="secondary"
+                    className="font-normal"
+                    title={t(`defaultBadge.${agent.kind}Hint`)}
                   >
-                    {agent.name}
-                  </h3>
-                </div>
-                <AgentStatusBadge status={agent.status} />
-              </div>
-              <p className="text-foreground/85 col-span-2 line-clamp-2 min-h-[2.5rem] text-sm sm:mt-2">
-                {agent.description || t("noDescription")}
-              </p>
-              <div className="col-span-2 flex flex-wrap items-center gap-1.5 sm:mt-2">
-                <AccessChip agent={agent} />
-                {attention && <AttentionBadge agentId={agent.id} attention={attention} />}
-                {isSystemAgent(agent.kind) &&
-                  (agent.system_key ? (
-                    <Badge
-                      variant="secondary"
-                      className="font-normal"
-                      title={t(`defaultBadge.${agent.kind}Hint`)}
-                    >
-                      {t(`defaultBadge.${agent.kind}`)}
-                    </Badge>
-                  ) : (
-                    <SystemAgentBadge kind={agent.kind} />
-                  ))}
-              </div>
-              {footer !== undefined && <div className="mt-2">{footer}</div>}
+                    {t(`defaultBadge.${agent.kind}`)}
+                  </Badge>
+                ) : (
+                  <SystemAgentBadge kind={agent.kind} />
+                ))}
             </div>
           </div>
-
-          <div className="relative mt-auto flex items-start justify-between gap-2 border-t pt-3">
-            <span
-              className="text-muted-foreground pointer-events-none py-2 text-xs"
-              title={`@${agent.slug}`}
-            >
-              {agent.updated_at
-                ? t("editedWhen", { when: formatDate(agent.updated_at, locale) })
-                : t("neverEdited")}
-            </span>
-
-            {canEdit && (
-              <div className="flex items-center gap-1">
-                <IconAction
-                  icon={Pencil}
-                  label={tc("editNamed", { name: agent.name })}
-                  href={ROUTES.AGENT_DETAIL(agent.id)}
-                  // The onboarding coach's return leg points here to reopen the very
-                  // agent a guided flow just built — resolved by this id, so a gallery
-                  // of many still returns to the right one.
-                  agentId={agent.id}
-                />
-                {actions && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button
-                        type="button"
-                        aria-label={t("moreActionsFor", { name: agent.name })}
-                        className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring touch:min-h-11 touch:min-w-11 inline-flex h-8 w-8 touch-manipulation items-center justify-center rounded-md transition-colors outline-none focus-visible:ring-2"
-                      >
-                        <MoreHorizontal className="h-4 w-4" />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-64">
-                      <DropdownMenuItem className={DESCRIBED_ITEM} onSelect={actions.onDuplicate}>
-                        <Copy className="h-4 w-4" />
-                        <DropdownMenuItemText
-                          label={t("duplicate")}
-                          description={t("menuDuplicateHint")}
-                        />
-                      </DropdownMenuItem>
-                      {archived ? (
-                        <DropdownMenuItem className={DESCRIBED_ITEM} onSelect={actions.onRestore}>
-                          <ArchiveRestore className="h-4 w-4" />
-                          <DropdownMenuItemText
-                            label={t("restore")}
-                            description={t("menuRestoreHint")}
-                          />
-                        </DropdownMenuItem>
-                      ) : (
-                        <DropdownMenuItem className={DESCRIBED_ITEM} onSelect={actions.onArchive}>
-                          <Archive className="h-4 w-4" />
-                          <DropdownMenuItemText
-                            label={t("archive")}
-                            description={t("menuArchiveHint")}
-                          />
-                        </DropdownMenuItem>
-                      )}
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        className={cn(DESCRIBED_ITEM, "text-destructive focus:text-destructive")}
-                        onSelect={actions.onDelete}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        <DropdownMenuItemText
-                          label={t("deletePermanently")}
-                          description={t("menuDeleteHint")}
-                        />
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-              </div>
-            )}
-          </div>
+          {footer !== undefined && <div className="mt-2">{footer}</div>}
         </div>
-      </Beam>
+
+        <div className="relative mt-auto flex items-start justify-between gap-2 pt-3">
+          <span
+            className="text-muted-foreground pointer-events-none py-2 text-xs"
+            title={`@${agent.slug}`}
+          >
+            {agent.updated_at
+              ? t("editedWhen", { when: formatDate(agent.updated_at, locale) })
+              : t("neverEdited")}
+          </span>
+
+          {canEdit && (
+            <div className="flex items-center gap-1">
+              <IconAction
+                icon={Pencil}
+                label={tc("editNamed", { name: agent.name })}
+                href={ROUTES.AGENT_DETAIL(agent.id)}
+                // The onboarding coach's return leg points here to reopen the very
+                // agent a guided flow just built — resolved by this id, so a gallery
+                // of many still returns to the right one.
+                agentId={agent.id}
+              />
+              {actions && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label={t("moreActionsFor", { name: agent.name })}
+                      className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring touch:min-h-11 touch:min-w-11 inline-flex h-8 w-8 touch-manipulation items-center justify-center rounded-md transition-colors outline-none focus-visible:ring-2"
+                    >
+                      <MoreHorizontal className="h-4 w-4" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-64">
+                    <DropdownMenuItem className={DESCRIBED_ITEM} onSelect={actions.onDuplicate}>
+                      <Copy className="h-4 w-4" />
+                      <DropdownMenuItemText
+                        label={t("duplicate")}
+                        description={t("menuDuplicateHint")}
+                      />
+                    </DropdownMenuItem>
+                    {archived ? (
+                      <DropdownMenuItem className={DESCRIBED_ITEM} onSelect={actions.onRestore}>
+                        <ArchiveRestore className="h-4 w-4" />
+                        <DropdownMenuItemText
+                          label={t("restore")}
+                          description={t("menuRestoreHint")}
+                        />
+                      </DropdownMenuItem>
+                    ) : (
+                      <DropdownMenuItem className={DESCRIBED_ITEM} onSelect={actions.onArchive}>
+                        <Archive className="h-4 w-4" />
+                        <DropdownMenuItemText
+                          label={t("archive")}
+                          description={t("menuArchiveHint")}
+                        />
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className={cn(
+                        DESCRIBED_ITEM,
+                        "text-destructive-ink focus:text-destructive-ink",
+                      )}
+                      onSelect={actions.onDelete}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      <DropdownMenuItemText
+                        label={t("deletePermanently")}
+                        description={t("menuDeleteHint")}
+                      />
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -296,10 +280,10 @@ function IconAction({
   );
 }
 
-/** Leads to the Improve wizard for a reader who may run it, and only describes otherwise. */
-function AttentionBadge({ agentId, attention }: { agentId: string; attention: AgentAttention }) {
+/** Describes the signal; opening any part of the card still opens the builder. */
+function AttentionBadge({ attention }: { attention: AgentAttention }) {
   const tAttention = useTranslations("attention");
-  const badge = (
+  return (
     <Badge
       variant="warning"
       className="font-normal"
@@ -307,17 +291,5 @@ function AttentionBadge({ agentId, attention }: { agentId: string; attention: Ag
     >
       {tAttention("badge")}
     </Badge>
-  );
-  if (!attention.can_edit) return badge;
-  return (
-    <ImproveLink
-      agentId={agentId}
-      aria-label={tAttention("improveLabel", {
-        reasons: attentionParts(attention, tAttention).join(", "),
-      })}
-      className="focus-visible:ring-ring pointer-events-auto relative rounded-md outline-none focus-visible:ring-2"
-    >
-      {badge}
-    </ImproveLink>
   );
 }

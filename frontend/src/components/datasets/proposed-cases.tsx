@@ -4,8 +4,8 @@ import { useState } from "react";
 import { Check, Sparkles, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { ErrorState } from "@/components/states";
-import { Button, ListCard, PAGE_SIZE, Pager } from "@/components/ui";
+import { ErrorState, LoadingState } from "@/components/states";
+import { Button, ListCard, ListCardEmpty, PAGE_SIZE, Pager } from "@/components/ui";
 import { useCaseGenerations, useCaseProposals } from "@/hooks/use-case-generation";
 import { getErrorMessage } from "@/lib/api-error";
 import type { CaseProposal } from "@/types/case-generation";
@@ -18,17 +18,18 @@ interface ProposedCasesProps {
   datasetId: string;
   /** Whether the reader may decide. Without it the routes answer 404, so nothing is asked. */
   canEdit: boolean;
+  onGenerate: () => void;
 }
 
 /**
  * Drafted cases waiting outside the dataset for a person's decision.
  *
- * Absent when nothing waits and nothing is being drafted, which is the normal
- * state. Drafts from chats are counted, not shown, to a reader who may not view
+ * The Generated tab keeps its frame and generation action when no drafts wait.
+ * Drafts from chats are counted, not shown, to a reader who may not view
  * runs. "Accept all" and "Dismiss all" act on the page on screen: a decision is
  * made about cases somebody could read, never about ones beyond the pager.
  */
-export function ProposedCases({ datasetId, canEdit }: ProposedCasesProps) {
+export function ProposedCases({ datasetId, canEdit, onGenerate }: ProposedCasesProps) {
   const t = useTranslations("datasets");
   const tc = useTranslations("common");
   const tErrors = useTranslations("errors");
@@ -46,51 +47,53 @@ export function ProposedCases({ datasetId, canEdit }: ProposedCasesProps) {
   if (!proposals.isLoading && page >= pageCount) setPage(pageCount - 1);
 
   if (!canEdit) return null;
-  if (
-    !proposals.error &&
-    proposals.total === 0 &&
-    proposals.hidden === 0 &&
-    (latest === undefined || latest.status === "ready")
-  )
-    return null;
 
   const onPage = proposals.proposals.map((proposal) => proposal.id);
   return (
     <ListCard
+      fill
       title={t("proposedCases")}
-      counted={t("proposalCount", { count: proposals.total })}
+      counted={proposals.isLoading ? null : t("proposalCount", { count: proposals.total })}
       controls={
-        onPage.length > 0 && (
-          <div className="flex items-center gap-1" data-tour="datasets-proposals">
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={proposals.isDeciding}
-              onClick={() => proposals.dismiss.mutate(onPage)}
-            >
-              <X className="h-4 w-4" aria-hidden />
-              {t("dismissAll")}
-            </Button>
-            <Button
-              size="sm"
-              disabled={proposals.isDeciding}
-              onClick={() => proposals.accept.mutate(onPage.map((id) => ({ id })))}
-            >
-              <Check className="h-4 w-4" aria-hidden />
-              {t("acceptAll")}
-            </Button>
-          </div>
-        )
+        <div className="flex flex-wrap items-center gap-2">
+          {onPage.length > 0 && (
+            <div className="flex items-center gap-1" data-tour="datasets-proposals">
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={proposals.isDeciding}
+                onClick={() => proposals.dismiss.mutate(onPage)}
+              >
+                <X className="h-4 w-4" aria-hidden />
+                {t("dismissAll")}
+              </Button>
+              <Button
+                size="sm"
+                disabled={proposals.isDeciding}
+                onClick={() => proposals.accept.mutate(onPage.map((id) => ({ id })))}
+              >
+                <Check className="h-4 w-4" aria-hidden />
+                {t("acceptAll")}
+              </Button>
+            </div>
+          )}
+          <Button data-tour="datasets-generate" onClick={onGenerate}>
+            <Sparkles className="size-4" aria-hidden />
+            {t("generateCases")}
+          </Button>
+        </div>
       }
     >
-      <div className="space-y-4">
+      <div className="flex flex-1 flex-col gap-4">
         <GenerationStatus generation={latest} />
         {proposals.hidden > 0 && (
           <p role="status" className="text-muted-foreground text-sm">
             {t("proposalsHidden", { count: proposals.hidden })}
           </p>
         )}
-        {proposals.error ? (
+        {proposals.isLoading ? (
+          <LoadingState variant="skeleton-list" rows={3} />
+        ) : proposals.error ? (
           <ErrorState
             description={getErrorMessage(proposals.error, tErrors)}
             cta={{ label: tc("retry"), onClick: () => void proposals.refetch() }}
@@ -124,6 +127,12 @@ export function ProposedCases({ datasetId, canEdit }: ProposedCasesProps) {
               />
             )}
           </>
+        ) : proposals.hidden === 0 ? (
+          <ListCardEmpty
+            icon={Sparkles}
+            title={t("generatedEmpty")}
+            description={t("generateIntro")}
+          />
         ) : null}
       </div>
       {editing !== null && (

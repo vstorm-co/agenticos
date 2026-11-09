@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { FolderOpen } from "lucide-react";
+import { ArrowDownWideNarrow, FolderOpen } from "lucide-react";
 
 import {
   ListCard,
@@ -153,7 +153,11 @@ function FlatFiles() {
       <div className="flex flex-wrap items-center gap-2">
         <SearchInput value={list.query} onChange={list.setQuery} placeholder={t("searchFiles")} />
         <Select value={origin} onValueChange={(value) => setOrigin(value as Origin)}>
-          <SelectTrigger className="w-auto min-w-36" aria-label={t("workspaces.whoPutItThere")}>
+          <SelectTrigger
+            size="sm"
+            className="w-auto min-w-36"
+            aria-label={t("workspaces.whoPutItThere")}
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -163,7 +167,12 @@ function FlatFiles() {
           </SelectContent>
         </Select>
         <Select value={sort} onValueChange={(value) => setSort(value as FlatSort)}>
-          <SelectTrigger className="w-auto min-w-36" aria-label={t("sortFiles")}>
+          <SelectTrigger
+            size="sm"
+            icon={ArrowDownWideNarrow}
+            className="w-auto min-w-36"
+            aria-label={t("sortFiles")}
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

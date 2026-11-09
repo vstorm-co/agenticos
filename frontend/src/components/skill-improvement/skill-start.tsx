@@ -6,10 +6,8 @@ import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 
 import { limitText, limitValue, sessionLimit, usd } from "@/components/evals/format";
-import { AiAssistanceNotice } from "@/components/datasets/ai-assistance-notice";
 import { EvidenceOnly, evidenceOnlyDataset } from "@/components/improvement/evidence-only";
 import { ErrorState, LoadingState } from "@/components/states";
-import { useAiAssistance } from "@/hooks/use-organizations";
 import { Button, Input, Label } from "@/components/ui";
 import { useSkillImprovements } from "@/hooks/use-skill-improvement";
 import { getErrorMessage } from "@/lib/api-error";
@@ -35,7 +33,6 @@ export function SkillStart({
   const tErrors = useTranslations("errors");
   const locale = useLocale();
   const router = useRouter();
-  const aiOff = useAiAssistance().enabled === false;
   const { sessions, isLoading, error, estimate, start } = useSkillImprovements(skillId, {
     forkId,
     fromRun,
@@ -49,7 +46,7 @@ export function SkillStart({
 
   // Priced only once the line's sessions are read: an open one is continued, not priced.
   useEffect(() => {
-    if (isLoading || error || open || aiOff) return;
+    if (isLoading || error || open) return;
     price()
       .then((value) => {
         setQuote(value);
@@ -59,7 +56,7 @@ export function SkillStart({
         setEvidence(evidenceOnlyDataset(failure));
         setRefusal(getErrorMessage(failure, tErrors));
       });
-  }, [isLoading, error, open, aiOff, price, locale, tErrors]);
+  }, [isLoading, error, open, price, locale, tErrors]);
 
   if (isLoading) return <LoadingState variant="skeleton-cards" rows={2} />;
   if (error) return <ErrorState description={getErrorMessage(error, tErrors)} />;
@@ -76,7 +73,6 @@ export function SkillStart({
       </p>
     );
   }
-  if (aiOff) return <AiAssistanceNotice body={t("aiOff")} />;
   if (evidence !== null && quote === null) return <EvidenceOnly datasetId={evidence} />;
   if (refusal !== null && quote === null) return <ErrorState description={refusal} />;
   if (quote === null) return <LoadingState variant="skeleton-cards" rows={2} />;

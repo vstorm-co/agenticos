@@ -14,6 +14,7 @@ import {
 } from "@/components/ui";
 import type { AddFromMessage } from "@/hooks/use-datasets";
 import { SearchInput } from "@/components/ui/list-controls";
+import { AnswerPurpose } from "./answer-purpose";
 import { ROUTES } from "@/lib/constants";
 import type { Dataset } from "@/types/datasets";
 
@@ -79,6 +80,11 @@ export function DatasetTargetFields({
   return (
     <div className="space-y-4">
       {finder}
+      {!isLoading && editable.length === 0 && search?.value && (
+        <p role="status" className="text-muted-foreground text-sm">
+          {t("noMatchingDatasets")}
+        </p>
+      )}
       {none && create ? (
         <FormField
           htmlFor={`${idPrefix}-new-dataset`}
@@ -88,15 +94,19 @@ export function DatasetTargetFields({
           <Input
             id={`${idPrefix}-new-dataset`}
             value={create.name}
-            maxLength={200}
+            maxLength={120}
             onChange={(event) => create.onChange(event.target.value)}
           />
         </FormField>
       ) : (
         <FormField htmlFor={`${idPrefix}-dataset`} label={t("dataset")}>
-          <Select value={datasetId} onValueChange={onDatasetChange}>
+          <Select
+            value={datasetId}
+            onValueChange={onDatasetChange}
+            disabled={isLoading || editable.length === 0}
+          >
             <SelectTrigger id={`${idPrefix}-dataset`}>
-              <SelectValue />
+              <SelectValue placeholder={isLoading ? t("loadingDatasets") : t("chooseDataset")} />
             </SelectTrigger>
             <SelectContent>
               {editable.map((dataset) => (
@@ -108,22 +118,7 @@ export function DatasetTargetFields({
           </Select>
         </FormField>
       )}
-      {answerAs && (
-        <FormField htmlFor={`${idPrefix}-answer-as`} label={t("keepAnswerAs")}>
-          <Select
-            value={answerAs.value}
-            onValueChange={(next) => answerAs.onChange(next as AnswerAs)}
-          >
-            <SelectTrigger id={`${idPrefix}-answer-as`}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="counter_example">{t("field.counter_example")}</SelectItem>
-              <SelectItem value="reference_answer">{t("field.reference_answer")}</SelectItem>
-            </SelectContent>
-          </Select>
-        </FormField>
-      )}
+      {answerAs && <AnswerPurpose value={answerAs.value} onChange={answerAs.onChange} />}
     </div>
   );
 }

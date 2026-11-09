@@ -55,12 +55,13 @@ export function KBDetailHeader({
   const t = useTranslations("pages.kb");
   return (
     <PageHeader
+      className="mb-4"
       breadcrumbs={[{ label: t("knowledgeBases"), href: ROUTES.RAG }, { label: kb.name }]}
       title={kb.name}
       description={
         kb.description || <span className="font-mono text-xs">{kb.collection_name}</span>
       }
-      actions={
+      secondaryActions={
         <>
           <AddToAgent resource={{ kind: "collection", id: kb.id }} name={kb.name} size="default" />
           <ShareResourceButton
@@ -79,14 +80,7 @@ export function KBDetailHeader({
                 <SlidersHorizontal className="h-4 w-4" />
                 {t("parseOptions")}
               </Button>
-              <Button onClick={onChooseFiles} disabled={isUploading}>
-                {isUploading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Upload className="h-4 w-4" />
-                )}
-                {isUploading ? t("uploading") : t("upload")}
-              </Button>
+
               {/* Behind a menu, not beside Refresh: destroying the collection
                   and everything in it is not a same-weight sibling of
                   re-reading it. It lives here rather than on the card in the
@@ -117,6 +111,18 @@ export function KBDetailHeader({
             </>
           )}
         </>
+      }
+      actions={
+        mayEdit && (
+          <Button onClick={onChooseFiles} disabled={isUploading}>
+            {isUploading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Upload className="h-4 w-4" />
+            )}
+            {isUploading ? t("uploading") : t("upload")}
+          </Button>
+        )
       }
     />
   );

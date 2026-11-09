@@ -1,4 +1,5 @@
 "use client";
+import { MarkdownContent } from "@/components/chat/markdown-content";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useEvalCases, useEvalComparison, useEvalRun } from "@/hooks/use-eval-runs";
@@ -105,11 +106,11 @@ function ChangedRow({
           { label: t("before"), value: before?.answer },
           { label: t("after"), value: after?.answer },
         ].map((v) => (
-          <div key={v.label} className="min-w-0">
+          <div key={v.label} className="min-w-0 rounded-lg border p-4">
             <p className="text-muted-foreground text-xs">{v.label}</p>
-            <p className="text-sm break-words whitespace-pre-wrap">
-              {v.value ?? t("unavailableAnswer")}
-            </p>
+            <div className="prose-sm mt-2 text-sm leading-relaxed wrap-anywhere">
+              <MarkdownContent content={v.value ?? t("unavailableAnswer")} inertImages />
+            </div>
           </div>
         ))}
       </div>

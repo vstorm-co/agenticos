@@ -18,7 +18,6 @@ import {
   useDelegationTree,
   useJudges,
   usePromptVariables,
-  useSystemAgents,
 } from "./use-agents";
 import { useAgentEnvironments } from "./use-agent-environments";
 import { apiClient } from "@/lib/api-client";
@@ -73,41 +72,6 @@ describe("useJudges", () => {
     expect(result.current.agents[0]?.name).toBe("Eval judge");
     expect(apiClient.get).toHaveBeenCalledWith("/agents", {
       params: { kind: "judge", limit: "100" },
-    });
-  });
-});
-
-describe("useSystemAgents", () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it("asks for each system kind on its own and groups the answers in order", async () => {
-    vi.mocked(apiClient.get).mockImplementation(async (_path, options) => {
-      const kind = (options as { params: { kind: string } }).params.kind;
-      return kind === "judge"
-        ? { items: [{ id: "j1", name: "Eval judge", kind: "judge" }], total: 1 }
-        : { items: [], total: 0 };
-    });
-
-    const { result } = renderHook(() => useSystemAgents(), { wrapper });
-
-    await waitFor(() => expect(result.current.total).toBe(1));
-    expect(result.current.groups.map((group) => group.kind)).toEqual([
-      "judge",
-      "drafter",
-      "generator",
-      "classifier",
-      "improver",
-    ]);
-    expect(result.current.groups[0]?.agents[0]?.name).toBe("Eval judge");
-    expect(result.current.groups[1]?.agents).toEqual([]);
-    expect(apiClient.get).toHaveBeenCalledWith("/agents", {
-      params: { kind: "drafter", limit: "100" },
-    });
-    expect(apiClient.get).toHaveBeenCalledWith("/agents", {
-      params: { kind: "classifier", limit: "100" },
-    });
-    expect(apiClient.get).toHaveBeenCalledWith("/agents", {
-      params: { kind: "improver", limit: "100" },
     });
   });
 });
@@ -220,6 +184,17 @@ describe("useAgents", () => {
 
 describe("useAgent draft", () => {
   beforeEach(() => vi.clearAllMocks());
+
+  it("exposes a refused read and allows retrying after access is restored", async () => {
+    const refusal = new ApiError(404, "Agent not found");
+    vi.mocked(apiClient.get).mockRejectedValueOnce(refusal);
+    const { result } = renderHook(() => useAgent("a1"), { wrapper });
+    await waitFor(() => expect(result.current.error).toBe(refusal));
+    vi.mocked(apiClient.get).mockResolvedValue({ id: "a1", draft_spec: SPEC });
+    await result.current.refetch();
+    await waitFor(() => expect(result.current.agent?.id).toBe("a1"));
+    expect(result.current.error).toBeNull();
+  });
 
   it("sends every per-tool decision to the server exactly as the Builder set it", async () => {
     // The spec is PUT whole, so nothing here picks fields - which is precisely

@@ -4,6 +4,8 @@ import logging
 import re
 from typing import ClassVar, overload
 
+from app.core.config import settings
+
 #: Bytes that end a log line, or move a terminal reading one.
 #:
 #: A log entry is one line, and the reader of a text log splits on newlines - so
@@ -112,18 +114,25 @@ _SECRET_QUERY = re.compile(
     rf"((?:^|[?&])(?:{'|'.join(sorted(SECRET_QUERY_PARAMS))})=)"
     r"(?!%(?:[sr(]|d(?![0-9a-fA-F])))[^&#\s\"']+"
 )
+_DISCORD_CDN_QUERY = re.compile(
+    r"(https?://(?:cdn\.discordapp\.com|media\.discordapp\.net)(?::[0-9]+)?/[^?\s\"'<>]*)"
+    r"\?[^\s\"'<>]+",
+    re.IGNORECASE,
+)
 
 
 def redact_secret_paths(value: str) -> str:
     """Replace every credential in an address in `value` with the marker.
 
     That is the credential segment of a secret-bearing path (`_SECRET_PATH`) and
-    the value of a credential query parameter (`_SECRET_QUERY`). One helper for
+    the value of a credential query parameter (`_SECRET_QUERY`), and the entire
+    query of a signed Discord attachment address (`_DISCORD_CDN_QUERY`). One helper for
     every place an address is recorded - the log filter below and the Logfire
     request spans (`app/core/logfire_setup.py`) - so the two cannot disagree about
     which part is the secret.
     """
     value = _SECRET_PATH.sub(rf"\1{SECRET_PATH_MARKER}", value)
+    value = _DISCORD_CDN_QUERY.sub(rf"\1?{SECRET_PATH_MARKER}", value)
     return _SECRET_QUERY.sub(rf"\1{SECRET_PATH_MARKER}", value)
 
 
@@ -154,6 +163,7 @@ class PiiRedactionFilter(logging.Filter):
     PATTERNS: ClassVar[list[tuple[re.Pattern[str], str]]] = [
         # First, so a secret-bearing address reads the same whatever its token looks like.
         (_SECRET_PATH, rf"\1{SECRET_PATH_MARKER}"),
+        (_DISCORD_CDN_QUERY, rf"\1?{SECRET_PATH_MARKER}"),
         (_SECRET_QUERY, rf"\1{SECRET_PATH_MARKER}"),
         (re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"), "[EMAIL_REDACTED]"),
         # JWT tokens (header.payload.signature)
@@ -172,6 +182,13 @@ class PiiRedactionFilter(logging.Filter):
             "[SECRET_REDACTED]",
         ),
         (re.compile(r"Bearer\s+[A-Za-z0-9._~+/=-]{10,}"), "Bearer [TOKEN_REDACTED]"),
+        # A Discord interaction's token is the last segment of the URL that
+        # answers it, and a failed call's error carries that URL. Whoever holds
+        # the token may post and edit as the bot there for fifteen minutes.
+        (
+            re.compile(r"(/(?:interactions|webhooks)/\d+/)[A-Za-z0-9_.-]{20,}"),
+            r"\1[TOKEN_REDACTED]",
+        ),
         # Password/secret in key=value or key: value patterns
         (
             re.compile(
@@ -261,8 +278,24 @@ def _escape_line_breakers(value: str) -> str:
     )
 
 
+def _console_level(record: logging.LogRecord) -> bool:
+    """DB_ECHO explicitly enables SQL independently of application verbosity."""
+    threshold = logging.getLevelNamesMapping()[settings.LOG_LEVEL]
+    if settings.DB_ECHO and (
+        record.name == "sqlalchemy.engine" or record.name.startswith("sqlalchemy.engine.")
+    ):
+        threshold = logging.INFO
+    return record.levelno >= threshold
+
+
 def setup_logging() -> None:
-    """Redact PII from everything this application logs, in every process.
+    """Emit application logs to stderr and redact PII in every process.
+
+    The API, CLI, worker and ingest children share one console handler, even
+    when another library has already installed a root handler. Keep existing
+    handlers for telemetry and capture; repeated startup must not duplicate ours.
+    SQL and HTTP transport chatter have separate levels so enabling application
+    debugging does not turn container logs into a dump of requests and queries.
 
     The filter goes on the root logger's **handlers**, not on the root logger.
     A filter on a logger runs only for a record logged on *that* logger
@@ -293,6 +326,18 @@ def setup_logging() -> None:
     handler added since the first.
     """
     root = logging.getLogger()
+    root.setLevel(settings.LOG_LEVEL)
+    if not any(handler.name == "agenticos.console" for handler in root.handlers):
+        console = logging.StreamHandler()
+        console.name = "agenticos.console"
+        console.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+        console.addFilter(_console_level)
+        root.addHandler(console)
+    logging.getLogger("sqlalchemy.engine").setLevel(
+        logging.INFO if settings.DB_ECHO else logging.WARNING
+    )
+    for name in ("httpx", "httpcore", "httpx2", "httpcore2"):
+        logging.getLogger(name).setLevel(logging.WARNING)
     handlers: list[logging.Handler] = list(root.handlers)
     # A snapshot: `getLogger` in another thread adds to this dict, and iterating it
     # live would raise. `list()` copies it in one call; the lock that guards it is

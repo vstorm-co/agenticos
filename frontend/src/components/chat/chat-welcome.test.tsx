@@ -6,6 +6,27 @@ import { describe, expect, it, vi } from "vitest";
 import { ChatWelcome, WelcomeIcon } from "./chat-welcome";
 
 describe("ChatWelcome", () => {
+  it("puts suggestions below the composer without first rendering them in the greeting", () => {
+    const target = document.createElement("div");
+    document.body.append(target);
+    const props = {
+      mark: <span />,
+      title: "Welcome",
+      lead: "Ready",
+      quiet: true,
+      suggestions: [{ key: "a", icon: Ban, title: "A starter", prompt: "Start" }],
+      onPick: vi.fn(),
+    };
+    const view = render(<ChatWelcome {...props} suggestionsSlot={null} />);
+    expect(screen.queryByText("A starter")).toBeNull();
+    view.rerender(<ChatWelcome {...props} suggestionsSlot={target} />);
+    expect(target).toHaveTextContent("A starter");
+    expect(view.container).not.toHaveTextContent("A starter");
+    view.unmount();
+    expect(target).toBeEmptyDOMElement();
+    target.remove();
+  });
+
   it("sends a card's prompt and says it under the title when nothing else is written", async () => {
     const onPick = vi.fn();
     render(

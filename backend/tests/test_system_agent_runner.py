@@ -15,7 +15,6 @@ from pydantic import BaseModel, ValidationError
 from app.agents.isolation import RunIsolation
 from app.agents.system_agents import JUDGE
 from app.core.exceptions import (
-    AiAssistanceDisabledError,
     NotFoundError,
     SystemAgentOutputError,
     SystemAgentRunError,
@@ -61,16 +60,12 @@ def _run(status: RunStatus = RunStatus.COMPLETED) -> MagicMock:
 def _runner(
     monkeypatch,
     *,
-    enabled: bool = True,
     agent: MagicMock | None = None,
     may_run: bool = True,
     answer: str = '{"passed": true, "reason": "cites the policy"}',
     run: MagicMock | None = None,
 ) -> tuple[SystemAgentRunner, AsyncMock]:
     runner = SystemAgentRunner(AsyncMock())
-    monkeypatch.setattr(
-        system_agent_runner.AiAssistanceService, "is_enabled", AsyncMock(return_value=enabled)
-    )
     runner.agents.ensure = AsyncMock(return_value=agent or _agent())
     monkeypatch.setattr(system_agent_runner, "resolve_access", AsyncMock(return_value=may_run))
     monkeypatch.setattr(
@@ -144,14 +139,25 @@ class TestRun:
         assert isolation.knowledge is not None
         assert isolation.knowledge.knowledge_base_ids == tuple(bases)
 
-    async def test_switched_off_nothing_runs(self, monkeypatch) -> None:
-        runner, execute = _runner(monkeypatch, enabled=False)
-
-        with pytest.raises(AiAssistanceDisabledError):
-            await runner.run(_ctx(), key=JUDGE.key, prompt="Grade it", output_type=Verdict)
-
-        execute.assert_not_awaited()
-        runner.agents.ensure.assert_not_awaited()
+    async def test_dataset_instructions_and_model_are_passed_without_changing_the_published_agent(
+        self, monkeypatch
+    ) -> None:
+        agent = _agent()
+        runner, execute = _runner(monkeypatch, agent=agent)
+        model_id = uuid.uuid4()
+        await runner.run(
+            _ctx(),
+            key=JUDGE.key,
+            prompt="Grade it",
+            output_type=Verdict,
+            model_profile_id=model_id,
+            instructions="Use this dataset's policy.",
+        )
+        candidate = execute.call_args.kwargs["candidate"]
+        assert candidate.version_id == agent.current_version_id
+        assert candidate.instructions == "Use this dataset's policy."
+        assert execute.call_args.kwargs["model_profile_id"] == model_id
+        runner.agents.ensure.assert_awaited_once()
 
     @pytest.mark.parametrize(
         ("agent", "may_run", "reason"),

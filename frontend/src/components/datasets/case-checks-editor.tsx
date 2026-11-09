@@ -13,6 +13,7 @@ import {
   SelectValue,
   Textarea,
 } from "@/components/ui";
+import { CheckTypeChip } from "./check-type-chip";
 import { describeCheck } from "@/lib/scoring";
 import {
   CHECK_KINDS,
@@ -70,7 +71,7 @@ function CheckValue({
         rows={2}
         value={check.value}
         aria-label={label}
-        className={as === "json" ? "font-mono text-xs" : undefined}
+        className={as === "json" ? "font-mono text-base md:text-xs" : undefined}
         placeholder={placeholder}
         onChange={(event) => onChange({ value: event.target.value })}
       />
@@ -101,26 +102,31 @@ export function CaseChecksEditor({ checks, onChange, disabled = false }: CaseChe
   return (
     <div className="space-y-2">
       {checks.map((check, index) => (
-        <div key={index} className="flex items-start gap-2">
+        <div
+          key={index}
+          className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-2 rounded-lg border p-3"
+        >
           <Select
             value={check.type}
             disabled={disabled || !isKnownCheck(check.type)}
             onValueChange={(type) => change(index, { type, value: "", rest: {} })}
           >
             <SelectTrigger
-              className="w-44 shrink-0"
+              className="col-span-2 w-full min-w-0"
               aria-label={t("checkTypeOf", { number: index + 1 })}
             >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {CHECK_TYPES.map((type) => (
-                <SelectItem key={type} value={type}>
-                  {t(`checkTypes.${type}`)}
+                <SelectItem key={type} value={type} textValue={t(`checkTypes.${type}`)}>
+                  <CheckTypeChip type={type} />
                 </SelectItem>
               ))}
               {!isKnownCheck(check.type) && (
-                <SelectItem value={check.type}>{check.type}</SelectItem>
+                <SelectItem value={check.type}>
+                  <CheckTypeChip type={check.type} />
+                </SelectItem>
               )}
             </SelectContent>
           </Select>

@@ -115,7 +115,7 @@ class OrganizationUpdate(BaseSchema):
         default=None,
         description=(
             "Whether people may have the platform watch their own MCP connections and "
-            "report what is new. Runs on the proactive model and limit. Needs "
+            "report what is new. Uses the selected agent model and the per-person proactive limit; no nightly suggestions model is required. Needs "
             "'budgets:manage'."
         ),
     )
@@ -157,22 +157,6 @@ class OrganizationUpdate(BaseSchema):
             "calls. Omit to leave it alone. Changing it needs 'approvals:decide' - "
             "it is a decision about the approval queue, not about the organization's "
             "name."
-        ),
-    )
-    ai_assistance_enabled: bool | None = Field(
-        default=None,
-        description=(
-            "Whether models may assist evals and authoring here: the eval judge, the "
-            "case generator, the authoring assistant. Omit to leave it alone. Changing "
-            "it needs 'org:settings'."
-        ),
-    )
-    grading_model_profile_id: UUID | None = Field(
-        default=None,
-        description=(
-            "The model new judges grade on, one of this organization's chat models. Send "
-            "null to clear it: a new judge then takes a model that costs more than the "
-            "agent it grades. Existing judges keep their model. Needs 'org:settings'."
         ),
     )
     public_live_data: bool | None = Field(
@@ -241,24 +225,12 @@ class OrganizationRead(BaseSchema, TimestampSchema):
     welcome_dm_enabled: bool = False
     welcome_dm_text: str | None = None
     chat_may_waive_approvals: bool = Field(
-        default=False,
+        default=True,
         description=(
             "Whether a chat session here may grant standing consent to gated tool "
             "calls. The chat reads it to decide whether to offer the control at "
             "all; who may then use it is `approvals:decide`."
         ),
-    )
-    ai_assistance_enabled: bool = Field(
-        default=False,
-        description=(
-            "Whether models may assist evals and authoring here. Off until an admin "
-            "turns it on; off, the services that would start such a run refuse it, "
-            "and deterministic checks and a person's verdicts stay available."
-        ),
-    )
-    grading_model_profile_id: UUID | None = Field(
-        default=None,
-        description="The model new judges grade on; null picks one per agent by price",
     )
     public_live_data: bool = Field(
         default=False,

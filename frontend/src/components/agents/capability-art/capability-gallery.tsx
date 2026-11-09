@@ -1,5 +1,7 @@
 "use client";
 
+import { glideOrJump } from "@/lib/motion";
+
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useRef, type ReactNode } from "react";
@@ -9,7 +11,7 @@ import { SCROLL_FADE, useScrollFade } from "@/components/ui/scroll-fade";
 import { cn } from "@/lib/utils";
 import type { CapabilityCatalogEntry } from "@/types/agents";
 
-import { CapabilityArt, CapabilityCard } from "./capability-card";
+import { CapabilityCard } from "./capability-card";
 
 /** One shelf of the gallery: a category's label and the capabilities under it. */
 export interface CapabilityShelf {
@@ -70,9 +72,6 @@ export function CapabilityGallery({
               </SheetTitle>
               <SheetClose onClick={onClose} />
             </div>
-            <div className="mx-auto max-w-md px-4 pt-4 sm:px-5">
-              <CapabilityArt id={opened.id} name={opened.name} />
-            </div>
             <div className="p-4 sm:p-5">{detail}</div>
           </SheetContent>
         </Sheet>
@@ -102,7 +101,7 @@ function Shelf({
   const page = (direction: 1 | -1) =>
     strip.current?.scrollBy({
       left: direction * strip.current.clientWidth * 0.85,
-      behavior: "smooth",
+      behavior: glideOrJump(),
     });
   const on = shelf.entries.filter((entry) => enabled.has(entry.id)).length;
   return (

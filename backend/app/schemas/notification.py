@@ -93,6 +93,10 @@ class NotificationRead(BaseSchema):
         description="For a finished improvement, test or question writing: how it ended, "
         "so the console can word it in the reader's language.",
     )
+    outcome_id: UUID | None = Field(
+        default=None,
+        description="The shared outcome this row is a delivery of; settling it clears every one.",
+    )
 
     @classmethod
     def from_row(
@@ -115,6 +119,7 @@ class NotificationRead(BaseSchema):
             created_at=notification.created_at,
             agent=_agent_of(notification.render_context),
             outcome=_outcome_of(notification),
+            outcome_id=notification.outcome_id,
         )
 
 

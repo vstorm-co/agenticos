@@ -42,7 +42,7 @@ export function CheckProgress({
     <section className="space-y-4 rounded-xl border p-4 sm:p-6" data-tour="improvement-check">
       <h2 className="font-medium">{t("checkTitle")}</h2>
       {session.stop_reason === "budget" && (
-        <p role="alert" className="text-warning text-sm">
+        <p role="alert" className="text-warning-ink text-sm">
           {t("checkNotStarted")}
         </p>
       )}

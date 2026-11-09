@@ -65,7 +65,8 @@ export const DIALOG_BROAD = "sm:max-w-5xl";
  * The widest rung, and the last - a dialog that wants the whole window wants
  * `DIALOG_WINDOW`, which is a different shape rather than a wider one.
  */
-export const DIALOG_CANVAS = "sm:max-w-[80rem]";
+export const DIALOG_CANVAS =
+  "sm:max-w-[80rem] max-sm:p-4 max-sm:h-[var(--dialog-available-height)]";
 
 /**
  * Content that may outgrow the window: the dialog scrolls as one piece.
@@ -100,7 +101,7 @@ export const DIALOG_COLUMN =
  * was drawn over the right edge of every card and field the body held.
  */
 export const DIALOG_BODY =
-  "-my-1 -ml-1 -mr-4 min-h-0 flex-1 overflow-y-auto py-1 pl-1 pr-4 scrollbar-thin [scrollbar-gutter:stable]";
+  "-my-1 -ml-1 -mr-4 min-h-0 min-w-0 flex-1 overflow-y-auto py-1 pl-1 pr-4 scrollbar-thin [scrollbar-gutter:stable]";
 
 /**
  * The right edge of any other scrolling box inside a dialog's padding: the box
@@ -141,4 +142,8 @@ export const DIALOG_FRAMED =
  * width and must not be combined with one of the tokens above.
  */
 export const DIALOG_WINDOW =
-  "flex h-[var(--dialog-available-height)] max-h-none w-[calc(100%-1.5rem)] max-w-none sm:w-[calc(100%-4rem)] flex-col gap-3 overflow-hidden p-4 sm:max-w-none sm:p-6";
+  "flex h-[var(--dialog-available-height)] max-h-none w-[calc(100%-1.5rem)] max-w-none md:w-[calc(100%-4rem)] flex-col gap-3 overflow-hidden p-4 sm:max-w-none sm:p-6";
+
+/** Search stays below the top edge while leaving room for results and the keyboard. */
+export const DIALOG_COMMAND =
+  "[--command-offset:clamp(2rem,calc(var(--app-height,100dvh)*0.12),8rem)] fixed left-1/2 top-[calc(var(--shell-inset-top,0px)+var(--command-offset))] max-h-[calc(var(--dialog-available-height)-var(--command-offset))] w-[min(92vw,640px)] -translate-x-1/2 flex-col overflow-hidden rounded-2xl";

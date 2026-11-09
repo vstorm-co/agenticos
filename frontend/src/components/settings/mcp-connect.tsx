@@ -7,7 +7,17 @@ import { useTranslations } from "next-intl";
 import { brandMark } from "@/components/icons/brand-icon";
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { CopyCode } from "@/components/settings/copy-code";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui";
 import { DOCS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import {
@@ -39,13 +49,23 @@ export function McpConnect() {
   const t = useTranslations("mcpConnect");
   const { apiUrl } = usePublicConfig();
   const [auth, setAuth] = useState<McpAuth>("browser");
+  const [client, setClient] = useState<McpClient>("claude-code");
+  const chooseClient = (value: string): void => {
+    const next = MCP_CLIENTS.find((candidate) => candidate === value);
+    if (next) setClient(next);
+  };
   const url = `${apiUrl}/mcp`;
 
   return (
-    <section className="border-border bg-card rounded-xl border" data-tour="mcp-connect">
-      <header className="border-border border-b px-5 py-4">
-        <h2 className="text-foreground text-sm font-semibold">{t("title")}</h2>
-        <p className="text-muted-foreground mt-1 text-xs">{t("why")}</p>
+    <section
+      className="bg-card border-foreground/[0.07] shadow-card rounded-2xl border"
+      data-tour="mcp-connect"
+    >
+      <header className="border-foreground/[0.06] border-b px-5 py-4 sm:px-6">
+        <div className="space-y-1">
+          <h2 className="text-foreground text-sm font-semibold">{t("title")}</h2>
+          <p className="text-muted-foreground max-w-2xl text-xs leading-5">{t("why")}</p>
+        </div>
         <a
           href={DOCS.MCP_SERVER}
           target="_blank"
@@ -56,7 +76,7 @@ export function McpConnect() {
           {t("docs")}
         </a>
       </header>
-      <div className="space-y-5 px-5 py-5">
+      <div className="space-y-5 p-5 sm:p-6">
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-1.5">
             <h3 className="text-xs font-semibold">{t("serverUrl")}</h3>
@@ -92,8 +112,28 @@ export function McpConnect() {
             </p>
           </div>
         </div>
-        <Tabs defaultValue="claude-code">
-          <TabsList>
+        <Tabs value={client} onValueChange={chooseClient}>
+          <div className="md:hidden">
+            <Select value={client} onValueChange={chooseClient}>
+              <SelectTrigger aria-label={t("client")}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {MCP_CLIENTS.map((choice) => {
+                  const Icon = CLIENT_ICON[choice];
+                  return (
+                    <SelectItem key={choice} value={choice}>
+                      <span className="flex items-center gap-2">
+                        <Icon className="size-4" aria-hidden />
+                        {MCP_CLIENT_NAME[choice]}
+                      </span>
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+          </div>
+          <TabsList className="hidden md:flex">
             {MCP_CLIENTS.map((client) => {
               const Icon = CLIENT_ICON[client];
               return (

@@ -1,5 +1,5 @@
 ---
-source_sha: "445f16218979"
+source_sha: "54831c55840b"
 ---
 
 # Licencias y avisos de terceros { #licences-and-third-party-notices }
@@ -39,6 +39,12 @@ dependencias `docs`, `devDependencies`) no están en las imágenes ni en los avi
 Las herramientas de compilación que se ejecutan en una fase de builder y no están
 en la capa final, como `uv`, quedan registradas en `licenses/components.toml` como
 no distribuidas.
+
+Los extras opcionales `kerberos` y `mirage` no están en las imágenes publicadas,
+así que los avisos los dejan fuera. La imagen del backend sí incluye `browser`. Quien construye una imagen
+con `EXTRAS` distribuye también esos paquetes, bajo sus propias licencias. El extra
+`mirage` trae [Mirage](https://github.com/strukto-ai/mirage) (Apache-2.0) y los
+clientes de servicios que usan sus backends.
 
 ## El inventario { #the-inventory }
 
@@ -215,8 +221,7 @@ imagen.
 
 ## Servicios alojados y términos de los providers { #hosted-services-and-provider-terms }
 
-La API de un provider de modelos, Logfire, Tavily, Brave, Exa, LlamaParse, Mem0,
-Daytona, Google Drive y S3 no son software que este proyecto distribuya y no tienen
+La API de un provider de modelos, Logfire, Tavily, Brave, Exa, LlamaParse, Daytona, Google Drive y S3 no son software que este proyecto distribuya y no tienen
 licencia en el sentido de arriba. Cada uno es un acuerdo de servicio entre el
 despliegue y el provider, que se contrae cuando un administrador guarda la
 credencial de ese provider en el [vault](secrets.md). Los términos que importan

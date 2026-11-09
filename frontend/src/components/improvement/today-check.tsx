@@ -4,16 +4,12 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { TriangleAlert } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
+import { StepError } from "./step-error";
 import { usd } from "@/components/evals/format";
-import {
-  EnableAiAssistanceLink,
-  GRADING_MODEL_ANCHOR,
-} from "@/components/teams/enable-ai-assistance-link";
 import { Button, Checkbox } from "@/components/ui";
 import { useDraftEvalRuns, useEvalRun, useEvalRuns } from "@/hooks/use-eval-runs";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
-import { useOrgStore } from "@/stores";
 import type { EvalRun, EvalRunEstimate, EvalRunRequest, EvalStability } from "@/types/eval-runs";
 
 /** Below this many questions each is asked twice unless switched off; at it and above, once. */
@@ -54,12 +50,13 @@ export function TodayCheck({ agentId, datasetId }: { agentId: string; datasetId:
   const t = useTranslations("improvement");
   const kept = useDraftEvalRuns(agentId, { limit: KEPT_RUNS });
   const [started, setStarted] = useState<{ datasetId: string; id: string } | null>(null);
-  const [again, setAgain] = useState(false);
+  const [again, setAgain] = useState<string | null>(null);
   if (kept.isLoading) return <p role="status">{t("todayLoading")}</p>;
+  if (kept.error) return <StepError error={kept.error} retry={kept.refetch} />;
   const shown =
     started?.datasetId === datasetId
       ? started.id
-      : again
+      : again === datasetId
         ? undefined
         : keptRun(kept.runs, datasetId)?.id;
   if (shown) {
@@ -69,7 +66,7 @@ export function TodayCheck({ agentId, datasetId }: { agentId: string; datasetId:
         datasetId={datasetId}
         onAgain={() => {
           setStarted(null);
-          setAgain(true);
+          setAgain(datasetId);
         }}
       />
     );
@@ -110,7 +107,10 @@ function TodayStart({
     let current = true;
     priceRun(request(datasetId, twice)).then(
       (value) => {
-        if (current) setQuote({ datasetId, twice, value });
+        if (current) {
+          setQuote({ datasetId, twice, value });
+          setError(null);
+        }
       },
       (failure: unknown) => {
         if (current) setError(getErrorMessage(failure, tErrors));
@@ -147,6 +147,7 @@ function TodayStart({
       )}
       <Button
         variant="outline"
+        className="h-auto max-w-full text-left whitespace-normal"
         disabled={!priced?.affordable || runs.start.isPending}
         onClick={() =>
           void (async () => {
@@ -162,7 +163,7 @@ function TodayStart({
         {t("baseline")}
       </Button>
       {error && (
-        <p role="alert" className="text-destructive text-sm">
+        <p role="alert" className="text-destructive-ink text-sm">
           {error}
         </p>
       )}
@@ -214,7 +215,6 @@ function TodayResult({
 /** How many questions were graded differently when asked again, and what to fix when too many were. */
 function Stability({ stability, datasetId }: { stability: EvalStability; datasetId: string }) {
   const t = useTranslations("improvement");
-  const orgId = useOrgStore((state) => state.activeOrgId);
   return (
     <>
       {stability.noisy && (
@@ -241,13 +241,14 @@ function Stability({ stability, datasetId }: { stability: EvalStability; dataset
                 {t("todayNoisyCriteriaHint")}
               </span>
             </li>
-            {orgId && (
-              <li>
-                <EnableAiAssistanceLink orgId={orgId} anchor={GRADING_MODEL_ANCHOR}>
-                  {t("todayNoisyModel")}
-                </EnableAiAssistanceLink>
-              </li>
-            )}
+            <li>
+              <Link
+                className="underline underline-offset-4"
+                href={`${ROUTES.DATASET_DETAIL(datasetId)}?tab=grading`}
+              >
+                {t("todayNoisyModel")}
+              </Link>
+            </li>
           </ul>
         </div>
       )}

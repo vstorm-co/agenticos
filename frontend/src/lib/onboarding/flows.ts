@@ -10,6 +10,7 @@ import {
   ORG_GROUPS,
   ORG_MEMBERS,
   ORG_ROLES,
+  PROJECT_DETAIL,
   SKILL_IMPROVEMENT,
   SKILL_IMPROVEMENT_START,
   TABLE_DETAIL,
@@ -41,6 +42,7 @@ export type FlowId =
   | "create-mcp"
   | "create-org"
   | "create-group"
+  | "create-project-tracker"
   | "create-routine"
   | "create-dataset"
   | "create-table"
@@ -267,14 +269,16 @@ export interface CreationFlow {
  * a case has to expect something before the button that enforces it.
  */
 function caseEditorSteps(): FlowStep[] {
-  return ["question", "answers", "tools", "checks", "labels"].map((group) => ({
-    id: `flow-dataset-case-${group}`,
-    page: DATASET_DETAIL,
-    target: `case-group-${group}`,
-    permission: Perm.datasetsEdit,
-    inOverlay: true,
-    blockSubmit: "case-save",
-  }));
+  return ["question", "answers", "history", "counter", "tools", "checks", "labels"].map(
+    (group) => ({
+      id: `flow-dataset-case-${group}`,
+      page: DATASET_DETAIL,
+      target: `case-group-${group}`,
+      permission: Perm.datasetsEdit,
+      inOverlay: true,
+      blockSubmit: "case-save",
+    }),
+  );
 }
 
 /**
@@ -909,20 +913,20 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       {
         id: "flow-dataset-sources",
         page: DATASET_DETAIL,
-        target: "datasets-menu",
+        target: "datasets-case-tools",
         permission: Perm.datasetsEdit,
       },
       {
         id: "flow-dataset-next",
         page: DATASET_DETAIL,
-        target: "datasets-grading-tab",
+        target: "datasets-settings-tab",
         permission: Perm.datasetsEdit,
       },
       {
         id: "flow-dataset-generate",
         page: DATASET_DETAIL,
         target: "datasets-generate",
-        activate: "datasets-generated-tab",
+        activate: "datasets-generate-action",
         permission: Perm.datasetsEdit,
       },
     ],
@@ -932,6 +936,23 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
   // that picked one for the reader would teach the wrong half. So it points at the
   // pair, says what each is for, and ends when a routine appears in the list,
   // whichever door it came through.
+  "create-project-tracker": {
+    id: "create-project-tracker",
+    permission: Perm.agentsEdit,
+    steps: [
+      {
+        id: "flow-project-tracker-create",
+        page: PROJECT_DETAIL,
+        target: "project-tracking-create",
+        include: (state, can) =>
+          state.hasRunnableAgent &&
+          state.hasRoomForAgent &&
+          can(Perm.agentsPublish) &&
+          can(Perm.tablesCreate),
+        signal: { kind: "created", resource: "routine" },
+      },
+    ],
+  },
   "create-routine": {
     id: "create-routine",
     // The floor a trigger is actually created at is per resource, and the
@@ -1051,6 +1072,7 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         page: IMPROVEMENT_START,
         target: "improvement-details",
         permission: Perm.runsView,
+        optional: true,
       },
     ],
   },
@@ -1319,6 +1341,8 @@ export function flowForPage(pageId: string, systemAgent = false): FlowId | null 
       return "create-table";
     case ROUTES.MCP_SERVERS:
       return "create-mcp";
+    case PROJECT_DETAIL:
+      return "create-project-tracker";
     case ROUTES.ROUTINES:
       return "create-routine";
     case ROUTES.DATASETS:

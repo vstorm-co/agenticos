@@ -7,6 +7,7 @@ import {
   capabilityCardsOf,
   drawnUnderTheAnswer,
   followUpsOf,
+  filesChangedOf,
   memoryChangesOf,
   setupProposalsOf,
 } from "./turn-extras";
@@ -88,8 +89,13 @@ describe("memoryChangesOf", () => {
       call("write_memory", {
         id: "w-1",
         args: { name: "role.md", description: "Your role is sales" },
+        result: "Saved note 'role.md'.",
       }),
-      call("edit_memory", { id: "e-1", args: { name: "team.md", description: "" } }),
+      call("edit_memory", {
+        id: "e-1",
+        args: { name: "team.md", description: "" },
+        result: "Updated note 'team.md'.",
+      }),
     ];
 
     expect(memoryChangesOf(calls)).toEqual([
@@ -99,9 +105,11 @@ describe("memoryChangesOf", () => {
   });
 
   it("says what was forgotten", () => {
-    expect(memoryChangesOf([call("delete_memory", { args: { name: "role.md" } })])).toEqual([
-      { callId: "delete_memory-1", forgot: true, label: "role.md" },
-    ]);
+    expect(
+      memoryChangesOf([
+        call("delete_memory", { args: { name: "role.md" }, result: "Forgot note 'role.md'." }),
+      ]),
+    ).toEqual([{ callId: "delete_memory-1", forgot: true, label: "role.md" }]);
   });
 
   it("leaves out the agent's own index, a failed save, another tool and a nameless note", () => {
@@ -183,4 +191,69 @@ describe("setupProposalsOf", () => {
     expect(setupProposalsOf([call(PROPOSE_SETUP, { result: "not json" })])).toEqual([]);
     expect(setupProposalsOf([call(PROPOSE_SETUP, { result: '{"proposals": {}}' })])).toEqual([]);
   });
+});
+
+describe("files a turn changed", () => {
+  it("combines exact coding report paths and successful writes without duplicates", () => {
+    expect(
+      filesChangedOf([
+        call("run_coding_agent", {
+          result: JSON.stringify({
+            files_changed: ["site/index.html", "site/style.css", null, ""],
+          }),
+        }),
+        call("write_file", { args: { path: "site/index.html" } }),
+        call("edit_file", { args: { file_path: "README.md" } }),
+      ]),
+    ).toEqual(["site/index.html", "site/style.css", "README.md"]);
+  });
+  it("ignores failed writes, reads, refusals and reports without changed files", () => {
+    expect(filesChangedOf(undefined)).toEqual([]);
+    expect(
+      filesChangedOf([
+        call("write_file", { status: "error", args: { path: "a" } }),
+        call("read_file", { args: { path: "b" } }),
+        call("write_file"),
+        call("run_coding_agent", { result: "refused" }),
+        call("run_coding_agent", { result: "{}" }),
+      ]),
+    ).toEqual([]);
+  });
+});
+
+it("reports only confirmed ledger writes and never infers a saved memory from tool arguments", () => {
+  const id = "11111111-1111-4111-8111-111111111111";
+  const confirmed = `Recorded (claim ${id})`;
+  expect(
+    memoryChangesOf([
+      call("remember", { args: { statement: "Use concise reports" }, result: confirmed }),
+    ]),
+  ).toEqual([{ callId: "remember-1", forgot: false, label: "Use concise reports" }]);
+  for (const value of [null, {}, "Refused", `Recorded (claim invalid)`]) {
+    expect(
+      memoryChangesOf([
+        call("remember", { args: { statement: "Use concise reports" }, result: value }),
+      ]),
+    ).toEqual([]);
+  }
+  expect(
+    memoryChangesOf([call("remember", { args: { statement: 42 }, result: confirmed })]),
+  ).toEqual([]);
+  expect(
+    memoryChangesOf([call("remember", { args: { statement: "" }, result: confirmed })]),
+  ).toEqual([]);
+  expect(
+    memoryChangesOf([
+      call("correct_memory", {
+        args: { statement: "Correct statement" },
+        result: `Corrected (claim ${id})`,
+      }),
+    ]),
+  ).toEqual([{ callId: "correct_memory-1", forgot: false, label: "Correct statement" }]);
+  expect(
+    memoryChangesOf([
+      call("write_memory", { args: { name: "MEMORY.md" }, result: "Saved note 'MEMORY.md'." }),
+      call("write_memory", { args: {}, result: "Saved note 'x.md'." }),
+    ]),
+  ).toEqual([]);
 });

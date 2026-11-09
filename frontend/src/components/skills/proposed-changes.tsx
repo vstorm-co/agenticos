@@ -16,7 +16,6 @@ import { EvidenceList, RationaleText } from "@/components/authoring/evidence-lis
 import { GoesLive } from "@/components/authoring/goes-live";
 import { useSkillChanges } from "@/hooks";
 import { usePermissions } from "@/hooks/use-permissions";
-import { NeedsRunsView } from "@/components/evals/needs-runs-view";
 import { Perm } from "@/types/permissions";
 import { ROUTES } from "@/lib/constants";
 import type { SkillChangeRecord } from "@/lib/skill-changes-api";
@@ -44,10 +43,11 @@ interface ProposedChangesProps {
  * decision cannot be made from a title.
  */
 export function ProposedChanges({ canEdit }: ProposedChangesProps) {
+  const canReadRuns = usePermissions().can(Perm.runsView);
   const t = useTranslations("skills");
   const { changes, error, apply, discard, isDeciding } = useSkillChanges("pending");
 
-  if (!canEdit) return null;
+  if (!canEdit || !canReadRuns) return null;
   // An empty list and a failed request are the same pixels, so a failure is said
   // out loud even though nothing is rendered for an empty one.
   if (error !== null) return <p className="text-destructive text-sm">{error}</p>;
@@ -99,10 +99,8 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
   const [open, setOpen] = useState(false);
   const [checking, setChecking] = useState(false);
   const resources = Object.keys(change.resources);
-  // A change to a skill agents already use goes live only through a check on them,
-  // and a check is eval runs, read under `runs:view`.
+  // A change to a skill agents already use goes live only through a check on them.
   const skillId = change.skill_id;
-  const canCheck = usePermissions().can(Perm.runsView);
 
   return (
     <div className="space-y-3 px-5 py-4">
@@ -165,10 +163,6 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
               <Check className="h-4 w-4" aria-hidden />
               {t("apply")}
             </Button>
-          ) : !canCheck ? (
-            <NeedsRunsView variant="outline" size="sm">
-              {t("checkOnAgents")}
-            </NeedsRunsView>
           ) : (
             <>
               <Button

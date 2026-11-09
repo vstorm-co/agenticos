@@ -14,6 +14,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, JsonValue, field_validator, model_validator
 
 from app.schemas.base import BaseSchema
+from app.schemas.dataset_helpers import DatasetHelper
 from app.schemas.skill import skill_name_refusal
 
 MAX_QUOTE_CHARS = 600
@@ -286,6 +287,8 @@ class VerifyReport(BaseModel):
 
 
 class AuthoringStart(BaseSchema):
+    helper_settings: DatasetHelper | None = None
+
     """What a person asks for, the same body estimating and starting.
 
     Attributes:
@@ -342,7 +345,9 @@ class AuthoringRequestRead(BaseSchema):
 
 
 class EvidenceItemRead(BaseSchema):
-    """One checked piece of evidence. `quote` is absent for a reader without `runs:view`.
+    """One checked piece of evidence, read with `runs:view` and target access.
+
+    A quote can be absent from older stored evidence.
 
     `source` and `number` are the label the improver read the run under - "test
     question 2", "conversation 1" - and are absent on evidence kept before they were.

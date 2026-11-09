@@ -6,7 +6,7 @@
  * redirects came to hard-code `en|pl` and answer a German bookmark with a 404
  * while every other surface had been translated.
  */
-export const locales = ["en", "pl", "de"] as const;
+export const locales = ["en", "pl", "de", "tr"] as const;
 
 export type Locale = (typeof locales)[number];
 

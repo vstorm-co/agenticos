@@ -106,6 +106,10 @@ _SURFACES: dict[str, RunSurface] = {
     "telegram": RunSurface.TELEGRAM,
     "mattermost": RunSurface.MATTERMOST,
     "teams": RunSurface.TEAMS,
+    "sms": RunSurface.SMS,
+    "email": RunSurface.EMAIL,
+    "imessage": RunSurface.IMESSAGE,
+    "discord": RunSurface.DISCORD,
 }
 
 

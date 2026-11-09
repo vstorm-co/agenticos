@@ -210,6 +210,7 @@ class TestWhatAnAgentReads:
             agent_id=None,
             shared=[],
             parent_resources=resources,
+            person_id=None,
         )
 
         served = _served([*own, *resources[SPECIALIST_SKILLS_RESOURCE]])

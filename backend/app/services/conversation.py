@@ -7,14 +7,20 @@ which says so in its own docstring) and must not be called from anywhere a
 member's request reaches.
 """
 
+import json
 import logging
 from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import ValidationError
-from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter
+from pydantic_ai.messages import (
+    CapabilityLoadDeltaPart,
+    ModelMessage,
+    ModelMessagesTypeAdapter,
+    ModelRequest,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.ask_user import parked_status
@@ -57,7 +63,7 @@ from app.services.access import AGENT, PROJECT, resolve_access, visible_resource
 from app.services.channels import membership as channel_membership
 from app.services.file_storage import delete_files_best_effort, delete_prefix_best_effort
 from app.services.generated_media import GeneratedMediaService
-from app.services.message_history import HistoryMessage, build_message_history
+from app.services.message_history import REFUSED_TURN, HistoryMessage, build_message_history
 
 logger = logging.getLogger(__name__)
 
@@ -99,25 +105,58 @@ def _as_history(
     A prompt that carried files is replayed with what they added for the model,
     so a follow-up about the file reaches a model that knows it is there. A
     person's turn reads as `spoken` says where it says anything - who said it
-    and what it answers - see `ConversationService._spoken`.
+    and what it answers - see `ConversationService._spoken`. A prompt of a turn
+    a guardrail stopped reads as `REFUSED_TURN`, with nothing its files added
+    (#2578).
     """
     spoken = spoken or {}
     history: list[HistoryMessage] = []
     for row in rows:
         if row.id == exclude_message_id:
             continue
-        # What the person added while the answer was being written, as they added
-        # it: before the answer it changed. Stored only as parts of the answer,
-        # it was in the conversation on screen and missing from the next turn.
-        history.extend(
-            {"role": "user", "content": f"{STEER_PREFIX}\n\n{part['text']}"}
-            for part in row.parts or []
-            if part.get("type") == "steer" and isinstance(part.get("text"), str)
-        )
+        # Rebuild the assistant's spoken sequence around human answers, instead
+        # of moving every answer before the text that originally asked for it.
+        ordered: list[HistoryMessage] = []
+        texts: list[str] = []
+        if not row.guardrail_refused:
+            for part in row.parts or []:
+                kind = part.get("type")
+                if (
+                    row.role == "assistant"
+                    and kind == "text"
+                    and isinstance(text := part.get("text"), str)
+                    and text.strip()
+                ):
+                    ordered.append({"role": "assistant", "content": text})
+                    texts.append(text)
+                elif kind == "steer" and isinstance(text := part.get("text"), str):
+                    ordered.append({"role": "user", "content": f"{STEER_PREFIX}\n\n{text}"})
+                elif (
+                    row.role == "assistant"
+                    and kind == "ask_user"
+                    and isinstance(question := part.get("question"), str)
+                    and isinstance(answer := part.get("answer"), str)
+                    and answer.strip()
+                ):
+                    ordered.append(
+                        {"role": "user", "content": f"Question: {question}\nAnswer: {answer}"}
+                    )
+        history.extend(ordered)
+        if texts and (row.content == texts[-1] or row.content == "".join(texts)):
+            # Anchor compaction to the last answer, not to every streamed fragment.
+            for entry in reversed(ordered):
+                if entry["role"] == "assistant":
+                    entry["context_used_tokens"] = row.context_used_tokens
+                    break
+            continue
         history.append(
             {
                 "role": row.role,
-                "content": spoken.get(row.id, row.content) + (row.attachment_context or ""),
+                "content": (
+                    REFUSED_TURN
+                    if row.role == "user" and row.guardrail_refused
+                    else spoken.get(row.id, row.content) + (row.attachment_context or "")
+                ),
                 # The size of the request this answer came out of: the anchor the
                 # compaction estimator measures against, in place of counting
                 # characters - see `agent.build_message_history`.
@@ -194,7 +233,11 @@ class ConversationService:
             self.db, conversation_id, ordinal=conversation.summary_ordinal, limit=limit
         )
         spoken = await self._spoken(since, conversation)
-        return [*replayed, *build_message_history(_as_history(since, exclude_message_id, spoken))]
+        history = [
+            *replayed,
+            *build_message_history(_as_history(since, exclude_message_id, spoken)),
+        ]
+        return await self._restore_capability_loads(history, since, exclude_message_id)
 
     async def _from_transcript(
         self,
@@ -206,7 +249,47 @@ class ConversationService:
         """The recent window, which is what every surface read before #49."""
         rows = await conversation_repo.get_recent_messages(self.db, conversation_id, limit=limit)
         spoken = await self._spoken(rows, conversation)
-        return build_message_history(_as_history(rows, exclude_message_id, spoken))
+        history = build_message_history(_as_history(rows, exclude_message_id, spoken))
+        return await self._restore_capability_loads(history, rows, exclude_message_id)
+
+    async def _restore_capability_loads(
+        self, history: list[ModelMessage], rows: Sequence[Message], exclude_message_id: UUID | None
+    ) -> list[ModelMessage]:
+        """Keep successful on-demand loads across turns without replaying tool dumps.
+
+        The public delta records availability, not old instructions. Pydantic AI
+        intersects it with the current capability registry and resolves current
+        instructions, so an unbound skill cannot regain tools from old history.
+        Fresh table records and other mutable data must still be read afresh.
+        """
+        calls = await conversation_repo.capability_loads_in_messages(
+            self.db,
+            {row.id for row in rows if row.id != exclude_message_id and not row.guardrail_refused},
+        )
+        loaded: dict[str, None] = {}
+        for call in calls:
+            capability_id = call.args.get("id")
+            if not isinstance(capability_id, str) or call.result is None:
+                continue
+            try:
+                returned = json.loads(call.result)
+            except ValueError, TypeError:
+                continue
+            if isinstance(returned, dict) and returned.get("message") == (
+                f"Capability {capability_id!r} loaded. Its instructions, if any, follow."
+            ):
+                loaded[capability_id] = None
+        if loaded:
+            history.append(
+                ModelRequest(
+                    parts=[
+                        CapabilityLoadDeltaPart(
+                            loaded=list(loaded), tool_call_id="agenticos:restored-loads"
+                        )
+                    ]
+                )
+            )
+        return history
 
     async def find_conversation(self, conversation_id: UUID) -> Conversation | None:
         """A conversation by id with no access check, for a caller that already holds it.
@@ -270,7 +353,7 @@ class ConversationService:
             )
             if answered is not None:
                 text = (
-                    f'(In reply to {_whose(answered, people)}: "{_excerpt(answered.content)}")'
+                    f'(In reply to {_whose(answered, people)}: "{_excerpt(_said(answered))}")'
                     f"\n\n{text}"
                 )
             author = people.get(row.author_user_id) if in_project and row.author_user_id else None
@@ -634,7 +717,8 @@ class ConversationService:
         A project's chat is the project's here as on read: a turn needs the
         right to work in the project, whoever started the chat, and renaming,
         archiving or deleting it stays its starter's while the project is still
-        theirs to see.
+        theirs to see. An ownerless automation log can instead be managed by
+        someone who may edit the project.
         """
         if conversation.origin == "workflow":
             return False
@@ -643,10 +727,10 @@ class ConversationService:
         if getattr(conversation, "project_id", None) is not None:
             if turn:
                 return await self._project_allows(conversation, user_id, ctx, Perm.PROJECTS_USE)
-            return (
-                owner is not None
-                and str(owner) == str(user_id)
-                and await self._project_allows(conversation, user_id, ctx, Perm.PROJECTS_VIEW)
+            if owner is None:
+                return await self._project_allows(conversation, user_id, ctx, Perm.PROJECTS_EDIT)
+            return str(owner) == str(user_id) and await self._project_allows(
+                conversation, user_id, ctx, Perm.PROJECTS_VIEW
             )
         if owner is not None and str(owner) == str(user_id):
             return True
@@ -824,6 +908,7 @@ class ConversationService:
         sort_by: str = "updated_at",
         sort_dir: str = "desc",
         hide_api: bool = False,
+        hide_channels: bool = False,
         project_id: UUID | None = None,
         reader: AuthContext | None = None,
     ) -> tuple[list[Conversation], int]:
@@ -837,12 +922,15 @@ class ConversationService:
         participation set is vetted here - against the platform's current
         membership, through `channels.membership` - before the repository sees
         it, so the query never widens on who merely spoke (#641).
+
+        `hide_channels` leaves every thread a bot answers in out of the list, so
+        the participation set it would widen by is not asked of the platform.
         """
         participant_ids: set[UUID] = (
             await channel_membership.confirmed_participant_threads(
                 self.db, user_id=user_id, organization_id=organization_id
             )
-            if user_id is not None
+            if user_id is not None and not hide_channels
             else set()
         )
         project_ids = (
@@ -877,6 +965,7 @@ class ConversationService:
             participant_conversation_ids=participant_ids,
             visible_project_ids=project_ids,
             hide_api=hide_api,
+            hide_channels=hide_channels,
             project_id=project_id,
         )
         total = await conversation_repo.count_conversations(
@@ -890,6 +979,7 @@ class ConversationService:
             participant_conversation_ids=participant_ids,
             visible_project_ids=project_ids,
             hide_api=hide_api,
+            hide_channels=hide_channels,
             project_id=project_id,
         )
         await self._attach_agents(items)
@@ -946,11 +1036,13 @@ class ConversationService:
         `_attach_agents` is, and one query for the page."""
         if not conversations:
             return
-        since = await conversation_repo.running_since(
+        activity = await conversation_repo.running_activity(
             self.db, [conversation.id for conversation in conversations]
         )
         for conversation in conversations:
-            conversation.running_since = since.get(conversation.id)  # ty: ignore[unresolved-attribute]
+            current = activity.get(conversation.id)
+            conversation.running_since = current.since if current else None  # ty: ignore[unresolved-attribute]
+            conversation.running_run_ids = current.run_ids if current else []  # ty: ignore[unresolved-attribute]
 
     async def _attach_agents(self, conversations: Sequence[Conversation]) -> None:
         """Name the agents that answered, on each row of a page.
@@ -968,7 +1060,11 @@ class ConversationService:
         by_conversation = await conversation_repo.agents_in_conversations(
             self.db, [conversation.id for conversation in conversations]
         )
+        coding = await conversation_repo.coding_agents_in_conversations(
+            self.db, [conversation.id for conversation in conversations]
+        )
         for conversation in conversations:
+            conversation.coding_agents = coding.get(conversation.id, [])  # ty: ignore[unresolved-attribute]
             conversation.agents = [  # ty: ignore[unresolved-attribute]
                 ConversationAgent(
                     id=agent.id,
@@ -1067,6 +1163,9 @@ class ConversationService:
         by_conversation = await conversation_repo.agents_in_conversations(
             self.db, [conv.id for conv, _count, _email in rows]
         )
+        coding = await conversation_repo.coding_agents_in_conversations(
+            self.db, [conv.id for conv, _count, _email in rows]
+        )
         items = [
             AdminConversationRead(
                 id=conv.id,
@@ -1075,6 +1174,7 @@ class ConversationService:
                 is_archived=conv.is_archived,
                 message_count=msg_count,
                 user_email=email,
+                coding_agents=coding.get(conv.id, []),
                 agents=[
                     ConversationAgent(
                         id=agent.id,
@@ -1197,6 +1297,7 @@ class ConversationService:
         *,
         organization_id: UUID,
         user_id: UUID | None = None,
+        ctx: AuthContext | None = None,
     ) -> bool:
         """Delete one thread, its turns, and the files that arrived with them.
 
@@ -1223,6 +1324,7 @@ class ConversationService:
             user_id=user_id,
             for_write=True,
             include_favourite=False,
+            ctx=ctx,
         )
         await personal_data_repo.unlink_dataset_cases_from_conversation(
             self.db, conversation_id, organization_id=organization_id
@@ -1353,6 +1455,7 @@ class ConversationService:
                 outcome = outcomes.get(msg.run_id) if msg.run_id else None
                 msg_schema.run_status = outcome.status if outcome else None
                 msg_schema.run_duration_ms = outcome.duration_ms if outcome else None
+                msg_schema.run_started_at = outcome.started_at if outcome else None
                 enriched.append(msg_schema)
             return enriched, total, cost
         return list(items), total, cost
@@ -1428,6 +1531,12 @@ class ConversationService:
             # be a fabricated answer everybody else trusts. The runs write those,
             # with no person behind the call.
             raise refused_field("role", "In a project's chat, write your own turns only")
+        if (
+            run_id is None
+            and data.parts
+            and any(part.file_source is not None for part in data.parts)
+        ):
+            raise refused_field("parts.file_source", "File origins are recorded by the runner")
         if data.reply_to_message_id is not None:
             answered = await conversation_repo.get_message_by_id(self.db, data.reply_to_message_id)
             if answered is None or answered.conversation_id != conversation.id:
@@ -1441,16 +1550,16 @@ class ConversationService:
             content=data.content,
             client_message_id=data.client_message_id,
             thinking=data.thinking,
-            # Dumped without its empty fields, so a text part is `{"type": "text",
-            # "text": ...}` rather than that plus a null `tool_call_id`. What comes
-            # back validates the same either way; this is what a person reading the
-            # column sees.
+            # JSONB needs JSON-compatible values, including file origin UUIDs.
+            # Keep empty fields omitted so stored parts retain their compact shape.
             parts=(
                 None
                 if data.parts is None
-                else [part.model_dump(exclude_none=True) for part in data.parts]
+                else [part.model_dump(mode="json", exclude_none=True) for part in data.parts]
             ),
-            model_name=data.model_name,
+            # Which model wrote a turn is the runner's to say: the nightly look reads
+            # it as proof that a prompt whose run is gone reached one (#2746).
+            model_name=data.model_name if user_id is None else None,
             tokens_used=data.tokens_used,
             # Every field the schema carries, and the two at the end were being
             # dropped here: `persist_assistant_turn` built them, the model documents
@@ -1472,6 +1581,15 @@ class ConversationService:
             # Whose words these are: in a project's chat, not always the owner's.
             author_user_id=user_id if data.role == "user" else None,
             reply_to_message_id=data.reply_to_message_id,
+        )
+
+        from app.services.change_feed import announce_conversation
+
+        announce_conversation(
+            self.db,
+            organization_id=organization_id,
+            conversation_id=conversation_id,
+            actor_user_id=user_id,
         )
 
         if data.role == "assistant" and run_id is not None and data.content.strip():
@@ -1507,6 +1625,7 @@ class ConversationService:
         *,
         parked: bool = False,
         mcp_connection_id: UUID | None = None,
+        presentation_kind: Literal["draft"] | None = None,
     ) -> ToolCall:
         """Write one tool call under a message.
 
@@ -1526,6 +1645,7 @@ class ConversationService:
             started_at=data.started_at or datetime.now(UTC),
             status=parked_status(data.tool_name) if parked else "running",
             mcp_connection_id=mcp_connection_id,
+            presentation_kind=presentation_kind,
         )
 
     async def complete_tool_call(
@@ -1655,6 +1775,14 @@ def _excerpt(text: str) -> str:
     """A message as one short line: its whitespace folded, its tail cut."""
     flat = " ".join(text.split())
     return flat if len(flat) <= _EXCERPT_CHARS else f"{flat[:_EXCERPT_CHARS]}…"
+
+
+def _said(message: Message) -> str:
+    """What a quoted message says, as the model may be told it: a quote is the
+    other way a refused prompt's words would reach it (#2578)."""
+    if message.role == "user" and message.guardrail_refused:
+        return REFUSED_TURN
+    return message.content
 
 
 def _whose(message: Message, people: dict[UUID, User]) -> str:

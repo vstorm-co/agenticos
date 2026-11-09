@@ -11,6 +11,8 @@ server asked.
 
 import base64
 import errno
+import ntpath
+import posixpath
 from collections.abc import Mapping, Sequence
 from typing import Any
 from uuid import UUID
@@ -25,7 +27,7 @@ from pydantic_ai.workspaces import (
     WorkspaceUnavailableError,
 )
 
-from app.schemas.local_target import LocalTarget
+from app.schemas.local_target import LocalTarget, RoutineLocalScope
 from app.services.device_hub import _hub
 from app.services.device_hub.exceptions import (
     DeviceCallFailed,
@@ -62,16 +64,34 @@ class DeviceWorkspace:
         target: LocalTarget,
         *,
         conversation_id: UUID | None = None,
+        agent_id: UUID | None = None,
+        routine_scope: RoutineLocalScope | None = None,
     ) -> None:
         if target.folder is None:
             raise WorkspaceUnavailableError("A local workspace needs an approved folder")
         if target.computer_grant is not None and conversation_id is None:
             raise WorkspaceUnavailableError("Whole-computer access requires a conversation")
+        if target.routine_grant is not None and routine_scope is None:
+            raise WorkspaceUnavailableError(
+                "Routine folder consent cannot be borrowed by another run"
+            )
+        if routine_scope is not None and (
+            target.device_id != session_id
+            or routine_scope.device_id != session_id
+            or routine_scope.user_id != user_id
+            or routine_scope.grant_id != target.routine_grant
+            or routine_scope.operations != target.operations
+        ):
+            raise WorkspaceUnavailableError(
+                "Routine folder authority does not match this device session"
+            )
         self._conversation_id = conversation_id
+        self._agent_id = agent_id
         self._root = target.folder
         self._session_id = session_id
         self._user_id = user_id
         self._target = target
+        self._routine_scope = routine_scope
 
     @property
     def whole_computer(self) -> bool:
@@ -90,16 +110,53 @@ class DeviceWorkspace:
     async def working_dir(self) -> str:
         return self._root
 
-    async def _call(self, op: str, args: dict[str, Any], *, timeout: float) -> dict[str, Any]:
+    def subfolder(self, path: str) -> str:
+        """`path` - relative to this workspace's folder, or absolute - when it lies inside it.
+
+        A coding session may work in one project of the folder the person chose. The
+        app resolves the folder again on disk and refuses one outside its grant; this
+        is the early, readable refusal.
+
+        Raises:
+            WorkspaceUnavailableError: The folder is outside this workspace's folder.
+        """
+        paths = posixpath if self._root.startswith("/") else ntpath
+        root = paths.normpath(self._root)
+        folder = paths.normpath(paths.join(root, path))
+        if paths.normcase(folder) != paths.normcase(root) and not paths.normcase(folder).startswith(
+            paths.normcase(root).rstrip(paths.sep) + paths.sep
+        ):
+            raise WorkspaceUnavailableError(f"{path} is outside the folder this chat works in")
+        return folder
+
+    def is_root(self, path: str) -> bool:
+        """Whether a normalized session folder is the workspace root, including Windows casing."""
+        paths = posixpath if self._root.startswith("/") else ntpath
+        return paths.normcase(paths.normpath(path)) == paths.normcase(paths.normpath(self._root))
+
+    async def _call(
+        self, op: str, args: dict[str, Any], *, timeout: float, root: str | None = None
+    ) -> dict[str, Any]:
         """One operation in this folder and mode, with the hub's failures as the workspace's.
 
         A computer that is gone when the operation is sent is waited for, and the
         operation sent again once it is back: the run parks rather than fails.
         """
-        payload = {"root": self._root, "mode": self._target.mode, **args}
+        payload = {
+            **args,
+            "root": root or self._root,
+            "mode": self._target.mode,
+            "work_context": {"kind": "interactive"}
+            if self._routine_scope is None
+            else self._routine_scope.model_dump(mode="json"),
+        }
         if self._target.computer_grant is not None:
             payload["computer_grant"] = str(self._target.computer_grant)
             payload["conversation_id"] = str(self._conversation_id)
+            # The app holds whole-computer consent for one conversation, or for
+            # one agent across conversations; it checks whichever it granted.
+            if self._agent_id is not None:
+                payload["agent_id"] = str(self._agent_id)
         try:
             try:
                 return await _hub.call(self._session_id, op, payload, timeout=timeout)
@@ -116,6 +173,23 @@ class DeviceWorkspace:
             raise WorkspaceTimeoutError(exc.message) from exc
         except DeviceCallFailed as exc:
             raise _as_os_error(exc) from exc
+
+    async def platform(self) -> str:
+        """The native system, for tools whose shell contract is platform-specific."""
+        value = await self._call("system.info", {}, timeout=FILE_TIMEOUT_SECONDS)
+        platform = value.get("platform")
+        if platform not in ("macos", "linux", "windows"):
+            raise WorkspaceUnavailableError("The computer did not identify its platform")
+        return str(platform)
+
+    async def agent_call(
+        self, op: str, args: dict[str, Any], *, timeout: float, root: str | None = None
+    ) -> dict[str, Any]:
+        """An `agent.*` operation: a coding agent started on this computer, in this folder.
+
+        `root` is a folder inside it, from `subfolder`, for a session working in one project.
+        """
+        return await self._call(op, args, timeout=timeout, root=root)
 
     async def run(
         self,

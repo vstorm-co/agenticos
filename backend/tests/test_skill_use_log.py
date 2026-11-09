@@ -409,6 +409,7 @@ class TestADelegateUsesSkillsUnderItsOwnName:
             agent_id=agent_id,
             shared=[],
             parent_resources=parent,
+            person_id=None,
         )
 
     async def test_an_inline_specialist_reads_the_candidate_its_agent_is_measured_with(

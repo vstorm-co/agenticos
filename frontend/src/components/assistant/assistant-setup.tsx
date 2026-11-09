@@ -1,5 +1,7 @@
 "use client";
 
+import { glideOrJump } from "@/lib/motion";
+
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
@@ -103,7 +105,7 @@ export function AssistantSetup({
             setOpen(true);
             setEverOpened(true);
           }}
-          className="bg-background border-border fixed right-4 bottom-[calc(9rem+env(safe-area-inset-bottom))] z-50 max-w-[17rem] rounded-2xl rounded-br-sm border px-4 py-3 text-left text-sm leading-snug shadow-lg md:right-6 md:bottom-24"
+          className="bg-background border-border fixed right-4 bottom-[calc(9rem+env(safe-area-inset-bottom))] z-50 hidden max-w-[17rem] rounded-2xl rounded-br-sm border px-4 py-3 text-left text-sm leading-snug shadow-lg md:right-6 md:bottom-24 md:block"
         >
           {t("setup.bubble")}
         </button>
@@ -139,7 +141,7 @@ function Walkthrough({
 
   useEffect(() => {
     // Follow the conversation as it is typed, the way a chat does.
-    end.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+    end.current?.scrollIntoView({ block: "end", behavior: glideOrJump() });
     if (!typing) return;
     const timer = setTimeout(() => setShown((count) => count + 1), TYPING_MS);
     return () => clearTimeout(timer);

@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Lock, PanelsTopLeft } from "lucide-react";
+import { Lock } from "lucide-react";
+import { AppIcon as PanelsTopLeft } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
 
 import { AgentFilter } from "@/components/artifacts/agent-filter";
@@ -66,7 +67,9 @@ export default function ArtifactsPage() {
     groupId,
   });
   const { can, isLoading: isLoadingPermissions } = usePermissions();
-  const agents = useArtifactAgents(!isLoadingPermissions && can(Perm.artifactsView));
+  const { agents, isLoading: agentsLoading } = useArtifactAgents(
+    !isLoadingPermissions && can(Perm.artifactsView),
+  );
   // The role's edit right, as the agents and workflows lists gate their menus:
   // the server still decides each page, and refuses one the caller may not change.
   const canEdit = can(Perm.artifactsEdit);
@@ -86,7 +89,7 @@ export default function ArtifactsPage() {
 
   if (!isLoadingPermissions && !can(Perm.artifactsView)) {
     return (
-      <div className="flex flex-1 flex-col space-y-6">
+      <div className="flex flex-1 flex-col space-y-4">
         {header}
         <EmptyState icon={Lock} title={t("cannotSee")} description={t("askForAccess")} />
       </div>
@@ -94,20 +97,30 @@ export default function ArtifactsPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col space-y-6">
+    <div className="flex flex-1 flex-col space-y-4">
       {header}
       <ListCard
         fill
         data-tour="artifacts-list"
         namedByPage
+        layout="grid"
         title={t("title")}
         counted={error || isLoading ? null : t("count", { count: total })}
         // Which pages to show is always offered: when every page is archived the
         // live list is empty, and this is the one way to reach them.
         controls={
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
             {(isFiltering || total > 0) && (
               <>
+                <SearchInput
+                  value={query}
+                  onChange={(next) => {
+                    setQuery(next);
+                    setPage(0);
+                  }}
+                  placeholder={t("search")}
+                  className="sm:w-56"
+                />
                 <GroupFilter
                   value={groupId}
                   onChange={(next) => {
@@ -117,20 +130,12 @@ export default function ArtifactsPage() {
                 />
                 <AgentFilter
                   agents={agents}
+                  loading={agentsLoading}
                   value={agentId}
                   onChange={(next) => {
                     setAgentId(next);
                     setPage(0);
                   }}
-                />
-                <SearchInput
-                  value={query}
-                  onChange={(next) => {
-                    setQuery(next);
-                    setPage(0);
-                  }}
-                  placeholder={t("search")}
-                  className="sm:w-56"
                 />
               </>
             )}
@@ -141,7 +146,7 @@ export default function ArtifactsPage() {
                 setPage(0);
               }}
             >
-              <SelectTrigger className="w-full sm:w-44" aria-label={t("shownFilter")}>
+              <SelectTrigger size="sm" className="w-full sm:w-44" aria-label={t("shownFilter")}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

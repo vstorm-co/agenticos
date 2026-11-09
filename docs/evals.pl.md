@@ -1,5 +1,5 @@
 ---
-source_sha: "49147fff94d0"
+source_sha: "e0f27fa2e9f9"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -21,18 +21,17 @@ samego dnia.
 
 ## W konsoli { #in-the-console }
 
-Zakładka **Ewaluacje** (Evals) agenta otwiera się wykresem liniowym jego odsetka zaliczeń
+Zakładka **Ewaluacje** agenta pokazuje niewielki wykres odsetka zaliczeń nad historią runów, gdy są dostępne zmierzone wyniki. Wykres jest stale widoczny. Każdy wiersz podaje porównywane wersje, stan, werdykt, model, procent i liczbę zaliczonych przypadków względem wszystkich. Wykres pokazuje odsetek zaliczeń
 run po runie, od najstarszego po lewej, z linią na każdy dataset, każdą z inną
 kreską. Punkt jest czerwony, gdy run zepsuł przypadki, zielony, gdy je naprawił,
 bursztynowy, gdy zrobił jedno i drugie, a pusty dla wersji roboczej; najechanie na punkt
 mówi, co uruchomiono, z czym porównano i kiedy, a kliknięcie otwiera run.
 
-Oś podpisuje runy chwilą ich startu - godziną dla dzisiejszego runu, datą dla
-wcześniejszych, raz na dzień runów. Powyżej 10 runów przełącznik nad wykresem
+Oś pokazuje godziny, gdy historia mieści się w jednym dniu, także minionym. Przy historii obejmującej kilka dni pokazuje daty starszych runów i godziny dzisiejszych, bez powtarzania identycznych etykiet. Podpowiedź zachowuje pełną datę i godzinę startu. Powyżej 10 runów przełącznik nad wykresem
 pokazuje ostatnie 10, ostatnie 30 albo wszystkie runy; otwiera się na ostatnich
 10, a wybór zostaje w adresie strony, więc Wstecz i link go zachowują.
 
-Pod wykresem są jego runy, pogrupowane po datasecie, każdy z tym, co testowano
+Tabela pokazuje runy od najnowszego, każdy z tym, co testowano
 względem czego, z werdyktem - **Psuje: 2** (Breaks 2), **Gorszy ogólnie ·
 zepsute: 4** (Worse overall · 4 broke), **Pierwszy wynik** (First result) albo
 **W toku** (Pending) - i odsetkiem zaliczeń każdego modelu, a po najechaniu
@@ -105,9 +104,7 @@ podaje, ile ich było, jako `routed_replacing` - a odpowiedź starsza od
 czekającej nie jest wysyłana. Odpowiedź innego agenta na ten przypadek czeka
 obok.
 
-Własna zakładka **Ewaluacje** datasetu wymienia każdego mierzonego na nim
-agenta, każdego ze swoim trendem i runami, a **Uruchom ewaluację** w jego
-nagłówku otwiera dialog startu na tym datasecie i pyta, którego agenta testować.
+Widok **Wyniki → Testy agentów** datasetu pokazuje wszystkich mierzonych agentów na wspólnym wykresie i w tabeli runów. **Uruchom ewaluację** otwiera formularz na tym datasecie i pyta o agenta. Runy, w których wszystkie odpowiedzi zawiodły z tym samym błędem konfiguracji, pokazują **Nie udało się uruchomić** zamiast odsetka zaliczeń i są pomijane na wykresie jakości.
 
 Karta **Runy ewaluacji** (Eval runs) na dashboardzie wymienia ostatnie runy
 organizacji z ich agentem i werdyktem. Przypadki ewaluacji i ocenianie sędziego
@@ -140,12 +137,9 @@ Body wskazuje dataset (`dataset_id`, `dataset_version`), kandydata
 `environment_id`, `model_profile_ids` do porównania oraz `paired_baseline`.
 Szacunek to średni koszt runa agenta na każdym modelu, liczony z jego ostatnich
 zakończonych runów, razy liczba przypadków, plus jedno wywołanie sędziego na
-przypadek, gdy dataset ocenia sędzia, a wsparcie AI jest włączone.
+przypadek, gdy dataset wymaga oceniania modelem.
 
-Wsparcie AI jest wyłączone w organizacji, dopóki ktoś z `org:settings` je
-nie włączy. Gdy jest wyłączone, sędzia nie działa: przypadek rozstrzygają jego
-checki i oczekiwane wywołania narzędzi, kryteria sędziego są zapisywane jako
-pominięte, a szacunek nie liczy sędziego.
+Szacunek uwzględnia ocenianie modelem zawsze, gdy wymaga go dataset, według modelu wybranego w Ocenianiu. Nie wyłącza go przełącznik organizacji.
 
 Agent bez historii na danym modelu jest szacowany jako typowy przypadek -
 `EVAL_FALLBACK_INPUT_TOKENS` na wejściu, `EVAL_FALLBACK_OUTPUT_TOKENS` na
@@ -181,12 +175,7 @@ Run, który nikomu niczego by nie powiedział, jest odrzucany, zanim zostanie
 oszacowany:
 
 - wersja datasetu bez przypadków;
-- ocenianie bez wymaganego oceniającego, który mógłby rozstrzygnąć którykolwiek
-  przypadek wersji - bez checku do zastosowania, bez oczekiwanego wywołania
-  narzędzia i bez sędziego. Gdy sędzia jest jedynym oceniającym, a wsparcie AI
-  jest wyłączone, odmowa to mówi: sędzia potrzebuje wsparcia AI, które jest w
-  tej organizacji wyłączone, więc włącz je w ustawieniach organizacji albo dodaj
-  check;
+- ocenianie bez wymaganego mechanizmu, który może rozstrzygnąć choć jeden przypadek: dodaj regułę, oczekiwane narzędzie albo kryteria;
 - agent, który nigdy nie został opublikowany, a poproszono o wersję - uruchom
   zamiast tego jego wersję roboczą;
 - baseline dla pierwszej wersji, przed którą nic nie ma.
@@ -228,6 +217,11 @@ którym wiadomo, że tylko czyta, działa na zwykłym połączeniu, a wszystko, 
 zapisuje bez testowego połączenia, nie jest wykonywane - wywołanie i jego
 argumenty są zachowywane jako zamierzone wywołanie, które ocenianie trajektorii
 nadal ocenia.
+
+Każda izolowana próba korzysta z tymczasowego workspace przypisanego do własnego
+runu, nawet gdy agent zwykle współdzieli pliki według rozmowy, użytkownika lub
+agenta. Nie wymaga rozmowy i nie używa ich trwałych plików. Workspace jest
+zwalniany po zakończeniu runu.
 
 Na przypadek wzięty z konwersacji można odpowiadać **z nagrania** runa, z
 którego pochodzi (`from_recordings`): wywołanie zgodne z nagraniem dostaje
@@ -313,8 +307,7 @@ Każda próba kończy się na jeden z czterech sposobów (`state` w próbie):
 - **niekompletna**, gdy provider zawiódł mimo ponowień (błąd 5xx, 408 albo 429,
   albo brak odpowiedzi), oceniający rzucił wyjątek, run anulowano albo skończył
   się budżet, albo próby wyszły na remis;
-- **nieoceniona**, gdy nic nie ocenia odpowiedzi - nie pasuje żaden wymagany
-  oceniający albo mógłby tylko sędzia, a wsparcie AI jest wyłączone.
+- ocenianie bez wymaganego mechanizmu, który może rozstrzygnąć choć jeden przypadek: dodaj regułę, oczekiwane narzędzie albo kryteria;
 
 Żaden z dwóch ostatnich stanów nie jest zaliczeniem; podsumowanie liczy je
 osobno (`incomplete`, `ungraded`).
@@ -456,11 +449,7 @@ odpowiedzi dostały obie oceny przy ponownym zadaniu w obrębie próby albo
 dzisiejsza wersja przesunęła się między próbami na wspólnych dla nich odłożonych
 pytaniach - mniej niż pięć wspólnych to za mało, by to ocenić.
 
-Co stabilizuje ocenę: kryteria z odpowiedzią tak albo nie zamiast skali,
-deterministyczny check długości i formatu zamiast opinii sędziego, więcej
-przypadków - około 30 odłożonych dla sesji Popraw - i mocniejszy model sędziego,
-który dla nowych sędziów ustawia [Model oceniający](governance.md#ai-assistance)
-organizacji.
+Używaj jasnych kryteriów tak/nie, reguł formatu i długości oraz reprezentatywnego zestawu przypadków. Odpowiedni niezależny model oceniający wybierz jawnie w zakładce **Ocenianie** datasetu; cena modelu nie świadczy o jakości ocen.
 
 ### Jak stabilne są odpowiedzi { #how-steady-the-answers-are }
 
@@ -612,10 +601,7 @@ wynik niezależnie od porównania: minimum nie potrzebuje baseline'u. Wynik, kt�
 run ewaluacji anulowano, też jest bez rozstrzygnięcia i mówi o tym; wynik runu, który
 skończył się błędem, jest błędem.
 
-Wynik **nie został uruchomiony**, gdy
-kosztowałby więcej, niż zostało w budżecie albo niż własny limit suity, gdy
-ocenić go mógłby tylko sędzia, a wsparcie AI jest wyłączone, albo gdy nie ma
-opublikowanej wersji do sprawdzenia.
+Szacunek uwzględnia ocenianie modelem zawsze, gdy wymaga go dataset, według modelu wybranego w Ocenianiu. Nie wyłącza go przełącznik organizacji.
 
 Runy z harmonogramu i po zmianie
 zależności porównuje się z ostatnim zaliczonym runem suity na tej samej

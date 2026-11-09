@@ -184,7 +184,8 @@ it("does not invent examples when sources are gone or unreadable", () => {
   state.sources = { items: [], sample_limit: 20, training_failures: 0 };
   const view = render(<Understand session={SESSION} />);
   expect(screen.getByText(/Nothing to learn from yet/)).toBeInTheDocument();
-  expect(screen.getAllByText(/No selected examples/)).toHaveLength(2);
+  expect(screen.queryByText(/No selected examples/)).not.toBeInTheDocument();
+  expect(screen.queryByRole("region", { name: "Fix in the agent" })).not.toBeInTheDocument();
   state.loading = true;
   view.rerender(<Understand session={{ ...SESSION, status: "running" }} />);
   expect(screen.getByRole("status")).toBeInTheDocument();
@@ -404,8 +405,9 @@ it("keeps answers whose knowledge was added since apart from what is still missi
     "href",
     "/rag/kb1?tab=documents",
   );
-  const missing = screen.getByRole("region", { name: "Missing from the knowledge base" });
-  expect(within(missing).getByText("No selected examples in this group.")).toBeInTheDocument();
+  expect(
+    screen.queryByRole("region", { name: "Missing from the knowledge base" }),
+  ).not.toBeInTheDocument();
 });
 
 it("shows the examples to read, with nothing to ignore, put back or move", async () => {

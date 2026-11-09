@@ -1,5 +1,6 @@
 "use client";
 
+import { GitBranch, History } from "lucide-react";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
@@ -44,23 +45,35 @@ export function VersionSelect({ versions, latest, value, onChange }: VersionSele
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex min-w-0 flex-wrap items-center gap-2">
       <Select
         value={value === null ? NEWEST : String(value)}
         onValueChange={(next) => onChange(next === NEWEST ? null : Number(next))}
       >
-        <SelectTrigger className="w-64" aria-label={t("version")} data-tour="datasets-version">
+        <SelectTrigger
+          className="w-full min-w-0 sm:w-60"
+          aria-label={t("version")}
+          data-tour="datasets-version"
+        >
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={NEWEST}>{t("newestVersion")}</SelectItem>
+          <SelectItem value={NEWEST} textValue={t("newestVersion")}>
+            <span className="inline-flex items-center gap-2">
+              <GitBranch className="text-muted-foreground size-3.5" aria-hidden />
+              {t("newestVersion")}
+            </span>
+          </SelectItem>
           {versions.map((version) => (
             <SelectItem key={version.id} value={String(version.number)}>
-              {t("versionChange", {
-                number: version.number,
-                change: version.change,
-                count: version.changed_cases,
-              })}
+              <span className="inline-flex items-center gap-2">
+                <History className="text-muted-foreground size-3.5" aria-hidden />
+                {t("versionChange", {
+                  number: version.number,
+                  change: version.change,
+                  count: version.changed_cases,
+                })}
+              </span>
             </SelectItem>
           ))}
           {unlisted && (

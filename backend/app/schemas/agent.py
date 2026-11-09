@@ -10,9 +10,17 @@ from pydantic import Field, field_validator
 
 from app.agents.ask_user import QuestionItem
 from app.agents.capabilities import CapabilityToolInfo
-from app.agents.spec import AgentSpec, CapabilityBindingSpec, DelegationMode, SpecialistSpec
+from app.agents.spec import (
+    AgentSpec,
+    CapabilityBindingSpec,
+    DelegationMode,
+    SpecialistSpec,
+    StarterIcons,
+    StarterTitles,
+)
 from app.core.secret_kinds import SecretRequirement
 from app.db.models.agent import AgentKind
+from app.db.models.agent_run import RunStatus
 from app.db.models.resource_grant import Visibility
 from app.schemas.base import BaseSchema
 from app.schemas.promotion_gate import PromotionOverrideRead
@@ -100,6 +108,25 @@ def normalize_labels_query(values: list[str], *, max_items: int) -> list[str] | 
     if folded and not kept:
         return None
     return kept[:max_items]
+
+
+class LocalCodingAgent(BaseSchema):
+    """A coding agent an agent's published version runs on the person's computer."""
+
+    harness: Literal["claude_code", "codex"]
+    access: Literal["edit", "read_only"]
+
+
+class PublishedCodingAgent(BaseSchema):
+    """A published version's coding agent binding: which harness, where, how far.
+
+    Defaults mirror the capability's own, so a binding that left a field out reads
+    as it runs.
+    """
+
+    harness: Literal["claude_code", "codex"] = "claude_code"
+    runs_on: Literal["sandbox", "personal_sandbox", "this_computer"] = "sandbox"
+    access: Literal["edit", "read_only"] = "edit"
 
 
 class PublishedModel(BaseSchema):
@@ -265,6 +292,33 @@ class AgentRead(BaseSchema):
         default=None,
         description="Enabled capability ids from the published version, filled by the listing. Null when unknown.",
     )
+    local_coding_agent: LocalCodingAgent | None = Field(
+        default=None,
+        description=(
+            "The coding agent this agent's published version runs on the person's own "
+            "computer, or null when it runs none there. Read off the frozen spec, filled by "
+            "the listing, so the chat's composer can say which agent will work in which "
+            "folder before the person sends."
+        ),
+    )
+    personal_coding_harness: Literal["claude_code", "codex"] | None = Field(
+        default=None,
+        description=(
+            "The coding agent this agent's published version runs as a private cloud task "
+            "on the initiating person's own account, or null when it runs none that way. "
+            "Filled by the listing, so the chat can offer to connect that account where "
+            "the agent needs it."
+        ),
+    )
+    local_workspace: bool = Field(
+        default=False,
+        description=(
+            "Whether the published version's workspace is the person's own computer "
+            "(a sandbox binding on the local backend). Such an agent has no cloud "
+            "workspace, so the desktop chat asks for a folder or the whole computer "
+            "before its first run. Filled by the listing."
+        ),
+    )
     published_model: PublishedModel | None = Field(
         default=None,
         description=(
@@ -283,6 +337,14 @@ class AgentRead(BaseSchema):
             "off the frozen spec, not the draft. Empty for a draft agent and for one "
             "with none. Filled by the listing, same bargain as shared_user_count."
         ),
+    )
+    starter_titles: StarterTitles = Field(
+        default_factory=dict,
+        description="Published opener card titles keyed by starter text; the message is their description.",
+    )
+    starter_icons: StarterIcons = Field(
+        default_factory=dict,
+        description="Published chat opener icons keyed by starter text; never taken from the draft.",
     )
     created_at: datetime | None = None
     updated_at: datetime | None = None
@@ -357,8 +419,10 @@ class AgentCreate(AudienceChoice):
         default=False,
         description=(
             "Start as the AgenticOS agent does: whatever of its instructions, "
-            "capabilities, skills, platform tools, first messages and budget the spec "
+            "common capabilities, skills, platform tools, first messages and budget the spec "
             "leaves empty is filled from it - what the console's New agent sends. "
+            "Computer use, browser and coding tools remain specific to the shipped AgenticOS "
+            "unless explicitly selected. "
             "Without it, a spec with no instructions gets only the starter's instructions"
         ),
     )
@@ -713,7 +777,7 @@ class McpCatalogCheck(BaseSchema):
 
 
 class McpCatalogEntry(BaseSchema):
-    """One connectable MCP server in the curated catalog."""
+    """One connectable MCP server, curated, mirrored or custom."""
 
     key: str
     name: str
@@ -750,6 +814,16 @@ class McpCatalogEntry(BaseSchema):
     check: McpCatalogCheck | None = Field(
         default=None, description="What the last catalog check found; null if never checked"
     )
+    custom: bool = Field(
+        default=False, description="A saved server with no catalog or registry entry"
+    )
+    connection_ids: list[UUID] | None = Field(
+        default=None,
+        description=(
+            "Accessible saved accounts grouped on this server in a paged listing. "
+            "Null on catalog metadata; an empty list means no accessible account."
+        ),
+    )
 
 
 class McpCatalog(BaseSchema):
@@ -781,8 +855,8 @@ class PlatformMcpTool(BaseSchema):
     held: bool = Field(
         default=False,
         description=(
-            "A read held for approval under `approval: writes` all the same - reading a "
-            "whole past conversation, which an injected instruction could carry off"
+            "Legacy read-approval exception flag; always false. Read-only platform tools "
+            "run automatically under `writes` and require approval under `all`."
         ),
     )
 
@@ -850,6 +924,8 @@ class AgentRunRequest(BaseSchema):
 
 
 class ParkedCall(BaseSchema):
+    can_remember: bool = False
+    subagent_name: str | None = None
     """A tool call a run is waiting on a decision for."""
 
     id: UUID = Field(description="The approval to decide, which is what a client posts to.")
@@ -925,6 +1001,15 @@ class SettledCall(BaseSchema):
     result: str
 
 
+class SettledDelegation(BaseSchema):
+    """A published delegate that reached its own outcome in this execution."""
+
+    task_id: str = Field(description="Stable delegation task ID, shared with subagent frames")
+    status: RunStatus = Field(
+        description="The delegate's outcome, independent of the parent run status"
+    )
+
+
 class AgentRunResult(BaseSchema):
     """What the agent answered, and what the run cost."""
 
@@ -984,6 +1069,14 @@ class AgentRunResult(BaseSchema):
             "that inherited nothing."
         ),
     )
+    delegations: list[SettledDelegation] = Field(
+        default_factory=list,
+        description=(
+            "Published delegates settled by this execution. A delegate may finish while "
+            "the parent parks on a new approval; HTTP continuations carry no socket "
+            "completion frames, so clients reconcile each task by its own outcome."
+        ),
+    )
     parked: list[ParkedCall] = Field(
         default_factory=list,
         description=(
@@ -1001,6 +1094,13 @@ class AgentRunResult(BaseSchema):
         description=(
             "The questions the run is now waiting on its person to answer, which is "
             "empty unless it stopped on one again - the same reason `parked` exists."
+        ),
+    )
+    continues_in_chat: bool = Field(
+        default=False,
+        description=(
+            "Only a continuation of a parked chat run sets it: its answer is also "
+            "posted to that chat. Always false for a run started here"
         ),
     )
 

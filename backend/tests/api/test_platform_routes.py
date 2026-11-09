@@ -23,6 +23,7 @@ from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
+from types import SimpleNamespace
 from typing import Any, Protocol
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
@@ -43,6 +44,7 @@ from app.repositories.agent_run import ApprovalRow, WindowAggregates, WindowBrea
 from app.schemas.agent import ParkedCall, ParkedQuestion
 from app.services.agent_runner import RunSegment
 from app.services.ml import MLService
+from app.services.parked_runs import Continued, DecidedApproval
 from app.services.sharing import SharingService
 from app.services.stats import StatsService
 from app.services.transcript import RecordedToolCall
@@ -135,6 +137,7 @@ _SERVICE_DEPS = (
     deps.get_skill_service,
     deps.get_context_service,
     deps.get_virtual_table_service,
+    deps.get_durable_task_service,
     deps.get_memory_service,
     deps.get_model_profile_service,
     deps.get_sharing_service,
@@ -245,6 +248,8 @@ _SPEC: dict[str, Any] = {"name": "Support"}
 # tests/test_agent_registry.py, tests/test_skills.py and the grant flows in
 # tests/integration/test_platform_flows.py.
 CALLS: tuple[Call, ...] = (
+    Call("GET", "/approvals/consents", Perm.APPROVALS_DECIDE),
+    Call("DELETE", "/approvals/{approval_id}/consent", Perm.APPROVALS_DECIDE),
     Call("GET", "/api-keys/scopes", Perm.API_KEYS_CREATE),
     Call(
         "POST",
@@ -254,6 +259,7 @@ CALLS: tuple[Call, ...] = (
     ),
     Call("PATCH", "/assistant", Perm.ORG_SETTINGS, body={"enabled": False}),
     Call("GET", "/agents/capabilities", Perm.AGENTS_VIEW),
+    Call("GET", "/agents/capabilities/mirage/backends", Perm.AGENTS_VIEW),
     Call("GET", "/agents/prompt-variables", Perm.AGENTS_VIEW),
     Call("GET", "/agents/templates", Perm.AGENTS_VIEW),
     Call("GET", "/agents/platform-mcp-tools", Perm.AGENTS_VIEW),
@@ -543,6 +549,10 @@ CALLS: tuple[Call, ...] = (
     # caller's scope and grants against the row - `readable_kb`/`writable_kb`.
     Call("GET", "/kb", Perm.COLLECTIONS_VIEW),
     Call("POST", "/kb", Perm.COLLECTIONS_EDIT, body={"name": "Docs", "scope": "org"}),
+    # The exception under /kb/{kb_id}: the organization's integrations - every
+    # base's, not this one's - which `/org/integrations` gates the same way, so
+    # no grant on the base in the path could widen it (#2745).
+    Call("GET", "/kb/{kb_id}/sync-sources/org-integrations", Perm.CONNECTIONS_MANAGE),
     # Org-level sync integrations hold encrypted credentials, so the whole
     # surface is `connections:manage` - the permission, not a role-name list,
     # which is what this router used to check.
@@ -1079,6 +1089,7 @@ RESOURCE_AWARE_SERVICES = (
     # A table is a shared resource like a context file: who may read or write it
     # (and every record in it) is its grants' answer, resolved inside the service.
     deps.get_virtual_table_service,
+    deps.get_durable_task_service,
     # The same service on the session a CSV export streams from.
     deps.get_streaming_virtual_table_service,
     # A workflow is a shared resource shaped the same way: who may read, edit the
@@ -1285,9 +1296,37 @@ class TestSharingRoutesRefuseWithoutAGrant:
         async with as_role(OrgRoleName.MEMBER, overrides) as client:
             response = await client.request(method, _url(path), json=body)
 
-        # Reading reports the row as missing rather than forbidden, so ids
-        # cannot be probed; changing it is an outright refusal.
-        assert response.status_code == (404 if method == "GET" else 403)
+        # A row the caller cannot view is reported as missing, reading and
+        # changing alike, so the sharing routes cannot be used to probe ids (#2619).
+        assert response.status_code == 404
+
+    @pytest.mark.parametrize(
+        ("method", "path", "body"),
+        # An MCP server is seen and managed by one permission, so nobody can view
+        # one they may not edit.
+        [
+            call
+            for call in _sharing_calls()
+            if call[0] != "GET" and not call[1].startswith("/mcp-connections/")
+        ],
+        ids=lambda value: value if isinstance(value, str) else "",
+    )
+    async def test_a_member_who_can_view_but_not_edit_is_forbidden(
+        self, method: str, path: str, body: dict[str, Any] | None, as_role: ClientFactory
+    ) -> None:
+        """An org-visible row: they know it exists, so the refusal can say why."""
+        resource = _SomeoneElsesResource(
+            organization_id=_ORGANIZATION_ID, visibility=Visibility.ORG.value
+        )
+        session = _NoGrantsSession(resource)
+        overrides = {
+            deps.get_db_session: lambda: session,
+            deps.get_sharing_service: lambda: SharingService(session),
+        }
+        async with as_role(OrgRoleName.MEMBER, overrides) as client:
+            response = await client.request(method, _url(path), json=body)
+
+        assert response.status_code == 403
 
 
 class TestReadingWhatARunIsParkedOn:
@@ -1344,6 +1383,8 @@ class TestReadingWhatARunIsParkedOn:
                 "capability_tool_id": None,
                 "context": None,
                 "account": None,
+                "can_remember": False,
+                "subagent_name": None,
             },
             {
                 "id": str(shared_id),
@@ -1354,6 +1395,8 @@ class TestReadingWhatARunIsParkedOn:
                 "capability_tool_id": "update_record",
                 "context": {"table": "Support"},
                 "account": None,
+                "can_remember": False,
+                "subagent_name": None,
             },
         ]
 
@@ -1435,6 +1478,9 @@ class TestResumeConveysAFailedContinuation:
         run_id = uuid4()
 
         class _Failing:
+            async def get_run(self, *args: Any, **kwargs: Any) -> Any:
+                return MagicMock(surface="web")
+
             async def resume(self, *args: Any, **kwargs: Any) -> Any:
                 raise RunExecutionError(
                     details={"run_id": str(run_id), "status": "failed"}
@@ -1475,6 +1521,9 @@ class TestResumeAnswersWithWhatTheContinuationDid:
         )
 
         class _Resuming:
+            async def get_run(self, *args: Any, **kwargs: Any) -> Any:
+                return MagicMock(surface="web")
+
             async def resume(self, *args: Any, **kwargs: Any) -> Any:
                 return RunSegment(
                     output="",
@@ -1523,6 +1572,34 @@ class TestResumeAnswersWithWhatTheContinuationDid:
             9,
             2,
         )
+
+
+class TestAContinuationSaysWhereItsAnswerGoes:
+    async def test_a_continuation_result_says_whether_its_answer_goes_to_the_chat(self) -> None:
+        from app.api.routes.v1._run_results import run_result
+
+        run = MagicMock(
+            id=uuid4(),
+            conversation_id=None,
+            status="completed",
+            cost_usd=Decimal("0"),
+            cost_is_partial=False,
+            input_tokens=0,
+            output_tokens=0,
+            cache_read_tokens=0,
+            cache_write_tokens=0,
+        )
+        segment = RunSegment(output="done", run=run, tool_calls=[], settled={})
+        service = MagicMock(
+            parked_calls=AsyncMock(return_value=[]), parked_questions=AsyncMock(return_value=[])
+        )
+        ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER)
+
+        told = await run_result(service, ctx, segment, continues_in_chat=True)
+        plain = await run_result(service, ctx, segment)
+
+        assert told.continues_in_chat is True
+        assert plain.continues_in_chat is False
 
 
 # -- the stats routes, whose gate is the scope parameter ----------------------
@@ -1865,6 +1942,16 @@ V1 = settings.API_V1_STR
 # in the diff of this list is a route a reviewer will look at.
 UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
     {
+        # Twilio fetches staged MMS bytes with an expiring, media-bound token.
+        ("GET", f"{V1}/sms/media/{{media_id}}"),
+        # A BlueBubbles bridge supplies its configured bearer credential, not a user session.
+        ("POST", f"{V1}/imessage/{{bot_id}}/webhook"),
+        # Twilio callbacks verify the provider signature and call/endpoint binding.
+        ("POST", f"{V1}/phone/inbound/{{endpoint_id}}"),
+        ("POST", f"{V1}/phone/inbound-status/{{endpoint_id}}"),
+        ("POST", f"{V1}/phone/status/{{call_id}}"),
+        # Media streams additionally require the call's signed nonce and receipt.
+        ("WEBSOCKET", f"{V1}/phone/media/{{call_id}}"),
         # Custom brand icons. The consumer is a CSS mask URL in the browser,
         # which cannot attach a bearer token; what they reveal - which marks
         # this deployment ships - is what any signed-in page renders anyway.
@@ -2004,6 +2091,11 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # would simply mean the integration never worked.
         ("POST", f"{V1}/slack/{{bot_id}}/events"),
         ("POST", f"{V1}/telegram/{{bot_id}}/webhook"),
+        # SMS and e-mail are the same arrangement: Twilio signs its request with the
+        # account's auth token, and a mail relay signs its own with the bot's secret;
+        # each handler verifies that against the bot named in the path (#2082).
+        ("POST", f"{V1}/sms/{{bot_id}}/webhook"),
+        ("POST", f"{V1}/email/{{bot_id}}/inbound"),
         # Mattermost is the same arrangement with a weaker primitive: it does
         # not sign bodies, so the handler compares the shared token the
         # integration was created with, and refuses when none is configured.
@@ -2297,6 +2389,7 @@ class TestAQuestionTheRunParkedOn:
     ) -> None:
         run = self._run()
         service = MagicMock(
+            get_run=AsyncMock(return_value=MagicMock(surface="web")),
             answer=AsyncMock(
                 return_value=RunSegment(
                     output="Done, casually.", run=run, tool_calls=[], settled={}
@@ -2312,6 +2405,47 @@ class TestAQuestionTheRunParkedOn:
         assert response.status_code == 200
         assert response.json()["output"] == "Done, casually."
         assert service.answer.call_args.args[2] == {"ask-1": [{"selected": ["Casual"]}]}
+
+    async def test_a_decision_answers_with_whether_it_continues_in_the_chat(
+        self, as_role: ClientFactory, synthetic_roles: None
+    ) -> None:
+        approval = SimpleNamespace(
+            id=uuid4(),
+            run_id=uuid4(),
+            agent_id=uuid4(),
+            tool_id="send_email",
+            tool_args={},
+            status="approved",
+            created_at=datetime(2026, 11, 3, tzinfo=UTC),
+            decided_at=datetime(2026, 11, 3, tzinfo=UTC),
+        )
+        parked = MagicMock(decide=AsyncMock(return_value=DecidedApproval(approval, True)))
+        async with as_role(
+            only(Perm.APPROVALS_DECIDE), {deps.get_parked_run_service: lambda: parked}
+        ) as client:
+            response = await client.post(_url(f"/approvals/{approval.id}"), json={"approved": True})
+
+        assert response.status_code == 200
+        assert response.json()["continues_in_chat"] is True
+
+    async def test_a_resume_answers_with_whether_its_answer_goes_to_the_chat(
+        self, as_role: ClientFactory, synthetic_roles: None
+    ) -> None:
+        run = self._run()
+        segment = RunSegment(output="Sent.", run=run, tool_calls=[], settled={})
+        parked = MagicMock(resume=AsyncMock(return_value=Continued(segment, True)))
+        runner = MagicMock(
+            parked_calls=AsyncMock(return_value=[]), parked_questions=AsyncMock(return_value=[])
+        )
+        overrides = {
+            deps.get_parked_run_service: lambda: parked,
+            deps.get_agent_runner_service: lambda: runner,
+        }
+        async with as_role(only(Perm.APPROVALS_DECIDE), overrides) as client:
+            response = await client.post(_url(f"/runs/{run.id}/resume"))
+
+        assert response.status_code == 200
+        assert response.json()["continues_in_chat"] is True
 
     async def test_an_answer_with_nothing_in_it_is_refused_before_the_service(
         self, as_role: ClientFactory, synthetic_roles: None

@@ -19,6 +19,7 @@ const state = vi.hoisted(() => ({
   runError: null as Error | null,
   comparisonError: null as Error | null,
   verdict: "better",
+  regressions: 0,
   supported: false,
   noRun: false,
   total: 8,
@@ -92,7 +93,7 @@ vi.mock("@/hooks/use-eval-runs", () => ({
       verdict: state.retrievalInvalid ? "invalid" : state.verdict,
       invalid_reason_code: state.retrievalInvalid ? "knowledge_not_retrieved" : null,
       fixed_confirmed: 2,
-      regressions_confirmed: 0,
+      regressions_confirmed: state.regressions,
     },
   }),
 }));
@@ -164,6 +165,7 @@ beforeEach(() => {
   state.retrievalInvalid = false;
   state.topicError = state.listError = state.runError = state.comparisonError = null;
   state.verdict = "better";
+  state.regressions = 0;
   state.supported = state.noRun = false;
   state.total = 8;
   state.estimate.mockResolvedValue(QUOTE);
@@ -468,4 +470,11 @@ it("lists the topics still to draft without a Draft button once the wizard is on
   );
   expect(screen.getByText("Gift wrapping")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /^Draft/ })).not.toBeInTheDocument();
+});
+
+it("does not call an invalid knowledge check a regression", () => {
+  state.verdict = "invalid";
+  state.regressions = 4;
+  render(<KnowledgeDrafts session={{ ...SESSION, knowledge_eval_run_ids: ["k1"] }} />);
+  expect(screen.getByRole("alert")).toHaveTextContent("These results cannot be compared.");
 });

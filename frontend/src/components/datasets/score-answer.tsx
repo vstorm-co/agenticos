@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
+import { MarkdownContent } from "@/components/chat/markdown-content";
 import { Button } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
@@ -25,22 +26,22 @@ export function ScoreAnswer({
   const [open, setOpen] = useState(false);
 
   return (
-    <div>
-      <p className="text-muted-foreground text-xs">{t("answer")}</p>
+    <section className="space-y-3 rounded-lg border p-4">
+      <h3 className="text-sm font-medium">{t("answer")}</h3>
       {hidden ? (
         <p className="text-muted-foreground text-sm italic">{t("answerHidden")}</p>
       ) : answer === null ? (
         <p className="text-muted-foreground text-sm italic">{t("answerGone")}</p>
       ) : (
         <>
-          <p
+          <div
             className={cn(
-              "text-sm break-words whitespace-pre-wrap",
+              "prose-sm min-w-0 text-sm leading-relaxed wrap-anywhere",
               long && !open && "line-clamp-3",
             )}
           >
-            {answer}
-          </p>
+            <MarkdownContent content={answer} inertImages />
+          </div>
           {long && (
             <Button
               variant="link"
@@ -54,6 +55,6 @@ export function ScoreAnswer({
           )}
         </>
       )}
-    </div>
+    </section>
   );
 }

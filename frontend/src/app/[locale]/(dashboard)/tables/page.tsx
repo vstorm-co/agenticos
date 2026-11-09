@@ -6,8 +6,10 @@ import { useState } from "react";
 import { ListFilters } from "@/components/ui/list-filters";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Plus, Table2 } from "lucide-react";
+import { Plus } from "lucide-react";
+import { TableIcon as Table2 } from "@/components/icons/product-icons";
 
+import { TaskBoardButton } from "@/components/tasks/task-board-button";
 import { ErrorState } from "@/components/states";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { type CsvStart, CreateTableDialog } from "@/components/tables/create-table-dialog";
@@ -76,16 +78,19 @@ export default function TablesPage() {
   const tc = useTranslations("common");
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-6">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       <PageHeader
         title={t("title")}
         description={t("description")}
         actions={
-          canCreate ? (
-            <Button data-tour="tables-new" onClick={() => setCreateOpen(true)}>
-              <Plus className="h-4 w-4" /> {t("newTable")}
-            </Button>
-          ) : undefined
+          <>
+            <TaskBoardButton scope="private" />
+            {canCreate && (
+              <Button data-tour="tables-new" onClick={() => setCreateOpen(true)}>
+                <Plus className="h-4 w-4" /> {t("newTable")}
+              </Button>
+            )}
+          </>
         }
       />
 
@@ -96,17 +101,22 @@ export default function TablesPage() {
         aria-modal={galleryFullscreen || undefined}
         aria-label={t("catalog")}
         className={
-          galleryFullscreen ? "fixed inset-0 z-40 overflow-y-auto rounded-none" : undefined
+          galleryFullscreen
+            ? "bg-background fixed inset-0 z-40 overflow-y-auto rounded-none p-4 sm:p-6"
+            : undefined
         }
         namedByPage
+        layout="grid"
         title={t("catalog")}
         counted={isLoading ? null : t("shownCount", { count: total })}
         controls={
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <WorkspaceFullscreenButton
-              expanded={galleryFullscreen}
-              onToggle={toggleGalleryFullscreen}
-            />
+            <div className={galleryFullscreen ? undefined : "lg:hidden"}>
+              <WorkspaceFullscreenButton
+                expanded={galleryFullscreen}
+                onToggle={toggleGalleryFullscreen}
+              />
+            </div>
             <SearchInput
               className="min-w-0 flex-1 sm:flex-none"
               value={query}
@@ -124,7 +134,7 @@ export default function TablesPage() {
                   setPage(0);
                 }}
               >
-                <SelectTrigger className="w-44" aria-label={t("shownFilter")}>
+                <SelectTrigger size="sm" className="w-44" aria-label={t("shownFilter")}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

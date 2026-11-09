@@ -6,9 +6,7 @@ import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 
 import { limitText, limitValue, usd } from "@/components/evals/format";
-import { AiAssistanceNotice } from "@/components/datasets/ai-assistance-notice";
 import { ErrorState, LoadingState } from "@/components/states";
-import { useAiAssistance } from "@/hooks/use-organizations";
 import { Button, Input, Label } from "@/components/ui";
 import { useSkillImprovements } from "@/hooks/use-skill-improvement";
 import { useSkillMergeStart } from "@/hooks/use-skill-merge";
@@ -36,7 +34,6 @@ export function MergeStart({
   const locale = useLocale();
   const router = useRouter();
   // A catch-up is a session on the fork, a move to main one on main: one open per line.
-  const aiOff = useAiAssistance().enabled === false;
   const line = useSkillImprovements(skillId, {
     forkId: kind === "catch_up" ? forkId : null,
     fromRun: null,
@@ -49,14 +46,14 @@ export function MergeStart({
   const { mutateAsync: price } = estimate;
 
   useEffect(() => {
-    if (line.isLoading || line.error || open || aiOff) return;
+    if (line.isLoading || line.error || open) return;
     price()
       .then((value) => {
         setQuote(value);
         setLimit(limitText(value.total_usd, locale));
       })
       .catch((failure: unknown) => setRefusal(getErrorMessage(failure, tErrors)));
-  }, [line.isLoading, line.error, open, aiOff, price, locale, tErrors]);
+  }, [line.isLoading, line.error, open, price, locale, tErrors]);
 
   if (line.isLoading) return <LoadingState variant="skeleton-cards" rows={2} />;
   if (line.error) return <ErrorState description={getErrorMessage(line.error, tErrors)} />;
@@ -72,7 +69,6 @@ export function MergeStart({
         </Link>
       </p>
     );
-  if (aiOff) return <AiAssistanceNotice body={t("aiOff")} />;
   if (refusal !== null && quote === null) return <ErrorState description={refusal} />;
   if (quote === null) return <LoadingState variant="skeleton-cards" rows={2} />;
 

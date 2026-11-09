@@ -37,6 +37,7 @@ from app.db.models.skill_version import SkillVersion, SkillVersionSource
 from app.db.updates import writable
 from app.repositories import (
     agent_repo,
+    audit_log_repo,
     resource_grant_repo,
     skill_proposal_repo,
     skill_repo,
@@ -107,7 +108,7 @@ def _summary(
 ) -> SkillSummary:
     """A skill as the listing shows it.
 
-    `built_in` is a name match against the shipped library because that is
+    `built_in` is a name match against the shipped library and gallery because that is
     all installing keeps: an install copies the folder into an ordinary row,
     and the name - unique per organization, never editable - is the one trace
     of where it came from.
@@ -414,7 +415,9 @@ class SkillService:
             skip=skip,
             limit=limit,
         )
-        bundled_names = frozenset(entry.name for entry in skill_library.library())
+        bundled_names = frozenset(entry.name for entry in skill_library.library()) | frozenset(
+            skill.name for industry in skill_library.gallery() for skill in industry.skills
+        )
         architect_names = skill_library.architect_names()
         used = await agents_serving_skills(self.db, ctx, skill_ids=[skill.id for skill in items])
         drafted = await agents_using(
@@ -794,6 +797,26 @@ class SkillService:
         return await self._refresh_bundled(
             ctx, bundled, existing, replace_edited=replace_edited, wait_for_check=True
         )
+
+    async def synchronize_library(self, ctx: AuthContext) -> None:
+        """Deliver new built-ins and untouched updates under the organization install lock.
+
+        Called by the trusted shipped-agent installer as the organization's owner.
+        Installation receipts distinguish a never-delivered skill from one somebody
+        deleted. Edited and untracked copies retain the normal refresh protection.
+        """
+        installed = await audit_log_repo.installed_skill_keys(
+            self.db, organization_id=ctx.organization_id
+        )
+        for bundled in skill_library.library():
+            existing = await skill_repo.get_by_name(
+                self.db, bundled.name, organization_id=ctx.organization_id
+            )
+            if existing is None and bundled.key in installed:
+                continue
+            await self._refresh_bundled(
+                ctx, bundled, existing, replace_edited=False, wait_for_check=True
+            )
 
     async def refresh_gallery(
         self, ctx: AuthContext, key: str, *, dry_run: bool = False, replace_edited: bool = False

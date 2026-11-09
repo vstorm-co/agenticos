@@ -13,7 +13,6 @@ from sqlalchemy import func, select
 from app.agents.capabilities.budget import record_ambient_cost
 from app.agents.system_agents import KNOWLEDGE_GAP_CLASSIFIER, KNOWLEDGE_GAP_DRAFTER
 from app.core.exceptions import (
-    AiAssistanceDisabledError,
     AuthorizationError,
     BadRequestError,
     NotFoundError,
@@ -579,7 +578,7 @@ async def test_a_draft_is_estimated_before_it_is_asked_for_and_unpriced_without_
             assert (await service.draft_estimate(ctx, gap.id)).total_usd is None
 
 
-async def test_a_draft_is_refused_up_front_with_ai_assistance_off_or_without_access(db):
+async def test_a_draft_checks_access_and_ignores_the_legacy_ai_flag(db):
     ctx, agent, _, dataset, _ = await _world(db)
     with _providers(db, ctx):
         gap = await _gap(db, ctx, agent, dataset)
@@ -597,11 +596,9 @@ async def test_a_draft_is_refused_up_front_with_ai_assistance_off_or_without_acc
         organization = await db.get(Organization, ctx.organization_id)
         organization.ai_assistance_enabled = False
         await db.flush()
-        with pytest.raises(AiAssistanceDisabledError):
-            await service.request_draft(ctx, gap.id)
-        with pytest.raises(AiAssistanceDisabledError):
-            await service.draft_estimate(ctx, gap.id)
-    assert await _draft_jobs(db) == []
+        await service.request_draft(ctx, gap.id)
+        assert (await service.draft_estimate(ctx, gap.id)).total_usd > 0
+    assert len(await _draft_jobs(db)) == 1
 
 
 async def test_a_draft_asked_for_by_somebody_who_left_is_not_written(db):

@@ -18,11 +18,11 @@ import {
   Settings2,
   Share2,
   SquareKanban,
-  Table2,
   Upload,
   Users,
   Zap,
 } from "lucide-react";
+import { TableIcon as Table2 } from "@/components/icons/product-icons";
 
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -93,8 +93,10 @@ import {
   useTableRecordPages,
   useTableRecords,
   useTableViews,
+  useTableDefaultView,
 } from "@/hooks";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
+import { useDurableTasks } from "@/hooks/use-durable-tasks";
 import { useUrlState } from "@/hooks/use-url-state";
 import { COMPUTED_TYPES, emptyViewConfig } from "@/types/tables";
 import type {
@@ -128,11 +130,13 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   const tTriggers = useTranslations("pages.tables.triggers");
   const tErrors = useTranslations("errors");
   const tc = useTranslations("common");
+  const tTasks = useTranslations("durableTasks");
+  const taskBoards = useDurableTasks().boards;
+  const taskBoard = taskBoards.data?.find((board) => board.table_id === id);
   const tMenu = useTranslations("tables.columnMenu");
 
   const [tabParam, setTabParam] = useUrlState("view");
-  const tab = parseTab(tabParam);
-  const setTab = (next: ViewKind) => setTabParam(next === "table" ? null : next);
+  const setTab = (next: ViewKind) => setTabParam(next);
   const [viewIdParam, setViewIdParam] = useUrlState("viewId");
 
   const {
@@ -146,10 +150,11 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   } = useTable(id);
   const {
     views,
+    isLoading: viewsLoading,
     create: createView,
     update: updateView,
     remove: removeView,
-  } = useTableViews(id, tab);
+  } = useTableViews(id);
 
   const [schemaOpen, setSchemaOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
@@ -171,7 +176,11 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   const [openRecord, setOpenRecord] = useState<RecordRead | null>(null);
   const [page, setPage] = useState(0);
   const DEFAULT_SORT: RecordSort = { by: "created_at", direction: "asc" };
-  const activeView = views.find((view) => view.id === viewIdParam) ?? null;
+  const defaultView = useTableDefaultView(id);
+  const effectiveViewId = viewIdParam ?? (tabParam === null ? table?.default_view_id : null);
+  const requestedView = views.find((view) => view.id === effectiveViewId) ?? null;
+  const tab = tabParam === null && requestedView ? requestedView.kind : parseTab(tabParam);
+  const activeView = requestedView?.kind === tab ? requestedView : null;
   const [sort, setSort] = useState<RecordSort>(activeView?.config.sort ?? DEFAULT_SORT);
   const [filters, setFilters] = useState<RecordFilter[]>(activeView?.config.filters ?? []);
   const [searchDraft, setSearchDraft] = useState(activeView?.config.search ?? "");
@@ -188,7 +197,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   const liveColumns = table?.columns.filter((column) => !column.archived) ?? [];
   const groupable = liveColumns.filter((column) => column.type === "single_select");
   const groupBy =
-    activeView?.config.group_by ?? groupPick ?? (groupable.length === 1 ? groupable[0]!.id : null);
+    groupPick ?? activeView?.config.group_by ?? (groupable.length === 1 ? groupable[0]!.id : null);
 
   // `sort` is the grid's own working sort, seeded from the active view's
   // stored one each time the view changes - re-seeded from render, not a
@@ -248,7 +257,8 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   });
   const matching = useTableRecordCount(id, { filters: applied, search });
 
-  if (isLoading) return <LoadingState variant="skeleton-panel" rows={3} />;
+  if (isLoading || (!!table?.default_view_id && !viewIdParam && !tabParam && viewsLoading))
+    return <LoadingState variant="skeleton-panel" rows={3} />;
   if (error || !table) return <ErrorState />;
 
   const canEdit = table.can_edit;
@@ -268,6 +278,38 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
     visible_columns: visible,
     group_by: tab === "kanban" ? groupBy : (activeView?.config.group_by ?? null),
   };
+  const groupingPending = createView.isPending || updateView.isPending;
+  const chooseGrouping = async (columnId: string) => {
+    const column = groupable.find((column) => column.id === columnId);
+    if (!column) return;
+    if (!canEdit) {
+      setGroupPick(columnId);
+      return;
+    }
+    try {
+      if (activeView?.can_manage) {
+        await updateView.mutateAsync({
+          viewId: activeView.id,
+          data: { config: { ...activeView.config, group_by: columnId } },
+        });
+      } else {
+        const base = tViews("groupedName", { column: column.label });
+        let name = base;
+        for (let suffix = 2; views.some((view) => view.name === name); suffix += 1)
+          name = `${base} ${suffix}`;
+        const created = await createView.mutateAsync({
+          name,
+          kind: "kanban",
+          visibility: "private",
+          config: { ...emptyViewConfig(), ...working, group_by: columnId },
+        });
+        setViewIdParam(created.id);
+      }
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, tErrors));
+    }
+  };
+  const isDefaultView = activeView !== null && activeView.id === table.default_view_id;
   const VisibilityIcon = VISIBILITY_ICON[table.visibility];
   const unsaved =
     activeView !== null &&
@@ -334,6 +376,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   const content = (
     <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader
+        className="mb-4"
         title={table.name}
         descriptionMode="summary"
         description={table.description ?? undefined}
@@ -342,7 +385,9 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
         badges={
           <span className="text-muted-foreground inline-flex items-center gap-1.5 text-xs">
             <VisibilityIcon aria-hidden="true" className="size-3.5" />
-            {t(`visibility.${table.visibility}`)}
+            {taskBoard
+              ? tTasks(`scope.${taskBoard.scope_kind}`)
+              : t(`visibility.${table.visibility}`)}
             {matching && (
               <>
                 <span aria-hidden="true">·</span>
@@ -355,7 +400,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
             )}
           </span>
         }
-        actions={
+        secondaryActions={
           <div className="flex flex-wrap items-center gap-2">
             {canEdit && (
               <Button
@@ -386,9 +431,11 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setShareOpen(true)}>
-                  <Share2 className="h-4 w-4" /> {t("share")}
-                </DropdownMenuItem>
+                {!taskBoard && (
+                  <DropdownMenuItem onClick={() => setShareOpen(true)}>
+                    <Share2 className="h-4 w-4" /> {t("share")}
+                  </DropdownMenuItem>
+                )}
 
                 {canEdit && (
                   <DropdownMenuItem onSelect={() => setImporting(true)}>
@@ -414,12 +461,14 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
-            {canEdit && (
-              <Button size="sm" onClick={() => addRecord()}>
-                <Plus className="h-4 w-4" /> {t("addRecord")}
-              </Button>
-            )}
           </div>
+        }
+        actions={
+          canEdit && (
+            <Button size="sm" onClick={() => addRecord()}>
+              <Plus className="h-4 w-4" /> {t("addRecord")}
+            </Button>
+          )
         }
       />
 
@@ -439,21 +488,45 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
           "bg-card border-border flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border",
         )}
       >
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b px-4 py-3 sm:px-5">
+        <div className="bg-background/40 flex shrink-0 flex-col items-start gap-3 border-b px-4 py-4 sm:px-5">
           {/* What the records are laid out as, and which saved view of them - one group. */}
-          <div className="flex min-w-0 flex-wrap items-center gap-3">
-            <div className="flex flex-col gap-1">
+          <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-col gap-1" data-tour="table-view-tabs">
               <span id="table-format-label" className="sr-only">
                 {t("formatLabel")}
               </span>
-              <Tabs value={tab} onValueChange={(next) => setTab(next as ViewKind)}>
+              <div className="sm:hidden">
+                <Select value={tab} onValueChange={(next) => setTab(parseTab(next))}>
+                  <SelectTrigger aria-label={t("formatLabel")} className="w-24">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {VIEW_TABS.map(({ kind, icon: Icon }) => (
+                      <SelectItem key={kind} value={kind}>
+                        <span className="flex items-center gap-1.5">
+                          <Icon aria-hidden className="size-3.5" />
+                          {t(`tabs.${kind}`)}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Tabs
+                value={tab}
+                onValueChange={(next) => setTab(parseTab(next))}
+                className="hidden sm:block"
+              >
                 <TabsList
-                  data-tour="table-view-tabs"
                   aria-labelledby="table-format-label"
-                  className="gap-2"
+                  className="bg-foreground/[0.04] gap-1 rounded-lg p-1 shadow-none"
                 >
                   {VIEW_TABS.map(({ kind, icon: Icon }) => (
-                    <TabsTrigger key={kind} value={kind} className="gap-1.5 text-xs">
+                    <TabsTrigger
+                      key={kind}
+                      value={kind}
+                      className="data-[state=active]:bg-card gap-1.5 rounded-md border-0 px-3 py-2 text-xs data-[state=active]:border-transparent data-[state=active]:shadow-sm"
+                    >
                       <Icon aria-hidden="true" className="size-3.5" />
                       {t(`tabs.${kind}`)}
                     </TabsTrigger>
@@ -464,8 +537,11 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
             <ViewSelect
               kind={tab}
               views={views}
-              activeViewId={viewIdParam}
-              onSelect={setViewIdParam}
+              activeViewId={activeView?.id ?? null}
+              onSelect={(value) => {
+                setViewIdParam(value);
+                setTab(views.find((view) => view.id === value)?.kind ?? tab);
+              }}
               canCreate={canEdit}
               onCreate={async (name, visibility) => {
                 const created = await createView.mutateAsync({
@@ -503,12 +579,15 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
               }
             />
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div
+            data-table-view-toolbar
+            className="flex w-full flex-wrap items-center gap-2 [&>button]:h-9"
+          >
             <SearchInput
               value={searchDraft}
               onChange={setSearchDraft}
               placeholder={t("search")}
-              className="min-w-0 flex-1 sm:w-56 sm:flex-none"
+              className="min-w-0 flex-1 max-sm:basis-full sm:w-56 sm:flex-none"
             />
             <RecordFiltersPopover
               columns={liveColumns.filter(filterable)}
@@ -516,12 +595,59 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
               onChange={setFilters}
             />
             <RecordSortPopover columns={allColumns} sort={sort} onChange={setSort} />
+            {tab === "kanban" && groupBy !== null && groupable.length > 1 && (
+              <div className="text-muted-foreground flex items-center gap-2 text-xs">
+                {t("kanbanGroupBy")}
+                <Select
+                  value={groupBy ?? ""}
+                  disabled={groupingPending}
+                  onValueChange={(value) => void chooseGrouping(value)}
+                >
+                  <SelectTrigger className="h-9 w-36" aria-label={t("kanbanGroupBy")}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {groupable.map((column) => (
+                      <SelectItem key={column.id} value={column.id}>
+                        {column.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             {hidden.length > 0 && (
               <HiddenColumnsPopover
                 hidden={hidden}
                 onShow={(column) => setShown(column.id, true)}
                 onShowAll={() => setVisible(null)}
               />
+            )}
+            {canEdit && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={groupingPending || defaultView.isPending || isDefaultView}
+                title={tViews("defaultHint")}
+                onClick={() =>
+                  defaultView.mutate(
+                    {
+                      view: activeView,
+                      kind: tab,
+                      config: { ...emptyViewConfig(), ...working },
+                      names: views.map((view) => view.name),
+                    },
+                    {
+                      onSuccess: (view) => {
+                        setViewIdParam(view.id);
+                        setTab(view.kind);
+                      },
+                    },
+                  )
+                }
+              >
+                {tViews(isDefaultView ? "isDefault" : "setDefault")}
+              </Button>
             )}
             <ViewSettingsPopover
               columns={allColumns}
@@ -564,7 +690,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-3">
+        <div data-table-view-content className="bg-card flex min-h-0 flex-1 flex-col gap-3">
           {(tab === "table" ? grid.error : tab === "list" ? recordsError : null) ? (
             <ErrorState
               cta={{
@@ -601,27 +727,6 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
               )}
 
               {tab === "kanban" &&
-                groupBy !== null &&
-                groupable.length > 1 &&
-                !activeView?.config.group_by && (
-                  // Picked here rather than saved: it can be picked again.
-                  <div className="text-muted-foreground mb-3 flex items-center gap-2 text-sm">
-                    {t("kanbanGroupBy")}
-                    <Select value={groupBy ?? ""} onValueChange={setGroupPick}>
-                      <SelectTrigger className="h-8 w-44" aria-label={t("kanbanGroupBy")}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {groupable.map((column) => (
-                          <SelectItem key={column.id} value={column.id}>
-                            {column.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-              {tab === "kanban" &&
                 (groupBy ? (
                   <TableKanbanView
                     tableId={id}
@@ -635,14 +740,20 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
                     canEdit={canEdit}
                   />
                 ) : (
-                  <div className="border-border flex flex-col items-center gap-3 rounded-xl border border-dashed px-6 py-12 text-center">
-                    <p className="text-sm font-medium">{t("kanbanGroupTitle")}</p>
+                  <div className="flex flex-col items-center gap-3 px-9 py-24 text-center sm:py-32">
+                    <p className="text-base font-semibold tracking-tight">
+                      {t("kanbanGroupTitle")}
+                    </p>
                     {groupable.length > 0 ? (
                       <>
                         <p className="text-muted-foreground max-w-md text-sm">
                           {t("kanbanGroupHint")}
                         </p>
-                        <Select value="" onValueChange={setGroupPick}>
+                        <Select
+                          value=""
+                          disabled={groupingPending}
+                          onValueChange={(value) => void chooseGrouping(value)}
+                        >
                           <SelectTrigger className="w-56" aria-label={t("kanbanGroupBy")}>
                             <SelectValue placeholder={t("kanbanGroupBy")} />
                           </SelectTrigger>
@@ -661,7 +772,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
                           {t("kanbanNoGroupable")}
                         </p>
                         {canEdit && (
-                          <Button size="sm" variant="outline" onClick={() => setAddingColumn(true)}>
+                          <Button size="sm" onClick={() => setAddingColumn(true)}>
                             <Plus className="h-4 w-4" /> {t("kanbanAddColumn")}
                           </Button>
                         )}
@@ -677,15 +788,18 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
                     records={records}
                     isLoading={recordsLoading}
                     onOpenRecord={setOpenRecord}
+                    onAddRecord={canEdit ? () => addRecord() : undefined}
                   />
-                  <div className="mt-3">
-                    <HasMorePager
-                      page={page}
-                      hasMore={hasMore}
-                      isLoading={recordsLoading || recordsPlaceholder}
-                      onPage={setPage}
-                    />
-                  </div>
+                  {(page > 0 || hasMore) && (
+                    <div className="mt-3">
+                      <HasMorePager
+                        page={page}
+                        hasMore={hasMore}
+                        isLoading={recordsLoading || recordsPlaceholder}
+                        onPage={setPage}
+                      />
+                    </div>
+                  )}
                 </>
               )}
             </>

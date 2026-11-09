@@ -6,8 +6,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { KnowledgeGapDialog } from "@/components/knowledge-gaps/knowledge-gap-dialog";
 import { Skeleton } from "@/components/ui";
 import { useAgentEnvironments } from "@/hooks/use-agent-environments";
-import { useDatasetCases } from "@/hooks/use-datasets";
-import { useEvalComparison } from "@/hooks/use-eval-runs";
+import { useEvalComparison, useEvalRun } from "@/hooks/use-eval-runs";
 import { useImprovement, useImprovementEvidence } from "@/hooks/use-improvements";
 import { subjectOf } from "@/lib/improvement-subject";
 import { useKnowledgeGaps } from "@/hooks/use-knowledge-gaps";
@@ -15,6 +14,7 @@ import { getErrorMessage } from "@/lib/api-error";
 import type { Improvement, ImprovementIteration } from "@/types/improvement";
 import { StepError } from "./step-error";
 import { Tiles } from "./widgets";
+import { IncomparableResult } from "./incomparable-result";
 import { SessionTopic } from "./session-topic";
 
 function counts(round: ImprovementIteration | undefined) {
@@ -57,13 +57,28 @@ export function ResultSummary({
 }) {
   const t = useTranslations("improvement");
   const { topics, added } = useSessionTopics(session);
-  const measured = counts(round);
   const runId = round?.eval_run_ids.at(-1);
-  const { comparison } = useEvalComparison(runId ?? "", { enabled: runId !== undefined });
+  const { comparison, error, refetch } = useEvalComparison(runId ?? "", {
+    enabled: runId !== undefined,
+  });
+  const measured = comparison && comparison.verdict !== "invalid" ? counts(round) : null;
   const unconfirmed = (flip: "fixed" | "regression") =>
     comparison?.cases.filter((c) => c.flip === flip && !c.confirmed).length ?? 0;
   const more = (count: number) => (count > 0 ? t("notConfirmedMore", { count }) : undefined);
   const knowledge = t("resultKnowledge", { count: topics.length, added: added.length });
+  if (error) return <StepError error={error} retry={refetch} />;
+  if (comparison?.verdict === "invalid" && runId) {
+    return (
+      <div className="space-y-3">
+        <IncomparableResult
+          agentId={session.agent_id}
+          runId={runId}
+          reason={comparison.invalid_reason}
+        />
+        <p className="text-muted-foreground text-sm">{knowledge}</p>
+      </div>
+    );
+  }
   const pending = measured ? unconfirmed("fixed") + unconfirmed("regression") : 0;
   return (
     <div className="space-y-2">
@@ -156,7 +171,7 @@ export function KnowledgeDocuments({
         />
       ))}
       {failure && (
-        <p role="alert" className="text-destructive text-sm">
+        <p role="alert" className="text-destructive-ink text-sm">
           {failure}
         </p>
       )}
@@ -176,39 +191,48 @@ export function AcceptSummary({
   const t = useTranslations("improvement");
   const measured = counts(round);
   const runId = round?.eval_run_ids.at(-1);
-  const questions = useDatasetCases(session.dataset_id, {
-    version: session.dataset_version,
-    limit: 1,
-  });
   if (!measured || !runId) return <p className="text-sm">{t("resultAgentUnknown")}</p>;
   return (
     <AgentSentence
+      agentId={session.agent_id}
       runId={runId}
       version={session.next_version ?? null}
-      total={questions.total}
+      heldOut={round?.held_out ?? null}
       {...measured}
     />
   );
 }
 
 function AgentSentence({
+  agentId,
   runId,
   version,
-  total,
+  heldOut: measuredHoldout,
   fixed,
   broken,
 }: {
+  agentId: string;
   runId: string;
   version: number | null;
-  total: number;
+  heldOut: number | null;
   fixed: number;
   broken: number;
 }) {
   const t = useTranslations("improvement");
   const locale = useLocale();
-  const { comparison } = useEvalComparison(runId);
-  const before = comparison?.baseline_summary;
-  const after = comparison?.candidate_summary;
+  const { comparison, error, refetch } = useEvalComparison(runId);
+  const measured = useEvalRun(runId);
+  if (error) return <StepError error={error} retry={refetch} />;
+  if (measured.error) return <StepError error={measured.error} retry={measured.refetch} />;
+  if (!comparison || !measured.run) return <p role="status">{t("loading")}</p>;
+  if (comparison.verdict === "invalid")
+    return (
+      <IncomparableResult agentId={agentId} runId={runId} reason={comparison.invalid_reason} />
+    );
+  const before = comparison.baseline_summary;
+  const after = comparison.candidate_summary;
+  const total = measured.run.cases;
+  const heldOut = measuredHoldout ?? after.cases;
   const perAnswer = (cost: string, cases: number) => Number(cost) / Math.max(1, cases);
   const change =
     before && after && perAnswer(before.cost_usd, before.cases) > 0
@@ -232,7 +256,7 @@ function AgentSentence({
           costKnown: change === null ? "no" : "yes",
           cost,
           total,
-          heldOut: after?.cases ?? 0,
+          heldOut,
         })}
         tiles={[
           { label: t("widgets.fixes"), value: fixed, tone: "teal", icon: CheckCircle2 },
@@ -248,13 +272,13 @@ function AgentSentence({
             value: total,
             tone: "indigo",
             icon: ListChecks,
-            caption: t("widgets.heldOutCaption", { count: after?.cases ?? 0 }),
+            caption: t("widgets.heldOutCaption", { count: heldOut }),
           },
         ]}
       />
       {change !== null && (
         <p className="text-muted-foreground text-xs">
-          {t("costExplained", { cost, heldOut: after?.cases ?? 0 })}
+          {t("costExplained", { cost, heldOut: after.cases })}
         </p>
       )}
     </div>

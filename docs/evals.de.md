@@ -1,5 +1,5 @@
 ---
-source_sha: "49147fff94d0"
+source_sha: "e0f27fa2e9f9"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -22,19 +22,18 @@ Tag auf denselben Provider treffen.
 
 ## In der Konsole { #in-the-console }
 
-Der Tab **Evals** eines Agents öffnet mit einem Liniendiagramm seiner
+Der Tab **Evals** eines Agents zeigt ein kompaktes Diagramm über der Run-Historie, sobald Messergebnisse vorliegen. Das Diagramm bleibt sichtbar. Jede Zeile zeigt verglichene Versionen, Status, Urteil, Modell, Bestehensquote und bestandene Fälle im Verhältnis zur Gesamtzahl. Das Diagramm zeigt die
 Bestehensquote Run für Run, der älteste links, eine Linie pro Dataset, jede mit
 eigener Strichart. Ein Punkt ist rot, wo der Run Fälle verschlechtert hat, grün,
 wo er sie behoben hat, bernsteinfarben, wo beides, und hohl für einen Entwurf; der
 Hover sagt, was lief, wogegen und wann, und ein Klick öffnet den Run.
 
-Die Achse benennt die Runs nach ihrem Start - mit der Uhrzeit für einen Run von
-heute, mit dem Datum für frühere, einmal je Tag. Ab mehr als 10 Runs zeigt ein
+Die Achse zeigt Uhrzeiten, wenn die Historie innerhalb eines Tages liegt, auch eines vergangenen. Über mehrere Tage zeigt sie Daten für ältere Runs und Uhrzeiten für heutige, ohne gleiche Beschriftungen zu wiederholen. Der Tooltip enthält das vollständige Startdatum mit Uhrzeit. Ab mehr als 10 Runs zeigt ein
 Schalter über dem Diagramm die letzten 10, die letzten 30 oder alle Runs; er
 öffnet mit den letzten 10, und die Wahl bleibt in der Adresse der Seite, sodass
 Zurück und ein Link sie behalten.
 
-Darunter stehen seine Runs, nach Dataset gruppiert, jeder mit dem, was gegen was
+Die Tabelle zeigt die Runs mit den neuesten zuerst, jeder mit dem, was gegen was
 getestet wurde, seinem Urteil (Verschlechtert 2, Insgesamt schlechter ·
 4 verschlechtert, Erstes Ergebnis, Läuft) und der Bestehensquote jedes Modells, mit der Quote der ersten
 Antworten beim Darüberfahren.
@@ -108,10 +107,7 @@ verlässt - ein Run nennt deren Zahl als `routed_replacing` - und eine Antwort,
 die älter ist als die wartende, wird nicht gesendet. Die Antwort eines anderen
 Agents auf den Fall wartet daneben.
 
-Der eigene Tab **Evals** eines Datasets listet jeden darauf gemessenen Agent,
-jeden mit seinem Verlauf und seinen Runs, und **Evals starten** (Run evals) in
-seinem Kopfbereich öffnet den Startdialog auf dem Dataset und fragt, welcher
-Agent getestet werden soll.
+Unter **Ergebnisse → Testläufe** zeigt ein Dataset alle gemessenen Agents in einem gemeinsamen Diagramm und einer Run-Tabelle. **Evals starten** öffnet den Dialog auf diesem Dataset und fragt nach dem Agent. Wenn alle Antworten mit demselben Konfigurationsfehler scheitern, steht **Start fehlgeschlagen** statt einer Bestehensquote; solche Runs fehlen im Qualitätsverlauf.
 
 Die Karte **Eval-Runs** (Eval runs) im Dashboard listet die neuesten Runs der
 Organisation mit ihrem Agent und ihrem Urteil. Die Fälle eines Evals und die
@@ -148,13 +144,9 @@ die `environment_id`, die zu vergleichenden `model_profile_ids` und
 `paired_baseline`. Die Schätzung ist der durchschnittliche Preis eines Runs des
 Agents auf jedem Modell, gemessen an seinen letzten abgeschlossenen Runs, mal
 die Zahl der Fälle, plus ein Aufruf des Bewerters pro Fall, wenn ein Bewerter
-das Dataset bewertet und die KI-Unterstützung eingeschaltet ist.
+das Dataset bewertet .
 
-Die KI-Unterstützung ist für eine Organisation ausgeschaltet, bis jemand mit
-`org:settings` sie einschaltet. Solange sie aus ist, läuft der Bewerter nicht:
-Ein Fall wird durch seine Checks und erwarteten Tool-Aufrufe entschieden, die
-Kriterien des Bewerters werden als übersprungen erfasst, und die Schätzung
-enthält keinen Bewerter.
+Die Schätzung berücksichtigt modellgestützte Bewertung, wenn das Dataset sie verlangt, zum unter Bewertung gewählten Modellpreis. Kein Organisationsschalter deaktiviert diesen Bewerter.
 
 Ein Agent ohne Historie auf einem Modell wird als typischer Fall geschätzt -
 `EVAL_FALLBACK_INPUT_TOKENS` hinein, `EVAL_FALLBACK_OUTPUT_TOKENS` heraus - zum
@@ -192,12 +184,7 @@ Ein Run, der niemandem etwas sagen könnte, wird abgelehnt, bevor er geschätzt
 wird:
 
 - eine Dataset-Version ohne Fälle;
-- ein Scoring ohne erforderlichen Scorer, der irgendeinen Fall der Version
-  entscheiden könnte - kein anwendbarer Check, kein erwarteter Tool-Aufruf und
-  kein Bewerter. Entscheidet nur der Bewerter und ist die KI-Unterstützung
-  ausgeschaltet, sagt die Ablehnung das: Der Bewerter braucht die
-  KI-Unterstützung, die für diese Organisation ausgeschaltet ist, also schalte
-  sie in den Einstellungen der Organisation ein oder füge einen Check hinzu;
+- Bewertung ohne erforderlichen Scorer, der einen Fall entscheiden kann: ergänze eine Prüfung, einen erwarteten Werkzeugaufruf oder Bewertungskriterien;
 - ein Agent, der nie veröffentlicht wurde, für den eine Version verlangt wird -
   starte stattdessen seinen Entwurf;
 - eine Baseline für eine erste Version, vor der es nichts gibt.
@@ -242,6 +229,11 @@ ein Tool, von dem bekannt ist, dass es nur liest, läuft auf der normalen
 Verbindung, und alles, was ohne Testverbindung schreibt, wird nicht ausgeführt
 - der Aufruf und seine Argumente werden als beabsichtigter Aufruf behalten, den
 das Trajektorie-Scoring trotzdem bewertet.
+
+Jeder isolierte Versuch erhält einen temporären Workspace für seinen eigenen
+Run, auch wenn der Agent Dateien sonst pro Unterhaltung, Benutzer oder Agent
+teilt. Er benötigt keine Chat-Unterhaltung und verwendet keine dieser
+persistenten Dateien. Der Workspace wird am Ende des Runs freigegeben.
 
 Ein Fall aus einer Conversation kann **aus der Aufzeichnung** des Runs
 beantwortet werden, aus dem er stammt (`from_recordings`): Ein Aufruf, der zur
@@ -332,8 +324,7 @@ Jeder Versuch geht auf eine von vier Arten aus (`state` am Versuch):
   ist (ein Fehler 5xx, 408 oder 429 oder gar keine Antwort), ein Bewerter eine
   Ausnahme geworfen hat, der Run abgebrochen wurde oder das Budget ausging, oder
   seine Versuche unentschieden ausgingen;
-- **nicht bewertet**, wenn nichts die Antwort bewertet - kein erforderlicher
-  Bewerter passt, oder nur der Bewerter könnte es und die KI-Unterstützung ist aus.
+- Bewertung ohne erforderlichen Scorer, der einen Fall entscheiden kann: ergänze eine Prüfung, einen erwarteten Werkzeugaufruf oder Bewertungskriterien;
 
 Keiner der letzten beiden ist je bestanden; die Zusammenfassung zählt sie
 getrennt (`incomplete`, `ungraded`).
@@ -487,11 +478,7 @@ sich die heutige Version zwischen Versuchen auf ihren gemeinsamen zurückgelegte
 Fragen bewegt hat - weniger als fünf gemeinsame sind zu wenige, um das zu
 beurteilen.
 
-Was die Bewertung festigt: Kriterien, die mit Ja oder Nein statt auf einer Skala
-beantwortet werden, eine deterministische Prüfung von Länge und Format statt des
-Urteils eines Bewerters, mehr Fälle - etwa 30 zurückgelegte für eine Verbessern-
-Sitzung - und ein stärkeres Bewerter-Modell, das für neue Bewerter das
-[Bewertungsmodell](governance.md#ai-assistance) der Organisation festlegt.
+Verwende klare Ja/Nein-Kriterien, deterministische Format- und Längenprüfungen sowie ausreichend repräsentative Fälle. Wähle ein geeignetes unabhängiges Bewertungsmodell ausdrücklich im Tab **Bewertung** des Datasets; der Modellpreis belegt keine Bewertungsqualität.
 
 ### Wie beständig die Antworten sind { #how-steady-the-answers-are }
 
@@ -650,10 +637,7 @@ durchfallen: Das Minimum braucht keine Baseline. Ein Ergebnis, dessen Eval-Run
 abgebrochen wurde, ist ebenfalls ohne Ergebnis und sagt das; eines, dessen Run
 fehlgeschlagen ist, ist ein Fehler.
 
-Ein Ergebnis **ist nicht gelaufen**, wenn es mehr
-kosten würde, als ein Budget oder die eigene Grenze der Suite hergibt, wenn nur
-der Bewerter es bewerten könnte und die KI-Unterstützung aus ist, oder wenn es
-keine veröffentlichte Version zum Prüfen gibt.
+Eine Suite läuft nicht, wenn ihre Schätzung das verbleibende Budget oder ihre eigene Grenze überschreitet, keine veröffentlichte Version existiert oder kein erforderlicher Scorer einen Fall entscheiden kann.
 
 Geplante Läufe und Läufe nach
 einer Abhängigkeit werden mit dem letzten bestandenen Lauf der Suite auf

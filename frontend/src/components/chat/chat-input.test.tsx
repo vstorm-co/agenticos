@@ -75,6 +75,32 @@ describe("ChatInput replying", () => {
   });
 });
 
+it("dismisses the reply with Escape without losing the draft", async () => {
+  act(() =>
+    useChatStore
+      .getState()
+      .setReplyTo({ messageId: "quoted", role: "assistant", excerpt: "Original message" }),
+  );
+  render(<ChatInput onSend={vi.fn()} />);
+  const editor = screen.getByRole("textbox");
+  await userEvent.type(editor, "Keep this draft");
+  await userEvent.keyboard("{Escape}");
+  expect(useChatStore.getState().replyTo).toBeNull();
+  expect(editor).toHaveTextContent("Keep this draft");
+  expect(editor).toHaveFocus();
+});
+
+it("returns focus to the draft after cancelling a reply", async () => {
+  act(() =>
+    useChatStore
+      .getState()
+      .setReplyTo({ messageId: "quoted", role: "assistant", excerpt: "Original message" }),
+  );
+  render(<ChatInput onSend={vi.fn()} />);
+  await userEvent.click(screen.getByRole("button", { name: "Don't reply" }));
+  expect(screen.getByRole("textbox")).toHaveFocus();
+});
+
 describe("ChatInput typing", () => {
   it("says the person is writing when they type words, not when they clear the box", async () => {
     const onTyping = vi.fn();
@@ -861,4 +887,181 @@ describe("a run waiting for its person", () => {
     expect(stop).toHaveBeenCalledOnce();
     expect(screen.queryByRole("button", { name: "Call" })).not.toBeInTheDocument();
   });
+});
+
+it("keeps composing while focus moves to Send, and exits without losing an unsent draft", async () => {
+  const onSend = vi.fn();
+  render(
+    <>
+      <button>Outside</button>
+      <ChatInput onSend={onSend} />
+    </>,
+  );
+  const editor = screen.getByRole("textbox");
+  const form = editor.closest("form");
+  await userEvent.type(editor, "Phone draft");
+  expect(form).toHaveAttribute("data-editing", "true");
+  await userEvent.click(screen.getByRole("button", { name: "Outside" }));
+  expect(form).not.toHaveAttribute("data-editing");
+  expect(messageOf(editor)).toBe("Phone draft");
+  await userEvent.click(editor);
+  const send = screen.getByRole("button", { name: "Send message" });
+  fireEvent.blur(editor, { relatedTarget: send });
+  fireEvent.focus(send, { relatedTarget: editor });
+  expect(form).toHaveAttribute("data-editing", "true");
+  await userEvent.click(send);
+  expect(onSend).toHaveBeenCalledWith("Phone draft", undefined, undefined, undefined);
+});
+
+it("does not take touch-keyboard focus on arrival or when a reply finishes", async () => {
+  const originalMatchMedia = window.matchMedia;
+  const original = originalMatchMedia("");
+  window.matchMedia = (query) => ({
+    ...original,
+    media: query,
+    matches: query === "(pointer: coarse)",
+  });
+  try {
+    const onSend = vi.fn();
+    const view = (processing: boolean) => (
+      <>
+        <button>Read here</button>
+        <ChatInput autoFocus onSend={onSend} isProcessing={processing} />
+      </>
+    );
+    const { rerender } = render(view(false));
+    const editor = screen.getByRole("textbox");
+    expect(editor).not.toHaveFocus();
+    const outside = screen.getByRole("button", { name: "Read here" });
+    await userEvent.click(outside);
+    rerender(view(true));
+    rerender(view(false));
+    expect(outside).toHaveFocus();
+    await userEvent.click(editor);
+    expect(editor).toHaveFocus();
+  } finally {
+    window.matchMedia = originalMatchMedia;
+  }
+});
+
+describe("chat entry focus", () => {
+  it("focuses the reused composer on each explicit new-chat request", async () => {
+    const onSend = vi.fn();
+    const view = (focusRequest: number, disabled = false) => (
+      <>
+        <button>New chat</button>
+        <ChatInput autoFocus focusRequest={focusRequest} disabled={disabled} onSend={onSend} />
+      </>
+    );
+    const { rerender } = render(view(0));
+    const editor = screen.getByRole("textbox");
+    await userEvent.click(screen.getByRole("button", { name: "New chat" }));
+    expect(editor).not.toHaveFocus();
+    rerender(view(1));
+    expect(editor).toHaveFocus();
+    expect(screen.getByRole("textbox")).toBe(editor);
+    await userEvent.click(screen.getByRole("button", { name: "New chat" }));
+    rerender(view(2, true));
+    expect(editor).not.toHaveFocus();
+    rerender(view(2));
+    expect(editor).toHaveFocus();
+  });
+
+  it("takes focus from the navigation button that opened chat", () => {
+    const opener = document.createElement("button");
+    opener.textContent = "New chat";
+    document.body.append(opener);
+    opener.focus();
+    try {
+      const onSend = vi.fn();
+      const { rerender } = render(<ChatInput autoFocus disabled onSend={onSend} />);
+      expect(opener).toHaveFocus();
+      rerender(<ChatInput autoFocus onSend={onSend} />);
+      expect(screen.getByRole("textbox")).toHaveFocus();
+    } finally {
+      opener.remove();
+    }
+  });
+
+  it("preserves a control deliberately used while the composer is connecting", async () => {
+    const onSend = vi.fn();
+    const view = (disabled: boolean) => (
+      <>
+        <button>Other control</button>
+        <ChatInput autoFocus disabled={disabled} onSend={onSend} />
+      </>
+    );
+    const { rerender } = render(view(true));
+    await userEvent.click(screen.getByRole("button", { name: "Other control" }));
+    rerender(view(false));
+    expect(screen.getByRole("button", { name: "Other control" })).toHaveFocus();
+  });
+
+  it("focuses the writable composer on entry without another click", () => {
+    render(<ChatInput autoFocus onSend={vi.fn()} />);
+    expect(screen.getByRole("textbox")).toHaveFocus();
+  });
+
+  it("waits for readiness and does not steal focus again after reconnection", async () => {
+    const onSend = vi.fn();
+    const { rerender } = render(
+      <>
+        <button>Other control</button>
+        <ChatInput autoFocus disabled onSend={onSend} />
+      </>,
+    );
+    expect(screen.getByRole("textbox")).not.toHaveFocus();
+    rerender(
+      <>
+        <button>Other control</button>
+        <ChatInput autoFocus onSend={onSend} />
+      </>,
+    );
+    expect(screen.getByRole("textbox")).toHaveFocus();
+    await userEvent.click(screen.getByRole("button", { name: "Other control" }));
+    rerender(
+      <>
+        <button>Other control</button>
+        <ChatInput autoFocus disabled onSend={onSend} />
+      </>,
+    );
+    rerender(
+      <>
+        <button>Other control</button>
+        <ChatInput autoFocus onSend={onSend} />
+      </>,
+    );
+    expect(screen.getByRole("button", { name: "Other control" })).toHaveFocus();
+  });
+
+  it("leaves an actively used control alone while the connection becomes ready", async () => {
+    const onSend = vi.fn();
+    const { rerender } = render(
+      <>
+        <input aria-label="Another field" />
+        <ChatInput autoFocus disabled onSend={onSend} />
+      </>,
+    );
+    await userEvent.click(screen.getByRole("textbox", { name: "Another field" }));
+    rerender(
+      <>
+        <input aria-label="Another field" />
+        <ChatInput autoFocus onSend={onSend} />
+      </>,
+    );
+    expect(screen.getByRole("textbox", { name: "Another field" })).toHaveFocus();
+  });
+});
+
+it("distinguishes an empty focus from writing so mobile welcome stays visible", async () => {
+  render(<ChatInput onSend={vi.fn()} />);
+  const editor = screen.getByRole("textbox");
+  const form = editor.closest("form");
+  await userEvent.click(editor);
+  expect(form).toHaveAttribute("data-editing", "true");
+  expect(form).not.toHaveAttribute("data-drafting");
+  await userEvent.type(editor, "Draft");
+  expect(form).toHaveAttribute("data-drafting", "true");
+  await userEvent.click(screen.getByRole("button", { name: "Send message" }));
+  expect(form).not.toHaveAttribute("data-drafting");
 });

@@ -486,6 +486,23 @@ describe("resolveAwaitingOnResume - closing a panel the HTTP resume left waiting
     expect(named(after, "t1").status).toBe("failed");
   });
 
+  it("closes only the delegate that finished when its parent parks again", () => {
+    const parked = fold([start("t1"), awaiting("t1"), start("t2"), awaiting("t2")]);
+    const after = resolveAwaitingOnResume(parked, "awaiting_approval", [
+      { task_id: "t1", status: "completed" },
+    ]);
+    expect(named(after, "t1").status).toBe("completed");
+    expect(named(after, "t2").status).toBe("awaiting_approval");
+  });
+
+  it("keeps the delegate's failure when its parent completes successfully", () => {
+    const parked = fold([start("t1"), awaiting("t1")]);
+    const after = resolveAwaitingOnResume(parked, "completed", [
+      { task_id: "t1", status: "failed" },
+    ]);
+    expect(named(after, "t1").status).toBe("failed");
+  });
+
   it("leaves a panel waiting when the resume parks again on a fresh decision", () => {
     // Not terminal: the delegate is waiting on a new approval, and closing the
     // panel would claim an outcome that has not happened.

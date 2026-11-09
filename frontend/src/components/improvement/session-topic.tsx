@@ -48,7 +48,7 @@ export function SessionTopic({
       )}
       <p className="text-muted-foreground text-xs">{topic.knowledge_base_name}</p>
       {drafted && topic.draft_askers === 1 && (
-        <p className="text-warning text-xs">{t("draftFromOnePerson")}</p>
+        <p className="text-warning-ink text-xs">{t("draftFromOnePerson")}</p>
       )}
       <KnowledgeGapDraftStatus topic={topic} editable={!readOnly && topic.can_edit} />
       {!readOnly && (reviewable || onLater) && (

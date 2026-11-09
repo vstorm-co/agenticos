@@ -136,6 +136,18 @@ describe("the server list", () => {
     expect(result.current?.app.icon).toBe("hubspot");
     expect(result.current?.app.url).toBe("https://hubspot.example.com");
   });
+
+  it("keeps custom account projections out of catalog discovery", () => {
+    state.registry = [
+      server("hubspot", "CRM"),
+      { ...server("custom-server-id", "Internal CRM"), custom: true, connection_ids: ["c2"] },
+    ];
+
+    const { result } = renderHook(() => useAppConnections("crm"));
+
+    expect(result.current.servers.map((entry) => entry.key)).toEqual(["hubspot"]);
+    expect(result.current.connections).toEqual([gmail, other]);
+  });
 });
 
 describe("useMcpAppStep", () => {

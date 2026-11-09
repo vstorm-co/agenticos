@@ -1,5 +1,5 @@
 ---
-source_sha: "b37ba36230db"
+source_sha: "840fe6e181cf"
 ---
 
 # Glossar { #glossary }
@@ -47,7 +47,7 @@ nicht bricht.
 | In der Konsole | Was es ist | In API und Spec |
 |---|---|---|
 | Chat | Das Gespräch mit einem Agent im Browser | `conversation` |
-| Kanal | Slack, Telegram oder Mattermost, wo Menschen einen Agent erreichen | `channel_bot` |
+| Kanal | Slack, Telegram, Mattermost oder Discord, wo Menschen einen Agent erreichen | `channel_bot` |
 | Routine | Ein Agent, der selbstständig läuft, nach Zeitplan oder Ereignis | `trigger` |
 | Eval-Suite | Ein Dataset, an dem ein Agent gemessen wird, nach Zeitplan, bei Veröffentlichung oder Promotion oder nach einer Änderung | `eval_suite` |
 | Run | Ein Mal, dass ein Agent geantwortet hat, mit Kosten und Schritten | `agent_run` |
@@ -71,7 +71,7 @@ nicht bricht.
 | Budget | Ein Ausgabenlimit, das Runs stoppt, sobald es erreicht ist | `budget` |
 | Schutzregeln | Prüfungen, die schwärzen oder blockieren, was durch einen Run fließt | `guardrails` |
 | Vault | Wo Schlüssel und Tokens liegen, versiegelt und nie wieder angezeigt | `secret` |
-| KI-Unterstützung | Der Schalter der Organisation für die Modelle, die Antworten bewerten, Fälle entwerfen, Änderungen vorschlagen und fehlendes Wissen entwerfen, auch in Verbessern; aus, bis jemand sie einschaltet | `ai_assistance_enabled` |
+| Evaluierungshelfer | Im Code definierte Bewertungs-, Generierungs- und Verbesserungsprozesse mit Dataset-Konfiguration | `scoring.judge`, `helper_settings` |
 
 ## Wie getestet wird { #how-it-is-tested }
 
@@ -124,8 +124,10 @@ Jede ist unter [Capabilities](capabilities.md) beschrieben.
 |---|---|
 | Apps | `artifacts` |
 | Rückfragen | `ask_user` |
+| Entwürfe | `drafts` |
 | Webbrowser | `browser_use` |
 | Infos zum Chat-Kanal | `channel_tools` |
+| Telefonanrufe | `phone_calls` |
 | Diagramme | `charts` |
 | Datum und Uhrzeit | `clock` |
 | Berechnungen | `code_execution` |
@@ -140,9 +142,11 @@ Jede ist unter [Capabilities](capabilities.md) beschrieben.
 | Wissenssuche | `knowledge` |
 | Bilder auslagern | `media` |
 | Gedächtnis | `memory_files` |
-| Gedächtnis (mem0) | `memory_mem0` |
+| Mirage (virtuelles Terminal) | `mirage` |
 | Planung | `planning` |
 | Weiterarbeiten, während Tools laufen | `background_tools` |
+| Hintergrundthemen | `background_tasks` |
+| Einen Befehl beobachten | `monitor` |
 | Sandbox | `sandbox` |
 | Skills | `skills` |
 | Subagents | `subagents` |
@@ -155,5 +159,5 @@ Jede ist unter [Capabilities](capabilities.md) beschrieben.
 | Visuals | `visuals` |
 | Webseiten lesen | `web_fetch` |
 | Websuche | `web_research` |
-| Tabellen | `virtual_tables` |
+| Tabellen | AgenticOS MCP: `list_virtual_tables`, `query_virtual_table` |
 | Workflows | `workflows` |

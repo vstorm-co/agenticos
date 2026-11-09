@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import { useOrgStore } from "@/stores";
@@ -13,6 +13,8 @@ const state = vi.hoisted(() => ({
   error: null as Error | null,
   kept: [] as EvalRun[],
   keptLoading: false,
+  keptError: null as Error | null,
+  retry: vi.fn(),
   draftQuery: undefined as unknown,
 }));
 vi.mock("@/hooks/use-eval-runs", () => ({
@@ -22,7 +24,12 @@ vi.mock("@/hooks/use-eval-runs", () => ({
   }),
   useDraftEvalRuns: (_agentId: string, options: unknown) => {
     state.draftQuery = options;
-    return { runs: state.kept, isLoading: state.keptLoading };
+    return {
+      runs: state.kept,
+      isLoading: state.keptLoading,
+      error: state.keptError,
+      refetch: state.retry,
+    };
   },
   useEvalRun: (runId: string) => ({
     run: state.run && { ...state.run, id: runId },
@@ -61,6 +68,7 @@ beforeEach(() => {
   state.error = null;
   state.kept = [];
   state.keptLoading = false;
+  state.keptError = null;
   useOrgStore.setState({ activeOrgId: "o1" });
   state.estimate.mockResolvedValue(estimate(12));
   state.start.mockResolvedValue({ id: "run-9" });
@@ -128,7 +136,7 @@ it("shows the newest test of the draft on this dataset after a refresh, a stabil
   ).toBeInTheDocument();
   expect(within(warning).getByRole("link", { name: "Choose the grading model" })).toHaveAttribute(
     "href",
-    "/orgs/o1/members?tab=governance#org-grading-model",
+    "/datasets/d1?tab=grading",
   );
 });
 
@@ -144,12 +152,12 @@ it("falls back to the newest plain test, and offers testing again", async () => 
   expect(state.estimate).toHaveBeenCalledWith(TWICE);
 });
 
-it("leaves out the grading model's link where no organization is active", () => {
+it("keeps the grading link scoped to its dataset without requiring an organization selector", () => {
   state.kept = [evalRun({ id: "steady", dataset_id: "d1", purpose: "stability" })];
   state.run = finished({ stability: { asked: 4, unstable: 2, noisy: true } });
   useOrgStore.setState({ activeOrgId: null });
   render(<TodayCheck agentId="a1" datasetId="d1" />);
-  expect(within(screen.getByRole("alert")).getAllByRole("link")).toHaveLength(1);
+  expect(within(screen.getByRole("alert")).getAllByRole("link")).toHaveLength(2);
 });
 
 it("says it is looking for an earlier test while the list loads", () => {
@@ -210,4 +218,33 @@ it("says why the test could not be priced, and drops a late answer", async () =>
   fail(new Error("late"));
   await Promise.resolve();
   expect(state.estimate).toHaveBeenCalledTimes(3);
+});
+
+it("does not treat a failed history read as permission to start another paid test", async () => {
+  state.keptError = new Error("History unavailable");
+  render(<TodayCheck agentId="a1" datasetId="d1" />);
+  expect(screen.getByText("History unavailable")).toBeInTheDocument();
+  expect(state.estimate).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("button", { name: "Try reading again" }));
+  expect(state.retry).toHaveBeenCalled();
+});
+
+it("keeps Test again scoped to the dataset where it was requested", async () => {
+  state.kept = [finished({ id: "d1-run" }), finished({ id: "d2-run", dataset_id: "d2" })];
+  state.run = finished();
+  const view = render(<TodayCheck agentId="a1" datasetId="d1" />);
+  await userEvent.click(screen.getByRole("button", { name: "Test again" }));
+  await screen.findByRole("button", { name: BUTTON });
+  view.rerender(<TodayCheck agentId="a1" datasetId="d2" />);
+  expect(screen.getByText("Of 12 questions today: 9 handled well, 3 failing.")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: BUTTON })).toBeNull();
+});
+
+it("removes a previous estimate failure once the new options are priced", async () => {
+  state.estimate.mockRejectedValueOnce(new Error("Old estimate failure"));
+  render(<TodayCheck agentId="a1" datasetId="d1" />);
+  await screen.findByText("Old estimate failure");
+  await userEvent.click(screen.getByRole("checkbox"));
+  await screen.findByText(/12 questions/);
+  await waitFor(() => expect(screen.queryByText("Old estimate failure")).toBeNull());
 });

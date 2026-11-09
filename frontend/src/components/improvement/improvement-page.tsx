@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ErrorState, LoadingState } from "@/components/states";
-import { Button } from "@/components/ui";
+import { Button, Checkbox } from "@/components/ui";
 import { ChangeSelection } from "./change-selection";
 import { useAgent } from "@/hooks/use-agents";
 import { useAgentAuthoring } from "@/hooks/use-authoring";
@@ -13,7 +13,7 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { getErrorMessage } from "@/lib/api-error";
 import { useOrgStore } from "@/stores/org-store";
 import { Perm } from "@/types/permissions";
-import { StartSession } from "./start-session";
+import { ImprovementStartRedirect } from "./improvement-start-redirect";
 import { KnowledgeDrafts } from "./knowledge-drafts";
 import { SkillHandoffs } from "./skill-handoffs";
 import { TestQuestions } from "./session-inputs";
@@ -42,7 +42,7 @@ export function ImprovementPage({ agentId, sessionId }: { agentId: string; sessi
   // one, needs edit access too, and without it the session is only read.
   if (!can(Perm.runsView) || (!agent.can_edit && sessionId === "new"))
     return (
-      <div className="mx-auto w-full max-w-5xl space-y-6 pb-16">
+      <div className="mx-auto w-full max-w-screen-2xl min-w-0 space-y-4 pb-8 sm:space-y-6 sm:pb-12">
         <PageHeader
           title={t("title", { name: agent.name })}
           breadcrumbs={[{ label: agent.name, href: `/agents/${agentId}` }, { label: t("heading") }]}
@@ -53,24 +53,21 @@ export function ImprovementPage({ agentId, sessionId }: { agentId: string; sessi
         </Link>
       </div>
     );
+  if (sessionId === "new") return <ImprovementStartRedirect agentId={agentId} />;
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-6 pb-16">
+    <div className="mx-auto w-full max-w-screen-2xl min-w-0 space-y-4 pb-8 sm:space-y-6 sm:pb-12">
       <PageHeader
         title={t("title", { name: agent.name })}
         breadcrumbs={[{ label: agent.name, href: `/agents/${agentId}` }, { label: t("heading") }]}
       />
-      {sessionId === "new" ? (
-        <StartSession key={`${orgId}:${agentId}`} agentId={agentId} />
-      ) : (
-        <Session
-          key={`${orgId}:${agentId}:${sessionId}`}
-          agentId={agentId}
-          sessionId={sessionId}
-          agentName={agent.name}
-          canPublish={agent.can_publish === true}
-          canEdit={agent.can_edit === true}
-        />
-      )}
+      <Session
+        key={`${orgId}:${agentId}:${sessionId}`}
+        agentId={agentId}
+        sessionId={sessionId}
+        agentName={agent.name}
+        canPublish={agent.can_publish === true}
+        canEdit={agent.can_edit === true}
+      />
     </div>
   );
 }
@@ -283,7 +280,7 @@ function Session({
                       </p>
                     ))}
                   {blockedChanges && (
-                    <p role="alert" className="text-warning text-sm">
+                    <p role="alert" className="text-warning-ink text-sm">
                       {t("blockedChanges")}
                     </p>
                   )}
@@ -292,10 +289,10 @@ function Session({
                       className="flex items-start gap-2 text-sm"
                       data-tour="improvement-automatic-check"
                     >
-                      <input
-                        type="checkbox"
+                      <Checkbox
+                        className="mt-0.5"
                         checked={automatic}
-                        onChange={(e) => setAutomatic(e.target.checked)}
+                        onCheckedChange={(checked) => setAutomatic(checked === true)}
                       />
                       {t("automatic")}
                     </label>
@@ -309,10 +306,10 @@ function Session({
                     <p className="text-muted-foreground text-sm">{t("publishNeedsPermission")}</p>
                   )}
                   <label className="flex items-start gap-2 text-sm">
-                    <input
-                      type="checkbox"
+                    <Checkbox
+                      className="mt-0.5"
                       checked={confirm}
-                      onChange={(e) => setConfirm(e.target.checked)}
+                      onCheckedChange={(checked) => setConfirm(checked === true)}
                     />
                     {t("confirmation")}
                   </label>

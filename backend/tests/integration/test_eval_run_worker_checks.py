@@ -2,7 +2,7 @@
 
 A draft check is paid for with the starter's authority and pinned to the draft
 and the collection it was quoted on. Whatever moved since - the draft, the
-collection, the starter's access, the organization's consent to AI assistance or
+collection, the starter's access or
 the key it was started with - stops the check, and an answer already given keeps
 nothing the withdrawn draft could have shaped.
 """
@@ -16,7 +16,7 @@ from pydantic_ai.exceptions import ModelHTTPError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import BadRequestError
+from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import ROLE_PERMS, AuthContext, OrgRoleName
 from app.db.models.case_score import CaseScore
 from app.db.models.eval_run import EvalRun, EvalRunCase
@@ -141,7 +141,7 @@ async def test_a_starter_who_may_no_longer_edit_the_knowledge_base_does_not_star
     assert (run.status, run.error) == ("failed", _NO_LONGER_RUNS)
 
 
-async def test_a_check_queued_before_ai_assistance_was_turned_off_is_not_started(
+async def test_a_queued_check_ignores_the_legacy_organization_ai_flag(
     db: AsyncSession,
 ) -> None:
     ctx, _, _, _, child = await _start(db)
@@ -150,10 +150,10 @@ async def test_a_check_queued_before_ai_assistance_was_turned_off_is_not_started
     organization.ai_assistance_enabled = False
     await db.flush()
 
-    assert await _work(db, ctx, child.id) == []
+    assert await _work(db, ctx, child.id)
 
     run = await _stored(db, child.id)
-    assert (run.status, run.error) == ("failed", _NO_LONGER_RUNS)
+    assert (run.status, run.error) == ("completed", None)
 
 
 async def test_a_retrieval_check_stored_without_its_embedding_fails_unanswered(
@@ -251,3 +251,22 @@ async def test_an_attempt_claimed_before_its_check_was_cancelled_leaves_the_canc
     run = await _stored(db, child.id)
     assert (run.status, run.error) == ("cancelled", None)
     announced.assert_not_awaited()
+
+
+@pytest.mark.security
+async def test_a_knowledge_check_stops_when_its_parent_loses_permission(db: AsyncSession) -> None:
+    from uuid import uuid4
+
+    ctx, _, _, _, child = await _start(db)
+    await _knowledge(db, child.id)
+    row = await _stored(db, child.id)
+    assert row.proposal_check is not None
+    row.proposal_check = {**row.proposal_check, "improvement_run_id": str(uuid4())}
+    await db.flush()
+    with patch(
+        "app.services.improvement_pipeline.ImprovementPipelineService.ensure_current",
+        AsyncMock(side_effect=AuthorizationError(message="Edit grant lost")),
+    ):
+        assert await _work(db, ctx, child.id) == []
+    await db.refresh(row)
+    assert (row.status, row.error) == ("failed", _NO_LONGER_RUNS)

@@ -50,6 +50,8 @@ def production() -> Handlers:
         approval_tasks,
         authoring_tasks,
         case_generation_tasks,
+        channel_tasks,
+        conversation_tasks,
         diagnostics_tasks,
         eval_suite_tasks,
         eval_tasks,
@@ -58,12 +60,14 @@ def production() -> Handlers:
         invitation_tasks,
         knowledge_gap_tasks,
         mcp_tasks,
+        memory_tasks,
         notification_tasks,
         proactive_tasks,
         rag_tasks,
         report_tasks,
         run_tasks,
         skill_check_tasks,
+        task_tasks,
         teardown_tasks,
         trigger_tasks,
         voice_tasks,
@@ -74,7 +78,12 @@ def production() -> Handlers:
     return by_kind(
         [
             *ingest().values(),
+            Handler(jobs.PROCESS_CHANNEL_DELIVERY, channel_tasks.process_channel_delivery),
+            Handler(jobs.PROCESS_EMAIL_DELIVERY, channel_tasks.process_email_delivery),
+            Handler(jobs.DELIVER_CHANNEL_HANDBACK, channel_tasks.deliver_handback),
             Handler(jobs.FIRE_TRIGGER, trigger_tasks.fire_trigger),
+            Handler(jobs.WAKE_TASK, task_tasks.wake_task),
+            Handler(jobs.DELIVER_ROUTINE_ANSWER, trigger_tasks.deliver_routine_answer),
             Handler(jobs.RUN_AGENT, run_tasks.run_agent),
             Handler(jobs.RUN_EVAL, eval_tasks.run_eval),
             Handler(jobs.RUN_AUTHORING, authoring_tasks.run_authoring),
@@ -90,6 +99,11 @@ def production() -> Handlers:
             Handler(jobs.CLASSIFY_GAPS, knowledge_gap_tasks.classify_knowledge_gaps),
             Handler(jobs.DRAFT_TOPIC, knowledge_gap_tasks.draft_knowledge_gap),
             Handler(jobs.GENERATE_CASES, case_generation_tasks.generate_cases),
+            Handler(jobs.RUN_CONVERSATION_TASK, conversation_tasks.run_task),
+            Handler(jobs.RETURN_CONVERSATION_TASK, conversation_tasks.return_task),
+            Handler(
+                jobs.RECONCILE_CONVERSATION_TASKS, _each_tick(conversation_tasks.reconcile_tasks)
+            ),
             Handler(jobs.WORKFLOW_DISPATCH_NODE, workflow_tasks.dispatch_node),
             Handler(jobs.THINK_FOR_PERSON, proactive_tasks.think_for_person),
             Handler(jobs.LOOK_THROUGH_WATCH, proactive_tasks.look_through_watch),
@@ -97,6 +111,7 @@ def production() -> Handlers:
             Handler(jobs.INSTALL_ROLE_PACK, proactive_tasks.install_role_pack),
             Handler(jobs.WELCOME_MEMBER, proactive_tasks.welcome_member),
             Handler(jobs.CLEANUP_EXTERNAL_STATE, teardown_tasks.run_external_state_cleanup),
+            Handler(jobs.DISCARD_VECTOR_DOCUMENT, teardown_tasks.discard_vector_document),
             Handler(jobs.CHECK_AGENT_TRIGGERS, _each_tick(trigger_tasks.check_agent_triggers)),
             Handler(jobs.POLL_PORTAL_GRANTS, _each_tick(trigger_tasks.poll_portal_grants)),
             Handler(
@@ -108,6 +123,7 @@ def production() -> Handlers:
                 jobs.SWEEP_SANDBOX_OPERATIONS, _each_tick(trigger_tasks.sweep_sandbox_operations)
             ),
             Handler(jobs.SWEEP_MCP_CONNECTIONS, _each_tick(mcp_tasks.sweep_mcp_connections)),
+            Handler(jobs.SYNC_DISCORD_ROLES, _each_tick(channel_tasks.sync_discord_roles)),
             Handler(jobs.EXPIRE_APPROVALS, _each_tick(approval_tasks.expire_approvals)),
             Handler(jobs.EXPIRE_INVITATIONS, _each_tick(invitation_tasks.expire_invitations)),
             Handler(jobs.REAP_STALE_RUNS, _each_tick(run_tasks.reap_stale_runs)),
@@ -115,9 +131,14 @@ def production() -> Handlers:
                 jobs.SWEEP_TEARDOWN_RESERVATIONS,
                 _each_tick(teardown_tasks.sweep_teardown_reservations),
             ),
+            Handler(jobs.SWEEP_RAG_SCRATCH, _each_tick(teardown_tasks.sweep_rag_scratch)),
             Handler(jobs.APPLY_RETENTION, _each_tick(rag_tasks.apply_retention)),
             Handler(jobs.SWEEP_NOTIFICATIONS, _each_tick(notification_tasks.sweep_notifications)),
             Handler(jobs.SWEEP_BACKGROUND_JOBS, _each_tick(sweep_background_jobs)),
+            Handler(jobs.CONSOLIDATE_MEMORY, _each_tick(memory_tasks.consolidate_memory)),
+            Handler(jobs.EXTRACT_MEMORY, memory_tasks.extract_memory),
+            Handler(jobs.DIAL_PHONE, voice_tasks.dial_phone),
+            Handler(jobs.END_PHONE, voice_tasks.end_phone),
             Handler(jobs.REAP_VOICE_CALLS, _each_tick(voice_tasks.reap_voice_calls)),
             Handler(jobs.CHECK_EVAL_SUITES, _each_tick(eval_suite_tasks.check_eval_suites)),
             Handler(jobs.REAP_ABANDONED_EVALS, _each_tick(run_tasks.reap_abandoned_evals)),
@@ -165,12 +186,19 @@ def _settlers() -> dict[str, Settler]:
     from app.worker.tasks import (
         authoring_tasks,
         case_generation_tasks,
+        conversation_tasks,
         eval_tasks,
         project_tasks,
         rag_tasks,
     )
 
     return {
+        jobs.RUN_CONVERSATION_TASK.kind: _settler(
+            jobs.RUN_CONVERSATION_TASK, conversation_tasks.settle_lost_task
+        ),
+        jobs.RETURN_CONVERSATION_TASK.kind: _settler(
+            jobs.RETURN_CONVERSATION_TASK, conversation_tasks.settle_lost_return
+        ),
         jobs.GENERATE_CASES.kind: _settler(
             jobs.GENERATE_CASES, case_generation_tasks.settle_lost_generation
         ),

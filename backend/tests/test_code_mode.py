@@ -201,15 +201,19 @@ async def test_a_direct_call_is_not_mistaken_for_a_scripts() -> None:
         (ToolDefinition(name="delete_everything"), False),
         (ToolDefinition(name="ask_user_question", capability_id="ask_user"), False),
         (ToolDefinition(name="task", capability_id="subagents"), False),
+        (ToolDefinition(name="write_draft", capability_id="drafts"), False),
+        (ToolDefinition(name="create_chart", capability_id="charts"), False),
+        (ToolDefinition(name="draw", capability_id="visuals"), False),
         (ToolDefinition(name="connect_account"), False),
         (ToolDefinition(name="linear_delete", metadata={NEEDS_APPROVAL: True}), False),
     ],
 )
-def test_a_tool_that_can_park_the_run_stays_out_of_scripts(
+def test_a_tool_a_person_must_see_or_answer_stays_out_of_scripts(
     tool: ToolDefinition, folded: bool
 ) -> None:
     """A question to the person and a delegation park the run too, and a script
-    cannot stop mid-line to wait for anyone."""
+    cannot stop mid-line to wait for anyone. A tool whose call is what the person
+    sees (a draft, a chart, a drawing) is shown, so it stays an ordinary call."""
     mode = code_mode(
         approval_required=frozenset({"delete_everything"}),
         asking=frozenset({"connect_account"}),

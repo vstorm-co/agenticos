@@ -569,7 +569,8 @@ uv run agenticos cmd rag-drop docs --knowledge-base <knowledge-base-id> --yes
 does, and a worker removes the vector table and the stored files after the command
 commits. A name that several knowledge bases hold - possibly in different
 organizations - is refused, with their ids, until `--knowledge-base` names one; the
-table then stays for the others.
+table then stays for the others. Unlike the console's drop, it also removes a last
+holder's table that holds chunks no base owns.
 
 #### Google Drive sync
 

@@ -13,7 +13,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
-from app.db.locks import LockScope, hold_name
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.vector_tables import VectorScope
@@ -22,7 +21,13 @@ from app.services.rag.documents import has_indexable_text
 from app.services.rag.ingestion import IngestionService
 from app.services.rag.models import CollectionInfo
 from app.services.rag.vectorstore import BaseVectorStore
-from app.repositories import collection_teardown_repo, knowledge_base_repo, rag_document_repo
+from app.repositories import (
+    collection_teardown_repo,
+    knowledge_base_repo,
+    organization_repo,
+    rag_document_repo,
+    user_repo,
+)
 from app.repositories.rag_document import CollectionScope, IngestionCounts
 from app.schemas.rag import (
     RAGCollectionInfo,
@@ -36,6 +41,7 @@ from app.schemas.rag import (
 from app.schemas.sync_source import blank_is_absent
 from app.services.file_storage import get_file_storage
 from app.services.background_jobs import enqueue
+from app.services import rag_scratch
 from app.services.notifications import NotificationService
 from app.services.spend import assert_organization_within_budget
 from app.services.ingestion_config import (
@@ -43,7 +49,12 @@ from app.services.ingestion_config import (
     IngestionConfigService,
     IngestionOverride,
 )
-from app.worker.jobs import INGEST_DOCUMENT, IngestDocument
+from app.worker.jobs import (
+    DISCARD_VECTOR_DOCUMENT,
+    INGEST_DOCUMENT,
+    DiscardVectorDocument,
+    IngestDocument,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -168,8 +179,7 @@ class RAGDocumentService:
         The teardown uses this lock before reserving a name and deleting its rows.
         A CLI insert therefore either precedes that delete or observes its tombstone.
         """
-        await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection_name)
-        if await collection_teardown_repo.is_reserved(self.db, collection_name):
+        if not await collection_teardown_repo.hold_unreserved(self.db, collection_name):
             raise BadRequestError(
                 message="Collection is being deleted. Try again shortly.",
                 details={"collection": collection_name},
@@ -227,10 +237,20 @@ class RAGDocumentService:
 
         `knowledge_gap_topic_id` is the knowledge gap topic a person wrote the
         document for, when they added it from the topic.
+        The previous attempts retired are those in the new row's own scope - the
+        base it is filed under, else the unfiled rows of `organization_id` - and
+        never another tenant's or another base's at the same path (#2747).
+
+        Raises:
+            NotFoundError: If `knowledge_base_id` names no knowledge base.
         """
         if source_path:
             await rag_document_repo.discard_failed(
-                self.db, collection_name=collection_name, source_path=source_path
+                self.db,
+                collection_name=collection_name,
+                source_path=source_path,
+                organization_id=organization_id,
+                scope=await self._filing_scope(knowledge_base_id),
             )
         return await rag_document_repo.create(
             self.db,
@@ -257,6 +277,18 @@ class RAGDocumentService:
             initiated_by_user_id=initiated_by_user_id,
             knowledge_gap_topic_id=knowledge_gap_topic_id,
         )
+
+    async def _filing_scope(self, knowledge_base_id: UUID | None) -> CollectionScope | None:
+        """The scope of the base a new row is filed under, `None` for an unfiled one."""
+        if knowledge_base_id is None:
+            return None
+        kb = await knowledge_base_repo.get_by_id(self.db, knowledge_base_id)
+        if kb is None:
+            raise NotFoundError(
+                message="Knowledge base not found",
+                details={"knowledge_base_id": str(knowledge_base_id)},
+            )
+        return CollectionScope.of(kb)
 
     async def dispatch_upload(
         self,
@@ -333,11 +365,10 @@ class RAGDocumentService:
         # slipped into that window would `_ensure_collection`-recreate the table the
         # drop then destroys, orphaning this row and losing its vectors. The reservation
         # is committed with the delete, so this catches every upload that arrives after
-        # it. Deliberately unlocked: taking the teardown lock here, before the insert's
-        # foreign-key lock on the knowledge_bases row, would invert
-        # `KnowledgeBaseService.delete`'s order (that row first, then the teardown lock)
-        # and deadlock. Fully serialising the narrow commit-to-reserve window, and the
-        # worker ingestion paths, is #1382 (#1362, #1364).
+        # it. Unlocked, so it is best-effort: the teardown takes the name and then the
+        # base row (`KnowledgeBaseService._tear_down`), and nothing here holds the name.
+        # Fully serialising the narrow commit-to-reserve window, and the worker
+        # ingestion paths, is #1382 (#1362, #1364).
         if await collection_teardown_repo.is_reserved(self.db, collection_name):
             raise AlreadyExistsError(
                 message=f"A collection named '{collection_name}' is being torn down; "
@@ -406,7 +437,8 @@ class RAGDocumentService:
 
         The copy under `MEDIA_DIR/_rag_tmp` is what the flow opens: permanent
         storage may be somewhere the worker container cannot reach, and the
-        directory is shared between the two.
+        directory is shared between the two. One file per dispatch, removed by
+        the job once no attempt of it is coming (`app.services.rag_scratch`).
 
         Queued as an `ingest-document` job in this request's transaction: the job
         reads this document by id on a session of its own, and the two commit
@@ -415,9 +447,9 @@ class RAGDocumentService:
         in a child process of the ingest pool, so a parse that runs out of memory
         is stopped there and written down on the job, not in the API.
         """
-        tmp_dir = Path(settings.MEDIA_DIR) / "_rag_tmp"
-        tmp_dir.mkdir(parents=True, exist_ok=True)
-        tmp_path = str(tmp_dir / f"{doc_id!s}{Path(filename).suffix.lower()}")
+        scratch = rag_scratch.scratch_path(doc_id, attempt=attempt, filename=filename)
+        scratch.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = str(scratch)
         # anyio, not open(): an upload can be tens of megabytes, and writing it
         # synchronously stalls every other request on this worker until it lands.
         async with await anyio.open_file(tmp_path, "wb") as f:
@@ -444,8 +476,15 @@ class RAGDocumentService:
         chunk_count: int,
         replaced_document_id: str | None,
         attempt: int,
-    ) -> None:
+    ) -> bool:
         """Mark a document as successfully ingested, retiring what it replaced.
+
+        Returns `False` when the tracking row is gone - the document was deleted
+        while it was being indexed - and `True` otherwise, a superseded attempt
+        included. On `False` the caller owns the chunks it has just written and
+        queues their removal with `discard_untracked`: the delete read the row
+        before it held a vector id, so it purged nothing, and nothing else tracks
+        them (#2565).
 
         Neither `chunk_count` nor `replaced_document_id` has a default on
         purpose. `chunk_count` had one, `0`, and all four call sites took it -
@@ -464,7 +503,9 @@ class RAGDocumentService:
         and is silently ignored, matching the delivery sweep's own "who still
         holds the claim" rule one layer up (Decision 3).
         """
-        doc = await self.get_document(doc_id)
+        doc = await rag_document_repo.get_by_id(self.db, UUID(doc_id))
+        if doc is None:
+            return False
         updated = await rag_document_repo.update_status(
             self.db,
             doc.id,
@@ -475,12 +516,16 @@ class RAGDocumentService:
             expected_attempt=attempt,
         )
         if updated is None:
+            # No row matched: deleted after the read above, or moved on to a newer
+            # attempt. Only the first leaves these chunks without an owner.
+            if not await rag_document_repo.is_present(self.db, doc.id):
+                return False
             logger.info(
                 "Ignoring a stale ingestion settlement for %s: attempt %d no longer current",
                 doc_id,
                 attempt,
             )
-            return
+            return True
         if replaced_document_id:
             await self._retire_superseded(
                 collection_name=doc.collection_name,
@@ -495,6 +540,29 @@ class RAGDocumentService:
         # thirty interruptions that buried the rows worth reading.
         # `ingestion_failed` still fires, and a connector run still reports its
         # whole-attempt figure through `sync_completed`.
+        return True
+
+    async def discard_untracked(
+        self, collection_name: str, vector_document_id: str, *, scope: VectorScope
+    ) -> None:
+        """Queue the removal of chunks whose document was deleted while it indexed.
+
+        For a `complete_ingestion` that returned `False`, in the same transaction:
+        the row is gone, so the job is the only record of the chunks, and a removal
+        that only logged its failure left them searchable for good (#2565). `scope`
+        is the one the chunks were stamped with - the ingester's.
+        """
+        await enqueue(
+            self.db,
+            DISCARD_VECTOR_DOCUMENT,
+            DiscardVectorDocument(
+                collection=collection_name,
+                vector_document_id=vector_document_id,
+                tenant=scope.tenant,
+                knowledge_base_id=scope.knowledge_base_id,
+            ),
+            organization_id=scope.tenant,
+        )
 
     async def _content_changed(self, doc: RAGDocument) -> None:
         """Queue the eval suites of the agents that search this document's knowledge base.
@@ -570,8 +638,18 @@ class RAGDocumentService:
         read back" rule `complete_ingestion` documents (#1598): a stale
         settlement - from an attempt a later retry already superseded - is
         ignored rather than overwriting a newer attempt's own outcome.
+
+        The document's organization and its uploader are taken `FOR KEY SHARE`
+        before the status write - what the failure notification's insert takes
+        anyway, only earlier. Taken after it, an account deletion holding them
+        could wait for this document's row (deleting it, or clearing its
+        uploader) while the notification waited for the deletion (#2682).
         """
         doc = await self.get_document(doc_id)
+        if doc.organization_id is not None:
+            await organization_repo.hold_key_share(self.db, doc.organization_id)
+        if doc.initiated_by_user_id is not None:
+            await user_repo.hold_key_share(self.db, [doc.initiated_by_user_id])
         updated = await rag_document_repo.update_status(
             self.db,
             doc.id,
@@ -623,8 +701,11 @@ class RAGDocumentService:
 
         Raises:
             NotFoundError: If document does not exist.
-            BadRequestError: If the document did not fail, or was ingested
-                before uploads kept their file and so has nothing to re-read.
+            BadRequestError: If the document did not fail, was ingested
+                before uploads kept their file and so has nothing to re-read, or
+                is an organization's filed under no knowledge base - its chunks
+                would be indexed deployment-wide, where the base listing it does
+                not read (#2568).
         """
         doc = await self.get_document(doc_id)
         if doc.status != DocumentStatus.ERROR:
@@ -635,6 +716,14 @@ class RAGDocumentService:
         if not doc.storage_path:
             raise BadRequestError(
                 message="This document has no stored file to re-read; upload it again",
+                details={"doc_id": doc_id, "filename": doc.filename},
+            )
+        if doc.knowledge_base_id is None and doc.organization_id is not None:
+            # Listed by its organization's bases, but its chunks are written and
+            # deleted as deployment-wide (`vector_scope`), where those bases do not
+            # read. One with no organization is an app-scoped base's, which does.
+            raise BadRequestError(
+                message="This document is filed under no knowledge base; upload it again",
                 details={"doc_id": doc_id, "filename": doc.filename},
             )
         file_data = await get_file_storage().load(doc.storage_path)
@@ -698,11 +787,13 @@ class RAGDocumentService:
         runner rather than raised. The store rides the process's vector engine, not
         this request's session, so the deferred coroutine may hold it safely.
 
-        A single document's cleanup stays in-process, where the bulk teardown paths
+        A settled document's cleanup stays in-process, where the bulk teardown paths
         (`_retire_superseded`, `KnowledgeBaseService.delete` and
         `delete_for_rag_collection`) queue theirs as a durable job (#1349): the leak
         a lost single-document task would strand is one file and one document's
         vectors, and a durable job per document delete is disproportionate to that.
+        A vector id discovered only by the delete belongs to an ingest that settled
+        concurrently; queue that removal durably, like the row-gone settlement path.
 
         **`ingestion_service` has no default, and that is the whole of it.** It
         was `Any = None`, and the vector cleanup ran only when a caller happened
@@ -715,30 +806,51 @@ class RAGDocumentService:
         """
         doc = await self.get_document(doc_id)
         collection_name = doc.collection_name
-        vector_document_id = doc.vector_document_id
-        storage_path = doc.storage_path
         # The scope the chunks were stamped with at ingest - the knowledge base's
         # own - so the vector delete is confined to them and cannot reach another
         # org's or base's document in a collection whose name they share (#1684,
         # #2537). Read now, before the row is deleted.
         scope = await self.vector_scope(doc)
-        await rag_document_repo.delete(self.db, doc.id)
+        loaded_vector_id = doc.vector_document_id
+        # The vector id comes from the delete, not `doc`: the caller may have loaded
+        # the row before an ingest settled it, and a delete that waited on that
+        # settlement deletes the settled row. A row still without one belongs to an
+        # ingest whose settlement removes its own chunks (#2565).
+        deleted = await rag_document_repo.delete_with_vectors(self.db, doc.id)
         await self._content_changed(doc)
 
         from app.core.background import spawn_after_commit
 
-        if vector_document_id:
+        for vector_document_id in deleted.vector_document_ids:
+            if vector_document_id != loaded_vector_id:
+                await self.discard_untracked(collection_name, vector_document_id, scope=scope)
+                continue
             spawn_after_commit(
                 self.db,
                 ingestion_service.remove_document(collection_name, vector_document_id, scope=scope),
                 name="delete-document-vectors",
             )
-        if storage_path:
+        if deleted.storage_paths:
             from app.services.file_storage import delete_files_best_effort
 
             spawn_after_commit(
-                self.db, delete_files_best_effort([storage_path]), name="delete-document-file"
+                self.db,
+                delete_files_best_effort(deleted.storage_paths),
+                name="delete-document-file",
             )
+        # The parse scratch copies too (#2681), for a document still processing - and
+        # one a deployment from before #2681 never removed. A job still parsing one
+        # finds its row gone and ends as a refusal; the hourly sweep is the backstop
+        # for a copy this best-effort task loses.
+        spawn_after_commit(
+            self.db,
+            rag_scratch.discard_document(
+                doc.id,
+                filename=doc.filename,
+                attempts=doc.ingestion_attempt,
+            ),
+            name="delete-document-scratch",
+        )
 
     async def unlisted_by_source(
         self, *, sync_source_id: UUID, collection_name: str, listed: set[str]

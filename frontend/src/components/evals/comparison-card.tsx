@@ -67,7 +67,7 @@ export function ComparisonCard({
 }) {
   const t = useTranslations("evals.comparison");
   const { baseline, efficiency } = comparison;
-  if (baseline === null) return null;
+  if (baseline === null || comparison.verdict === "invalid") return null;
   const scope =
     tag === null
       ? null
@@ -91,7 +91,7 @@ export function ComparisonCard({
       <CardHeader>
         <CardTitle>{t("title")}</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4 text-sm">
+      <CardContent className="min-w-0 space-y-4 text-sm wrap-anywhere">
         <div className="grid gap-2 sm:grid-cols-2">
           <div>
             <p className="text-muted-foreground text-xs">{t("candidate")}</p>

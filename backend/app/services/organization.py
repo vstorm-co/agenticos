@@ -12,6 +12,7 @@ from app.core.exceptions import (
     AuthorizationError,
     BadRequestError,
     ConcurrentChangeError,
+    ConflictError,
     NotFoundError,
 )
 from app.core.field_errors import refused_field
@@ -107,8 +108,6 @@ def _org_read(
         welcome_dm_enabled=org.welcome_dm_enabled,
         welcome_dm_text=org.welcome_dm_text,
         chat_may_waive_approvals=org.chat_may_waive_approvals,
-        ai_assistance_enabled=org.ai_assistance_enabled,
-        grading_model_profile_id=org.grading_model_profile_id,
         public_live_data=org.public_live_data,
         speech_to_text_provider=org.speech_to_text_provider,
         speech_to_text_model=org.speech_to_text_model,
@@ -439,8 +438,7 @@ class OrganizationService:
         """Update org metadata and settings.
 
         Three permissions decide this PATCH, each covering the fields it names:
-        `org:settings` for the metadata (name, avatar) and the AI assistance
-        switch, `budgets:manage` for the monthly spending cap, `approvals:decide`
+        `org:settings` for the metadata (name, avatar), `budgets:manage` for the monthly spending cap, `approvals:decide`
         for whether chat sessions may waive approvals. The built-in Owner and Admin hold all three, so
         nothing changes for them - but the catalog advertises each as its own
         entitlement, and a permission the matrix shows and no endpoint consults
@@ -557,26 +555,6 @@ class OrganizationService:
             )
 
         if (
-            data.ai_assistance_enabled is not None
-            and data.ai_assistance_enabled != org.ai_assistance_enabled
-        ):
-            org = await organization_repo.set_ai_assistance(
-                self.db, org, enabled=data.ai_assistance_enabled
-            )
-            await record_audit(
-                self.db,
-                actor_user_id=requester_id,
-                action="organization.ai_assistance",
-                organization_id=org.id,
-                target_type="organization",
-                target_id=str(org.id),
-                details={"enabled": data.ai_assistance_enabled},
-            )
-
-        if "grading_model_profile_id" in data.model_fields_set:
-            org = await self._apply_grading_model(org, data.grading_model_profile_id, requester_id)
-
-        if (
             wants_public_data
             and data.public_live_data is not None
             and data.public_live_data != org.public_live_data
@@ -604,36 +582,6 @@ class OrganizationService:
             avatar_url=data.avatar_url,
         )
 
-    async def _apply_grading_model(
-        self, org: Organization, profile_id: UUID | None, requester_id: UUID | None
-    ) -> Organization:
-        """Set the model new judges grade on, one of the organization's chat models."""
-        if profile_id == org.grading_model_profile_id:
-            return org
-        if profile_id is not None:
-            profile = await credential_repo.get_profile(self.db, profile_id, organization_id=org.id)
-            if profile is None:
-                raise refused_field(
-                    "grading_model_profile_id", "That model is not one of this organization's"
-                )
-            outputs = model_outputs(profile.provider, profile.model, base_url=profile.base_url)
-            if not outputs.chat:
-                raise refused_field(
-                    "grading_model_profile_id",
-                    not_chat_refusal(profile.label, profile.model, outputs),
-                )
-        org = await organization_repo.set_grading_model(self.db, org, profile_id=profile_id)
-        await record_audit(
-            self.db,
-            actor_user_id=requester_id,
-            action="organization.grading_model",
-            organization_id=org.id,
-            target_type="organization",
-            target_id=str(org.id),
-            details={"model_profile_id": None if profile_id is None else str(profile_id)},
-        )
-        return org
-
     async def _apply_proactivity(self, org: Organization, data: OrganizationUpdate) -> Organization:
         """Merge the named proactivity fields over the stored ones, check, and write.
 
@@ -656,21 +604,19 @@ class OrganizationService:
             if "proactive_model_profile_id" in named
             else org.proactive_model_profile_id
         )
-        if profile_id is not None and ("proactive_model_profile_id" in named or enabled or watches):
+        if profile_id is not None and ("proactive_model_profile_id" in named or enabled):
             profile = await credential_repo.get_profile(self.db, profile_id, organization_id=org.id)
             if profile is None:
                 raise refused_field(
                     "proactive_model_profile_id", "That model is not one of this organization's"
                 )
             outputs = model_outputs(profile.provider, profile.model, base_url=profile.base_url)
-            if not outputs.chat and (
-                enabled or watches or profile_id != org.proactive_model_profile_id
-            ):
+            if not outputs.chat and (enabled or profile_id != org.proactive_model_profile_id):
                 raise refused_field(
                     "proactive_model_profile_id",
                     not_chat_refusal(profile.label, profile.model, outputs),
                 )
-        if (enabled or watches) and profile_id is None:
+        if enabled and profile_id is None:
             raise refused_field(
                 "proactive_model_profile_id",
                 "Choose the model the proactive work runs on before turning it on",
@@ -869,6 +815,11 @@ class OrganizationService:
                 held.add(collection)
 
         await organization_repo.get_by_id_for_update(self.db, org.id)
+        from app.repositories import telephony as phone_repo
+
+        # The org row lock fences new call intents through their foreign key.
+        if await phone_repo.organization_has_unfinished_calls(self.db, org.id):
+            raise ConflictError(message="End all telephone calls before deleting this organization")
         collections: list[str] = []
         storage_paths: list[str] = []
         deleted_bases: list[BasePurge] = []
@@ -895,8 +846,8 @@ class OrganizationService:
         # A store is wired only on the teardown path, and it is the signal to clean up
         # the vector tables. A collection another organization still references is left
         # alone - the name is not tenant-unique (#913). The rest are dropped by the
-        # deferred cleanup, which re-reads the reference check under the teardown lock
-        # (#1355), and every one of them is reserved, so a claim in the
+        # deferred cleanup, under the teardown lock (#1355) and only while reserved,
+        # and every one of them is reserved here, so a claim in the
         # commit-to-drop window is refused rather than adopting the still-populated
         # table (#1362). Both readings below therefore happen under the name's lock:
         # the ones the snapshot saw are already held, and one created since is taken

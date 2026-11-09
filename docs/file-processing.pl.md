@@ -1,5 +1,5 @@
 ---
-source_sha: "759491a1f3dc"
+source_sha: "ae8b5a53d44f"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -115,6 +115,7 @@ plik, który może otworzyć, a agent bez niego dostaje tekst w swoim prompcie.
 | **Dokument (OpenDocument)** | …opendocument.text | .odt | Akapity przez `odfpy`. Doklejane do promptu jako kontekst. |
 | **E-mail** | application/vnd.ms-outlook | .msg | Nagłówki i treść czytane ze strumieni OLE/MAPI przez `olefile` (BSD); załączniki osadzone są wypisywane po nazwie, nie wypakowywane rekurencyjnie. Doklejane do promptu jako kontekst. |
 | **Tekst** | text/plain, text/markdown, text/csv, text/html, text/xml, application/xml, application/json | .txt, .md, .csv, .html, .xml, .json | Dekodowany wprost jako UTF-8 (XML wg zadeklarowanego BOM/kodowania). Doklejany do promptu jako kontekst. |
+| **Archiwum** | application/zip, application/x-zip-compressed, application/gzip, application/x-gzip | .zip, .tar.gz, .tgz | Czytane w całości przy przesłaniu i odrzucane, jeśli jest niebezpieczne (zob. [Archiwa](#archives)). Jego tekstem jest lista tego, co zawiera. Rozpakowywane do workspace'u; agent bez workspace'u je odrzuca. |
 
 ### Dokąd trafia załącznik, zależy od agenta { #where-an-attachment-goes-depends-on-the-agent }
 
@@ -133,6 +134,54 @@ plik zamiast tekstu:
 | pdf, docx, spreadsheet, document, presentation, email | sparsowany tekst wklejony inline | zapisany do `uploads/`, z wyciągniętym tekstem obok, chyba że runtime umie go przeczytać (`email` dostaje go zawsze — `lit` nie czyta `.msg`); referencja i 20 pierwszych linii |
 | obraz | `BinaryContent` | `BinaryContent` **oraz** zapis; referencja podaje ścieżkę |
 | tiff | strona(-y) PNG jako `BinaryContent`, z odnotowanym limitem stron | zapisany oryginał `.tiff`; pokazane strony PNG, z odnotowanym limitem stron |
+| archiwum (`.zip`, `.tar.gz`) | odrzucone: model dowiaduje się, że agent nie ma workspace'u, do którego mógłby je rozpakować, i nic z niego nie trafia do promptu | rozpakowane do `uploads/<id>-<nazwa>/`; odwołanie podaje folder i początek drzewa |
+
+### Archiwa { #archives }
+
+`.zip` albo `.tar.gz` to sposób, by dać agentowi repozytorium albo dowolny folder
+plików. Platforma rozpakowuje archiwum na serwerze, zanim agent zacznie działać,
+a nie przekazuje go agentowi do rozpakowania. Przechowywany workspace nie ma
+powłoki, w której można uruchomić `unzip`, obraz sandboxa nie musi go mieć, a
+archiwum to znany sposób na zapis poza folderem. Jedno sprawdzenie na serwerze
+da się przetestować; agent uruchamiający `tar -xf` na tym, co dostał — nie.
+
+Archiwum jest czytane w całości przy przesłaniu. Przesłanie jest odrzucane z
+kodem 400 i nic nie zostaje zapisane, gdy:
+
+- ścieżka elementu wychodzi poza archiwum (`../`), zaczyna się od korzenia
+  (`/etc/x`) lub od dysku (`C:/`), zawiera ukośnik wsteczny albo znak sterujący;
+- element jest dowiązaniem symbolicznym, dowiązaniem twardym, plikiem urządzenia
+  albo FIFO;
+- ta sama ścieżka występuje dwa razy albo jednocześnie jako plik i folder;
+- element jest zaszyfrowany albo plik nie jest archiwum, którym nazywa go nazwa;
+- zawiera więcej niż `WORKSPACE_ARCHIVE_MAX_ENTRIES` plików i folderów (5000),
+  rozpakowuje się do więcej niż `WORKSPACE_ARCHIVE_MAX_BYTES` (200 MiB) albo do
+  więcej niż `WORKSPACE_ARCHIVE_MAX_RATIO` razy własny rozmiar (100) — to bomba
+  dekompresyjna. Rozmiary są mierzone podczas czytania elementów, a nie brane z
+  nagłówków archiwum, które mogą kłamać;
+- jeden plik w nim rozpakowuje się do więcej niż
+  `WORKSPACE_ARCHIVE_MAX_MEMBER_BYTES` (50 MiB), bo rozpakowywanie trzyma w pamięci
+  jeden plik naraz.
+
+Limit przesyłania, `CHAT_MAX_UPLOAD_SIZE_MB`, dotyczy samego archiwum.
+
+Dla agenta z workspace'em elementy są zapisywane w
+`uploads/<pierwsze 8 znaków hex id pliku>-<nazwa archiwum bez .zip>/` z
+zachowaniem folderów — `repo.zip` zawierające `repo/src/app.py` staje się
+`uploads/3f2a1b9c-repo/repo/src/app.py`. Odwołanie podaje ten folder i zaczyna
+się od pierwszych linii listy elementów. Elementy są zapisywane po jednym, więc w
+pamięci jest naraz tylko jeden. Jeśli workspace w połowie odmówi zapisu albo turn
+zostanie zatrzymany w trakcie rozpakowywania, folder jest usuwany: model dowiaduje
+się, że archiwum nie dało się zapisać, i nigdy nie bierze w połowie rozpakowanego
+drzewa za całe.
+
+Agent bez workspace'u nie ma gdzie go rozpakować. Model dowiaduje się, że nie
+może otworzyć archiwum, i nie dostaje listy elementów, bo lista ścieżek
+pozwoliłaby mu odpowiadać na pytania o kod, którego nie może przeczytać.
+
+Żeby wydobyć pliki z powrotem, panel **Files** w czacie oferuje każdy folder i
+cały workspace jako `.zip` — zob.
+[Sandbox: pobieranie folderu](sandbox.md#downloading-a-folder-as-a-zip).
 
 **Kolejna tura nadal ma plik.** To, co załącznik dodał do promptu - wklejony
 tekst albo odwołanie z pierwszymi liniami - jest zapisywane przy wiadomości i
@@ -270,7 +319,9 @@ gdy powierzchnia składa swój prompt.
 
 Załączniki z czatu czyta **PyMuPDF** i nie da się tego skonfigurować. Załącznik
 nie należy do żadnej kolekcji, więc nie ma zapisanej konfiguracji, z której
-dałoby się odczytać wybór parsera.
+dałoby się odczytać wybór parsera. Znaki NUL są usuwane z wyodrębnionego
+tekstu przed zapisem, aby PostgreSQL mógł przyjąć przesłany plik. Oryginalne
+bajty pliku PDF pozostają bez zmian.
 
 Zmiennej `CHAT_PDF_PARSER`, która kiedyś wybierała między trzema parserami, już
 nie ma. Obie alternatywy były opakowane w `except Exception: return
@@ -354,6 +405,11 @@ czytał skrzynkę. Obowiązuje je lista dozwolonych typów plików i limit rozmi
 uploadu czatu: z załączników podanych przez skrzynkę brane jest pod uwagę tylko
 pierwsze 10 na wiadomość, oraz 25 MiB na wiadomość. Pominięty załącznik jest
 wypisany z powodem, a testowy run niczego nie pobiera.
+
+`.zip` albo `.tar.gz` jest
+pomijany jako `type_not_allowed`: czat sprawdza archiwum element po elemencie,
+zanim je rozpakuje (zob. [Archiwa](#archives)), a archiwum, które dostaje workflow,
+nie sprawdza nic.
 
 Plik HTML w workflow, na przykład zapisaną stronę albo załącznik, czyta
 [`html.parse`](reference/workflow-nodes.md#html-parse), a nie `text.extract`, który
@@ -817,6 +873,23 @@ Nazwa, której wywołujący nie podaje, wyprowadzana jest z nazwy wyświetlanej 
 sześciu losowych znaków szesnastkowych i jest zajmowana tą samą ścieżką, a nie
 uznawana za bezpieczną dlatego, że jest losowa.
 
+**Nie jest też wolna nazwa z treścią, której nie posiada żadna baza.** `rag-ingest`
+zapisuje wiersze śledzące i tabelę `rag_<name>` bez bazy wiedzy i bez organizacji.
+Dlatego `claim` odrzuca nazwę, której nie trzyma żadna baza, dopóki ma ona wiersze bez
+bazy opisujące chunki dowolnego tenanta poza organizacją wywołującego albo tabelę
+wektorową z takimi chunkami. Wcześniej członek z `collections:edit` mógł utworzyć bazę
+na kolekcji operatora i ją usunąć, a razem z nią chunki operatora
+([#2747](https://github.com/vstorm-co/agenticos/issues/2747)). Nazwy trzymanej przez
+bazę to nie dotyczy: wywołujący może zapisywać każdą z tych baz, więc i tak mógłby je
+usunąć lub wyczyścić. Taką nazwę może przejąć administrator aplikacji; nieudany wiersz
+bez id wektorowego nie opisuje żadnego chunka i nazwy nie blokuje. `rag-ingest`
+przerwany w trakcie pliku zostawia wiersz `processing`, który blokuje nazwę, dopóki
+administrator aplikacji jej nie przejmie albo nie uruchomi `rag-drop <name>`.
+
+Treści, która trafia pod nazwę *po* zajęciu jej przez bazę, nie da się tu odrzucić,
+więc chroni ją rozbiórka: tabela ostatniej bazy zostaje, dopóki ma nieprzypisany chunk,
+którego ta baza nie przejmuje, jak opisano niżej przy usuwaniu bazy.
+
 **I nazwa w trakcie rozbiórki też nie jest wolna.** Usunięcie kolekcji kasuje jej
 wiersze bazy wiedzy w ramach requestu, ale fizyczną tabelę wektorów `rag_<name>`
 usuwa dopiero *po* zatwierdzeniu requestu, przekazując to trwałemu workerowi —
@@ -836,9 +909,10 @@ przy bramce `still_wanted` tuż przed zapisem wektorów, więc synchronizacja do
 wyczyszczonej kolekcji domyślnej (której wiersz czyszczenie zachowuje) zatrzymuje
 się, zamiast zapełniać tabelę, która jest właśnie usuwana (#1382). Oba są
 sprawdzeniami rezerwacji w trybie best-effort, a nie serializacją trzymaną na
-blokadzie: trzymanie blokady rozbiórki przez cały zapis zakleszczyłoby się
-z czyszczeniem organizacji, które najpierw blokuje wiersz `organizations`, więc
-zamknięcie ostatniego wąskiego okna zostawiono #1382.
+blokadzie. Zapis przypisany do bazy opiera się na nich oraz na blokadach swojej bazy
+i wiersza, a zamknięcie ostatniego wąskiego okna zostawiono #1382. Zapis chunków bez
+bazy trzyma blokadę rozbiórki do swojego zatwierdzenia, co opisano niżej przy
+rozbiórce ostatniej bazy.
 
 Rezerwacja, której usunięcie nigdy się nie wykonało — stracone przez awarię
 między zatwierdzeniem a rozesłaniem albo przez usunięcie, które zawiodło na
@@ -871,6 +945,9 @@ jedyną bazę, która ma tę nazwę, albo usuwa nazwę bez żadnej bazy (wypełn
 wypisuje ich identyfikatory; `--knowledge-base <id>` wskazuje bazę do wyczyszczenia,
 a tabela zostaje dla pozostałych. Tabelę i pliki usuwa worker po commicie polecenia
 (#2560).
+
+Tabela ostatniej bazy znika niezależnie od zawartości: to operator zlecił usunięcie i
+to do niego należy treść, którą usuwanie w konsoli by oszczędziło (#2747).
 
 `documents` było też kolekcją **domyślną**, więc quickstart w CLI celował kiedyś
 w tabelę śledzącą; teraz domyślną jest `default`. Baza wiedzy utworzona pod starą
@@ -985,6 +1062,52 @@ co przy usuwaniu kolekcji ([#2560](https://github.com/vstorm-co/agenticos/issues
 zostają i pasują po swoim tenancie, a nieprzypisane wiersze dokumentów nadal są
 listowane w bazach swojego tenanta ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
+Gdy żadna inna baza nie ma tej nazwy, obie ścieżki i `rag-drop` usuwają te same
+wiersze, razem z ich plikami: wiersze samej bazy i nieprzypisane wiersze jej tenanta.
+Dla bazy organizacji albo bazy osobistej są to wiersze jej organizacji, dla bazy
+app-scoped wiersze bez organizacji (te, które zapisuje `rag-ingest`), a dla bazy
+osobistej poza organizacją żadne.
+
+Obie ścieżki zachowują potem tabelę, jeśli ma nieprzypisany chunk, którego baza nie
+przejmuje: `rag-ingest` albo synchronizację z CLI operatora do zajętej nazwy albo
+chunk innego tenanta. Claim nie może odrzucić treści, która pojawia się po nim, a
+wywołujący nie ma do niej uprawnień. Czyszczone są tylko chunki, które baza przejmuje,
+a pozostałe wiersze pod tą nazwą zostają bez zmian.
+
+Poza bazą domyślną, która zostaje na tej nazwie, nazwa wraca do stanu, jaki zostawia
+`rag-ingest`: nie ma jej żadna baza, usuwa ją `rag-drop <name>`, a `claim` odrzuca ją
+wszystkim poza administratorem aplikacji i organizacją, której chunki są jedynymi, jakie
+zostały ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
+
+Zapis chunków bez bazy trzyma nazwę do swojego zatwierdzenia, więc tabela jest
+sprawdzana dopiero po zakończeniu każdego takiego zapisu, który już trwa. Zapis, który
+dotrze do nazwy, gdy jest zarezerwowana, jest odrzucany i plik trzeba zaindeksować
+ponownie. Zadanie czyszczenia usuwa tylko zarezerwowaną nazwę, więc jego ponowne
+uruchomienie zostawia zapis wykonany po pierwszym usunięciu.
+
+Duży dokument może trzymać nazwę przez kilka sekund. Utworzenie na tej nazwie
+(`POST /kb`, `POST /rag/collections/{name}`) czeka sekundę, a potem odpowiada 409
+z prośbą o ponowienie, bo każde czekające żądanie zajmuje połączenie z bazą danych,
+a dość takich żądań odrzuca wszystkie pozostałe. Usunięcie czeka na koniec zapisu.
+
+Baza osobista poza organizacją nie przejmuje żadnego nieprzypisanego chunka, choć
+chunk wskazany przez jej własne wiersze znika razem z nią. Historycznego chunka bez
+bazy, bez organizacji i bez wiersza nie da się odróżnić od chunka operatora: on też
+zachowuje tabelę, zostaje do `rag-drop <name>` i należy do zakresu aplikacji, więc
+czyta go baza app-scoped o tej nazwie.
+
+W pozostałych przypadkach, a przy `rag-drop` zawsze, zadanie porządkowe usuwa tabelę.
+Nieprzypisane wiersze innego tenanta pod tą nazwą zostają, razem z plikami, bo
+wywołujący nie ma do nich uprawnień. Po usunięciu tabeli nic już za nimi nie stoi, więc
+zostają oznaczone jako nieudane: następna baza tego tenanta o tej nazwie listuje je
+jako nieudane, przesłany dokument trzeba przesłać jeszcze raz, a synchronizacja
+ponownie indeksuje zsynchronizowany dokument.
+
+Wcześniej `DELETE /kb/{id}` zostawiało nieprzypisane wiersze tenanta za usuniętą
+tabelą, nadal listowane jako zaindeksowane, a usunięcie kolekcji kasowało każdy
+wiersz pod tą nazwą, niezależnie od tenanta
+([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
+
 Przesłanie lub synchronizacja, która wciąż indeksuje plik dla bazy w chwili jej
 usunięcia, nie zostawia chunków. Zapis bierze blokadę wiersza bazy, która koliduje
 z blokadą usunięcia, w transakcji wstawiającej chunki: zapis, który przychodzi drugi, nie
@@ -992,6 +1115,15 @@ znajduje bazy, niczego nie zapisuje i kończy się błędem na etapie indeksowan
 zapis, który przychodzi pierwszy, zatwierdza się przed usunięciem, którego
 porządkowanie usuwa potem jego chunki
 ([#2561](https://github.com/vstorm-co/agenticos/issues/2561)).
+
+Pojedynczy dokument usunięty w trakcie indeksowania również nie zostawia chunków.
+Jego wiersz nie ma identyfikatora dokumentu wektorowego, dopóki ingest go nie
+zapisze, więc usunięcie może nie mieć czego usunąć; worker, który przy zapisie
+wyniku nie znajduje wiersza, kolejkuje w tej samej transakcji zadanie, które usuwa
+chunki, które właśnie zapisał, i jest ponawiane, gdy usunięcie się nie powiedzie. Usunięcie, które
+odczyta nowo zapisany identyfikator, kolejkuje takie samo trwałe zadanie
+według identyfikatora z usuniętego wiersza
+([#2565](https://github.com/vstorm-co/agenticos/issues/2565)).
 
 Lokalna synchronizacja zakolejkowana dla bazy usuniętej przed jej uruchomieniem
 kończy się błędem i niczego nie zapisuje
@@ -1115,7 +1247,7 @@ prosił. Adres `NULL` nie pasuje do żadnego porównania, co jest tu odpowiedzi�
 pożądaną, a nie taką, którą trzeba obchodzić, i jest tym, co ma każdy wiersz
 zapisany przed powstaniem tej kolumny.
 
-Trzy rzeczy decydują o tym, co wycofanie może zabrać, i każdą z nich najpierw
+Cztery rzeczy decydują o tym, co wycofanie może zabrać, i każdą z nich najpierw
 zrobiono źle:
 
 - **Po adresie, nigdy po nazwie pliku.** To ta sama kolizja, którą
@@ -1123,6 +1255,12 @@ zrobiono źle:
   wektorów, osiągnięta z drugiej strony: `a/readme.md` i `b/readme.md` w jednym
   buckecie dzielą nazwę bazową, więc dopasowanie po nazwie kasuje wiersz drugiego
   pliku.
+- **W zakresie nowego wiersza, nigdy po nazwie kolekcji.** Nazwa nie jest
+  unikalna, więc dwie organizacje albo dwie bazy jednej mogą synchronizować do niej
+  tę samą ścieżkę. Wiersz przypisany do bazy wycofuje tylko wiersze, które ta baza
+  wyświetla — własne i niezaklasyfikowane wiersze swojego tenanta — a wiersz bez bazy
+  tylko wiersze bez bazy własnej organizacji
+  ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
 - **`ERROR`, a nie „nie ma id wektorowego”.** To są różne zbiory, a traktowanie
   ich jako jednego to wyścig: wiersz `PROCESSING` należy do próby, która wciąż
   trwa, i przy dwóch nakładających się ingestiach jednego source'a druga
@@ -1152,6 +1290,12 @@ pliku — sprzed czasu, gdy uploady zaczęły zachowywać swoje, albo wciągnię
 przez synchronizację — jest odrzucany z 400, zamiast być przestawiony na
 `processing`
 ([#441](https://github.com/vstorm-co/agenticos/issues/441)).
+
+Ponowienie odrzuca też dokument organizacji nieprzypisany do żadnej bazy wiedzy: jego
+chunki zostałyby zapisane dla całego wdrożenia, gdzie baza organizacji, która go
+listuje, nie czyta, więc trzeba go przesłać jeszcze raz. Dokument bez organizacji
+należy do bazy app-scoped, która tam czyta, i jest ponawiany
+([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
 
 ### Co mówi nieudana ingestia { #what-a-failed-ingest-says }
 
@@ -1610,8 +1754,12 @@ wdrożenie bez żadnego profilu modelu nie jest ślepą uliczką. Czego nie ofer
 to usunięcie profilu: to należy tam, gdzie zarządza się modelami organizacji, a
 profilu, którego używają agenci, w ogóle nie da się usunąć.
 
-Wygenerowane opisy są dołączane do
-tekstu dokumentu dla lepszego wyszukiwania semantycznego.
+PyMuPDF pomija ekstrakcję osadzonych obrazów, gdy ich opisywanie jest wyłączone.
+Po włączeniu każdy xref obrazu jest wyodrębniany raz na dokument, powtórzone
+odwołania na stronie są scalane, a identyczne bajty obrazu są opisywane raz.
+Każda strona odwołująca się do obrazu nadal otrzymuje jego opis w tekście do
+wyszukiwania semantycznego. Chunki przenoszą ten tekst bez kopiowania osadzonych
+obrazów strony.
 
 ## Z kanału { #from-a-channel }
 

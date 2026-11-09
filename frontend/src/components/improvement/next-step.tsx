@@ -155,7 +155,7 @@ export function NextStep({
         </p>
       )}
       {moved && priced && (
-        <p role="alert" className="text-warning text-sm">
+        <p role="alert" className="text-warning-ink text-sm">
           {t(moved === "line" ? "lineMoved" : "priceMoved", {
             cost: usd(priced.total_usd, locale),
           })}
@@ -205,7 +205,7 @@ export function NextStep({
         <EvidenceOnly datasetId={evidence} />
       ) : (
         refused && (
-          <p role="alert" className="text-destructive text-sm">
+          <p role="alert" className="text-destructive-ink text-sm">
             {refused}
           </p>
         )

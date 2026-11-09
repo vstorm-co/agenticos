@@ -23,7 +23,12 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
-from app.core.exceptions import AlreadyExistsError, ConcurrentChangeError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthorizationError,
+    ConcurrentChangeError,
+    NotFoundError,
+)
 from app.core.permissions import AuthContext, Perm
 from app.db.models.context import ContextFile
 from app.db.models.context_proposal import ContextProposal
@@ -52,6 +57,8 @@ class ContextProposalService:
         self, ctx: AuthContext, *, status: str | None = None
     ) -> ContextProposalList:
         """The proposals for the files the caller may see, newest first."""
+        if not ctx.has(Perm.RUNS_VIEW):
+            return ContextProposalList(items=[], total=0)
         proposals = await context_proposal_repo.list_for_organization(
             self.db, organization_id=ctx.organization_id, status=status
         )
@@ -77,7 +84,6 @@ class ContextProposalService:
         )
         items = [
             self._read(
-                ctx,
                 proposal,
                 files[proposal.context_id],
                 used[proposal.context_id],
@@ -95,7 +101,7 @@ class ContextProposalService:
             self.db, organization_id=ctx.organization_id, kind="context", resource_ids=[file.id]
         )
         return self._read(
-            ctx, proposal, file, used[file.id], await self._reached(ctx, proposal, reaches)
+            proposal, file, used[file.id], await self._reached(ctx, proposal, reaches)
         )
 
     async def _reached(
@@ -111,14 +117,12 @@ class ContextProposalService:
 
     @staticmethod
     def _read(
-        ctx: AuthContext,
         proposal: ContextProposal,
         file: ContextFile,
         used: list[AgentUsage],
         reached: tuple[list[ReachedAgent], int],
     ) -> ContextProposalRead:
-        """One proposal as a reviewer reads it - quotes only for a reader of runs."""
-        quotes = ctx.has(Perm.RUNS_VIEW)
+        """One proposal for a caller authorized to read its derived evidence."""
         return ContextProposalRead(
             id=proposal.id,
             context_id=proposal.context_id,
@@ -135,7 +139,7 @@ class ContextProposalService:
             evidence=[
                 {
                     "run_id": item.get("run_id"),
-                    "quote": item.get("quote") if quotes else None,
+                    "quote": item.get("quote"),
                     "source": item.get("source"),
                     "number": item.get("number"),
                 }
@@ -169,6 +173,8 @@ class ContextProposalService:
                 message="Context change not found", details={"proposal_id": proposal_id}
             )
         file = await self.contexts.get(ctx, proposal.context_id, perm=perm)
+        if not ctx.has(Perm.RUNS_VIEW):
+            raise AuthorizationError(message="Reading assistant suggestions requires runs:view")
         return proposal, file
 
     @staticmethod
@@ -294,7 +300,7 @@ class ContextProposalService:
             },
         )
         used = await agents_using(self.db, ctx, field="context_ids", resource_ids=[file.id])
-        return self._read(ctx, proposal, file, used[file.id], ([], 0))
+        return self._read(proposal, file, used[file.id], ([], 0))
 
 
 def _changed(proposal: ContextProposal) -> ConcurrentChangeError:

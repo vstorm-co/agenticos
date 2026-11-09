@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { parse, TYPE, type MessageFormatElement } from "@formatjs/icu-messageformat-parser";
+
+import { CHAT_NOTIFICATION_CHANNELS } from "../src/lib/notification-preferences-api";
 
 import de from "./de.json";
 import en from "./en.json";
 import pl from "./pl.json";
+import tr from "./tr.json";
 
 /**
  * That the catalog holds copy, and only copy.
@@ -152,6 +156,7 @@ describe.each([
   ["en.json", en],
   ["pl.json", pl],
   ["de.json", de],
+  ["tr.json", tr],
 ])("%s", (_name, catalog) => {
   const all = entries(catalog);
 
@@ -261,4 +266,98 @@ describe("the rules themselves", () => {
     expect(TAIL.test("…and {count} more")).toBe(false);
     expect(TAIL.test(".env is never committed")).toBe(false);
   });
+});
+
+interface IcuContract {
+  arguments: string[];
+  tags: string[];
+  selectors: string[];
+  plurals: string[];
+}
+
+function icuContract(message: string): IcuContract {
+  const args = new Set<string>();
+  const tags = new Set<string>();
+  const selectors = new Set<string>();
+  const plurals = new Set<string>();
+  function visit(nodes: MessageFormatElement[]): void {
+    for (const node of nodes) {
+      switch (node.type) {
+        case TYPE.literal:
+        case TYPE.pound:
+          continue;
+        case TYPE.tag:
+          tags.add(node.value);
+          visit(node.children);
+          continue;
+        default:
+          args.add(node.value);
+      }
+      if (node.type === TYPE.select || node.type === TYPE.plural) {
+        if (node.type === TYPE.select) {
+          for (const key of Object.keys(node.options))
+            selectors.add(JSON.stringify([node.value, key]));
+        } else {
+          plurals.add(
+            JSON.stringify([
+              node.value,
+              node.pluralType,
+              node.offset,
+              Object.keys(node.options)
+                .filter((key) => key.startsWith("="))
+                .sort(),
+            ]),
+          );
+        }
+        for (const option of Object.values(node.options)) visit(option.value);
+      }
+    }
+  }
+  visit(parse(message));
+  return {
+    arguments: [...args].sort(),
+    tags: [...tags].sort(),
+    selectors: [...selectors].sort(),
+    plurals: [...plurals].sort(),
+  };
+}
+
+describe("Turkish ICU contracts", () => {
+  it("preserves the arguments, rich-text links and selector values supplied by callers", () => {
+    const translated = new Map(entries(tr));
+    const mismatches = entries(en).flatMap(([key, message]) => {
+      const value = translated.get(key);
+      if (value === undefined) return [];
+      return JSON.stringify(icuContract(message)) === JSON.stringify(icuContract(value))
+        ? []
+        : [key];
+    });
+    expect(mismatches).toEqual([]);
+  });
+
+  it("detects changed argument and link names or selector values", () => {
+    expect(icuContract("<terms>{name}</terms>")).not.toEqual(
+      icuContract("<privacy>{name}</privacy>"),
+    );
+    expect(icuContract("{count}")).not.toEqual(icuContract("{sayi}"));
+    expect(icuContract("{role, select, owner {Owner} other {Other}}")).not.toEqual(
+      icuContract("{role, select, admin {Admin} other {Other}}"),
+    );
+  });
+
+  it("allows locale-specific plural categories while preserving exact counts and offsets", () => {
+    expect(icuContract("{count, plural, =0 {None} one {# item} other {# items}}")).toEqual(
+      icuContract("{count, plural, =0 {Yok} other {# öğe}}"),
+    );
+    expect(icuContract("{count, plural, =0 {None} other {# items}}")).not.toEqual(
+      icuContract("{count, plural, other {# öğe}}"),
+    );
+  });
+});
+
+it.each([en, pl, de])("names every selectable private notification platform", (catalog) => {
+  const messages = new Map(entries(catalog));
+  for (const channel of CHAT_NOTIFICATION_CHANNELS) {
+    expect(messages.get(`notificationRoutes.${channel}`), channel).toBeTruthy();
+  }
 });

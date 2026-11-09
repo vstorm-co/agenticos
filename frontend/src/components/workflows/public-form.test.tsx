@@ -37,6 +37,35 @@ function answer(status: number, body: unknown = {}) {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("PublicForm", () => {
+  it("sends text list answers to the public endpoint as JSON arrays", async () => {
+    const fetchMock = answer(201, { message: "Thanks" });
+    render(
+      <PublicForm
+        page={{
+          ...PAGE,
+          fields: [
+            {
+              name: "devices",
+              label: "Devices",
+              type: "string_list",
+              required: true,
+              description: null,
+              options: [],
+            },
+          ],
+        }}
+        token="tok"
+      />,
+    );
+    await userEvent.type(screen.getByLabelText("Devices"), "leaf-01\nleaf-02");
+    await userEvent.click(screen.getByRole("button", { name: "Send request" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Thanks");
+    expect(JSON.parse(fetchMock.mock.calls[0]![1].body)).toEqual({
+      values: { devices: ["leaf-01", "leaf-02"] },
+      website: null,
+    });
+  });
+
   it("sends draft answers through the authenticated test adapter", async () => {
     const submit = vi.fn().mockResolvedValue("Run started");
     const publicRequest = vi.fn();

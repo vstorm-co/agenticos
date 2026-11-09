@@ -23,6 +23,29 @@ export const qk = {
     attemptChanges: (agentId: string, runId: string, attempt: number) =>
       ["improvements", agentId, runId, "changes", attempt] as const,
   },
+  codingAccounts: {
+    all: () => ["coding-accounts"] as const,
+    mine: (scope: string) => ["coding-accounts", scope] as const,
+  },
+  durableTasks: {
+    root: () => ["durable-tasks"] as const,
+    all: (scope: string) => ["durable-tasks", scope] as const,
+    boards: (scope: string) => ["durable-tasks", scope, "boards"] as const,
+    records: (scope: string, table: string | undefined, skip: number) =>
+      ["durable-tasks", scope, "records", table, skip] as const,
+  },
+  phone: {
+    all: (org: string) => ["phone", org] as const,
+    settings: (org: string) => ["phone", org, "settings"] as const,
+    calls: (org: string) => ["phone", org, "calls"] as const,
+    call: (org: string, id: string) => ["phone", org, "call", id] as const,
+    transfers: (org: string, id: string) => ["phone", org, "call", id, "transfers"] as const,
+  },
+  conversationTasks: {
+    all: (tenant: string) => ["conversation-tasks", tenant] as const,
+    list: (tenant: string, conversationId: string | null | undefined) =>
+      ["conversation-tasks", tenant, conversationId] as const,
+  },
   auth: {
     me: () => ["auth", "me"] as const,
   },
@@ -42,11 +65,22 @@ export const qk = {
     /** Whether the deployment names a browser to sign in with from Settings. */
     browser: () => ["browser-sign-ins", "browser"] as const,
   },
+  systemAgents: {
+    /** The platform roles and their history in one organization. */
+    list: (orgId: string) => ["system-agents", orgId] as const,
+  },
   memory: {
     /** Every page of one organization's notes, for invalidating after a write. */
     all: (orgId: string) => ["memory", orgId] as const,
     /** One page of what the agents in one organization have written about the caller. */
-    mine: (orgId: string, skip: number) => ["memory", orgId, "mine", skip] as const,
+    mine: (orgId: string, skip: number, q = "") => ["memory", orgId, "mine", skip, q] as const,
+    /** The claims recorded about the caller; history adds what they replaced. */
+    claims: (
+      orgId: string,
+      history: boolean,
+      skip: number,
+      filters: import("./memory-api").MemoryClaimFilters = {},
+    ) => ["memory", orgId, "claims", history, skip, filters] as const,
   },
   organizations: {
     all: () => ["organizations"] as const,
@@ -119,6 +153,8 @@ export const qk = {
     delegationTree: (id: string) => ["agents", id, "delegation-tree"] as const,
     version: (id: string, versionId: string) => ["agents", id, "versions", versionId] as const,
     capabilityCatalog: () => ["agents", "capability-catalog"] as const,
+    // What the virtual terminal can mount here; fixed until the deployment changes.
+    mirageBackends: () => ["agents", "mirage-backends"] as const,
     // The system variables instructions may use; fixed for the deployment.
     promptVariables: () => ["agents", "prompt-variables"] as const,
   },
@@ -190,6 +226,10 @@ export const qk = {
     detail: (botId: string) => ["channel-bots", botId] as const,
     /** The Teams channels and group chats a trigger can post into (#1985). */
     teamsConversations: () => ["channel-bots", "teams-conversations"] as const,
+    // Outside the list's prefix on purpose: the servers are read from Discord on
+    // every fetch, and renaming a bot is no reason to ask Discord again (#2569).
+    discordRoleMappings: (botId: string) => ["discord-role-mappings", botId] as const,
+    discordServers: (botId: string) => ["discord-servers", botId] as const,
   },
   dictation: {
     // Whether the composer can dictate to one agent, and on which provider. Its
@@ -222,6 +262,10 @@ export const qk = {
     targets: (agentId: string) => ["exposures", agentId, "targets"] as const,
   },
   triggers: {
+    sources: (agentId: string, triggerId: string) =>
+      ["triggers", agentId, "sources", triggerId] as const,
+    actionConsents: (agentId: string, triggerId: string) =>
+      ["triggers", agentId, "action-consents", triggerId] as const,
     all: () => ["triggers"] as const,
     // One agent's schedules and event triggers, for the Builder's panel.
     list: (agentId: string) => ["triggers", agentId] as const,
@@ -265,10 +309,12 @@ export const qk = {
     // What one provider offers, for the model field's suggestions. Keyed per
     // provider because that is what is fetched - a shared key would make
     // switching provider serve the previous one's list.
-    models: (providerId: string, baseUrl?: string) =>
-      baseUrl
-        ? (["providers", providerId, "models", baseUrl] as const)
-        : (["providers", providerId, "models"] as const),
+    models: (providerId: string, baseUrl?: string, secretId?: string) =>
+      secretId
+        ? (["providers", providerId, "models", baseUrl ?? "", secretId] as const)
+        : baseUrl
+          ? (["providers", providerId, "models", baseUrl] as const)
+          : (["providers", providerId, "models"] as const),
     // Which providers can draw an image and what each may be asked to draw with.
     // One request rather than the catalog plus a listing per provider: which
     // models qualify is a rule the SDK enforces, so the server answers it.
@@ -289,6 +335,8 @@ export const qk = {
     purposes: () => ["secrets", "purposes"] as const,
   },
   runs: {
+    consents: (org: string | null, user: string | undefined) =>
+      ["runs", "consents", org, user] as const,
     all: () => ["runs"] as const,
     canStop: (orgId: string | null, accountId: string | null, runId: string) =>
       ["runs", "can-stop", orgId, accountId, runId] as const,
@@ -714,11 +762,24 @@ export const qk = {
     history: () => ["suggestions", "history"] as const,
     starters: () => ["suggestions", "starters"] as const,
   },
+  outcomes: {
+    all: () => ["outcomes"] as const,
+    // Under `all`'s prefix, so settling one anywhere refreshes every card showing it.
+    conversation: (conversationId: string) => ["outcomes", "conversation", conversationId] as const,
+  },
   notifications: {
     all: () => ["notifications"] as const,
     preferences: () => ["notifications", "preferences"] as const,
+    destinations: (organizationId: string | null) =>
+      ["notifications", "destinations", organizationId] as const,
     inbox: () => ["notifications", "inbox"] as const,
     unreadCount: () => ["notifications", "unread-count"] as const,
+  },
+  connectedAccounts: {
+    all: () => ["connected-accounts"] as const,
+    // A person's own, and the organization's: two owners, two lists.
+    mine: () => ["connected-accounts", "mine"] as const,
+    organization: () => ["connected-accounts", "organization"] as const,
   },
   mcpConnections: {
     all: () => ["mcp-connections"] as const,
@@ -732,6 +793,10 @@ export const qk = {
     // What the editor of one workflow may pick: its own endpoint and projection, so its own key.
     usable: (workflowId: string) => ["mcp-connections", "usable", workflowId] as const,
     calls: (connectionId: string) => ["mcp-connections", "calls", connectionId] as const,
+  },
+  // What one coding-agent task changed: written once, when the task ends, and never again.
+  codingChanges: {
+    detail: (changeId: string) => ["coding-changes", changeId] as const,
   },
   conversationWorkspace: {
     all: () => ["conversation-workspace"] as const,
@@ -773,7 +838,14 @@ export const qk = {
     all: () => ["local-services"] as const,
     list: () => ["local-services", "list"] as const,
   },
+  wikiGraph: {
+    source: (source: import("./workspace-files").FileSource) => ["wiki-graph", source] as const,
+  },
   projects: {
+    tracking: (id: string) => ["projects", id, "tracking"] as const,
+    trackingReviews: (id: string) => ["projects", id, "tracking-review"] as const,
+    trackingReview: (id: string, agentId: string | null, versionId: string | null) =>
+      ["projects", id, "tracking-review", agentId, versionId] as const,
     all: () => ["projects"] as const,
     list: (query: { search: string; skip: number; limit: number }) =>
       ["projects", "list", query] as const,
@@ -824,9 +896,11 @@ export const qk = {
     platformTools: () => ["mcp-servers", "platform-tools"] as const,
     // Keyed on the query and the page: the list is a request now, so each page
     // of each query is its own resource rather than a filter over one blob.
-    listPage: (query: string, category: string, auth: string, page: number) =>
-      ["mcp-servers", "list", query, category, auth, page] as const,
+    lists: () => ["mcp-servers", "list"] as const,
+    listPage: (query: string, category: string, auth: string, page: number, state = "all") =>
+      ["mcp-servers", "list", query, category, auth, page, state] as const,
     // One server by its key, curated or mirrored - what a chat's connection card shows.
+    entries: () => ["mcp-servers", "entry"] as const,
     entry: (key: string) => ["mcp-servers", "entry", key] as const,
   },
   sessions: {
@@ -888,8 +962,13 @@ export const qk = {
     state: () => ["desktop", "state"] as const,
     /** This computer's own connection, which the shell reports and pushes. */
     device: () => ["desktop", "device"] as const,
+    routineGrants: (org: string | null, user: string | null, device: string | null) =>
+      ["desktop", "routine-grants", org, user, device] as const,
     local: () => ["desktop", "local"] as const,
     services: () => ["desktop", "services"] as const,
+    agents: () => ["desktop", "agents"] as const,
+    codingOptions: (harness: string | null) => ["desktop", "coding-options", harness] as const,
+    skills: () => ["desktop", "skills"] as const,
     localFiles: (root: string) => ["desktop", "local", "files", root] as const,
     localFile: (root: string, path: string) => ["desktop", "local", "file", root, path] as const,
     /** The inbox's newest page as the desktop bridge reads it, once per unread count. */
@@ -902,6 +981,7 @@ export const qk = {
     notice: () => ["branding", "notice"] as const,
   },
   tables: {
+    assignees: (id: string) => ["tables", id, "assignees"] as const,
     all: () => ["tables"] as const,
     // The whole query object as the key, matching `skills.list`/`context.list`:
     // the server applies `search`/`includeArchived`/paging, so two filters are

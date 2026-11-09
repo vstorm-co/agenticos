@@ -7,18 +7,18 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { formatUsd } from "@/components/dashboard/format";
 import {
+  FlaskConical,
   Activity,
   ArrowLeft,
   ArrowRight,
   CornerLeftUp,
   ExternalLink,
-  FlaskConical,
-  MessageSquare,
   Play,
   Puzzle,
   Wrench,
   X,
 } from "lucide-react";
+import { ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { RunStatusBadge } from "@/components/agents/status-badge";
@@ -105,7 +105,7 @@ export function FocusedRun({
   // `?view=input` opens on what went in - how an eval case links to what its model saw.
   const view = useSearchParams().get("view");
   const { runs: delegated } = useDelegatedRuns(runId);
-  const resume = useResumeRun();
+  const resume = useResumeRun({ continuesInChat: run?.continues_in_chat ?? false });
   // What is on screen is the answer being held, which during a step is the run
   // stepped away from. Nothing that navigates may act on it: its neighbours are
   // its own, so an arrow pressed twice quickly would otherwise walk back to

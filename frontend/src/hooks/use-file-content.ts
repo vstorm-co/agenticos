@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 
 import { openFileInNewTab, type FileAccess, type FileText } from "@/lib/file-access";
 import type { Translate } from "@/lib/agent-step-captions";
+import { HtmlPreviewAssetError } from "@/lib/html-file-preview";
 import { getErrorMessage } from "@/lib/api-error";
 
 /**
@@ -29,7 +30,7 @@ interface UseFileTextResult {
 }
 
 /** One file's characters. */
-export function useFileText(access: FileAccess): UseFileTextResult {
+export function useFileText(access: FileAccess, preview = false): UseFileTextResult {
   const t = useTranslations("files");
   const tErrors = useTranslations("errors");
   const {
@@ -37,12 +38,19 @@ export function useFileText(access: FileAccess): UseFileTextResult {
     isLoading,
     error,
   } = useQuery({
-    queryKey: access.textKey,
-    queryFn: () => access.readText(),
+    queryKey: preview && access.readPreview ? [...access.textKey, "preview"] : access.textKey,
+    queryFn: () => (preview && access.readPreview ? access.readPreview() : access.readText()),
     retry: false,
   });
 
-  return { file, isLoading, error: readFailure(error, tErrors, t("couldNotBeRead")) };
+  return {
+    file,
+    isLoading,
+    error:
+      error instanceof HtmlPreviewAssetError
+        ? t("linkedAssetFailed", { path: error.path })
+        : readFailure(error, tErrors, t("couldNotBeRead")),
+  };
 }
 
 interface UseFileBytesResult {

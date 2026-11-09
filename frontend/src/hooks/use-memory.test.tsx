@@ -27,7 +27,7 @@ function wrapper({ children }: { children: ReactNode }) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(apiClient.delete).mockResolvedValue({ notes_deleted: 0, mem0_agents_cleared: 0 });
+  vi.mocked(apiClient.delete).mockResolvedValue({ notes_deleted: 0 });
 });
 
 describe("useForgetPersonMemory", () => {
@@ -40,15 +40,25 @@ describe("useForgetPersonMemory", () => {
   });
 
   it("reports what was actually removed rather than a bare success", async () => {
-    // Half of "forgotten" happens in mem0, so a toast that said "done" without a
-    // count would be a claim the caller cannot check.
-    vi.mocked(apiClient.delete).mockResolvedValue({ notes_deleted: 4, mem0_agents_cleared: 1 });
+    // A toast that said "done" without a count would be a claim the caller
+    // cannot check.
+    vi.mocked(apiClient.delete).mockResolvedValue({ notes_deleted: 4 });
     const { result } = renderHook(() => useForgetPersonMemory(), { wrapper });
 
     result.current.mutate("u-1");
 
     await waitFor(() => expect(toastSuccess).toHaveBeenCalled());
     expect(String(toastSuccess.mock.calls[0]?.[0])).toContain("4");
+  });
+
+  it("counts the claims erased with the notes, so a person with only claims is not told nothing happened", async () => {
+    vi.mocked(apiClient.delete).mockResolvedValue({ notes_deleted: 0, claims_deleted: 3 });
+    const { result } = renderHook(() => useForgetPersonMemory(), { wrapper });
+
+    result.current.mutate("u-1");
+
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalled());
+    expect(String(toastSuccess.mock.calls[0]?.[0])).toContain("3");
   });
 
   it("shows the server's refusal rather than swallowing it", async () => {
@@ -72,7 +82,7 @@ describe("useClearAgentMemory", () => {
   });
 
   it("reports how many notes went", async () => {
-    vi.mocked(apiClient.delete).mockResolvedValue({ notes_deleted: 9, mem0_agents_cleared: 0 });
+    vi.mocked(apiClient.delete).mockResolvedValue({ notes_deleted: 9 });
     const { result } = renderHook(() => useClearAgentMemory("a-1"), { wrapper });
 
     result.current.mutate();

@@ -43,7 +43,7 @@ rename.
 | In the console | What it is | In the API and spec |
 |---|---|---|
 | Chat | The web conversation with an agent | `conversation` |
-| Channel | Slack, Telegram or Mattermost, where people reach an agent | `channel_bot` |
+| Channel | Slack, Telegram, Mattermost or Discord, where people reach an agent | `channel_bot` |
 | Routine | An agent running on its own, on a schedule or an event | `trigger` |
 | Eval suite | A dataset an agent is held to, run on a schedule, on publish or promotion, or after a change | `eval_suite` |
 | Run | One time an agent answered, with its cost and steps | `agent_run` |
@@ -67,7 +67,7 @@ rename.
 | Budget | A spending limit that stops runs when it is reached | `budget` |
 | Guardrails | Checks that redact or block what flows through a run | `guardrails` |
 | Vault | Where keys and tokens are stored, sealed and never shown again | `secret` |
-| AI assistance | The organization's switch for the models that grade answers, draft cases, propose changes and draft missing knowledge, Improve included; off until somebody turns it on | `ai_assistance_enabled` |
+| Evaluation helpers | Code-defined grading, generation and improvement pipelines configured on a dataset | `scoring.judge`, `helper_settings` |
 
 ## How it is tested
 
@@ -120,8 +120,10 @@ in [Capabilities](capabilities.md).
 |---|---|
 | Apps | `artifacts` |
 | Ask the user | `ask_user` |
+| Drafts | `drafts` |
 | Web browser | `browser_use` |
 | Chat channel lookup | `channel_tools` |
+| Telephone calls | `phone_calls` |
 | Charts | `charts` |
 | Date and time | `clock` |
 | Calculations | `code_execution` |
@@ -136,9 +138,11 @@ in [Capabilities](capabilities.md).
 | Knowledge search | `knowledge` |
 | Media offload | `media` |
 | Memory | `memory_files` |
-| Memory (mem0) | `memory_mem0` |
+| Mirage (virtual terminal) | `mirage` |
 | Planning | `planning` |
 | Work while tools run | `background_tools` |
+| Background topics | `background_tasks` |
+| Watch a command | `monitor` |
 | Sandbox | `sandbox` |
 | Skills | `skills` |
 | Subagents | `subagents` |
@@ -151,5 +155,5 @@ in [Capabilities](capabilities.md).
 | Visuals | `visuals` |
 | Read web pages | `web_fetch` |
 | Web search | `web_research` |
-| Tables | `virtual_tables` |
+| Tables | AgenticOS MCP: `list_virtual_tables`, `query_virtual_table` |
 | Workflows | `workflows` |

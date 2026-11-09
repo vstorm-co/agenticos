@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronRight, FlaskConical, Play } from "lucide-react";
+import { type ReactNode, useState } from "react";
+import { FlaskConical, Play } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
@@ -18,36 +18,23 @@ import { useDatasets } from "@/hooks/use-datasets";
 import { useEvalRuns } from "@/hooks/use-eval-runs";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
-import type { EvalRun } from "@/types/eval-runs";
-import { PassRateChart, passRateLines } from "./pass-rate-chart";
-import { EvalRunRow } from "./run-row";
+import { EvalTrend } from "./eval-trend";
+import { passRateLines } from "./pass-rate-chart";
+import { RunsTable } from "./runs-table";
 import { StartEvalDialog } from "./start-eval-dialog";
 
 /** As many runs as the trend reads back at once - the API's own ceiling - a page of them. */
 const TREND_RUNS = 100;
 
-/** Runs by dataset, each group in the order its newest run came. */
-export function byDataset(runs: EvalRun[]): { id: string; name: string; runs: EvalRun[] }[] {
-  const groups = new Map<string, { id: string; name: string; runs: EvalRun[] }>();
-  for (const run of runs) {
-    const group = groups.get(run.dataset_id) ?? {
-      id: run.dataset_id,
-      name: run.dataset_name,
-      runs: [],
-    };
-    group.runs.push(run);
-    groups.set(run.dataset_id, group);
-  }
-  return [...groups.values()];
-}
-
-/**
- * The Evals tab: how the agent's pass rate moved, version after version, on
- * each dataset - then every run, grouped by the dataset it answered, each with
- * its verdict. A run is rare and costs money, so starting one is a button here
- * rather than a control on every screen.
- */
-export function EvalsPanel({ agentId, canStart }: { agentId: string; canStart: boolean }) {
+export function EvalsPanel({
+  agentId,
+  canStart,
+  actions,
+}: {
+  agentId: string;
+  canStart: boolean;
+  actions?: ReactNode;
+}) {
   const t = useTranslations("evals");
   const tErrors = useTranslations("errors");
   const tc = useTranslations("common");
@@ -60,27 +47,29 @@ export function EvalsPanel({ agentId, canStart }: { agentId: string; canStart: b
   });
   const anyDataset = useDatasets({ sort: "updated", limit: 1 });
   const start = canStart ? { label: t("start"), onClick: () => setStarting(true) } : undefined;
-  const groups = byDataset(runs);
   // With no runs, which empty state is right depends on whether a dataset exists,
   // so the datasets' read decides as much as the runs'.
   const waiting = isLoading || (runs.length === 0 && anyDataset.isLoading);
   const failed = error ?? (runs.length === 0 ? anyDataset.error : null);
 
   return (
-    <Card data-tour="agent-evals">
-      <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+    <Card data-tour="agent-evals" className="flex flex-1 flex-col">
+      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-4 space-y-0">
         <div className="space-y-1.5">
           <CardTitle>{t("title")}</CardTitle>
           <CardDescription>{t("description")}</CardDescription>
         </div>
-        {start && runs.length > 0 && (
-          <Button size="sm" onClick={start.onClick}>
-            <Play className="h-3.5 w-3.5" aria-hidden />
-            {start.label}
-          </Button>
-        )}
+        <div className="flex shrink-0 flex-wrap justify-end gap-2">
+          {actions}
+          {start && runs.length > 0 && (
+            <Button size="sm" onClick={start.onClick}>
+              <Play className="h-3.5 w-3.5" aria-hidden />
+              {start.label}
+            </Button>
+          )}
+        </div>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="flex flex-1 flex-col gap-6">
         {waiting ? (
           <LoadingState variant="skeleton-list" rows={3} />
         ) : failed ? (
@@ -94,6 +83,7 @@ export function EvalsPanel({ agentId, canStart }: { agentId: string; canStart: b
         ) : runs.length === 0 ? (
           anyDataset.datasets.length === 0 ? (
             <EmptyState
+              className="flex-1 border-0 bg-transparent"
               icon={FlaskConical}
               title={t("empty.noDatasetTitle")}
               description={t("empty.noDatasetBody")}
@@ -101,6 +91,7 @@ export function EvalsPanel({ agentId, canStart }: { agentId: string; canStart: b
             />
           ) : (
             <EmptyState
+              className="flex-1 border-0 bg-transparent"
               icon={FlaskConical}
               title={t("empty.title")}
               description={t("empty.body")}
@@ -109,7 +100,8 @@ export function EvalsPanel({ agentId, canStart }: { agentId: string; canStart: b
           )
         ) : (
           <>
-            <PassRateChart
+            <EvalTrend
+              className="px-0 pt-0 sm:px-0 sm:pt-0"
               lines={passRateLines(
                 runs,
                 (run) => ({ key: run.dataset_id, name: run.dataset_name }),
@@ -117,22 +109,7 @@ export function EvalsPanel({ agentId, canStart }: { agentId: string; canStart: b
                 locale,
               )}
             />
-            {groups.map((group, index) => (
-              <details key={group.id} open={index === 0} className="group">
-                <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium">
-                  <ChevronRight
-                    className="h-3.5 w-3.5 transition-transform group-open:rotate-90"
-                    aria-hidden
-                  />
-                  {t("group", { name: group.name, count: group.runs.length })}
-                </summary>
-                <ul className="divide-border mt-2 divide-y">
-                  {group.runs.map((run) => (
-                    <EvalRunRow key={run.id} run={run} />
-                  ))}
-                </ul>
-              </details>
-            ))}
+            <RunsTable runs={runs} />
             <Pager
               page={page}
               pageCount={Math.ceil(total / TREND_RUNS)}

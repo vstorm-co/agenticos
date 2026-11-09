@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -125,6 +125,13 @@ export function kindInfo(
   return kinds.find((entry) => entry.kind === kind) ?? null;
 }
 
+const PROVIDER_PRIORITY: Readonly<Record<string, number>> = {
+  openai: 0,
+  openai_codex: 1,
+  anthropic: 2,
+  openrouter: 3,
+};
+
 /**
  * What a secret can be for.
  *
@@ -140,7 +147,14 @@ export function useSecretPurposes() {
     staleTime: Infinity,
   });
 
-  return { purposes: data?.items ?? [], isLoading };
+  const purposes = useMemo(
+    () =>
+      [...(data?.items ?? [])].sort(
+        (a, b) => (PROVIDER_PRIORITY[a.id] ?? 4) - (PROVIDER_PRIORITY[b.id] ?? 4),
+      ),
+    [data],
+  );
+  return { purposes, isLoading };
 }
 
 /** What `POST /secrets/openai-codex` takes: a finished sign-in, and what to call it. */
