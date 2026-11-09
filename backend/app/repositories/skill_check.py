@@ -11,7 +11,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.db.models.eval_run import ArmRole, EvalRun, EvalRunArm, EvalRunCase, EvalRunStatus
-from app.db.models.skill_check import AgentState, CheckStatus, SkillCheck, SkillCheckAgent
+from app.db.models.skill_check import (
+    AgentState,
+    CheckSource,
+    CheckStatus,
+    SkillCheck,
+    SkillCheckAgent,
+)
 from app.db.models.skill_usage import RunSkillUse
 from app.db.models.skill_version import SkillVersion
 from app.repositories.skill_usage import used
@@ -102,6 +108,23 @@ async def list_for_skill(
         .limit(limit)
     )
     return list(rows.scalars()), total
+
+
+async def list_open(db: AsyncSession, *, organization_id: UUID, limit: int) -> list[SkillCheck]:
+    """Checks a person started - by hand or on a proposal - still running or waiting for a
+    decision, newest first. A session's check is decided in its session and a pinned
+    agent's catch-up by moving the agent, so neither is one of them."""
+    rows = await db.execute(
+        select(SkillCheck)
+        .where(
+            SkillCheck.organization_id == organization_id,
+            SkillCheck.status.in_([CheckStatus.RUNNING.value, CheckStatus.DONE.value]),
+            SkillCheck.source.in_([CheckSource.MANUAL.value, CheckSource.PROPOSAL.value]),
+        )
+        .order_by(SkillCheck.created_at.desc(), SkillCheck.id)
+        .limit(limit)
+    )
+    return list(rows.scalars())
 
 
 async def list_agents(

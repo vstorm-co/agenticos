@@ -200,6 +200,21 @@ class SkillCheckRead(SkillCheckEstimate):
     finished_at: datetime | None = None
 
 
+class SkillCheckAwaiting(BaseSchema):
+    """A check of a skill change a person has to come back to, as "Waiting for you" lists it."""
+
+    id: UUID
+    skill_id: UUID
+    skill_name: str
+    line: LineRef
+    status: CheckStatus = Field(description="`running`, or `done` and waiting for a decision")
+    verdict: CheckVerdict | None = None
+    agents: int = Field(
+        description="The agents it checks, counting the ones the caller may not see"
+    )
+    created_at: datetime
+
+
 class SkillCheckList(BaseSchema):
     items: list[SkillCheckRead]
     total: int

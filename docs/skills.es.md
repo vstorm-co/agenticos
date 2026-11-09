@@ -1,5 +1,5 @@
 ---
-source_sha: "756f51d63c4b"
+source_sha: "4de164986387"
 ---
 
 # Skills { #skills }
@@ -567,6 +567,7 @@ petición se rechaza, nombrando los agents, cuando:
 | `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Aplica el resultado de una sesión, fijando o no los agents que empeoraron, lo convierte en un fork para los agents elegidos, o lo descarta |
 | `POST /api/v1/skills/{id}/improvements/{session_id}/recheck` | Comprueba un resultado de nuevo en la línea tal como está ahora |
 | `GET /api/v1/skill-improvements/awaiting` | Las sesiones de skills que esperan a una persona |
+| `GET /api/v1/skill-checks/awaiting` | Las comprobaciones que inició una persona y que siguen en curso o esperan una decisión, en skills que quien llama puede editar |
 
 ## Cómo llegan los skills a una organización { #getting-skills-into-an-organization }
 

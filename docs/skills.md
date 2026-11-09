@@ -529,6 +529,7 @@ request is refused, naming the agents, when:
 | `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Applies a session's result, with or without pinning the worse agents, forks it for the agents picked, or discards it |
 | `POST /api/v1/skills/{id}/improvements/{session_id}/recheck` | Checks a result again on the line as it is now |
 | `GET /api/v1/skill-improvements/awaiting` | The skill sessions waiting for a person |
+| `GET /api/v1/skill-checks/awaiting` | The checks a person started, still running or waiting for a decision, on skills the caller may edit |
 
 ## Getting skills into an organization
 

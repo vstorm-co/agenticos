@@ -1,5 +1,5 @@
 ---
-source_sha: "756f51d63c4b"
+source_sha: "4de164986387"
 ---
 
 # Skille { #skills }
@@ -552,6 +552,7 @@ Albo każdy agent go traci i skill zostaje usunięty, albo nic się nie zmienia.
 | `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Stosuje wynik sesji, z przypięciem gorszych agentów albo bez, robi z niego fork dla wybranych agentów albo go odrzuca |
 | `POST /api/v1/skills/{id}/improvements/{session_id}/recheck` | Sprawdza wynik ponownie na linii w obecnym stanie |
 | `GET /api/v1/skill-improvements/awaiting` | Sesje skilli czekające na człowieka |
+| `GET /api/v1/skill-checks/awaiting` | Sprawdzenia uruchomione przez osobę, które trwają albo czekają na decyzję, na skillach, które wywołujący może edytować |
 
 ## Jak skille trafiają do organizacji { #getting-skills-into-an-organization }
 

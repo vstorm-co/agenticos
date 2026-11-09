@@ -1120,6 +1120,58 @@ class TestIsolation:
             )
 
 
+class TestAwaiting:
+    """What "Waiting for you" lists: checks a person started and has to come back to."""
+
+    async def test_a_check_left_open_waits_until_it_is_decided(self, db, monkeypatch):
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service = SkillCheckService(db)
+        check = await service.start(lab.ctx, lab.skill.id, _start())
+
+        [running] = await service.awaiting(lab.ctx)
+        assert (running.id, running.skill_name, running.line.name, running.agents) == (
+            check.id,
+            lab.skill.name,
+            "main",
+            3,
+        )
+        assert running.status is CheckStatus.RUNNING
+        evals.outcomes = {lab.a.id: Outcome(fixed=2), lab.b.id: Outcome(), lab.c.id: Outcome()}
+        await _run_to_end(service, evals, lab, check.id)
+        [done] = await service.awaiting(lab.ctx)
+        assert (done.status, done.verdict) == (CheckStatus.DONE, CheckVerdict.PASSED)
+
+        await service.discard(lab.ctx, lab.skill.id, check.id)
+        assert await service.awaiting(lab.ctx) == []
+
+    async def test_a_check_a_session_or_a_catch_up_decides_is_not_listed(self, db, monkeypatch):
+        lab = await _lab(db)
+        FakeEvals().install(monkeypatch)
+        service = SkillCheckService(db)
+        check = await service.start(lab.ctx, lab.skill.id, _start())
+        row = await skill_check_repo.get(db, check.id, organization_id=lab.ctx.organization_id)
+        assert row is not None
+
+        for source in ("session", "catch_up"):
+            await skill_check_repo.update(db, row=row, values={"source": source})
+            assert await service.awaiting(lab.ctx) == []
+
+    @pytest.mark.security
+    async def test_only_who_may_decide_it_sees_it(self, db, monkeypatch):
+        lab = await _lab(db)
+        FakeEvals().install(monkeypatch)
+        service = SkillCheckService(db)
+        await service.start(lab.ctx, lab.skill.id, _start())
+        operator = await _member(db, lab.ctx, OrgRoleName.OPERATOR)
+        viewer = await _member(db, lab.ctx, OrgRoleName.VIEWER)
+
+        assert await service.awaiting(operator) == []
+        with pytest.raises(AuthorizationError):
+            await service.awaiting(viewer)
+
+
 class TestTestSet:
     async def test_a_skill_gets_one_set_of_test_questions(self, db):
         ctx = await _owner(db)

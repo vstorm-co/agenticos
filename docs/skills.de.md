@@ -1,5 +1,5 @@
 ---
-source_sha: "756f51d63c4b"
+source_sha: "4de164986387"
 ---
 
 # Skills { #skills }
@@ -599,6 +599,7 @@ sich. Die ganze Anfrage wird abgelehnt, mit den Namen der Agents, wenn:
 | `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Übernimmt das Ergebnis einer Sitzung, mit oder ohne Festsetzen der schlechteren Agents, macht daraus einen Fork für die gewählten Agents oder verwirft es |
 | `POST /api/v1/skills/{id}/improvements/{session_id}/recheck` | Prüft ein Ergebnis erneut auf der Linie, wie sie jetzt ist |
 | `GET /api/v1/skill-improvements/awaiting` | Die Skill-Sitzungen, die auf einen Menschen warten |
+| `GET /api/v1/skill-checks/awaiting` | Die Prüfungen, die eine Person gestartet hat und die noch laufen oder auf eine Entscheidung warten, auf Skills, die der Aufrufer bearbeiten darf |
 
 ## Skills in eine Organisation bekommen { #getting-skills-into-an-organization }
 
