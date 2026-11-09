@@ -57,14 +57,11 @@ export function useSkillGallery(enabled: boolean) {
 }
 
 /** One gallery skill's body and files, read when a person opens its preview. */
-export function useGallerySkillPreview(key: string | null) {
+export function useGallerySkillPreview(key: string) {
   const { data, error } = useQuery({
-    queryKey: qk.skills.galleryPreview(key ?? ""),
+    queryKey: qk.skills.galleryPreview(key),
     queryFn: () =>
-      apiClient.get<GallerySkillPreview>(
-        `/skills/gallery/preview?${new URLSearchParams({ key: key ?? "" })}`,
-      ),
-    enabled: key !== null,
+      apiClient.get<GallerySkillPreview>(`/skills/gallery/preview?${new URLSearchParams({ key })}`),
     // What the gallery ships changes only with a release.
     staleTime: Infinity,
   });

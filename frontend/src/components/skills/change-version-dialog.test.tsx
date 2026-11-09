@@ -210,6 +210,36 @@ describe("ChangeVersionDialog", () => {
     });
   });
 
+  it("still asks for the acknowledgement when the check could not measure the agent", async () => {
+    const done = finishedCheck({ id: "c9", source: "catch_up", agents: [] });
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path === "/skills/s1/checks/c9" ? done : { items: [{ id: "m12", number: 12 }], total: 12 },
+    );
+    vi.mocked(apiClient.post).mockResolvedValue(done);
+    renderDialog();
+
+    await userEvent.click(screen.getByRole("radio", { name: /Main, latest/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Check first" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Start the check" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Back to Change version" }));
+
+    expect(await screen.findByText(/v12 was checked on HR bot .*: Unknown/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Change and publish" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Check first" })).toBeNull();
+  });
+
+  it("goes back to Change version when the check is closed before it starts", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [{ id: "m12", number: 12 }], total: 12 });
+    vi.mocked(apiClient.post).mockResolvedValue(finishedCheck());
+    renderDialog();
+
+    await userEvent.click(screen.getByRole("radio", { name: /Main, latest/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Check first" }));
+    await userEvent.keyboard("{Escape}");
+
+    expect(await screen.findByRole("button", { name: "Check first" })).toBeVisible();
+  });
+
   it("offers no check first where only a whole line can be checked", async () => {
     renderDialog();
 

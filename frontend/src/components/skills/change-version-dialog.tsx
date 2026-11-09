@@ -74,7 +74,7 @@ function foundOn(check: SkillCheck, agentId: string): AgentCheckRef {
     version_id: check.applied_version_id ?? "",
     state: row?.state ?? "unknown",
     sample: row?.sample ?? null,
-    at: check.finished_at ?? check.created_at,
+    at: check.created_at,
   };
 }
 

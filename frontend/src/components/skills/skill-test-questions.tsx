@@ -73,7 +73,6 @@ export function SkillTestQuestions({
               <Button
                 variant="outline"
                 size="sm"
-                loading={create.isPending && create.variables === true}
                 disabled={create.isPending}
                 onClick={() => create.mutate(true)}
               >
@@ -82,7 +81,6 @@ export function SkillTestQuestions({
               <Button
                 variant="outline"
                 size="sm"
-                loading={create.isPending && create.variables === false}
                 disabled={create.isPending}
                 onClick={() => create.mutate(false)}
               >

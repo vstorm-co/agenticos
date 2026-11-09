@@ -104,6 +104,23 @@ describe("SkillPageHeader", () => {
     expect(screen.queryByRole("link", { name: /Improve|up with main/ })).toBeNull();
   });
 
+  it("holds main's Improve too while AI assistance is off", () => {
+    ai.enabled = false;
+    render(
+      <SkillPageHeader
+        skill={SKILL}
+        line={null}
+        improveHref="/skills/k1/improve/new"
+        onEdit={vi.fn()}
+        onFork={null}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Improve" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+  });
+
   it("offers returning a fork with nothing of its own to main", async () => {
     const open = vi.fn();
     render(

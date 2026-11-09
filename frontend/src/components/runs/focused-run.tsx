@@ -290,7 +290,7 @@ export function FocusedRun({
               {timeAgo(run.started_at, tTime, locale)}
             </span>
           )}
-          {(run.skills_used?.length ?? 0) > 0 && <SkillsUsed uses={run.skills_used ?? []} />}
+          {run.skills_used && run.skills_used.length > 0 && <SkillsUsed uses={run.skills_used} />}
         </div>
 
         {/* The three numbers somebody opens a run to check, on one filled
