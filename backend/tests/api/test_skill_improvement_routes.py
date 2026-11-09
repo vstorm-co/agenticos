@@ -196,8 +196,23 @@ def test_the_platforms_own_tools_reach_every_skill_session_route() -> None:
         *skill_improvements.merges.routes,
     ]
 
-    assert len(routes) == 23
+    assert len(routes) == 27
     assert all(is_assistant_route(route) for route in routes)
+
+
+def test_an_organization_key_is_refused_every_merge_route() -> None:
+    from app.api.public_api import is_assistant_route, is_public_route
+    from app.api.routes.v1 import skill_improvements, skills
+
+    merge = [
+        route
+        for route in [*skills.router.routes, *skill_improvements.router.routes]
+        if "/improvements/{run_id}/merge" in getattr(route, "path", "")
+    ]
+
+    assert len(merge) == 4
+    assert not any(is_public_route(route) for route in merge)
+    assert all(is_assistant_route(route) for route in merge)
 
 
 @pytest.mark.parametrize(
