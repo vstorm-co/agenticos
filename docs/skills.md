@@ -284,7 +284,9 @@ an agent [Improve](#improving-a-skill) could not check, and edited like any othe
   block.
 - An agent that could not be checked - no questions, no access, no budget left,
   no published version, a run that failed - is **unknown**, and a person
-  acknowledges it before applying.
+  acknowledges it before applying. When no agent of the line can be checked, the
+  dialog says so before the start and offers the skill's test questions; going on
+  without them ends in a result to acknowledge.
 
 An agent is judged once, on the held-out questions of all its stages together: a
 result needs five of them for the agent, not five per stage, and a regression one
@@ -306,23 +308,32 @@ name.
 ### When an agent got worse { #when-an-agent-got-worse }
 
 **Check on agents** under Skills prices the check, runs it, shows each agent's
-result and then applies or discards the change. While it runs, a bar counts the
-agents done, and each agent shows whether it waits, runs or has its result. You can
-close the dialog: the skill's page then shows **Check running**, and **Show** opens
-the check again, until you decide it. A check an
+result and then offers exactly what the check allows. While it runs, a bar counts the
+agents done. Each agent then opens to what it fixed and broke, stage by stage, with
+a link to each stage's run; that run's page says it is one stage of the check and
+links back to it. You can close the dialog: the skill's page then shows **Check
+running**, and **Show** opens the check again, until you decide it. The skill's
+History lists the line's checks, newest first, with what each found and what was
+done with it, and **Details** opens one. A check an
 [Improve session](#improving-a-skill) started is decided in that session, and Check
-on agents links there instead. On main a person may still:
+on agents links there instead.
+
+**Back to editing** takes the checked text back to the editor - the one it was
+written in, or a new one opened from Show or Details - so nothing typed is lost; a
+proposal's check offers **Improve further** instead, which starts a session. On
+main a person may still:
 
 - **apply it and keep the worse agents where they are** - each is pinned, as a new
   published version, to the version it reads now, before the change goes live, so
   none of them serves it even once. Pinning needs publishing each of them, and an
   environment that waits for promotion must take the pinned version first;
-- **make a fork**, leaving main as it is - offered whatever the result, at
-  [Improve's](#improving-a-skill) Accept step, or through the API,
+- **make a fork**, leaving main as it is - offered whatever the result, in the
+  check's dialog, at [Improve's](#improving-a-skill) Accept step, or through the API,
   `POST /api/v1/skills/{id}/checks/{check_id}/fork`. The agents it helped move onto
   the fork, unless you pick others with `agent_ids`; an empty list moves none, and
   an agent reading the skill through a specialist is moved in its Builder;
-- **discard** it.
+- **discard** it, after a confirmation: a discarded check cannot be decided again,
+  and its record stays in History.
 
 On a fork only improving further and discarding remain: a pin names a main
 version, and a fork never starts from another fork. A check refuses to apply

@@ -8583,6 +8583,27 @@
         "running": "Prüfung läuft: {done} von {total} Agents geprüft.",
         "finished": "Eine Prüfung auf {total, plural, =1 {1 Agent} other {# Agents}} ist fertig und wartet auf deine Entscheidung.",
         "show": "Anzeigen"
+      },
+      "checks": {
+        "title": "Prüfungen",
+        "count": "{count, plural, =1 {1 Prüfung} other {# Prüfungen}}",
+        "none": "Noch keine Änderung dieser Linie wurde geprüft.",
+        "over": "Auf v{version} · {agents, plural, =1 {1 Agent} other {# Agents}}",
+        "details": "Details",
+        "verdict": {
+          "passed": "Besser, niemand schlechter",
+          "needs_ack": "Einige Agents nicht geprüft",
+          "blocked": "Ein Agent schlechter",
+          "no_better": "Niemand besser"
+        },
+        "status": {
+          "running": "Läuft",
+          "done": "Wartet auf Entscheidung",
+          "cancelled": "Angehalten",
+          "applied": "Übernommen",
+          "forked": "Fork erstellt",
+          "discarded": "Verworfen"
+        }
       }
     },
     "checkOnAgents": "Auf Agents prüfen",

@@ -8705,6 +8705,27 @@
         "running": "Check running: {done} of {total} agents checked.",
         "finished": "A check finished on {total, plural, =1 {1 agent} other {# agents}} and waits for your decision.",
         "show": "Show"
+      },
+      "checks": {
+        "title": "Checks",
+        "count": "{count, plural, =1 {1 check} other {# checks}}",
+        "none": "No change to this line has been checked yet.",
+        "over": "Over v{version} · {agents, plural, =1 {1 agent} other {# agents}}",
+        "details": "Details",
+        "verdict": {
+          "passed": "Better, nobody worse",
+          "needs_ack": "Some agents not checked",
+          "blocked": "Made an agent worse",
+          "no_better": "Nobody better"
+        },
+        "status": {
+          "running": "Running",
+          "done": "Waiting for a decision",
+          "cancelled": "Stopped",
+          "applied": "Applied",
+          "forked": "Made a fork",
+          "discarded": "Discarded"
+        }
       }
     },
     "checkOnAgents": "Check on agents",

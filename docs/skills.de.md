@@ -1,5 +1,5 @@
 ---
-source_sha: "243437bddc6f"
+source_sha: "756f51d63c4b"
 ---
 
 # Skills { #skills }
@@ -319,7 +319,10 @@ nicht prüfen konnte, und bearbeitet wie jedes andere [Dataset](datasets.md). Da
   Rauschen**: eine Warnung, keine Sperre.
 - Ein Agent, der nicht geprüft werden konnte - keine Fragen, kein Zugriff, kein
   Budget mehr, keine veröffentlichte Version, ein fehlgeschlagener Run - ist
-  **unbekannt**, und eine Person bestätigt das vor dem Anwenden.
+  **unbekannt**, und eine Person bestätigt das vor dem Anwenden. Lässt sich kein
+  Agent der Linie prüfen, sagt der Dialog das vor dem Start und bietet die
+  Testfragen des Skills an; ohne sie weiterzumachen endet in einem Ergebnis, das
+  zu bestätigen ist.
 
 Ein Agent wird einmal beurteilt, auf den Held-out-Fragen aller seiner Stufen
 zusammen: Ein Ergebnis braucht fünf davon für den Agent, nicht fünf pro Stufe,
@@ -345,14 +348,22 @@ ein Name.
 ### Wenn ein Agent schlechter wurde { #when-an-agent-got-worse }
 
 **Check on agents** unter Skills schätzt die Prüfung, führt sie aus, zeigt das
-Ergebnis jedes Agents und wendet die Änderung dann an oder verwirft sie. Während sie
-läuft, zählt ein Balken die fertigen Agents, und jeder Agent zeigt, ob er wartet,
-läuft oder sein Ergebnis hat. Sie können den Dialog schließen: Die Seite des Skills
-zeigt dann **Prüfung läuft**, und **Anzeigen** öffnet die Prüfung wieder, bis Sie
-entscheiden. Eine
+Ergebnis jedes Agents und bietet dann genau an, was die Prüfung erlaubt. Während sie
+läuft, zählt ein Balken die fertigen Agents. Danach öffnet sich jeder Agent zu dem,
+was er behoben und kaputt gemacht hat, Stufe für Stufe, mit einem Link zum Run jeder
+Stufe; die Seite dieses Runs sagt, dass er eine Stufe der Prüfung ist, und verweist
+zurück auf sie. Sie können den Dialog schließen: Die Seite des Skills zeigt dann
+**Prüfung läuft**, und **Anzeigen** öffnet die Prüfung wieder, bis Sie entscheiden.
+Der Verlauf des Skills listet die Prüfungen der Linie, die neueste zuerst, mit dem,
+was jede fand und was mit ihr geschah, und **Details** öffnet eine davon. Eine
 Prüfung, die eine [Verbessern-Sitzung](#improving-a-skill) gestartet hat, wird in
-dieser Sitzung entschieden, und Check on agents verweist dorthin. Auf main kann
-eine Person dennoch:
+dieser Sitzung entschieden, und Check on agents verweist dorthin.
+
+**Zurück zum Bearbeiten** bringt den geprüften Text zurück in den Editor - den, in
+dem er geschrieben wurde, oder einen neuen, geöffnet aus Anzeigen oder Details -,
+sodass nichts Eingetippte verloren geht; die Prüfung eines Vorschlags bietet
+stattdessen **Weiter verbessern** an, das eine Sitzung startet. Auf main kann eine
+Person dennoch:
 
 - **die Änderung anwenden und die schlechteren Agents lassen, wo sie sind** -
   jeder wird, als neue veröffentlichte Version, auf die Version festgesetzt, die
@@ -361,12 +372,14 @@ eine Person dennoch:
   und eine Umgebung, die auf Beförderung wartet, muss zuerst die festgesetzte
   Version übernehmen;
 - **einen Fork anlegen** und main lassen, wie es ist - angeboten, was immer das
-  Ergebnis ist, im Schritt Annehmen von [Verbessern](#improving-a-skill) oder über
+  Ergebnis ist, im Dialog der Prüfung, im Schritt Annehmen von
+  [Verbessern](#improving-a-skill) oder über
   die API, `POST /api/v1/skills/{id}/checks/{check_id}/fork`. Auf den Fork wechseln
   die Agents, denen sie geholfen hat, außer Sie wählen andere mit `agent_ids`; eine
   leere Liste verschiebt keinen, und ein Agent, der den Skill über einen
   Spezialisten liest, wird in seinem Builder verschoben;
-- sie **verwerfen**.
+- sie **verwerfen**, nach einer Bestätigung: Über eine verworfene Prüfung lässt
+  sich nicht mehr entscheiden, und ihr Eintrag bleibt im Verlauf.
 
 Auf einem Fork bleiben nur Weiterverbessern und Verwerfen: Ein Festsetzen nennt
 eine main-Version, und ein Fork beginnt nie bei einem anderen Fork. Eine Prüfung

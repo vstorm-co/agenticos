@@ -18,6 +18,7 @@ import {
   type ShownAgents,
 } from "@/components/skills/skill-lines";
 import { CheckRunning } from "@/components/skills/check-running";
+import { SkillChecks } from "@/components/skills/skill-checks";
 import { SkillPageHeader, type Merges } from "@/components/skills/skill-page-header";
 import { SkillUsageCard } from "@/components/skills/skill-usage";
 import { VersionTree } from "@/components/skills/version-tree";
@@ -86,6 +87,11 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
   const base = skill.latest_version_id;
   // Counted by the server, so agents the reader cannot see and every serving environment count.
   const followers = fork === null ? (mainVersions.versions[0]?.agents ?? 0) : fork.agents;
+  const editChecked = (candidate: { description: string; content: string }) => {
+    setDraft(candidate);
+    setEditing(true);
+  };
+  const checks = skill.can_edit === true && can(Perm.runsView);
 
   return (
     <div className="space-y-6">
@@ -104,16 +110,7 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
         onFork={skill.can_edit && base !== null ? () => setForkFrom(base) : null}
         onDelete={skill.can_edit ? () => setDeleting(true) : null}
       />
-      {skill.can_edit && can(Perm.runsView) && (
-        <CheckRunning
-          skillId={id}
-          forkId={fork?.id ?? null}
-          onEdit={(candidate) => {
-            setDraft(candidate);
-            setEditing(true);
-          }}
-        />
-      )}
+      {checks && <CheckRunning skillId={id} forkId={fork?.id ?? null} onEdit={editChecked} />}
       <Tabs
         value={tab}
         onValueChange={(next) => setTabParam(next === "agents" ? null : next)}
@@ -147,7 +144,7 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
           />
           {can(Perm.runsView) && <SkillUsageCard skillId={id} />}
         </TabsContent>
-        <TabsContent value="history">
+        <TabsContent value="history" className="space-y-4">
           <SkillHistory
             key={fork?.id ?? "main"}
             skillId={id}
@@ -158,6 +155,7 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
             forks={forks}
             onLine={(next) => setShowParam(next === null ? "main" : `fork:${next}`)}
           />
+          {checks && <SkillChecks skillId={id} forkId={fork?.id ?? null} onEdit={editChecked} />}
         </TabsContent>
         <TabsContent value="tree">
           <VersionTree

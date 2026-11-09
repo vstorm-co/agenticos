@@ -8465,6 +8465,27 @@
         "running": "Sprawdzanie trwa: sprawdzono {done} z {total} agentów.",
         "finished": "Sprawdzanie na {total, plural, one {# agencie} other {# agentach}} się skończyło i czeka na twoją decyzję.",
         "show": "Pokaż"
+      },
+      "checks": {
+        "title": "Sprawdzenia",
+        "count": "{count, plural, one {1 sprawdzenie} few {# sprawdzenia} many {# sprawdzeń} other {# sprawdzenia}}",
+        "none": "Żadnej zmiany tej linii jeszcze nie sprawdzano.",
+        "over": "Na v{version} · {agents, plural, one {1 agent} few {# agentów} many {# agentów} other {# agenta}}",
+        "details": "Szczegóły",
+        "verdict": {
+          "passed": "Lepiej, nikt gorzej",
+          "needs_ack": "Części agentów nie sprawdzono",
+          "blocked": "Któryś agent gorzej",
+          "no_better": "Nikt lepiej"
+        },
+        "status": {
+          "running": "W toku",
+          "done": "Czeka na decyzję",
+          "cancelled": "Zatrzymane",
+          "applied": "Zastosowane",
+          "forked": "Zrobiono fork",
+          "discarded": "Odrzucone"
+        }
       }
     },
     "checkOnAgents": "Sprawdź na agentach",

@@ -1,5 +1,5 @@
 ---
-source_sha: "243437bddc6f"
+source_sha: "756f51d63c4b"
 ---
 
 # Skille { #skills }
@@ -297,7 +297,9 @@ mogło sprawdzić, i edytowany jak każdy inny [dataset](datasets.md). Potem o p
   ostrzeżenie, nie blokada.
 - Agent, którego nie dało się sprawdzić - brak pytań, brak dostępu, brak
   budżetu, brak opublikowanej wersji, nieudany run - jest **nieznany**, a
-  osoba potwierdza to przed zastosowaniem.
+  osoba potwierdza to przed zastosowaniem. Gdy żadnego agenta linii nie da się
+  sprawdzić, okno mówi to przed startem i proponuje pytania testowe skilla; dalej
+  bez nich kończy się wynikiem do potwierdzenia.
 
 Agent jest oceniany raz, na pytaniach held-out ze wszystkich swoich etapów
 razem: wynik wymaga pięciu takich pytań na agenta, a nie pięciu na etap, a
@@ -320,12 +322,21 @@ nie widzisz, jest liczbą, nigdy nazwą.
 ### Gdy agent wypadł gorzej { #when-an-agent-got-worse }
 
 **Check on agents** w zakładce Skille wycenia sprawdzenie, uruchamia je, pokazuje
-wynik każdego agenta, a potem stosuje albo odrzuca zmianę. W trakcie pasek liczy
-sprawdzonych agentów, a przy każdym agencie widać, czy czeka, trwa, czy ma już
-wynik. Okno można zamknąć: strona skilla pokazuje wtedy **Sprawdzanie trwa**, a
-**Pokaż** otwiera sprawdzenie ponownie, dopóki o nim nie zdecydujesz. Sprawdzenie, które
-uruchomiła [sesja Popraw](#improving-a-skill), rozstrzyga się w tej sesji, a Check
-on agents prowadzi do niej. Na main osoba może nadal:
+wynik każdego agenta, a potem proponuje dokładnie to, na co sprawdzenie pozwala. W
+trakcie pasek liczy sprawdzonych agentów. Potem każdy agent rozwija się do tego, co
+naprawił i zepsuł, etap po etapie, z linkiem do runu każdego etapu; strona tego runu
+mówi, że jest jednym etapem sprawdzenia, i prowadzi z powrotem do niego. Okno można
+zamknąć: strona skilla pokazuje wtedy **Sprawdzanie trwa**, a **Pokaż** otwiera
+sprawdzenie ponownie, dopóki o nim nie zdecydujesz. Historia skilla wymienia
+sprawdzenia linii, od najnowszego, z tym, co każde znalazło i co z nim zrobiono, a
+**Szczegóły** otwierają jedno z nich. Sprawdzenie, które uruchomiła
+[sesja Popraw](#improving-a-skill), rozstrzyga się w tej sesji, a Check on agents
+prowadzi do niej.
+
+**Wróć do edycji** zabiera sprawdzony tekst z powrotem do edytora - tego, w którym
+go napisano, albo nowego, otwartego z Pokaż lub Szczegóły - więc nic, co wpisano,
+nie przepada; sprawdzenie propozycji daje zamiast tego **Popraw dalej**, które
+zaczyna sesję. Na main osoba może nadal:
 
 - **zastosować zmianę i zostawić gorszych agentów tam, gdzie są** - każdy jest
   przypinany, jako nowa opublikowana wersja, do wersji, którą czyta teraz, zanim
@@ -333,12 +344,13 @@ on agents prowadzi do niej. Na main osoba może nadal:
   wymaga prawa publikacji każdego z nich, a środowisko czekające na promocję musi
   najpierw dostać przypiętą wersję;
 - **zrobić fork**, zostawiając main bez zmian - dostępny niezależnie od wyniku,
-  w kroku Akceptacja w [Popraw](#improving-a-skill) albo przez API,
+  w oknie sprawdzenia, w kroku Akceptacja w [Popraw](#improving-a-skill) albo przez API,
   `POST /api/v1/skills/{id}/checks/{check_id}/fork`. Na fork przechodzą agenci,
   którym zmiana pomogła, chyba że wybierzesz innych w `agent_ids`; pusta lista nie
   przenosi nikogo, a agenta czytającego skill przez specjalistę przenosi się w jego
   Builderze;
-- **odrzucić** ją.
+- **odrzucić** ją, po potwierdzeniu: o odrzuconym sprawdzeniu nie da się już
+  zdecydować, a jego zapis zostaje w Historii.
 
 Na forku zostają tylko dalsze ulepszanie i odrzucenie: przypięcie wskazuje
 wersję main, a fork nigdy nie zaczyna się od innego forka. Sprawdzenie odmawia
