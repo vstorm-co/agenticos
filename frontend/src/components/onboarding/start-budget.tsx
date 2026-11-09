@@ -29,7 +29,7 @@ export function StartBudget({ org, onContinue }: { org: Organization; onContinue
       : new Intl.NumberFormat(locale, {
           style: "currency",
           currency: "USD",
-          maximumFractionDigits: 2,
+          maximumFractionDigits: 0,
         }).format(valid ? parsed : 0);
   const choose = (next: string) => {
     setValue(next);
@@ -76,12 +76,12 @@ export function StartBudget({ org, onContinue }: { org: Organization; onContinue
             className={styles.budgetSlider}
             min={0}
             max={Math.max(1000, Math.ceil((valid && parsed !== null ? parsed : 0) / 500) * 500)}
-            step="any"
-            value={valid && parsed !== null ? parsed : 0}
+            step={1}
+            value={valid && parsed !== null ? Math.round(parsed) : 0}
             disabled={pending || parsed === null}
             aria-label={t("budgetSlider")}
             aria-valuetext={formatted}
-            onChange={(event) => choose(Number(event.target.value).toFixed(2))}
+            onChange={(event) => choose(String(Math.round(Number(event.target.value))))}
           />
           <div className={styles.presets}>
             {[25, 100, 500].map((amount) => (

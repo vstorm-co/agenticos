@@ -190,7 +190,8 @@ it("changes a budget by preset and slider but saves only on Continue", async () 
 });
 it("preserves an existing decimal cap without an unnecessary write", async () => {
   render(<StartBudget org={{ ...org, monthly_budget_usd: "1250.120000" }} onContinue={env.next} />);
-  expect(screen.getByRole("slider")).toHaveValue("1250.12");
+  expect(screen.getByRole("slider")).toHaveValue("1250");
+  expect(screen.getByRole("slider")).toHaveAttribute("aria-valuetext", "$1,250");
   await proceed();
   expect(env.budget).not.toHaveBeenCalled();
   expect(env.next).toHaveBeenCalledOnce();
@@ -302,4 +303,15 @@ it("shows every deployment extras link without expanding a section", () => {
     expect(links[index]).toHaveAttribute("target", "_blank");
   }
   expect(document.querySelector("details")).not.toBeInTheDocument();
+});
+
+it("selects and saves a budget in whole dollars", async () => {
+  render(<StartBudget org={{ ...org, monthly_budget_usd: "100" }} onContinue={env.next} />);
+  const slider = screen.getByRole("slider");
+  expect(slider).toHaveAttribute("step", "1");
+  fireEvent.change(slider, { target: { value: "354.4" } });
+  expect(slider).toHaveValue("354");
+  expect(slider).toHaveAttribute("aria-valuetext", "$354");
+  await proceed();
+  expect(env.budget).toHaveBeenCalledWith("company", 354);
 });
