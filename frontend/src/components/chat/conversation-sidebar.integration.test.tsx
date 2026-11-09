@@ -1057,3 +1057,49 @@ it("shows a failed shared list and retries without hiding the reader's own conve
     within(list()).queryByText("Shared conversations could not be loaded."),
   ).not.toBeInTheDocument();
 });
+
+it("lets a reader favourite and unfavourite a shared conversation", async () => {
+  shared = [conversation("shared-favourite", "Team pricing")];
+  serve([]);
+  vi.mocked(apiClient.post).mockImplementation(async () => {
+    shared = [{ ...shared[0]!, is_favourite: true }];
+  });
+  vi.mocked(apiClient.delete).mockImplementation(async () => {
+    shared = [{ ...shared[0]!, is_favourite: false }];
+  });
+  mount();
+  await within(list()).findByText("Team pricing");
+  const row = () => within(list()).getByText("Team pricing").closest(".group") as HTMLElement;
+  await userEvent.click(within(row()).getByRole("button", { name: "Conversation actions" }));
+  await userEvent.click(within(row()).getByRole("button", { name: "Favourite" }));
+  await waitFor(() =>
+    expect(apiClient.post).toHaveBeenCalledWith("/conversations/shared-favourite/favourite", {}),
+  );
+  await userEvent.click(within(row()).getByRole("button", { name: "Conversation actions" }));
+  await userEvent.click(
+    await within(row()).findByRole("button", { name: "Remove from favourites" }),
+  );
+  await waitFor(() =>
+    expect(apiClient.delete).toHaveBeenCalledWith("/conversations/shared-favourite/favourite"),
+  );
+});
+
+it("lists a shared channel thread once even when channel participation also lists it", async () => {
+  const row = conversation("shared-channel", "Shared channel planning");
+  shared = [row];
+  serve([row]);
+  mount();
+  await within(list()).findByText("Shared with you");
+  expect(within(list()).getAllByText("Shared channel planning")).toHaveLength(1);
+});
+
+it("uses the usual favourite band for a starred shared thread while retaining its reader menu", async () => {
+  shared = [conversation("shared-starred", "Shared favourite", true)];
+  serve([]);
+  mount();
+  expect(await within(list()).findByRole("button", { name: "Favourites" })).toBeVisible();
+  const row = within(list()).getByText("Shared favourite").closest(".group") as HTMLElement;
+  await userEvent.click(within(row).getByRole("button", { name: "Conversation actions" }));
+  expect(within(row).getByRole("button", { name: "Remove from my chats" })).toBeVisible();
+  expect(within(row).queryByRole("button", { name: "Rename" })).not.toBeInTheDocument();
+});

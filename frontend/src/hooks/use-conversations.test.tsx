@@ -2064,3 +2064,41 @@ it("does not toast or return a fork after the organization changes while opening
   expect(copied).toBeNull();
   expect(toast.success).not.toHaveBeenCalled();
 });
+
+it("marks and restores shared unread state without touching access or grant caches", async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  client.setQueryData(qk.organizations.list(), [{ id: "fallback", is_personal: true }]);
+  const sharedKey = qk.conversationShares.sharedWithMe(0, 50, null, false);
+  const row = conversation("shared", { unread: true });
+  client.setQueryData(sharedKey, { items: [row], total: 1 });
+  const grants = [{ id: "grant", permission: "view" }];
+  client.setQueryData(qk.conversationShares.list("shared"), grants);
+  function localWrapper({ children }: { children: ReactNode }) {
+    return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  }
+  const { result } = renderHook(() => useConversations(), { wrapper: localWrapper });
+  await waitFor(() => expect(result.current.isLoading).toBe(false));
+  let refuse: (reason: Error) => void = () => {};
+  vi.mocked(apiClient.post).mockImplementationOnce(
+    () =>
+      new Promise((_, reject) => {
+        refuse = reject;
+      }),
+  );
+  let write: Promise<void>;
+  await act(async () => {
+    write = result.current.markRead("shared");
+  });
+  expect(client.getQueryData(sharedKey)).toMatchObject({ items: [{ unread: false }] });
+  await act(async () => {
+    refuse(new Error("offline"));
+    await write;
+  });
+  expect(client.getQueryData(sharedKey)).toMatchObject({ items: [{ unread: true }] });
+  expect(client.getQueryData(qk.conversationShares.list("shared"))).toBe(grants);
+  vi.mocked(apiClient.post).mockResolvedValueOnce(undefined);
+  await act(async () => {
+    await result.current.markRead("shared");
+  });
+  expect(client.getQueryData(sharedKey)).toMatchObject({ items: [{ unread: false }] });
+});

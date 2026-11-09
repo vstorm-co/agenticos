@@ -852,3 +852,29 @@ async def count_refused_key(connection: HTTPConnection) -> None:
         caller=f"ip:{caller_ip(connection)}",
         limit=auth_limit(),
     )
+
+
+async def enforce_conversation_share(
+    *, organization_id: UUID, actor_id: UUID, recipient_id: UUID
+) -> None:
+    """Bound direct-share delivery across conversations and notification channels.
+
+    IDs of newly created conversations cannot reset any quota. Count valid share
+    attempts before persisting the share or enqueueing its notification; all four
+    counters retain a local floor if Redis is unavailable.
+    """
+    org = f"org:{organization_id}"
+    for scope, caller, attempts in (
+        ("organization", org, 100),
+        ("actor", f"{org}:actor:{actor_id}", 20),
+        ("recipient", f"{org}:recipient:{recipient_id}", 20),
+        ("pair", f"{org}:actor:{actor_id}:recipient:{recipient_id}", 5),
+    ):
+        decision = await consume_with_local_floor(
+            surface=f"conversation_share_{scope}", caller=caller, limit=Limit(attempts=attempts)
+        )
+        if not decision.allowed:
+            raise RateLimitError(
+                message="Too many conversation shares. Wait and try again.",
+                details={"retry_after_seconds": decision.retry_after_seconds},
+            )

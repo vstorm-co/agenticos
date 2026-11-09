@@ -1,5 +1,5 @@
 ---
-source_sha: "f75b38e33354"
+source_sha: "1eac6123e9eb"
 ---
 
 # La consola { #the-console }
@@ -437,15 +437,16 @@ compartido lo lee por separado.
 
 Las conversaciones que otras personas compartieron contigo están en **Compartidas
 contigo**, debajo de tus favoritas. Renombrarlas, compartirlas, archivarlas o
-borrarlas corresponde a sus propietarios; su menú solo tiene **Quitar de mis
-chats**, que termina tu acceso y deja la conversación igual para los demás. Una
+borrarlas corresponde a sus propietarios. Su menú permite añadirlas a favoritas o quitarlas, o elegir **Quitar de mis chats**, que termina tu acceso y deja la conversación igual para los demás. Una
 compartida contigo para leer no tiene cuadro de mensaje. Cuando alguien comparte
-una conversación contigo, recibes una notificación que la abre.
+una conversación contigo, recibes una notificación que la abre. Las conversaciones compartidas no leídas y favoritas aparecen en sus secciones habituales.
 
 En **Compartir**, cada persona con quien está compartida la conversación tiene
 junto a su nombre un selector **Ver** o **Editar**, para cambiar lo que puede
 hacer sin revocar y volver a compartir. Un enlace compartido sigue siendo de
 solo lectura.
+
+Las comparticiones directas se limitan por minuto a 100 intentos por organización, 20 por remitente, 20 por destinatario y cinco por pareja remitente–destinatario dentro de la organización. Una conversación nueva no reinicia los límites. Un rechazo devuelve `429` con el tiempo de espera y no crea ni la compartición ni su notificación. Las listas compartidas y el acceso efectivo se actualizan cada 15 segundos mientras la página está activa.
 
 Tres cosas del compositor que conviene saber.
 
@@ -842,7 +843,7 @@ Arriba de una bifurcación aparece **Bifurcada de** con un enlace al original. E
 
 Cada bifurcación admite hasta 2000 mensajes, 10 000 llamadas a herramientas y 20 MiB de texto y datos estructurados copiados, con un máximo de diez solicitudes por minuto por miembro y organización. Una conversación que se está actualizando puede rechazar temporalmente la bifurcación; vuelve a intentarlo cuando termine la actualización. Los historiales que superen los límites deben acortarse antes de copiarlos.
 
-Una conversación con una lista de tareas guardada solo puede bifurcarse en su última respuesta. La copia conserva esa lista, incluidos los identificadores de tareas y las dependencias. No se guardan versiones anteriores de la lista, por lo que se rechaza una bifurcación anterior para evitar copiar tareas posteriores en un historial más antiguo.
+Una conversación con una lista de tareas guardada solo puede bifurcarse en su último mensaje, que debe ser una respuesta del asistente. La copia conserva esa lista, incluidos los identificadores de tareas y las dependencias. No se guardan versiones anteriores de la lista, por lo que se rechaza una bifurcación anterior para evitar copiar tareas posteriores en un historial más antiguo.
 
 ### Temas en segundo plano { #background-topics }
 

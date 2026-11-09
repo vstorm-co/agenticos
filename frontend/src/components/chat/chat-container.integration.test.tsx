@@ -8,6 +8,7 @@ import type { ChangeEvent } from "@/types/change-events";
 import { messageOf } from "./composer-editor";
 import { ChatContainer } from "./chat-container";
 import { apiClient } from "@/lib/api-client";
+import { qk } from "@/lib/query-keys";
 import { initialCall } from "@/lib/voice/call-reducer";
 import {
   useAgentSelectionStore,
@@ -1947,4 +1948,57 @@ it("resolves an access request against the requesting agent even after the picke
   await waitFor(() =>
     expect(socket.send).toHaveBeenCalledWith({ type: "computer_access_response", granted: false }),
   );
+});
+
+it("checks a listed channel participant's view-only share before enabling the composer", async () => {
+  const base = get.getMockImplementation()!;
+  get.mockImplementation((url: string) =>
+    url.startsWith("/conversations?")
+      ? Promise.resolve({
+          items: [
+            {
+              id: "channel",
+              title: "Channel discussion",
+              user_id: "someone-else",
+              created_at: "2026-11-09T00:00:00Z",
+              is_archived: false,
+            },
+          ],
+          total: 1,
+        })
+      : url === "/conversations/channel/metadata"
+        ? Promise.resolve({ id: "channel", share_permission: "view", user_id: "someone-else" })
+        : base(url),
+  );
+  useConversationStore.getState().setCurrentConversationId("channel");
+  mount();
+  expect(await screen.findByText("Shared with you as read-only")).toBeVisible();
+  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+});
+
+it("marks an open shared thread read again when its cached row receives another answer", async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  useConversationStore.getState().setCurrentConversationId("c-shared-open");
+  const key = qk.conversationShares.sharedWithMe(0, 50, "org-1", false);
+  client.setQueryData(key, { items: [{ id: "c-shared-open", unread: false }], total: 1 });
+  const post = vi.mocked(apiClient.post);
+  post.mockResolvedValue(undefined);
+  render(
+    <QueryClientProvider client={client}>
+      <ChatContainer />
+    </QueryClientProvider>,
+  );
+  await waitFor(() => expect(post).toHaveBeenCalledWith("/conversations/c-shared-open/read", {}));
+  const before = post.mock.calls.filter(
+    ([path]) => path === "/conversations/c-shared-open/read",
+  ).length;
+  await act(async () => {
+    client.setQueryData(key, { items: [{ id: "c-shared-open", unread: true }], total: 1 });
+  });
+  await waitFor(() =>
+    expect(
+      post.mock.calls.filter(([path]) => path === "/conversations/c-shared-open/read").length,
+    ).toBeGreaterThan(before),
+  );
+  expect(client.getQueryData(key)).toMatchObject({ items: [{ unread: false }] });
 });

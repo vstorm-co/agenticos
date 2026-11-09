@@ -1454,7 +1454,7 @@ class ConversationService:
             )
         # The row holds the latest checklist, not a version per answer. Carry it
         # only where it cannot reveal later work or replace an earlier plan.
-        if source.plan_items is not None and await conversation_repo.has_answer_after(
+        if source.plan_items is not None and await conversation_repo.has_message_after(
             self.db, source_id=source.id, ordinal=answer.ordinal
         ):
             raise BadRequestError(

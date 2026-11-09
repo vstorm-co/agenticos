@@ -1,5 +1,5 @@
 ---
-source_sha: "f75b38e33354"
+source_sha: "1eac6123e9eb"
 ---
 
 # Die Konsole { #the-console }
@@ -456,16 +456,18 @@ einen geteilten Thread liest jeder seiner Leser für sich.
 
 Unterhaltungen, die andere mit Ihnen geteilt haben, stehen unter **Mit Ihnen
 geteilt**, unter Ihren Favoriten. Umbenennen, Teilen, Archivieren und Löschen
-liegen bei ihren Besitzern; ihr Menü enthält nur **Aus meinen Chats entfernen**,
+liegen bei ihren Besitzern. Im Menü können Sie Favoriten setzen oder entfernen und **Aus meinen Chats entfernen** wählen,
 das Ihren Zugriff beendet und die Unterhaltung für alle anderen unverändert
 lässt. Eine zum Lesen mit Ihnen geteilte Unterhaltung hat kein Eingabefeld.
 Teilt jemand eine Unterhaltung mit Ihnen, erhalten Sie eine Benachrichtigung,
-die sie öffnet.
+die sie öffnet. Ungelesene und favorisierte geteilte Unterhaltungen stehen in ihren üblichen Bereichen.
 
 Unter **Teilen** hat jede Person, mit der die Unterhaltung geteilt ist, neben
 ihrem Namen eine Auswahl **Ansehen** oder **Bearbeiten**, um zu ändern, was sie
 darf, ohne den Zugriff zu entziehen und neu zu teilen. Ein Freigabelink bleibt
 schreibgeschützt.
+
+Direkte Freigaben sind pro Minute auf 100 Versuche je Organisation, 20 je Absender, 20 je Empfänger und fünf je Absender–Empfänger-Paar innerhalb der Organisation begrenzt. Neue Unterhaltungen setzen diese Grenzen nicht zurück. Eine Ablehnung liefert `429` mit einer Wartezeit und erstellt weder Freigabe noch Benachrichtigung. Freigabelisten und tatsächlicher Zugriff werden bei aktiver Seite alle 15 Sekunden aktualisiert.
 
 Drei Dinge im Eingabefeld sind wissenswert.
 
@@ -891,7 +893,7 @@ Oben in einer Abzweigung steht **Abgezweigt aus** mit einem Link zum Original. D
 
 Eine Abzweigung ist auf 2.000 Nachrichten, 10.000 Werkzeugaufrufe und 20 MiB kopierten Text und strukturierte Daten begrenzt. Pro Mitglied und Organisation sind höchstens zehn Anfragen pro Minute erlaubt. Eine gerade aktualisierte Unterhaltung kann die Abzweigung kurzzeitig ablehnen; versuchen Sie es nach der Aktualisierung erneut. Zu große Verläufe müssen vor dem Kopieren gekürzt werden.
 
-Eine Unterhaltung mit einer gespeicherten Checkliste kann nur an ihrer neuesten Antwort abgezweigt werden. Die Kopie behält diese Checkliste einschließlich Aufgaben-IDs und Abhängigkeiten. Frühere Checklistenstände werden nicht gespeichert; eine frühere Abzweigung wird daher abgelehnt, statt spätere Aufgaben in einen älteren Verlauf zu kopieren.
+Eine Unterhaltung mit einer gespeicherten Checkliste kann nur an ihrer neuesten Nachricht abgezweigt werden, wenn diese eine Antwort des Assistenten ist. Die Kopie behält diese Checkliste einschließlich Aufgaben-IDs und Abhängigkeiten. Frühere Checklistenstände werden nicht gespeichert; eine frühere Abzweigung wird daher abgelehnt, statt spätere Aufgaben in einen älteren Verlauf zu kopieren.
 
 ### Hintergrundthemen { #background-topics }
 

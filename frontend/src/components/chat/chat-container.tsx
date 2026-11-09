@@ -55,7 +55,7 @@ import { useComputerAccessOnUse, useLocalAccessGate } from "@/hooks/use-local-ac
 import { CompactionNotice } from "./compaction-notice";
 import { ForkedFrom } from "./forked-from";
 import { ConversationAccessNotice } from "./conversation-access-notice";
-import { useConversationAccess } from "@/hooks/use-conversation-shares";
+import { useConversationAccess, useSharedConversation } from "@/hooks/use-conversation-shares";
 import { SandboxPreparingNotice } from "./sandbox-preparing-notice";
 import { InterruptedNotice } from "./interrupted-notice";
 import { ConnectAccountPrompt } from "./connect-account-prompt";
@@ -249,12 +249,15 @@ export function ChatContainer({
   } = useConversations();
   const prevConversationIdRef = useRef<string | null | undefined>(undefined);
 
-  // Shared conversations outside the loaded listing carry their access in metadata.
+  // Read access for non-owned threads even when channel participation lists them.
   const listed = conversations.find((conversation) => conversation.id === currentConversationId);
   const notListed = currentConversationId !== null && listed === undefined;
-  const access = useConversationAccess(currentConversationId, notListed);
+  const meId = useAuthStore((state) => state.user?.id);
+  const needsAccess = currentConversationId !== null && (notListed || listed?.user_id !== meId);
+  const access = useConversationAccess(currentConversationId, needsAccess);
+  const sharedConversation = useSharedConversation(currentConversationId);
   const isArchived = listed?.is_archived ?? access.archived;
-  const viewOnly = notListed && access.viewOnly;
+  const viewOnly = access.viewOnly;
   const readOnly = isArchived || viewOnly || !access.known;
 
   // The one agent a conversation used, when it used exactly one. Recovered from the
@@ -294,8 +297,7 @@ export function ChatContainer({
   const openConversation = conversations.find(
     (conversation) => conversation.id === currentConversationId,
   );
-  const meId = useAuthStore((state) => state.user?.id);
-  const openIsUnread = openConversation?.unread === true;
+  const openIsUnread = openConversation?.unread === true || sharedConversation?.unread === true;
   const readOnOpen = useRef<string | null>(null);
   useEffect(() => {
     if (!currentConversationId) return;

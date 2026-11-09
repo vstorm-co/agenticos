@@ -52,6 +52,15 @@ Two things are versioned separately from this file and worth knowing about:
   group" (in the inbox, by email or by push), which the "Shared with your
   group" preference is now called.
 
+### Fixed
+
+- Shared conversation favourites and read receipts update immediately, including
+  new answers arriving in an open shared thread. Channel participants' direct
+  share permissions are checked even when their thread is already listed.
+- Shared sidebar refreshes read only listing columns. Direct-share notification
+  fanout is rate-limited across conversations by organization, sender, recipient
+  and pair, retaining a local floor when Redis is unavailable.
+
 ## [1.59.1] - 2026-11-09
 
 ### Fixed

@@ -28,6 +28,7 @@ from app.schemas.conversation_share import (
     SharedMessageRead,
     SharedVisual,
 )
+from app.services import rate_limit
 from app.services import visual as visuals
 from app.services.conversation import ConversationService
 from app.services.notifications import NotificationService
@@ -196,6 +197,9 @@ class ConversationShareService:
                 details={"shared_with": str(shared_with)},
             )
 
+        await rate_limit.enforce_conversation_share(
+            organization_id=conv.organization_id, actor_id=shared_by, recipient_id=shared_with
+        )
         share = await conversation_share_repo.create(
             self.db,
             conversation_id=conversation_id,

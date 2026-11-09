@@ -270,7 +270,8 @@ async def fork_conversation(
     when a run in the copied history is still running or parked on an
     approval or a question, or the prefix exceeds 2,000 messages, 10,000 tool
     calls or 20 MiB. Conversations with a saved checklist require their latest
-    answer so the checklist cannot come from later history (`400` otherwise).
+    answer with no later messages, so the checklist cannot come from later
+    history (`400` otherwise).
     `409` means the history is busy and can be retried.
     `forked_from` on the response names the source, and is only ever
     set for the person who owns both. `429` past ten forks a minute per member
@@ -608,7 +609,12 @@ async def share_conversation(
     share_service: ConversationShareSvc,
     current_user: CurrentUser,
 ) -> Any:
-    """Share a conversation with another user or generate a public link."""
+    """Share a conversation with another user or generate a public link.
+
+    Direct shares are bounded per organization, sender, recipient and pair across
+    conversations. A refused attempt returns `429` with `Retry-After` and writes
+    neither the share nor a notification. Link generation sends no notification.
+    """
     result = await share_service.share_conversation(
         conversation_id,
         shared_by=current_user.id,

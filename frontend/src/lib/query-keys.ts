@@ -542,6 +542,7 @@ export const qk = {
   conversationShares: {
     all: () => ["conversation-shares"] as const,
     list: (conversationId: string) => ["conversation-shares", conversationId] as const,
+    sharedLists: () => ["conversation-shares", "shared-with-me"] as const,
     sharedWithMe: (
       skip: number,
       limit: number,

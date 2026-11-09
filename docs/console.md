@@ -406,15 +406,17 @@ dot, which opening it clears - for you only, since a shared thread is read by ea
 of its readers separately.
 
 Conversations other people shared with you sit under **Shared with you**, below
-your favourites. They are theirs to rename, share, archive or delete; their menu
-holds only **Remove from my chats**, which ends your access and leaves the
+your favourites. They are theirs to rename, share, archive or delete. Their menu
+lets you favourite or unfavourite them, or **Remove from my chats**, which ends your access and leaves the
 conversation as it is for everybody else. One shared with you to read has no
 message box. When somebody shares a conversation with you, you get a
-notification that opens it.
+notification that opens it. Unread and favourite shared conversations use their usual bands.
 
 In **Share**, each person the conversation is shared with has a **View** or
 **Edit** picker beside their name, to change what they may do without revoking
 and sharing again. A share link stays view-only.
+
+Direct shares are limited per minute to 100 attempts per organization, 20 per sender, 20 per recipient and five per sender–recipient pair within that organization. New conversations do not reset these limits. A refused share returns `429` with a retry interval and creates neither a share nor its notification. Shared lists and effective access refresh every 15 seconds while the page is active.
 
 Three things in the composer worth knowing.
 
@@ -791,7 +793,7 @@ The top of a fork says **Forked from** the original, with a link to it. Only you
 
 Forks are limited to 2,000 messages, 10,000 tool calls and 20 MiB of copied text and structured data, with at most ten requests per minute per member and organization. A conversation being updated may briefly refuse a fork; retry once the update finishes. Over-limit histories must be shortened before they can be copied.
 
-A conversation with a saved checklist can be forked only at its latest answer. The fork keeps that checklist, including task IDs and dependencies. Earlier checklist snapshots are not stored, so an earlier fork is refused rather than copying later tasks into an older history.
+A conversation with a saved checklist can be forked only at its latest message, which must be an assistant answer. The fork keeps that checklist, including task IDs and dependencies. Earlier checklist snapshots are not stored, so an earlier fork is refused rather than copying later tasks into an older history.
 
 ### Background topics { #background-topics }
 

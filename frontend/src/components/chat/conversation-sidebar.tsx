@@ -161,6 +161,20 @@ function ConversationItem({
   }, [handedOff, listed, conversation.id, settleWorking]);
   const agentLabel = useConversationAgentLabel(agents, conversation.coding_agents ?? []);
 
+  const favouriteAction = (
+    <button
+      className="hover:bg-accent flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm whitespace-nowrap max-md:min-h-11 [&_svg]:shrink-0"
+      onClick={(e) => {
+        e.stopPropagation();
+        onFavourite(conversation.is_favourite !== true);
+        setShowMenu(false);
+      }}
+    >
+      <Star className={cn("h-4 w-4", conversation.is_favourite && "text-warning fill-current")} />
+      {conversation.is_favourite ? t("unfavourite") : t("favourite")}
+    </button>
+  );
+
   return (
     <div
       className={cn(
@@ -312,17 +326,20 @@ function ConversationItem({
               {/* Somebody else's thread: renaming, sharing, archiving and
                     deleting are theirs, and leaving is the reader's own. */}
               {shared ? (
-                <button
-                  className="text-destructive hover:bg-destructive/10 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm whitespace-nowrap max-md:min-h-11 [&_svg]:shrink-0"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onLeave?.();
-                    setShowMenu(false);
-                  }}
-                >
-                  <LogOut className="h-4 w-4" />
-                  {t("leaveShared")}
-                </button>
+                <>
+                  {favouriteAction}
+                  <button
+                    className="text-destructive hover:bg-destructive/10 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm whitespace-nowrap max-md:min-h-11 [&_svg]:shrink-0"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onLeave?.();
+                      setShowMenu(false);
+                    }}
+                  >
+                    <LogOut className="h-4 w-4" />
+                    {t("leaveShared")}
+                  </button>
+                </>
               ) : (
                 <>
                   <button
@@ -353,22 +370,7 @@ function ConversationItem({
                   )}
                   {/* In the menu as well as on the row: the hover control does not
                   exist on a touch screen until something is long-pressed. */}
-                  <button
-                    className="hover:bg-accent flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm whitespace-nowrap max-md:min-h-11 [&_svg]:shrink-0"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onFavourite(conversation.is_favourite !== true);
-                      setShowMenu(false);
-                    }}
-                  >
-                    <Star
-                      className={cn(
-                        "h-4 w-4",
-                        conversation.is_favourite && "text-warning fill-current",
-                      )}
-                    />
-                    {conversation.is_favourite ? t("unfavourite") : t("favourite")}
-                  </button>
+                  {favouriteAction}
                   {conversation.is_archived ? (
                     <button
                       className="hover:bg-accent flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm whitespace-nowrap max-md:min-h-11 [&_svg]:shrink-0"
@@ -567,25 +569,33 @@ function useBands(
     [projects],
   );
   return useMemo((): Band[] => {
-    // Threads with an answer the reader has not seen lead the list, as an inbox
-    // does, and leave the band they would otherwise sit in. Not the open one,
-    // which is being read, nor in the archive.
+    // Channel participation can also put a direct share in the ordinary list.
+    // Use the shared row once, retaining its reader controls in every band.
+    const sharedRows = isArchivedView ? [] : shared;
+    const sharedIds = new Set(sharedRows.map((conversation) => conversation.id));
+    const listedRows = conversations.filter((conversation) => !sharedIds.has(conversation.id));
     const unread = isArchivedView
       ? []
-      : conversations.filter(
+      : [...listedRows, ...sharedRows].filter(
           (conversation) =>
             conversation.unread === true && conversation.id !== currentConversationId,
         );
-    const remaining = conversations.filter((conversation) => !unread.includes(conversation));
+    const remaining = listedRows.filter((conversation) => !unread.includes(conversation));
+    const sharedRemaining = sharedRows.filter((conversation) => !unread.includes(conversation));
     const firstOther = remaining.findIndex((conversation) => conversation.is_favourite !== true);
-    const starred = isArchivedView
+    const ownStarred = isArchivedView
       ? []
       : remaining.slice(0, firstOther === -1 ? remaining.length : firstOther);
-    // Threads in a project sit under it rather than under their date, the way a
-    // folder holds its files. Not in the archive, which is one flat list.
+    const starred = [
+      ...ownStarred,
+      ...sharedRemaining.filter((conversation) => conversation.is_favourite === true),
+    ];
+    const ordinaryShared = sharedRemaining.filter(
+      (conversation) => conversation.is_favourite !== true,
+    );
     const { inProjects, outside: rest } = isArchivedView
-      ? { inProjects: [], outside: remaining.slice(starred.length) }
-      : byProject(remaining.slice(starred.length), names, ts("unnamedProject"));
+      ? { inProjects: [], outside: remaining.slice(ownStarred.length) }
+      : byProject(remaining.slice(ownStarred.length), names, ts("unnamedProject"));
     return [
       ...(unread.length > 0
         ? [{ key: "unread", heading: ts("unreadHeading"), icon: "unread" as const, rows: unread }]
@@ -593,10 +603,17 @@ function useBands(
       ...(starred.length > 0
         ? [{ key: "favourites", heading: t("favourites"), icon: "star" as const, rows: starred }]
         : []),
-      // Other people's threads shared with the reader, which their own listing
-      // does not hold. Not in the archive: the archive is the reader's own.
-      ...(!isArchivedView && shared.length > 0
-        ? [{ key: "shared", heading: ts("sharedHeading"), icon: "shared" as const, rows: shared }]
+      // Remaining direct shares, after unread and favourite rows. The archive
+      // remains the reader's own listing.
+      ...(!isArchivedView && ordinaryShared.length > 0
+        ? [
+            {
+              key: "shared",
+              heading: ts("sharedHeading"),
+              icon: "shared" as const,
+              rows: ordinaryShared,
+            },
+          ]
         : []),
       ...inProjects,
       // Under the date they were last active, the way a chat product's history
@@ -832,7 +849,7 @@ function ConversationList({
                       onFavourite={(favourite) => onFavourite(conversation.id, favourite)}
                       onRename={(title) => onRename(conversation.id, title)}
                       onShare={() => setShareConversationId(conversation.id)}
-                      shared={key === "shared"}
+                      shared={shared?.some((entry) => entry.id === conversation.id) === true}
                       onLeave={() => onLeaveShared?.(conversation.id)}
                     />
                   ))}

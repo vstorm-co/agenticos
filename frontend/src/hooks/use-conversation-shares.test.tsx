@@ -297,3 +297,10 @@ it("refreshes shared conversations and effective access while the page stays ope
     vi.useRealTimers();
   }
 });
+
+it("observes a shared row without starting another request or polling loop", async () => {
+  const { useSharedConversation } = await import("./use-conversation-shares");
+  const { result } = renderHook(() => useSharedConversation("c-1"), { wrapper });
+  expect(result.current).toBeUndefined();
+  expect(apiClient.get).not.toHaveBeenCalled();
+});

@@ -20,12 +20,17 @@ const SHARED_IN_SIDEBAR = 50;
 // Sharing changes can come from another member with this page already open.
 const ACCESS_REFRESH_MS = 15_000;
 
+function readSharedSidebar(): Promise<ConversationListResponse> {
+  return apiClient.get<ConversationListResponse>(
+    `/conversations/shared-with-me?skip=0&limit=${SHARED_IN_SIDEBAR}&include_archived=false`,
+  );
+}
+
 /**
  * The conversations other people shared with the caller, for the chat sidebar.
  *
- * Shared threads are not in the caller's own listing - that holds what they
- * started, joined or reach through a project - so without this a share was
- * reachable only by its link.
+ * A direct share alone does not put a thread in the caller's ordinary listing.
+ * Channel participation can also list it; the sidebar deduplicates those rows.
  */
 export function useSharedConversations(enabled: boolean) {
   // The active organization's shares: the request carries its header, and the
@@ -33,10 +38,7 @@ export function useSharedConversations(enabled: boolean) {
   const orgId = useOrgStore((state) => state.activeOrgId);
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: qk.conversationShares.sharedWithMe(0, SHARED_IN_SIDEBAR, orgId, false),
-    queryFn: () =>
-      apiClient.get<ConversationListResponse>(
-        `/conversations/shared-with-me?skip=0&limit=${SHARED_IN_SIDEBAR}&include_archived=false`,
-      ),
+    queryFn: readSharedSidebar,
     enabled,
     refetchInterval: ACCESS_REFRESH_MS,
   });
@@ -52,6 +54,17 @@ export function useSharedConversations(enabled: boolean) {
     failed: enabled && isError,
     retry: () => void refetch(),
   };
+}
+
+/** Observe the sidebar's cached row without starting another list/polling loop. */
+export function useSharedConversation(conversationId: string | null): Conversation | undefined {
+  const orgId = useOrgStore((state) => state.activeOrgId);
+  const { data } = useQuery<ConversationListResponse>({
+    queryKey: qk.conversationShares.sharedWithMe(0, SHARED_IN_SIDEBAR, orgId, false),
+    queryFn: readSharedSidebar,
+    enabled: false,
+  });
+  return data?.items.find((conversation) => conversation.id === conversationId);
 }
 
 /** What the reader may do in an open conversation, once it is known. */

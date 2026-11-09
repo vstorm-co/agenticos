@@ -149,3 +149,19 @@ async def test_share_permissions_cannot_be_changed_from_another_organization(
             json={"permission": "edit"},
         )
     assert response.status_code == 404
+
+
+@pytest.mark.security
+async def test_share_fanout_limit_returns_429_with_the_retry_interval(shares: AsyncMock) -> None:
+    from app.core.exceptions import RateLimitError
+
+    shares.share_conversation.side_effect = RateLimitError(
+        message="Too many shares", details={"retry_after_seconds": 23}
+    )
+    async with _client() as client:
+        response = await client.post(
+            f"{settings.API_V1_STR}/conversations/{CONVERSATION_ID}/shares",
+            json={"shared_with": str(uuid4())},
+        )
+    assert response.status_code == 429
+    assert response.headers["Retry-After"] == "23"

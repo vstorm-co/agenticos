@@ -1,5 +1,5 @@
 ---
-source_sha: "f75b38e33354"
+source_sha: "1eac6123e9eb"
 ---
 
 # Konsola { #the-console }
@@ -423,14 +423,16 @@ go ją gasi - tylko dla ciebie, bo udostępniony wątek każdy czytelnik czyta o
 
 Rozmowy, które ktoś ci udostępnił, są w sekcji **Udostępnione Tobie**, pod
 ulubionymi. Zmiana nazwy, udostępnianie, archiwizacja i usuwanie należą do ich
-właściciela; ich menu ma tylko **Usuń z moich czatów**, co kończy twój dostęp i
+właściciela. W menu możesz dodać rozmowę do ulubionych lub ją stamtąd usunąć, albo wybrać **Usuń z moich czatów**, co kończy twój dostęp i
 zostawia rozmowę bez zmian dla pozostałych. Rozmowa udostępniona ci do odczytu
 nie ma pola wiadomości. Gdy ktoś udostępni ci rozmowę, dostajesz powiadomienie,
-które ją otwiera.
+które ją otwiera. Nieprzeczytane i ulubione rozmowy udostępnione trafiają do standardowych sekcji.
 
 W oknie **Udostępnij** przy każdej osobie, której udostępniono rozmowę, jest
 wybór **Podgląd** lub **Edytuj**: zmienia, co może zrobić, bez cofania i
 ponownego udostępniania. Link do udostępnienia pozostaje tylko do odczytu.
+
+Udostępnienia bezpośrednie mają limity na minutę: 100 prób na organizację, 20 na nadawcę, 20 na odbiorcę i pięć na parę nadawca–odbiorca w tej organizacji. Nowa rozmowa nie zeruje limitu. Odmowa zwraca `429` z czasem ponowienia i nie tworzy ani udostępnienia, ani powiadomienia. Lista udostępnień i faktyczny dostęp odświeżają się co 15 sekund przy aktywnej stronie.
 
 Trzy rzeczy w kompozytorze, które warto znać.
 
@@ -819,7 +821,7 @@ Na górze rozgałęzienia widać **Rozgałęzienie rozmowy** z linkiem do orygin
 
 Rozgałęzienie może obejmować najwyżej 2000 wiadomości, 10 000 wywołań narzędzi i 20 MiB kopiowanego tekstu oraz danych strukturalnych. Limit wynosi dziesięć żądań na minutę na członka i organizację. Aktualizowana rozmowa może chwilowo odmówić rozgałęzienia; spróbuj ponownie po zakończeniu aktualizacji. Historię przekraczającą limit trzeba skrócić przed skopiowaniem.
 
-Rozmowę z zapisaną checklistą można rozgałęzić tylko przy najnowszej odpowiedzi. Kopia zachowuje checklistę, w tym identyfikatory zadań i zależności. Wcześniejsze wersje checklisty nie są przechowywane, dlatego wcześniejsze rozgałęzienie jest odrzucane, aby nie kopiować późniejszych zadań do starszej historii.
+Rozmowę z zapisaną checklistą można rozgałęzić tylko przy jej najnowszej wiadomości, jeśli jest odpowiedzią agenta. Kopia zachowuje checklistę, w tym identyfikatory zadań i zależności. Wcześniejsze wersje checklisty nie są przechowywane, dlatego wcześniejsze rozgałęzienie jest odrzucane, aby nie kopiować późniejszych zadań do starszej historii.
 
 ### Tematy w tle { #background-topics }
 

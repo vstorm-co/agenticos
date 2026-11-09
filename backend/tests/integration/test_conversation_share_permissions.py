@@ -332,3 +332,40 @@ async def test_shared_pagination_uses_activity_dates_and_a_stable_tie_breaker(
         db, reader.id, organization_id=org.id, include_archived=False, skip=1, limit=1
     )
     assert [row.id for row in first + second] == expected
+
+
+async def test_shared_sidebar_rows_do_not_load_conversation_working_state(db: AsyncSession) -> None:
+    from sqlalchemy import inspect
+    from sqlalchemy.exc import InvalidRequestError
+
+    from app.db.models.organization import OrganizationMember
+
+    owner, reader = await _user(db), await _user(db)
+    org = Organization(
+        name="Acme", slug=f"acme-{uuid.uuid4().hex[:8]}", created_by_user_id=owner.id
+    )
+    db.add(org)
+    await db.flush()
+    db.add(OrganizationMember(organization_id=org.id, user_id=reader.id))
+    conversation = Conversation(
+        user_id=owner.id,
+        organization_id=org.id,
+        title="Shared plan",
+        plan_items=[{"content": "Private working state"}],
+        summary_messages=[{"text": "Large summary"}],
+    )
+    db.add(conversation)
+    await db.flush()
+    await conversation_share_repo.create(
+        db, conversation_id=conversation.id, shared_by=owner.id, shared_with=reader.id
+    )
+    reader_id, org_id = reader.id, org.id
+    db.expunge_all()
+    rows = await conversation_share_repo.get_conversations_shared_with_user(
+        db, reader_id, organization_id=org_id, include_archived=False
+    )
+    assert len(rows) == 1
+    assert {"summary_messages", "plan_items", "reminder_state"}.issubset(inspect(rows[0]).unloaded)
+    for field in ("summary_messages", "plan_items"):
+        with pytest.raises(InvalidRequestError):
+            getattr(rows[0], field)

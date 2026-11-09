@@ -28,7 +28,8 @@ MODULE = "app.services.conversation_share"
 
 
 @pytest.fixture
-def service() -> ConversationShareService:
+def service(monkeypatch: pytest.MonkeyPatch) -> ConversationShareService:
+    monkeypatch.setattr(f"{MODULE}.rate_limit.enforce_conversation_share", AsyncMock())
     return ConversationShareService(AsyncMock())
 
 
@@ -678,3 +679,39 @@ async def test_a_project_chat_does_not_gain_an_individual_edit_share(
                 conversation_id, uuid.uuid4(), owner, permission="edit", organization_id=ORG
             )
         shares.set_permission.assert_not_awaited()
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+async def test_a_limited_share_persists_nothing_and_sends_no_notification(
+    service: ConversationShareService, monkeypatch: pytest.MonkeyPatch
+):
+    from app.core.exceptions import RateLimitError
+
+    owner, target = uuid.uuid4(), uuid.uuid4()
+    with (
+        patch(f"{MODULE}.conversation_repo") as conv_repo,
+        patch(f"{MODULE}.user_repo") as user_repo,
+        patch(f"{MODULE}.member_repo") as member_repo,
+        patch(f"{MODULE}.conversation_share_repo") as share_repo,
+        patch(f"{MODULE}.NotificationService") as notifications,
+    ):
+        conv_repo.get_conversation_by_id = AsyncMock(return_value=_conversation(owner))
+        user_repo.get_by_id = AsyncMock(return_value=_user(target))
+        member_repo.get = AsyncMock(return_value=MagicMock())
+        share_repo.get_share = AsyncMock(return_value=None)
+        share_repo.create = AsyncMock()
+        notification = AsyncMock()
+        notifications.return_value.conversation_shared = notification
+        monkeypatch.setattr(
+            f"{MODULE}.rate_limit.enforce_conversation_share",
+            AsyncMock(
+                side_effect=RateLimitError(
+                    message="Too many shares", details={"retry_after_seconds": 60}
+                )
+            ),
+        )
+        with pytest.raises(RateLimitError):
+            await service.share_conversation(uuid.uuid4(), owner, shared_with=target)
+        share_repo.create.assert_not_awaited()
+        notification.assert_not_awaited()

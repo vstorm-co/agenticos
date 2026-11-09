@@ -528,8 +528,9 @@ async def test_latest_answer_carries_the_checklist_without_sharing_mutable_state
 @pytest.mark.parametrize(
     "plan", [[], [{"id": "later", "content": "Future work", "status": "pending"}]]
 )
+@pytest.mark.parametrize("later_role", ["user", "assistant"])
 async def test_forking_before_a_later_answer_cannot_copy_a_checklist_from_the_future(
-    db: AsyncSession, plan: list[dict[str, str]]
+    db: AsyncSession, plan: list[dict[str, str]], later_role: str
 ) -> None:
     from app.core.exceptions import BadRequestError
     from app.core.permissions import AuthContext
@@ -537,7 +538,7 @@ async def test_forking_before_a_later_answer_cannot_copy_a_checklist_from_the_fu
 
     source = await _source(db)
     answer = await _turn(db, source, "assistant", "Earlier answer")
-    await _turn(db, source, "assistant", "Later checklist change")
+    await _turn(db, source, later_role, "Later checklist change")
     source.plan_items = plan
     await db.flush()
     with pytest.raises(BadRequestError, match="latest answer"):

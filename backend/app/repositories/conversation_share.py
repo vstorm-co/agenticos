@@ -3,12 +3,14 @@
 from collections.abc import Collection
 from uuid import UUID
 
-from sqlalchemy import func, literal, or_, select
+from sqlalchemy import ColumnElement, func, literal, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import load_only
 
 from app.db.models.conversation import Conversation
 from app.db.models.conversation_share import ConversationShare
 from app.db.models.organization import OrganizationMember
+from app.repositories.conversation import LISTED_COLUMNS
 
 
 async def get_by_id(db: AsyncSession, share_id: UUID) -> ConversationShare | None:
@@ -65,7 +67,9 @@ async def get_shares_for_conversation(
     return list(result.scalars().all())
 
 
-def _shared_with_member(user_id: UUID, *, include_archived: bool = True) -> tuple:
+def _shared_with_member(
+    user_id: UUID, *, include_archived: bool = True
+) -> tuple[ColumnElement[bool], ...]:
     """The recipient holds the share *and* belongs to the conversation's org.
 
     The read path refuses a share whose conversation is in an organization the
@@ -85,7 +89,7 @@ def _shared_with_member(user_id: UUID, *, include_archived: bool = True) -> tupl
     )
 
 
-def _in_organization(organization_id: UUID | None) -> tuple:
+def _in_organization(organization_id: UUID | None) -> tuple[ColumnElement[bool], ...]:
     """Narrow a shared-with-me query to one organization, when one is named."""
     return () if organization_id is None else (Conversation.organization_id == organization_id,)
 
@@ -107,6 +111,7 @@ async def get_conversations_shared_with_user(
     """
     result = await db.execute(
         select(Conversation)
+        .options(load_only(*LISTED_COLUMNS, raiseload=True))
         .join(ConversationShare, ConversationShare.conversation_id == Conversation.id)
         .where(
             *_shared_with_member(user_id, include_archived=include_archived),

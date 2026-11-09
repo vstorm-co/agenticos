@@ -472,7 +472,7 @@ async def participation_claims(
 # sidebar fetched and decoded it for thirty rows on every refresh. `raiseload`, so a
 # caller that starts reading one of them from a listed row fails in a test rather
 # than lazily loading per row.
-_LISTED_COLUMNS = (
+LISTED_COLUMNS = (
     Conversation.id,
     Conversation.user_id,
     Conversation.organization_id,
@@ -809,7 +809,7 @@ async def get_conversations_by_user(
     """
     query = (
         select(Conversation)
-        .options(load_only(*_LISTED_COLUMNS, raiseload=True))
+        .options(load_only(*LISTED_COLUMNS, raiseload=True))
         .where(Conversation.organization_id == organization_id)
     )
     if user_id:
@@ -1040,14 +1040,13 @@ async def lock_fork_history(
     return ForkRowCounts(len(message_ids), len(tool_ids))
 
 
-async def has_answer_after(db: AsyncSession, *, source_id: UUID, ordinal: int) -> bool:
+async def has_message_after(db: AsyncSession, *, source_id: UUID, ordinal: int) -> bool:
     """Whether the current checklist could include work after this fork point."""
     return bool(
         await db.scalar(
             select(
                 exists().where(
                     Message.conversation_id == source_id,
-                    Message.role == "assistant",
                     Message.ordinal > ordinal,
                 )
             )
