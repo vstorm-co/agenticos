@@ -197,6 +197,8 @@ describe("VersionTree", () => {
     const reference = await screen.findByRole("region", { name: "v3" });
     const other = screen.getByRole("region", { name: "v2" });
     expect(within(reference).getByText("Reference")).toBeVisible();
+    const shown = await within(reference).findByText(/Answer from the policy/);
+    expect(shown.closest("table")).not.toBeNull();
 
     expect(await within(other).findByText("handbook", { selector: "ins" })).toBeVisible();
     expect(within(other).getByText("policy", { selector: "del" })).toBeVisible();

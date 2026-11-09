@@ -241,13 +241,11 @@ function Sections({
         same={base !== null && base.content === version.content}
         onlyDifferences={onlyDifferences}
       >
-        {text(
-          base?.content,
-          version.content,
-          <pre className="bg-muted max-h-80 overflow-auto rounded-md p-2 text-xs whitespace-pre-wrap">
-            {version.content}
-          </pre>,
-        )}
+        <DiffView
+          before={base?.content ?? version.content}
+          after={version.content}
+          modes={base !== null && base.content !== version.content}
+        />
       </Part>
       <Part title={t("files")} same={filesSame} onlyDifferences={onlyDifferences}>
         {version.resources.length + (files?.removed.length ?? 0) === 0 ? (
