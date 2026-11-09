@@ -73,7 +73,9 @@ export function SkillImprovementPage({
     <SkillImprovementHeader
       skillId={skillId}
       skillName={skill.name}
-      merge={sessionId === "new" && merge !== null ? { kind: merge, forkId } : null}
+      merge={
+        sessionId === "new" && merge !== null && forkId !== null ? { kind: merge, forkId } : null
+      }
     />
   );
   // A session is read from the line agents' runs; starting one changes the skill too.

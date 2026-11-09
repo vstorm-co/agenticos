@@ -64,7 +64,17 @@ export function currentImprovementStep(session: Improvement): ImprovementStep {
   if (session.status === "accepted" || session.status === "published") return "accept";
   const stop = stopOf(session);
   if (stop) return stop;
-  if (!isActive(session)) return "result";
+  if (!isActive(session)) {
+    // An ended session that never checked an attempt has no result to open on.
+    if (
+      session.status === "rejected" &&
+      !session.iterations.some((round) => round.verdict !== null)
+    )
+      return isMerge(session) || session.iterations.some((round) => round.batch_id !== null)
+        ? "changes"
+        : "understand";
+    return "result";
+  }
   if (CHECKING.includes(session.stage ?? "")) return "check";
   if (PROPOSING.includes(session.stage ?? "") || isMerge(session)) return "changes";
   return "understand";
