@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.60.2] - 2026-11-09
+
 ### Changed
 
 - Update Pydantic AI, its harness and skills integration, pricing data and
@@ -20734,7 +20736,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.60.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.60.2...HEAD
+[1.60.2]: https://github.com/vstorm-co/agenticos/compare/v1.60.1...v1.60.2
 [1.60.1]: https://github.com/vstorm-co/agenticos/compare/v1.60.0...v1.60.1
 [1.60.0]: https://github.com/vstorm-co/agenticos/compare/v1.59.1...v1.60.0
 [1.59.1]: https://github.com/vstorm-co/agenticos/compare/v1.59.0...v1.59.1
