@@ -40,6 +40,12 @@ forgets what it was told mid-run is a worse failure than a summary nobody asked
 for. `tiered` is the frugal choice and one binding away; it costs the summary
 only when clearing was not enough.
 
+Clearing retains the platform's controlled error envelopes, including their
+argument corrections and error references. They must reach the model even when
+`keep_tool_pairs` is zero or several calls fail together. Arbitrary external
+failure text remains subject to ordinary clearing. Older exchanges can still be
+summarized or dropped by the other strategies.
+
 ## Configuration
 
 | Field | Default | What it is |

@@ -1,5 +1,5 @@
 ---
-source_sha: "fe652977b769"
+source_sha: "d813678bfffa"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -59,6 +59,70 @@ contenedor en el servicio de sandbox del propio despliegue, que el bootstrap y l
 primera publicación registran como predeterminado de la organización; sin él solo
 guarda archivos. El navegador web apunta al servicio de navegador del despliegue
 (`BROWSER_SIGN_IN_CDP_URL`) y se omite donde no lo hay.
+
+## Errores de herramientas y recuperación { #tool-errors-and-recovery }
+
+En los runs de texto, los fallos de validación, las herramientas no disponibles y
+los fallos de ejecución inesperados devuelven un objeto `error` con `id`, `code`,
+`tool`, `execution`, `message`, `issues` y `recovery`. Los problemas
+de validación indican `field`, el código de validación `code` y `expected_type`, con
+un mensaje de corrección o un ejemplo. Un ID de workflow debe ser un UUID devuelto
+por la búsqueda de workflows; un array de nombres de campos se envía como
+`["name", "primary_ip"]`, no como una cadena separada por comas.
+
+`execution` vale `not_started` cuando la validación o el registro rechazan la llamada
+antes de ejecutarla, `started` cuando se ha confirmado el inicio y `unknown` cuando
+un error deja el resultado incierto. Un timeout posterior a la llamada no demuestra
+que la acción haya fallado. Comprueba su estado antes de volver a intentarla.
+
+| Código de error | Recuperación |
+|---|---|
+| `invalid_arguments` | `correct_arguments`: corrige el campo indicado antes de volver a intentarlo. |
+| `tool_unavailable` | `rediscover_tools`: busca las herramientas y vías de invocación disponibles en este contexto. |
+| `permission_denied` | `stop`: explica el rechazo. |
+| `transient_failure` | `retry` si se conoce el resultado y es seguro hacer otro intento; si no, `inspect_execution_status`. |
+| `execution_unknown` | `inspect_execution_status`: determina primero el resultado de la acción existente. |
+
+La búsqueda no permite invocar directamente todos los nombres de herramientas que
+devuelve. Un error de registro indica que la herramienta no está disponible en el
+contexto actual de invocación; no demuestra que falten permisos del usuario. El
+entorno de ejecución proporciona una vía de invocación admitida solo cuando puede
+determinarla. Las instrucciones de recuperación piden al agente que siga esa vía,
+corrija argumentos concretos y se ciña a la tarea: un fallo al buscar un workflow
+no justifica buscar en el sistema de archivos.
+
+El mismo error estructurado llega al modelo y al historial guardado cuando se
+reanuda una llamada aprobada. Las excepciones inesperadas muestran una explicación
+breve y el tipo de excepción cuando es seguro; los mensajes externos no confiables
+y las trazas internas quedan en los logs del servidor. Usa el `id` del error para
+encontrar la entrada detallada correspondiente.
+
+Cuando `run_code` informa de un fallo de una herramienta anidada, `cause_tool` y
+`cause_execution` identifican esa llamada e indican si comenzó. El ID del error y
+los problemas de los campos se conservan al cruzar el límite del sandbox. Un
+resultado externo desconocido exige comprobar las acciones anteriores antes de
+volver a ejecutar el script.
+
+Los campos obligatorios que faltan se indican por separado. Las restricciones de
+valor muestran las opciones permitidas, los límites numéricos, la cantidad de
+elementos o la longitud exigida. La validación de argumentos MCP utiliza el esquema
+publicado sin obtener referencias externas. Las comprobaciones se ejecutan en
+procesos aislados con concurrencia limitada y un plazo. Los esquemas inválidos,
+irresolubles o recursivos y las comprobaciones que exceden el plazo devuelven
+`tool_unavailable` antes de invocar la herramienta.
+
+Los errores del compilador conservan un diagnóstico seguro y la posición en el
+código cuando está disponible, incluido el identificador de los nombres sin
+resolver. El diagnóstico omite el código fuente sin procesar, las trazas internas
+y los mensajes arbitrarios de las excepciones.
+
+La limpieza de resultados de herramientas conserva los errores estructurados
+controlados, incluso si el número configurado de resultados retenidos es cero.
+Los resúmenes y las ventanas deslizantes aún pueden reducir intercambios anteriores.
+
+El agotamiento del presupuesto, los bloqueos de guardrails, las paradas de bucles y
+los límites de uso del modelo siguen terminando la ejecución y conservan su
+contabilidad. El modo de código mantiene esas paradas al cruzar el límite del sandbox.
 
 ## Qué se entrega { #what-ships }
 
