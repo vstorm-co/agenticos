@@ -37,7 +37,10 @@ platform tools and budget. Its author switches off what it should not do.
 
 Whichever capabilities an agent ends up with, every run is told which it has and
 which it has not, under **Your setup** in its instructions - so it describes only
-what it can do, and says what would have to be switched on for the rest.
+what it can do, and says what would have to be switched on for the rest. An agent
+with skills is told last, under **Your skills**, to open the one a question falls
+within with `load_capability`; asking for a skill with the card instead is
+answered with that.
 
 When a request needs one it lacks, the agent shows a card for it in the chat,
 with its reason. Someone who may edit the agent switches it on from the card,

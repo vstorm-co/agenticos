@@ -1,5 +1,5 @@
 ---
-source_sha: "78079a09c19f"
+source_sha: "da6cc983195f"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -44,7 +44,9 @@ desactiva lo que el agente no deba hacer.
 
 Acabe con las capabilities que acabe, cada run recibe en sus instrucciones, bajo
 **Your setup**, cuáles tiene y cuáles no - así describe solo lo que puede hacer y
-dice qué habría que activar para el resto.
+dice qué habría que activar para el resto. A un agent con skills se le dice al
+final, bajo **Your skills**, que abra con `load_capability` el skill en el que cae
+una pregunta; pedir un skill con la tarjeta recibe eso como respuesta.
 
 Cuando una petición necesita una que el agent no tiene, muestra en el chat una
 tarjeta con ella y su motivo. Quien puede editar el agent la activa desde la

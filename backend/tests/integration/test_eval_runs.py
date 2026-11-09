@@ -18,6 +18,7 @@ import contextlib
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from functools import partial
@@ -2058,11 +2059,15 @@ async def _skill_check_stage(
     )
 
 
-async def _checked_run(db: AsyncSession, ctx: AuthContext):
+async def _checked_run(
+    db: AsyncSession, ctx: AuthContext, agent: Agent | None = None, dataset: Dataset | None = None
+):
     """v7 asked a dataset as a skill check's stage, beside v6 in the same run, breaking a
     question v6 answers."""
-    agent, _ = await _agent(db, ctx)
-    dataset = await _dataset(db, ctx, cases=10)
+    if agent is None:
+        agent, _ = await _agent(db, ctx)
+    if dataset is None:
+        dataset = await _dataset(db, ctx, cases=10)
     await db.execute(
         update(DatasetCase)
         .where(DatasetCase.dataset_id == dataset.id)
@@ -2166,6 +2171,42 @@ async def test_a_score_says_which_attempt_of_its_eval_run_gave_it(db) -> None:
     assert attempts == expected
     assert all(item.eval_attempt == expected[item.id] for item in queue.items)
     assert await eval_run_repo.score_attempts(db, [], organization_id=ctx.organization_id) == {}
+
+
+async def test_a_skill_checks_answer_never_takes_a_waiting_scores_place(db) -> None:
+    """A regression an ordinary run sent waits for a person; the same case broken by a
+    check of a change nobody accepted does not push it out of the queue."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=10)
+    service = EvalRunService(db)
+    v6 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
+    await _run_to_end(db, Model(db), v6.id, ctx)
+    v7 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    await _run_to_end(db, Model(db, breaks="Question 0"), v7.id, ctx)
+    assert (await service.get(ctx, v7.id)).routed_to_review == 1
+    # One transaction stamps every score alike; the waiting one is the older.
+    await db.execute(
+        update(CaseScore)
+        .where(CaseScore.eval_run_id == v7.id)
+        .values(created_at=datetime.now(UTC) - timedelta(hours=1))
+    )
+
+    _, _, checked = await _checked_run(db, ctx, agent, dataset)
+
+    assert (await service.get(ctx, checked.id)).routed_to_review == 0
+    [waiting] = (await ScoringService(db).review_queue(ctx)).items
+    assert (waiting.eval_run_id, waiting.skill_check) == (v7.id, None)
+
+
+async def test_a_reader_who_may_not_read_the_answer_is_not_told_its_check(db) -> None:
+    ctx = await _owner(db)
+    _, _, _ = await _checked_run(db, ctx)
+
+    reader = replace(ctx, key_scopes=frozenset({Perm.DATASETS_VIEW}))
+    [waiting] = (await ScoringService(db).review_queue(reader)).items
+
+    assert (waiting.answer_hidden, waiting.skill_check) == (True, None)
 
 
 async def test_a_run_counts_the_questions_it_asks_once_each(db) -> None:

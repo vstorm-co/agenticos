@@ -122,6 +122,9 @@ class LockScope(IntEnum):
     #: locks its own dataset only, so two edits of two datasets would both read
     #: the count under the ceiling and together go past it.
     DATASET_REVISIONS_PER_ORGANIZATION = 27
+    #: Starting a check of one skill by hand: two starts at once would both find no
+    #: check of the same text running and pay for it twice.
+    SKILL_CHECK_STARTS_PER_SKILL = 28
 
 
 def _key(subject: UUID) -> int:

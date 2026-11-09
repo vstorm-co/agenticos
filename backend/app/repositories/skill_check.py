@@ -82,6 +82,41 @@ async def open_for_proposal(
     return list(rows.scalars())
 
 
+async def running_like(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    skill_id: UUID,
+    fork_id: UUID | None,
+    agent_id: UUID | None,
+    base_version_id: UUID,
+    candidate_hash: str,
+    mode: str,
+    source: str,
+) -> SkillCheck | None:
+    """A running check, of no proposal, of this text on this version, asked the same way."""
+    rows = await db.execute(
+        select(SkillCheck)
+        .where(
+            SkillCheck.organization_id == organization_id,
+            SkillCheck.skill_id == skill_id,
+            SkillCheck.fork_id.is_(None) if fork_id is None else SkillCheck.fork_id == fork_id,
+            SkillCheck.agent_id.is_(None) if agent_id is None else SkillCheck.agent_id == agent_id,
+            SkillCheck.base_version_id == base_version_id,
+            SkillCheck.candidate_hash == candidate_hash,
+            SkillCheck.mode == mode,
+            SkillCheck.source == source,
+            SkillCheck.proposal_id.is_(None),
+            SkillCheck.skill_set_case_ids.is_(None),
+            SkillCheck.excluded_conversation_ids == [],
+            SkillCheck.status == CheckStatus.RUNNING.value,
+        )
+        .order_by(SkillCheck.created_at, SkillCheck.id)
+        .limit(1)
+    )
+    return rows.scalar_one_or_none()
+
+
 async def list_for_skill(
     db: AsyncSession,
     *,

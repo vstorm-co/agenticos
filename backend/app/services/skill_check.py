@@ -49,6 +49,7 @@ from app.core.exceptions import (
 )
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
+from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent
 from app.db.models.dataset import Dataset
 from app.db.models.eval_run import EvalRunPurpose, EvalRunStatus
@@ -175,6 +176,8 @@ class Stage:
     case_ids: list[UUID] | None = None
     version: int | None = None
     """The dataset version asked; `None` asks its latest."""
+    asked: int | None = None
+    """How many questions it asks, once the ones it leaves out are known."""
 
 
 @dataclass
@@ -434,6 +437,8 @@ class SkillCheckService:
                 row.unknown = UnknownReason.NO_QUESTIONS
                 continue
             remaining: Decimal | None = None
+            asked: list[Stage] = []
+            skipped: UnknownReason | None = None
             for stage in row.stages:
                 try:
                     quote = await self.evals.estimate(
@@ -447,11 +452,30 @@ class SkillCheckService:
                 except AuthorizationError, NotFoundError:
                     row.unknown = UnknownReason.NO_ACCESS
                     break
+                except BadRequestError as refused:
+                    # Questions nothing can grade, or only ones the change learned from,
+                    # measure nothing on this agent; its other stage still may.
+                    reason = _skipped(refused)
+                    if reason is None:
+                        raise
+                    skipped = skipped or reason
+                    continue
+                asked.append(replace(stage, asked=quote.cases))
                 row.expected += rules.expected_cost(quote.total_usd, quote.rerun_ceiling_usd)
                 row.at_most += quote.total_usd + quote.rerun_ceiling_usd
                 remaining = quote.agent_remaining_usd
                 org_remaining = quote.org_remaining_usd
-            if row.unknown is None and remaining is not None and row.at_most > remaining:
+            if row.unknown is not None:
+                continue
+            row.stages = asked
+            if not asked:
+                row.unknown, row.sample = skipped, None
+                continue
+            if row.sample is SampleKind.OWN_QUESTIONS and all(
+                stage.kind == "skill_set" for stage in asked
+            ):
+                row.sample = SampleKind.SKILL_SET_ONLY
+            if remaining is not None and row.at_most > remaining:
                 row.unknown = UnknownReason.NO_BUDGET
         return Plan(
             skill=skill,
@@ -719,11 +743,16 @@ class SkillCheckService:
     ) -> SkillCheckRead:
         """Write a check and start each agent's first stage.
 
+        A check with nothing to run is finished at once: one of a line nobody reads
+        passes, since the change reaches no agent, and one whose every agent could
+        not be checked waits for a person to acknowledge them. Started by hand again
+        while the same check of the same text still runs, it returns that check.
+
         Raises:
             AuthorizationError: The caller lacks `runs:view`.
             NotFoundError: The skill, the proposal or the fork is not theirs to change.
             BadRequestError: The organization's remaining budget cannot cover the
-                check at its most, or no agent of the line can be checked.
+                check at its most.
         """
         plan = await self._plan(
             ctx,
@@ -745,6 +774,29 @@ class SkillCheckService:
                     "remaining_usd": str(plan.org_remaining),
                 },
             )
+        source = source or (
+            CheckSource.PROPOSAL if plan.proposal is not None else CheckSource.MANUAL
+        )
+        if (
+            source in (CheckSource.MANUAL, CheckSource.CATCH_UP)
+            and only is None
+            and not holdout
+            and not plan.excluded
+        ):
+            await hold_subject(self.db, LockScope.SKILL_CHECK_STARTS_PER_SKILL, plan.skill.id)
+            running = await skill_check_repo.running_like(
+                self.db,
+                organization_id=ctx.organization_id,
+                skill_id=plan.skill.id,
+                fork_id=None if plan.fork is None else plan.fork.id,
+                agent_id=plan.agent_id,
+                base_version_id=plan.base.id,
+                candidate_hash=plan.candidate.digest(),
+                mode=plan.mode.value,
+                source=source.value,
+            )
+            if running is not None:
+                return await self.read(ctx, skill_id, running.id)
         if plan.proposal is not None:
             await skill_proposal_repo.lock(
                 self.db, plan.proposal.id, organization_id=ctx.organization_id
@@ -762,11 +814,6 @@ class SkillCheckService:
                         message="This change is checked already",
                         details={"check_id": open_check.id},
                     )
-        if not any(item.unknown is None for item in plan.agents):
-            raise BadRequestError(
-                message="No agent of this line can be checked",
-                details={"reason": "nothing_to_check", "skill_id": plan.skill.id},
-            )
         check = await skill_check_repo.create(
             self.db,
             organization_id=ctx.organization_id,
@@ -782,10 +829,7 @@ class SkillCheckService:
                 candidate_hash=plan.candidate.digest(),
                 description_changed=plan.description_changed,
                 mode=plan.mode.value,
-                source=(
-                    source
-                    or (CheckSource.PROPOSAL if plan.proposal is not None else CheckSource.MANUAL)
-                ).value,
+                source=source.value,
                 proposal_id=None if plan.proposal is None else plan.proposal.id,
                 excluded_conversation_ids=list(plan.excluded),
                 skill_set_case_ids=plan.skill_set_case_ids,
@@ -824,7 +868,7 @@ class SkillCheckService:
         for item, row in zip(plan.agents, rows, strict=True):
             if item.unknown is None:
                 await self._run_stage(ctx, check, row, item.stages[0])
-        await self._settle(check)
+        await self._settle(check, no_readers=not rows)
         return await self.read(ctx, skill_id, check.id)
 
     async def _run_stage(
@@ -861,7 +905,8 @@ class SkillCheckService:
                 if refused.status_code == 402
                 else UnknownReason.NO_ACCESS
                 if isinstance(refused, (AuthorizationError, NotFoundError))
-                else UnknownReason.FAILED
+                else (isinstance(refused, BadRequestError) and _skipped(refused))
+                or UnknownReason.FAILED
             )
             await skill_check_repo.update_agent(
                 self.db,
@@ -962,6 +1007,10 @@ class SkillCheckService:
                         ctx, check, row, Stage(stage[1], dataset, stage[2], stage[3])
                     )
                     return
+            elif stage is not None:
+                await skill_check_repo.update_agent(
+                    self.db, row=row, values={"sample": SampleKind.OWN_NOT_ASKED.value}
+                )
         await self._judge(ctx, check, row)
 
     async def _worse_already(self, ctx: AuthContext, run_id: UUID) -> bool:
@@ -992,14 +1041,17 @@ class SkillCheckService:
         ]
         result = rules.pooled(stages, minimum=MIN_HOLDOUT_CASES)
         state = rules.agent_state(stages, minimum=MIN_HOLDOUT_CASES)
+        reason = UnknownReason.INCONCLUSIVE if state is AgentState.UNKNOWN else None
+        if row.sample == SampleKind.OWN_NOT_ASKED.value and state is not AgentState.WORSE:
+            # Its own questions were left for the regression the skill's showed; without
+            # it they are what would decide the agent, and nothing asks them by itself.
+            state, reason = AgentState.UNKNOWN, UnknownReason.OWN_NOT_ASKED
         await skill_check_repo.update_agent(
             self.db,
             row=row,
             values={
                 "state": state.value,
-                "unknown_reason": UnknownReason.INCONCLUSIVE.value
-                if state is AgentState.UNKNOWN
-                else None,
+                "unknown_reason": None if reason is None else reason.value,
                 "fixed": result.check.fixed_confirmed + result.fixed_unconfirmed,
                 "broken": result.check.regressions_confirmed + result.regressions_unconfirmed,
                 "held_out": sum(int(entry["compared"]) for entry in counted),
@@ -1038,8 +1090,12 @@ class SkillCheckService:
             values={"state": AgentState.UNKNOWN.value, "unknown_reason": reason.value},
         )
 
-    async def _settle(self, check: SkillCheck) -> None:
-        """Finish a check once every agent has a result."""
+    async def _settle(self, check: SkillCheck, *, no_readers: bool = False) -> None:
+        """Finish a check once every agent has a result.
+
+        `no_readers` is a check started on a line no agent reads, which passes: the
+        change reaches nobody. One whose agents were deleted since is no better.
+        """
         rows = await skill_check_repo.list_agents(
             self.db, [check.id], organization_id=check.organization_id
         )
@@ -1051,7 +1107,7 @@ class SkillCheckService:
             row=check,
             values={
                 "status": CheckStatus.DONE.value,
-                "verdict": rules.verdict(states).value,
+                "verdict": (CheckVerdict.PASSED if no_readers else rules.verdict(states)).value,
                 "finished_at": datetime.now(UTC),
             },
         )
@@ -1112,6 +1168,22 @@ class SkillCheckService:
                     assert run is not None, "a run just closed is there"
                     await NotificationService(self.db).eval_run_finished(run)
 
+    async def _stop(self, check: SkillCheck) -> None:
+        """Cancel a running check: its live runs end, and its unsettled agents are unknown."""
+        now = datetime.now(UTC)
+        rows = await skill_check_repo.list_agents(
+            self.db, [check.id], organization_id=check.organization_id
+        )
+        await self._end_runs(check, rows, now=now)
+        for row in rows:
+            if not AgentState(row.state).settled:
+                await self._unknown(row, UnknownReason.CANCELLED)
+        await skill_check_repo.update(
+            self.db,
+            row=check,
+            values={"status": CheckStatus.CANCELLED.value, "finished_at": now},
+        )
+
     async def stop_for_session(self, check: SkillCheck) -> None:
         """Stop a running check because the session that started it stopped.
 
@@ -1119,16 +1191,7 @@ class SkillCheckService:
         itself - whether the person may still read or stop them does not matter, as
         when a check expires.
         """
-        now = datetime.now(UTC)
-        rows = await skill_check_repo.list_agents(
-            self.db, [check.id], organization_id=check.organization_id
-        )
-        await self._end_runs(check, rows, now=now)
-        await skill_check_repo.update(
-            self.db,
-            row=check,
-            values={"status": CheckStatus.CANCELLED.value, "finished_at": now},
-        )
+        await self._stop(check)
 
     async def set_aside_for_session(self, check: SkillCheck) -> None:
         """Set aside a finished check its session can no longer decide: it moved to its next
@@ -1368,6 +1431,7 @@ class SkillCheckService:
                     proposal_id=check.proposal_id,
                     session_id=sessions.get(check.id),
                     applied_version_id=check.applied_version_id,
+                    no_readers=not mine and verdict is CheckVerdict.PASSED,
                     created_at=check.created_at,
                     finished_at=check.finished_at,
                     line=_line_ref(fork),
@@ -1401,16 +1465,40 @@ class SkillCheckService:
                 )
             )
         }
+        asked = await eval_run_repo.asked_counts(
+            self.db,
+            [
+                run_id
+                for row in rows
+                for run_id in (row.skill_set_run_id, row.dataset_run_id)
+                if run_id is not None
+            ],
+            organization_id=ctx.organization_id,
+        )
         stages: dict[UUID, list[Stage]] = {}
         for row in rows:
             mine: list[Stage] = []
             if row.skill_set_run_id is not None and test_set is not None:
-                mine.append(Stage("skill_set", test_set, check.skill_set_case_ids))
+                mine.append(
+                    Stage(
+                        "skill_set",
+                        test_set,
+                        check.skill_set_case_ids,
+                        asked=asked.get(row.skill_set_run_id),
+                    )
+                )
             own = datasets.get(row.dataset_id) if row.dataset_id else None
             if own is not None and (
                 row.dataset_run_id is not None or row.state in ("queued", "running")
             ):
-                mine.append(Stage(_own_kind(check), own, row.sample_case_ids))
+                mine.append(
+                    Stage(
+                        _own_kind(check),
+                        own,
+                        row.sample_case_ids,
+                        asked=None if row.dataset_run_id is None else asked.get(row.dataset_run_id),
+                    )
+                )
             stages[row.agent_id] = mine
         return stages
 
@@ -1456,7 +1544,9 @@ class SkillCheckService:
                             dataset_name=stage.dataset.name
                             if stage.dataset.id in readable
                             else None,
-                            cases=len(stage.case_ids)
+                            cases=stage.asked
+                            if stage.asked is not None
+                            else len(stage.case_ids)
                             if stage.case_ids is not None
                             else stage.dataset.case_count,
                             eval_run_id=_run_of(row, stage.kind),
@@ -1498,19 +1588,7 @@ class SkillCheckService:
             raise AlreadyExistsError(
                 message="The check is not running", details={"check_id": check.id}
             )
-        now = datetime.now(UTC)
-        await self._end_runs(
-            check,
-            await skill_check_repo.list_agents(
-                self.db, [check.id], organization_id=ctx.organization_id
-            ),
-            now=now,
-        )
-        await skill_check_repo.update(
-            self.db,
-            row=check,
-            values={"status": CheckStatus.CANCELLED.value, "finished_at": now},
-        )
+        await self._stop(check)
         return await self.read(ctx, skill_id, check.id)
 
     async def stop_for_proposal(self, ctx: AuthContext, skill_id: UUID, proposal_id: UUID) -> None:
@@ -1521,7 +1599,6 @@ class SkillCheckService:
         runs, as when a check expires - whether that person may stop runs somebody else
         started does not matter.
         """
-        now = datetime.now(UTC)
         for found in await skill_check_repo.open_for_proposal(
             self.db, proposal_id, organization_id=ctx.organization_id
         ):
@@ -1534,18 +1611,7 @@ class SkillCheckService:
             )
             if check is None or check.status != CheckStatus.RUNNING.value:
                 continue
-            await self._end_runs(
-                check,
-                await skill_check_repo.list_agents(
-                    self.db, [check.id], organization_id=ctx.organization_id
-                ),
-                now=now,
-            )
-            await skill_check_repo.update(
-                self.db,
-                row=check,
-                values={"status": CheckStatus.CANCELLED.value, "finished_at": now},
-            )
+            await self._stop(check)
 
     async def decidable_for_session(
         self, ctx: AuthContext, skill_id: UUID, check_id: UUID
@@ -2269,13 +2335,29 @@ def _chosen_for_fork(
     return [by_agent[agent_id] for agent_id in picked]
 
 
+_SKIPPED_FOR = {
+    "no_scorer": UnknownReason.UNSCORABLE,
+    "ai_assistance_off": UnknownReason.UNSCORABLE,
+    "all_evidence": UnknownReason.ALL_EVIDENCE,
+    "only_anonymised": UnknownReason.NO_QUESTIONS,
+}
+"""The refusals of one stage's questions that skip the stage instead of the whole check."""
+
+
+def _skipped(refused: BadRequestError) -> UnknownReason | None:
+    return _SKIPPED_FOR.get(str((refused.details or {}).get("reason")))
+
+
 def _rejudged(row: SkillCheckAgent, eval_run_ids: Collection[UUID]) -> bool:
     """Whether a verdict on one of these runs changes what this agent's row says."""
     if not {row.skill_set_run_id, row.dataset_run_id} & set(eval_run_ids):
         return False
     state = AgentState(row.state)
     if state is AgentState.UNKNOWN:
-        return row.unknown_reason == UnknownReason.INCONCLUSIVE.value
+        return row.unknown_reason in (
+            UnknownReason.INCONCLUSIVE.value,
+            UnknownReason.OWN_NOT_ASKED.value,
+        )
     return state.settled
 
 

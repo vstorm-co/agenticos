@@ -246,15 +246,12 @@ class TestWhatCannotBeChecked:
 
         assert {row.unknown_reason for row in estimate.agents} == {"no_access"}
 
-    async def test_a_check_the_organization_cannot_afford_or_nobody_can_run(self, db, monkeypatch):
+    async def test_a_check_the_organization_cannot_afford_is_refused(self, db, monkeypatch):
         lab = await _lab(db)
         FakeEvals(org_left=Decimal("0.01")).install(monkeypatch)
         service = SkillCheckService(db)
 
         with pytest.raises(BadRequestError, match="budget"):
-            await service.start(lab.ctx, lab.skill.id, _start())
-        FakeEvals(agent_left=Decimal("0.01")).install(monkeypatch)
-        with pytest.raises(BadRequestError, match="No agent"):
             await service.start(lab.ctx, lab.skill.id, _start())
 
     async def test_an_agent_and_its_specialist_on_one_line_are_one_agent_to_check(
