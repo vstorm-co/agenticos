@@ -599,6 +599,7 @@
   border-radius: 16px;
 }
 .profileCard > div > section {
+  overflow: visible;
   border: 0;
   box-shadow: none;
   border-radius: 0;
