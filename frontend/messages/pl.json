@@ -8197,7 +8197,10 @@
         "public-sector": "Sektor publiczny i utilities",
         "legal": "Prawo i doradztwo",
         "manufacturing": "Produkcja i logistyka"
-      }
+      },
+      "preview": "Podgląd",
+      "hidePreview": "Ukryj podgląd",
+      "files": "{count, plural, one {Zawiera 1 plik: {names}} few {Zawiera # pliki: {names}} many {Zawiera # plików: {names}} other {Zawiera # pliku: {names}}}"
     },
     "moreFiles": "{count, plural, one {+1 plik} few {+# pliki} many {+# plików} other {+# pliku}}",
     "bodyPlaceholder": "# Zwroty\n\nUżyj tego, gdy klient prosi o zwrot pieniędzy.\n\n## Kroki\n\n1. Sprawdź datę zamówienia.\n2. W ciągu 14 dni zwróć bez pytania.\n3. Później poproś człowieka o zatwierdzenie.",

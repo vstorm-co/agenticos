@@ -47,6 +47,7 @@ from app.repositories.skill import SkillSort
 from app.schemas.skill import (
     GalleryIndustryRead,
     GalleryInstallResult,
+    GallerySkillPreview,
     GallerySkillRead,
     SkillGallery,
     SkillList,
@@ -1032,7 +1033,7 @@ class SkillService:
         lands, so a renamed folder in a later release must not offer a second
         copy of a skill somebody is already editing.
         """
-        names = frozenset(await skill_repo.list_names(self.db, organization_id=ctx.organization_id))
+        ids = await skill_repo.ids_by_name(self.db, organization_id=ctx.organization_id)
         return SkillGallery(
             industries=[
                 GalleryIndustryRead(
@@ -1043,13 +1044,32 @@ class SkillService:
                             name=entry.name,
                             description=entry.description,
                             category=entry.category,
-                            installed=entry.name in names,
+                            installed=entry.name in ids,
+                            installed_id=ids.get(entry.name),
                         )
                         for entry in industry.skills
                     ],
                 )
                 for industry in skill_library.gallery()
             ]
+        )
+
+    async def gallery_preview(self, key: str) -> GallerySkillPreview:
+        """One gallery skill's body and files, read before it is installed.
+
+        Raises:
+            NotFoundError: No gallery skill has that key.
+        """
+        entry = skill_library.gallery_get(key)
+        if entry is None:
+            raise NotFoundError(message="No gallery skill has that key", details={"key": key})
+        return GallerySkillPreview(
+            key=entry.key,
+            name=entry.name,
+            description=entry.description,
+            category=entry.category,
+            content=entry.content,
+            files=[resource.name for resource in entry.resources],
         )
 
     async def install_gallery(self, ctx: AuthContext, keys: Sequence[str]) -> GalleryInstallResult:

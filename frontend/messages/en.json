@@ -8437,7 +8437,10 @@
         "public-sector": "Public sector and utilities",
         "legal": "Legal and professional services",
         "manufacturing": "Manufacturing and logistics"
-      }
+      },
+      "preview": "Preview",
+      "hidePreview": "Hide preview",
+      "files": "{count, plural, =1 {Comes with 1 file: {names}} other {Comes with # files: {names}}}"
     },
     "moreFiles": "{count, plural, =1 {+1 file} other {+# files}}",
     "bodyPlaceholder": "# Refunds\n\nUse this when a customer asks for their money back.\n\n## Steps\n\n1. Check the order date.\n2. Within 14 days, refund without asking.\n3. After that, ask a person to approve it.",

@@ -326,6 +326,7 @@ CALLS: tuple[Call, ...] = (
     ),
     Call("GET", "/skills", Perm.SKILLS_VIEW),
     Call("GET", "/skills/gallery", Perm.SKILLS_VIEW),
+    Call("GET", "/skills/gallery/preview", Perm.SKILLS_VIEW, query="?key=healthcare/consent"),
     Call("GET", "/skills/behind-main", Perm.SKILLS_VIEW),
     Call(
         "POST",

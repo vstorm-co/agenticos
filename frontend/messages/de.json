@@ -8315,7 +8315,10 @@
         "public-sector": "Öffentlicher Sektor und Versorger",
         "legal": "Recht und freie Berufe",
         "manufacturing": "Produktion und Logistik"
-      }
+      },
+      "preview": "Vorschau",
+      "hidePreview": "Vorschau ausblenden",
+      "files": "{count, plural, =1 {Mit 1 Datei: {names}} other {Mit # Dateien: {names}}}"
     },
     "moreFiles": "{count, plural, =1 {+1 Datei} other {+# Dateien}}",
     "bodyPlaceholder": "# Erstattungen\n\nNutzen Sie dies, wenn ein Kunde sein Geld zurückmöchte.\n\n## Schritte\n\n1. Prüfen Sie das Bestelldatum.\n2. Innerhalb von 14 Tagen ohne Nachfrage erstatten.\n3. Danach eine Person um Freigabe bitten.",

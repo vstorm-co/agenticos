@@ -1490,20 +1490,38 @@ class TestSkillGallery:
         industry.id = "healthcare"
         industry.skills = [_bundled("patient-enquiry-triage"), _bundled("consent-explainer")]
 
+        installed = uuid.uuid4()
         with (
             patch(
-                f"{SKILLS_PATH}.skill_repo.list_names",
-                new=AsyncMock(return_value={"consent-explainer"}),
+                f"{SKILLS_PATH}.skill_repo.ids_by_name",
+                new=AsyncMock(return_value={"consent-explainer": installed}),
             ),
             patch(f"{SKILLS_PATH}.skill_library.gallery", return_value=[industry]),
         ):
             gallery = await SkillService(_db()).gallery(_ctx())
 
         assert [i.id for i in gallery.industries] == ["healthcare"]
-        assert [(s.name, s.installed) for s in gallery.industries[0].skills] == [
-            ("patient-enquiry-triage", False),
-            ("consent-explainer", True),
+        assert [(s.name, s.installed, s.installed_id) for s in gallery.industries[0].skills] == [
+            ("patient-enquiry-triage", False, None),
+            ("consent-explainer", True, installed),
         ]
+
+    @pytest.mark.anyio
+    async def test_a_gallery_skill_is_read_before_it_is_installed(self):
+        entry = _bundled("consent-explainer", resources=("form.md",))
+        with patch(
+            f"{SKILLS_PATH}.skill_library.gallery_get",
+            side_effect=lambda key: entry if key == "healthcare/consent" else None,
+        ):
+            preview = await SkillService(_db()).gallery_preview("healthcare/consent")
+            with pytest.raises(NotFoundError):
+                await SkillService(_db()).gallery_preview("healthcare/missing")
+
+        assert (preview.name, preview.content, preview.files) == (
+            "consent-explainer",
+            "# consent-explainer",
+            ["form.md"],
+        )
 
     @pytest.mark.anyio
     async def test_installing_a_shelf_skips_what_is_there_and_reports_the_rest(self):

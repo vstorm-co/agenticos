@@ -29,6 +29,7 @@ from app.repositories.skill import SkillSort
 from app.schemas.skill import (
     GalleryInstallRequest,
     GalleryInstallResult,
+    GallerySkillPreview,
     SkillCreate,
     SkillGallery,
     SkillList,
@@ -147,6 +148,19 @@ async def skill_gallery(service: SkillSvc, ctx: Auth) -> Any:
     than reaching here.
     """
     return await service.gallery(ctx)
+
+
+@router.get(
+    "/gallery/preview",
+    response_model=GallerySkillPreview,
+    dependencies=[Depends(require(Perm.SKILLS_VIEW))],
+)
+async def preview_gallery_skill(
+    service: SkillSvc, key: str = Query(..., description="`<industry>/<folder>`")
+) -> Any:
+    """One gallery skill's body and the names of its files, before installing it; 404
+    for a key the gallery does not hold. Declared before `/{skill_id}`, as the gallery is."""
+    return await service.gallery_preview(key)
 
 
 @router.post(

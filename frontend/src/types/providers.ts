@@ -238,6 +238,18 @@ export interface GallerySkill {
   category: string | null;
   /** Whether this organization already has a skill by this name. */
   installed: boolean;
+  /** That skill, to open in place of installing it again. */
+  installed_id?: string | null;
+}
+
+/** A gallery skill as it would arrive: its body and the names of its files. */
+export interface GallerySkillPreview {
+  key: string;
+  name: string;
+  description: string;
+  category: string | null;
+  content: string;
+  files: string[];
 }
 
 /** One industry shelf and what is on it. */

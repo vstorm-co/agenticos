@@ -199,6 +199,14 @@ async def list_names(db: AsyncSession, *, organization_id: UUID) -> set[str]:
     return set(result.scalars().all())
 
 
+async def ids_by_name(db: AsyncSession, *, organization_id: UUID) -> dict[str, UUID]:
+    """Every skill in one organization, by its name, which is unique there."""
+    result = await db.execute(
+        select(Skill.name, Skill.id).where(Skill.organization_id == organization_id)
+    )
+    return dict(result.tuples().all())
+
+
 async def create(
     db: AsyncSession,
     *,
