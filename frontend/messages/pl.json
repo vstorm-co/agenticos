@@ -14309,7 +14309,10 @@
         "context": "plik kontekstu „{name}”",
         "mcpTools": "{count, plural, =0 {wszystkie narzędzia {server}} one {narzędzie {tools} z {server}} other {narzędzia {tools} z {server}}}, z pytaniem o zgodę tam, gdzie zapisują",
         "keeps": "Jeśli serwer o nic nie pytał, przyjęcie sprawia, że każde jego narzędzie zapisujące pyta o zgodę - nie tylko dodane. Cofnięcie przywraca narzędzia i zostawia pytanie o zgodę."
-      }
+      },
+      "skillBody": "Instrukcje skilla",
+      "skillDescription": "Opis skilla",
+      "other": "Inna zmiana"
     },
     "evidence": {
       "none": "Brak dowodów, które dałoby się sprawdzić.",
