@@ -188,6 +188,11 @@ export interface NodeInstance {
   config: Record<string, unknown>;
   policy?: NodePolicy | null;
   layout: NodePosition;
+  /**
+   * The loop this step sits directly inside, or null/absent at the top level. Which
+   * body a step belongs to; its wires never change it.
+   */
+  scope_id?: Uuid | null;
   /** What the builder calls this step, unique in the graph; the catalog name when unset. */
   label?: string | null;
   /** A note on the step, shown on the canvas. */
@@ -248,15 +253,14 @@ export interface WorkflowEdge {
  * A control node and the body it owns, as the server has computed it. Mirrors
  * `ScopeBoundary`.
  *
- * `body_node_ids` is **server-derived** from edge topology, never client-authored:
- * a draft save that implies a different membership than the server recomputes has
- * that implication overwritten, not honored. The editor reads this to filter the
- * scoped view; it never writes it.
+ * `body_node_ids` is **derived** from each step's `scope_id` - every step whose chain
+ * of loops leads to `scope_node_id`, nested bodies included - never client-authored.
+ * The editor re-derives it (`deriveScopes`) to filter the scoped view; it never
+ * writes it. No wire enters a body: it starts at its `loop.item`.
  */
 export interface ScopeBoundary {
   scope_node_id: Uuid;
   body_node_ids: Uuid[];
-  entry_port: string;
   exit_node_id: Uuid;
   exit_port: string;
 }

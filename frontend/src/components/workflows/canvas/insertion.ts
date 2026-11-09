@@ -11,6 +11,7 @@ import type {
   WorkflowGraph,
 } from "@/lib/workflows/types";
 
+import { ownsAScope } from "@/components/workflows/palette/scope";
 import { isTrigger, triggerNodeOf } from "@/lib/workflows/triggers";
 
 import { NODE_HEIGHT, NODE_WIDTH, cardHeight, stepFootprint, type Footprint } from "./node-size";
@@ -29,8 +30,10 @@ import { currentScopeId, scopedGraph } from "./scope-view";
  * of clicks in the palette, and nothing ever lands on top of something else.
  *
  * Additional triggers are independent roots and preserve existing starts and wires.
- * The first trigger goes before a legacy non-trigger entry. Inside a loop body,
- * new steps are wired into the body so topology retains their scope membership.
+ * The first trigger goes before a legacy non-trigger entry. A step added inside a
+ * loop's body names that loop (`scope_id`), so it stays in the body whether or not
+ * anything is wired to it, and a new loop comes with its **Loop item** and **Loop
+ * result** already inside it.
  */
 
 /** The space left between one step and the next along a flow, and between rows. */
@@ -64,6 +67,29 @@ export interface InsertionRequest {
   between?: WorkflowEdge;
   /** The new node's id - a parameter so a plan is deterministic under test. */
   id?: Uuid;
+  /** The catalog's loop item and result steps, put inside a new loop; none without them. */
+  loopSteps?: LoopSteps;
+}
+
+/** The two steps every loop body holds: where an iteration starts and what it hands back. */
+export interface LoopSteps {
+  item: NodeDefinition;
+  result: NodeDefinition;
+}
+
+/** The catalog's newest loop item and result steps, or none when it lacks either. */
+export function loopStepsOf(catalog: readonly NodeDefinition[]): LoopSteps | undefined {
+  const newest = (id: string): NodeDefinition | undefined =>
+    catalog
+      .filter((definition) => definition.id === id)
+      .reduce<NodeDefinition | undefined>(
+        (best, definition) =>
+          best === undefined || definition.version > best.version ? definition : best,
+        undefined,
+      );
+  const item = newest("loop.item");
+  const result = newest("loop.yield");
+  return item === undefined || result === undefined ? undefined : { item, result };
 }
 
 /** The graph with its loop scopes derived from its wires as they are now. */
@@ -177,7 +203,7 @@ function anchorFor(
   graph: WorkflowGraph,
   visible: readonly NodeInstance[],
 ): { node: NodeInstance; portId: string } | null {
-  const { definitions, from, selectedIds, scopePath } = request;
+  const { definitions, from, selectedIds } = request;
   const byId = new Map(graph.nodes.map((node) => [node.id, node] as const));
   if (from !== undefined) {
     const node = byId.get(from.nodeId);
@@ -191,15 +217,9 @@ function anchorFor(
     if (port !== null) return { node: only, portId: port.id };
   }
   const end = tail(graph, visible, definitions);
-  if (end !== null) return { node: end.node, portId: end.port.id };
-  // An empty loop body starts from the loop itself, through the port its body hangs off.
-  const scopeId = currentScopeId(scopePath);
-  const owner = scopeId === null ? undefined : byId.get(scopeId);
-  const bodyPort =
-    owner === undefined ? undefined : outputsOf(definitions.get(owner.id) ?? null)[0];
-  return owner === undefined || bodyPort === undefined
-    ? null
-    : { node: owner, portId: bodyPort.id };
+  // Nothing in view has a way out left: the step is added unwired. Never from the loop
+  // itself - no wire enters a body, which starts at its Loop item.
+  return end === null ? null : { node: end.node, portId: end.port.id };
 }
 
 /** The wire from `source` into `target`, when the ports fit - else none. */
@@ -232,6 +252,9 @@ function wire(
 export function planInsertion(request: InsertionRequest): NodeInsertion {
   const { definition, dropAt, scopePath } = request;
   const id = request.id ?? crypto.randomUUID();
+  const scopeId = currentScopeId(scopePath);
+  const blank = (def: NodeDefinition, nodeId: Uuid): NodeInstance =>
+    blankStep(def, nodeId, scopeId);
   const graph = withLiveScopes(request.graph, request.definitions);
   const visible = scopedGraph(graph, scopePath).nodes;
   const definitions = new Map(request.definitions);
@@ -301,9 +324,17 @@ export function planInsertion(request: InsertionRequest): NodeInsertion {
     };
   }
 
+  // A new loop's body comes with it however the loop is placed, dropped onto a wire too.
+  const companions =
+    request.loopSteps !== undefined && ownsAScope(definition)
+      ? loopBody(request.loopSteps, id)
+      : undefined;
+  const withBody = (planned: NodeInsertion): NodeInsertion =>
+    companions === undefined ? planned : { ...planned, companions };
+
   if (request.between !== undefined) {
     const planned = splitting(request.between, graph, visible, definitions, definition, id);
-    if (planned !== null) return planned;
+    if (planned !== null) return withBody(planned);
   }
 
   // A drop at the top level is placed where it fell and left for the user to wire;
@@ -337,13 +368,28 @@ export function planInsertion(request: InsertionRequest): NodeInsertion {
           graph,
           definitions,
         );
-  return {
+  return withBody({
     node: { ...blank(definition, id), layout: position },
     edge: link?.edge ?? null,
     bindings: link?.bindings ?? [],
     becomesEntry: graph.nodes.length === 0,
     replaces: null,
-  };
+  });
+}
+
+/**
+ * A new loop's body: its Loop item at the left and its Loop result to the right,
+ * with room between for the steps the builder adds after the item. Left unwired -
+ * the steps between them are the builder's to choose.
+ */
+function loopBody(steps: LoopSteps, loopId: Uuid): NodeInstance[] {
+  return [
+    { ...blankStep(steps.item, crypto.randomUUID(), loopId), layout: { x: 0, y: 0 } },
+    {
+      ...blankStep(steps.result, crypto.randomUUID(), loopId),
+      layout: { x: 3 * (NODE_WIDTH + GAP_X), y: 0 },
+    },
+  ];
 }
 
 /**
@@ -393,7 +439,10 @@ function splitting(
     y: (source.layout.y + target.layout.y) / 2,
   };
   return {
-    node: { ...blank(definition, id), layout: clearOf(visible, middle, footprint, own) },
+    node: {
+      ...blankStep(definition, id, source.scope_id ?? null),
+      layout: clearOf(visible, middle, footprint, own),
+    },
     edge: head.edge,
     bindings: head.bindings,
     becomesEntry: false,
@@ -402,12 +451,13 @@ function splitting(
   };
 }
 
-function blank(definition: NodeDefinition, id: Uuid): NodeInstance {
+function blankStep(definition: NodeDefinition, id: Uuid, scopeId: Uuid | null): NodeInstance {
   return {
     id,
     definition_id: definition.id,
     definition_version: definition.version,
     config: {},
     layout: { x: 0, y: 0 },
+    ...(scopeId !== null ? { scope_id: scopeId } : {}),
   };
 }

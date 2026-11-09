@@ -134,6 +134,8 @@ export function toFlowNodes(
       ...(instance.layout.height != null ? { height: instance.layout.height } : {}),
       ...(measured !== undefined ? { measured } : {}),
       selected: selectedIds.has(instance.id),
+      // A body's Loop item and Loop result go only with their loop.
+      ...(definition?.loop_body_only === true ? { deletable: false } : {}),
       data: { instance, definition, readOnly, bodySize: bodySizes.get(instance.id) ?? 0 },
     };
   });

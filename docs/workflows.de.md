@@ -1,5 +1,5 @@
 ---
-source_sha: "fadba4d54af0"
+source_sha: "296a2476dbbe"
 ---
 
 # Workflows { #workflows }
@@ -130,7 +130,7 @@ Jeder Knoten ist eine Karte mit dem Symbol des Schritts, seinem Namen und einer 
 darunter: was er tun soll - eine Bedingung, eine URL, die Zahl der zugeordneten
 Felder - danach der Agent, das Modell oder die Tabelle, mit denen er arbeitet. Ein
 Schritt mit mehr als einem Ausgang nennt seine Ports beim Namen: **true** und
-**false**, **Each item** und **Done** und einen roten **Error**-Port an einem
+**false**, das **Done** einer Schleife und einen roten **Error**-Port an einem
 Schritt, der seine Fehler behandelt. Ein Schritt, der das Veröffentlichen blockiert,
 trägt eine Einrichtungsmarkierung (rot nach einem Test- oder Veröffentlichungsversuch): Darüberfahren listet die ersten Angaben auf, und
 ein Klick darauf öffnet den Schritt.
@@ -190,11 +190,12 @@ die Zeichenfläche lassen sich nur die eigenen Zeilen eines Schritts ziehen.
 
 Ein neuer Schritt landet nie auf einem anderen, wird ausgewählt, öffnet seine
 Einstellungen, wenn er welche hat, und die Zeichenfläche scrollt zu ihm, wenn er
-außerhalb der Ansicht liegt. Im Körper einer Schleife wird jeder neue Schritt in den
-Körper verdrahtet, damit er dort bleibt. Die Auswahl zeigt, was an Ihrer Stelle
-gültig ist: **Loop item** und **Loop result** nur im Körper einer Schleife und eine
-Schleife, solange Schleifen nicht so tief verschachtelt sind, wie das Veröffentlichen
-erlaubt.
+außerhalb der Ansicht liegt. Ein Schritt, der im Körper einer Schleife hinzugefügt
+oder eingefügt wird, gehört zu diesem Körper: Er wird hinter dem letzten Schritt mit
+freiem Ausgang verdrahtet oder, wenn keiner einen hat, bleibt er zum Verbinden
+offen. Eine neue Schleife enthält bereits ihr **Loop item** und ihr **Loop result**,
+daher bietet die Auswahl sie nie an. Eine Schleife bietet die Auswahl an, solange Schleifen
+nicht so tief verschachtelt sind, wie das Veröffentlichen erlaubt.
 
 Ein Rechtsklick auf einen Schritt bietet **Open settings**, **Duplicate**, **Switch
 off** und **Delete step**. Sind mehrere Schritte ausgewählt, löscht eine
@@ -569,10 +570,16 @@ Körper enthält, öffnet diese Ansicht, und die **Workflow scope**-Brotkrumen i
 Ecke der Zeichenfläche zeigen, wo Sie sind, von **Workflow** hinunter zur geöffneten
 Schleife. Jede Krume führt wieder hinaus.
 
-Ein Körper beginnt bei **Loop item**, mit
-dem der **Each item**-Port der Schleife verbunden ist, und endet bei **Loop result**;
-nichts darin führt zurück zur Schleife, die über **Done** weitergeht, sobald jedes
-Element den Körper durchlaufen hat. Die Schrittauswahl und die Binding-Quellen folgen dem Scope,
+Ein Körper beginnt bei **Loop item** und endet bei **Loop result**. Jeder Schritt
+merkt sich die Schleife, zu der er gehört, daher verschiebt das Entfernen einer
+Verbindung nie einen Schritt aus einem Körper; ein Schritt, zu dem **Loop item**
+nicht führt, wird gemeldet, bis Sie ihn verbinden. Keine Verbindung führt von der
+Schleife in ihren Körper oder zurück zur Schleife, die über **Done** weitergeht,
+sobald jedes Element den Körper durchlaufen hat. **Loop item** und **Loop result**
+verschwinden nur mit ihrer Schleife: Das Löschen der Schleife löscht ihren ganzen
+Körper, und das Kopieren kopiert den Körper mit.
+
+Die Schrittauswahl und die Binding-Quellen folgen dem Scope,
 in dem Sie sind, und ein Schritt im Körper darf alles lesen, was vor der Schleife
 lief. Was die Schleife tut, steht in der
 [Knoten-Referenz](reference/workflow-nodes.md#loops).
@@ -1400,7 +1407,7 @@ Jedes Bearbeitungskürzel ist wirkungslos, solange der Editor schreibgeschützt 
 einer veröffentlichten Version oder im Modus **View only**; `Escape` bricht eine übrig
 gebliebene Verbindung weiterhin ab, und `?` zeigt weiterhin die Kürzel.
 
-Kopieren und Einfügen haben drei Grenzen:
+Kopieren und Einfügen haben vier Grenzen:
 
 - **Ein gebundener Schritt liest weiter von dort, wo er zuvor las.** Ein kopierter
   Schritt behält seine Bindings. Liest er von einem Schritt, den Sie nicht kopiert
@@ -1414,6 +1421,11 @@ Kopieren und Einfügen haben drei Grenzen:
   Zeichenfläche liegt, und ein Klick irgendwo darin — auf einen Schritt, die leere
   Fläche, eine Verbindung — hält ihn dort. Liegt der Fokus in den Einstellungen eines Schritts oder in der Schrittauswahl, bleiben die Tasten diesen Feldern, klicken Sie also die
   Zeichenfläche an, bevor Sie sie drücken.
+- **Eingefügt wird nur, wo die Palette es anbieten würde.** In einer Schleife wird
+  das Einfügen eines Triggers abgelehnt, ebenso eine Schleife, die mit den Schleifen,
+  die sie mitbringt, tiefer als drei Ebenen verschachtelt wäre. Abgelehnt wird das
+  ganze Einfügen, und die Zwischenablage behält es; öffnen Sie also die oberste Ebene
+  oder eine flachere Schleife und fügen Sie dort ein.
 
 Bildanhänge eines Agenten teilen sich ein Limit von 20 MB, geprüft vor jedem
 Dateizugriff, auch bei wiederholten Referenzen. MCP-Ergebnisse entfernen

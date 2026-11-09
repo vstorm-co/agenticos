@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import type { NodeDefinition } from "@/lib/workflows/types";
+import type { NodeDefinition, NodeInstance } from "@/lib/workflows/types";
 
-import { MAX_SCOPE_NESTING_DEPTH, isAddableInScope, ownsAScope } from "./scope";
+import { MAX_SCOPE_NESTING_DEPTH, isAddableInScope, ownsAScope, pasteRefusal } from "./scope";
 
 function def(overrides: Partial<NodeDefinition>): NodeDefinition {
   return {
@@ -73,13 +73,68 @@ describe("isAddableInScope", () => {
     expect(MAX_SCOPE_NESTING_DEPTH).toBe(3);
   });
 
-  it("offers a loop's own item and result steps only inside a body", () => {
+  it("never offers a loop's own item and result steps: every loop already holds them", () => {
     const item = def({ id: "loop.item", kind: "control", loop_body_only: true });
     expect(isAddableInScope(item, [])).toBe(false);
-    expect(isAddableInScope(item, ["fe-1"])).toBe(true);
+    expect(isAddableInScope(item, ["fe-1"])).toBe(false);
   });
 
   it("never offers the debug nodes", () => {
     expect(isAddableInScope(def({ id: "debug.echo", category: "debug" }), [])).toBe(false);
+  });
+});
+
+describe("pasteRefusal", () => {
+  const catalog = [
+    def({ id: "control.foreach", kind: "control" }),
+    def({ id: "http.fetch", kind: "action" }),
+    def({ id: "trigger.webhook", kind: "action", category: "triggers" }),
+  ];
+
+  function step(id: string, definitionId: string, scopeId?: string): NodeInstance {
+    return {
+      id,
+      definition_id: definitionId,
+      definition_version: 1,
+      config: {},
+      layout: { x: 0, y: 0 },
+      ...(scopeId !== undefined ? { scope_id: scopeId } : {}),
+    };
+  }
+
+  it("lets a trigger land at the top level and refuses it inside a loop", () => {
+    const clip = [step("t", "trigger.webhook")];
+    expect(pasteRefusal(clip, catalog, [])).toBeNull();
+    expect(pasteRefusal(clip, catalog, ["fe-1"])).toBe("trigger-in-loop");
+  });
+
+  it("lets a step land anywhere", () => {
+    expect(pasteRefusal([step("a", "http.fetch", "elsewhere")], catalog, ["fe-1"])).toBeNull();
+  });
+
+  it("refuses a loop exactly where the palette stops offering one", () => {
+    const clip = [step("loop", "control.foreach")];
+    expect(pasteRefusal(clip, catalog, ["fe-1", "fe-2"])).toBeNull();
+    expect(pasteRefusal(clip, catalog, ["fe-1", "fe-2", "fe-3"])).toBe("too-deep");
+  });
+
+  it("counts the loops a copied loop carries inside it", () => {
+    const clip = [
+      step("outer", "control.foreach"),
+      step("inner", "control.foreach", "outer"),
+      step("a", "http.fetch", "inner"),
+    ];
+    expect(pasteRefusal(clip, catalog, ["fe-1"])).toBeNull();
+    expect(pasteRefusal(clip, catalog, ["fe-1", "fe-2"])).toBe("too-deep");
+  });
+
+  it("stops counting at a loop named inside itself", () => {
+    const clip = [step("a", "control.foreach", "b"), step("b", "control.foreach", "a")];
+    expect(pasteRefusal(clip, catalog, [])).toBeNull();
+    expect(pasteRefusal(clip, catalog, ["fe-1", "fe-2"])).toBe("too-deep");
+  });
+
+  it("leaves a step the catalog does not hold to validation", () => {
+    expect(pasteRefusal([step("x", "gone.step")], catalog, ["fe-1", "fe-2", "fe-3"])).toBeNull();
   });
 });

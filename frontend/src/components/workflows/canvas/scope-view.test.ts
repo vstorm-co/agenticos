@@ -22,7 +22,6 @@ function scope(scopeNodeId: string, body: string[]): ScopeBoundary {
   return {
     scope_node_id: scopeNodeId,
     body_node_ids: body,
-    entry_port: "body",
     exit_node_id: scopeNodeId,
     exit_port: "out",
   };
