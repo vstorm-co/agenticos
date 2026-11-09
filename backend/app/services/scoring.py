@@ -265,6 +265,24 @@ class ScoringService:
         self.datasets = DatasetService(db)
         self.judge = SystemAgentRunner(db)
 
+    async def judge_by_reference(
+        self, ctx: AuthContext, dataset_id: UUID, judge_id: UUID | None
+    ) -> DatasetRead:
+        """Grade a dataset with a judge, `judge_id` or the default one: on, with a starting
+        criterion unless it has one, and comparing with each case's reference answer -
+        never the counter-example. Raises as :meth:`set_scoring` does."""
+        dataset = await self.datasets.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
+        await self.db.refresh(dataset)
+        scoring = DatasetScoring.model_validate(dataset.scoring)
+        scoring.judge.agent_id = judge_id
+        scoring.judge.enabled = True
+        if not scoring.judge.criteria:
+            scoring.judge.criteria = [STARTING_CRITERION]
+        scoring.reference.enabled = True
+        return await self.set_scoring(
+            ctx, dataset_id, DatasetScoringUpdate.model_validate(scoring.model_dump())
+        )
+
     async def set_scoring(
         self, ctx: AuthContext, dataset_id: UUID, changes: DatasetScoringUpdate
     ) -> DatasetRead:
