@@ -15634,6 +15634,16 @@
       "drafts": "{count, plural, one {Przeniesiony w drafcie, który czeka na publikację: {names}.} other {Przeniesione w draftach, które czekają na publikację: {names}.}}",
       "nobody": "Żaden agent nie został przeniesiony; przenieś agentów ze strony skilla."
     },
-    "understandWorking": "Czytamy odpowiedzi, które wczytały ten skill i zostały ocenione negatywnie albo się nie udały, oraz to, na co w skillu wskazują…"
+    "understandWorking": "Czytamy odpowiedzi, które wczytały ten skill i zostały ocenione negatywnie albo się nie udały, oraz to, na co w skillu wskazują…",
+    "mergeTitle": {
+      "named": {
+        "catch_up": "Doganianie main w forku {fork}",
+        "to_main": "Przeniesienie forka {fork} na main"
+      },
+      "plain": {
+        "catch_up": "Doganianie main",
+        "to_main": "Przeniesienie na main"
+      }
+    }
   }
 }

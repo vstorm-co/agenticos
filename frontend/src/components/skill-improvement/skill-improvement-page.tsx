@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 
-import { PageHeader } from "@/components/dashboard/page-header";
 import { AttemptChanges } from "@/components/improvement/attempt-changes";
 import { AttemptHistory } from "@/components/improvement/attempt-history";
 import { ContinueSession } from "@/components/improvement/continue-session";
@@ -38,6 +37,7 @@ import { MergeAgain } from "./merge-again";
 import { MergeChanges } from "./merge-changes";
 import { MergeStart } from "./merge-start";
 import { ForkedSummary } from "./forked-summary";
+import { SkillImprovementHeader } from "./improvement-header";
 import { ReturnedSummary } from "./returned-summary";
 import { SkillAccept } from "./skill-accept";
 import { SkillStart } from "./skill-start";
@@ -70,13 +70,10 @@ export function SkillImprovementPage({
   if (isLoading) return <LoadingState variant="skeleton-cards" rows={3} />;
   if (error || !skill) return <ErrorState description={getErrorMessage(error, tErrors)} />;
   const header = (
-    <PageHeader
-      title={t("title", { name: skill.name })}
-      breadcrumbs={[
-        { label: t("skills"), href: ROUTES.SKILLS },
-        { label: skill.name, href: ROUTES.SKILL_DETAIL(skillId) },
-        { label: t("heading") },
-      ]}
+    <SkillImprovementHeader
+      skillId={skillId}
+      skillName={skill.name}
+      merge={sessionId === "new" && merge !== null ? { kind: merge, forkId } : null}
     />
   );
   // A session is read from the line agents' runs; starting one changes the skill too.
@@ -92,13 +89,18 @@ export function SkillImprovementPage({
     );
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6 pb-16">
-      {header}
+      {sessionId === "new" && header}
       {sessionId === "new" && merge !== null && forkId !== null ? (
         <MergeStart skillId={skillId} forkId={forkId} kind={merge} />
       ) : sessionId === "new" ? (
         <SkillStart skillId={skillId} forkId={forkId} fromRun={fromRun} />
       ) : (
-        <SkillSession skillId={skillId} sessionId={sessionId} canEdit={skill.can_edit === true} />
+        <SkillSession
+          skillId={skillId}
+          skillName={skill.name}
+          sessionId={sessionId}
+          canEdit={skill.can_edit === true}
+        />
       )}
     </div>
   );
@@ -106,10 +108,12 @@ export function SkillImprovementPage({
 
 function SkillSession({
   skillId,
+  skillName,
   sessionId,
   canEdit,
 }: {
   skillId: string;
+  skillName: string;
   sessionId: string;
   canEdit: boolean;
 }) {
@@ -134,13 +138,23 @@ function SkillSession({
     () => (catchUp ? { main_alone: mainAlone } : undefined),
     [catchUp, mainAlone],
   );
-  if (actions.isLoading) return <LoadingState variant="skeleton-cards" rows={3} />;
+  const unread = <SkillImprovementHeader skillId={skillId} skillName={skillName} />;
+  if (actions.isLoading)
+    return (
+      <>
+        {unread}
+        <LoadingState variant="skeleton-cards" rows={3} />
+      </>
+    );
   if (actions.error || !session)
     return (
-      <ErrorState
-        description={getErrorMessage(actions.error, tErrors)}
-        cta={{ label: tImprovement("retryRead"), onClick: () => void actions.refetch() }}
-      />
+      <>
+        {unread}
+        <ErrorState
+          description={getErrorMessage(actions.error, tErrors)}
+          cta={{ label: tImprovement("retryRead"), onClick: () => void actions.refetch() }}
+        />
+      </>
     );
   const readOnly: ReadOnlyReason | null = isClosed(session)
     ? "finished"
@@ -154,132 +168,149 @@ function SkillSession({
     <WorkingNote>{t("checkWaiting")}</WorkingNote>
   );
   return (
-    <ImprovementShell
-      session={session}
-      readOnly={readOnly}
-      closeHref={ROUTES.SKILL_DETAIL(skillId)}
-      wordingOpen={wordingOpen}
-      nextStepDetail={(quote) => (
-        <>
-          <CheckEstimate quote={quote} />
-          {catchUp && <MainAloneChoice quote={quote} checked={mainAlone} onChange={setMainAlone} />}
-        </>
-      )}
-      nextStep={
-        merging
-          ? {
-              hint: t(`mergeHint.${session.purpose}`),
-              blocked: session.stale
-                ? t("mergeAgain.moved")
-                : !merge
-                  ? t("mergeReading")
-                  : merge.unresolved
-                    ? t("settleFirst", { count: merge.unresolved })
-                    : undefined,
-              body,
-              revision: merge?.updated_at ?? null,
-            }
-          : undefined
-      }
-      panel={({ step, views, goTo, followCurrent }) => (
-        <>
-          <p className="text-muted-foreground text-sm">{t("line", { line: session.line_name })}</p>
-          {step === "understand" &&
-            (views.understand.content === "working" ? (
-              <WorkingNote>{t("understandWorking")}</WorkingNote>
-            ) : (
-              <SkillUnderstand session={session} />
-            ))}
-          {step === "changes" && merging ? (
-            isActive(session) && views.changes.content === "working" ? (
-              <WorkingNote>{t("mergeWorking")}</WorkingNote>
-            ) : (
-              <>
-                {session.stale && readOnly === null && <MergeAgain session={session} />}
-                <MergeChanges
-                  session={session}
-                  editable={readOnly === null && stopOf(session) === "changes" && !session.stale}
-                />
-              </>
-            )
-          ) : (
-            step === "changes" &&
-            (stopOf(session) === "changes" ? (
-              <section className="space-y-4">
-                {session.stale && (
-                  <p role="status" className="text-warning text-sm">
-                    {t("staleChanges")}
-                  </p>
-                )}
-                <AttemptHistory session={session} />
-                <h2 className="font-medium">
-                  {tImprovement("round", {
-                    number: session.iteration,
-                    max: session.max_iterations,
-                  })}
-                </h2>
-                <AttemptChanges
-                  session={session}
-                  editable={readOnly === null}
-                  onEditing={setWordingOpen}
-                />
-              </section>
-            ) : isActive(session) && views.changes.content === "working" ? (
-              <WorkingNote>{tImprovement("changesWorking")}</WorkingNote>
-            ) : (
-              <TriedChanges session={session} />
-            ))
-          )}
-          {step === "check" && (
-            <section className="space-y-4 rounded-xl border p-6">
-              <h2 className="font-medium">{t("checkTitle")}</h2>
-              {measured}
-              <MainAloneResult session={session} />
-            </section>
-          )}
-          {step === "result" && (
-            <section className="space-y-4 rounded-xl border p-6">
-              <h2 className="font-medium">{t("resultTitle")}</h2>
-              {measured}
-              <MainAloneResult session={session} />
-              {session.stale &&
-                readOnly === null &&
-                (merging ? (
-                  <MergeAgain session={session} />
-                ) : (
-                  <CheckAgain session={session} onStarted={followCurrent} />
-                ))}
-              {isReachable(views.accept) ? (
-                <Button onClick={() => goTo("accept")}>{t("toAccept")}</Button>
+    <>
+      <SkillImprovementHeader
+        skillId={skillId}
+        skillName={skillName}
+        merge={
+          session.purpose === "catch_up"
+            ? { kind: "catch_up", forkId: session.fork_id }
+            : session.purpose === "to_main"
+              ? { kind: "to_main", forkId: session.source_fork_id ?? null }
+              : null
+        }
+      />
+      <ImprovementShell
+        session={session}
+        readOnly={readOnly}
+        closeHref={ROUTES.SKILL_DETAIL(skillId)}
+        wordingOpen={wordingOpen}
+        nextStepDetail={(quote) => (
+          <>
+            <CheckEstimate quote={quote} />
+            {catchUp && (
+              <MainAloneChoice quote={quote} checked={mainAlone} onChange={setMainAlone} />
+            )}
+          </>
+        )}
+        nextStep={
+          merging
+            ? {
+                hint: t(`mergeHint.${session.purpose}`),
+                blocked: session.stale
+                  ? t("mergeAgain.moved")
+                  : !merge
+                    ? t("mergeReading")
+                    : merge.unresolved
+                      ? t("settleFirst", { count: merge.unresolved })
+                      : undefined,
+                body,
+                revision: merge?.updated_at ?? null,
+              }
+            : undefined
+        }
+        panel={({ step, views, goTo, followCurrent }) => (
+          <>
+            <p className="text-muted-foreground text-sm">
+              {t("line", { line: session.line_name })}
+            </p>
+            {step === "understand" &&
+              (views.understand.content === "working" ? (
+                <WorkingNote>{t("understandWorking")}</WorkingNote>
               ) : (
-                readOnly === null && (
-                  <ContinueSession
+                <SkillUnderstand session={session} />
+              ))}
+            {step === "changes" && merging ? (
+              isActive(session) && views.changes.content === "working" ? (
+                <WorkingNote>{t("mergeWorking")}</WorkingNote>
+              ) : (
+                <>
+                  {session.stale && readOnly === null && <MergeAgain session={session} />}
+                  <MergeChanges
                     session={session}
-                    emphasis={{ again: "default", end: "outline" }}
-                    onStarted={followCurrent}
+                    editable={readOnly === null && stopOf(session) === "changes" && !session.stale}
                   />
-                )
-              )}
-            </section>
-          )}
-          {step === "accept" &&
-            (check && !isClosed(session) ? (
-              <SkillAccept
-                session={session}
-                check={check}
-                onStarted={followCurrent}
-                onReturned={setReturned}
-                onForked={setForked}
-              />
+                </>
+              )
             ) : (
-              <>
-                <p className="text-sm">{t("acceptClosed")}</p>
-                {returned && <ReturnedSummary returned={returned} />}
-                {forked && <ForkedSummary forked={forked} />}
-              </>
-            ))}
-        </>
-      )}
-    />
+              step === "changes" &&
+              (stopOf(session) === "changes" ? (
+                <section className="space-y-4">
+                  {session.stale && (
+                    <p role="status" className="text-warning text-sm">
+                      {t("staleChanges")}
+                    </p>
+                  )}
+                  <AttemptHistory session={session} />
+                  <h2 className="font-medium">
+                    {tImprovement("round", {
+                      number: session.iteration,
+                      max: session.max_iterations,
+                    })}
+                  </h2>
+                  <AttemptChanges
+                    session={session}
+                    editable={readOnly === null}
+                    onEditing={setWordingOpen}
+                  />
+                </section>
+              ) : isActive(session) && views.changes.content === "working" ? (
+                <WorkingNote>{tImprovement("changesWorking")}</WorkingNote>
+              ) : (
+                <TriedChanges session={session} />
+              ))
+            )}
+            {step === "check" && (
+              <section className="space-y-4 rounded-xl border p-6">
+                <h2 className="font-medium">{t("checkTitle")}</h2>
+                {measured}
+                <MainAloneResult session={session} />
+              </section>
+            )}
+            {step === "result" && (
+              <section className="space-y-4 rounded-xl border p-6">
+                <h2 className="font-medium">{t("resultTitle")}</h2>
+                {measured}
+                <MainAloneResult session={session} />
+                {session.stale &&
+                  readOnly === null &&
+                  (merging ? (
+                    <MergeAgain session={session} />
+                  ) : (
+                    <CheckAgain session={session} onStarted={followCurrent} />
+                  ))}
+                {isReachable(views.accept) ? (
+                  <Button onClick={() => goTo("accept")}>{t("toAccept")}</Button>
+                ) : (
+                  readOnly === null && (
+                    <ContinueSession
+                      session={session}
+                      emphasis={{ again: "default", end: "outline" }}
+                      onStarted={followCurrent}
+                    />
+                  )
+                )}
+              </section>
+            )}
+            {step === "accept" &&
+              (check && !isClosed(session) ? (
+                <SkillAccept
+                  session={session}
+                  check={check}
+                  onStarted={followCurrent}
+                  onReturned={setReturned}
+                  onForked={setForked}
+                />
+              ) : (
+                <>
+                  <p className="text-sm">{t("acceptClosed")}</p>
+                  {returned && <ReturnedSummary returned={returned} />}
+                  {forked && <ForkedSummary forked={forked} />}
+                </>
+              ))}
+          </>
+        )}
+      />
+    </>
   );
 }
