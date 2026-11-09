@@ -410,3 +410,33 @@ async def test_bounded_media_read_rejects_growth_truncation_or_a_changed_digest(
     with pytest.raises(ValueError, match="Media changed"):
         await store.get(media_uri_for(b"old"))
     assert closed == [True]
+
+
+async def test_a_bounded_store_also_accepts_a_stateless_async_iterator(monkeypatch):
+    from unittest.mock import AsyncMock, MagicMock
+
+    from app.agents.capabilities.media._store import BoundedOrganizationMediaStore
+
+    class OneChunk:
+        def __init__(self):
+            self.sent = False
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            if self.sent:
+                raise StopAsyncIteration
+            self.sent = True
+            return b"x"
+
+    storage = MagicMock(spec=LocalFileStorage)
+    storage.size = AsyncMock(return_value=1)
+    storage.open_range = AsyncMock(return_value=OneChunk())
+    monkeypatch.setattr("app.agents.capabilities.media._store.get_file_storage", lambda: storage)
+    assert (
+        await BoundedOrganizationMediaStore(uuid4(), uuid4(), max_bytes=1, max_reads=1).get(
+            media_uri_for(b"x")
+        )
+        == b"x"
+    )

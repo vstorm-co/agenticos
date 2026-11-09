@@ -793,6 +793,8 @@ The top of a fork says **Forked from** the original, with a link to it. Only you
 
 Forks are limited to 2,000 messages, 10,000 tool calls and 20 MiB of copied text and structured data, with at most ten requests per minute per member and organization. A conversation being updated may briefly refuse a fork; retry once the update finishes. Over-limit histories must be shortened before they can be copied.
 
+Retained fork copies have a separate allowance of 100 MiB per member within an organization and 1 GiB across the organization. Each copy reserves its payload size plus 4 KiB for the conversation and 1 KiB per message or tool call. Admission is serialized in PostgreSQL, so concurrent requests cannot exceed the allowance. The charge remains until the fork itself is deleted; deleting its source or archiving it does not free it. A drawing with stored image files cannot currently be forked: choose an answer before that drawing instead. The request is refused before a broken copy can be created.
+
 An eligible summary's externalized text and media are restored into the copy, so deleting the source does not remove that context. Restored content counts toward the 20 MiB limit. Restoration is limited to 100 external references and ten seconds; unavailable content or an exceeded limit refuses the fork without creating a partial copy.
 
 A conversation with a saved checklist can be forked only at its latest message, which must be an assistant answer. The fork keeps that checklist, including task IDs and dependencies. Earlier checklist snapshots are not stored, so an earlier fork is refused rather than copying later tasks into an older history.

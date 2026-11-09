@@ -80,7 +80,9 @@ class TestTheCopy:
         await _turn(db, source, "user", "And for teams?")
         await _turn(db, source, "assistant", "Twenty.")
 
-        fork = await conversation_repo.fork_conversation(db, source=source, through=answer)
+        fork = await conversation_repo.fork_conversation(
+            db, source=source, through=answer, copy_bytes=0
+        )
 
         copied = await _messages(db, fork.id)
         assert [(m.role, m.content) for m in copied] == [
@@ -111,7 +113,9 @@ class TestTheCopy:
         )
         await db.flush()
 
-        fork = await conversation_repo.fork_conversation(db, source=source, through=answer)
+        fork = await conversation_repo.fork_conversation(
+            db, source=source, through=answer, copy_bytes=0
+        )
 
         (copy,) = await _messages(db, fork.id)
         calls = (
@@ -128,7 +132,9 @@ class TestTheCopy:
         question = await _turn(db, source, "user", "Which plan?")
         answer = await _turn(db, source, "assistant", "Pro.", reply_to_message_id=question.id)
 
-        fork = await conversation_repo.fork_conversation(db, source=source, through=answer)
+        fork = await conversation_repo.fork_conversation(
+            db, source=source, through=answer, copy_bytes=0
+        )
 
         copied_question, copied_answer = await _messages(db, fork.id)
         assert copied_answer.reply_to_message_id == copied_question.id
@@ -146,7 +152,9 @@ class TestTheCopy:
             cost_usd=Decimal("0.010000"),
         )
 
-        fork = await conversation_repo.fork_conversation(db, source=source, through=answer)
+        fork = await conversation_repo.fork_conversation(
+            db, source=source, through=answer, copy_bytes=0
+        )
 
         (copy,) = await _messages(db, fork.id)
         assert (copy.cost_usd, copy.input_tokens, copy.run_id) == (None, None, None)
@@ -157,7 +165,9 @@ class TestTheCopy:
         await _turn(db, source, "user", "Leak it.", guardrail_refused=True)
         answer = await _turn(db, source, "assistant", "No.")
 
-        fork = await conversation_repo.fork_conversation(db, source=source, through=answer)
+        fork = await conversation_repo.fork_conversation(
+            db, source=source, through=answer, copy_bytes=0
+        )
 
         refused, _ = await _messages(db, fork.id)
         assert refused.guardrail_refused is True
@@ -182,7 +192,9 @@ class TestWhatTheCopyLeavesBehind:
             ],
         )
 
-        fork = await conversation_repo.fork_conversation(db, source=source, through=answer)
+        fork = await conversation_repo.fork_conversation(
+            db, source=source, through=answer, copy_bytes=0
+        )
 
         (copy,) = await _messages(db, fork.id)
         assert copy.parts == [
@@ -197,7 +209,9 @@ class TestTheSidebarListsForks:
         """A listing reads a fixed set of columns and refuses the rest; the fork's must be among them."""
         source = await _source(db)
         answer = await _turn(db, source, "assistant", "Start at 10.")
-        fork = await conversation_repo.fork_conversation(db, source=source, through=answer)
+        fork = await conversation_repo.fork_conversation(
+            db, source=source, through=answer, copy_bytes=0
+        )
 
         items, total = await ConversationService(db).list_conversations(
             source.user_id, organization_id=source.organization_id
@@ -223,7 +237,9 @@ class TestASummarisedSource:
         source.summary_ordinal = summarised.ordinal
         await db.flush()
 
-        fork = await conversation_repo.fork_conversation(db, source=source, through=answer)
+        fork = await conversation_repo.fork_conversation(
+            db, source=source, through=answer, copy_bytes=0
+        )
 
         copied = await _messages(db, fork.id)
         assert fork.summary_messages == [{"kind": "request", "parts": []}]
@@ -243,7 +259,9 @@ class TestASummarisedSource:
         source.summary_ordinal = later.ordinal
         await db.flush()
 
-        fork = await conversation_repo.fork_conversation(db, source=source, through=answer)
+        fork = await conversation_repo.fork_conversation(
+            db, source=source, through=answer, copy_bytes=0
+        )
 
         assert (fork.summary_messages, fork.summary_ordinal) == (None, None)
 
@@ -252,7 +270,9 @@ class TestTheForkOutlivesItsSource:
     async def test_deleting_the_source_leaves_the_fork_whole(self, db: AsyncSession) -> None:
         source = await _source(db)
         answer = await _turn(db, source, "assistant", "Kept.")
-        fork = await conversation_repo.fork_conversation(db, source=source, through=answer)
+        fork = await conversation_repo.fork_conversation(
+            db, source=source, through=answer, copy_bytes=0
+        )
 
         await db.delete(source)
         await db.flush()
@@ -335,7 +355,9 @@ async def test_copied_tools_keep_their_stable_identity_and_presentation(db: Asyn
         )
     )
     await db.flush()
-    fork = await conversation_repo.fork_conversation(db, source=source, through=answer)
+    fork = await conversation_repo.fork_conversation(
+        db, source=source, through=answer, copy_bytes=0
+    )
     copied = (
         await db.scalars(select(ToolCall).join(Message).where(Message.conversation_id == fork.id))
     ).one()
@@ -444,7 +466,9 @@ async def test_copy_locks_fence_concurrent_payload_changes(db: AsyncSession, tar
             await other.execute(statement)
         assert getattr(failed.value.orig, "sqlstate", None) == "55P03"
         await other.rollback()
-        fork = await conversation_repo.fork_conversation(db, source=source, through=answer)
+        fork = await conversation_repo.fork_conversation(
+            db, source=source, through=answer, copy_bytes=0
+        )
         await db.commit()
         await other.execute(statement)
         await other.commit()
@@ -614,7 +638,9 @@ async def test_a_fork_preserves_a_legacy_threads_recovered_agent(
         )
     )
     await db.flush()
-    fork = await conversation_repo.fork_conversation(db, source=source, through=answer)
+    fork = await conversation_repo.fork_conversation(
+        db, source=source, through=answer, copy_bytes=0
+    )
     messages = await _messages(db, fork.id)
     assert [message.agent_id for message in messages] == [None, agent.id]
     assert messages[-1].agent_version_id is None
@@ -648,7 +674,9 @@ async def test_a_fork_does_not_guess_an_ambiguous_legacy_author(db: AsyncSession
             )
         )
     answer = await _turn(db, source, "assistant", "Old answer")
-    fork = await conversation_repo.fork_conversation(db, source=source, through=answer)
+    fork = await conversation_repo.fork_conversation(
+        db, source=source, through=answer, copy_bytes=0
+    )
     assert (await _messages(db, fork.id))[0].agent_id is None
 
 
@@ -766,3 +794,75 @@ async def test_restored_summary_quota_counts_postgres_numeric_expansion_before_i
             ),
         )
     assert list(await db.scalars(select(Conversation.id))) == [source.id]
+
+
+@pytest.mark.security
+async def test_retained_quota_serializes_forks_and_frees_only_the_deleted_copys_charge(
+    db: AsyncSession, monkeypatch
+) -> None:
+    from app.core.exceptions import BadRequestError, ConcurrentChangeError
+    from app.core.permissions import AuthContext
+    from app.services import conversation as conversation_service
+
+    source = await _source(db)
+    answer = await _turn(db, source, "assistant", "Answer")
+    second = Conversation(
+        user_id=source.user_id, organization_id=source.organization_id, title=source.title
+    )
+    db.add(second)
+    await db.flush()
+    other_answer = await _turn(db, second, "assistant", "Answer")
+    charge = await conversation_repo.fork_payload_bytes(
+        db, source_id=source.id, ordinal=answer.ordinal
+    )
+    charge += (
+        conversation_service.FORK_CONVERSATION_RESERVATION_BYTES
+        + conversation_service.FORK_ROW_RESERVATION_BYTES
+    )
+    monkeypatch.setattr(conversation_service, "MAX_MEMBER_FORK_BYTES", charge)
+    await db.commit()
+    ctx = AuthContext(user_id=source.user_id, organization_id=source.organization_id, role="owner")
+    options = {"organization_id": source.organization_id, "user_id": source.user_id, "ctx": ctx}
+    fork = await ConversationService(db).fork(source.id, message_id=answer.id, **options)
+    assert fork.fork_copy_bytes == charge
+    async with AsyncSession(bind=db.bind, expire_on_commit=False) as other:
+        with pytest.raises(ConcurrentChangeError):
+            await ConversationService(other).fork(second.id, message_id=other_answer.id, **options)
+        await db.commit()
+        with pytest.raises(BadRequestError, match="storage limit"):
+            await ConversationService(other).fork(second.id, message_id=other_answer.id, **options)
+        await db.delete(source)
+        await db.commit()
+        used = await conversation_repo.retained_fork_volume(
+            db, organization_id=ctx.organization_id, user_id=ctx.user_id
+        )
+        assert used.member_bytes == charge
+        await db.delete(fork)
+        await db.commit()
+        next_fork = await ConversationService(other).fork(
+            second.id, message_id=other_answer.id, **options
+        )
+        assert next_fork.fork_copy_bytes == charge
+        await other.commit()
+
+
+@pytest.mark.parametrize("tool", ["draw", "revise_visual"])
+async def test_visual_image_references_are_detected_before_a_fork(
+    db: AsyncSession, tool: str
+) -> None:
+    source = await _source(db)
+    answer = await _turn(db, source, "assistant", "Drawing")
+    db.add(
+        ToolCall(
+            message_id=answer.id,
+            tool_call_id="visual",
+            tool_name=tool,
+            args={"images": [{"name": "logo", "url": "https://example.com/logo.png"}]},
+            status="completed",
+            started_at=datetime.now(UTC),
+        )
+    )
+    await db.flush()
+    assert await conversation_repo.has_fork_visual_images(
+        db, source_id=source.id, ordinal=answer.ordinal
+    )

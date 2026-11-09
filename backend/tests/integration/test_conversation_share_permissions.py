@@ -418,3 +418,60 @@ async def test_shared_favourites_are_ranked_before_the_page_limit_for_the_reader
         )
     ] == [new.id]
     assert await conversation_share_repo.count_conversations_shared_with_user(db, reader.id) == 2
+
+
+async def test_share_notice_batch_uses_constant_queries_for_many_active_and_revoked_shares(
+    db: AsyncSession,
+) -> None:
+    from sqlalchemy import event
+
+    from app.core.permissions import AuthContext
+    from app.db.models.notification import Notification, NotificationEventType
+    from app.db.models.organization import OrganizationMember
+    from app.services.notification_center import NotificationCenterService
+
+    owner, reader = await _user(db), await _user(db)
+    organization = Organization(
+        name="Acme", slug=f"batch-{uuid.uuid4().hex}", created_by_user_id=owner.id
+    )
+    db.add(organization)
+    await db.flush()
+    db.add(OrganizationMember(organization_id=organization.id, user_id=reader.id))
+    notices = []
+    visible = set()
+    for index in range(40):
+        row = Conversation(
+            user_id=None if index % 10 == 1 else owner.id,
+            organization_id=organization.id,
+            title=f"Shared {index}",
+        )
+        db.add(row)
+        await db.flush()
+        if index % 2 == 0:
+            await conversation_share_repo.create(
+                db, conversation_id=row.id, shared_by=owner.id, shared_with=reader.id
+            )
+            visible.add(row.id)
+        notices.append(
+            Notification(
+                event_type=NotificationEventType.RESOURCE_SHARED.value,
+                render_context={"resource_kind": "conversation", "resource_id": str(row.id)},
+            )
+        )
+    queries = []
+
+    def record(_conn, _cursor, statement, _parameters, _context, _many):
+        queries.append(statement)
+
+    assert db.bind is not None
+    engine = db.bind.sync_engine
+    event.listen(engine, "before_cursor_execute", record)
+    try:
+        cache = await NotificationCenterService(db)._build_gate_cache(
+            AuthContext(user_id=reader.id, organization_id=organization.id, role="member"), notices
+        )
+    finally:
+        event.remove(engine, "before_cursor_execute", record)
+    assert len(queries) <= 8, queries
+    assert sum(cache.conversation_visible_by_id.values()) == 20
+    assert {key for key, allowed in cache.conversation_visible_by_id.items() if allowed} == visible

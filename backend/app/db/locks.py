@@ -37,6 +37,8 @@ class LockScope(IntEnum):
     #: How many organizations one account may own.
     CONVERSATION_TURN = 23
     CONVERSATION_TASKS = 24
+    #: Retained copied transcript bytes, serialized through the clone commit.
+    CONVERSATION_FORK_STORAGE_PER_ORG = 31
     CONNECTED_ACCOUNTS = 25
     ORGANIZATIONS_PER_USER = 1
     #: How many agents one organization may hold.

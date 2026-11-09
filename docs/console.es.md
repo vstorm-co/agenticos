@@ -1,5 +1,5 @@
 ---
-source_sha: "2bacc20756cc"
+source_sha: "c7783da0b195"
 ---
 
 # La consola { #the-console }
@@ -842,6 +842,8 @@ Solo el propietario de la conversación puede bifurcarla: quien la tiene compart
 Arriba de una bifurcación aparece **Bifurcada de** con un enlace al original. Esa línea solo la ve usted: si comparte la bifurcación, la otra persona ve una conversación normal.
 
 Cada bifurcación admite hasta 2000 mensajes, 10 000 llamadas a herramientas y 20 MiB de texto y datos estructurados copiados, con un máximo de diez solicitudes por minuto por miembro y organización. Una conversación que se está actualizando puede rechazar temporalmente la bifurcación; vuelve a intentarlo cuando termine la actualización. Los historiales que superen los límites deben acortarse antes de copiarlos.
+
+Las bifurcaciones conservadas tienen una cuota separada de 100 MiB por miembro dentro de una organización y 1 GiB para toda la organización. Cada copia reserva sus datos más 4 KiB por conversación y 1 KiB por mensaje o llamada a herramienta. PostgreSQL serializa la admisión para impedir que solicitudes simultáneas superen la cuota. Solo eliminar la copia libera su reserva; archivar o eliminar el original no la libera. Actualmente no se pueden bifurcar dibujos con archivos de imagen guardados. Elige una respuesta anterior; la solicitud se rechaza antes de crear una copia dañada.
 
 El texto y los medios externalizados de un resumen válido se restauran dentro de la copia, por lo que eliminar el original no elimina ese contexto. El contenido restaurado cuenta para el límite de 20 MiB. La restauración admite hasta 100 referencias externas y diez segundos. Si falta contenido o se supera un límite, se rechaza la operación sin crear una copia parcial.
 

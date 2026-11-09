@@ -232,6 +232,10 @@ def model_context_check(
 MAX_FORK_MESSAGES = 2_000
 MAX_FORK_TOOL_CALLS = 10_000
 MAX_FORK_BYTES = 20 * 1024 * 1024
+FORK_ROW_RESERVATION_BYTES = 1024
+FORK_CONVERSATION_RESERVATION_BYTES = 4096
+MAX_MEMBER_FORK_BYTES = 100 * 1024 * 1024
+MAX_ORGANIZATION_FORK_BYTES = 1024 * 1024 * 1024
 MAX_FORK_MEDIA_READS = 100
 FORK_MEDIA_TIMEOUT = 10
 _FORK_SUMMARY = TypeAdapter(list[dict[str, JsonValue]])
@@ -628,6 +632,52 @@ class ConversationService:
         )
         await self.attach_agents([conversation])
         return conversation
+
+    async def visible_conversation_ids(self, ctx: AuthContext, ids: set[UUID]) -> set[UUID]:
+        """Resolve a notification batch without one database read per direct share."""
+        if not ids or ctx.user_id is None or ctx.organization_id is None:
+            return set()
+        rows = await conversation_repo.read_candidates(
+            self.db, organization_id=ctx.organization_id, ids=ids
+        )
+        shares = await conversation_share_repo.share_permissions(
+            self.db, user_id=ctx.user_id, conversation_ids=[row.id for row in rows]
+        )
+        projects = (
+            set(await self.visible_project_ids(ctx.user_id, ctx.organization_id, reader=ctx))
+            if any(row.project_id is not None for row in rows)
+            else set()
+        )
+        visible: set[UUID] = set()
+        remaining: list[Conversation] = []
+        for row in rows:
+            if row.origin == "workflow":
+                continue
+            if row.project_id is not None:
+                if row.project_id in projects:
+                    visible.add(row.id)
+            elif row.user_id == ctx.user_id or row.id in shares:
+                visible.add(row.id)
+            else:
+                remaining.append(row)
+        channels = (
+            await conversation_repo.channel_thread_ids(self.db, [row.id for row in remaining])
+            if remaining
+            else set()
+        )
+        ownerless = [row.id for row in remaining if row.user_id is None]
+        triggers = (
+            await conversation_repo.trigger_log_ids(self.db, ownerless) if ownerless else set()
+        )
+        for row in remaining:
+            if (
+                row.id in channels
+                and await channel_membership.confirms_participation(
+                    self.db, conversation_id=row.id, user_id=ctx.user_id
+                )
+            ) or (row.id in triggers and await self._may_read_trigger_log(row, ctx)):
+                visible.add(row.id)
+        return visible
 
     async def _attach_share_permission(
         self, conversation: Conversation, *, user_id: UUID | None
@@ -1489,6 +1539,13 @@ class ConversationService:
                 message="Fork the latest answer to preserve this conversation's checklist",
                 details={"conversation_id": source.id, "message_id": answer.id},
             )
+        if await conversation_repo.has_fork_visual_images(
+            self.db, source_id=source.id, ordinal=answer.ordinal
+        ):
+            raise BadRequestError(
+                message="Fork before drawings with stored images; their image files cannot be copied",
+                details={"message_id": answer.id},
+            )
         payload_bytes = await conversation_repo.fork_payload_bytes(
             self.db, source_id=source.id, ordinal=answer.ordinal
         )
@@ -1497,9 +1554,28 @@ class ConversationService:
                 message="This conversation is too large to fork",
                 details={"max_bytes": MAX_FORK_BYTES},
             )
-        summary = await self._restore_fork_summary(source, answer, payload_bytes=payload_bytes)
+        summary, copy_bytes = await self._restore_fork_summary(
+            source, answer, payload_bytes=payload_bytes
+        )
+        copy_bytes += FORK_CONVERSATION_RESERVATION_BYTES + FORK_ROW_RESERVATION_BYTES * (
+            counts.messages + counts.tool_calls
+        )
+        volume = await conversation_repo.retained_fork_volume(
+            self.db, organization_id=source.organization_id, user_id=user_id
+        )
+        if (
+            volume.member_bytes + copy_bytes > MAX_MEMBER_FORK_BYTES
+            or volume.organization_bytes + copy_bytes > MAX_ORGANIZATION_FORK_BYTES
+        ):
+            raise BadRequestError(
+                message="Fork copy storage limit reached. Delete unused forks before creating another.",
+                details={
+                    "max_member_bytes": MAX_MEMBER_FORK_BYTES,
+                    "max_organization_bytes": MAX_ORGANIZATION_FORK_BYTES,
+                },
+            )
         fork = await conversation_repo.fork_conversation(
-            self.db, source=source, through=answer, restored_summary=summary
+            self.db, source=source, through=answer, restored_summary=summary, copy_bytes=copy_bytes
         )
         # Its owner made it a moment ago: it holds nothing they have not seen.
         await conversation_repo.mark_read(self.db, user_id=user_id, conversation_id=fork.id)
@@ -1508,13 +1584,13 @@ class ConversationService:
 
     async def _restore_fork_summary(
         self, source: Conversation, answer: Message, *, payload_bytes: int
-    ) -> list[dict[str, JsonValue]] | None:
+    ) -> tuple[list[dict[str, JsonValue]] | None, int]:
         """Inline source media before any insert; a failed restore refuses the copy."""
         summary = await conversation_repo.fork_summary(
             self.db, source_id=source.id, ordinal=answer.ordinal
         )
         if summary is None:
-            return None
+            return None, payload_bytes
         try:
             store = BoundedOrganizationMediaStore(
                 source.organization_id,
@@ -1547,7 +1623,7 @@ class ConversationService:
                 message="This conversation's summary cannot be copied within the fork limits",
                 details={"max_bytes": MAX_FORK_BYTES, "max_media_references": MAX_FORK_MEDIA_READS},
             ) from failed
-        return restored
+        return restored, payload_bytes - summary.stored_bytes + stored_size
 
     async def _attach_fork_origins(
         self, conversations: Sequence[Conversation], *, user_id: UUID | None

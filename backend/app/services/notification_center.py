@@ -1344,11 +1344,18 @@ class NotificationCenterService:
             artifact_visible_by_id=artifact_visible_by_id,
             workflow_visible_by_id=workflow_visible_by_id,
             project_visible_by_id=project_visible_by_id,
-            conversation_visible_by_id={
-                conversation_id: await self._conversation_visible(ctx, conversation_id)
-                for conversation_id in sorted(conversation_ids)
-            },
+            conversation_visible_by_id=await self._conversation_visibility(ctx, conversation_ids),
         )
+
+    async def _conversation_visibility(
+        self, ctx: AuthContext, ids: set[uuid.UUID]
+    ) -> dict[uuid.UUID, bool]:
+        from app.services.conversation import ConversationService
+
+        if not ids:
+            return {}
+        visible = await ConversationService(self.db).visible_conversation_ids(ctx, ids)
+        return {conversation_id: conversation_id in visible for conversation_id in ids}
 
     async def _conversation_visible(self, ctx: AuthContext, conversation_id: uuid.UUID) -> bool:
         if ctx.user_id is None or ctx.organization_id is None:

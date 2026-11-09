@@ -69,7 +69,13 @@ def service(monkeypatch: pytest.MonkeyPatch) -> ConversationService:
         AsyncMock(return_value=conversation_repo.ForkRowCounts(1, 0)),
     )
     monkeypatch.setattr(conversation_repo, "fork_payload_bytes", AsyncMock(return_value=0))
+    monkeypatch.setattr(conversation_repo, "has_fork_visual_images", AsyncMock(return_value=False))
     monkeypatch.setattr(conversation_repo, "fork_summary", AsyncMock(return_value=None))
+    monkeypatch.setattr(
+        conversation_repo,
+        "retained_fork_volume",
+        AsyncMock(return_value=conversation_repo.ForkVolume(0, 0)),
+    )
     return service
 
 
@@ -121,6 +127,7 @@ class TestTheOwnerForks:
             "source": source,
             "through": answer,
             "restored_summary": None,
+            "copy_bytes": 5120,
         }
         assert fork.forked_from.conversation_id == source.id
         assert fork.forked_from.title == "Source"
@@ -405,3 +412,120 @@ async def test_externalized_summary_failure_refuses_before_creating_rows(
     with pytest.raises(BadRequestError, match="summary cannot be copied"):
         await _fork(service, source, answer.id)
     copy.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "volume",
+    [
+        conversation_repo.ForkVolume(100 * 1024 * 1024, 0),
+        conversation_repo.ForkVolume(0, 1024 * 1024 * 1024),
+    ],
+)
+async def test_retained_fork_quota_refuses_before_copying(service, monkeypatch, volume):
+    source = _conversation()
+    answer = _message(source)
+    copy = _forkable(monkeypatch, service, source, answer)
+    monkeypatch.setattr(conversation_repo, "fork_payload_bytes", AsyncMock(return_value=1))
+    monkeypatch.setattr(conversation_repo, "retained_fork_volume", AsyncMock(return_value=volume))
+    with pytest.raises(BadRequestError, match="storage limit"):
+        await _fork(service, source, answer.id)
+    copy.assert_not_awaited()
+
+
+async def test_a_visual_with_source_only_images_is_refused_instead_of_copied_broken(
+    service, monkeypatch
+):
+    source = _conversation()
+    answer = _message(source)
+    copy = _forkable(monkeypatch, service, source, answer)
+    monkeypatch.setattr(conversation_repo, "has_fork_visual_images", AsyncMock(return_value=True))
+    with pytest.raises(BadRequestError, match="drawings with stored images"):
+        await _fork(service, source, answer.id)
+    copy.assert_not_awaited()
+
+
+async def test_notification_visibility_batches_direct_shares_and_checks_only_remaining_channels(
+    service, monkeypatch
+):
+    from app.repositories import conversation_share_repo
+    from app.services import conversation as conversation_service
+
+    owner, shared, revoked, workflow, project, channel, trigger = [
+        _conversation(user_id=uuid4()) for _ in range(7)
+    ]
+    owner.user_id = OWNER_ID
+    for row in (owner, shared, revoked, workflow, project, channel, trigger):
+        row.origin = None
+    workflow.origin = "workflow"
+    project.project_id = uuid4()
+    trigger.user_id = None
+    rows = [owner, shared, revoked, workflow, project, channel, trigger]
+    read = AsyncMock(return_value=rows)
+    shares = AsyncMock(return_value={shared.id: "view", workflow.id: "edit", project.id: "edit"})
+    monkeypatch.setattr(conversation_repo, "read_candidates", read)
+    monkeypatch.setattr(conversation_share_repo, "share_permissions", shares)
+    monkeypatch.setattr(
+        conversation_repo, "channel_thread_ids", AsyncMock(return_value={channel.id})
+    )
+    monkeypatch.setattr(service, "visible_project_ids", AsyncMock(return_value=[]))
+    membership = AsyncMock(return_value=True)
+    monkeypatch.setattr(
+        conversation_service.channel_membership, "confirms_participation", membership
+    )
+    monkeypatch.setattr(conversation_repo, "trigger_log_ids", AsyncMock(return_value={trigger.id}))
+    monkeypatch.setattr(service, "_may_read_trigger_log", AsyncMock(return_value=True))
+    ids = {row.id for row in rows}
+    assert await service.visible_conversation_ids(_ctx(), ids) == {
+        owner.id,
+        shared.id,
+        channel.id,
+        trigger.id,
+    }
+    read.assert_awaited_once()
+    shares.assert_awaited_once()
+    membership.assert_awaited_once_with(service.db, conversation_id=channel.id, user_id=OWNER_ID)
+    monkeypatch.setattr(
+        service, "visible_project_ids", AsyncMock(return_value=[project.project_id])
+    )
+    assert project.id in await service.visible_conversation_ids(_ctx(), ids)
+
+
+async def test_notification_visibility_fails_closed_without_a_reader_or_ids(service):
+    assert await service.visible_conversation_ids(_ctx(), set()) == set()
+    assert (
+        await service.visible_conversation_ids(
+            AuthContext(user_id=None, organization_id=ORG_ID, role=None), {uuid4()}
+        )
+        == set()
+    )
+    assert (
+        await service.visible_conversation_ids(
+            AuthContext(user_id=OWNER_ID, organization_id=None, role=None), {uuid4()}
+        )
+        == set()
+    )
+
+
+async def test_notification_visibility_does_not_trust_a_former_channel_or_trigger_reader(
+    service, monkeypatch
+):
+    from app.repositories import conversation_share_repo
+    from app.services import conversation as conversation_service
+
+    channel = _conversation(user_id=None)
+    channel.origin = None
+    monkeypatch.setattr(conversation_repo, "read_candidates", AsyncMock(return_value=[channel]))
+    monkeypatch.setattr(conversation_share_repo, "share_permissions", AsyncMock(return_value={}))
+    monkeypatch.setattr(
+        conversation_repo, "channel_thread_ids", AsyncMock(return_value={channel.id})
+    )
+    monkeypatch.setattr(
+        conversation_service.channel_membership,
+        "confirms_participation",
+        AsyncMock(return_value=False),
+    )
+    monkeypatch.setattr(conversation_repo, "trigger_log_ids", AsyncMock(return_value={channel.id}))
+    monkeypatch.setattr(service, "_may_read_trigger_log", AsyncMock(return_value=False))
+    assert await service.visible_conversation_ids(_ctx(), {channel.id}) == set()
+    monkeypatch.setattr(conversation_repo, "read_candidates", AsyncMock(return_value=[]))
+    assert await service.visible_conversation_ids(_ctx(), {uuid4()}) == set()

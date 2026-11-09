@@ -44,6 +44,12 @@ class Conversation(Base, TimestampMixin):
 
     __tablename__ = "conversations"
     __table_args__ = (
+        Index(
+            "conversations_fork_storage_idx",
+            "organization_id",
+            "user_id",
+            postgresql_where=text("fork_copy_bytes > 0"),
+        ),
         UniqueConstraint("organization_id", "id", name="uq_conversation_org_id"),
         ForeignKeyConstraint(
             ["organization_id", "workflow_id"],
@@ -102,6 +108,10 @@ class Conversation(Base, TimestampMixin):
         index=True,
     )
     """The answer of the source conversation the fork's copied history ends with."""
+    fork_copy_bytes: Mapped[int] = mapped_column(
+        BigInteger, default=0, server_default="0", nullable=False
+    )
+    """Copied payload and row reservations charged until the fork itself is deleted."""
     is_archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     project_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),

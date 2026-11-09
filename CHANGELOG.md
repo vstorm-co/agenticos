@@ -27,7 +27,9 @@ Two things are versioned separately from this file and worth knowing about:
   another approach or take a side question elsewhere without changing the
   original. Only the owner can fork, up to ten a minute, within 2,000 messages,
   10,000 tool calls and 20 MiB; concurrent transcript updates are fenced before
-  copying. The fork copies
+  copying. Retained copies have a 100 MiB member and 1 GiB organization
+  allowance, including fixed row reservations, freed when a fork is deleted.
+  Drawings with stored image files are refused before copying. The fork copies
   messages, tool calls and a long conversation's summary, including its
   externalized text and media within the copy limits, not attachment or
   workspace files, generated images, cost or runs. Conversations with a saved

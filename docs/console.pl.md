@@ -1,5 +1,5 @@
 ---
-source_sha: "2bacc20756cc"
+source_sha: "c7783da0b195"
 ---
 
 # Konsola { #the-console }
@@ -820,6 +820,8 @@ Rozgałęzić rozmowę może tylko jej właściciel: osoba, której ją udostęp
 Na górze rozgałęzienia widać **Rozgałęzienie rozmowy** z linkiem do oryginału. Tę linię widzisz tylko ty: jeśli udostępnisz rozgałęzienie, odbiorca zobaczy zwykłą rozmowę.
 
 Rozgałęzienie może obejmować najwyżej 2000 wiadomości, 10 000 wywołań narzędzi i 20 MiB kopiowanego tekstu oraz danych strukturalnych. Limit wynosi dziesięć żądań na minutę na członka i organizację. Aktualizowana rozmowa może chwilowo odmówić rozgałęzienia; spróbuj ponownie po zakończeniu aktualizacji. Historię przekraczającą limit trzeba skrócić przed skopiowaniem.
+
+Zachowane rozgałęzienia mają osobny limit 100 MiB na członka w organizacji i 1 GiB na całą organizację. Kopia rezerwuje rozmiar treści oraz 4 KiB na rozmowę i 1 KiB na wiadomość lub wywołanie narzędzia. PostgreSQL szereguje przyjmowanie kopii, więc równoległe żądania nie przekraczają limitu. Przydział zwalnia dopiero usunięcie samej kopii; usunięcie źródła lub archiwizacja go nie zwalnia. Rysunku z zapisanymi plikami obrazów nie można obecnie rozgałęzić. Wybierz wcześniejszą odpowiedź; żądanie jest odrzucane przed utworzeniem uszkodzonej kopii.
 
 Tekst i media zapisane poza bazą w kopiowanym podsumowaniu są odtwarzane w rozgałęzieniu, więc usunięcie oryginału nie usuwa tego kontekstu. Odtworzona treść wlicza się do limitu 20 MiB. Odtwarzanie obejmuje najwyżej 100 odwołań i trwa do dziesięciu sekund. Niedostępna treść lub przekroczenie limitu przerywa operację bez tworzenia częściowej kopii.
 

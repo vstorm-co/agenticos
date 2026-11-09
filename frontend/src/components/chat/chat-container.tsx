@@ -506,7 +506,7 @@ export function ChatContainer({
     projectId: openConversation?.project_id,
   });
   useComputerAccessOnUse({
-    pending: pendingComputerAccess,
+    pending: readOnly ? null : pendingComputerAccess,
     respond: sendComputerAccessResponse,
     agent:
       pendingComputerAccess?.agent_id === undefined
@@ -1639,7 +1639,7 @@ function ChatUI({
                   reviewConfigs={pendingApproval.reviewConfigs}
                   onDecisions={onResumeDecisions}
                   mayRemember={mayRememberApproval}
-                  disabled={!isConnected || isStopping}
+                  disabled={readOnly || !isConnected || isStopping}
                 />
               </div>
             )}
@@ -1647,7 +1647,7 @@ function ChatUI({
               <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
                 <ConnectAccountPrompt
                   request={pendingConnection}
-                  disabled={!isConnected || isStopping}
+                  disabled={readOnly || !isConnected || isStopping}
                   onRespond={onConnectionResponse}
                 />
               </div>
@@ -1656,7 +1656,7 @@ function ChatUI({
               <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
                 <QuestionPrompt
                   questions={pendingQuestions}
-                  disabled={!isConnected || isStopping}
+                  disabled={readOnly || !isConnected || isStopping}
                   onComplete={onAnswerQuestions}
                 />
               </div>

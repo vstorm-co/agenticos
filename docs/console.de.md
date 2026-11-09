@@ -1,5 +1,5 @@
 ---
-source_sha: "2bacc20756cc"
+source_sha: "c7783da0b195"
 ---
 
 # Die Konsole { #the-console }
@@ -892,6 +892,8 @@ Abzweigen kann nur, wem das Gespräch gehört: Wer es zum Ansehen oder Bearbeite
 Oben in einer Abzweigung steht **Abgezweigt aus** mit einem Link zum Original. Diese Zeile sehen nur Sie: Geben Sie die Abzweigung frei, sieht die andere Person ein gewöhnliches Gespräch.
 
 Eine Abzweigung ist auf 2.000 Nachrichten, 10.000 Werkzeugaufrufe und 20 MiB kopierten Text und strukturierte Daten begrenzt. Pro Mitglied und Organisation sind höchstens zehn Anfragen pro Minute erlaubt. Eine gerade aktualisierte Unterhaltung kann die Abzweigung kurzzeitig ablehnen; versuchen Sie es nach der Aktualisierung erneut. Zu große Verläufe müssen vor dem Kopieren gekürzt werden.
+
+Gespeicherte Abzweigungen haben ein eigenes Kontingent von 100 MiB pro Mitglied innerhalb einer Organisation und 1 GiB für die gesamte Organisation. Jede Kopie reserviert ihre Nutzdaten sowie 4 KiB für die Unterhaltung und 1 KiB je Nachricht oder Werkzeugaufruf. PostgreSQL serialisiert die Zulassung, sodass parallele Anfragen das Kontingent nicht überschreiten. Erst das Löschen der Kopie gibt die Reservierung frei; Archivierung oder Löschen des Originals tun dies nicht. Zeichnungen mit gespeicherten Bilddateien lassen sich derzeit nicht abzweigen. Wählen Sie eine frühere Antwort; die Anfrage wird vor dem Erstellen einer beschädigten Kopie abgelehnt.
 
 Ausgelagerter Text und Medien einer übernommenen Zusammenfassung werden in die Kopie eingebettet. Das Löschen des Originals entfernt diesen Kontext daher nicht. Die wiederhergestellten Inhalte zählen zum Limit von 20 MiB. Die Wiederherstellung ist auf 100 externe Verweise und zehn Sekunden begrenzt. Fehlende Inhalte oder überschrittene Grenzen führen zur Ablehnung ohne unvollständige Kopie.
 

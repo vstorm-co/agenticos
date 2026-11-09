@@ -1792,6 +1792,31 @@ describe("the chat container - a conversation shared with the reader", () => {
     ] as never);
   }
 
+  it("disables a pending approval after the thread becomes read-only", async () => {
+    openShared({ share_permission: "view", is_archived: false });
+    const base = get.getMockImplementation()!;
+    get.mockImplementation((url: string) =>
+      url === "/me/permissions"
+        ? Promise.resolve({
+            organization_id: "org-1",
+            role: "admin",
+            permissions: [{ permission: "approvals:decide", scope: "all" }],
+          })
+        : base(url),
+    );
+    mount();
+    await screen.findByText("Shared with you as read-only", undefined, SETTLE);
+    receive("tool_approval_required", {
+      run_id: "shared-run",
+      action_requests: [
+        { id: "approval", tool_call_id: "send", tool_name: "send_email", args: {} },
+      ],
+      review_configs: [],
+    });
+    expect(await screen.findByRole("button", { name: "Approve" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Reject" })).toBeDisabled();
+  });
+
   it("offers no message box to somebody it was shared with to read", async () => {
     openShared({ share_permission: "view", is_archived: false });
     mount();

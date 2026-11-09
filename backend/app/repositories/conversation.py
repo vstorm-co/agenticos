@@ -34,8 +34,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, defer, load_only, raiseload, selectinload
 from sqlalchemy.orm.attributes import set_committed_value
 
+from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
+from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.channel_session import ChannelSession
 from app.db.models.chat_file import ChatFile
@@ -1138,6 +1140,103 @@ async def fork_summary(db: AsyncSession, *, source_id: UUID, ordinal: int) -> Fo
     return ForkSummary(row[0], row[1]) if row is not None else None
 
 
+async def has_fork_visual_images(db: AsyncSession, *, source_id: UUID, ordinal: int) -> bool:
+    """Whether copying this prefix would retain references to source-only visual blobs."""
+    images = ToolCall.args["images"]
+    return bool(
+        await db.scalar(
+            select(
+                exists().where(
+                    ToolCall.message_id.in_(
+                        select(Message.id).where(
+                            Message.conversation_id == source_id, Message.ordinal <= ordinal
+                        )
+                    ),
+                    _tool_named(("draw", "revise_visual")),
+                    case(
+                        (func.jsonb_typeof(images) == "array", func.jsonb_array_length(images)),
+                        else_=0,
+                    )
+                    > 0,
+                )
+            )
+        )
+    )
+
+
+async def read_candidates(
+    db: AsyncSession, *, organization_id: UUID, ids: Collection[UUID]
+) -> list[Conversation]:
+    """Tenant-scoped metadata for one bounded access-gate batch."""
+    return list(
+        (
+            await db.scalars(
+                select(Conversation)
+                .options(load_only(*LISTED_COLUMNS, raiseload=True))
+                .where(Conversation.organization_id == organization_id, Conversation.id.in_(ids))
+            )
+        ).all()
+    )
+
+
+async def channel_thread_ids(db: AsyncSession, ids: Collection[UUID]) -> set[UUID]:
+    """Which candidate threads still have a channel whose membership can be checked."""
+    return set(
+        (
+            await db.scalars(
+                select(Conversation.id)
+                .join(ChannelSession, ChannelSession.conversation_id == Conversation.id)
+                .where(Conversation.id.in_(ids))
+                .distinct()
+            )
+        ).all()
+    )
+
+
+async def trigger_log_ids(db: AsyncSession, ids: Collection[UUID]) -> set[UUID]:
+    """Narrow ownerless candidates to actual trigger logs before per-agent access checks."""
+    return set(
+        (
+            await db.scalars(
+                select(Conversation.id)
+                .join(AgentTrigger, AgentTrigger.conversation_id == Conversation.id)
+                .where(Conversation.id.in_(ids))
+                .distinct()
+            )
+        ).all()
+    )
+
+
+class ForkVolume(NamedTuple):
+    member_bytes: int
+    organization_bytes: int
+
+
+async def retained_fork_volume(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID
+) -> ForkVolume:
+    """Serialize admission and count retained copies, including source-less forks.
+
+    The transaction lock remains held through insertion and commit. Deletion
+    removes a charge with its row; rollback cannot leave a reservation behind.
+    """
+    await hold_subject(db, LockScope.CONVERSATION_FORK_STORAGE_PER_ORG, organization_id)
+    row = (
+        await db.execute(
+            select(
+                func.coalesce(
+                    func.sum(Conversation.fork_copy_bytes).filter(Conversation.user_id == user_id),
+                    0,
+                ),
+                func.coalesce(func.sum(Conversation.fork_copy_bytes), 0),
+            ).where(
+                Conversation.organization_id == organization_id, Conversation.fork_copy_bytes > 0
+            )
+        )
+    ).one()
+    return ForkVolume(int(row[0]), int(row[1]))
+
+
 async def fork_summary_bytes(db: AsyncSession, summary: list[dict[str, JsonValue]]) -> int:
     """Measure exactly what PostgreSQL will store, including expanded JSONB numbers."""
     return (
@@ -1193,6 +1292,7 @@ async def fork_conversation(
     *,
     source: Conversation,
     through: Message,
+    copy_bytes: int,
     restored_summary: list[dict[str, JsonValue]] | None = None,
 ) -> Conversation:
     """A new conversation holding `source`'s messages up to and including `through`.
@@ -1226,6 +1326,7 @@ async def fork_conversation(
         project_id=source.project_id,
         forked_from_conversation_id=source.id,
         forked_from_message_id=through.id,
+        fork_copy_bytes=copy_bytes,
         plan_items=deepcopy(source.plan_items),
     )
     db.add(fork)

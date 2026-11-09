@@ -29,11 +29,21 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     op.add_column(
         "conversations",
+        sa.Column("fork_copy_bytes", sa.BigInteger(), nullable=False, server_default="0"),
+    )
+    op.add_column(
+        "conversations",
         sa.Column("forked_from_conversation_id", postgresql.UUID(as_uuid=True), nullable=True),
     )
     op.add_column(
         "conversations",
         sa.Column("forked_from_message_id", postgresql.UUID(as_uuid=True), nullable=True),
+    )
+    op.create_index(
+        "conversations_fork_storage_idx",
+        "conversations",
+        ["organization_id", "user_id"],
+        postgresql_where=sa.text("fork_copy_bytes > 0"),
     )
     for column in ("forked_from_conversation_id", "forked_from_message_id"):
         # Indexed for the `SET NULL` as much as for reading: deleting a
@@ -59,6 +69,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.drop_index("conversations_fork_storage_idx", table_name="conversations")
+    op.drop_column("conversations", "fork_copy_bytes")
     op.drop_constraint(
         op.f("conversations_forked_from_message_id_fkey"), "conversations", type_="foreignkey"
     )

@@ -275,7 +275,11 @@ async def fork_conversation(
     Externalized summary content is restored within the same byte quota, at
     most 100 references and ten seconds; unavailable or over-limit content
     refuses the copy (`400`) without creating a partial fork.
-    `409` means the history is busy and can be retried.
+    Retained copies reserve their payload plus 4 KiB per conversation and
+    1 KiB per message/tool call, within 100 MiB per member in the organization
+    and 1 GiB per organization. Only deleting a fork frees its charge.
+    Exhaustion or a drawing with source-only image files returns `400`.
+    `409` means the history or organization admission is busy and can be retried.
     `forked_from` on the response names the source, and is only ever
     set for the person who owns both. `429` past ten forks a minute per member
     and organization.
