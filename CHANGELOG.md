@@ -94,6 +94,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Update Pydantic AI, its harness and skills integration, pricing data and
+  Logfire to the versions locked by the agent-framework dependency update.
+  Normalize wrapped question answers before saving a parked run so the
+  durable answer remains JSON data.
+
 - **Breaking: global unfiled knowledge needs operator provenance.** App-scoped
   bases no longer publish or clear ambiguous legacy chunks merely by claiming a
   retained collection name. New CLI imports record operator origin; tracked
