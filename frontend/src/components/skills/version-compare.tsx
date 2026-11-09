@@ -5,7 +5,17 @@ import { Crosshair, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { DiffView } from "@/components/authoring/diff-view";
-import { Badge, Button, Checkbox, Label, ListCard, Skeleton } from "@/components/ui";
+import { MarkdownContent } from "@/components/chat/markdown-content";
+import {
+  Badge,
+  Button,
+  Checkbox,
+  Label,
+  ListCard,
+  MarkdownModeToggle,
+  Skeleton,
+  type MarkdownMode,
+} from "@/components/ui";
 import { useSkillVersion, useSkillVersions, versionPage } from "@/hooks/use-skill-versions";
 import { getErrorMessage } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
@@ -211,10 +221,17 @@ export function Sections({
   version,
   base,
   onlyDifferences,
+  rendered = false,
 }: {
   version: SkillVersionRead;
   base: SkillVersionRead | null;
   onlyDifferences: boolean;
+  /**
+   * Read on its own rather than beside other versions: the instructions open as
+   * rendered Markdown. A comparison keeps source, so the reference lines up with
+   * the diffs next to it.
+   */
+  rendered?: boolean;
 }) {
   const t = useTranslations("skills.page.compare");
   const files = base ? fileChanges(base.resources, version.resources) : null;
@@ -241,11 +258,15 @@ export function Sections({
         same={base !== null && base.content === version.content}
         onlyDifferences={onlyDifferences}
       >
-        <DiffView
-          before={base?.content ?? version.content}
-          after={version.content}
-          modes={base !== null && base.content !== version.content}
-        />
+        {rendered ? (
+          <ReadInstructions content={version.content} />
+        ) : (
+          <DiffView
+            before={base?.content ?? version.content}
+            after={version.content}
+            modes={base !== null && base.content !== version.content}
+          />
+        )}
       </Part>
       <Part title={t("files")} same={filesSame} onlyDifferences={onlyDifferences}>
         {version.resources.length + (files?.removed.length ?? 0) === 0 ? (
@@ -284,6 +305,30 @@ export function Sections({
         )}
       </Part>
     </>
+  );
+}
+
+/**
+ * Instructions read on their own, rendered as Markdown by default and as source on request.
+ *
+ * Images stay links: the text may be a model's proposal or a colleague's, and an image
+ * would be a request to a host of the writer's choosing.
+ */
+function ReadInstructions({ content }: { content: string }) {
+  const [mode, setMode] = useState<MarkdownMode>("preview");
+  return (
+    <div className="space-y-1">
+      <div className="flex justify-end">
+        <MarkdownModeToggle mode={mode} onChange={setMode} />
+      </div>
+      {mode === "preview" ? (
+        <div className="max-h-[32rem] overflow-auto rounded-md border p-3">
+          <MarkdownContent content={content} inertImages />
+        </div>
+      ) : (
+        <DiffView before={content} after={content} modes={false} />
+      )}
+    </div>
   );
 }
 

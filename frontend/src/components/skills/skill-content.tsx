@@ -34,7 +34,7 @@ export function SkillContent({
         <Skeleton className="h-40 w-full" />
       ) : (
         <div className="space-y-3">
-          <Sections version={version} base={null} onlyDifferences={false} />
+          <Sections version={version} base={null} onlyDifferences={false} rendered />
         </div>
       )}
     </ListCard>

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { apiClient } from "@/lib/api-client";
@@ -40,6 +41,25 @@ describe("SkillContent", () => {
     expect(screen.getByText("policy.md")).toBeVisible();
     expect(screen.getByText("v3")).toBeVisible();
     expect(screen.queryByText(/same as the reference/i)).toBeNull();
+  });
+
+  it("renders the instructions as Markdown, with the source one press away", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      id: "v3",
+      number: 3,
+      description: "How returns work",
+      content: "# Returns\n\nAsk for the **receipt** first.",
+      resources: [],
+    });
+    mount();
+
+    expect(await screen.findByRole("heading", { name: "Returns" })).toBeVisible();
+    expect(screen.getByText("receipt").tagName).toBe("STRONG");
+
+    await userEvent.click(screen.getByRole("button", { name: /source/i }));
+
+    expect(screen.queryByRole("heading", { name: "Returns" })).toBeNull();
+    expect(screen.getByText("# Returns")).toBeVisible();
   });
 
   it("says when the version cannot be read", async () => {
