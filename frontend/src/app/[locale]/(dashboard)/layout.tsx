@@ -24,7 +24,6 @@ import { OfflineBanner } from "@/components/layout/offline-banner";
 import { LiveUpdates } from "@/components/live-updates/live-updates";
 import { NavigationProgress } from "@/components/layout/navigation-progress";
 import { PageTransition } from "@/components/layout/page-transition";
-import { StartOffer } from "@/components/onboarding/start-offer";
 import { OnboardingFlows } from "@/components/onboarding/onboarding-flows";
 import { OnboardingTour } from "@/components/onboarding/onboarding-tour";
 
@@ -61,15 +60,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* Less the phone app's status bar, which `body` leaves room for
             (`desktop.css`); zero everywhere else. */}
         <div className="relative flex h-[calc(var(--app-height,100dvh)-var(--shell-inset-top,0px))] flex-col">
-          {/* Keep the account invitation control above navigation, not over it. */}
-          <div
-            aria-hidden="true"
-            className="hidden h-12 shrink-0 [body:has([data-invitation-entry])_&]:block"
-          />
-          {/* The notice overlays desktop chrome so neither sidebar loses height. */}
-          <Suspense fallback={null}>
-            <StartOffer />
-          </Suspense>
           {/* Nothing above `md`: the brand, the organization, search, settings
             and the account are all in the column now, and this renders only
             where the column is a slide-over that needs opening. */}

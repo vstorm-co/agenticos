@@ -51,25 +51,11 @@ describe("the dashboard's scroll container", () => {
   });
 });
 
-it("anchors the start overlay to the shell outside navigation and main", () => {
+it("keeps account notices and their spacing outside the application layout", () => {
   const tree = DashboardLayout({ children: null });
-  const shell = find(
-    tree,
-    (el) => el.props.className?.includes("h-[calc(var(--app-height") === true,
-  );
-  if (!shell) throw new Error("Missing app shell");
-  expect(shell.props.className?.split(" ")).toContain("relative");
-  const children = Array.isArray(shell.props.children)
-    ? shell.props.children
-    : [shell.props.children];
-  const noticeIndex = children.findIndex(
-    (child) => find(child, (el) => el.type === StartOffer) !== null,
-  );
-  const appIndex = children.findIndex(
-    (child) => find(child, (el) => el.type === AppSidebar) !== null,
-  );
-  expect(noticeIndex).toBeGreaterThanOrEqual(0);
-  expect(appIndex).toBeGreaterThan(noticeIndex);
-  const viewport = find(tree, (el) => el.type === MainViewport);
-  expect(find(viewport, (el) => el.type === StartOffer)).toBeNull();
+  expect(find(tree, (el) => el.type === StartOffer)).toBeNull();
+  expect(find(tree, (el) => el.type === AppSidebar)).not.toBeNull();
+  expect(
+    find(tree, (el) => el.props.className?.includes("data-invitation-entry") === true),
+  ).toBeNull();
 });
