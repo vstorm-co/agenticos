@@ -1350,31 +1350,14 @@ class NotificationCenterService:
     async def _conversation_visibility(
         self, ctx: AuthContext, ids: set[uuid.UUID]
     ) -> dict[uuid.UUID, bool]:
+        # Conversation writes notify, so importing its service at module load
+        # time would make the two domains cyclic.
         from app.services.conversation import ConversationService
 
         if not ids:
             return {}
         visible = await ConversationService(self.db).visible_conversation_ids(ctx, ids)
         return {conversation_id: conversation_id in visible for conversation_id in ids}
-
-    async def _conversation_visible(self, ctx: AuthContext, conversation_id: uuid.UUID) -> bool:
-        if ctx.user_id is None or ctx.organization_id is None:
-            return False
-        # Conversation writes emit notifications, so importing the service at module
-        # load time would make the notification and conversation domains cyclic.
-        from app.services.conversation import ConversationService
-
-        try:
-            await ConversationService(self.db).get_conversation(
-                conversation_id,
-                organization_id=ctx.organization_id,
-                user_id=ctx.user_id,
-                ctx=ctx,
-                include_favourite=False,
-            )
-        except NotFoundError:
-            return False
-        return True
 
     async def gate_for(
         self, ctx: AuthContext, notification: Notification, cache: _GateCache | None = None
