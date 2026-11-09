@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Include shared resource visibility helpers in the platform coverage and type-checking gates, and guard against their accidental removal (#2143).
+
 ## [1.59.0] - 2026-11-09
 
 ### Changed
