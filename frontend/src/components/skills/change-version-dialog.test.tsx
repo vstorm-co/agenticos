@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast, type Action } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -152,7 +152,7 @@ describe("ChangeVersionDialog", () => {
       environments: ["Production"],
       usage: HR,
     });
-    const check = (state: "worse" | "unknown") => ({
+    const check = (state: "worse" | "unknown" | "within_noise") => ({
       check_id: "c7",
       version_id: "m12",
       state,
@@ -169,6 +169,11 @@ describe("ChangeVersionDialog", () => {
       check_id: "c7",
       acknowledge_unknown: false,
     });
+
+    cleanup();
+    renderDialog({ ...HR, checked_versions: [check("within_noise")] });
+    await userEvent.click(screen.getByRole("radio", { name: /Main, latest/ }));
+    expect(await screen.findByText(/v12 was checked on HR bot .*: No change/)).toBeVisible();
   });
 
   it("checks main's newest version on a pinned agent first, then moves it with that check", async () => {

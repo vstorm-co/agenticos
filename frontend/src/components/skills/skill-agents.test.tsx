@@ -199,6 +199,24 @@ describe("SkillAgents", () => {
     expect(screen.getByText(/Checked on this version .*: Worse/)).toBeInTheDocument();
   });
 
+  it("reads a result within the test's noise as no change, as Improve does", () => {
+    mount(
+      LIST([
+        onMain("Refunds", {
+          checked: {
+            check_id: "c1",
+            version_id: "m12",
+            state: "within_noise",
+            sample: null,
+            at: "2026-11-02T10:00:00Z",
+          },
+        }),
+      ]),
+    );
+    expect(screen.getByText(/Checked on this version .*: No change/)).toBeInTheDocument();
+    expect(screen.queryByText(/Within noise/)).toBeNull();
+  });
+
   it("says nothing about checks to a reader who may not see them", () => {
     mount(LIST([onMain("Support")]), null, "all", [], false);
     expect(

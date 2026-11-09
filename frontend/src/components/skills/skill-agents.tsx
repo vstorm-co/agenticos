@@ -6,6 +6,7 @@ import { ArrowLeftRight } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { AddToAgent } from "@/components/agents/add-to-agent";
+import { shownState } from "@/components/skill-improvement/check-summary";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { Badge, Button, DataTable, ListCard, type Column } from "@/components/ui";
 import { getErrorMessage } from "@/lib/api-error";
@@ -185,7 +186,7 @@ function BindingCell({ usage, seesChecks }: { usage: SkillAgentUsage; seesChecks
         >
           {usage.checked
             ? t("agentsTable.checked", {
-                state: tCheck(`state.${usage.checked.state}`),
+                state: tCheck(`state.${shownState(usage.checked.state)}`),
                 when: formatDate(usage.checked.at, locale),
               })
             : neverMoved(usage)

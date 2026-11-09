@@ -34,6 +34,7 @@ import type { SkillCheck } from "@/types/skill-checks";
 import type { AgentCheckRef, SkillAgentUsage, SkillFork } from "@/types/skill-versions";
 import { bindingLabel } from "./skill-lines";
 import { AutoHeight } from "./auto-height";
+import { shownState } from "@/components/skill-improvement/check-summary";
 import { SkillCheckDialog } from "./skill-check-dialog";
 import { VersionDiff } from "./version-diff";
 
@@ -349,7 +350,7 @@ export function ChangeVersionDialog({
                 {t("checkedOn", {
                   version: label,
                   name,
-                  state: tCheck(`state.${checked.state}`),
+                  state: tCheck(`state.${shownState(checked.state)}`),
                   when: formatDate(checked.at, locale),
                 })}
               </p>
