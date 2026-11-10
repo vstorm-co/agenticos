@@ -763,3 +763,26 @@ async def test_a_shipped_refresh_failure_keeps_the_existing_assistant_available(
     current = await service.state(ctx)
     assert current.agent_id == original.agent_id
     assert current.status == original.status
+
+
+async def test_a_publish_refusal_leaves_it_waiting_rather_than_failing_the_look(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A draft that publish refuses - a deployment advertising a sandbox it does not run -
+    is reported unpublished; `bootstrap` and the console both read it through here."""
+    from unittest.mock import AsyncMock
+
+    organization, owner = await _organization(db)
+    ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role="owner")
+    await _model(db, organization)
+    monkeypatch.setattr(
+        AgentRegistryService,
+        "publish",
+        AsyncMock(side_effect=BadRequestError(message="This agent cannot be published yet")),
+    )
+
+    state = await AssistantService(db).state(ctx)
+
+    assert state.status == "needs_model"
+    agent = (await db.execute(select(Agent).where(Agent.id == state.agent_id))).scalar_one()
+    assert agent.current_version_id is None

@@ -18,8 +18,8 @@ import { useAuth } from "@/hooks";
 import { cn } from "@/lib/utils";
 import { ROUTES } from "@/lib/constants";
 import { AppearanceMenu, LanguageMenu } from "@/components/layout/account-preferences";
-import { OrganizationMenuItems } from "@/components/teams";
 import { useAuthStore } from "@/stores";
+import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 
 /**
  * Who is signed in, and the way out - at the foot of the column.
@@ -99,11 +99,6 @@ export function SidebarUser({ compact = false }: { compact?: boolean }) {
             <DropdownMenuSeparator />
           </>
         ) : null}
-        {/* The tenant, above the account's own entries: every request this
-            person makes is scoped by it, and it used to live at the far end of
-            the column from the name it belongs to. */}
-        <OrganizationMenuItems />
-        <DropdownMenuSeparator />
         {/* How this looks and what language it is in. Both were unlabelled
             glyphs in a strip at the foot of the column; here they are named,
             each showing its current value, in the menu that already answers
@@ -124,7 +119,10 @@ export function SidebarUser({ compact = false }: { compact?: boolean }) {
         <DesktopSetupMenuItem />
         <ServerSwitch />
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={logout} className="text-destructive focus:text-destructive">
+        <DropdownMenuItem
+          onClick={() => useUnsavedChangesStore.getState().leave(() => void logout())}
+          className="text-destructive focus:text-destructive"
+        >
           <LogOut className="mr-2 h-4 w-4" />
           {t("logout")}
         </DropdownMenuItem>

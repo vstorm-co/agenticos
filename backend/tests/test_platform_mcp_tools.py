@@ -1,5 +1,6 @@
 """Each platform MCP tool is exactly one public API call, made as the caller (#2058)."""
 
+import json
 import uuid
 from typing import Any, ClassVar
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -607,7 +608,50 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
         (
             "GET",
             "/conversations/00000000-0000-0000-0000-000000000001/transcript",
-            {"params": {"limit": 100, "skip": 0}},
+            {"params": {"limit": 100, "skip": 0, "for_model": True}},
+        ),
+    ),
+    (
+        "test_my_connection",
+        {"connection_id": "00000000-0000-0000-0000-000000000002"},
+        ("POST", "/me/mcp-connections/00000000-0000-0000-0000-000000000002/test", {}),
+    ),
+    (
+        "list_conversations",
+        {"search": "Geopolityka", "limit": 5},
+        (
+            "GET",
+            "/conversations",
+            {"params": {"limit": 5, "search": "Geopolityka", "for_model": True}},
+        ),
+    ),
+    (
+        "create_conversation",
+        {"title": "GitHub daily"},
+        ("POST", "/conversations", {"json": {"title": "GitHub daily"}}),
+    ),
+    (
+        "update_proactivity_settings",
+        {
+            "watch_min_minutes": 20,
+            "briefing_hour": 10,
+            "monthly_limit_usd": "30",
+            "briefing_enabled": True,
+            "briefing_days": [1, 3],
+        },
+        (
+            "PATCH",
+            f"/orgs/{ORG}",
+            {
+                "json": {
+                    "proactive_watch_min_minutes": 20,
+                    "proactive_enabled": True,
+                    "proactive_days": [1, 3],
+                    "proactive_hour": 10,
+                    "proactive_timing": "fixed",
+                    "proactive_limit_usd": "30",
+                }
+            },
         ),
     ),
     # Only what the person said: a field left out stays as the account has it.
@@ -792,7 +836,7 @@ CALLS.extend(
 async def test_each_tool_is_one_public_api_call(
     server: FastMCP, api: MagicMock, tool: str, arguments: dict[str, Any], call: tuple[Any, ...]
 ) -> None:
-    if tool == "list_projects":
+    if tool in ("list_projects", "list_conversations"):
         api.request.return_value = {"items": [], "total": 0}
     await server.call_tool(tool, arguments)
 
@@ -845,27 +889,30 @@ async def test_routine_update_sets_delivery_and_limits(server: FastMCP, api: Mag
 @pytest.mark.parametrize(
     ("method", "path"), sorted({(call[0], call[1]) for _tool, _args, call in CALLS})
 )
-def test_every_call_reaches_a_public_route(method: str, path: str) -> None:
-    """A tool is a call to the public API, so the route has to exist and admit a key.
+def test_every_call_reaches_a_route_its_key_may_call(method: str, path: str) -> None:
+    """A tool is a call to the API, so the route has to exist and admit the tool's key:
+    a public route, or one marked for the platform's own tools.
 
     The table above checks the call a tool makes, not that anything answers it:
     `list_models` once asked for `/model-profiles`, which is mounted under
     `/providers`, and every agent-building conversation hit a 404 (#2301).
     """
+    assert _reachable(method, path), f"no public or assistant route answers {method} {path}"
+
+
+def _reachable(method: str, path: str) -> bool:
     import re
 
-    from app.api.public_api import public_operations
+    from app.api.public_api import assistant_operations, public_operations
     from app.core.config import settings
     from app.main import app
 
     full = f"{settings.API_V1_STR}{path}"
-    public = [
-        template
-        for verb, template in public_operations(app.routes)
-        if verb == method.lower() and re.fullmatch(re.sub(r"\{[^}]+\}", "[^/]+", template), full)
-    ]
-
-    assert public, f"no public route answers {method} {path}"
+    operations = public_operations(app.routes) | assistant_operations(app.routes)
+    return any(
+        verb == method.lower() and re.fullmatch(re.sub(r"\{[^}]+\}", "[^/]+", template), full)
+        for verb, template in operations
+    )
 
 
 class TestListingMyConnections:
@@ -1032,6 +1079,7 @@ class TestWhatNeverWaitsForApproval:
         assert not tools["get_project"].writes
         assert tools["create_skill"].writes and not tools["create_skill"].ungated
         assert tools["publish_agent"].writes and not tools["publish_agent"].ungated
+        assert tools["test_my_connection"].writes and not tools["test_my_connection"].ungated
 
     @pytest.mark.security
     async def test_reads_run_under_writes_but_all_still_requires_approval(self) -> None:
@@ -1100,6 +1148,29 @@ class TestTheInProcessCall:
 
         with pytest.raises(ToolError, match="Insufficient permissions"):
             await _api(handler).request("POST", "/agents", json={})
+
+    @pytest.mark.parametrize(("status", "code"), [(404, "NOT_FOUND"), (422, "VALIDATION_ERROR")])
+    async def test_a_missing_or_malformed_target_is_never_read_as_nothing_found(
+        self, status: int, code: str
+    ) -> None:
+        """Given an agent id it had made up, the Architect reported "no sessions" as fact."""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                status, json={"error": {"code": code, "message": "Agent not found"}}
+            )
+
+        with pytest.raises(ToolError) as refused:
+            await _api(handler).request("GET", "/agents/x/improvements")
+
+        error = json.loads(str(refused.value))["error"]
+        assert (error["status"], error["code"], error["message"]) == (
+            status,
+            code,
+            "Agent not found",
+        )
+        assert "it is not an empty result, so never report it as none" in error["hint"]
+        assert "list_agents" in error["hint"]
 
     async def test_an_unexpected_error_body_still_says_something(self) -> None:
         def handler(request: httpx.Request) -> httpx.Response:
@@ -1648,3 +1719,44 @@ async def test_routine_notification_override_and_inheritance_are_mutually_exclus
             },
         )
     api.request.assert_not_awaited()
+
+
+async def test_proactivity_settings_need_something_to_change(server: FastMCP, api: MagicMock):
+    with pytest.raises(Exception, match="at least one setting"):
+        await server.call_tool("update_proactivity_settings", {})
+    api.request.assert_not_called()
+
+
+async def test_proactivity_settings_need_an_organization(api: MagicMock):
+    api.request.return_value = {}
+    tools = {tool.name: tool.function for tool in platform_tools(api)}
+    with pytest.raises(ValueError, match="names no organization"):
+        await tools["update_proactivity_settings"](watches_enabled=True)
+
+
+async def test_a_conversation_listing_carries_only_ids_titles_and_dates(api: MagicMock):
+    api.request.return_value = {
+        "total": 1,
+        "items": [{"id": "c1", "title": "Plan", "created_at": "t", "updated_at": "u", "x": 1}],
+    }
+    tools = {tool.name: tool.function for tool in platform_tools(api)}
+    assert await tools["list_conversations"]() == {
+        "total": 1,
+        "items": [{"id": "c1", "title": "Plan", "created_at": "t", "updated_at": "u"}],
+    }
+
+
+async def test_a_connection_check_names_its_tools(api: MagicMock):
+    api.request.return_value = {"ok": True, "error": None, "tools": [{"name": "search"}]}
+    tools = {tool.name: tool.function for tool in platform_tools(api)}
+    assert await tools["test_my_connection"](connection_id=uuid.uuid4()) == {
+        "ok": True,
+        "error": None,
+        "tools": ["search"],
+    }
+
+
+def test_proactivity_tool_explains_both_required_scopes(api: MagicMock) -> None:
+    tool = next(tool for tool in platform_tools(api) if tool.name == "update_proactivity_settings")
+    assert tool.function.__doc__ is not None
+    assert "`org:settings` and `budgets:manage`" in tool.function.__doc__

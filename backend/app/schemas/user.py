@@ -270,6 +270,10 @@ class MeRead(UserRead):
     own fields say nothing about it, because they *are* the account (#1044).
     """
 
+    email_verified: bool = Field(
+        default=False,
+        description="This session proved the current mailbox; other sessions do not inherit proof",
+    )
     impersonation: ImpersonationRead | None = None
 
 

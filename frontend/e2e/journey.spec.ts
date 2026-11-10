@@ -8,6 +8,7 @@ import {
   nowMatching,
   pageHeading,
   pageStatus,
+  submitDialog,
 } from "./helpers";
 
 test.use({ storageState: AUTH_STATE });
@@ -404,6 +405,52 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
     /\$\d+\.\d{4}/,
   );
 
+  // Curate the chat response through Activity, then read the actual saved case.
+  // The hosted run can be newest, so select the web-chat run explicitly.
+  const chatRun = await nowMatching(
+    page.request,
+    `/api/runs?agent_id=${agentId}`,
+    (run) => run["surface"] === "web" && run["status"] === "completed",
+    "the completed chat run",
+  );
+  const datasetName = `Activity answers ${stamp}`;
+  await page.goto("/datasets");
+  await page.getByRole("button", { name: "New dataset", exact: true }).first().click();
+  const datasetDialog = page.getByRole("dialog");
+  await datasetDialog.getByRole("textbox", { name: /^Name/ }).fill(datasetName);
+  await submitDialog(page, {
+    dialog: datasetDialog,
+    submit: datasetDialog.getByRole("button", { name: "Create", exact: true }),
+    path: "/api/datasets",
+  });
+  await page.waitForURL(/\/datasets\/[^/?]+$/);
+  const datasetId = new URL(page.url()).pathname.split("/").pop();
+  if (!datasetId) throw new Error("Created dataset has no identity");
+  await page.goto(`/runs?run=${String(chatRun["id"])}&dataset=${datasetId}`);
+  await page.getByRole("button", { name: "Add to dataset", exact: true }).click();
+  const addDialog = page.getByRole("dialog");
+  await expect(addDialog.getByRole("combobox", { name: "Dataset", exact: true })).toHaveText(
+    datasetName,
+  );
+  await expect(addDialog.getByRole("radio", { name: /Reference answer/ })).toBeChecked();
+  await addDialog.getByText("View source messages", { exact: true }).click();
+  await expect(addDialog.getByText("Say the word.", { exact: true })).toBeVisible();
+  await expect(addDialog.getByText(answerToken, { exact: true })).toBeVisible();
+  await submitDialog(page, {
+    dialog: addDialog,
+    submit: addDialog.getByRole("button", { name: "Add", exact: true }),
+    path: `/api/datasets/${datasetId}/cases/from-message`,
+  });
+  const savedCase = await nowMatching(
+    page.request,
+    `/api/datasets/${datasetId}/cases`,
+    (item) => item["input"] === "Say the word.",
+    "the case curated from Activity",
+  );
+  expect(savedCase["reference_answer"]).toBe(answerToken);
+  expect(savedCase["counter_example"]).toBeNull();
+  expect(savedCase["history"]).toEqual([]);
+
   // 8. cleaning up
   // This is the one spec that creates a whole agent, and it runs on every push -
   // so without this the organization grows an agent, a model and a key per run,
@@ -421,6 +468,7 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
   // 7 needs no line of its own: `agent_embeds.agent_id` is `ON DELETE CASCADE`,
   // and the visitor row cascades from the embed.
   for (const path of [
+    `/api/datasets/${datasetId}`,
     `/api/agents/${agentId}`,
     `/api/providers/model-profiles/${await idOf(page, "/api/providers/model-profiles", "label", modelLabel)}`,
     `/api/secrets/${await idOf(page, "/api/secrets", "name", keyLabel)}`,

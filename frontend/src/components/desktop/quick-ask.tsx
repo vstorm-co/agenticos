@@ -201,6 +201,8 @@ export function QuickAsk({
     sendAskUserResponses,
     pendingConnection,
     sendConnectionResponse,
+    pendingComputerAccess,
+    sendComputerAccessResponse,
     queuedMessages,
     cancelQueued,
     retryQueued,
@@ -209,6 +211,11 @@ export function QuickAsk({
     conversationId,
     onConversationCreated: setConversationId,
   });
+  // Native folder consent belongs to the main console. Release this turn
+  // instead of leaving Quick Ask waiting on a dialog it cannot present.
+  useEffect(() => {
+    if (pendingComputerAccess) sendComputerAccessResponse(false);
+  }, [pendingComputerAccess, sendComputerAccessResponse]);
   const asked = messages.some((message) => message.role === "user");
   const signedOut = !isLoading && !isAuthenticated;
   useEffect(() => {

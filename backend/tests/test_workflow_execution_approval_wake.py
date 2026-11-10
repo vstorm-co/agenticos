@@ -109,6 +109,50 @@ def worker_db():
 
 
 class TestWakeAfterApprovalDecision:
+    @pytest.mark.parametrize(
+        "child",
+        [
+            None,
+            MagicMock(status="running", paused_state=None),
+            MagicMock(status="awaiting_answer", paused_state={"question_results": {}}),
+        ],
+    )
+    @pytest.mark.security
+    async def test_a_stale_wake_cannot_resume_a_later_unanswered_question(
+        self, repo, worker_db, approvals_repo, child
+    ):
+        found = _node_run(waiting_reason="approval")
+        fresh = _node_run(id=found.id, waiting_reason="question")
+        repo.find_node_run_waiting_on_agent_run.return_value = found
+        repo.get_node_run_by_id_for_update.side_effect = None
+        repo.get_node_run_by_id_for_update.return_value = fresh
+        repo.get_run_by_id_for_update.return_value = _run()
+        approvals_repo.claim_parked_run.return_value = child
+
+        await wake_after_approval_decision(_AGENT_RUN, organization_id=uuid.uuid4())
+
+        repo.create_outbox.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "child",
+        [
+            MagicMock(status="cancelled", paused_state=None),
+            MagicMock(
+                status="awaiting_answer", paused_state={"question_results": {"q1": "declined"}}
+            ),
+        ],
+    )
+    async def test_an_answered_or_ended_question_wakes_its_owning_step(
+        self, repo, worker_db, approvals_repo, child
+    ):
+        repo.find_node_run_waiting_on_agent_run.return_value = _node_run(waiting_reason="question")
+        repo.get_run_by_id_for_update.return_value = _run()
+        approvals_repo.claim_parked_run.return_value = child
+
+        await wake_after_approval_decision(_AGENT_RUN, organization_id=uuid.uuid4())
+
+        repo.create_outbox.assert_awaited_once()
+
     async def test_no_node_run_waiting_on_this_agent_run_is_a_no_op(self, repo, worker_db):
         repo.find_node_run_waiting_on_agent_run.return_value = None
         await wake_after_approval_decision(_AGENT_RUN, organization_id=uuid.uuid4())
@@ -171,7 +215,7 @@ class TestWakeAfterApprovalDecision:
         await wake_after_approval_decision(_AGENT_RUN, organization_id=uuid.uuid4())
 
         repo.create_outbox.assert_not_called()
-        repo.get_run_by_id_for_update.assert_not_called()
+        repo.get_run_by_id_for_update.assert_awaited_once()
 
     async def test_the_decision_that_clears_the_last_pending_approval_enqueues_it(
         self, repo, worker_db, approvals_repo

@@ -18,6 +18,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import anyio
+import anyio.lowlevel
 import httpx
 import pytest
 from pydantic import ValidationError
@@ -1878,3 +1879,64 @@ async def test_private_isolated_subscription_uses_its_explicit_person_without_bo
     )["run_coding_agent"].function(ctx, task="Review")
     assert store.asked_for == [person]
     assert "own" in answer and store.saved == []
+
+
+async def test_parallel_named_sandbox_calls_do_not_overlap_change_capture(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A second coding task cannot enter the first one's whole-workspace snapshot."""
+    active = 0
+    maximum = 0
+
+    async def run(*_args: object, **_kwargs: object) -> _task.Outcome:
+        nonlocal active, maximum
+        active += 1
+        maximum = max(maximum, active)
+        await anyio.lowlevel.checkpoint()
+        active -= 1
+        return _task.Outcome(events=[], stderr="", exit_code=0)
+
+    monkeypatch.setattr(_toolset, "run_detached", run)
+    shell = _Shell()
+    call = _tools()["run_coding_agent"].function
+    ctx = _ctx(shell)
+
+    async def task(session: str) -> None:
+        await call(ctx, task="Review", session=session)
+
+    async with anyio.create_task_group() as group:
+        group.start_soon(task, "api")
+        group.start_soon(task, "web")
+    assert maximum == 1
+
+
+def test_coding_instructions_distinguish_parallel_local_work_from_sandbox_snapshots() -> None:
+    local = CodingAgent(runs_on="this_computer").get_instructions()
+    sandbox = CodingAgent(runs_on="sandbox").get_instructions()
+    assert "[session:api]" in local and "can work at once" in local
+    assert "queue" in sandbox and "not separate files" in sandbox
+    assert "can work at once" not in sandbox
+    private = CodingAgent(runs_on="personal_sandbox").get_instructions()
+    assert "isolated copy" in private and "queue" not in private
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("harness", ["claude_code", "codex"])
+@pytest.mark.parametrize("late", [False, True])
+async def test_a_refused_source_never_launches_a_sandbox_harness(harness, late):
+    from app.agents.capabilities.guardrails import GuardrailBlocked
+    from app.agents.model_context import checking_model_context
+
+    checks = 0
+
+    async def check():
+        nonlocal checks
+        checks += 1
+        if not late or checks > 1:
+            raise GuardrailBlocked(edge="input", message="Source refused")
+
+    shell = _Shell()
+    with checking_model_context(check), pytest.raises(GuardrailBlocked):
+        await _call(shell, harness=harness)
+    assert shell.started == []
+    assert checks == (2 if late else 1)

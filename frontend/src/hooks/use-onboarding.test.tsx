@@ -62,14 +62,17 @@ describe("useOnboardingTour", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     nav.pathname = "/dashboard";
-    useOnboardingStore.setState({ isOpen: false, index: 0 });
+    useOnboardingStore.setState({ isOpen: false, index: 0, systemAgentPage: false });
     useAuthStore.setState({ user: user(), isAuthenticated: true, isLoading: false });
     servePermissions();
   });
 
-  it("auto-opens on the dashboard for a user who has not finished onboarding", async () => {
+  it("leaves the first task unobstructed until the person requests a tour", async () => {
     const { result } = renderHook(() => useOnboardingTour(), { wrapper });
-    await waitFor(() => expect(result.current.isOpen).toBe(true));
+    await waitFor(() => expect(result.current.steps.length).toBe(LAUNCH_ALL));
+    expect(result.current.isOpen).toBe(false);
+    act(() => useOnboardingStore.getState().openTour());
+    expect(result.current.isOpen).toBe(true);
     expect(result.current.steps.length).toBe(LAUNCH_ALL);
     expect(result.current.isFirst).toBe(true);
   });
@@ -131,6 +134,7 @@ describe("useOnboardingTour", () => {
       user({ onboarding_completed_at: "2026-02-02T00:00:00Z" }),
     );
     const { result } = renderHook(() => useOnboardingTour(), { wrapper });
+    act(() => useOnboardingStore.getState().openTour());
     await waitFor(() => expect(result.current.isOpen).toBe(true));
 
     act(() => result.current.dismiss());
@@ -172,6 +176,7 @@ describe("useOnboardingTour", () => {
 
     act(() => useOnboardingStore.getState().openPage());
     expect(result.current.steps.map((step) => step.id)).toEqual([
+      "organization-switcher",
       "dashboard-filters",
       "dashboard-customize",
       "notification-bell",
@@ -215,10 +220,27 @@ describe("useOnboardingTour", () => {
     expect(result.current.steps.map((s) => s.id)).toEqual(opened);
   });
 
+  it("walks a system agent's builder by its own stops, not an ordinary agent's", async () => {
+    useAuthStore.setState({ user: user({ onboarding_completed_at: "2020-01-01T00:00:00Z" }) });
+    nav.pathname = "/agents/judge-id";
+    useOnboardingStore.setState({ systemAgentPage: true });
+    const { result } = renderHook(() => useOnboardingTour(), { wrapper });
+
+    act(() => useOnboardingStore.getState().openPage());
+    await waitFor(() =>
+      expect(result.current.steps.map((s) => s.id)).toContain("agent-system-toolbox"),
+    );
+    const ids = result.current.steps.map((s) => s.id);
+    expect(ids).not.toContain("agent-toolbox");
+    expect(ids).not.toContain("agent-mcp");
+    expect(ids).not.toContain("agent-voice");
+  });
+
   it("dismissing a page-mode replay records nothing — help is not the first run", async () => {
     // A user who has *not* finished onboarding: the guard here is the mode, not
     // the flag, so a "?" replay must still not mark them done.
     const { result } = renderHook(() => useOnboardingTour(), { wrapper });
+    act(() => useOnboardingStore.getState().openTour());
     await waitFor(() => expect(result.current.isOpen).toBe(true));
 
     act(() => useOnboardingStore.getState().openPage());
@@ -230,6 +252,7 @@ describe("useOnboardingTour", () => {
   it("surfaces an API error's message when the write fails", async () => {
     vi.mocked(apiClient.patch).mockRejectedValue(new ApiError(500, "boom"));
     const { result } = renderHook(() => useOnboardingTour(), { wrapper });
+    act(() => useOnboardingStore.getState().openTour());
     await waitFor(() => expect(result.current.isOpen).toBe(true));
     act(() => result.current.dismiss());
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("boom"));
@@ -238,6 +261,7 @@ describe("useOnboardingTour", () => {
   it("falls back to a generic message when the failure is not an API error", async () => {
     vi.mocked(apiClient.patch).mockRejectedValue(new Error("network"));
     const { result } = renderHook(() => useOnboardingTour(), { wrapper });
+    act(() => useOnboardingStore.getState().openTour());
     await waitFor(() => expect(result.current.isOpen).toBe(true));
     act(() => result.current.dismiss());
     await waitFor(() =>
@@ -247,6 +271,7 @@ describe("useOnboardingTour", () => {
 
   it("steps forward and back, clamped at both ends", async () => {
     const { result } = renderHook(() => useOnboardingTour(), { wrapper });
+    act(() => useOnboardingStore.getState().openTour());
     await waitFor(() => expect(result.current.isOpen).toBe(true));
 
     act(() => result.current.back());
@@ -265,6 +290,7 @@ describe("useOnboardingTour", () => {
     // guard keeps the modal from springing back open.
     vi.mocked(apiClient.patch).mockResolvedValue(user());
     const { result, rerender } = renderHook(() => useOnboardingTour(), { wrapper });
+    act(() => useOnboardingStore.getState().openTour());
     await waitFor(() => expect(result.current.isOpen).toBe(true));
 
     act(() => result.current.dismiss());

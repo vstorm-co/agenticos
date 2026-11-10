@@ -19,9 +19,10 @@ from app.core.exceptions import AppException
 
 logger = logging.getLogger(__name__)
 
+# setup_logging owns DB_ECHO. Engine echo would add an unredacted stdout
+# handler alongside the application's redacted stderr handler.
 engine = create_async_engine(
     settings.DATABASE_URL,
-    echo=settings.DB_ECHO,
     pool_size=settings.DB_POOL_SIZE,
     max_overflow=settings.DB_MAX_OVERFLOW,
     pool_timeout=settings.DB_POOL_TIMEOUT,
@@ -38,7 +39,6 @@ engine = create_async_engine(
 # deployment that never searches never connects it.
 vector_engine = create_async_engine(
     settings.DATABASE_URL,
-    echo=settings.DB_ECHO,
     pool_size=settings.DB_POOL_SIZE,
     max_overflow=settings.DB_MAX_OVERFLOW,
     pool_timeout=settings.DB_POOL_TIMEOUT,
@@ -57,7 +57,6 @@ vector_engine = create_async_engine(
 # an embedding request that costs an order of magnitude more.
 agent_vector_engine = create_async_engine(
     settings.DATABASE_URL,
-    echo=settings.DB_ECHO,
     poolclass=NullPool,
 )
 

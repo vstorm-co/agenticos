@@ -1,5 +1,5 @@
 ---
-source_sha: "cd5a3c0d3d72"
+source_sha: "bf0b4309d434"
 ---
 
 # Die Konsole { #the-console }
@@ -14,7 +14,7 @@ Seite, deren Kopfzeile kein "?" trägt, hat keinen Rundgang abzuspielen. Der Cha
 hat keine Kopfzeile: Seine Tipps stehen in den Chat-Einstellungen, den Reglern
 neben dem Mikrofon.
 
-Ressourcenlisten, darunter Inbox und Routines, füllen auch im leeren Zustand die verbleibende Seitenhöhe. Routines bietet Vorlagen im Erstellungsformular statt in einem eigenen Ideenbereich an. Get started reserviert beim Laden der Checkliste seinen Platz, damit Briefing und die Karten darunter nicht springen.
+Ressourcenlisten, darunter Inbox und Routines, füllen auch im leeren Zustand die verbleibende Seitenhöhe. Routines bietet Vorlagen im Erstellungsformular statt in einem eigenen Ideenbereich an.
 
 Im Chat sind Agentenporträts größer und ohne Ringe. Der Files-Schalter bleibt beim Öffnen und Schließen des Bereichs im Eingabefeld; reduzierte Bewegung wird berücksichtigt. Die Chat-Einstellungen zeigen zuerst das aktuelle Modell. Unter **Modell ändern** lassen sich vorausgefüllter Anbieter und Modell bearbeiten; erst die Bestätigung übernimmt die Änderung. Anhangskarten stehen ohne zusätzliches Schattenpanel über dem Eingabefeld.
 
@@ -93,7 +93,7 @@ Die kompakte Quellen-Schaltfläche unter einer Antwort öffnet Sources neben dem
 Die Startseite ist ein **anordenbares Raster aus Widgets**, und sie ist die
 Antwort auf die Frage "was passiert gerade", ohne fünf Seiten zu öffnen.
 
-Es gibt neunundvierzig Karten. Sie werden nicht alle davon sehen: **eine Karte
+Es gibt siebenundfünfzig Karten. Sie werden nicht alle davon sehen: **eine Karte
 hängt an der Berechtigung, die ihre Daten verlangen**, also wird ein Widget, das
 Sie nicht lesen dürfen, nie eingehängt und seine Abfragen werden nie gestellt —
 außer Ihren eigenen Benachrichtigungen weiter unten, die nur verlangen, dass Sie
@@ -103,22 +103,37 @@ leer dazustehen.
 Ein Schalter oben sagt, wessen Dashboard es ist, und bietet nur die Ansichten
 an, die Sie öffnen dürfen. Alle starten in der Ansicht **Ich**:
 
-| Ansicht          | Beantwortet                                                                                                                                                                                                                                                                                                                   |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Ich**          | Eine Begrüßung und Ihr Zeitraum in einem Satz; Ihre Runs, wie viele fertig wurden, was auf Sie wartet und was es gekostet hat; dann die Aufrufe, die auf Sie warten, Ihre Unterhaltungen, Ihre Agents und was mit Ihnen geteilt wurde                                                                                         |
-| **Organisation** | Die anordenbare Seite unten                                                                                                                                                                                                                                                                                                   |
-| **Gruppe**       | Die Mitglieder einer [Gruppe](departments.md) - ihre Runs, Ausgaben, Modelle, wann sie arbeiten und wer es am meisten nutzt. Die Gruppe wählen Sie neben dem Schalter. Eine Gruppe, deren Mitglieder im Zeitraum nichts ausgeführt haben, sagt das einmal, mit einem Weg zur Gruppe, statt eine Seite leerer Karten zu zeigen |
-| **Deployment**   | Nur für einen [Deployment-Admin](permissions.md) — Plattformsummen, Health, aktivste Tenants, Bewertungen                                                                                                                                                                                                                     |
+| Ansicht | Beantwortet |
+| --- | --- |
+| **Ich** | Eine Begrüßung, Ihr Zeitraum und alles, was auf Sie wartet, in zwei Sätzen - Aufrufe, Antworten zur Prüfung, durchgefallene Suites, Vorschläge des Assistenten; Ihre Runs, wie viele fertig wurden, was auf Sie wartet und was es gekostet hat; dann die Aufrufe, die auf Sie warten, Ihre Unterhaltungen, die Agents, die Aufmerksamkeit brauchen, die Verbesserungen, die auf Sie warten, Ihre Agents, was mit Ihnen geteilt wurde, Ihre [Datasets](datasets.md) mit dem, woran ihre Fälle die Antwort messen, die neuesten Eval-Runs und Suites, die Vorschläge des Assistenten nach Agent, Skill und Datei und die Wissenslücken |
+| **Ich** | Eine Begrüßung und Ihr Zeitraum in einem Satz; Ihre Runs, wie viele fertig wurden, was auf Sie wartet und was es gekostet hat; dann die Aufrufe, die auf Sie warten, Ihre Unterhaltungen, Ihre Agents und was mit Ihnen geteilt wurde |
+| **Organisation** | Die anordenbare Seite unten |
+| **Gruppe** | Die Mitglieder einer [Gruppe](departments.md) - ihre Runs, Ausgaben, Modelle, wann sie arbeiten und wer es am meisten nutzt. Die Gruppe wählen Sie neben dem Schalter. Eine Gruppe, deren Mitglieder im Zeitraum nichts ausgeführt haben, sagt das einmal, mit einem Weg zur Gruppe, statt eine Seite leerer Karten zu zeigen |
+| **Deployment** | Nur für einen [Deployment-Admin](permissions.md) — Plattformsummen, Health, aktivste Tenants, Bewertungen |
+
+In **Ich** listet **Agents, die Aufmerksamkeit brauchen** die Agents, die Sie
+sehen dürfen, mit negativ bewerteten Antworten, fehlgeschlagenen Runs oder einer
+durchgefallenen Eval-Suite im Zeitraum - nur Zahlen, nie das Gesagte - mit
+**Verbessern** bei denen, die Sie bearbeiten dürfen. Die Agent-Galerie markiert
+dieselben Agents der letzten dreißig Tage mit dem Abzeichen **Braucht
+Aufmerksamkeit**, das beim Überfahren sagt, warum. Antworten und Runs zählen
+nur für die Version, die der Agent jetzt in seiner Standardumgebung ausliefert:
+Das Veröffentlichen einer Korrektur löscht das Signal, bis die neue Version
+eigene sammelt. Beides erfordert `runs:view`.
+
+Darunter listet **Verbesserungen, die auf Sie warten** die
+[Verbessern](authoring.md#the-improve-wizard)-Sitzungen, die für Ihren nächsten
+Schritt oder Ihre Entscheidung angehalten haben, jede an ihrem Halt geöffnet.
 
 Die Ansicht der Organisation zeigt die Karten, die mit Daten antworten, in
 Gruppen. Der Rest - Integrationen, Kanäle, Routinen, Wissens-Sync, Abteilungen,
 Mitglieder, Sandboxes - wartet im Katalog, einen Klick entfernt unter **Customize**:
 
-| Gruppe                    | Beantwortet                                                                                                                                                     |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| _(ohne Titel, ganz oben)_ | Die Zusammenfassung, Runs im Zeitverlauf und wie sie ausgingen                                                                                                  |
-| **Needs attention**       | Was wartet: [Freigaben](governance.md#approvals), jüngste Fehlschläge, Budget-Spielraum, Ihre jüngsten [Benachrichtigungen](#the-bell)                          |
-| **Usage & cost**          | Welche Agents genutzt werden, Ausgaben, [Anrufminuten](#voice-calls), wann gearbeitet wird, woher Runs kommen, Modellmix, Latenz, Antwortqualität, wer es nutzt |
+| Gruppe | Beantwortet |
+| --- | --- |
+| _(ohne Titel, ganz oben)_ | Die Zusammenfassung, Runs im Zeitverlauf und wie sie ausgingen |
+| **Needs attention** | Was wartet: [Freigaben](governance.md#approvals), jüngste Fehlschläge, Budget-Spielraum, Ihre jüngsten [Benachrichtigungen](#the-bell) |
+| **Usage & cost** | Welche Agents genutzt werden, Ausgaben, [Anrufminuten](#voice-calls), wann gearbeitet wird, woher Runs kommen, Modellmix, Latenz, Antwortqualität, wer es nutzt |
 
 Die Karte **Freigabe-Ergebnisse (Approval outcomes)** wartet im Katalog, für alle, die
 Workflows ansehen dürfen. Sie zeigt, wie Personen die [Freigabeschritte](workflows.md#running-a-workflow)
@@ -182,7 +197,9 @@ Routines hat zwei Tabs. **Agentenaufgaben** startet einen gewählten Agenten nac
 Zeitplan oder Ereignis mit seinen Werkzeugen; die Läufe erscheinen in Activity.
 **Meine Beobachtungen** liest nur persönliche verbundene Konten und sendet
 Ergebnisse in den privaten Posteingang. Jeder Tab hat eigene Erstellungsaktionen.
-`/routines?tab=watches` öffnet die Beobachtungen.
+`/routines?tab=watches` öffnet die Beobachtungen. Eine Prüfung stellt höchstens
+30 Modellanfragen, lange Ergebnisse werden gekürzt; so bleibt eine Beobachtung
+eines großen Workspace günstig.
 
 Organisation → Proaktivität trennt Vorschläge, Überwachung, gemeinsame Limits, Zustellungszeiten und Begrüßungen. Ungespeicherte Änderungen lassen sich verwerfen. Hintergrunddienste zeigen Status und Verbrauch; Modell- und Budgeteinstellungen werden pro Dienst aufgeklappt.
 
@@ -220,6 +237,13 @@ Ihren Morgen: zu der Stunde, die die Proaktivität der Organisation hält, nenne
 eine Benachrichtigung und eine Direktnachricht von jedem ihrer Slack-, Teams-
 und Mattermost-Bots, der Sie kennt, was neu ist. Jeder Fund steht nur in einem
 Briefing.
+
+Der Organisationswechsler steht unter dem Logo oben in der Seitenleiste und zeigt
+den Namen und Avatar der aktiven Organisation. Öffnen Sie ihn, um die
+Organisation zu wechseln, Organisationen zu verwalten oder eine neue anzulegen.
+In der eingeklappten Seitenleiste bleibt der Avatar als Wechsler erhalten; das
+Menü auf dem Smartphone bietet dasselbe Bedienelement. Die Kontoeinstellungen
+bleiben im Kontomenü unten.
 
 Die Suche steht oberhalb der Navigationsziele; am Computer ist ihr Tastenkürzel
 sichtbar. Benachrichtigungen und Kontomenü bleiben unterhalb der scrollbaren Liste.
@@ -354,12 +378,7 @@ Agent-Entwurf und eine Routine, deren Entfernen Sie verlangen. Neben Freigaben u
 Organisation meldet sich seine Sprechblase, wenn ein Run von Ihnen gerade
 fehlgeschlagen ist und wenn ein Formular seit einer Minute unfertig offen ist.
 
-Solange die Organisation kein Modell hat, kann er nicht antworten. Geöffnet tippt
-er dann ein kurzes Gespräch darüber, wie man eins verbindet: einen API-Schlüssel
-beim Provider besorgen, den Architect im Agent Builder öffnen, unter **Modell**
-den Provider wählen und den Schlüssel einfügen, dann ein Modell auswählen. Die
-Schaltfläche bekommt nur, wer die Einstellungen der Organisation ändern darf;
-alle anderen erfahren, wer das kann.
+Vor dem Verbinden eines Modells öffnet der Architect denselben Chat mit einer grafischen Einrichtungskarte, einer kurzen Checkliste und dem Link zu den Modelleinstellungen. Eine Nachricht im Widget oder im Chat mit dem Architect-Entwurf erhält eine gespeicherte Einrichtungsantwort samt Karte, ohne Modellaufruf und ohne KI-Run. Die Antwort verwendet den Namen des gewählten Agents. Konfigurationsaktionen beachten Berechtigungen; andere Mitglieder erhalten Hinweise zum Administrator. Nach der Veröffentlichung bleibt das Widget für die normale Unterhaltung geöffnet.
 
 Der Architect ist ein Agent wie jeder andere, also werden Name, Modell, Wissen
 und der Rest seiner Spec im Agent Builder bearbeitet - von jemandem, der die
@@ -374,7 +393,7 @@ AgenticOS, Architect und die Vorgaben für neue Agenten enthalten keine Werkzeug
 
 Beide Startagenten und neue Konsolenagenten enthalten Watch a command, Background topics, Work while tools run, begrenzte Suche in früheren Gesprächen und lokale BM25-Werkzeugsuche mit fünf Ergebnissen. Sie erhalten research-, explore- und review-Spezialisten, dynamische Spezialisten und automatische sync/async-Delegation. Monitore benötigen eine dauerhafte Shell und enden mit dem Turn; Hintergrundthemen bleiben danach bestehen. Frühere Gespräche werden nur bei Bedarf durchsucht: zuerst Ausschnitte, dann begrenzte Transkriptfenster. Gruppen und unbeaufsichtigte Läufe können keine private Historie durchsuchen.
 
-Nur der mitgelieferte AgenticOS enthält Computer use, Webbrowser und Coding agent. Desktop-Steuerung und Programmierung verwenden standardmäßig den genehmigten Desktop; Sandbox-Programmierung benötigt konfigurierte Zugangsdaten. Auch der mitgelieferte Browser verwendet den gekoppelten Desktop; alternativ kann ein Administrator einen Browser-Endpunkt des Deployments konfigurieren. Neue Agenten erben die gemeinsame Einrichtung ohne diese drei Werkzeuge. AgenticOS pinnt den veröffentlichten Architect; unveränderte Pins werden aktualisiert, eigene bleiben geschützt.
+Nur der mitgelieferte AgenticOS enthält Computer use, Webbrowser und Coding agent. Desktop-Steuerung und Programmierung verwenden standardmäßig den genehmigten Desktop; Sandbox-Programmierung benötigt konfigurierte Zugangsdaten. Auch der mitgelieferte Browser verwendet den gekoppelten Desktop; alternativ kann ein Administrator einen Browser-Endpunkt des Deployments konfigurieren. Neue Agenten erben die gemeinsame Einrichtung ohne diese drei Werkzeuge. AgenticOS beantwortet Plattformfragen direkt mit seinem Leitfaden und AgenticOS MCP. Die Vorgaben pinnen Architect nicht mehr; die Aktualisierung entfernt den unveränderten mitgelieferten Pin und behält eigene Delegierte.
 
 Jede Organisation erhält **AgenticOS** für allgemeine Aufgaben und **Architect**
 für die Einrichtung der Plattform. Beide haben Gedächtnis. Neue Agenten in der
@@ -416,6 +435,15 @@ anhalten und enden: Ein Run, den ein Zeitplan auslöst, erscheint auf einer
 offenen Activity-Seite und ändert dort seinen Status, ohne dass eine Anfrage von
 Ihnen dahintersteht.
 
+Ebenso Datasets: ein hinzugefügter oder entfernter Fall, eine Änderung an der
+Bewertung, ein Score oder eine Review-Entscheidung und Entwürfe, die der
+[Fallgenerator](datasets.md#generating-cases) im Hintergrund fertigstellt - sie
+erscheinen ohne Neuladen im Tab Generated eines offenen Datasets.
+
+Wissenslücken werden ebenso gemeldet: Ein Thema, das in einem Tab verworfen oder
+entworfen wurde, und die Fragen, die ein Gruppierungslauf alle 15 Minuten
+einordnet, erscheinen auf einem offenen Tab Wissenslücken ohne Neuladen.
+
 Die Ausnahme ist der Builder, weil er Ihren Entwurf beim Tippen speichert. Ändert
 sich der Agent, den Sie bearbeiten, anderswo, hört er auf zu speichern und holt
 die neue Version. Ohne ungespeicherte Änderungen übernimmt er sie einfach; mit
@@ -424,10 +452,11 @@ Ihre Wahl: **Neu laden** (deren Version) oder **Meine Änderungen behalten** (Ih
 über deren gespeichert).
 
 Sie erfahren nur, was Sie lesen dürfen: Eine Änderung an einem Agent, einem
-Skill, einer Wissensbasis, einer Kontextdatei, einer Seite, einem Schlüssel oder
-einem MCP-Server, die Sie nicht sehen, erreicht Ihre Konsole nie, und eine
+Skill, einer Wissensbasis, einer Kontextdatei, einer Seite, einem Schlüssel,
+einem MCP-Server oder einem Dataset, die Sie nicht sehen, erreicht Ihre Konsole nie, und eine
 Löschung erreicht nur Rollen, die jede Zeile dieser Art sehen. Runs erreichen die
-Rollen, die den Run-Verlauf lesen oder über Freigaben entscheiden, Kanal-Bots die
+Rollen, die den Run-Verlauf lesen oder über Freigaben entscheiden, Wissenslücken
+die Rollen, die jeden Run lesen, Kanal-Bots die
 Rollen, die sie verwalten, und Ihre Benachrichtigungen nur Sie. Bricht die Verbindung ab, arbeitet die Konsole wie
 bisher und verbindet sich selbst wieder.
 
@@ -444,6 +473,21 @@ sich zuletzt bewegt hat. Einer, dessen Run noch arbeitet, zeigt einen Spinner un
 wie lange er schon läuft; einer mit einer Antwort, die Sie seit dem letzten Öffnen
 nicht gesehen haben, trägt einen Punkt, den das Öffnen löscht - nur für Sie, denn
 einen geteilten Thread liest jeder seiner Leser für sich.
+
+Unterhaltungen, die andere mit Ihnen geteilt haben, stehen unter **Mit Ihnen
+geteilt**, unter Ihren Favoriten. Umbenennen, Teilen, Archivieren und Löschen
+liegen bei ihren Besitzern. Im Menü können Sie Favoriten setzen oder entfernen und **Aus meinen Chats entfernen** wählen,
+das Ihren Zugriff beendet und die Unterhaltung für alle anderen unverändert
+lässt. Eine zum Lesen mit Ihnen geteilte Unterhaltung hat kein Eingabefeld.
+Teilt jemand eine Unterhaltung mit Ihnen, erhalten Sie eine Benachrichtigung,
+die sie öffnet. Ungelesene und favorisierte geteilte Unterhaltungen stehen in ihren üblichen Bereichen.
+
+Unter **Teilen** hat jede Person, mit der die Unterhaltung geteilt ist, neben
+ihrem Namen eine Auswahl **Ansehen** oder **Bearbeiten**, um zu ändern, was sie
+darf, ohne den Zugriff zu entziehen und neu zu teilen. Ein Freigabelink bleibt
+schreibgeschützt.
+
+Direkte Freigaben sind pro Minute auf 100 Versuche je Organisation, 20 je Absender, 20 je Empfänger und fünf je Absender–Empfänger-Paar innerhalb der Organisation begrenzt. Neue Unterhaltungen setzen diese Grenzen nicht zurück. Eine Ablehnung liefert `429` mit einer Wartezeit und erstellt weder Freigabe noch Benachrichtigung. Freigabelisten und tatsächlicher Zugriff werden bei aktiver Seite alle 15 Sekunden aktualisiert.
 
 Drei Dinge im Eingabefeld sind wissenswert.
 
@@ -859,6 +903,22 @@ aller Verbindungen summiert. Die Dashboard-Karte **Sprachminuten (Voice
 minutes)**, im Nutzungsband für jemanden mit `runs:view`, zeigt die
 Anrufminuten und Anrufe des Zeitraums und die drei häufigsten Agents.
 
+### Ein Gespräch abzweigen { #forking }
+
+Um einen anderen Ansatz zu probieren oder eine Nebenfrage dort zu klären, wo sie den Hauptfaden nicht überfrachtet, wählen Sie unter einer Antwort des Agenten **In neue Unterhaltung abzweigen**. Sie erhalten ein neues, eigenes Gespräch im selben Projekt, mit allem bis einschließlich dieser Antwort. Die nächste Nachricht macht dort mit demselben Verlauf weiter; das Original bleibt unverändert.
+
+Abzweigen kann nur, wem das Gespräch gehört: Wer es zum Ansehen oder Bearbeiten freigegeben bekommen hat, sieht die Aktion nicht. Eine Abzweigung kopiert die Nachrichten und die Tool-Aufrufe, nicht die Dateien der Anhänge, die Dateien, die der Agent in seinen Workspace geschrieben hat, die von Agenten erzeugten Bilder, die Kosten oder die Run-Datensätze. Der Agent kennt den Text eines Anhangs weiterhin, aber die Abzweigung zeigt keine Karte dafür; ein von einem Agenten erzeugtes Bild gehört dem Original und lädt nicht mehr, sobald das Original gelöscht ist. Solange ein Run in diesem Verlauf noch schreibt oder auf eine Freigabe oder eine Frage wartet, lässt sich das Gespräch nicht abzweigen.
+
+Oben in einer Abzweigung steht **Abgezweigt aus** mit einem Link zum Original. Diese Zeile sehen nur Sie: Geben Sie die Abzweigung frei, sieht die andere Person ein gewöhnliches Gespräch.
+
+Eine Abzweigung ist auf 2.000 Nachrichten, 10.000 Werkzeugaufrufe und 20 MiB kopierten Text und strukturierte Daten begrenzt. Pro Mitglied und Organisation sind höchstens zehn Anfragen pro Minute erlaubt. Eine gerade aktualisierte Unterhaltung kann die Abzweigung kurzzeitig ablehnen; versuchen Sie es nach der Aktualisierung erneut. Zu große Verläufe müssen vor dem Kopieren gekürzt werden.
+
+Gespeicherte Abzweigungen haben ein eigenes Kontingent von 100 MiB pro Mitglied innerhalb einer Organisation und 1 GiB für die gesamte Organisation. Jede Kopie reserviert ihre Nutzdaten sowie 4 KiB für die Unterhaltung und 1 KiB je Nachricht oder Werkzeugaufruf. PostgreSQL serialisiert die Zulassung, sodass parallele Anfragen das Kontingent nicht überschreiten. Erst das Löschen der Kopie gibt die Reservierung frei; Archivierung oder Löschen des Originals tun dies nicht. Zeichnungen mit gespeicherten Bilddateien lassen sich derzeit nicht abzweigen. Wählen Sie eine frühere Antwort; die Anfrage wird vor dem Erstellen einer beschädigten Kopie abgelehnt.
+
+Ausgelagerter Text und Medien einer übernommenen Zusammenfassung werden in die Kopie eingebettet. Das Löschen des Originals entfernt diesen Kontext daher nicht. Die wiederhergestellten Inhalte zählen zum Limit von 20 MiB. Die Wiederherstellung ist auf 100 externe Verweise und zehn Sekunden begrenzt. Fehlende Inhalte oder überschrittene Grenzen führen zur Ablehnung ohne unvollständige Kopie.
+
+Eine Unterhaltung mit einer gespeicherten Checkliste kann nur an ihrer neuesten Nachricht abgezweigt werden, wenn diese eine Antwort des Assistenten ist. Die Kopie behält diese Checkliste einschließlich Aufgaben-IDs und Abhängigkeiten. Frühere Checklistenstände werden nicht gespeichert; eine frühere Abzweigung wird daher abgelehnt, statt spätere Aufgaben in einen älteren Verlauf zu kopieren.
+
 ### Hintergrundthemen { #background-topics }
 
 Aktiviere **Hintergrundthemen** bei einem veröffentlichten Agenten und bitte etwa: „Untersuche den Exportfehler in einem neuen Thema, während wir den Release planen“ oder „Lass den Finanzagenten diese Zahlen prüfen, während wir das Angebot besprechen“. Der Agent verwendet seine eigene festgelegte Version oder einen im Spec festgelegten veröffentlichten Delegaten. Starte aus einem eigenen Gespräch; das neue Thema gehört zum selben Projekt und enthält den Auftrag des Agenten und einen Rücklink, ohne das ursprüngliche Protokoll zu kopieren.
@@ -872,6 +932,26 @@ Das ist ausdrückliche Delegation, getrennt von Gedächtnis, Überwachungen und 
 ### Auf ein anderes Gespräch verweisen { #conversation-references }
 
 Ein Agent mit **Frühere Gespräche** bietet im `@`-Menü die dreißig jüngsten zugänglichen Gespräche an. Wähle eines und stelle eine konkrete Frage dazu. Die Erwähnung benennt das Thema, kopiert aber kein Protokoll und wechselt den antwortenden Agenten nicht. Der Agent liest passende Ausschnitte mit dem bestehenden Gesprächswerkzeug und dessen Zugriffs- und Empfängerprüfung. Einschränkungen für Gruppenchats bleiben bestehen. Für ältere Themen füge Link oder ID ein und bitte den Agenten, sie zu lesen.
+
+## Aktivität { #activity }
+
+**Aktivität** (Activity) zeigt Inhabern von `runs:view` jeden Run der
+Organisation: Unterhaltungen, die Agents der Organisation beim Beantworten von
+Eval-Fällen und die plattformeigenen Agents bei ihrer Arbeit. Wer einen Run und
+sein Protokoll lesen darf, hängt nicht von der Art des Runs ab.
+
+Der Run eines Plattform-Agents zeigt dessen Namen in der Spalte Agent und neben
+seiner Oberfläche eine Beschriftung: **Improve** für den Assistenten,
+**Bewerter** für den Bewerter, **Wissenslücken** für Klassifizierer und
+Entwurfsschreiber und **Testfragen** für den Fallgenerator. Ein Agent, der einen
+Eval-Fall beantwortet, trägt **Eval**. Neben der Beschriftung steht ein Link
+dorthin, wo diese Arbeit gelesen wird: die Improve-Sitzung, der Eval-Run, das
+Wissenslücken-Thema oder das Dataset.
+
+Der Filter **Herkunft** grenzt die Liste auf **Unterhaltungen**, **Improve und
+Evals** oder **System-Agents** ein. Er beginnt bei jeder Herkunft, damit ein
+Link aus einem Entwurf oder einer Sitzung zu ihrem Run auf einer Zeile landet,
+die die Liste zeigt.
 
 ## Wofür jeder Bereich da ist { #what-each-area-is-for }
 
@@ -889,7 +969,7 @@ standardmäßig eingeklappt.
 Wahl. Eine Gruppe mit der aktuellen Seite öffnet sich immer, damit diese sichtbar bleibt.
 
 | Bereich | Er hält | Lesen Sie |
-|---|---|---|
+| --- | --- | --- |
 | **Agents** | Den Katalog, den Builder, Versionen, Teilen, Testen, Aktivität | [Ihr erster Agent](first-agent.md) |
 | **Chat** | Das Gespräch mit einem veröffentlichten Agent | [Oberflächen](channels.md) |
 | **Knowledge** | Collections, Dokumente, Sync-Quellen, Ingestion-Einstellungen | [Dateiverarbeitung](file-processing.md) |
@@ -897,6 +977,7 @@ Wahl. Eine Gruppe mit der aktuellen Seite öffnet sich immer, damit diese sichtb
 | **Context** | Dauerhaftes Wissen, das an viele Agents gebunden ist | [Context-Dateien](context.md) |
 | **Tables** | Typisierte Datensätze und ihre Spalten, als Tabelle, Kanban-Board oder Liste | [Virtual Tables](virtual-tables.md) |
 | **Workflows** | Mehrstufige Automatisierungen, die Ihre Agents ausführen, auf einer Zeichenfläche gebaut | [Workflows](workflows.md) |
+| **Datasets** | Versionierte Testfälle, importiert, exportiert oder aus einer bewerteten Antwort übernommen | [Datasets](datasets.md) |
 | **Routines** | Zeitpläne und Ereignis-Trigger | [Trigger](triggers.md) |
 | **Runs** | Was lief, was es kostete, was es berührte, ob es fehlschlug | [Governance](governance.md#audit) |
 | **Documents** | Alle Dateien, die Agents für Sie aufbewahren - Angehängtes und Geschriebenes | [Die Sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
@@ -916,7 +997,18 @@ kreuzen Sie mehrere an, um ihn zu erweitern. Die Categories und Tags eines Agent
 Detailseite, neben den Avatar-Steuerelementen, und die Änderung wirkt sofort,
 ohne dass eine neue Version veröffentlicht wird.
 
+Der Tab **Historie** eines Agents enthält seine veröffentlichten Versionen und
+benannten Umgebungen und für alle, die seine Runs lesen dürfen, seinen
+**Verbesserungsverlauf**: jede Verbessern-Sitzung, was sie gemessen hat, was
+entschieden wurde und was sie gekostet hat. Eine abgeschlossene Sitzung öffnet
+ihren Assistenten nur zum Lesen, mit der Entscheidung im letzten Schritt; siehe
+[Verbesserungsverlauf](authoring.md#improvement-history).
+
 Die Organisationsdetails haben fünf Registerkarten: **Mitglieder** für Personen und Einladungen; **Arbeitsbereich** für Profil und Standard-Spracheinstellungen; **Budget und Freigaben** für Ausgaben und Zugriffsregeln; **Proaktivität** für Vorschläge, Überwachung und Zustellung; **KI und Dienste** für Architect und Systemdienste. Jedes Formular behält seine Berechtigungsprüfung. Budgetverantwortliche erreichen KI und Dienste auch ohne Architect-Konfiguration. Die Auswahl steht in der URL, Entwürfe bleiben beim Wechsel erhalten, und bisherige `?tab=voice`-Links öffnen Arbeitsbereich.
+
+Nach der Anmeldung erscheinen an die Konto-E-Mail adressierte Einladungen auch in Konsole und Onboarding, ohne den E-Mail-Link zu öffnen. Der Empfänger wählt eine Organisation und nimmt ausdrücklich an; Später lässt die Verknüpfung Einladungen verfügbar. Angezeigt werden nur gültige Einladungen an die aktuelle Konto-Adresse, ohne geteilte Links und bereits beigetretene Organisationen. Die Annahme wechselt zur gewählten Organisation und öffnet deren Begrüßung. Der Server gibt in diesem Posteingang keine Einladungstokens zurück.
+
+Der Posteingang erfordert einen Nachweis der E-Mail-Adresse in der aktuellen Sitzung: eine neue OAuth-Anmeldung mit verifizierter Adresse oder einen an die Adresse gebundenen E-Mail-Anmeldelink. Passwort- und ältere Sitzungen zeigen keine Aufforderung zur Bestätigung des Postfachs oder zur Einrichtung des E-Mail-Versands. Einladungen können über ihren ursprünglichen Link angenommen werden, auch bei Installationen ohne E-Mail-Anbieter. Der Nachweis gilt weder für andere Sitzungen noch für eine geänderte Adresse. **Weitere Einladungen anzeigen** lädt weitere Seiten; der Logoabruf prüft die konkrete Einladung unabhängig von deren Listenseite.
 
 Bernsteinfarbene Punkte markieren Organisationstabs und die zugehörigen Karten für Sprache, nächtliche Vorschläge, Gedächtnispflege und Architect bei unvollständiger Konfiguration oder ausgeschalteten Vorschlägen. Hover oder Tastaturfokus zeigt die Erklärung; Klicken oder Tippen hält sie geöffnet. Die Hinweise verwenden gespeicherte Einstellungen, verschwinden nach der Einrichtung und beachten Bearbeitungsrechte. Ausgeschaltete Vorschläge gelten als optionale Einrichtung, nicht als Fehler. Auch die iPhone-Push-Karte markiert einen fehlenden Apple-Schlüssel. Bei reduzierter Bewegung entfällt das Pulsieren.
 
@@ -959,7 +1051,7 @@ dem ein echtes Problem als ein stilles gelesen wird.
 
 ## Zusammenfassung { #recap }
 
-- Das Dashboard besteht aus **neunundvierzig Widgets**, die Sie selbst
+- Das Dashboard besteht aus **siebenundfünfzig Widgets**, die Sie selbst
   anordnen, gespeichert pro Person und pro Organisation — alle außer Ihren
   eigenen Benachrichtigungen hängen an der Berechtigung, die ihre Daten
   verlangen.
@@ -979,12 +1071,11 @@ dem ein echtes Problem als ein stilles gelesen wird.
 
 Die Seitenleistenfußzeile zeigt die Build-Version der Konsole neben Suche und Benachrichtigungen, auch in der eingeklappten Leiste und im mobilen Menü. Sie stammt aus der im Build eingebetteten Frontend-Paketversion und benötigt keine Netzwerkanfrage. Der Tooltip kennzeichnet sie als Konsolenversion; ein separat aktualisierter API-Prozess kann eine andere Version ausführen.
 
-
 Eine neuere stabile AgenticOS-Version hebt die Versionsnummer mit einem grünen Punkt hervor. Ein Klick zeigt die laufende und verfügbare Version sowie einen Link zum offiziellen Release. Die Hintergrundprüfung läuft beim Öffnen der Konsole, während der Nutzung alle 30 Minuten und bei veralteten Daten nach erneutem Fokus oder Wiederherstellung der Verbindung. Der Server teilt öffentliche Prüfergebnisse fünf Minuten lang und sendet keine Konto-, Organisations- oder Bereitstellungsdaten an GitHub. Bei Netzwerkfehlern bleibt die laufende Version sichtbar, ohne als aktuell bezeichnet zu werden. Der Hinweis lädt die Seite nicht neu und installiert kein Update automatisch.
 
 Nach der Anmeldung zeigt **Was ist neu** einmal pro Konto auf diesem Gerät die öffentlichen GitHub-Versionshinweise der installierten Version. Das Fenster wartet, bis das Onboarding geschlossen ist. Schließen markiert die Version als gelesen; fehlende Hinweise oder Netzwerkfehler unterbrechen die Sitzung nicht. Funktionen einer neueren, noch nicht installierten Version stehen nur hinter dem Update-Hinweis.
 
-Chat controls merkt sich Modell, Freigabemodus und lokale Werkzeuge pro Konto und Organisation über Chats hinweg. Projektdateieinstellungen haben Vorrang. Die Zustimmung zum gesamten Computer gilt weiterhin nur für eine Unterhaltung. Das Überspringen von Freigaben benötigt weiterhin die aktuelle Berechtigung und Organisationsrichtlinie. Agent setting (oder Cloud für Dateien) ist deaktiviert, wenn dem veröffentlichten Agenten diese Fähigkeit fehlt; lokale Alternativen werden nicht automatisch aktiviert. Ein Klick auf die ausgewählte lokale Option schaltet sie aus.
+Chat controls merkt sich Modell, Freigabemodus und lokale Werkzeuge pro Konto und Organisation über Chats hinweg. Projektdateieinstellungen haben Vorrang. Die Zustimmung zum gesamten Computer gilt für eine Unterhaltung oder für einen Agenten, wenn dieser auf Ihrem Computer arbeitet. Das Überspringen von Freigaben benötigt weiterhin die aktuelle Berechtigung und Organisationsrichtlinie. Agent setting (oder Cloud für Dateien) ist deaktiviert, wenn dem veröffentlichten Agenten diese Fähigkeit fehlt; lokale Alternativen werden nicht automatisch aktiviert. Ein Klick auf die ausgewählte lokale Option schaltet sie aus.
 
 Die Benachrichtigungsstummschaltung hat ein Glockensymbol; das Eingabefeld wiederholt die Ordner- und Zugriffsanzeige nicht mehr. Agentenporträts überlappen in voller Größe und spreizen sich in der erweiterten Chatliste beim Darüberfahren leicht auf.
 
@@ -992,5 +1083,99 @@ Listenfußzeilen bleiben am unteren Rand ihres Panels mit einheitlichen Abständ
 
 Das Organisationsverzeichnis der Administration zeigt das hochgeladene Bild oder Initialen in der gewählten Farbe, wenn kein Bild hinterlegt ist. Der Bildzugriff in diesem Bereich bleibt auf Deployment-Administratoren beschränkt; der reguläre Avatar-Endpunkt verlangt weiterhin eine Mitgliedschaft.
 
+**Chat controls → Tools & files** zeigt das Coding-Konto, das ein Agent braucht, wenn sein Coding agent als **Private cloud task with my account** läuft: nur diesen Harness, mit Logo und Zustimmungsstatus. Verbinde oder verwalte es direkt im Chat; alle Konten stehen unter **Settings → Profile**. Das Verbinden ändert den Ausführungsmodus des Agenten nicht: Private Cloud-Aufgaben benötigen weiterhin **Private cloud task with my account**, während Desktop-Coding eine separate lokale Anmeldung verwendet.
 
-**Chat controls → Model → Coding accounts** zeigt deine Claude-Code- und Codex-Verbindungen mit Logos und Zustimmungsstatus. Verbinde oder verwalte ein Konto direkt im Chat; dieselben Konten stehen unter **Settings → Profile**. Das Verbinden ändert den Ausführungsmodus des Agenten nicht: Private Cloud-Aufgaben benötigen weiterhin **Private cloud task with my account**, während Desktop-Coding eine separate lokale Anmeldung verwendet.
+## Ihre erste Aufgabe { #your-first-task }
+
+In einem neuen Workspace ist der mitgelieferte **AgenticOS** bereits vor der Veröffentlichung ausgewählt, sofern Sie keinen anderen Standard festgelegt haben. Auf die erste Nachricht kann er die Modelleinrichtung erklären und eine Konfigurationskarte zeigen, ohne den Entwurf auszuführen oder einen KI-Anbieter aufzurufen. Antwort und Karte bleiben im Chatverlauf. Berechtigte Personen öffnen die Modelleinstellungen des Agenten; andere Mitglieder sehen einen Administratorhinweis und den Supportkontakt der Instanz, falls konfiguriert. Wählen Sie ein Modell, ergänzen Sie bei Bedarf einen Schlüssel und veröffentlichen Sie den Agenten, bevor normale KI-Antworten ausgeführt werden können. Gewöhnliche Entwürfe und archivierte Agenten bleiben von der Ausführung ausgeschlossen.
+
+Wenn kein veröffentlichter Agent verfügbar ist, bietet das Onboarding auch einen zugänglichen Entwurf des mitgelieferten AgenticOS als Einrichtungs-Chat an. Mitglieder können ihn ohne Berechtigung zur Modellverwaltung öffnen; er liefert Einrichtungshinweise statt eines KI-Aufgabenergebnisses. Nicht zugängliche Entwürfe bleiben gesperrt, und ein zugänglicher veröffentlichter Agent hat Vorrang.
+
+Das Schließen des Startbanners oder **Für 24 Stunden ausblenden** pausiert das Angebot für
+24 Stunden nach Serverzeit. Danach kann es wieder erscheinen, wenn die Einrichtung nicht
+abgeschlossen ist und der Workspace weiterhin einen ersten Einstieg benötigt. Nach den
+Fragen speichert **Einrichtung abschließen und App öffnen** den Abschluss für diese
+Mitgliedschaft. Optionale Felder, Einladungen, ein Modell, ein Agent oder ein KI-Lauf sind
+nicht erforderlich. Der Abschluss der Einrichtung und eine erfolgreiche Aufgabe sind
+getrennte Zustände.
+
+Öffnen Sie **Erste Schritte** über das Dashboard, den Startvorschlag oder die
+Seitenhilfe. Auf dem Desktop liegt der Starthinweis als halbtransparente Ebene über
+der Konsole. Beide Navigationsspalten behalten ihre volle Höhe. Er bietet Administratoren die
+Einrichtung und Mitgliedern ein Beispiel und lässt sich schließen. Eine angenommene Einladung öffnet denselben Start in der beigetretenen
+Organisation. Die Registrierung versucht, Sie direkt anzumelden; schlägt die Sitzung
+fehl, bleiben das erstellte Konto und das Ziel im Anmeldeweg erhalten.
+
+Der Einstieg berücksichtigt Berechtigungen und bestehende Arbeit:
+
+| Person | Geführter Einstieg |
+| --- | --- |
+| Anwendungsadministrator | Firmen-Workspace erstellen oder wählen, Identität und Einladungen vorbereiten, dann den Beitritt zukünftiger Konten festlegen. |
+| Organisationsadministrator | Workspace und Ausgabenlimit vorbereiten, ohne Deployment-Steuerung. |
+| Neues Mitgliedskonto | Begrüßung, optionales persönliches Profil und Arbeitskontext, dann erste Aufgabe. |
+| Bestehendes Konto in einer weiteren Organisation | Begrüßung im Workspace; gespeichertes Profil verwenden oder bewusst überprüfen. |
+
+Ein AgenticOS-Begleiter erklärt Entscheidungen mit vorbereiteten Oberflächentexten.
+Das sind keine Modellantworten und keine KI-Aufrufe. Profil und Arbeitskontext gelten
+in allen Workspaces des Kontos. Optionale Angaben lassen sich überspringen.
+**Speichern und weiter** wechselt nach erfolgreichem Speichern zur nächsten Frage;
+bei einem Fehler bleibt die aktuelle Frage erhalten.
+
+Das Deployment fragt nach Registrierung, Startziel zukünftiger Konten und einer
+optionalen Mitteilung mit Vorschau. Nur bearbeitete Felder werden gesendet.
+**Aktuelle Einstellungen behalten** verwirft den Entwurf dieser Frage ohne Schreiben.
+Die Firmenwahl behält die eingestellte Standardrolle und verschiebt keine bestehenden
+Konten. App-Erscheinungsbild, Sprache, iOS-Push-Zugangsdaten und Wartung sind optionale
+Karten, die den passenden Administrationsbereich in einem neuen Tab öffnen. Der
+Ablauf aktiviert weder Wartung noch hinterlegt er automatisch Zugangsdaten.
+
+Für das Organisationsbudget gibt es Vorschläge und einen Regler. Ein bestehendes Dezimallimit bleibt erhalten. Ohne Limit ist eine eigene
+Auswahl; bei null wird vor möglichen blockierten Läufen gewarnt. Das begrenzt erfasste
+Nutzung und ist kein Abo oder Guthaben. Erweiterte Freigaben, Assistenten und Sprache
+bleiben eingeklappt, mit ihren üblichen Rechten und Speicheraktionen.
+
+Die URL erhält Schritt, Einrichtungsfrage und Workspace für ein Neuladen. Ungespeicherte Änderungen,
+Zugriff oder Abschluss werden dadurch nicht gespeichert. Organisationswechsel und
+entzogene Rechte verhindern das Wiederherstellen eines privilegierten Schritts.
+Der Abschluss des letzten Schritts wird für die Mitgliedschaft gespeichert, auch
+wenn optionale Angaben und KI-Einrichtung übersprungen wurden.
+
+Ein früherer Kontoabschluss gilt für Mitgliedschaften, die zu diesem Zeitpunkt bereits
+bestanden. Spätere Mitgliedschaften beginnen separat. Eigene Chats und abgeschlossene
+Abläufe verhindern automatische Neustarts; veröffentlichte Agenten blenden gewöhnliche
+Startangebote aus. Links nach Registrierung oder Einladung begrüßen Mitglieder ohne
+eigene Aktivität oder Abschluss auch in Workspaces mit fertigen Agenten. Ältere und
+fehlgeschlagene Chats zählen als Aktivität, ohne erfolgreiche Läufe zu behaupten.
+Manueller Einstieg und Fortsetzung bleiben verfügbar. Normale Anmeldung öffnet Chat
+oder den gewünschten Link.
+
+Der Workspace-Name aktualisiert vor dem Erstellen eine gekennzeichnete Vorschau.
+Bestehende Organisationen zeigen ihr Logo oder den eingestellten Ersatzavatar.
+Benachbarte Desktop-Karten sind gleich hoch. Übergänge und Feldhervorhebungen
+beachten die Bewegungseinstellungen.
+Mitglieder wählen aufgezeichnete Beispiele mit getrennten Antwort- und Quell-Tabs.
+Beim Wechsel bleibt die Vorschau auf der Seite. Die KI-Einrichtung öffnet einen
+schließbaren Dialog mit Escape und Fokuswiederherstellung. Die Beispielwahl ruft
+kein Modell auf.
+
+Wählen Sie eine fiktive Besprechungsnotiz, eine Richtlinienfrage oder einen
+Angebotsvergleich. Prüfen oder bearbeiten Sie den Text vor **Aufgabe starten**.
+Die Ausführung verwendet das Modell und die Ausgabenlimits des gewählten Agenten
+und kann Anbieterkosten verursachen. Diese Textbeispiele benötigen weder Bildschirm,
+Mikrofon, Sandbox noch ein externes Konto.
+
+Die Beispielvorschau bleibt auch ohne Agenten verfügbar.
+Es ruft kein Modell auf, verarbeitet keine Änderungen und zählt nicht als
+erfolgreicher Lauf. Berechtigte Builder können einen gemeinsamen Textassistenten
+auf einem bewusst gewählten gemeinsamen Chatmodell vorbereiten. Sein monatliches
+Limit beträgt 5 USD innerhalb des Arbeitsbereichsbudgets. Bestehende Entwürfe werden
+nicht geändert; nutzen Sie dafür den Builder. Andere Mitglieder sehen den Kontakt
+des Eigentümers.
+
+Beispielwahl und Ausblenden werden pro Mitgliedschaft auch für andere Geräte
+gespeichert. Der Start verlinkt den letzten abgeschlossenen eigenen Webchat.
+Ein abgeschlossener Lauf belegt die Ausführung, nicht die Nützlichkeit. Touren
+sind optionale Hilfe; ihr Schließen erzeugt keinen erfolgreichen Lauf.
+Integrationen, Dateien, Agentenbau, Einladungen und Routinen sind optionale Folgeschritte.
+
+Mitgliederverwalter können prüfen, ob sie und ein bestehendes Mitglied einen gemeinsamen veröffentlichten Agenten ausführen können. Die Vorschau liefert nur diese Antwort, keine privaten Agentennamen, und ruft kein Modell auf. Sie bestätigt nicht die Erreichbarkeit des Anbieters. Einladungen von einer Loopback-Adresse sind in diesem Start gesperrt; verwenden Sie eine für den Empfänger erreichbare Serveradresse.

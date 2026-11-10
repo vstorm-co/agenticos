@@ -22,7 +22,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.core.config import settings
 from app.workflows.contracts.results import Completed, Failed, NodeResult, WorkflowError
 
-BODY_PORT = "body"
 DONE_PORT = "done"
 
 
@@ -84,7 +83,7 @@ class ForeachOutput(BaseModel):
 
 
 def routes(output: dict[str, Any] | None) -> frozenset[str]:
-    """A finished loop continues through `done`; its body is entered by iteration."""
+    """A finished loop continues through `done`; its body runs from its `loop.item` per item."""
     return frozenset({DONE_PORT})
 
 

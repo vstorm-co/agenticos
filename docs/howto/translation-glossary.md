@@ -121,7 +121,7 @@ that only lists the terms found.
 !!! example "Recorded on v0.0.504, 25 September 2026"
 
     Model: Claude Sonnet 4.6 through OpenRouter. The agent called
-    `load_capability` for `fenwick-glossary`, then translated the whole
+    `read_skill` for `fenwick-glossary`, then translated the whole
     document in one reply. All five glossary terms were translated correctly
     and all five do-not-translate terms — including `workspace`, `API key` and
     `sandbox` inside Polish sentences — were left in English. `EUR 50,000` and

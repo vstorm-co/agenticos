@@ -1,5 +1,7 @@
 "use client";
 
+import { toolLookupName } from "@/lib/tool-identity";
+
 import { useTurnFileSource } from "@/hooks/use-turn-file-source";
 import type { TurnFileSource } from "@/types/chat";
 import { useState } from "react";
@@ -166,12 +168,13 @@ export function WorkspaceToolResult({
   const t = useTranslations("chat.tools");
   const path = pathArg(toolCall.args);
   const written = contentArg(toolCall.args);
-  const listed = lines(toolCall.name, resultText);
+  const listed = lines(toolLookupName(toolCall), resultText);
   const command = asString(toolCall.args?.command) ?? asString(toolCall.args?.cmd);
   const isRunning = toolCall.status === "running" || toolCall.status === "pending";
   const isError = toolCall.status === "error";
   const finished = !isRunning && toolCall.status !== "awaiting_approval";
-  const isWrite = toolCall.name === "write_file" || toolCall.name === "edit_file";
+  const isWrite =
+    toolLookupName(toolCall) === "write_file" || toolLookupName(toolCall) === "edit_file";
   const showsCard = isWrite && finished && !isError && path !== null;
 
   return (
@@ -198,13 +201,13 @@ export function WorkspaceToolResult({
           intent, which the card cannot say and opening the file does not show. And
           both keep it when there is no card at all: for a failed write or one still
           in flight, the argument is the only evidence of what was attempted. */}
-      {written !== null && !(showsCard && toolCall.name === "write_file") && (
+      {written !== null && !(showsCard && toolLookupName(toolCall) === "write_file") && (
         <TextPanel text={written} />
       )}
 
       {/* What a read answered, which is the file. Kept out of the muted one-liner
           below because it is the point of the call, not a status. */}
-      {finished && toolCall.name === "read_file" && resultText !== "" && (
+      {finished && toolLookupName(toolCall) === "read_file" && resultText !== "" && (
         <TextPanel text={resultText} />
       )}
 
@@ -229,7 +232,7 @@ export function WorkspaceToolResult({
 
       {/* A command's output, which is neither a list nor a file: it is a terminal's,
           and folding its line breaks away would make a stack trace unreadable. */}
-      {finished && toolCall.name === "execute" && resultText !== "" && (
+      {finished && toolLookupName(toolCall) === "execute" && resultText !== "" && (
         <pre className="bg-foreground/[0.04] max-h-64 overflow-auto rounded-md p-3 font-mono text-xs whitespace-pre">
           {resultText}
         </pre>
@@ -242,7 +245,7 @@ export function WorkspaceToolResult({
       {finished &&
         listed === null &&
         !showsCard &&
-        !["read_file", "execute"].includes(toolCall.name) &&
+        !["read_file", "execute"].includes(toolLookupName(toolCall)) &&
         resultText !== "" && (
           <p
             className={

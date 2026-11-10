@@ -43,6 +43,7 @@ class ConversationSearchConfig(BaseModel):
 
 @register(
     id=CONVERSATION_SEARCH_CAPABILITY_ID,
+    read_only=True,
     name="Past conversations",
     category="knowledge",
     description=(
@@ -66,6 +67,7 @@ class ConversationSearchConfig(BaseModel):
     ),
     scopes=("conversations:read",),
     config_schema=ConversationSearchConfig,
+    tunable=True,
 )
 def _build(ctx: CapabilityBuildContext) -> ConversationSearch:
     """Build the capability from a binding's config.

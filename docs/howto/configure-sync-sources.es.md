@@ -1,5 +1,5 @@
 ---
-source_sha: "71cd0f76685e"
+source_sha: "68bc85353023"
 ---
 
 # Configura las fuentes de sincronización { #configure-sync-sources }
@@ -611,15 +611,38 @@ soportadas.
 
 Todos los endpoints de las fuentes de sincronización viven bajo
 `/api/v1/rag/sync/`. Listar exige `collections:view` y todo lo que modifica una
-fuente exige `collections:edit`, en ambos casos sobre la colección a la que
-pertenece la fuente: no interviene ningún rol de administrador. Consulta
+fuente exige `collections:edit`. No interviene ningún rol de administrador. Los
+párrafos siguientes dicen a qué fuentes llega cada operación. Consulta
 [quién puede llegar a una colección](../file-processing.md#who-may-reach-a-collection).
+
+`GET /api/v1/rag/sync/sources` lista todas las fuentes de tu organización,
+también las sin asignar, solo con `connections:manage`, igual que
+`/org/integrations`. Sin él, la lista tiene solo las fuentes que alimentan una
+base que puedes leer, y `collection_name` debe nombrar una colección que puedas
+leer, o la respuesta es 404. Si creas o desvinculas una fuente sin asignar sin el
+permiso, guarda su id de la respuesta, porque ninguna lista te la muestra. La lista de integraciones existentes que el asistente de la
+base de conocimiento ofrece reutilizar también exige `connections:manage`.
+Consulta [Permisos](../permissions.md).
+
+Para actualizar, eliminar o lanzar una fuente a través de
+`/api/v1/rag/sync/sources/{id}`, también debes poder escribir en la base que esa
+fuente alimenta. Esto incluye un `PATCH` que pone `collection_name` a `null`. Una fuente
+sin asignar solo necesita tu organización. `/org/integrations` gestiona las
+fuentes a nivel de organización y exige `connections:manage` en su lugar.
+
+El historial de sincronización y el registro de ejecuciones de una fuente
+muestran las ejecuciones de las fuentes de tu organización, también a través de
+una base de ámbito de aplicación que lee toda organización. Un administrador de
+la plataforma ve también las fuentes de otras organizaciones en las bases que
+lee. Una ejecución sin fuente, como una sincronización local o una ejecución cuya
+fuente se eliminó, se lista por el nombre de su colección a todo el que lea esa
+colección.
 
 ### CRUD de fuentes de sincronización { #sync-sources-crud }
 
 | Método | Endpoint | Descripción |
 |--------|----------|-------------|
-| `GET` | `/api/v1/rag/sync/sources` | Lista todas las fuentes de sincronización configuradas |
+| `GET` | `/api/v1/rag/sync/sources` | Lista las fuentes de sincronización (todas con `connections:manage`) |
 | `POST` | `/api/v1/rag/sync/sources` | Crea una fuente de sincronización nueva |
 | `PATCH` | `/api/v1/rag/sync/sources/{id}` | Modifica una fuente de sincronización existente |
 | `DELETE` | `/api/v1/rag/sync/sources/{id}` | Borra una fuente de sincronización |
@@ -695,7 +718,19 @@ curl -X PATCH http://localhost:8000/api/v1/rag/sync/sources/{source_id} \
 Campos modificables: `name`, `config`, `sync_mode`, `schedule_minutes`,
 `is_active`, `collection_name`.
 
-Pon `is_active` en `false` para pausar una fuente sin borrarla.
+Pon `is_active` en `false` para pausar una fuente sin borrarla. Una fuente
+pausada no se ejecuta por programación ni se puede activar mediante la API o la
+CLI. La consola desactiva su botón de sincronización. Un trabajo en cola vuelve
+a comprobar el estado antes de descargar archivos y termina con un error si la
+fuente se pausó mientras esperaba. La pausa no interrumpe una sincronización ya
+iniciada; pon `is_active` en `true` para permitir nuevas sincronizaciones.
+
+Al resolver un nombre de colección, se elige la base más antigua de la
+organización de la fuente o, si no existe, una base de ámbito de aplicación.
+Si las fechas de creación coinciden, se ordenan por el identificador de la base.
+La API rechaza la asignación por nombre de colección cuando varias bases
+válidas comparten la fecha de creación más antigua. Usa una base de conocimiento
+con un nombre de colección único para eliminar esa ambigüedad.
 
 ## Supervisar las sincronizaciones { #monitoring-sync-operations }
 

@@ -9,6 +9,7 @@ import { invalidateSpeechSettings } from "@/lib/dictation-api";
 import { readThrough } from "@/lib/offline/device-cache";
 import { qk } from "@/lib/query-keys";
 import { useOrgStore } from "@/stores";
+import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import type {
   Organization,
   OrganizationList,
@@ -161,10 +162,12 @@ export function useOrganizations() {
     async (input: CreateOrganizationInput): Promise<Organization> => {
       const org = await apiClient.post<Organization>("/orgs", input);
       writeCache((prev) => [...prev, org]);
+      // The deployment default-workspace picker may already be open in onboarding.
+      void queryClient.invalidateQueries({ queryKey: qk.admin.organizations({}) });
       toast.success(t("created"));
       return org;
     },
-    [writeCache, t],
+    [writeCache, t, queryClient],
   );
 
   const patchOrg = useCallback(
@@ -263,6 +266,14 @@ export function useOrganizations() {
     [writeCache, queryClient],
   );
 
+  const uploadAvatar = useCallback(
+    async (id: string, file: File): Promise<void> => {
+      await apiClient.upload<unknown>(`/orgs/${id}/avatar`, file);
+      await fetchOrgs(true);
+    },
+    [fetchOrgs],
+  );
+
   const deleteOrg = useCallback(
     async (id: string) => {
       try {
@@ -281,9 +292,10 @@ export function useOrganizations() {
     [writeCache, setActiveOrgId, t],
   );
 
+  // A change not yet saved belongs to the organization being left, so it is asked about first.
   const switchOrg = useCallback(
     (id: string) => {
-      setActiveOrgId(id);
+      useUnsavedChangesStore.getState().leave(() => setActiveOrgId(id));
     },
     [setActiveOrgId],
   );
@@ -294,6 +306,7 @@ export function useOrganizations() {
     activeOrg,
     fetchOrgs,
     createOrg,
+    uploadAvatar,
     patchOrg,
     setMonthlyBudget,
     setProactivity,

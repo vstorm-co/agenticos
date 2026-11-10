@@ -442,6 +442,7 @@ class TestDeletingADocument:
         row = SimpleNamespace(
             id=uuid.uuid4(),
             collection_name="docs",
+            organization_id=uuid.uuid4(),
             vector_document_id=None,
             storage_path="rag/docs/policy.pdf",
             knowledge_base_id=None,

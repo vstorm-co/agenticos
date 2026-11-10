@@ -7,9 +7,11 @@ import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { stripLocale } from "@/lib/active-route";
 import { ROUTES } from "@/lib/constants";
+import { PAGE_SIZE } from "@/components/ui";
 import {
   AGENT_BUILDER,
   ARTIFACT_DETAIL,
+  DATASET_DETAIL,
   KB_DETAIL,
   ORG_DIRECTORY,
   ORG_GROUPS,
@@ -22,12 +24,14 @@ import {
   WORKFLOW_DETAIL,
   WORKFLOW_LOGS_DETAIL,
   WORKFLOW_RUNS_DETAIL,
+  WORKFLOW_RUN_DETAIL,
   WORKSPACE_DETAIL,
   PROJECT_DETAIL,
 } from "@/lib/onboarding/tour";
 import { qk } from "@/lib/query-keys";
 import { useOrgStore } from "@/stores";
 import type { AgentList } from "@/types/agents";
+import type { DatasetList } from "@/types/datasets";
 import type { GroupList } from "@/types/groups";
 import type { KnowledgeBaseList } from "@/types/knowledge-base";
 import type { OrganizationList } from "@/types/organization";
@@ -53,6 +57,7 @@ function orgIdFromPath(path: string): string | null {
 export const FETCHED_DETAIL_PAGES: ReadonlySet<string> = new Set([
   AGENT_BUILDER,
   KB_DETAIL,
+  DATASET_DETAIL,
   GROUP_DETAIL,
   ORG_MEMBERS,
   ORG_RETENTION,
@@ -106,6 +111,23 @@ export function useDetailTargets(enabled: boolean): Record<string, ResolvedDetai
   });
   const kbId = kbs.data?.find((kb) => kb.is_default)?.id ?? kbs.data?.[0]?.id ?? null;
 
+  // The first page the Datasets list itself reads, so the two share one cache entry.
+  const datasets = useQuery({
+    queryKey: qk.datasets.list({
+      search: "",
+      sort: "name",
+      skip: 0,
+      limit: PAGE_SIZE,
+      editable: false,
+      judge: "",
+      asksRun: "",
+      agent: "",
+    }),
+    queryFn: () => apiClient.get<DatasetList>(`/datasets?sort=name&skip=0&limit=${PAGE_SIZE}`),
+    enabled,
+  });
+  const datasetId = datasets.data?.items[0]?.id ?? null;
+
   // The example organization is the one the reader is looking at, then the one
   // they are in, then the list (which is also what `pending` waits on). Members and
   // roles are two routes under the same org, so both resolve from the one id.
@@ -149,6 +171,10 @@ export function useDetailTargets(enabled: boolean): Record<string, ResolvedDetai
         pending: enabled && kbs.isPending,
         href: kbId ? ROUTES.RAG_DETAIL(kbId) : null,
       },
+      [DATASET_DETAIL]: {
+        pending: enabled && datasets.isPending,
+        href: datasetId ? ROUTES.DATASET_DETAIL(datasetId) : null,
+      },
       [ORG_MEMBERS]: {
         pending: orgPending,
         href: orgId ? ROUTES.ORG_MEMBERS(orgId) : null,
@@ -186,6 +212,7 @@ export function useDetailTargets(enabled: boolean): Record<string, ResolvedDetai
       [WORKSPACE_DETAIL]: { pending: false, href: null },
       [TABLE_DETAIL]: { pending: false, href: null },
       [WORKFLOW_DETAIL]: { pending: false, href: null },
+      [WORKFLOW_RUN_DETAIL]: { pending: false, href: null },
       [WORKFLOW_RUNS_DETAIL]: { pending: false, href: null },
       [WORKFLOW_LOGS_DETAIL]: { pending: false, href: null },
       [ARTIFACT_DETAIL]: { pending: false, href: null },
@@ -197,6 +224,8 @@ export function useDetailTargets(enabled: boolean): Record<string, ResolvedDetai
       agentId,
       kbs.isPending,
       kbId,
+      datasets.isPending,
+      datasetId,
       orgPending,
       orgId,
       activeOrgId,

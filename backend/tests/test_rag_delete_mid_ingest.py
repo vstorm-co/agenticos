@@ -14,6 +14,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from sqlalchemy.dialects import postgresql
 
+from app.db.models.rag_document import RAGDocument
 from app.db.vector_tables import VectorScope
 from app.repositories import rag_document_repo
 from app.services.rag.models import IngestionResult, IngestionStatus
@@ -63,11 +64,30 @@ class TestCompletingAnIngest:
         assert await _complete(RAGDocumentService(MagicMock())) is True
         superseded.assert_not_awaited()
 
-    async def test_a_settled_row_reports_it_was_recorded(self, monkeypatch) -> None:
-        monkeypatch.setattr(rag_document_repo, "get_by_id", AsyncMock(return_value=MagicMock()))
-        monkeypatch.setattr(rag_document_repo, "update_status", AsyncMock(return_value=MagicMock()))
+    @pytest.mark.parametrize("scoped", [False, True])
+    async def test_a_settled_row_reports_it_was_recorded(
+        self, monkeypatch: pytest.MonkeyPatch, scoped: bool
+    ) -> None:
+        doc = RAGDocument(
+            id=uuid.uuid4(),
+            organization_id=uuid.uuid4() if scoped else None,
+            knowledge_base_id=uuid.uuid4() if scoped else None,
+        )
+        monkeypatch.setattr(rag_document_repo, "get_by_id", AsyncMock(return_value=doc))
+        monkeypatch.setattr(rag_document_repo, "update_status", AsyncMock(return_value=doc))
+        with patch(
+            "app.services.eval_suite.EvalSuiteService.dependency_changed", AsyncMock()
+        ) as changed:
+            assert await _complete(RAGDocumentService(MagicMock())) is True
 
-        assert await _complete(RAGDocumentService(MagicMock())) is True
+        if scoped:
+            changed.assert_awaited_once_with(
+                organization_id=doc.organization_id,
+                kind="knowledge_base",
+                resource_id=doc.knowledge_base_id,
+            )
+        else:
+            changed.assert_not_awaited()
 
 
 async def test_the_delete_reads_the_vector_id_from_the_deleted_row() -> None:

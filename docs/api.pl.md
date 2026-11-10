@@ -1,5 +1,5 @@
 ---
-source_sha: "ccaa0a8c7180"
+source_sha: "3503412daf98"
 ---
 
 # API HTTP { #the-http-api }
@@ -16,8 +16,8 @@ produkcyjny deployment nie publikuje własnej listy tras.
 
 Trzy drogi wejścia, dla trzech różnych wywołujących.
 
-| | Nagłówek | Dla |
-|---|---|---|
+|  | Nagłówek | Dla |
+| --- | --- | --- |
 | **Klucz API organizacji** | `Authorization: Bearer aos_…` | Skryptu, klienta HTTP takiego jak Postman albo klienta MCP. Działa jako członek, który go wydał, zawężony do uprawnień, z którymi został wydany |
 | **JWT** | `Authorization: Bearer <access token>` | Osoby albo czegoś, co działa w jej imieniu. Krótko żyjący, odświeżany refresh tokenem |
 | **Ciasteczko sesji** | ustawiane przez konsolę | Wyłącznie przeglądarki — token jest HttpOnly i nigdy nie trafia do JavaScriptu |
@@ -33,15 +33,15 @@ Klucz wydaje członek, w jednej organizacji, w **Ustawienia → API** (albo
 przez `POST /api/v1/api-keys` z zalogowanej sesji). Niesie uprawnienia tego
 członka, zawężone dwukrotnie:
 
-- **Do uprawnień, z którymi został wydany.** Wybierz preset — *Tylko odczyt*,
-  *Zasilanie bazy wiedzy*, *Pełny dostęp* — albo zaznacz uprawnienia z
+- **Do uprawnień, z którymi został wydany.** Wybierz preset — _Tylko odczyt_,
+  _Zasilanie bazy wiedzy_, _Pełny dostęp_ — albo zaznacz uprawnienia z
   [katalogu](permissions.md). Możesz nadać tylko to, co sam masz.
 - **Do tego, co wydający może zrobić teraz.** Każde żądanie odczytuje członkostwo
   wydającego na nowo, więc jego degradacja od razu zawęża każdy z jego kluczy.
   Usunięcie go z organizacji albo jego odejście unieważnia wszystkie wydane przez
   niego klucze i podłączone aplikacje - na stałe, więc ponowne zaproszenie żadnego
   z nich nie przywraca. Grant
-  na zasobie poszerza to, co może zrobić z jednym wierszem *osoba*; nigdy nie
+  na zasobie poszerza to, co może zrobić z jednym wierszem _osoba_; nigdy nie
   poszerza klucza ponad jego uprawnienia.
 
 Klucz jest pokazywany **raz**, w odpowiedzi, która go tworzy. Przechowywany jest
@@ -60,6 +60,24 @@ wyszukiwania jego dawnych rozmów, ani do stron, na których przeglądarka trzym
 jego logowania, ani do przestrzeni roboczej sandboxa przypisanej do użytkownika.
 Ten, kto trzyma klucz, jest skryptem, nie tą osobą, więc run odpowiada tak jak
 na publicznym widgecie.
+
+Zatwierdzanie osobistych routines i watchy wymaga jawnego scope’u `personal:consent`, wybranego w **Custom** przy wystawianiu klucza lub autoryzacji klienta MCP. Nie zawiera go żaden preset, także **Full access**. Potwierdzenie pozwala credentialowi zatwierdzać trwałe routines i watche korzystające z twoich osobistych połączeń i danych; zwykłe scope’y `agents:run` i `runs:view` tego nie umożliwiają. Istniejące klucze i autoryzacje MCP nie zyskują osobistej zgody automatycznie.
+
+**Pracę, która działa jako ty, ustawiasz też kluczem, który sam wydałeś.** Klucz,
+który utworzyłeś, albo token klienta MCP, który autoryzowałeś, może tworzyć i
+zmieniać twoje [routines](triggers.md) działające jako ty (`runs_as_creator`) i
+twoje [watche](console.md), przeglądać źródła routine oraz publikować agenta bez
+cofania zgody routines, które działają jako ty. Przebieg takiej routine nadal
+podlega jej przejrzanym źródłom i budżetowi. Nie może tego zrobić credential
+uruchomionego agenta poza twoim prywatnym czatem ani administrator, który się pod
+ciebie podszywa.
+
+Rozmowy też są publiczne: `GET /api/v1/conversations` wypisuje czaty wydawcy
+klucza (`runs:view`), a `POST /api/v1/conversations` z `title` i
+`PATCH /api/v1/conversations/{id}` otwierają i zmieniają nazwę czatu
+(`agents:run`) - na przykład wątku tematycznego, do którego pisze routine.
+`POST /api/v1/me/mcp-connections/{id}/test` sprawdza twoje połączenie i odświeża
+jego narzędzia (`agents:run`).
 
 Odczyt połączeń jest też publiczny: `GET /sandbox-connections`,
 `GET /sandbox-connections/runtimes` i `GET /sandbox-connections/{id}/policy`
@@ -127,7 +145,6 @@ ustawione jest `AGENT_ID`, a na koniec unieważnia klucz.
 BASE=http://localhost:8000 EMAIL=you@example.com PASSWORD=... bash docs/examples/public-api.sh
 ```
 
-
 ### Sesje i unieważnianie { #sessions-and-revocation }
 
 Access token JWT jest związany z sesją, którą otworzyło logowanie — identyfikator
@@ -140,6 +157,17 @@ tylko następne żądanie HTTP.
 Odświeżenie nie zaczyna nowej sesji — refresh token rotuje w miejscu, a access
 token dalej nazywa tę samą sesję — więc długo żyjące połączenie nie zostaje
 przerwane przez rutynowe odświeżenie.
+
+### Praca, która działa po żądaniu { #work-that-runs-after-the-request }
+
+[Eval run](evals.md) ani żądanie do [asystenta tworzenia](authoring.md) nie
+mogą zostać rozpoczęte kluczem organizacji: te trasy są dla osób zalogowanych, a
+klucz dostaje na nich `403`. Praca, która wykonuje się później, w tle, podlega
+uprawnieniom osoby, która ją rozpoczęła, w ich stanie z chwili, gdy praca się
+zaczyna - rola utracona w międzyczasie ją zatrzymuje. Gdyby klucz kiedyś mógł
+rozpocząć taką pracę, to samo dotyczyłoby klucza: liczyłyby się jego uprawnienia
+w ówczesnym stanie, a klucz unieważniony, wygasły albo usunięty w międzyczasie
+zatrzymywałby pracę, z powodem zapisanym na runie albo żądaniu.
 
 ## Nagłówek organizacji { #the-organization-header }
 
@@ -327,6 +355,31 @@ węzły działają w tle. `input` to to, co przekazuje dalej wyzwalacz [`core.in
 WORKFLOW_TRIGGER_MISMATCH`, bo uruchamia ją webhook, harmonogram, wiadomość na czacie albo rekord tabeli. `"mode": "test"` uruchamia zamiast tego bieżący draft, od dowolnego wyzwalacza, i
 wymaga `workflows:edit`.
 
+Przed wywołaniem odczytaj `GET /api/v1/workflows/{id}/input-schema` z
+`workflows:view`. Odpowiedź zawiera opublikowane `version_id` i listę `entries` z
+`entry_node_id`, `trigger` i efektywnym `input_schema` dla każdego wejścia Manual,
+API, Called by a workflow lub Form. Przekaż `version_id`, aby sprawdzić konkretną
+opublikowaną wersję. Kontrakty JSON Schema są zwracane bez zmian; proste pola są
+przedstawiane jako JSON Schema, a nietypowane wejścia zwracają `{"type": "object"}`.
+Użyj kontraktu wybranego wejścia i przekaż jego `entry_node_id` przy uruchamianiu.
+
+Dotychczasowe proste pola `integer` wymagają dodatkowo tokenów całkowitych JSON:
+`1` jest przyjmowane, a `1.0` i `1e0` są odrzucane. Odkrywanie oznacza te pola
+przez `x-agenticos-strict-integer: true`, także wewnątrz opcjonalnych pól
+dopuszczających null. Zwykły JSON Schema nie potrafi wymusić tej różnicy zapisu,
+więc sama walidacja schematu nie wystarcza dla tych pól; rozstrzyga walidacja
+serwera. Surowe kontrakty JSON Schema stosują standardową semantykę integer.
+
+Opcjonalny [kontrakt wejścia JSON Schema](reference/workflow-nodes.md#json-schema-input-contracts)
+jest sprawdzany przed przyjęciem runu. Niezgodność zwraca
+`422 WORKFLOW_RUN_INPUT_INVALID` ze ścieżkami pól i komunikatami w `error.details.fields`;
+run nie powstaje. Każdy wpis ma `field` i `message`; zagnieżdżone ścieżki żądania
+zawierają indeksy tablic, na przykład `input.items.0.sku`. Dla dotychczasowych
+wywołujących `error.details.problems` zachowuje też `field`, `message` i `type`
+ze ścieżkami względem obiektu wejścia. Kontrakt pochodzi z bieżącej opublikowanej
+wersji albo ze szkicu dla `"mode": "test"`. Obowiązuje tak samo przez WebSocket
+i MCP oraz gdy wywołuje inny workflow.
+
 `deadline_seconds` (do trzydziestu dni) ustawia termin
 sprawdzany za każdym razem, gdy węzeł ma zostać wysłany: pierwszy węzeł gotowy
 po jego upływie kończy run błędem `DEADLINE_EXCEEDED`, a węzeł, który już działa,
@@ -433,7 +486,6 @@ Publikacja triggerów automatycznych i zmiany uprawnień ich wykonania wymagają
 
 Publiczne formularze workflow egzekwują limit bajtów wejścia podczas czytania strumienia żądania, przed parsowaniem JSON i sprawdzeniem tokenu. Nadmierne body z zadeklarowanym rozmiarem lub chunked zwraca `413`; niepoprawny JSON i pola zgłoszenia zwracają `422`. Każdy wpis `details.problems` w `422` ma postać `{field, message, type}`, gdzie `type` to własny typ błędu walidatora (`missing`, `int_type`, `extra_forbidden`, ...), dzięki czemu formularz może powiedzieć przy każdej odpowiedzi, czego potrzebował.
 
-
 Workflow, którego węzłem wyzwalacza jest webhook albo harmonogram, dostaje swoją
 ekspozycję przy publikacji tej wersji, a odpowiedź na publikację niesie ją jako
 `exposure`. Sekret do podpisu webhooka jest w `webhook_secret` publikacji, która
@@ -502,6 +554,7 @@ od tego, co wymienia jego wyzwalacz. `GET .../triggers`
 wymienia workflow, które startują od tabeli, `PATCH .../triggers/{trigger_id}` z
 `{"is_active": false}` wstrzymuje jeden, a `GET .../triggers/{trigger_id}/admissions`
 wymienia, co zdecydował o każdym rekordzie. Zobacz [Wyzwalacze](virtual-tables.md#triggers).
+
 ## Agenci przez A2A { #agents-over-a2a }
 
 Agent, którego organizacja udostępnia przez A2A, odpowiada na JSON-RPC pod
@@ -549,7 +602,7 @@ Utwórz klucz w **Ustawienia → API** z uprawnieniami, które przykład
 wymienia; konsola pokaże klucz raz.
 
 **Wgraj dokument do bazy wiedzy i przeszukaj ją** — klucz z `collections:view` i
-`collections:edit` (preset *Zasilanie bazy wiedzy*). Ingest działa w tle, więc
+`collections:edit` (preset _Zasilanie bazy wiedzy_). Ingest działa w tle, więc
 wyszukiwanie zaraz po wgraniu może jeszcze nie znaleźć dokumentu; jego status
 pokazuje `GET /api/v1/kb/$KB_ID/documents`, a `GET /api/v1/kb/$KB_ID/ingestion`
 odpowiada `complete`, gdy żaden nie jest już przetwarzany.
@@ -644,7 +697,10 @@ uwierzytelniony tak samo, z organizacją w `?organization_id=`, wysyła jedną r
 JSON na każdy udany zapis przez publiczne API w tej organizacji — `resource`,
 `id`, `action` (`created`, `updated` albo `deleted`), `surface` (`console`,
 `api_key`, `mcp` albo `assistant`) i kto go wykonał — i tylko o wierszach, które
-wywołujący może odczytać.
+wywołujący może odczytać. Tak samo przychodzą zmiany, których nikt nie zapisał:
+`run` dla runa przechodzącego przez kolejne stany i `system` dla pracy, którą
+platforma wykonuje sama według harmonogramu, takiej jak przejście grupujące luki
+w wiedzy.
 
 ## Rozmowy głosowe { #voice-calls }
 
@@ -668,18 +724,18 @@ sesję ponownie, więc rozmowa nie przetrwa wylogowania.
 **Klient wysyła** ramki JSON, a przez relay także binarne audio:
 
 | Ramka | Pola | Kiedy |
-|---|---|---|
+| --- | --- | --- |
 | `start` | `agent_id`, `conversation_id`, `sdp_offer` (WebRTC), `resume_of` i `resume_token` (ponowne połączenie), `context` (zmienne embeda) | Najpierw, w ciągu 10 sekund |
 | `approval` | `id`, `decision` (`approve` albo `deny`) | Rozstrzygnięcie zatwierdzenia, na które czeka rozmowa |
 | `mute` | `muted` | Relay: mikrofon wyciszony |
 | `played` | `bytes` | Relay: ile audio agenta zostało odtworzone |
-| `end` | - | Rozłączenie się |
-| *binarna* | 16-bitowy PCM z częstotliwością wejściową modelu | Relay: audio dzwoniącego |
+| `end` | --- | Rozłączenie się |
+| _binarna_ | 16-bitowy PCM z częstotliwością wejściową modelu | Relay: audio dzwoniącego |
 
 **Serwer wysyła:**
 
 | Ramka | Pola | Znaczy |
-|---|---|---|
+| --- | --- | --- |
 | `answer` | `sdp` | WebRTC: odpowiedź providera dla połączenia peer przeglądarki |
 | `ready` | `call_id`, `run_id`, `conversation_id`, `transport`, `input_sample_rate`, `output_sample_rate`, `cap_seconds`, `resume_token` | Rozmowa jest zestawiona. `resume_token` jest wysyłany tylko tutaj i tylko temu dzwoniącemu; ponowne połączenie odsyła go z powrotem |
 | `state` | `state`: `connecting`, `listening`, `user_speaking`, `thinking`, `agent_speaking`, `interrupted`, `tool_running`, `awaiting_approval` | Kto mówi albo co robi agent |
@@ -691,9 +747,9 @@ sesję ponownie, więc rozmowa nie przetrwa wylogowania.
 | `approval_settled` | `id`, `outcome` (`approved`, `denied` albo `expired`) | Jak zakończyło się zatwierdzenie |
 | `notice` | `kind`, `message` (opcjonalne) | Coś do powiedzenia słowami: trafienie guardraila, osiągany limit |
 | `limit` | `seconds_left` | Czas rozmowy prawie się skończył |
-| `clear_playback` | - | Relay: odrzuć zakolejkowane audio agenta |
+| `clear_playback` | --- | Relay: odrzuć zakolejkowane audio agenta |
 | `ended` | `reason`, `message` | Rozmowa się skończyła |
-| *binarna* | 16-bitowy PCM z częstotliwością wyjściową modelu | Relay: audio agenta |
+| _binarna_ | 16-bitowy PCM z częstotliwością wyjściową modelu | Relay: audio agenta |
 
 **Odwiedzający widget lub hostowaną stronę dowiaduje się mniej.** Jego `ready`
 nie zawiera `run_id`; `cap_seconds` to limit rozmowy - najdłuższa rozmowa
@@ -740,7 +796,7 @@ providera.
 Idzie z tym pięć route'ów HTTP:
 
 | Route | Bramka | Odpowiada |
-|---|---|---|
+| --- | --- | --- |
 | `GET /api/v1/agents/{agent_id}/voice` | `agents:run` na tym agencie, łącznie z grantem; w przeciwnym razie `404` | Czy rozmowa by się rozpoczęła, dlaczego nie (`no_voice`, `not_offered` albo `no_key`), transport i najdłuższa rozmowa |
 | `POST /api/v1/agents/{agent_id}/voice/preview` | `agents:edit` na tym agencie, łącznie z grantem; w przeciwnym razie `404` | Głos z wersji roboczej sekcji Voice mówiący jedno stałe zdanie, jako `audio/wav`. W cache per głos i język; `RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE` na osobę |
 | `GET /api/v1/providers/realtime-models` | `agents:view` | Katalog realtime, z którego wybiera sekcja głosu |
@@ -810,8 +866,8 @@ honorowany na jednej trasie - asynchronicznym runie.
 
 ## Konwencje { #conventions }
 
-| | |
-|---|---|
+|  |  |
+| --- | --- |
 | Prefiks | `/api/v1` |
 | Tworzenie | `POST`, `201` |
 | Częściowa aktualizacja | `PATCH` |
@@ -873,6 +929,5 @@ tylko do przodu.
   odpytywania, więc długi run nie trzyma otwartego połączenia.
 - **Publiczne API jest w `/api/v1/public/openapi.json`** i w ramach v1 zmienia
   się tylko addytywnie, z 90 dniami deprecjacji; SDK jeszcze nie ma.
-
 
 Skille, których załadowanie wymaga akceptacji, wymagają jej ponownie w każdej turze; historia nie omija tej bramki.

@@ -10,6 +10,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from app.core.cron import cron_next
 from app.core.exceptions import AuthorizationError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.resource_grant import Visibility
@@ -19,7 +20,6 @@ from app.db.models.workflow_file import WorkflowFile
 from app.db.models.workflow_run import DispatchOutbox, NodeRun, WorkflowRun, WorkflowRunMode
 from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.workflow import WorkflowPublish, WorkflowSettings
-from app.services.agent_trigger import _cron_next
 from app.services.workflow_execution import WorkflowExecutionService
 from app.services.workflow_execution.exceptions import WorkflowAdmissionQuotaError
 from app.services.workflow_registry import WorkflowRegistryService, WorkflowSettingsInvalidError
@@ -149,8 +149,8 @@ class TestSavingSettings:
 class TestTheTimezone:
     def test_a_cron_expression_is_read_in_the_timezone(self):
         now = datetime(2026, 1, 15, 12, 0, tzinfo=UTC)
-        assert _cron_next("0 9 * * *", now=now) == datetime(2026, 1, 16, 9, 0, tzinfo=UTC)
-        assert _cron_next("0 9 * * *", now=now, time_zone="Europe/Warsaw") == datetime(
+        assert cron_next("0 9 * * *", now=now) == datetime(2026, 1, 16, 9, 0, tzinfo=UTC)
+        assert cron_next("0 9 * * *", now=now, time_zone="Europe/Warsaw") == datetime(
             2026, 1, 16, 8, 0, tzinfo=UTC
         )
 

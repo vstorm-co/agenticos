@@ -8,6 +8,8 @@ from typing import Any, NewType
 
 from pydantic import BaseModel, Field, computed_field, model_validator
 
+from app.db.vector_tables import VectorWriterKind
+
 # The parser-created `Document.id` stamped on every chunk as `parent_doc_id`,
 # distinct from the relational `RAGDocument.id` UUID (which records it separately
 # as `RAGDocument.vector_document_id`, a `String(255)`). Filters and the scope's
@@ -77,6 +79,7 @@ class DocumentMetadata(BaseModel):
     organization_id: str | None = None
     # Trusted worker correlation, excluded from public chunk metadata.
     rag_document_id: uuid.UUID | None = Field(default=None, exclude=True)
+    writer_kind: VectorWriterKind = Field(default=VectorWriterKind.DOCUMENT, exclude=True)
     source: str | None = None
     document_type: str | None = None
     organizational_unit: str | None = None
@@ -143,13 +146,20 @@ class SearchResult(BaseModel):
     `ParentContextMode` other than `OFF` is in effect, and stays `None`
     otherwise - so a formatter that prefers it falls back to `content` for an
     unexpanded result.
+
+    `score` is what ranks the result, and after hybrid search or query-variant
+    fusion it is a reciprocal-rank value that says nothing about how close the
+    match was. `similarity` keeps the chunk's cosine similarity to the query
+    through fusion, so "nothing relevant was found" can still be judged.
     """
 
     content: str
     score: float
+    similarity: float | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
     parent_doc_id: str | None = None
     expanded_content: str | None = None
+    overlay_token: uuid.UUID | None = Field(default=None, exclude=True)
 
 
 class IngestionStatus(StrEnum):

@@ -1,7 +1,10 @@
 "use client";
 
+import type { Delegation } from "@/types";
+
 import { memo, useId, useState } from "react";
 
+import { ModelSetupReply } from "./model-setup-reply";
 import { MentionChip } from "./mention-chip";
 import { stillMentioned } from "@/lib/mentions";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
@@ -31,6 +34,8 @@ import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import {
   Bot,
   CornerUpLeft,
+  GitBranch,
+  Loader2,
   Mic,
   MoreHorizontal,
   OctagonPause,
@@ -50,6 +55,7 @@ import { FileCard, FileIcon } from "@/components/files";
 import { extractSources, toolCallsOf } from "@/lib/chat-sources";
 import { draftsOf, withDraftText } from "@/lib/drafts";
 import type { DelegateRef } from "@/lib/delegations";
+import type { AskedBefore } from "@/components/datasets/follows-on";
 import { publishedApps, PublishedArtifactResult } from "./tool-results/artifact";
 import { writtenRoutines, RoutineResult } from "./tool-results/routine";
 import { writtenWatches, WatchResult } from "./tool-results/watch";
@@ -60,6 +66,7 @@ import { TurnFiles } from "./turn-files";
 import { TurnExtras } from "./turn-extras";
 
 interface MessageItemProps {
+  delegations?: Delegation[];
   message: ChatMessage;
   /**
    * Open this turn's last tool step on mount.
@@ -103,16 +110,22 @@ interface MessageItemProps {
    */
   turnUsage?: TurnUsage;
   onRegenerate?: () => void;
+  /** Fork the conversation at a message, given its id; absent where the reader may not (#2762). */
+  onFork?: (messageId: string) => void;
+  forkingMessageId?: string | null;
   /** In the test panel: a question can be pinned to ask again after each change (#2075). */
   pins?: PinnedPrompts;
   /** The agents the reader can see, which name the one a delegation asked. */
   agents?: readonly DelegateRef[];
+  /** The question an answer replied to, when `MessageList` can see it. */
+  asked?: AskedBefore;
   /** What the person asked for, on the answer that ends the turn: a skill can be made of it. */
   request?: string;
 }
 
 export const MessageItem = memo(function MessageItem({
   message,
+  delegations,
   agent,
   groupPosition,
   continuesTurn = false,
@@ -120,8 +133,11 @@ export const MessageItem = memo(function MessageItem({
   turnUsage,
   openLastStep = false,
   onRegenerate,
+  onFork,
+  forkingMessageId = null,
   pins,
   agents = [],
+  asked,
   request,
 }: MessageItemProps) {
   const t = useTranslations("chat");
@@ -405,7 +421,12 @@ export const MessageItem = memo(function MessageItem({
         )}
 
         {!isUser && !message.isStreaming && (
-          <TurnDelegations toolCalls={toolCallsOf(message)} parent={agent} agents={agents} />
+          <TurnDelegations
+            toolCalls={toolCallsOf(message)}
+            delegations={delegations}
+            parent={agent}
+            agents={agents}
+          />
         )}
 
         {hasSources && !isUser && (
@@ -544,6 +565,29 @@ export const MessageItem = memo(function MessageItem({
                 <RefreshCw />
               </button>
             )}
+            {/* A fork copies the stored history up to this answer, so it needs the
+                saved row; the server refuses one a run is still writing. */}
+            {message.role === "assistant" && onFork && !message.isTemporaryId && (
+              <button
+                type="button"
+                onClick={() => onFork(message.id)}
+                title={t("fork")}
+                aria-label={t(forkingMessageId === message.id ? "forking" : "fork")}
+                disabled={forkingMessageId !== null}
+                aria-busy={forkingMessageId === message.id}
+                className={cn(
+                  TURN_ACTION,
+                  "focus-visible:opacity-100 disabled:cursor-wait sm:opacity-0 sm:group-hover:opacity-100",
+                  forkingMessageId === message.id && "sm:opacity-100",
+                )}
+              >
+                {forkingMessageId === message.id ? (
+                  <Loader2 className="animate-spin motion-reduce:animate-none" />
+                ) : (
+                  <GitBranch />
+                )}
+              </button>
+            )}
             {/* A rating is stored against the saved message; a turn that failed
                 before the server saved it has only a client id, which the
                 rating endpoint answers with "Message not found". */}
@@ -554,6 +598,7 @@ export const MessageItem = memo(function MessageItem({
                 currentRating={message.user_rating ?? null}
                 ratingCount={message.rating_count ?? undefined}
                 isAssistant={!isUser}
+                asked={asked}
                 onRatingChange={(updatedData) => {
                   updateMessage(message.id, (msg) => ({
                     ...msg,
@@ -604,6 +649,7 @@ function MessageBody({
   const t = useTranslations("chat");
   const parts = message.parts ?? [];
   const useParts = !isUser && parts.length > 0;
+  const setupPart = parts.find((part) => part.type === "model_setup");
   const legacyCalls = message.toolCalls ?? [];
 
   // "Thinking…" placeholder - shown until anything streams in.
@@ -629,10 +675,13 @@ function MessageBody({
         </div>
       )}
 
-      {useParts ? (
+      {!isUser && message.animateSetupReply && setupPart ? (
+        <ModelSetupReply text={message.content} agentId={setupPart.setupAgentId} />
+      ) : useParts ? (
         /* Ordered timeline: each part in arrival order, with runs of tool
            calls on one rail. The same component the hosted page renders. */
         <TurnParts
+          allowSetupActions
           parts={parts}
           isStreaming={Boolean(message.isStreaming)}
           isUser={isUser}

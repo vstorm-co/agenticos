@@ -21,7 +21,7 @@ import pytest
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
-from app.repositories import collection_teardown_repo, knowledge_base_repo
+from app.repositories import collection_teardown_repo, knowledge_base_repo, rag_document_repo
 from app.schemas.knowledge_base import KnowledgeBaseCreate, KnowledgeBaseUpdate
 from app.services.knowledge_base import KnowledgeBaseService
 from app.services.rag import embedding_providers
@@ -66,8 +66,15 @@ def service(monkeypatch: pytest.MonkeyPatch) -> KnowledgeBaseService:
     input the behaviour turns on.
     """
     monkeypatch.setattr(collection_teardown_repo, "is_reserved", AsyncMock(return_value=False))
+    # A name holding no unowned content (#2747); the claim reads it from the database.
+    monkeypatch.setattr(rag_document_repo, "holds_unfiled_outside", AsyncMock(return_value=False))
+    monkeypatch.setattr(
+        rag_document_repo, "table_holds_chunks_outside", AsyncMock(return_value=False)
+    )
     monkeypatch.setattr(knowledge_base_repo, "create", AsyncMock(side_effect=_created))
-    monkeypatch.setattr("app.services.collection_access.hold_name", AsyncMock())
+    monkeypatch.setattr(
+        "app.services.collection_access.hold_name_within", AsyncMock(return_value=True)
+    )
     # No endpoint is asked what it serves here; the tests that care read this mock.
     monkeypatch.setattr(embedding_providers, "require_served_at", AsyncMock())
     return KnowledgeBaseService(MagicMock())

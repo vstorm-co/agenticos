@@ -2,6 +2,7 @@ import { act, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { useAuthStore } from "@/stores/auth-store";
 import { qk } from "@/lib/query-keys";
 
 import { BlobbyWindow } from "./blobby-window";
@@ -12,6 +13,7 @@ const env = vi.hoisted(() => ({
   props: null as null | Record<string, unknown>,
   auth: { isAuthenticated: true, isLoading: false },
   report: vi.fn(),
+  reauthenticate: vi.fn(async () => {}),
   client: null as unknown,
 }));
 vi.mock("@/hooks/use-desktop", async () => {
@@ -23,7 +25,10 @@ vi.mock("@/hooks/use-desktop", async () => {
       env.listeners.set(event, handler),
   };
 });
-vi.mock("@/hooks/use-auth", () => ({ useAuth: () => env.auth }));
+vi.mock("@/hooks/use-auth", () => ({
+  useAuth: () => env.auth,
+  useReauthenticate: () => env.reauthenticate,
+}));
 vi.mock("@/hooks/use-blobby-activity", () => ({ useBlobbyActivity: () => ({ kind: "quiet" }) }));
 vi.mock("@/hooks/use-live-updates", () => ({ useLiveUpdates: () => {} }));
 vi.mock("@/hooks/use-reduced-motion", () => ({ useReducedMotion: () => false }));
@@ -103,4 +108,17 @@ describe("BlobbyWindow", () => {
     act(() => env.listeners.get("desktop:blobby-drop")?.("leave"));
     expect(env.props?.heard).toMatchObject({ id: 1 });
   });
+});
+
+it("checks the current session before a greeting from an out-of-date window", async () => {
+  env.auth = { isAuthenticated: false, isLoading: false };
+  mount();
+  await screen.findByText("blobby");
+  const check = env.props?.checkSession;
+  if (typeof check !== "function") throw new Error("Missing session check");
+  useAuthStore.setState({ isAuthenticated: true });
+  expect(await check()).toBe(true);
+  expect(env.reauthenticate).toHaveBeenCalled();
+  useAuthStore.setState({ isAuthenticated: false });
+  expect(await check()).toBe(false);
 });

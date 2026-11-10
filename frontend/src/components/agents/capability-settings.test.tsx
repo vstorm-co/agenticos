@@ -17,7 +17,8 @@ import en from "../../../messages/en.json";
 // name or a kind, and a stub that ignored them would assert against a message no
 // reader ever sees.
 const words = (key: string, values?: Record<string, string>): string => {
-  const message = (en.agents as Record<string, string>)[key] ?? key;
+  const found = (en.agents as Record<string, unknown>)[key];
+  const message = typeof found === "string" ? found : key;
   return Object.entries(values ?? {}).reduce(
     (filled, [name, value]) => filled.replaceAll(`{${name}}`, value),
     message,

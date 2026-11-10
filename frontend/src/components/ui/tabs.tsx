@@ -14,6 +14,28 @@ const TabsList = React.forwardRef<
 >(({ className, ...props }, ref) => {
   const strip = React.useRef<HTMLDivElement | null>(null);
   useScrollFade(strip);
+  React.useEffect(() => {
+    const list = strip.current;
+    if (!list) return;
+    const reveal = () => {
+      const active = list.querySelector<HTMLElement>('[role="tab"][data-state="active"]');
+      if (!active) return;
+      const bounds = list.getBoundingClientRect();
+      const tab = active.getBoundingClientRect();
+      // Move only the strip: scrollIntoView can also displace the whole page.
+      if (tab.left < bounds.left) list.scrollLeft += tab.left - bounds.left;
+      else if (tab.right > bounds.right) list.scrollLeft += tab.right - bounds.right;
+    };
+    reveal();
+    const selection = new MutationObserver(reveal);
+    selection.observe(list, { subtree: true, attributes: true, attributeFilter: ["data-state"] });
+    const size = new ResizeObserver(reveal);
+    size.observe(list);
+    return () => {
+      selection.disconnect();
+      size.disconnect();
+    };
+  }, []);
   return (
     <TabsPrimitive.List
       ref={(node) => {

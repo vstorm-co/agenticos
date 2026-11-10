@@ -49,7 +49,7 @@ describe("closing a staged invitation after sign-in", () => {
     expect(useOrgStore.getState().activeOrgId).toBe("org-acme");
 
     vi.advanceTimersByTime(2000);
-    expect(push).toHaveBeenCalledWith("/orgs");
+    expect(push).toHaveBeenCalledWith("/onboarding?welcome=1&entry=joined");
   });
 
   it("says a refused or expired invitation was refused", async () => {

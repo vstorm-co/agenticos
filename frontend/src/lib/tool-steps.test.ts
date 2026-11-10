@@ -101,7 +101,8 @@ describe("the line for one tool call", () => {
     expect(toolStep("load_capability", { id: "refund_policy" }, true, t).label).toBe(
       "Refund Policy",
     );
-    expect(toolStep("load_capability", {}, true, t).label).toBe("Load Skill");
+    expect(toolStep("load_capability", {}, true, t).label).toBe("Read Skill");
+    expect(toolStep("read_skill", { id: "refund_policy" }, true, t).label).toBe("Refund Policy");
   });
 
   it("carries the query or the URL as the detail beside a finished call", () => {
@@ -251,7 +252,7 @@ describe("reading a call's arguments", () => {
   });
 
   it("names a skill only when the call said which", () => {
-    expect(toolStep("load_capability", { id: "  " }, true, t).label).toBe("Load Skill");
+    expect(toolStep("load_capability", { id: "  " }, true, t).label).toBe("Read Skill");
   });
 
   it("reads a path under any name a tool gives it, and a query when there is none", () => {
@@ -290,4 +291,18 @@ it("leads platform steps with the operation and the nested object title", () => 
   );
   expect(step.label).toBe("Create task");
   expect(step.detail).toBe("Review supplier draft");
+});
+
+it("keeps external server captions without letting a renamed registry tool become an MCP step", () => {
+  const servers = [{ name: "Linear", url: "https://mcp.linear.app/mcp" }];
+  const external = { name: "linear_create_issue", presentation_kind: "generic" as const };
+  expect(toolStep(external.name, {}, true, t, servers, external)).toMatchObject({
+    kind: "mcp",
+    label: "Linear · Create issue",
+  });
+  const renamed = { name: "linear_create_issue", tool_id: "create_chart" };
+  expect(toolStep(renamed.name, {}, true, t, servers, renamed)).toMatchObject({
+    kind: "chart",
+    label: "Linear Create Issue",
+  });
 });

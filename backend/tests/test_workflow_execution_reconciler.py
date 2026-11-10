@@ -51,6 +51,10 @@ def repo():
     mocked.count_failed_attempts.return_value = 1
     mocked.list_live_node_states.return_value = []
     with (
+        patch(
+            "app.services.workflow_execution.approval_wake.agent_run_repo.list_approvals_for_run",
+            new=AsyncMock(return_value=[]),
+        ),
         patch("app.services.workflow_execution.run_status.workflow_run_repo", new=mocked),
         patch(f"{RECONCILER_PATH}.workflow_run_repo", new=mocked),
         patch("app.services.workflow_execution.dispatcher.workflow_run_repo", new=mocked),
@@ -353,6 +357,25 @@ async def _settle_effect(_db, *, attempt, status, result, cost, cost_is_partial,
 
 
 class TestWakeStaleApprovalDecisions:
+    async def test_a_later_unanswered_question_does_not_inherit_an_earlier_answers_wake(self, repo):
+        from types import SimpleNamespace
+
+        node = _node_run(waiting_reason="question", waiting_agent_run_id=uuid.uuid4())
+        repo.list_stale_approval_waits.return_value = []
+        repo.list_stale_question_waits.return_value = [node]
+        repo.get_run_by_id_for_update.return_value = _run()
+        repo.get_node_run_by_id_for_update.return_value = node
+        child = SimpleNamespace(status="awaiting_answer", paused_state={"question_results": {}})
+        with patch(
+            "app.services.workflow_execution.approval_wake.agent_run_repo.claim_parked_run",
+            AsyncMock(return_value=child),
+        ):
+            assert (
+                await WorkflowReconcilerService(_nested_txn_db()).wake_stale_approval_decisions()
+                == 0
+            )
+        repo.create_outbox.assert_not_called()
+
     async def test_inserts_an_outbox_row_for_each_stale_wait(self, repo):
         node_run = _node_run()
         run = _run(id=node_run.workflow_run_id)

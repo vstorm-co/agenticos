@@ -25,6 +25,7 @@ from app.core.exceptions import BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.models.suggestion import SuggestionKind
+from app.repositories.conversation import PersonRequest
 from app.repositories.member import SweepCandidate
 from app.schemas.user import WorkingHours
 from app.services.proactive import _role_pack, _thinker, _welcome
@@ -272,6 +273,22 @@ class TestThinking:
         assert isinstance(answer, NightlyReading)
         assert read == ["listed"]
 
+    async def test_the_run_can_be_dated_from_before_the_call(self):
+        """The nightly look reads first; its run says when it read, not when it asked."""
+        read_at = datetime.now(UTC) - timedelta(seconds=5)
+        get_slug, limits, version, profiles, create, finish = self._patches(TestModel())
+        with get_slug, limits, version, profiles, create as create_run, finish:
+            await ProactiveThinker(_session()).think(
+                _ctx(),
+                feature="nightly",
+                output_type=NightlyReading,
+                instructions="Read.",
+                prompt="{}",
+                started_at=read_at,
+            )
+
+        assert create_run.await_args.kwargs["started_at"] == read_at
+
     async def test_a_model_that_fails_leaves_a_failed_run_and_no_answer(self, recorded_manifest):
         def broken(_messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
             raise ModelHTTPError(status_code=500, model_name="claude")
@@ -464,11 +481,13 @@ def _user(**overrides):
     return SimpleNamespace(**values)
 
 
+def _request(content: str) -> PersonRequest:
+    return PersonRequest(MagicMock(content=content, created_at=datetime.now(UTC)), None)
+
+
 class TestTheNightlyLook:
     @staticmethod
-    def _patches(
-        *, user=None, member=True, agent=True, last=None, requests=(), reading=None, starters=None
-    ):
+    def _patches(*, user=None, member=True, agent=True, requests=(), reading=None, starters=None):
         thinker = MagicMock()
         thinker.starter_agent = AsyncMock(return_value=_agent() if agent else None)
         thinker.think = AsyncMock(return_value=reading)
@@ -487,16 +506,12 @@ class TestTheNightlyLook:
                     ),
                 ),
                 patch(
-                    f"{NIGHTLY}.agent_run_repo.last_proactive_run_at",
-                    new=AsyncMock(return_value=last),
-                ),
-                patch(
                     f"{NIGHTLY}.conversation_repo.person_requests_since",
                     new=AsyncMock(return_value=list(requests)),
                 ),
                 patch(f"{NIGHTLY}.memory_repo.list_for_owner", new=AsyncMock(return_value=[])),
                 patch(
-                    f"{NIGHTLY}.agent_trigger_repo.prompts_created_by",
+                    f"{NIGHTLY}.agent_trigger_repo.routine_prompts_for_screening",
                     new=AsyncMock(return_value=[]),
                 ),
                 patch(
@@ -512,6 +527,7 @@ class TestTheNightlyLook:
                     f"{NIGHTLY}.NotificationService",
                     return_value=MagicMock(suggestions_ready=AsyncMock()),
                 ),
+                patch(f"{NIGHTLY}.conversation_repo.mark_nightly_reads", new=AsyncMock()),
             ],
         }
 
@@ -528,7 +544,6 @@ class TestTheNightlyLook:
         names = [
             "get",
             "member",
-            "last",
             "requests",
             "notes",
             "routines",
@@ -537,11 +552,12 @@ class TestTheNightlyLook:
             "starters",
             "propose",
             "notify",
+            "mark_read",
         ]
         return made, setup["thinker"], dict(zip(names, started, strict=True))
 
     async def test_a_quiet_week_with_first_messages_written_costs_nothing(self):
-        made, thinker, _ = await self._look(starters=["a"], last=datetime.now(UTC), requests=())
+        made, thinker, _ = await self._look(starters=["a"], requests=())
 
         assert made == 0
         thinker.think.assert_not_awaited()
@@ -568,9 +584,7 @@ class TestTheNightlyLook:
         assert made == 0
 
     async def test_a_model_that_could_not_answer_proposes_nothing(self):
-        made, _, mocks = await self._look(
-            reading=None, requests=[MagicMock(content="x", created_at=datetime.now(UTC))]
-        )
+        made, _, mocks = await self._look(reading=None, requests=[_request("x")])
 
         assert made == 0
         mocks["propose"].assert_not_awaited()
@@ -600,9 +614,7 @@ class TestTheNightlyLook:
             role_pack="sales",
             role_pack_title="Pakiet sprzedaży",
         )
-        made, _, mocks = await self._look(
-            reading=reading, requests=[MagicMock(content="Raport", created_at=datetime.now(UTC))]
-        )
+        made, _, mocks = await self._look(reading=reading, requests=[_request("Raport")])
 
         assert made == 4
         # Kept on the membership: they come from this organization's week (Codex on #2324).
@@ -654,7 +666,7 @@ class TestTheNightlyLook:
     async def test_a_person_is_due_once_most_of_a_day_has_passed(self, last, due):
         now = datetime.now(UTC)
         with patch(
-            f"{NIGHTLY}.agent_run_repo.last_proactive_run_at",
+            f"{NIGHTLY}.agent_run_repo.last_nightly_run_at",
             new=AsyncMock(return_value=None if last is None else now - last),
         ):
             assert await NightlyLook(MagicMock()).due(ORG, USER, now=now) is due

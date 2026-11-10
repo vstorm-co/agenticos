@@ -4,15 +4,15 @@ The agent sees only names and one-line descriptions until it decides one is
 relevant, then loads the body. Twenty skills therefore cost almost nothing in
 context, and the twenty-first does not push the conversation out.
 
-That disclosure is the model's own, not a tool this platform writes. Each skill
-is a *deferred capability*: its name and description sit in the capability
-catalog, and `load_capability` - pydantic-ai's built-in - brings the instructions
-in. So the two tools this capability used to publish for that, `list_skills` and
-`load_skill`, are gone, and `read_skill_resource` is the one that remains.
+Each skill remains a native deferred capability. The platform adapter presents
+its catalog as available skills and opens its instructions with `read_skill`.
+`read_skill_resource` reads supporting files separately. There is no listing tool.
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from typing import Annotated, Any
+from uuid import UUID
 
 from pydantic import BaseModel, Field, ValidationError
 from pydantic_ai import ModelRetry
@@ -27,7 +27,7 @@ from app.db.models.skill import Skill
 
 # What this capability publishes as a tool. The catalog and the skill bodies are
 # not here because they are not tools: the model reads the first in its own
-# capability list and opens the second with `load_capability`.
+# capability list and opens the second with `read_skill`.
 #
 # `run_skill_script` is absent by construction, not merely unused: without a
 # sandbox it is remote code execution wearing a helpful name. A skill's scripts
@@ -37,9 +37,31 @@ from app.db.models.skill import Skill
 SAFE_SKILL_TOOLS = ("read_skill_resource",)
 
 
-def to_toolkit_skill(skill: Skill) -> ToolkitSkill:
+SKILL_BODIES_RESOURCE = "skill_bodies"
+"""Bodies that stand in for stored skills on this run, keyed by skill id.
+
+Set only by an eval that checks a proposed skill change: the candidate body is
+served where the stored one would be, and nothing is written to the skill.
+"""
+
+
+@dataclass(frozen=True)
+class SkillBody:
+    """A skill's description and instructions, as a proposal would leave them."""
+
+    description: str
+    content: str
+    name: str | None = None
+    """A name marks a new skill projected for this run only, with no stored row."""
+
+
+def to_toolkit_skill(skill: Skill, body: SkillBody | None = None) -> ToolkitSkill:
     """Convert a stored skill into what the capability consumes."""
-    converted = ToolkitSkill(name=skill.name, description=skill.description, content=skill.content)
+    converted = ToolkitSkill(
+        name=skill.name,
+        description=skill.description if body is None else body.description,
+        content=skill.content if body is None else body.content,
+    )
     for resource in skill.resources:
         content = _resource_content(resource.content)
         if isinstance(content, str):
@@ -96,7 +118,7 @@ SKILL_TEXTS: dict[str, ToolText] = {
             "templates, schemas, reference documents. Read one when the skill's "
             "instructions point at it by name, which is where the names come "
             "from - a loaded skill lists its files under 'Bundled files', and "
-            "a skill you have not opened with `load_capability` has none you "
+            "a skill you have not opened with `read_skill` has none you "
             "can reach. Long resources are paged: pass args with offset and limit "
             "(character counts, default limit 8000, maximum 20000). Read only the "
             "range needed for this task; do not reload an unchanged resource."
@@ -126,7 +148,7 @@ class Skills(SkillsCapability[AgentDepsT]):
     cleanup, a race between concurrent runs, and a path traversal surface.
     """
 
-    def __init__(self, skills: list[Skill]) -> None:
+    def __init__(self, skills: list[Skill], bodies: Mapping[UUID, SkillBody] | None = None) -> None:
         """Build the deferred catalog, and re-describe the tool it carries.
 
         A set of skills that ships no files carries no toolset at all - there is
@@ -137,9 +159,14 @@ class Skills(SkillsCapability[AgentDepsT]):
             skills: The stored skills resolved for this run. Must not be empty;
                 an agent with no skills gets no capability at all, which is what
                 keeps an unusable tool out of the list the model reads each turn.
+            bodies: Candidate bodies to serve instead of the stored ones, by id.
         """
+        candidates = bodies or {}
         super().__init__(
-            skills=[to_toolkit_skill(skill) for skill in skills],
+            skills=[
+                to_toolkit_skill(skill, candidates.get(skill.id) if candidates else None)
+                for skill in skills
+            ],
             # No second way to run things. See `SAFE_SKILL_TOOLS`.
             scripts=False,
         )
@@ -163,3 +190,6 @@ def _describe(toolset: FunctionToolset[Any]) -> None:
         text = SKILL_TEXTS.get(name)
         if text is not None:
             tool.description = text.render()
+            tool.function_schema.json_schema["properties"]["skill_name"]["description"] = (
+                "Name of the skill, exactly as it appears in available skills."
+            )

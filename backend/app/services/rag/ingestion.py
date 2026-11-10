@@ -5,7 +5,7 @@ from pathlib import Path
 from uuid import UUID
 
 from app.core.exceptions import AppException
-from app.db.vector_tables import VectorScope
+from app.db.vector_tables import VectorScope, VectorWriterKind
 from app.services.rag.documents import DocumentProcessor
 from app.services.rag.failures import IngestionStage, failure_summary
 from app.services.rag.models import Document, DocumentInfo, IngestionResult, IngestionStatus
@@ -56,7 +56,9 @@ class IngestionService:
         vector_store: BaseVectorStore,
         on_event: Callable[..., Awaitable[None]] | None = None,
         scope: VectorScope | None = None,
+        writer_kind: VectorWriterKind = VectorWriterKind.DOCUMENT,
     ):
+        self._writer_kind = writer_kind
         self.processor = processor
         self.store = vector_store
         self._on_event = on_event
@@ -240,15 +242,16 @@ class IngestionService:
                 )
 
             try:
+                document.metadata.writer_kind = self._writer_kind
                 await self.store.insert_document(
                     collection_name=collection_name,
                     document=document,
                     scope=self._scope,
                 )
             except KnowledgeBaseRemovedError as exc:
-                # Lost the race with the base's delete (#2561): expected, no traceback.
+                # Lost the race with a delete (#2561, #2747): expected, no traceback.
                 logger.info(
-                    "Skipping index for %s: its knowledge base or document is gone", filepath.name
+                    "Skipping index for %s: its base, document or table is going", filepath.name
                 )
                 return self._failed(
                     exc, stage=IngestionStage.INDEX, filename=filepath.name, refused=True

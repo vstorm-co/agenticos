@@ -2,10 +2,14 @@
 
 import type { KeyboardEvent } from "react";
 import { useCallback } from "react";
+import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 
-import { scopedGraph } from "./scope-view";
+import { currentScopeId, scopedGraph } from "./scope-view";
 
 import { copySelection, pasteClipboard } from "@/components/workflows/clipboard";
+import { pasteRefusal, type PasteRefusal } from "@/components/workflows/palette";
+import type { NodeDefinition } from "@/lib/workflows/types";
 import { useWorkflowEditorStore, type WorkflowEditorState } from "@/stores/workflow-editor-store";
 
 /** Where a paste lands relative to its source, so it does not cover the original. */
@@ -19,11 +23,41 @@ export function copyToClipboard(store: WorkflowEditorState): void {
   if (clip !== null) store.setClipboard(clip);
 }
 
-/** Paste the store clipboard back into the graph with fresh ids, if it holds one. */
-export function pasteFromClipboard(store: WorkflowEditorState): void {
-  if (store.clipboard === null) return;
-  const { clipboard } = pasteClipboard(store.clipboard, () => crypto.randomUUID(), PASTE_OFFSET);
+const PASTE_REFUSAL_KEYS: Record<PasteRefusal, "pasteRefusedTrigger" | "pasteRefusedTooDeep"> = {
+  "trigger-in-loop": "pasteRefusedTrigger",
+  "too-deep": "pasteRefusedTooDeep",
+};
+
+/**
+ * Paste the store clipboard back into the graph with fresh ids, if it holds one.
+ *
+ * Refused whole, leaving the graph and the clip as they were, when the scope being
+ * viewed could not take what the clip holds - see {@link pasteRefusal}.
+ */
+function pasteFromClipboard(
+  store: WorkflowEditorState,
+  catalog: readonly NodeDefinition[],
+): PasteRefusal | null {
+  if (store.clipboard === null) return null;
+  const refusal = pasteRefusal(store.clipboard.nodes, catalog, store.scopePath);
+  if (refusal !== null) return refusal;
+  const { clipboard } = pasteClipboard(
+    store.clipboard,
+    () => crypto.randomUUID(),
+    PASTE_OFFSET,
+    currentScopeId(store.scopePath),
+  );
   store.insertSubgraph(clipboard);
+  return null;
+}
+
+/** Paste from the store clipboard, saying why when the paste is refused. */
+export function usePasteFromClipboard(catalog: readonly NodeDefinition[]): () => void {
+  const t = useTranslations("workflows");
+  return useCallback(() => {
+    const refusal = pasteFromClipboard(useWorkflowEditorStore.getState(), catalog);
+    if (refusal !== null) toast.error(t(PASTE_REFUSAL_KEYS[refusal]));
+  }, [catalog, t]);
 }
 
 /** Whether a key went to a field someone is typing in, where it is text, not a shortcut. */
@@ -48,7 +82,9 @@ function isTyping(target: EventTarget | null): boolean {
 export function useCanvasShortcuts(
   readOnly: boolean,
   cancelConnect: () => void,
+  catalog: readonly NodeDefinition[],
 ): (event: KeyboardEvent) => void {
+  const paste = usePasteFromClipboard(catalog);
   return useCallback(
     (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -104,9 +140,9 @@ export function useCanvasShortcuts(
         if (event.currentTarget instanceof HTMLElement) event.currentTarget.focus();
       } else if (key === "v") {
         event.preventDefault();
-        pasteFromClipboard(store);
+        paste();
       }
     },
-    [readOnly, cancelConnect],
+    [readOnly, cancelConnect, paste],
   );
 }

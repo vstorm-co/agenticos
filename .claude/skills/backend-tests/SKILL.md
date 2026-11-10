@@ -103,6 +103,14 @@ field already stored as JSONB.
 For parser/routing changes, read the `rag-knowledge` skill; for stored JSONB
 validation changes, read `agent-spec` and `alembic-migration`.
 
+## Learnings
+
+Mark actual refusal tests with `@pytest.mark.security`; a coincidental keyword
+match belongs in `EXEMPT` in `tests/test_security_marker.py`, with its reason.
+When adding tests, include `.venv/bin/pytest tests/test_security_marker.py` alongside
+the touched files from `backend/`: its static inventory checks the whole tree even
+in a scoped run.
+
 ## Depth
 
 - `references/coverage-gate.md` — what is held to 100%, how the config selects it,

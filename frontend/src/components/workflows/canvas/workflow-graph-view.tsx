@@ -295,7 +295,7 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
     return () => cancelAnimationFrame(frame);
   }, [scopeKey, fitView, readOnly]);
 
-  const onKeyDown = useCanvasShortcuts(readOnly, cancelConnect);
+  const onKeyDown = useCanvasShortcuts(readOnly, cancelConnect, catalog);
 
   const insertAfter = useCallback(
     (

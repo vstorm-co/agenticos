@@ -15,6 +15,7 @@ from app.db.models.workflow_run import (
     WorkflowRunStatus,
     WorkflowRunTrigger,
 )
+from app.schemas.agent import ParkedQuestion
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.schemas.reply_expectation import ReplyExpectation
 from app.workflows.graph.model import pinned_output_fits
@@ -166,6 +167,20 @@ class WorkflowRunRead(BaseSchema, TimestampSchema):
 class WorkflowRunList(BaseSchema):
     items: list[WorkflowRunRead]
     total: int
+
+
+class WorkflowQuestionRead(BaseSchema):
+    """The questions one workflow step is waiting on the caller to answer.
+
+    The workflow run identifies the owner, including a synchronously called
+    workflow. The node run identifies its step and loop iteration; agent run
+    and tool call ids keep an answer attached to the saved conversation.
+    """
+
+    workflow_run_id: UUID
+    node_run_id: UUID
+    agent_run_id: UUID
+    questions: list[ParkedQuestion]
 
 
 class WorkflowNodeRunRead(BaseSchema):

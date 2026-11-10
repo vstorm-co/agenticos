@@ -9,7 +9,7 @@ import { Check, HelpCircle, SlidersHorizontal, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CodingAccounts } from "@/components/settings/coding-accounts";
+import { PersonalCodingAccount } from "@/components/settings/coding-accounts";
 import { RememberedApprovals } from "./remembered-approvals";
 import { ChatModelPicker } from "./chat-model-picker";
 import { WorkOn, ConversationNotifications } from "./work-on";
@@ -17,7 +17,8 @@ import { YourConnections } from "./your-connections";
 import { ContextHelp } from "@/components/ui/context-help";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useModelProviders, useOrganizationList, usePermissions } from "@/hooks";
-import { useOrgStore } from "@/stores";
+import { useAgentSelectionStore, useOrgStore } from "@/stores";
+import { useAgents } from "@/hooks/use-agents";
 import { useOnboardingStore } from "@/stores/onboarding-store";
 import type { PublishedModel } from "@/types/agents";
 import { Perm } from "@/types/permissions";
@@ -92,6 +93,24 @@ export function ChatControls({
   const [open, setOpen] = useState(false);
   const desktop = isDesktopShell(useShell());
   const [tab, setTab] = useState("model");
+  const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
+  const { agents } = useAgents();
+  const selectedAgent = agents.find((agent) => agent.id === selectedAgentId);
+  const personalHarness = selectedAgent?.personal_coding_harness ?? null;
+  // What the agent reaches, kept apart from the model it runs on: the folder,
+  // browser, screen and coding agent on the desktop, and the coding account an
+  // agent that codes on the person's own account needs anywhere.
+  // A delegate can need either personal harness, even when the selected agent
+  // has no coding binding itself. Keep both connection doors in that case.
+  const delegates =
+    (agentCapabilities ?? selectedAgent?.published_capabilities)?.includes("subagents") === true;
+  const harnesses = delegates
+    ? (["claude_code", "codex"] as const)
+    : personalHarness
+      ? [personalHarness]
+      : [];
+  const tools = desktop || harnesses.length > 0;
+  const selectedTab = !tools && tab === "tools" ? "model" : tab;
   const { profiles } = useModelProviders();
   const { can } = usePermissions();
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
@@ -185,17 +204,22 @@ export function ChatControls({
             <X className="size-4" aria-hidden />
           </button>
         </div>
-        <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col">
+        <Tabs value={selectedTab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col">
           <TabsList className="mx-5 shrink-0 gap-5">
-            <TabsTrigger value="model" className="px-0">
+            <TabsTrigger value="model" data-tour="chat-settings-model" className="px-0">
               {t("modelSection")}
             </TabsTrigger>
+            {tools && (
+              <TabsTrigger value="tools" data-tour="chat-settings-tools" className="px-0">
+                {t("toolsTab")}
+              </TabsTrigger>
+            )}
             <TabsTrigger value="preferences" data-tour="chat-settings-preferences" className="px-0">
               {t("preferencesTab")}
             </TabsTrigger>
           </TabsList>
           <div className="min-h-0 flex-1 scrollbar-thin overflow-y-auto overscroll-contain px-5 py-5">
-            <TabsContent value="model" forceMount hidden={tab !== "model"} className="mt-0">
+            <TabsContent value="model" forceMount hidden={selectedTab !== "model"} className="mt-0">
               <p className="text-muted-foreground mb-4 text-[13px] leading-5">
                 {t("whichModelRunsHere")}
               </p>
@@ -222,21 +246,24 @@ export function ChatControls({
                   {t("backAgentAposS")}
                 </button>
               )}
-
-              <CodingAccounts compact />
-              {desktop && (
-                <div className="mt-5 border-t pt-4">
-                  <p className="text-muted-foreground mb-3 text-[11px] font-medium tracking-wider uppercase">
-                    {t("toolsTab")}
-                  </p>
-                  <WorkOn agentCapabilities={agentCapabilities} />
-                </div>
-              )}
             </TabsContent>
+            {tools && (
+              <TabsContent
+                value="tools"
+                forceMount
+                hidden={selectedTab !== "tools"}
+                className="mt-0"
+              >
+                {harnesses.map((harness) => (
+                  <PersonalCodingAccount key={harness} harness={harness} />
+                ))}
+                {desktop && <WorkOn agentCapabilities={agentCapabilities} />}
+              </TabsContent>
+            )}
             <TabsContent
               value="preferences"
               forceMount
-              hidden={tab !== "preferences"}
+              hidden={selectedTab !== "preferences"}
               className="mt-0"
             >
               <div className="space-y-4" data-tour="chat-approval-mode">

@@ -15,6 +15,17 @@ export const LEVEL_OPTIONS: LevelOption[] = [
   { value: "edit", words: "levelEdit" },
 ];
 
+/**
+ * A level a resource no longer offers, worded to say why, for a grant that still holds it.
+ *
+ * A dataset's `use` gives no built-in role anything: running evals also needs
+ * permission to read runs, and every role that reads runs already runs every
+ * dataset. It comes back with custom roles; until then it is not offered.
+ */
+const RETIRED: Partial<Record<SharingResourceType, LevelOption>> = {
+  dataset: { value: "use", words: "levelUseNoEffect" },
+};
+
 /** A page's level above edit; no other resource type has an owner whose data it consents to. */
 const EDIT_DATA_OPTION: LevelOption = { value: "edit_data", words: "levelEditData" };
 
@@ -23,14 +34,18 @@ const EDIT_DATA_OPTION: LevelOption = { value: "edit_data", words: "levelEditDat
  *
  * Only a page has "Can edit, including data", and it is offered to a caller the
  * server said may give it (`mayGrantEditData`) - or kept in the list for a row that
- * holds it already, so the row can be read and moved down by any editor.
+ * holds it already, so the row can be read and moved down by any editor. A level
+ * the type has retired is offered only to a row that still holds it.
  */
 export function levelOptions(
   resourceType: SharingResourceType,
   { mayGrantEditData, held }: { mayGrantEditData: boolean; held?: GrantLevel },
 ): LevelOption[] {
+  const retired = RETIRED[resourceType];
+  const base = LEVEL_OPTIONS.filter((option) => option.value !== retired?.value);
+  const withRetired = retired !== undefined && held === retired.value ? [...base, retired] : base;
   const offered = resourceType === "artifact" && (mayGrantEditData || held === "edit_data");
-  return offered ? [...LEVEL_OPTIONS, EDIT_DATA_OPTION] : LEVEL_OPTIONS;
+  return offered ? [...withRetired, EDIT_DATA_OPTION] : withRetired;
 }
 
 /**
@@ -43,7 +58,6 @@ export const EDIT_DATA_WORDING = {
   user: "edit_data.person.v2",
   group: "edit_data.group.v2",
 } as const;
-
 /** Radix hands back a plain string; a level the catalog does not know is a bug, not a default. */
 export function toLevel(value: string): GrantLevel {
   const option = [...LEVEL_OPTIONS, EDIT_DATA_OPTION].find(

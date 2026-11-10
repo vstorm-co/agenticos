@@ -40,7 +40,7 @@ value is isolated to that request and its background children (#943).
 """
 
 
-_api_key: ContextVar[dict[str, str] | None] = ContextVar("audit_api_key", default=None)
+_api_key: ContextVar[dict[str, str | bool] | None] = ContextVar("audit_api_key", default=None)
 """The organization API key the current request authenticated with, or None.
 
 Set by the auth dependency for a key-authenticated request and folded into every
@@ -67,9 +67,16 @@ def set_acting_trigger(trigger_id: UUID, acting_as: UUID) -> None:
     _acting_trigger.set({"id": str(trigger_id), "acting_as": str(acting_as)})
 
 
-def set_api_key(api_key_id: UUID, prefix: str) -> None:
-    """Record which organization key this request authenticated with, for the audit trail."""
-    _api_key.set({"id": str(api_key_id), "prefix": prefix})
+def set_api_key(api_key_id: UUID, prefix: str, *, assistant: str | None = None) -> None:
+    """Record which organization key this request authenticated with, for the audit trail.
+
+    `assistant` names the in-app assistant whose run key it is, so an entry says the
+    Architect acted for the person rather than reading as the person at their desk.
+    """
+    entry: dict[str, str | bool] = {"id": str(api_key_id), "prefix": prefix}
+    if assistant is not None:
+        entry |= {"name": assistant, "internal": True}
+    _api_key.set(entry)
 
 
 def set_impersonator(impersonator_id: UUID | None) -> None:

@@ -4,6 +4,7 @@ import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { X } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
+import { notificationSummary } from "@/lib/notification-summary";
 
 import {
   Badge,
@@ -292,6 +293,7 @@ function NotificationRow({
 }) {
   const tTime = useTranslations("time");
   const tNotifications = useTranslations("notifications");
+  const tStop = useTranslations("improvement.stop");
   const locale = useLocale();
   const unread = item.read_at === null;
   const rowClassName =
@@ -328,7 +330,7 @@ function NotificationRow({
             unread ? "text-foreground font-medium" : "text-muted-foreground",
           )}
         >
-          {item.summary}
+          {notificationSummary(item, tNotifications, tStop)}
         </span>
         <NotificationMeta item={item}>{timeAgo(item.created_at, tTime, locale)}</NotificationMeta>
       </span>

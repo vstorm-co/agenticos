@@ -103,17 +103,19 @@ const DOC: KBDocument = {
  */
 function mockApi({
   failing,
+  canEdit = false,
   documents = [],
   syncSources = [],
   connectors = [],
 }: {
+  canEdit?: boolean;
   failing?: "sync-sources" | "connectors" | "documents";
   documents?: KBDocument[];
   syncSources?: ({ id: string; name: string } & Record<string, unknown>)[];
   connectors?: Record<string, unknown>[];
 } = {}) {
   vi.mocked(apiClient.get).mockImplementation((endpoint: string) => {
-    if (endpoint === `/kb/${KB_ID}`) return Promise.resolve(KB);
+    if (endpoint === `/kb/${KB_ID}`) return Promise.resolve({ ...KB, can_edit: canEdit });
     if (endpoint.startsWith(`/kb/${KB_ID}/documents`)) {
       return failing === "documents"
         ? Promise.reject(new Error("Bad gateway"))
@@ -189,6 +191,8 @@ beforeEach(() => {
   // next one mounting on that tab. A browser gets a fresh URL per navigation.
   window.history.replaceState({}, "", "/");
   vi.clearAllMocks();
+  perms.clear();
+  perms.add("collections:view");
   useOrgStore.setState({ activeOrgId: ORG_ID });
 });
 
@@ -329,6 +333,30 @@ describe("the three sections are tabs (#939)", () => {
 });
 
 describe("editing a sync source", () => {
+  it.each([false, true])("offers a manual sync only when is_active=%s", async (isActive) => {
+    mockApi({
+      canEdit: true,
+      syncSources: [{ id: "src-1", name: "Drive folder", is_active: isActive }],
+    });
+    vi.mocked(apiClient.post).mockResolvedValue({});
+
+    await renderPage();
+    await openTab("pages.kb.syncSources");
+    const trigger = await screen.findByRole("button", { name: "pages.kb.triggerSyncNow2" });
+
+    if (isActive) {
+      expect(trigger).toBeEnabled();
+    } else {
+      expect(trigger).toBeDisabled();
+      expect(trigger).toHaveAttribute("title", "pages.kb.sourcePaused");
+    }
+    await userEvent.click(trigger);
+    expect(apiClient.post).toHaveBeenCalledTimes(isActive ? 1 : 0);
+    if (isActive) {
+      expect(apiClient.post).toHaveBeenCalledWith(`/kb/${KB_ID}/sync-sources/src-1/trigger`);
+    }
+  });
+
   it("is not offered to a reader who cannot change the collection", async () => {
     mockApi({ syncSources: [{ id: "src-1", name: "Drive folder" }] });
 
@@ -343,6 +371,7 @@ describe("editing a sync source", () => {
     perms.add("collections:edit");
     try {
       mockApi({
+        canEdit: true,
         syncSources: [
           {
             id: "src-1",
@@ -369,6 +398,7 @@ describe("editing a sync source", () => {
     try {
       const source = { connector_type: "gdrive", config: {}, collection_name: "handbook" };
       mockApi({
+        canEdit: true,
         syncSources: [
           { id: "src-1", name: "Drive folder", ...source },
           { id: "src-2", name: "Wiki folder", ...source },
@@ -408,6 +438,47 @@ describe("editing a sync source", () => {
       expect(screen.getByLabelText("rag.sourceName")).toHaveValue("Wiki folder");
     } finally {
       perms.delete("collections:edit");
+    }
+  });
+});
+
+describe("write controls follow access to this base", () => {
+  it.each([false, true])("uses can_edit=%s even when the role disagrees", async (canEdit) => {
+    perms.clear();
+    perms.add("collections:view");
+    if (!canEdit) perms.add("collections:edit");
+    mockApi({
+      canEdit,
+      syncSources: [{ id: "src-1", name: "Drive folder" }],
+      connectors: [
+        {
+          type: "gdrive",
+          name: "Google Drive",
+          enabled: true,
+          config_schema: {},
+          secret_kind: "none",
+        },
+      ],
+    });
+    await renderPage();
+    await screen.findByRole("button", { name: "pages.kb.refresh" });
+    if (canEdit) {
+      expect(screen.getByRole("button", { name: "pages.kb.parseOptions" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "pages.kb.moreActions" })).toBeInTheDocument();
+    } else {
+      expect(
+        screen.queryByRole("button", { name: "pages.kb.parseOptions" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "pages.kb.moreActions" }),
+      ).not.toBeInTheDocument();
+    }
+    await openTab("pages.kb.syncSources");
+    await screen.findByText("Drive folder");
+    for (const name of ["connect", "editSource", "triggerSyncNow2", "removeSource2"]) {
+      const button = screen.queryByRole("button", { name: `pages.kb.${name}` });
+      if (canEdit) expect(button).toBeInTheDocument();
+      else expect(button).not.toBeInTheDocument();
     }
   });
 });

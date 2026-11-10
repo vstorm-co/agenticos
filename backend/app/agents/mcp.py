@@ -65,6 +65,10 @@ logger = logging.getLogger(__name__)
 # protocol round-trip, not of a deployment, and no installation ever tuned it.
 CONNECT_TIMEOUT_SECS = 3.0
 
+#: Tool metadata saying which side of an environment override a tool came from and
+#: whether its connection trusts the server's annotations. Stamped here after the
+#: server answered, so a server cannot claim either.
+MCP_ISOLATION = "agenticos_mcp"
 HANDSHAKE_TIMEOUT_SECS = 10.0
 """How long a probe's whole session may take: `initialize`, `initialized` and `tools/list`.
 
@@ -188,6 +192,8 @@ class McpServerSpec:
     headers: dict[str, str] = field(default_factory=dict)
     # None = expose every tool the server offers.
     allowed_tools: list[str] | None = None
+    test: bool = False
+    trust_read_only_hints: bool = False
     approval: McpApproval = "none"
     # Whether the server's `initialize` instructions join the agent's (the
     # connection's own opt-in; Pydantic AI leaves them out by default).
@@ -464,9 +470,11 @@ def _make_toolset(spec: McpServerSpec) -> Any:
     if spec.allowed_tools is not None:
         allowed = set(spec.allowed_tools)
         server = server.filtered(lambda _ctx, tool: tool.name in allowed)
+    origin = {"test": spec.test, "trust_read_only_hints": spec.trust_read_only_hints}
     return ApprovalMarked(
-        FittedNames(server.prefixed(prefix)),
+        FittedNames(server.prefixed(prefix).with_metadata(**{MCP_ISOLATION: origin})),
         policy=spec.approval,
+        in_process=spec.in_process,
         account=spec.account,
         ungated=frozenset(f"{prefix}_{name}" for name in spec.ungated),
     )
@@ -532,6 +540,9 @@ Top-level in the metadata for the reason `NEEDS_APPROVAL` is: a server cannot wr
 there, so it cannot claim to be another account.
 """
 
+PLATFORM_TOOL = "agenticos_platform_tool"
+"""Set only by the in-process transport, never by a server-provided annotation."""
+
 NEEDS_APPROVAL = "agenticos_needs_approval"
 """The key `ApprovalMarked` sets on a tool's metadata, and `ApprovalGate` reads (#2060).
 
@@ -559,6 +570,7 @@ class ApprovalMarked(WrapperToolset[Any]):
     """An MCP server's tools, each marked with whether it waits for approval."""
 
     policy: McpApproval = "none"
+    in_process: bool = False
     account: str | None = None
     ungated: frozenset[str] = frozenset()
 
@@ -572,6 +584,7 @@ class ApprovalMarked(WrapperToolset[Any]):
                     tool.tool_def,
                     metadata={
                         **(tool.tool_def.metadata or {}),
+                        PLATFORM_TOOL: self.in_process,
                         NEEDS_APPROVAL: name not in self.ungated
                         and needs_approval(tool.tool_def, self.policy),
                         **named,

@@ -482,7 +482,7 @@ from app.api.embed_cors import allow_embed_origin
 from app.core.audit import set_api_key
 from app.core.security import encode_untrusted, verify_token
 from app.db.models.user import User
-from app.api.public_api import is_public_route
+from app.api.public_api import ASSISTANT_SURFACES, is_assistant_route, is_public_route
 from app.services.api_key import ApiKeyService, KeyCaller, is_api_key
 from app.services.assistant import AssistantService
 from app.services.oauth_server import OAuthServerService
@@ -561,11 +561,13 @@ async def _authenticate_api_key(request: Request, token: str, api_keys: ApiKeySe
     request for :func:`get_auth_context`, which every public route depends on.
     """
     route = request.scope.get("route")
-    if not is_public_route(route):
-        raise AuthorizationError(
-            message="API keys are not accepted on this endpoint",
-            details={"path": getattr(route, "path", request.url.path)},
-        )
+    public = is_public_route(route)
+    refusal = AuthorizationError(
+        message="API keys are not accepted on this endpoint",
+        details={"path": getattr(route, "path", request.url.path)},
+    )
+    if not public and not is_assistant_route(route):
+        raise refusal
     refused = await rate_limit.key_attempt_refused(request, token)
     if refused is not None:
         _refuse_if_over(*refused)
@@ -574,8 +576,14 @@ async def _authenticate_api_key(request: Request, token: str, api_keys: ApiKeySe
     except AuthenticationError:
         await rate_limit.count_refused_key(request)
         raise
+    if not public and caller.surface not in ASSISTANT_SURFACES:
+        raise refusal
     request.state.api_key_caller = caller
-    set_api_key(caller.api_key_id, caller.prefix)
+    set_api_key(
+        caller.api_key_id,
+        caller.prefix,
+        assistant=caller.name if caller.surface == "assistant" else None,
+    )
     return caller.user
 
 
@@ -795,6 +803,16 @@ def get_agent_registry_service(db: DBSession) -> AgentRegistryService:
 
 AgentRegistrySvc = Annotated[AgentRegistryService, Depends(get_agent_registry_service)]
 
+from app.services.system_agents import SystemAgentService as EvalHelperService
+
+
+def get_eval_helper_service(db: DBSession) -> EvalHelperService:
+    """Create SystemAgentService instance with database session."""
+    return EvalHelperService(db)
+
+
+EvalHelperSvc = Annotated[EvalHelperService, Depends(get_eval_helper_service)]
+
 
 from app.services.knowledge_reach import KnowledgeReachService
 
@@ -933,6 +951,75 @@ def get_context_service(db: DBSession) -> ContextService:
 
 ContextSvc = Annotated[ContextService, Depends(get_context_service)]
 
+from app.services.dataset import DatasetService
+
+
+def get_dataset_service(db: DBSession) -> DatasetService:
+    """Create DatasetService instance with database session."""
+    return DatasetService(db)
+
+
+DatasetSvc = Annotated[DatasetService, Depends(get_dataset_service)]
+
+from app.services.knowledge_gaps import KnowledgeGapService
+
+
+def get_knowledge_gap_service(db: DBSession) -> KnowledgeGapService:
+    """Create KnowledgeGapService instance with database session."""
+    return KnowledgeGapService(db)
+
+
+KnowledgeGapSvc = Annotated[KnowledgeGapService, Depends(get_knowledge_gap_service)]
+from app.services.scoring import ScoringService
+
+
+def get_scoring_service(db: DBSession) -> ScoringService:
+    """Create ScoringService instance with database session."""
+    return ScoringService(db)
+
+
+ScoringSvc = Annotated[ScoringService, Depends(get_scoring_service)]
+
+from app.services.eval_run import EvalRunService
+
+
+def get_eval_run_service(db: DBSession) -> EvalRunService:
+    """Create EvalRunService instance with database session."""
+    return EvalRunService(db)
+
+
+EvalRunSvc = Annotated[EvalRunService, Depends(get_eval_run_service)]
+
+from app.services.eval_suite import EvalSuiteService
+
+
+def get_eval_suite_service(db: DBSession) -> EvalSuiteService:
+    """Create EvalSuiteService instance with database session."""
+    return EvalSuiteService(db)
+
+
+EvalSuiteSvc = Annotated[EvalSuiteService, Depends(get_eval_suite_service)]
+
+from app.services.promotion_gate import PromotionGateService
+
+
+def get_promotion_gate_service(db: DBSession) -> PromotionGateService:
+    """Create PromotionGateService instance with database session."""
+    return PromotionGateService(db)
+
+
+PromotionGateSvc = Annotated[PromotionGateService, Depends(get_promotion_gate_service)]
+
+
+from app.services.authoring import AuthoringService
+
+
+def get_authoring_service(db: DBSession) -> AuthoringService:
+    """Create AuthoringService instance with database session."""
+    return AuthoringService(db)
+
+
+AuthoringSvc = Annotated[AuthoringService, Depends(get_authoring_service)]
 from app.services.virtual_tables import VirtualTableService
 
 
@@ -1077,6 +1164,15 @@ def get_skill_proposal_service(db: DBSession) -> SkillProposalService:
 
 SkillProposalSvc = Annotated[SkillProposalService, Depends(get_skill_proposal_service)]
 
+from app.services.context_proposal import ContextProposalService
+
+
+def get_context_proposal_service(db: DBSession) -> ContextProposalService:
+    """Create ContextProposalService instance with database session."""
+    return ContextProposalService(db)
+
+
+ContextProposalSvc = Annotated[ContextProposalService, Depends(get_context_proposal_service)]
 from app.services.workflow_registry import WorkflowRegistryService
 
 
@@ -1449,6 +1545,26 @@ async def limit_table_write(ctx: Auth) -> None:
         limit=rate_limit.table_write_limit(),
     )
     _refuse_if_over(decision, "Too many table writes in the last minute. Wait and try again.")
+
+
+async def limit_fork(ctx: Auth) -> None:
+    """Refuse a member forking conversations faster than the deployment allows.
+
+    Keyed on the member and the organization, as table writes are, and for the
+    same reason: each fork stores a copy of a whole conversation, so this is a
+    storage boundary and keeps a per-process floor while the shared limiter
+    cannot count.
+
+    Usage::
+
+        @router.post("/{conversation_id}/fork", dependencies=[Depends(limit_fork)])
+    """
+    decision = await rate_limit.consume_with_local_floor(
+        surface="conversation_fork",
+        caller=f"org:{ctx.organization_id}:user:{ctx.subject_id}",
+        limit=rate_limit.fork_limit(),
+    )
+    _refuse_if_over(decision, "Too many forks in the last minute. Wait and try again.")
 
 
 async def limit_artifact_data(ctx: Auth, rows: bool = Query(True)) -> None:
@@ -1973,6 +2089,28 @@ def get_vectorstore(request: Request, embedder: EmbeddingSvc) -> BaseVectorStore
 
 VectorStoreSvc = Annotated[BaseVectorStore, Depends(get_vectorstore)]
 
+from app.services.case_generation import CaseGenerationService
+
+
+def get_case_generation_service(
+    db: DBSession, vector_store: VectorStoreSvc
+) -> CaseGenerationService:
+    """Create CaseGenerationService instance with database session."""
+    return CaseGenerationService(db, vector_store=vector_store)
+
+
+CaseGenerationSvc = Annotated[CaseGenerationService, Depends(get_case_generation_service)]
+
+from app.services.agent_test_set import AgentTestSetService
+
+
+def get_agent_test_set_service(db: DBSession, vector_store: VectorStoreSvc) -> AgentTestSetService:
+    """Create AgentTestSetService instance with database session."""
+    return AgentTestSetService(db, vector_store=vector_store)
+
+
+AgentTestSetSvc = Annotated[AgentTestSetService, Depends(get_agent_test_set_service)]
+
 
 def get_organization_teardown_service(
     db: DBSession, vector_store: VectorStoreSvc
@@ -2215,6 +2353,17 @@ def prefers_async(
 
 PrefersAsync = Annotated[bool, Depends(prefers_async)]
 
+
+from app.services.improvement_pipeline import ImprovementPipelineService
+
+
+def get_improvement_service(db: DBSession) -> ImprovementPipelineService:
+    return ImprovementPipelineService(db)
+
+
+ImprovementSvc = Annotated[ImprovementPipelineService, Depends(get_improvement_service)]
+
+
 from app.services.project_workspace_transfer import ProjectWorkspaceTransferService
 
 
@@ -2277,3 +2426,13 @@ def get_coding_account_service(db: DBSession) -> CodingAccountService:
 
 
 CodingAccountSvc = Annotated[CodingAccountService, Depends(get_coding_account_service)]
+
+
+from app.services.onboarding import OnboardingService
+
+
+def get_onboarding_service(db: DBSession) -> OnboardingService:
+    return OnboardingService(db)
+
+
+OnboardingSvc = Annotated[OnboardingService, Depends(get_onboarding_service)]

@@ -67,6 +67,22 @@ function graphLevel(code: RawProblem["code"]): RawProblem {
 export function danglingReferences(graph: WorkflowGraph): RawProblem[] {
   const ids = nodeIds(graph);
   const problems: RawProblem[] = [];
+  const ownerOf = new Map(graph.nodes.map((n) => [n.id, n.scope_id ?? null] as const));
+  for (const n of graph.nodes) {
+    if (n.scope_id == null) continue;
+    if (!ids.has(n.scope_id)) {
+      problems.push(node(n.id, "loop-scope-missing"));
+      continue;
+    }
+    // A loop named inside itself would send every walk up its loops round forever.
+    const seen = new Set([n.id]);
+    let owner: string | null = n.scope_id;
+    while (owner !== null && !seen.has(owner)) {
+      seen.add(owner);
+      owner = ownerOf.get(owner) ?? null;
+    }
+    if (owner !== null) problems.push(node(n.id, "loop-scope-cycle"));
+  }
   for (const e of graph.edges) {
     if (!ids.has(e.source_node_id)) problems.push(edge(e.id, "edge-source-node-missing"));
     if (!ids.has(e.target_node_id)) problems.push(edge(e.id, "edge-target-node-missing"));
@@ -578,16 +594,12 @@ export function rule6NestedScopeBoundaries(
   scopes: readonly ScopeBoundary[],
   nodeScope: Map<string, string>,
 ): RawProblem[] {
-  const entryBoundary = new Map<string, ScopeBoundary>();
   const exitBoundary = new Map<string, ScopeBoundary>();
-  for (const scope of scopes) {
-    entryBoundary.set(scope.scope_node_id, scope);
-    exitBoundary.set(scope.exit_node_id, scope);
-  }
+  for (const scope of scopes) exitBoundary.set(scope.exit_node_id, scope);
   const problems: RawProblem[] = [];
   for (const e of graph.edges) {
     if (nodeScope.get(e.source_node_id) === nodeScope.get(e.target_node_id)) continue;
-    if (isSanctionedBoundaryEdge(e, entryBoundary, exitBoundary)) continue;
+    if (isScopeExitEdge(e, exitBoundary)) continue;
     problems.push(edge(e.id, "edge-crosses-scope"));
   }
   for (const { binding, ref } of outputReads(graph)) {
@@ -600,15 +612,55 @@ export function rule6NestedScopeBoundaries(
   return problems;
 }
 
-function isSanctionedBoundaryEdge(
-  e: WorkflowEdge,
-  entryBoundary: Map<string, ScopeBoundary>,
-  exitBoundary: Map<string, ScopeBoundary>,
-): boolean {
-  const entryScope = entryBoundary.get(e.source_node_id);
-  if (entryScope !== undefined && e.source_port === entryScope.entry_port) return true;
+/** A scope's exit, the one edge allowed out of a body. No edge crosses into one. */
+function isScopeExitEdge(e: WorkflowEdge, exitBoundary: Map<string, ScopeBoundary>): boolean {
   const exitScope = exitBoundary.get(e.source_node_id);
   return exitScope !== undefined && e.source_port === exitScope.exit_port;
+}
+
+/**
+ * A step names a loop that is one, and every step directly in a loop's body is
+ * reached from its `loop.item` by the body's own wires - the body's counterpart of
+ * the reachability rule, since nothing wires a body to its loop. Mirrors the
+ * scope checks of the server's rule 11; a body with no single item is the server's
+ * to report.
+ */
+export function loopBodyProblems(
+  graph: WorkflowGraph,
+  definitions: DefinitionMap,
+  nodeScope: Map<string, string>,
+): RawProblem[] {
+  const problems: RawProblem[] = [];
+  for (const n of graph.nodes) {
+    if (n.scope_id == null) continue;
+    const named = definitionFor(definitions, n.scope_id);
+    if (named !== null && !(named.kind === "control" && named.id.startsWith("control."))) {
+      problems.push(node(n.id, "loop-scope-not-a-loop"));
+    }
+  }
+  const adjacency = forwardEdges(graph);
+  for (const loop of graph.nodes) {
+    if (loop.definition_id !== "control.foreach") continue;
+    const direct = graph.nodes.filter((n) => nodeScope.get(n.id) === loop.id);
+    const items = direct.filter((n) => n.definition_id === "loop.item");
+    const [item] = items;
+    if (items.length !== 1 || item === undefined) continue;
+    const members = new Set(direct.map((n) => n.id));
+    const seen = new Set<string>();
+    const queue = [item.id];
+    while (queue.length > 0) {
+      const current = queue.shift() as string;
+      if (seen.has(current)) continue;
+      seen.add(current);
+      for (const e of adjacency.get(current) ?? []) {
+        if (members.has(e.target_node_id)) queue.push(e.target_node_id);
+      }
+    }
+    for (const n of direct) {
+      if (!seen.has(n.id)) problems.push(node(n.id, "loop-body-unreachable"));
+    }
+  }
+  return problems;
 }
 
 // Rule 7 — no cycles.

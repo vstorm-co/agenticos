@@ -41,6 +41,14 @@ _TOO_LONG = "a" * (MAX_COLLECTION_NAME_LENGTH + 1)
 
 
 @pytest.fixture(autouse=True)
+def _a_free_name(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These run on a stand-in session, which has no savepoint for the bounded wait."""
+    monkeypatch.setattr(
+        "app.services.collection_access.hold_name_within", AsyncMock(return_value=True)
+    )
+
+
+@pytest.fixture(autouse=True)
 def caller() -> None:
     """An owner, so nothing here is refused for want of a permission.
 
@@ -164,6 +172,10 @@ class TestDroppingACollection:
             "app.repositories.rag_document_repo.delete_by_knowledge_base", documents
         )
         unfiled = AsyncMock(return_value=DeletedDocuments(storage_paths=[], vector_document_ids=[]))
+        monkeypatch.setattr(
+            "app.repositories.rag_document_repo.table_holds_unfiled_outside",
+            AsyncMock(return_value=False),
+        )
         monkeypatch.setattr(
             "app.repositories.rag_document_repo.delete_unfiled_with_vectors", unfiled
         )

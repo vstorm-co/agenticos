@@ -8,13 +8,18 @@ import { useAgents } from "@/hooks";
 import { consoleLink, pointAt } from "@/lib/assistant-highlight";
 import { buildAssistantParts } from "@/lib/conversation-to-chat";
 import { dayLabel, startsADay } from "@/lib/day-separator";
-import type { ChatMessage, TurnUsage } from "@/types";
+import type { AskedBefore } from "@/components/datasets/follows-on";
+import type { ChatMessage, TurnUsage, Delegation } from "@/types";
 import type { PinnedPrompts } from "./chat-container";
 import { MessageItem } from "./message-item";
 
 interface MessageListProps {
   messages: ChatMessage[];
+  delegations?: Delegation[];
   onRegenerate?: (messageId: string) => void;
+  /** Fork the conversation at this answer; absent where the reader may not (#2762). */
+  onFork?: (messageId: string) => void;
+  forkingMessageId?: string | null;
   /** The test panel's pinned questions; a question here can be pinned or taken off. */
   pins?: PinnedPrompts;
 }
@@ -76,6 +81,20 @@ export function continuesTurn(messages: ChatMessage[], index: number): boolean {
     return message.runId === previous.runId;
   }
   return message.groupId !== undefined && message.groupId === previous.groupId;
+}
+
+/**
+ * The question an assistant message replied to, and whether anything came before it.
+ *
+ * Undefined for a user message, or an answer with no question above it.
+ */
+export function askedBefore(messages: ChatMessage[], index: number): AskedBefore | undefined {
+  if (messages[index]?.role !== "assistant") return undefined;
+  for (let at = index - 1; at >= 0; at--) {
+    const message = messages[at];
+    if (message?.role === "user") return { question: message.content, earlier: at > 0 };
+  }
+  return undefined;
 }
 
 /** Whether the turn ends here, so the time and the cost belong under this message. */
@@ -201,7 +220,14 @@ export function layoutMessages(messages: ChatMessage[]): MessageLayout[] {
   });
 }
 
-export function MessageList({ messages: sourceMessages, onRegenerate, pins }: MessageListProps) {
+export function MessageList({
+  messages: sourceMessages,
+  delegations,
+  onRegenerate,
+  onFork,
+  forkingMessageId = null,
+  pins,
+}: MessageListProps) {
   const messages = useMemo(() => coalesceActivity(sourceMessages), [sourceMessages]);
   // Agents are resolved here rather than stamped onto the message, so a renamed
   // agent is labelled by its current name and a new picture appears on old
@@ -253,6 +279,7 @@ export function MessageList({ messages: sourceMessages, onRegenerate, pins }: Me
           )}
           <MessageItem
             message={message}
+            delegations={index === lastAssistantIndex ? delegations : undefined}
             agent={message.agentId ? byId.get(message.agentId) : undefined}
             groupPosition={row.groupPosition}
             continuesTurn={row.continuesTurn}
@@ -261,7 +288,10 @@ export function MessageList({ messages: sourceMessages, onRegenerate, pins }: Me
             openLastStep={index === openStepsAt}
             pins={pins}
             agents={agents}
+            asked={askedBefore(messages, index)}
             request={pins ? undefined : row.request}
+            onFork={onFork}
+            forkingMessageId={forkingMessageId}
             onRegenerate={
               onRegenerate && index === lastAssistantIndex && !message.isStreaming
                 ? regenerateLast

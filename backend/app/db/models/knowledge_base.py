@@ -24,6 +24,14 @@ class KnowledgeBase(TimestampMixin, Base):
 
     __tablename__ = "knowledge_bases"
 
+    gap_drafter_agent_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), nullable=True
+    )
+
+    gap_classifier_agent_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), nullable=True
+    )
+
     id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
@@ -124,13 +132,14 @@ class KnowledgeBase(TimestampMixin, Base):
         Its own chunks, and the unfiled chunks its tenant holds - except for a
         personal base outside any organization, whose tenant `None` is the app
         scope's: its own chunks are always filed under it, and the unfiled ones
-        with no tenant belong to the app-scoped base that shares the name.
+        with no tenant need explicit operator provenance to join an app-scoped base.
         """
         tenant = self.vector_tenant
         return VectorScope(
             tenant=tenant,
             knowledge_base_id=self.id,
             takes_unfiled=self.scope == KBScope.APP.value or tenant is not None,
+            operator_unfiled_only=tenant is None,
         )
 
     def __repr__(self) -> str:

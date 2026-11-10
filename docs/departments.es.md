@@ -1,5 +1,5 @@
 ---
-source_sha: "5f28c27a069e"
+source_sha: "a73281723216"
 ---
 
 # Departamentos y grupos { #departments-and-groups }
@@ -88,7 +88,7 @@ el nivel al que compartir. Cada una es la misma concesión que escribe el panel
 Share, así que necesita el mismo derecho a editar.
 
 Los miembros reciben un aviso cuando algo se comparte con su grupo - en la bandeja
-y, si lo quieren, por correo; *Shared with your group* en los ajustes de
+y, si lo quieren, por correo; *Shared with you or your group* en los ajustes de
 notificaciones lo desactiva. Las tarjetas de toda la consola dicen para quién es
 cada cosa: *Everyone*, sus departamentos por nombre - ambos cuando es para todos y
 pertenece a un departamento - o *Private*.

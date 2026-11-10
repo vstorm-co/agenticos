@@ -81,6 +81,9 @@ async def create_run(
     started_at: datetime,
     run_input: dict[str, Any] | None = None,
     reply_conversation_id: UUID | None = None,
+    source_conversation_id: UUID | None = None,
+    source_message_id: UUID | None = None,
+    has_chat_source: bool = False,
     retry_of_run_id: UUID | None = None,
     parent_node_run_id: UUID | None = None,
     timezone: str = "UTC",
@@ -126,6 +129,9 @@ async def create_run(
         input=run_input or {},
         inline_result_bytes=inline_result_bytes,
         reply_conversation_id=reply_conversation_id,
+        source_conversation_id=source_conversation_id,
+        source_message_id=source_message_id,
+        has_chat_source=has_chat_source or source_message_id is not None,
         retry_of_run_id=retry_of_run_id,
         parent_node_run_id=parent_node_run_id,
         depth=depth,
@@ -687,7 +693,11 @@ async def count_waiting_on_people(
             WorkflowRun.workflow_id.in_(visible),
             WorkflowRun.mode == "real",
             WorkflowRun.status.in_(
-                (WorkflowRunStatus.WAITING_APPROVAL.value, WorkflowRunStatus.NEEDS_ATTENTION.value)
+                (
+                    WorkflowRunStatus.WAITING_APPROVAL.value,
+                    WorkflowRunStatus.WAITING_FOR_USER.value,
+                    WorkflowRunStatus.NEEDS_ATTENTION.value,
+                )
             ),
         )
     )
@@ -894,6 +904,89 @@ async def find_node_run_waiting_on_agent_run(
     return result.scalar_one_or_none()
 
 
+async def find_node_run_for_agent_run(
+    db: AsyncSession, agent_run_id: UUID, *, organization_id: UUID
+) -> NodeRun | None:
+    """The workflow step that owns this agent run, including an executing step."""
+    result = await db.execute(
+        select(NodeRun)
+        .where(
+            NodeRun.waiting_agent_run_id == agent_run_id,
+            NodeRun.organization_id == organization_id,
+        )
+        .order_by(NodeRun.created_at)
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def list_question_waits(db: AsyncSession, *, workflow_run_id: UUID) -> list[NodeRun]:
+    """The agent steps of a run currently parked on questions."""
+    result = await db.execute(
+        select(NodeRun)
+        .where(
+            NodeRun.workflow_run_id == workflow_run_id,
+            NodeRun.status == NodeRunStatus.WAITING.value,
+            NodeRun.waiting_reason == WaitingReason.QUESTION.value,
+            NodeRun.waiting_agent_run_id.is_not(None),
+        )
+        .order_by(NodeRun.created_at, NodeRun.id)
+    )
+    return list(result.scalars().all())
+
+
+async def list_waited_child_runs(
+    db: AsyncSession, *, workflow_run_id: UUID, organization_id: UUID
+) -> list[WorkflowRun]:
+    """Active child runs whose caller is synchronously waiting for their answer."""
+    terminal = [status.value for status in WorkflowRunStatus if status.is_terminal]
+    result = await db.execute(
+        select(WorkflowRun)
+        .join(NodeRun, NodeRun.id == WorkflowRun.parent_node_run_id)
+        .where(
+            NodeRun.workflow_run_id == workflow_run_id,
+            NodeRun.organization_id == organization_id,
+            NodeRun.status == NodeRunStatus.WAITING.value,
+            NodeRun.waiting_reason == WaitingReason.EXTERNAL_EVENT.value,
+            WorkflowRun.organization_id == organization_id,
+            WorkflowRun.status.not_in(terminal),
+        )
+        .order_by(WorkflowRun.created_at, WorkflowRun.id)
+    )
+    return list(result.scalars().all())
+
+
+async def list_stale_question_waits(db: AsyncSession, *, limit: int = 100) -> list[NodeRun]:
+    """Question waits with accepted answers or an ended child, and no queued continuation."""
+    live_outbox = select(DispatchOutbox.node_run_id).where(
+        DispatchOutbox.status.in_(
+            [DispatchOutboxStatus.PENDING.value, DispatchOutboxStatus.CLAIMED.value]
+        )
+    )
+    terminal = [status.value for status in WorkflowRunStatus if status.is_terminal]
+    answered = AgentRun.paused_state["question_results"].astext.not_in(["{}", "null"])
+    result = await db.execute(
+        select(NodeRun)
+        .join(
+            AgentRun,
+            (AgentRun.id == NodeRun.waiting_agent_run_id)
+            & (AgentRun.organization_id == NodeRun.organization_id),
+        )
+        .join(WorkflowRun, WorkflowRun.id == NodeRun.workflow_run_id)
+        .where(
+            NodeRun.status == NodeRunStatus.WAITING.value,
+            NodeRun.waiting_reason == WaitingReason.QUESTION.value,
+            AgentRun.status != RunStatus.RUNNING.value,
+            or_(AgentRun.status != RunStatus.AWAITING_ANSWER.value, answered),
+            WorkflowRun.status.not_in(terminal),
+            NodeRun.id.not_in(live_outbox),
+        )
+        .order_by(NodeRun.workflow_run_id, NodeRun.id)
+        .limit(limit)
+    )
+    return list(result.scalars().all())
+
+
 async def list_stale_approval_waits(db: AsyncSession, *, limit: int = 100) -> list[NodeRun]:
     """`NodeRun`s parked on an approval every blocking decision has already answered.
 
@@ -990,11 +1083,13 @@ async def create_attempt(
     retry_guarantee: str | None,
     started_at: datetime,
     reserved_usd: Decimal | None = None,
+    agent_run_id: UUID | None = None,
 ) -> NodeAttempt:
     attempt = NodeAttempt(
         organization_id=organization_id,
         node_run_id=node_run_id,
         attempt_no=attempt_no,
+        agent_run_id=agent_run_id,
         idempotency_key=idempotency_key,
         retry_guarantee=retry_guarantee,
         reserved_usd=reserved_usd,
@@ -1106,6 +1201,28 @@ async def settle_attempt(
     await db.flush()
     await db.refresh(attempt)
     return attempt
+
+
+async def link_attempt_agent_run(
+    db: AsyncSession, *, attempt: NodeAttempt, agent_run_id: UUID
+) -> None:
+    """Attach the child before admission commits, preserving historical ownership."""
+    attempt.agent_run_id = agent_run_id
+    db.add(attempt)
+    await db.flush()
+    await db.refresh(attempt)
+
+
+async def booked_agent_segments(
+    db: AsyncSession, *, node_run_id: UUID, agent_run_id: UUID
+) -> Decimal:
+    """Spend booked for this exact child, across all of its continuation segments."""
+    total = await db.scalar(
+        select(func.coalesce(func.sum(NodeAttempt.cost), 0)).where(
+            NodeAttempt.node_run_id == node_run_id, NodeAttempt.agent_run_id == agent_run_id
+        )
+    )
+    return Decimal(total or 0)
 
 
 async def sum_in_flight_reservations(db: AsyncSession, *, workflow_run_id: UUID) -> Decimal:

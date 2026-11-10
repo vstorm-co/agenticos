@@ -50,6 +50,7 @@ function connection(overrides: Partial<McpConnectionRecord> = {}): McpConnection
     visibility: "org",
     catalog_key: null,
     is_default: false,
+    trust_read_only_hints: false,
     label: null,
     last_tools: null,
     created_at: "2026-07-01T00:00:00Z",

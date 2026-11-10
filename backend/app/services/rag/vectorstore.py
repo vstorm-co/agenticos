@@ -15,6 +15,7 @@ import app.db.models  # noqa: F401
 from app.core.blocking import run_blocking_settled
 from app.core.exceptions import NotFoundError
 from app.db.base import Base
+from app.db.locks import LockScope, hold_name
 from app.db.vector_tables import (
     RAG_SAFE_TO_DATE_FN,
     VECTOR_CONTENT_HASH_INDEX_SUFFIX,
@@ -30,10 +31,11 @@ from app.db.vector_tables import (
     VECTOR_SOURCE_PATH_INDEX_SUFFIX,
     VECTOR_TABLE_PREFIX,
     VectorScope,
+    VectorWriterKind,
     is_runtime_vector_table,
     validate_collection_name,
 )
-from app.repositories import knowledge_base_repo, rag_document_repo
+from app.repositories import collection_teardown_repo, knowledge_base_repo, rag_document_repo
 from app.schemas.rag import RAGDocumentItem, RAGDocumentList
 from app.services.rag.filters import AppScope, RetrievalQuery, RetrievalScope, TenantScope
 from app.services.rag.models import (
@@ -45,12 +47,13 @@ from app.services.rag.models import (
     SearchResult,
     VectorDocumentId,
 )
+from app.services.rag.overlay import active_overlay
 
 logger = logging.getLogger(__name__)
 
 
 class KnowledgeBaseRemovedError(NotFoundError):
-    """The knowledge base or tracked document is gone; no chunks were inserted."""
+    """The base, the tracked document or the table is going; no chunks were inserted."""
 
 
 def _document_is_unaddressed(doc: DocumentInfo) -> bool:
@@ -75,6 +78,8 @@ def _document_is_unaddressed(doc: DocumentInfo) -> bool:
 
 
 class BaseVectorStore(ABC):
+    supports_knowledge_overlay = False
+
     @abstractmethod
     async def _ensure_collection(self, name: str) -> None:
         """Create the collection's backing objects if they do not already exist.
@@ -367,6 +372,7 @@ class BaseVectorStore(ABC):
         chunk: DocumentPageChunk,
         document: Document,
         scope: VectorScope,
+        writer_kind: VectorWriterKind | None = None,
     ) -> dict[str, Any]:
         image_count = len(chunk.images) if chunk.image_count is None else chunk.image_count
         metadata: dict[str, Any] = {
@@ -398,6 +404,7 @@ class BaseVectorStore(ABC):
         # unfiled and matched by its tenant alone.
         if scope.knowledge_base_id is not None:
             metadata["knowledge_base_id"] = str(scope.knowledge_base_id)
+        metadata["writer_kind"] = writer_kind or document.metadata.writer_kind
         return metadata
 
     def _sanitize_id(self, document_id: str) -> str:
@@ -515,7 +522,12 @@ def _vector_scope_clause(scope: VectorScope, *, prefix: str = "") -> tuple[str, 
     else:
         tenant_clause = f"(metadata->>'organization_id') = :{prefix}org"
         params = {f"{prefix}org": str(scope.tenant)}
+    unfiled = "(metadata->>'knowledge_base_id') IS NULL"
+    if scope.operator_unfiled_only:
+        unfiled += " AND (metadata->>'writer_kind') = 'operator'"
     if scope.knowledge_base_id is None:
+        if scope.operator_unfiled_only:
+            return f"{tenant_clause} AND ({unfiled})", params
         return tenant_clause, params
     if scope.additional_knowledge_base_ids:
         filed = f"(metadata->>'knowledge_base_id') = ANY(:{prefix}kbs)"
@@ -526,7 +538,11 @@ def _vector_scope_clause(scope: VectorScope, *, prefix: str = "") -> tuple[str, 
         filed = f"(metadata->>'knowledge_base_id') = :{prefix}kb"
         params[f"{prefix}kb"] = str(scope.knowledge_base_id)
     if scope.takes_unfiled:
-        filed = f"({filed} OR (metadata->>'knowledge_base_id') IS NULL)"
+        filed = (
+            f"({filed} OR ({unfiled}))"
+            if scope.operator_unfiled_only
+            else f"({filed} OR {unfiled})"
+        )
     return f"{tenant_clause} AND {filed}", params
 
 
@@ -598,6 +614,21 @@ def _retrieval_conjuncts(query_filter: RetrievalQuery) -> tuple[list[str], dict[
     return conjuncts, params
 
 
+def embedder_for(collection_name: str, resolved: ResolvedEmbeddings) -> EmbeddingService:
+    """An embedder on one collection's model, provider and credential."""
+    return EmbeddingService(
+        settings=RAGSettings(embeddings_config=EmbeddingsConfig(model=resolved.model)),
+        api_key=resolved.api_key,
+        expected_dim=resolved.dim,
+        # So a resolution that ended on an empty key says which key it tried, for
+        # which collection, instead of advising an operator to set a variable they
+        # may already have set.
+        key_origin=resolved.describe(collection_name),
+        base_url=resolved.base_url,
+        keyless=resolved.key_source is EmbeddingKeySource.KEYLESS,
+    )
+
+
 class PgVectorStore(BaseVectorStore):
     """PostgreSQL + pgvector implementation.
 
@@ -620,6 +651,8 @@ class PgVectorStore(BaseVectorStore):
     loop. Across jobs an engine is not shared, so its pool is bounded by the job
     that opened it.
     """
+
+    supports_knowledge_overlay = True
 
     def __init__(
         self,
@@ -689,23 +722,12 @@ class PgVectorStore(BaseVectorStore):
         resolved = await self._resolver(name, organization_id)
         if resolved is None:
             return self.embedder, self.dim
+        # A collection moved to another provider must not be answered by a client
+        # built for the old one, so the provider is part of the key.
         cache_key = (name, resolved.model, resolved.api_key, resolved.base_url)
         service = self._services.get(cache_key)
         if service is None:
-            service = EmbeddingService(
-                settings=RAGSettings(embeddings_config=EmbeddingsConfig(model=resolved.model)),
-                api_key=resolved.api_key,
-                expected_dim=resolved.dim,
-                # So a resolution that ended on an empty key says which key it
-                # tried, for which collection, instead of advising an operator
-                # to set a variable they may already have set.
-                key_origin=resolved.describe(name),
-                # The collection's provider. In the cache key beside the model and
-                # the key, because moving a collection to another provider must
-                # not be answered by a client already built for the old one.
-                base_url=resolved.base_url,
-                keyless=resolved.key_source is EmbeddingKeySource.KEYLESS,
-            )
+            service = embedder_for(name, resolved)
             self._services[cache_key] = service
         return service, resolved.dim
 
@@ -745,16 +767,24 @@ class PgVectorStore(BaseVectorStore):
         resolved, rather than resolving one from a name.
         """
         if organization_id is None:
-            return VectorScope(tenant=None)
+            return VectorScope(tenant=None, operator_unfiled_only=True)
         resolved = await self._resolver(name, organization_id)
-        return resolved.vector_scope if resolved is not None else VectorScope(tenant=None)
+        return (
+            resolved.vector_scope
+            if resolved is not None
+            else VectorScope(tenant=None, operator_unfiled_only=True)
+        )
 
     async def _ensure_collection(self, name: str) -> None:
-        """Create table for collection if not exists."""
+        """Create the collection table and indexes under a per-name DDL lock."""
         table = self._table(name)
         _, dim = await self._for_collection(name)
         operator_class = "halfvec_cosine_ops" if dim > _HNSW_MAX_VECTOR_DIM else "vector_cosine_ops"
         async with self.async_session() as session:
+            # IF NOT EXISTS can still race on PostgreSQL's catalog uniqueness.
+            # This transaction must not reacquire COLLECTION_TEARDOWN: an unfiled
+            # writer already holds that name on its separate insertion session.
+            await hold_name(session, LockScope.COLLECTION_DDL, name)
             await session.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
             await session.execute(
                 text(f"""
@@ -889,10 +919,17 @@ class PgVectorStore(BaseVectorStore):
             ON CONFLICT (id) DO UPDATE SET content = :content, embedding = :embedding, metadata = :metadata
         """)
         async with self.async_session() as session:
+            if scope.knowledge_base_id is None:
+                # No base row to hold, and a CLI sync has no tracking row either, so
+                # the name is what a last holder's teardown waits on before it asks
+                # the table what is in it (#2747). Taken first, as a teardown takes it.
+                if not await collection_teardown_repo.hold_unreserved(session, collection_name):
+                    raise KnowledgeBaseRemovedError(
+                        message="The collection is being deleted",
+                        details={"collection": collection_name},
+                    )
             # In this transaction, before the rows: see `hold_key_share` (#2561).
-            if scope.knowledge_base_id is not None and not await knowledge_base_repo.hold_key_share(
-                session, scope.knowledge_base_id
-            ):
+            elif not await knowledge_base_repo.hold_key_share(session, scope.knowledge_base_id):
                 raise KnowledgeBaseRemovedError(
                     message="The knowledge base was deleted while this file was being indexed",
                     details={
@@ -900,21 +937,22 @@ class PgVectorStore(BaseVectorStore):
                         "knowledge_base_id": str(scope.knowledge_base_id),
                     },
                 )
-            if (
-                document.metadata.rag_document_id is not None
-                and not await rag_document_repo.hold_for_vector_write(
+            writer_kind = document.metadata.writer_kind
+            if document.metadata.rag_document_id is not None:
+                recorded_kind = await rag_document_repo.hold_for_vector_write(
                     session,
                     document.metadata.rag_document_id,
                     collection=collection_name,
                     knowledge_base_id=scope.knowledge_base_id,
                 )
-            ):
-                raise KnowledgeBaseRemovedError(
-                    message="The document was cleared while this file was being indexed",
-                    details={"collection": collection_name},
-                )
-            # Both target locks remain held through creation and the chunk commit,
-            # so a completed teardown cannot be followed by an empty replacement.
+                if recorded_kind is None:
+                    raise KnowledgeBaseRemovedError(
+                        message="The document was cleared while this file was being indexed",
+                        details={"collection": collection_name},
+                    )
+                writer_kind = recorded_kind
+            # The target locks remain held through creation and the chunk commit, so
+            # a completed teardown cannot be followed by an empty replacement.
             await self._ensure_collection(collection_name)
             for batch in batched(
                 enumerate(document.chunked_pages), _CHUNK_INSERT_BATCH, strict=False
@@ -928,7 +966,7 @@ class PgVectorStore(BaseVectorStore):
                             "content": chunk.chunk_content,
                             "embedding": str(vectors[i]),
                             "metadata": json.dumps(
-                                self._build_chunk_metadata(chunk, document, scope)
+                                self._build_chunk_metadata(chunk, document, scope, writer_kind)
                             ),
                         }
                         for i, chunk in batch
@@ -964,25 +1002,82 @@ class PgVectorStore(BaseVectorStore):
         embed on another tenant's key (#913).
         """
         table = self._table(collection_name)
-        if not await self._collection_exists(collection_name):
+        overlay = active_overlay()
+        documents = () if overlay is None else overlay.matching(collection_name, query_filter)
+        exists = await self._collection_exists(collection_name)
+        if not exists and not documents:
             return []
         embedder, dim = await self._for_collection(collection_name, query_filter.organization_id)
-        query_vector = await run_blocking_settled(embedder.embed_query, query)
+        overlay_params: dict[str, str] = {}
+        if documents:
+            if any(
+                (doc.embedding_model is not None and doc.embedding_model != embedder.provider.model)
+                or (doc.embedding_dim is not None and doc.embedding_dim != dim)
+                for doc in documents
+            ):
+                assert overlay is not None
+                overlay.failed = True
+                raise ValueError(
+                    "The embedding model changed since the knowledge check was confirmed"
+                )
+            vectors = await run_blocking_settled(
+                embedder.embed_queries, [query, *(doc.content for doc in documents)]
+            )
+            if len(vectors) != len(documents) + 1 or any(len(vector) != dim for vector in vectors):
+                assert overlay is not None
+                overlay.failed = True
+                raise ValueError("The knowledge overlay's embedding dimensions do not match")
+            query_vector = vectors[0]
+        else:
+            query_vector = await run_blocking_settled(embedder.embed_query, query)
 
         conjuncts, filter_params = _retrieval_conjuncts(query_filter)
         where_clause = f"WHERE {' AND '.join(conjuncts)}" if conjuncts else ""
         # The query vector has to be cast the same way the column is, or Postgres
         # compares a halfvec against a vector and refuses the operator outright.
         query_expr = f"(:query_vec)::halfvec({dim})" if dim > _HNSW_MAX_VECTOR_DIM else ":query_vec"
-        params: dict[str, Any] = {"query_vec": str(query_vector), "limit": limit, **filter_params}
+        params: dict[str, Any] = {
+            "query_vec": str(query_vector),
+            "limit": limit,
+            **filter_params,
+        }
 
         distance = self._distance_expr(dim)
+        if documents:
+            physical_table = table
+            candidates = []
+            if exists:
+                candidates.append(
+                    f"(SELECT content, parent_doc_id, metadata, embedding, NULL::uuid AS overlay_token FROM {physical_table} {where_clause} ORDER BY {distance} <=> {query_expr} LIMIT :limit)"
+                )
+            for index, (doc, vector) in enumerate(zip(documents, vectors[1:], strict=True)):
+                candidates.append(
+                    f"SELECT :overlay_content_{index} AS content, NULL::varchar AS parent_doc_id, CAST(:overlay_metadata_{index} AS jsonb) AS metadata, CAST(:overlay_vector_{index} AS vector({dim})) AS embedding, CAST(:overlay_token_{index} AS uuid) AS overlay_token"
+                )
+                overlay_params.update(
+                    {
+                        f"overlay_content_{index}": doc.content,
+                        f"overlay_metadata_{index}": json.dumps(
+                            {
+                                "organization_id": str(doc.organization_id),
+                                "filename": doc.title,
+                                "source": "upload",
+                                "document_type": "md",
+                                "chunk_num": 0,
+                            }
+                        ),
+                        f"overlay_vector_{index}": str(vector),
+                        f"overlay_token_{index}": str(doc.token),
+                    }
+                )
+            table = "(" + " UNION ALL ".join(candidates) + ") AS overlay_candidates"
+            params.update(overlay_params)
         async with self.async_session() as session:
             await self._apply_search_tuning(session)
             result = await session.execute(
                 text(f"""
                     SELECT content, parent_doc_id, metadata,
-                           1 - ({distance} <=> {query_expr}) AS score
+                           1 - ({distance} <=> {query_expr}) AS score{", overlay_token" if documents else ""}
                     FROM {table}
                     {where_clause}
                     ORDER BY {distance} <=> {query_expr}
@@ -995,8 +1090,10 @@ class PgVectorStore(BaseVectorStore):
             SearchResult(
                 content=row[0],
                 score=float(row[3]),
+                similarity=float(row[3]),
                 metadata=row[2] if isinstance(row[2], dict) else json.loads(row[2]),
                 parent_doc_id=row[1],
+                overlay_token=row[4] if documents else None,
             )
             for row in rows
         ]
@@ -1098,7 +1195,7 @@ class PgVectorStore(BaseVectorStore):
         # with it even from a base that reads no unfiled chunks. Left behind, a
         # personal base's document would stay readable through a same-named
         # app-scoped base with nothing tracking it (#2537).
-        scope = replace(scope, takes_unfiled=True)
+        scope = replace(scope, takes_unfiled=True, operator_unfiled_only=False)
         # The scope conjunct is what stops one org deleting another's document
         # from the shared table (#1684): matching a `parent_doc_id` alone reaches
         # every tenant's rows under that id, which is how the replace path could
@@ -1134,7 +1231,9 @@ class PgVectorStore(BaseVectorStore):
             if unfiled_of is not None:
                 # An unfiled chunk carries no base, so its tenant tag is what
                 # keeps another tenant's document of the same id out (#1684).
-                tenant_clause, tenant_params = _vector_scope_clause(unfiled_of, prefix="unfiled_")
+                tenant_clause, tenant_params = _vector_scope_clause(
+                    replace(unfiled_of, operator_unfiled_only=False), prefix="unfiled_"
+                )
                 params.update(tenant_params)
                 clause = (
                     f"({clause} OR ((metadata->>'knowledge_base_id') IS NULL AND {tenant_clause}))"

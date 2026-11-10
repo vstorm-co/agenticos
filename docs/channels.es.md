@@ -1,5 +1,5 @@
 ---
-source_sha: "f895c76f1a38"
+source_sha: "939263497b24"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -260,6 +260,13 @@ sequenceDiagram
 
 Ese es todo el vocabulario de entrada, más `context` (lo que la página dice del
 visitante) y `file_ids` (lo que adjuntó, en una página que acepta ficheros).
+
+Cada frame `message` cuenta para un límite por conexión, aunque esté vacío o
+sea inválido. Los mensajes válidos consumen además la cuota existente del
+visitante; las entradas inválidas no agotan la cuota compartida con otros
+visitantes anónimos. Un frame admite como máximo tres identificadores de archivo;
+las listas mayores se rechazan antes de analizarlas. Los identificadores inválidos
+de una lista acotada se descartan y generan un único log agregado sin sus valores.
 
 **Deliberadamente no incluye los tres campos que sí lleva el frame propio del
 dashboard:** el agent, el perfil de modelo y el entorno.

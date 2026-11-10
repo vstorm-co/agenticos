@@ -16,6 +16,9 @@
  * their types from here. Nothing here renders; nothing here fetches.
  */
 
+import type { AskUserAnswer } from "@/types/chat";
+import type { ParkedQuestion } from "@/types/runs";
+
 /** A serialized UUID. An alias, so a signature reads as the contract does. */
 export type Uuid = string;
 
@@ -185,6 +188,11 @@ export interface NodeInstance {
   config: Record<string, unknown>;
   policy?: NodePolicy | null;
   layout: NodePosition;
+  /**
+   * The loop this step sits directly inside, or null/absent at the top level. Which
+   * body a step belongs to; its wires never change it.
+   */
+  scope_id?: Uuid | null;
   /** What the builder calls this step, unique in the graph; the catalog name when unset. */
   label?: string | null;
   /** A note on the step, shown on the canvas. */
@@ -245,15 +253,14 @@ export interface WorkflowEdge {
  * A control node and the body it owns, as the server has computed it. Mirrors
  * `ScopeBoundary`.
  *
- * `body_node_ids` is **server-derived** from edge topology, never client-authored:
- * a draft save that implies a different membership than the server recomputes has
- * that implication overwritten, not honored. The editor reads this to filter the
- * scoped view; it never writes it.
+ * `body_node_ids` is **derived** from each step's `scope_id` - every step whose chain
+ * of loops leads to `scope_node_id`, nested bodies included - never client-authored.
+ * The editor re-derives it (`deriveScopes`) to filter the scoped view; it never
+ * writes it. No wire enters a body: it starts at its `loop.item`.
  */
 export interface ScopeBoundary {
   scope_node_id: Uuid;
   body_node_ids: Uuid[];
-  entry_port: string;
   exit_node_id: Uuid;
   exit_port: string;
 }
@@ -553,6 +560,7 @@ export type WorkflowRunStatus =
   | "queued"
   | "running"
   | "waiting_approval"
+  | "waiting_for_user"
   | "waiting_retry"
   | "needs_attention"
   | "budget_exceeded"
@@ -648,6 +656,17 @@ export interface WorkflowNodeRunRead {
   started_at: string | null;
   ended_at: string | null;
 }
+
+/** Questions the reading caller may answer for one suspended agent step. */
+export interface WorkflowQuestionRead {
+  /** The actual run owning the question, including synchronous nested workflows. */
+  workflow_run_id: Uuid;
+  node_run_id: Uuid;
+  agent_run_id: Uuid;
+  questions: ParkedQuestion[];
+}
+
+export type WorkflowQuestionResponses = Record<string, AskUserAnswer[]>;
 
 export interface WorkflowNodeRunList {
   items: WorkflowNodeRunRead[];

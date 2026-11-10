@@ -150,10 +150,9 @@ class TestConfiguration:
         """Order is the whole point of tiering: the cheap tier has to run first."""
         tiered = build_strategy(CompactionConfig(strategy="tiered"))
         assert isinstance(tiered, TieredCompaction)
-        assert [type(tier) for tier in tiered.tiers] == [
-            ClearToolResults,
-            NotifyingSummarizingCompaction,
-        ]
+        assert len(tiered.tiers) == 2
+        assert isinstance(tiered.tiers[0], ClearToolResults)
+        assert isinstance(tiered.tiers[1], NotifyingSummarizingCompaction)
 
     def test_the_window_override_reaches_every_tier(self):
         """A tier left on the registry's number is a tier with a different trigger."""

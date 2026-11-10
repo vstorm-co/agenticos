@@ -218,6 +218,33 @@ def test_a_parked_question_s_step_waits_for_an_answer_and_any_other_for_approval
 
     assert parked_status("ask_user_question") == "awaiting_answer"
     assert parked_status("send_email") == "awaiting_approval"
+    assert parked_status("clarify", awaiting_answer=True) == "awaiting_answer"
+
+
+def test_a_known_renamed_question_is_parsed_without_rewriting_its_exposed_name() -> None:
+    from pydantic_ai.messages import ToolCallPart
+
+    from app.agents.ask_user import question_request
+
+    call = ToolCallPart(
+        "clarify",
+        {
+            "questions": [
+                {
+                    "header": "Region",
+                    "question": "Where?",
+                    "options": [{"label": "EU"}, {"label": "US"}],
+                }
+            ]
+        },
+        tool_call_id="ask-1",
+    )
+
+    request = question_request(call)
+
+    assert request.id == "ask-1"
+    assert request.questions[0].header == "Region"
+    assert call.tool_name == "clarify"
 
 
 def test_a_thread_parked_on_a_question_reads_back() -> None:

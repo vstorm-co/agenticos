@@ -1,0 +1,271 @@
+"use client";
+
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api-client";
+import type { Hunk } from "@/types/authoring";
+import type { EvalRun } from "@/types/eval-runs";
+import { qk } from "@/lib/query-keys";
+import type {
+  AttributionEstimate,
+  ContinuationEstimate,
+  KnowledgeCheckEstimate,
+  KnowledgeCheckTarget,
+  Improvement,
+  ImprovementAwaiting,
+  ImprovementEstimate,
+  ImprovementEvidence,
+  SelectionEstimate,
+  ImprovementTarget,
+} from "@/types/improvement";
+
+/**
+ * A live session is refreshed by its `improvement` change event; this slower read
+ * only covers a console whose live-updates socket is not connected.
+ */
+const IMPROVEMENT_FALLBACK_MS = 30_000;
+
+/** Sessions on any agent the reader may read that wait for a person to go on or decide. */
+export function useImprovementsAwaiting({ enabled = true } = {}) {
+  const query = useQuery({
+    queryKey: qk.improvements.awaiting(),
+    queryFn: () => apiClient.get<ImprovementAwaiting[]>("/improvements"),
+    enabled,
+  });
+  return {
+    sessions: query.data ?? [],
+    isLoading: query.isLoading,
+    error: query.error,
+    refetch: query.refetch,
+  };
+}
+
+export function useImprovements(agentId: string, { enabled = true } = {}) {
+  const queryClient = useQueryClient();
+  const base = `/agents/${agentId}/improvements`;
+  const list = useQuery({
+    queryKey: qk.improvements.agent(agentId),
+    queryFn: () => apiClient.get<Improvement[]>(base),
+    enabled,
+    refetchInterval: (query) =>
+      query.state.data?.some((r) => ["queued", "running", "ready", "accepted"].includes(r.status))
+        ? IMPROVEMENT_FALLBACK_MS
+        : false,
+  });
+  const estimate = useMutation({
+    mutationFn: (body: ImprovementTarget) =>
+      apiClient.post<ImprovementEstimate>(`${base}/estimate`, body),
+  });
+  const start = useMutation({
+    mutationFn: (body: ImprovementTarget & { budget_usd: string }) =>
+      apiClient.post<Improvement>(base, body),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.improvements.all() }),
+  });
+  return {
+    sessions: list.data ?? [],
+    isLoading: list.isLoading,
+    error: list.error,
+    estimate,
+    start,
+  };
+}
+
+/** The changes of a session's current attempt, or of the round it chose once one was measured. */
+export function useImprovementChanges(agentId: string, runId: string) {
+  const query = useQuery({
+    queryKey: qk.improvements.changes(agentId, runId),
+    queryFn: () => apiClient.get<Hunk[]>(`/agents/${agentId}/improvements/${runId}/changes`),
+  });
+  return {
+    changes: query.data ?? [],
+    isLoading: query.isLoading,
+    error: query.error,
+    refetch: query.refetch,
+  };
+}
+
+/** Every change one attempt proposed, tested or not. */
+export function useAttemptChanges(
+  agentId: string,
+  runId: string,
+  attempt: number,
+  { enabled = true } = {},
+) {
+  const query = useQuery({
+    queryKey: qk.improvements.attemptChanges(agentId, runId, attempt),
+    queryFn: () =>
+      apiClient.get<Hunk[]>(`/agents/${agentId}/improvements/${runId}/changes?attempt=${attempt}`),
+    enabled,
+  });
+  return { changes: query.data ?? [], isLoading: query.isLoading, error: query.error };
+}
+
+export function useImprovement(agentId: string, runId: string) {
+  const queryClient = useQueryClient();
+  const base = `/agents/${agentId}/improvements/${runId}`;
+  const query = useQuery({
+    queryKey: qk.improvements.detail(agentId, runId),
+    queryFn: () => apiClient.get<Improvement>(base),
+    refetchInterval: (current) =>
+      current.state.data &&
+      ["queued", "running", "ready", "accepted"].includes(current.state.data.status)
+        ? IMPROVEMENT_FALLBACK_MS
+        : false,
+  });
+  const refresh = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: qk.improvements.all() }),
+      queryClient.invalidateQueries({ queryKey: qk.authoring.agent(agentId) }),
+      queryClient.invalidateQueries({ queryKey: qk.evalRuns.all() }),
+    ]);
+  };
+  const estimateKnowledge = useMutation({
+    mutationFn: (target: KnowledgeCheckTarget) =>
+      apiClient.post<KnowledgeCheckEstimate>(`${base}/knowledge/estimate`, target),
+  });
+  const checkKnowledge = useMutation({
+    mutationFn: (
+      target: KnowledgeCheckTarget & { confirmed: true; draft_hash: string; estimate_usd: string },
+    ) => apiClient.post<EvalRun>(`${base}/knowledge`, target),
+    onSuccess: refresh,
+  });
+  const cancel = useMutation({
+    mutationFn: () => apiClient.post<Improvement>(`${base}/cancel`, {}),
+    onSuccess: refresh,
+  });
+  const retry = useMutation({
+    mutationFn: () => apiClient.post<Improvement>(`${base}/retry`, {}),
+    onSuccess: refresh,
+  });
+  const selectRound = useMutation({
+    mutationFn: (number: number) =>
+      apiClient.post<Improvement>(`${base}/rounds/${number}/select`, {}),
+    onSuccess: refresh,
+  });
+  const estimateAttribution = useMutation({
+    mutationFn: (number: number) =>
+      apiClient.post<AttributionEstimate>(`${base}/rounds/${number}/attribution/estimate`, {}),
+  });
+  const attribute = useMutation({
+    mutationFn: ({ number, estimate }: { number: number; estimate: string }) =>
+      apiClient.post<Improvement>(`${base}/rounds/${number}/attribution`, {
+        confirmed: true,
+        estimate_usd: estimate,
+      }),
+    onSuccess: refresh,
+  });
+  const estimateSelection = useMutation({
+    mutationFn: ({ number, hunkIds }: { number: number; hunkIds: string[] }) =>
+      apiClient.post<SelectionEstimate>(`${base}/rounds/${number}/selection/estimate`, {
+        hunk_ids: hunkIds,
+      }),
+  });
+  const checkSelection = useMutation({
+    mutationFn: ({
+      number,
+      hunkIds,
+      quote,
+    }: {
+      number: number;
+      hunkIds: string[];
+      quote: SelectionEstimate;
+    }) =>
+      apiClient.post<Improvement>(`${base}/rounds/${number}/selection`, {
+        hunk_ids: hunkIds,
+        confirmed: true,
+        estimate_usd: quote.total_usd,
+        candidate_hash: quote.candidate_hash,
+      }),
+    onSuccess: refresh,
+  });
+  const estimateContinuation = useMutation({
+    mutationFn: (budget: string) =>
+      apiClient.post<ContinuationEstimate>(`${base}/continue/estimate`, { budget_usd: budget }),
+  });
+  const continueSession = useMutation({
+    mutationFn: ({ note, ...quote }: ContinuationEstimate & { note?: string }) =>
+      apiClient.post<Improvement>(`${base}/continue`, {
+        confirmed: true,
+        budget_usd: quote.budget_usd,
+        estimate_usd: quote.total_usd,
+        candidate_hash: quote.candidate_hash,
+        ...(note ? { note } : {}),
+      }),
+    onSuccess: refresh,
+  });
+  const selectChanges = useMutation({
+    mutationFn: (hunkIds: string[]) =>
+      apiClient.put<Improvement>(`${base}/selection`, { hunk_ids: hunkIds }),
+    onSuccess: refresh,
+  });
+  const editChange = useMutation({
+    mutationFn: ({ hunkId, text }: { hunkId: string; text: string | null }) =>
+      apiClient.put<Hunk>(`${base}/changes/${hunkId}`, { edited_text: text }),
+    onSuccess: refresh,
+  });
+  const deferTopic = useMutation({
+    mutationFn: ({ topicId, later }: { topicId: string; later: boolean }) =>
+      apiClient.put<Improvement>(`${base}/topics/${topicId}/later`, { later }),
+    onSuccess: refresh,
+  });
+  const discard = useMutation({
+    mutationFn: () => apiClient.post<Improvement>(`${base}/discard`, { confirmed: true }),
+    onSuccess: refresh,
+  });
+  const finish = useMutation({
+    mutationFn: (body: { confirmed: true; publish: boolean; automatic_check: boolean }) =>
+      apiClient.post<{ session: Improvement; version_id: string | null; version: number | null }>(
+        `${base}/finish`,
+        body,
+      ),
+    onSuccess: refresh,
+  });
+  return {
+    selectChanges,
+    editChange,
+    deferTopic,
+    estimateContinuation,
+    continueSession,
+    discard,
+    estimateKnowledge,
+    checkKnowledge,
+    estimateSelection,
+    checkSelection,
+    finish,
+    session: query.data,
+    isLoading: query.isLoading,
+    error: query.error,
+    refetch: query.refetch,
+    cancel,
+    retry,
+    selectRound,
+    estimateAttribution,
+    attribute,
+  };
+}
+
+export function useImprovementEvidence(
+  agentId: string,
+  {
+    sessionId = null,
+    datasetId = null,
+    live = false,
+  }: { sessionId?: string | null; datasetId?: string | null; live?: boolean } = {},
+) {
+  const query = useQuery({
+    queryKey: qk.improvements.evidence(agentId, sessionId, datasetId),
+    queryFn: () =>
+      apiClient.get<ImprovementEvidence>(
+        sessionId
+          ? `/agents/${agentId}/improvements/${sessionId}/evidence`
+          : `/agents/${agentId}/improvements/preview`,
+        { params: !sessionId && datasetId ? { dataset_id: datasetId } : {} },
+      ),
+    refetchInterval: live ? IMPROVEMENT_FALLBACK_MS : false,
+  });
+  return {
+    evidence: query.data,
+    isLoading: query.isLoading,
+    error: query.error,
+    refetch: query.refetch,
+  };
+}

@@ -17,11 +17,17 @@ carries a namespace: two unrelated ceilings must not block each other because a
 UUID happened to hash the same way.
 """
 
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from enum import IntEnum, unique
 from uuid import UUID
 
-from sqlalchemy import Integer, cast, func, select
+from sqlalchemy import Integer, Text, cast, func, select
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
+
+#: The SQLSTATE of a `NOWAIT` refused or a `lock_timeout` run out.
+LOCK_NOT_AVAILABLE = "55P03"
 
 
 @unique
@@ -31,12 +37,17 @@ class LockScope(IntEnum):
     #: How many organizations one account may own.
     CONVERSATION_TURN = 23
     CONVERSATION_TASKS = 24
+    #: Retained copied transcript bytes, serialized through the clone commit.
+    CONVERSATION_FORK_STORAGE_PER_ORG = 31
     CONNECTED_ACCOUNTS = 25
     ORGANIZATIONS_PER_USER = 1
     #: How many agents one organization may hold.
     AGENTS_PER_ORGANIZATION = 2
-    #: A collection name's claim-and-create against its vector-table drop (#1355).
+    #: A collection name's claim-and-create against its vector-table drop (#1355),
+    #: and a chunk write with no base through its commit (#2747).
     COLLECTION_TEARDOWN = 3
+    #: Runtime vector DDL, in its own transaction after a writer holds its target.
+    COLLECTION_DDL = 30
     #: Which of a member's accounts on one service is the default. The partial
     #: unique index allows one, and the write is read-then-clear-then-set - so
     #: two nominations racing each found no sibling to clear and both set it.
@@ -115,6 +126,23 @@ class LockScope(IntEnum):
     #: takes this *shared*, so they never wait for each other; the delete takes it
     #: exclusive, so it waits for those in flight and they wait for it.
     MODEL_PROFILE_REFERENCES = 14
+    #: One case's place in its dataset's review queue: a send reads which score
+    #: waits, then queues or replaces it, and two at once must not both read none.
+    REVIEW_PER_CASE = 35
+    #: How many eval cases one organization runs at once: two workers counting
+    #: together would otherwise both start one past the limit.
+    EVAL_CASES_PER_ORGANIZATION = 36
+    #: One knowledge base's grouping pass: it reads the misses no topic holds
+    #: and then places them, so two passes at once would put a question in two
+    #: topics.
+    KNOWLEDGE_GAPS_PER_KNOWLEDGE_BASE = 32
+    #: One knowledge base's check of its answers: two at once would pay twice for
+    #: the same answers. Session-scoped, since a check spans many runs.
+    KNOWLEDGE_GAP_CHECKS_PER_KNOWLEDGE_BASE = 33
+    #: How many case revisions one organization's datasets store. Each edit
+    #: locks its own dataset only, so two edits of two datasets would both read
+    #: the count under the ceiling and together go past it.
+    DATASET_REVISIONS_PER_ORGANIZATION = 34
 
 
 def _key(subject: UUID) -> int:
@@ -146,16 +174,19 @@ async def hold_subject(db: AsyncSession, scope: LockScope, subject: UUID) -> Non
 
 
 async def try_hold_subject(db: AsyncSession, scope: LockScope, subject: UUID) -> bool:
-    """Take a transaction lock without waiting; maintenance can skip a busy tenant."""
-    return bool(
-        await db.scalar(
-            select(
-                func.pg_try_advisory_xact_lock(
-                    cast(scope.value, Integer), cast(_key(subject), Integer)
-                )
-            )
+    """Take the lock for one subject if it is free, until this transaction ends.
+
+    :func:`hold_subject` for a caller already holding row locks the other side
+    waits on after taking this lock: waiting here could close that cycle. True
+    means this transaction holds it; False means another one does right now.
+    Maintenance uses it to skip a tenant that is busy.
+    """
+    result = await db.execute(
+        select(
+            func.pg_try_advisory_xact_lock(cast(scope.value, Integer), cast(_key(subject), Integer))
         )
     )
+    return bool(result.scalar_one())
 
 
 async def hold_subject_shared(db: AsyncSession, scope: LockScope, subject: UUID) -> None:
@@ -215,6 +246,36 @@ async def hold_name(db: AsyncSession, scope: LockScope, name: str) -> None:
     await db.execute(select(func.pg_advisory_xact_lock(scope.value, func.hashtext(name))))
 
 
+async def hold_name_within(db: AsyncSession, scope: LockScope, name: str, *, wait_ms: int) -> bool:
+    """Take the lock for a string subject, waiting no longer than `wait_ms`.
+
+    :func:`hold_name` for a request, where waiting costs a pooled connection for as
+    long as the holder takes: enough such waiters starve every other request. True
+    means this transaction holds it until it ends, exactly as `hold_name` would.
+    False means it was still held when the wait ran out, and the caller answers
+    that rather than waiting on.
+
+    A `lock_timeout` running out is an error, and an error aborts the transaction,
+    so the wait has a savepoint of its own. Rolling that back leaves the session
+    usable and undoes the setting; releasing it keeps both the lock, which belongs
+    to the transaction from there, and the setting, so it is put back first: a
+    later statement of this transaction waits as it would have (`SET LOCAL`, as
+    `set_config(..., true)`). `wait_ms` must be at least 1: Postgres reads `0` as no
+    limit.
+    """
+    try:
+        async with db.begin_nested():
+            setting = await db.scalar(select(func.current_setting("lock_timeout")))
+            await db.execute(select(func.set_config("lock_timeout", f"{wait_ms}ms", True)))
+            await hold_name(db, scope, name)
+            await db.execute(select(func.set_config("lock_timeout", setting, True)))
+    except DBAPIError as failed:
+        if getattr(failed.orig, "sqlstate", None) != LOCK_NOT_AVAILABLE:
+            raise
+        return False
+    return True
+
+
 async def try_hold_name(db: AsyncSession, scope: LockScope, name: str) -> bool:
     """Take the lock for a string subject if it is free, without ever waiting.
 
@@ -231,3 +292,21 @@ async def try_hold_name(db: AsyncSession, scope: LockScope, name: str) -> bool:
         select(func.pg_try_advisory_xact_lock(scope.value, func.hashtext(name)))
     )
     return bool(result.scalar_one())
+
+
+@asynccontextmanager
+async def lock_wait_within(db: AsyncSession, *, wait_ms: int) -> AsyncGenerator[None]:
+    """Bound every lock wait in one mutation and preserve the caller's transaction.
+
+    `wait_ms` must be positive. Success retains locks until the outer commit and
+    restores the previous timeout; any failure rolls back this savepoint, including
+    its timeout setting and partial writes. This also prevents a lock-order conflict
+    with another writer from waiting indefinitely while holding rows it needs.
+    """
+    async with db.begin_nested():
+        previous = (
+            await db.execute(select(cast(func.current_setting("lock_timeout"), Text)))
+        ).scalar_one()
+        await db.execute(select(func.set_config("lock_timeout", f"{wait_ms}ms", True)))
+        yield
+        await db.execute(select(func.set_config("lock_timeout", previous, True)))

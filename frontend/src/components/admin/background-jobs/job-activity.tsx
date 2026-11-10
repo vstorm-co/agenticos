@@ -9,12 +9,12 @@ import { cn } from "@/lib/utils";
 import type { BackgroundJobsActivity, KindActivity } from "@/types/background-jobs";
 
 /** Seconds as the queue's own scale: milliseconds and seconds, then minutes, then hours. */
-export function formatSeconds(seconds: number | null): string {
+export function formatSeconds(seconds: number | null, locale: string): string {
   if (seconds === null) return "—";
-  if (seconds < 60) return formatMs(seconds * 1000);
+  if (seconds < 60) return formatMs(seconds * 1000, locale);
   if (seconds < 3600)
-    return `${(seconds / 60).toLocaleString(undefined, { maximumFractionDigits: 1 })} min`;
-  return `${(seconds / 3600).toLocaleString(undefined, { maximumFractionDigits: 1 })} h`;
+    return `${(seconds / 60).toLocaleString(locale, { maximumFractionDigits: 1 })} min`;
+  return `${(seconds / 3600).toLocaleString(locale, { maximumFractionDigits: 1 })} h`;
 }
 
 function totals(activity: BackgroundJobsActivity) {
@@ -74,12 +74,12 @@ export function ActivityFigures({
         <>
           <Figure
             label={t("waitFigure")}
-            value={formatSeconds(activity.oldest_wait_seconds)}
+            value={formatSeconds(activity.oldest_wait_seconds, locale)}
             caption={activity.oldest_wait_seconds === null ? t("waitNone") : t("waitCaption")}
           />
           <Figure
             label={t("slowestFigure")}
-            value={formatSeconds(slowest?.wait_p95_seconds ?? null)}
+            value={formatSeconds(slowest?.wait_p95_seconds ?? null, locale)}
             caption={slowest?.kind}
           />
         </>
@@ -170,14 +170,14 @@ export function KindActivityTable({ kinds }: { kinds: KindActivity[] }) {
                 {kind.dead.toLocaleString(locale)}
               </td>
               <td className="px-1 py-2.5 text-right tabular-nums">
-                {formatSeconds(kind.run_p50_seconds)}
+                {formatSeconds(kind.run_p50_seconds, locale)}
                 <span className="text-muted-foreground">
                   {" "}
-                  / {formatSeconds(kind.run_p95_seconds)}
+                  / {formatSeconds(kind.run_p95_seconds, locale)}
                 </span>
               </td>
               <td className="px-1 py-2.5 text-right tabular-nums">
-                {formatSeconds(kind.wait_p95_seconds)}
+                {formatSeconds(kind.wait_p95_seconds, locale)}
               </td>
             </tr>
           ))}

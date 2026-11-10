@@ -199,3 +199,45 @@ def test_a_spec_s_steers_are_screened_by_its_own_input_guardrail():
     assert input_screen_for(guarded) is not None
     assert input_screen_for(switched_off) is None
     assert input_screen_for(AgentSpec(name="Ops")) is None
+
+
+def test_parallel_coding_listeners_route_corrections_without_consuming_each_others() -> None:
+    inbox = SteeringInbox()
+    with inbox.listen("api") as first, inbox.listen("web") as second:
+        inbox.add("Use the EU numbers")
+        assert first.unapplied() == second.unapplied() == []
+        inbox.add("[session:api] Use Python")
+        assert [item.text for item in first.take()] == ["Use Python"]
+        assert second.unapplied() == []
+        inbox.add("[session:web] Use TypeScript")
+        assert second.unapplied() == ["Use TypeScript"]
+        second.take()
+    inbox.add("After both finished")
+    assert first.unapplied() == second.unapplied() == []
+    assert len(inbox.unapplied()) == 4
+
+
+def test_one_coding_listener_gets_unaddressed_and_buffered_corrections() -> None:
+    inbox = SteeringInbox()
+    inbox.add("Buffered")
+    inbox.add("[session:api] Already addressed")
+    inbox.add("[session:web] For web only")
+    inbox.add("[session:invalid")
+    inbox.add("[session:api]")
+    with inbox.listen("api") as listener:
+        assert listener.unapplied() == [
+            "Buffered",
+            "Already addressed",
+            "[session:invalid",
+            "[session:api]",
+        ]
+        listener.take()
+        inbox.add("Continue")
+        assert listener.unapplied() == ["Continue"]
+
+
+def test_a_second_parallel_listener_does_not_take_an_unaddressed_buffer() -> None:
+    inbox = SteeringInbox()
+    inbox.add("For the parent")
+    with inbox.listen("api"), inbox.listen("web") as second:
+        assert second.unapplied() == []

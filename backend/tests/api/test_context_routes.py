@@ -41,6 +41,7 @@ def _used_nowhere(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr("app.services.context.agents_using", nowhere)
     monkeypatch.setattr("app.services.context.groups_sharing", nowhere)
+    monkeypatch.setattr("app.services.eval_suite.EvalSuiteService.dependency_changed", AsyncMock())
 
 
 _ORGANIZATION_ID = uuid.uuid4()

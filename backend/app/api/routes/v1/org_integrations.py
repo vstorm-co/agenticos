@@ -53,10 +53,9 @@ async def list_org_integrations(
 
     Returns both unassigned (org-level) and KB-assigned sources.
 
-    This is the only way to enumerate the *unassigned* ones - every other
-    listing is scoped to a collection, and a source with no `collection_name`
-    belongs to none - which is what the "Reusable integrations" section on
-    `/kb` reads. It keeps the assigned rows in the response because they are
+    This enumerates the *unassigned* ones, which a listing scoped to a
+    collection cannot - a source with no `collection_name` belongs to none -
+    and is what the "Reusable integrations" section on `/kb` reads. It keeps the assigned rows in the response because they are
     the same organisation's, and a caller wanting the full picture has nowhere
     else to get it; the UI filters to what its own surface owns.
     """
@@ -130,6 +129,7 @@ async def trigger_org_integration(
 ) -> Any:
     """Manually trigger a sync run for an org integration."""
     source = await access.sync_source(ctx, str(source_id))
+    sync_source_svc.refuse_paused(source)
     sync_log = await sync_source_svc.trigger_sync(str(source.id), user_id=ctx.user_id)
     return RAGSyncResponse(
         id=str(sync_log.id),

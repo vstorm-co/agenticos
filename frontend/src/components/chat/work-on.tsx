@@ -21,7 +21,9 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ContextHelp } from "@/components/ui/context-help";
-import { useConversationStore } from "@/stores";
+import { useAgentSelectionStore, useConversationStore } from "@/stores";
+import { useAgents } from "@/hooks/use-agents";
+import { worksOnThisComputer } from "@/hooks/use-local-access-gate";
 import { useWorkOnStore, type LocalTarget } from "@/stores/work-on-store";
 import { LocalSkillsControl } from "./local-skills-control";
 import { LocalCodingControl } from "./local-coding-control";
@@ -149,6 +151,13 @@ function LocalToolControl({
 
 function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
   const t = useTranslations("chat.controls.workOn");
+  // An agent whose workspace is this computer has no cloud to fall back to: its
+  // choice is remembered for it, and whole-computer consent is the agent's own.
+  const selectedAgentId = useAgentSelectionStore((store) => store.selectedAgentId);
+  const { agents } = useAgents();
+  const selected = agents.find((agent) => agent.id === selectedAgentId);
+  const localAgent = worksOnThisComputer(selected) ? selected : null;
+  const rememberForAgent = useWorkOnStore((store) => store.rememberForAgent);
   const modeHintId = useId();
   const { data: device } = useDeviceStatus();
   const { link } = useDeviceLink();
@@ -172,12 +181,17 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
       target: LocalTarget | null;
     }) => {
       if (!choice.linked && !(await link.mutateAsync()).linked) return null;
-      return allowWholeComputer(choice.conversationId);
+      return allowWholeComputer(
+        choice.conversationId,
+        localAgent ? { id: localAgent.id, name: localAgent.name } : undefined,
+      );
     },
     onSuccess: (grant, choice) => {
       if (grant) {
-        setCoding(choice.conversationId, null);
-        setTarget(choice.conversationId, { ...choice.target, ...grant });
+        const target = { ...choice.target, ...grant };
+        setTarget(choice.conversationId, target, localAgent === null);
+        if (localAgent && (!target.computer_grant || target.computer_grant_agent === localAgent.id))
+          rememberForAgent(localAgent.id, target);
       }
     },
     onError: fail,
@@ -186,7 +200,11 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
     mutationFn: async (choice: { conversationId: string | null; target: LocalTarget | null }) => {
       if (choice.target?.computer_grant) await revokeWholeComputer(choice.target.computer_grant);
     },
-    onSuccess: (_, choice) => setTarget(choice.conversationId, null),
+    onSuccess: (_, choice) => {
+      setTarget(choice.conversationId, null);
+      // Revoked in the app, so the agent no longer holds it either.
+      if (localAgent) rememberForAgent(localAgent.id, null);
+    },
     onError: fail,
   });
 
@@ -221,13 +239,16 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
       return grant;
     },
     onSuccess: (grant, choice) => {
-      if (grant)
-        setTarget(choice.conversationId, {
-          ...choice.target,
-          folder: grant.path,
-          mode: grant.mode,
-          computer_grant: undefined,
-        });
+      if (!grant) return;
+      const target = {
+        ...choice.target,
+        folder: grant.path,
+        mode: grant.mode,
+        computer_grant: undefined,
+      };
+      setTarget(choice.conversationId, target, localAgent === null);
+      if (localAgent && (!target.computer_grant || target.computer_grant_agent === localAgent.id))
+        rememberForAgent(localAgent.id, target);
     },
   });
   const chooseFolder = (mode: LocalMode) =>
@@ -255,7 +276,11 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
           className="text-muted-foreground ml-auto max-w-44 truncate text-xs font-normal"
           title={target?.folder}
         >
-          {target ? folderName(target.folder) : t(agentEnabled ? "cloud" : "off")}
+          {target
+            ? target.computer_grant
+              ? t("wholeComputer")
+              : folderName(target.folder)
+            : t(localAgent ? "asksFirst" : agentEnabled ? "cloud" : "off")}
         </span>
         <ChevronDown
           className="text-muted-foreground size-3.5 transition-transform group-open:rotate-180"
@@ -296,8 +321,10 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
                 link.isPending ||
                 pick.isPending ||
                 selection.isPending ||
+                (key === "cloud" && localAgent !== null) ||
                 (key === "computer" && (device === undefined || modes.length === 0))
               }
+              title={key === "cloud" && localAgent ? t("noCloud") : undefined}
               aria-busy={key === "computer" && link.isPending}
               onClick={onClick}
               className={cn(
@@ -336,8 +363,13 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
         </Button>
         {wholeComputer && (
           <p role="status" className="text-muted-foreground mt-2 text-xs leading-relaxed">
-            {t("computerConsent")}
+            {localAgent && target.computer_grant_agent === localAgent.id
+              ? t("agentComputerConsent", { agent: localAgent.name })
+              : t("computerConsent")}
           </p>
+        )}
+        {localAgent && !onComputer && (
+          <p className="text-muted-foreground mt-2 text-xs leading-relaxed">{t("noCloud")}</p>
         )}
         {!linked && <p className="text-muted-foreground mt-2 text-xs">{t("notLinked")}</p>}
         {linked && device?.connected === false && (
@@ -384,6 +416,7 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
                         aria-label={t("revoke", { folder: folderName(grant.path) })}
                         onClick={() => {
                           if (active) setTarget(conversationId, null);
+                          useWorkOnStore.getState().forgetFolder(grant.path);
                           revoke.mutate(grant.path);
                         }}
                         className="text-muted-foreground hover:text-foreground rounded p-1"

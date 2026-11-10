@@ -31,7 +31,13 @@ from app.core.security import (
     verify_password,
     verify_special_token,
 )
-from app.db.locks import LockScope, hold_name, try_hold_name, try_hold_subject
+from app.db.locks import (
+    LOCK_NOT_AVAILABLE,
+    LockScope,
+    hold_name,
+    try_hold_name,
+    try_hold_subject,
+)
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.db.updates import writable
@@ -72,9 +78,6 @@ logger = logging.getLogger(__name__)
 
 _ACCOUNT_LOCK_SECONDS = 10.0
 """How long an account deletion's lock phase keeps starting again before refusing."""
-
-_LOCK_NOT_AVAILABLE = "55P03"
-"""The SQLSTATE a `NOWAIT` lock raises when another transaction holds the row."""
 
 _DEADLOCK_DETECTED = "40P01"
 """The SQLSTATE of the statement Postgres aborts to break a deadlock."""
@@ -1011,7 +1014,7 @@ class UserService:
                     locked = await self._lock_user_rows(user_id, app_admins=app_admins, nowait=True)
                     await self._hold_late_names(user_id, personal_orgs, names)
             except DBAPIError as failed:
-                if getattr(failed.orig, "sqlstate", None) != _LOCK_NOT_AVAILABLE:
+                if getattr(failed.orig, "sqlstate", None) != LOCK_NOT_AVAILABLE:
                     raise
             else:
                 return locked
@@ -1083,9 +1086,9 @@ class UserService:
         tables are a cleanup job queued in this transaction
         (`queue_external_state_cleanup`), so a rollback keeps them, a worker
         restart mid-cleanup does not orphan them (#1349), and
-        the drop takes the `COLLECTION_TEARDOWN` lock and re-reads the reference
-        check on its own session, so a name a second base still holds - or is
-        mid-claim on - keeps its table (#913, #1355). A table is queued for drop
+        the drop takes the `COLLECTION_TEARDOWN` lock and goes ahead only while the
+        name is reserved, so a name a second base still holds - or is mid-claim
+        on - keeps its table (#913, #1355). A table is queued for drop
         only when no other base claims the name; it is not tenant-unique, so two
         bases can share one.
         """
@@ -1240,7 +1243,7 @@ class UserService:
         user = await user_repo.get_by_email(self.db, email)
         if user is None or not user.is_active:
             return None
-        token = create_magic_link_token(subject=str(user.id), return_to=return_to)
+        token = create_magic_link_token(subject=str(user.id), return_to=return_to, email=user.email)
         return user, token
 
     async def consume_magic_link_token(self, token: str) -> tuple[User, str | None]:

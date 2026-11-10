@@ -21,6 +21,7 @@ import type {
 } from "@/lib/rag-api";
 import { overrideSize } from "@/lib/ingestion-config";
 import { useTenantGuard, useTenantId } from "@/hooks/use-organizations";
+import { usePermissions } from "./use-permissions";
 import type {
   CreateKnowledgeBaseInput,
   EmbeddingProviderInput,
@@ -30,8 +31,10 @@ import type {
   KBDocumentList,
   KBIngestion,
   KnowledgeBase,
+  KnowledgeBaseDetail,
   KnowledgeBaseList,
 } from "@/types";
+import { Perm } from "@/types/permissions";
 import { useCreatedToast } from "./use-created-toast";
 
 const listKnowledgeBases = async (): Promise<KnowledgeBase[]> =>
@@ -129,7 +132,7 @@ export function useKnowledgeBases() {
   const patchKB = useCallback(
     async (id: string, patch: Partial<Pick<KnowledgeBase, "name" | "description">>) => {
       const startedIn = listOrgId;
-      const updated = await apiClient.patch<KnowledgeBase>(`/kb/${id}`, patch);
+      const updated = await apiClient.patch<KnowledgeBaseDetail>(`/kb/${id}`, patch);
       writeCache((prev) => prev.map((k) => (k.id === id ? updated : k)), startedIn);
       toast.success(t("updated"));
       return updated;
@@ -219,7 +222,7 @@ export function useKBDetail(id: string | null) {
   // page's error rather than something to hammer.
   const kbQuery = useQuery({
     queryKey: qk.kb.detail(id ?? "none"),
-    queryFn: () => apiClient.get<KnowledgeBase>(`/kb/${id}`),
+    queryFn: () => apiClient.get<KnowledgeBaseDetail>(`/kb/${id}`),
     enabled,
     retry: false,
   });
@@ -245,10 +248,17 @@ export function useKBDetail(id: string | null) {
     enabled,
     retry: false,
   });
+  // The organization's integrations, every base's, behind `connections:manage`
+  // (#2745). Not asked without it: the answer would be a 403, which the wizard
+  // reports as a list that failed to load rather than one that is not theirs.
+  // Masked below as well: a disabled query keeps its last answer, so a member
+  // losing the permission would go on being offered what it already fetched.
+  const { can } = usePermissions();
+  const managesIntegrations = can(Perm.connectionsManage);
   const orgIntegrationsQuery = useQuery({
     queryKey: qk.kb.orgIntegrations(id ?? "none"),
     queryFn: () => apiClient.get<SyncSourceList>(`/kb/${id}/sync-sources/org-integrations`),
-    enabled,
+    enabled: enabled && managesIntegrations,
     retry: false,
   });
   const connectorsQuery = useQuery({
@@ -298,11 +308,11 @@ export function useKBDetail(id: string | null) {
   const documentsTotal = documentsQuery.data?.pages.at(-1)?.total ?? 0;
 
   const syncSources = sourcesQuery.data?.items ?? [];
-  const orgIntegrations = orgIntegrationsQuery.data?.items ?? [];
+  const orgIntegrations = managesIntegrations ? (orgIntegrationsQuery.data?.items ?? []) : [];
   const connectors = connectorsQuery.data?.items ?? [];
   const sectionFailures: KBSectionFailures = {
     syncSources: sourcesQuery.isError,
-    orgIntegrations: orgIntegrationsQuery.isError,
+    orgIntegrations: managesIntegrations && orgIntegrationsQuery.isError,
     connectors: connectorsQuery.isError,
   };
 
@@ -379,12 +389,30 @@ export function useKBDetail(id: string | null) {
    * fields, so the dialog decides which input a rejected chunk size belongs
    * under. Nothing already indexed is re-parsed, which the dialog says out loud.
    */
+  const updateGapHelpers = useCallback(
+    async (helpers: {
+      gap_drafter_agent_id: string | null;
+      gap_classifier_agent_id: string | null;
+    }): Promise<KnowledgeBase> => {
+      // i18n-exempt: invariant of the detail hook, not user-facing copy.
+      if (!id) throw new Error("No knowledge base is open");
+      const startedIn = activeOrgId;
+      const updated = await apiClient.patch<KnowledgeBase>(`/kb/${id}`, helpers);
+      if (stillSameTenant(startedIn)) {
+        queryClient.setQueryData(qk.kb.detail(id), updated);
+        void queryClient.invalidateQueries({ queryKey: qk.kb.list() });
+      }
+      return updated;
+    },
+    [id, activeOrgId, stillSameTenant, queryClient],
+  );
+
   const updateIngestion = useCallback(
     async (config: IngestionConfig): Promise<KnowledgeBase> => {
       // i18n-exempt: a narrowing guard on a hook only mounted with an id, not copy.
       if (!id) throw new Error("No knowledge base is open");
       const startedIn = activeOrgId;
-      const updated = await apiClient.patch<KnowledgeBase>(`/kb/${id}`, {
+      const updated = await apiClient.patch<KnowledgeBaseDetail>(`/kb/${id}`, {
         ingestion_config: config,
       });
       // The caller is handed the row either way - it asked for the save and the
@@ -415,7 +443,7 @@ export function useKBDetail(id: string | null) {
       // i18n-exempt: a narrowing guard on a hook only mounted with an id, not copy.
       if (!id) throw new Error("No knowledge base is open");
       const startedIn = activeOrgId;
-      const updated = await apiClient.patch<KnowledgeBase>(`/kb/${id}`, input);
+      const updated = await apiClient.patch<KnowledgeBaseDetail>(`/kb/${id}`, input);
       if (stillSameTenant(startedIn)) {
         queryClient.setQueryData(qk.kb.detail(id), updated);
         toast.success(t("embeddingsSaved"));
@@ -718,6 +746,7 @@ export function useKBDetail(id: string | null) {
     refreshIngestion,
     loadMoreDocuments,
     updateIngestion,
+    updateGapHelpers,
     updateEmbeddings,
     uploadDocument,
     deleteDocument,

@@ -12,7 +12,7 @@ logged, audited or returned again; refusals name the key by its prefix at most.
 
 import hashlib
 import secrets
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
@@ -123,6 +123,8 @@ class KeyCaller:
     surface: ChangeSurface = "api_key"
     """Which kind of client holds the key - what a change it makes is attributed to."""
 
+    name: str = ""
+
 
 class ApiKeyService:
     def __init__(self, db: AsyncSession) -> None:
@@ -147,8 +149,11 @@ class ApiKeyService:
             presets.append(ApiKeyPreset(id="read_only", scopes=read_only))
         if set(held) >= _KNOWLEDGE_INGEST:
             presets.append(ApiKeyPreset(id="knowledge_ingest", scopes=sorted(_KNOWLEDGE_INGEST)))
-        if held:
-            presets.append(ApiKeyPreset(id="full_access", scopes=[perm.value for perm in held]))
+        # Standing personal consent is a separate, informed opt-in, including
+        # when the person chooses the broad organization-access preset.
+        ordinary = [perm.value for perm in held if perm is not Perm.PERSONAL_CONSENT]
+        if ordinary:
+            presets.append(ApiKeyPreset(id="full_access", scopes=ordinary))
         return ApiKeyScopeCatalog(scopes=[perm.value for perm in held], presets=presets)
 
     async def create(self, ctx: AuthContext, data: ApiKeyCreate) -> ApiKeyCreated:
@@ -397,6 +402,7 @@ class ApiKeyService:
             organization=organization,
             api_key_id=key.id,
             prefix=key.prefix,
+            name=key.name,
             surface="mcp" if key.oauth_grant_id else "assistant" if key.internal else "api_key",
             context=AuthContext(
                 user_id=key.user_id,
@@ -404,9 +410,65 @@ class ApiKeyService:
                 role=membership.role,
                 api_key_id=key.id,
                 key_scopes=frozenset(Perm(scope) for scope in key.scopes if scope in Perm),
+                key_internal=key.internal,
                 source_conversation_id=key.source_conversation_id if key.internal else None,
             ),
         )
+
+
+#: What a job's row says when the API key it was started with no longer stands.
+KEY_GONE = (
+    "The API key that started this was revoked, has expired, or no longer exists, "
+    "so it was stopped."
+)
+
+
+async def job_context(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID | None,
+    api_key_id: UUID | None,
+) -> AuthContext | None:
+    """The authority background work runs with, rebuilt when the work starts.
+
+    Work queued by a request runs later, under a context it rebuilds rather
+    than the request's: whoever started it may have lost their role, and a key
+    it was started with may have been narrowed or revoked. So it is the
+    starter's role as it is now, narrowed to the key's scopes as they are now
+    - a job does no more than the request that started it could do today. A
+    job is not the starter talking, so it reads and writes none of their
+    personal memory.
+
+    Returns:
+        The context, or `None` when the starter is no longer an active member.
+
+    Raises:
+        AuthenticationError: Started with a key that is now revoked, expired,
+            gone or in another organization, with :data:`KEY_GONE` as the
+            message the job's row shows.
+    """
+    if api_key_id is not None:
+        try:
+            ctx = await ApiKeyService(db).context_for_key(
+                api_key_id, organization_id=organization_id
+            )
+        except AuthenticationError:
+            raise AuthenticationError(message=KEY_GONE) from None
+        return replace(ctx, subject_is_publisher_fallback=True)
+    membership = (
+        None
+        if user_id is None
+        else await member_repo.get_active(db, organization_id=organization_id, user_id=user_id)
+    )
+    if user_id is None or membership is None:
+        return None
+    return AuthContext(
+        user_id=user_id,
+        organization_id=organization_id,
+        role=membership.role,
+        subject_is_publisher_fallback=True,
+    )
 
 
 async def mint_for_run(

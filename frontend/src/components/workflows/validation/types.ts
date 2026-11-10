@@ -66,6 +66,11 @@ export type ValidationCode =
   // Rule 6 — nested scope boundaries.
   | "edge-crosses-scope"
   | "binding-crosses-scope"
+  // Loop membership
+  | "loop-scope-missing"
+  | "loop-scope-cycle"
+  | "loop-scope-not-a-loop"
+  | "loop-body-unreachable"
   // Rule 7 — no cycles.
   | "node-in-cycle"
   | "node-in-scope-cycle"
@@ -129,6 +134,10 @@ export const MESSAGE_KEYS: Record<ValidationCode, string> = {
   "binding-crosses-scope": "validationBindingCrossesScope",
   "node-in-cycle": "validationNodeInCycle",
   "node-in-scope-cycle": "validationNodeInScopeCycle",
+  "loop-scope-missing": "validationLoopScopeMissing",
+  "loop-scope-cycle": "validationLoopScopeCycle",
+  "loop-scope-not-a-loop": "validationLoopScopeNotALoop",
+  "loop-body-unreachable": "validationLoopBodyUnreachable",
   "fanout-multiple-ports": "validationFanoutMultiplePorts",
   "input-bound-twice": "validationInputBoundTwice",
   "input-not-bound": "validationInputNotBound",

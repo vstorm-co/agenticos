@@ -8,6 +8,7 @@ from uuid import UUID
 from rank_bm25 import BM25Okapi
 
 from app.agents.capabilities.budget import assert_ambient_budget
+from app.core.exceptions import BadRequestError
 from app.db.vector_tables import VectorScope
 from app.services.rag.config import RAGSettings
 from app.services.rag.filters import (
@@ -18,6 +19,7 @@ from app.services.rag.filters import (
     scope_for,
 )
 from app.services.rag.models import ParentContextMode, SearchResult
+from app.services.rag.overlay import active_overlay
 from app.services.rag.parent_context import expand_context, expansion_scope
 from app.services.rag.vectorstore import BaseVectorStore
 
@@ -88,10 +90,14 @@ class RetrievalService(BaseRetrievalService):
         appears in provides its representative - which for the hybrid case is the
         vector leg, exactly as before this generalised past two lists.
 
-        The representative is copied with only its score replaced, so every other
-        field a store or a later stage put on the result survives fusion.
+        The representative is copied with its score replaced and its similarity
+        raised to the closest any list found the row at, so every other field a
+        store or a later stage put on the result survives fusion, and a row one
+        query variant matched well is not judged by a variant that matched it
+        poorly.
         """
         scores: dict[str, float] = {}
+        similarities: dict[str, float | None] = {}
         result_map: dict[str, SearchResult] = {}
 
         for results in result_lists:
@@ -100,9 +106,18 @@ class RetrievalService(BaseRetrievalService):
                 scores[key] = scores.get(key, 0) + 1.0 / (k + rank + 1)
                 if key not in result_map:
                     result_map[key] = r
+                    similarities[key] = r.similarity
+                elif r.similarity is not None:
+                    best = similarities[key]
+                    similarities[key] = r.similarity if best is None else max(best, r.similarity)
 
         sorted_keys = sorted(scores, key=lambda x: scores[x], reverse=True)
-        return [result_map[key].model_copy(update={"score": scores[key]}) for key in sorted_keys]
+        return [
+            result_map[key].model_copy(
+                update={"score": scores[key], "similarity": similarities[key]}
+            )
+            for key in sorted_keys
+        ]
 
     async def _bm25_search(
         self, query: str, collection_name: str, limit: int, query_filter: RetrievalQuery
@@ -140,8 +155,10 @@ class RetrievalService(BaseRetrievalService):
             SearchResult(
                 content=r.content,
                 score=float(s),
+                similarity=r.similarity,
                 metadata=r.metadata,
                 parent_doc_id=r.parent_doc_id,
+                overlay_token=r.overlay_token,
             )
             for r, s in scored[:limit]
             if s > 0
@@ -165,6 +182,16 @@ class RetrievalService(BaseRetrievalService):
         # Composed once and threaded through every candidate-producing query
         # (the vector leg and the BM25 rerank), so no path can skip enforcement.
         query_filter = compose(scope, filters)
+        overlay = active_overlay()
+        if (
+            overlay is not None
+            and overlay.matching(collection_name, query_filter)
+            and not self.store.supports_knowledge_overlay
+        ):
+            overlay.failed = True
+            raise BadRequestError(
+                message="This vector store does not support run-only knowledge drafts"
+            )
 
         logger.info(
             "[RETRIEVAL] Query: '%.50s...', collection: %s, limit: %d",

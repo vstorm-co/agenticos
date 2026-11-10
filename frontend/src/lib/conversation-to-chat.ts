@@ -17,7 +17,8 @@ import type {
 export interface RawToolCall {
   tool_call_id: string;
   tool_name: string;
-  presentation_kind?: "draft" | null;
+  tool_id?: string | null;
+  presentation_kind?: "draft" | "generic" | "platform" | null;
   args: Record<string, unknown>;
   result?: unknown;
   status: string;
@@ -25,8 +26,17 @@ export interface RawToolCall {
 
 /** One entry of a stored timeline - see `MessagePart` in the backend schemas. */
 export interface RawMessagePart {
+  setup_agent_id?: string | null;
   type:
-    "text" | "thinking" | "tool" | "ask_user" | "steer" | "mention" | "workflow_run" | "phone_call";
+    | "text"
+    | "thinking"
+    | "tool"
+    | "ask_user"
+    | "steer"
+    | "mention"
+    | "workflow_run"
+    | "phone_call"
+    | "model_setup";
   file_source?: TurnFileSource | null;
   text?: string | null;
   /** For a `mention` entry on a user turn (#2189). */
@@ -122,6 +132,15 @@ export function replayStoredParts(
       });
       return;
     }
+    if (entry.type === "model_setup") {
+      parts.push({
+        id: `${msgId}-setup-${index}`,
+        type: "model_setup",
+        content: entry.text ?? "",
+        setupAgentId: entry.setup_agent_id ?? undefined,
+      });
+      return;
+    }
     if (entry.type === "phone_call") {
       if (entry.phone_call_id)
         parts.push({
@@ -209,6 +228,7 @@ export function conversationMessageToChatMessage(msg: RawMessage): ChatMessage {
   const toolCalls: ToolCall[] | undefined = msg.tool_calls?.map((tc) => ({
     id: tc.tool_call_id,
     name: tc.tool_name,
+    tool_id: tc.tool_id,
     presentation_kind: tc.presentation_kind,
     args: tc.args,
     result: tc.result,

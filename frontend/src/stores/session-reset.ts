@@ -1,5 +1,7 @@
 "use client";
 
+import { clearCopies } from "@/lib/unsaved-copies";
+
 import { wipeDeviceCache } from "@/lib/offline/device-cache";
 import { useAgentSelectionStore } from "./agent-selection-store";
 import { useBrowserPanelStore } from "./browser-panel-store";
@@ -11,6 +13,7 @@ import { useOrgStore } from "./org-store";
 import { useSourcesPanelStore } from "./sources-panel-store";
 import { useTableViewStore } from "./table-view-store";
 import { resetVisualState } from "./visual-stream-store";
+import { useUnsavedChangesStore } from "./unsaved-changes-store";
 import { useWorkOnStore } from "./work-on-store";
 import { useWorkingStore } from "./working-store";
 
@@ -59,6 +62,9 @@ export function resetTenantState(): void {
   // Visuals' pictures and saved apps are keyed by the provider's call id, which
   // another tenant's thread may reuse.
   resetVisualState();
+  // Unsaved edits kept in this browser are the organization's content too.
+  clearCopies();
+  useUnsavedChangesStore.setState({ sources: {}, prompt: null, saving: false });
   // And the copy on the disk: the apps keep the tenant's recent conversations
   // and outbox sealed on the device, for one tenant at a time (#2097).
   wipeDeviceCache();

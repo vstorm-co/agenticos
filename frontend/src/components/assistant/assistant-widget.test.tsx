@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import type { ChatPrompt } from "@/components/chat/chat-container";
 import type { IncomingFiles } from "@/components/chat/chat-input";
+import { useAuthStore, useOrgStore } from "@/stores";
 import { useArchitectAskStore } from "@/stores/architect-ask-store";
 import { useArchitectMarkStore } from "@/stores/architect-mark-store";
 import type { AssistantState } from "@/types/assistant";
@@ -31,6 +32,13 @@ const state = vi.hoisted(() => ({
   conversations: [] as { id: string; title?: string; created_at: string; updated_at: string }[],
   currentConversationId: null as string | null,
   phone: false,
+}));
+
+vi.mock("@/hooks/use-permissions", () => ({
+  usePermissions: () => ({ isLoaded: true, can: () => true }),
+}));
+vi.mock("@/hooks/use-start", () => ({
+  useStart: () => ({ data: { support_email: "owner@example.com" } }),
 }));
 
 const CONSOLE_LINK = "/agents?highlight=agents-new";
@@ -213,6 +221,7 @@ describe("the Architect widget", () => {
     state.assistant = assistant({ status: "needs_model" });
     render(<AssistantWidget />);
 
+    lookAtThePage();
     expect(screen.getByText(/I'm not connected to a model yet/)).toBeInTheDocument();
   });
 
@@ -325,6 +334,25 @@ describe("the Architect widget", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "New conversation" }));
     expect(state.startNewChat).toHaveBeenCalledTimes(2);
+  });
+
+  it("goes back to the conversation last open after a page load, until a new one is started", () => {
+    const user = useAuthStore.getState().user;
+    const organization = useOrgStore.getState().activeOrgId;
+    useAuthStore.setState({ user: { ...user!, id: "u1" } });
+    useOrgStore.setState({ activeOrgId: "o1" });
+    localStorage.setItem("architect-conversation:u1:o1", "c9");
+    const view = render(<AssistantWidget />);
+    fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
+    expect(state.selectConversation).toHaveBeenCalledWith("c9");
+    state.currentConversationId = "c1";
+    view.rerender(<AssistantWidget />);
+    expect(localStorage.getItem("architect-conversation:u1:o1")).toBe("c1");
+    fireEvent.click(screen.getByRole("button", { name: "New conversation" }));
+    expect(state.startNewChat).toHaveBeenCalledOnce();
+    expect(localStorage.getItem("architect-conversation:u1:o1")).toBeNull();
+    useAuthStore.setState({ user });
+    useOrgStore.setState({ activeOrgId: organization });
   });
 
   it("opens an earlier conversation from the list, and closes the list", () => {
@@ -692,4 +720,37 @@ describe("the Architect widget", () => {
 
     expect(dialog).toHaveClass("hidden");
   });
+});
+
+it("opens the real chat and shared model card before Architect has a model", () => {
+  state.assistant = assistant({ status: "needs_model", can_configure: true });
+  render(<AssistantWidget />);
+  fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
+  expect(chat()).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Connect my AI model" })).toHaveAttribute(
+    "href",
+    "/agents/a1?highlight=agent-model-picker",
+  );
+  expect(screen.queryByText("Architect is typing…")).not.toBeInTheDocument();
+});
+
+it("keeps the setup chat open when Architect becomes ready", () => {
+  state.assistant = assistant({ status: "needs_model", can_configure: true });
+  const view = render(<AssistantWidget />);
+  fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
+  state.assistant = assistant();
+  view.rerender(<AssistantWidget />);
+  expect(screen.getByRole("dialog", { name: "Architect" })).not.toHaveClass("hidden");
+  expect(screen.queryByRole("link", { name: "Connect my AI model" })).not.toBeInTheDocument();
+});
+
+it("offers members administrator guidance in the unconfigured Architect chat", () => {
+  state.assistant = assistant({ status: "needs_model", can_configure: false });
+  render(<AssistantWidget />);
+  fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
+  expect(screen.queryByRole("link", { name: "Connect my AI model" })).not.toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Contact your administrator" })).toHaveAttribute(
+    "href",
+    "mailto:owner@example.com",
+  );
 });
