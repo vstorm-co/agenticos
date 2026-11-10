@@ -90,11 +90,18 @@ export function stepsTaken(rows: WorkflowNodeRunRead[]): WorkflowNodeRunRead[] {
   const notStarted = new Set(["pending", "skipped", "cancelled"]);
   const at = (row: WorkflowNodeRunRead) => {
     const time = row.started_at ?? row.ended_at;
-    return time === null ? Number.MAX_SAFE_INTEGER : Date.parse(time);
+    return {
+      row,
+      millis: time === null ? Number.MAX_SAFE_INTEGER : Date.parse(time),
+      // Date.parse drops the microseconds PostgreSQL keeps on a fast step.
+      fraction: (time?.match(/\.(\d+)/)?.[1] ?? "").padEnd(6, "0"),
+    };
   };
   return rows
     .filter((row) => row.started_at !== null || !notStarted.has(row.status))
-    .sort((a, b) => at(a) - at(b));
+    .map(at)
+    .sort((a, b) => a.millis - b.millis || a.fraction.localeCompare(b.fraction))
+    .map(({ row }) => row);
 }
 
 /**

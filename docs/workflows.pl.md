@@ -1,5 +1,5 @@
 ---
-source_sha: "9aa8f6f301f3"
+source_sha: "13e511da30cb"
 ---
 
 # Workflows { #workflows }
@@ -835,9 +835,10 @@ Odpowiedź runa - jego tekst, wynik strukturalny, fragmenty, na których się op
 liczba utworzonych plików, z samym JSON-em pod **Raw output** - oraz każdy wykonany
 krok, iteracja po iteracji, są obok.
 
-Lista zawiera kroki, które się zaczęły, w kolejności startu. Krok czekający na swoją
-kolej albo pominięty widać tylko na kanwie, a pominięty jest wyszarzony. Kliknięcie kroku w pętli
-pokazuje jego wejście i wyjście w tej iteracji. Trwający run odświeża się co kilka sekund, a **Cancel run** go zatrzymuje i wycofuje liczniki, które ustawiły jego czekające kroki. Jego **Files** wymieniają to, co zapisały jego kroki - pobrany plik, wyrenderowaną stronę, wynik skryptu - każde do pobrania.
+Lista zawiera kroki, które się zaczęły, w kolejności startu. Błędy pozostają
+widoczne, nawet jeśli krok zawiódł przed startem. Pozostałe kroki, które się nie
+zaczęły, widać tylko na kanwie; pominięte są wyszarzone. Kliknięcie wiersza kroku
+w pętli pokazuje jego wejście i wyjście w tej iteracji. Trwający run odświeża się co kilka sekund, a **Cancel run** go zatrzymuje i wycofuje liczniki, które ustawiły jego czekające kroki. Jego **Files** wymieniają to, co zapisały jego kroki - pobrany plik, wyrenderowaną stronę, wynik skryptu - każde do pobrania.
 
 Run czekający na krok [**Ask for approval**](reference/workflow-nodes.md#human-approval)
 widać w zakładce **Zatwierdzenia (Approvals)** w Activity. Gdy krok ma ustawione **Let the approver

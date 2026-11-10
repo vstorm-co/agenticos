@@ -28,7 +28,8 @@ Two things are versioned separately from this file and worth knowing about:
   canvas only. Clicking a loop step's iteration now shows that iteration's
   input and output, not the last iteration's; an iteration with no result yet
   shows none. A step test still pins the last iteration's data. A long step
-  list now scrolls inside its panel instead of making the canvas taller.
+  list now scrolls inside its panel instead of making the canvas taller. Start
+  order preserves sub-millisecond timestamp precision (#2866).
 
 ## [1.62.7] - 2026-11-10
 

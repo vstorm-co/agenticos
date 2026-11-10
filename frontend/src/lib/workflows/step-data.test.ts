@@ -87,7 +87,7 @@ describe("what a run's steps did in each loop iteration", () => {
   const iterations = iterationDataOf("r", rows);
 
   it("names a row's iteration by its index in each loop around it", () => {
-    expect(iterationOf(rows[0] as WorkflowNodeRunRead)).toEqual([]);
+    expect(iterationOf(row({ scope_path: [] }))).toEqual([]);
     expect(
       iterationOf(
         row({
@@ -119,9 +119,51 @@ describe("what a run's steps did in each loop iteration", () => {
       runId: "r",
     });
   });
+
+  it.each(["pending", "running", "cancelled", "skipped"] as const)(
+    "does not borrow the previous iteration's output for a %s step",
+    (status) => {
+      const scoped = iterationDataOf("r", [
+        row({ node_instance_id: "h", scope_path: loop(0), output: { got: 1 } }),
+        row({ node_instance_id: "h", scope_path: loop(1), status }),
+      ]);
+      expect(stepDataAt(latest, scoped, "h", [1])).toEqual({
+        output: null,
+        error: null,
+        runId: "r",
+      });
+    },
+  );
+
+  it("reads a source from the nearest enclosing iteration", () => {
+    const scoped = iterationDataOf("r", [
+      row({ node_instance_id: "i", scope_path: loop(0), output: { item: 1 } }),
+      row({ node_instance_id: "i", scope_path: loop(1), output: { item: 2 } }),
+    ]);
+    expect(stepDataAt(latest, scoped, "i", [0, 3])?.output).toEqual({ item: 1 });
+  });
 });
 
 describe("the steps a run took", () => {
+  it("keeps the server's sub-millisecond start order", () => {
+    const rows = [
+      row({ id: "http", started_at: "2026-11-10T10:00:00.123900Z" }),
+      row({ id: "item", started_at: "2026-11-10T10:00:00.123100Z" }),
+      row({ id: "result", started_at: "2026-11-10T10:00:00.124000Z" }),
+    ];
+    expect(stepsTaken(rows).map((taken) => taken.id)).toEqual(["item", "http", "result"]);
+    expect(rows.map((taken) => taken.id)).toEqual(["http", "item", "result"]);
+  });
+
+  it("compares equivalent timestamp formats without losing their stable order", () => {
+    const rows = [
+      row({ id: "later", started_at: "2026-11-10T10:00:00.123900Z" }),
+      row({ id: "offset", started_at: "2026-11-10T11:00:00.1231+01:00" }),
+      row({ id: "utc", started_at: "2026-11-10T10:00:00.123100Z" }),
+    ];
+    expect(stepsTaken(rows).map((taken) => taken.id)).toEqual(["offset", "utc", "later"]);
+  });
+
   it("lists the steps that started, in the order they started", () => {
     const at = (second: number) => `2026-11-10T10:00:0${second}Z`;
     const rows = [

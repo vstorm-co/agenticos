@@ -1,5 +1,5 @@
 ---
-source_sha: "9aa8f6f301f3"
+source_sha: "13e511da30cb"
 ---
 
 # Workflows { #workflows }
@@ -855,11 +855,11 @@ La respuesta del run - su texto, su resultado estructurado, los pasajes en que s
 apoyó y cuántos archivos creó, con el JSON en sí bajo **Raw output** - y cada paso
 que dio, iteración a iteración, están al lado.
 
-La lista recoge los pasos que
-empezaron, en el orden en que empezaron. Un paso que aún espera su turno, u omitido,
-solo se ve en el lienzo, y uno omitido se ve atenuado. Al
-hacer clic en un paso de un bucle se ven su entrada y su salida en esa
-iteración. Un run en curso se actualiza cada par de segundos, y **Cancel run** lo
+La lista recoge los pasos que empezaron, en el orden en que empezaron. Los fallos
+siguen visibles aunque un paso fallara antes de empezar. Los demás pasos que no
+empezaron solo se ven en el lienzo; los omitidos aparecen atenuados. Al hacer clic
+en la fila de un paso de un bucle se ven su entrada y su salida en esa iteración.
+Un run en curso se actualiza cada par de segundos, y **Cancel run** lo
 detiene y retira los temporizadores que sus pasos en espera habían puesto en cola. Sus **Files** listan lo que guardaron sus pasos - una descarga, una página
 renderizada, la salida de un script -, cada uno descargable.
 

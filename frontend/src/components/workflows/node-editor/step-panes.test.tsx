@@ -91,6 +91,18 @@ beforeEach(() => {
 afterEach(() => store.getState().teardown());
 
 describe("InputPane", () => {
+  it("reads its source from the selected run iteration", () => {
+    const selected = node("b", "test.step");
+    const graph = line(selected);
+    seed(graph);
+    store.getState().mergeStepData({ a: { ...KNOWN, output: { echoed: "second" } } });
+    store.getState().setIterationData({ "a/0": { ...KNOWN, output: { echoed: "first" } } });
+    store.getState().editNode("b", [0]);
+    render(<InputPane graph={graph} catalog={[STEP]} node={selected} names={new Map()} readOnly />);
+    expect(screen.getByRole("cell", { name: "first" })).toBeTruthy();
+    expect(screen.queryByRole("cell", { name: "second" })).toBeNull();
+  });
+
   it("says a step with nothing before it reads nothing", () => {
     const graph = line();
     render(
