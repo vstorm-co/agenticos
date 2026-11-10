@@ -59,6 +59,8 @@ Two things are versioned separately from this file and worth knowing about:
   only when the person asks, through approval cards. The dashboard shows
   checks and proposed skill changes waiting on the reader.
 
+## [1.62.4] - 2026-11-10
+
 ### Fixed
 
 - **Parent deletion no longer depends on foreign-key trigger order.** Deleting
@@ -21225,7 +21227,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.62.3...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.62.4...HEAD
+[1.62.4]: https://github.com/vstorm-co/agenticos/compare/v1.62.3...v1.62.4
 [1.62.3]: https://github.com/vstorm-co/agenticos/compare/v1.62.2...v1.62.3
 [1.62.2]: https://github.com/vstorm-co/agenticos/compare/v1.62.1...v1.62.2
 [1.62.1]: https://github.com/vstorm-co/agenticos/compare/v1.62.0...v1.62.1
