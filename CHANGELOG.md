@@ -27,6 +27,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 - A workflow's **knowledge.search** step no longer gives a Markdown, text, HTML or Word source a page number, so the **agent.run** step after it no longer cites one as "page 1". A PDF or a presentation keeps its page. Agent chat already cited this way. (#2482)
 
+## [1.62.2] - 2026-11-10
+
+### Fixed
+
 - **Password sign-ins no longer prompt everyone to check invitations.** The
   generic mailbox-verification notice is removed, so deployments without email
   delivery and accounts without a working mailbox are not repeatedly offered an
@@ -21166,7 +21170,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.62.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.62.2...HEAD
+[1.62.2]: https://github.com/vstorm-co/agenticos/compare/v1.62.1...v1.62.2
 [1.62.1]: https://github.com/vstorm-co/agenticos/compare/v1.62.0...v1.62.1
 [1.62.0]: https://github.com/vstorm-co/agenticos/compare/v1.61.5...v1.62.0
 [1.61.5]: https://github.com/vstorm-co/agenticos/compare/v1.61.4...v1.61.5
