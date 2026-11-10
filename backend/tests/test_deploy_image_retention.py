@@ -435,3 +435,22 @@ def test_desktop_fallback_probe_never_selects_an_unrelated_repository(host: Host
     assert result.returncode == 0, result.stderr
     [probe] = [call for call in after.calls if call[:2] == ["docker", "run"]]
     assert probe[-3] == backend.id
+
+
+def test_a_symlink_stack_path_keeps_its_existing_compose_identity_and_rollback(host: Host) -> None:
+    link = host.path / "stack-link"
+    link.symlink_to(host.path, target_is_directory=True)
+    host.env["APP_DIR"] = str(link)
+    current = image(1)
+    target = image(2, tags=[f"{BACKEND}:sha-{TARGET[:7]}"])
+    frontend = image(3, tags=[f"{FRONTEND}:sha-{TARGET[:7]}"])
+    state = Engine(
+        images=[current, target, frontend],
+        containers=[
+            Container(id="app", image=current.id, reference=current.tags[0], working_dir=str(link))
+        ],
+    )
+    result, after = host.run(state, "", whole_script=True)
+    assert result.returncode == 0, result.stderr
+    assert after.image(f"{BACKEND}:{pin('rollback', str(link))}").id == current.id
+    assert after.image(f"{BACKEND}:{pin('current', str(link))}").id == target.id

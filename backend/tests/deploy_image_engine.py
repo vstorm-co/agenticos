@@ -143,8 +143,6 @@ class Engine(BaseModel):
                     next(c.image for c in self.containers if c.id == cid) for cid in args[3:]
                 )
             container = next(c for c in self.containers if c.id == args[-1])
-            if not container.health and ".State.Health" in args[2]:
-                raise RuntimeError('map has no entry for key "Health"')
             if ".Config.Image" in args[2]:
                 return f"{container.image}|{container.reference}|{container.service}|{container.health}"
             return container.health if ".Health.Status" in args[2] else container.image

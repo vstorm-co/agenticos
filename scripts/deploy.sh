@@ -254,7 +254,6 @@ FRONTEND_PROJECT="agenticos-frontend"
 say() { printf '\n\033[1m▶ %s\033[0m\n' "$*"; }
 
 cd "$APP_DIR"
-APP_DIR="$(pwd -P)"
 test -f "$COMPOSE_ENV" || { echo "missing $COMPOSE_ENV" >&2; exit 1; }
 
 # The effective value of a variable in the env file: the *last* assignment wins,
