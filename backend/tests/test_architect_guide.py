@@ -27,9 +27,19 @@ def gen():
 
 def test_every_copied_page_matches_its_source(gen) -> None:
     stale = [
-        page for page in gen.PAGES if gen.target(page).read_text() != (gen.DOCS / page).read_text()
+        page
+        for page in gen.PAGES
+        if gen.target(page).read_text(encoding="utf-8") != gen.render(page)
     ]
     assert stale == [], "run: python3 scripts/gen_architect_guide.py"
+
+
+def test_a_link_the_copy_cannot_resolve_points_at_the_published_page(gen) -> None:
+    """The skill carries a subset flat under `docs/`, so some links must leave."""
+    rendered = gen.render("features.md")
+    assert "](https://vstorm-co.github.io/agenticos/resources/" in rendered
+    # A page the copy does carry stays a relative link.
+    assert "](desktop.md" in rendered
 
 
 def test_the_skill_offers_every_copied_page_by_name(gen) -> None:

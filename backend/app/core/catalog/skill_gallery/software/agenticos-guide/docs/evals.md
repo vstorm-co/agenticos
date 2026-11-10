@@ -93,7 +93,7 @@ A dataset’s **Results → Test runs** view lists every agent measured on it wi
 
 The dashboard's **Eval runs** card lists the organization's latest runs with
 their agent and verdict. An eval's cases and the judge's grading are kept out
-of every other dashboard figure. [Activity](console.md#activity) lists them
+of every other dashboard figure. [Activity](https://vstorm-co.github.io/agenticos/console/#activity) lists them
 with every other run, labelled **Eval** and **Grader**, and its **Source**
 filter narrows to them. Activity's list shows what
 every run was asked - its first user turn, or the eval case's question, and for
@@ -194,7 +194,7 @@ names the eval run and case it answered (`eval_case`), for a reader who may see
 the dataset. It runs as the person who started the eval, with their current role,
 and does not read or write their personal memory.
 
-Each case runs **isolated**, as [Environments](environments.md) describes: a
+Each case runs **isolated**, as [Environments](https://vstorm-co.github.io/agenticos/environments/) describes: a
 tool with a test connection on the run's environment runs against it, a tool
 known to only read runs on the normal connection, and anything that writes without
 a test connection is not executed - the call and its arguments are kept as an
@@ -404,7 +404,7 @@ answers a case differently from one try to the next leaves its flips
 unconfirmed, and the verdict reads `no_difference` even when the pass rate
 moved - that means the model is unsteady on those cases, not that nothing
 changed. What helps is more cases in the dataset, a steadier model or a lower
-`temperature` in its [model settings](models.md#model-settings), and reading the
+`temperature` in its [model settings](https://vstorm-co.github.io/agenticos/models/#model-settings), and reading the
 unconfirmed cases in the table.
 
 A run's page says so when nothing held but three or more cases changed once, or
@@ -525,7 +525,7 @@ for the next one. A paused suite does not run, by any trigger or by hand.
 A suite that **guards an environment** also runs before a promotion onto it -
 on the version about to be promoted, beside the one the environment serves -
 and the promotion waits for it to pass; see
-[Guarding a promotion with evals](environments.md#guarding-a-promotion-with-evals).
+[Guarding a promotion with evals](https://vstorm-co.github.io/agenticos/environments/#guarding-a-promotion-with-evals).
 Its results read *Before promotion* (`gate`). A suite that guards an
 environment is pinned to the dataset version and the scoring it had when it
 became a guard, so editing the dataset does not change what it checks until the
@@ -648,7 +648,7 @@ A result holds the agent's answer and the arguments of every call it made, so
 it can hold personal data from the case it answered and from the recording it
 was answered from. It is deleted with its run, and a run with its agent or its
 dataset; deleting the conversation a case was taken from does not delete
-results already produced from it. [Data protection](data-protection.md)
+results already produced from it. [Data protection](https://vstorm-co.github.io/agenticos/data-protection/)
 lists it with the other stores.
 
 Recognized secrets in retained answers, tool-call evidence and errors are replaced with the same placeholders used in Review and dataset cases. Initial scoring evaluates the original answer in memory before persistence; rescoring uses the retained, redacted evidence. The upgrade also redacts existing results and cannot restore removed secrets on downgrade.

@@ -177,7 +177,7 @@ capability or MCP server it refers to, never an identifier.
 | Step limit | Set `max_steps` |
 | Capabilities | Add or remove one, or change its settings - only where the settings are about quality alone, such as how much knowledge to retrieve or when to compact; settings that reach a URL, a domain, a connection, a provider or personal data never change, and Subagents are never added or reconfigured. A safeguard - Guardrails - can only be added: never removed or reconfigured, however the suggestion names it |
 | Approval | Make a capability or one of its tools ask first |
-| Specialists | Rewrite the description of an inline [specialist](reference/capabilities.md#delegation) |
+| Specialists | Rewrite the description of an inline [specialist](https://vstorm-co.github.io/agenticos/reference/capabilities/#delegation) |
 | Knowledge bases | Bind or unbind one |
 | Context files | Bind or unbind one |
 | MCP tools | Change which tools of a bound server the agent may call |
@@ -263,7 +263,7 @@ and are refused once it changed since, for a skill change as for a file.
 ## Describing a new agent { #describing-a-new-agent }
 
 The create dialog offers to describe the agent instead of filling in the form.
-The description goes to the [Architect](console.md#the-assistant), which drafts agents and asks
+The description goes to the [Architect](https://vstorm-co.github.io/agenticos/console/#the-assistant), which drafts agents and asks
 before it creates one; the result is an ordinary draft.
 
 ## Cost and budget { #cost-and-budget }
@@ -450,7 +450,7 @@ The API answers any change to a finished session with `409`, except repeating th
 
 #### Asking the Architect { #asking-the-architect }
 
-The [Architect](console.md#the-assistant) reads an agent's sessions, test runs and
+The [Architect](https://vstorm-co.github.io/agenticos/console/#the-assistant) reads an agent's sessions, test runs and
 test questions, and explains a result in plain words: what an attempt fixed and
 broke, whether a change was confirmed by asking again, and how the held-out
 questions moved. It links the wizard rather than retelling it.
