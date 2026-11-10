@@ -1,20 +1,14 @@
 ---
-source_sha: "984dbd8faf18"
+source_sha: "0d080c65b077"
 ---
 
 # Despliega en un servidor { #deploy-to-a-server }
 
-Un host, Docker Compose, un proxy inverso delante. Ese es todo el camino que se
-publica, y es el que hace funcionar los despliegues en los que se usa este
-proyecto.
-
-No hay manifiestos de Kubernetes, ni quickstarts de un clic para los proveedores
-de plataforma como servicio. No es modestia sobre la escala. El stack son seis
-contenedores, dos de los cuales guardan estado, uno de los cuales puede arrancar
-contenedores propios, y uno de los cuales es un Postgres que debe ser pgvector -
-que ya es más de lo que modela un destino de despliegue a base de `git push`, y
-una guía que fingiera lo contrario estaría describiendo un despliegue que nadie
-ha ejecutado.
+Un host, Docker Compose y un proxy inverso siguen siendo la vía publicada para
+un solo servidor. Para clústeres, usa el [chart Helm de Kubernetes](kubernetes.md)
+mantenido, con servicios de datos externos y un Job de migración bloqueante.
+La configuración de OpenShift es una propuesta todavía sin validar. No hay
+quickstarts de un clic para proveedores PaaS.
 
 Más allá de un host - un Postgres gestionado, varios hosts de API, varios
 despliegues - está [Escalar más allá de un host](scaling.md).

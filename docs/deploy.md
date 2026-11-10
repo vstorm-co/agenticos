@@ -1,14 +1,9 @@
 # Deploy to a server
 
-One host, Docker Compose, a reverse proxy in front. That is the whole shipped
-path, and it is what runs the deployments this project is used in.
-
-There are no Kubernetes manifests, and no one-click quickstarts for the
-platform-as-a-service providers. That is not modesty about scale. The stack is
-six containers, two of which hold state, one of which can start containers of
-its own, and one of which is a Postgres that must have pgvector - which is
-already more than a `git push` deploy target models, and a guide that pretended
-otherwise would be describing a deployment nobody has run.
+One host, Docker Compose and a reverse proxy remain the shipped single-server
+path. For clusters, use the maintained [Kubernetes Helm chart](kubernetes.md),
+with external data services and a blocking migration Job. OpenShift has a candidate
+configuration but is not yet validated. There are no one-click PaaS quickstarts.
 
 Past one host - a managed Postgres, several API hosts, several deployments - is
 [Scale beyond one host](scaling.md).

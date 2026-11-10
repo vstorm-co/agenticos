@@ -1,18 +1,13 @@
 ---
-source_sha: "984dbd8faf18"
+source_sha: "0d080c65b077"
 ---
 
 # Wdrożenie na serwer { #deploy-to-a-server }
 
-Jeden host, Docker Compose, reverse proxy z przodu. To cała dostarczana ścieżka i
-to na niej działają wdrożenia, w których ten projekt jest używany.
-
-Nie ma manifestów Kubernetes ani jednoklikowych quickstartów dla dostawców
-platform-as-a-service. To nie jest skromność co do skali. Stack to sześć
-kontenerów, z których dwa trzymają stan, jeden potrafi uruchamiać własne kontenery,
-a jeden jest Postgresem, który musi mieć pgvector - co już przekracza to, co
-modeluje cel wdrożeniowy typu `git push`, a przewodnik udający inaczej opisywałby
-wdrożenie, którego nikt nie uruchomił.
+Jeden host, Docker Compose i reverse proxy pozostają dostarczaną ścieżką dla
+pojedynczego serwera. Dla klastrów użyj utrzymywanego [charta Helm Kubernetes](kubernetes.md),
+z zewnętrznymi usługami danych i blokującym zadaniem migracji. Konfiguracja OpenShift
+jest propozycją i nie została jeszcze zweryfikowana. Nie ma jednoklikowych quickstartów PaaS.
 
 Poza jeden host - zarządzany Postgres, kilka hostów API, kilka wdrożeń - prowadzi
 [Skalowanie poza jeden host](scaling.md).

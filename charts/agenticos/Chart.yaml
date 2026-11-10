@@ -1,0 +1,7 @@
+apiVersion: v2
+name: agenticos
+description: AgenticOS API, durable worker and console with external data services
+type: application
+version: 0.1.0
+appVersion: "1.63.0"
+kubeVersion: ">=1.30.0-0"

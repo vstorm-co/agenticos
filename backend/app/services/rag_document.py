@@ -448,10 +448,10 @@ class RAGDocumentService:
         through to `complete_ingestion`/`fail_ingestion` at settlement, per
         Decision 1's "threaded through the call, not read back" rule.
 
-        The copy under `MEDIA_DIR/_rag_tmp` is what the flow opens: permanent
-        storage may be somewhere the worker container cannot reach, and the
-        directory is shared between the two. One file per dispatch, removed by
-        the job once no attempt of it is coming (`app.services.rag_scratch`).
+        Local storage uses a shared copy under `MEDIA_DIR/_rag_tmp`, one per
+        dispatch, removed once no attempt remains (`app.services.rag_scratch`).
+        S3 needs no shared filesystem: the worker downloads the stored object
+        into a private temporary directory for each execution.
 
         Queued as an `ingest-document` job in this request's transaction: the job
         reads this document by id on a session of its own, and the two commit
@@ -461,12 +461,11 @@ class RAGDocumentService:
         is stopped there and written down on the job, not in the API.
         """
         scratch = rag_scratch.scratch_path(doc_id, attempt=attempt, filename=filename)
-        scratch.parent.mkdir(parents=True, exist_ok=True)
         tmp_path = str(scratch)
-        # anyio, not open(): an upload can be tens of megabytes, and writing it
-        # synchronously stalls every other request on this worker until it lands.
-        async with await anyio.open_file(tmp_path, "wb") as f:
-            await f.write(file_data)
+        if settings.FILE_STORAGE_BACKEND == "local":
+            scratch.parent.mkdir(parents=True, exist_ok=True)
+            async with await anyio.open_file(tmp_path, "wb") as file:
+                await file.write(file_data)
         await enqueue(
             self.db,
             INGEST_DOCUMENT,

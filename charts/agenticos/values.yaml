@@ -1,0 +1,81 @@
+# Use an immutable released tag, or repository@sha256 through image.digest.
+image:
+  backend: ghcr.io/vstorm-co/agenticos-backend
+  frontend: ghcr.io/vstorm-co/agenticos-frontend
+  tag: ""
+  backendTag: ""
+  frontendTag: ""
+  backendDigest: ""
+  frontendDigest: ""
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+# Must exist before Helm starts: SECRET_KEY, API_KEY, VAULT_MASTER_KEY, POSTGRES_PASSWORD.
+# Optional credentials: REDIS_PASSWORD, FILE_STORAGE_S3_ACCESS_KEY,
+# FILE_STORAGE_S3_SECRET_KEY. Do not put credentials in values files.
+existingSecret: ""
+serviceAccountName: default
+podSecurityContext:
+  runAsNonRoot: true
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+# OpenShift: set podSecurityContext without fsGroup, and runAsUser: null on
+# all three workloads. Let restricted-v2 assign namespace UIDs and groups.
+api:
+  replicas: 1
+  runAsUser: 1000
+  resources:
+    requests: {cpu: 250m, memory: 512Mi}
+    limits: {cpu: "2", memory: 2Gi}
+worker:
+  replicas: 1
+  runAsUser: 1000
+  resources:
+    requests: {cpu: 500m, memory: 1Gi}
+    limits: {cpu: "4", memory: 4Gi}
+frontend:
+  replicas: 1
+  runAsUser: 1001
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {cpu: "1", memory: 1Gi}
+migration:
+  activeDeadlineSeconds: 600
+  resources:
+    requests: {cpu: 250m, memory: 512Mi}
+    limits: {cpu: "2", memory: 2Gi}
+public:
+  siteUrl: ""
+  apiUrl: ""
+  websocketUrl: ""
+postgres:
+  host: ""
+  port: 5432
+  database: agenticos
+  user: agenticos
+  sslMode: require
+redis:
+  host: ""
+  port: 6379
+  database: 0
+  ssl: true
+storage:
+  bucket: ""
+  region: us-east-1
+  endpoint: ""
+  pathStyle: false
+  prefix: ""
+  encryption: sse-s3
+  kmsKeyId: ""
+# Nonsecret backend settings; explicit chart-managed settings take precedence.
+extraEnv: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  siteHost: ""
+  apiHost: ""
+  tls: []

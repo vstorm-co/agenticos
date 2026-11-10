@@ -1,5 +1,5 @@
 ---
-source_sha: "1aaedaaa4081"
+source_sha: "1555844ea407"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -390,6 +390,13 @@ media/
 S3, bajo `FILE_STORAGE_S3_PREFIX`, y pide al almacén que cifre cada una de ellas
 — SSE-S3 por defecto, SSE-KMS con una clave que nombra el despliegue. Los ajustes
 están en la [configuración](configuration.md#uploaded-files-at-rest).
+
+Con almacenamiento local, API y worker todavía deben compartir
+`MEDIA_DIR/_rag_tmp` para la ingesta de la base de conocimiento. Con S3, cada
+ejecución del worker descarga su propia copia del objeto y la elimina al terminar,
+fallar el parser o cancelarse. Los pods no comparten un volumen temporal de la
+API; consulta [despliegue Kubernetes](kubernetes.md). Un hijo matado puede dejar
+una copia temporal hasta reemplazar el pod.
 
 !!! info "Qué backend ejecutar, y qué le pide cada uno"
 

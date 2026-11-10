@@ -1,5 +1,5 @@
 ---
-source_sha: "2391388a2aed"
+source_sha: "2f74a407e5a3"
 ---
 
 # Escalar más allá de un host { #scale-beyond-one-host }
@@ -15,6 +15,9 @@ soporta un equipo de unas decenas de personas, y la mayor parte de la lentitud
 en un host pequeño es CPU steal o un pool demasiado pequeño, no una réplica que
 falta. La [batería de carga](load-testing.md) ejecuta la misma carga contra
 cualquier despliegue.
+
+El [chart Helm de Kubernetes](kubernetes.md) aplica este modelo de servicios
+externos a los pods de API, worker y consola. OpenShift sigue sin validar.
 
 ## Qué guarda estado y qué no { #what-holds-state-and-what-does-not }
 
@@ -180,6 +183,3 @@ respuesta en la transcripción cuando llega, en lugar de fotograma a fotograma.
 - Réplicas de lectura, o una base de datos vectorial propia.
 - Sharding de organizaciones entre bases de datos dentro de un despliegue.
 - PgBouncer en modo transacción, o Redis Cluster.
-- Manifiestos de Kubernetes. Las imágenes son las mismas que ejecutan los
-  archivos de compose, y cada servicio lleva su propio health check, así que un
-  clúster las ejecuta con el entorno que describe esta página.
