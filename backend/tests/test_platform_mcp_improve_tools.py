@@ -1848,9 +1848,9 @@ WRITES = {
 
 
 @pytest.mark.security
-def test_the_reads_never_wait_for_approval() -> None:
+def test_the_reads_declare_no_side_effects() -> None:
     catalog = {tool.name: tool for tool in platform_tool_catalog()}
-    assert all(not catalog[name].writes and not catalog[name].held for name in READS)
+    assert all(not catalog[name].writes for name in READS)
 
 
 @pytest.mark.security

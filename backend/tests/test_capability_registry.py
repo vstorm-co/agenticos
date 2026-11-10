@@ -569,17 +569,32 @@ class TestReadOnlyDeclarations:
 
     WRITES = frozenset(
         {
+            ("background_tasks", "list_background_tasks"),
+            ("background_tasks", "start_background_task"),
+            ("background_tasks", "stop_background_task"),
+            ("drafts", "write_draft"),
+            ("memory_files", "correct_memory"),
+            ("memory_files", "recall"),
+            ("memory_files", "remember"),
+            ("memory_files", "share_memory"),
+            ("mirage", "mirage_edit_file"),
+            ("mirage", "mirage_execute"),
+            ("mirage", "mirage_glob"),
+            ("mirage", "mirage_grep"),
+            ("mirage", "mirage_ls"),
+            ("mirage", "mirage_read_file"),
+            ("mirage", "mirage_write_file"),
+            ("phone_calls", "call_me"),
+            ("phone_calls", "end_phone_call"),
+            ("phone_calls", "get_phone_contact_policy"),
+            ("phone_calls", "list_phone_transfer_contacts"),
+            ("phone_calls", "transfer_phone_call"),
             ("artifacts", "publish_artifact"),
             ("artifacts", "share_artifact"),
             ("computer_use", "computer_screenshot"),
             ("computer_use", "computer_act"),
             ("computer_use", "computer_apps"),
             ("computer_use", "computer_save_screenshot"),
-            ("virtual_tables", "create_table"),
-            ("virtual_tables", "create_record"),
-            ("virtual_tables", "upsert_record"),
-            ("virtual_tables", "update_record"),
-            ("virtual_tables", "delete_record"),
             ("workflows", "run_workflow"),
             ("ask_user", "ask_user_question"),
             ("browser_use", "browse_web"),
@@ -606,7 +621,6 @@ class TestReadOnlyDeclarations:
             ("memory_files", "write_memory"),
             ("memory_files", "edit_memory"),
             ("memory_files", "delete_memory"),
-            ("memory_mem0", "remember"),
             ("sandbox", "write_file"),
             ("sandbox", "edit_file"),
             ("sandbox", "execute"),
@@ -732,7 +746,7 @@ class TestTestKeyIsolation:
             and any(self._TARGET.search(name) for name in definition.config_schema.model_fields)
         }
 
-        assert {"browser_use", "memory_mem0"} <= named
+        assert {"browser_use", "web_fetch"} <= named
 
 
 class TestProviderExecutedDeclarations:
@@ -1344,7 +1358,9 @@ class TestConsoleCapabilityGuide:
             text = (docs / page).read_text(encoding="utf-8")
             rows = {
                 cap_id: name.strip()
-                for name, cap_id in re.findall(r"^\| ([^|`]+) \| `([a-z_0-9]+)` \|$", text, re.M)
+                for name, cap_id in re.findall(
+                    r"^\|\s*([^|`]+?)\s*\|\s*`([a-z_0-9]+)`\s*\|$", text, re.M
+                )
             }
             assert rows == {
                 cap_id: entry["name"] for cap_id, entry in self._guide(locale).items()

@@ -39,6 +39,7 @@ from app.services.access import (
     ARTIFACT,
     COLLECTION,
     CONTEXT,
+    DATASET,
     MCP_CONNECTION,
     PROJECT,
     SECRET,
@@ -125,10 +126,8 @@ async def load_artifact(db: AsyncSession, artifact_id: UUID, ctx: AuthContext) -
 
 
 async def load_dataset(db: AsyncSession, dataset_id: UUID, ctx: AuthContext) -> Dataset:
-    dataset = await db.get(Dataset, dataset_id)
-    if dataset is None or dataset.organization_id != ctx.organization_id:
-        raise NotFoundError(message="Dataset not found", details={"dataset_id": str(dataset_id)})
-    return dataset
+    missing = NotFoundError(message="Dataset not found", details={"dataset_id": str(dataset_id)})
+    return await _visible(db, ctx, await db.get(Dataset, dataset_id), DATASET, missing)
 
 
 async def load_mcp_connection(

@@ -46,7 +46,7 @@ from app.agents.isolation import (
     recorded_args,
     recorded_calls,
 )
-from app.agents.mcp import MCP_ORIGIN
+from app.agents.mcp import MCP_ISOLATION
 from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
 from app.agents.spec import AgentSpec
 from app.core.secret_kinds import ApiKeySecret
@@ -83,7 +83,7 @@ class _World:
         toolset.add_function(act, name=tool)
         return toolset.with_metadata(
             **{
-                MCP_ORIGIN: {"test": test, "trust_read_only_hints": trusted},
+                MCP_ISOLATION: {"test": test, "trust_read_only_hints": trusted},
                 "annotations": {"readOnlyHint": read_only},
             }
         )
@@ -263,7 +263,7 @@ class TestWhatAnIsolatedRunExecutes:
 
         answer = await _run(
             isolation,
-            [toolset.with_metadata(**{MCP_ORIGIN: {"test": False}})],
+            [toolset.with_metadata(**{MCP_ISOLATION: {"test": False}})],
             _calls_then_answers(("crm_find", {"name": "Ada"})),
         )
 
@@ -318,7 +318,7 @@ class TestClassification:
             return ToolDefinition(
                 name="crm_find",
                 metadata={
-                    MCP_ORIGIN: {"test": False, "trust_read_only_hints": trusted},
+                    MCP_ISOLATION: {"test": False, "trust_read_only_hints": trusted},
                     "annotations": None if hint is None else {"readOnlyHint": hint},
                 },
             )
@@ -330,14 +330,14 @@ class TestClassification:
     def test_a_stamp_from_before_trust_existed_believes_no_hint(self):
         stamped = ToolDefinition(
             name="crm_find",
-            metadata={MCP_ORIGIN: {"test": False}, "annotations": {"readOnlyHint": True}},
+            metadata={MCP_ISOLATION: {"test": False}, "annotations": {"readOnlyHint": True}},
         )
 
         assert classify(stamped, {}) == ToolClass("tool:crm_find", read_only=False)
 
     def test_an_mcp_tool_is_never_mistaken_for_a_registry_tool_of_the_same_name(self):
         """The stamp decides, not the name: a server cannot borrow a read's identity."""
-        tool = ToolDefinition(name="search_documents", metadata={MCP_ORIGIN: {"test": False}})
+        tool = ToolDefinition(name="search_documents", metadata={MCP_ISOLATION: {"test": False}})
         table = {"search_documents": ToolClass("capability:knowledge.search_documents", True)}
 
         assert classify(tool, table).read_only is False
@@ -379,20 +379,20 @@ class TestClassification:
         points the writes at production, so the swap alone proves nothing."""
         spec = AgentSpec(
             name="Memory",
-            capabilities=[{"id": "memory_mem0", "config": {}, "secret_id": uuid.uuid4()}],
+            capabilities=[{"id": "browser_use", "config": {}, "secret_id": uuid.uuid4()}],
         )
-        swapped = frozenset({"memory_mem0"})
+        swapped = frozenset({"browser_use"})
 
-        assert not capability_tools(spec, test_bindings=swapped)["remember"].test
+        assert not capability_tools(spec, test_bindings=swapped)["browse_web"].test
 
         monkeypatch.setitem(
             REGISTRY,
-            "memory_mem0",
-            dataclasses.replace(get_capability("memory_mem0"), test_key_isolates=True),
+            "browser_use",
+            dataclasses.replace(get_capability("browser_use"), test_key_isolates=True),
         )
 
-        assert capability_tools(spec, test_bindings=swapped)["remember"].test
-        assert not capability_tools(spec, test_bindings=frozenset())["remember"].test
+        assert capability_tools(spec, test_bindings=swapped)["browse_web"].test
+        assert not capability_tools(spec, test_bindings=frozenset())["browse_web"].test
 
 
 class TestRecordings:

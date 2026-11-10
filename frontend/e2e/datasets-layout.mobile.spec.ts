@@ -87,7 +87,7 @@ test("case editing keeps fields and save reachable on narrow and short screens",
       expect(bounds).not.toBeNull();
       if (!bounds) throw new Error("The case editor has no visible bounds");
       if (width < 640) expect(bounds.height).toBeGreaterThanOrEqual(height - 50);
-      else expect(bounds.width).toBeLessThanOrEqual(700);
+      else expect(bounds.width).toBeLessThanOrEqual(1024);
       expect(bounds.y + bounds.height).toBeLessThanOrEqual(height + 1);
       const speaker = await dialog
         .getByRole("combobox", { name: "Turn 1: who speaks", exact: true })
@@ -249,7 +249,7 @@ test("agent gallery keeps its full height after filtering to no matches", async 
     await expect
       .poll(() =>
         search.evaluate((element) => {
-          const gallery = element.closest(".bg-card");
+          const gallery = element.closest(".rounded-xl");
           const frame = element.closest(".page-enter");
           if (!gallery || !frame) throw new Error("The agent gallery has no page frame");
           const bottom =

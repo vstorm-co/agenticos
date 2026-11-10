@@ -40,7 +40,7 @@ from app.services.eval_run import EvalRunService
 from app.services.improvement_pipeline import ImprovementPipelineService
 from app.services.system_agents import SystemAgentService
 from tests.integration.test_eval_suites import _dataset
-from tests.integration.test_system_agents import _member, _organization, _profile, _user
+from tests.integration.test_eval_system_agents import _member, _organization, _profile, _user
 
 pytestmark = pytest.mark.anyio
 

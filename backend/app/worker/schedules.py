@@ -162,7 +162,13 @@ async def declare(db: AsyncSession, schedules: Sequence[Schedule], *, now: datet
     a share of that minute after the last, so a fresh deployment's sweeps do not
     all wake at once.
     """
+    starts: set[datetime] = set()
     for index, schedule in enumerate(schedules):
+        first_run_at = now + min(_spread(index, len(schedules)), schedule.every)
+        # Clamping a short interval can coincide with another schedule's share.
+        while first_run_at in starts:
+            first_run_at -= timedelta(microseconds=1)
+        starts.add(first_run_at)
         await schedule_repo.declare(
             db,
             name=schedule.name,
@@ -172,7 +178,7 @@ async def declare(db: AsyncSession, schedules: Sequence[Schedule], *, now: datet
             misfire=schedule.misfire.value,
             grace_seconds=int(schedule.grace.total_seconds()),
             now=now,
-            first_run_at=now + _spread(index, len(schedules)),
+            first_run_at=first_run_at,
         )
     removed = await schedule_repo.forget_undeclared(db, declared=[s.name for s in schedules])
     if removed:
@@ -249,7 +255,7 @@ def _spread(index: int, count: int) -> timedelta:
 
     No two schedules may start at the same instant, and one whose interval is
     shorter than its share starts one interval out instead
-    (`background_schedule.declare`). In `count + 1` shares, so no share of the
-    current set lands on such a clamped start; `test_background_schedules` checks it.
+    (`background_schedule.declare`). Declaration resolves collisions between
+    such clamped starts and these shares before storing them.
     """
     return _MINUTE * index / (count + 1)

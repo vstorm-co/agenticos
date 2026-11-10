@@ -68,11 +68,11 @@ test("an organization's tour opens each settings tab it describes", async ({ pag
 
   await page.goto(`/orgs/${organizationId}/members`);
   const tabFor: Record<string, string> = {
-    "Name and face": "Profile",
+    "Name and face": "Workspace",
     "Budget and approvals": "Budget and approvals",
     Proactivity: "Proactivity",
-    Voice: "Voice",
-    "The AI Architect": "AI Architect",
+    Voice: "Workspace",
+    "The AI Architect": "AI & services",
   };
   const seen = await walkPageTour(page, async (title) => {
     const tab = tabFor[title];

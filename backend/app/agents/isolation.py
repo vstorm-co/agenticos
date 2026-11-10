@@ -52,7 +52,7 @@ from app.agents.capabilities import get as get_capability
 from app.agents.capabilities.approval import ApprovalGate
 from app.agents.capabilities.knowledge import FoundPassage
 from app.agents.deps import AgentDeps
-from app.agents.mcp import MCP_ORIGIN
+from app.agents.mcp import MCP_ISOLATION
 from app.agents.spec import AgentSpec
 from app.db.models.intercepted_tool_call import InterceptionOutcome, InterceptionReason
 from app.services.rag.overlay import KnowledgeOverlay
@@ -120,7 +120,7 @@ def classify(tool_def: ToolDefinition, tools: Mapping[str, ToolClass]) -> ToolCl
     including a tool nothing declared - writes.
     """
     metadata = tool_def.metadata or {}
-    origin = metadata.get(MCP_ORIGIN)
+    origin = metadata.get(MCP_ISOLATION)
     if isinstance(origin, dict):
         annotations = metadata.get("annotations") or {}
         return ToolClass(

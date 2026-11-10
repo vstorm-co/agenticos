@@ -910,7 +910,16 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
   if (isLoading) return <BuilderSkeleton />;
   if (agentError instanceof ApiError && (agentError.status === 404 || agentError.status === 403))
-    return <ResourceUnavailable back={ROUTES.AGENTS} label={t("backToAgents")} />;
+    return (
+      <div role="alert" className="space-y-3">
+        <ResourceUnavailable back={ROUTES.AGENTS} label={t("backToAgents")} />
+        <div className="flex justify-center">
+          <Button variant="outline" onClick={() => void refetchAgent()}>
+            {tAgents("retryLoad")}
+          </Button>
+        </div>
+      </div>
+    );
   if (!agent)
     return (
       <ErrorState
