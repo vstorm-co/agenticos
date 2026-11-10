@@ -59,6 +59,13 @@ Two things are versioned separately from this file and worth knowing about:
   only when the person asks, through approval cards. The dashboard shows
   checks and proposed skill changes waiting on the reader.
 
+### Fixed
+
+- **Refresh the AWS SDK and CLI dependencies.** Update boto3 to 1.43.126 and
+  Click to 8.5.1, with the third-party notices regenerated. Soup Sieve stays on
+  3.0.4 within the existing `<4` constraint: its 4.x template-selector change
+  breaks the established `html.parse` links and matches contract (#2857).
+
 ## [1.62.2] - 2026-11-10
 
 ### Fixed
