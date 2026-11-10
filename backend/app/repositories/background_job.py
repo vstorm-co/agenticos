@@ -530,6 +530,13 @@ async def get(db: AsyncSession, job_id: UUID) -> BackgroundJob | None:
     return await db.get(BackgroundJob, job_id)
 
 
+async def get_many(db: AsyncSession, job_ids: Sequence[UUID]) -> dict[UUID, BackgroundJob]:
+    if not job_ids:
+        return {}
+    result = await db.execute(select(BackgroundJob).where(BackgroundJob.id.in_(list(job_ids))))
+    return {job.id: job for job in result.scalars()}
+
+
 async def latest_with_dedupe_key(db: AsyncSession, dedupe_key: str) -> BackgroundJob | None:
     """The most recently queued job under `dedupe_key`, whatever it has got to since."""
     result = await db.execute(

@@ -233,10 +233,7 @@ function ConversationWidget({
             agentId={agentId}
             open={open}
             prompt={prompt}
-            page={{
-              path: pageOf(pathname),
-              title: typeof document === "undefined" ? "" : document.title,
-            }}
+            page={{ path: pageOf(pathname) }}
             tipsOff={preferences.off}
             onTipsOff={(off) => {
               setBubblesOff(off);

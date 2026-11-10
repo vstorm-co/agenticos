@@ -49,6 +49,12 @@ class IngestionSpend(Base, TimestampMixin):
         nullable=True,
     )
 
+    improvement_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("improvement_runs.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
     model: Mapped[str] = mapped_column(String(128), nullable=False)
     input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     # Non-zero for the image describer, whose output is the description it

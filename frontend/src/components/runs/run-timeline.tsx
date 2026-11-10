@@ -10,6 +10,7 @@ import { ChevronRight, Paperclip, ThumbsDown } from "lucide-react";
 import { CopyButton } from "@/components/chat/copy-button";
 import { MarkdownContent } from "@/components/chat/markdown-content";
 import { MessageCost } from "@/components/chat/message-cost";
+import { AddToDatasetButton } from "@/components/datasets/add-to-dataset-button";
 import { FileCard, FileViewer } from "@/components/files";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/states";
@@ -91,6 +92,7 @@ export function RunTimeline({ runId }: { runId: string }) {
         <TimelineGroup
           key={group.key}
           group={group}
+          transcriptItems={transcript.items}
           runId={runId}
           anchored={group.runId === anchorRunId}
           position={index + 1}
@@ -143,12 +145,14 @@ function groupByRun(items: RunTranscriptMessage[]): RunGroup[] {
  */
 function TimelineGroup({
   group,
+  transcriptItems,
   runId,
   anchored,
   position,
   locale,
 }: {
   group: RunGroup;
+  transcriptItems: RunTranscriptMessage[];
   /** The run being read, which is how a turn's attachments are addressed. */
   runId: string;
   /** Written by the run the panel is showing - the one that opens. */
@@ -223,6 +227,7 @@ function TimelineGroup({
               runId={runId}
               ownTurn={anchored}
               locale={locale}
+              reply={replyEndingAt(transcriptItems, transcriptItems.indexOf(item))}
             />
           ))}
         </ol>
@@ -231,11 +236,40 @@ function TimelineGroup({
   );
 }
 
+/**
+ * The agent's reply that `items[index]` ends - the steps it wrote in a row, a
+ * tool call's and the answer's alike - with whether anybody rated one of them
+ * down, or `null` when the reply goes on past it.
+ */
+function replyEndingAt(
+  items: RunTranscriptMessage[],
+  index: number,
+): { ratedDown: boolean; asked?: { question: string; earlier: boolean }; answer: string } | null {
+  if (items[index]!.role !== "assistant" || items[index + 1]?.role === "assistant") return null;
+  let start = index;
+  while (start > 0 && items[start - 1]!.role === "assistant") start -= 1;
+  const steps = items.slice(start, index + 1);
+  const questionIndex = items.slice(0, start).findLastIndex((step) => step.role === "user");
+  const question = items[questionIndex];
+  return {
+    ratedDown: steps.some((step) => (step.rating_count?.dislikes ?? 0) > 0),
+    asked:
+      question === undefined
+        ? undefined
+        : { question: question.content, earlier: questionIndex > 0 },
+    answer: steps
+      .map((step) => step.content.trim())
+      .filter(Boolean)
+      .join("\n\n"),
+  };
+}
+
 function TimelineTurn({
   item,
   runId,
   ownTurn,
   locale,
+  reply,
 }: {
   item: RunTranscriptMessage;
   /**
@@ -249,6 +283,8 @@ function TimelineTurn({
   /** Written by the focused run - marked, where the rest of the thread is context. */
   ownTurn: boolean;
   locale: string;
+  /** The agent's reply this turn ends, which is added to a dataset as one case. */
+  reply: ReturnType<typeof replyEndingAt>;
 }) {
   const t = useTranslations("pages.runs");
 
@@ -279,7 +315,9 @@ function TimelineTurn({
         {/* Which model wrote this turn, on the turn. A thread can be switched
             between models mid-conversation, so the run header's one label is
             the last answer's rather than every answer's. */}
-        {item.model_name != null && <span className="font-mono">{item.model_name}</span>}
+        {item.model_name != null && (
+          <span className="min-w-0 font-mono break-all">{item.model_name}</span>
+        )}
         {message.usage && <MessageCost usage={message.usage} />}
         {item.context_used_tokens != null && (
           <span className="font-mono" title={t("contextCarriedHint")}>
@@ -354,6 +392,16 @@ function TimelineTurn({
         <blockquote className="text-muted-foreground border-destructive/40 mt-2 border-l-2 pl-3 text-sm italic">
           {item.rating_comment}
         </blockquote>
+      )}
+      {reply !== null && (
+        <div className="mt-3">
+          <AddToDatasetButton
+            messageId={item.id}
+            ratedDown={reply.ratedDown}
+            asked={reply.asked}
+            answer={reply.answer}
+          />
+        </div>
       )}
     </li>
   );

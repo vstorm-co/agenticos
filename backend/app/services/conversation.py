@@ -1729,6 +1729,9 @@ class ConversationService:
             include_favourite=False,
             ctx=ctx,
         )
+        await personal_data_repo.unlink_dataset_cases_from_conversation(
+            self.db, conversation_id, organization_id=organization_id
+        )
         await self.forget_stored_files(organization_id, [conversation_id])
         await conversation_repo.delete_conversation(self.db, db_conversation=conversation)
         return True

@@ -1,5 +1,5 @@
 ---
-source_sha: "0fcfc92c2340"
+source_sha: "593e65c4520b"
 ---
 
 # Konsola { #the-console }
@@ -91,7 +91,7 @@ Kompaktowy przycisk źródeł pod odpowiedzią otwiera Sources obok rozmowy, a n
 Strona startowa to **układalna siatka widgetów** i jest odpowiedzią na pytanie
 "co się dzieje" bez otwierania pięciu stron.
 
-Istnieje czterdzieści dziewięć kart. Nie zobaczysz wszystkich: **karta jest
+Istnieje pięćdziesiąt siedem kart. Nie zobaczysz wszystkich: **karta jest
 bramkowana uprawnieniem, którego wymagają jej dane**, więc widget, którego nie
 możesz odczytać, nigdy się nie montuje, a jego zapytania nigdy nie wychodzą —
 poza twoimi własnymi powiadomieniami, niżej, które wymagają tylko tego, żebyś
@@ -101,22 +101,35 @@ pusty.
 Przełącznik na górze mówi, czyj to dashboard, i oferuje tylko widoki, które
 możesz otworzyć. Każdy zaczyna od widoku **Ja**:
 
-| Widok           | Odpowiada na                                                                                                                                                                                                                                                             |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Ja**          | Powitanie i Twój okres w jednym zdaniu; Twoje runy, ile się skończyło, co na Ciebie czeka i ile to kosztowało; potem wywołania czekające na Ciebie, Twoje rozmowy, Twoi agenci i co Ci udostępniono                                                                      |
-| **Organizacja** | Układalna strona opisana niżej                                                                                                                                                                                                                                           |
-| **Grupa**       | Członkowie jednej [grupy](departments.md) - ich runy, wydatki, modele, kiedy pracują i kto korzysta najwięcej. Grupę wybierasz obok przełącznika. Grupa, której członkowie nic nie uruchomili w okresie, mówi to raz, z przejściem do grupy, zamiast strony pustych kart |
-| **Wdrożenie**   | Tylko dla [admina deploymentu](permissions.md) — sumy platformy, kondycja, najbardziej obciążeni najemcy, oceny                                                                                                                                                          |
+| Widok | Odpowiada na |
+| --- | --- |
+| **Ja** | Powitanie, Twój okres i wszystko, co na Ciebie czeka, w dwóch zdaniach - wywołania, odpowiedzi do przeglądu, oblane suity, sugestie asystenta; Twoje runy, ile się skończyło, co na Ciebie czeka i ile to kosztowało; potem wywołania czekające na Ciebie, Twoje rozmowy, agenci wymagający uwagi, poprawki czekające na Ciebie, Twoi agenci, co Ci udostępniono, Twoje [datasety](datasets.md) z tym, z czym porównują odpowiedź ich przypadki, ostatnie runy i suity ewaluacji, sugestie asystenta według agenta, skilla i pliku oraz luki w wiedzy |
+| **Ja** | Powitanie i Twój okres w jednym zdaniu; Twoje runy, ile się skończyło, co na Ciebie czeka i ile to kosztowało; potem wywołania czekające na Ciebie, Twoje rozmowy, Twoi agenci i co Ci udostępniono |
+| **Organizacja** | Układalna strona opisana niżej |
+| **Grupa** | Członkowie jednej [grupy](departments.md) - ich runy, wydatki, modele, kiedy pracują i kto korzysta najwięcej. Grupę wybierasz obok przełącznika. Grupa, której członkowie nic nie uruchomili w okresie, mówi to raz, z przejściem do grupy, zamiast strony pustych kart |
+| **Wdrożenie** | Tylko dla [admina deploymentu](permissions.md) — sumy platformy, kondycja, najbardziej obciążeni najemcy, oceny |
+
+Na widoku **Ja** karta **Agenci wymagający uwagi** wymienia agentów, których
+widzisz, z odpowiedziami ocenionymi w dół, nieudanymi runami albo oblaną suitą
+ewaluacji w tym okresie - same liczby, nigdy treść - z przyciskiem **Ulepsz**
+przy tych, które możesz edytować. Galeria agentów oznacza tych samych agentów z
+ostatnich trzydziestu dni znaczkiem **Wymaga uwagi**, który po najechaniu mówi
+dlaczego. Odpowiedzi i runy liczą się tylko dla wersji, którą agent serwuje
+teraz w domyślnym środowisku: opublikowanie poprawki czyści sygnał, dopóki nowa
+wersja nie zbierze własnych. Oba wymagają `runs:view`.
+
+Pod nią karta **Poprawki czekające na Ciebie** wymienia sesje [Ulepsz](authoring.md#the-improve-wizard)
+zatrzymane na Twój następny krok albo decyzję, każdą otwierając na jej postoju.
 
 Widok organizacji pokazuje karty, które odpowiadają danymi, pogrupowane w pasy.
 Reszta - integracje, kanały, rutyny, synchronizacja wiedzy, działy, członkowie,
 sandboxy - czeka w katalogu, jedno kliknięcie dalej pod **Customize**:
 
-| Pas                      | Odpowiada na                                                                                                                                                                     |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| _(bez tytułu, na górze)_ | Podsumowanie, runy w czasie i to, jak się skończyły                                                                                                                              |
-| **Needs attention**      | Co czeka: [zatwierdzenia](governance.md#approvals), ostatnie błędy, zapas w budżecie, twoje najnowsze [powiadomienia](#the-bell)                                                 |
-| **Usage & cost**         | Których agentów się używa, wydatki, [minuty rozmów](#voice-calls), kiedy dzieje się praca, skąd przychodzą runy, miks modeli, opóźnienia, jakość odpowiedzi, kto z tego korzysta |
+| Pas | Odpowiada na |
+| --- | --- |
+| _(bez tytułu, na górze)_ | Podsumowanie, runy w czasie i to, jak się skończyły |
+| **Needs attention** | Co czeka: [zatwierdzenia](governance.md#approvals), ostatnie błędy, zapas w budżecie, twoje najnowsze [powiadomienia](#the-bell) |
+| **Usage & cost** | Których agentów się używa, wydatki, [minuty rozmów](#voice-calls), kiedy dzieje się praca, skąd przychodzą runy, miks modeli, opóźnienia, jakość odpowiedzi, kto z tego korzysta |
 
 Karta **Wyniki zatwierdzeń (Approval outcomes)** czeka w katalogu, dla każdego, kto może
 oglądać workflow. Pokazuje, jak ludzie rozstrzygali [kroki zatwierdzenia](workflows.md#running-a-workflow),
@@ -391,6 +404,15 @@ Ogłaszane są też runy: gdy startują, zatrzymują się na zatwierdzeniu lub p
 i gdy się kończą. Run uruchomiony przez harmonogram pojawia się na otwartej
 stronie Activity i zmienia tam status, choć nie stoi za nim żadne twoje żądanie.
 
+Ogłaszane są też datasety: dodany albo usunięty przypadek, zmiana oceniania,
+wynik albo decyzja przeglądu, a także propozycje, które
+[generator przypadków](datasets.md#generating-cases) kończy w tle - pojawiają się
+w zakładce Generated otwartego datasetu bez przeładowania.
+
+Tak samo ogłaszane są luki w wiedzy: temat odrzucony albo z nowym szkicem w
+jednej karcie i pytania, które co 15 minut umieszcza przejście grupujące,
+pojawiają się na otwartej karcie Luki w wiedzy bez przeładowania.
+
 Wyjątkiem jest Builder, bo zapisuje draft w trakcie pisania. Gdy edytowany agent
 zmieni się gdzie indziej, Builder przestaje zapisywać i pobiera nową wersję. Bez
 niezapisanych zmian po prostu ją przyjmuje; z niezapisanymi zmianami mówi, kto i
@@ -398,10 +420,11 @@ którędy go zmienił, i czeka na twój wybór: **Przeładuj** (ich wersja) albo
 **Zachowaj moje zmiany** (twoja, zapisana zamiast ich).
 
 Słyszysz tylko o tym, co możesz odczytać: zmiana agenta, skilla, bazy wiedzy,
-pliku kontekstu, strony, klucza albo serwera MCP, których nie widzisz, nigdy nie
+pliku kontekstu, strony, klucza, serwera MCP albo datasetu, których nie widzisz, nigdy nie
 trafia do twojej konsoli, a usunięcie trafia tylko do ról, które widzą każdy
 wiersz danego rodzaju. Runy trafiają do ról, które czytają historię runów albo
-decydują o zatwierdzeniach, boty kanałów do ról, które nimi zarządzają, a twoje
+decydują o zatwierdzeniach, luki w wiedzy do ról, które czytają każdy run, boty
+kanałów do ról, które nimi zarządzają, a twoje
 powiadomienia tylko do ciebie.
 Gdy połączenie zostanie zerwane, konsola działa jak dotąd i sama się ponownie łączy.
 
@@ -837,6 +860,24 @@ To jawna delegacja, oddzielona od pamięci, watchów i rutyn. Istniejące tryby 
 
 Agent z funkcją **Poprzednie rozmowy** oferuje w menu `@` trzydzieści najnowszych rozmów, do których masz dostęp. Wybierz rozmowę i zadaj konkretne pytanie. Wzmianka wskazuje temat; nie kopiuje transkryptu ani nie zmienia odpowiadającego agenta. Agent czyta odpowiedni fragment przez istniejące narzędzie rozmów, z tymi samymi kontrolami dostępu i odbiorców. Ograniczenia czatów grupowych nadal obowiązują. Przy starszym temacie wklej odnośnik lub identyfikator i poproś agenta o przeczytanie.
 
+## Aktywność { #activity }
+
+**Aktywność** (Activity) wymienia każdy run w organizacji osobie z `runs:view`:
+rozmowy, agentów organizacji odpowiadających na przypadki ewaluacji i agentów
+platformy przy ich własnej pracy. To, kto może przeczytać run i jego zapis, nie
+zależy od rodzaju runa.
+
+Run agenta platformy pokazuje jego nazwę w kolumnie Agent i etykietę obok
+powierzchni: **Improve** dla asystenta, **Oceniający** dla sędziego, **Luki w
+wiedzy** dla klasyfikatora i autora szkiców oraz **Pytania testowe** dla
+generatora przypadków. Agent odpowiadający na przypadek ewaluacji ma etykietę
+**Ewaluacja**. Obok etykiety jest link do miejsca, gdzie tę pracę się czyta:
+sesji Improve, ewaluacji, tematu luki w wiedzy albo datasetu.
+
+Filtr **Pochodzenie** zawęża listę do **Rozmów**, **Improve i ewaluacji** albo
+**Agentów systemowych**. Domyślnie obejmuje każde pochodzenie, więc link ze
+szkicu albo z sesji do jej runa trafia na wiersz, który lista pokazuje.
+
 ## Do czego służy każdy obszar { #what-each-area-is-for }
 
 **Overview** (Dashboard), **Chat** i **Inbox** są na początku sidebara.
@@ -852,7 +893,7 @@ Context i Documents. Ręczny wybór rozwinięcia lub zwinięcia jest zapamiętyw
 Grupa zawierająca bieżącą stronę zawsze się otwiera, aby ta strona była widoczna.
 
 | Obszar | Zawiera | Przeczytaj |
-|---|---|---|
+| --- | --- | --- |
 | **Agents** | Katalog, Builder, wersje, udostępnianie, testowanie, aktywność | [Twój pierwszy agent](first-agent.md) |
 | **Chat** | Rozmowa z opublikowanym agentem | [Powierzchnie](channels.md) |
 | **Knowledge** | Kolekcje, dokumenty, źródła synchronizacji, ustawienia ingestii | [Przetwarzanie plików](file-processing.md) |
@@ -860,6 +901,7 @@ Grupa zawierająca bieżącą stronę zawsze się otwiera, aby ta strona była w
 | **Context** | Stała wiedza przypięta do wielu agentów | [Pliki kontekstowe](context.md) |
 | **Tables** | Typowane rekordy i ich kolumny, oglądane jako tabela, tablica kanban lub lista | [Virtual Tables](virtual-tables.md) |
 | **Workflows** | Wieloetapowe automatyzacje, które uruchamiają Twoje agenty, budowane na kanwie | [Workflows](workflows.md) |
+| **Datasets** | Wersjonowane przypadki testowe, importowane, eksportowane albo dodawane z ocenionej odpowiedzi | [Datasety](datasets.md) |
 | **Routines** | Harmonogramy i wyzwalacze zdarzeń | [Wyzwalacze](triggers.md) |
 | **Runs** | Co się uruchomiło, ile kosztowało, czego dotknęło, czy zakończyło się błędem | [Nadzór](governance.md#audit) |
 | **Documents** | Wszystkie pliki, które agenci trzymają dla ciebie: to, co załączyłeś, i to, co napisali | [Sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
@@ -878,6 +920,12 @@ Każdy filtr to menu etykiet z agentów, które widzisz; zaznacz kilka, żeby go
 poszerzyć.
 Kategorie i tagi agenta utrzymujesz na jego stronie szczegółów, obok kontrolek
 avatara, a zmiana działa od razu, bez publikowania nowej wersji.
+
+Zakładka **Historia** agenta zawiera jego opublikowane wersje i nazwane
+środowiska, a dla każdego, kto może czytać jego runy, także **Historię usprawnień**:
+każdą sesję Popraw, co zmierzyła, co postanowiono i ile kosztowała. Zakończona
+sesja otwiera kreator tylko do odczytu, z decyzją w ostatnim kroku; zobacz
+[Historię usprawnień](authoring.md#improvement-history).
 
 Szczegóły organizacji mają pięć zakładek: **Członkowie** obejmują osoby i zaproszenia; **Organizacja** — profil i domyślne ustawienia głosu; **Budżet i zgody** — wydatki i zasady dostępu; **Proaktywność** — sugestie, monitoring i dostarczanie wyników; **AI i usługi** — Architecta i usługi systemowe. Każdy formularz zachowuje własne wymagania uprawnień. AI i usługi jest dostępne dla zarządzających budżetem także bez prawa konfiguracji Architecta. Wybrana zakładka jest zapisywana w URL, przełączanie zachowuje wersje robocze, a dawne linki `?tab=voice` otwierają Organizację.
 
@@ -926,7 +974,7 @@ problem zostaje odczytany jako cisza.
 
 ## Podsumowanie { #recap }
 
-- Dashboard to **czterdzieści dziewięć widgetów**, które układasz sam, zapisywanych
+- Dashboard to **pięćdziesiąt siedem widgetów**, które układasz sam, zapisywanych
   per osoba i per organizacja — wszystkie poza twoimi własnymi powiadomieniami
   bramkowane uprawnieniem, którego wymagają ich dane.
 - Zapisany układ **może ukrywać i zmieniać kolejność, ale nigdy nie odsłania** —
@@ -944,7 +992,6 @@ problem zostaje odczytany jako cisza.
 
 Stopka panelu bocznego pokazuje wersję kompilacji konsoli obok wyszukiwania i powiadomień, także w zwiniętym panelu i menu mobilnym. Numer pochodzi z wersji pakietu frontendu zapisanej w kompilacji, więc jego odczyt nie wymaga żądania sieciowego. Podpowiedź określa go jako wersję konsoli; osobno aktualizowany proces API może mieć inną wersję.
 
-
 Nowsze stabilne wydanie AgenticOS podświetla ten numer i dodaje zieloną kropkę. Kliknięcie pokazuje uruchomioną i dostępną wersję oraz odnośnik do oficjalnego wydania. Sprawdzenie w tle odbywa się przy otwarciu konsoli, co 30 minut podczas pracy oraz po odzyskaniu fokusu lub połączenia, jeśli dane są nieaktualne. Serwer współdzieli wyniki publicznych sprawdzeń przez pięć minut i nie wysyła do GitHuba danych konta, organizacji ani wdrożenia. Awaria sieci pozostawia numer uruchomionej wersji bez stwierdzenia, że jest najnowsza. Powiadomienie nie przeładowuje strony ani nie instaluje aktualizacji automatycznie.
 
 Po zalogowaniu **Co nowego** pokazuje publiczne informacje o zainstalowanej wersji z GitHub Releases, raz dla konta na tym urządzeniu. Okno czeka na zamknięcie onboardingu. Zamknięcie oznacza wersję jako przeczytaną; brak opisu lub błąd pobierania nie przerywa sesji. Funkcje nowszej, niezainstalowanej wersji są dostępne tylko z informacji o aktualizacji.
@@ -956,7 +1003,6 @@ Wyciszanie powiadomień ma ikonę dzwonka; pole wiadomości nie powtarza już pl
 Stopki list pozostają przy dolnej krawędzi panelu, ze spójnymi odstępami i kryjącym tłem. Stronicowane tabele administracyjne przewijają same wiersze, zachowując widoczne nagłówki kolumn i paginację. Puste wyniki i błędy pozostają w tym samym obszarze przewijania.
 
 Lista organizacji w administracji pokazuje wgrane zdjęcie albo inicjały w wybranym kolorze, jeśli zdjęcia nie ustawiono. Dostęp do obrazów w tym widoku mają tylko administratorzy wdrożenia; zwykły endpoint avatarów organizacji nadal wymaga członkostwa.
-
 
 **Chat controls → Tools & files** pokazuje konto coding, którego agent potrzebuje, gdy jego Coding agent działa jako **Private cloud task with my account**: tylko ten harness, z logotypem i stanem zgody. Możesz je podłączyć lub nim zarządzać bez wychodzenia z chatu; wszystkie konta są w **Settings → Profile**. Podłączenie nie zmienia trybu wykonania agenta: prywatne zadania w chmurze nadal wymagają **Private cloud task with my account**, a coding na desktopie korzysta z osobnego lokalnego logowania.
 

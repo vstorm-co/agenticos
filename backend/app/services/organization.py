@@ -229,7 +229,15 @@ class OrganizationService:
             role=OrgRole.OWNER.value,
         )
         await self._seed_bundled_skills(org.id, owner_id)
+        await self._seed_system_agents(org.id, owner_id)
         return org
+
+    async def _seed_system_agents(self, organization_id: UUID, owner_id: UUID) -> None:
+        # Imported locally: the system agents reach the agent registry, whose
+        # browser capability imports this module back through the user service.
+        from app.services.system_agents import SystemAgentService
+
+        await SystemAgentService(self.db).seed(organization_id=organization_id, owner_id=owner_id)
 
     async def _seed_bundled_skills(self, organization_id: UUID, owner_id: UUID) -> None:
         """Copy every bundled skill into a brand-new organization.
@@ -417,6 +425,7 @@ class OrganizationService:
             role=OrgRole.OWNER.value,
         )
         await self._seed_bundled_skills(org.id, user_id)
+        await self._seed_system_agents(org.id, user_id)
         return org
 
     async def update(
@@ -429,9 +438,8 @@ class OrganizationService:
         """Update org metadata and settings.
 
         Three permissions decide this PATCH, each covering the fields it names:
-        `org:settings` for the metadata (name, avatar), `budgets:manage` for
-        the monthly spending cap, `approvals:decide` for whether chat sessions
-        may waive approvals. The built-in Owner and Admin hold all three, so
+        `org:settings` for the metadata (name, avatar), `budgets:manage` for the monthly spending cap, `approvals:decide`
+        for whether chat sessions may waive approvals. The built-in Owner and Admin hold all three, so
         nothing changes for them - but the catalog advertises each as its own
         entitlement, and a permission the matrix shows and no endpoint consults
         is a row that means nothing.

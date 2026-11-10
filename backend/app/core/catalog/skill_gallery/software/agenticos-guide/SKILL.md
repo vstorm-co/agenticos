@@ -36,6 +36,13 @@ Read the file first when one is listed; it is the documentation page itself, bun
 | Published pages and public links                                                               | https://vstorm-co.github.io/agenticos/artifacts/              |
 | Groups and departments                                                                         | https://vstorm-co.github.io/agenticos/departments/            |
 | Installing and deploying                                                                       | https://vstorm-co.github.io/agenticos/deploy/                 |
+| --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| Improving an agent: the Improve wizard, its steps, attempts, held-out questions, accepting and publishing | `docs/authoring.md`                                           |
+| Eval runs: estimates, baselines, confirmed and unconfirmed changes, suites and their thresholds           | `docs/evals.md`                                               |
+| Test questions (datasets): cases, versions, grading, the held-out share                                   | `docs/datasets.md`                                            |
+| Questions the knowledge base could not answer, grouped into topics, and drafting documents for them       | `docs/knowledge-gaps.md`                                      |
+| Skills and how they differ from knowledge                                                                 | https://vstorm-co.github.io/agenticos/skills/                 |
+| The sandbox: running code, files, browsers                                                                | https://vstorm-co.github.io/agenticos/sandbox/                |
 
 ## How to answer
 

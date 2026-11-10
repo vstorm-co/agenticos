@@ -26,6 +26,12 @@ _TIMEOUT = httpx.Timeout(300.0, connect=10.0)
 Refusal = Callable[[str], dict[str, Any]]
 """How a refused call is answered: raise, or return what the caller should see."""
 
+_NOT_EMPTY = (
+    "This call failed; it is not an empty result, so never report it as none. "
+    "Look the id up again with list_agents or list_improvements, then retry."
+)
+"""Said with a refusal a model might otherwise read as "nothing found"."""
+
 
 class PlatformApi:
     def __init__(
@@ -65,18 +71,15 @@ class PlatformApi:
         if response.is_error:
             error = body.get("error", {}) if isinstance(body, dict) else {}
             if response.status_code < 500:
-                return self._on_refusal(
-                    json_module.dumps(
-                        {
-                            "error": {
-                                "status": response.status_code,
-                                "code": error.get("code", "ERROR"),
-                                "message": error.get("message", "The request was refused"),
-                                "details": error.get("details", {}),
-                            }
-                        }
-                    )
-                )
+                detail: dict[str, Any] = {
+                    "status": response.status_code,
+                    "code": error.get("code", "ERROR"),
+                    "message": error.get("message", "The request was refused"),
+                    "details": error.get("details", {}),
+                }
+                if response.status_code in (404, 422):
+                    detail["hint"] = _NOT_EMPTY
+                return self._on_refusal(json_module.dumps({"error": detail}))
             return self._on_refusal("The platform request failed; check its server log")
         return body
 

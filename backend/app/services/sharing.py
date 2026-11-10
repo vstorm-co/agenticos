@@ -108,6 +108,7 @@ _CONSOLE_PATHS = {
     "context": "/context",
     "secret": "/vault",
     "artifact": "/apps/{id}",
+    "dataset": "/datasets/{id}",
     "mcp_connection": "/mcp-servers",
     "project": "/projects/{id}",
     "table": "/tables/{id}",

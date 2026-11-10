@@ -208,6 +208,20 @@ async def test_a_new_deployments_schedules_start_spread_within_a_minute(sessions
     assert len(set(starts)) == len(starts)
 
 
+async def test_short_intervals_do_not_collapse_two_initial_fires(sessions: Sessions) -> None:
+    fast = (
+        Schedule("fast-a", jobs.REAP_STALE_RUNS, timedelta(seconds=1)),
+        Schedule("fast-b", jobs.REAP_STALE_RUNS, timedelta(seconds=1)),
+    )
+    await _declare(sessions, HOURLY, *fast)
+
+    async with sessions() as db:
+        rows = (await db.execute(select(BackgroundSchedule))).scalars().all()
+    starts = [row.next_run_at for row in rows]
+    assert len(set(starts)) == 3
+    assert all(NOW <= start <= NOW + timedelta(seconds=1) for start in starts)
+
+
 async def test_two_workers_ticking_at_once_fire_a_schedule_once(sessions: Sessions) -> None:
     await _declare(sessions, HOURLY)
     await _due_at(sessions, "hourly", NOW)

@@ -40,16 +40,16 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Literal, cast
 from uuid import UUID, uuid4
-from zoneinfo import ZoneInfo
 
-from croniter import croniter
 from fastapi.encoders import jsonable_encoder
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.system_agents import refuse_system_agent
 from app.core.audit import current_impersonator, record_audit, set_acting_trigger
 from app.core.background import spawn_after_commit, spawn_after_rollback
+from app.core.cron import cron_has_next, cron_next
 from app.core.exceptions import (
     AppException,
     AuthorizationError,
@@ -98,7 +98,6 @@ from app.schemas.agent_trigger import (
     TriggerCreate,
     TriggerRead,
     TriggerUpdate,
-    _cron_has_next,
     webhook_url,
 )
 from app.schemas.change_event import ChangeEvent
@@ -231,20 +230,6 @@ class EventFireDecision:
     `fire-trigger` for every tenant rather than for this one."""
 
 
-def _cron_next(expression: str, *, now: datetime, time_zone: str | None = None) -> datetime:
-    """The first instant a cron expression matches strictly after `now`, in UTC.
-
-    Read in `time_zone` - `0 9 * * *` is nine o'clock there, through daylight
-    saving - and in UTC when there is none. croniter walks the zone's own wall
-    clock when started from a time in it. The expression and the zone are
-    validated when the trigger is made (:class:`app.schemas.agent_trigger.TriggerCreate`),
-    so ones read back off a row parse here.
-    """
-    start = now.astimezone(ZoneInfo(time_zone)) if time_zone else now
-    # croniter ships no type information; the cast is what annotates the result.
-    return cast(datetime, croniter(expression, start).get_next(datetime)).astimezone(UTC)
-
-
 def _next_fire(
     *,
     schedule_kind: str,
@@ -264,7 +249,7 @@ def _next_fire(
     guard here would be an untestable branch under the 100% gate.
     """
     if schedule_kind == ScheduleKind.CRON.value:
-        return _cron_next(cast(str, cron_expression), now=now, time_zone=time_zone)
+        return cron_next(cast(str, cron_expression), now=now, time_zone=time_zone or "UTC")
     return now + timedelta(seconds=cast(int, interval_seconds))
 
 
@@ -315,7 +300,7 @@ def _resolve_cadence(trigger: AgentTrigger, changes: dict[str, Any]) -> None:
         changes["cron_expression"] = None
     else:
         cron = changes.get("cron_expression", trigger.cron_expression)
-        if not cron or not _cron_has_next(cron):
+        if not cron or not cron_has_next(cron):
             raise BadRequestError(
                 message="a cron schedule needs a valid crontab expression that ever fires",
                 details={"trigger_id": str(trigger.id)},
@@ -770,6 +755,7 @@ class AgentTriggerService:
                 }
             )
         agent = await self.agents.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
+        refuse_system_agent(agent, action="a schedule or a trigger")
         # A trigger on a never-published agent is guaranteed to disable itself:
         # its first fire reaches for the runnable spec, finds no version, and
         # turns the trigger off. Refusing here turns that silent self-disable

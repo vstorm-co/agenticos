@@ -100,6 +100,7 @@ test.describe("Dashboard", () => {
         previous_period_usd: "138.32",
         model_usd: "71.93",
         ingestion_usd: "0",
+        eval_usd: "0",
         by_provider: [
           { provider: "anthropic", cost_usd: "51.14" },
           { provider: "openrouter", cost_usd: "17.11" },

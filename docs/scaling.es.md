@@ -1,5 +1,5 @@
 ---
-source_sha: "628f3497bb0d"
+source_sha: "2391388a2aed"
 ---
 
 # Escalar más allá de un host { #scale-beyond-one-host }
@@ -18,15 +18,15 @@ cualquier despliegue.
 
 ## Qué guarda estado y qué no { #what-holds-state-and-what-does-not }
 
-| Parte | Qué guarda | Cómo crece |
-|---|---|---|
-| API (`app`) | Nada propio. Las sesiones, la presencia, los turnos de chat en curso y el feed de actualizaciones en vivo están en Postgres y Redis | Más workers de uvicorn, luego más hosts detrás de un balanceador |
-| Worker | Nada. Los jobs, los leases y las programaciones son filas en Postgres | Más procesos, en cualquier host, con los pools repartidos entre ellos |
-| Consola (`frontend`) | El branding que guarda en caché cinco minutos | Más instancias |
-| Postgres | Todo lo duradero: organizaciones, agentes, conversaciones, vectores, la cola de jobs | Una instancia mayor, o una gestionada |
-| Redis (Valkey) | Una caché y sus canales pub/sub, reconstruidos tras un reinicio | Una instancia que comparten todos los hosts |
-| Archivos subidos | Un volumen en el host, o un bucket | Un bucket en cuanto más de un host los lee o los escribe |
-| Servicio de sandboxes | Los sandboxes en los que los agentes ejecutan comandos | Su propio host, ver [Espacios de trabajo de agentes](configuration.md#running-the-service-on-another-host) |
+| Parte                 | Qué guarda                                                                                                                          | Cómo crece                                                                                                 |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| API (`app`)           | Nada propio. Las sesiones, la presencia, los turnos de chat en curso y el feed de actualizaciones en vivo están en Postgres y Redis | Más workers de uvicorn, luego más hosts detrás de un balanceador                                           |
+| Worker                | Nada. Los jobs, los leases y las programaciones son filas en Postgres                                                               | Más procesos, en cualquier host, con los pools repartidos entre ellos                                      |
+| Consola (`frontend`)  | El branding que guarda en caché cinco minutos                                                                                       | Más instancias                                                                                             |
+| Postgres              | Todo lo duradero: organizaciones, agentes, conversaciones, vectores, la cola de jobs                                                | Una instancia mayor, o una gestionada                                                                      |
+| Redis (Valkey)        | Una caché y sus canales pub/sub, reconstruidos tras un reinicio                                                                     | Una instancia que comparten todos los hosts                                                                |
+| Archivos subidos      | Un volumen en el host, o un bucket                                                                                                  | Un bucket en cuanto más de un host los lee o los escribe                                                   |
+| Servicio de sandboxes | Los sandboxes en los que los agentes ejecutan comandos                                                                              | Su propio host, ver [Espacios de trabajo de agentes](configuration.md#running-the-service-on-another-host) |
 
 ## Una base de datos por despliegue { #one-database-per-deployment }
 
@@ -148,7 +148,7 @@ Por qué la cola son filas en Postgres, medida frente a otros nueve motores, se
 explica en [el benchmark de jobs en segundo plano](task-queue-benchmark.md).
 
 Separa los pools cuando el análisis de documentos compite con las ejecuciones
-de agentes. `WORKER_POOLS=agent,system,workflow` en un grupo de procesos y
+de agentes. `WORKER_POOLS=agent,eval,system,workflow` en un grupo de procesos y
 `WORKER_POOLS=ingest` en hosts con memoria de sobra evitan que una subida
 grande retrase una rutina. La sonda de salud y `agenticos cmd doctor` avisan de
 un pool que ningún worker vivo atiende. Los ajustes de

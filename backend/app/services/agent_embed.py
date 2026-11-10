@@ -35,6 +35,7 @@ import jwt
 from pydantic import TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.system_agents import refuse_system_agent
 from app.core.audit import record_audit
 from app.core.config import settings
 from app.core.exceptions import (
@@ -193,6 +194,7 @@ class AgentEmbedService:
                 that contradicts the kind - see `_check_origins`.
         """
         agent = await self.agents.get(ctx, data.agent_id, perm=Perm.AGENTS_PUBLISH)
+        refuse_system_agent(agent, action="an embed or a public page")
 
         kind = data.config.kind
         self._check_secret(data.auth_mode, data.jwt_secret)

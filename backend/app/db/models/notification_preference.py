@@ -47,9 +47,12 @@ class NotificationChannelPreference(Base, TimestampMixin):
             "'agent_usage_report', 'security_event', 'configuration_changed', "
             "'announcement', 'artifact_version_published', 'resource_shared', "
             "'budget_warning', 'mcp_server_down', 'mcp_server_recovered', "
-            "'background_task_paused', 'workflow_notification', "
+            "'background_task_paused', 'eval_suite_failed', 'promotion_overridden', "
+            "'shared_change_applied', 'workflow_notification', "
             "'artifact_owner_changed', 'artifact_share_requested', "
-            "'capability_requested', 'suggestion', 'finding', 'workflow_log_alert')",
+            "'capability_requested', 'suggestion', 'finding', 'improvement_finished', "
+            "'eval_suite_reevaluated', 'eval_run_finished', 'case_generation_finished', "
+            "'workflow_log_alert')",
             name="ck_notification_preferences_event_type",
         ),
         CheckConstraint(

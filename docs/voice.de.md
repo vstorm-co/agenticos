@@ -17,7 +17,7 @@ fortsetzen können. Audio wird nirgendwo gespeichert.
 Anrufe werden aus `/chat` in der Konsole geführt, und aus einem Widget oder von
 einer gehosteten Seite, wenn der eigene Schalter eines Embeds an ist. Jeder
 Anruf ist ein [Run](concepts.md) mit dem Namen des Realtime-Modells darauf, also
-sehen Aktivität (Activity), der Kostenbildschirm und der Audit-Trail ihn wie
+sehen **Aktivität** (Activity), der Kostenbildschirm und der Audit-Trail ihn wie
 jeden anderen Run.
 
 In `/chat` ist der Anruf eine Pille, die über dem Eingabefeld schwebt, das sich

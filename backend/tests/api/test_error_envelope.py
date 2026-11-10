@@ -47,6 +47,7 @@ from app.core.exceptions import (
     AppException,
     BadRequestError,
     ExternalServiceError,
+    IdentifyingContentError,
     NotFoundError,
     RateLimitError,
 )
@@ -638,3 +639,20 @@ class TestDetailsDescribeTheRefusalNotTheServer:
         error = response.json()["error"]
         assert error["details"] == {"fields": [{"field": "base_url", "message": error["message"]}]}
         assert "hunter2" not in response.text
+
+
+class TestARefusalCanLogLessThanItAnswers:
+    @pytest.mark.anyio
+    async def test_flagged_content_reaches_its_caller_and_not_the_log(self, caplog):
+        """The values are what may identify somebody - an order number from a question."""
+        flags = [{"kind": "shared", "value": "7781", "count": 1}]
+        with caplog.at_level(logging.WARNING):
+            response = await app_exception_handler(
+                _HttpConnection(), IdentifyingContentError(details={"flags": flags})
+            )
+
+        assert response is not None
+        body = json.loads(bytes(response.body))["error"]
+        assert (body["code"], body["details"]["flags"]) == ("IDENTIFYING_CONTENT", flags)
+        [record] = [r for r in caplog.records if r.getMessage().startswith("IDENTIFYING_CONTENT")]
+        assert record.details == {"flags": [{"kind": "shared", "count": 1}]}

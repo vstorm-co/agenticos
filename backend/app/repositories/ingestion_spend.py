@@ -22,6 +22,7 @@ async def record(
     output_tokens: int,
     cost_usd: Decimal,
     cost_is_partial: bool,
+    improvement_run_id: UUID | None = None,
 ) -> IngestionSpend | None:
     """Write one window's spend, against its document if that is still there.
 
@@ -62,6 +63,7 @@ async def record(
         output_tokens=output_tokens,
         cost_usd=cost_usd,
         cost_is_partial=cost_is_partial,
+        improvement_run_id=improvement_run_id,
     )
     db.add(spend)
     await db.flush()

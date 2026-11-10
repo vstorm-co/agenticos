@@ -13,10 +13,12 @@ at the moment of use, hand the plaintext to the client and nothing else.
 """
 
 import logging
+import time
 from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
+import anyio
 from pydantic import SecretStr
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -87,6 +89,13 @@ two answers to "which key opens this host" and only one of them stays right.
 
 LOCAL_CONNECTION_NAME = "This deployment's sandbox"
 """What the connection set up on its own is called (#2070)."""
+
+# The Builder asks `can_provide` each time it lists capabilities. A no is kept
+# briefly, because it may be a sandbox service still starting.
+_PROVIDES_SECONDS = 60.0
+_REFUSES_SECONDS = 10.0
+_PROBE_SECONDS = 2.0
+_provides: dict[UUID, tuple[float, bool]] = {}
 
 
 @dataclass(frozen=True)
@@ -169,6 +178,7 @@ class SandboxConnectionService:
                 filling in this form.
         """
         await self._refuse_duplicate_name(ctx, data.name)
+        _provides.pop(ctx.organization_id, None)
         self._check_shape(kind=data.kind, base_url=data.base_url)
 
         first = not await sandbox_connection_repo.list_for_organization(
@@ -233,6 +243,7 @@ class SandboxConnectionService:
         row = await sandbox_connection_repo.update_connection(
             self.db, connection=row, update_data=changes
         )
+        _provides.pop(ctx.organization_id, None)
         if promoting:
             await sandbox_connection_repo.clear_default(
                 self.db, organization_id=ctx.organization_id, except_id=row.id
@@ -290,6 +301,7 @@ class SandboxConnectionService:
         try:
             async with self.db.begin_nested():
                 await sandbox_connection_repo.delete(self.db, connection=row)
+            _provides.pop(ctx.organization_id, None)
         except IntegrityError:
             # A conversation deleted meanwhile wrote a tombstone the count above
             # could not see; the foreign key refuses to take it with the
@@ -356,6 +368,45 @@ class SandboxConnectionService:
             )
             for runtime in CATALOG
         ]
+
+    async def can_provide(self, organization_id: UUID) -> bool:
+        """Whether a container workspace would publish in this organization.
+
+        It would when the organization has a default sandbox connection, or when
+        this deployment runs a sandbox service that the first publish sets one up
+        on (`ensure_local_connection`). Nothing is set up here - a listing must
+        not register a connection. The answer is kept per organization, a yes
+        for a minute and a no for ten seconds, and forgotten when a connection
+        is registered, edited or removed. A service that should answer and does
+        not within two seconds is logged as a warning, and answered no.
+        """
+        now = time.monotonic()
+        kept = _provides.get(organization_id)
+        if kept is not None and now < kept[0]:
+            return kept[1]
+        answer = await self._provides(organization_id)
+        _provides[organization_id] = (
+            now + (_PROVIDES_SECONDS if answer else _REFUSES_SECONDS),
+            answer,
+        )
+        return answer
+
+    async def _provides(self, organization_id: UUID) -> bool:
+        if await sandbox_connection_repo.get_default(self.db, organization_id=organization_id):
+            return True
+        if not settings.SANDBOXD_TOKEN:
+            return False
+        if await member_repo.first_owner_id(self.db, organization_id=organization_id) is None:
+            return False
+        answering = None
+        with anyio.move_on_after(_PROBE_SECONDS):
+            answering = await self._first_answering()
+        if answering is None:
+            logger.warning(
+                "sandbox_service_not_answering", extra={"organization_id": str(organization_id)}
+            )
+            return False
+        return True
 
     async def ensure_local_connection(self, organization_id: UUID) -> SandboxConnection | None:
         """The organization's default sandbox, set up on its own when this deployment runs one.
