@@ -1,5 +1,5 @@
 ---
-source_sha: "593e65c4520b"
+source_sha: "bf0b4309d434"
 ---
 
 # Konsola { #the-console }
@@ -931,7 +931,7 @@ Szczegóły organizacji mają pięć zakładek: **Członkowie** obejmują osoby 
 
 Po zalogowaniu zaproszenia wysłane na e-mail konta pojawiają się także w konsoli i onboardingu, bez otwierania linku z wiadomości. Odbiorca wybiera organizację i jawnie przyjmuje zaproszenie; Później zostawia dostępny skrót Zaproszenia. Lista zawiera tylko aktualne zaproszenia na bieżący adres konta, bez linków współdzielonych i organizacji, do których użytkownik już należy. Przyjęcie przełącza organizację i otwiera jej powitanie. Serwer nie zwraca tokenu zaproszenia w tej skrzynce.
 
-Skrzynka wymaga potwierdzenia adresu w bieżącej sesji: świeżego logowania przez OAuth ze zweryfikowanym e-mailem lub linku do logowania wysłanego na konkretny adres. Sesje po zalogowaniu hasłem i starsze sesje widzą **Sprawdź zaproszenia**, skąd mogą poprosić o ten link; oryginalny link zaproszenia nadal działa. Potwierdzenie nie przechodzi do innej sesji ani na zmieniony adres. Lista ma stronicowanie przez **Pokaż kolejne zaproszenia**, a dostęp do logo sprawdza konkretne zaproszenie niezależnie od strony listy.
+Skrzynka wymaga potwierdzenia adresu w bieżącej sesji: świeżego logowania przez OAuth ze zweryfikowanym e-mailem lub linku do logowania wysłanego na konkretny adres. Sesje po zalogowaniu hasłem i starsze sesje nie wyświetlają ponaglenia do potwierdzenia skrzynki ani konfiguracji wysyłki e-maili. Zaproszenie można przyjąć przez oryginalny link, także we wdrożeniu bez dostawcy poczty. Potwierdzenie nie przechodzi do innej sesji ani na zmieniony adres. Lista ma stronicowanie przez **Pokaż kolejne zaproszenia**, a dostęp do logo sprawdza konkretne zaproszenie niezależnie od strony listy.
 
 Bursztynowe kropki oznaczają zakładki organizacji i odpowiadające im karty głosu, nocnych sugestii, utrzymania pamięci oraz Architecta, gdy brakuje konfiguracji lub sugestie są wyłączone. Najedź na kropkę lub ustaw na niej fokus, aby przeczytać wyjaśnienie; kliknij lub dotknij, aby je otworzyć. Wskaźniki korzystają z zapisanych ustawień, znikają po uzupełnieniu konfiguracji i respektują uprawnienia do jej zmiany. Wyłączone sugestie są opcją do uruchomienia, a nie błędem. Karta powiadomień iPhone oznacza też brak klucza Apple. Ograniczenie ruchu wyłącza pulsowanie.
 

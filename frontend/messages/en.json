@@ -3816,13 +3816,7 @@
         "member": "Member",
         "viewer": "Viewer"
       },
-      "check": "Check invitations",
-      "more": "Show more invitations",
-      "verifyTitle": "Your invitations, safely",
-      "verifyDescription": "Confirm access to {email} to discover invitations to your teams. We will send a sign-in link. You can also use the original invitation link.",
-      "verifySend": "Email me a sign-in link",
-      "verificationSent": "Check your inbox for the sign-in link. Email delivery must be configured on this deployment.",
-      "verificationFailed": "Could not request the sign-in link. Try again."
+      "more": "Show more invitations"
     }
   },
   "kb": {

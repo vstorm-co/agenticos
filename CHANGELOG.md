@@ -19,6 +19,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **Password sign-ins no longer prompt everyone to check invitations.** The
+  generic mailbox-verification notice is removed, so deployments without email
+  delivery and accounts without a working mailbox are not repeatedly offered an
+  unusable sign-in link. Verified sessions still see actual addressed invitations;
+  original invitation links remain usable without an email provider (#2858).
+
 ## [1.62.1] - 2026-11-10
 
 ### Fixed
