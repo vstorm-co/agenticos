@@ -1,7 +1,7 @@
 ---
 title: Retrieval-Evaluierung
 description: Ein Fragenkatalog mit bekannten Antworten über die AgenticOS-Doku und ein Harness, der das Retrieval darauf misst, nach Kategorie, top_k und Abfrageerweiterung.
-source_sha: "6b040b5291fb"
+source_sha: "730864470244"
 ---
 
 # Retrieval-Evaluierung { #retrieval-evaluation }
@@ -86,16 +86,19 @@ auf denselben Umformulierungen verglichen werden. Je Kategorie meldet der Lauf:
 Nach jeder Tabelle listet der Lauf die Fragen auf, die er verfehlt hat, und die
 Seiten, die er stattdessen bekam, und dort steht die nützliche Information.
 
-Die Antwortprüfung ist absichtlich einfach. Ein Fakt passt als ganzes Wort,
-Groß- und Kleinschreibung spielt keine Rolle, und eine Alternative, die auf `*`
-endet, passt als Präfix (`Keycloak*` passt auf "Keycloaka"). Zitatmarker wie
-`[5]` und wörtliche Wiederholungen der Frage werden ignoriert, sodass weder eine
-Passagennummer noch eine wiederholte Frage einen Fakt liefert. Ein bloßes „Nein“
-reicht nicht: Jede verneinende Frage braucht auch die
-Alternative, die die Dokumentation nennt, sodass „die Dokumentation sagt dazu
-nichts“ allein nicht besteht. Die Prüfung kann trotzdem eine richtige Antwort
-nicht von einer verwirrten oder ausweichenden unterscheiden, die die Alternative
-nennt. Behandle sie als grobes Signal, nicht als semantische Genauigkeit.
+Die Antwortprüfung gleicht Fakten als ganze Wörter ab, ohne Groß- und
+Kleinschreibung zu unterscheiden. Eine Alternative mit abschließendem `*`
+passt als Präfix (`Keycloak*` passt auf "Keycloaka"). Zitatmarker wie `[5]`
+liefern keine Zahlenfakten. Fragewiederholungen werden nach Vereinheitlichung
+von Großschreibung, Zeichensetzung und Abständen ignoriert.
+
+Erkannte englische und polnische Nichtwissen-Klauseln werden vor dem Abgleich
+ausgeschlossen: Das `not` in „the documentation does not state“ begründet keine
+verneinende Antwort. Getrennte klare Aussagen zählen weiterhin. Negative Fälle,
+die mit „yes“ oder „tak“ beginnen, bestehen nicht; ein bloßes „Nein“ braucht
+weiterhin die dokumentierte Alternative. Das bleibt ein wortbasiertes Signal:
+Unerkannte Ausweichformulierungen oder verwirrte Antworten mit den erwarteten
+Wörtern brauchen weiterhin eine manuelle Prüfung.
 
 Ein Platzhalter braucht einen nichtleeren Wortstamm: `*` allein wird vor dem
 Indexieren abgelehnt, weil es auf jede Antwort passen würde.
@@ -222,63 +225,63 @@ gemacht hat, und ihre Tokens.
 
 Am 10. November 2026 nutzte ein echter Lauf die bestehende GPT-6-Luna-Verbindung
 über OpenRouter: `openai/gpt-6-luna` für Erweiterungen und Antworten sowie
-`openai/text-embedding-3-small` mit 1536 Dimensionen für Embeddings. Der Korpus
-bei Revision `e8e782562` enthielt 128 englische Seiten (1452 Chunks) und 128
-polnische Seiten (1553 Chunks). Chunking: `recursive`, Größe 2500, Überlappung
-200. Alle 34 Fragen liefen in jeder Konfiguration; die erweiterten Abfragen
-wurden für beide Suchtiefen wiederverwendet.
+`openai/text-embedding-3-small` mit 1536 Dimensionen für Embeddings. Revision
+`e8e782562` lieferte 128 englische Seiten (1452 Chunks) und 128 polnische Seiten
+(1553 Chunks), mit rekursivem Chunking, Größe 2500 und Überlappung 200. Alle 34
+Fragen liefen in jeder Konfiguration; erzeugte Abfragen wurden über Suchtiefen
+hinweg geteilt.
 
-Die Prüfung fand fünf Antwortkontrollen, die dokumentierte Formulierungen
-ablehnten: Anmeldeformen, Zugangsdaten je Collection, polnische Formulierungen
-für Promotions, HTTP/SSE-Transporte und Zugriff auf Collection-Ebene. Die
-gespeicherten Antworten wurden mit diesen Alternativen und dem Schutz gegen
-Fragewiederholungen neu bewertet. Weder Suche noch Modellaufrufe wurden
-wiederholt. Ursprüngliche und korrigierte Faktenprüfungen stehen nebeneinander;
-die Abrufmetriken bleiben unverändert.
+Die Prüfung korrigierte Antwortformulierungen und ergänzte dokumentierte
+Antwortseiten zu Zeitlimits, Kontextdateien, Standardparser und Umgebungen mit
+Versionen. Drei Tage zählen ebenfalls als 72 Stunden. Die Bewertung normalisiert
+Fragewiederholungen und schließt erkannte Nichtwissen-Klauseln sowie bejahende
+Antworten auf negative Fälle aus.
 
-| `top_k` | Modus | hit@k | recall@k | MRR | Ursprüngliche Faktenprüfungen | Neu bewertete Faktenprüfungen |
+Die Tabelle wendet diese korrigierten Erwartungen auf gespeicherte Ränge und
+Antworten an. Keine Suche, Embedding- oder Modellanfrage wurde wiederholt.
+Erweiterte Listen erwarteter Seiten ändern hit@k, recall@k und MRR; die
+Suchausgaben selbst bleiben unverändert. Ursprüngliche Antwortprüfungen stehen
+neben den korrigierten Ergebnissen.
+
+| `top_k` | Modus | Korrigiertes hit@k | Korrigiertes recall@k | Korrigierter MRR | Ursprüngliche Faktenprüfungen | Korrigierte Faktenprüfungen |
 |---|---|---|---|---|---|---|
-| 5 | `off` | 73.5% | 70.6% | 0.571 | 23/34 | 27/34 |
-| 5 | `multi_query` | 76.5% | 73.5% | 0.581 | 25/34 | 28/34 |
-| 5 | `hyde` | 88.2% | 83.8% | 0.698 | 25/34 | 29/34 |
-| 10 | `off` | 85.3% | 83.8% | 0.588 | 28/34 | 30/34 |
-| 10 | `multi_query` | 79.4% | 77.9% | 0.621 | 24/34 | 29/34 |
-| 10 | `hyde` | 94.1% | 92.6% | 0.705 | 27/34 | 30/34 |
+| 5 | `off` | 91.2% | 79.4% | 0.676 | 23/34 | 27/34 |
+| 5 | `multi_query` | 91.2% | 80.9% | 0.667 | 25/34 | 27/34 |
+| 5 | `hyde` | 97.1% | 85.3% | 0.772 | 25/34 | 29/34 |
+| 10 | `off` | 97.1% | 89.7% | 0.682 | 28/34 | 29/34 |
+| 10 | `multi_query` | 94.1% | 85.3% | 0.709 | 24/34 | 29/34 |
+| 10 | `hyde` | 100.0% | 94.1% | 0.775 | 27/34 | 30/34 |
 
-Beide SAML-Fragen, auf Englisch und Polnisch, fanden in allen sechs
-Konfigurationen die Verzeichnisseite und erhielten die Antwort: SAML wird nicht
-direkt unterstützt, Keycloak dient als Brücke. `10/hyde` erreichte bei allen zehn
-sprachübergreifenden Fragen eine erwartete Seite. `10/off` und `10/hyde` liegen bei den korrigierten
-Faktenprüfungen mit 30/34 gleichauf. `10/off` besteht drei Prüfungen mehr als
-`5/off`, ohne einen Aufruf zur Abfrageerweiterung.
+Beide SAML-Fragen finden und zitieren in allen sechs Konfigurationen die
+Verzeichnisseite und antworten: Direkter SAML-Zugriff wird nicht unterstützt,
+Keycloak dient als Brücke. `10/hyde` erreicht für alle 34 Fragen eine erwartete
+Seite, einschließlich aller zehn sprachübergreifenden Fälle, und besteht 30/34
+Faktenprüfungen. `10/off` erreicht 33/34 Seiten und besteht 29/34 Prüfungen ohne
+Abfrageerweiterung.
 
-Für einen Dokumentationsagenten auf diesem Korpus beginne mit
-`default_top_k: 10` und `query_analysis_mode: off`. Wähle `hyde` ausdrücklich,
-wenn das Erreichen weiterer erwarteter Seiten, besonders über Sprachgrenzen
-hinweg, wichtiger ist als der zusätzliche Modellaufruf und die Suchanfragen.
-Behalte die Plattformstandards `default_top_k: 5` und
-`query_analysis_mode: off` bei: Ein kleiner Korpus und ein Modell rechtfertigen
-nicht mehr Kontext oder zusätzliche Erweiterungsaufrufe für jede Bereitstellung.
+Für Dokumentationsagenten auf diesem Stand wähle `default_top_k: 10` mit
+`query_analysis_mode: hyde`, wenn Abdeckung Vorrang hat. Nutze `off`, um zusätzliche
+Erweiterungsaufrufe zu vermeiden. Behalte die Plattformstandards
+`default_top_k: 5` und `query_analysis_mode: off` bei: Ein Korpus und ein Modell
+rechtfertigen keine globale Erhöhung von Kontext oder Kosten.
 
-Der unveränderte [ursprüngliche Lauf](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna.json)
-enthält Kategorieergebnisse, jede gefundene Seite, erweiterte Abfrage und Antwort,
-Korpus-Hashes, Paketversionen und Tokenverbrauch. Er führte 272 Modellanfragen
-mit 872.567 Eingabe- und 41.553 Ausgabe-Tokens aus, zusätzlich zu Embeddings.
-Der separate [Neubewertungsnachweis](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna-rescored.json)
-verweist per Hash darauf und hält die Hashes des korrigierten Fragensatzes und
-Bewertungscodes, Faktalternativen, Kategorieergebnisse sowie jedes frühere und
-neue Antworturteil fest.
+Der unveränderte [ursprüngliche Lauf](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna.json) enthält jede Antwort,
+abgerufene Seite, Abfrage, Korpus-Hashes und Umgebungseinstellungen. Er führte
+272 Modellanfragen mit 872.567 Eingabe- und 41.553 Ausgabe-Tokens aus, zusätzlich
+zu Embeddings. Die [erste Neubewertung](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna-rescored.json) bewahrt die
+Formulierungskorrekturen; die [aktuelle Neubewertung](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna-rescored-v2.json)
+erfasst korrigierte Antwortseiten und Bewertungscode, Hashes von Quelle,
+Fragensatz und Code, Kategorieergebnisse sowie jedes neue Abruf- und Antworturteil.
+Beide Neubewertungen führten null Provider-Anfragen aus.
 
-Das sind Messungen eines einzelnen Laufs, keine Qualitätsgarantie oder
-wiederholter statistischer Vergleich. Vier Antworten mit `10/off` verfehlen
-weiterhin erforderliche Fakten, darunter die genehmigende Rolle und die
-Standard-Chunkgröße. Auch ein bestandener Faktencheck kann ausweichen: Die
-stdio-Antwort nennt HTTP, legt sich aber nicht darauf fest, ob stdio verbunden
-werden kann. Lies die Antworten, bevor du die Anzahl bestandener Prüfungen als Nachweis
-semantischer Richtigkeit wertest.
+Das sind Messungen eines einzelnen Laufs. Ein Treffer nennt eine erwartete Seite;
+der zurückgegebene Chunk kann den antwortenden Satz dennoch verfehlen. Vier
+Antworten mit `10/hyde` bestehen die Faktenprüfung weiterhin nicht, und ein
+Worttreffer garantiert keine semantische Richtigkeit. Lies die Antworten und
+wiederhole die Messung mit deinem Korpus, bevor du eine Einstellung breit übernimmst.
 
-So wiederholst du die Modell- und Sucheinstellungen mit deinem eigenen
-autorisierten Schlüssel:
+So wiederholst du Modell- und Sucheinstellungen mit deinem eigenen autorisierten
+Schlüssel:
 
 ```bash
 OPENAI_BASE_URL=https://openrouter.ai/api/v1 make eval-retrieval EVAL_ARGS="\

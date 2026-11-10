@@ -290,6 +290,10 @@ class TestTheCommittedSetCannotBeGamed:
             ("stdio-mcp-server-pl-corpus", "No. Expose the server over Streamable HTTP instead."),
             ("stdio-mcp-server-pl-corpus", "No. Expose an SSE endpoint instead."),
             ("stdio-mcp-server-pl-corpus", "No. Use server-sent events instead."),
+            ("approval-expiry-pl-corpus", "The default approval timeout is three days."),
+            ("approval-expiry-pl-corpus", "A pending approval waits 3 days by default."),
+            ("approval-expiry-pl-corpus", "Approvals have a three-day timeout."),
+            ("approval-expiry-pl-corpus", "Domyślny limit zatwierdzenia to trzy dni."),
         ],
     )
     def test_documented_alternatives_accept_normal_wording(
@@ -314,6 +318,60 @@ class TestTheCommittedSetCannotBeGamed:
     ) -> None:
         item = next(item for item in committed.items if item.id == item_id)
         answer = "Nie." if item.language == "pl" else "No."
+
+        assert scoring.ItemResult(item=item, retrieved=(), answer=answer).answer_correct is False
+
+    @pytest.mark.parametrize("answer", ["Three minutes.", "3 seconds.", "Three weeks."])
+    def test_the_timeout_alternative_needs_the_correct_unit(self, committed, answer: str) -> None:
+        item = next(item for item in committed.items if item.id == "approval-expiry-pl-corpus")
+
+        assert scoring.ItemResult(item=item, retrieved=(), answer=answer).answer_correct is False
+
+    @pytest.mark.parametrize(
+        ("item_id", "page"),
+        [
+            ("approval-expiry-pl-corpus", "governance.md"),
+            ("unanswered-question-expiry", "reference/capabilities.md"),
+            ("context-always-loaded", "howto/customize-agent-prompt.md"),
+            ("default-pdf-parser-pl", "file-processing.md"),
+            ("environment-without-version-pl", "concepts.md"),
+            ("publish-reaches-production-pl", "howto/competitor-monitoring.md"),
+        ],
+    )
+    def test_a_documented_answer_page_is_a_retrieval_hit(
+        self, committed, item_id: str, page: str
+    ) -> None:
+        item = next(item for item in committed.items if item.id == item_id)
+        result = scoring.ItemResult(item=item, retrieved=(_chunk(page),))
+
+        assert result.hit and result.first_hit_rank == 1 and result.reciprocal_rank == 1.0
+
+    @pytest.mark.parametrize(
+        ("item_id", "answer"),
+        [
+            (
+                "environment-without-version-pl",
+                "Tak. Produkcja domyślnie podąża za publikacjami, dopóki ktoś nie przypnie "
+                "jej do konkretnej opublikowanej wersji.",
+            ),
+            (
+                "deployment-wide-embedding-key",
+                "Yes. A server key is supported; it is not configured per collection.",
+            ),
+            (
+                "stdio-mcp-server-pl-corpus",
+                "Yes. Connect a stdio process; it is not a Streamable HTTP server.",
+            ),
+            (
+                "saml-single-sign-on-pl",
+                "Tak. SAML działa bezpośrednio, nie potrzebujesz Keycloak.",
+            ),
+        ],
+    )
+    def test_an_affirmative_answer_to_a_negative_case_does_not_pass_on_incidental_negation(
+        self, committed, item_id: str, answer: str
+    ) -> None:
+        item = next(item for item in committed.items if item.id == item_id)
 
         assert scoring.ItemResult(item=item, retrieved=(), answer=answer).answer_correct is False
 
@@ -362,6 +420,23 @@ class TestTheCommittedSetCannotBeGamed:
             (
                 "redis-cluster-pl-corpus",
                 "The documentation does not say whether a Redis Cluster instance works.",
+            ),
+            (
+                "deployment-wide-embedding-key",
+                "The documentation does not state whether one key can be configured "
+                "for the whole server instead of per collection",
+            ),
+            (
+                "deployment-wide-embedding-key",
+                "The docs don\u2019t specify whether credentials are per collection.",
+            ),
+            (
+                "per-document-access-in-collection",
+                "I do not know whether permissions apply at the collection level.",
+            ),
+            (
+                "publish-reaches-production-pl",
+                "Dokumentacja nie podaje, czy trzeba promować nową wersję na produkcję.",
             ),
         ],
     )
@@ -439,17 +514,46 @@ class TestRetrievalScores:
 
 
 class TestAnswerFacts:
-    @pytest.mark.parametrize("uppercase", [False, True])
-    def test_echoed_question_text_cannot_supply_an_answer_fact(self, uppercase: bool) -> None:
+    @pytest.mark.parametrize(
+        "echo",
+        [
+            "Can one key replace per collection credentials?",
+            "CAN ONE KEY REPLACE PER COLLECTION CREDENTIALS?",
+            "Can one key replace per collection credentials",
+            "Can  one key replace per-collection credentials.",
+        ],
+    )
+    def test_echoed_question_text_cannot_supply_an_answer_fact(self, echo: str) -> None:
         question = "Can one key replace per collection credentials?"
         item = _item(question=question, expected_facts=[["no", "not"], ["per collection"]])
-        echo = question.upper() if uppercase else question
         result = scoring.ItemResult(
-            item=item, retrieved=(), answer=f"The documentation does not state it. {echo}"
+            item=item, retrieved=(), answer=f"No. The documentation does not state it. {echo}"
         )
 
         assert result.answer_correct is False
         assert result.missing_facts == (("per collection",),)
+
+    def test_an_abstention_does_not_supply_the_negative_fact(self) -> None:
+        item = _item(expected_facts=[["no", "not"], ["HTTP"]])
+        result = scoring.ItemResult(
+            item=item,
+            retrieved=(),
+            answer="The documentation does not state whether stdio works. It describes HTTP.",
+        )
+
+        assert result.answer_correct is False
+        assert result.missing_facts == (("no", "not"),)
+
+    def test_a_separate_clear_answer_still_counts_after_an_uncertain_sentence(self) -> None:
+        item = _item(expected_facts=[["no", "not"], ["per collection"]])
+        result = scoring.ItemResult(
+            item=item,
+            retrieved=(),
+            answer="The documentation does not state the provider's price. "
+            "No server-wide key is supported. Configure credentials per collection.",
+        )
+
+        assert result.answer_correct is True
 
     def test_a_plain_no_with_the_alternative_is_correct(self):
         result = scoring.ItemResult(
@@ -469,7 +573,7 @@ class TestAnswerFacts:
         )
 
         assert result.answer_correct is False
-        assert result.missing_facts == (("Keycloak*",),)
+        assert result.missing_facts == (("no", "not"), ("Keycloak*",))
 
     def test_a_word_is_matched_whole_and_a_star_is_a_prefix(self):
         assert scoring.mentions("Nie, przez Keycloaka.", "Keycloak*")
@@ -538,7 +642,7 @@ class TestEvaluate:
 
         assert "| negative | 1 | 0% | 0% | 0.00 | 0/1 |" in report
         assert "`saml` wanted directory.md; got about/dify.md" in report
-        assert "`saml` lacks Keycloak*" in report
+        assert "`saml` lacks no / not; Keycloak*" in report
         assert exported["items"][0]["retrieved_pages"] == ["about/dify.md"]
         assert exported["items"][0]["answer_correct"] is False
         assert exported["items"][0]["queries"] is None

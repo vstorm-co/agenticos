@@ -1,7 +1,7 @@
 ---
 title: "Evaluación de recuperación"
 description: "Un conjunto de preguntas sobre la documentación con respuestas conocidas, y el harness que mide la recuperación por categoría, top_k y expansión."
-source_sha: "6b040b5291fb"
+source_sha: "730864470244"
 ---
 
 # Evaluación de recuperación { #retrieval-evaluation }
@@ -86,16 +86,19 @@ de:
 Tras cada tabla, la ejecución lista las preguntas que falló y las páginas que
 obtuvo en su lugar, que es donde está la información útil.
 
-La comprobación de la respuesta es deliberadamente simple. Un hecho coincide
-como palabra completa, las mayúsculas no importan, y una alternativa que termina
-en `*` coincide como prefijo (`Keycloak*` coincide con "Keycloaka"). Los
-marcadores de cita como `[5]` y las repeticiones literales de la pregunta se
-ignoran, así que un número de pasaje o una pregunta repetida no aportan un hecho.
-Un simple "no" no basta: cada pregunta
-negativa necesita también la alternativa que nombra la documentación, así que
-"la documentación no lo dice" por sí solo no pasa. La comprobación sigue sin
-distinguir una respuesta correcta de una confundida o evasiva que nombra la
-alternativa. Tómala como señal aproximada, no como precisión semántica.
+La comprobación busca hechos como palabras completas, sin distinguir mayúsculas.
+Una alternativa terminada en `*` coincide como prefijo (`Keycloak*` coincide con
+"Keycloaka"). Los marcadores de cita como `[5]` no aportan hechos numéricos.
+Las repeticiones de la pregunta se ignoran tras normalizar mayúsculas,
+puntuación y espacios.
+
+Las cláusulas reconocidas de desconocimiento en inglés y polaco se excluyen
+antes de comparar: el `not` de «the documentation does not state» no establece
+una respuesta negativa. Las afirmaciones claras separadas siguen contando.
+Los casos negativos que empiezan con «yes» o «tak» fallan, y un simple «no»
+aún necesita la alternativa documentada. Sigue siendo una señal basada en
+palabras: las evasivas no reconocidas y las respuestas confusas que usan las
+palabras esperadas requieren revisión manual.
 
 Un comodín necesita una raíz que no esté en blanco: `*` solo se rechaza antes
 de indexar porque coincidiría con cualquier respuesta.
@@ -220,59 +223,59 @@ las llamadas al modelo que hizo y sus tokens.
 
 El 10 de noviembre de 2026, una ejecución real usó la conexión existente GPT-6
 Luna mediante OpenRouter: `openai/gpt-6-luna` para ampliar consultas y responder,
-y `openai/text-embedding-3-small` con 1536 dimensiones para embeddings. El corpus
-en la revisión `e8e782562` contenía 128 páginas en inglés (1452 fragmentos) y 128
-en polaco (1553 fragmentos). La fragmentación fue `recursive`, con tamaño 2500 y
-solapamiento 200. Las 34 preguntas se ejecutaron en cada configuración; las
-consultas ampliadas se reutilizaron en las dos profundidades de búsqueda.
+y `openai/text-embedding-3-small` con 1536 dimensiones para embeddings. La revisión
+`e8e782562` aportó 128 páginas en inglés (1452 fragmentos) y 128 en polaco (1553
+fragmentos), con fragmentación recursiva, tamaño 2500 y solapamiento 200. Las
+34 preguntas se ejecutaron en cada configuración, compartiendo las consultas
+generadas entre profundidades de búsqueda.
 
-La revisión encontró cinco comprobaciones que rechazaban expresiones
-documentadas: formas de iniciar sesión, credenciales por colección, expresiones
-polacas de promoción, transportes HTTP/SSE y acceso a nivel de colección. Las
-respuestas guardadas se reevaluaron con esas alternativas y la protección contra
-repetir la pregunta. No se repitió ninguna búsqueda ni llamada al modelo. Los
-totales originales y corregidos aparecen juntos; las métricas de recuperación
-no cambian.
+La revisión corrigió expresiones de respuesta y añadió páginas documentadas sobre
+plazos, archivos de contexto, parser por defecto y entornos con versiones. Tres
+días también cuentan como 72 horas. La evaluación normaliza las repeticiones de
+la pregunta y excluye cláusulas reconocidas de desconocimiento y respuestas
+afirmativas a casos negativos.
 
-| `top_k` | Modo | hit@k | recall@k | MRR | Comprobaciones originales | Comprobaciones reevaluadas |
+La tabla aplica esos criterios corregidos a los rangos y respuestas guardados.
+No se repitió ninguna búsqueda ni llamada de embeddings o modelo. Las listas
+ampliadas de páginas esperadas cambian hit@k, recall@k y MRR; las salidas de
+búsqueda no cambian. Los totales originales de respuestas aparecen junto a los
+corregidos.
+
+| `top_k` | Modo | hit@k corregido | recall@k corregido | MRR corregido | Comprobaciones originales | Comprobaciones corregidas |
 |---|---|---|---|---|---|---|
-| 5 | `off` | 73.5% | 70.6% | 0.571 | 23/34 | 27/34 |
-| 5 | `multi_query` | 76.5% | 73.5% | 0.581 | 25/34 | 28/34 |
-| 5 | `hyde` | 88.2% | 83.8% | 0.698 | 25/34 | 29/34 |
-| 10 | `off` | 85.3% | 83.8% | 0.588 | 28/34 | 30/34 |
-| 10 | `multi_query` | 79.4% | 77.9% | 0.621 | 24/34 | 29/34 |
-| 10 | `hyde` | 94.1% | 92.6% | 0.705 | 27/34 | 30/34 |
+| 5 | `off` | 91.2% | 79.4% | 0.676 | 23/34 | 27/34 |
+| 5 | `multi_query` | 91.2% | 80.9% | 0.667 | 25/34 | 27/34 |
+| 5 | `hyde` | 97.1% | 85.3% | 0.772 | 25/34 | 29/34 |
+| 10 | `off` | 97.1% | 89.7% | 0.682 | 28/34 | 29/34 |
+| 10 | `multi_query` | 94.1% | 85.3% | 0.709 | 24/34 | 29/34 |
+| 10 | `hyde` | 100.0% | 94.1% | 0.775 | 27/34 | 30/34 |
 
-Las dos preguntas sobre SAML, en inglés y polaco, recuperaron la página de
-directorio y respondieron que SAML no se admite directamente y Keycloak sirve
-de puente, en las seis configuraciones. `10/hyde` alcanzó una página esperada
-para las diez preguntas entre idiomas. `10/off` y `10/hyde` empatan en las
-comprobaciones corregidas: 30/34. `10/off` supera tres comprobaciones más que
-`5/off`, sin necesitar una llamada de ampliación.
+Las dos preguntas sobre SAML recuperan y citan la página de directorio y responden
+que SAML directo no se admite y Keycloak sirve de puente, en las seis
+configuraciones. `10/hyde` alcanza una página esperada para las 34 preguntas,
+incluidos los diez casos entre idiomas, y supera 30/34 comprobaciones de hechos.
+`10/off` alcanza 33/34 páginas y supera 29/34 comprobaciones sin ampliar consultas.
 
-Para un agente de documentación con este corpus, empieza con `default_top_k: 10`
-y `query_analysis_mode: off`. Elige `hyde` expresamente cuando alcanzar más
-páginas esperadas, sobre todo entre idiomas, importe más que su llamada adicional
-al modelo y sus búsquedas. Conserva los valores por defecto de la plataforma,
-`default_top_k: 5` y `query_analysis_mode: off`: un corpus pequeño y un modelo
-no justifican aumentar el contexto ni añadir llamadas de ampliación para todos
-los despliegues.
+Para agentes de documentación con este corpus, elige `default_top_k: 10` con
+`query_analysis_mode: hyde` cuando la cobertura tenga prioridad. Usa `off` para
+evitar llamadas adicionales de ampliación. Conserva los valores por defecto de
+la plataforma, `default_top_k: 5` y `query_analysis_mode: off`: un corpus y un
+modelo no justifican un aumento global del contexto o coste.
 
-La [ejecución original](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna.json), sin cambios,
-contiene los resultados por categoría, cada página recuperada, consulta ampliada
-y respuesta, hashes del corpus, versiones de paquetes y consumo de tokens.
-Realizó 272 solicitudes al modelo con 872.567 tokens de entrada y 41.553 de
-salida, además de los embeddings. El [registro de reevaluación](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna-rescored.json)
-la enlaza por hash y conserva los hashes del conjunto y evaluador revisados, las
-alternativas de hechos, los resultados por categoría y cada veredicto anterior
-y nuevo.
+La [ejecución original](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna.json), sin cambios, conserva cada respuesta,
+página recuperada, consulta, hashes del corpus y ajustes del entorno. Realizó
+272 solicitudes al modelo con 872.567 tokens de entrada y 41.553 de salida,
+además de los embeddings. La [primera reevaluación](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna-rescored.json) conserva
+las correcciones de expresiones; la [reevaluación actual](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna-rescored-v2.json)
+registra páginas esperadas y evaluador corregidos, hashes de fuente, conjunto y
+código, resultados por categoría y cada nuevo veredicto de recuperación y
+respuesta. Ambas reevaluaciones hicieron cero solicitudes a providers.
 
-Son medidas de una sola ejecución, no una garantía de calidad ni una comparación
-estadística repetida. Cuatro respuestas de `10/off` aún omiten hechos requeridos,
-como el rol que aprueba y el tamaño por defecto del fragmento. Incluso una
-comprobación superada puede ser evasiva: la respuesta sobre stdio menciona HTTP,
-pero no afirma si stdio puede conectarse. Lee las respuestas antes de interpretar
-el total de comprobaciones como evidencia de corrección semántica.
+Son medidas de una sola ejecución. Un acierto nombra una página esperada; el
+fragmento devuelto aún puede omitir la frase que responde. Cuatro respuestas de
+`10/hyde` siguen fallando las comprobaciones de hechos, y una coincidencia de
+palabras no garantiza corrección semántica. Lee las respuestas y repite la medida
+con tu corpus antes de adoptar un ajuste de forma general.
 
 Para repetir los ajustes del modelo y la búsqueda con tu propia clave autorizada:
 

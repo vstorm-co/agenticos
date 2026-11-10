@@ -79,15 +79,17 @@ values are compared on the same rephrasings. Per category, the run reports:
 After each table the run lists the questions it missed and the pages it got
 instead, which is where the useful information is.
 
-The answer check is deliberately simple. A fact matches as a whole word, case
-does not matter, and an alternative ending in `*` matches as a prefix
-(`Keycloak*` matches "Keycloaka"). Citation markers such as `[5]` and verbatim
-question echoes are ignored, so a passage number or a repeated question never
-supplies a fact. A plain "no" is not
-enough: every negative question also needs the alternative the docs name, so
-a bare "the documentation does not say" fails. The check still cannot tell a
-correct answer from a confused or hedged one that names the alternative, so
-treat it as a rough signal rather than semantic accuracy.
+The answer check matches facts as whole words, ignoring case. An alternative
+ending in `*` matches a prefix (`Keycloak*` matches "Keycloaka"). Citation markers
+such as `[5]` do not supply numeric facts. Question echoes are ignored after
+normalizing case, punctuation and spacing.
+
+Recognized English and Polish don't-know clauses are excluded before matching:
+the `not` in "the documentation does not state" does not establish a negative
+answer. Separate clear assertions still count. Negative cases beginning with
+"yes" or "tak" fail, and a plain "no" still needs the documented alternative.
+This remains a word-based signal: unrecognized fallbacks or confused answers
+using the expected words still need manual review.
 
 A wildcard needs a nonblank stem: `*` alone is refused before indexing because
 it would match every answer.
@@ -210,56 +212,57 @@ end.
 
 On 10 November 2026, a real run used the existing GPT-6 Luna connection through
 OpenRouter: `openai/gpt-6-luna` for expansion and answers, and
-`openai/text-embedding-3-small` with 1536 dimensions for embeddings. The corpus
-at revision `e8e782562` contained 128 English pages (1452 chunks) and 128 Polish
-pages (1553 chunks). Chunking was `recursive`, size 2500, overlap 200. All 34
-questions ran in every configuration; expanded queries were reused across the
-two retrieval depths.
+`openai/text-embedding-3-small` at 1536 dimensions for embeddings. Revision
+`e8e782562` supplied 128 English pages (1452 chunks) and 128 Polish pages (1553
+chunks), with recursive chunking, size 2500 and overlap 200. All 34 questions
+ran in every configuration, sharing generated queries across retrieval depths.
 
-Review found five answer checks rejecting documented wording: sign-in
-inflections, credentials per collection, Polish promotion wording, HTTP/SSE
-transports and collection-level access. The saved answers were rescored with
-those alternatives and the question-echo guard. No retrieval or model call was
-repeated. Original and corrected fact-check totals are shown together;
-retrieval metrics are unchanged.
+Review corrected answer wording and added documented answer pages for timeouts,
+context files, the default parser and environment/version behavior. Three days
+also counts as 72 hours. The scorer now normalizes question echoes and excludes
+recognized don't-know clauses and affirmative replies to negative cases.
 
-| `top_k` | Mode | hit@k | recall@k | MRR | Original fact checks | Rescored fact checks |
+The table applies those revised oracles to the saved ranks and answers. No
+retrieval, embedding or model call was repeated. Expanded expected-page lists
+change hit@k, recall@k and MRR; the search outputs themselves are unchanged.
+Original answer-check totals remain alongside the revised totals.
+
+| `top_k` | Mode | Revised hit@k | Revised recall@k | Revised MRR | Original fact checks | Revised fact checks |
 |---|---|---|---|---|---|---|
-| 5 | `off` | 73.5% | 70.6% | 0.571 | 23/34 | 27/34 |
-| 5 | `multi_query` | 76.5% | 73.5% | 0.581 | 25/34 | 28/34 |
-| 5 | `hyde` | 88.2% | 83.8% | 0.698 | 25/34 | 29/34 |
-| 10 | `off` | 85.3% | 83.8% | 0.588 | 28/34 | 30/34 |
-| 10 | `multi_query` | 79.4% | 77.9% | 0.621 | 24/34 | 29/34 |
-| 10 | `hyde` | 94.1% | 92.6% | 0.705 | 27/34 | 30/34 |
+| 5 | `off` | 91.2% | 79.4% | 0.676 | 23/34 | 27/34 |
+| 5 | `multi_query` | 91.2% | 80.9% | 0.667 | 25/34 | 27/34 |
+| 5 | `hyde` | 97.1% | 85.3% | 0.772 | 25/34 | 29/34 |
+| 10 | `off` | 97.1% | 89.7% | 0.682 | 28/34 | 29/34 |
+| 10 | `multi_query` | 94.1% | 85.3% | 0.709 | 24/34 | 29/34 |
+| 10 | `hyde` | 100.0% | 94.1% | 0.775 | 27/34 | 30/34 |
 
-Both SAML questions, in English and Polish, retrieved the directory page and
-answered that SAML is not supported directly and Keycloak is the bridge, in all
-six configurations. `10/hyde` reached an expected page for all ten cross-language
-questions. `10/off` and `10/hyde` tie on corrected fact checks at 30/34.
-`10/off` passes three more checks than `5/off`, without requiring an expansion call.
+Both SAML questions retrieve and cite the directory page and answer that direct
+SAML is unsupported, with Keycloak as the bridge, in all six configurations.
+`10/hyde` reaches an expected page for all 34 questions, including all ten
+cross-language cases, and passes 30/34 fact checks. `10/off` reaches 33/34 pages
+and passes 29/34 fact checks without expansion calls.
 
-For a documentation agent on this corpus, start with `default_top_k: 10` and
-`query_analysis_mode: off`. Choose `hyde` explicitly when reaching more expected
-pages, especially across languages, matters more than its additional model call
-and searches. Retain the platform defaults of `default_top_k: 5` and
-`query_analysis_mode: off`: one small corpus and one model do not justify
-increasing context or adding expansion calls for every deployment.
+For documentation agents on this snapshot, choose `default_top_k: 10` with
+`query_analysis_mode: hyde` when coverage takes priority. Use `off` to avoid
+additional expansion calls. Retain platform defaults of `default_top_k: 5` and
+`query_analysis_mode: off`: one corpus and one model do not justify a global
+context or cost increase.
 
-The unchanged [original run](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna.json)
-contains category scores, every retrieved page, expanded query and answer, corpus
-hashes, package versions and token usage. It made 272 model requests using
-872,567 input and 41,553 output tokens, in addition to embeddings. The separate
-[rescoring record](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna-rescored.json)
-links it by hash and records the revised dataset and scorer hashes, fact
-alternatives, category scores and each previous/new answer verdict.
+The unchanged [original run](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna.json) holds every answer, retrieved page,
+query, corpus hash and environment setting. It made 272 model requests using
+872,567 input and 41,553 output tokens, plus embeddings. The
+[first rescoring](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna-rescored.json) preserves the answer-wording corrections;
+the [latest rescoring](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna-rescored-v2.json) records the revised answer-page
+lists and scorer, with source/dataset/scorer hashes, category scores and each
+question's new retrieval and answer verdicts. Both rescoring passes made zero
+provider requests.
 
-These are single-run measurements, not a quality guarantee or a repeated
-statistical comparison. Four `10/off` answers still miss required facts, including
-the approval role and default chunk size. Even a fact-check pass can hedge: its
-stdio answer names HTTP but declines to state whether stdio connects. Read the
-answers before treating a fact-check total as evidence of semantic correctness.
+These are single-run measurements. A hit names an expected page; its returned
+chunk may still miss the answering sentence. Four `10/hyde` answers still fail
+fact checks, and a word match is no guarantee of semantic correctness. Read the
+answers and repeat on your corpus before adopting a setting broadly.
 
-To repeat the same model and retrieval settings with your own authorized key:
+To repeat the model and retrieval settings with your own authorized key:
 
 ```bash
 OPENAI_BASE_URL=https://openrouter.ai/api/v1 make eval-retrieval EVAL_ARGS="\

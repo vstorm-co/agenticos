@@ -25,6 +25,18 @@ from dataclasses import asdict, dataclass
 from dataset import CATEGORIES, Dataset, Item
 
 _CITATION = re.compile(r"\[\d+(?:\s*[,-]\s*\d+)*\]")
+_NEGATIVE_WORDS = frozenset({"no", "not", "nie", "cannot", "isn't", "doesn't", "brak"})
+_ABSTENTION = re.compile(
+    r"\b(?:documentation|docs|passages|sources)\s+"
+    r"(?:does\s+not|do\s+not|doesn['\u2019]t|don['\u2019]t)\s+"
+    r"(?:state|say|specify|mention|confirm|answer)\b"
+    r"|\b(?:I|we)\s+(?:do\s+not|don['\u2019]t)\s+know\b"
+    r"|\b(?:dokumentacja|źródła)\s+(?:tego\s+)?nie\s+"
+    r"(?:podaje|mówi|określa|potwierdza)\b"
+    r"|\bnie\s+wiem\b"
+    r"|^(?:not\s+stated|not\s+specified|unknown)\b",
+    flags=re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -75,11 +87,12 @@ class ItemResult:
         """
         if self.answer is None or not self.item.expected_facts:
             return None
-        # The question can already name a fact ("per collection"). Echoing it
-        # after a don't-know response must not count as supplying that fact.
-        text = re.sub(re.escape(self.item.question), " ", self.answer, flags=re.IGNORECASE)
-        # A citation marker is not a fact: "[5]" must not answer "five".
-        text = _CITATION.sub(" ", text)
+        # Cross-language cases can require a negative fact too.
+        negative = self.item.category == "negative" or any(
+            {word.casefold() for word in group} <= _NEGATIVE_WORDS
+            for group in self.item.expected_facts
+        )
+        text = _asserted_text(self.item.question, self.answer, negative=negative)
         return tuple(
             group
             for group in self.item.expected_facts
@@ -90,6 +103,32 @@ class ItemResult:
     def answer_correct(self) -> bool | None:
         missing = self.missing_facts
         return None if missing is None else not missing
+
+
+def _asserted_text(question: str, answer: str, *, negative: bool) -> str:
+    """Ignore question echoes, citation numbers and English/Polish fallback clauses.
+
+    A fallback's "not" and its paraphrase of the question must not satisfy a
+    negative oracle. Later assertions still count: an uncertain sentence must
+    not erase a clear "No" and documented alternative supplied separately.
+    """
+    # Negative cases require a plain no. A "yes" must not pass because a later
+    # conditional happens to contain "not" or "nie" (#2482).
+    if negative and re.match(r"^\W*(?:yes|tak)\b", answer, flags=re.IGNORECASE):
+        return ""
+    words = re.findall(r"\w+", question)
+    text = answer
+    if words:
+        echo = r"\W+".join(re.escape(word) for word in words)
+        text = re.sub(rf"(?<!\w){echo}(?!\w)", " ", text, flags=re.IGNORECASE)
+    # A citation marker is not a fact: "[5]" must not answer "five".
+    text = _CITATION.sub(" ", text)
+    clauses = re.split(r"(?<=[.!?;])\s+|\n+", text)
+    return " ".join(
+        clause
+        for clause in clauses
+        if not _ABSTENTION.search(" ".join(re.findall(r"\w+(?:['\u2019]\w+)?", clause)))
+    )
 
 
 def mentions(text: str, alternative: str) -> bool:

@@ -91,7 +91,7 @@ items:
     category: negative
     language: pl
     question: Czy środowisko może działać bez przypiętej konkretnej wersji agenta?
-    expected_pages: [environments.md]
+    expected_pages: [environments.md, concepts.md]
     expected_facts:
       - ["nie", "no", "not", "brak"]
       - [domyśln*, default, opublikowan*, published]
@@ -121,7 +121,7 @@ items:
     category: factual
     language: en
     question: How long will a run wait for someone to answer a question the agent asked before giving up?
-    expected_pages: [configuration.md]
+    expected_pages: [configuration.md, reference/capabilities.md]
     expected_facts:
       - ["24"]
     evidence: "configuration.md: | `QUESTION_EXPIRY_HOURS` | `24` | How long a run waits on an agent's unanswered question before the same sweep ends it |"
@@ -185,7 +185,7 @@ items:
     category: factual
     language: en
     question: How do I make an agent always know our product names without it having to look anything up?
-    expected_pages: [context.md]
+    expected_pages: [context.md, howto/customize-agent-prompt.md]
     expected_facts:
       - [inject*]
     evidence: "context.md: The body is spliced into the agent's instructions verbatim."
@@ -205,7 +205,7 @@ items:
     category: factual
     language: pl
     question: Jakim parserem kolekcja domyślnie przetwarza pliki PDF?
-    expected_pages: [data-protection.md]
+    expected_pages: [data-protection.md, file-processing.md]
     expected_facts:
       - [pymupdf]
     evidence: "data-protection.md: The default `pymupdf` parses in the worker"
@@ -274,7 +274,7 @@ items:
     language: pl
     search_locales: [en]
     question: Czy opublikowanie nowej wersji agenta od razu podmienia ją na produkcji?
-    expected_pages: [environments.md]
+    expected_pages: [environments.md, howto/competitor-monitoring.md]
     expected_facts:
       - ["nie", "no", "not"]
       - [tracks_latest, "tracks latest", promowa*, promocj*, "śledzi najnowsz*", "śledzenie najnowsz*"]
@@ -318,9 +318,9 @@ items:
     language: en
     search_locales: [pl]
     question: How long does a pending tool approval wait before it is denied automatically?
-    expected_pages: [configuration.md]
+    expected_pages: [configuration.md, governance.md]
     expected_facts:
-      - ["72"]
+      - ["72", "three days", "3 days", "three-day", "3-day", "trzy dni", "3 dni"]
     evidence: "configuration.md: | `APPROVAL_EXPIRY_HOURS` | `72` | How long a parked tool call waits before the hourly sweep denies it by timeout |"
 
   - id: stdio-mcp-server-pl-corpus
