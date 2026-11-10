@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.62.7] - 2026-11-10
+
 ### Fixed
 
 - **Keep the Architect's bundled guide links usable.** Resolve links to included
@@ -21212,7 +21214,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.62.6...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.62.7...HEAD
+[1.62.7]: https://github.com/vstorm-co/agenticos/compare/v1.62.6...v1.62.7
 [1.62.6]: https://github.com/vstorm-co/agenticos/compare/v1.62.5...v1.62.6
 [1.62.5]: https://github.com/vstorm-co/agenticos/compare/v1.62.4...v1.62.5
 [1.62.4]: https://github.com/vstorm-co/agenticos/compare/v1.62.3...v1.62.4
