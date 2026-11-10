@@ -7442,7 +7442,7 @@
       },
       "workflow-input-contract": {
         "title": "Określ oczekiwane dane wejściowe",
-        "body": "Wyzwalacze Ręcznie, API i Wywołany przez workflow obsługują proste pola lub kontrakt JSON Schema Draft 2020-12. Schemat obsługuje zagnieżdżone wartości i jest sprawdzany przed rozpoczęciem runu."
+        "body": "Wyzwalacze Ręcznie, API i Wywołany przez workflow obsługują proste pola lub kontrakt JSON Schema 2020-12. Schemat obsługuje zagnieżdżone wartości i jest sprawdzany przed rozpoczęciem runu."
       }
     },
     "chooseLanguage": "Język",
@@ -8374,7 +8374,7 @@
     "resultReport": "Po każdym zakończonym wykonaniu",
     "resultInbox": "Tylko gdy coś wymaga uwagi",
     "resultReportHint": "Po każdym wykonaniu przekaż raport do wybranej rozmowy.",
-    "resultInboxHint": "Utwórz jedną sprawę w Inbox i rozmowę na element źródłowy. Umieść tam zamówiony draft; sprawdzenia bez zmian pozostają ciche. Wysyłka nadal wymaga odpowiednich uprawnień i zgody."
+    "resultInboxHint": "Utwórz jedną sprawę w Inbox i rozmowę na element źródłowy. Umieść tam zamówioną wersję roboczą; sprawdzenia bez zmian pozostają ciche. Wysyłka nadal wymaga odpowiednich uprawnień i zgody."
   },
   "portals": {
     "mailboxInterval": {
@@ -9444,7 +9444,6 @@
     "temperatureVariesVerdict": "{kind, select, judge {Powyżej 0 ta sama odpowiedź może za drugim razem dostać inną ocenę. 0 utrzymuje powtarzalne oceny.} other {Powyżej 0 ta sama odpowiedź może za drugim razem zostać inaczej sklasyfikowana. 0 utrzymuje powtarzalną klasyfikację.}}",
     "mapMoreItems": "+{count} więcej · otwórz pełną listę",
     "unavailableTitle": "Agent niedostępny",
-    "unavailableDescription": "Sprawdź wybraną organizację. Agent może należeć do innej organizacji, być usunięty albo nie być już Tobie udostępniony.",
     "loadFailedTitle": "Nie udało się wczytać agenta",
     "retryLoad": "Spróbuj ponownie",
     "modelRegion": "Region",
@@ -10786,7 +10785,7 @@
       "simpleFields": "Proste pola",
       "jsonSchema": "JSON Schema",
       "formatHint": "Wybierz proste pola lub kontrakt JSON Schema. Oba zapisane formaty są zachowane, dopóki ten wyzwalacz pozostaje otwarty; tylko wybrany format jest zapisywany w workflow.",
-      "schemaHint": "Użyj JSON Schema Draft 2020-12 dla zagnieżdżonych obiektów, tablic i referencji. Dane są sprawdzane przed rozpoczęciem runu.",
+      "schemaHint": "Użyj JSON Schema 2020-12 dla zagnieżdżonych obiektów, tablic i referencji. Dane są sprawdzane przed rozpoczęciem runu.",
       "schemaInvalid": "Wpisz obiekt JSON. Ta zmiana nie została zapisana."
     },
     "pickerHostLabel": "Host sandboxa",
@@ -14157,7 +14156,7 @@
     "journey": {
       "next": {
         "grading": "Ustaw ocenianie",
-        "evals": "Otwórz evale"
+        "evals": "Otwórz ewaluacje"
       },
       "guidance": {
         "evals": "Ocenianie jest skonfigurowane. Wybierz agenta i sprawdź koszt przed uruchomieniem."

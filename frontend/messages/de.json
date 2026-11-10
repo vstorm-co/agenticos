@@ -1060,7 +1060,6 @@
     "temperatureVariesVerdict": "{kind, select, judge {Über 0 kann dieselbe Antwort beim zweiten Mal anders bewertet werden. 0 hält Bewertungen wiederholbar.} other {Über 0 kann dieselbe Antwort beim zweiten Mal anders eingeordnet werden. 0 hält die Einordnung wiederholbar.}}",
     "mapMoreItems": "+{count} weitere · alle anzeigen",
     "unavailableTitle": "Agent nicht verfügbar",
-    "unavailableDescription": "Prüfe die ausgewählte Organisation. Dieser Agent gehört möglicherweise zu einer anderen Organisation, wurde entfernt oder ist nicht mehr für dich freigegeben.",
     "loadFailedTitle": "Agent konnte nicht geladen werden",
     "retryLoad": "Erneut versuchen",
     "modelApiFromModel": "{api}, aus dem Modell gewählt",
@@ -5741,7 +5740,7 @@
       },
       "workflow-input-contract": {
         "title": "Erwartete Eingabe festlegen",
-        "body": "Die Trigger Manuell, API und Von einem Workflow aufgerufen unterstützen einfache Felder oder einen Vertrag nach JSON Schema Draft 2020-12. Das Schema unterstützt verschachtelte Werte und wird vor dem Start eines Runs geprüft."
+        "body": "Die Trigger Manuell, API und Von einem Workflow aufgerufen unterstützen einfache Felder oder einen Vertrag nach JSON Schema 2020-12. Das Schema unterstützt verschachtelte Werte und wird vor dem Start eines Runs geprüft."
       }
     },
     "chooseLanguage": "Sprache",
@@ -10253,7 +10252,7 @@
       "simpleFields": "Einfache Felder",
       "jsonSchema": "JSON Schema",
       "formatHint": "Wähle einfache Felder oder einen JSON-Schema-Vertrag. Beide gespeicherten Formate bleiben erhalten, solange dieser Trigger geöffnet ist; nur das ausgewählte Format wird im Workflow gespeichert.",
-      "schemaHint": "Verwende JSON Schema Draft 2020-12 für verschachtelte Objekte, Arrays und Referenzen. Eingaben werden vor dem Start eines Runs geprüft.",
+      "schemaHint": "Verwende JSON Schema 2020-12 für verschachtelte Objekte, Arrays und Referenzen. Eingaben werden vor dem Start eines Runs geprüft.",
       "schemaInvalid": "Gib ein JSON-Objekt ein. Diese Änderung wurde nicht gespeichert."
     },
     "pickerHostLabel": "Sandbox-Host",

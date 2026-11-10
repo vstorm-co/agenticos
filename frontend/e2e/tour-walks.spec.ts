@@ -40,10 +40,10 @@ test("a dataset's tour opens each tab it describes and runs to its end", async (
 
   await page.goto(`/datasets/${id}`);
   const tabFor: Record<string, string> = {
-    "Have cases drafted": "Generated",
-    "How cases are graded": "Grading",
-    "The judge": "Grading",
-    Review: "Review",
+    "Have cases drafted": "Cases",
+    "How cases are graded": "Settings",
+    "The judge": "Settings",
+    Review: "Results",
     "Configure the evaluation helpers": "Settings",
   };
   const seen = await walkPageTour(page, async (title) => {

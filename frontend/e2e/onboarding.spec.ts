@@ -49,7 +49,10 @@ test.describe("Onboarding", () => {
         expect(entry.y).toBeGreaterThanOrEqual(header.y + header.height);
       }
       await page.getByRole("link", { name: "Open the app", exact: true }).click();
-      await expect(page.getByRole("heading", { name: DASHBOARD_GREETING })).toBeVisible();
+      await expect(page).toHaveURL(/\/chat$/);
+      await expect(
+        page.getByRole("heading", { name: /Good (morning|afternoon|evening)|Up late/ }),
+      ).toBeVisible();
       const main = page.getByRole("main");
       const before = await main.boundingBox();
       // Hide the notice without changing the shared account or React's DOM ownership.

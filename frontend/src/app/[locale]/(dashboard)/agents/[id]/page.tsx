@@ -909,19 +909,16 @@ export default function AgentBuilderPage({ params }: PageProps) {
   );
 
   if (isLoading) return <BuilderSkeleton />;
-  if (agentError || !agent) {
-    const unavailable =
-      agentError instanceof ApiError && (agentError.status === 404 || agentError.status === 403);
+  if (agentError instanceof ApiError && (agentError.status === 404 || agentError.status === 403))
+    return <ResourceUnavailable back={ROUTES.AGENTS} label={t("backToAgents")} />;
+  if (!agent)
     return (
       <ErrorState
-        title={tAgents(unavailable ? "unavailableTitle" : "loadFailedTitle")}
-        description={
-          unavailable ? tAgents("unavailableDescription") : getErrorMessage(agentError, tErrors)
-        }
+        title={tAgents("loadFailedTitle")}
+        description={getErrorMessage(agentError, tErrors)}
         cta={{ label: tAgents("retryLoad"), onClick: () => void refetchAgent() }}
       />
     );
-  }
   if (!spec) return <BuilderSkeleton />;
   if (isSystem) return <ResourceUnavailable back={ROUTES.AGENTS} label={t("backToAgents")} />;
 
@@ -1086,6 +1083,13 @@ export default function AgentBuilderPage({ params }: PageProps) {
     // (#2074), so the Builder stays usable while the agent is being tried.
     <div className="flex flex-1 items-start gap-4">
       <div className="flex min-w-0 flex-1 flex-col gap-3 self-stretch sm:gap-4">
+        {agentError && (
+          <ErrorState
+            title={tAgents("loadFailedTitle")}
+            description={getErrorMessage(agentError, tErrors)}
+            cta={{ label: tAgents("retryLoad"), onClick: () => void refetchAgent() }}
+          />
+        )}
         <PageHeader
           title={
             <span className="flex min-w-0 items-center gap-3">

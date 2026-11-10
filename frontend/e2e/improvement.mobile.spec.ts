@@ -248,11 +248,11 @@ test("test questions, review and improvement publish keep a guarded environment 
   // Leave the measured question unchanged; this is an unsaved layout check.
   await editor.getByRole("button", { name: "Remove call 1", exact: true }).click();
   await editor.getByRole("button", { name: "Close", exact: true }).click();
-  await page.getByRole("tab", { name: /Generated/ }).click();
+  await page.goto(`/datasets/${id(dataset)}?tab=generated`);
   await capture(page, info, "dataset-generated");
-  await page.getByRole("tab", { name: "Grading", exact: true }).click();
+  await page.getByRole("tab", { name: "Settings", exact: true }).click();
   await capture(page, info, "dataset-grading");
-  await page.getByRole("tab", { name: "Review", exact: true }).click();
+  await page.getByRole("tab", { name: "Results", exact: true }).click();
   // An eval run queues nothing for review by itself, so its answers are under all results.
   await page.getByRole("button", { name: /^All results \(\d+\)$/ }).click();
   await expect(page.getByText("Return policy question 1", { exact: true })).toBeVisible();

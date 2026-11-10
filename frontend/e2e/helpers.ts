@@ -702,7 +702,12 @@ export async function walkPageTour(
   const title = page.locator(".driver-popover-title");
   const next = page.locator(".driver-popover-next-btn");
   const back = page.locator(".driver-popover-prev-btn");
-  await page.getByRole("button", { name: "Show tips for this page" }).click();
+  await page
+    .getByRole("heading", { level: 1 })
+    .locator("..")
+    .getByRole("button", { name: "More information", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Show tips for this page", exact: true }).click();
   const seen: string[] = [];
   for (let stop = 0; stop < 40; stop += 1) {
     await expect(title).toBeVisible();

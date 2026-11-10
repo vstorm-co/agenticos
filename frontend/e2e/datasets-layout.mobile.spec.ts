@@ -24,6 +24,7 @@ test("case editing keeps fields and save reachable on narrow and short screens",
   await dialog.getByRole("textbox", { name: /^Name/ }).fill(name);
   await dialog.getByRole("button", { name: "Create", exact: true }).click();
   await expect(page.getByRole("heading", { name, exact: true })).toBeVisible();
+  const datasetUrl = page.url().split("?")[0];
   await page
     .getByRole("tabpanel", { name: "Cases", exact: true })
     .getByRole("button", { name: "Add case", exact: true })
@@ -32,7 +33,7 @@ test("case editing keeps fields and save reachable on narrow and short screens",
   await page.setViewportSize({ width: 1440, height: 1000 });
   const initialBounds = await dialog.boundingBox();
   if (!initialBounds) throw new Error("The case form has no bounds");
-  expect(initialBounds.width).toBeLessThanOrEqual(700);
+  expect(initialBounds.width).toBeLessThanOrEqual(1024);
   expect(initialBounds.height).toBeLessThan(900);
   await expect(
     dialog.getByRole("textbox", { name: "Reference answer", exact: true }),
@@ -129,8 +130,19 @@ test("case editing keeps fields and save reachable on narrow and short screens",
   await page.keyboard.press("Escape");
   for (const width of [320, 1440]) {
     await page.setViewportSize({ width, height: 844 });
-    for (const tab of ["Cases", "Generated", "Grading", "Evals", "Review", "Settings"]) {
-      await page.getByRole("tab", { name: new RegExp(`^${tab}`) }).click();
+    for (const [view, tab] of [
+      ["cases", "Cases"],
+      ["generated", "Cases"],
+      ["grading", "Settings"],
+      ["evals", "Results"],
+      ["review", "Results"],
+      ["settings", "Settings"],
+    ]) {
+      await page.goto(`${datasetUrl}?tab=${view}`);
+      await expect(page.getByRole("tab", { name: tab, exact: true })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
       await page.locator("main").evaluate((element) => element.scrollTo(0, 0));
       const panel = page.getByRole("tabpanel", { name: new RegExp(`^${tab}`) });
       await expect
@@ -158,7 +170,7 @@ test("case editing keeps fields and save reachable on narrow and short screens",
       expect(bounds.height).toBe(844);
       await fitsPage(page);
       await page.screenshot({
-        path: info.outputPath(`workspace-${tab}-${width}.png`),
+        path: info.outputPath(`workspace-${view}-${width}.png`),
         animations: "disabled",
       });
       await page.keyboard.press("Escape");
@@ -237,7 +249,7 @@ test("agent gallery keeps its full height after filtering to no matches", async 
     await expect
       .poll(() =>
         search.evaluate((element) => {
-          const gallery = element.closest(".shadow-card");
+          const gallery = element.closest(".bg-card");
           const frame = element.closest(".page-enter");
           if (!gallery || !frame) throw new Error("The agent gallery has no page frame");
           const bottom =

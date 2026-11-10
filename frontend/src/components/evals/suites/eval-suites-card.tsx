@@ -38,9 +38,9 @@ export function EvalSuitesCard({ agentId, canManage }: { agentId: string; canMan
     <Card>
       <CardHeader
         data-tour="agent-eval-suites"
-        className="flex flex-row items-start justify-between gap-4 space-y-0"
+        className="flex flex-col items-start justify-between gap-3 space-y-0 sm:flex-row sm:gap-4"
       >
-        <div className="space-y-1.5">
+        <div className="min-w-0 space-y-1.5">
           <CardTitle>{t("title")}</CardTitle>
           <CardDescription>{t("description")}</CardDescription>
         </div>
