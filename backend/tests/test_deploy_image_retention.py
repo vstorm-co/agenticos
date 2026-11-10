@@ -28,6 +28,7 @@ FUNCTIONS = (
     "removable_release_refs",
     "remember_release_images",
     "prune_release_images",
+    "require_image_space",
     "check_image_space",
     "record_release_images",
 )
@@ -374,3 +375,63 @@ def test_removing_a_release_never_implicitly_prunes_its_untagged_parent(host: Ho
     assert result.returncode == 0, result.stderr
     assert release.id not in {i.id for i in after.images}
     assert runtime_parent.id in {i.id for i in after.images}
+
+
+def test_desktop_checks_vm_capacity_without_treating_its_path_as_a_host_path(host: Host) -> None:
+    state = Engine(images=[image(1)], operating_system="Docker Desktop", root="/inside-the-vm")
+    result, after = host.run(state, "check_image_space")
+    assert result.returncode == 0, result.stderr
+    [probe] = [call for call in after.calls if call[:2] == ["docker", "run"]]
+    assert {"--rm", "--pull=never", "--read-only", "--network=none", "--cap-drop=ALL"} <= set(probe)
+    assert probe[-4:] == ["df", state.images[0].id, "-Pk", "/"]
+    assert ["df", "-Pk", str(host.path)] in after.calls
+    assert not any(call[0] == "df" and state.root in call for call in after.calls)
+
+
+@pytest.mark.parametrize("vm_low", [True, False])
+def test_desktop_refuses_insufficient_vm_or_host_capacity(host: Host, vm_low: bool) -> None:
+    state = Engine(
+        images=[image(1)],
+        operating_system="Docker Desktop",
+        available_kib=100 if vm_low else 10 * 1024 * 1024,
+        host_available_kib=10 * 1024 * 1024 if vm_low else 100,
+    )
+    result, after = host.run(state, "check_image_space; docker compose pull")
+    assert result.returncode != 0
+    assert "Insufficient space" in result.stderr
+    assert ("Docker Desktop VM" if vm_low else str(host.path)) in result.stderr
+    assert not any("pull" in call for call in after.calls)
+
+
+def test_desktop_does_not_download_a_probe_image_on_first_installation(host: Host) -> None:
+    result, after = host.run(Engine(operating_system="Docker Desktop"), "check_image_space")
+    assert result.returncode != 0
+    assert "cached AgenticOS backend image" in result.stderr
+    assert not any("pull" in call or "run" in call for call in after.calls)
+
+
+def test_a_failed_desktop_storage_probe_refuses_to_guess_capacity(host: Host) -> None:
+    state = Engine(images=[image(1)], operating_system="Docker Desktop", fail="docker run")
+    result, after = host.run(state, "check_image_space; docker compose pull")
+    assert result.returncode != 0
+    assert not any("pull" in call for call in after.calls)
+
+
+def test_desktop_probe_uses_the_known_healthy_backend_instead_of_another_cached_build(
+    host: Host,
+) -> None:
+    cached, healthy = image(1), image(2)
+    state = Engine(images=[cached, healthy], operating_system="Docker Desktop")
+    result, after = host.run(state, f"check_image_space {shlex.quote(f'{BACKEND}|{healthy.id}')}")
+    assert result.returncode == 0, result.stderr
+    [probe] = [call for call in after.calls if call[:2] == ["docker", "run"]]
+    assert probe[-3] == healthy.id
+
+
+def test_desktop_fallback_probe_never_selects_an_unrelated_repository(host: Host) -> None:
+    unrelated, backend = image(1, "runtime/python"), image(2)
+    state = Engine(images=[unrelated, backend], operating_system="Docker Desktop")
+    result, after = host.run(state, "check_image_space")
+    assert result.returncode == 0, result.stderr
+    [probe] = [call for call in after.calls if call[:2] == ["docker", "run"]]
+    assert probe[-3] == backend.id

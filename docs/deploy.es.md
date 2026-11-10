@@ -1,5 +1,5 @@
 ---
-source_sha: "a1ef1bf8dbe2"
+source_sha: "984dbd8faf18"
 ---
 
 # Despliega en un servidor { #deploy-to-a-server }
@@ -697,6 +697,15 @@ de los servicios. Si falta espacio, el rechazo indica el sistema de archivos y
 la capacidad disponible: libera espacio fuera de las protecciones o amplía el
 almacenamiento y repite el despliegue aprobado. No implementes esta política
 mediante un `docker image prune -a` global.
+
+En Docker Desktop, el directorio de almacenamiento está dentro de la VM Linux.
+El script mide su espacio libre mediante un contenedor temporal, de solo lectura
+y sin red, usando una imagen del backend ya disponible localmente, preferentemente
+la última sana. La prueba no puede descargar imágenes y el contenedor se elimina
+automáticamente. También comprueba el sistema de archivos del host que contiene
+el directorio de despliegue; supervisa por separado el de un disco VM
+personalizado. Este procedimiento de actualización requiere una imagen local
+del backend; completa primero la instalación inicial normal.
 
 ### Desde GitHub, con una aprobación { #from-github-with-an-approval }
 

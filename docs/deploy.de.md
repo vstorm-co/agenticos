@@ -1,5 +1,5 @@
 ---
-source_sha: "a1ef1bf8dbe2"
+source_sha: "984dbd8faf18"
 ---
 
 # Auf einem Server deployen { #deploy-to-a-server }
@@ -715,6 +715,15 @@ Bei zu wenig Speicher nennt die Ablehnung das Dateisystem und den verfügbaren
 Platz. Speicher außerhalb der Schutzregeln freigeben oder erweitern, dann das
 genehmigte Deployment erneut starten. Diese Richtlinie niemals durch ein globales
 `docker image prune -a` umsetzen.
+
+Bei Docker Desktop liegt das Speicherverzeichnis in der Linux-VM. Das Skript
+misst deren freien Speicher mit einem temporären, schreibgeschützten und vom
+Netz getrennten Container aus einem bereits lokal vorhandenen Backend-Image,
+vorzugsweise dem letzten gesunden. Die Prüfung darf keine Images herunterladen
+und der Container wird automatisch entfernt. Zusätzlich wird das Host-Dateisystem
+des Deployment-Verzeichnisses geprüft; das Host-Dateisystem eines eigenen
+VM-Datenträgers muss separat überwacht werden. Dieses Update-Verfahren benötigt
+ein lokal vorhandenes Backend-Image; zuerst die normale Erstinstallation abschließen.
 
 ### Aus GitHub, mit einer Freigabe { #from-github-with-an-approval }
 

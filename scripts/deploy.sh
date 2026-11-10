@@ -175,23 +175,52 @@ prune_release_images() {
   done
 }
 
+require_image_space() {
+  local store="$1" available
+  available=$(printf '%s\n' "$2" | awk 'NR == 2 {print $4}') || return
+  if ! [[ "$available" =~ ^[0-9]+$ ]]; then
+    echo "Cannot determine available space for Docker storage at $store." >&2
+    return 1
+  fi
+  if [ "$available" -lt 5242880 ]; then
+    echo "Insufficient space at $store: $available KiB available; at least 5242880 KiB (5 GiB) is required before pulling release images. Protected current/rollback, container and runtime images were retained. Free space outside those protections or expand this filesystem, then retry the approved deploy." >&2
+    return 1
+  fi
+  echo "  $store: $available KiB available (minimum 5 GiB)"
+}
+
 check_image_space() {
-  local root store available
+  local root store system probe report
   root=$(docker info --format '{{.DockerRootDir}}') || return
   [ -n "$root" ] || { echo "Docker did not report its storage directory." >&2; return 1; }
+  system=$(docker info --format '{{.OperatingSystem}}') || return
+  case "$system" in
+    *"Docker Desktop"*)
+      # DockerRootDir is inside Desktop's VM. Query its backing filesystem using
+      # an already-cached backend image; never pull an image to measure capacity.
+      probe=$(printf '%s\n' "${1:-}" | awk -F'|' '$1 == "ghcr.io/vstorm-co/agenticos-backend" {image=$2} END {print image}') || return
+      if [ -z "$probe" ]; then
+        probe=$(docker image ls --quiet --no-trunc ghcr.io/vstorm-co/agenticos-backend | awk 'NR == 1 {first=$0} END {print first}') || return
+      fi
+      if ! [[ "$probe" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+        echo "Docker Desktop capacity check needs a cached AgenticOS backend image. Complete the initial installation before using this update procedure." >&2
+        return 1
+      fi
+      report=$(docker run --rm --pull=never --read-only --network=none --cap-drop=ALL --entrypoint df "$probe" -Pk /) || return
+      require_image_space "Docker Desktop VM" "$report" || return
+      # The VM disk image also consumes host storage. A custom backing disk's
+      # host filesystem still needs its own monitoring, like custom containerd.
+      store="${APP_DIR:-$PWD}"
+      report=$(df -Pk "$store") || return
+      require_image_space "$store" "$report" || return
+      return 0
+      ;;
+  esac
   # Engine 29's containerd store lives outside DockerRootDir by default.
   for store in "$root" /var/lib/containerd; do
     if [ "$store" != "$root" ] && [ ! -d "$store" ]; then continue; fi
-    available=$(df -Pk "$store" | awk 'NR == 2 {print $4}') || return
-    if ! [[ "$available" =~ ^[0-9]+$ ]]; then
-      echo "Cannot determine available space for Docker storage at $store." >&2
-      return 1
-    fi
-    if [ "$available" -lt 5242880 ]; then
-      echo "Insufficient space at $store: $available KiB available; at least 5242880 KiB (5 GiB) is required before pulling release images. Protected current/rollback, container and runtime images were retained. Free space outside those protections or expand this filesystem, then retry the approved deploy." >&2
-      return 1
-    fi
-    echo "  $store: $available KiB available (minimum 5 GiB)"
+    report=$(df -Pk "$store") || return
+    require_image_space "$store" "$report" || return
   done
 }
 
@@ -438,16 +467,16 @@ retire_services() {
 
 say "Reclaiming unused release images before pulling"
 prune_release_images "$AGENTICOS_VERSION"
-check_image_space
+check_image_space "$PREVIOUS_RELEASE_IMAGES"
 
 say "Pulling the API images"
 compose "${BACKEND[@]}" "${PROFILES[@]+"${PROFILES[@]}"}" pull --quiet
-check_image_space
+check_image_space "$PREVIOUS_RELEASE_IMAGES"
 say "Pulling the frontend image"
 compose "${FRONTEND[@]}" pull --quiet
 
 prepare_sandbox_runtimes "${BACKEND[@]}" "${PROFILES[@]+"${PROFILES[@]}"}"
-check_image_space
+check_image_space "$PREVIOUS_RELEASE_IMAGES"
 retire_services
 say "Starting the API"
 compose_up "${BACKEND[@]}" "${PROFILES[@]+"${PROFILES[@]}"}"

@@ -656,6 +656,14 @@ available space: free space outside the protections or expand storage, then
 retry the approved deployment. Never use a blanket `docker image prune -a` to
 implement this policy.
 
+On Docker Desktop, the storage directory is inside its Linux VM. The script
+measures VM free space through a temporary, read-only, network-isolated container
+using an already-cached backend image, preferably the last healthy one. The
+probe cannot pull images and is removed automatically. It also checks the host
+filesystem containing the deployment directory; monitor a custom VM backing
+disk's host filesystem separately. This update procedure requires a cached
+backend image; complete the normal initial installation first.
+
 ### From GitHub, with an approval
 
 `.github/workflows/deploy.yml` offers each published stable release for deployment and

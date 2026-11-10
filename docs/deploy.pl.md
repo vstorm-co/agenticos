@@ -1,5 +1,5 @@
 ---
-source_sha: "a1ef1bf8dbe2"
+source_sha: "984dbd8faf18"
 ---
 
 # Wdrożenie na serwer { #deploy-to-a-server }
@@ -667,6 +667,15 @@ którejkolwiek usługi. Odmowa z powodu braku miejsca podaje system plików i
 dostępną pojemność: zwolnij miejsce poza chronionymi zasobami lub powiększ
 magazyn, a następnie ponów zatwierdzone wdrożenie. Nie realizuj tej polityki
 przez globalne `docker image prune -a`.
+
+W Docker Desktop katalog magazynu znajduje się wewnątrz maszyny wirtualnej
+Linux. Skrypt mierzy wolne miejsce w VM za pomocą tymczasowego kontenera tylko
+do odczytu, bez sieci, z już lokalnie dostępnym obrazem backendu, najlepiej
+ostatnim zdrowym. Kontener pomiarowy nie może pobierać obrazów i jest usuwany
+automatycznie. Skrypt sprawdza też system plików hosta z katalogiem wdrożenia;
+system plików niestandardowego dysku VM monitoruj osobno. Ta procedura
+aktualizacji wymaga lokalnego obrazu backendu; najpierw zakończ zwykłą pierwszą
+instalację.
 
 ### Z GitHuba, z zatwierdzeniem { #from-github-with-an-approval }
 

@@ -31,6 +31,8 @@ class Engine(BaseModel):
     containers: list[Container] = Field(default_factory=list)
     calls: list[list[str]] = Field(default_factory=list)
     root: str = "/docker-store"
+    operating_system: str = "Ubuntu"
+    host_available_kib: int = 10 * 1024 * 1024
     available_kib: int = 10 * 1024 * 1024
     reclaim_kib: int = 1024 * 1024
     fail: str = ""
@@ -41,6 +43,9 @@ class Engine(BaseModel):
 
     def image(self, reference: str) -> Image:
         return next(i for i in self.images if i.id == reference or reference in i.tags)
+
+    def disk_report(self, available: int) -> str:
+        return f"Filesystem 1024-blocks Used Available Capacity Mounted on\nstore 99999999 0 {available} 1% /\n"
 
     def execute(self, command: str, args: list[str], stdin: bytes = b"") -> str:
         self.calls.append([command, *args])
@@ -53,14 +58,30 @@ class Engine(BaseModel):
                 ).hexdigest()
             return self.target if args[0] == "rev-parse" else ""
         if command == "df":
-            return f"Filesystem 1024-blocks Used Available Capacity Mounted on\nstore 99999999 0 {self.available_kib} 1% /\n"
+            return self.disk_report(
+                self.host_available_kib
+                if "Docker Desktop" in self.operating_system
+                else self.available_kib
+            )
         if args[:2] == ["manifest", "inspect"]:
             return "{}"
         if args[0] == "info":
-            return self.root
+            return self.operating_system if "OperatingSystem" in args[-1] else self.root
+        if (
+            args[0] == "run"
+            and "--entrypoint" in args
+            and args[args.index("--entrypoint") + 1] == "df"
+        ):
+            self.image(args[-3])
+            return self.disk_report(self.available_kib)
         if args[:2] == ["image", "ls"]:
             if "--quiet" in args:
-                return "\n".join(i.id for i in self.images)
+                images = self.images
+                if not args[-1].startswith("--"):
+                    images = [
+                        i for i in images if any(t.rsplit(":", 1)[0] == args[-1] for t in i.tags)
+                    ]
+                return "\n".join(i.id for i in images)
             return "\n".join(
                 t for i in self.images for t in i.tags if t.rsplit(":", 1)[0] == args[-1]
             )
