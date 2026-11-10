@@ -19,6 +19,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- Remove an unused serialized channel access-policy default and its outdated
+  SQLite comment. Active channel-bot defaults and policies are unchanged (#2869).
+
 ## [1.62.5] - 2026-11-10
 
 ### Fixed
