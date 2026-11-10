@@ -758,6 +758,19 @@ def _rule_1_single_entry(graph: WorkflowGraph) -> Problems:
 # Rule 2 - reachable outputs
 
 
+def set_aside(graph: WorkflowGraph) -> set[UUID]:
+    """Steps switched off with no edge at all: parked beside the graph, never run.
+
+    The run never reaches one and it would do nothing if it did, so neither
+    reachability nor its required inputs are asked of it. Rule 13 still refuses
+    a read of one, since it hands nothing on.
+    """
+    wired = {edge.source_node_id for edge in graph.edges} | {
+        edge.target_node_id for edge in graph.edges
+    }
+    return {node.id for node in graph.nodes if node.disabled and node.id not in wired}
+
+
 def _rule_2_reachable_outputs(
     graph: WorkflowGraph, node_scope: dict[UUID, UUID], outer_order: list[UUID] | None
 ) -> Problems:
@@ -765,11 +778,14 @@ def _rule_2_reachable_outputs(
 
     Checking only sinks would let a second, unreachable zero-in-degree source
     pass undetected - rule 1 only proves the *named* entry has in-degree 0,
-    not that it is the only one.
+    not that it is the only one. A step `set_aside` is not asked to be reached.
     """
     if graph.entry_node_id not in graph.node_by_id:
         return []
-    top_level = [node.id for node in graph.nodes if node.id not in node_scope]
+    parked = set_aside(graph)
+    top_level = [
+        node.id for node in graph.nodes if node.id not in node_scope and node.id not in parked
+    ]
     adjacency = _forward_edges(graph)
     exit_edges = _scope_exit_edges(graph)
     seen: set[UUID] = set()
@@ -1498,9 +1514,10 @@ def _rule_9_required_inputs_bound(graph: WorkflowGraph, definitions: DefinitionM
         if count > 1:
             problems.append((f"nodes.{node_id}.{field_name}", "This input is bound more than once"))
 
+    parked = set_aside(graph)
     for node in graph.nodes:
         definition = definitions.get(node.id)
-        if definition is None or definition.input_schema is None:
+        if definition is None or definition.input_schema is None or node.id in parked:
             continue
         if (
             definition.id in _DECIDES_ON_VALUE

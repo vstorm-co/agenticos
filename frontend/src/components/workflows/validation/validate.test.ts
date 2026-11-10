@@ -441,6 +441,21 @@ describe("drift parity — graphs the backend refuses", () => {
     expect(codesOf(run(g))).toEqual(["unreachable-node"]);
   });
 
+  it("rule 2 — a step switched off with no edge is set aside, not unreachable", () => {
+    const parked = { ...node("parked", "test.consumer"), disabled: true };
+    const g = graph({ entry: "entry", nodes: [echo("entry"), parked] });
+    expect(codesOf(run(g))).toEqual([]);
+  });
+
+  it("rule 2 — a step switched off that feeds the line is still unreachable", () => {
+    const g = graph({
+      entry: "entry",
+      nodes: [echo("entry"), { ...echo("stray"), disabled: true }, echo("sink")],
+      edges: [edge("e1", "entry", "out", "sink", "in"), edge("e2", "stray", "out", "sink", "in")],
+    });
+    expect(codesOf(run(g))).toContain("unreachable-node");
+  });
+
   it("rule 3 — an edge between incompatible port shapes", () => {
     const g = graph({
       entry: "a",

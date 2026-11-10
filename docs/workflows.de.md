@@ -1,5 +1,5 @@
 ---
-source_sha: "296a2476dbbe"
+source_sha: "d51f3d160727"
 ---
 
 # Workflows { #workflows }
@@ -377,6 +377,11 @@ Schritt, der einen abgeschalteten liest, außer das, was bei ihm ankommt - über
 eine eingehende Verbindung, von einem eingeschalteten Schritt - hat das gelesene Feld,
 das er dann weitergibt. Alle drei werden im Graphen gespeichert, sodass Versionen sie
 behalten.
+
+Ein abgeschalteter Schritt ganz ohne Verbindung ist beiseitegestellt: Er kann neben dem
+Workflow stehen - etwa ein **Combine lists** mit Testdaten -, ohne vom Trigger
+erreichbar zu sein oder gebundene Eingaben zu haben, und ein Lauf übergeht ihn. Wird er
+mit irgendetwas verbunden, gilt beides wieder für ihn.
 
 ### Die Daten eines Schritts, Testdaten und einen Schritt testen { #a-steps-data-pinning-and-testing-one-step }
 

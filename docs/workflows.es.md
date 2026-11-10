@@ -1,5 +1,5 @@
 ---
-source_sha: "296a2476dbbe"
+source_sha: "d51f3d160727"
 ---
 
 # Workflows { #workflows }
@@ -362,6 +362,11 @@ que le llegó. Publicar rechaza un trigger o un paso que decide el camino apagad
 paso que lee uno apagado, salvo que lo que le llega - por su única conexión de entrada,
 desde un paso encendido - tenga el campo leído, que entonces entrega. Los tres se guardan
 en el grafo, así que las versiones los conservan.
+
+Un paso apagado sin ninguna conexión queda apartado: puede estar junto al workflow - un
+**Combine lists** con datos de prueba, por ejemplo - sin ser alcanzable desde el trigger
+ni tener sus entradas vinculadas, y una ejecución lo ignora. Si lo conectas a algo,
+ambas cosas se le vuelven a exigir.
 
 ### Los datos de un paso, datos de prueba y probar un paso { #a-steps-data-pinning-and-testing-one-step }
 

@@ -344,6 +344,11 @@ switched off, and a step that reads one that is off, unless what comes into it -
 along its one incoming connection, from a step that is on - has the field read,
 which it then hands on. All three are saved in the graph, so versions keep them.
 
+A step that is off with no connection at all is set aside: it can sit beside the
+workflow - a **Combine lists** holding test data, say - without being reachable from
+the trigger or having its inputs bound, and a run ignores it. Connect it to anything
+and both are asked of it again.
+
 ### A step's data, test data and testing one step { #a-steps-data-pinning-and-testing-one-step }
 
 Editing a workflow, the dialog puts a step's parameters between two panes. **Input**

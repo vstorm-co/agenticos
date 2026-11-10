@@ -191,6 +191,86 @@ async def test_nothing_may_read_a_switched_off_step(engine: AsyncEngine):
     )
 
 
+async def test_a_switched_off_step_with_no_edges_is_set_aside(engine: AsyncEngine):
+    """Switching a step off is enough to park it beside the line, wires removed."""
+    parked = _node("data.combine", {"mode": "append"}, disabled=True, label="Test data")
+    graph = _line(_node("data.map", MAPPING))
+    graph = graph.model_copy(update={"nodes": (*graph.nodes, parked)})
+    seeded = await seed_run(engine, graph, run_input={"name": "Ada"})
+
+    async with async_sessionmaker(engine)() as db:
+        await validate_graph(db, seeded.ctx, graph)
+    run = await drive(seeded)
+
+    assert run.status == WorkflowRunStatus.SUCCEEDED.value
+    assert parked.id not in await node_statuses(seeded)
+
+
+async def test_a_step_set_aside_keeps_its_bindings(engine: AsyncEngine):
+    """Unwired, it still reads what it read: wired back in, it runs as it was."""
+    parked = _node("data.combine", {"mode": "append"}, disabled=True)
+    graph = _line(_node("data.map", MAPPING))
+    entry = graph.nodes[0]
+    graph = graph.model_copy(
+        update={
+            "nodes": (*graph.nodes, parked),
+            "bindings": (
+                *graph.bindings,
+                _bind(parked, "first", entry, "payload", "items"),
+                _bind(parked, "second", entry, "payload", "items"),
+            ),
+        }
+    )
+    seeded = await seed_run(engine, graph)
+
+    async with async_sessionmaker(engine)() as db:
+        await validate_graph(db, seeded.ctx, graph)
+
+
+async def test_nothing_may_read_a_step_set_aside(engine: AsyncEngine):
+    parked = _node("data.map", MAPPING, disabled=True)
+    graph = _line(_node("data.map", MAPPING))
+    entry, middle, output = graph.nodes
+    graph = graph.model_copy(
+        update={
+            "nodes": (*graph.nodes, parked),
+            "bindings": (
+                _bind(middle, "source", entry, "payload"),
+                _bind(output, "text", parked, "value", "values", "label"),
+            ),
+        }
+    )
+
+    assert "This reads a step that is switched off, so it would receive nothing" in (
+        await _problems(engine, graph)
+    )
+
+
+async def test_a_step_with_no_edges_that_is_on_is_still_unreachable(engine: AsyncEngine):
+    island = _node("data.combine", {"mode": "append"})
+    graph = _line(_node("data.map", MAPPING))
+    graph = graph.model_copy(update={"nodes": (*graph.nodes, island)})
+
+    assert "This node is not reachable from the entry node" in await _problems(engine, graph)
+
+
+async def test_a_switched_off_step_wired_out_of_nowhere_is_still_unreachable(
+    engine: AsyncEngine,
+):
+    """Only a step with no edge at all is set aside: one feeding the line is not."""
+    entry = _node("core.input")
+    stray = _node("data.map", MAPPING, disabled=True)
+    output = _node("core.output")
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, stray, output),
+        edges=(_edge(entry, output), _edge(stray, output)),
+        bindings=(_bind(output, "text", entry, "payload", "name"),),
+    )
+
+    assert "This node is not reachable from the entry node" in await _problems(engine, graph)
+
+
 async def test_the_trigger_and_a_deciding_step_cannot_be_switched_off(engine: AsyncEngine):
     entry = _node("core.input", disabled=True)
     decide = _node("logic.if", {"condition": "value.name == 'Ada'"}, disabled=True)

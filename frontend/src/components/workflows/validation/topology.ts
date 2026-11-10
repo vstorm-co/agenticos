@@ -61,6 +61,18 @@ export function nodeIds(graph: WorkflowGraph): Set<string> {
   return new Set(graph.nodes.map((node) => node.id));
 }
 
+/**
+ * Steps switched off with no edge at all: parked beside the graph, never run. Neither
+ * reachability nor their required inputs are asked of them; rule 13 still refuses a
+ * read of one. Mirrors `set_aside` in `backend/app/workflows/graph/validate.py`.
+ */
+export function setAside(graph: WorkflowGraph): Set<string> {
+  const wired = new Set(graph.edges.flatMap((e) => [e.source_node_id, e.target_node_id]));
+  return new Set(
+    graph.nodes.filter((n) => n.disabled === true && !wired.has(n.id)).map((n) => n.id),
+  );
+}
+
 /** Outgoing edges keyed by source node id. */
 export function forwardEdges(graph: WorkflowGraph): Map<string, WorkflowEdge[]> {
   const adjacency = new Map<string, WorkflowEdge[]>();

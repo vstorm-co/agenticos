@@ -43,7 +43,14 @@ import {
   type GraphAnalysis,
   type JoinWire,
 } from "./joins";
-import { definitionFor, forwardEdges, kahn, nodeIds, type DefinitionMap } from "./topology";
+import {
+  definitionFor,
+  forwardEdges,
+  kahn,
+  nodeIds,
+  setAside,
+  type DefinitionMap,
+} from "./topology";
 import type { RawProblem } from "./types";
 
 function node(nodeId: string, code: RawProblem["code"], params?: RawProblem["params"]): RawProblem {
@@ -144,7 +151,10 @@ export function rule2ReachableOutputs(
   nodeScope: Map<string, string>,
 ): RawProblem[] {
   if (!nodeIds(graph).has(graph.entry_node_id)) return [];
-  const topLevel = graph.nodes.filter((n) => !nodeScope.has(n.id)).map((n) => n.id);
+  const parked = setAside(graph);
+  const topLevel = graph.nodes
+    .filter((n) => !nodeScope.has(n.id) && !parked.has(n.id))
+    .map((n) => n.id);
   const adjacency = forwardEdges(graph);
   const seen = new Set<string>();
   const queue: string[] = entryNodes(graph).map((node) => node.id);
@@ -756,16 +766,19 @@ export function rule9RequiredInputsBound(
     }
   }
 
+  const parked = setAside(graph);
   for (const n of graph.nodes) {
     const definition = definitionFor(definitions, n.id);
     if (definition === null) continue;
-    if (DECIDES_ON_VALUE.has(definition.id) && !valueBound(graph, n.id)) {
-      problems.push(nodeField(n.id, "value", "decision-value-not-bound"));
-    }
-    for (const fieldName of requiredFields(definition.input_schema)) {
-      const key = `${n.id}\u0000${fieldName}`;
-      if ((boundCounts.get(key) ?? 0) === 0) {
-        problems.push(nodeField(n.id, fieldName, "input-not-bound"));
+    // A step set aside never runs, so it waits on no input; its settings still count.
+    if (!parked.has(n.id)) {
+      if (DECIDES_ON_VALUE.has(definition.id) && !valueBound(graph, n.id)) {
+        problems.push(nodeField(n.id, "value", "decision-value-not-bound"));
+      }
+      for (const fieldName of requiredFields(definition.input_schema)) {
+        if ((boundCounts.get(`${n.id}\u0000${fieldName}`) ?? 0) === 0) {
+          problems.push(nodeField(n.id, fieldName, "input-not-bound"));
+        }
       }
     }
     if (definition.id === "agent.run" && !n.config.inline) {
