@@ -1,5 +1,5 @@
 ---
-source_sha: "b4d0a4bf468b"
+source_sha: "9aa8f6f301f3"
 ---
 
 # Workflows { #workflows }
@@ -835,8 +835,8 @@ Odpowiedź runa - jego tekst, wynik strukturalny, fragmenty, na których się op
 liczba utworzonych plików, z samym JSON-em pod **Raw output** - oraz każdy wykonany
 krok, iteracja po iteracji, są obok.
 
-Kroki są wymienione w kolejności, w jakiej się zaczęły. Pominięty krok nie trafia
-na listę i jest wyszarzony na kanwie. Kliknięcie kroku w pętli
+Lista zawiera kroki, które się zaczęły, w kolejności startu. Krok czekający na swoją
+kolej albo pominięty widać tylko na kanwie, a pominięty jest wyszarzony. Kliknięcie kroku w pętli
 pokazuje jego wejście i wyjście w tej iteracji. Trwający run odświeża się co kilka sekund, a **Cancel run** go zatrzymuje i wycofuje liczniki, które ustawiły jego czekające kroki. Jego **Files** wymieniają to, co zapisały jego kroki - pobrany plik, wyrenderowaną stronę, wynik skryptu - każde do pobrania.
 
 Run czekający na krok [**Ask for approval**](reference/workflow-nodes.md#human-approval)

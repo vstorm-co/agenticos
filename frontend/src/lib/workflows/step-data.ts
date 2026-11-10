@@ -60,23 +60,48 @@ function iterationKey(nodeId: Uuid, iteration: readonly number[]): string {
   return [nodeId, ...iteration].join("/");
 }
 
-/** What each step of a run did in each loop iteration, for `stepDataAt`. */
+/**
+ * What each step of a run did in each loop iteration, for `stepDataAt`. A row
+ * with no result yet - pending, running, cancelled - is kept empty, so its
+ * iteration never shows another iteration's data.
+ */
 export function iterationDataOf(
   runId: string,
   rows: WorkflowNodeRunRead[],
 ): Record<string, StepData> {
   const data: Record<string, StepData> = {};
   for (const row of rows) {
-    const done = rowData(runId, row);
-    if (done !== null) data[iterationKey(row.node_instance_id, iterationOf(row))] = done;
+    data[iterationKey(row.node_instance_id, iterationOf(row))] = rowData(runId, row) ?? {
+      output: null,
+      error: null,
+      runId,
+    };
   }
   return data;
 }
 
 /**
- * What a step did as seen from one loop iteration: its row in that iteration,
- * or in the nearest enclosing one for a step outside the loop, else its
- * latest data. An empty iteration reads the latest data.
+ * The steps a run took, in the order they started: a step that never started -
+ * waiting its turn, skipped, cancelled first - is left out. The API lists rows
+ * in the order they were recorded, which a loop's item step breaks: it is
+ * recorded after the steps it started.
+ */
+export function stepsTaken(rows: WorkflowNodeRunRead[]): WorkflowNodeRunRead[] {
+  const notStarted = new Set(["pending", "skipped", "cancelled"]);
+  const at = (row: WorkflowNodeRunRead) => {
+    const time = row.started_at ?? row.ended_at;
+    return time === null ? Number.MAX_SAFE_INTEGER : Date.parse(time);
+  };
+  return rows
+    .filter((row) => row.started_at !== null || !notStarted.has(row.status))
+    .sort((a, b) => at(a) - at(b));
+}
+
+/**
+ * What a step did as seen from one loop iteration: its row in that iteration -
+ * empty while it has no result - or in the nearest enclosing one for a step
+ * outside the loop, else its latest data. An empty iteration reads the latest
+ * data.
  */
 export function stepDataAt(
   stepData: Readonly<Record<Uuid, StepData>>,

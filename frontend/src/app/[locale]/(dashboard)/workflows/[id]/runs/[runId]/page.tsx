@@ -51,7 +51,7 @@ import {
 import { ROUTES } from "@/lib/constants";
 import { formatRunCostUsd, formatDateTime, formatRunDuration } from "@/lib/utils";
 import { routesErrors } from "@/lib/workflows/ports";
-import { iterationDataOf, iterationOf, stepDataOf } from "@/lib/workflows/step-data";
+import { iterationDataOf, iterationOf, stepDataOf, stepsTaken } from "@/lib/workflows/step-data";
 import {
   isRunRetryable,
   isRunTerminal,
@@ -165,8 +165,8 @@ export default function WorkflowRunPage({ params }: PageProps) {
   const problem = run.error;
   const title = t("runTitle", { id: shortNodeId(run.id) });
   const stepsRun = nodes.filter((node) => node.status === "succeeded").length;
-  // A skipped step is shown faded on the canvas; the list holds the steps the run took.
-  const listed = nodes.filter((node) => node.status !== "skipped");
+  // The canvas shows every step, a skipped one faded; the list holds the steps the run took.
+  const listed = stepsTaken(nodes);
   const resolvingNode = nodes.find((node) => node.id === resolving) ?? null;
   const resolvingInstance = graph?.nodes.find(
     (entry) => entry.id === resolvingNode?.node_instance_id,

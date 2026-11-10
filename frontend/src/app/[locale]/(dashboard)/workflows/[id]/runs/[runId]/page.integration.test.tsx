@@ -292,16 +292,21 @@ describe("the step list", () => {
     expect(store.stepData["a"]?.output).toEqual({ item: 1 });
   });
 
-  it("leaves a skipped step out of the list and the count", async () => {
+  it("leaves steps that never started out of the list and the count", async () => {
     seed({ status: "succeeded" }, "succeeded");
     vi.mocked(runsApi.listWorkflowRunNodes).mockResolvedValue({
-      items: [step("succeeded"), { ...step("skipped"), id: "n2", node_instance_id: "b" }],
-      total: 2,
+      items: [
+        step("succeeded"),
+        { ...step("skipped"), id: "n2", node_instance_id: "b" },
+        { ...step("pending"), id: "n3", node_instance_id: "c" },
+      ],
+      total: 3,
     });
     await renderPage();
 
     expect(await screen.findByText("Succeeded")).toBeInTheDocument();
     expect(screen.queryByText("Skipped")).toBeNull();
+    expect(screen.queryByText("Pending")).toBeNull();
     expect(screen.getByText("1 of 1")).toBeInTheDocument();
   });
 });

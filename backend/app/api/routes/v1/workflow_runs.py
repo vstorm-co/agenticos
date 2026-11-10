@@ -260,8 +260,7 @@ async def list_workflow_run_nodes(
     limit: int = Query(200, ge=1, le=500),
 ) -> Any:
     """Every step of this run, loop iterations included: its status, tries, cost
-    and the error it last failed with. Steps come in the order they started; a
-    step not started yet comes last."""
+    and the error it last failed with."""
     return await service.node_runs(ctx, run_id, skip=skip, limit=limit)
 
 

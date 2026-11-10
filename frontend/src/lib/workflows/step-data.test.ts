@@ -22,6 +22,7 @@ import {
   sourcesOf,
   stepDataAt,
   stepDataOf,
+  stepsTaken,
   tableOf,
   testEntryGraph,
 } from "./step-data";
@@ -105,11 +106,42 @@ describe("what a run's steps did in each loop iteration", () => {
     expect(stepDataAt(latest, iterations, "i", [1])?.output).toEqual({ item: 2 });
   });
 
-  it("reads a step outside the loop, or one with nothing in that iteration, as its latest", () => {
+  it("reads a step outside the loop as its latest", () => {
     expect(stepDataAt(latest, iterations, "t", [1])?.output).toEqual({ list: [1, 2] });
-    expect(stepDataAt(latest, iterations, "h", [1])?.output).toEqual({ got: 1 });
     expect(stepDataAt(latest, iterations, "i", [])?.output).toEqual({ item: 2 });
     expect(stepDataAt(latest, iterations, "missing", [0])).toBeUndefined();
+  });
+
+  it("reads a step still running in that iteration as empty, never another iteration's", () => {
+    expect(stepDataAt(latest, iterations, "h", [1])).toEqual({
+      output: null,
+      error: null,
+      runId: "r",
+    });
+  });
+});
+
+describe("the steps a run took", () => {
+  it("lists the steps that started, in the order they started", () => {
+    const at = (second: number) => `2026-11-10T10:00:0${second}Z`;
+    const rows = [
+      row({ id: "http", started_at: at(2) }),
+      row({ id: "item", started_at: at(1), ended_at: at(1) }),
+      row({ id: "failed", status: "failed", ended_at: at(3) }),
+      row({ id: "unsettled", status: "failed" }),
+      row({ id: "next", status: "pending" }),
+      row({ id: "skipped", status: "skipped", ended_at: at(4) }),
+      row({ id: "cancelled", status: "cancelled", ended_at: at(4) }),
+      row({ id: "retrying", status: "pending", started_at: at(0) }),
+    ];
+
+    expect(stepsTaken(rows).map((taken) => taken.id)).toEqual([
+      "retrying",
+      "item",
+      "http",
+      "failed",
+      "unsettled",
+    ]);
   });
 });
 
