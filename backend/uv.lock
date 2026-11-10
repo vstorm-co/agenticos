@@ -10,7 +10,7 @@ overrides = [
 
 [[package]]
 name = "agenticos"
-version = "1.62.3"
+version = "1.62.5"
 source = { editable = "." }
 dependencies = [
     { name = "aiogram" },

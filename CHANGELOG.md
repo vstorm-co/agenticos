@@ -19,6 +19,33 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.62.5] - 2026-11-10
+
+### Fixed
+
+- **Reclaim old release images before deployment pulls fill the host.** Retain
+  current and rollback images with local pins based on healthy containers, plus
+  two additional unused image IDs per release repository. Protect every running
+  or stopped container, other image aliases and repositories, sandbox runtimes
+  and volumes. Check for 5 GiB of storage headroom before pulling, and download
+  backend and frontend images before restarting either service (#2849).
+
+## [1.62.4] - 2026-11-10
+
+### Fixed
+
+- **Parent deletion no longer depends on foreign-key trigger order.** Deleting
+  a routine's creator clears its delivery chat, and deleting an agent preserves
+  its pages with their publisher and environment cleared. Defer the two
+  cross-link checks until transaction end so cascading deletes can finish first;
+  invalid references are still rejected. Existing deployments receive the same
+  fix through a data-preserving migration (#2841).
+- **Keep the CI checks independent of runner timing.** Successful artifact-read
+  tests use a controlled deadline clock, while the real timeout tests retain
+  their own clocks and PostgreSQL limits. Improve notification tests check every
+  event and duplicate without assuming an order for identical transaction
+  timestamps (#2868).
+
 ## [1.62.3] - 2026-11-10
 
 ### Fixed
@@ -21171,7 +21198,9 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.62.3...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.62.5...HEAD
+[1.62.5]: https://github.com/vstorm-co/agenticos/compare/v1.62.4...v1.62.5
+[1.62.4]: https://github.com/vstorm-co/agenticos/compare/v1.62.3...v1.62.4
 [1.62.3]: https://github.com/vstorm-co/agenticos/compare/v1.62.2...v1.62.3
 [1.62.2]: https://github.com/vstorm-co/agenticos/compare/v1.62.1...v1.62.2
 [1.62.1]: https://github.com/vstorm-co/agenticos/compare/v1.62.0...v1.62.1
