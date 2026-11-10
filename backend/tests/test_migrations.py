@@ -244,22 +244,64 @@ def test_delete_crosslink_migration_preserves_rows_and_defers_only_checks() -> N
             "agent_triggers_delivery_conversation_id_fkey",
             "artifacts_environment_id_fkey",
         )
+        # Per parent table: its SET NULL key, then its cascade, each (table, name, column).
         cascades = (
             (
-                "ALTER TABLE conversations DROP CONSTRAINT conversations_user_id_fkey, ADD CONSTRAINT conversations_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE",
+                "users",
+                (
+                    (
+                        "agent_triggers",
+                        "agent_triggers_created_by_user_id_fkey",
+                        "created_by_user_id",
+                    ),
+                    ("conversations", "conversations_user_id_fkey", "user_id"),
+                ),
                 delete(User).where(User.id == owner_id),
                 constraints[0],
             ),
             (
-                "ALTER TABLE agent_environments DROP CONSTRAINT agent_environments_agent_id_fkey, ADD CONSTRAINT agent_environments_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE",
+                "agents",
+                (
+                    ("artifacts", "artifacts_agent_id_fkey", "agent_id"),
+                    ("agent_environments", "agent_environments_agent_id_fkey", "agent_id"),
+                ),
                 delete(Agent).where(Agent.id == agent_id),
                 constraints[1],
             ),
         )
+
+        def cascade_last(
+            db: DatabaseSession, parent: str, keys: tuple[tuple[str, str, str], ...]
+        ) -> None:
+            """Re-create the SET NULL key, then the cascade, so the cascade fires last.
+
+            A table's triggers fire in name order, and an RI trigger is named after its
+            OID, so the comparison is textual: once the cluster's OID counter gains a
+            digit, a newly created trigger sorts before every older one. Re-creating
+            both keys gives them neighbouring OIDs, whatever the counter has reached.
+            """
+            for (table, name, column), action in zip(keys, ("SET NULL", "CASCADE"), strict=True):
+                db.execute(
+                    text(
+                        f"ALTER TABLE {table} DROP CONSTRAINT {name}, ADD CONSTRAINT {name} "
+                        f"FOREIGN KEY ({column}) REFERENCES {parent}(id) ON DELETE {action}"
+                    )
+                )
+            fired = db.scalars(
+                text(
+                    "SELECT c.confdeltype FROM pg_trigger t "
+                    "JOIN pg_constraint c ON c.oid = t.tgconstraint "
+                    "WHERE t.tgrelid = CAST(:parent AS regclass) "
+                    "AND c.conname IN (:set_null, :cascade) ORDER BY t.tgname"
+                ),
+                {"parent": parent, "set_null": keys[0][1], "cascade": keys[1][1]},
+            ).all()
+            assert fired == ["n", "n", "c", "c"]
+
         # Prove the old, migrated schema has the same defect as create_all.
-        for ddl, deletion, constraint in cascades:
+        for parent, keys, deletion, constraint in cascades:
             with DatabaseSession(engine) as db:
-                db.execute(text(ddl))
+                cascade_last(db, parent, keys)
                 # Unchanged FK columns are rechecked when this transaction has
                 # already written the surviving row, as in the integration tests.
                 db.execute(
@@ -295,7 +337,7 @@ def test_delete_crosslink_migration_preserves_rows_and_defers_only_checks() -> N
                     for row in rows
                 )
 
-        for cascade_last in (False, True):
+        for reordered in (False, True):
             with DatabaseSession(engine) as db:
                 assert (
                     db.scalar(select(Artifact.environment_id).where(Artifact.id == page_id))
@@ -309,9 +351,9 @@ def test_delete_crosslink_migration_preserves_rows_and_defers_only_checks() -> N
                     )
                     == chat_id
                 )
-                if cascade_last:
-                    for ddl, _, _ in cascades:
-                        db.execute(text(ddl))
+                if reordered:
+                    for parent, keys, _, _ in cascades:
+                        cascade_last(db, parent, keys)
                 db.execute(
                     update(AgentTrigger)
                     .where(AgentTrigger.id == routine_id)
