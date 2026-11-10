@@ -29,15 +29,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Workflow **knowledge.search** citations omit page numbers for formats without
+  pages, including Markdown, text, HTML and `.docx`. PDF pages and presentation
+  slides keep their locations (#2482).
+
+## [1.62.5] - 2026-11-10
+
+### Fixed
+
 - **Reclaim old release images before deployment pulls fill the host.** Retain
   current and rollback images with local pins based on healthy containers, plus
   two additional unused image IDs per release repository. Protect every running
   or stopped container, other image aliases and repositories, sandbox runtimes
   and volumes. Check for 5 GiB of storage headroom before pulling, and download
   backend and frontend images before restarting either service (#2849).
-- Workflow **knowledge.search** citations omit page numbers for formats without
-  pages, including Markdown, text, HTML and `.docx`. PDF pages and presentation
-  slides keep their locations (#2482).
 
 ## [1.62.4] - 2026-11-10
 
@@ -21207,7 +21212,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.62.4...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.62.5...HEAD
+[1.62.5]: https://github.com/vstorm-co/agenticos/compare/v1.62.4...v1.62.5
 [1.62.4]: https://github.com/vstorm-co/agenticos/compare/v1.62.3...v1.62.4
 [1.62.3]: https://github.com/vstorm-co/agenticos/compare/v1.62.2...v1.62.3
 [1.62.2]: https://github.com/vstorm-co/agenticos/compare/v1.62.1...v1.62.2
