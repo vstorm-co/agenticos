@@ -401,9 +401,11 @@ class AgentTrigger(Base, TimestampMixin):
             .scalar_subquery()
         )
 
+    # Deleting the creator also deletes their conversations. Check after both
+    # SET NULL paths finish, regardless of PostgreSQL's cascade trigger order.
     delivery_conversation_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("conversations.id", ondelete="SET NULL"),
+        ForeignKey("conversations.id", ondelete="SET NULL", deferrable=True, initially="DEFERRED"),
         nullable=True,
     )
     # What this routine may spend a month (#2575), counted from the runs it started. Once

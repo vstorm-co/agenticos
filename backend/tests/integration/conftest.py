@@ -321,6 +321,16 @@ async def engine(schema_url: str) -> AsyncGenerator[AsyncEngine]:
 
 
 @pytest.fixture
+def artifact_read_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep successful reads independent of runner scheduling, with real SQL limits.
+
+    Consent and confidentiality tests need the records to reach the page. Dedicated
+    deadline tests use their own clocks; PostgreSQL statement timeouts still apply.
+    """
+    monkeypatch.setattr("app.services.virtual_tables.deadline.monotonic", lambda: 0.0)
+
+
+@pytest.fixture
 async def db(engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
     """A session rolled back after each test, so tests cannot affect each other."""
     factory = async_sessionmaker(engine, expire_on_commit=False)

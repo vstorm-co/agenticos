@@ -41,7 +41,7 @@ from tests.integration.test_artifact_injection import (
 )
 from tests.integration.virtual_table_support import cid, insert_rows
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("artifact_read_clock")]
 
 NOTHING = {"orders": _for_page(_unavailable(None))}
 
