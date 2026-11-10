@@ -105,7 +105,7 @@ rename.
 ## Capabilities
 
 The name the Builder shows, and the id an agent's spec binds. Each is described
-in [Capabilities](capabilities.md).
+in [Capabilities](https://vstorm-co.github.io/agenticos/reference/capabilities/).
 
 | In the console | In the spec |
 |---|---|

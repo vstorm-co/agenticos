@@ -219,7 +219,7 @@ who can read that chat, so consider its audience before discussing private files
 ## Sharing and permissions
 
 A project is private to whoever created it until they share it, with the same
-**Share** dialog an agent or a skill uses: people, [departments](departments.md)
+**Share** dialog an agent or a skill uses: people, [departments](https://vstorm-co.github.io/agenticos/departments/)
 or the whole organization, each at a level.
 
 | Grant level | Permission      | What it allows                                                 |

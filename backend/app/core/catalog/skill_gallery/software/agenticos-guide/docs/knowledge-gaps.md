@@ -8,7 +8,7 @@ description: "Knowledge gaps show the questions an agent searched its knowledge 
 Many bad answers are not a problem with the agent's instructions. The
 knowledge base does not contain the answer, and no change to the prompt fixes
 that. **Knowledge gaps** show those questions: the ones an agent searched its
-[knowledge base](file-processing.md) for and found nothing relevant to, or
+[knowledge base](https://vstorm-co.github.io/agenticos/file-processing/) for and found nothing relevant to, or
 answered without knowing, grouped by topic, with how often each was asked and
 by which agents.
 
@@ -263,7 +263,7 @@ A check of answers runs later on your role, so it is started only in person:
 not through an API key, and not while an administrator impersonates you.
 
 A knowledge base, agent, topic or dataset you may not reach answers "not found",
-and so does one in another organization. See [Permissions](permissions.md).
+and so does one in another organization. See [Permissions](https://vstorm-co.github.io/agenticos/permissions/).
 
 ## Personal data { #personal-data }
 
@@ -275,7 +275,7 @@ them.
 
 Every search is kept, a hit as well as a miss, so a changed threshold applies
 to the searches already made. None outlives its run: the runs class of
-[retention](governance.md#retention) deletes them with it.
+[retention](https://vstorm-co.github.io/agenticos/governance/#retention) deletes them with it.
 
 A topic copies no question. Its name, its examples and its count are read from
 the searches it still holds, so when those searches are deleted the topic has
@@ -287,7 +287,7 @@ comments to the drafter's model provider, with what identifies people taken out
 first: e-mail addresses, phone, card and bank account numbers, and every number
 or code of four digits or more, or three with a letter, such as an order number.
 A figure like "30 days" or "$500" stays. Nothing a person writes is changed. See
-[Data protection](data-protection.md#where-personal-data-lives).
+[Data protection](https://vstorm-co.github.io/agenticos/data-protection/#where-personal-data-lives).
 
 Erasing a person removes the drafts a model wrote from their questions.
 Content a person wrote or changed stays, and so does a document added from it.

@@ -143,9 +143,13 @@ class Artifact(Base, TimestampMixin):
     # default one. Deleting an environment detaches its artifacts from the agent
     # first (`agent_id` becomes null), so they stay readable and never fall into
     # the default environment's slot of the same name.
+    # An agent deletion also cascades to its environments: defer the check until
+    # both SET NULL paths finish, independently of their internal trigger order.
     environment_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("agent_environments.id", ondelete="SET NULL"),
+        ForeignKey(
+            "agent_environments.id", ondelete="SET NULL", deferrable=True, initially="DEFERRED"
+        ),
         nullable=True,
         index=True,
     )

@@ -5,6 +5,7 @@ stopped, stale, cancelled by somebody else, decided outside the wizard, a check
 of a finished session - reaches its requester once, and open pages hear of it.
 """
 
+from collections import Counter
 from datetime import UTC, datetime
 from unittest.mock import patch
 from uuid import uuid4
@@ -100,11 +101,9 @@ async def test_a_batch_its_own_session_superseded_is_not_a_rejection(db):
 
 
 async def _ends(db, run_id, *, waits: bool = False) -> list[tuple[str, str | None]]:
-    """What the session's requester was told, in order: its ends, or with `waits` its stops."""
+    """The requester's events, retaining duplicates without assuming insertion order."""
     rows = await db.scalars(
-        select(Notification)
-        .where(Notification.event_type == "improvement_finished")
-        .order_by(Notification.created_at)
+        select(Notification).where(Notification.event_type == "improvement_finished")
     )
     return [
         (row.render_context["status"], row.render_context["reason"])
@@ -116,10 +115,9 @@ async def _ends(db, run_id, *, waits: bool = False) -> list[tuple[str, str | Non
 async def test_each_end_of_a_session_reaches_its_requester_once(db):
     ctx, agent, ready = await _ready_proposal(db)
     assert await _ends(db, ready.id) == [("ready", None)]
-    assert await _ends(db, ready.id, waits=True) == [
-        ("waiting", "analyzing"),
-        ("waiting", "filtering"),
-    ]
+    assert Counter(await _ends(db, ready.id, waits=True)) == Counter(
+        [("waiting", "analyzing"), ("waiting", "filtering")]
+    )
     run, *_ = await _equal_second_round(db, ctx, agent, ready)
 
     await ImprovementPipelineService(db).advance(run.id, ctx.organization_id)
@@ -157,7 +155,7 @@ async def test_a_stale_session_and_one_stopped_by_an_administrator_are_announced
     await db.flush()
     admin = await _member(db, ctx, OrgRoleName.ADMIN)
     await ImprovementPipelineService(db).cancel(admin, agent.id, stale.id)
-    assert (await _ends(db, stale.id))[-1] == ("cancelled", None)
+    assert Counter(await _ends(db, stale.id)) == Counter([("stale", "stale"), ("cancelled", None)])
 
 
 async def test_a_decision_made_outside_the_wizard_ends_the_session_and_is_announced(db):
@@ -179,7 +177,7 @@ async def test_a_decision_made_outside_the_wizard_ends_the_session_and_is_announ
         "accepted"
     )
     assert announced.call_count == 1
-    assert (await _ends(db, ready.id))[-1] == ("accepted", None)
+    assert Counter(await _ends(db, ready.id)) == Counter([("ready", None), ("accepted", None)])
 
 
 async def test_finishing_tells_the_agents_other_open_pages(db):
@@ -220,10 +218,9 @@ async def test_a_knowledge_or_attribution_check_of_a_finished_session_is_announc
     )
     await service.check_finished(attribution)
     await service.check_finished(check())
-    assert (await _ends(db, ready.id))[1:] == [
-        ("ready", "knowledge_check"),
-        ("ready", "attribution_check"),
-    ]
+    assert Counter(await _ends(db, ready.id)) == Counter(
+        [("ready", None), ("ready", "knowledge_check"), ("ready", "attribution_check")]
+    )
 
     gone = check()
     gone.proposal_check = {"improvement_run_id": str(uuid4())}
