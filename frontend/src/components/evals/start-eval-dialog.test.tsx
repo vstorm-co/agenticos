@@ -482,7 +482,7 @@ describe("StartEvalDialog", () => {
     expect(push).not.toHaveBeenCalled();
   });
 
-  it("explains each invalid draft field and links back to Build", () => {
+  it("explains each invalid draft field and closes when returning to Build", async () => {
     hooks.estimate = mutation({
       error: new ApiError(400, "The draft cannot be evaluated", {
         error: {
@@ -499,6 +499,8 @@ describe("StartEvalDialog", () => {
       "/agents/agent-1?tab=build",
     );
     expect(onOpenChange).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("link", { name: "Back to Build" }));
+    expect(onOpenChange).toHaveBeenCalledExactlyOnceWith(false);
   });
 
   it("shows whoever may turn AI assistance on where to do it", () => {

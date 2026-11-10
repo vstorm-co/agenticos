@@ -36,6 +36,17 @@ it("opens cases by question and restricts delete to editors", async () => {
   expect(remove).toHaveBeenCalledWith(item);
   expect(open).toHaveBeenCalledTimes(1);
 });
+it("opens a case once from its side-panel control or Edit menu without triggering the row", async () => {
+  const open = vi.fn();
+  render(<CasesTable cases={[item]} onOpen={open} onRemove={vi.fn()} />);
+  await userEvent.click(screen.getByRole("button", { name: "Open case" }));
+  expect(open).toHaveBeenCalledExactlyOnceWith(item);
+  await userEvent.click(screen.getByRole("button", { name: "Case actions" }));
+  expect(open).toHaveBeenCalledTimes(1);
+  await userEvent.click(screen.getByRole("menuitem", { name: "Edit" }));
+  expect(open).toHaveBeenCalledTimes(2);
+  expect(open).toHaveBeenLastCalledWith(item);
+});
 it("never renders masked questions, answers or tags", () => {
   render(<CasesTable cases={[{ ...item, masked: true }]} onOpen={vi.fn()} />);
   expect(screen.queryByText(/Private question/)).toBeNull();
