@@ -14,10 +14,10 @@ This page is the whole picture: what runs where, what a session is, which
 environments an agent may ask for and how to change them, what isolates one
 organization from another, and how long any of it survives.
 
-[Configuration](configuration.md#the-services-own-settings) is the
+[Configuration](https://vstorm-co.github.io/agenticos/configuration/#the-services-own-settings) is the
 variable-by-variable reference.
 
-Podman deployments use the [manual Docker Compose provider path](deploy.md#podman-support),
+Podman deployments use the [manual Docker Compose provider path](https://vstorm-co.github.io/agenticos/deploy/#podman-support),
 with an additional override for sandbox socket and workspace permissions. The
 quickstart supports Docker; `podman-compose` 1.6.0 is unsupported.
 
@@ -63,9 +63,9 @@ on the next start.
 
 The pin lives in the checkout, not in `AGENTICOS_VERSION`, so a host that pins
 or rolls back the backend by hand checks out that release's tag as well
-([Pin a release](deploy.md#the-images)). An install without a checkout, as
+([Pin a release](https://vstorm-co.github.io/agenticos/deploy/#the-images)). An install without a checkout, as
 `scripts/quickstart.sh` sets one up, downloads that release's `docker-compose.yml`
-instead ([Install](install.md)).
+instead ([Install](https://vstorm-co.github.io/agenticos/install/)).
 
 A moving tag broke this before (#2484). A cached `sandboxd:0.2` served an older
 API than the client spoke, and every command failed as `sandboxd session '…' is
@@ -135,7 +135,7 @@ A publish refused for want of a sandbox offers a fix beside the reason.
 saves it and checks it again. **Stop sharing what this agent cannot share** does the
 same for a delegation share list that names a capability the agent no longer holds,
 and drops `subagents` from it too, which a delegate never inherits. Neither publishes: that stays a click of its own. The codes travel in the refusal's
-`details.fixes` (see [architecture](architecture.md#a-refusal-that-names-a-field)).
+`details.fixes` (see [architecture](https://vstorm-co.github.io/agenticos/architecture/#a-refusal-that-names-a-field)).
 
 ## A session, and what shares one
 
@@ -200,7 +200,7 @@ What separates one tenant from another:
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | Built on          | `python:3.12-slim`                                                                                                                       |
 | Languages         | Python 3.12; Node 24.19.0 LTS with npm 11 and `tsx` for TypeScript                                                                       |
-| Coding agents     | Claude Code 2.1.288 and Codex 0.160.0, for the [coding agent](reference/capabilities.md#coding-agent)                                    |
+| Coding agents     | Claude Code 2.1.288 and Codex 0.160.0, for the [coding agent](https://vstorm-co.github.io/agenticos/reference/capabilities/#coding-agent)                                    |
 | Tools             | `git`, `curl`, `ripgrep`, `fd`, `jq`, `less`, `procps`, `unzip`, `zip`, `uv`, `pdftotext`/`pdfinfo`                                      |
 | Reading           | **liteparse** (`lit`) — PDFs and images to text or markdown, OCR included; `poppler-utils` for the fast text-layer path and a page count |
 | Documents         | `pypdf`, `python-docx`, `openpyxl`, `python-pptx`, `reportlab`; **LibreOffice** headless for conversion and the legacy formats           |
@@ -211,7 +211,7 @@ What separates one tenant from another:
 | Memory            | 2 GiB                                                                                                                                    |
 | Network           | yes                                                                                                                                      |
 
-|          | `desktop` — for [computer use](reference/capabilities.md#computer-use)                        |
+|          | `desktop` — for [computer use](https://vstorm-co.github.io/agenticos/reference/capabilities/#computer-use)                        |
 | -------- | --------------------------------------------------------------------------------------------- |
 | Built on | `python:3.12-slim`                                                                            |
 | Desktop  | Xvfb on display `:0`, XFCE, Firefox ESR; `xdotool` and `scrot`, which drive and photograph it |
@@ -670,7 +670,7 @@ A folder on this computer, in the desktop app, has no such button: it is already
 folder on this computer.
 
 Archives go the other way too: a `.zip` or `.tar.gz` attached to a chat is
-unpacked into `uploads/` — see [Archives](file-processing.md#archives).
+unpacked into `uploads/` — see [Archives](https://vstorm-co.github.io/agenticos/file-processing/#archives).
 
 ## How long anything survives
 

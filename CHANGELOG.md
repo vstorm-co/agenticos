@@ -19,6 +19,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **Keep the Architect's bundled guide links usable.** Resolve links to included
+  pages within the skill and send other documentation links to the published
+  site. Generate the same output from an empty directory and preserve external
+  links and Markdown code examples (#2862).
+
 ## [1.62.6] - 2026-11-10
 
 ### Changed
