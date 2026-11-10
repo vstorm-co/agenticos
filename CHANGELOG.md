@@ -58,6 +58,18 @@ Two things are versioned separately from this file and worth knowing about:
 - The Architect reads skill versions, checks and sessions, and makes changes
   only when the person asks, through approval cards. The dashboard shows
   checks and proposed skill changes waiting on the reader.
+- Maintain a Helm chart for the API, worker and console with external pgvector
+  PostgreSQL, Redis/Valkey and S3, blocking migration hooks, restricted container
+  settings, health probes and a reproducible Kubernetes smoke test. Include an
+  OpenShift configuration candidate without claiming cluster validation (#2872).
+
+### Fixed
+
+- Download S3-backed ingestion sources in the worker instead of requiring the
+  API's local scratch directory to be shared across pods (#2872). **Existing S3
+  deployments must drain ingestion and replace workers before upgrading the API,
+  or use a maintenance window:** new API processes no longer write the shared
+  scratch files old workers expect. Local file storage keeps its shared path.
 
 ## [1.62.8] - 2026-11-10
 

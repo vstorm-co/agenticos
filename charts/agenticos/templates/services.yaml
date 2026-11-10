@@ -1,0 +1,19 @@
+{{- range $component := list "api" "frontend" }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "agenticos.name" $ }}-{{ $component }}
+  labels:
+    {{- include "agenticos.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $component }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+    app.kubernetes.io/component: {{ $component }}
+  ports:
+    - name: http
+      port: {{ if eq $component "api" }}8000{{ else }}3000{{ end }}
+      targetPort: http
+{{- end }}

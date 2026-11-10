@@ -1,0 +1,137 @@
+{{- range $component := list "api" "worker" "frontend" }}
+{{- $settings := index $.Values $component }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "agenticos.name" $ }}-{{ $component }}
+  labels:
+    {{- include "agenticos.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $component }}
+spec:
+  replicas: {{ $settings.replicas }}
+  {{- if eq $component "worker" }}
+  strategy: {type: Recreate}
+  {{- else }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxUnavailable: 0, maxSurge: 1}
+  {{- end }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ $.Release.Name }}
+      app.kubernetes.io/component: {{ $component }}
+  template:
+    metadata:
+      labels:
+        {{- include "agenticos.labels" $ | nindent 8 }}
+        app.kubernetes.io/component: {{ $component }}
+      annotations:
+        checksum/config: {{ toJson $.Values | sha256sum }}
+    spec:
+      automountServiceAccountToken: false
+      serviceAccountName: {{ $.Values.serviceAccountName }}
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        {{- toYaml $.Values.podSecurityContext | nindent 8 }}
+      {{- with $.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ $component }}
+          {{- if eq $component "frontend" }}
+          image: {{ include "agenticos.frontendImage" $ | quote }}
+          {{- else }}
+          image: {{ include "agenticos.backendImage" $ | quote }}
+          {{- end }}
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          securityContext:
+            {{- include "agenticos.security" $ | nindent 12 }}
+            {{- with $settings.runAsUser }}
+            runAsUser: {{ . }}
+            {{- end }}
+          {{- if eq $component "frontend" }}
+          ports: [{name: http, containerPort: 3000}]
+          env:
+            - {name: BACKEND_URL, value: {{ printf "http://%s-api:8000" (include "agenticos.name" $) | quote }}}
+            - {name: PUBLIC_API_URL, value: {{ $.Values.public.apiUrl | quote }}}
+            - {name: PUBLIC_SITE_URL, value: {{ $.Values.public.siteUrl | quote }}}
+            - {name: PUBLIC_WS_URL, value: {{ required "public.websocketUrl is required" $.Values.public.websocketUrl | quote }}}
+          startupProbe:
+            httpGet: {path: /login, port: http}
+            failureThreshold: 60
+            periodSeconds: 5
+          readinessProbe:
+            httpGet: {path: /login, port: http}
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: {port: http}
+            periodSeconds: 15
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+            - {name: cache, mountPath: /app/.next/cache}
+          {{- else }}
+          {{- if eq $component "api" }}
+          command: [uvicorn, app.main:app, --host, "0.0.0.0", --port, "8000", --ws, websockets-sansio]
+          ports: [{name: http, containerPort: 8000}]
+          startupProbe:
+            httpGet: {path: /api/v1/health/live, port: http}
+            failureThreshold: 120
+            periodSeconds: 5
+          readinessProbe:
+            httpGet: {path: /api/v1/health/ready, port: http}
+            timeoutSeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /api/v1/health/live, port: http}
+            timeoutSeconds: 5
+            periodSeconds: 15
+          {{- else }}
+          command: [python, -m, app.worker]
+          startupProbe:
+            exec: &workerHealth
+              command: [python, -c, "import os,sys,time; sys.exit(time.time()-os.stat(os.environ.get('WORKER_HEALTH_FILE','/tmp/agenticos-worker-alive')).st_mtime > 90)"]
+            failureThreshold: 120
+            periodSeconds: 5
+          readinessProbe:
+            exec: *workerHealth
+            timeoutSeconds: 5
+            periodSeconds: 15
+          livenessProbe:
+            exec: *workerHealth
+            timeoutSeconds: 5
+            periodSeconds: 15
+          {{- end }}
+          envFrom:
+            - secretRef:
+                name: {{ required "existingSecret is required" $.Values.existingSecret }}
+          env:
+            {{- include "agenticos.env" $ | nindent 12 }}
+          volumeMounts:
+            {{- include "agenticos.mounts" $ | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml $settings.resources | nindent 12 }}
+      volumes:
+        {{- if eq $component "frontend" }}
+        - name: tmp
+          emptyDir: {sizeLimit: 1Gi}
+        - name: cache
+          emptyDir: {sizeLimit: 1Gi}
+        {{- else }}
+        {{- include "agenticos.volumes" $ | nindent 8 }}
+        {{- end }}
+{{- end }}
