@@ -32,7 +32,8 @@ depends_on: str | Sequence[str] | None = None
 # would refuse the upgrade.
 _MAIN_EVENTS = (
     ", 'workflow_notification', 'artifact_owner_changed', "
-    "'artifact_share_requested', 'workflow_log_alert'"
+    "'artifact_share_requested', 'workflow_log_alert', "
+    "'capability_requested', 'suggestion', 'finding'"
 )
 
 _TABLES = ("context_proposals", "skill_proposals")

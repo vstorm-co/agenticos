@@ -26,6 +26,7 @@ runner; `_demand_a_server` below is where they are told apart.
 """
 
 import os
+import re
 import subprocess
 import sys
 from collections.abc import Iterator
@@ -265,6 +266,66 @@ def test_improvement_merge_upgrades_either_existing_history(starting_revision: s
             )
         check = _alembic("check")
         assert check.returncode == 0, check.stderr
+    finally:
+        engine.dispose()
+
+
+@pytest.mark.parametrize("table", ["notifications", "notification_preferences"])
+def test_eval_upgrade_preserves_existing_main_notification_rows(table: str) -> None:
+    """Intermediate eval checks must accept populated, already deployed main events."""
+    down = _alembic("downgrade", "base")
+    assert down.returncode == 0, down.stderr
+    prior = _alembic("upgrade", "0303_merge_workflow_onboarding")
+    assert prior.returncode == 0, prior.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    try:
+        with engine.begin() as connection:
+            user_id = uuid4()
+            connection.execute(
+                text(
+                    "INSERT INTO users (id, email, is_active, is_app_admin) "
+                    "VALUES (:id, 'notification-upgrade@example.com', true, false)"
+                ),
+                {"id": user_id},
+            )
+            definition = connection.execute(
+                text(
+                    "SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+                    "WHERE conrelid = to_regclass(:table) AND contype = 'c' "
+                    "AND pg_get_constraintdef(oid) LIKE '%event_type%'"
+                ),
+                {"table": table},
+            ).scalar_one()
+            events = set(re.findall(r"'([^']+)'", definition))
+            assert {"capability_requested", "suggestion", "finding"} <= events
+            if table == "notifications":
+                insert = text(
+                    "INSERT INTO notifications "
+                    "(id, recipient_user_id, event_type, occurrence_id, summary, in_app_visible) "
+                    "VALUES (:id, :user, :event, :event, 'Retain this notification', true)"
+                )
+            else:
+                insert = text(
+                    "INSERT INTO notification_preferences "
+                    "(id, user_id, event_type, channel, enabled) "
+                    "VALUES (:id, :user, :event, 'in_app', false)"
+                )
+            connection.execute(
+                insert,
+                [{"id": uuid4(), "user": user_id, "event": event} for event in sorted(events)],
+            )
+            snapshot = text(
+                "SELECT row_to_json(t)::text FROM notifications t ORDER BY id"
+                if table == "notifications"
+                else "SELECT row_to_json(t)::text FROM notification_preferences t ORDER BY id"
+            )
+            before = connection.execute(snapshot).scalars().all()
+        upgraded = _alembic("upgrade", "head")
+        assert upgraded.returncode == 0, upgraded.stderr
+        with engine.connect() as connection:
+            assert connection.execute(snapshot).scalars().all() == before
+        checked = _alembic("check")
+        assert checked.returncode == 0, checked.stderr
     finally:
         engine.dispose()
 
