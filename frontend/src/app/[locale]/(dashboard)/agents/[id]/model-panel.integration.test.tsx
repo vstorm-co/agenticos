@@ -368,7 +368,9 @@ describe("agent read failures", () => {
     async (status) => {
       state.agentError = new ApiError(status, "Agent not found");
       await mount();
-      expect(screen.getByRole("alert")).toHaveTextContent("Check the selected organization");
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "This is not in your organization, or you do not have access.",
+      );
       expect(screen.queryByRole("button", { name: "Publish" })).not.toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: "Try again" }));
       expect(refetchAgent).toHaveBeenCalledOnce();

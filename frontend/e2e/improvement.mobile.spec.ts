@@ -253,8 +253,7 @@ test("test questions, review and improvement publish keep a guarded environment 
   await page.getByRole("tab", { name: "Settings", exact: true }).click();
   await capture(page, info, "dataset-grading");
   await page.getByRole("tab", { name: "Results", exact: true }).click();
-  // An eval run queues nothing for review by itself, so its answers are under all results.
-  await page.getByRole("button", { name: /^All results \(\d+\)$/ }).click();
+  // Results opens every graded answer, including ones not queued for review.
   await expect(page.getByText("Return policy question 1", { exact: true })).toBeVisible();
   await capture(page, info, "dataset-review");
   await page.getByText("Return policy question 1", { exact: true }).click();
