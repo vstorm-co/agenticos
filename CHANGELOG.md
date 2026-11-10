@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.63.0] - 2026-11-10
+
 ### Added
 
 - Maintain a Helm chart for the API, worker and console with external pgvector
@@ -21243,7 +21245,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.62.8...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.63.0...HEAD
+[1.63.0]: https://github.com/vstorm-co/agenticos/compare/v1.62.8...v1.63.0
 [1.62.8]: https://github.com/vstorm-co/agenticos/compare/v1.62.7...v1.62.8
 [1.62.7]: https://github.com/vstorm-co/agenticos/compare/v1.62.6...v1.62.7
 [1.62.6]: https://github.com/vstorm-co/agenticos/compare/v1.62.5...v1.62.6
