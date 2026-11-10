@@ -1646,8 +1646,10 @@ class TestSampleAndTestSet:
             lab.ctx, lab.skill.id, SkillTestSetStart(from_evidence=True)
         )
 
-        assert added.pop("order") == [messages[good], messages[bad], messages[failed]]
-        assert added.pop("one_per_question") is True
+        order = added.pop("order")
+        one_per_question = added.pop("one_per_question")
+        assert order == [messages[good], messages[bad], messages[failed]]
+        assert one_per_question is True
         assert added == {
             messages[good]: "reference_answer",
             messages[bad]: "counter_example",
