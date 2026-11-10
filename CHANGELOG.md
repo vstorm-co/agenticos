@@ -59,6 +59,11 @@ Two things are versioned separately from this file and worth knowing about:
   only when the person asks, through approval cards. The dashboard shows
   checks and proposed skill changes waiting on the reader.
 
+### Changed
+
+- Remove an unused serialized channel access-policy default and its outdated
+  SQLite comment. Active channel-bot defaults and policies are unchanged (#2869).
+
 ## [1.62.5] - 2026-11-10
 
 ### Fixed
