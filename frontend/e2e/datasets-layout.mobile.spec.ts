@@ -123,7 +123,7 @@ test("case editing keeps fields and save reachable on narrow and short screens",
   await expect(dialog).toHaveCount(0);
   await page.getByRole("button", { name: new RegExp(`^${question}`) }).click();
   await expect(
-    page.getByRole("dialog").getByText(longAnswer, { exact: true }).first(),
+    page.getByRole("dialog").getByRole("link", { name: longAnswer, exact: true }),
   ).toBeVisible();
   await fitsPage(page);
   await page.screenshot({ path: info.outputPath("saved-case-320.png"), animations: "disabled" });
