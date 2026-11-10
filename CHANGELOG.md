@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.62.5] - 2026-11-10
+
 ### Fixed
 
 - **Reclaim old release images before deployment pulls fill the host.** Retain
@@ -21196,7 +21198,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.62.4...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.62.5...HEAD
+[1.62.5]: https://github.com/vstorm-co/agenticos/compare/v1.62.4...v1.62.5
 [1.62.4]: https://github.com/vstorm-co/agenticos/compare/v1.62.3...v1.62.4
 [1.62.3]: https://github.com/vstorm-co/agenticos/compare/v1.62.2...v1.62.3
 [1.62.2]: https://github.com/vstorm-co/agenticos/compare/v1.62.1...v1.62.2
