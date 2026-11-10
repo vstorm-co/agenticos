@@ -8452,7 +8452,7 @@
       },
       "org-public-attribution": {
         "title": "Paylaşılan sayfalarda AgenticOS",
-        "body": "Herkese açık uygulamalarda, panolarda, raporlarda ve paylaşılan konuşmalarda GitHub bağlantısı içeren küçük bir alt bilgi gösterin."
+        "body": "Herkese açık uygulama, pano ve raporlarda yüzen bir AgenticOS rozeti ve GitHub bağlantısı; paylaşılan konuşmaların altında aynı rozeti gösterin."
       },
       "org-public-live-data": {
         "title": "Herkese açık sayfalardaki canlı veriler",
@@ -10714,8 +10714,8 @@
       "notReadyNoKey": "{provider} için key seçilmedi. Bunu devralan agent’lar ve botlar aşağıdan bir key seçene kadar provider ile transkripsiyon yapamaz."
     },
     "publicAttribution": "Paylaşılan sayfalarda AgenticOS",
-    "publicAttributionDescription": "Herkese açık uygulamalarda, panolarda, raporlarda ve paylaşılan konuşmalarda GitHub bağlantısı içeren küçük bir alt bilgi gösterin.",
-    "publicAttributionHint": "Varsayılan olarak açık. Kapatıldığında bu kuruluşun tüm herkese açık bağlantılarındaki alt bilgi kaldırılır. İçerik ve indirilen dosyalar değişmez.",
+    "publicAttributionDescription": "Herkese açık uygulama, pano ve raporlarda yüzen bir AgenticOS rozeti ve GitHub bağlantısı; paylaşılan konuşmaların altında aynı rozeti gösterin.",
+    "publicAttributionHint": "Varsayılan olarak açık. Bu kuruluşun herkese açık bağlantılarında AgenticOS markalamasını gizlemek için kapatın.",
     "publicAttributionSaved": "Paylaşılan sayfa markalaması kaydedildi",
     "publicAttributionFailed": "Paylaşılan sayfa markalaması güncellenemedi",
     "publicLiveData": "Canlı verili herkese açık sayfalar",

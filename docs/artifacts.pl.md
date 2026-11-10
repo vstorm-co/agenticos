@@ -1,5 +1,5 @@
 ---
-source_sha: "61d0ef9e1abe"
+source_sha: "39ef16198c21"
 ---
 
 # Aplikacje { #artifacts }
@@ -17,7 +17,7 @@ można jej nadać publiczny link dla kogoś bez konta.
 
 ## Oznaczenie udostępnionych stron { #shared-page-attribution }
 
-Publiczne linki aplikacji i strony udostępnionych rozmów domyślnie pokazują logo AgenticOS oraz link do repozytorium na GitHubie. Właściciel lub administrator może ukryć stopkę dla całej organizacji w **Ustawienia organizacji → Nadzór → AgenticOS na udostępnionych stronach**. Kolejne otwarcie strony odczytuje aktualne ustawienie. Aplikacje chronione hasłem pokazują stopkę dopiero po odblokowaniu. Stopka należy do podglądu; pobierane pliki i osadzona treść aplikacji nie są modyfikowane.
+Publiczne podglądy aplikacji domyślnie pokazują pływające oznaczenie z logo AgenticOS i linkiem do GitHuba. Strony udostępnionych rozmów pokazują takie samo oznaczenie pod rozmową. Właściciel lub administrator może ukryć stopkę dla całej organizacji w **Ustawienia organizacji → Nadzór → AgenticOS na udostępnionych stronach**. Kolejne otwarcie strony odczytuje aktualne ustawienie. Aplikacje chronione hasłem pokazują stopkę dopiero po odblokowaniu. Stopka należy do podglądu; pobierane pliki i osadzona treść aplikacji nie są modyfikowane.
 
 ## Wygląd aplikacji { #app-appearance }
 

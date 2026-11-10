@@ -89,7 +89,7 @@ export default async function SharedConversationPage({ params }: SharedConversat
           <p className="text-muted-foreground py-12 text-center">{t("noMessagesYet")}</p>
         )}
       </div>
-      <div className="mt-8">
+      <div className="mt-8 flex justify-end">
         <AgenticosAttribution visible={data.show_agenticos_attribution} />
       </div>
     </div>

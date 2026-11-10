@@ -1,5 +1,5 @@
 ---
-source_sha: "61d0ef9e1abe"
+source_sha: "39ef16198c21"
 ---
 
 # Aplicaciones { #artifacts }
@@ -18,7 +18,7 @@ cuenta.
 
 ## Identificación de páginas compartidas { #shared-page-attribution }
 
-Los enlaces públicos de aplicaciones y las conversaciones compartidas muestran por defecto el logotipo de AgenticOS y un enlace a su repositorio de GitHub. Un Owner o Admin puede ocultar el pie para toda la organización en **Configuración de la organización → Gobernanza → AgenticOS en páginas compartidas**. La siguiente carga de la página usa la configuración actual. Las aplicaciones protegidas con contraseña muestran el pie solo después de desbloquearlas. El pie pertenece al visor; no se modifican los archivos descargados ni el contenido de la aplicación incrustada.
+Los visores públicos de aplicaciones muestran por defecto una insignia flotante con el logotipo de AgenticOS y un enlace a GitHub. Las conversaciones compartidas muestran la misma insignia debajo de la conversación. Un Owner o Admin puede ocultar el pie para toda la organización en **Configuración de la organización → Gobernanza → AgenticOS en páginas compartidas**. La siguiente carga de la página usa la configuración actual. Las aplicaciones protegidas con contraseña muestran el pie solo después de desbloquearlas. El pie pertenece al visor; no se modifican los archivos descargados ni el contenido de la aplicación incrustada.
 
 ## Apariencia de la app { #app-appearance }
 

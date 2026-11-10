@@ -5311,7 +5311,7 @@
       },
       "org-public-attribution": {
         "title": "AgenticOS auf geteilten Seiten",
-        "body": "Eine dezente Fußzeile mit GitHub-Link auf öffentlichen Apps, Dashboards, Berichten und geteilten Unterhaltungen anzeigen."
+        "body": "Ein dezentes schwebendes AgenticOS-Badge mit GitHub-Link auf öffentlichen Apps, Dashboards und Berichten sowie unter geteilten Unterhaltungen anzeigen."
       },
       "org-public-live-data": {
         "title": "Live-Daten auf öffentlichen Seiten",
@@ -8878,8 +8878,8 @@
     "waiverForbidden": "Unterhaltungen dürfen Freigaben nicht mehr übergehen",
     "you": "(Sie)",
     "publicAttribution": "AgenticOS auf geteilten Seiten",
-    "publicAttributionDescription": "Eine dezente Fußzeile mit GitHub-Link auf öffentlichen Apps, Dashboards, Berichten und geteilten Unterhaltungen anzeigen.",
-    "publicAttributionHint": "Standardmäßig aktiviert. Deaktivieren entfernt die Fußzeile von allen öffentlichen Links dieser Organisation. Inhalte und Downloads bleiben unverändert.",
+    "publicAttributionDescription": "Ein dezentes schwebendes AgenticOS-Badge mit GitHub-Link auf öffentlichen Apps, Dashboards und Berichten sowie unter geteilten Unterhaltungen anzeigen.",
+    "publicAttributionHint": "Standardmäßig aktiviert. Deaktivieren blendet die AgenticOS-Kennzeichnung auf den öffentlichen Links dieser Organisation aus.",
     "publicAttributionSaved": "Kennzeichnung geteilter Seiten gespeichert",
     "publicAttributionFailed": "Kennzeichnung geteilter Seiten konnte nicht gespeichert werden",
     "publicLiveData": "Öffentliche Seiten mit Live-Daten",

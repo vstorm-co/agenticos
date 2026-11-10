@@ -5433,7 +5433,7 @@
       },
       "org-public-attribution": {
         "title": "AgenticOS on shared pages",
-        "body": "Show a small footer with a GitHub link on public apps, dashboards, reports and shared conversations."
+        "body": "Show a small floating AgenticOS badge with a GitHub link on public apps, dashboards and reports, and below shared conversations."
       },
       "org-public-live-data": {
         "title": "Live data on public pages",
@@ -8999,8 +8999,8 @@
       "notReadyNoKey": "No key is chosen for {provider}. Agents and bots that inherit it can't transcribe with a provider until you choose one below."
     },
     "publicAttribution": "AgenticOS on shared pages",
-    "publicAttributionDescription": "Show a small footer with a GitHub link on public apps, dashboards, reports and shared conversations.",
-    "publicAttributionHint": "Enabled by default. Turn it off to remove the footer from all public links in this organization. Shared content and downloads stay unchanged.",
+    "publicAttributionDescription": "Show a small floating AgenticOS badge with a GitHub link on public apps, dashboards and reports, and below shared conversations.",
+    "publicAttributionHint": "Enabled by default. Turn it off to hide AgenticOS branding on this organization's public links.",
     "publicAttributionSaved": "Shared-page branding saved",
     "publicAttributionFailed": "Could not update shared-page branding",
     "publicLiveData": "Public pages with live data",

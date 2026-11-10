@@ -1,5 +1,5 @@
 ---
-source_sha: "61d0ef9e1abe"
+source_sha: "39ef16198c21"
 ---
 
 # Apps { #artifacts }
@@ -19,7 +19,7 @@ Sichtbarkeit und Grants wie ein Agent oder ein Skill, und sie kann einen
 
 ## Kennzeichnung geteilter Seiten { #shared-page-attribution }
 
-Öffentliche App-Links und geteilte Unterhaltungen zeigen standardmäßig das AgenticOS-Logo und einen Link zum GitHub-Repository. Owner oder Admins können die Fußzeile für die gesamte Organisation unter **Organisationseinstellungen → Governance → AgenticOS auf geteilten Seiten** ausblenden. Beim nächsten Seitenaufruf gilt die aktuelle Einstellung. Passwortgeschützte Apps zeigen die Fußzeile erst nach dem Entsperren. Die Fußzeile gehört zur Ansicht; heruntergeladene Dateien und eingebettete App-Inhalte werden nicht verändert.
+Öffentliche App-Ansichten zeigen standardmäßig ein schwebendes Badge mit dem AgenticOS-Logo und einem GitHub-Link. Geteilte Unterhaltungen zeigen dasselbe Badge unter der Unterhaltung. Owner oder Admins können die Fußzeile für die gesamte Organisation unter **Organisationseinstellungen → Governance → AgenticOS auf geteilten Seiten** ausblenden. Beim nächsten Seitenaufruf gilt die aktuelle Einstellung. Passwortgeschützte Apps zeigen die Fußzeile erst nach dem Entsperren. Die Fußzeile gehört zur Ansicht; heruntergeladene Dateien und eingebettete App-Inhalte werden nicht verändert.
 
 ## App-Darstellung { #app-appearance }
 

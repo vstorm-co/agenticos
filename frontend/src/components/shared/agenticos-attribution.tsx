@@ -7,12 +7,12 @@ import { BrandIcon } from "@/components/icons/brand-icon";
 import { Button } from "@/components/ui/button";
 import { LOGO_DATA_URI } from "@/lib/logo.generated";
 
-/** Outside the shared content, so the document and its downloads stay intact. */
+/** A floating discovery badge; the document and its downloads stay intact. */
 export function AgenticosAttribution({ visible = true }: { visible?: boolean }) {
   const t = useTranslations("sharedAttribution");
   if (!visible) return null;
   return (
-    <footer className="bg-card border-foreground/10 flex shrink-0 items-center justify-between gap-3 rounded-xl border px-3 py-2.5 shadow-sm sm:px-4 sm:py-3">
+    <footer className="bg-card/95 border-foreground/10 pointer-events-auto flex w-fit max-w-full shrink-0 items-center justify-between gap-3 rounded-2xl border p-2.5 shadow-lg backdrop-blur-md sm:gap-4 sm:p-3">
       <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
         {/* Always the AgenticOS mark: a deployment may have its own branding. */}
         {/* eslint-disable-next-line @next/next/no-img-element -- the canonical generated SVG, already shared with the sidebar and favicon */}
@@ -35,7 +35,7 @@ export function AgenticosAttribution({ visible = true }: { visible?: boolean }) 
         </div>
       </div>
       <Button
-        variant="outline"
+        variant="secondary"
         asChild
         className="min-h-11 shrink-0 gap-1.5 px-3 text-xs sm:gap-2 sm:text-sm"
       >

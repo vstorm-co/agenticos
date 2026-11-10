@@ -45,7 +45,7 @@ export function OpenedArtifact({ artifact }: { artifact: OpenPublicArtifact }) {
           <ArtifactThemeToggle theme={theme} onChange={setTheme} />
         </div>
       </header>
-      <div className="flex min-h-0 flex-1 flex-col">
+      <div className="relative flex min-h-0 flex-1 flex-col">
         {/* No minimum: on a short window the frame shrinks with it rather than
             pushing the page into a scroll. */}
         <ArtifactFrameView
@@ -54,8 +54,10 @@ export function OpenedArtifact({ artifact }: { artifact: OpenPublicArtifact }) {
           className="min-h-0"
           theme={theme}
         />
+        <div className="pointer-events-none absolute right-3 bottom-3 left-3 flex justify-end sm:left-auto">
+          <AgenticosAttribution visible={artifact.show_agenticos_attribution} />
+        </div>
       </div>
-      <AgenticosAttribution visible={artifact.show_agenticos_attribution} />
     </main>
   );
 }

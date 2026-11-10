@@ -5869,8 +5869,8 @@
       "notReadyNoKey": "Nie wybrano klucza dla {provider}. Agenci i boty, które go dziedziczą, nie mogą transkrybować przez providera, dopóki nie wybierzesz klucza poniżej."
     },
     "publicAttribution": "AgenticOS na udostępnionych stronach",
-    "publicAttributionDescription": "Pokazuj niewielką stopkę z linkiem do GitHuba w publicznych aplikacjach, dashboardach, raportach i udostępnionych rozmowach.",
-    "publicAttributionHint": "Domyślnie włączone. Wyłączenie usuwa stopkę ze wszystkich publicznych linków tej organizacji. Treść i pobierane pliki pozostają bez zmian.",
+    "publicAttributionDescription": "Pokazuj pływające oznaczenie AgenticOS z linkiem do GitHuba na publicznych aplikacjach, dashboardach i raportach oraz pod udostępnionymi rozmowami.",
+    "publicAttributionHint": "Domyślnie włączone. Wyłącz, aby ukryć oznaczenie AgenticOS na publicznych linkach tej organizacji.",
     "publicAttributionSaved": "Zapisano ustawienie oznaczenia stron",
     "publicAttributionFailed": "Nie udało się zapisać ustawienia oznaczenia stron",
     "publicLiveData": "Strony publiczne z danymi na żywo",
@@ -7018,7 +7018,7 @@
       },
       "org-public-attribution": {
         "title": "AgenticOS na udostępnionych stronach",
-        "body": "Pokazuj niewielką stopkę z linkiem do GitHuba w publicznych aplikacjach, dashboardach, raportach i udostępnionych rozmowach."
+        "body": "Pokazuj pływające oznaczenie AgenticOS z linkiem do GitHuba na publicznych aplikacjach, dashboardach i raportach oraz pod udostępnionymi rozmowami."
       },
       "org-public-live-data": {
         "title": "Dane na żywo na stronach publicznych",
