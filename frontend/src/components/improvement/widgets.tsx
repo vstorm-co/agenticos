@@ -38,7 +38,7 @@ const TONE_INK: Record<FigureTone, string> = {
 };
 
 /**
- * A row of figures a step leads with, two across on a phone. Drawn like the
+ * A row of figures a step leads with, stacked on the narrowest phones. Drawn like the
  * dashboard's figures, except that a label wraps: a phone tile is too narrow for
  * "Answers rated down" on one line, and a cut label is a number nobody can name.
  */
@@ -48,7 +48,7 @@ export function Tiles({ tiles, label }: { tiles: Tile[]; label?: string }) {
       role="group"
       aria-label={label}
       className={cn(
-        "grid grid-cols-2 gap-3",
+        "grid grid-cols-1 gap-3 min-[380px]:grid-cols-2",
         tiles.length >= 4 ? "lg:grid-cols-4" : tiles.length === 3 && "sm:grid-cols-3",
       )}
     >
@@ -72,7 +72,7 @@ export function Tiles({ tiles, label }: { tiles: Tile[]; label?: string }) {
                     style={{ background: TONE_INK[tone] }}
                   />
                 )}
-                <span className="break-words">{name}</span>
+                <span className="min-w-0 wrap-anywhere">{name}</span>
               </p>
               {Icon && <Icon className="text-muted-foreground size-4 shrink-0" aria-hidden />}
             </div>

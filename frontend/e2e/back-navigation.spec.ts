@@ -111,14 +111,18 @@ test("a run opened from the agent's Evals tab returns there, by Back and by its 
 test("a run opened from the dataset's Evals tab returns to that tab", async ({ page }) => {
   const { dataset, run } = seeded;
   await page.goto(`/datasets/${dataset}`);
-  await page.getByRole("tab", { name: "Evals" }).click();
+  await page.getByRole("tab", { name: "Results", exact: true }).click();
+  await page.getByRole("button", { name: "Test runs", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/datasets/${dataset}\\?tab=evals$`));
   await page.locator(`a[href*="/evals/${run}"]`).first().click();
   await expect(page).toHaveURL(new RegExp(`/evals/${run}$`));
 
   await page.goBack();
   await expect(page).toHaveURL(new RegExp(`/datasets/${dataset}\\?tab=evals$`));
-  await expect(page.getByRole("tab", { name: "Evals" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tab", { name: "Results", exact: true })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
 
   await page.goForward();
   await page.getByRole("link", { name: "Back", exact: true }).click();

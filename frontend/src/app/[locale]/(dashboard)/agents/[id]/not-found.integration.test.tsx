@@ -207,6 +207,8 @@ describe("the agent detail page for an unreadable agent", () => {
     await mount();
 
     expect(await screen.findByRole("tab", { name: "Build" })).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Server error");
+    expect(screen.getByRole("button", { name: "Try again" })).toBeVisible();
     expect(screen.queryByText("Resource unavailable")).toBeNull();
   });
 });

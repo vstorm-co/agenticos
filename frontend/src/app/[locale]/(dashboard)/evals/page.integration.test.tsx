@@ -63,7 +63,7 @@ describe("the eval runs page", () => {
       "/agents/agent-1/evals/run-1",
     );
     expect(get).toHaveBeenCalledWith("/eval-runs/recent?skip=0&limit=20");
-    expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/dashboard");
+    expect(screen.getByRole("link", { name: "Overview" })).toHaveAttribute("href", "/dashboard");
 
     await userEvent.click(screen.getByRole("button", { name: "Next page" }));
     expect(get).toHaveBeenCalledWith("/eval-runs/recent?skip=20&limit=20");

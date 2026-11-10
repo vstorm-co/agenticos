@@ -9,6 +9,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { PageHeader } from "@/components/dashboard/page-header";
+import { BackLink } from "@/components/layout/back-link";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui";
 import { useAgent } from "@/hooks/use-agents";
@@ -39,6 +40,7 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
   const t = useTranslations("evals");
   const tErrors = useTranslations("errors");
   const tCases = useTranslations("evals.cases");
+  const tNav = useTranslations("nav");
   const tc = useTranslations("common");
   const { run, isLoading, error, refetch, cancel } = useEvalRun(runId);
   const { agent } = useAgent(agentId);
@@ -134,10 +136,15 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
 
   return (
     <div className="w-full min-w-0 space-y-4 pb-6">
+      <BackLink
+        href={`${ROUTES.AGENTS}/${agentId}?tab=evals`}
+        label={t("back")}
+        className="text-muted-foreground hover:text-foreground inline-flex min-h-8 items-center gap-2 text-sm"
+      />
       <PageHeader
         title={t("resultTitle")}
         breadcrumbs={[
-          { label: agent?.name ?? t("back"), href: `${ROUTES.AGENTS}/${agentId}?tab=evals` },
+          { label: agent?.name ?? tNav("agents"), href: `${ROUTES.AGENTS}/${agentId}?tab=evals` },
           { label: run.dataset_name, href: ROUTES.DATASET_DETAIL(run.dataset_id) },
           { label: t("resultTitle") },
         ]}

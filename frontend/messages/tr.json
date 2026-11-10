@@ -594,11 +594,11 @@
     "share": "Paylaş",
     "sharingUpdated": "Paylaşım güncellendi",
     "visibilityOrg": "Kuruluştaki herkes",
-    "visibilityOrgReaches": "{resource, select, agent {agentları} skill {skill'leri} collection {koleksiyonları} artifact {uygulamaları} context {bağlam dosyalarını} mcp_connection {MCP sunucularını} other {gizli bilgileri}} görüntüleyebilen kuruluştaki herkes.",
+    "visibilityOrgReaches": "{resource, select, agent {agentları} skill {skill'leri} collection {koleksiyonları} artifact {uygulamaları} dataset {datasetler} context {bağlam dosyalarını} mcp_connection {MCP sunucularını} other {gizli bilgileri}} görüntüleyebilen kuruluştaki herkes.",
     "visibilityPrivate": "Yalnızca erişimi olan kişiler",
-    "visibilityPrivateReaches": "Yalnızca yukarıda listelenen kişiler. Başka hiç kimse listesinde bu {resource, select, agent {Agent'ı} skill {skill'i} collection {koleksiyonu} artifact {uygulamayı} context {bağlam dosyasını} mcp_connection {MCP sunucusunu} other {gizli bilgiyi}} göremez - henüz sahibi yoksa sahibi siz olursunuz.",
+    "visibilityPrivateReaches": "Yalnızca yukarıda listelenen kişiler. Başka hiç kimse listesinde bu {resource, select, agent {Agent'ı} skill {skill'i} collection {koleksiyonu} artifact {uygulamayı} dataset {datasetler} context {bağlam dosyasını} mcp_connection {MCP sunucusunu} other {gizli bilgiyi}} göremez - henüz sahibi yoksa sahibi siz olursunuz.",
     "visibilityTeam": "Ekip (artık sunulmuyor)",
-    "visibilityTeamReaches": "Rolü ekip {resource, select, agent {agentlarına} skill {skill'lerine} collection {koleksiyonlarına} artifact {uygulamalarına} context {bağlam dosyalarına} mcp_connection {MCP sunucularına} other {gizli bilgilere}} erişim sağlayan herkes. Bu kuruluşta ekip yok - yukarıdaki iki seçenekten birini seçin.",
+    "visibilityTeamReaches": "Rolü ekip {resource, select, agent {agentlarına} skill {skill'lerine} collection {koleksiyonlarına} artifact {uygulamalarına} dataset {datasetler} context {bağlam dosyalarına} mcp_connection {MCP sunucularına} other {gizli bilgilere}} erişim sağlayan herkes. Bu kuruluşta ekip yok - yukarıdaki iki seçenekten birini seçin.",
     "visibilityUpdated": "Görünürlük güncellendi",
     "groupsHeading": "Gruplar",
     "membersHeading": "Üyeler",
@@ -7278,7 +7278,7 @@
         "title": "Harcama",
         "unit": "bu dönemde",
         "description": "Dönemin maliyeti ve bu takvim ayındaki toplam. Aylık tutar faturayla tutarlı olması için dönem filtresinden etkilenmez.",
-        "split": "Modeller için {models} · dizinleme için {ingestion}",
+        "split": "Modeller için {models}{evals, select, none {} other { · değerlendirmeler için {evals}}}{improving, select, none {} other { · iyileştirmeler için {improving}}}{ingestion, select, none {} other { · dizinleme için {ingestion}}}",
         "spentLabel": "{amount} harcandı"
       },
       "surfaces": {
@@ -12171,7 +12171,7 @@
       "lookAround": {
         "label": "Neye bakıyorum?",
         "ask": "Bu platformun benim için neler yapabileceğini sade bir dille açıkla.",
-        "askOnPage": "“{title}” ({path}) sayfasındayım. Neye baktığımı ve burada neler yapabileceğimi sade bir dille açıkla."
+        "askOnPage": "{path} sayfasındayım. Neye baktığımı ve burada neler yapabileceğimi sade bir dille açıkla."
       },
       "recipes": {
         "label": "Hazır tarifler",

@@ -1052,7 +1052,6 @@
     "temperatureVariesVerdict": "{kind, select, judge {Above 0, the same answer can be graded differently twice. 0 keeps grades repeatable.} other {Above 0, the same answer can be labelled differently twice. 0 keeps labels repeatable.}}",
     "mapMoreItems": "+{count} more · open to view all",
     "unavailableTitle": "Agent unavailable",
-    "unavailableDescription": "Check the selected organization. This agent may belong to another organization, have been removed, or no longer be shared with you.",
     "loadFailedTitle": "Could not load the agent",
     "retryLoad": "Try again",
     "modelApiFromModel": "{api}, chosen from the model",
