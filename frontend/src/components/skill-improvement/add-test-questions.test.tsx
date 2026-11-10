@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -99,6 +99,8 @@ describe("AddTestQuestions", () => {
     mount();
 
     await waitFor(() => expect(apiClient.get).toHaveBeenCalled());
+    // Past loading: the refusal is the permission, not the read still pending.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 });
