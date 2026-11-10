@@ -14,7 +14,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -193,9 +193,21 @@ class TestTheEnvironmentIsPartOfTheIdentity:
                     title="Dup",
                 )
 
+    @pytest.mark.parametrize("cascade_last", [False, True])
     async def test_pages_with_no_publisher_left_may_share_a_name(
-        self, db: AsyncSession, storage: LocalFileStorage
+        self, db: AsyncSession, storage: LocalFileStorage, cascade_last: bool
     ) -> None:
+        if cascade_last:
+            # Recreating the cascade changes PostgreSQL's internal trigger order.
+            # The session rollback restores the original constraint after this test.
+            await db.execute(
+                text(
+                    "ALTER TABLE agent_environments "
+                    "DROP CONSTRAINT agent_environments_agent_id_fkey, "
+                    "ADD CONSTRAINT agent_environments_agent_id_fkey "
+                    "FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE"
+                )
+            )
         organization, user, agent = await _tenant(db)
         first = await _publish(db, organization, user, agent, body="<p>a</p>")
         staging = await _environment(db, agent, "staging")
@@ -205,6 +217,7 @@ class TestTheEnvironmentIsPartOfTheIdentity:
 
         await db.delete(agent)
         await db.flush()
+        await db.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))
 
         rows = (
             await db.execute(select(Artifact).where(Artifact.name == "weekly-report"))
@@ -212,6 +225,7 @@ class TestTheEnvironmentIsPartOfTheIdentity:
         mine = {row.id: row for row in rows if row.organization_id == organization.id}
         assert set(mine) == {first.artifact_id, second.artifact_id}
         assert all(row.agent_id is None for row in mine.values())
+        assert all(row.environment_id is None for row in mine.values())
 
 
 class TestLookingAPageUp:

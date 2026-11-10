@@ -19,6 +19,59 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.62.6] - 2026-11-10
+
+### Changed
+
+- Remove an unused serialized channel access-policy default and its outdated
+  SQLite comment. Active channel-bot defaults and policies are unchanged (#2869).
+
+## [1.62.5] - 2026-11-10
+
+### Fixed
+
+- **Reclaim old release images before deployment pulls fill the host.** Retain
+  current and rollback images with local pins based on healthy containers, plus
+  two additional unused image IDs per release repository. Protect every running
+  or stopped container, other image aliases and repositories, sandbox runtimes
+  and volumes. Check for 5 GiB of storage headroom before pulling, and download
+  backend and frontend images before restarting either service (#2849).
+
+## [1.62.4] - 2026-11-10
+
+### Fixed
+
+- **Parent deletion no longer depends on foreign-key trigger order.** Deleting
+  a routine's creator clears its delivery chat, and deleting an agent preserves
+  its pages with their publisher and environment cleared. Defer the two
+  cross-link checks until transaction end so cascading deletes can finish first;
+  invalid references are still rejected. Existing deployments receive the same
+  fix through a data-preserving migration (#2841).
+- **Keep the CI checks independent of runner timing.** Successful artifact-read
+  tests use a controlled deadline clock, while the real timeout tests retain
+  their own clocks and PostgreSQL limits. Improve notification tests check every
+  event and duplicate without assuming an order for identical transaction
+  timestamps (#2868).
+
+## [1.62.3] - 2026-11-10
+
+### Fixed
+
+- **Refresh the AWS SDK and CLI dependencies.** Update boto3 to 1.43.126 and
+  Click to 8.5.1, with the third-party notices regenerated. Soup Sieve stays on
+  3.0.4 within the existing `<4` constraint: its 4.x template-selector change
+  breaks the established `html.parse` links and matches contract (#2857).
+
+## [1.62.2] - 2026-11-10
+
+### Fixed
+
+- **Password sign-ins no longer prompt everyone to check invitations.** The
+  generic mailbox-verification notice is removed, so deployments without email
+  delivery and accounts without a working mailbox are not repeatedly offered an
+  unusable sign-in link. Verified sessions still see actual addressed invitations;
+  original invitation links remain usable without an email provider (#2858).
+
 ## [1.62.1] - 2026-11-10
 
 ### Fixed
@@ -21152,7 +21205,12 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.62.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.62.6...HEAD
+[1.62.6]: https://github.com/vstorm-co/agenticos/compare/v1.62.5...v1.62.6
+[1.62.5]: https://github.com/vstorm-co/agenticos/compare/v1.62.4...v1.62.5
+[1.62.4]: https://github.com/vstorm-co/agenticos/compare/v1.62.3...v1.62.4
+[1.62.3]: https://github.com/vstorm-co/agenticos/compare/v1.62.2...v1.62.3
+[1.62.2]: https://github.com/vstorm-co/agenticos/compare/v1.62.1...v1.62.2
 [1.62.1]: https://github.com/vstorm-co/agenticos/compare/v1.62.0...v1.62.1
 [1.62.0]: https://github.com/vstorm-co/agenticos/compare/v1.61.5...v1.62.0
 [1.61.5]: https://github.com/vstorm-co/agenticos/compare/v1.61.4...v1.61.5

@@ -1760,13 +1760,7 @@
         "member": "Członek",
         "viewer": "Obserwator"
       },
-      "check": "Sprawdź zaproszenia",
-      "more": "Pokaż kolejne zaproszenia",
-      "verifyTitle": "Twoje zaproszenia, bezpiecznie",
-      "verifyDescription": "Potwierdź dostęp do {email}, aby zobaczyć zaproszenia do zespołów. Wyślemy link do logowania. Możesz też użyć oryginalnego linku z zaproszenia.",
-      "verifySend": "Wyślij mi link do logowania",
-      "verificationSent": "Sprawdź skrzynkę i otwórz link do logowania. Wysyłanie e-maili musi być skonfigurowane na tej instancji.",
-      "verificationFailed": "Nie udało się poprosić o link do logowania. Spróbuj ponownie."
+      "more": "Pokaż kolejne zaproszenia"
     }
   },
   "kb": {

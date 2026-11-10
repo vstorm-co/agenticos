@@ -472,13 +472,7 @@
         "member": "Üye",
         "viewer": "İzleyici"
       },
-      "check": "Davetleri kontrol et",
-      "more": "Daha fazla davet göster",
-      "verifyTitle": "Davetlerin güvende",
-      "verifyDescription": "Ekip davetlerini görmek için {email} adresine erişimini doğrula. Bir giriş bağlantısı göndereceğiz. Asıl davet bağlantısını da kullanabilirsin.",
-      "verifySend": "Giriş bağlantısı gönder",
-      "verificationSent": "Gelen kutunu kontrol et ve giriş bağlantısını aç. Bu kurulumda e-posta gönderimi yapılandırılmış olmalıdır.",
-      "verificationFailed": "Giriş bağlantısı istenemedi. Tekrar dene."
+      "more": "Daha fazla davet göster"
     }
   },
   "knowledgeBases": {

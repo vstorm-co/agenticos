@@ -1,5 +1,5 @@
 ---
-source_sha: "593e65c4520b"
+source_sha: "bf0b4309d434"
 ---
 
 # La consola { #the-console }
@@ -956,7 +956,7 @@ Los detalles de la organización tienen cinco pestañas: **Members** para person
 
 Al iniciar sesión, las invitaciones dirigidas al correo de la cuenta también aparecen en la consola y el onboarding, sin abrir el enlace del mensaje. La persona elige una organización y acepta explícitamente; Más tarde mantiene disponible el acceso a Invitaciones. Solo aparecen invitaciones vigentes al correo actual, sin enlaces compartidos ni organizaciones de las que ya se es miembro. Aceptar cambia a la organización elegida y abre su bienvenida. El servidor no devuelve el token de invitación en esta bandeja.
 
-La bandeja exige demostrar el acceso al correo en la sesión actual: un nuevo acceso por OAuth con correo verificado o un enlace de acceso vinculado a esa dirección. Las sesiones con contraseña y las antiguas muestran **Consultar invitaciones**, donde se puede solicitar ese enlace; el enlace original de invitación sigue funcionando. La prueba no se transfiere a otra sesión ni a una dirección cambiada. **Mostrar más invitaciones** carga otras páginas; el acceso al logotipo comprueba la invitación concreta independientemente de su página.
+La bandeja exige demostrar el acceso al correo en la sesión actual: un nuevo acceso por OAuth con correo verificado o un enlace de acceso vinculado a esa dirección. Las sesiones con contraseña y las antiguas no muestran avisos para verificar el correo ni configurar su envío. La invitación se puede aceptar mediante su enlace original, incluso en instalaciones sin proveedor de correo. La prueba no se transfiere a otra sesión ni a una dirección cambiada. **Mostrar más invitaciones** carga otras páginas; el acceso al logotipo comprueba la invitación concreta independientemente de su página.
 
 Los puntos ámbar señalan pestañas de organización y tarjetas de voz, sugerencias nocturnas, mantenimiento de memoria y Architect cuando falta configuración o las sugerencias están desactivadas. Al pasar el cursor o enfocar el punto aparece una explicación; pulsarlo la mantiene abierta. Los indicadores usan valores guardados, desaparecen al completar la configuración y respetan los permisos de edición. Las sugerencias desactivadas se presentan como una opción, no como un error. La tarjeta de notificaciones iPhone también señala la falta de una clave Apple. La preferencia de movimiento reducido desactiva la animación.
 

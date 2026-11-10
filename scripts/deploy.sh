@@ -41,6 +41,208 @@
 # a blue environment for a deployment this size.
 set -euo pipefail
 
+release_repository() {
+  case "$1" in
+    ghcr.io/vstorm-co/agenticos-backend|ghcr.io/vstorm-co/agenticos-frontend|ghcr.io/vstorm-co/agenticos-browser) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+image_in_list() {
+  case $'\n'"$2"$'\n' in *$'\n'"$1"$'\n'*) return 0 ;; *) return 1 ;; esac
+}
+
+release_pin_prefix() {
+  local scope
+  scope=$(printf '%s' "$1" | git hash-object --stdin) || return
+  [[ "$scope" =~ ^[0-9a-f]{40,64}$ ]] || return 1
+  printf 'deploy-%s' "$scope"
+}
+
+container_image_ids() {
+  local containers cid
+  local ids=()
+  containers=$(docker ps -aq) || return
+  for cid in $containers; do ids+=("$cid"); done
+  if [ "${#ids[@]}" -gt 0 ]; then
+    docker inspect -f '{{.Image}}' "${ids[@]}" || return
+  fi
+}
+
+# Every alias must belong to a release repository and be immutable. A local
+# current/rollback pin, a runtime alias or another repository protects the ID.
+# Status 1 means protected; a Docker error is a refusal, never an empty inventory.
+removable_release_refs() {
+  local id="$1" target="$2" refs digests ref repo tag
+  refs=$(docker image inspect -f '{{range .RepoTags}}{{println .}}{{end}}' "$id") || return 2
+  [ -n "$refs" ] || return 1
+  for ref in $refs; do
+    repo=${ref%:*}; tag=${ref##*:}
+    release_repository "$repo" || return 1
+    [[ "$tag" =~ ^(sha-[0-9a-f]{7,40}|v?[0-9]+\.[0-9]+\.[0-9]+)$ ]] || return 1
+    [ "$tag" != "$target" ] || return 1
+  done
+  digests=$(docker image inspect -f '{{range .RepoDigests}}{{println .}}{{end}}' "$id") || return 2
+  for ref in $digests; do
+    release_repository "${ref%@*}" || return 1
+  done
+  printf '%s\n' "$refs"
+}
+
+# Bootstrap from this stack's healthy containers, never the checkout. Once a
+# successful release has been recorded, keep that pin across partial failures.
+remember_release_images() {
+  local app_dir="$1" prefix repo aliases current containers cid details id reference service health
+  prefix=$(release_pin_prefix "$app_dir") || return
+  containers=$(docker ps -q --filter "label=com.docker.compose.project.working_dir=$app_dir") || return
+  for repo in ghcr.io/vstorm-co/agenticos-backend ghcr.io/vstorm-co/agenticos-frontend ghcr.io/vstorm-co/agenticos-browser; do
+    aliases=$(docker image ls --format '{{.Repository}}:{{.Tag}}' "$repo") || return
+    if image_in_list "$repo:$prefix-current" "$aliases"; then
+      current=$(docker image inspect -f '{{.Id}}' "$repo:$prefix-current") || return
+    else
+      current=""
+      for cid in $containers; do
+        details=$(docker inspect -f '{{.Image}}|{{.Config.Image}}|{{index .Config.Labels "com.docker.compose.service"}}|{{with index .State "Health"}}{{.Status}}{{end}}' "$cid") || return
+        IFS='|' read -r id reference service health <<< "$details"
+        case "$service" in app|worker|frontend|browser|visual-render) ;; *) continue ;; esac
+        [ "$health" = healthy ] || continue
+        case "$reference" in "$repo":*|"$repo"@*) ;; *) continue ;; esac
+        if [ -n "$current" ] && [ "$current" != "$id" ]; then
+          echo "Cannot identify a healthy release for $repo: this stack runs multiple image IDs." >&2
+          return 1
+        fi
+        current="$id"
+      done
+      if [ -n "$current" ]; then
+        docker image tag "$current" "$repo:$prefix-current" || return
+      fi
+    fi
+    [ -z "$current" ] || printf '%s|%s\n' "$repo" "$current"
+  done
+}
+
+prune_release_images() {
+  local target="$1" ids protected eligible="" retained="" id refs status created fraction repo ref newest
+  local remove_refs=()
+  ids=$(docker image ls --quiet --no-trunc | sort -u) || return
+  protected=$(container_image_ids) || return
+  for id in $ids; do
+    image_in_list "$id" "$protected" && continue
+    if refs=$(removable_release_refs "$id" "$target"); then
+      created=$(docker image inspect -f '{{.Created}}' "$id") || return
+      if ! [[ "$created" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?Z$ ]]; then
+        echo "Cannot order release image $id: unsupported creation timestamp $created." >&2
+        return 1
+      fi
+      # RFC3339Nano omits trailing zeroes. Pad fractions before sorting: .1Z
+      # must precede .12Z, and a whole second must precede its fractions.
+      created=${created%Z}
+      if [[ "$created" = *.* ]]; then
+        fraction="${created##*.}000000000"
+        created="${created%%.*}.${fraction:0:9}Z"
+      else
+        created="$created.000000000Z"
+      fi
+      for repo in $(printf '%s\n' "$refs" | sed 's/:[^:]*$//' | sort -u); do
+        eligible+="$created|$id|$repo"$'\n'
+      done
+    else
+      status=$?
+      [ "$status" -eq 1 ] || return "$status"
+    fi
+  done
+  # Two additional unused image IDs per repository, not two aliases of one ID.
+  # Union the keep sets: an image shared by repositories stays if either keeps it.
+  for repo in ghcr.io/vstorm-co/agenticos-backend ghcr.io/vstorm-co/agenticos-frontend ghcr.io/vstorm-co/agenticos-browser; do
+    newest=$(printf '%s' "$eligible" | LC_ALL=C sort -r | awk -F'|' -v repo="$repo" '$3 == repo && ++n <= 2 { print $2 }') || return
+    retained+="$newest"$'\n'
+  done
+  for id in $(printf '%s' "$eligible" | awk -F'|' 'NF == 3 {print $2}' | sort -u); do
+    image_in_list "$id" "$retained" && continue
+    # Another client may have created a container or added an alias since the
+    # inventory. Recheck both immediately before the non-forced removal.
+    protected=$(container_image_ids) || return
+    image_in_list "$id" "$protected" && continue
+    if refs=$(removable_release_refs "$id" "$target"); then
+      remove_refs=()
+      for ref in $refs; do remove_refs+=("$ref"); done
+      printf '  Removing unused release image %s: %s\n' "$id" "${remove_refs[*]}"
+      docker image rm --no-prune "${remove_refs[@]}" || return
+    else
+      status=$?
+      [ "$status" -eq 1 ] || return "$status"
+    fi
+  done
+}
+
+require_image_space() {
+  local store="$1" available
+  available=$(printf '%s\n' "$2" | awk 'NR == 2 {print $4}') || return
+  if ! [[ "$available" =~ ^[0-9]+$ ]]; then
+    echo "Cannot determine available space for Docker storage at $store." >&2
+    return 1
+  fi
+  if [ "$available" -lt 5242880 ]; then
+    echo "Insufficient space at $store: $available KiB available; at least 5242880 KiB (5 GiB) is required before pulling release images. Protected current/rollback, container and runtime images were retained. Free space outside those protections or expand this filesystem, then retry the approved deploy." >&2
+    return 1
+  fi
+  echo "  $store: $available KiB available (minimum 5 GiB)"
+}
+
+check_image_space() {
+  local root store system probe report
+  root=$(docker info --format '{{.DockerRootDir}}') || return
+  [ -n "$root" ] || { echo "Docker did not report its storage directory." >&2; return 1; }
+  system=$(docker info --format '{{.OperatingSystem}}') || return
+  case "$system" in
+    *"Docker Desktop"*)
+      # DockerRootDir is inside Desktop's VM. Query its backing filesystem using
+      # an already-cached backend image; never pull an image to measure capacity.
+      probe=$(printf '%s\n' "${1:-}" | awk -F'|' '$1 == "ghcr.io/vstorm-co/agenticos-backend" {image=$2} END {print image}') || return
+      if [ -z "$probe" ]; then
+        probe=$(docker image ls --quiet --no-trunc ghcr.io/vstorm-co/agenticos-backend | awk 'NR == 1 {first=$0} END {print first}') || return
+      fi
+      if ! [[ "$probe" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+        echo "Docker Desktop capacity check needs a cached AgenticOS backend image. Complete the initial installation before using this update procedure." >&2
+        return 1
+      fi
+      report=$(docker run --rm --pull=never --read-only --network=none --cap-drop=ALL --entrypoint df "$probe" -Pk /) || return
+      require_image_space "Docker Desktop VM" "$report" || return
+      # The VM disk image also consumes host storage. A custom backing disk's
+      # host filesystem still needs its own monitoring, like custom containerd.
+      store="${APP_DIR:-$PWD}"
+      report=$(df -Pk "$store") || return
+      require_image_space "$store" "$report" || return
+      return 0
+      ;;
+  esac
+  # Engine 29's containerd store lives outside DockerRootDir by default.
+  for store in "$root" /var/lib/containerd; do
+    if [ "$store" != "$root" ] && [ ! -d "$store" ]; then continue; fi
+    report=$(df -Pk "$store") || return
+    require_image_space "$store" "$report" || return
+  done
+}
+
+record_release_images() {
+  local target="$1" previous="$2" prefix image repo id prior prior_repo prior_id
+  prefix=$(release_pin_prefix "$3") || return
+  shift 3
+  for image in "$@"; do
+    repo="ghcr.io/vstorm-co/$image"
+    id=$(docker image inspect -f '{{.Id}}' "$repo:$target") || return
+    prior=""
+    while IFS='|' read -r prior_repo prior_id; do
+      if [ "$prior_repo" = "$repo" ]; then prior="$prior_id"; fi
+    done <<< "$previous"
+    # A redeploy of the same image must not overwrite the previous rollback pin.
+    if [ -n "$prior" ] && [ "$prior" != "$id" ]; then
+      docker image tag "$prior" "$repo:$prefix-rollback" || return
+    fi
+    docker image tag "$id" "$repo:$prefix-current" || return
+  done
+}
+
 SHA="${1:?usage: deploy.sh <commit-sha>}"
 APP_DIR="${APP_DIR:-/opt/agenticos}"
 COMPOSE_ENV="${APP_DIR}/backend/.env"
@@ -129,6 +331,9 @@ case "$(env_value BROWSER_SIGN_IN_CDP_URL)" in
     INTERACTIVE_BROWSER=true
     ;;
 esac
+
+say "Remembering the last healthy release images"
+PREVIOUS_RELEASE_IMAGES=$(remember_release_images "$APP_DIR")
 
 say "Fetching $SHA"
 git fetch --prune --quiet origin
@@ -259,14 +464,23 @@ retire_services() {
   done
 }
 
-say "Pulling and starting the API"
+say "Reclaiming unused release images before pulling"
+prune_release_images "$AGENTICOS_VERSION"
+check_image_space "$PREVIOUS_RELEASE_IMAGES"
+
+say "Pulling the API images"
 compose "${BACKEND[@]}" "${PROFILES[@]+"${PROFILES[@]}"}" pull --quiet
+check_image_space "$PREVIOUS_RELEASE_IMAGES"
+say "Pulling the frontend image"
+compose "${FRONTEND[@]}" pull --quiet
+
 prepare_sandbox_runtimes "${BACKEND[@]}" "${PROFILES[@]+"${PROFILES[@]}"}"
+check_image_space "$PREVIOUS_RELEASE_IMAGES"
 retire_services
+say "Starting the API"
 compose_up "${BACKEND[@]}" "${PROFILES[@]+"${PROFILES[@]}"}"
 
-say "Pulling and starting the frontend"
-compose "${FRONTEND[@]}" pull --quiet
+say "Starting the frontend"
 compose_up "${FRONTEND[@]}"
 
 # A deploy that finished is not a deploy that works. Compose returns as soon as
@@ -326,11 +540,8 @@ if "$INTERACTIVE_BROWSER"; then
   wait_healthy browser "${BACKEND[@]}" "${PROFILES[@]}"
 fi
 
-# The previous release's images, which nothing references once the containers
-# have been recreated. Not `-a`: that would take the sandbox runtime images too,
-# and the next session would rebuild them.
-say "Reclaiming space"
-docker image prune -f >/dev/null
+say "Recording the healthy release and its rollback images"
+record_release_images "$AGENTICOS_VERSION" "$PREVIOUS_RELEASE_IMAGES" "$APP_DIR" "${IMAGES[@]}"
 df -h / | tail -1
 
 say "Deployed $(git rev-parse --short HEAD)"
