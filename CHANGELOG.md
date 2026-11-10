@@ -19,17 +19,6 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
-## [1.62.3] - 2026-11-10
-
-### Fixed
-
-- **Refresh the AWS SDK and CLI dependencies.** Update boto3 to 1.43.126 and
-  Click to 8.5.1, with the third-party notices regenerated. Soup Sieve stays on
-  3.0.4 within the existing `<4` constraint: its 4.x template-selector change
-  breaks the established `html.parse` links and matches contract (#2857).
-
-## [1.62.2] - 2026-11-10
-
 ### Fixed
 
 - **A switched-off workflow step with no connections no longer blocks publishing.**
@@ -49,6 +38,20 @@ Two things are versioned separately from this file and worth knowing about:
   or when a step is inserted - and a run's canvas and step list show it as
   Switched off from the start, rather than as pending until the engine passes
   it.
+
+## [1.62.3] - 2026-11-10
+
+### Fixed
+
+- **Refresh the AWS SDK and CLI dependencies.** Update boto3 to 1.43.126 and
+  Click to 8.5.1, with the third-party notices regenerated. Soup Sieve stays on
+  3.0.4 within the existing `<4` constraint: its 4.x template-selector change
+  breaks the established `html.parse` links and matches contract (#2857).
+
+## [1.62.2] - 2026-11-10
+
+### Fixed
+
 - **Password sign-ins no longer prompt everyone to check invitations.** The
   generic mailbox-verification notice is removed, so deployments without email
   delivery and accounts without a working mailbox are not repeatedly offered an
