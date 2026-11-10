@@ -58,11 +58,12 @@ function mount() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  return render(
+  const view = render(
     <QueryClientProvider client={client}>
       <ReceivedInvitations />
     </QueryClientProvider>,
   );
+  return { ...view, client };
 }
 beforeEach(() => {
   vi.resetAllMocks();
@@ -187,22 +188,22 @@ it("uses the invitation logo endpoint and the organization's fallback color", as
   expect(avatar).toHaveAttribute("data-color", "3");
 });
 
-it("asks an unproved password session to prove its mailbox without revealing invitations", async () => {
-  env.auth.user = { id: "person", email: "person@example.com", email_verified: false };
-  mount();
-  fireEvent.click(screen.getByRole("button", { name: "Check invitations" }));
-  expect(screen.getByRole("dialog", { name: "Your invitations, safely" })).toBeVisible();
-  expect(screen.queryByText("Northwind")).not.toBeInTheDocument();
-  expect(apiClient.get).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole("button", { name: "Email me a sign-in link" }));
-  await waitFor(() =>
-    expect(apiClient.post).toHaveBeenCalledWith("/auth/magic-link/request", {
-      email: "person@example.com",
-      return_to: "/onboarding?entry=joined",
-    }),
-  );
-  expect(await screen.findByRole("status")).toHaveTextContent("Check your inbox");
-});
+it.each([false, undefined])(
+  "does not nag a password or legacy session without mailbox proof: %s",
+  (proof) => {
+    env.auth.user = { id: "person", email: "admin@example.com", email_verified: proof };
+    const view = mount();
+    expect(screen.queryByRole("button", { name: "Check invitations" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByText("Northwind")).not.toBeInTheDocument();
+    view.unmount();
+    mount();
+    expect(screen.queryByRole("button", { name: "Check invitations" })).not.toBeInTheDocument();
+    expect(apiClient.get).not.toHaveBeenCalled();
+    expect(apiClient.post).not.toHaveBeenCalled();
+  },
+);
+
 it("loads a second page so older invitations remain reachable", async () => {
   const first = Array.from({ length: 50 }, (_, i) => ({
     ...env.items[0]!,
@@ -220,22 +221,26 @@ it("loads a second page so older invitations remain reachable", async () => {
   });
 });
 
-it("keeps mailbox verification retryable after delivery fails and can close it", async () => {
+it("hides cached invitations when mailbox proof is lost and offers them when it returns", async () => {
+  const view = mount();
+  expect(await screen.findByText("Northwind")).toBeVisible();
   env.auth.user = { id: "person", email: "person@example.com", email_verified: false };
-  vi.mocked(apiClient.post).mockRejectedValueOnce(new Error("Mail unavailable"));
-  mount();
-  fireEvent.click(screen.getByRole("button", { name: "Check invitations" }));
-  fireEvent.click(screen.getByRole("button", { name: "Email me a sign-in link" }));
-  await waitFor(() => expect(toast.error).toHaveBeenCalled());
-  expect(screen.queryByRole("status")).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Email me a sign-in link" })).toBeEnabled();
-  fireEvent.click(screen.getByRole("button", { name: "Later" }));
+  view.rerender(
+    <QueryClientProvider client={view.client}>
+      <ReceivedInvitations />
+    </QueryClientProvider>,
+  );
+  expect(screen.queryByText("Northwind")).not.toBeInTheDocument();
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Check invitations" }));
-  fireEvent.click(screen.getByRole("button", { name: "Email me a sign-in link" }));
-  expect(await screen.findByRole("status")).toHaveTextContent("Check your inbox");
-  expect(apiClient.get).not.toHaveBeenCalled();
-  expect(env.setOrg).not.toHaveBeenCalled();
+  expect(screen.queryByRole("button", { name: "Check invitations" })).not.toBeInTheDocument();
+  env.auth.user = { id: "person", email: "person@example.com", email_verified: true };
+  view.rerender(
+    <QueryClientProvider client={view.client}>
+      <ReceivedInvitations />
+    </QueryClientProvider>,
+  );
+  expect(await screen.findByText("Northwind")).toBeVisible();
+  expect(apiClient.post).not.toHaveBeenCalled();
 });
 
 it("ignores a failed acceptance belonging to the account that just signed out", async () => {

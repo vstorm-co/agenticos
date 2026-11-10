@@ -3832,13 +3832,7 @@
         "member": "Mitglied",
         "viewer": "Betrachter"
       },
-      "check": "Einladungen prüfen",
-      "more": "Weitere Einladungen anzeigen",
-      "verifyTitle": "Deine Einladungen, sicher",
-      "verifyDescription": "Bestätige den Zugriff auf {email}, um Teameinladungen zu sehen. Wir senden einen Anmeldelink. Du kannst auch den ursprünglichen Einladungslink nutzen.",
-      "verifySend": "Anmeldelink per E-Mail senden",
-      "verificationSent": "Prüfe dein Postfach und öffne den Anmeldelink. Der E-Mail-Versand muss für diese Installation eingerichtet sein.",
-      "verificationFailed": "Der Anmeldelink konnte nicht angefordert werden. Versuche es erneut."
+      "more": "Weitere Einladungen anzeigen"
     }
   },
   "kb": {

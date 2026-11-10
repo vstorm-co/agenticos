@@ -1,5 +1,5 @@
 ---
-source_sha: "8144de44cf2f"
+source_sha: "5b558c2a28fd"
 ---
 
 # Die Konsole { #the-console }
@@ -1014,7 +1014,7 @@ Die Organisationsdetails haben fünf Registerkarten: **Mitglieder** für Persone
 
 Nach der Anmeldung erscheinen an die Konto-E-Mail adressierte Einladungen auch in Konsole und Onboarding, ohne den E-Mail-Link zu öffnen. Der Empfänger wählt eine Organisation und nimmt ausdrücklich an; Später lässt die Verknüpfung Einladungen verfügbar. Angezeigt werden nur gültige Einladungen an die aktuelle Konto-Adresse, ohne geteilte Links und bereits beigetretene Organisationen. Die Annahme wechselt zur gewählten Organisation und öffnet deren Begrüßung. Der Server gibt in diesem Posteingang keine Einladungstokens zurück.
 
-Der Posteingang erfordert einen Nachweis der E-Mail-Adresse in der aktuellen Sitzung: eine neue OAuth-Anmeldung mit verifizierter Adresse oder einen an die Adresse gebundenen E-Mail-Anmeldelink. Passwort- und ältere Sitzungen sehen **Einladungen prüfen** und können dort diesen Link anfordern; der ursprüngliche Einladungslink funktioniert weiterhin. Der Nachweis gilt weder für andere Sitzungen noch für eine geänderte Adresse. **Weitere Einladungen anzeigen** lädt weitere Seiten; der Logoabruf prüft die konkrete Einladung unabhängig von deren Listenseite.
+Der Posteingang erfordert einen Nachweis der E-Mail-Adresse in der aktuellen Sitzung: eine neue OAuth-Anmeldung mit verifizierter Adresse oder einen an die Adresse gebundenen E-Mail-Anmeldelink. Passwort- und ältere Sitzungen zeigen keine Aufforderung zur Bestätigung des Postfachs oder zur Einrichtung des E-Mail-Versands. Einladungen können über ihren ursprünglichen Link angenommen werden, auch bei Installationen ohne E-Mail-Anbieter. Der Nachweis gilt weder für andere Sitzungen noch für eine geänderte Adresse. **Weitere Einladungen anzeigen** lädt weitere Seiten; der Logoabruf prüft die konkrete Einladung unabhängig von deren Listenseite.
 
 Bernsteinfarbene Punkte markieren Organisationstabs und die zugehörigen Karten für Sprache, nächtliche Vorschläge, Gedächtnispflege und Architect bei unvollständiger Konfiguration oder ausgeschalteten Vorschlägen. Hover oder Tastaturfokus zeigt die Erklärung; Klicken oder Tippen hält sie geöffnet. Die Hinweise verwenden gespeicherte Einstellungen, verschwinden nach der Einrichtung und beachten Bearbeitungsrechte. Ausgeschaltete Vorschläge gelten als optionale Einrichtung, nicht als Fehler. Auch die iPhone-Push-Karte markiert einen fehlenden Apple-Schlüssel. Bei reduzierter Bewegung entfällt das Pulsieren.
 

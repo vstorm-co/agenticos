@@ -19,6 +19,68 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Upgrading
+
+- **Skills are versioned, and an agent's spec says which version it uses.**
+  Agent specs move to version 15: each bound skill names the line it follows
+  (main, a version pinned on main, or a fork). An existing agent is upgraded to
+  follow main's newest version, so it reads exactly what it read before.
+  Republish nothing; a YAML export carries the new field.
+- **Migrations `0305_run_skill_uses.py` to `0312_skill_check_reasons.py`** record
+  which skills a run loaded, turn every skill's current text into its first
+  version, and add skill forks, checks, merges and improvement sessions. A
+  downgrade drops versions, forks, checks and pending fork changes; each skill
+  keeps main's newest text, and every agent reads that again.
+
+### Added
+
+- **Skill versions and forks.** Every saved change to a skill is a new version,
+  and **Restore** brings an earlier one back. An agent follows main's newest
+  version, stays pinned on an older one, or uses a fork with its own changes;
+  **Change version** on the skill page moves it, after checking the version on
+  that agent. The skill page lists its agents, its content, its history and a
+  version tree.
+- **Skill checks.** A change to a skill is checked on every agent that uses the
+  line it changes, on the skill's own test questions and each agent's. It
+  passes when no agent is worse and at least one is better; an agent that could
+  not be checked shows why, and a person acknowledges it. A confirmed regression
+  goes to the review queue.
+- **Improve a skill.** The Improve wizard learns from answers where agents
+  loaded the skill and proposes a change, checks it, and offers to apply it, to
+  apply it with the agents it hurt pinned, to make a fork for the agents it
+  helped, or to discard it.
+- **Catch up and move to main.** A pinned agent or a fork behind main is
+  offered an update, checked first; a fork is merged with main's changes, with
+  the model proposing text where both sides changed the same part, and a fork
+  can move its changes to main through the full check.
+- **Skill test questions**, a dataset every agent using the skill is checked
+  on, written from the answers where agents loaded it.
+- The Architect reads skill versions, checks and sessions, and makes changes
+  only when the person asks, through approval cards. The dashboard shows
+  checks and proposed skill changes waiting on the reader.
+
+### Fixed
+
+- **Password sign-ins no longer prompt everyone to check invitations.** The
+  generic mailbox-verification notice is removed, so deployments without email
+  delivery and accounts without a working mailbox are not repeatedly offered an
+  unusable sign-in link. Verified sessions still see actual addressed invitations;
+  original invitation links remain usable without an email provider (#2858).
+
+## [1.62.1] - 2026-11-10
+
+### Fixed
+
+- **Existing notifications survive the evaluation upgrade.** The early evaluation
+  migrations retain `capability_requested`, `suggestion` and `finding` while
+  rebuilding the notification and preference checks. Previously, upgrading a
+  populated 1.61 deployment could fail before the final merge revision restored
+  those values. No notification is deleted or rewritten. Deployments whose
+  1.62.0 upgrade rolled back can upgrade directly to this patch; deployments
+  already at the merged head need no additional migration.
+
+## [1.62.0] - 2026-11-10
+
 Agents can now be measured and improved from evidence: datasets of test
 questions, eval runs and suites, guarded promotions, knowledge gaps and the
 Improve wizard. Nothing in it changes an agent, a knowledge base or an
@@ -60,16 +122,6 @@ environment without a person's decision.
 - **`0304_merge_evals_platform.py`** joins evaluation previews with the released
   platform history. Upgrade either branch normally; existing revisions keep
   their identities and apply only once.
-- **Skills are versioned, and an agent's spec says which version it uses.**
-  Agent specs move to version 15: each bound skill names the line it follows
-  (main, a version pinned on main, or a fork). An existing agent is upgraded to
-  follow main's newest version, so it reads exactly what it read before.
-  Republish nothing; a YAML export carries the new field.
-- **Migrations `0305_run_skill_uses.py` to `0312_skill_check_reasons.py`** record
-  which skills a run loaded, turn every skill's current text into its first
-  version, and add skill forks, checks, merges and improvement sessions. A
-  downgrade drops versions, forks, checks and pending fork changes; each skill
-  keeps main's newest text, and every agent reads that again.
 - **New settings**, all optional: the `EVAL_*` settings in
   [Eval runs](docs/evals.md#settings), `KNOWLEDGE_GAP_MIN_SIMILARITY`,
   `KNOWLEDGE_GAP_TOPIC_SIMILARITY` and `DATASET_MAX_VERSION_ROWS_PER_ORG`.
@@ -185,31 +237,6 @@ environment without a person's decision.
   publishing a fix clears its badge until the new version earns its own. The
   greeting counts everything waiting on the reader, and spend on improvements
   is shown apart from evals.
-
-- **Skill versions and forks.** Every saved change to a skill is a new version,
-  and **Restore** brings an earlier one back. An agent follows main's newest
-  version, stays pinned on an older one, or uses a fork with its own changes;
-  **Change version** on the skill page moves it, after checking the version on
-  that agent. The skill page lists its agents, its content, its history and a
-  version tree.
-- **Skill checks.** A change to a skill is checked on every agent that uses the
-  line it changes, on the skill's own test questions and each agent's. It
-  passes when no agent is worse and at least one is better; an agent that could
-  not be checked shows why, and a person acknowledges it. A confirmed regression
-  goes to the review queue.
-- **Improve a skill.** The Improve wizard learns from answers where agents
-  loaded the skill and proposes a change, checks it, and offers to apply it, to
-  apply it with the agents it hurt pinned, to make a fork for the agents it
-  helped, or to discard it.
-- **Catch up and move to main.** A pinned agent or a fork behind main is
-  offered an update, checked first; a fork is merged with main's changes, with
-  the model proposing text where both sides changed the same part, and a fork
-  can move its changes to main through the full check.
-- **Skill test questions**, a dataset every agent using the skill is checked
-  on, written from the answers where agents loaded it.
-- The Architect reads skill versions, checks and sessions, and makes changes
-  only when the person asks, through approval cards. The dashboard shows
-  checks and proposed skill changes waiting on the reader.
 
 ### Changed
 
@@ -21173,7 +21200,9 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.61.5...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.62.1...HEAD
+[1.62.1]: https://github.com/vstorm-co/agenticos/compare/v1.62.0...v1.62.1
+[1.62.0]: https://github.com/vstorm-co/agenticos/compare/v1.61.5...v1.62.0
 [1.61.5]: https://github.com/vstorm-co/agenticos/compare/v1.61.4...v1.61.5
 [1.61.4]: https://github.com/vstorm-co/agenticos/compare/v1.61.3...v1.61.4
 [1.61.3]: https://github.com/vstorm-co/agenticos/compare/v1.61.2...v1.61.3
