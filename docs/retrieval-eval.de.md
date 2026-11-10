@@ -1,7 +1,7 @@
 ---
 title: Retrieval-Evaluierung
 description: Ein Fragenkatalog mit bekannten Antworten über die AgenticOS-Doku und ein Harness, der das Retrieval darauf misst, nach Kategorie, top_k und Abfrageerweiterung.
-source_sha: "d37f8d29a8ce"
+source_sha: "6b040b5291fb"
 ---
 
 # Retrieval-Evaluierung { #retrieval-evaluation }
@@ -89,12 +89,13 @@ Seiten, die er stattdessen bekam, und dort steht die nützliche Information.
 Die Antwortprüfung ist absichtlich einfach. Ein Fakt passt als ganzes Wort,
 Groß- und Kleinschreibung spielt keine Rolle, und eine Alternative, die auf `*`
 endet, passt als Präfix (`Keycloak*` passt auf "Keycloaka"). Zitatmarker wie
-`[5]` werden ignoriert, sodass eine Passagennummer nie als Zahl in der Antwort
-zählt. Ein bloßes „Nein“ reicht nicht: Jede verneinende Frage braucht auch die
+`[5]` und wörtliche Wiederholungen der Frage werden ignoriert, sodass weder eine
+Passagennummer noch eine wiederholte Frage einen Fakt liefert. Ein bloßes „Nein“
+reicht nicht: Jede verneinende Frage braucht auch die
 Alternative, die die Dokumentation nennt, sodass „die Dokumentation sagt dazu
-nichts“ nie besteht. Die Prüfung kann trotzdem eine richtige Antwort nicht von
-einer verwirrten unterscheiden, die dieselben Wörter verwendet, also behandle sie
-als grobes Signal.
+nichts“ allein nicht besteht. Die Prüfung kann trotzdem eine richtige Antwort
+nicht von einer verwirrten oder ausweichenden unterscheiden, die die Alternative
+nennt. Behandle sie als grobes Signal, nicht als semantische Genauigkeit.
 
 Ein Platzhalter braucht einen nichtleeren Wortstamm: `*` allein wird vor dem
 Indexieren abgelehnt, weil es auf jede Antwort passen würde.
@@ -227,21 +228,29 @@ polnische Seiten (1553 Chunks). Chunking: `recursive`, Größe 2500, Überlappun
 200. Alle 34 Fragen liefen in jeder Konfiguration; die erweiterten Abfragen
 wurden für beide Suchtiefen wiederverwendet.
 
-| `top_k` | Modus | hit@k | recall@k | MRR | Faktenprüfungen der Antworten |
-|---|---|---|---|---|---|
-| 5 | `off` | 73.5% | 70.6% | 0.571 | 23/34 |
-| 5 | `multi_query` | 76.5% | 73.5% | 0.581 | 25/34 |
-| 5 | `hyde` | 88.2% | 83.8% | 0.698 | 25/34 |
-| 10 | `off` | 85.3% | 83.8% | 0.588 | 28/34 |
-| 10 | `multi_query` | 79.4% | 77.9% | 0.621 | 24/34 |
-| 10 | `hyde` | 94.1% | 92.6% | 0.705 | 27/34 |
+Die Prüfung fand fünf Antwortkontrollen, die dokumentierte Formulierungen
+ablehnten: Anmeldeformen, Zugangsdaten je Collection, polnische Formulierungen
+für Promotions, HTTP/SSE-Transporte und Zugriff auf Collection-Ebene. Die
+gespeicherten Antworten wurden mit diesen Alternativen und dem Schutz gegen
+Fragewiederholungen neu bewertet. Weder Suche noch Modellaufrufe wurden
+wiederholt. Ursprüngliche und korrigierte Faktenprüfungen stehen nebeneinander;
+die Abrufmetriken bleiben unverändert.
+
+| `top_k` | Modus | hit@k | recall@k | MRR | Ursprüngliche Faktenprüfungen | Neu bewertete Faktenprüfungen |
+|---|---|---|---|---|---|---|
+| 5 | `off` | 73.5% | 70.6% | 0.571 | 23/34 | 27/34 |
+| 5 | `multi_query` | 76.5% | 73.5% | 0.581 | 25/34 | 28/34 |
+| 5 | `hyde` | 88.2% | 83.8% | 0.698 | 25/34 | 29/34 |
+| 10 | `off` | 85.3% | 83.8% | 0.588 | 28/34 | 30/34 |
+| 10 | `multi_query` | 79.4% | 77.9% | 0.621 | 24/34 | 29/34 |
+| 10 | `hyde` | 94.1% | 92.6% | 0.705 | 27/34 | 30/34 |
 
 Beide SAML-Fragen, auf Englisch und Polnisch, fanden in allen sechs
 Konfigurationen die Verzeichnisseite und erhielten die Antwort: SAML wird nicht
 direkt unterstützt, Keycloak dient als Brücke. `10/hyde` erreichte bei allen zehn
-sprachübergreifenden Fragen eine erwartete Seite. `10/off` bestand die meisten
-Antwortprüfungen und verbesserte fünf Antworten gegenüber `5/off`, ohne einen
-zusätzlichen Fehlschlag oder einen Aufruf zur Abfrageerweiterung.
+sprachübergreifenden Fragen eine erwartete Seite. `10/off` und `10/hyde` liegen bei den korrigierten
+Faktenprüfungen mit 30/34 gleichauf. `10/off` besteht drei Prüfungen mehr als
+`5/off`, ohne einen Aufruf zur Abfrageerweiterung.
 
 Für einen Dokumentationsagenten auf diesem Korpus beginne mit
 `default_top_k: 10` und `query_analysis_mode: off`. Wähle `hyde` ausdrücklich,
@@ -251,15 +260,22 @@ Behalte die Plattformstandards `default_top_k: 5` und
 `query_analysis_mode: off` bei: Ein kleiner Korpus und ein Modell rechtfertigen
 nicht mehr Kontext oder zusätzliche Erweiterungsaufrufe für jede Bereitstellung.
 
-Der [vollständige Lauf](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna.json)
+Der unveränderte [ursprüngliche Lauf](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna.json)
 enthält Kategorieergebnisse, jede gefundene Seite, erweiterte Abfrage und Antwort,
 Korpus-Hashes, Paketversionen und Tokenverbrauch. Er führte 272 Modellanfragen
 mit 872.567 Eingabe- und 41.553 Ausgabe-Tokens aus, zusätzlich zu Embeddings.
+Der separate [Neubewertungsnachweis](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna-rescored.json)
+verweist per Hash darauf und hält die Hashes des korrigierten Fragensatzes und
+Bewertungscodes, Faktalternativen, Kategorieergebnisse sowie jedes frühere und
+neue Antworturteil fest.
+
 Das sind Messungen eines einzelnen Laufs, keine Qualitätsgarantie oder
-wiederholter statistischer Vergleich. Sechs Antworten mit `10/off` verfehlten
-weiterhin erforderliche Fakten, darunter die genehmigende Rolle, die
-Standard-Chunkgröße und die stdio-Brücke. Die oben beschriebenen Grenzen der
-Antwortprüfung gelten weiterhin.
+wiederholter statistischer Vergleich. Vier Antworten mit `10/off` verfehlen
+weiterhin erforderliche Fakten, darunter die genehmigende Rolle und die
+Standard-Chunkgröße. Auch ein bestandener Faktencheck kann ausweichen: Die
+stdio-Antwort nennt HTTP, legt sich aber nicht darauf fest, ob stdio verbunden
+werden kann. Lies die Antworten, bevor du die Anzahl bestandener Prüfungen als Nachweis
+semantischer Richtigkeit wertest.
 
 So wiederholst du die Modell- und Sucheinstellungen mit deinem eigenen
 autorisierten Schlüssel:

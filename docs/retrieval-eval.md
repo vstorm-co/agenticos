@@ -81,12 +81,13 @@ instead, which is where the useful information is.
 
 The answer check is deliberately simple. A fact matches as a whole word, case
 does not matter, and an alternative ending in `*` matches as a prefix
-(`Keycloak*` matches "Keycloaka"). Citation markers such as `[5]` are ignored, so
-a passage number never counts as a number in the answer. A plain "no" is not
+(`Keycloak*` matches "Keycloaka"). Citation markers such as `[5]` and verbatim
+question echoes are ignored, so a passage number or a repeated question never
+supplies a fact. A plain "no" is not
 enough: every negative question also needs the alternative the docs name, so
-"the documentation does not say" never passes. The check still cannot tell a
-correct answer from a confused one that uses the same words, so treat it as a
-rough signal.
+a bare "the documentation does not say" fails. The check still cannot tell a
+correct answer from a confused or hedged one that names the alternative, so
+treat it as a rough signal rather than semantic accuracy.
 
 A wildcard needs a nonblank stem: `*` alone is refused before indexing because
 it would match every answer.
@@ -215,20 +216,27 @@ pages (1553 chunks). Chunking was `recursive`, size 2500, overlap 200. All 34
 questions ran in every configuration; expanded queries were reused across the
 two retrieval depths.
 
-| `top_k` | Mode | hit@k | recall@k | MRR | Answer fact checks |
-|---|---|---|---|---|---|
-| 5 | `off` | 73.5% | 70.6% | 0.571 | 23/34 |
-| 5 | `multi_query` | 76.5% | 73.5% | 0.581 | 25/34 |
-| 5 | `hyde` | 88.2% | 83.8% | 0.698 | 25/34 |
-| 10 | `off` | 85.3% | 83.8% | 0.588 | 28/34 |
-| 10 | `multi_query` | 79.4% | 77.9% | 0.621 | 24/34 |
-| 10 | `hyde` | 94.1% | 92.6% | 0.705 | 27/34 |
+Review found five answer checks rejecting documented wording: sign-in
+inflections, credentials per collection, Polish promotion wording, HTTP/SSE
+transports and collection-level access. The saved answers were rescored with
+those alternatives and the question-echo guard. No retrieval or model call was
+repeated. Original and corrected fact-check totals are shown together;
+retrieval metrics are unchanged.
+
+| `top_k` | Mode | hit@k | recall@k | MRR | Original fact checks | Rescored fact checks |
+|---|---|---|---|---|---|---|
+| 5 | `off` | 73.5% | 70.6% | 0.571 | 23/34 | 27/34 |
+| 5 | `multi_query` | 76.5% | 73.5% | 0.581 | 25/34 | 28/34 |
+| 5 | `hyde` | 88.2% | 83.8% | 0.698 | 25/34 | 29/34 |
+| 10 | `off` | 85.3% | 83.8% | 0.588 | 28/34 | 30/34 |
+| 10 | `multi_query` | 79.4% | 77.9% | 0.621 | 24/34 | 29/34 |
+| 10 | `hyde` | 94.1% | 92.6% | 0.705 | 27/34 | 30/34 |
 
 Both SAML questions, in English and Polish, retrieved the directory page and
 answered that SAML is not supported directly and Keycloak is the bridge, in all
 six configurations. `10/hyde` reached an expected page for all ten cross-language
-questions. `10/off` passed the most answer checks, improving five answers over
-`5/off` without introducing another failed check or requiring an expansion call.
+questions. `10/off` and `10/hyde` tie on corrected fact checks at 30/34.
+`10/off` passes three more checks than `5/off`, without requiring an expansion call.
 
 For a documentation agent on this corpus, start with `default_top_k: 10` and
 `query_analysis_mode: off`. Choose `hyde` explicitly when reaching more expected
@@ -237,14 +245,19 @@ and searches. Retain the platform defaults of `default_top_k: 5` and
 `query_analysis_mode: off`: one small corpus and one model do not justify
 increasing context or adding expansion calls for every deployment.
 
-The [complete run](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna.json)
+The unchanged [original run](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna.json)
 contains category scores, every retrieved page, expanded query and answer, corpus
 hashes, package versions and token usage. It made 272 model requests using
-872,567 input and 41,553 output tokens, in addition to embeddings. These are
-single-run measurements, not a quality guarantee or a repeated statistical
-comparison. Six `10/off` answers still missed required facts, including the
-approval role, default chunk size and stdio bridge; the answer check's limitations
-above still apply.
+872,567 input and 41,553 output tokens, in addition to embeddings. The separate
+[rescoring record](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna-rescored.json)
+links it by hash and records the revised dataset and scorer hashes, fact
+alternatives, category scores and each previous/new answer verdict.
+
+These are single-run measurements, not a quality guarantee or a repeated
+statistical comparison. Four `10/off` answers still miss required facts, including
+the approval role and default chunk size. Even a fact-check pass can hedge: its
+stdio answer names HTTP but declines to state whether stdio connects. Read the
+answers before treating a fact-check total as evidence of semantic correctness.
 
 To repeat the same model and retrieval settings with your own authorized key:
 

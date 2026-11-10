@@ -75,8 +75,11 @@ class ItemResult:
         """
         if self.answer is None or not self.item.expected_facts:
             return None
+        # The question can already name a fact ("per collection"). Echoing it
+        # after a don't-know response must not count as supplying that fact.
+        text = re.sub(re.escape(self.item.question), " ", self.answer, flags=re.IGNORECASE)
         # A citation marker is not a fact: "[5]" must not answer "five".
-        text = _CITATION.sub(" ", self.answer)
+        text = _CITATION.sub(" ", text)
         return tuple(
             group
             for group in self.item.expected_facts

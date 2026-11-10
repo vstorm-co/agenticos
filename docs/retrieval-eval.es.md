@@ -1,7 +1,7 @@
 ---
 title: "Evaluación de recuperación"
 description: "Un conjunto de preguntas sobre la documentación con respuestas conocidas, y el harness que mide la recuperación por categoría, top_k y expansión."
-source_sha: "d37f8d29a8ce"
+source_sha: "6b040b5291fb"
 ---
 
 # Evaluación de recuperación { #retrieval-evaluation }
@@ -89,12 +89,13 @@ obtuvo en su lugar, que es donde está la información útil.
 La comprobación de la respuesta es deliberadamente simple. Un hecho coincide
 como palabra completa, las mayúsculas no importan, y una alternativa que termina
 en `*` coincide como prefijo (`Keycloak*` coincide con "Keycloaka"). Los
-marcadores de cita como `[5]` se ignoran, así que un número de pasaje nunca
-cuenta como número de la respuesta. Un simple "no" no basta: cada pregunta
+marcadores de cita como `[5]` y las repeticiones literales de la pregunta se
+ignoran, así que un número de pasaje o una pregunta repetida no aportan un hecho.
+Un simple "no" no basta: cada pregunta
 negativa necesita también la alternativa que nombra la documentación, así que
-"la documentación no lo dice" nunca pasa. La comprobación sigue sin distinguir
-una respuesta correcta de una confundida con las mismas palabras, así que tómala
-como señal aproximada.
+"la documentación no lo dice" por sí solo no pasa. La comprobación sigue sin
+distinguir una respuesta correcta de una confundida o evasiva que nombra la
+alternativa. Tómala como señal aproximada, no como precisión semántica.
 
 Un comodín necesita una raíz que no esté en blanco: `*` solo se rechaza antes
 de indexar porque coincidiría con cualquier respuesta.
@@ -225,21 +226,29 @@ en polaco (1553 fragmentos). La fragmentación fue `recursive`, con tamaño 2500
 solapamiento 200. Las 34 preguntas se ejecutaron en cada configuración; las
 consultas ampliadas se reutilizaron en las dos profundidades de búsqueda.
 
-| `top_k` | Modo | hit@k | recall@k | MRR | Comprobaciones de hechos en las respuestas |
-|---|---|---|---|---|---|
-| 5 | `off` | 73.5% | 70.6% | 0.571 | 23/34 |
-| 5 | `multi_query` | 76.5% | 73.5% | 0.581 | 25/34 |
-| 5 | `hyde` | 88.2% | 83.8% | 0.698 | 25/34 |
-| 10 | `off` | 85.3% | 83.8% | 0.588 | 28/34 |
-| 10 | `multi_query` | 79.4% | 77.9% | 0.621 | 24/34 |
-| 10 | `hyde` | 94.1% | 92.6% | 0.705 | 27/34 |
+La revisión encontró cinco comprobaciones que rechazaban expresiones
+documentadas: formas de iniciar sesión, credenciales por colección, expresiones
+polacas de promoción, transportes HTTP/SSE y acceso a nivel de colección. Las
+respuestas guardadas se reevaluaron con esas alternativas y la protección contra
+repetir la pregunta. No se repitió ninguna búsqueda ni llamada al modelo. Los
+totales originales y corregidos aparecen juntos; las métricas de recuperación
+no cambian.
+
+| `top_k` | Modo | hit@k | recall@k | MRR | Comprobaciones originales | Comprobaciones reevaluadas |
+|---|---|---|---|---|---|---|
+| 5 | `off` | 73.5% | 70.6% | 0.571 | 23/34 | 27/34 |
+| 5 | `multi_query` | 76.5% | 73.5% | 0.581 | 25/34 | 28/34 |
+| 5 | `hyde` | 88.2% | 83.8% | 0.698 | 25/34 | 29/34 |
+| 10 | `off` | 85.3% | 83.8% | 0.588 | 28/34 | 30/34 |
+| 10 | `multi_query` | 79.4% | 77.9% | 0.621 | 24/34 | 29/34 |
+| 10 | `hyde` | 94.1% | 92.6% | 0.705 | 27/34 | 30/34 |
 
 Las dos preguntas sobre SAML, en inglés y polaco, recuperaron la página de
 directorio y respondieron que SAML no se admite directamente y Keycloak sirve
 de puente, en las seis configuraciones. `10/hyde` alcanzó una página esperada
-para las diez preguntas entre idiomas. `10/off` superó más comprobaciones de
-respuestas y mejoró cinco respuestas respecto a `5/off`, sin añadir otro fallo
-ni necesitar una llamada de ampliación.
+para las diez preguntas entre idiomas. `10/off` y `10/hyde` empatan en las
+comprobaciones corregidas: 30/34. `10/off` supera tres comprobaciones más que
+`5/off`, sin necesitar una llamada de ampliación.
 
 Para un agente de documentación con este corpus, empieza con `default_top_k: 10`
 y `query_analysis_mode: off`. Elige `hyde` expresamente cuando alcanzar más
@@ -249,15 +258,21 @@ al modelo y sus búsquedas. Conserva los valores por defecto de la plataforma,
 no justifican aumentar el contexto ni añadir llamadas de ampliación para todos
 los despliegues.
 
-La [ejecución completa](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna.json)
+La [ejecución original](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna.json), sin cambios,
 contiene los resultados por categoría, cada página recuperada, consulta ampliada
 y respuesta, hashes del corpus, versiones de paquetes y consumo de tokens.
 Realizó 272 solicitudes al modelo con 872.567 tokens de entrada y 41.553 de
-salida, además de los embeddings. Son medidas de una sola ejecución, no una
-garantía de calidad ni una comparación estadística repetida. Seis respuestas de
-`10/off` aún omitieron hechos requeridos, como el rol que aprueba, el tamaño por
-defecto del fragmento y el puente stdio. Siguen vigentes las limitaciones de la
-comprobación de respuestas descritas arriba.
+salida, además de los embeddings. El [registro de reevaluación](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna-rescored.json)
+la enlaza por hash y conserva los hashes del conjunto y evaluador revisados, las
+alternativas de hechos, los resultados por categoría y cada veredicto anterior
+y nuevo.
+
+Son medidas de una sola ejecución, no una garantía de calidad ni una comparación
+estadística repetida. Cuatro respuestas de `10/off` aún omiten hechos requeridos,
+como el rol que aprueba y el tamaño por defecto del fragmento. Incluso una
+comprobación superada puede ser evasiva: la respuesta sobre stdio menciona HTTP,
+pero no afirma si stdio puede conectarse. Lee las respuestas antes de interpretar
+el total de comprobaciones como evidencia de corrección semántica.
 
 Para repetir los ajustes del modelo y la búsqueda con tu propia clave autorizada:
 

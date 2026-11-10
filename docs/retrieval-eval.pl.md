@@ -1,7 +1,7 @@
 ---
 title: Ewaluacja wyszukiwania
 description: Zestaw pytań o znanych odpowiedziach do dokumentacji AgenticOS i harness mierzący na nim wyszukiwanie wiedzy według kategorii, top_k i rozszerzania zapytań.
-source_sha: "d37f8d29a8ce"
+source_sha: "6b040b5291fb"
 ---
 
 # Ewaluacja wyszukiwania { #retrieval-evaluation }
@@ -84,12 +84,13 @@ zamiast nich — i tam jest użyteczna informacja.
 
 Sprawdzenie odpowiedzi jest celowo proste. Fakt pasuje jako całe słowo, wielkość
 liter nie ma znaczenia, a alternatywa kończąca się na `*` pasuje jako prefiks
-(`Keycloak*` pasuje do „Keycloaka”). Znaczniki cytowań, takie jak `[5]`, są
-pomijane, więc numer fragmentu nigdy nie liczy się jako liczba w odpowiedzi. Samo
+(`Keycloak*` pasuje do „Keycloaka”). Znaczniki cytowań, takie jak `[5]`, oraz
+dosłowne powtórzenia pytania są pomijane, więc numer fragmentu ani powtórzone
+pytanie nie dostarczają faktu. Samo
 „nie” nie wystarcza: każde pytanie negatywne wymaga też alternatywy, którą podaje
-dokumentacja, więc „dokumentacja tego nie mówi” nigdy nie przechodzi. Sprawdzenie
-nadal nie odróżni poprawnej odpowiedzi od pogubionej, która używa tych samych
-słów, więc traktuj je jako przybliżony sygnał.
+dokumentacja, więc samo „dokumentacja tego nie mówi” nie przechodzi. Sprawdzenie
+nadal nie odróżni poprawnej odpowiedzi od pogubionej lub niejednoznacznej, która
+wymienia alternatywę. Traktuj je jako przybliżony sygnał, nie poprawność znaczenia.
 
 Symbol wieloznaczny wymaga niepustego rdzenia: samo `*` jest odrzucane przed
 indeksowaniem, ponieważ pasowałoby do każdej odpowiedzi.
@@ -217,21 +218,28 @@ chunki). Chunkowanie: `recursive`, rozmiar 2500, nakładanie 200. Wszystkie 34
 pytania uruchomiono w każdej konfiguracji; rozwinięte zapytania wykorzystano
 ponownie dla obu głębokości wyszukiwania.
 
-| `top_k` | Tryb | hit@k | recall@k | MRR | Kontrole faktów w odpowiedzi |
-|---|---|---|---|---|---|
-| 5 | `off` | 73.5% | 70.6% | 0.571 | 23/34 |
-| 5 | `multi_query` | 76.5% | 73.5% | 0.581 | 25/34 |
-| 5 | `hyde` | 88.2% | 83.8% | 0.698 | 25/34 |
-| 10 | `off` | 85.3% | 83.8% | 0.588 | 28/34 |
-| 10 | `multi_query` | 79.4% | 77.9% | 0.621 | 24/34 |
-| 10 | `hyde` | 94.1% | 92.6% | 0.705 | 27/34 |
+Przegląd wykazał, że pięć kontroli odpowiedzi odrzucało sformułowania zgodne
+z dokumentacją: odmiany logowania, klucze na kolekcję, polskie określenia promocji,
+transporty HTTP/SSE i dostęp na poziomie kolekcji. Zapisane odpowiedzi oceniono
+ponownie z tymi alternatywami i ochroną przed powtarzaniem pytania. Nie powtórzono
+wyszukiwania ani wywołań modelu. Poniżej są pierwotne i poprawione wyniki kontroli
+faktów; metryki wyszukiwania pozostają takie same.
+
+| `top_k` | Tryb | hit@k | recall@k | MRR | Pierwotne kontrole faktów | Ponowna ocena faktów |
+|---|---|---|---|---|---|---|
+| 5 | `off` | 73.5% | 70.6% | 0.571 | 23/34 | 27/34 |
+| 5 | `multi_query` | 76.5% | 73.5% | 0.581 | 25/34 | 28/34 |
+| 5 | `hyde` | 88.2% | 83.8% | 0.698 | 25/34 | 29/34 |
+| 10 | `off` | 85.3% | 83.8% | 0.588 | 28/34 | 30/34 |
+| 10 | `multi_query` | 79.4% | 77.9% | 0.621 | 24/34 | 29/34 |
+| 10 | `hyde` | 94.1% | 92.6% | 0.705 | 27/34 | 30/34 |
 
 Oba pytania o SAML, po angielsku i polsku, znalazły stronę o logowaniu
 katalogowym i uzyskały odpowiedź, że SAML nie jest obsługiwany bezpośrednio,
 a pośrednikiem jest Keycloak, we wszystkich sześciu konfiguracjach. `10/hyde`
 dotarł do oczekiwanej strony dla wszystkich dziesięciu pytań międzyjęzykowych.
-`10/off` zaliczył najwięcej kontroli odpowiedzi, poprawiając pięć odpowiedzi
-względem `5/off`, bez nowych niezaliczonych kontroli ani wywołania rozwijania.
+`10/off` i `10/hyde` remisują w poprawionych kontrolach faktów: 30/34.
+`10/off` zalicza o trzy kontrole więcej niż `5/off`, bez wywołania rozwijania.
 
 Dla agenta dokumentacji na tym korpusie zacznij od `default_top_k: 10` i
 `query_analysis_mode: off`. Wybierz `hyde` jawnie, gdy dotarcie do większej liczby
@@ -241,14 +249,20 @@ wywołanie modelu i wyszukiwania. Zachowaj wartości domyślne platformy:
 nie uzasadniają zwiększania kontekstu ani dodawania rozwijania dla każdego
 wdrożenia.
 
-[Pełny przebieg](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna.json)
+Niezmieniony [pierwotny przebieg](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna.json)
 zawiera wyniki kategorii, każdą znalezioną stronę, rozwinięte zapytanie i odpowiedź,
 hashe korpusu, wersje pakietów i zużycie tokenów. Wykonał 272 żądania modelu,
 zużywając 872 567 tokenów wejściowych i 41 553 wyjściowych, poza embeddingami.
+Osobny [zapis ponownej oceny](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna-rescored.json)
+wskazuje go przez hash i zapisuje hashe poprawionego zestawu pytań i kodu oceny,
+alternatywy faktów, wyniki kategorii oraz poprzedni i nowy werdykt każdej odpowiedzi.
+
 To pomiary pojedynczego przebiegu, nie gwarancja jakości ani powtarzane porównanie
-statystyczne. Sześć odpowiedzi `10/off` nadal pomijało wymagane fakty, w tym rolę
-zatwierdzającą, domyślny rozmiar chunka i pośrednika stdio. Nadal obowiązują
-opisane wyżej ograniczenia kontroli odpowiedzi.
+statystyczne. Cztery odpowiedzi `10/off` nadal pomijają wymagane fakty, w tym rolę
+zatwierdzającą i domyślny rozmiar chunka. Nawet zaliczona kontrola może być
+niejednoznaczna: odpowiedź o stdio wymienia HTTP, ale nie rozstrzyga, czy stdio
+da się podłączyć. Przeczytaj odpowiedzi, zanim uznasz sumę zaliczeń za dowód
+poprawności znaczenia.
 
 Aby powtórzyć ustawienia modelu i wyszukiwania z własnym autoryzowanym kluczem:
 

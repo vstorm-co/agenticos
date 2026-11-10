@@ -24,7 +24,7 @@ items:
     expected_pages: [directory.md]
     expected_facts:
       - ["no", "not", "isn't", "doesn't"]
-      - [sign-in*, "sign in", deactivat*]
+      - [sign-in*, "sign in", "signs in", "signing in", deactivat*]
     evidence: "directory.md: There is no SCIM and no scheduled directory sync."
 
   - id: org-wide-default-model
@@ -54,7 +54,7 @@ items:
     expected_pages: [file-processing.md]
     expected_facts:
       - ["no", "not", "cannot", "isn't"]
-      - ["every document", "all documents", "whole collection", separate*, split*, "different collection*", "another collection"]
+      - ["every document", "all documents", "whole collection", "collection as a whole", "collection level", "collection-level", separate*, split*, "different collection*", "another collection"]
     evidence: "file-processing.md: **Within a collection there is no per-document isolation.** Access is decided at the"
 
   - id: admin-creates-account-when-closed
@@ -84,7 +84,7 @@ items:
     expected_pages: [data-protection.md, file-processing.md]
     expected_facts:
       - ["no", "not", "cannot", "isn't"]
-      - [embedding_secret_id, vault*, "each collection", "its own key"]
+      - [embedding_secret_id, vault*, "each collection", "each personal or organization collection", "its own key", "per collection", "per-collection"]
     evidence: "data-protection.md: There is no deployment-wide embedding key; a keyed collection without one refuses to index or search."
 
   - id: environment-without-version-pl
@@ -277,7 +277,7 @@ items:
     expected_pages: [environments.md]
     expected_facts:
       - ["nie", "no", "not"]
-      - [tracks_latest, "tracks latest"]
+      - [tracks_latest, "tracks latest", promowa*, promocj*, "śledzi najnowsz*", "śledzenie najnowsz*"]
     evidence: "environments.md: Off is the default deliberately: publishing mints a version, and deciding where"
 
   - id: model-weights-in-image-pl
@@ -331,7 +331,7 @@ items:
     expected_pages: [mcp.md]
     expected_facts:
       - ["no", "not", "cannot", "nie"]
-      - [bridge*, most, mostu, mostem]
+      - [bridge*, most, mostu, mostem, "streamable HTTP", "streamable-HTTP", SSE, "server-sent events"]
     evidence: "mcp.md: A server that speaks only stdio cannot be connected, because a connection"
 
   - id: sandbox-docker-in-docker-pl-corpus

@@ -258,6 +258,65 @@ class TestTheCommittedSetCannotBeGamed:
     def committed(self):
         return dataset.load_dataset(HARNESS / "docs_questions.yaml", docs_root=REPO_ROOT / "docs")
 
+    @pytest.mark.parametrize(
+        ("item_id", "answer"),
+        [
+            ("scim-provisioning", "No SCIM. Mappings are refreshed when a user next signs in."),
+            ("scim-provisioning", "No SCIM. Mappings are refreshed when signing in."),
+            (
+                "deployment-wide-embedding-key",
+                "No. Embedding credentials are configured per collection.",
+            ),
+            ("deployment-wide-embedding-key", "No. Use per-collection embedding credentials."),
+            (
+                "deployment-wide-embedding-key",
+                "No. Each personal or organization collection needs its provider's key.",
+            ),
+            ("per-document-access-in-collection", "No. Permissions apply at the collection level."),
+            ("per-document-access-in-collection", "No. Access is collection-level."),
+            (
+                "per-document-access-in-collection",
+                "No. Access applies to the collection as a whole.",
+            ),
+            (
+                "publish-reaches-production-pl",
+                "Nie. Nową wersję trzeba osobno promować na produkcję.",
+            ),
+            ("publish-reaches-production-pl", "Nie. Potrzebna jest osobna promocja wersji."),
+            (
+                "publish-reaches-production-pl",
+                "Nie zawsze. Zależy to od tego, czy środowisko śledzi najnowszą wersję.",
+            ),
+            ("stdio-mcp-server-pl-corpus", "No. Expose the server over Streamable HTTP instead."),
+            ("stdio-mcp-server-pl-corpus", "No. Expose an SSE endpoint instead."),
+            ("stdio-mcp-server-pl-corpus", "No. Use server-sent events instead."),
+        ],
+    )
+    def test_documented_alternatives_accept_normal_wording(
+        self, committed, item_id: str, answer: str
+    ) -> None:
+        item = next(item for item in committed.items if item.id == item_id)
+
+        assert scoring.ItemResult(item=item, retrieved=(), answer=answer).answer_correct is True
+
+    @pytest.mark.parametrize(
+        "item_id",
+        [
+            "scim-provisioning",
+            "deployment-wide-embedding-key",
+            "per-document-access-in-collection",
+            "publish-reaches-production-pl",
+            "stdio-mcp-server-pl-corpus",
+        ],
+    )
+    def test_a_plain_no_still_needs_the_documented_alternative(
+        self, committed, item_id: str
+    ) -> None:
+        item = next(item for item in committed.items if item.id == item_id)
+        answer = "Nie." if item.language == "pl" else "No."
+
+        assert scoring.ItemResult(item=item, retrieved=(), answer=answer).answer_correct is False
+
     def test_each_answer_still_has_its_evidence_on_an_expected_page(self) -> None:
         """A feature becoming supported must invalidate a stale negative-answer oracle."""
         committed = dataset.load_dataset(
@@ -380,6 +439,18 @@ class TestRetrievalScores:
 
 
 class TestAnswerFacts:
+    @pytest.mark.parametrize("uppercase", [False, True])
+    def test_echoed_question_text_cannot_supply_an_answer_fact(self, uppercase: bool) -> None:
+        question = "Can one key replace per collection credentials?"
+        item = _item(question=question, expected_facts=[["no", "not"], ["per collection"]])
+        echo = question.upper() if uppercase else question
+        result = scoring.ItemResult(
+            item=item, retrieved=(), answer=f"The documentation does not state it. {echo}"
+        )
+
+        assert result.answer_correct is False
+        assert result.missing_facts == (("per collection",),)
+
     def test_a_plain_no_with_the_alternative_is_correct(self):
         result = scoring.ItemResult(
             item=_item(),
