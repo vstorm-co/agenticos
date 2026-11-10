@@ -6,9 +6,10 @@ from unittest.mock import MagicMock
 from uuid import UUID
 
 import pytest
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from app.core.exceptions import ConcurrentChangeError
 from app.db.models.case_generation import CaseProposal
 from app.db.models.dataset import DatasetCase
 from app.db.models.user import User
@@ -48,7 +49,6 @@ async def test_acceptance_and_source_account_erasure_serialize(
         await setup.commit()
     claimed = asyncio.Event()
     release = asyncio.Event()
-    erasing_process: asyncio.Queue[int] = asyncio.Queue()
     take = case_generation_repo.take_proposals
 
     async def pause_after_claim(
@@ -75,28 +75,22 @@ async def test_acceptance_and_source_account_erasure_serialize(
             )
             await session.commit()
 
-    async def erase() -> None:
-        async with sessions() as session:
-            process = await session.scalar(text("SELECT pg_backend_pid()"))
-            assert isinstance(process, int)
-            await erasing_process.put(process)
-            await UserService(session).delete(source_id)
-            await session.commit()
-
     async with asyncio.timeout(10), asyncio.TaskGroup() as group:
         group.create_task(accept())
         await claimed.wait()
-        group.create_task(erase())
-        process = await erasing_process.get()
-        async with sessions() as observer:
-            while True:
-                blocked = await observer.scalar(
-                    text("SELECT pg_blocking_pids(:pid) <> '{}'::int[]"), {"pid": process}
-                )
-                if blocked:
-                    break
-                await asyncio.sleep(0.01)
-        release.set()
+        try:
+            async with sessions() as session:
+                with pytest.raises(ConcurrentChangeError):
+                    await UserService(session).delete(source_id)
+                await session.rollback()
+                assert await session.get(User, source_id) is not None
+        finally:
+            release.set()
+
+    # A busy deletion refuses atomically; retry after acceptance erases its new copy too.
+    async with sessions() as session:
+        await UserService(session).delete(source_id)
+        await session.commit()
     async with sessions() as session:
         assert await session.get(User, source_id) is None
         inputs = list(

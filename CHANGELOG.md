@@ -186,6 +186,10 @@ environment without a person's decision.
 
 ### Fixed
 
+- Preserve trusted MCP account identity alongside evaluation isolation metadata.
+- Hide private datasets from unauthorized sharing-route callers, matching other resources.
+- Keep initial background schedule times distinct when short intervals cap their startup delay.
+
 - Give isolated evaluation attempts disposable run-scoped workspaces, so agents
   configured with conversation workspaces can run without a chat and never reuse
   persistent files. Clarify setup failures and refresh the evaluation results UI.

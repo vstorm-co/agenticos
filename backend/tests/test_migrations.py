@@ -230,6 +230,8 @@ class TestMigrations:
         "0253_helper_snapshots",
         "0254_merge_eval_rag_index",
         "0295_tool_approval_consent",
+        "0296_merge_evals_main",
+        "0303_merge_workflow_onboarding",
     ],
 )
 def test_improvement_merge_upgrades_either_existing_history(starting_revision: str) -> None:
@@ -257,9 +259,10 @@ def test_improvement_merge_upgrades_either_existing_history(starting_revision: s
                 ).scalar_one()
                 == "merge-upgrade@example.com"
             )
-            assert connection.execute(
-                text("SELECT version_num FROM alembic_version")
-            ).scalar_one() == ("0296_merge_evals_main")
+            assert (
+                connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
+                == "0304_merge_evals_platform"
+            )
         check = _alembic("check")
         assert check.returncode == 0, check.stderr
     finally:

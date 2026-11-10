@@ -341,6 +341,7 @@ class TestADelegateSearchesUnderItsOwnName:
                 ctx,
                 AgentSpec(name="Delegate", collection_ids=[kb_id]),
                 agent_id=agent_id,
+                person_id=ctx.user_id,
                 shared=[],
                 parent_resources=parent,
             )

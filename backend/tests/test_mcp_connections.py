@@ -37,7 +37,7 @@ from app.agents.mcp import (
     ANSWERED_FOR,
     CONNECT_TIMEOUT_SECS,
     MAX_INPUT_SCHEMA_BYTES,
-    MCP_ORIGIN,
+    MCP_ISOLATION,
     TOOL_NAME_LIMIT,
     AnsweredRecently,
     FittedNames,
@@ -465,7 +465,7 @@ class TestMakeToolset:
         ).wrapped.wrapped
 
         assert isinstance(toolset, SetMetadataToolset)
-        assert toolset.metadata == {MCP_ORIGIN: {"test": test, "trust_read_only_hints": trusted}}
+        assert toolset.metadata == {MCP_ISOLATION: {"test": test, "trust_read_only_hints": trusted}}
 
     def test_with_allowlist_filters_before_prefixing(self):
         from pydantic_ai.toolsets import FilteredToolset, PrefixedToolset
@@ -6836,6 +6836,10 @@ async def test_account_source_is_stamped_before_prefixing_and_name_fitting() -> 
     named, served = next(iter(tools.items()))
     assert len(named) <= TOOL_NAME_LIMIT
     origin = tool_origin(served.tool_def)
+    assert (served.tool_def.metadata or {})[MCP_ISOLATION] == {
+        "test": False,
+        "trust_read_only_hints": False,
+    }
     assert origin is not None and origin.tool_id == "write"
     assert origin.connection_id == connection_id
     assert origin.identity == McpSourceIdentity(

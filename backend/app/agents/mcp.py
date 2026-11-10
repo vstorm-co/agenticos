@@ -68,7 +68,7 @@ CONNECT_TIMEOUT_SECS = 3.0
 #: Tool metadata saying which side of an environment override a tool came from and
 #: whether its connection trusts the server's annotations. Stamped here after the
 #: server answered, so a server cannot claim either.
-MCP_ORIGIN = "agenticos_mcp"
+MCP_ISOLATION = "agenticos_mcp"
 HANDSHAKE_TIMEOUT_SECS = 10.0
 """How long a probe's whole session may take: `initialize`, `initialized` and `tools/list`.
 
@@ -472,7 +472,7 @@ def _make_toolset(spec: McpServerSpec) -> Any:
         server = server.filtered(lambda _ctx, tool: tool.name in allowed)
     origin = {"test": spec.test, "trust_read_only_hints": spec.trust_read_only_hints}
     return ApprovalMarked(
-        FittedNames(server.prefixed(prefix).with_metadata(**{MCP_ORIGIN: origin})),
+        FittedNames(server.prefixed(prefix).with_metadata(**{MCP_ISOLATION: origin})),
         policy=spec.approval,
         in_process=spec.in_process,
         account=spec.account,
