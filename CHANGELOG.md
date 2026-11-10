@@ -19,6 +19,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.62.3] - 2026-11-10
+
+### Fixed
+
+- **Refresh the AWS SDK and CLI dependencies.** Update boto3 to 1.43.126 and
+  Click to 8.5.1, with the third-party notices regenerated. Soup Sieve stays on
+  3.0.4 within the existing `<4` constraint: its 4.x template-selector change
+  breaks the established `html.parse` links and matches contract (#2857).
+
+## [1.62.2] - 2026-11-10
+
 ### Fixed
 
 - **A switched-off workflow step with no connections no longer blocks publishing.**
@@ -21177,7 +21188,9 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.62.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.62.3...HEAD
+[1.62.3]: https://github.com/vstorm-co/agenticos/compare/v1.62.2...v1.62.3
+[1.62.2]: https://github.com/vstorm-co/agenticos/compare/v1.62.1...v1.62.2
 [1.62.1]: https://github.com/vstorm-co/agenticos/compare/v1.62.0...v1.62.1
 [1.62.0]: https://github.com/vstorm-co/agenticos/compare/v1.61.5...v1.62.0
 [1.61.5]: https://github.com/vstorm-co/agenticos/compare/v1.61.4...v1.61.5
