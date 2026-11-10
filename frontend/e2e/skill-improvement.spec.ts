@@ -73,7 +73,7 @@ const EXPECTED: Record<Role, Record<Topic, string>> = {
 /** Instructions that open the skill and say nothing of its rules. */
 function instructions(role: Role, skillName: string): string {
   const load = Buffer.from(JSON.stringify({ id: skillName }), "utf8").toString("base64url");
-  return `E2E-SKILL-AS:${role} CALL-TOOL:load_capability:${load}`;
+  return `E2E-SKILL-AS:${role} CALL-TOOL:read_skill:${load}`;
 }
 
 async function organizationHeaders(page: Page) {
