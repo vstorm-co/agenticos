@@ -1,5 +1,5 @@
 ---
-source_sha: "f6d11753ac0c"
+source_sha: "b4d0a4bf468b"
 ---
 
 # Workflows { #workflows }
@@ -905,8 +905,9 @@ die er sich stützte, und wie viele Dateien er erzeugt hat, mit dem JSON selbst 
 **Raw output** - und jeder Schritt, den er gemacht hat, Iteration für Iteration,
 stehen daneben.
 
-Die Schritte stehen in der Reihenfolge, in der sie begonnen haben,
-und ein Klick auf einen Schritt in einer Schleife zeigt seine Eingabe und Ausgabe in
+Die Schritte stehen in der Reihenfolge, in der sie begonnen haben. Ein
+übersprungener Schritt fehlt in der Liste und erscheint auf der Canvas
+verblasst. Ein Klick auf einen Schritt in einer Schleife zeigt seine Eingabe und Ausgabe in
 dieser Iteration. Ein laufender Run aktualisiert sich alle paar Sekunden, und **Cancel
 run** stoppt ihn. Seine **Files** listen, was seine Schritte gespeichert haben - einen Download, eine
 gerenderte Seite, die Ausgabe eines Skripts -, jeweils zum Herunterladen.

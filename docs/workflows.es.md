@@ -1,5 +1,5 @@
 ---
-source_sha: "f6d11753ac0c"
+source_sha: "b4d0a4bf468b"
 ---
 
 # Workflows { #workflows }
@@ -856,7 +856,8 @@ apoyó y cuántos archivos creó, con el JSON en sí bajo **Raw output** - y cad
 que dio, iteración a iteración, están al lado.
 
 Los pasos aparecen en el orden en que
-empezaron, y al hacer clic en un paso de un bucle se ven su entrada y su salida en esa
+empezaron. Un paso omitido no aparece en la lista y se ve atenuado en el lienzo. Al
+hacer clic en un paso de un bucle se ven su entrada y su salida en esa
 iteración. Un run en curso se actualiza cada par de segundos, y **Cancel run** lo
 detiene y retira los temporizadores que sus pasos en espera habían puesto en cola. Sus **Files** listan lo que guardaron sus pasos - una descarga, una página
 renderizada, la salida de un script -, cada uno descargable.

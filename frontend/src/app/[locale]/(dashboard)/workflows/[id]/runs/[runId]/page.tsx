@@ -165,6 +165,8 @@ export default function WorkflowRunPage({ params }: PageProps) {
   const problem = run.error;
   const title = t("runTitle", { id: shortNodeId(run.id) });
   const stepsRun = nodes.filter((node) => node.status === "succeeded").length;
+  // A skipped step is shown faded on the canvas; the list holds the steps the run took.
+  const listed = nodes.filter((node) => node.status !== "skipped");
   const resolvingNode = nodes.find((node) => node.id === resolving) ?? null;
   const resolvingInstance = graph?.nodes.find(
     (entry) => entry.id === resolvingNode?.node_instance_id,
@@ -283,7 +285,7 @@ export default function WorkflowRunPage({ params }: PageProps) {
           {
             icon: ListChecks,
             label: t("runSteps"),
-            value: t("runStepsOf", { done: stepsRun, count: nodes.length }),
+            value: t("runStepsOf", { done: stepsRun, count: listed.length }),
           },
         ].map(({ icon: Icon, label, value, caption }) => (
           <div key={label} className="flex min-w-0 items-center gap-3 px-3 py-3 sm:px-5 sm:py-4">
@@ -376,7 +378,7 @@ export default function WorkflowRunPage({ params }: PageProps) {
               </p>
             )}
             <ul className="divide-border divide-y">
-              {nodes.map((node, index) => (
+              {listed.map((node, index) => (
                 <li key={node.id} className="space-y-0.5 py-2">
                   <button
                     type="button"
@@ -435,7 +437,7 @@ export default function WorkflowRunPage({ params }: PageProps) {
                   />
                   {/* A step's lines are one list, under its first row - a loop's
                         iterations are rows of the same step. */}
-                  {nodes.findIndex((entry) => entry.node_instance_id === node.node_instance_id) ===
+                  {listed.findIndex((entry) => entry.node_instance_id === node.node_instance_id) ===
                     index && (
                     <StepLogs
                       entries={logs.filter(

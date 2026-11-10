@@ -32,7 +32,8 @@ Two things are versioned separately from this file and worth knowing about:
   Clicking a loop step's iteration now shows that iteration's input and output,
   not the last iteration's. A step test still pins the last iteration's data.
   A long step list now scrolls inside its panel instead of making the canvas
-  taller.
+  taller. Skipped steps are left out of the list and its step count; the
+  canvas still shows them faded.
 
 ## [1.62.1] - 2026-11-10
 

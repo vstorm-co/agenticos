@@ -808,7 +808,8 @@ The run's answer - its text, its structured result, the passages it drew on and 
 many files it made, with the JSON itself under **Raw output** - and every step it
 took, iteration by iteration, sit alongside.
 
-Steps are listed in the order they started, and clicking a step in a loop shows
+Steps are listed in the order they started. A skipped step is left out of the list
+and shown faded on the canvas. Clicking a step in a loop shows
 its input and output in that iteration. A run still going
 refreshes itself every couple of seconds, and **Cancel run** stops it, and withdraws the timers its waiting steps had queued. Its **Files** list what its steps stored - a download, a rendered page, a script's output - each one downloadable.
 

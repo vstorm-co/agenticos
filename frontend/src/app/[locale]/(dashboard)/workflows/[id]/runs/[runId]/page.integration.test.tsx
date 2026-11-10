@@ -291,4 +291,17 @@ describe("the step list", () => {
     // A step test still pins the last item's data.
     expect(store.stepData["a"]?.output).toEqual({ item: 1 });
   });
+
+  it("leaves a skipped step out of the list and the count", async () => {
+    seed({ status: "succeeded" }, "succeeded");
+    vi.mocked(runsApi.listWorkflowRunNodes).mockResolvedValue({
+      items: [step("succeeded"), { ...step("skipped"), id: "n2", node_instance_id: "b" }],
+      total: 2,
+    });
+    await renderPage();
+
+    expect(await screen.findByText("Succeeded")).toBeInTheDocument();
+    expect(screen.queryByText("Skipped")).toBeNull();
+    expect(screen.getByText("1 of 1")).toBeInTheDocument();
+  });
 });
