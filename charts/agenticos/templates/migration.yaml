@@ -1,0 +1,57 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "agenticos.name" . }}-migrate
+  labels:
+    {{- include "agenticos.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade,pre-rollback
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: {{ .Values.migration.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "agenticos.labels" . | nindent 8 }}
+        app.kubernetes.io/component: migration
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      serviceAccountName: {{ .Values.serviceAccountName }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: migrate
+          image: {{ include "agenticos.backendImage" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [agenticos, db, upgrade]
+          securityContext:
+            {{- include "agenticos.security" . | nindent 12 }}
+            {{- with .Values.api.runAsUser }}
+            runAsUser: {{ . }}
+            {{- end }}
+          envFrom:
+            - secretRef:
+                name: {{ required "existingSecret is required (create it before installing)" .Values.existingSecret }}
+          env:
+            {{- include "agenticos.env" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.migration.resources | nindent 12 }}
+          volumeMounts:
+            {{- include "agenticos.mounts" . | nindent 12 }}
+      volumes:
+        {{- include "agenticos.volumes" . | nindent 8 }}

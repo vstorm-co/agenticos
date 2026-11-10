@@ -1,0 +1,383 @@
+{
+  "apiVersion": "v1",
+  "kind": "List",
+  "items": [
+    {
+      "apiVersion": "v1",
+      "kind": "Namespace",
+      "metadata": {
+        "name": "agenticos-smoke-deps"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Namespace",
+      "metadata": {
+        "name": "agenticos-smoke",
+        "labels": {
+          "pod-security.kubernetes.io/enforce": "restricted",
+          "pod-security.kubernetes.io/enforce-version": "latest"
+        }
+      }
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "name": "postgres",
+        "namespace": "agenticos-smoke-deps"
+      },
+      "spec": {
+        "replicas": 1,
+        "selector": {
+          "matchLabels": {
+            "fixture": "postgres"
+          }
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "fixture": "postgres"
+            }
+          },
+          "spec": {
+            "containers": [
+              {
+                "name": "postgres",
+                "image": "pgvector/pgvector:pg16@sha256:0dd3149a06e4579a0d70d8fef9945636cd514005e7237deb27f9b67886f8dc4f",
+                "ports": [
+                  {
+                    "containerPort": 5432
+                  }
+                ],
+                "env": [
+                  {
+                    "name": "POSTGRES_DB",
+                    "value": "agenticos"
+                  },
+                  {
+                    "name": "POSTGRES_USER",
+                    "value": "agenticos"
+                  },
+                  {
+                    "name": "POSTGRES_PASSWORD",
+                    "value": "smoke-password"
+                  }
+                ],
+                "resources": {
+                  "requests": {
+                    "cpu": "50m",
+                    "memory": "64Mi"
+                  },
+                  "limits": {
+                    "memory": "512Mi"
+                  }
+                },
+                "readinessProbe": {
+                  "tcpSocket": {
+                    "port": 5432
+                  },
+                  "periodSeconds": 2
+                },
+                "args": [
+                  "postgres",
+                  "-c",
+                  "ssl=on",
+                  "-c",
+                  "ssl_cert_file=/tls/tls.crt",
+                  "-c",
+                  "ssl_key_file=/tls/tls.key"
+                ],
+                "volumeMounts": [
+                  {
+                    "name": "database-tls",
+                    "mountPath": "/tls",
+                    "readOnly": true
+                  }
+                ]
+              }
+            ],
+            "securityContext": {
+              "fsGroup": 999
+            },
+            "volumes": [
+              {
+                "name": "database-tls",
+                "secret": {
+                  "secretName": "postgres-tls",
+                  "defaultMode": 288
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "name": "postgres",
+        "namespace": "agenticos-smoke-deps"
+      },
+      "spec": {
+        "selector": {
+          "fixture": "postgres"
+        },
+        "ports": [
+          {
+            "port": 5432
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "name": "valkey",
+        "namespace": "agenticos-smoke-deps"
+      },
+      "spec": {
+        "replicas": 1,
+        "selector": {
+          "matchLabels": {
+            "fixture": "valkey"
+          }
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "fixture": "valkey"
+            }
+          },
+          "spec": {
+            "containers": [
+              {
+                "name": "valkey",
+                "image": "valkey/valkey:8-alpine@sha256:2602ace2be6569bc2bbb06f873776516ab9089821525be34f4305c67eb9db02a",
+                "ports": [
+                  {
+                    "containerPort": 6379
+                  }
+                ],
+                "env": [],
+                "resources": {
+                  "requests": {
+                    "cpu": "50m",
+                    "memory": "64Mi"
+                  },
+                  "limits": {
+                    "memory": "512Mi"
+                  }
+                },
+                "readinessProbe": {
+                  "tcpSocket": {
+                    "port": 6379
+                  },
+                  "periodSeconds": 2
+                },
+                "command": [
+                  "valkey-server",
+                  "--save",
+                  ""
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "name": "valkey",
+        "namespace": "agenticos-smoke-deps"
+      },
+      "spec": {
+        "selector": {
+          "fixture": "valkey"
+        },
+        "ports": [
+          {
+            "port": 6379
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "name": "minio",
+        "namespace": "agenticos-smoke-deps"
+      },
+      "spec": {
+        "replicas": 1,
+        "selector": {
+          "matchLabels": {
+            "fixture": "minio"
+          }
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "fixture": "minio"
+            }
+          },
+          "spec": {
+            "containers": [
+              {
+                "name": "minio",
+                "image": "pgsty/minio:RELEASE.2026-08-04T00-00-00Z@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372",
+                "ports": [
+                  {
+                    "containerPort": 9000
+                  }
+                ],
+                "env": [
+                  {
+                    "name": "MINIO_ROOT_USER",
+                    "value": "smoke-access"
+                  },
+                  {
+                    "name": "MINIO_ROOT_PASSWORD",
+                    "value": "smoke-secret-password"
+                  }
+                ],
+                "resources": {
+                  "requests": {
+                    "cpu": "50m",
+                    "memory": "64Mi"
+                  },
+                  "limits": {
+                    "memory": "512Mi"
+                  }
+                },
+                "readinessProbe": {
+                  "tcpSocket": {
+                    "port": 9000
+                  },
+                  "periodSeconds": 2
+                },
+                "command": [
+                  "minio",
+                  "server",
+                  "/data"
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "name": "minio",
+        "namespace": "agenticos-smoke-deps"
+      },
+      "spec": {
+        "selector": {
+          "fixture": "minio"
+        },
+        "ports": [
+          {
+            "port": 9000
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "name": "model-fixture",
+        "namespace": "agenticos-smoke-deps"
+      },
+      "spec": {
+        "replicas": 1,
+        "selector": {
+          "matchLabels": {
+            "fixture": "model-fixture"
+          }
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "fixture": "model-fixture"
+            }
+          },
+          "spec": {
+            "containers": [
+              {
+                "name": "model-fixture",
+                "image": "python:3.15-slim@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928",
+                "ports": [
+                  {
+                    "containerPort": 4010
+                  }
+                ],
+                "env": [],
+                "resources": {
+                  "requests": {
+                    "cpu": "50m",
+                    "memory": "64Mi"
+                  },
+                  "limits": {
+                    "memory": "512Mi"
+                  }
+                },
+                "readinessProbe": {
+                  "tcpSocket": {
+                    "port": 4010
+                  },
+                  "periodSeconds": 2
+                },
+                "command": [
+                  "python",
+                  "/fixture/server.py"
+                ],
+                "volumeMounts": [
+                  {
+                    "name": "fixture",
+                    "mountPath": "/fixture",
+                    "readOnly": true
+                  }
+                ]
+              }
+            ],
+            "volumes": [
+              {
+                "name": "fixture",
+                "configMap": {
+                  "name": "model-fixture"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "name": "model-fixture",
+        "namespace": "agenticos-smoke-deps"
+      },
+      "spec": {
+        "selector": {
+          "fixture": "model-fixture"
+        },
+        "ports": [
+          {
+            "port": 4010
+          }
+        ]
+      }
+    }
+  ]
+}

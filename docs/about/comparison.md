@@ -103,7 +103,7 @@ A comparison that hides its own gaps is an advertisement. Check these against yo
 - There is no Microsoft Teams, WhatsApp, phone or email conversation channel. [Voice conversations](../voice.md) run in web chat, the widget and the hosted page, not over a phone line.
 - AgenticOS now includes a visual workflow canvas with typed steps, branches and loops. Compare the required node types and integrations, rather than assuming either canvas covers the same jobs.
 - An MCP binding set to `writes` trusts the server's own read-only marks, so a tool it mislabels as read-only runs unasked; `all` holds every call. See [what MCP does not get you](../mcp.md#what-mcp-does-not-get-you).
-- Deployment is Docker Compose, and one host is the shipped path. An external Postgres and more API hosts and workers are [documented](../scaling.md), but there are no Kubernetes manifests.
+- OpenShift is not validated. A maintained [Kubernetes Helm chart](../kubernetes.md) deploys the API, worker and console with external data services; Docker Compose remains the single-host path.
 - You operate it, or you agree the operation with Vstorm or another partner.
 
 ## A shared trial

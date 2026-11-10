@@ -1,20 +1,14 @@
 ---
-source_sha: "984dbd8faf18"
+source_sha: "0d080c65b077"
 ---
 
 # Auf einem Server deployen { #deploy-to-a-server }
 
-Ein Host, Docker Compose, ein Reverse Proxy davor. Das ist der gesamte
-ausgelieferte Weg, und genau er läuft in den Deployments, in denen dieses
-Projekt eingesetzt wird.
-
-Es gibt keine Kubernetes-Manifeste und keine Ein-Klick-Schnellstarts für die
-Platform-as-a-Service-Anbieter. Das ist keine Bescheidenheit in Bezug auf die
-Skalierung. Der Stack besteht aus sechs Containern, zwei davon halten Zustand,
-einer kann eigene Container starten, und einer ist ein Postgres, das pgvector
-haben muss - was bereits mehr ist, als ein `git push`-Deploy-Ziel abbildet, und
-eine Anleitung, die etwas anderes vorgäbe, würde ein Deployment beschreiben, das
-niemand betrieben hat.
+Ein Host, Docker Compose und ein Reverse Proxy bleiben der ausgelieferte Weg
+für einen einzelnen Server. Für Cluster gibt es das gepflegte
+[Kubernetes-Helm-Chart](kubernetes.md) mit externen Datendiensten und einem
+blockierenden Migrationsjob. Die OpenShift-Konfiguration ist noch nicht validiert.
+Ein-Klick-Schnellstarts für PaaS-Anbieter gibt es nicht.
 
 Über einen Host hinaus - ein verwaltetes Postgres, mehrere API-Hosts, mehrere
 Deployments - führt [Über einen Host hinaus skalieren](scaling.md).

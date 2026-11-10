@@ -1,5 +1,5 @@
 ---
-source_sha: "f8d7b221b146"
+source_sha: "a850cf14de8a"
 title: "Porównaj AgenticOS"
 seo_title: "Porównania AgenticOS: suwerenna warstwa agentów AI"
 description: "Porównaj AgenticOS, suwerenną warstwę agentów AI open source, z Claude, ChatGPT, Copilot Studio, Gemini Enterprise, Dify, n8n i agentami do kodowania."
@@ -104,7 +104,7 @@ Porównanie, które ukrywa własne braki, jest reklamą. Sprawdź te punkty wzgl
 - Nie ma kanału rozmów przez Microsoft Teams, WhatsApp, telefon ani e-mail. [Rozmowy głosowe](../voice.md) działają w czacie webowym, widgecie i na hostowanej stronie, nie przez linię telefoniczną.
 - AgenticOS ma wizualny canvas workflow z typowanymi krokami. Praca wieloetapowa korzysta z delegacji, planowania i wyzwalaczy.
 - Powiązanie MCP ustawione na `writes` ufa oznaczeniom „tylko do odczytu” nadanym przez sam serwer, więc narzędzie błędnie oznaczone jako tylko do odczytu działa bez pytania; `all` wstrzymuje każde wywołanie. Zobacz [czego MCP nie daje](../mcp.md#what-mcp-does-not-get-you).
-- Wdrożenie to Docker Compose, a jeden host to dostarczana ścieżka. Zewnętrzny Postgres oraz kolejne hosty API i workery są [opisane](../scaling.md), ale manifestów Kubernetes nie ma.
+- OpenShift nie został zweryfikowany. Utrzymywany [chart Helm Kubernetes](../kubernetes.md) wdraża API, worker i konsolę z zewnętrznymi usługami danych; Docker Compose pozostaje ścieżką dla jednego hosta.
 - Utrzymujesz go sam albo uzgadniasz utrzymanie z Vstorm lub innym partnerem.
 
 ## Wspólna próba { #a-shared-trial }

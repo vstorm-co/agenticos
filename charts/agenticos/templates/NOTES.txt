@@ -1,0 +1,10 @@
+AgenticOS {{ .Chart.AppVersion }} (override image.tag or digests to pin another release).
+API: {{ .Values.public.apiUrl }}
+Console: {{ .Values.public.siteUrl }}
+
+Migrations complete before install/upgrade/rollback changes workloads.
+A failed hook is retained: kubectl -n {{ .Release.Namespace }} logs job/{{ include "agenticos.name" . }}-migrate
+Helm rollback does not downgrade the database. See docs/kubernetes.md.
+
+External PostgreSQL must have pgvector. Redis/Valkey and S3 must be reachable.
+The chart does not start sandboxd or mount a node Docker socket.
