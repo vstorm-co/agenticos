@@ -19,6 +19,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **Existing notifications survive the evaluation upgrade.** The early evaluation
+  migrations retain `capability_requested`, `suggestion` and `finding` while
+  rebuilding the notification and preference checks. Previously, upgrading a
+  populated 1.61 deployment could fail before the final merge revision restored
+  those values. No notification is deleted or rewritten. Deployments whose
+  1.62.0 upgrade rolled back can upgrade directly to this patch; deployments
+  already at the merged head need no additional migration.
+
 ## [1.62.0] - 2026-11-10
 
 Agents can now be measured and improved from evidence: datasets of test
