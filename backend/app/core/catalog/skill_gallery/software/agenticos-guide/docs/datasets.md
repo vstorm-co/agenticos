@@ -89,7 +89,7 @@ added or edited case is a new case revision, and a removed one stores nothing,
 so a long history costs what changed rather than every case on every version.
 One organization's datasets store at most `DATASET_MAX_VERSION_ROWS_PER_ORG`
 case revisions together (5 million by default, see
-[Configuration](configuration.md#datasets)). An add or an edit past that is
+[Configuration](https://vstorm-co.github.io/agenticos/configuration/#datasets)). An add or an edit past that is
 refused with how many are stored; removing a case is always allowed, and
 deleting a dataset frees its revisions.
 
@@ -166,7 +166,7 @@ Can I return a used kettle?,"No, only unused items",returns
 back unchanged. To keep that true for a spreadsheet, a CSV cell that starts with
 `=`, `+`, `-`, `@` or `'` is written with a `'` in front, so a spreadsheet does
 not run it as a formula, and an import removes that one `'` again. Exporting is
-recorded in the [audit log](governance.md#audit).
+recorded in the [audit log](https://vstorm-co.github.io/agenticos/governance/#audit).
 
 ### From a conversation or a run { #add-to-dataset }
 
@@ -257,7 +257,7 @@ decides it; anyone else editing the dataset sees how many wait.
 **The generator is an agent.** It is a system agent seeded in every
 organization, so its runs are metered against its own budget and the
 organization's, and each generation is one run you can open in
-[Activity](console.md). It has no tools: everything it reads is gathered for it
+[Activity](https://vstorm-co.github.io/agenticos/console/). It has no tools: everything it reads is gathered for it
 under your own access and handed over in its prompt, so a document or a
 conversation that tries to instruct it can at most change the text of a draft
 you review. A draft that does not keep its source's rule - a knowledge case
@@ -595,7 +595,7 @@ at all is not offered it. See [Eval runs](evals.md#access).
 A member without access to a dataset gets "not found" for it on every route,
 whatever their role allows elsewhere - whether a private dataset exists is
 itself something they may not learn. A grant widens access to one dataset and
-never changes a role. See [Permissions](permissions.md) for how scopes and
+never changes a role. See [Permissions](https://vstorm-co.github.io/agenticos/permissions/) for how scopes and
 grants combine.
 
 A case copied from a conversation keeps its text visible only to readers with `runs:view` or access to that source conversation. Other readers see metadata and a masked placeholder, in the latest and historical versions and in CSV/JSONL exports. A missing source stays masked. A reader cannot edit masked text; metadata edits do not reveal it. Evals still execute the full stored revision.
@@ -629,7 +629,7 @@ note is cleared.
 A case written before authorship was kept has it filled from the links it still held; one
 whose conversation was already gone has none, and only deleting the case
 removes its text. See
-[Data protection](data-protection.md#what-deletion-reaches).
+[Data protection](https://vstorm-co.github.io/agenticos/data-protection/#what-deletion-reaches).
 
 A score is kept the same way. It holds a copy of the answer it graded, up to
 8,000 characters with credentials redacted, so a reviewer reads it beside the
@@ -646,4 +646,4 @@ A person's data export lists the drafts taken from their questions and conversat
 Generating from conversations sends the questions people asked, redacted, to
 the case generator's model provider, and generating from knowledge sends
 passages of the documents - see
-[what leaves the deployment](data-protection.md#what-leaves-the-deployment).
+[what leaves the deployment](https://vstorm-co.github.io/agenticos/data-protection/#what-leaves-the-deployment).

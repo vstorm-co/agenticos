@@ -264,3 +264,49 @@ describe("questions inside a workflow agent step", () => {
     expect(runsApi.answerWorkflowRunQuestions).not.toHaveBeenCalled();
   });
 });
+
+describe("the step list", () => {
+  it("opens a loop step at the iteration its row ran in", async () => {
+    seed({ status: "succeeded" }, "succeeded");
+    vi.mocked(runsApi.listWorkflowRunNodes).mockResolvedValue({
+      items: [0, 1].map((index) => ({
+        ...step("succeeded"),
+        id: `n${index}`,
+        scope_path: [{ loop_node_id: "l", index }],
+        output: { item: index },
+      })),
+      total: 2,
+    });
+    await renderPage();
+    await screen.findByText("Iteration 1");
+    const rows = await screen.findAllByRole("button", { name: /act/ });
+
+    fireEvent.click(rows[0] as HTMLElement);
+
+    const store = useWorkflowEditorStore.getState();
+    expect(store.editingNodeId).toBe("a");
+    expect(store.editingIteration).toEqual([0]);
+    expect(store.iterationData["a/0"]?.output).toEqual({ item: 0 });
+    expect(store.iterationData["a/1"]?.output).toEqual({ item: 1 });
+    // A step test still pins the last item's data.
+    expect(store.stepData["a"]?.output).toEqual({ item: 1 });
+  });
+
+  it("leaves steps that never started out of the list and the count", async () => {
+    seed({ status: "succeeded" }, "succeeded");
+    vi.mocked(runsApi.listWorkflowRunNodes).mockResolvedValue({
+      items: [
+        step("succeeded"),
+        { ...step("skipped"), id: "n2", node_instance_id: "b" },
+        { ...step("pending"), id: "n3", node_instance_id: "c" },
+      ],
+      total: 3,
+    });
+    await renderPage();
+
+    expect(await screen.findByText("Succeeded")).toBeInTheDocument();
+    expect(screen.queryByText("Skipped")).toBeNull();
+    expect(screen.queryByText("Pending")).toBeNull();
+    expect(screen.getByText("1 of 1")).toBeInTheDocument();
+  });
+});

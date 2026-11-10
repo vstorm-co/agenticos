@@ -26,7 +26,7 @@ cause of an agent that either ignores what it was told or reads nothing at all.
 |---|---|---|
 | **Context file** | Standing facts, small and stable — a glossary, a tone guide, an org chart | Always, or on demand — you choose |
 | **[Skill](skills.md)** | A procedure for one kind of task — how to handle a refund request | When the model decides that task is what is happening |
-| **[Knowledge collection](file-processing.md)** | A corpus too large to read — every policy document, every ticket | Only the chunks a search returns |
+| **[Knowledge collection](https://vstorm-co.github.io/agenticos/file-processing/)** | A corpus too large to read — every policy document, every ticket | Only the chunks a search returns |
 
 The rule of thumb: **if it is short and always relevant, it is a context file.
 If it is long, it is knowledge. If it is a procedure, it is a skill.**
@@ -122,12 +122,12 @@ applying a change tells the owners of those agents.
 
 A context file has an owner and a visibility, like any other resource here, and
 `context:view` gates reading the catalog. A file somebody has not been granted
-is a file they cannot bind, and the [same three layers](permissions.md) decide
+is a file they cannot bind, and the [same three layers](https://vstorm-co.github.io/agenticos/permissions/) decide
 that as everywhere else.
 
 Anything genuinely secret does not go in one — a context file is text an agent
 reads out loud when asked the right question. Credentials belong in
-[the vault](secrets.md).
+[the vault](https://vstorm-co.github.io/agenticos/secrets/).
 
 ## Recap
 
@@ -137,5 +137,5 @@ reads out loud when asked the right question. Credentials belong in
 - A linked file is chosen by its **description**, so write that for the model.
 - Editing a file updates **every bound agent on its next run**, with nothing
   republished.
-- Short and always relevant → context. Long → [knowledge](file-processing.md).
+- Short and always relevant → context. Long → [knowledge](https://vstorm-co.github.io/agenticos/file-processing/).
   A procedure → [a skill](skills.md).

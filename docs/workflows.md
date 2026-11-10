@@ -806,7 +806,12 @@ faded. Only a page open while the run went on moves; one opened later is still. 
 
 The run's answer - its text, its structured result, the passages it drew on and how
 many files it made, with the JSON itself under **Raw output** - and every step it
-took, iteration by iteration, sit alongside. A run still going
+took, iteration by iteration, sit alongside.
+
+The list holds the steps that started, in the order they started. Failures remain
+visible even if a step failed before starting. Other steps that never started stay
+on the canvas; skipped steps appear faded. Clicking a loop step's row shows its
+input and output in that iteration. A run still going
 refreshes itself every couple of seconds, and **Cancel run** stops it, and withdraws the timers its waiting steps had queued. Its **Files** list what its steps stored - a download, a rendered page, a script's output - each one downloadable.
 
 A run waiting on an [**Ask for approval**](reference/workflow-nodes.md#human-approval)

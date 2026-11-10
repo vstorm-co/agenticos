@@ -40,7 +40,7 @@ Tuesday afternoon. No deploy, no pull request, no engineer.
     A **skill** is a procedure the model loads when it decides the task has
     arrived. A [context file](context.md) is standing knowledge — short, always
     relevant, injected or read on demand. A
-    [knowledge collection](file-processing.md) is a corpus too large to read,
+    [knowledge collection](https://vstorm-co.github.io/agenticos/file-processing/) is a corpus too large to read,
     reached by search.
 
 In the Agent Builder, open **Skills → New skill** to write a skill without leaving the capability panel. Saving creates the library entry, attaches it to the current draft and enables the Skills capability. Publishing remains a separate step. The action requires permission to edit both the agent and skills.
@@ -90,7 +90,7 @@ Long text resources are paged to keep reference manuals out of every model reque
 
 ## How an agent reads one
 
-Through the [`skills` capability](reference/capabilities.md#skills). Each skill
+Through the [`skills` capability](https://vstorm-co.github.io/agenticos/reference/capabilities/#skills). Each skill
 an agent is given becomes a **capability of its own**, listed for the model by
 name and description and opened on demand:
 
@@ -157,7 +157,7 @@ it, and the rated-down or failed runs that may have used it count apart as unkno
 ## In a workspace, a skill is also files
 
 An agent that has both skills and a
-[workspace](reference/capabilities.md#files-shell) gets each skill written into it
+[workspace](https://vstorm-co.github.io/agenticos/reference/capabilities/#files-shell) gets each skill written into it
 as well:
 
 ```
@@ -596,7 +596,7 @@ Installation receipts preserve deliberate deletion, so automatic refresh does no
 restore retired skills. The explicit seed command can restore them when requested.
 The skills listing itself remains read-only.
 
-The skills page also marks the skills the [AI Architect](console.md) binds with an
+The skills page also marks the skills the [AI Architect](https://vstorm-co.github.io/agenticos/console/) binds with an
 `Architect` badge, because editing one changes how the Architect works.
 
 AgenticOS, Architect and new default agents bind the platform skills by default:
@@ -873,7 +873,7 @@ Discarding stays offered; improving further needs the changes checked again firs
 waits at Changes is priced again: Next step checks the changes on the newest
 version.
 
-The [Architect](console.md#the-assistant) reads a skill's agents, versions and
+The [Architect](https://vstorm-co.github.io/agenticos/console/#the-assistant) reads a skill's agents, versions and
 sessions, and the pinned agents and forks main has moved past. It starts a
 session, runs or retries a step, accepts a result, ends a session, moves an agent
 to another version or catches a pinned agent or a fork up with main only when you
@@ -884,7 +884,7 @@ ask, each through an approval card.
 They answer different questions, and the difference matters when an agent gets the
 wrong one.
 
-|  | Skills | [Knowledge](file-processing.md) |
+|  | Skills | [Knowledge](https://vstorm-co.github.io/agenticos/file-processing/) |
 | --- | --- | --- |
 | Contains | Procedure — how we do this | Documents — what we know |
 | Written by | A person, deliberately | Ingested in bulk |
@@ -904,7 +904,7 @@ wrong one.
 
 Skills are organization-scoped resources, governed like agents and collections:
 visibility plus per-row grants on top of the role. See
-[Permissions](permissions.md#layer-3-visibility-and-grants).
+[Permissions](https://vstorm-co.github.io/agenticos/permissions/#layer-3-visibility-and-grants).
 
 !!! important "Binding a skill lends it"
 
@@ -926,7 +926,7 @@ reported with the specialist's name.
 At run time nothing is re-checked. The frozen spec's skills are resolved inside the
 run's organization and handed to the agent — the rule collections and delegates
 already follow, that
-[the reference is checked once, at publish](permissions.md#delegation-is-not-a-privilege-boundary).
+[the reference is checked once, at publish](https://vstorm-co.github.io/agenticos/permissions/#delegation-is-not-a-privilege-boundary).
 
 The alternative is worse in two specific ways:
 

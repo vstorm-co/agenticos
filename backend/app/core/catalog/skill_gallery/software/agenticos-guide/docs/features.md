@@ -38,8 +38,8 @@ for your own use case.
 |---|---|
 | A different answer from an agent | Edit the instructions and publish. Seconds, no engineer |
 | A tool for a SaaS product | Point at [an MCP server](mcp.md). Usually no code at all |
-| A tool nobody has written | [Add a capability](howto/add-capability.md) — typed Python, and it appears in the Builder |
-| A different ingestion, channel or connector | [Extend the platform](resources/index.md#extending-the-platform); the same pattern each time |
+| A tool nobody has written | [Add a capability](https://vstorm-co.github.io/agenticos/howto/add-capability/) — typed Python, and it appears in the Builder |
+| A different ingestion, channel or connector | [Extend the platform](https://vstorm-co.github.io/agenticos/resources/#extending-the-platform); the same pattern each time |
 | The whole thing shaped to one process | Fork it. It is your deployment and your source |
 
 !!! tip "The split is the point"
@@ -54,7 +54,7 @@ for your own use case.
     Because the word is a specification rather than a label: processes,
     resource limits, access control, drivers, a filesystem, one shell for many
     interfaces, and an audit log. Each has a mechanism on this page.
-    [The seven, and how to test any other product against them →](about/index.md#what-makes-something-an-operating-system-for-agents)
+    [The seven, and how to test any other product against them →](https://vstorm-co.github.io/agenticos/about/#what-makes-something-an-operating-system-for-agents)
 
 ## Built in a UI, versioned on publish
 
@@ -93,7 +93,7 @@ Each one carries its own settings, its own permission scope and — where it act
 on the outside world — its own approval setting. Switching one on is a decision
 somebody makes about *this* agent, not a change to the platform.
 
-[Every capability, its tools and its config →](reference/capabilities.md)
+[Every capability, its tools and its config →](https://vstorm-co.github.io/agenticos/reference/capabilities/)
 
 ## Any model, from 28 providers
 
@@ -107,7 +107,7 @@ without a single spec being republished.
 Keys are per organization, sealed in the vault, and never returned by any
 endpoint.
 
-[Models and providers →](models.md)
+[Models and providers →](https://vstorm-co.github.io/agenticos/models/)
 
 ## Any MCP server, by URL
 
@@ -151,7 +151,7 @@ clause somebody has to remember.
 The embedding model is fixed when a collection is created, because two models of
 equal width write into different spaces that search would go on comparing.
 
-[File processing →](file-processing.md) · [Skills →](skills.md)
+[File processing →](https://vstorm-co.github.io/agenticos/file-processing/) · [Skills →](skills.md)
 
 ## One agent, every surface
 
@@ -175,7 +175,7 @@ audio is stored. Calls are off until an organization turns them on, and carry
 their own time and monthly-minute limits. OpenAI's realtime models are tested
 live; Azure OpenAI, Gemini Live and xAI are not verified live yet.
 
-[Surfaces →](channels.md) · [Voice conversations →](voice.md)
+[Surfaces →](https://vstorm-co.github.io/agenticos/channels/) · [Voice conversations →](https://vstorm-co.github.io/agenticos/voice/)
 
 ## Budgets that actually stop a run
 
@@ -193,7 +193,7 @@ or on a schedule is never parked on a gate nobody chose.
 An approval is decided once. A second decision on a decided approval is refused —
 which sounds obvious until you have seen the race that makes it necessary.
 
-[Governance →](governance.md)
+[Governance →](https://vstorm-co.github.io/agenticos/governance/)
 
 ## Permissions in code, roles composed from them
 
@@ -203,7 +203,7 @@ from a catalog, and a **grant** widens what one person may do with one row.
 A grant never narrows. A Viewer holding an explicit `edit` grant on one agent can
 edit that agent — and nothing else.
 
-[Permissions →](permissions.md)
+[Permissions →](https://vstorm-co.github.io/agenticos/permissions/)
 
 ## Secrets sealed per organization
 
@@ -213,7 +213,7 @@ and deliberately no second one.
 A ciphertext copied out of one tenant's database row cannot be decrypted for
 another. No response, log line or audit entry ever carries a plaintext key.
 
-[Secrets and the vault →](secrets.md)
+[Secrets and the vault →](https://vstorm-co.github.io/agenticos/secrets/)
 
 ## Multi-tenant, in the schema
 
@@ -241,7 +241,7 @@ graph before it freezes a version.
 Schedule a run, or fire one on an event. The same spec, the same budget, the same
 audit trail — just nobody typing.
 
-[Triggers →](triggers.md)
+[Triggers →](https://vstorm-co.github.io/agenticos/triggers/)
 
 ## Self-hosted, and clear about what leaves { #self-hosted-and-quiet }
 
@@ -253,7 +253,7 @@ destination: a model profile, an embedding or parsing provider for a collection,
 an MCP server or a channel. Model prices come from a snapshot bundled with the
 release.
 
-One report is on by default: [deployment diagnostics](configuration.md#diagnostics).
+One report is on by default: [deployment diagnostics](https://vstorm-co.github.io/agenticos/configuration/#diagnostics).
 Once an hour the worker sends the version, database and worker health, coarse
 usage counts and counts of failed runs, jobs and ingestions by closed category.
 Signed-in browsers and the desktop and mobile apps send a pseudonymous activity
@@ -267,4 +267,4 @@ at a collector you run.
 Apache 2.0, auditable, and forkable. The spec format is versioned, so a document
 you export today still loads tomorrow.
 
-[Install it →](install.md) · [Build your first agent →](first-agent.md)
+[Install it →](https://vstorm-co.github.io/agenticos/install/) · [Build your first agent →](https://vstorm-co.github.io/agenticos/first-agent/)
