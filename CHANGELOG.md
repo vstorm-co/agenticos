@@ -21,11 +21,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
-- A retrieval evaluation over the AgenticOS docs: 34 questions with known pages and answers, including "does it support X" questions the docs answer with a plain no and Polish questions answered from English pages (and the reverse). `make eval-retrieval` indexes the docs and reports hit@k, recall@k and MRR per category for each `top_k` and `query_analysis_mode` you name, and with `--answers` checks each answer for the expected facts. `--chunk-size`, `--chunk-overlap` and `--chunking-strategy` compare chunking, and `--json` records the run's settings, a hash of the question set and each question's generated queries. Every run makes billed embedding and model calls; [Retrieval evaluation](docs/retrieval-eval.md) has the options and the cost. Knowledge agents' defaults are unchanged. (#2482)
+- A retrieval benchmark over 34 documentation questions, including negative and
+  cross-language answers. `make eval-retrieval` compares retrieval depth, query
+  expansion and chunk settings, with per-question results and reproducible run
+  metadata. [Retrieval evaluation](docs/retrieval-eval.md) records the measured
+  comparison and the decision on knowledge-agent defaults (#2482).
 
 ### Fixed
 
-- A workflow's **knowledge.search** step no longer gives a Markdown, text, HTML or Word source a page number, so the **agent.run** step after it no longer cites one as "page 1". A PDF or a presentation keeps its page. Agent chat already cited this way. (#2482)
+- Workflow **knowledge.search** citations omit page numbers for formats without
+  pages, including Markdown, text, HTML and `.docx`. PDF pages and presentation
+  slides keep their locations (#2482).
 
 ## [1.62.2] - 2026-11-10
 

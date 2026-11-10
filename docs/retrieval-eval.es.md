@@ -1,7 +1,7 @@
 ---
 title: "Evaluación de recuperación"
 description: "Un conjunto de preguntas sobre la documentación con respuestas conocidas, y el harness que mide la recuperación por categoría, top_k y expansión."
-source_sha: "caae743b8e22"
+source_sha: "4a39f7cb19a0"
 ---
 
 # Evaluación de recuperación { #retrieval-evaluation }
@@ -211,11 +211,66 @@ de tu provider. Con estos precios, la matriz completa de dos valores de `top_k`,
 tres modos y respuestas cuesta menos de un dólar. Al final, la ejecución imprime
 las llamadas al modelo que hizo y sus tokens.
 
+## Comparación medida { #measured-comparison }
+
+El 10 de noviembre de 2026, una ejecución real usó la conexión existente GPT-6
+Luna mediante OpenRouter: `openai/gpt-6-luna` para ampliar consultas y responder,
+y `openai/text-embedding-3-small` con 1536 dimensiones para embeddings. El corpus
+en la revisión `e8e782562` contenía 128 páginas en inglés (1452 fragmentos) y 128
+en polaco (1553 fragmentos). La fragmentación fue `recursive`, con tamaño 2500 y
+solapamiento 200. Las 34 preguntas se ejecutaron en cada configuración; las
+consultas ampliadas se reutilizaron en las dos profundidades de búsqueda.
+
+| `top_k` | Modo | hit@k | recall@k | MRR | Comprobaciones de hechos en las respuestas |
+|---|---|---|---|---|---|
+| 5 | `off` | 73.5% | 70.6% | 0.571 | 23/34 |
+| 5 | `multi_query` | 76.5% | 73.5% | 0.581 | 25/34 |
+| 5 | `hyde` | 88.2% | 83.8% | 0.698 | 25/34 |
+| 10 | `off` | 85.3% | 83.8% | 0.588 | 28/34 |
+| 10 | `multi_query` | 79.4% | 77.9% | 0.621 | 24/34 |
+| 10 | `hyde` | 94.1% | 92.6% | 0.705 | 27/34 |
+
+Las dos preguntas sobre SAML, en inglés y polaco, recuperaron la página de
+directorio y respondieron que SAML no se admite directamente y Keycloak sirve
+de puente, en las seis configuraciones. `10/hyde` alcanzó una página esperada
+para las diez preguntas entre idiomas. `10/off` superó más comprobaciones de
+respuestas y mejoró cinco respuestas respecto a `5/off`, sin añadir otro fallo
+ni necesitar una llamada de ampliación.
+
+Para un agente de documentación con este corpus, empieza con `default_top_k: 10`
+y `query_analysis_mode: off`. Elige `hyde` expresamente cuando alcanzar más
+páginas esperadas, sobre todo entre idiomas, importe más que su llamada adicional
+al modelo y sus búsquedas. Conserva los valores por defecto de la plataforma,
+`default_top_k: 5` y `query_analysis_mode: off`: un corpus pequeño y un modelo
+no justifican aumentar el contexto ni añadir llamadas de ampliación para todos
+los despliegues.
+
+La [ejecución completa](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna.json)
+contiene los resultados por categoría, cada página recuperada, consulta ampliada
+y respuesta, hashes del corpus, versiones de paquetes y consumo de tokens.
+Realizó 272 solicitudes al modelo con 872.567 tokens de entrada y 41.553 de
+salida, además de los embeddings. Son medidas de una sola ejecución, no una
+garantía de calidad ni una comparación estadística repetida. Seis respuestas de
+`10/off` aún omitieron hechos requeridos, como el rol que aprueba, el tamaño por
+defecto del fragmento y el puente stdio. Siguen vigentes las limitaciones de la
+comprobación de respuestas descritas arriba.
+
+Para repetir los ajustes del modelo y la búsqueda con tu propia clave autorizada:
+
+```bash
+OPENAI_BASE_URL=https://openrouter.ai/api/v1 make eval-retrieval EVAL_ARGS="\
+    --embedding-base-url https://openrouter.ai/api/v1 \
+    --embedding-model openai/text-embedding-3-small --embedding-dim 1536 \
+    --llm-model openai-chat:openai/gpt-6-luna \
+    --top-k 5 --top-k 10 --mode off --mode multi_query --mode hyde \
+    --answers --json /tmp/retrieval.json"
+```
+
 ## Qué no decide { #what-it-does-not-decide }
 
-La suite mide; no cambia ningún valor por defecto. La capability de conocimiento
-mantiene `default_top_k` 5 y `query_analysis_mode` `off` hasta que una ejecución
-medida respalde un cambio. La suite tampoco prueba permisos. Sus colecciones no
+La herramienta nunca cambia los ajustes de un agente. La recomendación anterior
+se aplica al corpus de documentación medido; evalúa tu propio corpus antes de
+cambiar un agente. La suite tampoco prueba permisos. Sus colecciones no
 pertenecen a ninguna organización y se buscan sin ámbito, como hace `rag-search`.
 Las páginas de [procesamiento de archivos](file-processing.md) y de la
 [capability de conocimiento](reference/capabilities.md#query-analysis-and-expansion)

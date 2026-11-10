@@ -201,11 +201,63 @@ prices, the full matrix of two `top_k` values, three modes and answers costs
 under a dollar. The run prints the model calls it made and their tokens at the
 end.
 
+## Measured comparison
+
+On 10 November 2026, a real run used the existing GPT-6 Luna connection through
+OpenRouter: `openai/gpt-6-luna` for expansion and answers, and
+`openai/text-embedding-3-small` with 1536 dimensions for embeddings. The corpus
+at revision `e8e782562` contained 128 English pages (1452 chunks) and 128 Polish
+pages (1553 chunks). Chunking was `recursive`, size 2500, overlap 200. All 34
+questions ran in every configuration; expanded queries were reused across the
+two retrieval depths.
+
+| `top_k` | Mode | hit@k | recall@k | MRR | Answer fact checks |
+|---|---|---|---|---|---|
+| 5 | `off` | 73.5% | 70.6% | 0.571 | 23/34 |
+| 5 | `multi_query` | 76.5% | 73.5% | 0.581 | 25/34 |
+| 5 | `hyde` | 88.2% | 83.8% | 0.698 | 25/34 |
+| 10 | `off` | 85.3% | 83.8% | 0.588 | 28/34 |
+| 10 | `multi_query` | 79.4% | 77.9% | 0.621 | 24/34 |
+| 10 | `hyde` | 94.1% | 92.6% | 0.705 | 27/34 |
+
+Both SAML questions, in English and Polish, retrieved the directory page and
+answered that SAML is not supported directly and Keycloak is the bridge, in all
+six configurations. `10/hyde` reached an expected page for all ten cross-language
+questions. `10/off` passed the most answer checks, improving five answers over
+`5/off` without introducing another failed check or requiring an expansion call.
+
+For a documentation agent on this corpus, start with `default_top_k: 10` and
+`query_analysis_mode: off`. Choose `hyde` explicitly when reaching more expected
+pages, especially across languages, matters more than its additional model call
+and searches. Retain the platform defaults of `default_top_k: 5` and
+`query_analysis_mode: off`: one small corpus and one model do not justify
+increasing context or adding expansion calls for every deployment.
+
+The [complete run](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna.json)
+contains category scores, every retrieved page, expanded query and answer, corpus
+hashes, package versions and token usage. It made 272 model requests using
+872,567 input and 41,553 output tokens, in addition to embeddings. These are
+single-run measurements, not a quality guarantee or a repeated statistical
+comparison. Six `10/off` answers still missed required facts, including the
+approval role, default chunk size and stdio bridge; the answer check's limitations
+above still apply.
+
+To repeat the same model and retrieval settings with your own authorized key:
+
+```bash
+OPENAI_BASE_URL=https://openrouter.ai/api/v1 make eval-retrieval EVAL_ARGS="\
+    --embedding-base-url https://openrouter.ai/api/v1 \
+    --embedding-model openai/text-embedding-3-small --embedding-dim 1536 \
+    --llm-model openai-chat:openai/gpt-6-luna \
+    --top-k 5 --top-k 10 --mode off --mode multi_query --mode hyde \
+    --answers --json /tmp/retrieval.json"
+```
+
 ## What it does not decide
 
-The suite measures; it does not change any defaults. The knowledge capability
-keeps `default_top_k` 5 and `query_analysis_mode` `off` until a measured run
-supports a change. The suite also does not test permissions. Its collections
+The harness never changes an agent's settings. The recommendation above applies
+to the measured documentation corpus; evaluate your own corpus before changing
+an agent. The suite also does not test permissions. Its collections
 belong to no organization and are searched unscoped, as `rag-search` does. The
 [file processing](file-processing.md) and
 [knowledge capability](reference/capabilities.md#query-analysis-and-expansion)

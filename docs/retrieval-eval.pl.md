@@ -1,7 +1,7 @@
 ---
 title: Ewaluacja wyszukiwania
 description: Zestaw pytań o znanych odpowiedziach do dokumentacji AgenticOS i harness mierzący na nim wyszukiwanie wiedzy według kategorii, top_k i rozszerzania zapytań.
-source_sha: "caae743b8e22"
+source_sha: "4a39f7cb19a0"
 ---
 
 # Ewaluacja wyszukiwania { #retrieval-evaluation }
@@ -203,11 +203,65 @@ Przy tych cenach pełna macierz dwóch wartości `top_k`, trzech trybów i odpow
 kosztuje poniżej dolara. Na końcu przebieg wypisuje wykonane wywołania modelu i
 ich tokeny.
 
+## Zmierzone porównanie { #measured-comparison }
+
+10 listopada 2026 r. rzeczywisty przebieg użył istniejącego połączenia GPT-6 Luna
+przez OpenRouter: `openai/gpt-6-luna` do rozwijania zapytań i odpowiedzi oraz
+`openai/text-embedding-3-small` z 1536 wymiarami do embeddingów. Korpus w rewizji
+`e8e782562` zawierał 128 stron angielskich (1452 chunki) i 128 polskich (1553
+chunki). Chunkowanie: `recursive`, rozmiar 2500, nakładanie 200. Wszystkie 34
+pytania uruchomiono w każdej konfiguracji; rozwinięte zapytania wykorzystano
+ponownie dla obu głębokości wyszukiwania.
+
+| `top_k` | Tryb | hit@k | recall@k | MRR | Kontrole faktów w odpowiedzi |
+|---|---|---|---|---|---|
+| 5 | `off` | 73.5% | 70.6% | 0.571 | 23/34 |
+| 5 | `multi_query` | 76.5% | 73.5% | 0.581 | 25/34 |
+| 5 | `hyde` | 88.2% | 83.8% | 0.698 | 25/34 |
+| 10 | `off` | 85.3% | 83.8% | 0.588 | 28/34 |
+| 10 | `multi_query` | 79.4% | 77.9% | 0.621 | 24/34 |
+| 10 | `hyde` | 94.1% | 92.6% | 0.705 | 27/34 |
+
+Oba pytania o SAML, po angielsku i polsku, znalazły stronę o logowaniu
+katalogowym i uzyskały odpowiedź, że SAML nie jest obsługiwany bezpośrednio,
+a pośrednikiem jest Keycloak, we wszystkich sześciu konfiguracjach. `10/hyde`
+dotarł do oczekiwanej strony dla wszystkich dziesięciu pytań międzyjęzykowych.
+`10/off` zaliczył najwięcej kontroli odpowiedzi, poprawiając pięć odpowiedzi
+względem `5/off`, bez nowych niezaliczonych kontroli ani wywołania rozwijania.
+
+Dla agenta dokumentacji na tym korpusie zacznij od `default_top_k: 10` i
+`query_analysis_mode: off`. Wybierz `hyde` jawnie, gdy dotarcie do większej liczby
+oczekiwanych stron, zwłaszcza między językami, jest ważniejsze niż dodatkowe
+wywołanie modelu i wyszukiwania. Zachowaj wartości domyślne platformy:
+`default_top_k: 5` i `query_analysis_mode: off`. Jeden mały korpus i jeden model
+nie uzasadniają zwiększania kontekstu ani dodawania rozwijania dla każdego
+wdrożenia.
+
+[Pełny przebieg](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna.json)
+zawiera wyniki kategorii, każdą znalezioną stronę, rozwinięte zapytanie i odpowiedź,
+hashe korpusu, wersje pakietów i zużycie tokenów. Wykonał 272 żądania modelu,
+zużywając 872 567 tokenów wejściowych i 41 553 wyjściowych, poza embeddingami.
+To pomiary pojedynczego przebiegu, nie gwarancja jakości ani powtarzane porównanie
+statystyczne. Sześć odpowiedzi `10/off` nadal pomijało wymagane fakty, w tym rolę
+zatwierdzającą, domyślny rozmiar chunka i pośrednika stdio. Nadal obowiązują
+opisane wyżej ograniczenia kontroli odpowiedzi.
+
+Aby powtórzyć ustawienia modelu i wyszukiwania z własnym autoryzowanym kluczem:
+
+```bash
+OPENAI_BASE_URL=https://openrouter.ai/api/v1 make eval-retrieval EVAL_ARGS="\
+    --embedding-base-url https://openrouter.ai/api/v1 \
+    --embedding-model openai/text-embedding-3-small --embedding-dim 1536 \
+    --llm-model openai-chat:openai/gpt-6-luna \
+    --top-k 5 --top-k 10 --mode off --mode multi_query --mode hyde \
+    --answers --json /tmp/retrieval.json"
+```
+
 ## Czego nie rozstrzyga { #what-it-does-not-decide }
 
-Zestaw mierzy; nie zmienia żadnych wartości domyślnych. Capability wiedzy
-zachowuje `default_top_k` 5 i `query_analysis_mode` `off`, dopóki zmierzony
-przebieg nie uzasadni zmiany. Zestaw nie testuje też uprawnień. Jego kolekcje nie
+Narzędzie nigdy nie zmienia ustawień agenta. Powyższe zalecenie dotyczy zmierzonego
+korpusu dokumentacji; oceń własny korpus przed zmianą agenta. Zestaw nie testuje
+też uprawnień. Jego kolekcje nie
 należą do żadnej organizacji i są przeszukiwane bez zawężenia zakresu, tak jak
 robi to `rag-search`. Strony [przetwarzania plików](file-processing.md) i
 [capability wiedzy](reference/capabilities.md#query-analysis-and-expansion)

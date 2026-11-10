@@ -1,7 +1,7 @@
 ---
 title: Retrieval-Evaluierung
 description: Ein Fragenkatalog mit bekannten Antworten über die AgenticOS-Doku und ein Harness, der das Retrieval darauf misst, nach Kategorie, top_k und Abfrageerweiterung.
-source_sha: "caae743b8e22"
+source_sha: "4a39f7cb19a0"
 ---
 
 # Retrieval-Evaluierung { #retrieval-evaluation }
@@ -213,11 +213,67 @@ diesen Preisen kostet die volle Matrix aus zwei `top_k`-Werten, drei Modi und
 Antworten unter einem Dollar. Am Ende gibt der Lauf die Modellaufrufe aus, die er
 gemacht hat, und ihre Tokens.
 
+## Gemessener Vergleich { #measured-comparison }
+
+Am 10. November 2026 nutzte ein echter Lauf die bestehende GPT-6-Luna-Verbindung
+über OpenRouter: `openai/gpt-6-luna` für Erweiterungen und Antworten sowie
+`openai/text-embedding-3-small` mit 1536 Dimensionen für Embeddings. Der Korpus
+bei Revision `e8e782562` enthielt 128 englische Seiten (1452 Chunks) und 128
+polnische Seiten (1553 Chunks). Chunking: `recursive`, Größe 2500, Überlappung
+200. Alle 34 Fragen liefen in jeder Konfiguration; die erweiterten Abfragen
+wurden für beide Suchtiefen wiederverwendet.
+
+| `top_k` | Modus | hit@k | recall@k | MRR | Faktenprüfungen der Antworten |
+|---|---|---|---|---|---|
+| 5 | `off` | 73.5% | 70.6% | 0.571 | 23/34 |
+| 5 | `multi_query` | 76.5% | 73.5% | 0.581 | 25/34 |
+| 5 | `hyde` | 88.2% | 83.8% | 0.698 | 25/34 |
+| 10 | `off` | 85.3% | 83.8% | 0.588 | 28/34 |
+| 10 | `multi_query` | 79.4% | 77.9% | 0.621 | 24/34 |
+| 10 | `hyde` | 94.1% | 92.6% | 0.705 | 27/34 |
+
+Beide SAML-Fragen, auf Englisch und Polnisch, fanden in allen sechs
+Konfigurationen die Verzeichnisseite und erhielten die Antwort: SAML wird nicht
+direkt unterstützt, Keycloak dient als Brücke. `10/hyde` erreichte bei allen zehn
+sprachübergreifenden Fragen eine erwartete Seite. `10/off` bestand die meisten
+Antwortprüfungen und verbesserte fünf Antworten gegenüber `5/off`, ohne einen
+zusätzlichen Fehlschlag oder einen Aufruf zur Abfrageerweiterung.
+
+Für einen Dokumentationsagenten auf diesem Korpus beginne mit
+`default_top_k: 10` und `query_analysis_mode: off`. Wähle `hyde` ausdrücklich,
+wenn das Erreichen weiterer erwarteter Seiten, besonders über Sprachgrenzen
+hinweg, wichtiger ist als der zusätzliche Modellaufruf und die Suchanfragen.
+Behalte die Plattformstandards `default_top_k: 5` und
+`query_analysis_mode: off` bei: Ein kleiner Korpus und ein Modell rechtfertigen
+nicht mehr Kontext oder zusätzliche Erweiterungsaufrufe für jede Bereitstellung.
+
+Der [vollständige Lauf](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna.json)
+enthält Kategorieergebnisse, jede gefundene Seite, erweiterte Abfrage und Antwort,
+Korpus-Hashes, Paketversionen und Tokenverbrauch. Er führte 272 Modellanfragen
+mit 872.567 Eingabe- und 41.553 Ausgabe-Tokens aus, zusätzlich zu Embeddings.
+Das sind Messungen eines einzelnen Laufs, keine Qualitätsgarantie oder
+wiederholter statistischer Vergleich. Sechs Antworten mit `10/off` verfehlten
+weiterhin erforderliche Fakten, darunter die genehmigende Rolle, die
+Standard-Chunkgröße und die stdio-Brücke. Die oben beschriebenen Grenzen der
+Antwortprüfung gelten weiterhin.
+
+So wiederholst du die Modell- und Sucheinstellungen mit deinem eigenen
+autorisierten Schlüssel:
+
+```bash
+OPENAI_BASE_URL=https://openrouter.ai/api/v1 make eval-retrieval EVAL_ARGS="\
+    --embedding-base-url https://openrouter.ai/api/v1 \
+    --embedding-model openai/text-embedding-3-small --embedding-dim 1536 \
+    --llm-model openai-chat:openai/gpt-6-luna \
+    --top-k 5 --top-k 10 --mode off --mode multi_query --mode hyde \
+    --answers --json /tmp/retrieval.json"
+```
+
 ## Was sie nicht entscheidet { #what-it-does-not-decide }
 
-Die Suite misst; sie ändert keine Standardwerte. Die Wissens-Capability behält
-`default_top_k` 5 und `query_analysis_mode` `off`, bis ein gemessener Lauf eine
-Änderung stützt. Die Suite testet auch keine Berechtigungen. Ihre Collections
+Das Werkzeug ändert niemals die Einstellungen eines Agenten. Die Empfehlung oben
+gilt für den gemessenen Dokumentationskorpus; prüfe deinen eigenen Korpus, bevor
+du einen Agenten änderst. Die Suite testet auch keine Berechtigungen. Ihre Collections
 gehören zu keiner Organisation und werden ohne Einschränkung durchsucht, wie es
 `rag-search` tut. Die Seiten zur [Dateiverarbeitung](file-processing.md) und zur
 [Wissens-Capability](reference/capabilities.md#query-analysis-and-expansion)
