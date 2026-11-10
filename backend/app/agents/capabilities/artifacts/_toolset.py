@@ -112,11 +112,11 @@ PAGES_GUIDE = "artifact-pages"
 """The bundled skill that holds the page templates and every kit component.
 
 A skill reaches a run as a deferred capability whose id is the skill's name, so
-this is also the id `load_capability` takes."""
+this is also the id `read_skill` takes."""
 
 _LOAD_THE_GUIDE = (
     f"Before publishing a new page, load the `{PAGES_GUIDE}` guide with "
-    f"`load_capability` (id `{PAGES_GUIDE}`), rebuild the page from its template and "
+    f"`read_skill` (id `{PAGES_GUIDE}`), rebuild the page from its template and "
     "components, then publish again under the same name."
 )
 
@@ -369,7 +369,9 @@ def build_artifacts_toolset(
         `lib/topojson-client-3.1.0.min.js`, `lib/world-atlas-2.0.2-110m.js` and
         `lib/agenticos-worldmap-1.js` after d3 (`AOWorldMap.draw(element, {countries:
         {Poland: 12}, pins, routes})` shades countries by a value; prefer it to the tile
-        map unless street level is needed);
+        map by default, including city-to-city routes and itineraries. Use the tile
+        map only for street detail when `agenticos.map` is configured, and render
+        AOWorldMap as the fallback if tile loading fails);
         `lib/agenticos-2.css`, `lib/agenticos-2.js`, `lib/agenticos-1.css` and `lib/agenticos-map-1.js` stay served for pages published
         against them; build new pages on version 3. Follow the page
         contract in your instructions: doctype and viewport, `main.ao-page`, the header,

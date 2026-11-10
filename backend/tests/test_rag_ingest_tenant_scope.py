@@ -295,7 +295,7 @@ class TestKnowledgeBaseVectorTenant:
         from app.db.models.knowledge_base import KBScope
 
         assert self._kb(KBScope.APP.value, None).vector_scope == VectorScope(
-            tenant=None, knowledge_base_id=KB_A, takes_unfiled=True
+            tenant=None, knowledge_base_id=KB_A, takes_unfiled=True, operator_unfiled_only=True
         )
 
     def test_a_personal_base_outside_any_organization_takes_no_unfiled_chunks(self):
@@ -304,7 +304,7 @@ class TestKnowledgeBaseVectorTenant:
         from app.db.models.knowledge_base import KBScope
 
         assert self._kb(KBScope.PERSONAL.value, None).vector_scope == VectorScope(
-            tenant=None, knowledge_base_id=KB_A, takes_unfiled=False
+            tenant=None, knowledge_base_id=KB_A, takes_unfiled=False, operator_unfiled_only=True
         )
 
 
@@ -318,6 +318,7 @@ class TestTheScopeClause:
             knowledge_base_id=KB_A,
             takes_unfiled=takes_unfiled,
             additional_knowledge_base_ids=(second,),
+            operator_unfiled_only=tenant is None,
         )
         assert scope_for(scope).vectors() == scope
         clause, params = _vector_scope_clause(scope, prefix="search_")
@@ -327,7 +328,7 @@ class TestTheScopeClause:
             assert "(metadata->>'organization_id') IS NULL" in clause
         else:
             assert params["search_org"] == str(tenant)
-        assert ("OR (metadata->>'knowledge_base_id') IS NULL" in clause) is takes_unfiled
+        assert ("(metadata->>'knowledge_base_id') IS NULL" in clause) is takes_unfiled
 
     def test_a_tenant_is_an_equality_with_a_bound_value(self):
         clause, params = _vector_scope_clause(VectorScope(tenant=ORG_A))
@@ -402,7 +403,9 @@ class TestResolveScopeForASearch:
         store = self._store(ResolvedEmbeddings.__new__(ResolvedEmbeddings))
         store._resolver = AsyncMock(side_effect=AssertionError("must not resolve"))  # type: ignore[method-assign]
 
-        assert await store.resolve_scope("kb", None) == DEPLOYMENT_WIDE
+        assert await store.resolve_scope("kb", None) == VectorScope(
+            tenant=None, operator_unfiled_only=True
+        )
 
     async def test_an_org_collection_resolves_to_its_base(self):
         resolved = ResolvedEmbeddings(
@@ -421,7 +424,9 @@ class TestResolveScopeForASearch:
     async def test_a_collection_no_base_claims_resolves_to_the_deployment_wide_tenant(self):
         store = self._store(None)
 
-        assert await store.resolve_scope("kb", ORG_B) == DEPLOYMENT_WIDE
+        assert await store.resolve_scope("kb", ORG_B) == VectorScope(
+            tenant=None, operator_unfiled_only=True
+        )
 
 
 @asynccontextmanager

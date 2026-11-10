@@ -1,7 +1,7 @@
 # loop.item
 
-The first step of every `control.foreach` body, connected from the loop's
-`body` port. It provides the current element as `item`, its position as
+The first step of every `control.foreach` body: nothing is wired into it, and
+each iteration starts here because it is the body's item step. It provides the current element as `item`, its position as
 `index` (from 0) and the list's length as `count`, and every step in the body
 binds to those fields.
 
@@ -14,5 +14,4 @@ takes no policy.
 
 | Port | Kind | Schema | What it carries |
 |---|---|---|---|
-| `in` | input | none | the loop's `body` edge |
 | `out` | output | `LoopItemOutput` | `item`, `index`, `count` |

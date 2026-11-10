@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { SidebarShell } from "./sidebar-shell";
@@ -25,14 +25,27 @@ vi.mock("@/components/layout/sidebar-user", () => ({
     <button>{compact ? "the account avatar" : "the account menu"}</button>
   ),
 }));
+vi.mock("@/components/layout/organization-switcher", () => ({
+  OrganizationSwitcher: ({
+    collapsed,
+    onNavigate,
+  }: {
+    collapsed?: boolean;
+    onNavigate?: () => void;
+  }) => (
+    <button onClick={onNavigate}>
+      {collapsed ? "the organization avatar" : "the organization switcher"}
+    </button>
+  ),
+}));
 vi.mock("@/components/language-switcher", () => ({
   LanguageSwitcherIcon: () => <button>the language switcher</button>,
 }));
 vi.mock("@/components/theme", () => ({ ThemeToggle: () => <button>the theme toggle</button> }));
 
-function renderShell(props: { collapsed?: boolean } = {}) {
+function renderShell(props: { collapsed?: boolean; onNavigate?: () => void } = {}) {
   return render(
-    <SidebarShell collapsed={props.collapsed}>
+    <SidebarShell collapsed={props.collapsed} onNavigate={props.onNavigate}>
       <nav aria-label="Primary">the destinations</nav>
     </SidebarShell>,
   );
@@ -43,6 +56,18 @@ function follows(earlier: HTMLElement, later: HTMLElement): boolean {
 }
 
 describe("SidebarShell", () => {
+  it("shows organization context before chat, search and destinations", () => {
+    renderShell();
+    const switcher = screen.getByRole("button", { name: "the organization switcher" });
+    for (const following of [
+      screen.getByRole("link", { name: "New chat" }),
+      screen.getByRole("button", { name: "the search row" }),
+      screen.getByRole("navigation"),
+    ]) {
+      expect(follows(switcher, following)).toBe(true);
+    }
+  });
+
   it("keeps labelled search above the destinations", () => {
     renderShell();
     expect(
@@ -71,6 +96,9 @@ describe("SidebarShell", () => {
     expect(scroller).toHaveClass("overflow-y-auto");
     expect(scroller).not.toContainElement(screen.getByRole("button", { name: "the account menu" }));
     expect(scroller).not.toContainElement(screen.getByRole("button", { name: "the search row" }));
+    expect(scroller).not.toContainElement(
+      screen.getByRole("button", { name: "the organization switcher" }),
+    );
   });
 
   it("keeps the actions out of the destination list", () => {
@@ -103,6 +131,22 @@ describe("SidebarShell", () => {
     renderShell({ collapsed: true });
 
     expect(screen.getByRole("button", { name: "the account avatar" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "the organization avatar" })).toBeInTheDocument();
+    expect(
+      follows(
+        screen.getByRole("button", { name: "the organization avatar" }),
+        screen.getByRole("navigation"),
+      ),
+    ).toBe(true);
+  });
+
+  it("lets organization selection dismiss the mobile navigation", () => {
+    const onNavigate = vi.fn();
+    renderShell({ onNavigate });
+
+    fireEvent.click(screen.getByRole("button", { name: "the organization switcher" }));
+
+    expect(onNavigate).toHaveBeenCalledOnce();
   });
 
   it("draws no collapse control, which belongs on the column's own title bar", () => {

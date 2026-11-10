@@ -99,3 +99,18 @@ async def test_retained_storage_exhaustion_is_not_retried_or_bypassed():
     assert isinstance(result, Failed)
     assert result.error.code == "WORKFLOW_INLINE_STORAGE_LIMIT"
     assert result.error.retryable is False and result.error.bypassable is False
+
+
+@pytest.mark.parametrize("busy", [False, True])
+async def test_input_validator_capacity_and_availability_remain_retryable(busy: bool) -> None:
+    from app.core.exceptions import RateLimitError
+    from app.services.workflow_execution.exceptions import WorkflowInputValidationUnavailableError
+
+    refusal = (
+        RateLimitError(message="Input validation is busy")
+        if busy
+        else WorkflowInputValidationUnavailableError(reason="failed")
+    )
+    result = await _admit_with_refusal(None, refusal=refusal)
+    assert isinstance(result, Failed)
+    assert result.error.code == refusal.code and result.error.retryable is True

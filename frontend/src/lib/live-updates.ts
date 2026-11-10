@@ -75,7 +75,14 @@ const STALE: Record<ChangeResource, (orgId: string) => QueryKey[]> = {
 };
 
 export function staleQueries(event: ChangeEvent): QueryKey[] {
-  return STALE[event.resource](event.organization_id);
+  const keys = STALE[event.resource](event.organization_id);
+  if (
+    ["run", "agent", "member", "group", "organization", "conversation", "secret"].includes(
+      event.resource,
+    )
+  )
+    keys.push(qk.onboarding.all());
+  return keys;
 }
 
 type Listener = (event: ChangeEvent) => void;

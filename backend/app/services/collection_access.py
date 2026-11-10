@@ -31,6 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # answers "nothing collides" with no error to say so.
 import app.db.models  # noqa: F401
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.base import Base
 from app.db.locks import LockScope, hold_name, hold_name_within
@@ -533,12 +534,29 @@ class CollectionAccessService:
         by the name, else an app-scoped one. Authorizing any writable base of the
         name instead let a member who owns a newer same-named personal base point
         a source at the organization's base they cannot edit (#2537).
+
+        Raises:
+            BadRequestError: Eligible bases tie on the oldest creation time.
         """
         await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, name)
         candidates = await knowledge_base_repo.list_by_collection_name(self.db, name)
         target = knowledge_base_repo.choose_for_collection(candidates, ctx.organization_id)
         if target is None or not await writable_kb(self.db, ctx, target):
             raise _no_collection(name)
+        if any(
+            kb.id != target.id
+            and kb.organization_id == target.organization_id
+            and (target.organization_id is not None or kb.scope == target.scope)
+            and kb.created_at == target.created_at
+            for kb in candidates
+        ):
+            raise refused_field(
+                "collection_name",
+                (
+                    "This collection name has more than one knowledge base with the same "
+                    "creation time. Use a knowledge base with a unique collection name."
+                ),
+            )
         return target
 
     async def new_source_feeds(self, ctx: AuthContext, kb: KnowledgeBase) -> None:

@@ -28,6 +28,8 @@ from pydantic_ai.realtime import (
 from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.usage import RunUsage
 
+from app.agents.deps import AgentDeps
+from app.core.tool_identity import ToolIdentity
 from app.services.voice.guard import TranscriptGuard
 from app.services.voice.pump import EventPump
 from app.services.voice.transcript import SpeechClock
@@ -72,7 +74,8 @@ def _pump(*, guard=None, affordable=True, relay=None):
         questions=MagicMock(),
         prepared=SimpleNamespace(
             built=SimpleNamespace(
-                budget=SimpleNamespace(can_afford_next_request=AsyncMock(return_value=affordable))
+                deps=AgentDeps(),
+                budget=SimpleNamespace(can_afford_next_request=AsyncMock(return_value=affordable)),
             )
         ),
     )
@@ -150,15 +153,20 @@ async def test_a_finished_response_is_booked_saved_with_its_tools_and_checked_ag
     assert not pump.budget_exhausted
 
 
-async def test_the_text_twins_steps_are_shown_and_saved_on_the_turn_that_handed_off():
+@pytest.mark.parametrize("name, stable_id", [("write_file", None), ("save_report", "write_file")])
+async def test_the_text_twins_steps_are_shown_and_saved_on_the_turn_that_handed_off(
+    name: str, stable_id: str | None
+):
     pump, frames, started, _ = _pump()
+    if stable_id is not None:
+        started.prepared.built.deps.tool_definitions[name] = ToolIdentity(stable_id)
     hand_off = ToolCallPart(tool_name="hand_off", args={"task": "Draft it"}, tool_call_id="h1")
-    step = ToolCallPart(tool_name="write_file", args={"path": "a.md"}, tool_call_id="w1")
+    step = ToolCallPart(tool_name=name, args={"path": "a.md"}, tool_call_id="w1")
     await pump.handle(FunctionToolCallEvent(part=hand_off), _SESSION)
     await pump.worker_event(FunctionToolCallEvent(part=step))
     await pump.worker_event(
         FunctionToolResultEvent(
-            part=ToolReturnPart(tool_name="write_file", content="written", tool_call_id="w1")
+            part=ToolReturnPart(tool_name=name, content="written", tool_call_id="w1")
         )
     )
     await pump.worker_event(PartStartEvent(index=0, part=TextPart(content="Done")))
@@ -173,10 +181,12 @@ async def test_the_text_twins_steps_are_shown_and_saved_on_the_turn_that_handed_
     tools = started.writer.assistant_turn.await_args.kwargs["tools"]
     assert [(t.tool_name, t.result) for t in tools] == [
         ("hand_off", "Wrote a.md"),
-        ("write_file", "written"),
+        (name, "written"),
     ]
-    assert ("tool", {"name": "write_file", "status": "running"}) in frames
-    assert ("tool", {"name": "write_file", "status": "done"}) in frames
+    assert ("tool", {"name": name, "status": "running"}) in frames
+    assert ("tool", {"name": name, "status": "done"}) in frames
+
+    assert tools[1].tool_id == stable_id
 
 
 @pytest.mark.security

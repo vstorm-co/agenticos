@@ -18,6 +18,7 @@ a reviewer one decision, not three copies of it.
 
 import uuid
 from datetime import UTC, datetime
+from typing import Literal
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -666,9 +667,10 @@ class TestRevision:
         assert list(editable.await_args.args[2]) == list(skills.values())
         assert editable.await_args.args[3] is Perm.SKILLS_EDIT
 
+    @pytest.mark.parametrize("action", ["get", "apply", "discard"])
     async def test_a_proposal_for_a_skill_the_caller_cannot_edit_reads_as_missing(
-        self, monkeypatch
-    ):
+        self, monkeypatch: pytest.MonkeyPatch, action: Literal["get", "apply", "discard"]
+    ) -> None:
         """Applying and discarding read it the same way, so neither is reachable either."""
         service = _service(monkeypatch)
         proposal = _proposal()
@@ -676,12 +678,14 @@ class TestRevision:
         resolve = AsyncMock(return_value=False)
         monkeypatch.setattr(skill_proposals, "resolve_access", resolve)
 
-        for decide in (service.get, service.apply, service.discard):
-            with pytest.raises(NotFoundError) as refused:
-                await decide(
-                    _ctx(), proposal.id, _DECISION
-                ) if decide != service.get else await decide(_ctx(), proposal.id)
-            assert refused.value.details == {"proposal_id": str(proposal.id)}
+        with pytest.raises(NotFoundError) as refused:
+            if action == "get":
+                await service.get(_ctx(), proposal.id)
+            elif action == "apply":
+                await service.apply(_ctx(), proposal.id, _DECISION)
+            else:
+                await service.discard(_ctx(), proposal.id, _DECISION)
+        assert refused.value.details == {"proposal_id": str(proposal.id)}
 
         assert resolve.await_args.args[3] is Perm.SKILLS_EDIT
         service.skills.update.assert_not_called()

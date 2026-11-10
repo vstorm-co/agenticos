@@ -1126,3 +1126,43 @@ async def test_a_call_with_nothing_free_waits_instead_of_admitting_a_run_with_no
         row = await workflow_run_repo.get_node_run_by_id(db, await _row_id(caller, first))
         assert row is not None and row.waiting_reason == "retry_backoff"
         assert await workflow_run_repo.get_run_called_by(db, node_run_id=row.id) is None
+
+
+@pytest.mark.security
+async def test_a_called_workflow_keeps_refusal_provenance_without_chat_delivery(
+    engine: AsyncEngine,
+):
+    from app.repositories import conversation as conversations
+    from app.services.workflow_execution.dispatcher import _chat_source
+
+    _ctx, callee, member = await _published_callee(engine, _callee())
+    graph, step = _caller(callee.id)
+    seeded = await seed_run(engine, graph, member=member)
+    async with seeded.factory() as db:
+        chat = await conversations.create_conversation(
+            db, organization_id=seeded.org.id, user_id=seeded.principal.id
+        )
+        message = await conversations.create_message(
+            db, conversation_id=chat.id, role="user", content="source prompt"
+        )
+        await workflow_run_repo.update_run(
+            db,
+            run=seeded.run,
+            update_data={
+                "source_conversation_id": chat.id,
+                "source_message_id": message.id,
+                "has_chat_source": True,
+            },
+        )
+        await db.commit()
+        conversation_id, message_id = chat.id, message.id
+    await drive(seeded)
+    child = await _called_run(seeded, step)
+    assert child.run.reply_conversation_id is None
+    assert child.run.has_chat_source is True
+    source = _chat_source(child.run)
+    assert source is not None and (source.conversation_id, source.message_id) == (
+        conversation_id,
+        message_id,
+    )
+    assert "source_message_id" not in child.run.input

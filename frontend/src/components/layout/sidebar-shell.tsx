@@ -1,7 +1,7 @@
 "use client";
 
-/** Shared desktop and phone navigation chrome. Search stays above the scrollable
- * destinations; notifications and account stay within reach below them. */
+/** Shared desktop and phone navigation chrome. Organization selection and search
+ * stay above the scrollable destinations; notifications and account stay below. */
 
 import Link from "next/link";
 import { SquarePen } from "lucide-react";
@@ -14,6 +14,7 @@ import { ConsoleVersion } from "@/components/layout/console-version";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { SidebarSearch } from "@/components/layout/sidebar-search";
 import { SidebarUser } from "@/components/layout/sidebar-user";
+import { OrganizationSwitcher } from "@/components/layout/organization-switcher";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -29,6 +30,9 @@ export function SidebarShell({
   const t = useTranslations("workspaceHome");
   return (
     <>
+      <div className={cn("shrink-0 pt-1", collapsed ? "flex justify-center px-1 pb-2" : "px-3")}>
+        <OrganizationSwitcher collapsed={collapsed} onNavigate={onNavigate} />
+      </div>
       {!collapsed && (
         <div className="flex shrink-0 flex-col gap-2 px-3 pt-3 pb-3">
           <Link

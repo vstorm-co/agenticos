@@ -1325,6 +1325,7 @@ class TestADeletedBasesChunksOnAKeptTable:
                 _kb_document(collection, None, None, files[3]),
                 _kb_document(collection, None, other_org.id, files[4]),
             ]
+            documents[3].writer_kind = "operator"  # Explicit CLI origin, not a missing owner.
             for index, document in enumerate(documents):
                 document.status = DocumentStatus.DONE.value
                 document.vector_document_id = f"doc-{index}"
@@ -1466,6 +1467,7 @@ class TestADeletedBasesChunksOnAKeptTable:
             if unfiled:
                 old.knowledge_base_id = None
                 old.organization_id = None
+                old.writer_kind = "operator"
             s.add(old)
             await s.execute(
                 text(
@@ -1473,6 +1475,12 @@ class TestADeletedBasesChunksOnAKeptTable:
                 )
             )
             await _document_chunk(s, table, "old-0", "old-doc", None if unfiled else default.id)
+            if unfiled:
+                await s.execute(
+                    text(
+                        f"UPDATE {table} SET metadata = metadata || '{{\"writer_kind\":\"operator\"}}'::jsonb WHERE id = 'old-0'"  # noqa: S608 - generated collection identifier
+                    )
+                )
             await _document_chunk(s, table, "sibling-0", "sibling-doc", sibling.id)
             await s.commit()
             default_id, old_id = default.id, old.id
@@ -2060,6 +2068,7 @@ async def test_a_queued_sync_refreshes_its_target_after_waiting_for_deletion(
     engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch, reassign: bool
 ) -> None:
     from collections.abc import AsyncIterator
+    from datetime import UTC, datetime, timedelta
 
     from app.db.models.sync_source import SyncSource
     from app.worker.tasks import rag_tasks
@@ -2072,6 +2081,8 @@ async def test_a_queued_sync_refreshes_its_target_after_waiting_for_deletion(
         await db.flush()
         org = await _org(db, owner)
         selected, fallback = _org_collection(org.id, name), _org_collection(org.id, name)
+        # Delete the canonical oldest base, independently of tied UUID ordering.
+        selected.created_at = datetime.now(UTC) - timedelta(days=1)
         db.add_all([selected, fallback])
         await db.flush()
         source = SyncSource(

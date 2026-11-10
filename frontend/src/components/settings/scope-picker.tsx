@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui";
 import type { ApiKeyScopeCatalog } from "@/types/api-keys";
-import type { Permission } from "@/types/permissions";
+import { Perm, type Permission } from "@/types/permissions";
 
 const CUSTOM = "custom";
 
@@ -82,6 +82,9 @@ export function ScopePicker({
           </SelectContent>
         </Select>
         <p className="text-muted-foreground text-xs">{t("accessWhy")}</p>
+        {catalog.scopes.includes(Perm.personalConsent) && (
+          <p className="text-muted-foreground text-xs">{t("personalConsentWhy")}</p>
+        )}
       </div>
       {custom ? (
         <fieldset className="grid gap-2 sm:grid-cols-2" aria-label={t("access")}>

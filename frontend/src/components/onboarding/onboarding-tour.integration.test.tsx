@@ -156,8 +156,9 @@ beforeEach(() => {
 });
 
 describe("OnboardingTour", () => {
-  it("auto-opens on the dashboard and welcomes a new user", async () => {
+  it("opens the requested tour and welcomes the reader", async () => {
     servePermissions(OWNER);
+    if (!useOnboardingStore.getState().isOpen) useOnboardingStore.getState().openTour();
     render(<OnboardingTour />, { wrapper });
     await waitFor(() => expect(shownStep().popover?.title).toBe("Welcome to AgenticOS"));
     expect(shownStep().popover?.progressText).toBe(`Step 1 of ${OWNER_LAUNCH}`);
@@ -165,6 +166,7 @@ describe("OnboardingTour", () => {
 
   it("offers the console's languages on the welcome card, and only there (#2072)", async () => {
     servePermissions(OWNER);
+    if (!useOnboardingStore.getState().isOpen) useOnboardingStore.getState().openTour();
     render(<OnboardingTour />, { wrapper });
     await waitFor(() => expect(shownStep().popover?.title).toBe("Welcome to AgenticOS"));
 
@@ -189,6 +191,7 @@ describe("OnboardingTour", () => {
     servePermissions(OWNER);
     vi.mocked(apiClient.patch).mockResolvedValue(user({ job_title: "Sales" }));
     useAuthStore.setState({ user: user({ job_title: "Finance" }) });
+    if (!useOnboardingStore.getState().isOpen) useOnboardingStore.getState().openTour();
     render(<OnboardingTour />, { wrapper });
     await waitFor(() => expect(shownStep().popover?.title).toBe("Welcome to AgenticOS"));
 
@@ -212,6 +215,7 @@ describe("OnboardingTour", () => {
   it("lets a role that could not be saved go quietly, for Settings to hold", async () => {
     servePermissions(OWNER);
     vi.mocked(apiClient.patch).mockRejectedValue(new Error("offline"));
+    if (!useOnboardingStore.getState().isOpen) useOnboardingStore.getState().openTour();
     render(<OnboardingTour />, { wrapper });
     await waitFor(() => expect(shownStep().popover?.title).toBe("Welcome to AgenticOS"));
 
@@ -229,6 +233,7 @@ describe("OnboardingTour", () => {
   it("advances to the next highlight when Next is clicked", async () => {
     // The bug this replaces: a click on Next did nothing once a spotlight was up.
     servePermissions(OWNER);
+    if (!useOnboardingStore.getState().isOpen) useOnboardingStore.getState().openTour();
     render(<OnboardingTour />, { wrapper });
     await waitFor(() => expect(shownStep().popover?.title).toBe("Welcome to AgenticOS"));
 
@@ -239,6 +244,7 @@ describe("OnboardingTour", () => {
 
   it("shows a view-only member their shorter tour", async () => {
     servePermissions(VIEWER);
+    if (!useOnboardingStore.getState().isOpen) useOnboardingStore.getState().openTour();
     render(<OnboardingTour />, { wrapper });
     await waitFor(() =>
       expect(shownStep().popover?.progressText).toBe(`Step 1 of ${VIEWER_LAUNCH}`),
@@ -248,6 +254,7 @@ describe("OnboardingTour", () => {
   it("persists completion when the tour is closed", async () => {
     servePermissions(OWNER);
     vi.mocked(apiClient.patch).mockResolvedValue(user({ onboarding_completed_at: "2026-02-02" }));
+    if (!useOnboardingStore.getState().isOpen) useOnboardingStore.getState().openTour();
     render(<OnboardingTour />, { wrapper });
     await waitFor(() => expect(shownStep().popover?.title).toBe("Welcome to AgenticOS"));
 
@@ -264,6 +271,7 @@ describe("OnboardingTour", () => {
     // its last page; closing it should land them on the home they started from.
     servePermissions(OWNER);
     vi.mocked(apiClient.patch).mockResolvedValue(user({ onboarding_completed_at: "2026-02-02" }));
+    if (!useOnboardingStore.getState().isOpen) useOnboardingStore.getState().openTour();
     render(<OnboardingTour />, { wrapper });
     await waitFor(() => expect(shownStep().popover?.title).toBe("Welcome to AgenticOS"));
 
@@ -276,6 +284,7 @@ describe("OnboardingTour", () => {
     // first agent together. Declining is silent; the Agents "?" re-offers it.
     servePermissions(OWNER);
     useOnboardingStore.setState({ isOpen: true, index: 999, mode: "tour" });
+    if (!useOnboardingStore.getState().isOpen) useOnboardingStore.getState().openTour();
     render(<OnboardingTour />, { wrapper });
     await waitFor(() => expect(spotlight.highlight).toHaveBeenCalled());
 
@@ -289,6 +298,7 @@ describe("OnboardingTour", () => {
     // tips. A "?" replay itself gets no reminder: it was opened from the "?".
     servePermissions(OWNER);
     vi.mocked(apiClient.patch).mockResolvedValue(user({ onboarding_completed_at: "2026-02-02" }));
+    if (!useOnboardingStore.getState().isOpen) useOnboardingStore.getState().openTour();
     render(<OnboardingTour />, { wrapper });
     await waitFor(() => expect(shownStep().popover?.title).toBe("Welcome to AgenticOS"));
 
@@ -305,6 +315,7 @@ describe("OnboardingTour", () => {
     servePermissions(OWNER);
     nav.pathname = "/skills/skill-1";
     useOnboardingStore.setState({ isOpen: true, index: 99, mode: "page" });
+    if (!useOnboardingStore.getState().isOpen) useOnboardingStore.getState().openTour();
     render(<OnboardingTour />, { wrapper });
     await waitFor(() => expect(spotlight.highlight).toHaveBeenCalled());
 
@@ -335,6 +346,7 @@ describe("OnboardingTour", () => {
     servePermissions(OWNER);
     nav.pathname = "/skills";
     useOnboardingStore.setState({ isOpen: true, index: 0, mode: "page" });
+    if (!useOnboardingStore.getState().isOpen) useOnboardingStore.getState().openTour();
     render(<OnboardingTour />, { wrapper });
     await waitFor(() => expect(spotlight.highlight).toHaveBeenCalled());
 
@@ -347,6 +359,7 @@ describe("OnboardingTour", () => {
     servePermissions(OWNER);
     nav.pathname = "/agents";
     useOnboardingStore.setState({ isOpen: true, index: 0, mode: "page" });
+    if (!useOnboardingStore.getState().isOpen) useOnboardingStore.getState().openTour();
     render(<OnboardingTour />, { wrapper });
     await waitFor(() => expect(spotlight.highlight).toHaveBeenCalled());
 
@@ -393,6 +406,7 @@ describe("OnboardingTour", () => {
     servePermissions(OWNER);
     nav.pathname = ROUTES.VAULT;
     useOnboardingStore.setState({ isOpen: true, index: 0, mode: "page" });
+    if (!useOnboardingStore.getState().isOpen) useOnboardingStore.getState().openTour();
     render(<OnboardingTour />, { wrapper });
     await waitFor(() => expect(spotlight.highlight).toHaveBeenCalled());
 
@@ -410,6 +424,7 @@ describe("OnboardingTour", () => {
     servePermissions(OWNER);
     nav.pathname = ROUTES.AGENTS;
     useOnboardingStore.setState({ isOpen: true, index: 0, mode: "page" });
+    if (!useOnboardingStore.getState().isOpen) useOnboardingStore.getState().openTour();
     render(<OnboardingTour />, { wrapper });
 
     await waitFor(() =>
@@ -425,6 +440,7 @@ describe("the tables walk", () => {
     servePermissions(OWNER);
     nav.pathname = "/tables/t-1";
     useOnboardingStore.setState({ isOpen: true, index: 0, mode: "page" });
+    if (!useOnboardingStore.getState().isOpen) useOnboardingStore.getState().openTour();
     render(<OnboardingTour />, { wrapper });
 
     await waitFor(() => expect(shownStep().popover?.title).toBe("Its columns"));
@@ -435,6 +451,7 @@ describe("the tables walk", () => {
     servePermissions(OWNER);
     nav.pathname = ROUTES.TABLES;
     useOnboardingStore.setState({ isOpen: true, index: 0, mode: "page" });
+    if (!useOnboardingStore.getState().isOpen) useOnboardingStore.getState().openTour();
     render(<OnboardingTour />, { wrapper });
 
     await waitFor(() => expect(shownStep().popover?.title).toBe("Your tables"));
@@ -478,6 +495,7 @@ describe("OnboardingTour's light", () => {
     target.dataset.tour = "agent-instructions-header";
     serveElements(tab("agent-tab-build", "active"), target);
     openBuilderHelp();
+    if (!useOnboardingStore.getState().isOpen) useOnboardingStore.getState().openTour();
     render(<OnboardingTour />, { wrapper });
 
     await waitFor(() => expect(light.focus).toHaveBeenCalledWith(target));
@@ -661,6 +679,7 @@ describe("OnboardingTour's light", () => {
         : Promise.resolve(),
     );
     openBuilderHelp();
+    if (!useOnboardingStore.getState().isOpen) useOnboardingStore.getState().openTour();
     render(<OnboardingTour />, { wrapper });
 
     await waitFor(() => expect(light.focus).toHaveBeenCalledWith(trigger));
@@ -716,6 +735,7 @@ describe("OnboardingTour's light", () => {
     );
     const chat = visibleTourSteps(() => true).findIndex((step) => step.page === ROUTES.CHAT);
     useOnboardingStore.setState({ isOpen: true, index: chat, mode: "tour" });
+    if (!useOnboardingStore.getState().isOpen) useOnboardingStore.getState().openTour();
     render(<OnboardingTour />, { wrapper });
 
     await waitFor(() => expect(router.push).toHaveBeenCalledWith(ROUTES.CHAT));
@@ -729,6 +749,7 @@ describe("OnboardingTour's light", () => {
 
   it("lights nothing on a step that describes no control", async () => {
     servePermissions(OWNER);
+    if (!useOnboardingStore.getState().isOpen) useOnboardingStore.getState().openTour();
     render(<OnboardingTour />, { wrapper });
     await waitFor(() => expect(shownStep().popover?.title).toBe("Welcome to AgenticOS"));
     expect(light.focus).toHaveBeenLastCalledWith(null);
@@ -737,6 +758,7 @@ describe("OnboardingTour's light", () => {
   it("takes the light down with the tour", async () => {
     servePermissions(OWNER);
     vi.mocked(apiClient.patch).mockResolvedValue(user({ onboarding_completed_at: "2026-02-02" }));
+    if (!useOnboardingStore.getState().isOpen) useOnboardingStore.getState().openTour();
     render(<OnboardingTour />, { wrapper });
     await waitFor(() => expect(light.focus).toHaveBeenCalled());
 

@@ -191,16 +191,34 @@ test.describe("Dashboard", () => {
       const pending = new Promise<void>((resolve) => {
         release = resolve;
       });
-      const agents = (url: URL) => url.pathname === "/api/agents";
-      await page.route(agents, async (route) => {
+      const startState = (url: URL) => url.pathname === "/api/me/onboarding";
+      await page.route(startState, async (route) => {
+        const response = await route.fetch();
+        expect(response.ok()).toBe(true);
+        const data: unknown = await response.json();
+        if (!data || typeof data !== "object" || Array.isArray(data))
+          throw new Error("Invalid start state");
         await pending;
-        await route.fulfill({ json: { items: [], total: 0 } });
+        await route.fulfill({
+          json: {
+            ...data,
+            dismissed: false,
+            completed: false,
+            has_activity: false,
+            agents: [],
+            has_result: false,
+            latest_conversation_id: null,
+            latest_completed_at: null,
+          },
+        });
       });
       await page.setViewportSize({ width, height: 1000 });
       await page.goto("/dashboard?view=me");
-      const checklist = page.getByRole("status", { name: "Loading", exact: true }).filter({
-        has: page.getByRole("heading", { name: "Get started", exact: true }),
+      const startPanel = page.getByRole("region", {
+        name: "Start with something useful",
+        exact: true,
       });
+      const checklist = startPanel.getByRole("status", { name: "Loading", exact: true });
       await expect(checklist).toBeVisible();
       await expect(page.getByText(/Your agents ran/)).toBeVisible();
       const briefing = page
@@ -211,7 +229,9 @@ test.describe("Dashboard", () => {
       const beforePeriod = await period.boundingBox();
       release?.();
       await expect(checklist).toHaveCount(0);
-      await expect(page.getByRole("progressbar")).toBeVisible();
+      await expect(
+        startPanel.getByRole("link", { name: "Get started", exact: true }),
+      ).toHaveAttribute("href", "/onboarding");
       const afterBriefing = await briefing.boundingBox();
       const afterPeriod = await period.boundingBox();
       if (!beforeBriefing || !afterBriefing || !beforePeriod || !afterPeriod)
@@ -219,7 +239,7 @@ test.describe("Dashboard", () => {
       expect(Math.abs(afterBriefing.x - beforeBriefing.x)).toBeLessThanOrEqual(1);
       expect(Math.abs(afterBriefing.width - beforeBriefing.width)).toBeLessThanOrEqual(1);
       expect(Math.abs(afterPeriod.y - beforePeriod.y)).toBeLessThanOrEqual(1);
-      await page.unroute(agents);
+      await page.unroute(startState);
     }
   });
 

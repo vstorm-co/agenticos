@@ -1,5 +1,7 @@
 "use client";
 
+import { toolLookupName } from "@/lib/tool-identity";
+
 import { memo } from "react";
 import { ChevronRight, Lightbulb, MessageCircleQuestion } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -25,6 +27,7 @@ import { RichText } from "./mention-chip";
 import { ToolCallCard } from "./tool-call-card";
 import { ToolGroup } from "./tool-group";
 import { PhoneCallCard } from "@/components/phone/phone-call-card";
+import { ModelSetupCard } from "./model-setup-card";
 import { WorkflowRunCard } from "./workflow-run-card";
 import { TurnVisuals } from "./visual-panel";
 import { YouFace } from "./you-face";
@@ -65,7 +68,10 @@ export function TurnParts({
   durationMs,
   stopped = false,
   waitingFor,
+  allowSetupActions = false,
 }: {
+  /** Private configuration actions are opt-in; shared transcripts remain read-only. */
+  allowSetupActions?: boolean;
   parts: MessagePart[];
   isStreaming: boolean;
   isUser: boolean;
@@ -101,7 +107,14 @@ export function TurnParts({
   const tTools = useTranslations("chat.tools");
   const latest = parts.at(-1);
   const activity = latest?.toolCall
-    ? toolStep(latest.toolCall.name, latest.toolCall.args, false, tTools, mcpServers).label
+    ? toolStep(
+        latest.toolCall.name,
+        latest.toolCall.args,
+        false,
+        tTools,
+        mcpServers,
+        latest.toolCall,
+      ).label
     : latest?.type === "thinking"
       ? tChat("thinking")
       : undefined;
@@ -121,7 +134,7 @@ export function TurnParts({
                 agents={agents}
                 // Rich outputs may open on arrival; routine action details stay opt-in.
                 startOpen={openLastStep && run.isLast && step === run.parts.length - 1}
-                autoExpand={toolEntry(part.toolCall!.name)?.opensOnSight === true}
+                autoExpand={toolEntry(toolLookupName(part.toolCall!))?.opensOnSight === true}
               />
             ))}
           </AgentSteps>
@@ -138,6 +151,12 @@ export function TurnParts({
         // turn: the orb marks where the thinking is arriving, and a turn
         // that thought twice would otherwise show two of them.
         isStreaming={isStreaming && run.isLast}
+      />
+    ) : run.part.type === "model_setup" ? (
+      <ModelSetupCard
+        key={run.part.id}
+        agentId={run.part.setupAgentId}
+        interactive={allowSetupActions}
       />
     ) : run.part.type === "steer" ? (
       <SteerBlock key={run.part.id} text={run.content} />
@@ -212,12 +231,12 @@ export const ThinkingBlock = memo(function ThinkingBlock({
       {/* A line, not a box. The reasoning is an aside on the way to an answer, and a
           bordered panel around it gives it more weight on the page than the answer
           itself - which is backwards, and was the loudest thing in every turn. */}
-      <summary className="text-muted-foreground hover:text-foreground/80 flex cursor-pointer items-center gap-2 text-[13px] select-none">
+      <summary className="text-muted-foreground hover:text-foreground/80 flex min-h-8 cursor-pointer items-center gap-2 px-1.5 text-[13px] select-none">
         {/* A bulb, not the orb. The orb is the turn at work, and it sits on the
             line above while the turn runs - two of them stacked read as the same
             thing said twice. This row is an aside you can open, drawn like the
             steps beside it: its own mark in the same slot, then its name. */}
-        <span aria-hidden className="flex h-6 w-6 shrink-0 items-center justify-center">
+        <span aria-hidden className="flex size-5 shrink-0 items-center justify-center">
           <Lightbulb className="h-3.5 w-3.5" />
         </span>
         <span className={cn(isStreaming && "shimmer-text")}>{t("thoughtAboutIt")}</span>
@@ -228,7 +247,7 @@ export const ThinkingBlock = memo(function ThinkingBlock({
           and the underscores literally, in a face that says "this is output"
           about the one part of a turn that is prose. Still the muted, smaller,
           scrollable aside it was; only the text is read properly now. */}
-      <div className="text-muted-foreground border-foreground/10 mt-2 max-h-72 overflow-y-auto border-l pl-3.5 text-[13px] leading-relaxed">
+      <div className="text-muted-foreground border-border/70 mt-2 ml-4 max-h-72 overflow-y-auto border-l pl-5 text-[13px] leading-relaxed">
         <MarkdownContent content={text} />
       </div>
     </details>
@@ -437,13 +456,18 @@ export function runsOf(parts: MessagePart[]): PartRun[] {
   for (const part of parts) {
     if (part.type === "tool" && part.toolCall) {
       // Drawn under the answer instead - buttons, a card - by `TurnExtras`.
-      if (drawnUnderTheAnswer(part.toolCall.name)) continue;
+      if (drawnUnderTheAnswer(toolLookupName(part.toolCall))) continue;
       const open = runs.at(-1);
       if (open?.kind === "tools") open.parts.push(part);
       else runs.push({ kind: "tools", parts: [part], isLast: false });
       continue;
     }
-    if (part.type === "ask_user" || part.type === "workflow_run" || part.type === "phone_call") {
+    if (
+      part.type === "ask_user" ||
+      part.type === "workflow_run" ||
+      part.type === "phone_call" ||
+      part.type === "model_setup"
+    ) {
       runs.push({ kind: "other", part, content: "", isLast: false });
       continue;
     }
@@ -470,7 +494,8 @@ export function browseCalls(runs: PartRun[]): ToolCall[] {
     run.kind === "tools"
       ? run.parts.flatMap((part) =>
           part.toolCall &&
-          (BROWSER_TOOLS.has(part.toolCall.name) || DESKTOP_TOOLS.has(part.toolCall.name))
+          (BROWSER_TOOLS.has(toolLookupName(part.toolCall)) ||
+            DESKTOP_TOOLS.has(toolLookupName(part.toolCall)))
             ? [part.toolCall]
             : [],
         )
@@ -487,7 +512,7 @@ export function visualCalls(runs: PartRun[]): ToolCall[] {
   return runs.flatMap((run) =>
     run.kind === "tools"
       ? run.parts.flatMap((part) =>
-          part.toolCall && isVisualTool(part.toolCall.name) ? [part.toolCall] : [],
+          part.toolCall && isVisualTool(toolLookupName(part.toolCall)) ? [part.toolCall] : [],
         )
       : [],
   );

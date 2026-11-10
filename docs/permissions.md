@@ -89,7 +89,9 @@ Two kinds of permission, and they behave differently.
 **Global** permissions are binary and org-wide: `members:view`, `members:manage`, `roles:manage`,
 `org:settings`, `org:delete`, `budgets:manage`, `approvals:decide`,
 `promotions:override`, `connections:view`, `connections:manage`, `channels:manage`,
-`runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`.
+`runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`, `personal:consent`.
+
+Approving personal routines and watches requires the explicit `personal:consent` scope, selected under **Custom** when issuing a key or authorizing an MCP client. It is excluded from every preset, including **Full access**. The confirmation allows the credential to approve persistent routines and watches using your personal connections and data; ordinary `agents:run` and `runs:view` scopes do not. Existing keys and MCP authorizations gain no personal consent automatically.
 
 `promotions:override` promotes a version onto an
 [environment its eval suites guard](environments.md#guarding-a-promotion-with-evals)
@@ -153,7 +155,7 @@ those shared with it; `ALL` sees every one.
 Ordered `NONE < OWN < SHARED < TEAM < ALL`.
 
 | Scope | Reaches |
-|---|---|
+| --- | --- |
 | `NONE` | nothing |
 | `OWN` | rows this person owns |
 | `SHARED` | their own, plus anything org-visible |
@@ -172,7 +174,7 @@ Ordered `NONE < OWN < SHARED < TEAM < ALL`.
 ### The built-in roles
 
 | Role | Idea | Agents | Secrets | Global |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `owner` | owns the organization | all `ALL` | `ALL` | everything, including `org:delete` |
 | `admin` | runs it day to day | all `ALL` | `ALL` | everything **except** `org:delete` |
 | `builder` | builds, and learns from the whole org | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
@@ -272,7 +274,7 @@ draft cannot run and no exposure reaches it either way, so what this decides is
 who can see it, not what it does.
 
 | Level | Allows |
-|---|---|
+| --- | --- |
 | `read` | see the configuration |
 | `use` | also run or attach it |
 | `edit` | also change it |
@@ -610,7 +612,7 @@ created by somebody who did have a role.
 ## What the frontend reads
 
 | Endpoint | Answers |
-|---|---|
+| --- | --- |
 | `GET /me/permissions` | the caller's role, `is_app_admin`, and every permission with its scope |
 | `GET /roles/catalog` | the whole catalog and what each role bundles |
 

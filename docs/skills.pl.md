@@ -1,5 +1,5 @@
 ---
-source_sha: "605060a8b119"
+source_sha: "f29bcac95460"
 ---
 
 # Skille { #skills }
@@ -16,9 +16,9 @@ odwracają tę zależność:
 
 ```mermaid
 flowchart LR
-    A["the agent's capability catalog<br/><i>names + one-line descriptions only</i>"] --> B{is one relevant?}
+    A["available skills<br/><i>names + one-line descriptions only</i>"] --> B{is one relevant?}
     B -->|no| Z["no body loaded"]
-    B -->|yes| C["load_capability - the body"]
+    B -->|yes| C["read_skill - the body"]
     C --> D{does the body<br/>point at a file?}
     D -->|no| Z2[answer]
     D -->|yes| E["read_skill_resource - one file beside it"]
@@ -100,19 +100,17 @@ Przez [capability `skills`](reference/capabilities.md#skills). Każdy skill, kt�
 agent dostaje, staje się **osobną capability** — wypisaną modelowi z nazwy i opisu,
 a otwieraną na żądanie:
 
-| Jak                   | Co robi                                                                   |
-| --------------------- | ------------------------------------------------------------------------- |
-| Katalog capability    | Nazwy i jednolinijkowe opisy wszystkiego, co jest podpięte do tego agenta |
-| `load_capability`     | Pełna treść jednego skilla, wciągnięta do rozmowy                         |
-| `read_skill_resource` | Jeden plik obok skilla                                                    |
+| Jak | Co robi |
+| --- | --- |
+| Dostępne skille | Nazwy i jednolinijkowe opisy wszystkiego, co jest podpięte do tego agenta |
+| `read_skill` | Pełna treść jednego skilla, wciągnięta do rozmowy |
+| `read_skill_resource` | Jeden plik obok skilla |
 
-`load_capability` jest narzędziem samego frameworka agentowego, a nie czymś, co
-publikuje ta platforma — spec go więc nie przyznaje i nie zmienia mu nazwy. Może go
-natomiast **bramkować**, bo to wywołanie otwiera skilla: `tool_approval` na nim jest
-sposobem, w jaki agent pyta człowieka, zanim skill trafi do modelu, a spec, który
-bramkował dawne `load_skill`, jest na nie migrowany, zamiast zostać bez bramki. Jako
-własne narzędzie ta capability wnosi `read_skill_resource`, i tylko wtedy, gdy
-przynajmniej jeden z podpiętych skilli wiezie ze sobą plik do odczytania.
+`read_skill` nadaje natywnemu loaderowi frameworka nazwy dotyczące skilli.
+Polityki zgód zachowują stały klucz `load_capability`, dzięki czemu opublikowane
+specy i oczekujące zgody nadal działają. Dawny klucz zgody `load_skill` nadal jest
+na niego migrowany. Nie ma osobnego narzędzia listującego. `read_skill_resource`
+czyta pliki pomocnicze dopiero po otwarciu skilla.
 
 Spec podpina skille po id w `skill_ids`, więc agent widzi te, które dostał, i nic
 poza tym.
@@ -142,7 +140,7 @@ skille, albo zostaw capability wyłączoną.
 
 Podpięcie skilla nie znaczy, że model go przeczytał. Każdy run zapisuje skille,
 których naprawdę użył, po id skilla: czy model otworzył skill przez
-`load_capability` i ile jego plików przeczytał przez `read_skill_resource`. Run
+`read_skill` i ile jego plików przeczytał przez `read_skill_resource`. Run
 zapisuje to bez względu na to, jak się skończył, także wtedy, gdy zakończył się
 błędem po otwarciu skilla. Skill użyty przez delegata zapisuje się w runie, który
 delegował, pod agentem delegata, bo ocenę dostała odpowiedź tego runa.
@@ -913,13 +911,13 @@ prośbę, każde przez kartę akceptacji.
 Odpowiadają na różne pytania, a różnica ma znaczenie, kiedy agent dostanie nie
 to, co trzeba.
 
-|                 | Skille                    | [Wiedza](file-processing.md)         |
-| --------------- | ------------------------- | ------------------------------------ |
-| Zawiera         | Procedurę — jak to robimy | Dokumenty — co wiemy                 |
-| Pisane przez    | Człowieka, świadomie      | Wciągane hurtowo                     |
-| Pobierane przez | Model wybierający nazwę   | Wyszukiwanie semantyczne po chunkach |
-| Cytuje          | Nic; _jest_ instrukcją    | Fragment i jego źródło               |
-| Skala           | Dziesiątki                | Tysiące dokumentów                   |
+|  | Skille | [Wiedza](file-processing.md) |
+| --- | --- | --- |
+| Zawiera | Procedurę — jak to robimy | Dokumenty — co wiemy |
+| Pisane przez | Człowieka, świadomie | Wciągane hurtowo |
+| Pobierane przez | Model wybierający nazwę | Wyszukiwanie semantyczne po chunkach |
+| Cytuje | Nic; _jest_ instrukcją | Fragment i jego źródło |
+| Skala | Dziesiątki | Tysiące dokumentów |
 
 !!! example "Co jest czym"
 

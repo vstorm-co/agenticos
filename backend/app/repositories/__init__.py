@@ -104,6 +104,7 @@ from app.repositories import voice_call as voice_call_repo
 from app.repositories import generated_media as generated_media_repo
 
 __all__ = [
+    "onboarding_repo",
     "user_repo",
     "session_repo",
     "conversation_repo",
@@ -193,3 +194,5 @@ __all__ = [
     "voice_call_repo",
     "generated_media_repo",
 ]
+
+from app.repositories import onboarding as onboarding_repo

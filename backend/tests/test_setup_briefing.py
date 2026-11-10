@@ -102,7 +102,7 @@ class TestWhatItSays:
         missing, skills = text.index("## Not switched on"), text.index("## Your skills")
         assert missing < skills
         last = text[skills:]
-        assert "call `load_capability` with its id before you answer" in last
+        assert "call `read_skill` with its id before you answer" in last
         assert "Never ask for a skill with `request_capability`" in last
         assert "## Your skills" not in setup_briefing(_spec(), agent_id=uuid.uuid4())
 
@@ -150,7 +150,7 @@ class TestTheCard:
             "clock": MagicMock(defer_loading=False),
         }
 
-        with pytest.raises(ModelRetry, match='Call `load_capability` with id "returns-and-exch'):
+        with pytest.raises(ModelRetry, match='Call `read_skill` with id "returns-and-exch'):
             toolset.request_capability(ctx, "returns-and-exchanges", "the customer asks")
         with pytest.raises(ModelRetry, match="not one you lack"):
             toolset.request_capability(ctx, "clock", "the time")

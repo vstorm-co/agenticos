@@ -13,6 +13,7 @@ export const RUN_DOT: Record<WorkflowRunStatus, string> = {
   queued: "bg-muted-foreground/50",
   running: "bg-brand animate-pulse",
   waiting_approval: "bg-warning",
+  waiting_for_user: "bg-warning",
   waiting_retry: "bg-warning animate-pulse",
   needs_attention: "bg-warning",
   budget_exceeded: "bg-warning",

@@ -1,5 +1,5 @@
 ---
-source_sha: "1e44896d7e1d"
+source_sha: "296a2476dbbe"
 ---
 
 # Workflows { #workflows }
@@ -106,7 +106,9 @@ przywrócić, nadal wstrzymany, albo usunąć razem z wersjami, przebiegami i
 udostępnieniami; taki, którego przebiegi się nie zakończyły, jest odrzucany z
 `WORKFLOW_IN_USE`.
 
-Kroki agentów przechowują prywatne rozmowy dla historii modelu i przestrzeni roboczych o zakresie rozmowy. Kolejne wiadomości czatu korzystają z tego samego kontekstu kroku; widoczny czat otrzymuje tylko wynik workflow. Czaty testowe mają osobne sesje, a rozpoczęcie nowego czatu testowego resetuje kontekst. Rozmowy wewnętrzne nie pojawiają się na liście czatów i są usuwane wraz z workflow lub czatem źródłowym.
+Kroki agentów przechowują prywatne rozmowy dla historii modelu i przestrzeni roboczych o zakresie rozmowy. Kolejne wiadomości czatu korzystają z tego samego kontekstu kroku; widoczny czat otrzymuje wynik workflow oraz pytania agenta. Czaty testowe mają osobne sesje, a rozpoczęcie nowego czatu testowego resetuje kontekst. Rozmowy wewnętrzne nie pojawiają się na liście czatów i są usuwane wraz z workflow lub czatem źródłowym.
+
+Krok agenta może wywołać `ask_user_question`, aby wstrzymać się ze stanem **Oczekiwanie na użytkownika**. Odpowiedz na karcie pytania w czacie źródłowym lub na stronie runa. Odpowiedź kończy oczekujące wywołanie narzędzia, a worker workflow wznawia tę samą rozmowę agenta. Agent może zadać kolejne pytanie, zanim zwróci końcowy wynik. Niezależne gałęzie mogą działać dalej, gdy ten krok czeka.
 
 Agenci wywoływani z workflow mogą używać narzędzi AgenticOS MCP w workerze w tle, tak samo jak w czacie internetowym.
 
@@ -122,7 +124,7 @@ wychodzi.
 Każdy węzeł to karta z ikoną kroku, jego nazwą i jedną linią pod nią: co krok ma
 robić - warunek, URL, liczba zmapowanych pól - po agencie, modelu albo tabeli,
 z którymi pracuje. Krok z więcej niż jednym wyjściem wymienia porty z
-nazwy: **true** i **false**, **Each item** i **Done** oraz czerwony port **Error** w
+nazwy: **true** i **false**, **Done** pętli oraz czerwony port **Error** w
 kroku, który obsługuje swoje błędy. Krok, który blokuje publikację, ma znacznik
 konfiguracji (czerwony po próbie testu lub publikacji): po najechaniu na niego widać pierwsze problemy, a kliknięcie otwiera krok.
 
@@ -176,10 +178,11 @@ widzi wszystkie akcje i nie dostaje wiersza **Connect**: serwer podłącza tylko
 przeciągać tylko własne wiersze kroków.
 
 Nowy krok nigdy nie ląduje na innym, zostaje zaznaczony, otwiera swoje ustawienia,
-gdy jakieś ma, a kanwa przewija się do niego, gdy wypada poza widok. W ciele pętli
-każdy nowy krok zostaje wpięty w ciało, więc tam zostaje. Wybór pokazuje to, co jest
-poprawne tam, gdzie jesteś: **Loop item** i **Loop result** tylko w ciele pętli, a
-pętlę, dopóki pętle nie są zagnieżdżone tak głęboko, jak pozwala publikacja.
+gdy jakieś ma, a kanwa przewija się do niego, gdy wypada poza widok. Krok dodany
+albo wklejony w ciele pętli należy do tego ciała: zostaje wpięty za ostatnim krokiem
+z wolnym wyjściem, a gdy żaden go nie ma, czeka na podłączenie. Nowa pętla ma już
+swoje **Loop item** i **Loop result**, więc wybór ich nie oferuje; pętlę oferuje,
+dopóki pętle nie są zagnieżdżone tak głęboko, jak pozwala publikacja.
 
 Prawy przycisk na kroku daje **Open settings**, **Duplicate**, **Switch off** i
 **Delete step**. Gdy
@@ -526,9 +529,15 @@ widoku, a okruszki **Workflow scope** w rogu kanwy pokazują, gdzie jesteś, od
 **Workflow** w dół do pętli, którą otworzyłeś. Każdy okruszek nawiguje z powrotem na
 zewnątrz.
 
-Ciało zaczyna się od **Loop item**, z którym łączy się port **Each item**
-pętli, i kończy na **Loop result**; nic w nim nie łączy się z powrotem z pętlą, która
-idzie dalej przez **Done**, gdy każdy element przeszedł przez ciało. Wybór kroków i źródła binding podążają za scope, w którym jesteś, a krok w ciele może czytać wszystko, co
+Ciało zaczyna się od **Loop item** i kończy na **Loop result**. Każdy krok pamięta
+pętlę, do której należy, więc usunięcie połączenia nigdy nie wyrzuca kroku z ciała;
+krok, do którego **Loop item** nie prowadzi, jest zgłaszany, dopóki go nie
+podłączysz. Żadne połączenie nie prowadzi z pętli do ciała ani z ciała z powrotem do
+pętli, która idzie dalej przez **Done**, gdy każdy element przeszedł przez ciało.
+**Loop item** i **Loop result** znikają tylko razem z pętlą: usunięcie pętli usuwa
+całe jej ciało, a skopiowanie jej kopiuje ciało.
+
+Wybór kroków i źródła binding podążają za scope, w którym jesteś, a krok w ciele może czytać wszystko, co
 działało przed pętlą. Co robi pętla, opisuje
 [referencja węzłów](reference/workflow-nodes.md#loops).
 
@@ -941,6 +950,15 @@ tego wyzwalacza.
 JSON-a, z typem pola, a wywołanie API, którego wejście nie pasuje, jest odrzucane z
 listą błędnych pól. Zobacz [core.input](reference/workflow-nodes.md#core-input).
 
+Dla zagnieżdżonych obiektów i tablic skonfiguruj opcjonalne `input_schema`
+JSON Schema Draft 2020-12 w **Manual**, **API request** lub **Called by a workflow**
+zamiast prostych pól. Schemat jest zapisywany z opublikowaną wersją, a każdy run
+musi spełniać kontrakt tej wersji przed startem. Wywołujący przez API i MCP mogą
+sprawdzić ten sam kontrakt przed wysłaniem wejścia. Zobacz
+[Kontrakty wejścia JSON Schema](reference/workflow-nodes.md#json-schema-input-contracts),
+aby poznać konfigurację, referencje i błędy walidacji. Istniejące wejścia prostych
+pól i workflow bez kontraktu zachowują dotychczasowe działanie.
+
 ### Z czatu { #from-the-chat }
 
 Wybór tego, kto odpowiada na czacie, wymienia pod agentami opublikowane workflow,
@@ -1283,7 +1301,7 @@ jest bezczynny, gdy edytor jest tylko do odczytu - w opublikowanej wersji albo w
 **View only**; `Escape` wciąż przerywa zabłąkane połączenie, a `?` wciąż pokazuje
 skróty.
 
-Kopiowanie i wklejanie mają trzy ograniczenia:
+Kopiowanie i wklejanie mają cztery ograniczenia:
 
 - **Krok z bindingami czyta stamtąd, skąd czytał.** Skopiowany krok zachowuje swoje
   bindingi. Ten, który czyta z kroku, którego nie skopiowałeś, wciąż czyta z oryginału,
@@ -1295,6 +1313,10 @@ Kopiowanie i wklejanie mają trzy ograniczenia:
 - **Skróty należą do kanwy.** Działają, gdy fokus jest na kanwie, a kliknięcie w dowolnym
   jej miejscu — w krok, pustą kanwę, połączenie — go tam zatrzymuje. Fokus w ustawieniach kroku lub w wyborze kroków zostawia klawisze tamtym polom, więc kliknij kanwę, zanim
   ich użyjesz.
+- **Wklejenie trafia tylko tam, gdzie paleta by je wstawiła.** Wewnątrz pętli wklejenie
+  wyzwalacza jest odrzucane, podobnie jak pętli, która razem z niesionymi pętlami
+  zagnieździłaby się głębiej niż na trzy poziomy. Odrzucane jest całe wklejenie, a schowek
+  je zachowuje, więc otwórz najwyższy poziom albo płytszą pętlę i wklej tam.
 
 Załączniki obrazów agenta mają wspólny limit 20 MB, sprawdzany przed odczytem
 każdego pliku, również dla powtórzonych referencji. Wyniki MCP usuwają nagłówki

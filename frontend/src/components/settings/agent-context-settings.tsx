@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { SectionCard } from "@/components/settings/settings-section";
+import { TimeZonePicker } from "@/components/settings/time-zone-picker";
 import { WorkingHoursField } from "@/components/settings/working-hours-field";
 import { Button, FormField, Input } from "@/components/ui";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,14 +15,24 @@ import { getErrorMessage } from "@/lib/api-error";
 import type { User } from "@/types";
 import type { WorkingHours } from "@/types/auth";
 
-const ZONES = Intl.supportedValuesOf("timeZone");
-
 /**
  * What every agent is told about the person, written once (#2301): their role,
  * what they work on, and the time zone "every Monday at 9" is read in. Each
  * agent reads it at the start of every run, so nobody repeats it per chat.
  */
-export function AgentContextSettings({ user }: { user: User }) {
+export function AgentContextSettings({
+  user,
+  beforeSave,
+  onSaved,
+  saveLabel,
+  secondaryAction,
+}: {
+  user: User;
+  beforeSave?: () => Promise<boolean>;
+  onSaved?: () => void;
+  saveLabel?: string;
+  secondaryAction?: ReactNode;
+}) {
   const t = useTranslations("pages.settings.agentContext");
   const tErrors = useTranslations("errors");
   const save = useSaveAgentContext();
@@ -42,6 +53,7 @@ export function AgentContextSettings({ user }: { user: User }) {
   const submit = async () => {
     setSaving(true);
     try {
+      if (beforeSave && !(await beforeSave())) return;
       await save({
         job_title: role.trim() || null,
         about: about.trim() || null,
@@ -49,6 +61,7 @@ export function AgentContextSettings({ user }: { user: User }) {
         working_hours: hours,
       });
       toast.success(t("saved"));
+      onSaved?.();
     } catch (error) {
       toast.error(getErrorMessage(error, tErrors));
     } finally {
@@ -61,15 +74,18 @@ export function AgentContextSettings({ user }: { user: User }) {
       title={t("title")}
       description={t("description")}
       action={
-        <Button onClick={submit} disabled={saving} size="sm">
-          {t("save")}
-        </Button>
+        !onSaved && (
+          <Button onClick={submit} disabled={saving} size="sm">
+            {saveLabel ?? t("save")}
+          </Button>
+        )
       }
     >
       <div className="space-y-4">
         <FormField label={t("role")} htmlFor="agent-context-role">
           <Input
             id="agent-context-role"
+            data-guidance={(!!onSaved && !role.trim()) || undefined}
             value={role}
             maxLength={120}
             placeholder={t("rolePlaceholder")}
@@ -87,17 +103,13 @@ export function AgentContextSettings({ user }: { user: User }) {
           />
         </FormField>
         <FormField label={t("timeZone")} htmlFor="agent-context-zone">
-          <Input
+          <TimeZonePicker
             id="agent-context-zone"
-            list="agent-context-zones"
+            data-guidance={(!!onSaved && !!role.trim() && !zone) || undefined}
             value={zone}
-            onChange={(event) => setZone(event.target.value)}
+            onChange={setZone}
+            disabled={saving}
           />
-          <datalist id="agent-context-zones">
-            {ZONES.map((name) => (
-              <option key={name} value={name} />
-            ))}
-          </datalist>
         </FormField>
         <FormField
           label={t("workingHours")}
@@ -106,6 +118,14 @@ export function AgentContextSettings({ user }: { user: User }) {
         >
           <WorkingHoursField value={hours} onChange={setHours} />
         </FormField>
+        {onSaved && (
+          <div data-profile-actions className="flex flex-wrap items-center gap-3">
+            <Button onClick={submit} disabled={saving}>
+              {saveLabel ?? t("save")}
+            </Button>
+            {secondaryAction}
+          </div>
+        )}
       </div>
     </SectionCard>
   );

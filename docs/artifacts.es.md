@@ -1,5 +1,5 @@
 ---
-source_sha: "df184b376180"
+source_sha: "28281f424c57"
 ---
 
 # Aplicaciones { #artifacts }
@@ -976,7 +976,7 @@ un servidor de mapas conectado y que un administrador activa los mapas reales co
 este ajuste. La imagen de un mapa en una app de chat se
 dibuja terminada, con todas las chinchetas en su sitio.
 
-**Los mapas del mundo no necesitan ninguno.** Para todo lo que trate de países - clientes por país, oficinas, una ruta entre dos ciudades - `AOWorldMap` dibuja un mapa en SVG a partir de contornos de países que el despliegue sirve por sí mismo: sin servidor de teselas, sin red y sin contenedor adicional. El agente lo prefiere; el mapa de teselas queda para el nivel de calle.
+**Los mapas del mundo no necesitan ninguno.** Para todo lo que trate de países - clientes por país, oficinas, una ruta entre dos ciudades - `AOWorldMap` dibuja un mapa en SVG a partir de contornos de países que el despliegue sirve por sí mismo: sin servidor de teselas, sin red y sin contenedor adicional. Es la opción predeterminada para mapas nuevos, incluidos itinerarios entre ciudades. El agente carga los contornos de países incluidos y dibuja puntos y rutas sin configuración adicional. El administrador puede activar el mapa de calles mediante `VISUAL_MAP_TILES`; si las teselas no están disponibles, el agente debe usar este mapa SVG.
 
 **Elegir la forma.** El skill `visual-design` le dice al agent cuándo un dibujo es
 siquiera la respuesta correcta: texto para un dato o un consejo, una tabla Markdown

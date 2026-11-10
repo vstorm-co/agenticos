@@ -51,18 +51,19 @@ function NativeReadinessScreen({
   connection: boolean;
 }) {
   const t = useTranslations("desktop.readiness");
+  const start = useTranslations("start");
   const setup = useDesktopSetup();
   const mark = useDesktopPreferencesStore((s) => s.review);
   const router = useRouter();
   const [navigating, startNavigation] = useTransition();
   useEffect(() => {
-    router.prefetch("/dashboard");
-  }, [router]);
+    router.prefetch(connection ? "/onboarding" : "/chat");
+  }, [router, connection]);
   const finish = useMutation({
     mutationFn: finishOnboarding,
     onSuccess: () => {
       if (setup.scope && setup.revision !== undefined) mark(setup.scope, setup.revision);
-      startNavigation(() => router.replace("/dashboard"));
+      startNavigation(() => router.replace(connection ? "/onboarding" : "/chat"));
     },
     onError: (error) => reportShellFailure("finishing desktop connection", error),
   });
@@ -79,6 +80,9 @@ function NativeReadinessScreen({
             </p>
           </header>
         )}
+        {connection && (
+          <p className="text-muted-foreground mb-4 text-sm">{start("optionalHint")}</p>
+        )}
         <ReadinessPanel repair={repair} />
         {finish.isError && (
           <p role="alert" className="text-destructive mt-4 text-sm">
@@ -93,7 +97,7 @@ function NativeReadinessScreen({
                 className="size-4 animate-spin motion-reduce:animate-none"
               />
             ) : null}
-            {busy ? t("opening") : t("done")}
+            {busy ? t("opening") : connection ? start("openStart") : t("done")}
             {!busy && <ArrowRight aria-hidden className="size-4" />}
           </Button>
         </footer>

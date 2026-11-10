@@ -214,7 +214,8 @@ class AppScope(BaseModel):
     It is also the shape of a personal base outside any organization, which has
     no tenant either: `knowledge_base_id` keeps the two apart, and such a base has
     `takes_unfiled` off, since the unfiled rows with no tenant are the app
-    scope's (#2537).
+    scope's only with explicit operator provenance (#2537, #2773). Missing or
+    document origin never becomes deployment-wide merely by claiming the name.
 
     Unlike `UnscopedScope`, this is reachable by an ordinary caller - whenever the
     knowledge base it resolved to (through `CollectionAccessService`, or the
@@ -236,6 +237,7 @@ class AppScope(BaseModel):
         """The same restriction as the store's row-level operations take it."""
         return VectorScope(
             tenant=None,
+            operator_unfiled_only=True,
             knowledge_base_id=self.knowledge_base_id,
             takes_unfiled=self.takes_unfiled,
             additional_knowledge_base_ids=self.additional_knowledge_base_ids,

@@ -174,6 +174,7 @@ async def create(
     user_agent: str | None = None,
     impersonator_user_id: UUID | None = None,
     session_id: UUID | None = None,
+    proved_email: str | None = None,
 ) -> Session:
     """Create a new session.
 
@@ -189,6 +190,7 @@ async def create(
         device_type=device_type,
         ip_address=ip_address,
         user_agent=user_agent,
+        proved_email=proved_email,
         impersonator_user_id=impersonator_user_id,
     )
     if session_id is not None:

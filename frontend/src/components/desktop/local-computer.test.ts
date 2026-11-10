@@ -128,12 +128,12 @@ it("resumes a partial installation and offers a fresh instance beside an existin
   await refresh();
   fireEvent.click(await screen.findByRole("button", { name: "Finish setup" }));
   expect(root.querySelector('[name="instance-id"]')).toHaveValue("partial");
-  expect(screen.getByLabelText("Instance name")).toHaveValue("Interrupted");
+  expect(screen.getByLabelText("Workspace name")).toHaveValue("Interrupted");
   expect(screen.queryByRole("button", { name: "New instance" })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
   fireEvent.click(screen.getByRole("button", { name: "New instance" }));
   expect(root.querySelector('[name="instance-id"]')).toHaveValue("");
-  expect(screen.getByLabelText("Instance name")).toHaveValue("");
+  expect(screen.getByLabelText("Workspace name")).toHaveValue("");
 });
 it("prepares the runtime only after setup, then opens the workspace form automatically", async () => {
   invoke.mockResolvedValueOnce("no_docker");

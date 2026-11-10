@@ -1,26 +1,28 @@
 """Asking the person who is sitting there.
 
 An agent can pause a run to put questions to the user and resume with their
-answers. The pause and resume live in the WebSocket session, which owns the
-socket; what lives here is the question schema and the rendering of the
-collected answers back into something the model reads.
+answers. The console saves the agent's own questions as a paused run before
+showing the card; delegates can also ask through a live surface callback.
+This module shares the question schema and answer rendering between surfaces.
 
-Deliberately not a capability. Capabilities are switched on per agent, and this
-is not a property of the agent at all - it is whether the *surface* running it
-can hold a question open. A Slack webhook and a scheduled run cannot, which is
-why `AgentDeps.ask_user` is optional and tools that need it must refuse when
-it is absent rather than proceed unattended.
+The `ask_user` capability supplies the harness tool. The surface decides how
+the person answers it; without a question channel the agent is told they
+declined. `AgentDeps.ask_user` is the separate, optional callback for a
+delegate's live question.
 """
 
+from dataclasses import replace
 from typing import Any
 
 from pydantic import BaseModel, Field
 from pydantic_ai.exceptions import CallDeferred
+from pydantic_ai.messages import ToolCallPart
 from pydantic_ai_harness.ask_user import TOOL_NAME as ASK_USER_TOOL
 from pydantic_ai_harness.ask_user import AskUserAnswer, AskUserRequest, AskUserResponse
 from subagents_pydantic_ai import current_subagent_state
 
 MAX_QUESTIONS = 10
+QUESTION_DEFERRED_KIND = "ask_user"
 
 
 class QuestionChoice(BaseModel):
@@ -156,14 +158,26 @@ def format_answers(questions: list[dict[str, Any]], answers: list[dict[str, Any]
     return "\n\n".join(lines)
 
 
-def parked_status(tool_name: str) -> str:
+def question_request(call: ToolCallPart) -> AskUserRequest:
+    """Read a call already identified as a question, retaining its exposed name.
+
+    Tool overrides may rename `ask_user_question`. The harness parser accepts
+    only its canonical name, so normalize a copy after the parked question ids
+    have identified this call; unrelated calls must not use this parser.
+    """
+    return AskUserRequest.from_tool_call(replace(call, tool_name=ASK_USER_TOOL))
+
+
+def parked_status(tool_name: str, *, awaiting_answer: bool = False) -> str:
     """What a stored step reads while its run waits on a person (#2064).
 
-    An `ask_user_question` call parks only ever as a question - it is never
-    gated, being itself a question to the person - and every other parked call
-    is waiting on an approval.
+    `awaiting_answer` identifies renamed question tools from their parked call
+    ids. The canonical tool name remains a fallback for older callers. Other
+    parked calls wait on approvals.
     """
-    return "awaiting_answer" if tool_name == ASK_USER_TOOL else "awaiting_approval"
+    return (
+        "awaiting_answer" if awaiting_answer or tool_name == ASK_USER_TOOL else "awaiting_approval"
+    )
 
 
 async def park_the_question(request: AskUserRequest) -> AskUserResponse:
@@ -171,6 +185,7 @@ async def park_the_question(request: AskUserRequest) -> AskUserResponse:
 
     For a chat, where the question is put as buttons once the turn has ended and
     a press continues the run (#2064). Raising `CallDeferred` from inside the
-    tool is what ends the run waiting on this call.
+    tool is what ends the run waiting on this call. Its metadata identifies a
+    question even when an agent's tool override changed its exposed name.
     """
-    raise CallDeferred
+    raise CallDeferred(metadata={"kind": QUESTION_DEFERRED_KIND})

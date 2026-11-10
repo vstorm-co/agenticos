@@ -39,6 +39,8 @@ from pydantic_ai.messages import (
 
 from app.agents.ask_user import parked_status
 from app.agents.ephemeral_media import describe_binary
+from app.agents.tool_errors import controlled_tool_error
+from app.core.tool_identity import PresentationKind, ToolIdentity
 from app.repositories import chat_file as chat_file_repo
 from app.repositories import conversation as conversation_repo
 
@@ -63,9 +65,9 @@ class RecordedToolCall:
         tool_name: What was called.
         args: What it was called with. Stored because "the agent sent an email"
             is not reviewable and "the agent sent an email to X" is.
-        result: What it returned, or - when it failed - the notice that the
-            model was asked to retry, never the retry text itself
-            (:func:`_result_text`). `None` for a call that never returned - the
+        result: What it returned, or its controlled, actionable error. Untrusted
+            failure text is replaced with a notice (:func:`_result_text`).
+            `None` for a call that never returned - the
             run was parked on it, stopped, or broke before it completed.
     """
 
@@ -73,33 +75,28 @@ class RecordedToolCall:
     tool_name: str
     args: dict[str, Any]
     result: str | None = None
+    tool_id: str | None = None
+    presentation_kind: PresentationKind | None = None
+
+    @property
+    def renderer_name(self) -> str | None:
+        return None if self.presentation_kind == "generic" else self.tool_id or self.tool_name
 
 
 def tool_failure_notice(part: ToolReturnPart) -> str:
     """What a failed or retried tool call may tell a reader.
 
-    A retry's content is written by whichever tool raised: `web_search` turns a
-    search provider's failure into a `ModelRetry` built out of the `httpx` or
-    SDK exception it caught, so a broken key put "401 Unauthorized for url
-    'https://api.tavily.com/search'" - an endpoint, a host, and whatever the
-    query string held - in front of everyone watching the run (#681), and on
-    the tool-call row every member who can read the run opens weeks later
-    (#695). An MCP tool's retry is a third party's string entirely, which is
-    why this is one sentence at the two choke points rather than a rule at each
-    raise: `run_stream` sends it in the `tool_result` frame, and
-    :func:`_result_text` below stores it.
+    Controlled error envelopes keep the same correction and error reference the
+    model received. All other failure text remains masked: a provider exception
+    or an MCP server's string may contain credentials in a URL (#681, #695).
+    Validation rejects extra diagnostics and an envelope naming another tool.
 
-    The model still reads the retry whole: Pydantic AI puts the part into the
-    next request itself and nothing here touches that, so the detail that
-    decides whether it retries, switches tack or gives up is unchanged. Only
-    what is shown and stored is trimmed, and the tool's own text stays in the
-    `logger.warning` beside the send or the write.
-
-    The tool's *name* still goes out, because it is what makes the frame worth
-    sending: a card that resolves saying which step failed is the difference
-    from one that spins for ever. A return with an empty upstream tool name
-    still gets a generic notice.
+    Both the live `tool_result` frame and the stored transcript use this function.
+    Neither changes Pydantic AI's model messages or the history saved for resume.
     """
+    envelope = controlled_tool_error(part)
+    if envelope is not None:
+        return envelope.model_dump_json(exclude_none=True)
     called = f"The {part.tool_name} call" if part.tool_name else "A tool call"
     retry = " and the model was asked to try again" if part.outcome == "retried" else ""
     return f"{called} failed{retry}. The server log has the full error."
@@ -133,14 +130,9 @@ def tool_result_text(content: Any) -> str:
 def _result_text(part: ToolReturnPart) -> str:
     """What the row stores as the call's outcome.
 
-    A return is the tool's own answer and is stored whole. A retry's content is
-    written by whatever raised - `web_search` builds one out of the vendor
-    exception it caught, failing endpoint and query string included, and an MCP
-    tool's is a third party's string entirely - so the row holds the same
-    sentence the `tool_result` frame sends (#681) and the text itself goes to
-    the log beside the write, where run history read weeks later cannot reach
-    it (#695). The model is untouched either way: Pydantic AI carries the part
-    into the next request itself, and this function only decides what is stored.
+    Successful output is stored whole. Failures retain a validated controlled
+    error envelope, or the same safe notice the live frame sends. Arbitrary
+    vendor diagnostics go only to the log. Model messages remain untouched.
     """
     if part.outcome in ERROR_OUTCOMES:
         logger.warning(
@@ -150,7 +142,12 @@ def _result_text(part: ToolReturnPart) -> str:
     return tool_result_text(part.content)
 
 
-def tool_calls_in(messages: Sequence[ModelMessage]) -> list[RecordedToolCall]:
+def tool_calls_in(
+    messages: Sequence[ModelMessage],
+    *,
+    identities: Mapping[str, ToolIdentity] | None = None,
+    definitions: Mapping[str, ToolIdentity] | None = None,
+) -> list[RecordedToolCall]:
     """Every tool call in these messages, each paired with what it returned.
 
     Pass `result.new_messages()`, never `all_messages()`. A resumed run is handed
@@ -175,10 +172,15 @@ def tool_calls_in(messages: Sequence[ModelMessage]) -> list[RecordedToolCall]:
     for message in messages:
         for part in message.parts:
             if isinstance(part, ToolCallPart):
+                identity = (identities or {}).get(
+                    part.tool_call_id, (definitions or {}).get(part.tool_name, ToolIdentity())
+                )
                 calls[part.tool_call_id] = RecordedToolCall(
                     tool_call_id=part.tool_call_id,
                     tool_name=part.tool_name,
                     args=part.args_as_dict(raise_if_invalid=False),
+                    tool_id=identity.tool_id,
+                    presentation_kind=identity.presentation_kind,
                 )
             elif isinstance(part, ToolReturnPart) and part.tool_call_id in calls:
                 results[part.tool_call_id] = _result_text(part)
@@ -188,6 +190,8 @@ def tool_calls_in(messages: Sequence[ModelMessage]) -> list[RecordedToolCall]:
             tool_name=call.tool_name,
             args=call.args,
             result=results.get(call.tool_call_id),
+            tool_id=call.tool_id,
+            presentation_kind=call.presentation_kind,
         )
         for call in calls.values()
     ]
@@ -256,6 +260,7 @@ class TranscriptService:
         tool_calls: Sequence[RecordedToolCall] = (),
         settled: Mapping[str, str] | None = None,
         parked: Collection[str] = (),
+        question_tool_call_ids: Collection[str] = (),
         model_label: str | None = None,
         context_used_tokens: int | None = None,
         mcp_origins: Mapping[str, UUID] | None = None,
@@ -316,6 +321,9 @@ class TranscriptService:
         settles it with what the call returned, and an expiry settles it with
         the timeout notice (:meth:`ApprovalService._settle_expired_run`).
 
+        `question_tool_call_ids` names calls awaiting an answer instead of an
+        approval, including questions renamed by the agent's tool overrides.
+
         Never raises, and never poisons the session it shares with the caller.
         The answer has already been produced and the money already spent; losing
         either to a failed write would be the worst possible trade, and the run
@@ -366,6 +374,7 @@ class TranscriptService:
                         answer=answer,
                         tool_calls=tool_calls,
                         parked=parked,
+                        question_tool_call_ids=question_tool_call_ids,
                         model_label=model_label,
                         context_used_tokens=context_used_tokens,
                         mcp_origins=mcp_origins or {},
@@ -443,6 +452,7 @@ class TranscriptService:
         answer: str,
         tool_calls: Sequence[RecordedToolCall],
         parked: Collection[str],
+        question_tool_call_ids: Collection[str],
         model_label: str | None,
         context_used_tokens: int | None,
         mcp_origins: Mapping[str, UUID],
@@ -495,9 +505,17 @@ class TranscriptService:
                 tool_name=call.tool_name,
                 args=call.args,
                 started_at=now,
-                status=parked_status(call.tool_name) if call.tool_call_id in parked else "running",
+                status=(
+                    parked_status(
+                        call.tool_name, awaiting_answer=call.tool_call_id in question_tool_call_ids
+                    )
+                    if call.tool_call_id in parked or call.tool_call_id in question_tool_call_ids
+                    else "running"
+                ),
                 mcp_connection_id=mcp_origins.get(call.tool_name),
-                presentation_kind="draft" if call.tool_name in draft_tools else None,
+                tool_id=call.tool_id,
+                presentation_kind=call.presentation_kind
+                or ("draft" if call.tool_name in draft_tools else None),
             )
             if call.result is not None:
                 await conversation_repo.complete_tool_call(

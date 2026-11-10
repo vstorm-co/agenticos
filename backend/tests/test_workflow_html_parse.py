@@ -432,6 +432,16 @@ async def test_a_matchs_markup_is_closed_where_its_node_budget_ends(
     assert match.text == "x x"
 
 
+async def test_links_and_selected_elements_inside_templates_remain_visible() -> None:
+    html = '<body><template><a href="/draft" class="item">Draft</a></template></body>'
+
+    output = await _output(html, selector="body .item", base_url=BASE)
+
+    assert [link.href for link in output.links] == ["https://shop.example.com/draft"]
+    assert len(output.matches) == 1
+    assert output.matches[0].attributes == {"href": "/draft", "class": "item"}
+
+
 async def test_a_script_elements_own_text_is_its_script():
     html = (
         '<script type="application/ld+json">{"@type": "Product"}</script>'

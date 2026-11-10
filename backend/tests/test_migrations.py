@@ -260,7 +260,7 @@ def test_improvement_merge_upgrades_either_existing_history(starting_revision: s
             )
             assert connection.execute(
                 text("SELECT version_num FROM alembic_version")
-            ).scalar_one() == ("0304_skill_check_reasons")
+            ).scalar_one() == ("0312_skill_check_reasons")
         check = _alembic("check")
         assert check.returncode == 0, check.stderr
     finally:
@@ -1067,7 +1067,7 @@ class TestRunSkillUsesBackfill:
         """
         reset = _alembic("downgrade", "base")
         assert reset.returncode == 0, reset.stderr
-        before = _alembic("upgrade", "0296_merge_evals_main")
+        before = _alembic("upgrade", "0304_merge_evals_platform")
         assert before.returncode == 0, before.stderr
         engine = create_engine(_url(MIGRATION_DATABASE))
         org, agent = uuid4(), uuid4()
@@ -1156,7 +1156,7 @@ class TestRunSkillUsesBackfill:
                                 "at": now,
                             },
                         )
-            up = _alembic("upgrade", "0297_run_skill_uses")
+            up = _alembic("upgrade", "0305_run_skill_uses")
             assert up.returncode == 0, up.stderr
             with engine.begin() as connection:
                 uses = connection.execute(
@@ -1191,7 +1191,7 @@ class TestRunSkillUsesBackfill:
                     ).scalar_one()
                     is True
                 )
-            back = _alembic("downgrade", "0296_merge_evals_main")
+            back = _alembic("downgrade", "0304_merge_evals_platform")
             assert back.returncode == 0, back.stderr
             again = _alembic("upgrade", "head")
             assert again.returncode == 0, again.stderr

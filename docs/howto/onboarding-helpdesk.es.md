@@ -1,5 +1,5 @@
 ---
-source_sha: "921578018ea4"
+source_sha: "ebf27ba3fe81"
 title: "Responde preguntas de nuevas incorporaciones con archivos de contexto y skills"
 description: "Vincula a un agent un archivo de contexto breve con datos fijos y una skill con un procedimiento, y comprueba cuál de los dos responde a cada tipo de pregunta."
 ---
@@ -85,7 +85,7 @@ How do I get access to the CRM?
 | Comprobación | Referencia |
 | --- | --- |
 | Pregunta sobre la nómina y el portátil | Respondida directamente, sin llamada a herramientas: el archivo de contexto ya está en el prompt |
-| Pregunta sobre el acceso al CRM | Llama a `load_capability` para `request-access` antes de responder |
+| Pregunta sobre el acceso al CRM | Llama a `read_skill` para `request-access` antes de responder |
 | La respuesta sobre el CRM | Nombra como primer paso la aprobación por escrito del responsable, no solo "post in #it-help" |
 | Una pregunta que el archivo de contexto no cubre (p. ej. "what's the dress code?") | Dice que no lo sabe, en lugar de inventarse una norma |
 | Editar después el archivo de contexto | El siguiente run refleja el cambio sin volver a publicar nada en el agent |
@@ -96,7 +96,7 @@ Las dos primeras filas son la comprobación que importa: una respuesta sale de u
 
     Modelo: Claude Sonnet 4.6 a través de OpenRouter. La pregunta sobre la nómina y el portátil usó 914 tokens de entrada **sin ninguna llamada a herramientas** y respondió: *"Payroll runs on the last business day of the month... The standard laptop is a MacBook Pro"*. Coste: 0,004 USD.
 
-    La pregunta sobre el CRM llamó a `load_capability` con `{"id": "request-access"}`, recibió el contenido completo de la skill y respondió: *"Since the CRM touches customer data, there's a specific process... Get your manager's written approval first... Post in #it-help. Tag your manager in the same thread"*. Coste: 0,009 USD.
+    La pregunta sobre el CRM llamó a `read_skill` con `{"id": "request-access"}`, recibió el contenido completo de la skill y respondió: *"Since the CRM touches customer data, there's a specific process... Get your manager's written approval first... Post in #it-help. Tag your manager in the same thread"*. Coste: 0,009 USD.
 
 ## Cuando algo sale mal { #when-it-goes-wrong }
 

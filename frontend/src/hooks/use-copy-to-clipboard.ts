@@ -4,14 +4,14 @@ import { useEffect, useRef, useState } from "react";
 
 export function useCopyToClipboard(resetMs = 2000) {
   const [copied, setCopied] = useState(false);
-  const reset = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const mounted = useRef(false);
+  const mounted = useRef(true);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
-      clearTimeout(reset.current);
+      if (timer.current !== null) clearTimeout(timer.current);
     };
   }, []);
 
@@ -34,11 +34,13 @@ export function useCopyToClipboard(resetMs = 2000) {
       } else {
         await navigator.clipboard.writeText(text);
       }
-      // The write can settle after the component that asked for it is gone.
       if (!mounted.current) return true;
       setCopied(true);
-      clearTimeout(reset.current);
-      reset.current = setTimeout(() => setCopied(false), resetMs);
+      if (timer.current !== null) clearTimeout(timer.current);
+      timer.current = setTimeout(() => {
+        timer.current = null;
+        setCopied(false);
+      }, resetMs);
       return true;
     } catch {
       return false;

@@ -22,7 +22,12 @@ from app.agents.watch_sources import WatchReadReceipt, WatchSourceTools
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.db.models.mcp_connection import McpConnection
 from app.services.mcp_connection import _own_specs
-from app.services.watch_sources import approve_sources, constrain_sources, source_identity
+from app.services.watch_sources import (
+    WATCH_MAX_STEPS,
+    approve_sources,
+    constrain_sources,
+    source_identity,
+)
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
@@ -64,6 +69,8 @@ def _spec() -> AgentSpec:
                 "delegation",
                 "skills",
                 "memory",
+                "tool_output_limits",
+                "compaction",
             )
         ],
         subagents=[SubagentRef(agent_id=uuid4(), agent_version_id=uuid4())],
@@ -101,7 +108,10 @@ def test_new_publications_keep_their_model_and_voice_but_cannot_widen_sources() 
         "guardrails",
         "planning",
         "system_reminders",
+        "tool_output_limits",
+        "compaction",
     }
+    assert effective.max_steps == WATCH_MAX_STEPS
 
 
 def test_removed_attached_sources_are_not_lent_from_an_old_approval() -> None:
@@ -354,3 +364,12 @@ async def test_resumed_accounts_keep_their_original_alias_after_default_and_labe
         } == {identifier: source.tool_prefix for identifier, source in admitted.items()}
         assert auth.await_count == 2
         assert all(call.args[0].id != new.id for call in auth.await_args_list)
+
+
+@pytest.mark.parametrize(("published", "effective"), [(None, 30), (5, 5), (80, 30)])
+def test_a_check_is_bounded_whatever_the_agent_allows(published, effective) -> None:
+    """An unbounded check of a Notion workspace ran 40 steps and cost $2."""
+    original = _spec()
+    approved = approve_sources(original, _connection())
+    spec = original.model_copy(update={"max_steps": published})
+    assert constrain_sources(spec, approved).max_steps == effective

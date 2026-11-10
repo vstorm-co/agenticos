@@ -191,7 +191,7 @@ export function DesktopWelcome() {
   const finish = () => {
     finishOnboarding()
       .catch((error: unknown) => reportShellFailure("could not finish onboarding", error))
-      .finally(() => router.replace("/dashboard"));
+      .finally(() => router.replace("/onboarding"));
   };
 
   if (!shell) {

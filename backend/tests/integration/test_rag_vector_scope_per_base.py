@@ -116,9 +116,13 @@ async def _ingest(store: PgVectorStore, kb: KnowledgeBase, content: str) -> str:
     return document.id
 
 
-async def _unfiled(store: PgVectorStore, *, doc_id: str, tenant: uuid.UUID | None) -> None:
+async def _unfiled(
+    store: PgVectorStore, *, doc_id: str, tenant: uuid.UUID | None, operator: bool = False
+) -> None:
     """A chunk written before chunks recorded their base: only the tenant tag."""
     meta: dict[str, str] = {"source_path": f"/legacy/{doc_id}.pdf", "filename": f"{doc_id}.pdf"}
+    if operator:
+        meta["writer_kind"] = "operator"
     if tenant is not None:
         meta["organization_id"] = str(tenant)
     async with store.async_session() as session:
@@ -317,7 +321,7 @@ class TestUnfiledChunks:
         app = _kb(KBScope.APP, None)
         store = _store(engine)
         await store._ensure_collection(COLLECTION)
-        await _unfiled(store, doc_id="legacy", tenant=None)
+        await _unfiled(store, doc_id="legacy", tenant=None, operator=True)
 
         assert await _searched(store, app) == {"legacy"}
 
@@ -379,7 +383,10 @@ async def test_deleting_a_personal_document_also_removes_its_unfiled_chunks(
     store = _store(engine)
     await store._ensure_collection(COLLECTION)
     await _unfiled(store, doc_id="mine", tenant=None)
-    assert await _searched(store, app) == {"mine"}
+    assert await _searched(store, app) == set()
+    assert (
+        await store.get_collection_info(COLLECTION, VectorScope(tenant=None))
+    ).total_vectors == 1
 
     await store.delete_document(COLLECTION, "mine", personal.vector_scope)
 

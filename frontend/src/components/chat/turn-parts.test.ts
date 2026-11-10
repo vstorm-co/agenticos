@@ -147,3 +147,13 @@ it("groups tool calls between progress messages in the live turn", () => {
   expect(screen.getByText("read_file")).toBeInTheDocument();
   expect(screen.getByText("search_tools")).toBeInTheDocument();
 });
+
+it("keeps renamed browser calls in the browse summary and excludes external collisions", () => {
+  const alias = tool("renamed", "open_page");
+  alias.toolCall = { ...alias.toolCall!, tool_id: "browser_open" };
+  const external = tool("external", "browser_open");
+  external.toolCall = { ...external.toolCall!, presentation_kind: "generic" };
+  expect(
+    browseCalls([{ kind: "tools", parts: [alias, external], isLast: true }]).map((call) => call.id),
+  ).toEqual(["renamed"]);
+});

@@ -17,6 +17,7 @@ import {
   TABLE_DETAIL,
   WORKFLOW_LOGS_DETAIL,
   WORKFLOW_RUNS_DETAIL,
+  WORKFLOW_RUN_DETAIL,
   WORKSPACE_DETAIL,
 } from "@/lib/onboarding/tour";
 import { PAGE_SIZE } from "@/components/ui";
@@ -97,6 +98,7 @@ describe("useDetailTargets", () => {
     expect(result.current[SETTINGS_DETAIL]).toEqual({ pending: false, href: "/settings/profile" });
     expect(result.current[WORKSPACE_DETAIL]).toEqual({ pending: false, href: null });
     expect(result.current[TABLE_DETAIL]).toEqual({ pending: false, href: null });
+    expect(result.current[WORKFLOW_RUN_DETAIL]).toEqual({ pending: false, href: null });
     expect(result.current[WORKFLOW_RUNS_DETAIL]).toEqual({ pending: false, href: null });
     expect(result.current[WORKFLOW_LOGS_DETAIL]).toEqual({ pending: false, href: null });
     expect(result.current[ARTIFACT_DETAIL]).toEqual({ pending: false, href: null });

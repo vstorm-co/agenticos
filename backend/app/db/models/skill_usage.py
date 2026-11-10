@@ -1,7 +1,7 @@
 """Which skills a run used - one row per run, agent and skill.
 
 A skill reaches a run as a deferred capability. The model sees its name and
-description and opens it with `load_capability`; it reads the skill's files with
+description and opens it with `read_skill`; it reads the skill's files with
 `read_skill_resource`, or, where the run has a workspace, under
 `/workspace/skills/<name>/` with the sandbox's own tools. Each of those is
 counted here, by the skill's id rather than its name: a deleted skill's name may

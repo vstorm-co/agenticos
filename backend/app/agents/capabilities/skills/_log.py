@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from app.agents.capabilities._registry import REGISTRY, load_builtins
+from app.agents.capabilities._registry import LOAD_CAPABILITY, READ_SKILL, REGISTRY, load_builtins
 from app.db.models.skill import Skill
 from app.schemas.skill_usage import SkillUseRecord
 
@@ -16,7 +16,8 @@ if TYPE_CHECKING:
 
 SKILL_USE_LOG_RESOURCE = "skill_use_log"
 
-LOAD_TOOL = "load_capability"
+LOAD_TOOLS = frozenset({READ_SKILL, LOAD_CAPABILITY})
+"""A model opens a skill with `read_skill`; histories from before it still say `load_capability`."""
 RESOURCE_TOOL = "read_skill_resource"
 LISTING_TOOL = "ls"
 """Listing a skill's folder names it without reading it, so it is not counted."""
@@ -100,10 +101,10 @@ class SkillUseLog:
     def observe(self, tool_name: str, args: Mapping[str, Any]) -> None:
         """Count one finished tool call against the skills it used, if any.
 
-        `load_capability` is the framework's own and is never renamed; the other
-        two are compared by stable id, so a binding that renames them is still read.
+        The load tools are the framework's own and are never renamed; the other two
+        are compared by stable id, so a binding that renames them is still read.
         """
-        if tool_name == LOAD_TOOL:
+        if tool_name in LOAD_TOOLS:
             name = args.get("id")
             if isinstance(name, str) and name in self.served:
                 self._tally(name).loaded = True

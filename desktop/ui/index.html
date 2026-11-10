@@ -11,6 +11,15 @@
          so this strip is what it is dragged by. -->
     <div class="titlebar" data-tauri-drag-region></div>
     <main>
+      <label class="language-choice"
+        >Language
+        <select id="language" aria-label="Language">
+          <option value="en">English</option>
+          <option value="pl">Polski</option>
+          <option value="de">Deutsch</option>
+          <option value="tr">Türkçe</option>
+        </select></label
+      >
       <img
         class="app-icon"
         src="app-icon.png"
@@ -25,7 +34,7 @@
           Your agents, a click away: on your desktop, in the menu bar, on a
           shortcut.
         </p>
-        <button type="button" class="primary" data-go="permissions">
+        <button type="button" class="primary" data-go="where">
           Get started
         </button>
       </section>
@@ -125,10 +134,17 @@
       </section>
 
       <section data-screen="server" hidden>
+        <aside data-recovery hidden>
+          <h2>Restore your workspace</h2>
+          <p>
+            Retry the connection before creating another workspace. A failed
+            connection does not delete your data.
+          </p>
+        </aside>
         <h1>Your organization's server</h1>
         <p class="lead">The address you open AgenticOS at in a browser.</p>
         <form id="server-form">
-          <label for="server">Server address</label>
+          <label for="server">Server address or invitation link</label>
           <input
             id="server"
             name="server"
@@ -146,6 +162,13 @@
       </section>
 
       <section data-screen="local" hidden>
+        <aside data-recovery hidden>
+          <h2>Restore your workspace</h2>
+          <p>
+            Retry the connection before creating another workspace. A failed
+            connection does not delete your data.
+          </p>
+        </aside>
         <h1 data-local-heading>AgenticOS on this computer</h1>
         <p class="lead" data-local-lead>
           A local workspace, managed from your menu bar.
@@ -204,26 +227,27 @@
                 <legend>Workspace</legend>
                 <div class="form-fields">
                   <div class="form-field">
-                    <label for="instance-name">Instance name</label
+                    <label for="instance-name">Workspace name</label
                     ><input
                       id="instance-name"
                       name="instance-name"
                       type="text"
                       placeholder="Work or Personal"
+                      value="Personal"
                       maxlength="80"
                       required
                     />
                   </div>
-                  <div class="form-field">
+                  <details class="form-field">
+                    <summary>Advanced workspace settings</summary>
                     <label for="organization">Organization</label
                     ><input
                       id="organization"
                       name="organization"
                       type="text"
                       placeholder="Acme"
-                      required
                     />
-                  </div>
+                  </details>
                 </div>
               </fieldset>
               <fieldset class="form-group">
@@ -284,6 +308,10 @@
                   AI providers.
                 </p>
               </fieldset>
+              <p class="hint">
+                Local workspace does not mean local AI. Material sent to a
+                remote model leaves this computer.
+              </p>
               <p class="form-note">
                 <svg aria-hidden="true" viewBox="0 0 24 24">
                   <path d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6Z" />
@@ -315,7 +343,10 @@
           <li data-step="start">Starting</li>
           <li data-step="owner">Creating your organization</li>
         </ol>
-        <p class="hint" role="status" data-progress-detail hidden></p>
+        <details>
+          <summary>Details</summary>
+          <p class="hint" role="status" data-progress-detail hidden></p>
+        </details>
         <p class="error" role="alert" hidden></p>
         <div class="actions" data-progress-actions hidden>
           <button type="button" class="primary" data-retry-setup>Retry</button>

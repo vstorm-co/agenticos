@@ -129,6 +129,7 @@ async def trigger_org_integration(
 ) -> Any:
     """Manually trigger a sync run for an org integration."""
     source = await access.sync_source(ctx, str(source_id))
+    sync_source_svc.refuse_paused(source)
     sync_log = await sync_source_svc.trigger_sync(str(source.id), user_id=ctx.user_id)
     return RAGSyncResponse(
         id=str(sync_log.id),

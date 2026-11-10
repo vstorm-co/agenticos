@@ -97,6 +97,7 @@ PLATFORM_MODULES = (
     "app/repositories/agent_exposure.py",
     "app/repositories/mcp_connection.py",
     "app/repositories/organization_secret.py",
+    "app/repositories/_visibility.py",
     "app/repositories/resource_grant.py",
     "app/repositories/dashboard_layout.py",
     "app/repositories/dashboard_preset.py",

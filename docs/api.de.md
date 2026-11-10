@@ -1,5 +1,5 @@
 ---
-source_sha: "07ab4376c975"
+source_sha: "3503412daf98"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -17,11 +17,11 @@ veröffentlicht.
 
 Drei Wege hinein, für drei verschiedene Aufrufer.
 
-|                                    | Header                                 | Für                                                                                                                                                                                   |
-| ---------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **API-Schlüssel der Organisation** | `Authorization: Bearer aos_…`          | Ein Skript, einen HTTP-Client wie Postman oder einen MCP-Client. Handelt als das Mitglied, das ihn ausgestellt hat, beschränkt auf die Berechtigungen, mit denen er ausgestellt wurde |
-| **JWT**                            | `Authorization: Bearer <access token>` | Eine Person oder etwas, das für sie handelt. Kurzlebig, erneuert mit einem Refresh-Token                                                                                              |
-| **Sitzungs-Cookie**                | von der Konsole gesetzt                | Nur den Browser — das Token ist HttpOnly und erreicht nie JavaScript                                                                                                                  |
+|  | Header | Für |
+| --- | --- | --- |
+| **API-Schlüssel der Organisation** | `Authorization: Bearer aos_…` | Ein Skript, einen HTTP-Client wie Postman oder einen MCP-Client. Handelt als das Mitglied, das ihn ausgestellt hat, beschränkt auf die Berechtigungen, mit denen er ausgestellt wurde |
+| **JWT** | `Authorization: Bearer <access token>` | Eine Person oder etwas, das für sie handelt. Kurzlebig, erneuert mit einem Refresh-Token |
+| **Sitzungs-Cookie** | von der Konsole gesetzt | Nur den Browser — das Token ist HttpOnly und erreicht nie JavaScript |
 
 Organisationsschlüssel verwenden `Authorization: Bearer aos_…`. `X-API-Key` ist ein separates
 Dienstzugangsmittel der Bereitstellung; ein `aos_…`-Schlüssel dort authentifiziert keine
@@ -65,6 +65,25 @@ Suche in ihren früheren Unterhaltungen, keine Seiten, auf denen der Browser ihr
 Anmeldungen hält, und keinen benutzerbezogenen Sandbox-Arbeitsbereich. Wer den
 Schlüssel hält, ist ein Skript, nicht diese Person, also antwortet der Run wie
 auf einem öffentlichen Widget.
+
+Für das Genehmigen persönlicher Routinen und Watches ist der ausdrückliche Scope `personal:consent` nötig, ausgewählt unter **Custom** beim Ausstellen eines Schlüssels oder Autorisieren eines MCP-Clients. Er ist in keiner Voreinstellung enthalten, auch nicht in **Full access**. Die Bestätigung erlaubt dem Zugang, dauerhafte Routinen und Watches mit Ihren persönlichen Verbindungen und Daten zu genehmigen; die üblichen Scopes `agents:run` und `runs:view` erlauben das nicht. Bestehende Schlüssel und MCP-Autorisierungen erhalten diese persönliche Zustimmung nicht automatisch.
+
+**Arbeit, die als Sie handelt, richten Sie auch mit einem selbst ausgestellten
+Schlüssel ein.** Ein Schlüssel, den Sie erstellt haben, oder das Token eines
+MCP-Clients, den Sie autorisiert haben, darf Ihre eigenen [Routinen](triggers.md),
+die als Sie handeln (`runs_as_creator`), und Ihre [Watches](console.md) anlegen und
+ändern, die Quellen einer Routine prüfen und einen Agenten veröffentlichen, ohne
+die Zustimmung Ihrer als Sie handelnden Routinen zu entziehen. Der Lauf einer
+solchen Routine bleibt an ihre geprüften Quellen und ihr Budget gebunden. Die
+Laufberechtigung eines Agenten außerhalb Ihres privaten Chats kann das nicht,
+ebenso wenig ein Administrator, der Sie imitiert.
+
+Auch Unterhaltungen sind öffentlich: `GET /api/v1/conversations` listet die Chats
+des Ausstellers (`runs:view`), `POST /api/v1/conversations` mit `title` und
+`PATCH /api/v1/conversations/{id}` öffnen und benennen einen Chat (`agents:run`) -
+etwa einen Themen-Chat, in dem eine Routine antwortet.
+`POST /api/v1/me/mcp-connections/{id}/test` prüft eine eigene Verbindung und
+aktualisiert ihre Tools (`agents:run`).
 
 Auch die Verbindungssuche ist lesend öffentlich: `GET /sandbox-connections`,
 `GET /sandbox-connections/runtimes` und `GET /sandbox-connections/{id}/policy`
@@ -365,6 +384,34 @@ Das startet einen Run der veröffentlichten Version des Workflows und antwortet
 sofort mit `201`; die Knoten laufen im Hintergrund. `input` ist das, was der Trigger [`core.input`](reference/workflow-nodes.md#core-input) des Graphen weitergibt, höchstens `WORKFLOW_RUN_MAX_INPUT_BYTES` als JSON (darüber `413`). Hier startet nur eine Version, die mit diesem Trigger oder ohne einen startet: jede andere antwortet `409
 WORKFLOW_TRIGGER_MISMATCH`, weil ein Webhook, ein Zeitplan, eine Chatnachricht oder ein Tabellen-Datensatz sie startet. `"mode": "test"` führt
 stattdessen den aktuellen Entwurf aus, mit jedem Trigger, und verlangt `workflows:edit`.
+
+Lies vor dem Aufruf `GET /api/v1/workflows/{id}/input-schema` mit
+`workflows:view`. Die Antwort enthält die veröffentlichte `version_id` und eine
+Liste `entries` mit `entry_node_id`, `trigger` und wirksamem `input_schema` für jeden
+Manual-, API-, Called-by-a-workflow- oder Form-Eingang. Übergib `version_id`, um
+eine bestimmte veröffentlichte Version zu prüfen. JSON-Schema-Verträge werden
+unverändert zurückgegeben; einfache Felder werden als JSON Schema dargestellt,
+und untypisierte Eingänge liefern `{"type": "object"}`. Verwende den Vertrag des
+gewünschten Eingangs und übergib beim Start dessen `entry_node_id`.
+
+Bisherige einfache `integer`-Felder verlangen zusätzlich ganzzahlige JSON-Tokens:
+`1` wird angenommen, `1.0` und `1e0` werden abgelehnt. Die Erkennung markiert
+diese Felder mit `x-agenticos-strict-integer: true`, auch in optionalen Feldern,
+die null erlauben. Gewöhnliches JSON Schema kann diese Schreibweise nicht
+erzwingen; seine Validierung allein reicht für diese Felder nicht aus. Die
+Serverprüfung entscheidet. Rohe JSON-Schema-Verträge nutzen die standardmäßige
+Integer-Semantik.
+
+Der optionale [JSON-Schema-Eingabevertrag](reference/workflow-nodes.md#json-schema-input-contracts)
+wird vor dem Annehmen des Runs geprüft. Eine Abweichung liefert
+`422 WORKFLOW_RUN_INPUT_INVALID` mit Feldpfaden und Meldungen in `error.details.fields`;
+es wird kein Run angelegt. Jeder Eintrag enthält `field` und `message`;
+verschachtelte Anfragepfade enthalten Array-Indizes, etwa `input.items.0.sku`.
+Für bestehende Aufrufer behält `error.details.problems` außerdem `field`, `message`
+und `type` mit Pfaden relativ zum Eingabeobjekt. Der Vertrag stammt aus der
+aktuellen veröffentlichten Version oder bei `"mode": "test"` aus dem Draft.
+Er gilt ebenso über WebSocket und MCP sowie beim Aufruf durch einen anderen
+Workflow.
 
 `deadline_seconds` (bis zu dreißig Tage) setzt eine Deadline, die jedes Mal
 geprüft wird, bevor ein Knoten ausgeführt wird: Der erste nach Ablauf fällige
@@ -729,33 +776,33 @@ Abmeldung nicht überdauert.
 
 **Der Client sendet** JSON-Frames und über das Relay auch binäres Audio:
 
-| Frame      | Felder                                                                                                                                              | Wann                                                      |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| `start`    | `agent_id`, `conversation_id`, `sdp_offer` (WebRTC), `resume_of` und `resume_token` (eine Wiederverbindung), `context` (die Variablen eines Embeds) | Zuerst, innerhalb von 10 Sekunden                         |
-| `approval` | `id`, `decision` (`approve` oder `deny`)                                                                                                            | Entscheidung über eine Freigabe, auf die der Anruf wartet |
-| `mute`     | `muted`                                                                                                                                             | Das Relay: das Mikrofon stummgeschaltet                   |
-| `played`   | `bytes`                                                                                                                                             | Das Relay: wie viel vom Audio des Agents abgespielt wurde |
-| `end`      | ---                                                                                                                                                 | Auflegen                                                  |
-| _binär_    | 16-Bit-PCM mit der Eingangsrate des Modells                                                                                                         | Das Relay: das Audio des Anrufers                         |
+| Frame | Felder | Wann |
+| --- | --- | --- |
+| `start` | `agent_id`, `conversation_id`, `sdp_offer` (WebRTC), `resume_of` und `resume_token` (eine Wiederverbindung), `context` (die Variablen eines Embeds) | Zuerst, innerhalb von 10 Sekunden |
+| `approval` | `id`, `decision` (`approve` oder `deny`) | Entscheidung über eine Freigabe, auf die der Anruf wartet |
+| `mute` | `muted` | Das Relay: das Mikrofon stummgeschaltet |
+| `played` | `bytes` | Das Relay: wie viel vom Audio des Agents abgespielt wurde |
+| `end` | --- | Auflegen |
+| _binär_ | 16-Bit-PCM mit der Eingangsrate des Modells | Das Relay: das Audio des Anrufers |
 
 **Der Server sendet:**
 
-| Frame                  | Felder                                                                                                                                | Bedeutet                                                                                                                          |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `answer`               | `sdp`                                                                                                                                 | WebRTC: die Antwort des Providers für die Peer-Verbindung des Browsers                                                            |
-| `ready`                | `call_id`, `run_id`, `conversation_id`, `transport`, `input_sample_rate`, `output_sample_rate`, `cap_seconds`, `resume_token`         | Der Anruf ist eingerichtet. `resume_token` wird nur hier gesendet, nur an diesen Anrufer; eine Wiederverbindung schickt es zurück |
-| `state`                | `state`: `connecting`, `listening`, `user_speaking`, `thinking`, `agent_speaking`, `interrupted`, `tool_running`, `awaiting_approval` | Wer spricht oder was der Agent gerade tut                                                                                         |
-| `caption`              | `role`, `turn_id`, `part` und eines von `delta` (anhängen), `text` (durch den bisher geprüften Text ersetzen) oder `final`            | Ein Live-Untertitel                                                                                                               |
-| `turn_saved`           | `message`                                                                                                                             | Eine abgeschlossene Runde, als die Nachricht, als die sie gespeichert wurde; sie ersetzt die Untertitel mit ihrer `turn_id`       |
-| `tool`                 | `name`, `status` (`running` oder `done`)                                                                                              | Ein Tool, das der Agent ausführt                                                                                                  |
-| `approval_required`    | `id`, `tool`, `args`, `said`, `timeout_seconds`                                                                                       | Eine Freigabe für die Person im Anruf: die exakten Argumente und was von ihr verstanden wurde                                     |
-| `approval_unavailable` | `tool`, `args`                                                                                                                        | Ein Tool-Aufruf, den dieser Anrufer per Stimme nicht freigeben kann                                                               |
-| `approval_settled`     | `id`, `outcome` (`approved`, `denied` oder `expired`)                                                                                 | Wie eine Freigabe ausgegangen ist                                                                                                 |
-| `notice`               | `kind`, `message` (optional)                                                                                                          | Etwas, das in Worten zu sagen ist: ein Guardrail-Treffer, ein erreichtes Limit                                                    |
-| `limit`                | `seconds_left`                                                                                                                        | Die Zeit des Anrufs ist fast um                                                                                                   |
-| `clear_playback`       | ---                                                                                                                                   | Das Relay: das eingereihte Audio des Agents verwerfen                                                                             |
-| `ended`                | `reason`, `message`                                                                                                                   | Der Anruf ist vorbei                                                                                                              |
-| _binär_                | 16-Bit-PCM mit der Ausgangsrate des Modells                                                                                           | Das Relay: das Audio des Agents                                                                                                   |
+| Frame | Felder | Bedeutet |
+| --- | --- | --- |
+| `answer` | `sdp` | WebRTC: die Antwort des Providers für die Peer-Verbindung des Browsers |
+| `ready` | `call_id`, `run_id`, `conversation_id`, `transport`, `input_sample_rate`, `output_sample_rate`, `cap_seconds`, `resume_token` | Der Anruf ist eingerichtet. `resume_token` wird nur hier gesendet, nur an diesen Anrufer; eine Wiederverbindung schickt es zurück |
+| `state` | `state`: `connecting`, `listening`, `user_speaking`, `thinking`, `agent_speaking`, `interrupted`, `tool_running`, `awaiting_approval` | Wer spricht oder was der Agent gerade tut |
+| `caption` | `role`, `turn_id`, `part` und eines von `delta` (anhängen), `text` (durch den bisher geprüften Text ersetzen) oder `final` | Ein Live-Untertitel |
+| `turn_saved` | `message` | Eine abgeschlossene Runde, als die Nachricht, als die sie gespeichert wurde; sie ersetzt die Untertitel mit ihrer `turn_id` |
+| `tool` | `name`, `status` (`running` oder `done`) | Ein Tool, das der Agent ausführt |
+| `approval_required` | `id`, `tool`, `args`, `said`, `timeout_seconds` | Eine Freigabe für die Person im Anruf: die exakten Argumente und was von ihr verstanden wurde |
+| `approval_unavailable` | `tool`, `args` | Ein Tool-Aufruf, den dieser Anrufer per Stimme nicht freigeben kann |
+| `approval_settled` | `id`, `outcome` (`approved`, `denied` oder `expired`) | Wie eine Freigabe ausgegangen ist |
+| `notice` | `kind`, `message` (optional) | Etwas, das in Worten zu sagen ist: ein Guardrail-Treffer, ein erreichtes Limit |
+| `limit` | `seconds_left` | Die Zeit des Anrufs ist fast um |
+| `clear_playback` | --- | Das Relay: das eingereihte Audio des Agents verwerfen |
+| `ended` | `reason`, `message` | Der Anruf ist vorbei |
+| _binär_ | 16-Bit-PCM mit der Ausgangsrate des Modells | Das Relay: das Audio des Agents |
 
 **Ein Besucher eines Widgets oder einer gehosteten Seite erfährt weniger.** Sein
 `ready` enthält kein `run_id`; `cap_seconds` ist das Limit des Anrufs - der
@@ -802,13 +849,13 @@ eines Providers.
 
 Fünf HTTP-Routen gehören dazu:
 
-| Route                                          | Gate                                                                  | Antwortet                                                                                                                                                                                                                                        |
-| ---------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `GET /api/v1/agents/{agent_id}/voice`          | `agents:run` auf diesem Agent, ein Grant eingeschlossen; sonst `404`  | Ob ein Anruf starten würde, warum nicht (`no_voice`, `not_offered` oder `no_key`), der Transport und der längste Anruf                                                                                                                           |
-| `POST /api/v1/agents/{agent_id}/voice/preview` | `agents:edit` auf diesem Agent, ein Grant eingeschlossen; sonst `404` | Die Stimme aus dem Entwurf des Abschnitts „Stimme“, die einen festen Satz sagt, als `audio/wav`. Pro Stimme und Sprache im Cache; `RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE` pro Person                                                               |
-| `GET /api/v1/providers/realtime-models`        | `agents:view`                                                         | Der Realtime-Katalog, aus dem der Abschnitt Stimme auswählt                                                                                                                                                                                      |
-| `GET /api/v1/voice/usage?start=…&end=…`        | `runs:view`                                                           | Anrufsekunden und Anrufe für Anrufe, die zu oder nach `start` und vor `end` begonnen haben, nach Agent (die Anrufe eines gelöschten Agents als eine Zeile ohne ID oder Namen). Ein `end`, das nicht nach `start` liegt, wird mit `422` abgelehnt |
-| `GET /api/v1/runs?modality=voice`              | `runs:view`                                                           | Nur Anrufe (`text` nur für getippte Runs); ein Anruf, der sich neu verbunden hat, ist eine Zeile mit `voice_chain`, alle Verbindungen summiert                                                                                                   |
+| Route | Gate | Antwortet |
+| --- | --- | --- |
+| `GET /api/v1/agents/{agent_id}/voice` | `agents:run` auf diesem Agent, ein Grant eingeschlossen; sonst `404` | Ob ein Anruf starten würde, warum nicht (`no_voice`, `not_offered` oder `no_key`), der Transport und der längste Anruf |
+| `POST /api/v1/agents/{agent_id}/voice/preview` | `agents:edit` auf diesem Agent, ein Grant eingeschlossen; sonst `404` | Die Stimme aus dem Entwurf des Abschnitts „Stimme“, die einen festen Satz sagt, als `audio/wav`. Pro Stimme und Sprache im Cache; `RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE` pro Person |
+| `GET /api/v1/providers/realtime-models` | `agents:view` | Der Realtime-Katalog, aus dem der Abschnitt Stimme auswählt |
+| `GET /api/v1/voice/usage?start=…&end=…` | `runs:view` | Anrufsekunden und Anrufe für Anrufe, die zu oder nach `start` und vor `end` begonnen haben, nach Agent (die Anrufe eines gelöschten Agents als eine Zeile ohne ID oder Namen). Ein `end`, das nicht nach `start` liegt, wird mit `422` abgelehnt |
+| `GET /api/v1/runs?modality=voice` | `runs:view` | Nur Anrufe (`text` nur für getippte Runs); ein Anruf, der sich neu verbunden hat, ist eine Zeile mit `voice_chain`, alle Verbindungen summiert |
 
 Eine Freigabe, die zu einem laufenden Anruf gehört, wird im Anruf entschieden:
 `POST /api/v1/approvals/{id}` lehnt sie mit `400` ab.
@@ -878,14 +925,14 @@ Schreibzugriff wird angewendet, wenn er ankommt, und der letzte gewinnt.
 
 ## Konventionen { #conventions }
 
-|                          |                                                                                              |
-| ------------------------ | -------------------------------------------------------------------------------------------- |
-| Präfix                   | `/api/v1`                                                                                    |
-| Anlegen                  | `POST`, `201`                                                                                |
-| Teilweises Aktualisieren | `PATCH`                                                                                      |
-| Löschen                  | `DELETE`, `204`, kein Body                                                                   |
-| Seitenaufteilung         | Query-Parameter `skip` (≥ 0) und `limit` (1–100); Listenantworten tragen `items` und `total` |
-| Pfade                    | kebab-case                                                                                   |
+|  |  |
+| --- | --- |
+| Präfix | `/api/v1` |
+| Anlegen | `POST`, `201` |
+| Teilweises Aktualisieren | `PATCH` |
+| Löschen | `DELETE`, `204`, kein Body |
+| Seitenaufteilung | Query-Parameter `skip` (≥ 0) und `limit` (1–100); Listenantworten tragen `items` und `total` |
+| Pfade | kebab-case |
 
 ## Stabilität, ehrlich gesagt { #stability-honestly }
 

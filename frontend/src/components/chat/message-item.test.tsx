@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MessageItem } from "./message-item";
 import { draftsAsText, draftsOf } from "@/lib/drafts";
 import * as motion from "@/lib/motion";
-import { foldWork, runsOf } from "./turn-parts";
+import { foldWork, runsOf, TurnParts } from "./turn-parts";
 import { useAuthStore, useChatStore, useFilePreviewStore } from "@/stores";
 import { ChatScope } from "@/stores/chat-scope";
 import { useWorkingStore } from "@/stores/working-store";
@@ -119,6 +119,7 @@ function item(
   props: {
     agent?: Agent;
     onRegenerate?: () => void;
+    onFork?: (messageId: string) => void;
     groupPosition?: "first" | "middle" | "last" | "single";
     continuesTurn?: boolean;
     endsTurn?: boolean;
@@ -1032,6 +1033,31 @@ describe("the footer", () => {
     expect(screen.queryByRole("button", { name: "Regenerate response" })).toBeNull();
   });
 
+  it("offers a fork of a saved answer where the caller may fork", async () => {
+    const onFork = vi.fn();
+    const { unmount } = item({ id: "m-9" }, { onFork });
+    await userEvent.click(screen.getByRole("button", { name: "Fork into a new conversation" }));
+    expect(onFork).toHaveBeenCalledWith("m-9");
+    unmount();
+
+    // Not the owner's thread: the container passes no handler.
+    item();
+    expect(screen.queryByRole("button", { name: "Fork into a new conversation" })).toBeNull();
+  });
+
+  it("never offers a fork of a person's message, a system note or an answer not yet saved", () => {
+    const { unmount } = item({ role: "user", content: "x" }, { onFork: vi.fn() });
+    expect(screen.queryByRole("button", { name: "Fork into a new conversation" })).toBeNull();
+    unmount();
+
+    const system = item({ role: "system", content: "x" }, { onFork: vi.fn() });
+    expect(screen.queryByRole("button", { name: "Fork into a new conversation" })).toBeNull();
+    system.unmount();
+
+    item({ isTemporaryId: true }, { onFork: vi.fn() });
+    expect(screen.queryByRole("button", { name: "Fork into a new conversation" })).toBeNull();
+  });
+
   it("never offers a regenerate on a person's own message", () => {
     item({ role: "user", content: "x" }, { onRegenerate: vi.fn() });
 
@@ -1700,4 +1726,47 @@ it("keeps a successful watch write visible as an authorized management reference
     ],
   });
   expect(screen.getByText(`Manage watch ${id}`)).toBeInTheDocument();
+});
+
+vi.mock("./model-setup-card", () => ({
+  ModelSetupCard: ({ interactive = false }: { interactive?: boolean }) => (
+    <div data-testid="model-setup" data-interactive={String(interactive)} />
+  ),
+}));
+
+it("offers setup actions in the main chat without a secondary chat scope", () => {
+  render(
+    <MessageItem
+      message={message({ parts: [{ id: "setup", type: "model_setup", setupAgentId: "starter" }] })}
+    />,
+  );
+  expect(screen.getByTestId("model-setup")).toHaveAttribute("data-interactive", "true");
+});
+
+it("keeps shared turn parts free of private setup actions by default", () => {
+  render(
+    <TurnParts
+      parts={[{ id: "setup", type: "model_setup", setupAgentId: "starter" }]}
+      isStreaming={false}
+      isUser={false}
+      mcpServers={[]}
+    />,
+  );
+  expect(screen.getByTestId("model-setup")).toHaveAttribute("data-interactive", "false");
+});
+
+it("defers a newly received setup card until its answer has been revealed", () => {
+  render(
+    <MessageItem
+      message={message({
+        content: "Connect a model to continue.",
+        animateSetupReply: true,
+        parts: [
+          { id: "text", type: "text", content: "Connect a model to continue." },
+          { id: "setup", type: "model_setup", setupAgentId: "starter" },
+        ],
+      })}
+    />,
+  );
+  expect(screen.queryByTestId("model-setup")).not.toBeInTheDocument();
 });

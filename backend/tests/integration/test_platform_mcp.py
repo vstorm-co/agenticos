@@ -698,7 +698,9 @@ async def test_watch_chat_tools_preserve_private_consent_and_source_conversation
     from app.db.models.watch import Watch
     from app.services.watches import WatchService
 
-    key, organization = await _owner_key(db, Perm.AGENTS_RUN, Perm.AGENTS_VIEW)
+    key, organization = await _owner_key(
+        db, Perm.AGENTS_RUN, Perm.AGENTS_VIEW, Perm.PERSONAL_CONSENT
+    )
     organization.proactive_watches_enabled = True
     agent = Agent(
         organization_id=organization.id,
@@ -729,6 +731,13 @@ async def test_watch_chat_tools_preserve_private_consent_and_source_conversation
         ctx, agent_id=agent.id, conversation_id=conversation.id
     )
     assert private_key is not None
+    ordinary_key = await ApiKeyService(db).create(
+        ctx,
+        ApiKeyCreate(
+            name="ordinary",
+            scopes=[Perm.AGENTS_RUN.value, Perm.AGENTS_VIEW.value, Perm.RUNS_VIEW.value],
+        ),
+    )
     await db.commit()
     args = {
         "agent_id": str(agent.id),
@@ -740,8 +749,6 @@ async def test_watch_chat_tools_preserve_private_consent_and_source_conversation
     async with _connected(key) as session:
         listed = await session.call_tool("list_watches", {})
         assert not listed.is_error and _content(listed)["total"] == 0
-        refused = await session.call_tool("create_watch", args)
-        assert refused.is_error and "own consent" in str(refused.content)
     with patch.object(
         WatchService,
         "_selected_spec",
@@ -752,6 +759,18 @@ async def test_watch_chat_tools_preserve_private_consent_and_source_conversation
             )
         ),
     ):
+        async with _connected(ordinary_key.key) as session:
+            refused = await session.call_tool("create_watch", args)
+        assert refused.is_error
+        async with _connected(key) as session:
+            own_key_watch = await session.call_tool("create_watch", {**args, "title": "My key"})
+        assert not own_key_watch.is_error, own_key_watch
+        own_saved = await db.get(Watch, uuid.UUID(_content(own_key_watch)["id"]))
+        assert own_saved is not None and own_saved.source_conversation_id is not None
+        own_source = await db.get(Conversation, own_saved.source_conversation_id)
+        assert own_source is not None and own_source.id != conversation.id
+        assert own_source.user_id == organization.created_by_user_id
+        assert own_source.organization_id == organization.id
         async with _connected(private_key) as session:
             created = await session.call_tool("create_watch", args)
     assert not created.is_error, created
@@ -908,3 +927,77 @@ async def test_tasks_mcp_reuses_scope_tables_and_updates_the_same_record(
             "ensure_task_board", {"scope": "private", "scope_id": str(uuid.uuid4())}
         )
         assert foreign_scope.is_error
+
+
+@pytest.mark.security
+async def test_mcp_never_reads_refused_turns_quotes_or_conversation_titles(
+    db: AsyncSession, served: None
+) -> None:
+    from app.db.models.conversation import Conversation, Message
+
+    key, org = await _owner_key(db, Perm.RUNS_VIEW)
+    chat = Conversation(
+        id=uuid.uuid4(),
+        user_id=org.created_by_user_id,
+        organization_id=org.id,
+        title="XYZZY classified",
+    )
+    clean = Conversation(
+        id=uuid.uuid4(), user_id=org.created_by_user_id, organization_id=org.id, title="Safe chat"
+    )
+    db.add_all([chat, clean])
+    await db.flush()
+    refused = Message(
+        id=uuid.uuid4(),
+        conversation_id=chat.id,
+        role="user",
+        content="XYZZY refused",
+        guardrail_refused=True,
+    )
+    db.add(refused)
+    await db.flush()
+    approved = Message(
+        id=uuid.uuid4(),
+        conversation_id=chat.id,
+        role="user",
+        content="approved request",
+        reply_to_message_id=refused.id,
+    )
+    db.add(approved)
+    await db.commit()
+    from app.agents.spec import AgentSpec, CapabilityBindingSpec
+    from app.services.mentions import MentionService
+
+    offers = await MentionService(db)._conversations(
+        AuthContext(user_id=org.created_by_user_id, organization_id=org.id, role="owner"),
+        AgentSpec(
+            name="Reader",
+            model_profile_id=uuid.uuid4(),
+            capabilities=[CapabilityBindingSpec(id="conversation_search")],
+        ),
+    )
+    assert [offer.id for offer in offers] == [str(clean.id)]
+    assert "XYZZY" not in str(offers)
+    async with _connected(key) as session:
+        listing = _content(await session.call_tool("list_conversations", {}))
+        assert listing["total"] == 1
+        assert [item["id"] for item in listing["items"]] == [str(clean.id)]
+        transcript = _content(
+            await session.call_tool("read_conversation", {"conversation_id": str(chat.id)})
+        )
+        assert transcript["total"] == 1
+        assert [item["content"] for item in transcript["items"]] == ["approved request"]
+        assert transcript["items"][0]["reply_to"] is None
+        assert "XYZZY" not in json.dumps([listing, transcript])
+        empty = _content(
+            await session.call_tool("read_conversation", {"conversation_id": str(clean.id)})
+        )
+        assert empty["items"] == [] and empty["total"] == 0
+    async with httpx2.AsyncClient(
+        transport=httpx2.ASGITransport(app=app),
+        base_url="http://test",
+        headers={"Authorization": f"Bearer {key}"},
+    ) as client:
+        original = await client.get(f"/api/v1/conversations/{chat.id}/transcript")
+        assert original.status_code == 200
+        assert "XYZZY refused" in original.text

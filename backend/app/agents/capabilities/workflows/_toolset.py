@@ -21,7 +21,7 @@ from collections.abc import Awaitable, Callable
 from typing import Annotated, Any
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, JsonValue
 from pydantic_ai import RunContext
 from pydantic_ai.toolsets import FunctionToolset
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -39,6 +39,8 @@ from app.schemas.workflow_run import WorkflowRunRead
 from app.services import rate_limit
 from app.services.access import WORKFLOW, acting_member, resolve_access
 from app.services.workflow_execution.facade import WorkflowExecutionService
+from app.workflows.contracts.input_schema import MAX_DISCOVERY_BYTES
+from app.workflows.nodes.core_input._handler import TriggerInputConfig, effective_input_schema
 from app.workflows.triggers import BY_HAND, DECLARES_FIELDS, WORKFLOW_CALL
 
 POLL_SECONDS = 1.0
@@ -69,8 +71,10 @@ def _live_version(workflow: Workflow) -> UUID | None:
     return workflow.current_version_id
 
 
-async def _inputs(db: AsyncSession, workflow: Workflow, version_id: UUID) -> list[dict[str, Any]]:
-    """The fields the version's entry declares, as the model reads them."""
+async def _inputs(
+    db: AsyncSession, workflow: Workflow, version_id: UUID
+) -> tuple[list[dict[str, JsonValue]], dict[str, JsonValue]]:
+    """The version's effective input contract, alongside its legacy field list."""
     version = await workflow_repo.get_version(
         db, version_id, organization_id=workflow.organization_id
     )
@@ -87,8 +91,12 @@ async def _inputs(db: AsyncSession, workflow: Workflow, version_id: UUID) -> lis
         None,
     )
     if entry is None or entry.get("definition_id") not in DECLARES_FIELDS:
-        return []
-    return [
+        return [], {"type": "object"}
+    raw_config = entry.get("config") or {}
+    config = TriggerInputConfig.model_validate(
+        {key: raw_config[key] for key in ("fields", "input_schema") if key in raw_config}
+    )
+    fields: list[dict[str, JsonValue]] = [
         {
             key: field[key]
             for key in ("name", "type", "required", "description", "options")
@@ -96,6 +104,7 @@ async def _inputs(db: AsyncSession, workflow: Workflow, version_id: UUID) -> lis
         }
         for field in (entry.get("config") or {}).get("fields", [])
     ]
+    return fields, effective_input_schema(config)
 
 
 def _run(run: WorkflowRunRead) -> str:
@@ -161,13 +170,17 @@ def build_workflows_toolset(
     async def list_workflows(ctx: RunContext[AgentDeps]) -> str:
         """List the workflows this agent may start, with what each needs as input.
 
-        Use first, to choose a workflow and to learn the input fields it asks for.
+        Use first, to choose a workflow and inspect the input contract it validates.
+        Discovery exceeding 32 KiB is refused in full; ask for fewer workflows or
+        smaller contracts rather than retrying the same discovery.
 
         Returns:
-            A JSON list of `{id, name, description, input}`, where `input` lists each
+            A JSON list of `{id, name, description, version_id, input_schema, input}`,
+            where `input_schema` is the effective Draft 2020-12 contract and `input` lists each
             field's `name`, `type`, whether it is `required`, and a choice's
             `options`. A workflow that is not published, archived, starts some other
             way, or that the member this agent acts for cannot run is left out.
+            Oversized discovery returns a refusal instead of partial output.
         """
 
         async def work(db: AsyncSession, auth: AuthContext) -> str:
@@ -185,15 +198,25 @@ def build_workflows_toolset(
                     )
                 ):
                     continue
+                fields, schema = await _inputs(db, workflow, version_id)
                 found.append(
                     {
                         "id": str(workflow.id),
                         "name": workflow.name,
                         "description": workflow.description,
-                        "input": await _inputs(db, workflow, version_id),
+                        "version_id": str(version_id),
+                        "input_schema": schema,
+                        "input": fields,
                     }
                 )
-            return _as_json(found)
+            encoded = _as_json(found)
+            if len(encoded.encode()) > MAX_DISCOVERY_BYTES:
+                raise _Refused(
+                    "Workflow discovery exceeds its 32 KiB allowance. Ask for fewer workflows "
+                    "or smaller input contracts in this agent's binding. The HTTP input-schema "
+                    "endpoint remains available outside the agent's tool context."
+                )
+            return encoded
 
         return await act(ctx, work)
 

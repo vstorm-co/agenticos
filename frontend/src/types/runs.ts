@@ -577,6 +577,8 @@ export interface ParkedCall {
 
 /** One tool call an execution of a run made, and what came back from it. */
 export interface RunStep {
+  tool_id?: string | null;
+  presentation_kind?: "draft" | "generic" | "platform" | null;
   tool_call_id: string;
   tool_name: string;
   args: Record<string, unknown>;
@@ -678,3 +680,16 @@ export interface RunSkillUse {
   /** It opened the skill, rather than only reading one of its files. */
   loaded: boolean;
 }
+
+/** A live chat's correlated acknowledgement for a parked question answer. */
+export type RunAnswerResult =
+  | { request_id: string; result: ResumedRun }
+  | {
+      request_id: string;
+      error: {
+        status: number;
+        message: string;
+        code: string;
+        details: Record<string, unknown> | null;
+      };
+    };

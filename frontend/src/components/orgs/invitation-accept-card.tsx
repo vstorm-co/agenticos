@@ -21,6 +21,7 @@ import { useOrgStore } from "@/stores/org-store";
  */
 export function InvitationAcceptCard({ accept }: { accept: () => Promise<string> }) {
   const t = useTranslations("pages.invitations");
+  const start = useTranslations("start");
   const router = useRouter();
   const queryClient = useQueryClient();
   const setActiveOrgId = useOrgStore((state) => state.setActiveOrgId);
@@ -36,7 +37,7 @@ export function InvitationAcceptCard({ accept }: { accept: () => Promise<string>
       await queryClient.invalidateQueries({ queryKey: qk.organizations.list() });
       setActiveOrgId(organizationId);
       setStatus("success");
-      setTimeout(() => router.push("/orgs"), 2000);
+      router.push("/onboarding?welcome=1&entry=joined");
     } catch {
       setStatus("error");
     }
@@ -61,9 +62,12 @@ export function InvitationAcceptCard({ accept }: { accept: () => Promise<string>
             <>
               <XCircle className="text-destructive h-12 w-12" />
               <p className="text-sm font-medium">{t("failedAcceptInvitation")}</p>
-              <p className="text-muted-foreground text-xs">{t("invitationMayHaveExpired")}</p>
-              <Button variant="outline" onClick={() => router.push("/dashboard")}>
-                {t("goDashboard")}
+              <p className="text-muted-foreground text-xs">{start("invitationFailure")}</p>
+              <Button variant="outline" onClick={handleAccept}>
+                {start("retry")}
+              </Button>
+              <Button variant="outline" onClick={() => router.push("/onboarding")}>
+                {start("openStart")}
               </Button>
             </>
           )}

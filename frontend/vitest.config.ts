@@ -187,6 +187,7 @@ export default defineConfig({
         "src/components/ui/voice-glow.tsx",
         "src/components/layout/account-preferences.tsx",
         "src/components/layout/account-locale.tsx",
+        "src/components/layout/account-notices.tsx",
         "src/components/layout/account-time-zone.tsx",
         "src/components/settings/appearance-settings.tsx",
         // The desktop app's pages and the console's half of it (#2305): blobby,

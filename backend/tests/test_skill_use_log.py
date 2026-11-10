@@ -61,9 +61,10 @@ def _skill(name: str, skill_id: uuid.UUID, *, files: tuple[str, ...] = ()) -> Sk
 
 
 class TestObserve:
-    def test_a_load_counts_the_skill_it_opened(self) -> None:
+    @pytest.mark.parametrize("tool", ["read_skill", "load_capability"])
+    def test_a_load_counts_the_skill_it_opened(self, tool: str) -> None:
         log = _log()
-        log.observe("load_capability", {"id": "refunds"})
+        log.observe(tool, {"id": "refunds"})
         [record] = log.records()
         assert (record.agent_id, record.skill_id, record.loaded) == (AGENT, REFUNDS, True)
         assert (record.resource_reads, record.workspace_reads) == (0, 0)

@@ -22,7 +22,7 @@ from pydantic_ai.toolsets import FunctionToolset
 
 from app.agents.capabilities import CapabilityDef, all_capabilities
 from app.agents.capabilities._failures import steer
-from app.agents.capabilities._registry import LOAD_CAPABILITY
+from app.agents.capabilities._registry import READ_SKILL
 from app.agents.spec import AgentSpec
 
 PLUMBING = frozenset(
@@ -128,9 +128,9 @@ def setup_briefing(spec: AgentSpec, *, agent_id: UUID | None) -> str:
             "## Your skills",
             "",
             (
-                "Your skills are switched on already: they are the capabilities listed next, "
-                f"which load with `{LOAD_CAPABILITY}`. When a question falls within one, call "
-                f"`{LOAD_CAPABILITY}` with its id before you answer, and follow what it says. "
+                "Your skills are switched on already: they are the available skills listed next, "
+                f"which open with `{READ_SKILL}`. When a question falls within one, call "
+                f"`{READ_SKILL}` with its id before you answer, and follow what it says. "
                 f"Never ask for a skill with `{REQUEST_CAPABILITY}`."
             ),
         ]
@@ -154,7 +154,7 @@ class RequestCapabilityToolset(FunctionToolset[Any]):
         """Show the person a card that switches on a capability you lack.
 
         Use it when a request needs something under "Not switched on" in your
-        setup - never for a skill, which you load with `load_capability`. Whoever may edit you switches it on with one click; anyone else
+        setup - never for a skill, which you open with `read_skill`. Whoever may edit you switches it on with one click; anyone else
         asks your owner from it. Say in your answer what you would do once it is
         on, and do the rest of the request without it.
 
@@ -169,8 +169,8 @@ class RequestCapabilityToolset(FunctionToolset[Any]):
         if loadable is not None and loadable.defer_loading is True:
             return steer(
                 ctx,
-                f"{capability_id!r} is yours already, to load rather than to ask for. Call "
-                f'`{LOAD_CAPABILITY}` with id "{capability_id}", then answer with what it says.',
+                f"{capability_id!r} is yours already, to read rather than to ask for. Call "
+                f'`{READ_SKILL}` with id "{capability_id}", then answer with what it says.',
             )
         name = self._missing.get(capability_id)
         if name is None:

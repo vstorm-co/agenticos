@@ -1,4 +1,4 @@
-<!-- source_sha: fef9b3dae3d0 -->
+<!-- source_sha: 3aeccb10a78f -->
 
 <div align="center">
 
@@ -228,6 +228,7 @@ Działa na Twojej infrastrukturze z Docker Compose i współpracuje z 28 dostawc
 |---|---|
 | Firma ma już AgenticOS | Poproś o adres workspace i zaloguj się w przeglądarce lub [zainstaluj aplikację](#instalacja-aplikacji-desktopowej). |
 | Chcesz uruchomić workspace w firmie | Poproś IT o [wdrożenie serwera](#wdrożenie-serwera-firmowego) albo [skorzystaj z pomocy Vstorm](https://vstorm.co/contact-us/). |
+| Chcesz spróbować na swoim komputerze bez terminala | [Zainstaluj aplikację desktopową](#instalacja-aplikacji-desktopowej), wybierz **Na tym komputerze** i przejdź konfigurację. Najpierw sprawdź [wymagania](https://vstorm-co.github.io/agenticos/pl/desktop/#running-it); AI wymaga modelu, a zapisane przykłady są dostępne bez niego. |
 | Jesteś deweloperem i chcesz sprawdzić lokalnie | [Uruchom quickstart Docker](#wypróbuj-lokalnie). |
 
 ### Wypróbuj lokalnie

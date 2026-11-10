@@ -1,4 +1,4 @@
-<!-- source_sha: fef9b3dae3d0 -->
+<!-- source_sha: 3aeccb10a78f -->
 
 <div align="center">
 
@@ -228,6 +228,7 @@ Es läuft mit Docker Compose auf deiner eigenen Infrastruktur und arbeitet mit 2
 |---|---|
 | Deine Firma nutzt bereits AgenticOS | Frage nach der Workspace-URL und melde dich im Browser an oder [installiere die Desktop-App](#die-desktop-app-installieren). |
 | Deine Firma braucht einen Workspace | Lass die IT [einen Server einrichten](#einen-firmenserver-bereitstellen) oder [frage Vstorm](https://vstorm.co/contact-us/). |
+| Du möchtest es ohne Terminalbefehle auf deinem Computer ausprobieren | [Installiere die Desktop-App](#die-desktop-app-installieren), wähle **Auf diesem Computer** und folge der Einrichtung. Prüfe zuerst die [Voraussetzungen](https://vstorm-co.github.io/agenticos/de/desktop/#running-it); KI benötigt ein konfiguriertes Modell, gespeicherte Beispiele nicht. |
 | Du möchtest lokal entwickeln und testen | [Starte den Docker-Quickstart](#lokal-ausprobieren). |
 
 ### Lokal ausprobieren

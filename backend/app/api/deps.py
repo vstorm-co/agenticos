@@ -1583,6 +1583,26 @@ async def limit_table_write(ctx: Auth) -> None:
     _refuse_if_over(decision, "Too many table writes in the last minute. Wait and try again.")
 
 
+async def limit_fork(ctx: Auth) -> None:
+    """Refuse a member forking conversations faster than the deployment allows.
+
+    Keyed on the member and the organization, as table writes are, and for the
+    same reason: each fork stores a copy of a whole conversation, so this is a
+    storage boundary and keeps a per-process floor while the shared limiter
+    cannot count.
+
+    Usage::
+
+        @router.post("/{conversation_id}/fork", dependencies=[Depends(limit_fork)])
+    """
+    decision = await rate_limit.consume_with_local_floor(
+        surface="conversation_fork",
+        caller=f"org:{ctx.organization_id}:user:{ctx.subject_id}",
+        limit=rate_limit.fork_limit(),
+    )
+    _refuse_if_over(decision, "Too many forks in the last minute. Wait and try again.")
+
+
 async def limit_artifact_data(ctx: Auth, rows: bool = Query(True)) -> None:
     """Refuse a member loading live pages' data faster than the deployment allows.
 
@@ -2452,3 +2472,13 @@ def get_coding_account_service(db: DBSession) -> CodingAccountService:
 
 
 CodingAccountSvc = Annotated[CodingAccountService, Depends(get_coding_account_service)]
+
+
+from app.services.onboarding import OnboardingService
+
+
+def get_onboarding_service(db: DBSession) -> OnboardingService:
+    return OnboardingService(db)
+
+
+OnboardingSvc = Annotated[OnboardingService, Depends(get_onboarding_service)]
