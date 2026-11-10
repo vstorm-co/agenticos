@@ -19,6 +19,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **A workflow run's steps are listed in the order they started.** The run
+  view listed steps in the order they were recorded, so a loop's item step
+  came after the steps it started. The list now holds only the steps that
+  started, sorted by start; a step still waiting or skipped shows on the
+  canvas only. Clicking a loop step's iteration now shows that iteration's
+  input and output, not the last iteration's; an iteration with no result yet
+  shows none. A step test still pins the last iteration's data. A long step
+  list now scrolls inside its panel instead of making the canvas taller.
+
 ## [1.62.3] - 2026-11-10
 
 ### Fixed
@@ -37,14 +48,6 @@ Two things are versioned separately from this file and worth knowing about:
   delivery and accounts without a working mailbox are not repeatedly offered an
   unusable sign-in link. Verified sessions still see actual addressed invitations;
   original invitation links remain usable without an email provider (#2858).
-- **A workflow run's steps are listed in the order they started.** The run
-  view listed steps in the order they were recorded, so a loop's item step
-  came after the steps it started. The list now holds only the steps that
-  started, sorted by start; a step still waiting or skipped shows on the
-  canvas only. Clicking a loop step's iteration now shows that iteration's
-  input and output, not the last iteration's; an iteration with no result yet
-  shows none. A step test still pins the last iteration's data. A long step
-  list now scrolls inside its panel instead of making the canvas taller.
 
 ## [1.62.1] - 2026-11-10
 
