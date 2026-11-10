@@ -1470,3 +1470,18 @@ class TestLoopScopes:
         assert total == 2 and len(page) == 1
         assert [attempt.attempt_no for attempt in attempts] == [1]
         assert await workflow_run_repo.list_attempts_of(db, node_run_ids=[]) == []
+
+    async def test_a_runs_steps_are_paged_in_the_order_they_started(self, db: AsyncSession):
+        """A loop's item step is written after the steps it started, so creation order lies."""
+        org = await _org(db)
+        run = await _run(db, org, await _workflow(db, org))
+        start = datetime.now(UTC)
+        pending = await _node_run(db, run)
+        later = await _node_run(db, run, started_at=start + timedelta(seconds=1))
+        earlier = await _node_run(db, run, started_at=start)
+
+        page, _ = await workflow_run_repo.list_node_runs_page(
+            db, workflow_run_id=run.id, organization_id=org.id, skip=0, limit=10
+        )
+
+        assert [row.id for row in page] == [earlier.id, later.id, pending.id]

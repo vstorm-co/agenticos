@@ -51,7 +51,7 @@ import {
 import { ROUTES } from "@/lib/constants";
 import { formatRunCostUsd, formatDateTime, formatRunDuration } from "@/lib/utils";
 import { routesErrors } from "@/lib/workflows/ports";
-import { stepDataOf } from "@/lib/workflows/step-data";
+import { iterationDataOf, iterationOf, stepDataOf } from "@/lib/workflows/step-data";
 import {
   isRunRetryable,
   isRunTerminal,
@@ -92,6 +92,7 @@ export default function WorkflowRunPage({ params }: PageProps) {
   const seedGraph = useWorkflowEditorStore((state) => state.seedGraph);
   const teardown = useWorkflowEditorStore((state) => state.teardown);
   const mergeStepData = useWorkflowEditorStore((state) => state.mergeStepData);
+  const setIterationData = useWorkflowEditorStore((state) => state.setIterationData);
   const seeded = useRef<string | null>(null);
 
   useEffect(() => {
@@ -108,10 +109,13 @@ export default function WorkflowRunPage({ params }: PageProps) {
     },
     [teardown],
   );
-  // What each step handed on in this run, for a step's Input and Output.
+  // What each step handed on in this run, for a step's Input and Output - per
+  // loop iteration for a step opened from its row in the list.
   useEffect(() => {
-    if (graph !== null) mergeStepData(stepDataOf(runId, nodes));
-  }, [graph, runId, nodes, mergeStepData]);
+    if (graph === null) return;
+    mergeStepData(stepDataOf(runId, nodes));
+    setIterationData(iterationDataOf(runId, nodes));
+  }, [graph, runId, nodes, mergeStepData, setIterationData]);
 
   const summaries = useMemo(() => summarizeNodeRuns(nodes), [nodes]);
   const live = run !== null && !isRunTerminal(run.status);
@@ -338,9 +342,11 @@ export default function WorkflowRunPage({ params }: PageProps) {
             <NodeEditorDialog workflowId={id} catalog={catalog} readOnly runData />
           )}
         </div>
+        {/* Size containment: a long step list scrolls in its tab rather than
+            growing the row, and the canvas beside it with it. */}
         <Tabs
           defaultValue="steps"
-          className="bg-card flex min-h-0 flex-col overflow-hidden rounded-xl border"
+          className="bg-card flex min-h-0 flex-col overflow-hidden rounded-xl border lg:[contain:size]"
         >
           <div className="shrink-0 border-b px-3 pt-3">
             <TabsList>
@@ -375,7 +381,7 @@ export default function WorkflowRunPage({ params }: PageProps) {
                   <button
                     type="button"
                     className="hover:bg-muted/50 focus-visible:ring-ring flex w-full items-center justify-between gap-2 rounded-lg px-2 py-2 text-left outline-none focus-visible:ring-2"
-                    onClick={() => inspectNode(node.node_instance_id)}
+                    onClick={() => inspectNode(node.node_instance_id, iterationOf(node))}
                   >
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-medium">

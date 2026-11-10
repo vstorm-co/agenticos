@@ -13,11 +13,14 @@ import {
   cellText,
   earlierSteps,
   isInsideALoop,
+  iterationDataOf,
+  iterationOf,
   jsonBytes,
   knownInput,
   knownOutputs,
   schemaOf,
   sourcesOf,
+  stepDataAt,
   stepDataOf,
   tableOf,
   testEntryGraph,
@@ -67,6 +70,46 @@ describe("what a run's steps did", () => {
       a: { output: { n: 2 }, error: null, runId: "r" },
       b: { output: null, error: { code: "BAD", message: "No" }, runId: "r" },
     });
+  });
+});
+
+describe("what a run's steps did in each loop iteration", () => {
+  const loop = (index: number) => [{ loop_node_id: "l", index }];
+  const rows = [
+    row({ node_instance_id: "t", output: { list: [1, 2] } }),
+    row({ node_instance_id: "i", scope_path: loop(0), output: { item: 1 } }),
+    row({ node_instance_id: "h", scope_path: loop(0), output: { got: 1 } }),
+    row({ node_instance_id: "i", scope_path: loop(1), output: { item: 2 } }),
+    row({ node_instance_id: "h", scope_path: loop(1), status: "running" }),
+  ];
+  const latest = stepDataOf("r", rows);
+  const iterations = iterationDataOf("r", rows);
+
+  it("names a row's iteration by its index in each loop around it", () => {
+    expect(iterationOf(rows[0] as WorkflowNodeRunRead)).toEqual([]);
+    expect(
+      iterationOf(
+        row({
+          scope_path: [
+            { loop_node_id: "l", index: 1 },
+            { loop_node_id: "m", index: 3 },
+          ],
+        }),
+      ),
+    ).toEqual([1, 3]);
+  });
+
+  it("reads each step as it was in the iteration asked for, not the last one", () => {
+    expect(stepDataAt(latest, iterations, "i", [0])?.output).toEqual({ item: 1 });
+    expect(stepDataAt(latest, iterations, "h", [0])?.output).toEqual({ got: 1 });
+    expect(stepDataAt(latest, iterations, "i", [1])?.output).toEqual({ item: 2 });
+  });
+
+  it("reads a step outside the loop, or one with nothing in that iteration, as its latest", () => {
+    expect(stepDataAt(latest, iterations, "t", [1])?.output).toEqual({ list: [1, 2] });
+    expect(stepDataAt(latest, iterations, "h", [1])?.output).toEqual({ got: 1 });
+    expect(stepDataAt(latest, iterations, "i", [])?.output).toEqual({ item: 2 });
+    expect(stepDataAt(latest, iterations, "missing", [0])).toBeUndefined();
   });
 });
 

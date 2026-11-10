@@ -264,6 +264,17 @@ describe("the fields a step declares, before any run", () => {
 });
 
 describe("OutputPane", () => {
+  it("shows a run's step as it was in the iteration it was opened at", () => {
+    seed(line());
+    store.getState().mergeStepData({ b: { ...KNOWN, output: { echoed: "second" } } });
+    store.getState().setIterationData({ "b/0": { ...KNOWN, output: { echoed: "first" } } });
+    store.getState().editNode("b", [0]);
+    renderOutput();
+
+    expect(screen.getByRole("cell", { name: "first" })).toBeTruthy();
+    expect(screen.queryByRole("cell", { name: "second" })).toBeNull();
+  });
+
   it("shows a table step's records in its table's column order", () => {
     useWorkflowTable.mockReturnValueOnce({
       table: {

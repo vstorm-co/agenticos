@@ -264,3 +264,31 @@ describe("questions inside a workflow agent step", () => {
     expect(runsApi.answerWorkflowRunQuestions).not.toHaveBeenCalled();
   });
 });
+
+describe("the step list", () => {
+  it("opens a loop step at the iteration its row ran in", async () => {
+    seed({ status: "succeeded" }, "succeeded");
+    vi.mocked(runsApi.listWorkflowRunNodes).mockResolvedValue({
+      items: [0, 1].map((index) => ({
+        ...step("succeeded"),
+        id: `n${index}`,
+        scope_path: [{ loop_node_id: "l", index }],
+        output: { item: index },
+      })),
+      total: 2,
+    });
+    await renderPage();
+    await screen.findByText("Iteration 1");
+    const rows = await screen.findAllByRole("button", { name: /act/ });
+
+    fireEvent.click(rows[0] as HTMLElement);
+
+    const store = useWorkflowEditorStore.getState();
+    expect(store.editingNodeId).toBe("a");
+    expect(store.editingIteration).toEqual([0]);
+    expect(store.iterationData["a/0"]?.output).toEqual({ item: 0 });
+    expect(store.iterationData["a/1"]?.output).toEqual({ item: 1 });
+    // A step test still pins the last item's data.
+    expect(store.stepData["a"]?.output).toEqual({ item: 1 });
+  });
+});
