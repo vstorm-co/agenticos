@@ -18,12 +18,7 @@ import {
   startSkillCheck,
   startUpdateCheck,
 } from "@/lib/skill-checks-api";
-import type {
-  SkillCheck,
-  SkillCheckApply,
-  SkillCheckFork,
-  SkillCheckStart,
-} from "@/types/skill-checks";
+import type { SkillCheckApply, SkillCheckFork, SkillCheckStart } from "@/types/skill-checks";
 
 /** A change to check on its line, or main's newest version on one pinned agent. */
 export type SkillCheckBody = SkillCheckStart | { update_agent_id: string };
@@ -123,18 +118,19 @@ export function useSkillCheck(skillId: string, checkId: string | null) {
  * The line's newest check a person still has to come back to: one running, or one
  * finished and not yet decided. A check a session started is decided in the session,
  * and a pinned agent's catch-up by moving that agent, so both are left out. Read
- * again while it runs.
+ * again while it runs; `error` says the line's checks could not be read, so no check
+ * is not the same as none known.
  */
-export function useOpenSkillCheck(skillId: string, forkId: string | null): SkillCheck | null {
-  const { data } = useLineChecks(skillId, forkId);
-  return (
+export function useOpenSkillCheck(skillId: string, forkId: string | null) {
+  const { data, error, refetch } = useLineChecks(skillId, forkId);
+  const check =
     data?.items.find(
-      (check) =>
-        !check.session_id &&
-        check.source !== "catch_up" &&
-        (check.status === "running" || check.status === "done"),
-    ) ?? null
-  );
+      (one) =>
+        !one.session_id &&
+        one.source !== "catch_up" &&
+        (one.status === "running" || one.status === "done"),
+    ) ?? null;
+  return { check, error, refetch };
 }
 
 /**

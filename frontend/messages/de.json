@@ -9094,7 +9094,8 @@
       "checkRunning": {
         "running": "Prüfung läuft: {done} von {total} Agents geprüft.",
         "finished": "Eine Prüfung auf {total, plural, =1 {1 Agent} other {# Agents}} ist fertig und wartet auf deine Entscheidung.",
-        "show": "Anzeigen"
+        "show": "Anzeigen",
+        "unreadable": "Ob eine Prüfung dieser Linie noch läuft oder auf dich wartet, ließ sich nicht lesen: {reason}"
       },
       "testQuestions": {
         "title": "Testfragen",
@@ -16676,6 +16677,7 @@
       "price": "Bis zu {cost} (Schätzung) bis zum ersten Vorschlag; jeder weitere Versuch etwa {perRound}, höchstens {rounds, plural, =1 {1 Versuch} other {# Versuche}}. Das Limit von {limit} deckelt die ganze Sitzung.",
       "limit": "Ausgabenlimit für die ganze Sitzung (USD)",
       "limitHint": "Ausgefüllt für den ersten Vorschlag und jeden Versuch, den die Sitzung machen kann. Senke es, um früher aufzuhören; die Sitzung hält vor einem Schritt an, der es überschreiten würde.",
+      "belowEstimate": "Das Limit liegt unter dem, was die Sitzung bis zum ersten Vorschlag kostet, {cost}. Erhöhe es mindestens auf diesen Betrag.",
       "unaffordable": "Das Budget der Organisation deckt das nicht.",
       "start": "Starten",
       "reads": "{runs, plural, =1 {Es liest 1 Antwort, die diese Linie geladen hat und negativ bewertet wurde oder fehlschlug.} other {Es liest # Antworten, die diese Linie geladen haben und negativ bewertet wurden oder fehlschlugen.}} {agents, plural, =1 {Die Linie bedient 1 Agent.} other {Die Linie bedient # Agents.}}",

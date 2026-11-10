@@ -157,6 +157,23 @@ describe("SkillStart", () => {
     expect(screen.getByRole("button", { name: "Start" })).toBeDisabled();
   });
 
+  it("holds the start while the limit is below the first proposal's estimate, and says so", async () => {
+    mount();
+
+    const limit = await screen.findByLabelText(/Spending limit/);
+    await userEvent.clear(limit);
+    await userEvent.type(limit, "0.1");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "The limit is below what the session costs to its first proposal, $0.20.",
+    );
+    expect(screen.getByRole("button", { name: "Start" })).toBeDisabled();
+
+    await userEvent.clear(limit);
+    await userEvent.type(limit, "0.2");
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByRole("button", { name: "Start" })).toBeEnabled();
+  });
+
   it("holds the start when the organization cannot pay for it", async () => {
     vi.mocked(apiClient.post).mockResolvedValue({ ...ESTIMATE, affordable: false, reason: null });
     mount();

@@ -119,6 +119,7 @@ export function ChangeVersionDialog({
   const tHistory = useTranslations("skills.page.history");
   const tCheck = useTranslations("skillImprovement.agents");
   const tErrors = useTranslations("errors");
+  const tCommon = useTranslations("common");
   const locale = useLocale();
   const router = useRouter();
   const { changeBinding } = useSkillVersionWrites(skillId);
@@ -151,6 +152,13 @@ export function ChangeVersionDialog({
   const targetFork =
     target.state === "fork" ? forks.find((fork) => fork.id === target.fork_id) : undefined;
   const read = reads(target, usage, targetFork, mainLatest, (number) => known.get(number)?.id);
+  // Whether the agent answered with or was checked on a version is known by its id, so
+  // nothing is claimed about it, and nothing changed, until the page naming it is read.
+  const pages = [newest, around];
+  const unread = read.id === undefined && !unchanged;
+  const reading = unread && pages.some((page) => page.isLoading);
+  const unreadable = unread ? (pages.find((page) => page.error)?.error ?? null) : null;
+  const held = reading || unreadable !== null;
   // The check run here of main's newest version on the pinned agent, still undecided.
   const update = current.state === "pinned" && target.state === "main" ? updateCheck : null;
   // A check that measured this very version on the agent answers what the warning asks.
@@ -163,7 +171,7 @@ export function ChangeVersionDialog({
   const answered = read.id !== undefined && (usage.answered_with ?? []).includes(read.id);
   // A check that could not measure the agent answers nothing: it is acknowledged instead.
   const needsAck =
-    !unchanged && !read.served && (checked ? checked.state === "unknown" : !answered);
+    !unchanged && !read.served && !held && (checked ? checked.state === "unknown" : !answered);
   // A pinned agent caught up on main's newest version carries the check run for that move,
   // which decides it rather than leaving it waiting. A past result is decided already, and
   // the server refuses to decide a check twice, so it only informs the warning.
@@ -394,6 +402,20 @@ export function ChangeVersionDialog({
         <p className="text-muted-foreground text-sm">
           {usage.can_publish ? t("publishes", { name }) : t("savesToDraft", { name })}
         </p>
+        {unreadable !== null && (
+          <div role="alert" className="flex items-center justify-between gap-3 text-sm">
+            <p className="text-destructive">{getErrorMessage(unreadable, tErrors)}</p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                for (const page of pages) void page.refetch();
+              }}
+            >
+              {tCommon("retry")}
+            </Button>
+          </div>
+        )}
         {error !== null && (
           <p role="alert" className="text-destructive text-sm">
             {error}
@@ -405,7 +427,7 @@ export function ChangeVersionDialog({
           </Button>
           <Button
             onClick={() => void submit()}
-            disabled={unchanged || staysPinned || (needsAck && !understood)}
+            disabled={unchanged || held || staysPinned || (needsAck && !understood)}
             loading={changeBinding.isPending}
           >
             {usage.can_publish ? t("submit") : t("submitDraft")}

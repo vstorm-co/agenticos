@@ -162,7 +162,7 @@ describe("useOpenSkillCheck", () => {
     });
     const { result } = renderHook(() => useOpenSkillCheck("s-1", "f-1"), { wrapper });
 
-    await waitFor(() => expect(result.current?.id).toBe("open"));
+    await waitFor(() => expect(result.current.check?.id).toBe("open"));
     expect(api.listSkillChecks).toHaveBeenCalledWith("s-1", "f-1", 0);
     await act(() => vi.advanceTimersByTimeAsync(SKILL_CHECK_POLL_MS));
     expect(api.listSkillChecks).toHaveBeenCalledTimes(2);
@@ -177,7 +177,15 @@ describe("useOpenSkillCheck", () => {
     const { result } = renderHook(() => useOpenSkillCheck("s-1", null), { wrapper });
 
     await waitFor(() => expect(api.listSkillChecks).toHaveBeenCalled());
-    expect(result.current).toBeNull();
+    expect(result.current.check).toBeNull();
+  });
+
+  it("says when the line's checks could not be read", async () => {
+    vi.mocked(api.listSkillChecks).mockRejectedValue(new Error("checks offline"));
+    const { result } = renderHook(() => useOpenSkillCheck("s-1", null), { wrapper });
+
+    await waitFor(() => expect(result.current.error).toBeInstanceOf(Error));
+    expect(result.current.check).toBeNull();
   });
 });
 

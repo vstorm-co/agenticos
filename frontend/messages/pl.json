@@ -8975,7 +8975,8 @@
       "checkRunning": {
         "running": "Sprawdzanie trwa: sprawdzono {done} z {total} agentów.",
         "finished": "Sprawdzanie na {total, plural, one {# agencie} other {# agentach}} się skończyło i czeka na twoją decyzję.",
-        "show": "Pokaż"
+        "show": "Pokaż",
+        "unreadable": "Nie udało się odczytać, czy sprawdzanie tej linii nadal trwa lub czeka na ciebie: {reason}"
       },
       "testQuestions": {
         "title": "Pytania testowe",
@@ -16777,6 +16778,7 @@
       "price": "Do {cost} (szacunek) do pierwszej propozycji; każda kolejna próba około {perRound}, maksymalnie {rounds, plural, one {# próba} few {# próby} many {# prób} other {# próby}}. Limit {limit} obejmuje całą sesję.",
       "limit": "Limit wydatków na całą sesję (USD)",
       "limitHint": "Wypełniony na pierwszą propozycję i każdą próbę, jaką sesja może zrobić. Obniż go, żeby skończyć wcześniej; sesja zatrzymuje się przed krokiem, który by go przekroczył.",
+      "belowEstimate": "Limit jest niższy niż koszt sesji do pierwszej propozycji, {cost}. Podnieś go co najmniej do tej kwoty.",
       "unaffordable": "Budget organizacji tego nie pokrywa.",
       "start": "Zacznij",
       "reads": "{runs, plural, one {Czyta # odpowiedź, która wczytała tę linię i została oceniona negatywnie albo się nie udała.} few {Czyta # odpowiedzi, które wczytały tę linię i zostały ocenione negatywnie albo się nie udały.} many {Czyta # odpowiedzi, które wczytały tę linię i zostały ocenione negatywnie albo się nie udały.} other {Czyta # odpowiedzi, które wczytały tę linię i zostały ocenione negatywnie albo się nie udały.}} {agents, plural, one {Linia służy # agentowi.} few {Linia służy # agentom.} many {Linia służy # agentom.} other {Linia służy # agenta.}}",

@@ -9216,7 +9216,8 @@
       "checkRunning": {
         "running": "Check running: {done} of {total} agents checked.",
         "finished": "A check finished on {total, plural, =1 {1 agent} other {# agents}} and waits for your decision.",
-        "show": "Show"
+        "show": "Show",
+        "unreadable": "Whether a check of this line is still running or waiting for you could not be read: {reason}"
       },
       "testQuestions": {
         "title": "Test questions",
@@ -17004,6 +17005,7 @@
       "price": "Up to {cost} (estimate) to its first proposal; each attempt after it about {perRound}, up to {rounds, plural, =1 {1 attempt} other {# attempts}}. The limit of {limit} caps the whole session.",
       "limit": "Spending limit for the whole session (USD)",
       "limitHint": "Filled in for the first proposal and every attempt it may make. Lower it to stop sooner; the session stops before a step that would go over it.",
+      "belowEstimate": "The limit is below what the session costs to its first proposal, {cost}. Raise it to at least that.",
       "unaffordable": "The organization's budget does not cover this.",
       "start": "Start",
       "reads": "{runs, plural, =1 {It reads 1 answer that loaded this line and was rated down or failed.} other {It reads # answers that loaded this line and were rated down or failed.}} {agents, plural, =1 {The line serves 1 agent.} other {The line serves # agents.}}",

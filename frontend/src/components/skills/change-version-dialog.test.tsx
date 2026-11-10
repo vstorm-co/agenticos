@@ -113,6 +113,41 @@ describe("ChangeVersionDialog", () => {
     expect(screen.getByRole("button", { name: "Change and publish" })).toBeEnabled();
   });
 
+  it("claims nothing about main's newest version, and changes nothing, until its page is read", async () => {
+    let answer: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.get).mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    renderDialog({ ...HR, answered_with: ["m12"] });
+
+    await userEvent.click(screen.getByRole("radio", { name: /Main, latest/ }));
+    expect(screen.queryByText(/has not been checked/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Change and publish" })).toBeDisabled();
+
+    answer({ items: [{ id: "m12", number: 12 }], total: 12 });
+    expect(await screen.findByText("HR bot has answered with v12 before.")).toBeInTheDocument();
+    expect(screen.queryByText(/has not been checked/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Change and publish" })).toBeEnabled();
+  });
+
+  it("says main's versions could not be read, holds the change, and reads them again", async () => {
+    vi.mocked(apiClient.get).mockRejectedValue(
+      new ApiError(500, "Versions offline", {
+        error: { code: "INTERNAL", message: "Versions offline" },
+      }),
+    );
+    renderDialog({ ...HR, answered_with: ["m12"] });
+
+    await userEvent.click(screen.getByRole("radio", { name: /Main, latest/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Versions offline");
+    expect(screen.queryByText(/has not been checked/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Change and publish" })).toBeDisabled();
+
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [{ id: "m12", number: 12 }], total: 12 });
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByText("HR bot has answered with v12 before.")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByRole("button", { name: "Change and publish" })).toBeEnabled();
+  });
+
   it("reads the first page when the agent is pinned past the main version the page knows", async () => {
     renderDialog({
       ...HR,

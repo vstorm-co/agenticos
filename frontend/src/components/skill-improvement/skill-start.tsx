@@ -78,6 +78,8 @@ export function SkillStart({
   if (quote === null) return <LoadingState variant="skeleton-cards" rows={2} />;
 
   const typed = Number(limitValue(limit));
+  // The session is refused a limit that cannot pay for its first proposal.
+  const belowEstimate = typed > 0 && typed < Number(quote.total_usd);
 
   async function begin() {
     setRefusal(null);
@@ -127,6 +129,11 @@ export function SkillStart({
         />
         <p className="text-muted-foreground text-xs">{t("limitHint")}</p>
       </div>
+      {belowEstimate && (
+        <p role="alert" className="text-sm">
+          {t("belowEstimate", { cost: usd(quote.total_usd, locale) })}
+        </p>
+      )}
       {!quote.affordable && quote.reason === null && (
         <p role="alert" className="text-sm">
           {t("unaffordable")}
@@ -138,7 +145,7 @@ export function SkillStart({
         </p>
       )}
       <Button
-        disabled={!quote.affordable || quote.reason !== null || !(typed > 0)}
+        disabled={!quote.affordable || quote.reason !== null || !(typed > 0) || belowEstimate}
         loading={start.isPending}
         onClick={() => void begin()}
       >
