@@ -1,5 +1,5 @@
 ---
-source_sha: "6d5cf2997190"
+source_sha: "37f61b35dd4e"
 ---
 
 # Wdrożenie na Kubernetes { #deploy-on-kubernetes }
@@ -9,6 +9,10 @@ Wymaga zewnętrznego PostgreSQL z pgvector, Redis/Valkey oraz istniejącego buck
 S3. Nie instaluje baz ani nie zapewnia ich backupów. `appVersion` charta określa
 domyślną wersję obrazów. Inną wersję przypniesz przez `image.tag`, a konkretne
 obrazy przez `image.backendDigest` i `image.frontendDigest`.
+
+Obrazy backendu starsze niż 1.63.0 oczekują współdzielonych plików tymczasowych
+ingestu i nie są obsługiwane przez ten chart.
+
 
 ## Zgodność i ograniczenia { #compatibility-and-limits }
 
@@ -57,6 +61,15 @@ tokenu API. Dla tożsamości workloadu ustaw `serviceAccountName` i skonfiguruj 
 tym koncie adnotacje/projekcję tokenu wymagane przez dostawcę. Hooki migracji też
 używają tego konta. Klucze modeli pozostają sekretami organizacji w vaulcie produktu.
 
+Dla `postgres.sslMode: verify-full` (wartość domyślna) lub `verify-ca` utwórz
+Secret wskazany przez `trust.existingSecret`, z kluczem `postgres-ca.crt`
+zawierającym certyfikat CA bazy. Chart montuje go tylko do odczytu w migracji,
+API i workerze oraz ustawia `PGSSLROOTCERT`. Inną nazwę pliku wybiera
+`trust.postgresCaKey`. Dla prywatnego CA Redis dodaj pakiet publicznych i prywatnych
+CA i wskaż jego klucz przez `trust.sslCaKey`; ustawi to `SSL_CERT_FILE`. Zachowaj
+publiczne CA potrzebne dostawcom modeli. Inne ustawienia SDK, np. `AWS_CA_BUNDLE`,
+mogą wskazywać ten sam mount przez `extraEnv`.
+
 ## Instalacja { #install }
 
 Użyj charta z taga repozytorium odpowiadającego wdrażanej wersji. Przygotuj plik
@@ -73,6 +86,9 @@ postgres:
   database: agenticos
   user: agenticos
   sslMode: verify-full
+trust:
+  existingSecret: agenticos-trust
+  postgresCaKey: postgres-ca.crt
 redis:
   host: valkey.internal
   ssl: true
@@ -83,6 +99,12 @@ storage:
   # pathStyle: true
 image:
   tag: "1.63.0"
+trustedProxy:
+  enabled: true
+  namespaceLabels:
+    kubernetes.io/metadata.name: ingress-system
+  podLabels:
+    app.kubernetes.io/name: your-ingress-controller
 ingress:
   enabled: true
   className: your-ingress-class
@@ -117,6 +139,21 @@ Ogranicz ruch politykami klastra: konsola łączy się z API, a API i worker z
 Postgresem, Redis, S3 i jawnie skonfigurowanymi dostawcami/usługami zewnętrznymi.
 Nie wystawiaj publicznie portów bazy ani workera.
 
+Publiczny ingress wymaga `trustedProxy.enabled: true` i niepustych selektorów
+etykiet przestrzeni nazw oraz podów kontrolera. Zastąp przykład rzeczywistymi
+etykietami chronionego kontrolera. Włącza to `RATE_LIMIT_TRUST_FORWARDED_FOR`
+razem z NetworkPolicies: do konsoli dociera tylko ten kontroler, a do API także
+pody konsoli danego wydania. CNI musi egzekwować NetworkPolicy; nie wystawiaj usług
+bezpośrednio. Chroń te przestrzenie nazw przed tworzeniem niezaufanych podów.
+Bez egzekwowania polityk nie włączaj zaufania do nagłówka.
+
+Dokładnie jeden zaufany proxy ma dopisywać rzeczywistego klienta do
+`X-Forwarded-For`. Limiter czyta ostatni adres, a konsola zachowuje nagłówek przy
+proxy żądań auth. Jeśli CDN/load balancer dodaje kolejny hop, znormalizuj
+zweryfikowany adres na brzegu. Test ClusterIP nie weryfikuje wybranego kontrolera
+ingress ani CNI; sprawdź izolację i nagłówki przed otwarciem ruchu produkcyjnego.
+Zewnętrzne Routes/proxy wymagają takich samych ustawień zaufanego proxy.
+
 ## Zdrowie, storage i zasoby { #health-storage-and-capacity }
 
 API sprawdza `/api/v1/health/live` przy starcie i dla liveness, a
@@ -128,8 +165,8 @@ oddaje do kolejki.
 
 Zasoby ustawiasz osobno w `api.resources`, `worker.resources`,
 `frontend.resources` i `migration.resources`. Pamięć dzieci ingestu dolicza się
-do procesu rodzica. Dostosuj `extraEnv.INGEST_CHILDREN` i
-`extraEnv.INGEST_MEMORY_MB` razem z limitem poda. Skaluj przez `api.replicas`,
+do procesu rodzica. Dostosuj `extraEnv.WORKER_INGEST_CHILDREN` i
+`extraEnv.WORKER_INGEST_MEMORY_MB` razem z limitem poda. Skaluj przez `api.replicas`,
 `worker.replicas` i `frontend.replicas`, uwzględniając pule połączeń każdego procesu.
 
 Pliki trwale zapisuje S3; worker pobiera własną kopię do ingestu. Nie potrzeba
@@ -175,7 +212,7 @@ bazy, bucket i Secret pozostają własnością operatora.
 
 ## Odtworzenie testu { #reproduce-the-test }
 
-Zainstaluj Docker, kubectl, kind 0.33.0, Helm 4.3.1 i Python z PyYAML. Z katalogu
+Zainstaluj Docker, kubectl 1.37.0, kind 0.33.0, Helm 4.3.1 i Python z PyYAML. Z katalogu
 repozytorium uruchom `python3 scripts/kubernetes/test_chart.py`, następnie
 `scripts/kubernetes/run-smoke.sh`. Skrypt tworzy i usuwa własny klaster kind,
 używa oddzielnego kubeconfigu i odmawia zastąpienia istniejącego klastra. Nie używa

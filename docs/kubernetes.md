@@ -6,6 +6,10 @@ bucket. It does not install databases or provision their backups. The chart's
 `appVersion` is the default image version; pin another release with `image.tag`,
 or use `image.backendDigest` and `image.frontendDigest` for immutable images.
 
+Backend images older than 1.63.0 expect shared ingestion scratch files and are
+not supported by this chart.
+
+
 ## Compatibility and limits
 
 The reproducible test uses kind 0.33.0, Kubernetes 1.37.0 and Helm 4.3.1. It checks
@@ -52,6 +56,15 @@ For workload identity, supply its name with `serviceAccountName` and configure t
 provider's projected identity token/annotations on that account. Migration hooks
 use it too. Model provider keys remain organization secrets in the product vault.
 
+For `postgres.sslMode: verify-full` (the default) or `verify-ca`, create the
+`trust.existingSecret` Secret with a `postgres-ca.crt` key containing the database
+CA certificate. The chart mounts it read-only in the migration, API and worker
+and sets `PGSSLROOTCERT`. `trust.postgresCaKey` selects another filename. For a
+private Redis CA, also include a combined public/private CA bundle and name its
+key with `trust.sslCaKey`; this sets `SSL_CERT_FILE`. Keep public roots in that
+bundle if model providers use public certificates. Other SDK CA settings, such as
+`AWS_CA_BUNDLE`, can reference the same mount through `extraEnv`.
+
 ## Install
 
 Use the chart from the repository tag for the release you deploy. Create an
@@ -68,6 +81,9 @@ postgres:
   database: agenticos
   user: agenticos
   sslMode: verify-full
+trust:
+  existingSecret: agenticos-trust
+  postgresCaKey: postgres-ca.crt
 redis:
   host: valkey.internal
   ssl: true
@@ -78,6 +94,12 @@ storage:
   # pathStyle: true
 image:
   tag: "1.63.0"
+trustedProxy:
+  enabled: true
+  namespaceLabels:
+    kubernetes.io/metadata.name: ingress-system
+  podLabels:
+    app.kubernetes.io/name: your-ingress-controller
 ingress:
   enabled: true
   className: your-ingress-class
@@ -112,6 +134,22 @@ Restrict network traffic with your cluster's policies: the console reaches the A
 API and worker reach Postgres, Redis, S3 and explicitly configured providers or
 external services. Do not expose database or worker ports publicly.
 
+Public ingress requires `trustedProxy.enabled: true` and nonempty namespace/pod
+label selectors for the ingress controller. Replace the example selectors with
+your actual protected controller namespace and pods. This enables
+`RATE_LIMIT_TRUST_FORWARDED_FOR` together with NetworkPolicies: only that controller
+may enter the console; the API also accepts the release's console pods. Use a CNI
+that enforces NetworkPolicy, and do not expose either service directly. Keep those
+namespaces protected from untrusted pod creation. Without policy enforcement,
+do not enable trusted forwarding.
+
+Configure exactly one trusted proxy to append the real client to `X-Forwarded-For`.
+The limiter reads its rightmost address, and the console preserves that header
+when proxying auth. If a CDN/load balancer adds another hop, normalize the verified
+client address at your edge. The ClusterIP smoke does not validate your chosen
+ingress controller or CNI; verify their isolation and forwarding before exposing
+production traffic. External Routes/proxies need the same trusted-proxy settings.
+
 ## Health, storage and capacity
 
 The API probes `/api/v1/health/live` for startup/liveness and
@@ -123,7 +161,7 @@ has 60 seconds to stop; the worker stops claiming jobs and drains/requeues work.
 Resources are configured separately under `api.resources`, `worker.resources`,
 `frontend.resources` and `migration.resources`. Size the worker for all configured
 ingest children: their memory allowance is additional to its parent process.
-Tune `extraEnv.INGEST_CHILDREN` and `extraEnv.INGEST_MEMORY_MB` together with the pod
+Tune `extraEnv.WORKER_INGEST_CHILDREN` and `extraEnv.WORKER_INGEST_MEMORY_MB` together with the pod
 limit. Scale with `api.replicas`, `worker.replicas` and `frontend.replicas`; account
 for every process's database pool before adding replicas.
 
@@ -172,7 +210,7 @@ application; external databases, bucket and runtime Secret remain operator-owned
 
 ## Reproduce the test
 
-Install Docker, kubectl, kind 0.33.0, Helm 4.3.1 and Python with PyYAML. From the
+Install Docker, kubectl 1.37.0, kind 0.33.0, Helm 4.3.1 and Python with PyYAML. From the
 repository root, run `python3 scripts/kubernetes/test_chart.py`, then
 `scripts/kubernetes/run-smoke.sh`. The latter creates and deletes its own kind
 cluster, uses a separate kubeconfig, and refuses to replace an existing cluster.

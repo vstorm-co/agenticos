@@ -78,6 +78,34 @@
                     "port": 5432
                   },
                   "periodSeconds": 2
+                },
+                "args": [
+                  "postgres",
+                  "-c",
+                  "ssl=on",
+                  "-c",
+                  "ssl_cert_file=/tls/tls.crt",
+                  "-c",
+                  "ssl_key_file=/tls/tls.key"
+                ],
+                "volumeMounts": [
+                  {
+                    "name": "database-tls",
+                    "mountPath": "/tls",
+                    "readOnly": true
+                  }
+                ]
+              }
+            ],
+            "securityContext": {
+              "fsGroup": 999
+            },
+            "volumes": [
+              {
+                "name": "database-tls",
+                "secret": {
+                  "secretName": "postgres-tls",
+                  "defaultMode": 288
                 }
               }
             ]

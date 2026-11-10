@@ -192,6 +192,178 @@
     },
     "ingress": {
       "type": "object"
+    },
+    "trust": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "existingSecret": {
+          "type": "string"
+        },
+        "postgresCaKey": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "sslCaKey": {
+          "type": "string",
+          "pattern": "^$|^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        }
+      }
+    },
+    "trustedProxy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "namespaceLabels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "podLabels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "storage": {
+            "properties": {
+              "encryption": {
+                "const": "sse-kms"
+              }
+            },
+            "required": [
+              "encryption"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "storage": {
+            "required": [
+              "kmsKeyId"
+            ],
+            "properties": {
+              "kmsKeyId": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "postgres": {
+            "properties": {
+              "sslMode": {
+                "enum": [
+                  "verify-ca",
+                  "verify-full"
+                ]
+              }
+            },
+            "required": [
+              "sslMode"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "trust": {
+            "required": [
+              "existingSecret",
+              "postgresCaKey"
+            ],
+            "properties": {
+              "existingSecret": {
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "required": [
+          "trust"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "trust": {
+            "properties": {
+              "sslCaKey": {
+                "minLength": 1
+              }
+            },
+            "required": [
+              "sslCaKey"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "trust": {
+            "properties": {
+              "existingSecret": {
+                "minLength": 1
+              }
+            },
+            "required": [
+              "existingSecret"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "trustedProxy": {
+            "properties": {
+              "enabled": {
+                "const": true
+              }
+            },
+            "required": [
+              "enabled"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "trustedProxy": {
+            "properties": {
+              "namespaceLabels": {
+                "minProperties": 1
+              },
+              "podLabels": {
+                "minProperties": 1
+              }
+            },
+            "required": [
+              "namespaceLabels",
+              "podLabels"
+            ]
+          }
+        }
+      }
+    }
+  ]
 }

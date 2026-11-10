@@ -28,9 +28,10 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
   "POSTGRES_USER" .Values.postgres.user "POSTGRES_SSLMODE" .Values.postgres.sslMode
   "REDIS_HOST" (required "redis.host is required" .Values.redis.host)
   "REDIS_PORT" .Values.redis.port "REDIS_DB" .Values.redis.database "REDIS_SSL" .Values.redis.ssl
-  "FRONTEND_URL" (required "public.siteUrl is required" .Values.public.siteUrl)
-  "PUBLIC_BASE_URL" (required "public.apiUrl is required" .Values.public.apiUrl)
-  "CORS_ORIGINS" (list .Values.public.siteUrl | toJson)
+  "FRONTEND_URL" (required "public.siteUrl is required" .Values.public.siteUrl | trimSuffix "/")
+  "PUBLIC_BASE_URL" (required "public.apiUrl is required" .Values.public.apiUrl | trimSuffix "/")
+  "CORS_ORIGINS" (list (.Values.public.siteUrl | trimSuffix "/") | toJson)
+  "RATE_LIMIT_TRUST_FORWARDED_FOR" .Values.trustedProxy.enabled
   "FILE_STORAGE_BACKEND" "s3"
   "FILE_STORAGE_S3_BUCKET" (required "storage.bucket is required" .Values.storage.bucket)
   "FILE_STORAGE_S3_REGION" .Values.storage.region "FILE_STORAGE_S3_ENDPOINT" .Values.storage.endpoint
@@ -39,6 +40,12 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
   "MEDIA_DIR" "/app/media" "MODELS_CACHE_DIR" "/app/models_cache"
   "XDG_CACHE_HOME" "/tmp/cache" "HF_HOME" "/app/models_cache/huggingface"
 -}}
+{{- if and .Values.trust.existingSecret (has .Values.postgres.sslMode (list "verify-ca" "verify-full")) }}
+{{- $_ := set $env "PGSSLROOTCERT" (printf "/etc/agenticos/trust/%s" .Values.trust.postgresCaKey) }}
+{{- end }}
+{{- if .Values.trust.sslCaKey }}
+{{- $_ := set $env "SSL_CERT_FILE" (printf "/etc/agenticos/trust/%s" .Values.trust.sslCaKey) }}
+{{- end }}
 {{- range $key, $value := mergeOverwrite (deepCopy .Values.extraEnv) $env }}
 - name: {{ $key }}
   value: {{ $value | toString | quote }}
@@ -56,6 +63,9 @@ capabilities:
 - {name: data, mountPath: /app/data}
 - {name: chroma, mountPath: /app/chroma_data}
 - {name: models, mountPath: /app/models_cache}
+{{- if .Values.trust.existingSecret }}
+- {name: trust, mountPath: /etc/agenticos/trust, readOnly: true}
+{{- end }}
 {{- end -}}
 {{- define "agenticos.volumes" -}}
 - name: tmp
@@ -68,4 +78,10 @@ capabilities:
   emptyDir: {sizeLimit: 1Gi}
 - name: models
   emptyDir: {sizeLimit: 5Gi}
+{{- if .Values.trust.existingSecret }}
+- name: trust
+  secret:
+    secretName: {{ .Values.trust.existingSecret }}
+    defaultMode: 0444
+{{- end }}
 {{- end -}}

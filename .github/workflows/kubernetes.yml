@@ -40,7 +40,10 @@ jobs:
           curl --fail --silent --show-error --location https://github.com/kubernetes-sigs/kind/releases/download/v0.33.0/kind-linux-amd64 -o kind
           curl --fail --silent --show-error --location https://github.com/kubernetes-sigs/kind/releases/download/v0.33.0/kind-linux-amd64.sha256sum -o kind.sha256
           printf '%s  kind\n' "$(cut -d ' ' -f 1 kind.sha256)" | sha256sum --check
-          chmod +x kind
+          curl --fail --silent --show-error --location https://dl.k8s.io/release/v1.37.0/bin/linux/amd64/kubectl -o kubectl
+          curl --fail --silent --show-error --location https://dl.k8s.io/release/v1.37.0/bin/linux/amd64/kubectl.sha256 -o kubectl.sha256
+          printf '%s  kubectl\n' "$(cat kubectl.sha256)" | sha256sum --check
+          chmod +x kind kubectl
           echo "$RUNNER_TEMP/kube-tools" >> "$GITHUB_PATH"
           echo "$RUNNER_TEMP/kube-tools/linux-amd64" >> "$GITHUB_PATH"
           python3 -m venv "$RUNNER_TEMP/chart-tests"

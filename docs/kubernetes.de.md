@@ -1,5 +1,5 @@
 ---
-source_sha: "6d5cf2997190"
+source_sha: "37f61b35dd4e"
 ---
 
 # Auf Kubernetes deployen { #deploy-on-kubernetes }
@@ -10,6 +10,10 @@ vorhandener S3-Bucket. Das Chart installiert keine Datenbanken und erstellt kein
 Backups. `appVersion` legt die Standardversion der Images fest. Andere Releases
 lassen sich mit `image.tag`, unveränderliche Images mit `image.backendDigest`
 und `image.frontendDigest` festlegen.
+
+Backend-Images vor 1.63.0 erwarten gemeinsame temporäre Ingest-Dateien und
+werden von diesem Chart nicht unterstützt.
+
 
 ## Kompatibilität und Grenzen { #compatibility-and-limits }
 
@@ -61,6 +65,16 @@ konfigurieren Sie dort die Token-Projektion/Annotationen des Anbieters. Auch
 Migrationshooks verwenden dieses Konto. Modellschlüssel bleiben Organisationssecrets
 im Vault des Produkts.
 
+Für `postgres.sslMode: verify-full` (Standard) oder `verify-ca` erstellen Sie
+das Secret aus `trust.existingSecret` mit dem Datenbank-CA-Zertifikat unter dem
+Schlüssel `postgres-ca.crt`. Das Chart mountet es schreibgeschützt in Migration,
+API und Worker und setzt `PGSSLROOTCERT`. `trust.postgresCaKey` wählt einen anderen
+Dateinamen. Für eine private Redis-CA ergänzen Sie ein kombiniertes öffentliches/
+privates CA-Bundle und nennen dessen Schlüssel in `trust.sslCaKey`; das setzt
+`SSL_CERT_FILE`. Behalten Sie öffentliche CAs für Modellanbieter im Bundle.
+Andere SDK-Einstellungen wie `AWS_CA_BUNDLE` können über `extraEnv` denselben
+Mount referenzieren.
+
 ## Installation { #install }
 
 Verwenden Sie das Chart aus dem Repository-Tag des gewünschten Releases.
@@ -77,6 +91,9 @@ postgres:
   database: agenticos
   user: agenticos
   sslMode: verify-full
+trust:
+  existingSecret: agenticos-trust
+  postgresCaKey: postgres-ca.crt
 redis:
   host: valkey.internal
   ssl: true
@@ -87,6 +104,12 @@ storage:
   # pathStyle: true
 image:
   tag: "1.63.0"
+trustedProxy:
+  enabled: true
+  namespaceLabels:
+    kubernetes.io/metadata.name: ingress-system
+  podLabels:
+    app.kubernetes.io/name: your-ingress-controller
 ingress:
   enabled: true
   className: your-ingress-class
@@ -122,6 +145,22 @@ Begrenzen Sie Netzwerkverkehr mit Cluster-Richtlinien: Die Konsole erreicht die
 API; API und Worker erreichen PostgreSQL, Redis, S3 sowie ausdrücklich konfigurierte
 Anbieter/externe Dienste. Veröffentlichen Sie keine Datenbank- oder Worker-Ports.
 
+Öffentlicher Ingress benötigt `trustedProxy.enabled: true` und nicht leere
+Namespace-/Pod-Labelselektoren des Controllers. Ersetzen Sie das Beispiel durch
+die tatsächlichen Labels Ihres geschützten Controllers. Das aktiviert
+`RATE_LIMIT_TRUST_FORWARDED_FOR` zusammen mit NetworkPolicies: Nur der Controller
+erreicht die Konsole; die API akzeptiert zusätzlich Konsolen-Pods dieses Releases.
+Verwenden Sie ein CNI mit NetworkPolicy-Durchsetzung und veröffentlichen Sie die
+Dienste nicht direkt. Schützen Sie diese Namespaces vor nicht vertrauenswürdigen
+Pods. Ohne Richtliniendurchsetzung darf Header-Vertrauen nicht aktiviert werden.
+
+Genau ein vertrauenswürdiger Proxy muss den echten Client an `X-Forwarded-For`
+anhängen. Der Limiter liest die letzte Adresse; die Konsole bewahrt den Header
+bei Auth-Proxy-Aufrufen. Fügt ein CDN/Load Balancer einen Hop hinzu, normalisieren
+Sie die verifizierte Clientadresse am Edge. Der ClusterIP-Test validiert weder
+Ihren Ingress-Controller noch das CNI. Prüfen Sie Isolation und Header vor
+Produktionsverkehr. Externe Routes/Proxys benötigen dieselben Einstellungen.
+
 ## Gesundheit, Speicher und Kapazität { #health-storage-and-capacity }
 
 Die API nutzt `/api/v1/health/live` für Start/Liveness und
@@ -133,8 +172,8 @@ an und beendet laufende Arbeit oder gibt sie an die Queue zurück.
 
 Ressourcen stehen getrennt in `api.resources`, `worker.resources`,
 `frontend.resources` und `migration.resources`. Der Speicher der Ingest-Kinder
-kommt zum Elternprozess hinzu. Stimmen Sie `extraEnv.INGEST_CHILDREN` und
-`extraEnv.INGEST_MEMORY_MB` mit dem Pod-Limit ab. Skalieren Sie über `api.replicas`,
+kommt zum Elternprozess hinzu. Stimmen Sie `extraEnv.WORKER_INGEST_CHILDREN` und
+`extraEnv.WORKER_INGEST_MEMORY_MB` mit dem Pod-Limit ab. Skalieren Sie über `api.replicas`,
 `worker.replicas` und `frontend.replicas`; berücksichtigen Sie die Datenbankpools
 jedes zusätzlichen Prozesses.
 
@@ -185,7 +224,7 @@ externe Datenbanken, Bucket und Runtime-Secret bleiben betreibereigen.
 
 ## Test reproduzieren { #reproduce-the-test }
 
-Installieren Sie Docker, kubectl, kind 0.33.0, Helm 4.3.1 und Python mit PyYAML.
+Installieren Sie Docker, kubectl 1.37.0, kind 0.33.0, Helm 4.3.1 und Python mit PyYAML.
 Führen Sie im Repository `python3 scripts/kubernetes/test_chart.py` und danach
 `scripts/kubernetes/run-smoke.sh` aus. Das Skript erstellt und löscht einen eigenen
 kind-Cluster, verwendet eine eigene kubeconfig und ersetzt keinen vorhandenen

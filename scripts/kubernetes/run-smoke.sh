@@ -33,6 +33,14 @@ if [ -n "${SMOKE_BACKEND_IMAGE:-}" ]; then
 fi
 if [ -n "${SMOKE_FRONTEND_TAG:-}" ]; then image_options+=(--set "image.frontendTag=$SMOKE_FRONTEND_TAG"); fi
 kubectl apply -f "$root/scripts/kubernetes/fixtures.json"
+# A real TLS database exercises CA mounts in migrations and both backend roles.
+openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 1 \
+  -keyout "$scratch/postgres.key" -out "$scratch/postgres.crt" \
+  -subj '/CN=postgres.agenticos-smoke-deps.svc.cluster.local' \
+  -addext 'subjectAltName=DNS:postgres.agenticos-smoke-deps.svc.cluster.local' \
+  -addext 'basicConstraints=critical,CA:TRUE' > "$scratch/certificate.log" 2>&1
+kubectl -n agenticos-smoke-deps create secret tls postgres-tls --cert="$scratch/postgres.crt" --key="$scratch/postgres.key"
+kubectl -n agenticos-smoke create secret generic agenticos-smoke-ca --from-file="postgres-ca.crt=$scratch/postgres.crt"
 kubectl -n agenticos-smoke-deps create configmap model-fixture --from-file="server.py=$root/scripts/kubernetes/model_fixture.py"
 for fixture in postgres valkey minio model-fixture; do
   kubectl -n agenticos-smoke-deps rollout status "deployment/$fixture" --timeout=180s
@@ -45,7 +53,15 @@ print(json.dumps({"apiVersion": "v1", "kind": "Secret", "metadata": {"name": "ag
         "VAULT_MASTER_KEY": secrets.token_hex(32), "POSTGRES_PASSWORD": "smoke-password",
         "FILE_STORAGE_S3_ACCESS_KEY": "smoke-access", "FILE_STORAGE_S3_SECRET_KEY": "smoke-secret-password"}}))
 PY
+# Admission validates the restricted ingress policies without enabling a proxy
+# in this ClusterIP fixture; enforcement remains the operator's CNI contract.
+helm template smoke "$root/charts/agenticos" -n agenticos-smoke -f "$root/scripts/kubernetes/smoke-values.yaml" "${image_options[@]}" \
+  --set trustedProxy.enabled=true --set trustedProxy.namespaceLabels.controller=ingress --set trustedProxy.podLabels.controller=trusted \
+  | kubectl -n agenticos-smoke apply --dry-run=server -f -
 helm install smoke "$root/charts/agenticos" -n agenticos-smoke -f "$root/scripts/kubernetes/smoke-values.yaml" "${image_options[@]}" --wait --timeout 15m
+kubectl -n agenticos-smoke-deps exec deployment/postgres -- psql -U agenticos -d agenticos -Atc \
+  "SELECT count(*) > 0 AND bool_and(ssl) FROM pg_stat_ssl JOIN pg_stat_activity USING (pid) WHERE client_addr IS NOT NULL AND usename = 'agenticos'" | grep -qx t
+kubectl -n agenticos-smoke exec deployment/smoke-agenticos-worker -- python -c 'from app.core.config import settings; assert settings.WORKER_INGEST_CHILDREN == 1; assert settings.WORKER_INGEST_MEMORY_MB == 512'
 kubectl -n agenticos-smoke exec deployment/smoke-agenticos-api -- python -c 'from app.services.file_storage import build_s3_client; build_s3_client().create_bucket(Bucket="uploads")'
 kubectl -n agenticos-smoke exec deployment/smoke-agenticos-api -- agenticos cmd bootstrap --email smoke@example.com --password smoke-password-2872 --org 'Kubernetes smoke'
 kubectl -n agenticos-smoke port-forward service/smoke-agenticos-api 18000:8000 > "$scratch/api-forward.log" 2>&1 &

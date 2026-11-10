@@ -68,7 +68,10 @@ class ChartTest(unittest.TestCase):
             self.assertTrue(at(pod, "securityContext", "runAsNonRoot"))
             self.assertEqual(at(pod, "securityContext", "seccompProfile", "type"), "RuntimeDefault")
             for volume in array(pod["volumes"]):
-                self.assertIn("emptyDir", obj(volume))
+                if at(volume, "name") == "trust":
+                    self.assertEqual(at(volume, "secret", "secretName"), "agenticos-smoke-ca")
+                else:
+                    self.assertIn("emptyDir", obj(volume))
             for item in array(pod["containers"]):
                 container = obj(item)
                 self.assertFalse(at(container, "securityContext", "allowPrivilegeEscalation"))
@@ -123,6 +126,12 @@ class ChartTest(unittest.TestCase):
             "ingress.apiHost=api.example.com",
             "--set",
             "ingress.tls[0].secretName=tls",
+            "--set",
+            "trustedProxy.enabled=true",
+            "--set",
+            "trustedProxy.namespaceLabels.controller=protected-ingress",
+            "--set",
+            "trustedProxy.podLabels.controller=trusted",
         )
         ingress = next(doc for doc in docs if doc["kind"] == "Ingress")
         self.assertEqual(len(array(at(ingress, "spec", "rules"))), 2)
@@ -156,6 +165,121 @@ class ChartTest(unittest.TestCase):
                 )
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(key.replace(".", "/"), result.stderr)
+
+    def test_verified_tls_mounts_the_ca_in_migration_api_and_worker(self) -> None:
+        backend_count = 0
+        for doc in render(
+            "--set",
+            "postgres.sslMode=verify-full",
+            "--set",
+            "trust.existingSecret=external-ca",
+            "--set",
+            "trust.sslCaKey=combined-ca.crt",
+        ):
+            if doc["kind"] not in {"Deployment", "Job"}:
+                continue
+            pod = obj(at(doc, "spec", "template", "spec"))
+            container = obj(array(pod["containers"])[0])
+            if container["name"] == "frontend":
+                continue
+            backend_count += 1
+            volumes = {str(at(volume, "name")): obj(volume) for volume in array(pod["volumes"])}
+            self.assertEqual(at(volumes["trust"], "secret", "secretName"), "external-ca")
+            mounts = {
+                str(at(mount, "name")): obj(mount) for mount in array(container["volumeMounts"])
+            }
+            self.assertEqual(mounts["trust"]["mountPath"], "/etc/agenticos/trust")
+            self.assertTrue(mounts["trust"]["readOnly"])
+            env = {str(at(item, "name")): at(item, "value") for item in array(container["env"])}
+            self.assertEqual(env["PGSSLROOTCERT"], "/etc/agenticos/trust/postgres-ca.crt")
+            self.assertEqual(env["SSL_CERT_FILE"], "/etc/agenticos/trust/combined-ca.crt")
+        self.assertEqual(backend_count, 3)
+
+    def test_unsafe_or_incomplete_settings_are_refused(self) -> None:
+        cases = [
+            (("--set", "storage.encryption=sse-kms"), "kmsKeyId"),
+            (
+                ("--set", "postgres.sslMode=verify-full", "--set", "trust.existingSecret="),
+                "existingSecret",
+            ),
+            (
+                (
+                    "--set",
+                    "trust.sslCaKey=private-ca.crt",
+                    "--set",
+                    "postgres.sslMode=disable",
+                    "--set",
+                    "trust.existingSecret=",
+                ),
+                "existingSecret",
+            ),
+            (("--set", "trustedProxy.enabled=true"), "namespaceLabels"),
+            (("--set", "ingress.enabled=true"), "trustedProxy"),
+        ]
+        for arguments, reason in cases:
+            with (
+                self.subTest(arguments=arguments),
+                self.assertRaises(subprocess.CalledProcessError) as caught,
+            ):
+                render(*arguments)
+            self.assertIn(reason, caught.exception.stderr)
+        self.assertTrue(
+            render("--set", "storage.encryption=sse-kms", "--set", "storage.kmsKeyId=key-id")
+        )
+
+    def test_trusted_forwarding_is_coupled_to_restrictive_network_policies(self) -> None:
+        arguments = (
+            "--set",
+            "trustedProxy.enabled=true",
+            "--set",
+            "trustedProxy.namespaceLabels.controller=protected-ingress",
+            "--set",
+            "trustedProxy.podLabels.controller=trusted",
+        )
+        documents = render(*arguments)
+        policies = [doc for doc in documents if doc["kind"] == "NetworkPolicy"]
+        self.assertEqual(len(policies), 2)
+        for policy in policies:
+            ingress = array(at(policy, "spec", "ingress"))
+            trusted = array(at(ingress[0], "from"))[0]
+            self.assertEqual(
+                at(trusted, "namespaceSelector", "matchLabels"), {"controller": "protected-ingress"}
+            )
+            self.assertEqual(at(trusted, "podSelector", "matchLabels"), {"controller": "trusted"})
+            component = at(
+                policy, "spec", "podSelector", "matchLabels", "app.kubernetes.io/component"
+            )
+            self.assertEqual(len(ingress), 2 if component == "api" else 1)
+            if component == "api":
+                frontend = array(at(ingress[1], "from"))[0]
+                self.assertEqual(
+                    at(frontend, "podSelector", "matchLabels"),
+                    {
+                        "app.kubernetes.io/instance": "smoke",
+                        "app.kubernetes.io/component": "frontend",
+                    },
+                )
+        for doc in documents:
+            if doc["kind"] in {"Deployment", "Job"}:
+                container = obj(array(at(doc, "spec", "template", "spec", "containers"))[0])
+                if container["name"] != "frontend":
+                    env = {
+                        str(at(item, "name")): at(item, "value") for item in array(container["env"])
+                    }
+                    self.assertEqual(env["RATE_LIMIT_TRUST_FORWARDED_FOR"], "true")
+        self.assertFalse(any(doc["kind"] == "NetworkPolicy" for doc in render()))
+
+    def test_cors_uses_the_browser_origin_without_a_trailing_slash(self) -> None:
+        for doc in render("--set", "public.siteUrl=https://app.example.com/"):
+            if doc["kind"] in {"Deployment", "Job"}:
+                container = obj(array(at(doc, "spec", "template", "spec", "containers"))[0])
+                if container["name"] != "frontend":
+                    env = {
+                        str(at(item, "name")): at(item, "value") for item in array(container["env"])
+                    }
+                    self.assertEqual(env["CORS_ORIGINS"], '["https://app.example.com"]')
+                    self.assertEqual(env["FRONTEND_URL"], "https://app.example.com")
+                    self.assertEqual(env["RATE_LIMIT_TRUST_FORWARDED_FOR"], "false")
 
     def test_chart_has_no_node_privileges_or_stored_credentials(self) -> None:
         serialized = json.dumps(render()).lower()

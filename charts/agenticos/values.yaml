@@ -1,4 +1,4 @@
-# Use an immutable released tag, or repository@sha256 through image.digest.
+# Pin a released tag, or set image.backendDigest and image.frontendDigest.
 image:
   backend: ghcr.io/vstorm-co/agenticos-backend
   frontend: ghcr.io/vstorm-co/agenticos-frontend
@@ -53,7 +53,19 @@ postgres:
   port: 5432
   database: agenticos
   user: agenticos
-  sslMode: require
+  sslMode: verify-full
+# Secret keys are mounted read-only at /etc/agenticos/trust in all backend pods.
+trust:
+  existingSecret: ""
+  postgresCaKey: postgres-ca.crt
+  # Optional combined public/private CA bundle for Python TLS (including Redis).
+  sslCaKey: ""
+# Required when exposing the chart through ingress or an external trusted proxy.
+# Select only your protected ingress controller pods, not application namespaces.
+trustedProxy:
+  enabled: false
+  namespaceLabels: {}
+  podLabels: {}
 redis:
   host: ""
   port: 6379
