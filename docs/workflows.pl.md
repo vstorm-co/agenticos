@@ -1,5 +1,5 @@
 ---
-source_sha: "a8d39eedb155"
+source_sha: "1c7b7724439c"
 ---
 
 # Workflows { #workflows }
@@ -353,10 +353,14 @@ niego dociera - jedynym połączeniem wejściowym, od kroku włączonego - ma cz
 które wtedy przekazuje dalej. Wszystkie trzy są zapisywane w grafie, więc wersje je
 zachowują.
 
+Od wyłączonego kroku, połączonego czy nie, nie wymaga się wejść ani ustawień, które
+zostawił puste: nie czyta ani jednych, ani drugich. Ustawienie, które ma wpisane, jest
+nadal sprawdzane, bo z nim ruszy po ponownym włączeniu.
+
 Wyłączony krok bez żadnego połączenia jest odstawiony: może stać obok workflow albo
-wewnątrz pętli - na przykład **Combine lists** z danymi testowymi - bez osiągalności i
-bez podpiętych wejść. Przebieg go pomija i nie wlicza go do limitu kroków runu. Gdy
-połączysz go z czymkolwiek, oba wymogi znowu go dotyczą. Odstawić można każdy krok,
+wewnątrz pętli - na przykład **Combine lists** z danymi testowymi - bez osiągalności.
+Przebieg go pomija i nie wlicza go do limitu kroków runu. Gdy połączysz go z
+czymkolwiek, znowu musi być osiągalny. Odstawić można każdy krok,
 także taki, który decyduje o drodze, jak **If**: bez połączeń nie ma między czym
 wybierać. Zawsze włączone zostają tylko trigger oraz **Loop item** i **Loop result**
 pętli.

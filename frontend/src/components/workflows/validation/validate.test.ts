@@ -447,6 +447,19 @@ describe("drift parity — graphs the backend refuses", () => {
     expect(codesOf(run(g))).toEqual([]);
   });
 
+  it("rule 9 — a connected step that is off is asked for no input", () => {
+    const off = { ...node("off", "test.consumer"), disabled: true };
+    const g = graph({
+      entry: "entry",
+      nodes: [echo("entry"), off],
+      edges: [edge("e1", "entry", "out", "off", "in")],
+    });
+    expect(codesOf(run(g))).toEqual([]);
+    expect(codesOf(run({ ...g, nodes: [echo("entry"), { ...off, disabled: false }] }))).toEqual([
+      "input-not-bound",
+    ]);
+  });
+
   it("rule 2 — a step switched off that feeds the line is still unreachable", () => {
     const g = graph({
       entry: "entry",
@@ -1197,6 +1210,14 @@ describe("binding-picker helpers", () => {
 
   it("availableSourceNodes is what precedes the node, minus the node itself", () => {
     expect(availableSourceNodes(linear, CATALOG, "c")).toEqual(new Set(["a", "b"]));
+  });
+
+  it("availableSourceNodes offers no step switched off", () => {
+    const off = {
+      ...linear,
+      nodes: linear.nodes.map((n) => (n.id === "b" ? { ...n, disabled: true } : n)),
+    };
+    expect(availableSourceNodes(off, CATALOG, "c")).toEqual(new Set(["a"]));
   });
 
   it("availableSourceNodes is empty when the node has no dominator verdict", () => {

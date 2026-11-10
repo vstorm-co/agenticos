@@ -385,7 +385,13 @@ export default function WorkflowRunPage({ params }: PageProps) {
                         {formatRunDuration(node.started_at, node.ended_at, locale)}
                       </span>
                     </span>
-                    <NodeRunStatusLabel status={node.status} />
+                    <NodeRunStatusLabel
+                      status={node.status}
+                      switchedOff={
+                        graph?.nodes.find((step) => step.id === node.node_instance_id)?.disabled ===
+                        true
+                      }
+                    />
                   </button>
                   {(finishedLate(node) ||
                     (live && node.status === "needs_attention" && run.can_cancel)) && (

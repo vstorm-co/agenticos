@@ -344,13 +344,17 @@ switched off, and a step that reads one that is off, unless what comes into it -
 along its one incoming connection, from a step that is on - has the field read,
 which it then hands on. All three are saved in the graph, so versions keep them.
 
+A step that is off, connected or not, is not asked for its inputs or for a setting
+it leaves empty: it reads neither. A setting it does hold is still checked, since it
+runs with it once switched back on.
+
 A step that is off with no connection at all is set aside: it can sit beside the
 workflow or inside a loop - a **Combine lists** holding test data, say - without
-being reachable or having its inputs bound. A run ignores it, and it does not count
-towards the run's step limit. Connect it to anything and both are asked of it again.
-Any step can be set aside, even one that decides the way, such as **If**: with no
-connection it has no way to choose. Only the trigger and a loop's **Loop item** and
-**Loop result** always stay on.
+being reachable. A run ignores it, and it does not count towards the run's step
+limit. Connect it to anything and it must be reachable again. Any step can be set
+aside, even one that decides the way, such as **If**: with no connection it has no
+way to choose. Only the trigger and a loop's **Loop item** and **Loop result**
+always stay on.
 
 ### A step's data, test data and testing one step { #a-steps-data-pinning-and-testing-one-step }
 

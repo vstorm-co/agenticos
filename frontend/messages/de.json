@@ -7599,7 +7599,8 @@
         "running": "Läuft",
         "waiting": "Wartet",
         "notReached": "Nicht erreicht",
-        "starting": "Startet"
+        "starting": "Startet",
+        "switchedOff": "Ausgeschaltet"
       },
       "startRun": "Run starten",
       "startRunTitle": "Run starten",

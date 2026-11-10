@@ -63,9 +63,9 @@ export function nodeIds(graph: WorkflowGraph): Set<string> {
 }
 
 /**
- * Steps switched off with no edge at all: parked beside the graph, never run. Neither
- * reachability nor their required inputs are asked of them, and one may be a step that
- * decides the way; rule 13 still refuses a read of one. A trigger is never one: a run
+ * Steps switched off with no edge at all: parked beside the graph, never run. They
+ * need not be reachable, and one may be a step that decides the way; rule 13 still
+ * refuses a read of one. A trigger is never one: a run
  * can start at it wired or not. Mirrors `set_aside` in
  * `backend/app/workflows/graph/validate.py`.
  */

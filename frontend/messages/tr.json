@@ -3773,7 +3773,8 @@
         "skipped": "Atlandı",
         "cancelled": "İptal edildi",
         "notReached": "Ulaşılmadı",
-        "starting": "Başlıyor"
+        "starting": "Başlıyor",
+        "switchedOff": "Kapalı"
       },
       "startRun": "Run başlat",
       "startRunTitle": "Run başlat",

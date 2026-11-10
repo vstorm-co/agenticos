@@ -251,6 +251,7 @@ const RUN_CARD: Record<NodeRunState, string> = {
   attention: "border-destructive border-2",
   skipped: "border-dotted opacity-40",
   notReached: "opacity-50",
+  switchedOff: "border-dashed opacity-50",
 };
 
 /**

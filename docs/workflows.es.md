@@ -1,5 +1,5 @@
 ---
-source_sha: "a8d39eedb155"
+source_sha: "1c7b7724439c"
 ---
 
 # Workflows { #workflows }
@@ -363,10 +363,14 @@ paso que lee uno apagado, salvo que lo que le llega - por su única conexión de
 desde un paso encendido - tenga el campo leído, que entonces entrega. Los tres se guardan
 en el grafo, así que las versiones los conservan.
 
+A un paso apagado, conectado o no, no se le exigen entradas ni los ajustes que deja
+vacíos: no lee ni unas ni otros. Un ajuste que sí tiene se sigue comprobando, porque
+con él se ejecuta cuando vuelve a encenderse.
+
 Un paso apagado sin ninguna conexión queda apartado: puede estar junto al workflow o
 dentro de un bucle - un **Combine lists** con datos de prueba, por ejemplo - sin ser
-alcanzable ni tener sus entradas vinculadas. Un run lo ignora y no cuenta para el límite
-de pasos del run. Si lo conectas a algo, ambas cosas se le vuelven a exigir. Cualquier
+alcanzable. Un run lo ignora y no cuenta para el límite de pasos del run. Si lo
+conectas a algo, vuelve a tener que ser alcanzable. Cualquier
 paso puede quedar apartado, incluso uno que decide el camino, como **If**: sin
 conexiones no tiene entre qué elegir. Solo el trigger y el **Loop item** y el
 **Loop result** de un bucle siguen siempre encendidos.

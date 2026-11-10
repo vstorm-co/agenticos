@@ -1,5 +1,5 @@
 ---
-source_sha: "a8d39eedb155"
+source_sha: "1c7b7724439c"
 ---
 
 # Workflows { #workflows }
@@ -378,11 +378,16 @@ eine eingehende Verbindung, von einem eingeschalteten Schritt - hat das gelesene
 das er dann weitergibt. Alle drei werden im Graphen gespeichert, sodass Versionen sie
 behalten.
 
+Von einem abgeschalteten Schritt, verbunden oder nicht, werden weder Eingaben noch
+Einstellungen verlangt, die er leer lässt: Er liest keine von beiden. Eine Einstellung,
+die er hat, wird weiter geprüft, denn mit ihr läuft er, sobald er wieder eingeschaltet
+ist.
+
 Ein abgeschalteter Schritt ganz ohne Verbindung ist beiseitegestellt: Er kann neben dem
 Workflow oder in einer Schleife stehen - etwa ein **Combine lists** mit Testdaten -,
-ohne erreichbar zu sein oder gebundene Eingaben zu haben. Ein Run übergeht ihn, und er
-zählt nicht zum Schrittlimit des Runs. Wird er mit irgendetwas verbunden, gilt beides
-wieder für ihn. Jeder Schritt lässt sich so beiseitestellen, auch einer, der den Weg
+ohne erreichbar zu sein. Ein Run übergeht ihn, und er zählt nicht zum Schrittlimit des
+Runs. Wird er mit irgendetwas verbunden, muss er wieder erreichbar sein. Jeder Schritt
+lässt sich so beiseitestellen, auch einer, der den Weg
 entscheidet, etwa **If**: Ohne Verbindung hat er nichts zu wählen. Nur der Trigger
 sowie **Loop item** und **Loop result** einer Schleife bleiben immer eingeschaltet.
 

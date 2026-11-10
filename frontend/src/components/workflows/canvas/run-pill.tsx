@@ -19,6 +19,7 @@ const WORD: Record<NodeRunState, string> = {
   attention: "needs_attention",
   skipped: "skipped",
   notReached: "notReached",
+  switchedOff: "switchedOff",
 };
 
 // Solid fills - a tint mixed into the card, never a see-through one - since the
@@ -36,6 +37,7 @@ const LOOK: Record<NodeRunState, string> = {
   attention: "bg-destructive text-destructive-foreground border-transparent",
   skipped: "bg-muted text-muted-foreground border-border",
   notReached: "bg-muted text-muted-foreground border-border",
+  switchedOff: "bg-muted text-muted-foreground border-border",
 };
 
 /**

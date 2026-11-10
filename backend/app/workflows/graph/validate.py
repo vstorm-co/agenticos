@@ -515,7 +515,9 @@ def _config_schema_problems(graph: WorkflowGraph, definitions: DefinitionMap) ->
     `node.config` because a binding supplies it instead is not "missing" - it
     is bound; that is the only error class set aside for a bound field, and a
     wrong-shaped value the client *did* supply is still refused exactly as
-    before.
+    before. A step switched off reads no config, so nothing it leaves out is
+    missing either; what it does set is still checked, since its ports may
+    follow from it and it runs as set once switched back on.
     """
     problems: Problems = []
     bound_fields_by_node: dict[UUID, set[str]] = {}
@@ -543,7 +545,8 @@ def _config_schema_problems(graph: WorkflowGraph, definitions: DefinitionMap) ->
                 error
                 for error in exc.errors(include_url=False, include_input=False)
                 if not (
-                    error["type"] == "missing" and error["loc"] and error["loc"][0] in bound_fields
+                    error["type"] == "missing"
+                    and (node.disabled or (error["loc"] and error["loc"][0] in bound_fields))
                 )
             ]
             for problem in field_problems(errors, root=root):
@@ -761,10 +764,10 @@ def _rule_1_single_entry(graph: WorkflowGraph) -> Problems:
 def set_aside(graph: WorkflowGraph) -> set[UUID]:
     """Steps switched off with no edge at all: parked beside the graph, never run.
 
-    The run never reaches one and it would do nothing if it did, so neither
-    reachability nor its required inputs are asked of it, and it may be a step
-    that decides the way. Rule 13 still refuses a read of one, since it hands
-    nothing on. A trigger is never one: a run can start at it wired or not.
+    The run never reaches one and it would do nothing if it did, so it need not
+    be reachable, and it may be a step that decides the way. Rule 13 still
+    refuses a read of one, since it hands nothing on. A trigger is never one: a
+    run can start at it wired or not.
     """
     wired = {edge.source_node_id for edge in graph.edges} | {
         edge.target_node_id for edge in graph.edges
@@ -1520,10 +1523,10 @@ def _rule_9_required_inputs_bound(graph: WorkflowGraph, definitions: DefinitionM
         if count > 1:
             problems.append((f"nodes.{node_id}.{field_name}", "This input is bound more than once"))
 
-    parked = set_aside(graph)
     for node in graph.nodes:
         definition = definitions.get(node.id)
-        if definition is None or definition.input_schema is None or node.id in parked:
+        # A step switched off, wired or not, is never handed its input.
+        if definition is None or definition.input_schema is None or node.disabled:
             continue
         if (
             definition.id in _DECIDES_ON_VALUE

@@ -5987,7 +5987,8 @@
         "skipped": "Skipped",
         "cancelled": "Cancelled",
         "notReached": "Not reached",
-        "starting": "Starting"
+        "starting": "Starting",
+        "switchedOff": "Switched off"
       },
       "startRun": "Start a run",
       "startRunTitle": "Start a run",

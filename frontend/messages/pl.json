@@ -3613,7 +3613,8 @@
         "running": "W toku",
         "waiting": "Czeka",
         "notReached": "Niewykonany",
-        "starting": "Uruchamia się"
+        "starting": "Uruchamia się",
+        "switchedOff": "Wyłączony"
       },
       "startRun": "Rozpocznij uruchomienie",
       "startRunTitle": "Rozpocznij uruchomienie",

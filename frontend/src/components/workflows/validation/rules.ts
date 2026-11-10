@@ -768,12 +768,13 @@ export function rule9RequiredInputsBound(
     }
   }
 
-  const parked = setAside(graph);
   for (const n of graph.nodes) {
     const definition = definitionFor(definitions, n.id);
     if (definition === null) continue;
-    // A step set aside never runs, so it waits on no input; its settings still count.
-    if (!parked.has(n.id)) {
+    // A step switched off, wired or not, is handed neither input nor settings, so
+    // nothing it leaves unset is missing; a setting it does hold is still checked.
+    const off = n.disabled === true;
+    if (!off) {
       if (DECIDES_ON_VALUE.has(definition.id) && !valueBound(graph, n.id)) {
         problems.push(nodeField(n.id, "value", "decision-value-not-bound"));
       }
@@ -799,7 +800,7 @@ export function rule9RequiredInputsBound(
     // A required setting - an agent, a table, the people to tell - left empty is
     // what the server's config check refuses first; a bindable one set by a
     // binding counts as set.
-    for (const fieldName of requiredFields(definition.config_schema)) {
+    for (const fieldName of off ? [] : requiredFields(definition.config_schema)) {
       const bound = (boundCounts.get(`${n.id}\u0000${fieldName}`) ?? 0) > 0;
       if (n.config[fieldName] === undefined && !bound) {
         problems.push(nodeField(n.id, fieldName, "config-not-set"));

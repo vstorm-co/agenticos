@@ -99,6 +99,37 @@ async def test_a_switched_off_step_is_skipped_and_the_run_goes_on(engine: AsyncE
     assert attempt.result["output"]["payload"] == {"name": "Ada"}
 
 
+async def test_a_connected_step_that_is_off_is_not_asked_for_inputs_or_settings(
+    engine: AsyncEngine,
+):
+    """Off, a step is handed neither input nor config, so nothing it leaves unset is
+    missing: a Combine lists with no list bound, a Map with no mapping."""
+    combine = _node("data.combine", disabled=True)
+    unset = _node("data.map", disabled=True)
+    entry, output = _node("core.input"), _node("core.output")
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, combine, unset, output),
+        edges=(_edge(entry, combine), _edge(combine, unset), _edge(unset, output)),
+        bindings=(_bind(output, "text", entry, "payload", "name"),),
+    )
+    seeded = await seed_run(engine, graph, run_input={"name": "Ada"})
+    async with async_sessionmaker(engine)() as db:
+        await validate_graph(db, seeded.ctx, graph)
+
+    run = await drive(seeded)
+
+    assert run.status == WorkflowRunStatus.SUCCEEDED.value
+    assert run.output["text"] == "Ada"
+
+
+async def test_a_setting_a_step_that_is_off_does_set_is_still_checked(engine: AsyncEngine):
+    """What it sets decides how it runs once switched back on, and may decide its ports."""
+    graph = _line(_node("data.combine", {"mode": "by_key"}, disabled=True))
+
+    assert any("key" in problem for problem in await _problems(engine, graph))
+
+
 async def test_a_later_step_reads_a_field_through_a_step_that_is_off(engine: AsyncEngine):
     first = _node("data.map", MAPPING)
     middle = _node("data.map", MAPPING, disabled=True)
