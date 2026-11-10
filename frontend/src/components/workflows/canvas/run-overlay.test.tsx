@@ -134,11 +134,6 @@ describe("a step's state on a run's canvas", () => {
     expect(nodeRunState(null, true, true)).toBe("switchedOff");
     expect(nodeRunState(summary("pending"), true, true)).toBe("switchedOff");
     expect(nodeRunState(summary("succeeded"), false, true)).toBe("switchedOff");
-    // It hands on what reached it: the wire out reads by the step after.
-    expect(wireRunState("switchedOff", "running")).toBe("running");
-    expect(wireRunState("switchedOff", "done")).toBe("done");
-    expect(wireRunState("done", "switchedOff")).toBe("done");
-    expect(wireRunState("pending", "switchedOff")).toBe("pending");
   });
 
   it("draws a wire by the step it leads into, once the step before has done its part", () => {
@@ -239,16 +234,24 @@ describe("a step's state on a run's canvas", () => {
       },
     });
     function State() {
-      return <span>{useNodeRunState("A")?.state ?? "none"}</span>;
+      return (
+        <span>{`${useNodeRunState("A")?.state ?? "none"}:${useWireRunState("Z", "A") ?? "none"}`}</span>
+      );
     }
+    // A run that ended down another branch: Z done, A never reached.
     render(
       <NodeRunOverlayProvider
-        value={{ summaries: summarizeNodeRuns([row({})]), live: true, watched: true }}
+        value={{
+          summaries: summarizeNodeRuns([row({ node_instance_id: "Z" })]),
+          live: false,
+          watched: false,
+        }}
       >
         <State />
       </NodeRunOverlayProvider>,
     );
-    expect(screen.getByText("switchedOff")).toBeTruthy();
+    // The card says what A is; the wire into it says the run never went there.
+    expect(screen.getByText("switchedOff:faded")).toBeTruthy();
     useWorkflowEditorStore.setState({ graph: before });
   });
 });

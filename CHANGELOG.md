@@ -30,14 +30,16 @@ Two things are versioned separately from this file and worth knowing about:
   limit. Any step can be set aside, including one that decides the way, such as
   If, which the editor now lets you switch off while it has no connection; only
   the trigger and a loop's Loop item and Loop result always stay on. A step that
-  is off, connected or not, is no longer asked for its inputs or for a setting
-  it leaves empty, since it reads neither; a setting it does hold is still
-  checked, and nothing may read a step set aside.
+  is off, connected or not, is no longer checked for its inputs, its settings,
+  what its settings name or its retry policy, since it reads and calls none of
+  them; switching it back on is a change to publish, checked then. Nothing may
+  read a step set aside, and a set-aside step no longer counts towards the
+  organization's queued-step admission quota.
 - **A switched-off workflow step reads as switched off.** The editor no longer
   offers it as an input to later steps - in the binding picker, the Input pane
   or when a step is inserted - and a run's canvas and step list show it as
   Switched off from the start, rather than as pending until the engine passes
-  it.
+  it. The wire into one down a branch the run did not take still fades.
 
 ## [1.62.3] - 2026-11-10
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "1c7b7724439c"
+source_sha: "b8e6b6bc7345"
 ---
 
 # Workflows { #workflows }
@@ -363,9 +363,9 @@ paso que lee uno apagado, salvo que lo que le llega - por su única conexión de
 desde un paso encendido - tenga el campo leído, que entonces entrega. Los tres se guardan
 en el grafo, así que las versiones los conservan.
 
-A un paso apagado, conectado o no, no se le exigen entradas ni los ajustes que deja
-vacíos: no lee ni unas ni otros. Un ajuste que sí tiene se sigue comprobando, porque
-con él se ejecuta cuando vuelve a encenderse.
+En un paso apagado, conectado o no, no se comprueban ni las entradas ni los ajustes:
+no lee ni unas ni otros. Volver a encenderlo es un cambio que hay que publicar, y la
+publicación los comprueba entonces.
 
 Un paso apagado sin ninguna conexión queda apartado: puede estar junto al workflow o
 dentro de un bucle - un **Combine lists** con datos de prueba, por ejemplo - sin ser

@@ -144,8 +144,7 @@ export function wireRunState(from: NodeRunState, into: NodeRunState): WireRunSta
   if (into === "skipped" || into === "notReached" || from === "skipped") return "faded";
   // A step whose policy routes its error ends failed and still hands on through
   // its error port: once the step after it is reached, the wire reads as a done one's.
-  // A step switched off hands on what reached it, so the wire out reads by the step after.
-  if (from !== "done" && from !== "failed" && from !== "switchedOff") return "pending";
+  if (from !== "done" && from !== "failed") return "pending";
   if (into === "running" || into === "starting") return "running";
   if (into === "failed" || into === "attention") return "failed";
   return into === "pending" ? "pending" : "done";
@@ -192,13 +191,15 @@ export function useNodeRunState(
   };
 }
 
-/** How the wire between two steps reads on a run's canvas; null on the editor's. */
+/**
+ * How the wire between two steps reads on a run's canvas; null on the editor's. It
+ * follows what the run did, a step switched off included - its card always reads
+ * so, but the wire into one down a branch not taken still fades.
+ */
 export function useWireRunState(from: string, into: string): WireRunState | null {
   const overlay = useContext(NodeRunOverlayContext);
-  const off = useSwitchedOff();
   if (overlay === null) return null;
-  const state = (id: string) =>
-    nodeRunState(overlay.summaries.get(id) ?? null, overlay.live, off.has(id));
+  const state = (id: string) => nodeRunState(overlay.summaries.get(id) ?? null, overlay.live);
   return wireRunState(state(from), state(into));
 }
 

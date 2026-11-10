@@ -1,5 +1,5 @@
 ---
-source_sha: "1c7b7724439c"
+source_sha: "b8e6b6bc7345"
 ---
 
 # Workflows { #workflows }
@@ -353,9 +353,9 @@ niego dociera - jedynym połączeniem wejściowym, od kroku włączonego - ma cz
 które wtedy przekazuje dalej. Wszystkie trzy są zapisywane w grafie, więc wersje je
 zachowują.
 
-Od wyłączonego kroku, połączonego czy nie, nie wymaga się wejść ani ustawień, które
-zostawił puste: nie czyta ani jednych, ani drugich. Ustawienie, które ma wpisane, jest
-nadal sprawdzane, bo z nim ruszy po ponownym włączeniu.
+U wyłączonego kroku, połączonego czy nie, nie sprawdza się wejść ani ustawień: nie
+czyta ani jednych, ani drugich. Ponowne włączenie to zmiana do opublikowania, a
+publikacja sprawdza je wtedy.
 
 Wyłączony krok bez żadnego połączenia jest odstawiony: może stać obok workflow albo
 wewnątrz pętli - na przykład **Combine lists** z danymi testowymi - bez osiągalności.

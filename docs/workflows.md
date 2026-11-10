@@ -344,9 +344,9 @@ switched off, and a step that reads one that is off, unless what comes into it -
 along its one incoming connection, from a step that is on - has the field read,
 which it then hands on. All three are saved in the graph, so versions keep them.
 
-A step that is off, connected or not, is not asked for its inputs or for a setting
-it leaves empty: it reads neither. A setting it does hold is still checked, since it
-runs with it once switched back on.
+A step that is off, connected or not, is not checked for its inputs or its settings:
+it reads neither. Switching it back on is a change to publish, and publishing checks
+them then.
 
 A step that is off with no connection at all is set aside: it can sit beside the
 workflow or inside a loop - a **Combine lists** holding test data, say - without

@@ -123,11 +123,29 @@ async def test_a_connected_step_that_is_off_is_not_asked_for_inputs_or_settings(
     assert run.output["text"] == "Ada"
 
 
-async def test_a_setting_a_step_that_is_off_does_set_is_still_checked(engine: AsyncEngine):
-    """What it sets decides how it runs once switched back on, and may decide its ports."""
-    graph = _line(_node("data.combine", {"mode": "by_key"}, disabled=True))
+async def test_the_settings_of_a_step_that_is_off_are_not_checked(engine: AsyncEngine):
+    """It reads none of them; switching it back on is a change to publish, checked then.
+    A half-filled mapping, a key mode with no key, an agent step with no agent."""
+    half = _node("data.map", {"mappings": [{}]}, disabled=True)
+    keyless = _node("data.combine", {"mode": "by_key"}, disabled=True)
+    agentless = _node("agent.run", disabled=True)
+    entry, output = _node("core.input"), _node("core.output")
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, half, keyless, output, agentless),
+        edges=(_edge(entry, half), _edge(half, keyless), _edge(keyless, output)),
+        bindings=(_bind(output, "text", entry, "payload", "name"),),
+    )
+    seeded = await seed_run(engine, graph, run_input={"name": "Ada"})
+    async with async_sessionmaker(engine)() as db:
+        await validate_graph(db, seeded.ctx, graph)
 
-    assert any("key" in problem for problem in await _problems(engine, graph))
+    switched_on = graph.model_copy(
+        update={"nodes": tuple(n.model_copy(update={"disabled": False}) for n in graph.nodes)}
+    )
+    problems = await _problems(engine, switched_on)
+    assert any("key" in problem for problem in problems)
+    assert "Pick an agent from the catalog or configure one in this step" in " ".join(problems)
 
 
 async def test_a_later_step_reads_a_field_through_a_step_that_is_off(engine: AsyncEngine):

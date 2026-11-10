@@ -772,7 +772,7 @@ export function rule9RequiredInputsBound(
     const definition = definitionFor(definitions, n.id);
     if (definition === null) continue;
     // A step switched off, wired or not, is handed neither input nor settings, so
-    // nothing it leaves unset is missing; a setting it does hold is still checked.
+    // none are asked of it: switching it back on is a change to publish, checked then.
     const off = n.disabled === true;
     if (!off) {
       if (DECIDES_ON_VALUE.has(definition.id) && !valueBound(graph, n.id)) {
@@ -784,7 +784,7 @@ export function rule9RequiredInputsBound(
         }
       }
     }
-    if (definition.id === "agent.run" && !n.config.inline) {
+    if (!off && definition.id === "agent.run" && !n.config.inline) {
       const agent = n.config.agent;
       if (
         typeof agent !== "object" ||

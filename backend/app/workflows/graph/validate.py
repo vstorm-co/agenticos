@@ -515,9 +515,8 @@ def _config_schema_problems(graph: WorkflowGraph, definitions: DefinitionMap) ->
     `node.config` because a binding supplies it instead is not "missing" - it
     is bound; that is the only error class set aside for a bound field, and a
     wrong-shaped value the client *did* supply is still refused exactly as
-    before. A step switched off reads no config, so nothing it leaves out is
-    missing either; what it does set is still checked, since its ports may
-    follow from it and it runs as set once switched back on.
+    before. A step switched off reads no config at all, so its config is not
+    checked: switching it back on is a change to publish, which checks it then.
     """
     problems: Problems = []
     bound_fields_by_node: dict[UUID, set[str]] = {}
@@ -528,7 +527,7 @@ def _config_schema_problems(graph: WorkflowGraph, definitions: DefinitionMap) ->
 
     for node in graph.nodes:
         definition = definitions[node.id]
-        if definition is None:
+        if definition is None or node.disabled:
             continue
         if definition.config_schema is None:
             if node.config:
@@ -545,8 +544,7 @@ def _config_schema_problems(graph: WorkflowGraph, definitions: DefinitionMap) ->
                 error
                 for error in exc.errors(include_url=False, include_input=False)
                 if not (
-                    error["type"] == "missing"
-                    and (node.disabled or (error["loc"] and error["loc"][0] in bound_fields))
+                    error["type"] == "missing" and error["loc"] and error["loc"][0] in bound_fields
                 )
             ]
             for problem in field_problems(errors, root=root):
@@ -603,12 +601,14 @@ async def _resource_problems(
     Only for a config that validates on its own: a config with a field still to
     be bound at run time, or one already refused above, has nothing settled to
     check yet, and a second refusal about the same field would only repeat it.
+    A step switched off reaches nothing its config names.
     """
     problems: Problems = []
     for node in graph.nodes:
         definition = definitions[node.id]
         if (
             definition is None
+            or node.disabled
             or definition.resource_check is None
             or definition.config_schema is None
         ):
@@ -1751,12 +1751,13 @@ def _rule_12_policies(graph: WorkflowGraph, definitions: DefinitionMap) -> Probl
 
     The retry guarantee is the call's own when the definition decides it per
     configuration - an `http.request` `GET` may retry, a `POST` without an
-    idempotency header may not.
+    idempotency header may not. A step switched off is never called, so it is
+    never retried either.
     """
     problems: Problems = []
     for node in graph.nodes:
         definition = definitions.get(node.id)
-        if definition is None or node.policy is None:
+        if definition is None or node.policy is None or node.disabled:
             continue
         if definition.handler is None:
             problems.append(

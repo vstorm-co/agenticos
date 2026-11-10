@@ -1,5 +1,5 @@
 ---
-source_sha: "1c7b7724439c"
+source_sha: "b8e6b6bc7345"
 ---
 
 # Workflows { #workflows }
@@ -378,10 +378,9 @@ eine eingehende Verbindung, von einem eingeschalteten Schritt - hat das gelesene
 das er dann weitergibt. Alle drei werden im Graphen gespeichert, sodass Versionen sie
 behalten.
 
-Von einem abgeschalteten Schritt, verbunden oder nicht, werden weder Eingaben noch
-Einstellungen verlangt, die er leer lässt: Er liest keine von beiden. Eine Einstellung,
-die er hat, wird weiter geprüft, denn mit ihr läuft er, sobald er wieder eingeschaltet
-ist.
+Bei einem abgeschalteten Schritt, verbunden oder nicht, werden weder Eingaben noch
+Einstellungen geprüft: Er liest keine von beiden. Ihn wieder einzuschalten ist eine
+Änderung, die veröffentlicht werden muss, und die Veröffentlichung prüft sie dann.
 
 Ein abgeschalteter Schritt ganz ohne Verbindung ist beiseitegestellt: Er kann neben dem
 Workflow oder in einer Schleife stehen - etwa ein **Combine lists** mit Testdaten -,
