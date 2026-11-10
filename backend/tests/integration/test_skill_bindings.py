@@ -136,6 +136,8 @@ async def _waiting_for_a_lock(
             )
             if waiting:
                 return
+            # pg_stat_activity is read once per transaction and repeated until it ends.
+            await session.rollback()
             await asyncio.sleep(0.1)
     raise AssertionError("nothing waited for a lock within 60s")
 
