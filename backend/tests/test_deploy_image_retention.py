@@ -128,7 +128,7 @@ def test_retention_counts_image_ids_and_removes_all_immutable_aliases(
     assert result.returncode == 0, result.stderr
     assert {i.id for i in after.images} == {state.images[1].id, state.images[2].id}
     assert [c for c in after.calls if c[:3] == ["docker", "image", "rm"]] == [
-        ["docker", "image", "rm", *oldest.tags]
+        ["docker", "image", "rm", "--no-prune", *oldest.tags]
     ]
 
 
@@ -361,3 +361,16 @@ def test_an_unknown_creation_timestamp_refuses_to_guess_retention_order(host: Ho
     assert result.returncode != 0
     assert "unsupported creation timestamp" in result.stderr
     assert {i.id for i in after.images} == {unknown.id, image(2).id, image(3).id}
+
+
+def test_removing_a_release_never_implicitly_prunes_its_untagged_parent(host: Host) -> None:
+    runtime_parent = image(1, tags=[])
+    release = image(2)
+    release.parent = runtime_parent.id
+    result, after = host.run(
+        Engine(images=[runtime_parent, release, image(3), image(4)]),
+        f"prune_release_images sha-{TARGET[:7]}",
+    )
+    assert result.returncode == 0, result.stderr
+    assert release.id not in {i.id for i in after.images}
+    assert runtime_parent.id in {i.id for i in after.images}

@@ -1,5 +1,5 @@
 ---
-source_sha: "652d4a7ff630"
+source_sha: "a1ef1bf8dbe2"
 ---
 
 # Despliega en un servidor { #deploy-to-a-server }
@@ -666,7 +666,8 @@ Conserva dos identificadores adicionales de imágenes sin uso por repositorio,
 empezando por los más recientes. Varias etiquetas SHA o de versión del mismo ID
 cuentan como una imagen. Solo son elegibles las etiquetas `sha-<hex>` y las
 versiones numéricas. Todos los alias de un ID eliminable se retiran juntos,
-sin `--force`.
+sin `--force`. `--no-prune` también impide eliminar implícitamente las imágenes
+padre sin etiqueta.
 
 Cada contenedor del host, en ejecución o detenido, protege su imagen, incluidos
 otros proyectos Compose. La imagen de destino, cualquier etiqueta mutable o

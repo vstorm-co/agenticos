@@ -167,7 +167,7 @@ prune_release_images() {
       remove_refs=()
       for ref in $refs; do remove_refs+=("$ref"); done
       printf '  Removing unused release image %s: %s\n' "$id" "${remove_refs[*]}"
-      docker image rm "${remove_refs[@]}" || return
+      docker image rm --no-prune "${remove_refs[@]}" || return
     else
       status=$?
       [ "$status" -eq 1 ] || return "$status"

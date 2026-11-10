@@ -1,5 +1,5 @@
 ---
-source_sha: "652d4a7ff630"
+source_sha: "a1ef1bf8dbe2"
 ---
 
 # Auf einem Server deployen { #deploy-to-a-server }
@@ -684,7 +684,8 @@ Vor dem Herunterladen entfernt das Skript alte, ungenutzte Release-Images nur au
 Es behält je Repository zwei zusätzliche ungenutzte Image-IDs, die neuesten
 zuerst. Mehrere SHA- oder Versions-Tags derselben ID zählen als ein Image.
 Nur `sha-<hex>` und numerische Versions-Tags kommen infrage. Alle Aliasse einer
-entfernbaren ID werden gemeinsam und ohne `--force` entfernt.
+entfernbaren ID werden gemeinsam und ohne `--force` entfernt. `--no-prune`
+verhindert auch das implizite Löschen unmarkierter Eltern-Images.
 
 Jeder laufende oder gestoppte Container auf dem Host schützt sein Image, auch in
 anderen Compose-Projekten. Das Ziel-Image, ein veränderlicher oder manueller Tag

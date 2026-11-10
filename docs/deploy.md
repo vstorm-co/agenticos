@@ -627,7 +627,8 @@ Before pulling, the script removes old, unused release images from only
 It keeps two additional unused image IDs per repository, newest first; several
 SHA or version tags on one ID count as one image. Only `sha-<hex>` and numeric
 version tags are eligible. All aliases of a removable ID are removed together,
-without `--force`.
+without `--force`. `--no-prune` also prevents implicit deletion of untagged
+parent images.
 
 Every running or stopped container on the host protects its image, including
 other Compose projects. A target image, any mutable/manual tag, or a tag or

@@ -1,5 +1,5 @@
 ---
-source_sha: "652d4a7ff630"
+source_sha: "a1ef1bf8dbe2"
 ---
 
 # Wdrożenie na serwer { #deploy-to-a-server }
@@ -637,7 +637,8 @@ Przed pobraniem skrypt usuwa stare, nieużywane obrazy wydań wyłącznie z
 Zachowuje dwa dodatkowe nieużywane identyfikatory obrazów na repozytorium, od
 najnowszych. Wiele tagów SHA lub wersji jednego ID liczy się jako jeden obraz.
 Usuwane mogą być wyłącznie tagi `sha-<hex>` i numery wersji. Wszystkie aliasy
-usuwanego ID znikają razem, bez `--force`.
+usuwanego ID znikają razem, bez `--force`. Flaga `--no-prune` zapobiega też
+niejawnemu usuwaniu obrazów nadrzędnych bez tagów.
 
 Każdy działający lub zatrzymany kontener na hoście chroni swój obraz, także w
 innym projekcie Compose. Obraz docelowy, dowolny tag zmienny lub ręczny oraz tag

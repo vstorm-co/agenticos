@@ -13,6 +13,7 @@ class Image(BaseModel):
     created: str
     tags: list[str]
     digests: list[str] = Field(default_factory=list)
+    parent: str = ""
 
 
 class Container(BaseModel):
@@ -80,14 +81,21 @@ class Engine(BaseModel):
             image.tags.append(args[3])
             return ""
         if args[:2] == ["image", "rm"]:
-            images = {self.image(ref).id for ref in args[2:]}
+            refs = [ref for ref in args[2:] if ref != "--no-prune"]
+            images = {self.image(ref).id for ref in refs}
             if any(c.image in images for c in self.containers):
                 raise RuntimeError("image is referenced by a container")
             for image in list(self.images):
-                image.tags = [t for t in image.tags if t not in args[2:]]
+                image.tags = [t for t in image.tags if t not in refs]
                 if image.id in images and not image.tags:
                     self.images.remove(image)
                     self.available_kib += self.reclaim_kib
+                    if image.parent and "--no-prune" not in args:
+                        parent = self.image(image.parent)
+                        if not parent.tags and not any(
+                            c.image == parent.id for c in self.containers
+                        ):
+                            self.images.remove(parent)
             return "removed"
         if args[:2] == ["image", "prune"]:
             return "dangling images only"
