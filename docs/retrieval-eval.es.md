@@ -1,7 +1,7 @@
 ---
 title: "Evaluación de recuperación"
 description: "Un conjunto de preguntas sobre la documentación con respuestas conocidas, y el harness que mide la recuperación por categoría, top_k y expansión."
-source_sha: "8d2d762abe12"
+source_sha: "caae743b8e22"
 ---
 
 # Evaluación de recuperación { #retrieval-evaluation }
@@ -126,14 +126,15 @@ Las opciones:
 
 | Opción | Valor por defecto | |
 |---|---|---|
-| `--top-k` | `5` | Repetible. Fragmentos por búsqueda, el `default_top_k` de la capability de conocimiento |
+| `--top-k` | `5` | Repetible, 1–50. Fragmentos por búsqueda, el `default_top_k` de la capability de conocimiento |
 | `--mode` | `off` | Repetible. `off`, `multi_query` o `hyde`, el `query_analysis_mode` de la capability |
 | `--chunk-size` | `2500` | Caracteres por fragmento, como los fijan los ajustes de ingesta de una colección |
 | `--chunk-overlap` | `200` | Caracteres que un fragmento repite del anterior. Debe ser menor que `--chunk-size` |
 | `--chunking-strategy` | `recursive` | `recursive`, `markdown` o `fixed` |
-| `--max-variants` | `3` | Reformulaciones que `multi_query` puede añadir |
+| `--max-variants` | `3` | Reformulaciones que `multi_query` puede añadir, 1–5 |
 | `--locale` | `en`, `pl` | Repetible. Los idiomas indexados; debe incluir el de cada pregunta `cross_language` |
 | `--embedding-model` | `text-embedding-3-small` | Cualquier modelo del catálogo de embeddings, u otro con `--embedding-dim` |
+| `--embedding-dim` | del catálogo de modelos | Dimensión positiva para un modelo fuera del catálogo |
 | `--embedding-base-url` | `https://api.openai.com/v1` | Cualquier endpoint `/v1/embeddings` compatible con OpenAI |
 | `--embedding-api-key-env` | `OPENAI_API_KEY` | La variable de la que se lee la clave |
 | `--keyless` | desactivado | El endpoint no requiere clave |

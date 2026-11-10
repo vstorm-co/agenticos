@@ -255,6 +255,17 @@ class TestTheCommittedSetCannotBeGamed:
     def committed(self):
         return dataset.load_dataset(HARNESS / "docs_questions.yaml", docs_root=REPO_ROOT / "docs")
 
+    def test_each_answer_still_has_its_evidence_on_an_expected_page(self) -> None:
+        """A feature becoming supported must invalidate a stale negative-answer oracle."""
+        committed = dataset.load_dataset(
+            HARNESS / "docs_questions.yaml", docs_root=REPO_ROOT / "docs"
+        )
+        for item in committed.items:
+            page, quote = item.evidence.split(": ", 1)
+            assert page in item.expected_pages, item.id
+            text = (REPO_ROOT / "docs" / page).read_text(encoding="utf-8")
+            assert " ".join(quote.split()) in " ".join(text.split()), item.id
+
     @pytest.mark.parametrize(
         "fallback",
         [
@@ -705,7 +716,27 @@ class TestQueryPlans:
 
 
 class TestRefusals:
-    """A question set the harness refuses ends the run with one message, not a traceback."""
+    """A refused input ends the run before indexing, with a message and no traceback."""
+
+    @pytest.mark.parametrize(
+        ("arguments", "message"),
+        [
+            (["--top-k", "0"], "--top-k must be between 1 and 50"),
+            (["--top-k", "51"], "--top-k must be between 1 and 50"),
+            (["--top-k", "5", "--top-k", "-1"], "--top-k must be between 1 and 50"),
+            (["--max-variants", "0"], "--max-variants must be between 1 and 5"),
+            (["--max-variants", "6"], "--max-variants must be between 1 and 5"),
+            (["--embedding-dim", "0"], "--embedding-dim must be positive"),
+        ],
+    )
+    def test_invalid_counts_are_refused_before_any_indexing(
+        self, arguments: list[str], message: str, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        with pytest.raises(SystemExit) as stopped:
+            run.parse(arguments)
+
+        assert stopped.value.code == 2
+        assert message in capsys.readouterr().err
 
     def _bad_set(self, tmp_path: Path) -> Path:
         return _write(

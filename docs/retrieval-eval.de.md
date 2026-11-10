@@ -1,7 +1,7 @@
 ---
 title: Retrieval-Evaluierung
 description: Ein Fragenkatalog mit bekannten Antworten über die AgenticOS-Doku und ein Harness, der das Retrieval darauf misst, nach Kategorie, top_k und Abfrageerweiterung.
-source_sha: "8d2d762abe12"
+source_sha: "caae743b8e22"
 ---
 
 # Retrieval-Evaluierung { #retrieval-evaluation }
@@ -126,14 +126,15 @@ Die Optionen:
 
 | Option | Standard | |
 |---|---|---|
-| `--top-k` | `5` | Wiederholbar. Chunks je Suche, das `default_top_k` der Wissens-Capability |
+| `--top-k` | `5` | Wiederholbar, 1–50. Chunks je Suche, das `default_top_k` der Wissens-Capability |
 | `--mode` | `off` | Wiederholbar. `off`, `multi_query` oder `hyde`, das `query_analysis_mode` der Capability |
 | `--chunk-size` | `2500` | Zeichen je Chunk, wie die Ingestion-Einstellungen einer Collection sie setzen |
 | `--chunk-overlap` | `200` | Zeichen, die ein Chunk vom vorigen wiederholt. Muss kleiner als `--chunk-size` sein |
 | `--chunking-strategy` | `recursive` | `recursive`, `markdown` oder `fixed` |
-| `--max-variants` | `3` | Umformulierungen, die `multi_query` hinzufügen darf |
+| `--max-variants` | `3` | Umformulierungen, die `multi_query` hinzufügen darf, 1–5 |
 | `--locale` | `en`, `pl` | Wiederholbar. Die indexierten Sprachen; muss die jeder `cross_language`-Frage enthalten |
 | `--embedding-model` | `text-embedding-3-small` | Jedes Modell aus dem Embedding-Katalog, oder ein anderes mit `--embedding-dim` |
+| `--embedding-dim` | aus dem Modellkatalog | Positive Dimension für ein Modell außerhalb des Katalogs |
 | `--embedding-base-url` | `https://api.openai.com/v1` | Jeder OpenAI-kompatible `/v1/embeddings`-Endpunkt |
 | `--embedding-api-key-env` | `OPENAI_API_KEY` | Die Variable, aus der der Schlüssel gelesen wird |
 | `--keyless` | aus | Der Endpunkt nimmt keinen Schlüssel |

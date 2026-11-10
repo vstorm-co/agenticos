@@ -490,7 +490,16 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
         "--answers", action="store_true", help="also answer each question and check its facts"
     )
     parser.add_argument("--json", help="also write the per-item results to this file")
-    return parser.parse_args(argv)
+    arguments = parser.parse_args(argv)
+    for option, values, maximum in (
+        ("--top-k", arguments.top_k or (), 50),
+        ("--max-variants", (arguments.max_variants,), 5),
+    ):
+        if any(value < 1 or value > maximum for value in values):
+            parser.error(f"{option} must be between 1 and {maximum}")
+    if arguments.embedding_dim is not None and arguments.embedding_dim < 1:
+        parser.error("--embedding-dim must be positive")
+    return arguments
 
 
 async def main(argv: list[str] | None = None) -> None:

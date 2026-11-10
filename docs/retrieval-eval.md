@@ -117,14 +117,15 @@ The options:
 
 | Option | Default | |
 |---|---|---|
-| `--top-k` | `5` | Repeatable. Chunks per search, the knowledge capability's `default_top_k` |
+| `--top-k` | `5` | Repeatable, 1–50. Chunks per search, the knowledge capability's `default_top_k` |
 | `--mode` | `off` | Repeatable. `off`, `multi_query` or `hyde`, the capability's `query_analysis_mode` |
 | `--chunk-size` | `2500` | Characters per chunk, as a collection's ingestion settings set it |
 | `--chunk-overlap` | `200` | Characters a chunk repeats from the one before. Must be smaller than `--chunk-size` |
 | `--chunking-strategy` | `recursive` | `recursive`, `markdown` or `fixed` |
-| `--max-variants` | `3` | Rephrasings `multi_query` may add |
+| `--max-variants` | `3` | Rephrasings `multi_query` may add, 1–5 |
 | `--locale` | `en`, `pl` | Repeatable. The languages indexed; must include each `cross_language` question's |
 | `--embedding-model` | `text-embedding-3-small` | Any model in the embedding catalog, or another with `--embedding-dim` |
+| `--embedding-dim` | from the model catalog | Positive dimension for a model outside the catalog |
 | `--embedding-base-url` | `https://api.openai.com/v1` | Any OpenAI-compatible `/v1/embeddings` endpoint |
 | `--embedding-api-key-env` | `OPENAI_API_KEY` | The variable the key is read from |
 | `--keyless` | off | The endpoint takes no key |
