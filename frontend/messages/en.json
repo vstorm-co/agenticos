@@ -10646,6 +10646,7 @@
     "validationLabelTaken": "Another step is already called “{label}”.",
     "validationTriggerSwitchedOff": "The trigger cannot be switched off.",
     "validationControlSwitchedOff": "A step that decides which way the run goes cannot be switched off.",
+    "validationLoopPartSwitchedOff": "A loop's item or result step cannot be switched off.",
     "validationBindingReadsSwitchedOff": "This reads a step that is switched off, so it would receive nothing.",
     "stepName": "Step name",
     "stepNotes": "Note",

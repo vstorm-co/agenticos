@@ -1330,6 +1330,7 @@
     "validationLabelTaken": "Başka bir adımın adı zaten “{label}”.",
     "validationTriggerSwitchedOff": "Trigger kapatılamaz.",
     "validationControlSwitchedOff": "Run’ın izleyeceği yolu belirleyen bir adım kapatılamaz.",
+    "validationLoopPartSwitchedOff": "Bir döngünün öğe veya sonuç adımı kapatılamaz.",
     "validationBindingReadsSwitchedOff": "Bu değer kapalı bir adımdan okunuyor; dolayısıyla hiçbir veri alınamaz.",
     "stepName": "Adım adı",
     "stepNotes": "Not",

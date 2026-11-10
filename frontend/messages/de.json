@@ -10318,6 +10318,7 @@
     "validationLabelTaken": "Ein anderer Schritt heißt bereits „{label}“.",
     "validationTriggerSwitchedOff": "Der Trigger kann nicht ausgeschaltet werden.",
     "validationControlSwitchedOff": "Ein Schritt, der den Weg des Laufs entscheidet, kann nicht ausgeschaltet werden.",
+    "validationLoopPartSwitchedOff": "Der Element- oder Ergebnisschritt einer Schleife kann nicht ausgeschaltet werden.",
     "validationBindingReadsSwitchedOff": "Das liest einen ausgeschalteten Schritt und bekäme daher nichts.",
     "stepName": "Name des Schritts",
     "stepNotes": "Notiz",

@@ -26,9 +26,11 @@ Two things are versioned separately from this file and worth knowing about:
   required inputs, as unbound, so a step could only be put aside by deleting it.
   A step that is off with no connection at all is now set aside: the editor and
   the server skip both checks for it, at the top level and inside a loop, and a
-  run finishes without it and does not count it towards its step limit. A step that
-  is off but still connected is checked as before, and nothing may read a step
-  set aside.
+  run finishes without it and does not count it towards its step limit. Any step
+  can be set aside, including one that decides the way, such as If, which the
+  editor now lets you switch off while it has no connection; only the trigger and
+  a loop's Loop item and Loop result always stay on. A step that is off but still
+  connected is checked as before, and nothing may read a step set aside.
 - **Password sign-ins no longer prompt everyone to check invitations.** The
   generic mailbox-verification notice is removed, so deployments without email
   delivery and accounts without a working mailbox are not repeatedly offered an

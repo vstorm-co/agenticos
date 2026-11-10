@@ -1,5 +1,5 @@
 ---
-source_sha: "6fe337d8220c"
+source_sha: "a8d39eedb155"
 ---
 
 # Workflows { #workflows }
@@ -356,7 +356,10 @@ zachowują.
 Wyłączony krok bez żadnego połączenia jest odstawiony: może stać obok workflow albo
 wewnątrz pętli - na przykład **Combine lists** z danymi testowymi - bez osiągalności i
 bez podpiętych wejść. Przebieg go pomija i nie wlicza go do limitu kroków runu. Gdy
-połączysz go z czymkolwiek, oba wymogi znowu go dotyczą.
+połączysz go z czymkolwiek, oba wymogi znowu go dotyczą. Odstawić można każdy krok,
+także taki, który decyduje o drodze, jak **If**: bez połączeń nie ma między czym
+wybierać. Zawsze włączone zostają tylko trigger oraz **Loop item** i **Loop result**
+pętli.
 
 ### Dane kroku, dane testowe i testowanie jednego kroku { #a-steps-data-pinning-and-testing-one-step }
 

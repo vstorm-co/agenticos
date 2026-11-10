@@ -10851,6 +10851,7 @@
     "validationLabelTaken": "Inny krok nazywa się już „{label}”.",
     "validationTriggerSwitchedOff": "Wyzwalacza nie można wyłączyć.",
     "validationControlSwitchedOff": "Kroku, który decyduje o drodze przebiegu, nie można wyłączyć.",
+    "validationLoopPartSwitchedOff": "Kroku elementu ani wyniku pętli nie można wyłączyć.",
     "validationBindingReadsSwitchedOff": "To czyta wyłączony krok, więc nic by nie otrzymało.",
     "stepName": "Nazwa kroku",
     "stepNotes": "Notatka",

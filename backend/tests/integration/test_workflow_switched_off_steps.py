@@ -11,7 +11,7 @@ from app.db.models.workflow_run import NodeAttempt, NodeRun, NodeRunStatus, Work
 from app.workflows.contracts.io import Binding, NodeOutputRef
 from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
-from app.workflows.graph.validate import validate_graph
+from app.workflows.graph.validate import set_aside, validate_graph
 from tests.integration.workflow_run_support import drive, node_statuses, seed_run
 
 pytestmark = pytest.mark.anyio
@@ -269,6 +269,48 @@ async def test_a_switched_off_step_wired_out_of_nowhere_is_still_unreachable(
     )
 
     assert "This node is not reachable from the entry node" in await _problems(engine, graph)
+
+
+async def test_a_deciding_step_set_aside_may_be_switched_off(engine: AsyncEngine):
+    """With no connection it has no way to decide, so switching it off breaks nothing."""
+    parked = _node("logic.if", {"condition": "value.name == 'Ada'"}, disabled=True)
+    graph = _line(_node("data.map", MAPPING))
+    graph = graph.model_copy(update={"nodes": (*graph.nodes, parked)})
+    seeded = await seed_run(engine, graph, run_input={"name": "Ada"})
+
+    async with async_sessionmaker(engine)() as db:
+        await validate_graph(db, seeded.ctx, graph)
+    run = await drive(seeded)
+
+    assert run.status == WorkflowRunStatus.SUCCEEDED.value
+    assert parked.id not in await node_statuses(seeded)
+
+
+async def test_a_loop_result_step_cannot_be_switched_off_even_unwired(engine: AsyncEngine):
+    entry = _node("core.input")
+    loop = _node("control.foreach")
+    item = _node("loop.item", scope_id=loop.id)
+    result = _node("loop.yield", scope_id=loop.id, disabled=True)
+    output = _node("core.output")
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, loop, item, result, output),
+        edges=(_edge(entry, loop), _edge(loop, output, "done")),
+        bindings=(_bind(loop, "items", entry, "payload", "items"),),
+    )
+
+    assert "A loop's item or result step cannot be switched off" in await _problems(engine, graph)
+
+
+async def test_a_trigger_switched_off_with_no_edges_is_never_set_aside():
+    """A run can start at any trigger, wired or not: set aside, its run would wait
+    on no step while its own row is already written, and never end."""
+    entry = _node("core.input")
+    webhook = _node("trigger.webhook", disabled=True)
+    parked = _node("data.map", MAPPING, disabled=True)
+    graph = WorkflowGraph(entry_node_id=entry.id, nodes=(entry, webhook, parked))
+
+    assert set_aside(graph) == {parked.id}
 
 
 async def test_the_trigger_and_a_deciding_step_cannot_be_switched_off(engine: AsyncEngine):

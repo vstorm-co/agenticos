@@ -34,6 +34,7 @@ import {
   UNKNOWN,
 } from "./schema";
 import { AUTHOR_NAMED_PORTS, ERROR_PORT, routesErrors } from "@/lib/workflows/ports";
+import { isLoopPart } from "@/lib/workflows/switch-off";
 import { isTrigger, entryNodes, UNATTENDED_TRIGGERS } from "@/lib/workflows/triggers";
 import {
   anyPairRunsTogether,
@@ -842,8 +843,9 @@ function handsOn(graph: WorkflowGraph, definitions: DefinitionMap, ref: NodeOutp
 /**
  * Rule 13 — names tell steps apart, and a step switched off leaves nothing
  * waiting on it: no two steps share a name (ignoring case), the trigger and a
- * step that decides the way stay on, and nothing reads a step that is off -
- * unless what comes into it has the field read, which it hands on instead.
+ * loop's item and result steps stay on, so does a step that decides the way
+ * unless it is set aside, and nothing reads a step that is off - unless what
+ * comes into it has the field read, which it hands on instead.
  */
 export function rule13NamedAndSwitchedOffSteps(
   graph: WorkflowGraph,
@@ -852,6 +854,7 @@ export function rule13NamedAndSwitchedOffSteps(
   const problems: RawProblem[] = [];
   const named = new Set<string>();
   const off = new Set<string>();
+  const parked = setAside(graph);
   for (const n of graph.nodes) {
     const label = n.label?.trim() ?? "";
     if (label !== "") {
@@ -862,7 +865,8 @@ export function rule13NamedAndSwitchedOffSteps(
     if (n.disabled !== true) continue;
     off.add(n.id);
     if (n.id === graph.entry_node_id) problems.push(node(n.id, "trigger-switched-off"));
-    else if (definitionFor(definitions, n.id)?.kind === "control") {
+    else if (isLoopPart(n.definition_id)) problems.push(node(n.id, "loop-part-switched-off"));
+    else if (definitionFor(definitions, n.id)?.kind === "control" && !parked.has(n.id)) {
       problems.push(node(n.id, "control-switched-off"));
     }
   }

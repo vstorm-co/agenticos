@@ -348,6 +348,9 @@ A step that is off with no connection at all is set aside: it can sit beside the
 workflow or inside a loop - a **Combine lists** holding test data, say - without
 being reachable or having its inputs bound. A run ignores it, and it does not count
 towards the run's step limit. Connect it to anything and both are asked of it again.
+Any step can be set aside, even one that decides the way, such as **If**: with no
+connection it has no way to choose. Only the trigger and a loop's **Loop item** and
+**Loop result** always stay on.
 
 ### A step's data, test data and testing one step { #a-steps-data-pinning-and-testing-one-step }
 

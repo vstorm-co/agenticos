@@ -762,13 +762,19 @@ def set_aside(graph: WorkflowGraph) -> set[UUID]:
     """Steps switched off with no edge at all: parked beside the graph, never run.
 
     The run never reaches one and it would do nothing if it did, so neither
-    reachability nor its required inputs are asked of it. Rule 13 still refuses
-    a read of one, since it hands nothing on.
+    reachability nor its required inputs are asked of it, and it may be a step
+    that decides the way. Rule 13 still refuses a read of one, since it hands
+    nothing on. A trigger is never one: a run can start at it wired or not.
     """
     wired = {edge.source_node_id for edge in graph.edges} | {
         edge.target_node_id for edge in graph.edges
     }
-    return {node.id for node in graph.nodes if node.disabled and node.id not in wired}
+    entries = {node.id for node in entry_nodes(graph)}
+    return {
+        node.id
+        for node in graph.nodes
+        if node.disabled and node.id not in wired and node.id not in entries
+    }
 
 
 def _rule_2_reachable_outputs(
@@ -1800,12 +1806,14 @@ def _rule_13_named_and_switched_off_steps(
 
     Two steps may not share a name, ignoring case: the name is how a builder tells
     them apart in every list of bindings and problems. A step switched off does
-    nothing, so it may be neither the trigger nor a step that decides which way the
-    run goes, and nothing may read its output unless it hands the field on - what
-    came into it has that field (`_hands_on`).
+    nothing, so it may be neither the trigger nor a loop's item or result step, nor
+    - unless it is `set_aside`, with no way to decide - a step that decides which
+    way the run goes. Nothing may read its output unless it hands the field on -
+    what came into it has that field (`_hands_on`).
     """
     problems: Problems = []
     named: dict[str, UUID] = {}
+    parked = set_aside(graph)
     for node in graph.nodes:
         label = (node.label or "").strip()
         if label:
@@ -1821,7 +1829,15 @@ def _rule_13_named_and_switched_off_steps(
         definition = definitions.get(node.id)
         if node.id == graph.entry_node_id:
             problems.append((f"nodes.{node.id}.disabled", "The trigger cannot be switched off"))
-        elif definition is not None and definition.kind == "control":
+        elif node.definition_id in (LOOP_ITEM, LOOP_YIELD):
+            # Started by every iteration whether wired or not, so never set aside.
+            problems.append(
+                (
+                    f"nodes.{node.id}.disabled",
+                    "A loop's item or result step cannot be switched off",
+                )
+            )
+        elif definition is not None and definition.kind == "control" and node.id not in parked:
             problems.append(
                 (
                     f"nodes.{node.id}.disabled",

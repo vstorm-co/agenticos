@@ -1,5 +1,5 @@
 ---
-source_sha: "6fe337d8220c"
+source_sha: "a8d39eedb155"
 ---
 
 # Workflows { #workflows }
@@ -366,7 +366,10 @@ en el grafo, así que las versiones los conservan.
 Un paso apagado sin ninguna conexión queda apartado: puede estar junto al workflow o
 dentro de un bucle - un **Combine lists** con datos de prueba, por ejemplo - sin ser
 alcanzable ni tener sus entradas vinculadas. Un run lo ignora y no cuenta para el límite
-de pasos del run. Si lo conectas a algo, ambas cosas se le vuelven a exigir.
+de pasos del run. Si lo conectas a algo, ambas cosas se le vuelven a exigir. Cualquier
+paso puede quedar apartado, incluso uno que decide el camino, como **If**: sin
+conexiones no tiene entre qué elegir. Solo el trigger y el **Loop item** y el
+**Loop result** de un bucle siguen siempre encendidos.
 
 ### Los datos de un paso, datos de prueba y probar un paso { #a-steps-data-pinning-and-testing-one-step }
 

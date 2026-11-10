@@ -1,5 +1,5 @@
 ---
-source_sha: "6fe337d8220c"
+source_sha: "a8d39eedb155"
 ---
 
 # Workflows { #workflows }
@@ -382,7 +382,9 @@ Ein abgeschalteter Schritt ganz ohne Verbindung ist beiseitegestellt: Er kann ne
 Workflow oder in einer Schleife stehen - etwa ein **Combine lists** mit Testdaten -,
 ohne erreichbar zu sein oder gebundene Eingaben zu haben. Ein Run übergeht ihn, und er
 zählt nicht zum Schrittlimit des Runs. Wird er mit irgendetwas verbunden, gilt beides
-wieder für ihn.
+wieder für ihn. Jeder Schritt lässt sich so beiseitestellen, auch einer, der den Weg
+entscheidet, etwa **If**: Ohne Verbindung hat er nichts zu wählen. Nur der Trigger
+sowie **Loop item** und **Loop result** einer Schleife bleiben immer eingeschaltet.
 
 ### Die Daten eines Schritts, Testdaten und einen Schritt testen { #a-steps-data-pinning-and-testing-one-step }
 
