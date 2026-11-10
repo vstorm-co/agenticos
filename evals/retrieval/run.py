@@ -36,11 +36,13 @@ from pydantic_ai import Agent
 from pydantic_ai.usage import RunUsage
 from scoring import Answer, Retrieve, Retrieved, as_json, evaluate, render_markdown
 
+from app.core.exceptions import BadRequestError
+from app.db.base import Base
 from app.db.session import close_db, get_db_context
-from app.db.vector_tables import MAX_COLLECTION_NAME_LENGTH, VectorScope
+from app.db.vector_tables import VectorScope, validate_collection_name
 from app.repositories import knowledge_base_repo
 from app.services.ingestion_config import ChunkingStrategy, IngestionConfig, rag_settings_for
-from app.services.rag.config import EmbeddingsConfig, RAGSettings
+from app.services.rag.config import EMBEDDING_DIMENSIONS, EmbeddingsConfig, RAGSettings
 from app.services.rag.documents import DocumentProcessor
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.filters import UnscopedScope
@@ -196,6 +198,11 @@ def rag_settings(arguments: argparse.Namespace) -> RAGSettings:
             for e in error.errors(include_url=False)
         ]
         raise SystemExit("; ".join(problems)) from None
+    if arguments.embedding_model not in EMBEDDING_DIMENSIONS and arguments.embedding_dim is None:
+        raise SystemExit(
+            f"--embedding-dim is required for uncatalogued embedding model "
+            f"{arguments.embedding_model!r}"
+        )
     settings = rag_settings_for(config)
     settings.embeddings_config = EmbeddingsConfig(model=arguments.embedding_model)
     if arguments.embedding_dim:
@@ -227,11 +234,11 @@ def collection_names(
     digest = collection_digest(settings, base_url)
     label = re.sub(r"[^a-z0-9]+", "_", settings.embeddings_config.model.lower()).strip("_")[:12]
     names: dict[Locale, str] = {locale: f"{prefix}_{label}_{digest}_{locale}" for locale in locales}
-    too_long = [name for name in names.values() if len(name) > MAX_COLLECTION_NAME_LENGTH]
-    if too_long:
-        raise SystemExit(
-            f"--collection-prefix is too long: {too_long[0]} is over {MAX_COLLECTION_NAME_LENGTH}"
-        )
+    try:
+        for name in names.values():
+            validate_collection_name(name, metadata=Base.metadata)
+    except BadRequestError as error:
+        raise SystemExit(f"--collection-prefix: {error.message}") from None
     return names
 
 
@@ -321,6 +328,9 @@ async def measure(arguments: argparse.Namespace) -> tuple[str, dict[str, object]
     if arguments.llm_model is None and (arguments.answers or set(arguments.mode or ()) - {"off"}):
         raise SystemExit("multi_query, hyde and --answers need --llm-model")
 
+    collections = collection_names(
+        arguments.collection_prefix, settings, arguments.embedding_base_url, locales
+    )
     embedder = EmbeddingService(
         settings,
         api_key=api_key,
@@ -331,9 +341,6 @@ async def measure(arguments: argparse.Namespace) -> tuple[str, dict[str, object]
     store = process_vector_store(settings, embedder)
     retrieval = RetrievalService(vector_store=store, settings=settings)
     ingestion = IngestionService(processor=DocumentProcessor(settings), vector_store=store)
-    collections = collection_names(
-        arguments.collection_prefix, settings, arguments.embedding_base_url, locales
-    )
     await refuse_held_names(list(collections.values()))
     for locale, collection in collections.items():
         await ingest(

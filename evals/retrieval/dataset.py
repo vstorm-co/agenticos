@@ -132,6 +132,12 @@ class Item(BaseModel):
             for group in self.expected_facts
         ):
             raise ValueError("an expected fact group is empty")
+        if any(
+            alternative.endswith("*") and not alternative.rstrip("*").strip()
+            for group in self.expected_facts
+            for alternative in group
+        ):
+            raise ValueError("an expected fact wildcard has an empty stem")
         if self.category == "cross_language":
             if not self.search_locales:
                 raise ValueError("a cross_language item names the locales it is searched in")

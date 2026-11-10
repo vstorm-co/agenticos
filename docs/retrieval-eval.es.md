@@ -1,7 +1,7 @@
 ---
 title: "Evaluación de recuperación"
 description: "Un conjunto de preguntas sobre la documentación con respuestas conocidas, y el harness que mide la recuperación por categoría, top_k y expansión."
-source_sha: "4a39f7cb19a0"
+source_sha: "d37f8d29a8ce"
 ---
 
 # Evaluación de recuperación { #retrieval-evaluation }
@@ -96,6 +96,9 @@ negativa necesita también la alternativa que nombra la documentación, así que
 una respuesta correcta de una confundida con las mismas palabras, así que tómala
 como señal aproximada.
 
+Un comodín necesita una raíz que no esté en blanco: `*` solo se rechaza antes
+de indexar porque coincidiría con cualquier respuesta.
+
 `--json` escribe las páginas recuperadas y la respuesta de cada pregunta para
 quien quiera leerlas, y las consultas que un modo `multi_query` o `hyde` buscó
 para ella. El archivo también registra qué produjo la ejecución: cuándo empezó,
@@ -126,6 +129,7 @@ Las opciones:
 
 | Opción | Valor por defecto | |
 |---|---|---|
+| `--collection-prefix` | `retrieval_eval` | Empieza con una letra minúscula; después, letras minúsculas, dígitos o guiones bajos. Los nombres generados deben respetar el límite de nombres de colección del almacén |
 | `--top-k` | `5` | Repetible, 1–50. Fragmentos por búsqueda, el `default_top_k` de la capability de conocimiento |
 | `--mode` | `off` | Repetible. `off`, `multi_query` o `hyde`, el `query_analysis_mode` de la capability |
 | `--chunk-size` | `2500` | Caracteres por fragmento, como los fijan los ajustes de ingesta de una colección |
@@ -134,7 +138,7 @@ Las opciones:
 | `--max-variants` | `3` | Reformulaciones que `multi_query` puede añadir, 1–5 |
 | `--locale` | `en`, `pl` | Repetible. Los idiomas indexados; debe incluir el de cada pregunta `cross_language` |
 | `--embedding-model` | `text-embedding-3-small` | Cualquier modelo del catálogo de embeddings, u otro con `--embedding-dim` |
-| `--embedding-dim` | del catálogo de modelos | Dimensión positiva para un modelo fuera del catálogo |
+| `--embedding-dim` | del catálogo de modelos | Dimensión positiva obligatoria para un modelo fuera del catálogo |
 | `--embedding-base-url` | `https://api.openai.com/v1` | Cualquier endpoint `/v1/embeddings` compatible con OpenAI |
 | `--embedding-api-key-env` | `OPENAI_API_KEY` | La variable de la que se lee la clave |
 | `--keyless` | desactivado | El endpoint no requiere clave |

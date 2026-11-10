@@ -1,7 +1,7 @@
 ---
 title: Retrieval-Evaluierung
 description: Ein Fragenkatalog mit bekannten Antworten über die AgenticOS-Doku und ein Harness, der das Retrieval darauf misst, nach Kategorie, top_k und Abfrageerweiterung.
-source_sha: "4a39f7cb19a0"
+source_sha: "d37f8d29a8ce"
 ---
 
 # Retrieval-Evaluierung { #retrieval-evaluation }
@@ -96,6 +96,9 @@ nichts“ nie besteht. Die Prüfung kann trotzdem eine richtige Antwort nicht vo
 einer verwirrten unterscheiden, die dieselben Wörter verwendet, also behandle sie
 als grobes Signal.
 
+Ein Platzhalter braucht einen nichtleeren Wortstamm: `*` allein wird vor dem
+Indexieren abgelehnt, weil es auf jede Antwort passen würde.
+
 `--json` schreibt die abgerufenen Seiten und die Antwort jeder Frage für jeden,
 der sie lesen will, und die Abfragen, nach denen ein `multi_query`- oder
 `hyde`-Modus für sie gesucht hat. Die Datei hält auch fest, wodurch der Lauf
@@ -126,6 +129,7 @@ Die Optionen:
 
 | Option | Standard | |
 |---|---|---|
+| `--collection-prefix` | `retrieval_eval` | Mit einem Kleinbuchstaben beginnen; danach Kleinbuchstaben, Ziffern oder Unterstriche. Die erzeugten Namen müssen in die Collection-Namensgrenze des Speichers passen |
 | `--top-k` | `5` | Wiederholbar, 1–50. Chunks je Suche, das `default_top_k` der Wissens-Capability |
 | `--mode` | `off` | Wiederholbar. `off`, `multi_query` oder `hyde`, das `query_analysis_mode` der Capability |
 | `--chunk-size` | `2500` | Zeichen je Chunk, wie die Ingestion-Einstellungen einer Collection sie setzen |
@@ -134,7 +138,7 @@ Die Optionen:
 | `--max-variants` | `3` | Umformulierungen, die `multi_query` hinzufügen darf, 1–5 |
 | `--locale` | `en`, `pl` | Wiederholbar. Die indexierten Sprachen; muss die jeder `cross_language`-Frage enthalten |
 | `--embedding-model` | `text-embedding-3-small` | Jedes Modell aus dem Embedding-Katalog, oder ein anderes mit `--embedding-dim` |
-| `--embedding-dim` | aus dem Modellkatalog | Positive Dimension für ein Modell außerhalb des Katalogs |
+| `--embedding-dim` | aus dem Modellkatalog | Erforderliche positive Dimension für ein Modell außerhalb des Katalogs |
 | `--embedding-base-url` | `https://api.openai.com/v1` | Jeder OpenAI-kompatible `/v1/embeddings`-Endpunkt |
 | `--embedding-api-key-env` | `OPENAI_API_KEY` | Die Variable, aus der der Schlüssel gelesen wird |
 | `--keyless` | aus | Der Endpunkt nimmt keinen Schlüssel |

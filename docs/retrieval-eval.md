@@ -88,6 +88,9 @@ enough: every negative question also needs the alternative the docs name, so
 correct answer from a confused one that uses the same words, so treat it as a
 rough signal.
 
+A wildcard needs a nonblank stem: `*` alone is refused before indexing because
+it would match every answer.
+
 `--json` writes every question's retrieved pages and answer for anyone who
 wants to read them, and the queries a `multi_query` or `hyde` mode
 searched for it. The file also records what produced the run: when it started,
@@ -117,6 +120,7 @@ The options:
 
 | Option | Default | |
 |---|---|---|
+| `--collection-prefix` | `retrieval_eval` | Start with a lowercase letter; then lowercase letters, digits or underscores. The generated names must fit the store's collection-name limit |
 | `--top-k` | `5` | Repeatable, 1–50. Chunks per search, the knowledge capability's `default_top_k` |
 | `--mode` | `off` | Repeatable. `off`, `multi_query` or `hyde`, the capability's `query_analysis_mode` |
 | `--chunk-size` | `2500` | Characters per chunk, as a collection's ingestion settings set it |
@@ -125,7 +129,7 @@ The options:
 | `--max-variants` | `3` | Rephrasings `multi_query` may add, 1–5 |
 | `--locale` | `en`, `pl` | Repeatable. The languages indexed; must include each `cross_language` question's |
 | `--embedding-model` | `text-embedding-3-small` | Any model in the embedding catalog, or another with `--embedding-dim` |
-| `--embedding-dim` | from the model catalog | Positive dimension for a model outside the catalog |
+| `--embedding-dim` | from the model catalog | Required positive dimension for a model outside the catalog |
 | `--embedding-base-url` | `https://api.openai.com/v1` | Any OpenAI-compatible `/v1/embeddings` endpoint |
 | `--embedding-api-key-env` | `OPENAI_API_KEY` | The variable the key is read from |
 | `--keyless` | off | The endpoint takes no key |

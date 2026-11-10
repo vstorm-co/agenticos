@@ -1,7 +1,7 @@
 ---
 title: Ewaluacja wyszukiwania
 description: Zestaw pytań o znanych odpowiedziach do dokumentacji AgenticOS i harness mierzący na nim wyszukiwanie wiedzy według kategorii, top_k i rozszerzania zapytań.
-source_sha: "4a39f7cb19a0"
+source_sha: "d37f8d29a8ce"
 ---
 
 # Ewaluacja wyszukiwania { #retrieval-evaluation }
@@ -91,6 +91,9 @@ dokumentacja, więc „dokumentacja tego nie mówi” nigdy nie przechodzi. Spra
 nadal nie odróżni poprawnej odpowiedzi od pogubionej, która używa tych samych
 słów, więc traktuj je jako przybliżony sygnał.
 
+Symbol wieloznaczny wymaga niepustego rdzenia: samo `*` jest odrzucane przed
+indeksowaniem, ponieważ pasowałoby do każdej odpowiedzi.
+
 `--json` zapisuje pobrane strony i odpowiedź dla każdego pytania, dla każdego,
 kto chce je przeczytać, oraz zapytania, których szukał dla niego tryb
 `multi_query` lub `hyde`. Plik zapisuje też, co złożyło się na przebieg: kiedy się zaczął,
@@ -119,6 +122,7 @@ Opcje:
 
 | Opcja | Domyślnie | |
 |---|---|---|
+| `--collection-prefix` | `retrieval_eval` | Zacznij od małej litery; dalej małe litery, cyfry lub podkreślenia. Wygenerowane nazwy muszą mieścić się w limicie nazw kolekcji magazynu |
 | `--top-k` | `5` | Powtarzalna, 1–50. Chunki na wyszukiwanie, `default_top_k` capability wiedzy |
 | `--mode` | `off` | Powtarzalna. `off`, `multi_query` lub `hyde`, `query_analysis_mode` tej capability |
 | `--chunk-size` | `2500` | Znaki na chunk, tak jak ustawiają je ustawienia ingestii kolekcji |
@@ -127,7 +131,7 @@ Opcje:
 | `--max-variants` | `3` | Przeredagowania, które może dodać `multi_query`, 1–5 |
 | `--locale` | `en`, `pl` | Powtarzalna. Indeksowane języki; musi obejmować język każdego pytania `cross_language` |
 | `--embedding-model` | `text-embedding-3-small` | Dowolny model z katalogu embeddingów albo inny z `--embedding-dim` |
-| `--embedding-dim` | z katalogu modeli | Dodatni wymiar dla modelu spoza katalogu |
+| `--embedding-dim` | z katalogu modeli | Wymagany dodatni wymiar dla modelu spoza katalogu |
 | `--embedding-base-url` | `https://api.openai.com/v1` | Dowolny endpoint `/v1/embeddings` zgodny z OpenAI |
 | `--embedding-api-key-env` | `OPENAI_API_KEY` | Zmienna, z której czytany jest klucz |
 | `--keyless` | wył. | Endpoint nie przyjmuje klucza |

@@ -173,6 +173,9 @@ class TestTheQuestionSet:
             ({"expected_facts": [[]]}, "fact group is empty"),
             ({"expected_pages": ["directory.md", "directory.md"]}, "listed twice"),
             ({"expected_facts": [[" "]]}, "fact group is empty"),
+            ({"expected_facts": [["*"]]}, "wildcard has an empty stem"),
+            ({"expected_facts": [["**"]]}, "wildcard has an empty stem"),
+            ({"expected_facts": [["  *"]]}, "wildcard has an empty stem"),
         ],
     )
     def test_an_inconsistent_item_is_refused(self, overrides: dict[str, object], message: str):
@@ -673,8 +676,20 @@ class TestCollectionNames:
         assert names["en"].endswith("_en") and names["pl"].endswith("_pl")
 
     def test_a_prefix_that_overflows_the_name_is_refused(self):
-        with pytest.raises(SystemExit, match="too long"):
+        with pytest.raises(
+            SystemExit, match="--collection-prefix: A collection name may be at most"
+        ):
             self._names(self._settings(), prefix="x" * 40)
+
+    @pytest.mark.parametrize("prefix", ["my-eval", "My_eval", "1_eval", "", "my eval"])
+    def test_a_prefix_outside_the_stores_identifier_contract_is_refused(self, prefix: str) -> None:
+        with pytest.raises(SystemExit, match="--collection-prefix: A collection name must start"):
+            self._names(self._settings(), prefix=prefix)
+
+    def test_a_custom_prefix_keeps_its_valid_identifier(self) -> None:
+        names = self._names(self._settings(), prefix="my_eval2")
+
+        assert all(name.startswith("my_eval2_") for name in names.values())
 
 
 class TestQueryPlans:
@@ -717,6 +732,24 @@ class TestQueryPlans:
 
 class TestRefusals:
     """A refused input ends the run before indexing, with a message and no traceback."""
+
+    @pytest.mark.parametrize(
+        ("arguments", "message"),
+        [
+            (["--embedding-model", "my-model"], "--embedding-dim is required"),
+            (["--collection-prefix", "my-eval"], "--collection-prefix:"),
+        ],
+    )
+    async def test_invalid_model_or_collection_settings_stop_before_provider_setup(
+        self, arguments: list[str], message: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def no_provider(*_: object, **__: object) -> None:
+            pytest.fail("invalid settings must be refused before provider setup or database access")
+
+        monkeypatch.setattr(run, "EmbeddingService", no_provider)
+
+        with pytest.raises(SystemExit, match=message):
+            await run.measure(run.parse([*arguments, "--keyless"]))
 
     @pytest.mark.parametrize(
         ("arguments", "message"),
