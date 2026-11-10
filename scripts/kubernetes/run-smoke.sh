@@ -26,7 +26,8 @@ cleanup() {
 }
 trap cleanup EXIT
 kind create cluster --name "$cluster" --image kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5 --wait 180s
-image_options=()
+# Imported local images need this policy; a nonempty array also supports Bash 3.
+image_options=(--set image.pullPolicy=IfNotPresent)
 if [ -n "${SMOKE_BACKEND_IMAGE:-}" ]; then
   kind load docker-image --name "$cluster" "$SMOKE_BACKEND_IMAGE"
   image_options+=(--set "image.backend=${SMOKE_BACKEND_IMAGE%:*}" --set "image.backendTag=${SMOKE_BACKEND_IMAGE##*:}")
