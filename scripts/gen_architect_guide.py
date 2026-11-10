@@ -14,9 +14,11 @@ Usage::
 """
 
 import argparse
+import posixpath
 import re
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parent.parent
 DOCS = ROOT / "docs"
@@ -26,14 +28,10 @@ SITE = "https://vstorm-co.github.io/agenticos/"
 #: A copy carries a subset of `docs/`, so a relative link to a page it does not
 #: carry would dangle. Those links are pointed at the published page instead.
 LINK = re.compile(r"\]\(([^)\s]+?\.md)(#[^)\s]*)?\)")
-FENCE = re.compile(r"```.*?```|~~~.*?~~~|`[^`\n]*`", re.S)
-
-#: A handful of pages are published under a path their filename does not imply.
-SITE_OVERRIDES = {
-    "about/index.md": SITE + "about/",
-    "resources/index.md": SITE + "resources/",
-    "capabilities.md": SITE + "reference/capabilities/",
-}
+FENCE = re.compile(
+    r"(?P<fence>`{3,}|~{3,}).*?(?P=fence)|(?P<ticks>`+)(?!`).*?(?<!`)(?P=ticks)(?!`)",
+    re.S,
+)
 
 #: The pages carried in the skill, by their path under `docs/`. These answer
 #: most questions a person asks the Architect about the product - what a thing
@@ -66,8 +64,11 @@ def target(page: str) -> Path:
     return SKILL / "docs" / page.replace("/", "-")
 
 
-def _site_url(link: str) -> str:
-    return SITE_OVERRIDES.get(link, SITE + link[:-3].rstrip("/") + "/")
+def _site_url(page: PurePosixPath) -> str:
+    path = page.with_suffix("")
+    if path.name == "index":
+        path = path.parent
+    return SITE + ("" if path == PurePosixPath(".") else f"{path}/")
 
 
 def render(page: str) -> str:
@@ -84,20 +85,19 @@ def render(page: str) -> str:
     def in_code(pos: int) -> bool:
         return any(start <= pos < end for start, end in spans)
 
-    out, cursor = [], 0
+    out: list[str] = []
+    cursor = 0
     for match in LINK.finditer(text):
         if in_code(match.start()):
             continue
         link, anchor = match.group(1), match.group(2) or ""
-        copied = (SKILL / "docs" / link)
-        flattened = (SKILL / "docs" / Path(link).name)
-        if copied.exists():
+        if urlsplit(link).scheme or link.startswith("/"):
             continue
-        out.append(text[cursor:match.start()])
-        if flattened.exists():
-            out.append(f"]({flattened.name}{anchor})")
-        else:
-            out.append(f"]({_site_url(link)}{anchor})")
+        source = posixpath.normpath((PurePosixPath(page).parent / link).as_posix())
+        # The manifest, not already generated files, determines which pages ship.
+        destination = target(source).name if source in PAGES else _site_url(PurePosixPath(source))
+        out.append(text[cursor : match.start()])
+        out.append(f"]({destination}{anchor})")
         cursor = match.end()
     if not out:
         return text
