@@ -16,7 +16,7 @@ nie jest przechowywany nigdzie.
 
 Rozmowy prowadzi się z `/chat` w konsoli, a z widgetu albo hostowanej strony -
 gdy włączony jest własny przełącznik embeda. Każda rozmowa to jeden
-[run](concepts.md) z nazwą modelu realtime, więc Aktywność (Activity), ekran
+[run](concepts.md) z nazwą modelu realtime, więc **Aktywność** (Activity), ekran
 kosztów i ślad audytowy widzą ją jak każdy inny run.
 
 W `/chat` rozmowa to pigułka unosząca się nad polem wiadomości, które się nie

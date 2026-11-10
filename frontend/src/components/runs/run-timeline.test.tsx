@@ -28,6 +28,31 @@ vi.mock("@/components/chat/markdown-content", () => ({
   MarkdownContent: ({ content }: { content: string }) => <div>{content}</div>,
 }));
 
+vi.mock("@/components/datasets/add-to-dataset-button", () => ({
+  AddToDatasetButton: ({
+    messageId,
+    ratedDown,
+    asked,
+    answer,
+  }: {
+    messageId: string;
+    ratedDown: boolean;
+    asked?: { question: string; earlier: boolean };
+    answer?: string;
+  }) => (
+    <button
+      type="button"
+      data-message={messageId}
+      data-rated-down={String(ratedDown)}
+      data-question={asked?.question}
+      data-earlier={String(asked?.earlier)}
+      data-answer={answer}
+    >
+      Add to dataset
+    </button>
+  ),
+}));
+
 vi.mock("@/hooks", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks")>()),
   useRunManifest: () => ({ manifest: undefined, error: null, isLoading: false }),
@@ -297,6 +322,43 @@ describe("what people said about it", () => {
 
     expect(screen.getByText("Rated down 2 times")).toBeVisible();
     expect(screen.getByText("wrong currency")).toBeVisible();
+  });
+});
+
+describe("adding an answer to a dataset", () => {
+  it("carries the question and prior history across run groups into the add flow", () => {
+    serve({
+      items: [
+        turn({ id: "q0", role: "user", run_id: "run-0", content: "Previous question" }),
+        turn({ id: "a0", run_id: "run-0", content: "Previous answer" }),
+        turn({ id: "q1", role: "user", content: "And what about Canada?" }),
+        turn({ id: "a1", content: "  First part. " }),
+        turn({ id: "a2", content: " Second part.  " }),
+      ],
+    });
+    renderTimeline();
+    const action = screen.getByRole("button", { name: "Add to dataset" });
+    expect(action).toHaveAttribute("data-question", "And what about Canada?");
+    expect(action).toHaveAttribute("data-earlier", "true");
+    expect(action).toHaveAttribute("data-answer", "First part.\n\nSecond part.");
+  });
+
+  it("offers a reply written in steps once, on its last step, as rated down by any", () => {
+    serve({
+      items: [
+        turn({ id: "q-1", role: "user", content: "Remember I prefer email" }),
+        turn({ id: "a-1", content: "", rating_count: { likes: 0, dislikes: 1 } }),
+        turn({ id: "a-2", content: "Noted - email it is." }),
+        turn({ id: "q-2", role: "user", content: "Thanks" }),
+        turn({ id: "a-3", content: "Any time." }),
+      ],
+    });
+
+    renderTimeline();
+
+    const offered = screen.getAllByRole("button", { name: "Add to dataset" });
+    expect(offered.map((button) => button.dataset.message)).toEqual(["a-2", "a-3"]);
+    expect(offered.map((button) => button.dataset.ratedDown)).toEqual(["true", "false"]);
   });
 });
 

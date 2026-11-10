@@ -28,36 +28,28 @@ test.afterEach(async ({ page }) => {
 });
 
 test.describe("Onboarding", () => {
-  test("floats invitations below mobile navigation without moving the application", async ({
+  test("does not nag a password session to configure email on desktop or mobile", async ({
     page,
   }) => {
     const identity = await page.request.get("/api/auth/me");
     expect(identity.ok()).toBe(true);
-    expect((await identity.json()).email).toBe(OWNER_EMAIL);
+    const person = await identity.json();
+    expect(person.email).toBe(OWNER_EMAIL);
+    expect(person.email_verified).toBe(false);
     for (const width of [320, 390, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       await page.goto("/onboarding");
-      const invitations = page.getByRole("button", { name: "Check invitations", exact: true });
-      const navigation = page.getByRole("navigation").filter({
-        has: page.getByRole("link", { name: "Open the app", exact: true }),
-      });
-      await expect(invitations).toBeVisible();
-      if (width < 768) {
-        const entry = await invitations.boundingBox();
-        const header = await navigation.boundingBox();
-        if (!entry || !header) throw new Error("The invitation entry or navigation did not render");
-        expect(entry.y).toBeGreaterThanOrEqual(header.y + header.height);
-      }
+      await expect(
+        page.getByRole("button", { name: "Check invitations", exact: true }),
+      ).toHaveCount(0);
       await page.getByRole("link", { name: "Open the app", exact: true }).click();
-      await expect(page.getByRole("heading", { name: DASHBOARD_GREETING })).toBeVisible();
-      const main = page.getByRole("main");
-      const before = await main.boundingBox();
-      // Hide the notice without changing the shared account or React's DOM ownership.
-      await page.locator("[data-invitation-entry]").evaluate((element) => {
-        element.setAttribute("style", "display: none");
-        element.removeAttribute("data-invitation-entry");
-      });
-      expect(await main.boundingBox()).toEqual(before);
+      await expect(page).toHaveURL(/\/chat$/);
+      await expect(
+        page.getByRole("heading", { name: /Good (morning|afternoon|evening)|Up late/ }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: "Check invitations", exact: true }),
+      ).toHaveCount(0);
     }
   });
 

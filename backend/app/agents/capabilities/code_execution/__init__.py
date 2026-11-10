@@ -45,6 +45,7 @@ class CodeExecutionConfig(BaseModel):
 
 @register(
     id="code_execution",
+    read_only=True,
     name="Calculations",
     category="analysis",
     description="Compute with a short Python program in a restricted sandbox.",

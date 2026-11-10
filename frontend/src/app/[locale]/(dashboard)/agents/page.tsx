@@ -29,8 +29,9 @@ import {
   SearchInput,
   Skeleton,
 } from "@/components/ui";
-import { useAgentCeiling, useAgents, usePermissions } from "@/hooks";
+import { useAgentAttention, useAgentCeiling, useAgents, usePermissions } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
+import { resolvePreset } from "@/lib/dashboard/period";
 import { Perm } from "@/types/permissions";
 import type { Agent, AgentStatus } from "@/types/agents";
 import { useTranslations } from "next-intl";
@@ -119,6 +120,13 @@ export default function AgentsPage() {
   const { ceiling, known: ceilingKnown } = useAgentCeiling({ enabled: canEdit });
   const atLimit = isAtAgentLimit(ceiling);
   const tLimit = useTranslations("agentLimit");
+  // Which agents need a look over the last thirty days - read only by whoever may see runs.
+  const lately = resolvePreset("30d");
+  const { agents: needingAttention } = useAgentAttention(
+    { from: lately.from, to: lately.to },
+    { enabled: can(Perm.runsView) },
+  );
+  const attention = new Map(needingAttention.map((item) => [item.agent_id, item]));
 
   // Any narrowing at all - the client status/text filters and the server facet.
   // A zero-match facet returns an empty page, so this is what tells "no agent
@@ -301,6 +309,7 @@ export default function AgentsPage() {
                   key={agent.id}
                   agent={agent}
                   canEdit={canEdit}
+                  attention={attention.get(agent.id)}
                   busy={busyId === agent.id}
                   actions={{
                     onDuplicate: () =>

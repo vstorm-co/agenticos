@@ -59,6 +59,7 @@ class MediaConfig(BaseModel):
     # See `media/_capability.py`.
     tools=(),
     config_schema=MediaConfig,
+    tunable=True,
 )
 def _build(ctx: CapabilityBuildContext) -> MediaOffload[object]:
     """Build the offloader for this run's organization.

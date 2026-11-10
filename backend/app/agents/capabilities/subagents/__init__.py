@@ -174,6 +174,7 @@ class SubagentsConfig(BaseModel):
 
 @register(
     id="subagents",
+    read_only=True,
     voice="hand_off",
     name="Subagents",
     category="reasoning",

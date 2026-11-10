@@ -1527,6 +1527,7 @@ def _published_agent(**overrides) -> MagicMock:
     agent.name = "Support"
     agent.current_version_id = uuid.uuid4()
     agent.status = "published"
+    agent.kind = "agent"
     for key, value in overrides.items():
         setattr(agent, key, value)
     return agent

@@ -75,7 +75,7 @@ names no author is in the evidence column below.
 | beartype | 0.23.1 | MIT | https://github.com/beartype/beartype | License-Expression |
 | beautifulsoup4 | 4.15.0 | MIT | https://www.crummy.com/software/BeautifulSoup/bs4/ | License field |
 | bidict | 0.24.1 | MPL-2.0 | https://github.com/jab/bidict | License-Expression; review accepted |
-| boto3 | 1.43.125 | Apache-2.0 | https://github.com/boto/boto3 | License field |
+| boto3 | 1.43.126 | Apache-2.0 | https://github.com/boto/boto3 | License field |
 | botocore | 1.43.126 | Apache-2.0 | https://github.com/boto/botocore | License field |
 | bracex | 3.2 | MIT | https://github.com/facelessuser/bracex | License-Expression |
 | cachetools | 7.2.6 | MIT | https://github.com/tkem/cachetools/ | License-Expression |
@@ -84,7 +84,7 @@ names no author is in the evidence column below.
 | cffi | 2.1.1 | MIT-0 | https://github.com/python-cffi/cffi | License-Expression |
 | chardet | 7.7.0 | 0BSD | https://github.com/chardet/chardet | License-Expression |
 | charset-normalizer | 3.5.2 | MIT | https://charset-normalizer.readthedocs.io/ | License field |
-| click | 8.5.0 | BSD-3-Clause | https://github.com/pallets/click/ | License-Expression |
+| click | 8.5.1 | BSD-3-Clause | https://github.com/pallets/click/ | License-Expression |
 | cohere | 7.3.0 | MIT | https://github.com/cohere-ai/cohere-python | License field |
 | connectrpc | 0.12.1 | Apache-2.0 | https://github.com/connectrpc/connect-py | License-Expression |
 | croniter | 6.2.4 | MIT | https://github.com/pallets-eco/croniter | License-Expression |

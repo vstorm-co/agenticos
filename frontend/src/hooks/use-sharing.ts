@@ -36,6 +36,7 @@ const SHARING_ROOT = {
   secret: "/secrets",
   table: "/tables",
   artifact: "/apps",
+  dataset: "/datasets",
   // An organization's MCP server, narrowed to the groups that use it (#2072).
   mcp_connection: "/mcp-connections",
   project: "/projects",
@@ -57,6 +58,7 @@ const RESOURCE_KEYS = {
   secret: qk.secrets.all,
   table: qk.tables.all,
   artifact: qk.artifacts.all,
+  dataset: qk.datasets.all,
   mcp_connection: qk.mcpConnections.org,
   project: qk.projects.all,
 } as const satisfies Record<SharingResourceType, () => readonly string[]>;

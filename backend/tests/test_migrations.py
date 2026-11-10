@@ -26,6 +26,7 @@ runner; `_demand_a_server` below is where they are told apart.
 """
 
 import os
+import re
 import subprocess
 import sys
 from collections.abc import Iterator
@@ -219,6 +220,114 @@ class TestMigrations:
         assert "(head)" in result.stdout, (
             f"Current revision is not at head:\nstdout: {result.stdout}\nstderr: {result.stderr}"
         )
+
+
+@pytest.mark.parametrize(
+    "starting_revision",
+    [
+        "0248_merge_self_improvement",
+        "0250_discord_channel",
+        "0252_index_rag_parent_doc_id",
+        "0253_helper_snapshots",
+        "0254_merge_eval_rag_index",
+        "0295_tool_approval_consent",
+        "0296_merge_evals_main",
+        "0303_merge_workflow_onboarding",
+    ],
+)
+def test_improvement_merge_upgrades_either_existing_history(starting_revision: str) -> None:
+    down = _alembic("downgrade", "base")
+    assert down.returncode == 0, down.stderr
+    prior = _alembic("upgrade", starting_revision)
+    assert prior.returncode == 0, prior.stderr
+    user_id = uuid4()
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO users (id, email, is_active, is_app_admin) "
+                    "VALUES (:id, 'merge-upgrade@example.com', true, false)"
+                ),
+                {"id": user_id},
+            )
+        upgraded = _alembic("upgrade", "head")
+        assert upgraded.returncode == 0, upgraded.stderr
+        with engine.connect() as connection:
+            assert (
+                connection.execute(
+                    text("SELECT email FROM users WHERE id = :id"), {"id": user_id}
+                ).scalar_one()
+                == "merge-upgrade@example.com"
+            )
+            assert (
+                connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
+                == "0304_merge_evals_platform"
+            )
+        check = _alembic("check")
+        assert check.returncode == 0, check.stderr
+    finally:
+        engine.dispose()
+
+
+@pytest.mark.parametrize("table", ["notifications", "notification_preferences"])
+def test_eval_upgrade_preserves_existing_main_notification_rows(table: str) -> None:
+    """Intermediate eval checks must accept populated, already deployed main events."""
+    down = _alembic("downgrade", "base")
+    assert down.returncode == 0, down.stderr
+    prior = _alembic("upgrade", "0303_merge_workflow_onboarding")
+    assert prior.returncode == 0, prior.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    try:
+        with engine.begin() as connection:
+            user_id = uuid4()
+            connection.execute(
+                text(
+                    "INSERT INTO users (id, email, is_active, is_app_admin) "
+                    "VALUES (:id, 'notification-upgrade@example.com', true, false)"
+                ),
+                {"id": user_id},
+            )
+            definition = connection.execute(
+                text(
+                    "SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+                    "WHERE conrelid = to_regclass(:table) AND contype = 'c' "
+                    "AND pg_get_constraintdef(oid) LIKE '%event_type%'"
+                ),
+                {"table": table},
+            ).scalar_one()
+            events = set(re.findall(r"'([^']+)'", definition))
+            assert {"capability_requested", "suggestion", "finding"} <= events
+            if table == "notifications":
+                insert = text(
+                    "INSERT INTO notifications "
+                    "(id, recipient_user_id, event_type, occurrence_id, summary, in_app_visible) "
+                    "VALUES (:id, :user, :event, :event, 'Retain this notification', true)"
+                )
+            else:
+                insert = text(
+                    "INSERT INTO notification_preferences "
+                    "(id, user_id, event_type, channel, enabled) "
+                    "VALUES (:id, :user, :event, 'in_app', false)"
+                )
+            connection.execute(
+                insert,
+                [{"id": uuid4(), "user": user_id, "event": event} for event in sorted(events)],
+            )
+            snapshot = text(
+                "SELECT row_to_json(t)::text FROM notifications t ORDER BY id"
+                if table == "notifications"
+                else "SELECT row_to_json(t)::text FROM notification_preferences t ORDER BY id"
+            )
+            before = connection.execute(snapshot).scalars().all()
+        upgraded = _alembic("upgrade", "head")
+        assert upgraded.returncode == 0, upgraded.stderr
+        with engine.connect() as connection:
+            assert connection.execute(snapshot).scalars().all() == before
+        checked = _alembic("check")
+        assert checked.returncode == 0, checked.stderr
+    finally:
+        engine.dispose()
 
 
 class TestBotTranscriptionSwitch:
@@ -415,6 +524,116 @@ class TestBotTranscriptionSwitch:
         assert keys[bots["pairless"][0]] is None
 
         down = _alembic("downgrade", "0150_org_speech_settings")
+        assert down.returncode == 0, down.stderr
+
+
+class TestReviewQueueKey:
+    """`0174_case_score_agent_key.py`: a score keeps the agent that answered, and
+    at most one score of a case waits for review for each agent."""
+
+    def test_each_agent_keeps_one_waiting_score_of_a_case_and_the_rest_leave(self):
+        assert _alembic("downgrade", "base").returncode == 0
+        up = _alembic("upgrade", "0178_eval_run_proposal_check")
+        assert up.returncode == 0, up.stderr
+
+        org, dataset, case, revision = (
+            "00000000-0000-0000-0000-0000000000a1",
+            "00000000-0000-0000-0000-0000000000d1",
+            "00000000-0000-0000-0000-0000000000c1",
+            "00000000-0000-0000-0000-0000000000c2",
+        )
+        first, second = (
+            "00000000-0000-0000-0000-0000000000e1",
+            "00000000-0000-0000-0000-0000000000e2",
+        )
+        runs = {
+            "first": ("00000000-0000-0000-0000-0000000000f1", first),
+            "second": ("00000000-0000-0000-0000-0000000000f2", second),
+        }
+        eval_run = "00000000-0000-0000-0000-0000000000b1"
+        # (run, eval run, passed, review state, minutes after the first score)
+        scores = {
+            "older fail": ("first", None, False, "pending", 0),
+            "newer fail": ("first", None, False, "pending", 1),
+            "judge error": (None, eval_run, None, "pending", 2),
+            "decided": ("first", None, True, "done", 3),
+            "other agent": ("second", None, None, "pending", 0),
+            "no agent": (None, None, False, "pending", 0),
+        }
+        ids = {name: f"00000000-0000-0000-0000-{n:012d}" for n, name in enumerate(scores, 1)}
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        try:
+            with engine.begin() as connection:
+                # Replica mode skips the foreign-key triggers, so the agents,
+                # the dataset and its version need not exist.
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                for run_id, agent_id in runs.values():
+                    connection.execute(
+                        text(
+                            "INSERT INTO agent_runs (id, organization_id, agent_id, surface, "
+                            "status, input_tokens, output_tokens, cost_usd, cost_is_partial) "
+                            "VALUES (:id, :org, :agent, 'api', 'completed', 0, 0, 0, false)"
+                        ),
+                        {"id": run_id, "org": org, "agent": agent_id},
+                    )
+                connection.execute(
+                    text(
+                        "INSERT INTO eval_runs (id, organization_id, agent_id, dataset_id, "
+                        "dataset_version_id, status, purpose, paired, from_recordings, "
+                        "live_reads, reruns, scoring, scoring_hash, estimate_usd, "
+                        "rerun_ceiling_usd, routed_to_review, routed_replacing) VALUES "
+                        "(:id, :org, :agent, :dataset, :dataset, 'completed', 'manual', false, "
+                        "false, false, 0, '{}', 'x', 0, 0, 0, 0)"
+                    ),
+                    {"id": eval_run, "org": org, "agent": first, "dataset": dataset},
+                )
+                for name, (run, evaluated, passed, state, minutes) in scores.items():
+                    connection.execute(
+                        text(
+                            "INSERT INTO case_scores (id, organization_id, dataset_id, "
+                            "case_revision_id, case_id, run_id, eval_run_id, scoring, results, "
+                            "passed, review_state, created_at) VALUES (:id, :org, :dataset, "
+                            ":revision, :case, :run, :eval_run, '{}', '[]', :passed, :state, "
+                            "TIMESTAMPTZ '2026-10-01 12:00+00' + make_interval(mins => :minutes))"
+                        ),
+                        {
+                            "id": ids[name],
+                            "org": org,
+                            "dataset": dataset,
+                            "revision": revision,
+                            "case": case,
+                            "run": None if run is None else runs[run][0],
+                            "eval_run": evaluated,
+                            "passed": passed,
+                            "state": state,
+                            "minutes": minutes,
+                        },
+                    )
+
+            up = _alembic("upgrade", "0174_case_score_agent_key")
+            assert up.returncode == 0, up.stderr
+
+            with engine.connect() as connection:
+                rows = {
+                    str(row[0]): (None if row[1] is None else str(row[1]), row[2])
+                    for row in connection.execute(
+                        text("SELECT id, agent_id, review_state FROM case_scores")
+                    )
+                }
+        finally:
+            engine.dispose()
+
+        assert {name: rows[ids[name]] for name in scores} == {
+            "older fail": (first, "none"),
+            "newer fail": (first, "pending"),
+            "judge error": (first, "none"),
+            "decided": (first, "done"),
+            "other agent": (second, "pending"),
+            "no agent": (None, "pending"),
+        }
+        assert "2 duplicate scores waiting for review left the queue undecided" in up.stderr
+
+        down = _alembic("downgrade", "0178_eval_run_proposal_check")
         assert down.returncode == 0, down.stderr
 
 

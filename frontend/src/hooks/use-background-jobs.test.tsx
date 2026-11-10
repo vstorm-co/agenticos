@@ -36,6 +36,7 @@ const JOB: BackgroundJob = {
   priority: 0,
   attempts: 2,
   max_attempts: 2,
+  retry_refusal: null,
   organization_id: null,
   schedule_name: null,
   worker_id: null,

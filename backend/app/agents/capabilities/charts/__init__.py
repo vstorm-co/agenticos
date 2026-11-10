@@ -13,6 +13,7 @@ __all__ = ["Charts", "ChartsToolset"]
 
 @register(
     id="charts",
+    read_only=True,
     name="Charts",
     category="analysis",
     description="Draw a chart so the user can see the numbers rather than read them.",

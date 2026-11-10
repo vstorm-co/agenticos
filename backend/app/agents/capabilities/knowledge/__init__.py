@@ -6,14 +6,31 @@ from app.agents.capabilities._registry import (
     register,
 )
 from app.agents.capabilities.knowledge._capability import Knowledge, KnowledgeConfig
-from app.agents.capabilities.knowledge._search import reset_retrieval_service
+from app.agents.capabilities.knowledge._log import (
+    KNOWLEDGE_SEARCH_LOG_RESOURCE,
+    FoundPassage,
+    KnowledgeSearchLog,
+)
+from app.agents.capabilities.knowledge._search import (
+    reset_retrieval_service,
+    search_knowledge_base,
+)
 from app.services.rag.models import ParentContextMode
 
-__all__ = ["Knowledge", "KnowledgeConfig", "reset_retrieval_service"]
+__all__ = [
+    "KNOWLEDGE_SEARCH_LOG_RESOURCE",
+    "FoundPassage",
+    "Knowledge",
+    "KnowledgeConfig",
+    "KnowledgeSearchLog",
+    "reset_retrieval_service",
+    "search_knowledge_base",
+]
 
 
 @register(
     id="knowledge",
+    read_only=True,
     name="Knowledge search",
     category="knowledge",
     description="Search the collections this agent is connected to and cite the sources.",
@@ -29,6 +46,7 @@ __all__ = ["Knowledge", "KnowledgeConfig", "reset_retrieval_service"]
         ),
     ),
     config_schema=KnowledgeConfig,
+    tunable=True,
     scopes=("knowledge:read",),
 )
 def _build(ctx: CapabilityBuildContext) -> Knowledge | None:
@@ -47,4 +65,5 @@ def _build(ctx: CapabilityBuildContext) -> Knowledge | None:
         query_analysis_mode=config.query_analysis_mode,
         query_analysis_max_variants=config.query_analysis_max_variants,
         parent_context=ParentContextMode(config.parent_context),
+        search_log=ctx.resources.get(KNOWLEDGE_SEARCH_LOG_RESOURCE),
     )

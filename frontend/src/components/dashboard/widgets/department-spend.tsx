@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { GroupIcon } from "@/components/groups/group-icon";
 import { useGroupSpend } from "@/hooks";
@@ -24,6 +24,7 @@ const SHOWN = 5;
  */
 export function DepartmentSpendWidget({ title, hint, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.department-spend");
+  const locale = useLocale();
   const orgId = useOrgStore((state) => state.activeOrgId);
   const { spend, isLoading, error, refetch } = useGroupSpend(orgId);
   const rows = (spend?.items ?? []).slice(0, SHOWN);
@@ -53,8 +54,8 @@ export function DepartmentSpendWidget({ title, hint, options }: DashboardWidgetP
                   </Link>
                   <span className="text-foreground shrink-0 tabular-nums">
                     {cap === null
-                      ? formatUsd(used)
-                      : t("ofCap", { spent: formatUsd(used), cap: formatUsd(cap) })}
+                      ? formatUsd(used, locale)
+                      : t("ofCap", { spent: formatUsd(used, locale), cap: formatUsd(cap, locale) })}
                   </span>
                 </div>
                 {cap !== null && <HeadroomBar used={used} cap={cap} className="mt-1" />}

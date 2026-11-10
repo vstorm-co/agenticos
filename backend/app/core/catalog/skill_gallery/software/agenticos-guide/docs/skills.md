@@ -20,7 +20,7 @@ flowchart LR
     E --> Z2
 ```
 
-Twenty skills cost roughly twenty *descriptions* instead of twenty *procedures*.
+Twenty skills cost roughly twenty _descriptions_ instead of twenty _procedures_.
 
 !!! note "Discovery is cheap, not free"
 
@@ -65,6 +65,7 @@ carries. `GET /api/v1/skills` returns that opening as `excerpt`; the body itself
 loads when a skill is opened.
 
 ## Decide without asking
+
 ...
 ```
 
@@ -94,7 +95,7 @@ an agent is given becomes a **capability of its own**, listed for the model by
 name and description and opened on demand:
 
 | How | What it does |
-|---|---|
+| --- | --- |
 | Available skills | Names and one-line descriptions of everything bound to this agent |
 | `read_skill` | The full body of one skill, pulled into the conversation |
 | `read_skill_resource` | One file beside a skill |
@@ -179,13 +180,30 @@ later is comparing two complete versions instead of applying a patch somewhere i
 was never meant to go.
 
 Two things are refused rather than guessed at: a directory the agent created with
-no `SKILL.md` in it, and one whose frontmatter it mangled. And a *deleted* resource
+no `SKILL.md` in it, and one whose frontmatter it mangled. And a _deleted_ resource
 is deliberately not a change, because a file the model never touched and one it
 meant to delete leave the same absence.
 
 Three turns of one conversation refining the same skill leave **one** proposal, not
 three. A reviewer asked the same question three times has been given more work
 rather than more information.
+
+A change records the version of the skill it was written against: for a run, the
+version that run was given, and a later turn that rewrites the change records its
+own. Apply refuses it once somebody has changed the skill since, so an edit made
+while the change waited is not overwritten. Compare the two and edit the skill by
+hand, or ask again.
+
+The [authoring assistant](authoring.md#skills) proposes skill changes the same way,
+with its rationale and the runs behind it, and Apply refuses them the same way.
+
+Each change says, beside **Apply**, which agents' published versions read the
+skill, which eval suites applying it queues and which guards check it only at
+the next promotion, and **Check with evals** comes first.
+Applying tells those agents' owners. A decision names the version of the change
+you read: a change rewritten since - by a later turn or a new request - is
+refused with "The proposal changed since you opened it", and of two decisions
+made at once only one counts.
 
 Workspace proposals use the same metadata limits as stored skills: a name of
 1–64 characters and a description up to 500 characters. A change outside these
@@ -325,11 +343,11 @@ They answer different questions, and the difference matters when an agent gets t
 wrong one.
 
 |  | Skills | [Knowledge](file-processing.md) |
-|---|---|---|
+| --- | --- | --- |
 | Contains | Procedure — how we do this | Documents — what we know |
 | Written by | A person, deliberately | Ingested in bulk |
 | Retrieved by | The model choosing a name | Semantic search over chunks |
-| Cites | Nothing; it *is* the instruction | The passage and its source |
+| Cites | Nothing; it _is_ the instruction | The passage and its source |
 | Scale | Tens | Thousands of documents |
 
 !!! example "Which is which"
@@ -373,7 +391,7 @@ The alternative is worse in two specific ways:
 - Every context with no subject — an API key, an embedded widget, a channel message
   — is refused by `resolve_access` by design, so a per-runner check would strip
   every skill from exactly those surfaces.
-- Where there *is* a subject, one published version would give a member — whose
+- Where there _is_ a subject, one published version would give a member — whose
   role reaches shared skills only — thinner instructions than it gives a builder,
   with the difference visible nowhere.
 
@@ -384,7 +402,7 @@ after publish is skipped with a warning rather than failing the run.
 ## Recap
 
 - A skill is **procedure**, written by a person, and loaded only when the model
-  decides its *description* is relevant — discovery costs a line per skill, and
+  decides its _description_ is relevant — discovery costs a line per skill, and
   the body costs nothing until it is opened.
 - In a workspace a skill is also **files**, which is what makes its scripts runnable.
 - An agent **proposes** an edit; a person applies it, once, and the decision is
@@ -393,3 +411,13 @@ after publish is skipped with a warning rather than failing the run.
   nothing is re-checked at run time.
 - The **gallery** is seventy ready-made skills by industry, installed on request —
   unlike the bundled library, which arrive on their own.
+
+### Proposing a new skill { #proposing-a-new-skill }
+
+The assistant can propose **Worth creating a skill** when a reusable procedure appears in at least three distinct evidence answers. Each supporting passage must occur in the answer itself; reader comments alone do not establish a repeated procedure. The card shows its name, description, full body, rationale and verified evidence. A check binds a temporary skill to the candidate only: no skill row or published version is created.
+
+**Accept** creates the private skill and binds it to the agent's draft in the same transaction. It requires `skills:edit` as well as edit access to the agent. Without creation permission the proposal remains readable and testable, but Accept explains why it is disabled. **Dismiss** creates nothing. **Undo** removes the binding and keeps the independent skill; accepting again reuses it only while its name and body still match. Skills contain written know-how and grant no tools. Additional tool access needs separate policy-checked proposals, with writing tools requiring approval.
+
+A procedure drawn from fewer than three distinct answers is not proposed as a suggestion. It is listed with its full text under **more ideas need your decision**. **Create skill** opens a preview: the name, description and body can be edited, and a warning says how many answers it is based on. **Create skill** in the preview creates the skill in the library and binds it to the agent's draft, never to a published version. It needs the same permissions as Accept and makes no model call. A second click returns the skill already created.
+
+The estimate reserves the full proposed body for each candidate answer and its confirming reruns, in addition to the historical per-answer price.

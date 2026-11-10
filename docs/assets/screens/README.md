@@ -49,6 +49,13 @@ setup before execution; importing the drafts does not configure those services.
 Historical recording references below are retained as provenance only. The public
 screens gallery and product tour no longer embed those recordings.
 
+The evals and Improve captures (`datasets`, `dataset-*`, `eval-run`,
+`agent-evals`, `improve-*`, `knowledge-gaps`, `ai-assistance`) come from a
+second organization, **Demo**, captured on 28 October 2026 with
+`ORG="Demo" AGENT="Refund desk" GAPS_AGENT="Refund desk (audit)"`. Its Refund
+desk agent answers made-up refund and delivery questions for an Acme store; its
+answers, grades, eval runs and Improve sessions are real runs on GPT-4.1 mini.
+
 The README shows the light captures in both GitHub themes; the docs site
 switches between `light/` and `dark/` with the reader's theme.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "cc88ed3eb4e4"
+source_sha: "3503412daf98"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -17,8 +17,8 @@ veröffentlicht.
 
 Drei Wege hinein, für drei verschiedene Aufrufer.
 
-| | Header | Für |
-|---|---|---|
+|  | Header | Für |
+| --- | --- | --- |
 | **API-Schlüssel der Organisation** | `Authorization: Bearer aos_…` | Ein Skript, einen HTTP-Client wie Postman oder einen MCP-Client. Handelt als das Mitglied, das ihn ausgestellt hat, beschränkt auf die Berechtigungen, mit denen er ausgestellt wurde |
 | **JWT** | `Authorization: Bearer <access token>` | Eine Person oder etwas, das für sie handelt. Kurzlebig, erneuert mit einem Refresh-Token |
 | **Sitzungs-Cookie** | von der Konsole gesetzt | Nur den Browser — das Token ist HttpOnly und erreicht nie JavaScript |
@@ -37,14 +37,14 @@ angemeldeten Sitzung). Er trägt die Befugnisse dieses Mitglieds, zweifach
 eingeschränkt:
 
 - **Auf die Berechtigungen, mit denen er ausgestellt wurde.** Wählen Sie eine
-  Vorlage — *Nur lesen*, *Wissen einspeisen*, *Voller Zugriff* — oder haken Sie
+  Vorlage — _Nur lesen_, _Wissen einspeisen_, _Voller Zugriff_ — oder haken Sie
   Berechtigungen aus dem [Katalog](permissions.md) an. Sie können nur vergeben,
   was Sie selbst haben.
 - **Auf das, was der Aussteller jetzt darf.** Jede Anfrage liest die Mitgliedschaft
   des Ausstellers neu, sodass eine Herabstufung jeden seiner Schlüssel sofort
   einschränkt. Seine Entfernung aus der Organisation, oder sein Austritt, widerruft
   jeden von ihm ausgestellten Schlüssel und jede von ihm verbundene App - endgültig,
-  sodass eine erneute Einladung keinen davon wieder weckt. Eine Freigabe auf einer Ressource erweitert, was eine *Person*
+  sodass eine erneute Einladung keinen davon wieder weckt. Eine Freigabe auf einer Ressource erweitert, was eine _Person_
   mit einer Zeile tun darf; einen Schlüssel erweitert sie nie über seine
   Berechtigungen hinaus.
 
@@ -156,7 +156,6 @@ widerruft den Schlüssel am Ende.
 BASE=http://localhost:8000 EMAIL=you@example.com PASSWORD=... bash docs/examples/public-api.sh
 ```
 
-
 ### Sessions und Widerruf { #sessions-and-revocation }
 
 Ein JWT-Access-Token ist an die Session gebunden, die seine Anmeldung geöffnet
@@ -170,6 +169,19 @@ HTTP-Anfrage.
 Ein Refresh startet keine neue Session — das Refresh-Token rotiert an Ort und
 Stelle und das Access-Token nennt weiterhin dieselbe —, sodass eine langlebige
 Verbindung von einem routinemäßigen Refresh nicht gekappt wird.
+
+### Arbeit, die nach der Anfrage läuft { #work-that-runs-after-the-request }
+
+Ein [Eval-Run](evals.md) oder eine Anfrage an den
+[Authoring-Assistenten](authoring.md) lässt sich nicht mit einem
+Organisationsschlüssel starten: Diese Routen sind für angemeldete Personen, und
+ein Schlüssel erhält dort `403`. Arbeit, die später im Hintergrund läuft, ist an
+die Befugnisse der Person gebunden, die sie gestartet hat, so wie sie zu Beginn
+der Arbeit stehen - eine seither verlorene Rolle stoppt sie. Dürfte ein
+Schlüssel je solche Arbeit starten, gälte dasselbe für ihn: seine
+Berechtigungen, wie sie dann stehen, und ein seither widerrufener, abgelaufener
+oder gelöschter Schlüssel stoppte die Arbeit, mit einem Grund am Run oder an der
+Anfrage.
 
 ## Der Organisations-Header { #the-organization-header }
 
@@ -200,7 +212,6 @@ curl -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
   -H "Content-Type: application/json" \
   -d '{"prompt": "How do I rotate a provider key?"}'
 ```
-
 
 **Ein Run setzt eine Unterhaltung fort.** Ein Aufruf ohne `conversation_id`
 öffnet eine neue Unterhaltung für den Aussteller des Schlüssels und gibt ihre Id
@@ -516,7 +527,6 @@ Die Veröffentlichung automatischer Trigger und Änderungen ihrer Ausführungsre
 
 Öffentliche Workflow-Formulare erzwingen das Eingabebyte-Limit beim Lesen des Anforderungsstroms, vor JSON-Parsing und Tokenprüfung. Zu große deklarierte oder in Chunks gesendete Inhalte liefern `413`; fehlerhaftes JSON und ungültige Formularfelder liefern `422`. Jeder Eintrag von `details.problems` einer `422` ist `{field, message, type}`, wobei `type` der eigene Fehlertyp des Validators ist (`missing`, `int_type`, `extra_forbidden`, ...), sodass ein Formular je Antwort sagen kann, was es brauchte.
 
-
 Ein Workflow, dessen Trigger-Knoten ein Webhook oder ein Zeitplan ist, erhält seine
 Exposure, wenn diese Version veröffentlicht wird, und die Antwort der
 Veröffentlichung trägt sie als `exposure`. Das Signatur-Secret eines Webhooks steht im
@@ -591,6 +601,7 @@ gelöscht werden - je nachdem, was sein Trigger nennt. `GET
 .../triggers/{trigger_id}` mit `{"is_active": false}` pausiert einen, und `GET
 .../triggers/{trigger_id}/admissions` listet, was er über jeden Datensatz entschieden
 hat. Siehe [Trigger](virtual-tables.md#triggers).
+
 ## Agents über A2A { #agents-over-a2a }
 
 Ein Agent, den seine Organisation über A2A anbietet, beantwortet JSON-RPC unter
@@ -639,7 +650,7 @@ der API in `$BASE`. Erstellen Sie den Schlüssel unter **Einstellungen → API**
 ihn einmal.
 
 **Ein Dokument in eine Wissensbasis legen und sie durchsuchen** — ein Schlüssel
-mit `collections:view` und `collections:edit` (die Vorlage *Wissen einspeisen*).
+mit `collections:view` und `collections:edit` (die Vorlage _Wissen einspeisen_).
 Das Einlesen läuft im Hintergrund, eine Suche direkt nach dem Hochladen findet das
 Dokument also womöglich noch nicht; `GET /api/v1/kb/$KB_ID/documents` zeigt seinen
 Status, und `GET /api/v1/kb/$KB_ID/ingestion` antwortet `complete`, sobald keines
@@ -737,7 +748,10 @@ genauso authentifiziert, mit der Organisation in `?organization_id=`, sendet er
 pro erfolgreichem Schreibvorgang über die öffentliche API in dieser Organisation
 einen JSON-Frame — `resource`, `id`, `action` (`created`, `updated` oder
 `deleted`), `surface` (`console`, `api_key`, `mcp` oder `assistant`) und wer ihn
-ausgeführt hat — und nur für Zeilen, die der Aufrufer lesen darf.
+ausgeführt hat — und nur für Zeilen, die der Aufrufer lesen darf. Änderungen,
+die niemand geschrieben hat, kommen genauso an: `run` für einen Run, der seine
+Zustände durchläuft, und `system` für die eigene geplante Arbeit der Plattform,
+etwa einen Gruppierungslauf der Wissenslücken.
 
 ## Sprachanrufe { #voice-calls }
 
@@ -763,18 +777,18 @@ Abmeldung nicht überdauert.
 **Der Client sendet** JSON-Frames und über das Relay auch binäres Audio:
 
 | Frame | Felder | Wann |
-|---|---|---|
+| --- | --- | --- |
 | `start` | `agent_id`, `conversation_id`, `sdp_offer` (WebRTC), `resume_of` und `resume_token` (eine Wiederverbindung), `context` (die Variablen eines Embeds) | Zuerst, innerhalb von 10 Sekunden |
 | `approval` | `id`, `decision` (`approve` oder `deny`) | Entscheidung über eine Freigabe, auf die der Anruf wartet |
 | `mute` | `muted` | Das Relay: das Mikrofon stummgeschaltet |
 | `played` | `bytes` | Das Relay: wie viel vom Audio des Agents abgespielt wurde |
-| `end` | - | Auflegen |
-| *binär* | 16-Bit-PCM mit der Eingangsrate des Modells | Das Relay: das Audio des Anrufers |
+| `end` | --- | Auflegen |
+| _binär_ | 16-Bit-PCM mit der Eingangsrate des Modells | Das Relay: das Audio des Anrufers |
 
 **Der Server sendet:**
 
 | Frame | Felder | Bedeutet |
-|---|---|---|
+| --- | --- | --- |
 | `answer` | `sdp` | WebRTC: die Antwort des Providers für die Peer-Verbindung des Browsers |
 | `ready` | `call_id`, `run_id`, `conversation_id`, `transport`, `input_sample_rate`, `output_sample_rate`, `cap_seconds`, `resume_token` | Der Anruf ist eingerichtet. `resume_token` wird nur hier gesendet, nur an diesen Anrufer; eine Wiederverbindung schickt es zurück |
 | `state` | `state`: `connecting`, `listening`, `user_speaking`, `thinking`, `agent_speaking`, `interrupted`, `tool_running`, `awaiting_approval` | Wer spricht oder was der Agent gerade tut |
@@ -786,9 +800,9 @@ Abmeldung nicht überdauert.
 | `approval_settled` | `id`, `outcome` (`approved`, `denied` oder `expired`) | Wie eine Freigabe ausgegangen ist |
 | `notice` | `kind`, `message` (optional) | Etwas, das in Worten zu sagen ist: ein Guardrail-Treffer, ein erreichtes Limit |
 | `limit` | `seconds_left` | Die Zeit des Anrufs ist fast um |
-| `clear_playback` | - | Das Relay: das eingereihte Audio des Agents verwerfen |
+| `clear_playback` | --- | Das Relay: das eingereihte Audio des Agents verwerfen |
 | `ended` | `reason`, `message` | Der Anruf ist vorbei |
-| *binär* | 16-Bit-PCM mit der Ausgangsrate des Modells | Das Relay: das Audio des Agents |
+| _binär_ | 16-Bit-PCM mit der Ausgangsrate des Modells | Das Relay: das Audio des Agents |
 
 **Ein Besucher eines Widgets oder einer gehosteten Seite erfährt weniger.** Sein
 `ready` enthält kein `run_id`; `cap_seconds` ist das Limit des Anrufs - der
@@ -836,7 +850,7 @@ eines Providers.
 Fünf HTTP-Routen gehören dazu:
 
 | Route | Gate | Antwortet |
-|---|---|---|
+| --- | --- | --- |
 | `GET /api/v1/agents/{agent_id}/voice` | `agents:run` auf diesem Agent, ein Grant eingeschlossen; sonst `404` | Ob ein Anruf starten würde, warum nicht (`no_voice`, `not_offered` oder `no_key`), der Transport und der längste Anruf |
 | `POST /api/v1/agents/{agent_id}/voice/preview` | `agents:edit` auf diesem Agent, ein Grant eingeschlossen; sonst `404` | Die Stimme aus dem Entwurf des Abschnitts „Stimme“, die einen festen Satz sagt, als `audio/wav`. Pro Stimme und Sprache im Cache; `RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE` pro Person |
 | `GET /api/v1/providers/realtime-models` | `agents:view` | Der Realtime-Katalog, aus dem der Abschnitt Stimme auswählt |
@@ -911,8 +925,8 @@ Schreibzugriff wird angewendet, wenn er ankommt, und der letzte gewinnt.
 
 ## Konventionen { #conventions }
 
-| | |
-|---|---|
+|  |  |
+| --- | --- |
 | Präfix | `/api/v1` |
 | Anlegen | `POST`, `201` |
 | Teilweises Aktualisieren | `PATCH` |
@@ -980,6 +994,5 @@ versioniert und bewegt sich nur vorwärts.
   zum Abfragen, ein langer Run hält also keine Verbindung offen.
 - **Die öffentliche API steht in `/api/v1/public/openapi.json`** und ändert
   sich in v1 nur additiv, mit 90 Tagen Deprecation; ein SDK gibt es noch nicht.
-
 
 Skills mit genehmigungspflichtigem Laden benötigen die Genehmigung in jedem Durchgang erneut; frühere Ladevorgänge umgehen diese Prüfung nicht.

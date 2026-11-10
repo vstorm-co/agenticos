@@ -15,7 +15,8 @@ from collections.abc import AsyncGenerator, AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from datetime import timedelta
 from pathlib import Path
-from uuid import UUID
+from unittest.mock import AsyncMock
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import select, text
@@ -26,9 +27,11 @@ from app.db.models.background_task_kind import BackgroundTaskKind
 from app.db.models.background_worker import BackgroundWorker
 from app.repositories import background_job as job_repo
 from app.repositories import background_task_kind as kind_repo
+from app.worker import jobs
 from app.worker.executors import ChildPool, Executor, InProcessExecutor
-from app.worker.jobs import Pool, Task
+from app.worker.jobs import FireTrigger, Payload, Pool, RunAgent, RunEval, Task
 from app.worker.listener import asyncpg_dsn, listener
+from app.worker.registry import Handler, by_kind
 from app.worker.runtime import Worker, WorkerSettings
 from tests import worker_handlers
 from tests.worker_handlers import Note
@@ -447,6 +450,89 @@ async def _until_lease_lost(
             return
         assert asyncio.get_running_loop().time() < deadline
         await asyncio.sleep(0.1)
+
+
+async def test_evals_filling_their_pool_leave_agent_runs_and_trigger_fires_running(
+    sessions, tmp_path: Path
+) -> None:
+    """An eval holds its slot for the whole run. With every eval slot held, an API
+    run and a trigger fire are still claimed and finish: the two pools share nothing."""
+    released = asyncio.Event()
+    evaluating = asyncio.Event()
+
+    async def evaluate(_job: RunEval) -> None:
+        evaluating.set()
+        await released.wait()
+
+    async def finish(_job: Payload) -> None:
+        return None
+
+    handlers = by_kind(
+        [
+            Handler(jobs.RUN_EVAL, evaluate),
+            Handler(jobs.RUN_AGENT, finish),
+            Handler(jobs.FIRE_TRIGGER, finish),
+        ]
+    )
+    worker = Worker(
+        settings=_settings(tmp_path),
+        executors={
+            pool: InProcessExecutor(handlers, concurrency=1) for pool in (Pool.AGENT, Pool.EVAL)
+        },
+        tasks={task.kind: task for task in (jobs.RUN_EVAL, jobs.RUN_AGENT, jobs.FIRE_TRIGGER)},
+        sessions=sessions,
+        on_pause=AsyncMock(),
+        on_ended=AsyncMock(),
+        listen=None,
+    )
+
+    async def queue[P: Payload](task: Task[P], payload: P) -> UUID:
+        async with sessions() as db:
+            job_id = await job_repo.add(
+                db,
+                kind=task.kind,
+                pool=task.pool.value,
+                payload=task.dump(payload),
+                max_attempts=task.max_attempts,
+                priority=int(task.priority),
+            )
+        assert job_id is not None
+        return job_id
+
+    organization = uuid4()
+    held = await queue(jobs.RUN_EVAL, RunEval(eval_run_id=uuid4(), organization_id=organization))
+    waiting = await queue(jobs.RUN_EVAL, RunEval(eval_run_id=uuid4(), organization_id=organization))
+    stop = asyncio.Event()
+    serving = asyncio.create_task(worker.run(stop))
+    try:
+        await asyncio.wait_for(evaluating.wait(), timeout=PATIENCE)
+        run = await queue(
+            jobs.RUN_AGENT,
+            RunAgent(
+                agent_id=uuid4(),
+                organization_id=organization,
+                user_id=uuid4(),
+                api_key_id=None,
+                prompt="Hello",
+                conversation_id=uuid4(),
+                environment_id=None,
+                file_ids=[],
+                digest="d",
+            ),
+        )
+        fire = await queue(jobs.FIRE_TRIGGER, FireTrigger(trigger_id=uuid4()))
+
+        await _until_status(sessions, run, "succeeded")
+        await _until_status(sessions, fire, "succeeded")
+        assert (await _job(sessions, held)).status == "running"
+        assert (await _job(sessions, waiting)).status == "queued"
+
+        released.set()
+        await _until_status(sessions, waiting, "succeeded")
+    finally:
+        released.set()
+        stop.set()
+        await asyncio.wait_for(serving, timeout=PATIENCE)
 
 
 async def test_a_committed_job_wakes_the_worker_without_waiting_for_the_poll(

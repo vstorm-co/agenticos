@@ -37,7 +37,11 @@ product working, and several specs exist to prove exactly that. `/api/rag/*` is 
 — a test deployment has no embedding key, so collection stats answer 500 by design.
 
 Always import `test` and `expect` from `./fixtures`, never from `@playwright/test`
-directly, or the spec loses the net.
+directly, or the spec loses the net - and the owner's session goes stale. The same
+`test` writes the session's rotated cookies back to `AUTH_STATE` after every test that
+started from it, because the access cookie lapses after 15 minutes and the backend
+refuses a refresh token two rotations old; a spec importing the bare `test` past that
+point replays a spent token and lands on `/login`.
 
 ## Never assert a new row straight after a submit
 

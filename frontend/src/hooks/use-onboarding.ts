@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -57,9 +57,11 @@ export function useOnboardingTour(): OnboardingTourState {
   const { can, isLoading: permissionsLoading } = usePermissions();
   const t = useTranslations("onboarding");
   const tErrors = useTranslations("errors");
-  const { isOpen, index, mode, close, setIndex } = useOnboardingStore();
+  const { isOpen, index, mode, close, setIndex, systemAgentPage } = useOnboardingStore();
 
-  const path = stripLocale(pathname);
+  const improve = useSearchParams().get("improve");
+  const path =
+    stripLocale(pathname) + (improve === null ? "" : `?improve=${encodeURIComponent(improve)}`);
 
   // Freeze the page a "?" replay was opened on. Its walk steps into detail views
   // (the builder, a collection, an organization), and recomputing the step list
@@ -85,9 +87,9 @@ export function useOnboardingTour(): OnboardingTourState {
       permissionsLoading
         ? []
         : mode === "page"
-          ? stepsForPage(anchor ?? path, can)
+          ? stepsForPage(anchor ?? path, can, systemAgentPage)
           : visibleTourSteps(can),
-    [mode, anchor, path, can, permissionsLoading],
+    [mode, anchor, path, can, permissionsLoading, systemAgentPage],
   );
   const lastIndex = steps.length - 1;
   const clamped = Math.min(index, Math.max(lastIndex, 0));

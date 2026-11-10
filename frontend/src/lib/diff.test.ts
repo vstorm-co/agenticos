@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { collapseUnchanged, diffLines, diffStat, MAX_DIFF_LINES } from "./diff";
+import {
+  collapseUnchanged,
+  type DiffLine,
+  diffLines,
+  diffStat,
+  diffWords,
+  foldUnchanged,
+  locatePassage,
+  MAX_DIFF_LINES,
+} from "./diff";
 
 const text = (...lines: string[]) => lines.join("\n");
 
@@ -100,5 +109,87 @@ describe("collapseUnchanged", () => {
     const collapsed = collapseUnchanged(diffLines(text("a", "b"), text("a", "b")));
 
     expect(collapsed).toEqual([{ kind: "gap", hidden: 2 }]);
+  });
+});
+
+describe("diffWords", () => {
+  it("marks only the words that changed in a line, on each side", () => {
+    const { before, after } = diffWords(
+      "Answer outright and plainly.",
+      "Answer outright, briefly and plainly.",
+    );
+    expect(before.every((part) => !part.changed)).toBe(true);
+    expect(before.map((part) => part.text).join("")).toBe("Answer outright and plainly.");
+    expect(after.map((part) => part.text).join("")).toBe("Answer outright, briefly and plainly.");
+    expect(
+      after
+        .filter((part) => part.changed)
+        .map((part) => part.text)
+        .join("")
+        .trim(),
+    ).toMatch(/^,\s*briefly$/);
+  });
+
+  it("keeps words whole and marks removals and replacements", () => {
+    const { before, after } = diffWords("Refunds take 90 days", "Refunds take 30 days");
+    expect(before.filter((part) => part.changed)).toEqual([{ text: "90", changed: true }]);
+    expect(after.filter((part) => part.changed)).toEqual([{ text: "30", changed: true }]);
+    expect(diffWords("a b", "").before).toEqual([{ text: "a b", changed: true }]);
+    expect(diffWords("", "a").after).toEqual([{ text: "a", changed: true }]);
+  });
+
+  it("gives up on word marks past the size it can compare", () => {
+    const long = "x ".repeat(MAX_DIFF_LINES);
+    expect(diffWords(long, "y")).toEqual({
+      before: [{ text: long, changed: true }],
+      after: [{ text: "y", changed: true }],
+    });
+  });
+});
+
+describe("foldUnchanged", () => {
+  it("folds long unchanged stretches and keeps their lines", () => {
+    const lines = diffLines(
+      ["a", "b", "c", "d", "e", "f", "g", "h", "i"].join("\n"),
+      ["a", "b", "c", "d", "E", "f", "g", "h", "i"].join("\n"),
+    );
+    const folded = foldUnchanged(lines, 1);
+    expect(folded[0]).toEqual({ kind: "fold", lines: lines.slice(0, 3) });
+    expect(folded.at(-1)).toEqual({ kind: "fold", lines: lines.slice(7) });
+    expect(folded.slice(1, -1).map((line) => (line as DiffLine).text)).toEqual([
+      "d",
+      "e",
+      "E",
+      "f",
+    ]);
+  });
+});
+
+it("ends without a fold when the last line changed", () => {
+  const folded = foldUnchanged(diffLines("a\nb", "a\nB"), 0);
+  expect(folded.at(-1)).toMatchObject({ kind: "added", text: "B" });
+});
+
+describe("locatePassage", () => {
+  const passage = (old_text: string, context_before = "", context_after = "") => ({
+    old_text,
+    context_before,
+    context_after,
+  });
+
+  it("finds the one occurrence its surroundings match, or the only one there is", () => {
+    expect(
+      locatePassage("Be kind. Be brief. Be kind.", passage("Be kind.", "Be brief. ", "")),
+    ).toBe(19);
+    expect(locatePassage("Hello there", passage("there", "Hi "))).toBe(6);
+    expect(locatePassage("Be kind. Be kind.", passage("Be kind.", "x", "y"))).toBeNull();
+    expect(locatePassage("Nothing here", passage("missing"))).toBeNull();
+    expect(locatePassage("Start", passage("Start"))).toBe(0);
+  });
+
+  it("places an insertion after its surroundings", () => {
+    expect(locatePassage("Intro. Rules.", passage("", "Intro. ", "Rules."))).toBe(7);
+    expect(locatePassage("Rules.", passage("", "", "Rules."))).toBe(0);
+    expect(locatePassage("A.x A.x", passage("", "A.", "x"))).toBeNull();
   });
 });

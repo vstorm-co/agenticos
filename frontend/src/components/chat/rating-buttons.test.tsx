@@ -1,16 +1,23 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
+import type { AskedBefore } from "@/components/datasets/follows-on";
 import { RatingButtons } from "./rating-buttons";
 import { RatingValue, type UserRating } from "@/types";
 import { ApiError } from "@/lib/api-error";
+import { Perm } from "@/types/permissions";
 
 vi.mock("next-intl", async () => ({
   useTranslations: (await import("@/test-utils/intl")).keyTranslations(),
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+const push = vi.hoisted(() => vi.fn());
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push }),
+  useSearchParams: () => new URLSearchParams(),
+}));
 
 const rateMessage =
   vi.fn<(body: { rating: RatingValue; comment: string | null }) => Promise<unknown>>();
@@ -19,16 +26,51 @@ vi.mock("@/hooks/use-message-rating", () => ({
   useMessageRating: () => ({ rateMessage, removeRating }),
 }));
 
+const datasets = vi.hoisted(() => ({
+  granted: [] as string[],
+  add: vi.fn(),
+  list: [] as { id: string; name: string; can_edit: boolean }[],
+}));
+const EDITABLE = [
+  { id: "d1", name: "refunds", can_edit: true },
+  { id: "d2", name: "returns", can_edit: true },
+];
+vi.mock("@/hooks/use-permissions", () => ({
+  usePermissions: () => ({ can: (perm: string) => datasets.granted.includes(perm) }),
+}));
+vi.mock("@/hooks/use-datasets", () => ({
+  useDatasetSource: () => ({
+    data: { private_to_other: false, owner_name: null },
+    isLoading: false,
+    error: null,
+  }),
+  // The server's `editable` filter, as the listing applies it.
+  useDatasets: (query: { editable?: boolean }) => {
+    const rows = query.editable
+      ? datasets.list.filter((dataset) => dataset.can_edit)
+      : datasets.list;
+    return {
+      datasets: rows,
+      total: rows.length,
+      isLoading: false,
+      create: { mutateAsync: vi.fn(), isPending: false },
+    };
+  },
+  useAddToDataset: () => ({ mutateAsync: datasets.add, isPending: false }),
+}));
+
 function mount({
   currentRating = null as UserRating,
   ratingCount,
   conversationId = "c-1",
   isAssistant = true,
+  asked,
 }: {
   currentRating?: UserRating;
   ratingCount?: { likes: number; dislikes: number };
   conversationId?: string;
   isAssistant?: boolean;
+  asked?: AskedBefore;
 } = {}) {
   const onRatingChange = vi.fn();
   const { unmount } = render(
@@ -39,6 +81,7 @@ function mount({
       ratingCount={ratingCount}
       onRatingChange={onRatingChange}
       isAssistant={isAssistant}
+      asked={asked}
     />,
   );
   return Object.assign(onRatingChange, { unmount });
@@ -49,6 +92,9 @@ const down = () => screen.getByTitle("notHelpful");
 
 beforeEach(() => {
   vi.clearAllMocks();
+  localStorage.clear();
+  datasets.granted = [];
+  datasets.add.mockResolvedValue({});
   rateMessage.mockResolvedValue({});
   removeRating.mockResolvedValue({});
 });
@@ -374,5 +420,220 @@ describe("a refusal the proxy minted", () => {
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("backendUnavailable"));
     expect(toast.error).not.toHaveBeenCalledWith("Backend unavailable");
+  });
+});
+
+/**
+ * Adding the answer to a dataset from the rate-down dialog: a second, separate
+ * write after the rating, offered only to somebody who edits a dataset.
+ */
+/** The action a toast offered, as sonner was handed it. */
+function toastAction(call: number): { label: string; onClick: () => void } {
+  const options = vi.mocked(toast.success).mock.calls[call]?.[1];
+  return (options as unknown as { action: { label: string; onClick: () => void } }).action;
+}
+
+describe("adding a rated-down answer to a dataset", () => {
+  const alsoAdd = () => screen.getByRole("checkbox", { name: "alsoAddToDataset" });
+
+  beforeEach(() => {
+    datasets.granted = [Perm.datasetsEdit];
+    datasets.list = EDITABLE;
+  });
+
+  it("is offered to a member whose role edits no dataset but a grant edits one", async () => {
+    datasets.granted = [Perm.datasetsView];
+    mount();
+    await userEvent.click(down());
+    expect(alsoAdd()).toBeInTheDocument();
+  });
+
+  it("is not offered to somebody who edits no dataset", async () => {
+    datasets.granted = [Perm.datasetsView];
+    datasets.list = [{ id: "d3", name: "theirs", can_edit: false }];
+    mount();
+    await userEvent.click(down());
+    expect(screen.queryByRole("checkbox", { name: "alsoAddToDataset" })).toBeNull();
+  });
+
+  it("adds nothing unless asked to", async () => {
+    mount();
+    await userEvent.click(down());
+    await userEvent.click(screen.getByRole("button", { name: "submit" }));
+    await waitFor(() => expect(rateMessage).toHaveBeenCalled());
+    expect(datasets.add).not.toHaveBeenCalled();
+  });
+
+  it("rates first, then adds the answer as a counter-example to the dataset chosen", async () => {
+    const order: string[] = [];
+    rateMessage.mockImplementation(async () => order.push("rate"));
+    datasets.add.mockImplementation(async () => order.push("add"));
+    mount();
+    await userEvent.click(down());
+    expect(screen.getByText("alsoAddAsCounterExample")).toBeInTheDocument();
+    await userEvent.click(alsoAdd());
+    await userEvent.click(screen.getByRole("combobox", { name: "dataset" }));
+    await userEvent.click(screen.getByRole("option", { name: "returns" }));
+    await userEvent.type(screen.getByPlaceholderText("describeIssue"), "Wrong window");
+    await userEvent.click(screen.getByRole("button", { name: "submit" }));
+
+    await waitFor(() =>
+      expect(datasets.add).toHaveBeenCalledWith({
+        datasetId: "d2",
+        messageId: "m-1",
+        answerAs: "counter_example",
+        withHistory: false,
+      }),
+    );
+    expect(order).toEqual(["rate", "add"]);
+    expect(toast.success).toHaveBeenCalledWith("addedTo", {
+      action: { label: "openDataset", onClick: expect.any(Function) },
+    });
+    act(() => toastAction(1).onClick());
+    expect(push).toHaveBeenCalledWith("/datasets/d2?tab=cases");
+    await waitFor(() => expect(screen.queryByText("whatWentWrong")).toBeNull());
+  });
+
+  it("copies the conversation into a rated-down case only when asked to", async () => {
+    mount();
+    await userEvent.click(down());
+    await userEvent.click(alsoAdd());
+    await userEvent.click(screen.getByRole("combobox", { name: "dataset" }));
+    await userEvent.click(screen.getByRole("option", { name: "returns" }));
+    const history = screen.getByRole("combobox", { name: "historyChoice" });
+    expect(history).toHaveTextContent("historyAlone");
+    await userEvent.click(history);
+    await userEvent.click(screen.getByRole("option", { name: "historyWith" }));
+    await userEvent.click(screen.getByRole("button", { name: "skipComment" }));
+
+    await waitFor(() =>
+      expect(datasets.add).toHaveBeenCalledWith(expect.objectContaining({ withHistory: true })),
+    );
+  });
+
+  it("asks nothing about a conversation the question did not have", async () => {
+    mount({ asked: { question: "And to Toronto?", earlier: false } });
+    await userEvent.click(down());
+    await userEvent.click(alsoAdd());
+
+    expect(screen.queryByRole("combobox", { name: "historyChoice" })).toBeNull();
+  });
+
+  it("points out a follow-up in the thumbs-down dialog without choosing it", async () => {
+    mount({ asked: { question: "And to Toronto?", earlier: true } });
+    await userEvent.click(down());
+    await userEvent.click(alsoAdd());
+
+    expect(screen.getByRole("combobox", { name: "historyChoice" })).toHaveTextContent(
+      "historyAlone",
+    );
+    expect(screen.getByText("historyFollowUp")).toBeInTheDocument();
+  });
+
+  it("points out a follow-up in the thumbs-up dialog too", async () => {
+    mount({ asked: { question: "And to Toronto?", earlier: true } });
+    await userEvent.click(up());
+    await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    act(() => toastAction(0).onClick());
+
+    expect(screen.getByRole("combobox", { name: "historyChoice" })).toHaveTextContent(
+      "historyAlone",
+    );
+    expect(screen.getByText("historyFollowUp")).toBeInTheDocument();
+  });
+
+  it("keeps the rating when the add is refused, and says which half failed", async () => {
+    datasets.add.mockRejectedValue(new Error("Dataset not found"));
+    const onRatingChange = mount();
+    await userEvent.click(down());
+    await userEvent.click(alsoAdd());
+    await userEvent.click(screen.getByRole("button", { name: "skipComment" }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("addAfterRatingFailed"));
+    expect(onRatingChange).toHaveBeenCalledWith(
+      expect.objectContaining({ rating: RatingValue.DISLIKE }),
+    );
+    expect(toast.success).toHaveBeenCalledWith("thankYouFeedback");
+  });
+
+  it("points at creating a dataset when there is none to add to, and adds nothing", async () => {
+    const all = datasets.list;
+    datasets.list = [{ id: "d3", name: "theirs", can_edit: false }];
+    try {
+      mount();
+      await userEvent.click(down());
+      await userEvent.click(alsoAdd());
+      expect(screen.getByText("noDatasetToAddTo")).toBeInTheDocument();
+      await userEvent.click(screen.getByRole("button", { name: "submit" }));
+      await waitFor(() => expect(rateMessage).toHaveBeenCalled());
+      expect(datasets.add).not.toHaveBeenCalled();
+    } finally {
+      datasets.list = all;
+    }
+  });
+
+  it("offers a thumbs-up answer as a reference through the toast, without asking what to keep it as", async () => {
+    mount();
+    await userEvent.click(up());
+    await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    expect(vi.mocked(toast.success).mock.calls[0]![0]).toBe("thankYouFeedback");
+    const action = toastAction(0);
+    expect(action.label).toBe("addToDataset");
+    expect(vi.mocked(toast.success).mock.calls[0]![1]).toEqual(
+      expect.objectContaining({ duration: 10_000 }),
+    );
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    act(() => action.onClick());
+    expect(screen.getByText("addAsReferenceBody")).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "keepAnswerAs" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "add" }));
+    await waitFor(() =>
+      expect(datasets.add).toHaveBeenCalledWith({
+        datasetId: "d1",
+        messageId: "m-1",
+        answerAs: "reference_answer",
+        withHistory: false,
+      }),
+    );
+    await waitFor(() => expect(screen.queryByText("addAsReferenceBody")).toBeNull());
+  });
+
+  it("starts the next add from the dataset added to last", async () => {
+    mount();
+    await userEvent.click(down());
+    await userEvent.click(alsoAdd());
+    await userEvent.click(screen.getByRole("combobox", { name: "dataset" }));
+    await userEvent.click(screen.getByRole("option", { name: "returns" }));
+    await userEvent.click(screen.getByRole("button", { name: "skipComment" }));
+    await waitFor(() => expect(datasets.add).toHaveBeenCalledTimes(1));
+
+    await userEvent.click(up());
+    await waitFor(() => expect(toast.success).toHaveBeenCalledTimes(3));
+    act(() => toastAction(2).onClick());
+    await userEvent.click(screen.getByRole("button", { name: "add" }));
+    await waitFor(() =>
+      expect(datasets.add).toHaveBeenLastCalledWith(expect.objectContaining({ datasetId: "d2" })),
+    );
+  });
+
+  it("offers no add on a thumbs-up to somebody who edits no dataset", async () => {
+    datasets.granted = [];
+    datasets.list = [];
+    mount();
+    await userEvent.click(up());
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("thankYouFeedback"));
+    expect(vi.mocked(toast.success).mock.calls[0]).toHaveLength(1);
+  });
+
+  it("adds nothing when the rating itself is refused", async () => {
+    rateMessage.mockRejectedValue(new Error("down"));
+    mount();
+    await userEvent.click(down());
+    await userEvent.click(alsoAdd());
+    await userEvent.click(screen.getByRole("button", { name: "submit" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(datasets.add).not.toHaveBeenCalled();
+    expect(screen.getByText("whatWentWrong")).toBeInTheDocument();
   });
 });

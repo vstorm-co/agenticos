@@ -28,6 +28,7 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
   usePathname: () => "/agents",
+  useSearchParams: () => new URLSearchParams(),
 }));
 const rig = vi.hoisted(() => ({ can: (_permission: Permission): boolean => true }));
 vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: rig.can }) }));

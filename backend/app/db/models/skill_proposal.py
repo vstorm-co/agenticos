@@ -24,7 +24,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
-from sqlalchemy import DateTime, ForeignKey, Index, String, Text
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -105,6 +105,8 @@ class SkillProposal(Base, TimestampMixin):
     Writing them there would make a proposal indistinguishable from an applied
     change for every reader that joins on `skill_id`.
     """
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    """Raised each time a new run rewrites the pending proposal; a decision names it."""
 
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default=ProposalStatus.PENDING.value, index=True
@@ -122,6 +124,28 @@ class SkillProposal(Base, TimestampMixin):
         nullable=True,
     )
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    base_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    """The skill version the body was written against, for a proposal that records one.
+
+    Apply refuses once the skill has moved past it: a body reviewed against v3
+    must not silently replace a v4 somebody wrote meanwhile. A workspace change
+    records the version its run was given. `None` for a new skill, and for a
+    workspace change recorded before that, which is refused once the skill was
+    edited after it was proposed.
+    """
+
+    rationale: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    evidence: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False, default=list)
+    """Checked against the runs the proposal was derived from; see `spec_proposal_hunks`."""
+
+    evidence_dropped: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    expected_effect: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    authoring_request_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("authoring_requests.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
     def __repr__(self) -> str:
         return f"<SkillProposal(name={self.name}, status={self.status})>"
