@@ -1,7 +1,7 @@
 ---
 title: "Evaluación de recuperación"
 description: "Un conjunto de preguntas sobre la documentación con respuestas conocidas, y el harness que mide la recuperación por categoría, top_k y expansión."
-source_sha: "730864470244"
+source_sha: "626bc5942dc1"
 ---
 
 # Evaluación de recuperación { #retrieval-evaluation }
@@ -254,7 +254,8 @@ Las dos preguntas sobre SAML recuperan y citan la página de directorio y respon
 que SAML directo no se admite y Keycloak sirve de puente, en las seis
 configuraciones. `10/hyde` alcanza una página esperada para las 34 preguntas,
 incluidos los diez casos entre idiomas, y supera 30/34 comprobaciones de hechos.
-`10/off` alcanza 33/34 páginas y supera 29/34 comprobaciones sin ampliar consultas.
+`10/off` alcanza una página esperada para 33/34 preguntas y supera 29/34
+comprobaciones sin ampliar consultas.
 
 Para agentes de documentación con este corpus, elige `default_top_k: 10` con
 `query_analysis_mode: hyde` cuando la cobertura tenga prioridad. Usa `off` para

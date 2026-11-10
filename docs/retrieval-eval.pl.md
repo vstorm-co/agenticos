@@ -1,7 +1,7 @@
 ---
 title: Ewaluacja wyszukiwania
 description: Zestaw pytań o znanych odpowiedziach do dokumentacji AgenticOS i harness mierzący na nim wyszukiwanie wiedzy według kategorii, top_k i rozszerzania zapytań.
-source_sha: "730864470244"
+source_sha: "626bc5942dc1"
 ---
 
 # Ewaluacja wyszukiwania { #retrieval-evaluation }
@@ -245,7 +245,8 @@ Oba pytania o SAML we wszystkich sześciu konfiguracjach znajdują i cytują str
 o logowaniu katalogowym oraz odpowiadają, że bezpośredni SAML nie jest obsługiwany,
 a pośrednikiem jest Keycloak. `10/hyde` dociera do oczekiwanej strony dla wszystkich
 34 pytań, w tym dziesięciu międzyjęzykowych, i zalicza 30/34 kontrole faktów.
-`10/off` dociera do 33/34 stron i zalicza 29/34 kontroli bez rozwijania zapytań.
+`10/off` dociera do oczekiwanej strony dla 33/34 pytań i zalicza 29/34 kontroli
+bez rozwijania zapytań.
 
 Dla agenta dokumentacji na tym korpusie wybierz `default_top_k: 10` oraz
 `query_analysis_mode: hyde`, gdy priorytetem jest pokrycie. Użyj `off`, aby uniknąć

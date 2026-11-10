@@ -1,7 +1,7 @@
 ---
 title: Retrieval-Evaluierung
 description: Ein Fragenkatalog mit bekannten Antworten über die AgenticOS-Doku und ein Harness, der das Retrieval darauf misst, nach Kategorie, top_k und Abfrageerweiterung.
-source_sha: "730864470244"
+source_sha: "626bc5942dc1"
 ---
 
 # Retrieval-Evaluierung { #retrieval-evaluation }
@@ -256,8 +256,8 @@ Beide SAML-Fragen finden und zitieren in allen sechs Konfigurationen die
 Verzeichnisseite und antworten: Direkter SAML-Zugriff wird nicht unterstützt,
 Keycloak dient als Brücke. `10/hyde` erreicht für alle 34 Fragen eine erwartete
 Seite, einschließlich aller zehn sprachübergreifenden Fälle, und besteht 30/34
-Faktenprüfungen. `10/off` erreicht 33/34 Seiten und besteht 29/34 Prüfungen ohne
-Abfrageerweiterung.
+Faktenprüfungen. `10/off` erreicht für 33/34 Fragen eine erwartete Seite und
+besteht 29/34 Prüfungen ohne Abfrageerweiterung.
 
 Für Dokumentationsagenten auf diesem Stand wähle `default_top_k: 10` mit
 `query_analysis_mode: hyde`, wenn Abdeckung Vorrang hat. Nutze `off`, um zusätzliche

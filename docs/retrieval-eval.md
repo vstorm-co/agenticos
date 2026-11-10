@@ -239,8 +239,8 @@ Original answer-check totals remain alongside the revised totals.
 Both SAML questions retrieve and cite the directory page and answer that direct
 SAML is unsupported, with Keycloak as the bridge, in all six configurations.
 `10/hyde` reaches an expected page for all 34 questions, including all ten
-cross-language cases, and passes 30/34 fact checks. `10/off` reaches 33/34 pages
-and passes 29/34 fact checks without expansion calls.
+cross-language cases, and passes 30/34 fact checks. `10/off` reaches an expected
+page for 33/34 questions and passes 29/34 fact checks without expansion calls.
 
 For documentation agents on this snapshot, choose `default_top_k: 10` with
 `query_analysis_mode: hyde` when coverage takes priority. Use `off` to avoid
