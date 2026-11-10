@@ -1,5 +1,5 @@
 ---
-source_sha: "a41c7a2c6e87"
+source_sha: "652d4a7ff630"
 ---
 
 # Despliega en un servidor { #deploy-to-a-server }
@@ -657,6 +657,45 @@ herramientas.
 No es un despliegue sin interrupción. Compose recrea los contenedores cuya imagen
 ha cambiado, así que el sitio no está disponible durante los pocos segundos que
 eso lleva.
+
+### Retención de imágenes de versiones { #release-image-retention }
+
+Antes de descargar, el script elimina imágenes antiguas y sin uso únicamente de
+`ghcr.io/vstorm-co/agenticos-backend`, `agenticos-frontend` y `agenticos-browser`.
+Conserva dos identificadores adicionales de imágenes sin uso por repositorio,
+empezando por los más recientes. Varias etiquetas SHA o de versión del mismo ID
+cuentan como una imagen. Solo son elegibles las etiquetas `sha-<hex>` y las
+versiones numéricas. Todos los alias de un ID eliminable se retiran juntos,
+sin `--force`.
+
+Cada contenedor del host, en ejecución o detenido, protege su imagen, incluidos
+otros proyectos Compose. La imagen de destino, cualquier etiqueta mutable o
+manual y las etiquetas o digests de otro repositorio también protegen todo el
+ID. Las imágenes de sandbox y entornos de ejecución, las imágenes sin etiqueta
+y los volúmenes de la aplicación quedan fuera de esta limpieza. Estas
+protecciones pueden conservar más imágenes que el cupo de imágenes sin uso.
+
+El hash del directorio de despliegue separa los marcadores de varios despliegues
+en el mismo host. Las etiquetas locales `deploy-<stack-hash>-current` y `deploy-<stack-hash>-rollback` conservan la última
+imagen sana de cada componente y su predecesora tras reemplazar los contenedores.
+En el primer uso, `deploy-<stack-hash>-current` se obtiene de los contenedores sanos de este
+despliegue, no del checkout; varios ID sanos para un mismo componente rechazan
+el despliegue. Las referencias avanzan solo después de superar las comprobaciones
+de salud de los nuevos servicios. Los despliegues fallidos conservan las
+referencias y repetir la misma imagen no sustituye su rollback. Las reversiones
+siguen usando un SHA de commit aprobado; estas etiquetas locales son marcadores
+de retención, no versiones del registro.
+
+El script exige al menos **5 GiB libres** en el sistema de archivos del almacén
+Docker antes de cada descarga y después de preparar los entornos opcionales.
+Comprueba `DockerRootDir` y el almacén predeterminado `/var/lib/containerd` cuando
+existe. Es un umbral mínimo, no una reserva ni una estimación del tamaño de las
+imágenes; los almacenes containerd personalizados requieren supervisión aparte.
+Las imágenes del backend y frontend se descargan antes de reiniciar cualquiera
+de los servicios. Si falta espacio, el rechazo indica el sistema de archivos y
+la capacidad disponible: libera espacio fuera de las protecciones o amplía el
+almacenamiento y repite el despliegue aprobado. No implementes esta política
+mediante un `docker image prune -a` global.
 
 ### Desde GitHub, con una aprobación { #from-github-with-an-approval }
 

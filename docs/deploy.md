@@ -620,6 +620,41 @@ built, on a host that never needs the toolchain.
 It is not zero-downtime. Compose recreates the containers whose image changed, so
 the site is unavailable for the few seconds that takes.
 
+### Release image retention
+
+Before pulling, the script removes old, unused release images from only
+`ghcr.io/vstorm-co/agenticos-backend`, `agenticos-frontend` and `agenticos-browser`.
+It keeps two additional unused image IDs per repository, newest first; several
+SHA or version tags on one ID count as one image. Only `sha-<hex>` and numeric
+version tags are eligible. All aliases of a removable ID are removed together,
+without `--force`.
+
+Every running or stopped container on the host protects its image, including
+other Compose projects. A target image, any mutable/manual tag, or a tag or
+digest in another repository also protects the entire ID. Sandbox/runtime
+images, dangling images and application volumes are outside this cleanup.
+These protections can keep more images than the unused-image allowance.
+
+The hash of the deployment directory separates pins for stacks sharing a host.
+Local `deploy-<stack-hash>-current` and `deploy-<stack-hash>-rollback` tags preserve each component's last
+healthy image and its predecessor after containers are replaced. On first use,
+`deploy-<stack-hash>-current` is seeded from this stack's healthy containers, not the checkout;
+inconsistent healthy image IDs refuse the deploy. Pins advance only after the
+new services pass health checks. Failed deploys retain the recorded pins, and
+redeploying the same image does not replace its rollback. Continue to roll back
+by an approved commit SHA; these local tags are retention markers, not registry
+releases.
+
+The script requires at least **5 GiB free** on Docker's storage filesystem before
+each pull and after optional runtime preparation. It checks `DockerRootDir` and
+the default `/var/lib/containerd` store when present. This is a capacity floor,
+not a reservation or an image-size estimate; monitor custom containerd stores
+separately. Both backend and frontend images are pulled before either service
+is restarted. An insufficient-capacity refusal reports the filesystem and
+available space: free space outside the protections or expand storage, then
+retry the approved deployment. Never use a blanket `docker image prune -a` to
+implement this policy.
+
 ### From GitHub, with an approval
 
 `.github/workflows/deploy.yml` offers each published stable release for deployment and

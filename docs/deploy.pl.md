@@ -1,5 +1,5 @@
 ---
-source_sha: "a41c7a2c6e87"
+source_sha: "652d4a7ff630"
 ---
 
 # Wdrożenie na serwer { #deploy-to-a-server }
@@ -629,6 +629,43 @@ działa, jest bajt w bajt to, co zbudowało CI, na hoście, który nigdy nie pot
 
 To nie jest wdrożenie bez przestoju. Compose odtwarza kontenery, których obraz się
 zmienił, więc witryna jest niedostępna przez te kilka sekund, które to zajmuje.
+
+### Retencja obrazów wydań { #release-image-retention }
+
+Przed pobraniem skrypt usuwa stare, nieużywane obrazy wydań wyłącznie z
+`ghcr.io/vstorm-co/agenticos-backend`, `agenticos-frontend` i `agenticos-browser`.
+Zachowuje dwa dodatkowe nieużywane identyfikatory obrazów na repozytorium, od
+najnowszych. Wiele tagów SHA lub wersji jednego ID liczy się jako jeden obraz.
+Usuwane mogą być wyłącznie tagi `sha-<hex>` i numery wersji. Wszystkie aliasy
+usuwanego ID znikają razem, bez `--force`.
+
+Każdy działający lub zatrzymany kontener na hoście chroni swój obraz, także w
+innym projekcie Compose. Obraz docelowy, dowolny tag zmienny lub ręczny oraz tag
+lub digest w innym repozytorium również chronią całe ID. Obrazy sandboxów i
+środowisk wykonawczych, obrazy bez tagów oraz wolumeny aplikacji pozostają poza
+sprzątaniem. Te zabezpieczenia mogą zachować więcej obrazów niż limit obrazów
+nieużywanych.
+
+Skrót katalogu wdrożenia rozdziela przypięcia stosów na wspólnym hoście.
+Lokalne tagi `deploy-<stack-hash>-current` i `deploy-<stack-hash>-rollback` zachowują ostatni zdrowy obraz
+każdego komponentu i jego poprzednika po wymianie kontenerów. Przy pierwszym
+uruchomieniu `deploy-<stack-hash>-current` powstaje ze zdrowych kontenerów tego stosu, nie z
+checkoutu; różne zdrowe ID tego samego komponentu zatrzymują wdrożenie. Przypięcia
+zmieniają się dopiero po pomyślnych testach zdrowia nowych usług. Nieudane
+wdrożenia zachowują zapisane przypięcia, a ponowne wdrożenie tego samego obrazu
+nie zastępuje jego rollbacku. Cofanie nadal wymaga zatwierdzonego SHA commita;
+te lokalne tagi są znacznikami retencji, nie wydaniami w rejestrze.
+
+Skrypt wymaga co najmniej **5 GiB wolnego miejsca** na systemie plików magazynu
+Dockera przed każdym pobraniem i po opcjonalnym przygotowaniu środowisk
+wykonawczych. Sprawdza `DockerRootDir` oraz domyślny magazyn
+`/var/lib/containerd`, jeżeli istnieje. To minimalny próg pojemności, nie
+rezerwacja ani oszacowanie wielkości obrazów; niestandardowe magazyny containerd
+monitoruj osobno. Obrazy backendu i frontendu są pobierane przed restartem
+którejkolwiek usługi. Odmowa z powodu braku miejsca podaje system plików i
+dostępną pojemność: zwolnij miejsce poza chronionymi zasobami lub powiększ
+magazyn, a następnie ponów zatwierdzone wdrożenie. Nie realizuj tej polityki
+przez globalne `docker image prune -a`.
 
 ### Z GitHuba, z zatwierdzeniem { #from-github-with-an-approval }
 
