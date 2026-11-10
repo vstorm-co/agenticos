@@ -1,5 +1,5 @@
 ---
-source_sha: "d51f3d160727"
+source_sha: "6fe337d8220c"
 ---
 
 # Workflows { #workflows }
@@ -379,9 +379,10 @@ das er dann weitergibt. Alle drei werden im Graphen gespeichert, sodass Versione
 behalten.
 
 Ein abgeschalteter Schritt ganz ohne Verbindung ist beiseitegestellt: Er kann neben dem
-Workflow stehen - etwa ein **Combine lists** mit Testdaten -, ohne vom Trigger
-erreichbar zu sein oder gebundene Eingaben zu haben, und ein Lauf übergeht ihn. Wird er
-mit irgendetwas verbunden, gilt beides wieder für ihn.
+Workflow oder in einer Schleife stehen - etwa ein **Combine lists** mit Testdaten -,
+ohne erreichbar zu sein oder gebundene Eingaben zu haben. Ein Run übergeht ihn, und er
+zählt nicht zum Schrittlimit des Runs. Wird er mit irgendetwas verbunden, gilt beides
+wieder für ihn.
 
 ### Die Daten eines Schritts, Testdaten und einen Schritt testen { #a-steps-data-pinning-and-testing-one-step }
 

@@ -1709,8 +1709,10 @@ def _body_reachability_problems(graph: WorkflowGraph, item: UUID, direct: list[U
 
     The body's counterpart of rule 2: nothing wires a body to its loop, so a step
     the item never leads to would never run in any iteration. A nested loop is one
-    step here; its own body is checked on its own.
+    step here; its own body is checked on its own. A step `set_aside` is not asked
+    to be reached, as at the top level.
     """
+    parked = set_aside(graph)
     members = set(direct)
     adjacency = _forward_edges(graph)
     seen: set[UUID] = set()
@@ -1728,7 +1730,7 @@ def _body_reachability_problems(graph: WorkflowGraph, item: UUID, direct: list[U
     return [
         (f"nodes.{node_id}", "This step is not reachable from its loop's item step")
         for node_id in direct
-        if node_id not in seen
+        if node_id not in seen and node_id not in parked
     ]
 
 

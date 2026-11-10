@@ -25,7 +25,8 @@ Two things are versioned separately from this file and worth knowing about:
   Publishing refused it as not reachable from the trigger and, for a step with
   required inputs, as unbound, so a step could only be put aside by deleting it.
   A step that is off with no connection at all is now set aside: the editor and
-  the server skip both checks for it, and a run finishes without it. A step that
+  the server skip both checks for it, at the top level and inside a loop, and a
+  run finishes without it and does not count it towards its step limit. A step that
   is off but still connected is checked as before, and nothing may read a step
   set aside.
 - **Password sign-ins no longer prompt everyone to check invitations.** The

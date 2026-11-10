@@ -649,6 +649,7 @@ export function loopBodyProblems(
     }
   }
   const adjacency = forwardEdges(graph);
+  const parked = setAside(graph);
   for (const loop of graph.nodes) {
     if (loop.definition_id !== "control.foreach") continue;
     const direct = graph.nodes.filter((n) => nodeScope.get(n.id) === loop.id);
@@ -667,7 +668,7 @@ export function loopBodyProblems(
       }
     }
     for (const n of direct) {
-      if (!seen.has(n.id)) problems.push(node(n.id, "loop-body-unreachable"));
+      if (!seen.has(n.id) && !parked.has(n.id)) problems.push(node(n.id, "loop-body-unreachable"));
     }
   }
   return problems;

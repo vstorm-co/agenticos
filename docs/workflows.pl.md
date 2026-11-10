@@ -1,5 +1,5 @@
 ---
-source_sha: "d51f3d160727"
+source_sha: "6fe337d8220c"
 ---
 
 # Workflows { #workflows }
@@ -353,10 +353,10 @@ niego dociera - jedynym połączeniem wejściowym, od kroku włączonego - ma cz
 które wtedy przekazuje dalej. Wszystkie trzy są zapisywane w grafie, więc wersje je
 zachowują.
 
-Wyłączony krok bez żadnego połączenia jest odstawiony: może stać obok workflow - na
-przykład **Combine lists** z danymi testowymi - bez osiągalności z triggera i bez
-podpiętych wejść, a przebieg go pomija. Gdy połączysz go z czymkolwiek, oba wymogi
-znowu go dotyczą.
+Wyłączony krok bez żadnego połączenia jest odstawiony: może stać obok workflow albo
+wewnątrz pętli - na przykład **Combine lists** z danymi testowymi - bez osiągalności i
+bez podpiętych wejść. Przebieg go pomija i nie wlicza go do limitu kroków runu. Gdy
+połączysz go z czymkolwiek, oba wymogi znowu go dotyczą.
 
 ### Dane kroku, dane testowe i testowanie jednego kroku { #a-steps-data-pinning-and-testing-one-step }
 

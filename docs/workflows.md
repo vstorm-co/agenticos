@@ -345,9 +345,9 @@ along its one incoming connection, from a step that is on - has the field read,
 which it then hands on. All three are saved in the graph, so versions keep them.
 
 A step that is off with no connection at all is set aside: it can sit beside the
-workflow - a **Combine lists** holding test data, say - without being reachable from
-the trigger or having its inputs bound, and a run ignores it. Connect it to anything
-and both are asked of it again.
+workflow or inside a loop - a **Combine lists** holding test data, say - without
+being reachable or having its inputs bound. A run ignores it, and it does not count
+towards the run's step limit. Connect it to anything and both are asked of it again.
 
 ### A step's data, test data and testing one step { #a-steps-data-pinning-and-testing-one-step }
 

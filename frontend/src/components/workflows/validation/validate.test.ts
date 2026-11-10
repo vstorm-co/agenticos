@@ -971,6 +971,23 @@ describe("drift parity — graphs the backend refuses", () => {
     ]);
   });
 
+  it("a body step switched off with no edge is set aside, not unreachable", () => {
+    const g = graph({
+      entry: "entry",
+      nodes: [
+        echo("entry"),
+        node("loop", "control.foreach"),
+        { ...node("item", "loop.item"), scope_id: "loop" },
+        { ...node("x", "test.consumer_noreq"), scope_id: "loop" },
+        { ...node("parked", "test.consumer"), scope_id: "loop", disabled: true },
+      ],
+      edges: [edge("e1", "entry", "out", "loop", "in"), edge("e2", "item", "out", "x", "in")],
+    });
+    const codes = codesOf(run(g));
+    expect(codes).not.toContain("loop-body-unreachable");
+    expect(codes).not.toContain("input-not-bound");
+  });
+
   it("rule 8 — a non-control node sending through two ports", () => {
     const g = graph({
       entry: "entry",

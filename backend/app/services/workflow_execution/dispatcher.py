@@ -2869,7 +2869,13 @@ async def _start_iteration(
         return []
     loop_id = loop_run.node_instance_id
     node_scope = node_scope_map(graph)
-    body = [node_id for node_id, owner in node_scope.items() if owner == loop_id]
+    # A step set aside never gets a row, so it takes nothing from the ceiling.
+    parked = set_aside(graph)
+    body = [
+        node_id
+        for node_id, owner in node_scope.items()
+        if owner == loop_id and node_id not in parked
+    ]
     existing = await workflow_run_repo.count_node_runs(db, workflow_run_id=run.id)
     limit = settings.WORKFLOW_RUN_MAX_NODE_RUNS
     if existing + len(body) > limit:

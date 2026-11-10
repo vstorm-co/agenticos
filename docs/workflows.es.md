@@ -1,5 +1,5 @@
 ---
-source_sha: "d51f3d160727"
+source_sha: "6fe337d8220c"
 ---
 
 # Workflows { #workflows }
@@ -363,10 +363,10 @@ paso que lee uno apagado, salvo que lo que le llega - por su única conexión de
 desde un paso encendido - tenga el campo leído, que entonces entrega. Los tres se guardan
 en el grafo, así que las versiones los conservan.
 
-Un paso apagado sin ninguna conexión queda apartado: puede estar junto al workflow - un
-**Combine lists** con datos de prueba, por ejemplo - sin ser alcanzable desde el trigger
-ni tener sus entradas vinculadas, y una ejecución lo ignora. Si lo conectas a algo,
-ambas cosas se le vuelven a exigir.
+Un paso apagado sin ninguna conexión queda apartado: puede estar junto al workflow o
+dentro de un bucle - un **Combine lists** con datos de prueba, por ejemplo - sin ser
+alcanzable ni tener sus entradas vinculadas. Un run lo ignora y no cuenta para el límite
+de pasos del run. Si lo conectas a algo, ambas cosas se le vuelven a exigir.
 
 ### Los datos de un paso, datos de prueba y probar un paso { #a-steps-data-pinning-and-testing-one-step }
 
