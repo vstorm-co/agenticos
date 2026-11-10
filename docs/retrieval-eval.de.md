@@ -1,7 +1,7 @@
 ---
 title: Retrieval-Evaluierung
 description: Ein Fragenkatalog mit bekannten Antworten über die AgenticOS-Doku und ein Harness, der das Retrieval darauf misst, nach Kategorie, top_k und Abfrageerweiterung.
-source_sha: "626bc5942dc1"
+source_sha: "3ae4747b9b05"
 ---
 
 # Retrieval-Evaluierung { #retrieval-evaluation }
@@ -110,6 +110,14 @@ zustande kam: wann er begann, einen SHA-256 des Fragensatzes, das
 Embedding-Modell und seine Dimension, die Chunk-Einstellungen und Parser sowie
 den Digest, den die Collection-Namen tragen.
 
+`corpus` hält außerdem Seitenzahl und Quell-Fingerprint je Sprache fest,
+aufgenommen vor dem Indexieren. `corpus_fingerprint_algorithm` lautet
+`sha256-path-content-v1`: SHA-256 über kompaktes UTF-8-JSON (`ensure_ascii=False`)
+mit sortierten Paaren `[relativer POSIX-Pfad, SHA-256(Quellbytes)]`. Absolute
+Checkout-Pfade bleiben außen vor. So lassen sich geänderte Quellseiten bei
+gleichen Fragen und Ingestion-Einstellungen unterscheiden. Ändere den Checkout
+während eines Laufs nicht.
+
 ## Ausführen { #running-it }
 
 Ein Lauf braucht eine migrierte Datenbank mit pgvector (`make dev` liefert eine),
@@ -160,11 +168,17 @@ Harness liest diese Einstellungen aus keinen Umgebungsvariablen.
 Ein Fragensatz, den der Loader ablehnt, beendet den Lauf, bevor etwas indexiert
 wird, mit einer Meldung, die jede Frage und ihr Problem nennt.
 
-Der Bericht geht auf die Standardausgabe und der Fortschritt auf die
-Standardfehlerausgabe, sodass `> results.md` nur den Bericht behält. Der Harness
-bricht vor dem Messen ab, wenn eine Seite nicht indexiert werden kann, und ein
-abgebrochener Lauf verwirft, was er indexiert hat, weil ein Korpus mit Lücken die
-Lücken misst.
+Der Bericht geht an die Standardausgabe, der Fortschritt an die Fehlerausgabe;
+`> results.md` bewahrt daher nur den Bericht. Die erste Seite, deren Indexierung
+fehlschlägt, stoppt den Lauf sofort und löscht die unvollständige Collection,
+ohne weitere Seiten zu versuchen. Auch eine unterbrochene Collection wird
+gelöscht: Ein Korpus mit Lücken misst die Lücken.
+
+Das Ziel von `--json` wird vor dem Indexieren oder kostenpflichtigen Aufrufen
+geprüft. Das Elternverzeichnis muss bereits existieren, die Datei muss
+beschreibbar sein. Die Prüfung erstellt eine neue Datei leer; ein vorhandener
+Bericht bleibt bei fehlgeschlagener Auswertung erhalten. Eine erfolgreiche
+Auswertung ersetzt die Datei durch den vollständigen JSON-Bericht.
 
 ### Ohne bezahlten Schlüssel { #without-a-paid-key }
 

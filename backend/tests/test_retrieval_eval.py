@@ -10,6 +10,7 @@ Imported by path, the way `test_loadtest_harness.py` reaches `loadtest/`.
 
 import hashlib
 import importlib.util
+import json
 import subprocess
 import sys
 from contextlib import asynccontextmanager
@@ -800,6 +801,18 @@ class TestIndexing:
 
         assert store.held == {}
 
+    async def test_the_first_failed_page_stops_further_indexing(self, tmp_path: Path) -> None:
+        store = _Store()
+        ingestion = _Ingestion(store, fail="a.md")
+
+        with pytest.raises(SystemExit, match=r"a\.md: parser refused"):
+            await run.ingest(
+                store, ingestion, "c", _pages(tmp_path), docs_root=tmp_path, reingest=True
+            )
+
+        assert ingestion.source_paths == ["a.md"]
+        assert store.held == {} and store.dropped == 2
+
     def test_a_chunk_is_scored_by_its_page_key(self):
         result = SearchResult(
             content="No SAML.", score=0.9, metadata={"source_path": "directory.pl.md"}
@@ -1036,6 +1049,107 @@ class TestIngestionFlags:
         assert settings.embeddings_config.dim == 384
 
 
+class TestCorpusFingerprints:
+    def test_the_fingerprint_is_independent_of_checkout_and_file_order(
+        self, tmp_path: Path
+    ) -> None:
+        first = tmp_path / "first"
+        second = tmp_path / "second"
+        pages = _pages(first)
+        copy = list(reversed(_pages(second)))
+
+        assert run.corpus_fingerprint(pages, docs_root=first) == run.corpus_fingerprint(
+            copy, docs_root=second
+        )
+
+    @pytest.mark.parametrize("change", ["edit", "add", "remove", "rename"])
+    def test_the_fingerprint_identifies_a_changed_corpus(self, tmp_path: Path, change: str) -> None:
+        pages = _pages(tmp_path)
+        before = run.corpus_fingerprint(pages, docs_root=tmp_path)
+        if change == "edit":
+            pages[0].write_text("new contents", encoding="utf-8")
+        elif change == "add":
+            added = tmp_path / "new.md"
+            added.write_text("new page", encoding="utf-8")
+            pages.append(added)
+        elif change == "remove":
+            pages.pop().unlink()
+        else:
+            pages[0] = pages[0].rename(tmp_path / "renamed.md")
+
+        after = run.corpus_fingerprint(pages, docs_root=tmp_path)
+
+        assert after["sha256"] != before["sha256"]
+        assert after["pages"] == len(pages)
+
+
+class TestJsonDestination:
+    @pytest.mark.parametrize("kind", ["missing_parent", "directory", "empty", "file_parent"])
+    async def test_an_invalid_destination_stops_before_evaluation(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, kind: str
+    ) -> None:
+        parent_file = tmp_path / "parent"
+        parent_file.write_text("keep", encoding="utf-8")
+        destination = {
+            "missing_parent": str(tmp_path / "missing" / "report.json"),
+            "directory": str(tmp_path),
+            "empty": "",
+            "file_parent": str(parent_file / "report.json"),
+        }[kind]
+
+        async def no_evaluation(_arguments: object) -> tuple[str, dict[str, object]]:
+            pytest.fail("an unusable JSON destination must stop before any billed evaluation")
+
+        monkeypatch.setattr(run, "measure", no_evaluation)
+
+        with pytest.raises(SystemExit, match="--json"):
+            await run.main(["--json", destination])
+
+        assert parent_file.read_text(encoding="utf-8") == "keep"
+
+    async def test_a_failed_evaluation_preserves_the_previous_report(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        destination = tmp_path / "report.json"
+        previous = '{"previous": true}\n'
+        destination.write_text(previous, encoding="utf-8")
+
+        async def failed(_arguments: object) -> tuple[str, dict[str, object]]:
+            raise RuntimeError("index failed")
+
+        async def close() -> None:
+            pass
+
+        monkeypatch.setattr(run, "measure", failed)
+        monkeypatch.setattr(run, "close_db", close)
+
+        with pytest.raises(RuntimeError, match="index failed"):
+            await run.main(["--json", str(destination)])
+
+        assert destination.read_text(encoding="utf-8") == previous
+
+    async def test_a_successful_evaluation_replaces_the_previous_report(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        destination = tmp_path / "report.json"
+        destination.write_text(json.dumps({"old": "x" * 1000}), encoding="utf-8")
+        exported: dict[str, object] = {"answer": "Nie, przez Keycloaka."}
+
+        async def measured(_arguments: object) -> tuple[str, dict[str, object]]:
+            return "report", exported
+
+        async def close() -> None:
+            pass
+
+        monkeypatch.setattr(run, "measure", measured)
+        monkeypatch.setattr(run, "close_db", close)
+
+        await run.main(["--json", str(destination)])
+
+        assert json.loads(destination.read_text(encoding="utf-8")) == exported
+        assert capsys.readouterr().out == "report\n"
+
+
 class TestProvenance:
     def test_the_export_records_what_shaped_the_run(self, tmp_path: Path):
         path = _write(
@@ -1046,10 +1160,16 @@ class TestProvenance:
         arguments = run.parse(["--dataset", str(path), "--chunk-size", "1200"])
         settings = run.rag_settings(arguments)
         started = datetime(2026, 11, 5, 12, 0, tzinfo=UTC)
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        page = docs / "x.md"
+        page.write_text("captured corpus", encoding="utf-8")
+        corpus = {"en": run.corpus_fingerprint([page], docs_root=docs)}
 
         loaded = dataset.load_dataset(path)
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
         path.unlink()
+        page.write_text("edited after capture", encoding="utf-8")
 
         exported = run.provenance(
             arguments,
@@ -1057,6 +1177,7 @@ class TestProvenance:
             settings=settings,
             locales=("en",),
             collections={"en": "c_en"},
+            corpus=corpus,
             started_at=started,
             reports=[],
         )
@@ -1080,4 +1201,7 @@ class TestProvenance:
             1,
         )
         assert exported["collections"] == {"en": "c_en"}
+        assert exported["corpus"] == corpus
+        assert corpus["en"] != run.corpus_fingerprint([page], docs_root=docs)
+        assert exported["corpus_fingerprint_algorithm"] == "sha256-path-content-v1"
         assert exported["configurations"] == []

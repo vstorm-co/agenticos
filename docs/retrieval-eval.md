@@ -100,6 +100,13 @@ searched for it. The file also records what produced the run: when it started,
 a SHA-256 of the question set, the embedding model and its dimension, the chunk
 settings and parsers, and the digest the collection names carry.
 
+`corpus` also records each locale's page count and source fingerprint, captured
+before indexing. `corpus_fingerprint_algorithm` is `sha256-path-content-v1`:
+SHA-256 of compact UTF-8 JSON (`ensure_ascii=False`) containing sorted
+`[relative POSIX path, SHA-256(source bytes)]` pairs. Absolute checkout paths are
+excluded. This distinguishes changed source pages even when the questions and
+ingestion settings stay the same. Keep the checkout unchanged during a run.
+
 ## Running it
 
 A run needs a migrated database with pgvector (`make dev` gives you one), an
@@ -150,9 +157,15 @@ A question set the loader refuses stops the run before anything is indexed,
 with one message that names each item and its problem.
 
 The report goes to standard output and progress to standard error, so
-`> results.md` keeps the report alone. The harness stops before measuring if a
-page fails to index, and an interrupted run drops what it indexed, because a
-corpus with gaps measures the gaps.
+`> results.md` keeps the report alone. The first page that fails indexing stops
+the run immediately and drops the incomplete collection without trying more
+pages. An interrupted collection is also dropped: a corpus with gaps measures
+the gaps.
+
+The `--json` destination is checked before indexing or billed calls. Its parent
+directory must already exist and the file must be writable. The check creates
+a new file empty; an existing report stays intact if evaluation fails. Successful
+evaluation replaces the file with the complete JSON report.
 
 ### Without a paid key
 

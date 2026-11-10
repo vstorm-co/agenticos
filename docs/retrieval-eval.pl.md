@@ -1,7 +1,7 @@
 ---
 title: Ewaluacja wyszukiwania
 description: Zestaw pytań o znanych odpowiedziach do dokumentacji AgenticOS i harness mierzący na nim wyszukiwanie wiedzy według kategorii, top_k i rozszerzania zapytań.
-source_sha: "626bc5942dc1"
+source_sha: "3ae4747b9b05"
 ---
 
 # Ewaluacja wyszukiwania { #retrieval-evaluation }
@@ -104,6 +104,14 @@ kto chce je przeczytać, oraz zapytania, których szukał dla niego tryb
 SHA-256 zestawu pytań, model embeddingów i jego wymiar, ustawienia chunków i
 parsery oraz skrót, który niosą nazwy kolekcji.
 
+`corpus` zapisuje też liczbę stron i fingerprint źródeł dla każdego języka,
+utrwalone przed indeksowaniem. `corpus_fingerprint_algorithm` to
+`sha256-path-content-v1`: SHA-256 zwartego JSON-a w UTF-8 (`ensure_ascii=False`)
+z posortowanymi parami `[względna ścieżka POSIX, SHA-256(bajtów źródła)]`.
+Bezwzględne ścieżki checkoutu są pomijane. Pozwala to odróżnić zmienione strony
+źródłowe przy niezmienionych pytaniach i ustawieniach ingestii. Nie zmieniaj
+checkoutu podczas przebiegu.
+
 ## Uruchamianie { #running-it }
 
 Przebieg potrzebuje zmigrowanej bazy z pgvector (`make dev` ją daje), endpointu
@@ -153,10 +161,16 @@ Zestaw pytań, który loader odrzuca, zatrzymuje przebieg, zanim cokolwiek
 zostanie zindeksowane, jednym komunikatem, który podaje każde pytanie i jego
 problem.
 
-Raport trafia na standardowe wyjście, a postęp na standardowe wyjście błędów, więc
-`> results.md` zachowuje sam raport. Harness zatrzymuje się przed pomiarem, jeśli
-którejś strony nie da się zindeksować, a przerwany przebieg usuwa to, co
-zindeksował, bo korpus z lukami mierzy luki.
+Raport trafia na standardowe wyjście, a postęp na standardowe wyjście błędów,
+więc `> results.md` zachowuje sam raport. Pierwsza strona, której indeksowanie
+się nie powiedzie, natychmiast zatrzymuje przebieg i usuwa niepełną kolekcję,
+bez prób przetwarzania kolejnych stron. Przerwana kolekcja także jest usuwana:
+korpus z lukami mierzy luki.
+
+Miejsce docelowe `--json` jest sprawdzane przed indeksowaniem i płatnymi
+wywołaniami. Katalog nadrzędny musi już istnieć, a plik musi być zapisywalny.
+Sprawdzenie tworzy nowy pusty plik; istniejący raport pozostaje nienaruszony,
+jeśli ocena się nie powiedzie. Udana ocena zastępuje plik kompletnym raportem JSON.
 
 ### Bez płatnego klucza { #without-a-paid-key }
 

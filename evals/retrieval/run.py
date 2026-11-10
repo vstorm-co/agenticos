@@ -28,7 +28,7 @@ import re
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import get_args
+from typing import TypedDict, get_args
 
 from dataset import Dataset, DatasetError, Item, Locale, corpus_files, load_dataset, page_key
 from pydantic import ValidationError
@@ -56,6 +56,7 @@ HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parents[1]
 LOCALES: dict[str, Locale] = {locale: locale for locale in get_args(Locale)}
 MODES: dict[str, QueryAnalysisMode] = {mode: mode for mode in get_args(QueryAnalysisMode)}
+CORPUS_FINGERPRINT_ALGORITHM = "sha256-path-content-v1"
 
 ANSWER_INSTRUCTIONS = (
     "You answer questions about AgenticOS using only the numbered passages you are given. "
@@ -63,6 +64,23 @@ ANSWER_INSTRUCTIONS = (
     "they name. If they do not answer the question, say the documentation does not state it. "
     "Answer in the language of the question, in at most four sentences, citing passages as [1], [2]."
 )
+
+
+class CorpusFingerprint(TypedDict):
+    """Identity of one locale's source pages, captured before indexing."""
+
+    pages: int
+    sha256: str
+
+
+def corpus_fingerprint(files: list[Path], *, docs_root: Path) -> CorpusFingerprint:
+    """Hash sorted [relative POSIX path, SHA-256(source bytes)] pairs as compact UTF-8 JSON."""
+    manifest = sorted(
+        (path.relative_to(docs_root).as_posix(), hashlib.sha256(path.read_bytes()).hexdigest())
+        for path in files
+    )
+    encoded = json.dumps(manifest, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    return {"pages": len(manifest), "sha256": hashlib.sha256(encoded).hexdigest()}
 
 
 async def refuse_held_names(collections: list[str]) -> None:
@@ -122,7 +140,7 @@ async def ingest(
         return
     await store.delete_collection(collection)
     print(f"{collection}: indexing {len(files)} pages", file=sys.stderr)
-    failed: list[str] = []
+    failure: str | None = None
     try:
         for path in files:
             relative = path.relative_to(docs_root).as_posix()
@@ -133,16 +151,15 @@ async def ingest(
                 path, collection, replace=False, source_path=relative
             )
             if result.status != IngestionStatus.DONE:
-                failed.append(f"{relative}: {result.error_message}")
+                failure = f"{relative}: {result.error_message}"
+                break
     except BaseException:
         # Interrupted part-way: leave nothing a later run would take for a corpus.
         await store.delete_collection(collection)
         raise
-    if failed:
+    if failure is not None:
         await store.delete_collection(collection)
-        raise SystemExit(
-            f"{collection}: {len(failed)} file(s) failed to ingest:\n  " + "\n  ".join(failed)
-        )
+        raise SystemExit(f"{collection}: failed to ingest {failure}")
 
 
 def _retrieved(result: SearchResult) -> Retrieved:
@@ -331,6 +348,10 @@ async def measure(arguments: argparse.Namespace) -> tuple[str, dict[str, object]
     collections = collection_names(
         arguments.collection_prefix, settings, arguments.embedding_base_url, locales
     )
+    files = {locale: corpus_files(docs_root, locale) for locale in locales}
+    corpus = {
+        locale: corpus_fingerprint(paths, docs_root=docs_root) for locale, paths in files.items()
+    }
     embedder = EmbeddingService(
         settings,
         api_key=api_key,
@@ -347,7 +368,7 @@ async def measure(arguments: argparse.Namespace) -> tuple[str, dict[str, object]
             store,
             ingestion,
             collection,
-            corpus_files(docs_root, locale),
+            files[locale],
             docs_root=docs_root,
             reingest=arguments.reingest,
         )
@@ -360,6 +381,12 @@ async def measure(arguments: argparse.Namespace) -> tuple[str, dict[str, object]
         f"{len(dataset.items)} questions, embeddings {arguments.embedding_model}",
         "",
     ]
+    sections.extend(
+        f"Corpus `{locale}`: {snapshot['pages']} pages; SHA-256 `{snapshot['sha256']}` "
+        f"({CORPUS_FINGERPRINT_ALGORITHM})."
+        for locale, snapshot in corpus.items()
+    )
+    sections.append("")
     reports: list[dict[str, object]] = []
     plans: QueryPlans = {}
     for top_k in arguments.top_k or [5]:
@@ -390,6 +417,7 @@ async def measure(arguments: argparse.Namespace) -> tuple[str, dict[str, object]
         settings=settings,
         locales=locales,
         collections=collections,
+        corpus=corpus,
         started_at=started_at,
         reports=reports,
     )
@@ -403,6 +431,7 @@ def provenance(
     settings: RAGSettings,
     locales: tuple[Locale, ...],
     collections: dict[Locale, str],
+    corpus: dict[Locale, CorpusFingerprint],
     started_at: datetime,
     reports: list[dict[str, object]],
 ) -> dict[str, object]:
@@ -410,7 +439,9 @@ def provenance(
 
     Keys are only ever added, so a file written by an earlier run still reads.
     `dataset_sha256` tells two edits of one `version` apart; `ingestion` and
-    `collection_digest` are what the collection names were derived from.
+    `collection_digest` are what the collection names were derived from. `corpus`
+    identifies the source pages captured before indexing, without re-reading
+    files that may have changed while model calls ran.
     """
     return {
         "dataset": str(arguments.dataset),
@@ -431,6 +462,8 @@ def provenance(
         },
         "collection_digest": collection_digest(settings, arguments.embedding_base_url),
         "collections": collections,
+        "corpus": corpus,
+        "corpus_fingerprint_algorithm": CORPUS_FINGERPRINT_ALGORITHM,
         "llm_model": arguments.llm_model,
         "max_variants": arguments.max_variants,
         "configurations": reports,
@@ -509,14 +542,25 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
     return arguments
 
 
+def _check_json_destination(destination: Path) -> None:
+    """Check write access without truncating a previous run's report."""
+    with destination.open("a", encoding="utf-8"):
+        pass
+
+
 async def main(argv: list[str] | None = None) -> None:
     arguments = parse(argv)
+    if arguments.json is not None:
+        try:
+            await asyncio.to_thread(_check_json_destination, Path(arguments.json))
+        except OSError as error:
+            raise SystemExit(f"--json {arguments.json!r}: {error.strerror or error}") from None
     try:
         report, exported = await measure(arguments)
     finally:
         await close_db()
     print(report)
-    if arguments.json:
+    if arguments.json is not None:
         Path(arguments.json).write_text(
             json.dumps(exported, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
         )

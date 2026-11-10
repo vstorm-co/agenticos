@@ -1,7 +1,7 @@
 ---
 title: "Evaluación de recuperación"
 description: "Un conjunto de preguntas sobre la documentación con respuestas conocidas, y el harness que mide la recuperación por categoría, top_k y expansión."
-source_sha: "626bc5942dc1"
+source_sha: "3ae4747b9b05"
 ---
 
 # Evaluación de recuperación { #retrieval-evaluation }
@@ -110,6 +110,14 @@ un SHA-256 del conjunto de preguntas, el modelo de embeddings y su dimensión,
 los ajustes de fragmentación y los parsers, y el digest que llevan los nombres
 de las colecciones.
 
+`corpus` también registra el número de páginas y la huella de fuentes por idioma,
+capturados antes de indexar. `corpus_fingerprint_algorithm` es
+`sha256-path-content-v1`: SHA-256 de JSON UTF-8 compacto (`ensure_ascii=False`)
+con pares ordenados `[ruta POSIX relativa, SHA-256(bytes de la fuente)]`.
+Se excluyen las rutas absolutas del checkout. Esto distingue fuentes modificadas
+aunque no cambien las preguntas ni los ajustes de ingesta. Mantén el checkout
+sin cambios durante la ejecución.
+
 ## Ejecutarlo { #running-it }
 
 Una ejecución necesita una base de datos migrada con pgvector (`make dev` te da
@@ -160,10 +168,17 @@ parser. El harness no lee estos ajustes de ninguna variable de entorno.
 Un conjunto de preguntas que el loader rechaza detiene la ejecución antes de
 indexar nada, con un único mensaje que nombra cada pregunta y su problema.
 
-El informe va a la salida estándar y el progreso a la salida de error estándar,
-así que `> results.md` conserva solo el informe. El harness se detiene antes de
-medir si una página no se indexa, y una ejecución interrumpida elimina lo que
-indexó, porque un corpus con huecos mide los huecos.
+El informe va a la salida estándar y el progreso a la salida de errores, así
+que `> results.md` conserva solo el informe. La primera página cuya indexación
+falla detiene la ejecución de inmediato y elimina la colección incompleta sin
+intentar más páginas. También se elimina una colección interrumpida: un corpus
+con huecos mide esos huecos.
+
+El destino de `--json` se comprueba antes de indexar o hacer llamadas facturables.
+Su directorio padre debe existir y el archivo debe permitir escritura. La
+comprobación crea un archivo nuevo vacío; un informe existente se conserva si
+la evaluación falla. Una evaluación exitosa reemplaza el archivo con el informe
+JSON completo.
 
 ### Sin una clave de pago { #without-a-paid-key }
 
