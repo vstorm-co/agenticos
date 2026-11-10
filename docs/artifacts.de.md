@@ -1,5 +1,5 @@
 ---
-source_sha: "28281f424c57"
+source_sha: "61d0ef9e1abe"
 ---
 
 # Apps { #artifacts }
@@ -16,6 +16,10 @@ Workspace haben bereits ein Zuhause im Chat und im [Workspace](sandbox.md). Eine
 App ist das, was *ausgeliefert* wird: Sie hat einen Besitzer, eine
 Sichtbarkeit und Grants wie ein Agent oder ein Skill, und sie kann einen
 öffentlichen Link für jemanden ohne Konto bekommen.
+
+## Kennzeichnung geteilter Seiten { #shared-page-attribution }
+
+Öffentliche App-Links und geteilte Unterhaltungen zeigen standardmäßig das AgenticOS-Logo und einen Link zum GitHub-Repository. Owner oder Admins können die Fußzeile für die gesamte Organisation unter **Organisationseinstellungen → Governance → AgenticOS auf geteilten Seiten** ausblenden. Beim nächsten Seitenaufruf gilt die aktuelle Einstellung. Passwortgeschützte Apps zeigen die Fußzeile erst nach dem Entsperren. Die Fußzeile gehört zur Ansicht; heruntergeladene Dateien und eingebettete App-Inhalte werden nicht verändert.
 
 ## App-Darstellung { #app-appearance }
 

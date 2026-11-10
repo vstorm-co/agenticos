@@ -55,6 +55,19 @@ PATH = "app.services.artifact"
 
 
 @pytest.fixture(autouse=True)
+def _organization_attribution(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Public viewers read their organization's current footer preference."""
+    from app.db.models.organization import Organization
+
+    monkeypatch.setattr(
+        f"{PATH}.organization_repo.get_by_id",
+        AsyncMock(
+            return_value=Organization(public_agenticos_attribution=True, public_live_data=False)
+        ),
+    )
+
+
+@pytest.fixture(autouse=True)
 def _shared_with_no_group(monkeypatch: pytest.MonkeyPatch) -> None:
     """The listing names each page's groups; the session here is a mock."""
 
@@ -1419,3 +1432,34 @@ class TestTheBundledSkill:
         tool = build_artifacts_toolset(table_grants={}).tools["publish_artifact"]
         for name in set(artifacts.ARTIFACT_LIBRARY) - artifacts.FRAME_ONLY_LIBRARY:
             assert f"lib/{name}" in (tool.description or "")
+
+
+@pytest.mark.parametrize("enabled", [True, False])
+async def test_public_footer_uses_the_artifacts_organization(enabled: bool) -> None:
+    from app.db.models.organization import Organization
+
+    artifact = _artifact(_ctx(), public_key="k")
+    lookup = AsyncMock(return_value=Organization(public_agenticos_attribution=enabled))
+    with (
+        patch.object(
+            ArtifactService, "_public", new=AsyncMock(return_value=(artifact, _version(artifact)))
+        ),
+        patch.object(ArtifactService, "_public_data_owner", new=AsyncMock(return_value=None)),
+        patch(f"{PATH}.artifact_repo.count_public_view", new=AsyncMock()),
+        patch(f"{PATH}.organization_repo.get_by_id", new=lookup),
+    ):
+        result = await _service().public_view("k")
+    assert result.show_agenticos_attribution is enabled
+    assert lookup.await_args.args[1] == artifact.organization_id
+
+
+async def test_a_public_page_without_its_organization_is_not_served() -> None:
+    artifact = _artifact(_ctx(), public_key="k")
+    with (
+        patch.object(
+            ArtifactService, "_public", new=AsyncMock(return_value=(artifact, _version(artifact)))
+        ),
+        patch(f"{PATH}.organization_repo.get_by_id", new=AsyncMock(return_value=None)),
+        pytest.raises(NotFoundError),
+    ):
+        await _service().public_view("k")

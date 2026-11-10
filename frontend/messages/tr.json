@@ -1,4 +1,10 @@
 {
+  "sharedAttribution": {
+    "madeWith": "<name>AgenticOS</name> ile oluşturuldu",
+    "cta": "Kendi AgenticOS’unuzu çalıştırın",
+    "description": "Yapay zekâ çalışma alanınız. Açık kaynak.",
+    "ctaShort": "GitHub"
+  },
   "auth": {
     "agreeToTerms": "Hesap oluşturarak <terms>Kullanım Koşulları</terms> ve <privacy>Gizlilik Politikası</privacy> metinlerimizi kabul etmiş olursunuz.",
     "atLeast8Characters": "En az 8 karakter",
@@ -8444,6 +8450,10 @@
         "title": "Uyarıları",
         "body": "Bu log belirli bir eşiği aştığında kişilere bildirim gönderen kurallar: eşleşen satır sayısı, süre ve bildirimi alacak kişiler. Workflow’u düzenleyebilen herkes bu kuralları ekleyebilir, değiştirebilir veya silebilir."
       },
+      "org-public-attribution": {
+        "title": "Paylaşılan sayfalarda AgenticOS",
+        "body": "Herkese açık uygulamalarda, panolarda, raporlarda ve paylaşılan konuşmalarda GitHub bağlantısı içeren küçük bir alt bilgi gösterin."
+      },
       "org-public-live-data": {
         "title": "Herkese açık sayfalardaki canlı veriler",
         "body": "Herkese açık bağlantıların ve embed’lerin tablo verilerini hesapsız kişilere gösterip gösteremeyeceğini belirleyin. Varsayılan olarak kapalıdır; her sayfanın sahibinin yine de kendi sayfasını onaylaması gerekir."
@@ -10703,6 +10713,11 @@
       "providerNoKey": "{name} (kullanılabilir key yok)",
       "notReadyNoKey": "{provider} için key seçilmedi. Bunu devralan agent’lar ve botlar aşağıdan bir key seçene kadar provider ile transkripsiyon yapamaz."
     },
+    "publicAttribution": "Paylaşılan sayfalarda AgenticOS",
+    "publicAttributionDescription": "Herkese açık uygulamalarda, panolarda, raporlarda ve paylaşılan konuşmalarda GitHub bağlantısı içeren küçük bir alt bilgi gösterin.",
+    "publicAttributionHint": "Varsayılan olarak açık. Kapatıldığında bu kuruluşun tüm herkese açık bağlantılarındaki alt bilgi kaldırılır. İçerik ve indirilen dosyalar değişmez.",
+    "publicAttributionSaved": "Paylaşılan sayfa markalaması kaydedildi",
+    "publicAttributionFailed": "Paylaşılan sayfa markalaması güncellenemedi",
     "publicLiveData": "Canlı verili herkese açık sayfalar",
     "publicLiveDataDescription": "Herkese açık sayfaların tablo verilerini hesapsız kişilere gösterip gösteremeyeceği.",
     "publicLiveDataHint": "Varsayılan olarak kapalıdır. Açıldığında sayfanın sahibi onayladıktan sonra, herkese açık bağlantı ve embed’ler tablo verilerini gösterir. Kapatmak verileri her yerde gizler, ancak onayları saklar.",

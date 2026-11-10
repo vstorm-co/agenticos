@@ -6,6 +6,7 @@ import { useFormatter, useTranslations } from "next-intl";
 
 import { ArtifactThemeToggle } from "@/components/artifacts/artifact-theme-toggle";
 import { ArtifactFrameView } from "@/components/artifacts/artifact-frame";
+import { AgenticosAttribution } from "@/components/shared/agenticos-attribution";
 import { Button, FormField, Input } from "@/components/ui";
 import { usePublicArtifactUnlock } from "@/hooks/use-artifacts";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
@@ -54,6 +55,7 @@ export function OpenedArtifact({ artifact }: { artifact: OpenPublicArtifact }) {
           theme={theme}
         />
       </div>
+      <AgenticosAttribution visible={artifact.show_agenticos_attribution} />
     </main>
   );
 }
