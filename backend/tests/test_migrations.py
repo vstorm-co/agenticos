@@ -34,8 +34,10 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import create_engine, select, text
+from sqlalchemy import create_engine, delete, select, text, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.orm import Session as DatabaseSession
 
 from app.core.config import settings
 from app.core.exceptions import AuthenticationError
@@ -174,6 +176,190 @@ def migration_database() -> Iterator[None]:
         _outside_a_transaction(maintenance, drop)
 
 
+def test_delete_crosslink_migration_preserves_rows_and_defers_only_checks() -> None:
+    """Both cascade orders work on migrated data; dangling references still fail."""
+    from app.db.models.agent import Agent, AgentVersion
+    from app.db.models.agent_environment import AgentEnvironment
+    from app.db.models.agent_trigger import AgentTrigger
+    from app.db.models.artifact import Artifact
+    from app.db.models.conversation import Conversation
+    from app.db.models.organization import Organization
+
+    for action, revision in (
+        ("upgrade", "head"),
+        ("downgrade", "0304_merge_evals_platform"),
+    ):
+        result = _alembic(action, revision)
+        assert result.returncode == 0, result.stderr
+
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    try:
+        with DatabaseSession(engine, expire_on_commit=False) as db:
+            creator = User(email=f"{uuid4()}@example.com", hashed_password="x")
+            owner = User(email=f"{uuid4()}@example.com", hashed_password="x")
+            db.add_all([creator, owner])
+            db.flush()
+            org = Organization(
+                name="Crosslinks", slug=f"crosslinks-{uuid4()}", created_by_user_id=creator.id
+            )
+            db.add(org)
+            db.flush()
+            agent = Agent(organization_id=org.id, name="Reporter", slug=f"reporter-{uuid4()}")
+            chat = Conversation(organization_id=org.id, user_id=owner.id, title="Private")
+            db.add_all([agent, chat])
+            db.flush()
+            version = AgentVersion(organization_id=org.id, agent_id=agent.id, version=1, spec={})
+            db.add(version)
+            db.flush()
+            environment = AgentEnvironment(
+                organization_id=org.id, agent_id=agent.id, version_id=version.id, name="staging"
+            )
+            db.add(environment)
+            db.flush()
+            page = Artifact(
+                organization_id=org.id,
+                agent_id=agent.id,
+                environment_id=environment.id,
+                name="report",
+                title="Report",
+            )
+            routine = AgentTrigger(
+                organization_id=org.id,
+                agent_id=agent.id,
+                created_by_user_id=owner.id,
+                prompt="Report",
+                interval_seconds=300,
+                next_fire_at=datetime.now(UTC),
+                answer_to="conversation",
+                delivery_conversation_id=chat.id,
+            )
+            db.add_all([page, routine])
+            db.commit()
+            owner_id, agent_id = owner.id, agent.id
+            page_id, routine_id = page.id, routine.id
+            environment_id, chat_id = environment.id, chat.id
+
+        constraints = (
+            "agent_triggers_delivery_conversation_id_fkey",
+            "artifacts_environment_id_fkey",
+        )
+        cascades = (
+            (
+                "ALTER TABLE conversations DROP CONSTRAINT conversations_user_id_fkey, ADD CONSTRAINT conversations_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE",
+                delete(User).where(User.id == owner_id),
+                constraints[0],
+            ),
+            (
+                "ALTER TABLE agent_environments DROP CONSTRAINT agent_environments_agent_id_fkey, ADD CONSTRAINT agent_environments_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE",
+                delete(Agent).where(Agent.id == agent_id),
+                constraints[1],
+            ),
+        )
+        # Prove the old, migrated schema has the same defect as create_all.
+        for ddl, deletion, constraint in cascades:
+            with DatabaseSession(engine) as db:
+                db.execute(text(ddl))
+                # Unchanged FK columns are rechecked when this transaction has
+                # already written the surviving row, as in the integration tests.
+                db.execute(
+                    update(AgentTrigger)
+                    .where(AgentTrigger.id == routine_id)
+                    .values(prompt="Updated report")
+                )
+                db.execute(
+                    update(Artifact).where(Artifact.id == page_id).values(title="Updated report")
+                )
+                with pytest.raises(IntegrityError, match=constraint):
+                    db.execute(deletion)
+
+        for action, revision, deferred in (
+            ("upgrade", "head", True),
+            ("downgrade", "0304_merge_evals_platform", False),
+            ("upgrade", "head", True),
+        ):
+            result = _alembic(action, revision)
+            assert result.returncode == 0, result.stderr
+            with engine.connect() as connection:
+                rows = connection.execute(
+                    text(
+                        "SELECT conname, condeferrable, condeferred, confdeltype FROM pg_constraint WHERE conname IN (:routine, :page)"
+                    ),
+                    {"routine": constraints[0], "page": constraints[1]},
+                ).all()
+                assert len(rows) == 2
+                assert all(
+                    row.condeferrable == deferred
+                    and row.condeferred == deferred
+                    and row.confdeltype == "n"
+                    for row in rows
+                )
+
+        for cascade_last in (False, True):
+            with DatabaseSession(engine) as db:
+                assert (
+                    db.scalar(select(Artifact.environment_id).where(Artifact.id == page_id))
+                    == environment_id
+                )
+                assert (
+                    db.scalar(
+                        select(AgentTrigger.delivery_conversation_id).where(
+                            AgentTrigger.id == routine_id
+                        )
+                    )
+                    == chat_id
+                )
+                if cascade_last:
+                    for ddl, _, _ in cascades:
+                        db.execute(text(ddl))
+                db.execute(
+                    update(AgentTrigger)
+                    .where(AgentTrigger.id == routine_id)
+                    .values(prompt="Updated report")
+                )
+                db.execute(
+                    update(Artifact).where(Artifact.id == page_id).values(title="Updated report")
+                )
+                db.execute(delete(User).where(User.id == owner_id))
+                db.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))
+                assert (
+                    db.scalar(
+                        select(AgentTrigger.delivery_conversation_id).where(
+                            AgentTrigger.id == routine_id
+                        )
+                    )
+                    is None
+                )
+                db.execute(text("SET CONSTRAINTS ALL DEFERRED"))
+                db.execute(delete(Agent).where(Agent.id == agent_id))
+                db.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))
+                surviving_page = db.get(Artifact, page_id)
+                assert surviving_page is not None
+                assert surviving_page.agent_id is None
+                assert surviving_page.environment_id is None
+                # Roll back rows and reordered constraints before the next case.
+
+        for statement, constraint in (
+            (
+                update(AgentTrigger)
+                .where(AgentTrigger.id == routine_id)
+                .values(delivery_conversation_id=uuid4()),
+                constraints[0],
+            ),
+            (
+                update(Artifact).where(Artifact.id == page_id).values(environment_id=uuid4()),
+                constraints[1],
+            ),
+        ):
+            with DatabaseSession(engine) as db:
+                db.execute(statement)
+                with pytest.raises(IntegrityError, match=constraint):
+                    db.commit()
+        check = _alembic("check")
+        assert check.returncode == 0, check.stderr
+    finally:
+        engine.dispose()
+
+
 class TestMigrations:
     """Test Alembic migration integrity."""
 
@@ -262,7 +448,7 @@ def test_improvement_merge_upgrades_either_existing_history(starting_revision: s
             )
             assert (
                 connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-                == "0304_merge_evals_platform"
+                == "0305_defer_delete_crosslinks"
             )
         check = _alembic("check")
         assert check.returncode == 0, check.stderr

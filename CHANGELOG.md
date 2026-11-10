@@ -19,6 +19,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **Parent deletion no longer depends on foreign-key trigger order.** Deleting
+  a routine's creator clears its delivery chat, and deleting an agent preserves
+  its pages with their publisher and environment cleared. Defer the two
+  cross-link checks until transaction end so cascading deletes can finish first;
+  invalid references are still rejected. Existing deployments receive the same
+  fix through a data-preserving migration (#2841).
+
 ## [1.62.3] - 2026-11-10
 
 ### Fixed
