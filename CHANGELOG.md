@@ -19,6 +19,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **Reclaim old release images before deployment pulls fill the host.** Retain
+  current and rollback images with local pins based on healthy containers, plus
+  two additional unused image IDs per release repository. Protect every running
+  or stopped container, other image aliases and repositories, sandbox runtimes
+  and volumes. Check for 5 GiB of storage headroom before pulling, and download
+  backend and frontend images before restarting either service (#2849).
+
 ## [1.62.4] - 2026-11-10
 
 ### Fixed
