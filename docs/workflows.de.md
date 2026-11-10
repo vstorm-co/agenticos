@@ -1,5 +1,5 @@
 ---
-source_sha: "296a2476dbbe"
+source_sha: "13e511da30cb"
 ---
 
 # Workflows { #workflows }
@@ -903,7 +903,13 @@ später geöffnete bleibt still. **Open loop body** zeigt die Iterationen einer 
 Die Antwort des Runs - sein Text, sein strukturiertes Ergebnis, die Passagen, auf
 die er sich stützte, und wie viele Dateien er erzeugt hat, mit dem JSON selbst unter
 **Raw output** - und jeder Schritt, den er gemacht hat, Iteration für Iteration,
-stehen daneben. Ein laufender Run aktualisiert sich alle paar Sekunden, und **Cancel
+stehen daneben.
+
+Die Liste enthält die Schritte, die begonnen haben, in der Reihenfolge ihres
+Starts. Fehler bleiben sichtbar, auch wenn ein Schritt vor dem Start fehlschlug.
+Andere Schritte, die noch nicht begonnen haben, erscheinen nur auf der Canvas;
+übersprungene Schritte erscheinen verblasst. Ein Klick auf die Zeile eines
+Schleifenschritts zeigt seine Eingabe und Ausgabe in dieser Iteration. Ein laufender Run aktualisiert sich alle paar Sekunden, und **Cancel
 run** stoppt ihn. Seine **Files** listen, was seine Schritte gespeichert haben - einen Download, eine
 gerenderte Seite, die Ausgabe eines Skripts -, jeweils zum Herunterladen.
 

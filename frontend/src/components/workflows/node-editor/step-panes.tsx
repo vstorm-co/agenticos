@@ -28,6 +28,7 @@ import {
   jsonBytes,
   knownInput,
   knownOutputs,
+  stepDataAt,
   testEntryGraph,
 } from "@/lib/workflows/step-data";
 import { effectiveDefinition } from "@/lib/workflows/ports";
@@ -97,6 +98,8 @@ export function InputPane({
 }) {
   const t = useTranslations("workflows");
   const stepData = useWorkflowEditorStore((state) => state.stepData);
+  const iterationData = useWorkflowEditorStore((state) => state.iterationData);
+  const iteration = useWorkflowEditorStore((state) => state.editingIteration);
   const steps = useMemo(
     () =>
       earlierSteps(
@@ -150,7 +153,7 @@ export function InputPane({
 
   const instance = graph.nodes.find((candidate) => candidate.id === source);
   const pinned = readOnly ? null : instance?.pinned_output;
-  const output = pinned ?? stepData[source]?.output ?? null;
+  const output = pinned ?? stepDataAt(stepData, iterationData, source, iteration)?.output ?? null;
   const definition = declared(source);
   const known = output !== null || (definition?.ports ?? []).some((port) => port.kind === "output");
 
@@ -247,6 +250,8 @@ export function OutputPane({
   const t = useTranslations("workflows");
   const tp = useTranslations("pages.workflows");
   const stepData = useWorkflowEditorStore((state) => state.stepData);
+  const iterationData = useWorkflowEditorStore((state) => state.iterationData);
+  const iteration = useWorkflowEditorStore((state) => state.editingIteration);
   const isDirty = useWorkflowEditorStore((state) => state.isDirty);
   const testingNodeId = useWorkflowEditorStore((state) => state.testingNodeId);
   const lastStepTest = useWorkflowEditorStore((state) => state.lastStepTest);
@@ -267,7 +272,7 @@ export function OutputPane({
     () => validateGraph(graph, { items: catalog, total: catalog.length }, t),
     [graph, catalog, t],
   );
-  const data = stepData[node.id];
+  const data = stepDataAt(stepData, iterationData, node.id, iteration);
   const pinned = readOnly ? null : (node.pinned_output ?? null);
   const testing = testingNodeId === node.id || start.isPending;
   const canPin = !readOnly && definition.kind !== "control";
