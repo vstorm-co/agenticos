@@ -1,5 +1,5 @@
 ---
-source_sha: "ebff51f004c8"
+source_sha: "21023fc3edb1"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -487,7 +487,7 @@ El objeto `display` conserva `column_order`, `hidden_system_columns`, `wrap_text
 |---|---|
 | `kind` | `table`, `kanban` o `list` - una vista se guarda *para* un tipo |
 | `visibility` | `private` (solo su propietario) o `shared` (cualquiera que vea la tabla) |
-| `can_manage` | Si este llamante puede renombrarla, reconfigurarla o compartirla |
+| `can_manage` | Si este llamante puede renombrarla o reconfigurarla; solo su propietario la comparte |
 | `can_delete` | Si este llamante puede borrarla |
 
 Listar, leer y borrar se resuelven contra la tabla (`tables:view`); crear o cambiar
@@ -503,6 +503,13 @@ rechaza igual que cualquier otra escritura sobre un recurso individual aquí:
 `NOT_FOUND` (404), nunca un 403 que revelaría la existencia de una vista a un
 llamante al que se le niega. `can_manage` y `can_delete` dicen cuál de las dos cosas
 puede hacer este llamante.
+
+La vista privada de otro miembro es más estrecha todavía: incluso un llamante con
+scope `ALL` solo puede borrarla, nunca cambiarla ni leerla, así que un `PATCH`
+responde `NOT_FOUND` como lo haría con una vista que no existe. Y solo el
+propietario de una vista cambia su `visibility`: a cualquier otro que envíe un
+valor distinto se le rechaza con `AUTHORIZATION_ERROR` (403), porque esa vista ya
+la tiene delante.
 
 Archivar una columna se rechaza con `SCHEMA_DEPENDENCY`, nombrando la vista, cuando
 una vista que el llamante puede ver y también cambiar aún la usa para filtrar,

@@ -528,8 +528,9 @@ def test_the_openapi_document_lists_403_on_the_gated_routes_and_only_on_them():
 
     with_403 = {key for key, operation in table_routes.items() if "403" in operation["responses"]}
 
-    # The collection's role gate, and the changes to a task board itself - which a
-    # member who works on its tasks can reach, and so is refused outright, not as a 404.
+    # The collection's role gate, and refusals about something the caller can already
+    # see, so answered outright rather than as a 404: changes to a task board itself, and
+    # a view's visibility, which only its owner changes.
     assert with_403 == {
         (prefix, "get"),
         (prefix, "post"),

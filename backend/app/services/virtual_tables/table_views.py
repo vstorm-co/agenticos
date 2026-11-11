@@ -26,7 +26,13 @@ from uuid import UUID
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+)
+from app.core.field_errors import field_details
 from app.core.permissions import AuthContext, Perm, Scope
 from app.db.models.table_view import TableView
 from app.db.models.virtual_table import VirtualTable
@@ -306,20 +312,33 @@ class TableViewOperations(Operations):
 
         Needs `tables:edit` on the table, the same as creating one: an owner whose
         edit access was taken away may no longer publish or repoint a view. Refused
-        to anyone but its owner or a caller whose `tables:edit` scope is `ALL`. Every
+        to anyone but its owner or a caller whose `tables:edit` scope is `ALL`, and a
+        private view only ever to its owner: an `ALL`-scope caller may delete another
+        member's private view but never change it or read it back. Every such
         refusal is a 404, the same as every other per-resource write in this
         package: whether a row may be changed is not disclosed to a caller it refuses.
 
-        A task board's default view is part of the board, so only someone who may
-        change the board changes it, whoever saved it.
+        Sharing a view or making it private is its owner's choice alone, so a
+        visibility change from anyone else is refused outright. A task board's default
+        view is part of the board, so only someone who may change the board changes it,
+        whoever saved it.
 
         Raises:
             NotFoundError: The view is not this caller's to change.
-            AuthorizationError: The view is a task board's default and this caller
-                may not change the board.
+            AuthorizationError: Someone other than the owner changes its visibility, or
+                the view is a task board's default and this caller may not change the board.
         """
         table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, lock=True)
         view = await self._manageable_view(ctx, table_id, view_id)
+        if not self._visible_to(ctx, view):
+            raise _view_not_found(view_id)
+        if (
+            data.visibility is not None
+            and data.visibility != view.visibility
+            and view.owner_user_id != ctx.subject_id
+        ):
+            message = "Only the person who saved this view can share it or make it private"
+            raise AuthorizationError(message=message, details=field_details("visibility", message))
         if view.id == table.default_view_id:
             await self._ensure_manages_board(ctx, table)
         # `config` excluded from `writable`: its column is JSONB, not a scalar, so it needs

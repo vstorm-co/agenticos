@@ -1,5 +1,5 @@
 ---
-source_sha: "8042876abacb"
+source_sha: "107659f9bab3"
 ---
 
 # Berechtigungen { #permissions }
@@ -461,7 +461,9 @@ ihn abbrechen, solange er den Workflow noch ausführen darf, und wer den Workflo
 bearbeiten darf, darf jeden seiner Runs abbrechen. Ein Member, der einen für die
 Organisation sichtbaren Workflow ausführen darf, stoppt seine eigenen Runs,
 nicht die eines Kollegen; wer den Run sieht, aber keines der beiden Rechte hat,
-wird mit `403` abgewiesen.
+wird mit `403` abgewiesen. Einen abgebrochenen Run zu wiederholen braucht dasselbe
+Recht, sodass ein von jemandem gestoppter Run nicht von einem Mitglied neu
+gestartet wird, das ihn nicht hätte stoppen können.
 
 **Ein Run handelt im Namen der Person, die ihn gestartet hat, und die wird bei
 jedem Knoten erneut geprüft.** Ein Knoten kann Tage nach dem Start des Runs

@@ -6,7 +6,8 @@ resolved against that table (`tables:view` to list, read or delete, `tables:edit
 to create or change one) rather than at the role level, so a Viewer holding an
 explicit grant on one table is not refused before the service ever runs. Changing or
 deleting a view additionally requires being its owner or holding a `tables:edit`
-scope of `ALL`; see `TableViewRead.can_manage`. That refusal is a 404, not a 403:
+scope of `ALL`, and another member's private view may only be deleted; see
+`TableViewRead.can_manage`. That refusal is a 404, not a 403:
 whether a view exists and who may touch it are not disclosed to a caller who may
 not, matching every other per-resource write in this package.
 
@@ -57,6 +58,14 @@ _BOARD_VIEW_REFUSALS: dict[int | str, dict[str, Any]] = {
         "description": "A task board's default view, and this caller may not change the board",
     },
 }
+_UPDATE_REFUSALS: dict[int | str, dict[str, Any]] = {
+    **_WRITE_REFUSALS,
+    403: {
+        "model": ErrorEnvelope,
+        "description": "Only the view's owner shares it or makes it private, and a task "
+        "board's default view is changed only by someone who may change the board",
+    },
+}
 
 
 @router.get(
@@ -101,7 +110,7 @@ async def get_view(table_id: UUID, view_id: UUID, service: TableViewSvc, ctx: Au
 @router.patch(
     "/{table_id}/views/{view_id}",
     response_model=TableViewRead,
-    responses=_BOARD_VIEW_REFUSALS,
+    responses=_UPDATE_REFUSALS,
     dependencies=[Depends(limit_table_write)],
 )
 async def update_view(
@@ -109,7 +118,10 @@ async def update_view(
 ) -> Any:
     """Rename, reconfigure or reshare a view.
 
-    Refused (404) to anyone but its owner or a caller whose `tables:edit` scope is `ALL`.
+    Refused (404) to anyone but its owner or a caller whose `tables:edit` scope is `ALL`,
+    and another member's private view to everyone, `ALL` scope included. Only the owner
+    changes its `visibility`, and only someone who may change a task board changes its
+    default view (403).
     """
     return await service.update_view(ctx, table_id, view_id, data)
 

@@ -397,7 +397,7 @@ export interface TableViewRead {
   kind: ViewKind;
   visibility: ViewVisibility;
   config: TableViewConfig;
-  /** Whether this caller may rename, reconfigure or reshare this view - needs `tables:edit` on the table. */
+  /** Whether this caller may rename or reconfigure this view - needs `tables:edit` on the table. Only its owner reshares it. */
   can_manage: boolean;
   /** Whether this caller may delete this view - its owner, even without edit access to the table. */
   can_delete: boolean;

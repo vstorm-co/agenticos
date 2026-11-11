@@ -504,7 +504,7 @@ class WorkflowExposureService:
             BadRequestError: The organization has no Outlook mailbox connected, so
                 nothing would ever start the workflow.
         """
-        await self._guard_shared_mailbox(ctx, workflow, version, node_id)
+        self._guard_shared_mailbox(ctx, version, node_id)
         return await self._switch_on_mailbox(
             ctx,
             workflow,
@@ -516,39 +516,23 @@ class WorkflowExposureService:
             "trigger step, or the Outlook portal",
         )
 
-    async def _guard_shared_mailbox(
-        self, ctx: AuthContext, workflow: Workflow, version: WorkflowVersion, node_id: UUID
-    ) -> None:
+    @staticmethod
+    def _guard_shared_mailbox(ctx: AuthContext, version: WorkflowVersion, node_id: UUID) -> None:
         """Refuse a shared mailbox the publisher may not name, as an agent's trigger does.
 
         The organization's Outlook grant reads with `Mail.Read.Shared`: every
         shared mailbox the account that consented can open. Naming one spends that
         reach, and the runs put its mail where the publisher reads it, so it takes
-        `mcp:manage` - the permission that connected the account. A workflow left
-        on the account's own mailbox, or on the shared one it already listened to,
-        needs nothing more.
+        `mcp:manage` - the permission that connected the account. That holds on a
+        republish that keeps the mailbox too, because whoever publishes becomes the
+        member every later fire reads it as, and each fire checks it again. A
+        workflow left on the account's own mailbox needs nothing more.
         """
         node = WorkflowGraph.model_validate(version.graph).node_by_id[node_id]
-        mailbox = (OutlookTriggerConfig.model_validate(node.config).mailbox or "").casefold()
+        mailbox = OutlookTriggerConfig.model_validate(node.config).mailbox
         if not mailbox or ctx.has(Perm.MCP_MANAGE):
             return
-        current = await workflow_exposure_repo.get_for_workflow(
-            self.db,
-            workflow_id=workflow.id,
-            organization_id=ctx.organization_id,
-            adapter=ExposureAdapter.OUTLOOK.value,
-        )
-        if current is not None and current.adapter == ExposureAdapter.OUTLOOK.value:
-            pinned = cast(
-                WorkflowVersion,
-                await workflow_repo.get_version(
-                    self.db, current.workflow_version_id, organization_id=ctx.organization_id
-                ),
-            )
-            before = self._mail_config(current, pinned, OutlookTriggerConfig, source="outlook")
-            if before is not None and (before.mailbox or "").casefold() == mailbox:
-                return
-        message = "Reading a shared mailbox needs the permission to manage connections"
+        message = "Reading a shared mailbox needs mcp:manage, the permission to manage connections"
         raise AuthorizationError(
             message=message,
             details=field_details(f"nodes.{node_id}.config.mailbox", message),
@@ -1600,7 +1584,9 @@ class WorkflowExposureService:
 
         Re-resolved on every fire, never cached: authority is whatever the
         member's membership and the workflow's grants say now. `get_active`, so a
-        deactivated account - whose membership row stays - no longer fires.
+        deactivated account - whose membership row stays - no longer fires. So is
+        what publishing the trigger needed beyond running the workflow: a channel
+        listener's `channels:manage`, a shared mailbox's `mcp:manage`.
         """
         if exposure.execution_principal_user_id is None:
             return None
@@ -1639,7 +1625,19 @@ class WorkflowExposureService:
                 self.db, exposure.workflow_version_id, organization_id=exposure.organization_id
             ),
         )
+        if not self._still_publishable(ctx, exposure, version):
+            return None
         return ctx, workflow, version
+
+    def _still_publishable(
+        self, ctx: AuthContext, exposure: WorkflowExposure, version: WorkflowVersion
+    ) -> bool:
+        if exposure.adapter == ExposureAdapter.CHANNEL.value:
+            return ctx.has(Perm.CHANNELS_MANAGE)
+        if exposure.adapter == ExposureAdapter.OUTLOOK.value:
+            config = self._mail_config(exposure, version, OutlookTriggerConfig, source="outlook")
+            return config is None or not config.mailbox or ctx.has(Perm.MCP_MANAGE)
+        return True
 
     async def _last_run_live(self, exposure: WorkflowExposure) -> bool:
         if exposure.last_run_id is None:
