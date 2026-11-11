@@ -159,6 +159,21 @@ describe("who sees Retry", () => {
     ).toBeInTheDocument();
   });
 
+  it("hides Retry on a cancelled run from someone who could not have cancelled it", async () => {
+    seed({ status: "cancelled", mode: "real", can_cancel: false }, "failed");
+    await renderPage();
+    await screen.findByRole("heading", { name: "Flow" });
+    expect(screen.queryByRole("button", { name: "Retry from failed step" })).toBeNull();
+  });
+
+  it("shows Retry on a cancelled run to its starter or an editor", async () => {
+    seed({ status: "cancelled", mode: "real", can_cancel: true }, "failed");
+    await renderPage();
+    expect(
+      await screen.findByRole("button", { name: "Retry from failed step" }),
+    ).toBeInTheDocument();
+  });
+
   it("keeps Retry on a real run for anyone who may run it", async () => {
     seed({ status: "failed", mode: "real" }, "failed");
     await renderPage();

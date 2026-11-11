@@ -1,5 +1,5 @@
 ---
-source_sha: "96494123ddae"
+source_sha: "539603f9eb62"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -482,7 +482,7 @@ Obiekt `display` przechowuje `column_order`, `hidden_system_columns`, `wrap_text
 |---|---|
 | `kind` | `table`, `kanban` lub `list` - widok jest zapisany *dla* jednego rodzaju |
 | `visibility` | `private` (tylko właściciel) lub `shared` (każdy, kto widzi tabelę) |
-| `can_manage` | Czy ten wywołujący może zmienić nazwę, przekonfigurować lub udostępnić widok |
+| `can_manage` | Czy ten wywołujący może zmienić nazwę lub przekonfigurować widok; udostępnia go tylko właściciel |
 | `can_delete` | Czy ten wywołujący może usunąć widok |
 
 Listowanie, odczyt i usunięcie rozwiązują się względem tabeli (`tables:view`);
@@ -498,6 +498,12 @@ członka. Odmowa działa tak samo jak przy każdym innym zapisie na jednym zasob
 tutaj: `NOT_FOUND` (404), nigdy 403, który ujawniłby istnienie widoku wywołującemu,
 któremu go odmówiono. `can_manage` i `can_delete` mówią, co z tych dwóch ten
 wywołujący może zrobić.
+
+Prywatny widok innego członka jest jeszcze węższy: nawet wywołujący ze scope
+`ALL` może go tylko usunąć, nigdy zmienić ani odczytać, więc `PATCH` odpowiada
+`NOT_FOUND` tak, jak dla widoku, który nie istnieje. A `visibility` widoku
+zmienia tylko jego właściciel: każdy inny, kto wyśle inną wartość, dostaje
+odmowę `AUTHORIZATION_ERROR` (403), bo ten widok i tak ma już przed sobą.
 
 Zarchiwizowanie kolumny jest odrzucane z `SCHEMA_DEPENDENCY`, wskazując widok, gdy
 widok, który wywołujący może zarówno zobaczyć, jak i zmienić, nadal używa jej do
@@ -573,6 +579,12 @@ wartości jako `fields` według etykiet i `author_id`, a przy zmianie lub usuni�
 także `before` oraz kolumny `changed` według etykiet. **Triggers** na stronie tabeli
 wymienia workflow, które od niej startują, wstrzymuje i wznawia każdy z nich oraz
 otwiera jego historię.
+
+Wstrzymanie go tam wymaga `tables:edit` na tabeli. Wznowienie znowu uruchamia
+workflow jako osobę, która go opublikowała, więc wymaga też `workflows:edit` i
+`workflows:run` na tym workflow, tak jak własny przełącznik **Active** workflow;
+członek, który może edytować tabelę, ale nie workflow, dostaje odpowiedź, że
+workflow nie istnieje.
 
 Wyzwalacz startuje tylko dla rekordów dodanych, gdy jest włączony. Włączenie -
 publikacja albo wznowienie - bierze blokadę schematu tabeli, na którą czeka każdy zapis rekordu, więc żaden
@@ -800,6 +812,14 @@ AgenticOS MCP udostępnia `list_task_boards`, `ensure_task_board`, `list_tasks`,
 Członkostwo w grupie pozwala czytać jej tablicę zadań; zapis wymaga dodatkowo uprawnienia do edycji tabel lub jawnego grantu edycji. Gdy osoba przypisana do przypomnienia traci dostęp, zadanie zostaje zablokowane, a twórca otrzymuje sprawę w Inbox do przekazania pracy. Nowe rozmowy robocze zadań projektowych należą do tego projektu. Limit tabel może zablokować opcjonalne zadanie z wyniku routine, ale rozmowa robocza, sprawa Inbox i powiadomienie nadal są dostarczane.
 
 Zapis na projektowej tablicy zadań wymaga dostępu do projektu oraz uprawnienia edycji tabel lub jawnego grantu Edit do tabeli. Usunięcie projektu, grupy albo prywatnego właściciela anuluje zadania w kolejce, zamyka ich sprawy i usuwa zarządzaną tabelę tego zakresu wraz z rekordami, historią i mediami w tej samej transakcji. Pozostałe zakresy pozostają nienaruszone. Panel zadań wraca do dostępnej prywatnej tablicy, gdy wybrana tablica znika.
+
+Zmiana samej tablicy zadań jest węższa niż praca na niej. Zmiana nazwy tablicy, jej
+kolumn albo domyślnego widoku oraz jej archiwizacja albo przywrócenie wymagają
+`tables:edit` w scope `ALL` (owner albo admin) albo lidera scope tablicy: lidera grupy,
+właściciela projektu, osoby, do której należy prywatna tablica. Każdy inny z odbiorców
+tablicy nadal dodaje i edytuje zadania; `can_manage` tabeli mówi, co z tych dwóch może
+wywołujący, a konsola pokazuje kontrolki samej tablicy tylko wtedy, gdy to prawda. Próba
+bez tego kończy się odmową `AUTHORIZATION_ERROR` (403).
 
 ## Domyślny widok {#default-view}
 

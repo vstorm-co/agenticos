@@ -55,7 +55,8 @@ vi.mock("@/components/tables/table-grid-view", () => ({
     onOpenRecord: (r: RecordRead) => void;
     canEdit: boolean;
     onAddRecord?: (initial?: Record<string, unknown>) => void;
-    columnActions?: Record<"onSort" | "onRename" | "onHide" | "onArchive", (arg: unknown) => void>;
+    columnActions?: Record<"onSort" | "onHide", (arg: unknown) => void> &
+      Partial<Record<"onRename" | "onArchive", (arg: unknown) => void>>;
     onAddColumn?: () => void;
     records: RecordRead[];
     onEndReached: () => void;
@@ -78,9 +79,13 @@ vi.mock("@/components/tables/table-grid-view", () => ({
       {columnActions &&
         columns.map((column) => (
           <span key={column.id}>
-            <button onClick={() => columnActions.onRename(column)}>rename-{column.id}</button>
+            {columnActions.onRename && (
+              <button onClick={() => columnActions.onRename?.(column)}>rename-{column.id}</button>
+            )}
             <button onClick={() => columnActions.onHide(column)}>hide-{column.id}</button>
-            <button onClick={() => columnActions.onArchive(column)}>archive-{column.id}</button>
+            {columnActions.onArchive && (
+              <button onClick={() => columnActions.onArchive?.(column)}>archive-{column.id}</button>
+            )}
           </span>
         ))}
     </div>
@@ -257,6 +262,7 @@ function table(overrides: Partial<TableRead> = {}): TableRead {
     updated_at: null,
     can_edit: true,
     can_restore: false,
+    can_manage: true,
     columns: [
       {
         id: "c1",
@@ -841,6 +847,22 @@ describe("the table detail page", () => {
         expected_version: number;
         columns: { id?: string; label: string; archived?: boolean }[];
       };
+
+    it("offers a task board's member hiding columns but no change to the board", async () => {
+      serve({ tableFixture: table({ can_manage: false }) });
+      const user = userEvent.setup();
+      renderPage();
+      await screen.findByTestId("grid-view");
+
+      expect(screen.getByRole("button", { name: "hide-c1" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "rename-c1" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "archive-c1" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "add-column" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /columns/i })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /add record/i })).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "More actions" }));
+      expect(screen.queryByRole("menuitem", { name: "Archive table" })).not.toBeInTheDocument();
+    });
 
     it("offers a reader no column actions", async () => {
       serve({ tableFixture: table({ can_edit: false }) });

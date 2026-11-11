@@ -87,9 +87,10 @@ function TemplateLibrary({
   const [error, setError] = useState<string | null>(null);
   const templates = column?.document_templates ?? [];
   const busy = changeSchema.isPending;
-  const canEdit = Boolean(table?.can_edit);
+  // Templates live in the column's schema, so keeping them is changing the table.
+  const canEdit = Boolean(table?.can_edit && table.can_manage);
   const save = async (patch: Partial<ColumnInput>): Promise<boolean> => {
-    if (!table || !column || !table.can_edit) return false;
+    if (!table || !column || !table.can_edit || !table.can_manage) return false;
     setError(null);
     try {
       await changeSchema.mutateAsync({

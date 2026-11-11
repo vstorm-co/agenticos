@@ -39,6 +39,12 @@ export function BudgetField({
   );
 }
 
+/** Whether `parsed` raises or removes the cap `stored`; no cap stored means any cap tightens. */
+export function raisesBudget(parsed: number | null | undefined, stored: number | null): boolean {
+  if (stored === null || parsed === undefined) return false;
+  return parsed === null || parsed > stored;
+}
+
 /** Blank explicitly clears a cap; malformed or nonpositive input is refused. */
 export function parseBudget(value: string): number | null | undefined {
   const text = value.trim();

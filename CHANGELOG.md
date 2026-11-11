@@ -31,6 +31,34 @@ Two things are versioned separately from this file and worth knowing about:
   Questions, delegations, visible UI tools and existing session/routine policies
   keep their native-tool behaviour (#2876).
 
+### Fixed
+
+- **Monthly budgets stay consistent across resumes and background work.** A
+  run and every continuation use the calendar month it started in. Parked
+  routine fires refuse exhausted routine budgets, while budget stops do not
+  count as routine failures. Background model requests enforce their limits,
+  pinned agent versions use the current published cap, and failed workflow AI
+  steps retain their spend (#2916, #2920, #2918, #2914, #2915, #2917, #2919).
+- **Shared task boards and delegated automation keep their authority checks.**
+  Board management and default views require the scope's leader or an
+  administrator, while task editing stays available to the audience. Private
+  views, cancelled workflow retries, trigger publication and routines acting as
+  their creator keep their corresponding ownership and permission checks
+  (#2910, #2908, #2909, #2911, #2912, #2913).
+
+- **Saved forms become clean when the server reorders JSON or fills defaults.**
+  The agent Builder, remote edit notices and dataset grading compare JSON content
+  independently of object key order. Successful saves adopt the server's
+  normalized copy while preserving edits made in flight. Unchanged routine
+  folder permissions no longer ask for approval again. Structured workflow
+  expectations and paused terminal identities use canonical JSON too (#2892).
+
+- Routine and monitor action icons now show localized labels on hover or focus,
+  including the current pause/resume action and disabled Run now (#2924).
+
+- Context cards in the same row now have equal heights and aligned footers,
+  including cards with longer descriptions or agent usage indicators.
+
 ## [1.65.1] - 2026-11-11
 
 ### Fixed

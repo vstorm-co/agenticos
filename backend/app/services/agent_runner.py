@@ -230,6 +230,7 @@ from app.agents.routine_actions import RoutineToolCheck
 from app.agents.routine_authority import RoutineCheck, guard_for
 from app.agents.spec import (
     AgentSpec,
+    BudgetSpec,
     CapabilityBindingSpec,
     ExternalAgentRef,
     McpServerRef,
@@ -306,6 +307,7 @@ from app.repositories import (
     agent_exposure_repo,
     agent_repo,
     agent_run_repo,
+    agent_trigger_repo,
     channel_prompt_repo,
     chat_file_repo,
     conversation_repo,
@@ -411,7 +413,12 @@ from app.services.skill_proposal import SkillProposalService
 from app.services.skill_workspace import SKILLS_ROOT, MaterialisedSkills, collect_changes
 from app.services.skill_workspace import materialise as materialise_skills
 from app.services.skills import SkillService
-from app.services.spend import month_start, organization_monthly_spend
+from app.services.spend import (
+    budget_window,
+    month_start,
+    organization_monthly_spend,
+    organization_spend_since,
+)
 from app.services.transcript import (
     STOPPED_TOOL_RESULT,
     RecordedToolCall,
@@ -1476,6 +1483,27 @@ class _ResumePlan:
     own agent's are not here; they come off `PausedRunState.dynamic_specialists`
     under the `None` key.
     """
+
+
+def _native_approval_tools(state: PausedRunState) -> dict[str | None, frozenset[str]]:
+    """Keep each owner's already parked native calls out of its script catalog."""
+    pending_ids: dict[str | None, set[str]] = {}
+    for approval_id, call_id in state.tool_call_ids.items():
+        pending_ids.setdefault(state.delegated_approvals.get(approval_id), set()).add(call_id)
+    native_tools: dict[str | None, frozenset[str]] = {}
+
+    def collect(owner: str | None, history: object, frames: list[DelegationFrame]) -> None:
+        native_tools[owner] = frozenset(
+            part.tool_name
+            for message in ModelMessagesTypeAdapter.validate_python(history)
+            for part in message.parts
+            if isinstance(part, ToolCallPart) and part.tool_call_id in pending_ids.get(owner, set())
+        )
+        for frame in frames:
+            collect(frame.task_id, frame.messages, frame.delegations)
+
+    collect(None, state.messages, state.delegations)
+    return native_tools
 
 
 def _resume_plan(state: PausedRunState, decided_args: Mapping[str, dict[str, Any]]) -> _ResumePlan:
@@ -3173,6 +3201,20 @@ def _dynamic_builder(
     return build
 
 
+class RoutineBudgetSpent(BudgetExceeded):
+    """A parked fire resumed once its routine's month is spent, refused as a skipped fire is.
+
+    A fire still running when the limit is crossed finishes; a parked one has not
+    started its continuation, so it waits for the next month like a new fire.
+    """
+
+    def __init__(self, *, limit_usd: Decimal, spent_usd: Decimal) -> None:
+        super().__init__(limit_usd=limit_usd, spent_usd=spent_usd, scope=BudgetScope.RUN)
+        self.args = (
+            f"Routine monthly budget exhausted: ${spent_usd:.4f} spent of ${limit_usd:.2f} limit",
+        )
+
+
 def _spend_already_booked(run: AgentRun) -> SpendEntry:
     """A resumed run's opening balance, as one ledger entry.
 
@@ -3598,8 +3640,9 @@ class AgentRunnerService:
 
         Args:
             source_run: A run whose frozen spec an auxiliary call uses.
-                Current access is still checked; its original instructions, budgets
-                and tracing policy cannot drift to a newly published version.
+                Current access and the current published budget still apply; its
+                original instructions and tracing policy cannot drift to a newly
+                published version.
             aside: A question asked on the side of a run still working (#2087):
                 answered from the conversation alone, with the agent's tools,
                 knowledge, servers and delegates taken away - see `_answer_only`.
@@ -3966,6 +4009,11 @@ class AgentRunnerService:
         system = agent.kind != AgentKind.AGENT.value
         if system:
             spec = for_the_platform(spec)
+        spec = await self._with_current_budget(
+            agent,
+            spec,
+            version_id=version_id if existing_run is None else existing_run.agent_version_id,
+        )
         routine = await RoutineAuthority.capture(
             self.db, ctx, agent_id=agent.id, run=existing_run, version_id=version_id
         )
@@ -4322,6 +4370,8 @@ class AgentRunnerService:
         if routine is not None:
             routine.require_project(project)
         run = existing_run
+        opened_at = datetime.now(UTC)
+        started_at = opened_at if existing_run is None else existing_run.started_at
         if run is None:
             require_admission()
             run = await agent_run_repo.create_run(
@@ -4387,7 +4437,7 @@ class AgentRunnerService:
                 if model_spec is not None
                 else None,
                 modality="voice" if voice is not None else "text",
-                started_at=datetime.now(UTC),
+                started_at=opened_at,
                 is_test=is_test,
                 test_spec=test_spec,
             )
@@ -4434,12 +4484,15 @@ class AgentRunnerService:
                 return get_worker_db_context
             return get_db_context
 
+        since, until = budget_window(started_at)
+
         async def agent_period_spend() -> Decimal:
             async with spend_session("agent")() as db:
                 return await agent_run_repo.sum_cost_since(
                     db,
                     organization_id=ctx.organization_id,
-                    since=month_start(),
+                    since=since,
+                    until=until,
                     agent_id=agent.id,
                     include_delegations=True,
                     exclude_run_id=run.id,
@@ -4447,12 +4500,15 @@ class AgentRunnerService:
 
         async def org_period_spend() -> Decimal:
             async with spend_session("organization")() as db:
-                return await organization_monthly_spend(
-                    db, ctx.organization_id, exclude_run_id=run.id
+                return await organization_spend_since(
+                    db, ctx.organization_id, since, until=until, exclude_run_id=run.id
                 )
 
         group_limits = await self._group_limits(
-            self._department_context(ctx, existing_run), exclude_run_id=run.id
+            self._department_context(ctx, existing_run),
+            exclude_run_id=run.id,
+            since=since,
+            until=until,
         )
 
         # A chat in a project works in the project's container and reads its
@@ -5878,12 +5934,23 @@ class AgentRunnerService:
         """
         config = _mirage_config(spec)
         if config is not None:
-            key = hashlib.sha256(
+            legacy_key = hashlib.sha256(
                 f"{ctx.organization_id}:{person_id}:{config.model_dump_json()}".encode()
             ).hexdigest()
+            canonical = json.dumps(
+                config.model_dump(mode="json"), sort_keys=True, separators=(",", ":")
+            )
+            key = (
+                "v2:"
+                + hashlib.sha256(
+                    f"{ctx.organization_id}:{person_id}:{canonical}".encode()
+                ).hexdigest()
+            )
             service = MirageMountService(self.db)
             identity = await service.authority(ctx, config, person_id=person_id)
-            if restoring and (authorities is None or authorities.get(key) != identity):
+            if restoring and (
+                authorities is None or authorities.get(key, authorities.get(legacy_key)) != identity
+            ):
                 raise AuthorizationError(
                     message="A terminal account or credential changed while this run waited. Start a new run to review its targets."
                 )
@@ -5894,6 +5961,7 @@ class AgentRunnerService:
                 )
             if authorities is not None:
                 authorities[key] = identity
+                authorities[legacy_key] = identity
             resources[MIRAGE_MOUNTS_RESOURCE] = terminal
 
     async def _workspace_shared(
@@ -6702,12 +6770,18 @@ class AgentRunnerService:
         are not the run's - its spend is the starter's, and the starter's caps
         hold it. Departments are a person's, not a role's, so the run's own
         person and flags are enough. `None` where no member started the run:
-        nobody's to begin with, or fired by a routine, which a fresh run tells
-        apart by its flags.
+        nobody's to begin with, fired by a routine - a deleted one's included,
+        whose `trigger_id` is cleared - or background work for a person, which
+        a fresh run tells apart by its flags.
         """
         if existing_run is None:
             return ctx
-        if existing_run.user_id is None or existing_run.trigger_id is not None:
+        if (
+            existing_run.user_id is None
+            or existing_run.trigger_id is not None
+            or existing_run.routine_origin_id is not None
+            or existing_run.surface == RunSurface.PROACTIVE.value
+        ):
             return None
         return replace(
             ctx,
@@ -6717,7 +6791,12 @@ class AgentRunnerService:
         )
 
     async def _group_limits(
-        self, ctx: AuthContext | None, *, exclude_run_id: UUID
+        self,
+        ctx: AuthContext | None,
+        *,
+        exclude_run_id: UUID,
+        since: datetime | None = None,
+        until: datetime | None = None,
     ) -> list[SpendLimit]:
         """The monthly caps of every department the person running this is in (#2072).
 
@@ -6745,7 +6824,8 @@ class AgentRunnerService:
                     return await agent_run_repo.sum_cost_since(
                         db,
                         organization_id=ctx.organization_id,
-                        since=month_start(),
+                        since=since or month_start(),
+                        until=until,
                         group_id=group_id,
                         exclude_run_id=exclude_run_id,
                     )
@@ -7411,22 +7491,7 @@ class AgentRunnerService:
         prepared.built.deps.conversation_task_id = state.admitted_as.conversation_task_id
         prepared.built.deps.generated_files.update(state.generated_files)
         prepared.built.deps.code_continuations.checkpoints.update(state.code_checkpoints)
-        pending_ids = set(state.tool_call_ids.values())
-        native_tools = prepared.built.deps.code_continuations.native_tools
-
-        def collect_native_tools(
-            owner: str | None, history: object, frames: list[DelegationFrame]
-        ) -> None:
-            native_tools[owner] = frozenset(
-                part.tool_name
-                for message in ModelMessagesTypeAdapter.validate_python(history)
-                for part in message.parts
-                if isinstance(part, ToolCallPart) and part.tool_call_id in pending_ids
-            )
-            for frame in frames:
-                collect_native_tools(frame.task_id, frame.messages, frame.delegations)
-
-        collect_native_tools(None, state.messages, state.delegations)
+        prepared.built.deps.code_continuations.native_tools = _native_approval_tools(state)
         if can_ask:
             prepared.built.deps.ask_questions = park_the_question
             prepared.built.deps.parks_questions = True
@@ -7458,6 +7523,14 @@ class AgentRunnerService:
         # continue. Nothing above has touched the row, so the run is still parked
         # and still resumable, and no failure path can commit a status that was
         # never written.
+        refusal = await self._routine_budget_spent(run)
+
+        async def opened(child: AgentRun) -> None:
+            if refusal is not None:
+                raise refusal
+            if on_run_open is not None:
+                await on_run_open(child)
+
         await agent_run_repo.mark_running(self.db, run=run)
 
         try:
@@ -7473,7 +7546,7 @@ class AgentRunnerService:
                     ),
                     deferred_tool_results=plan.results,
                     on_segment=on_segment,
-                    on_run_open=on_run_open,
+                    on_run_open=opened,
                     check_model_request=check_model_request,
                     stream=frames.drive if frames is not None else None,
                 )
@@ -8004,6 +8077,48 @@ class AgentRunnerService:
             content=base.content if base else "full",
         )
         return spec.model_copy(update={"observability": merged})
+
+    async def _routine_budget_spent(self, run: AgentRun) -> RoutineBudgetSpent | None:
+        """The refusal for a parked fire whose routine has spent its month, or `None`.
+
+        The month is the one the run started in, as the routine's spend is
+        counted, and this run's own spend so far is part of it.
+        """
+        if run.routine_kind != "trigger" or run.routine_origin_id is None:
+            return None
+        trigger = await agent_trigger_repo.get(
+            self.db, run.routine_origin_id, organization_id=run.organization_id
+        )
+        if trigger is None or trigger.monthly_budget_usd is None:
+            return None
+        since, until = budget_window(run.started_at)
+        spent = (
+            await agent_run_repo.spend_by_trigger_since(
+                self.db, trigger_ids=[trigger.id], since=since, until=until
+            )
+        ).get(trigger.id, Decimal(0))
+        if spent < trigger.monthly_budget_usd:
+            return None
+        return RoutineBudgetSpent(limit_usd=trigger.monthly_budget_usd, spent_usd=spent)
+
+    async def _with_current_budget(
+        self, agent: Agent, spec: AgentSpec, *, version_id: UUID | None
+    ) -> AgentSpec:
+        """`spec` held to the monthly cap of the agent's current published version.
+
+        A pinned version - a routine's, an environment's, a workflow step's, a
+        parked run's - decides how the agent behaves, not what it may spend, so a
+        limit published since binds every version that runs. An agent never
+        published keeps its own spec's cap: a draft under test has nothing else.
+        """
+        current = agent.current_version_id
+        if current is None or current == version_id:
+            return spec
+        cap = (await agent_repo.published_budget_caps(self.db, version_ids=[current])).get(current)
+        budget = None if cap is None else BudgetSpec(monthly_usd=cap)
+        if budget == spec.budget:
+            return spec
+        return spec.model_copy(update={"budget": budget})
 
     async def _parked_spec(self, ctx: AuthContext, run: AgentRun) -> tuple[Agent, AgentSpec]:
         """The agent and the exact spec version this run was executing.

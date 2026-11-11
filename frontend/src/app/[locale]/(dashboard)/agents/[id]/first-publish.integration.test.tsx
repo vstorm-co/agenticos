@@ -44,7 +44,7 @@ const MODEL_PROFILE = {
 };
 
 const refetchProfiles = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
-const saveDraft = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const saveDraft = vi.hoisted(() => vi.fn(async (spec: AgentSpec) => ({ draft_spec: spec })));
 
 const state = {
   permissions: [] as Permission[],

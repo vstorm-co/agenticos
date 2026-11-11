@@ -1,5 +1,5 @@
 ---
-source_sha: "cba80f115942"
+source_sha: "aa54fb9dafe5"
 ---
 
 # Workflows { #workflows }
@@ -981,7 +981,8 @@ Timer laufen also weiter.
 
 Einen Schritt klärt nur, wer den Run gestartet hat, oder ein Editor des Workflows,
 und in einem Test-Run darf nur ein Editor einen Schritt klären oder den Run
-wiederholen. Über die API dient dazu `POST
+wiederholen. Einen abgebrochenen Run wiederholt nur, wer ihn gestartet hat, oder ein
+Editor, also wer ihn hätte abbrechen können. Über die API dient dazu `POST
 /api/v1/workflow-runs/{id}/steps/{node_run_id}/rerun` mit einem `choice`, und die
 Entscheidung wird auditiert. Ein abgebrochener oder fehlgeschlagener Run hat keinen
 Schritt mehr zu klären: **Retry from failed step** startet einen neuen Run. Ein
@@ -1242,10 +1243,39 @@ eingeschaltet wurde; Post, die schon dort liegt, startet nichts.
 
 Ein gemeinsames Postfach, das der Microsoft-Grant der Organisation öffnen kann, zu
 nennen, erfordert die Berechtigung, Verbindungen zu verwalten, wie bei Outlook-Agent-Triggern;
-ein Workflow, der schon eines liest, behält es bei späteren Veröffentlichungen, und es zu
-ändern erfordert die Berechtigung erneut. Meldet Outlook, dass der Ordner nicht
+jede Veröffentlichung, die eines nennt, braucht sie, weil die veröffentlichende
+Person zu dem Mitglied wird, als das das Postfach gelesen wird, und eine Nachricht
+an einen Workflow, dessen Veröffentlicher sie nicht mehr hat, startet keinen Run. Meldet Outlook, dass der Ordner nicht
 mehr gelesen werden kann, wird der Workflow ausgeschaltet, und das Audit-Log nennt
 den Grund.
+
+Ein Administrator kann die Outlook-Trigger, die das stoppt, vorher finden: jene, die
+ein geteiltes Postfach für einen Veröffentlicher lesen, der weder Owner noch Admin
+noch Builder ist und daher `mcp:manage` nicht hat. Jeder braucht eine erneute
+Veröffentlichung durch jemanden, der es hat, oder eine höhere Rolle des
+Veröffentlichers. Gegen die Datenbank der Bereitstellung ausführen:
+
+```sql
+SELECT o.name AS organization,
+       w.name AS workflow,
+       u.email AS publisher,
+       m.role AS publisher_role,
+       node -> 'config' ->> 'mailbox' AS shared_mailbox
+FROM workflow_exposures AS e
+JOIN workflow_versions AS v ON v.id = e.workflow_version_id
+JOIN workflows AS w ON w.id = e.workflow_id
+JOIN organizations AS o ON o.id = e.organization_id
+JOIN users AS u ON u.id = e.execution_principal_user_id
+LEFT JOIN organization_members AS m
+  ON m.organization_id = e.organization_id AND m.user_id = e.execution_principal_user_id
+CROSS JOIN LATERAL jsonb_array_elements(v.graph -> 'nodes') AS node
+WHERE e.adapter = 'outlook'
+  AND e.is_active
+  AND (node ->> 'id')::uuid = e.node_instance_id
+  AND coalesce(node -> 'config' ->> 'mailbox', '') <> ''
+  AND NOT u.is_app_admin
+  AND coalesce(m.role, '') NOT IN ('owner', 'admin', 'builder');
+```
 
 Der Lauf bekommt dieselben Felder wie ein Gmail-Lauf, wobei `labels` die
 Kategorien der Nachricht enthält und `mailbox` das gemeinsame Postfach, aus dem sie
@@ -1292,7 +1322,9 @@ Forenthemas.
 Ein **Send a message**-Schritt, der nach einem **Channel message**-Trigger hinzugefügt
 wird, startet als der Bot des Triggers, mit gebundenen `channel_id` und `thread_id`, wenn
 die Plattformen übereinstimmen. Die Nachrichten eines Bots starten höchstens einen
-Workflow, und das Zuhören braucht `channels:manage`. Eine Sprachnachricht kommt als Transkript an; andere
+Workflow, und das Zuhören braucht `channels:manage`, bei
+jeder Nachricht erneut geprüft: Verliert der Veröffentlicher es, antwortet der
+eigene Agent des Bots. Eine Sprachnachricht kommt als Transkript an; andere
 Anhänge werden nicht übergeben. Siehe
 [trigger.channel_message](reference/workflow-nodes.md#trigger-channel-message).
 

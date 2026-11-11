@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { canonicalJson } from "@/lib/canonical-json";
 import { CONSOLE_TAB } from "@/lib/console-tab";
 import { onRemoteChange } from "@/lib/live-updates";
 import type { ChangeResource, MadeChange } from "@/types/change-events";
@@ -76,7 +77,7 @@ export function useRemoteDraft<T>({
         setWaiting({
           event,
           since: now.fetchedAt,
-          stored: JSON.stringify(now.stored),
+          stored: canonicalJson(now.stored),
         });
       }),
     [resource, id],
@@ -87,10 +88,10 @@ export function useRemoteDraft<T>({
   // would paint one frame of the stale decision first.
   if (waiting !== null && fetchedAt > waiting.since) {
     setWaiting(null);
-    if (stored != null && JSON.stringify(stored) !== waiting.stored) {
+    if (stored != null && canonicalJson(stored) !== waiting.stored) {
       // Compared now, not when the event came: typing while the refetch was in
       // flight is an edit too, and adopting would silently drop it.
-      const edited = local !== null && JSON.stringify(local) !== waiting.stored;
+      const edited = local !== null && canonicalJson(local) !== waiting.stored;
       if (edited) setConflict(waiting.event);
       else adopt(stored);
     }

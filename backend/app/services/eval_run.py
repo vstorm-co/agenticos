@@ -1402,16 +1402,25 @@ class EvalRunService:
         )
 
     async def _agent_left(self, ctx: AuthContext, plan: RunPlan) -> Decimal | None:
-        """What the agent has left this month under the tightest cap of the sides it runs.
+        """What the agent has left this month under the cap its runs are held to.
 
-        Every side bills the same agent and each is stopped by its own spec's cap,
+        Every side bills the same agent and is held to the agent's current
+        published cap, whatever version or draft it runs. An agent never
+        published has none, and each side is then stopped by its own spec's cap,
         so the lowest one decides how far the run gets.
         """
-        caps = [
-            arm.spec.budget.monthly_usd
-            for arm in plan.arms
-            if arm.spec.budget and arm.spec.budget.monthly_usd is not None
-        ]
+        current = plan.agent.current_version_id
+        if current is not None:
+            published = (
+                await agent_repo.published_budget_caps(self.db, version_ids=[current])
+            ).get(current)
+            caps = [] if published is None else [published]
+        else:
+            caps = [
+                arm.spec.budget.monthly_usd
+                for arm in plan.arms
+                if arm.spec.budget and arm.spec.budget.monthly_usd is not None
+            ]
         if not caps:
             return None
         cap = min(caps)

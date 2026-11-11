@@ -109,6 +109,8 @@ class _Org:
         *,
         last_month: bool = False,
         publisher_fallback: bool = False,
+        surface: str = "web",
+        routine: tuple[str, uuid.UUID] | None = None,
     ) -> AgentRun:
         started = month_start() - timedelta(days=3) if last_month else datetime.now(UTC)
         run = AgentRun(
@@ -116,10 +118,13 @@ class _Org:
             agent_id=self.agent.id,
             user_id=who.user_id if who else None,
             status="completed",
-            surface="web",
+            surface=surface,
             cost_usd=Decimal(cost),
             started_at=started,
             initiated_by_publisher_fallback=publisher_fallback,
+            routine_kind=routine[0] if routine else "trigger",
+            routine_origin_id=routine[1] if routine else None,
+            routine_policy={} if routine and routine[0] == "watch" else None,
         )
         self.db.add(run)
         await self.db.flush()
@@ -252,6 +257,31 @@ class TestTheSpendPage:
         finance = await org.department("Finance", "10", anna)
         await org.run(anna, "2")
         await org.run(anna, "50", publisher_fallback=True)
+
+        month = await GroupSpendService(db).month(org.owner_ctx)
+        baseline = await agent_run_repo.sum_cost_since(
+            db, organization_id=org.organization.id, since=month_start(), group_id=finance.id
+        )
+        export = await GroupSpendService(db).export(org.owner_ctx, finance.id)
+
+        [item] = [item for item in month.items if item.group_id == finance.id]
+        assert (item.spent_usd, item.run_count) == (Decimal("2"), 1)
+        assert baseline == Decimal("2")
+        assert export.content.splitlines()[1:] == ["anna@acme.example,Payables,1,2.000000"]
+
+    async def test_a_members_background_runs_are_not_counted_against_their_department(
+        self, db: AsyncSession
+    ) -> None:
+        """A watch, a nightly briefing and a deleted routine's fire carry the person's
+        name, but no department cap ever holds them - so they must not spend one and
+        then refuse the person's own chat."""
+        org = await _Org(db).build()
+        anna = await org.member("anna@acme.example")
+        finance = await org.department("Finance", "10", anna)
+        await org.run(anna, "2")
+        await org.run(anna, "30", surface="proactive", routine=("watch", uuid.uuid4()))
+        await org.run(anna, "20", surface="proactive")
+        await org.run(anna, "40", surface="schedule", routine=("trigger", uuid.uuid4()))
 
         month = await GroupSpendService(db).month(org.owner_ctx)
         baseline = await agent_run_repo.sum_cost_since(
