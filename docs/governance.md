@@ -2284,7 +2284,7 @@ Worth stating, because a governance page implies otherwise:
 
 ## Automatic pause after repeated failures { #routine-health }
 
-Routines and watches pause after **three consecutive unsuccessful checks** by default. Set a limit from 1 to 20, or disable this limit, in the routine's form. Provider/runtime failures, invalid watch readings and inaccessible sources count. Waiting for approval, waiting for an offline computer and delivery failures do not count; an empty but verified successful check resets the streak. Other permission and budget stops still apply when this limit is disabled.
+Routines and watches pause after **three consecutive unsuccessful checks** by default. Set a limit from 1 to 20, or disable this limit, in the routine's form. Provider/runtime failures, invalid watch readings and inaccessible sources count. Waiting for approval, waiting for an offline computer, delivery failures and budget stops do not count: a check a budget refused waits for the next one, and neither adds to the streak nor resets it. An empty but verified successful check resets the streak. Other permission and budget stops still apply when this limit is disabled.
 
 Each activation has one durable health observation. Retries cannot increase the count, and late completions are evaluated in activation order. Automatic pause stops future activations; a model request already in flight may finish.
 
