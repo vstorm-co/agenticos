@@ -258,6 +258,7 @@ from app.agents.subagent_runtime import (
     SubagentRuntime,
 )
 from app.agents.system_agents import for_the_platform, refuse_system_agent, searches
+from app.agents.tool_names import taken_tool_names
 from app.agents.voice import VoiceOptions, handed_off, without_voice_unavailable
 from app.agents.watch_sources import WatchReadReceipt, WatchSourceTools
 from app.core.audit import current_impersonator, record_audit
@@ -2521,8 +2522,10 @@ def _with_account_notes(spec: AgentSpec, notes: Sequence[AccountNote]) -> AgentS
     Two Outlook accounts are `outlook_send` and `outlook_info_send` to the
     model, and nothing in those names says which one is the company mailbox -
     so the run names each account beside its prefix and asks the model to use
-    the one the person means (#2125). Per run, like the gaps: which accounts a
-    person holds is true of this message, not of the published version.
+    the one the person means (#2125). An organization account that skips its
+    prefix (#2881) is named beside the tools that carry none. Per run, like the
+    gaps: which accounts a person holds is true of this message, not of the
+    published version.
     """
     if not notes:
         return spec
@@ -2532,7 +2535,11 @@ def _with_account_notes(spec: AgentSpec, notes: Sequence[AccountNote]) -> AgentS
     lines = [
         f"You reach {service} through {len(held)} accounts: "
         + "; ".join(
-            f"tools starting `{note.prefix}_` act as "
+            (
+                f"tools starting `{note.prefix}_` act as "
+                if note.prefix is not None
+                else "its tools that carry no prefix act as "
+            )
             + (
                 f"this person's own account {note.account!r}"
                 if note.whose == "personal"
@@ -2613,7 +2620,9 @@ def _binding_gap_briefing(
             "under one name, which the agent's author resolves by renaming one connection."
         )
     if isinstance(gap, UnavailableUnreachableServer):
-        return unreachable_briefing(gap.server, binding=gap.binding, held_by=gap.held_by)
+        return unreachable_briefing(
+            gap.server, binding=gap.binding, held_by=gap.held_by, prefixed=gap.prefixed
+        )
     return _personal_gap_briefing(personal_service_gap(gap), surface, sender_present=sender_present)
 
 
@@ -4192,6 +4201,7 @@ class AgentRunnerService:
             test_connections=test_connections.mcp,
             personal_sources=personal_sources,
             organization_sources=admitted_mcp_sources,
+            taken_names=taken_tool_names(spec),
             platform_credential=await self._platform_credential(
                 spec,
                 ctx,
@@ -5697,6 +5707,7 @@ class AgentRunnerService:
             test_connections=delegation.test_connections.mcp,
             personal_sources=delegation.routine_sources,
             organization_sources=delegation.routine_sources,
+            taken_names=taken_tool_names(runnable),
             # The run's own person, as for the parent: on a resume `ctx` is the
             # approver's, and a delegate must not carry their authority either.
             platform_credential=await self._platform_credential(runnable, ctx, delegation.run),

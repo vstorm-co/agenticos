@@ -68,6 +68,11 @@ export interface ConnectionFormValues {
   clearToken: boolean;
   /** Whether the server's own instructions join the agent's. Read only when editing. */
   includeInstructions: boolean;
+  /**
+   * Whether the model sees the server's own tool names, without the prefix
+   * (#2881). Read only when editing an organization connection.
+   */
+  skipToolPrefix: boolean;
   scope: Scope;
   /**
    * A client registered at the provider by hand, read only when `auth` is

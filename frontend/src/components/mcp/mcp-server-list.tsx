@@ -540,6 +540,9 @@ export function McpServerList({
           ...(values.includeInstructions !== existing.include_instructions
             ? { include_instructions: values.includeInstructions }
             : {}),
+          ...(values.skipToolPrefix !== existing.skip_tool_prefix
+            ? { skip_tool_prefix: values.skipToolPrefix }
+            : {}),
         });
         toast.success(t("serverUpdated", { name }));
         closeDraft();

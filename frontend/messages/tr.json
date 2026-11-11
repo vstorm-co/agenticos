@@ -4632,6 +4632,8 @@
     "removeStoredCredential": "Saklanan kimlik bilgisini kaldır",
     "includeServerInstructions": "Server'ın kendi talimatlarını Agent'ın talimatlarına ekle",
     "includeServerInstructionsHint": "Bazı server'lar tool'larının nasıl kullanılması gerektiğini açıklar. Varsayılan olarak kapalıdır: metin server operatörüne aittir ve Agent bunu kendi talimatlarıymış gibi okur.",
+    "skipToolPrefix": "Tool önekini atla",
+    "skipToolPrefixHint": "Model, server'ın kendi tool adlarını önlerinde {prefix}_ olmadan görür; tool'ları zaten kendi adıyla başlayan bir server için. Bunlardan biri bir Agent'ın başka bir tool'uyla aynı adı taşırsa, o Agent yayımlanırken reddedilir ve bu server olmadan çalışır.",
     "save": "Kaydet",
     "saveSelection": "Seçimi kaydet",
     "saving": "Kaydediliyor…",
@@ -5324,11 +5326,11 @@
       },
       "exclude_mcp_servers": {
         "title": "Her zaman görünür MCP server’lar",
-        "description": "Tool’ları görünür kalacak MCP tool ad alanı öneklerini virgülle ayırın; ör. github_work veya agenticos. Tool adından önceki öneki kullanın ve kısa çizgileri alt çizgiyle değiştirin."
+        "description": "Tool’ları görünür kalacak MCP tool ad alanı öneklerini virgülle ayırın; ör. github_work veya agenticos. Tool adından önceki öneki kullanın ve kısa çizgileri alt çizgiyle değiştirin; tool önekini atlayan bir bağlantı burada onu korur."
       },
       "exclude_tools": {
         "title": "Her zaman görünür tool’lar",
-        "description": "Görünür kalacak tool’ların modelin gördüğü adlarını virgülle ayırın. Yeniden adlandırılan capability tool adlarını ve tam önekli MCP tool adlarını kullanın; ör. github_work_list_issues."
+        "description": "Görünür kalacak tool’ların modelin gördüğü adlarını virgülle ayırın. Yeniden adlandırılan capability tool adlarını ve tam önekli MCP tool adlarını kullanın; ör. github_work_list_issues. Tool önekini atlayan bir bağlantı için server’ın kendi adlarını kullanın."
       }
     },
     "web_fetch": {

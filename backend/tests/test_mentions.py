@@ -55,6 +55,7 @@ class _World:
             label=None,
             catalog_key="github",
             is_enabled=True,
+            skip_tool_prefix=False,
             url="https://api.githubcopilot.com/mcp/?token=secret",
         )
         self.collection = SimpleNamespace(id=uuid.uuid4(), name="Contracts", organization_id=ORG)

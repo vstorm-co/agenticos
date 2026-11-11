@@ -539,6 +539,14 @@ CALLS: tuple[Call, ...] = (
         Perm.MCP_MANAGE,
         body={"trust_read_only_hints": True},
     ),
+    # Skipping the tool prefix renames the tools every bound agent's model reads
+    # (#2881): editing the connection, under the same authority.
+    Call(
+        "PATCH",
+        "/mcp-connections/{connection_id}",
+        Perm.MCP_MANAGE,
+        body={"skip_tool_prefix": True},
+    ),
     Call("DELETE", "/mcp-connections/{connection_id}", Perm.MCP_MANAGE),
     Call("GET", "/mcp-connections/{connection_id}/calls", Perm.MCP_MANAGE),
     Call("POST", "/mcp-connections/{connection_id}/test", Perm.MCP_MANAGE),

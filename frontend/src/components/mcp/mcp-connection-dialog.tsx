@@ -36,6 +36,7 @@ import {
 } from "@/components/mcp/mcp-server-list-types";
 import { probeMcpSignIn, type McpSignInProbeResult } from "@/lib/mcp-connections-api";
 import { slugForPrefix } from "@/lib/mcp-servers";
+import { mcpToolPrefix } from "@/lib/tool-steps";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 
 const AUTH_CHOICES: { value: DraftAuth; labelKey: string; hintKey: string }[] = [
@@ -139,6 +140,7 @@ function ConnectionForm({
   const [includeInstructions, setIncludeInstructions] = useState(
     draft.existing?.include_instructions ?? false,
   );
+  const [skipToolPrefix, setSkipToolPrefix] = useState(draft.existing?.skip_tool_prefix ?? false);
   const [scope, setScope] = useState<Scope>(draft.scope);
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
@@ -477,6 +479,27 @@ function ConnectionForm({
           </div>
         )}
 
+        {/* The organization's alone (#2881): an agent bound to each person's
+            own account presents the catalog key, whoever set theirs up. */}
+        {draft.existing && scope === "organization" && (
+          <div className="flex items-start gap-2">
+            <Switch
+              id="mcp-skip-prefix"
+              checked={skipToolPrefix}
+              onCheckedChange={setSkipToolPrefix}
+              className="mt-0.5"
+            />
+            <div className="min-w-0">
+              <Label htmlFor="mcp-skip-prefix" className="leading-snug font-normal">
+                {t("skipToolPrefix")}
+              </Label>
+              <p className="text-muted-foreground mt-0.5 text-xs">
+                {t("skipToolPrefixHint", { prefix: mcpToolPrefix(name) })}
+              </p>
+            </div>
+          </div>
+        )}
+
         {(known || ownClient) && (
           <MoreOptions
             key={needsClient ? "needs-client" : "optional"}
@@ -525,6 +548,7 @@ function ConnectionForm({
               auth,
               clearToken,
               includeInstructions,
+              skipToolPrefix,
               scope,
               clientId,
               clientSecret,

@@ -63,6 +63,12 @@ export interface McpConnectionRecord {
   /** Whether an eval may call a tool this server marks `readOnlyHint` live. */
   trust_read_only_hints: boolean;
   /**
+   * Whether the model sees the server's own tool names, without this
+   * connection's prefix in front (#2881). Only an organization connection sets
+   * it; the connection keeps its prefix as its name all the same.
+   */
+  skip_tool_prefix: boolean;
+  /**
    * The agents binding an organization server that the reader may see (#2072).
    * Absent on a personal connection, and null where the listing did not ask.
    */

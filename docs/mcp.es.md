@@ -1,5 +1,5 @@
 ---
-source_sha: "92644f155769"
+source_sha: "5ac6defd4783"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -38,6 +38,7 @@ Atlassian funciona junto a uno de HTTP en streaming sin nada que configurar.
 | `allowed_tools` | Una lista de permitidos, o null para «todo lo que ofrezca el servidor». Una vinculación estrecha dentro de ella — ver más abajo |
 | `is_enabled` | Apagarla sin perder la credencial |
 | `include_instructions` | Añade las instrucciones propias del servidor en `initialize` a las del agent. Apagado por defecto - es texto del operador del servidor, leído como instrucciones del agent - y se enciende en el diálogo Edit de la conexión |
+| `skip_tool_prefix` | Muestra al modelo los nombres propios de las herramientas del servidor en lugar del prefijo unido al nombre. Apagado por defecto, solo en conexiones de la organización, y se enciende en el diálogo Edit de la conexión. Ver [Un servidor que pone prefijo a sus propias herramientas](#a-server-that-prefixes-its-own-tools) |
 | `last_status` | Qué encontró el último sondeo, y cuándo |
 
 !!! warning "Una dirección que este despliegue no debe alcanzar se rechaza, y el rechazo lo dice"
@@ -168,6 +169,10 @@ handbook` sí.
     `notion-2_search`?» sin respuesta desde la página que nombra la cuenta. Borra
     el nombre y la conexión vuelve a leerse como su prefijo, que es lo que hacía
     antes de que le pusieras uno.
+
+    Una conexión que [omite su prefijo de herramientas](#a-server-that-prefixes-its-own-tools)
+    también lo conserva aquí. Solo los nombres con los que sus herramientas llegan
+    al modelo lo omiten, y cada llamada se sigue registrando contra la conexión.
 
 Un spec nombra las conexiones de organización en `mcp_servers`, una entrada por
 vinculación. Borrar una conexión que un agent todavía nombra le hace perder ese
@@ -550,7 +555,8 @@ ha caído entretanto, ese turno sigue sin sus herramientas y el siguiente lo son
 de nuevo.
 
 El nombre de una herramienta llega al modelo como el prefijo unido al nombre propio
-del servidor, y los proveedores rechazan un nombre de más de 64 caracteres, o con
+del servidor, o como el nombre propio solo donde la conexión
+[omite su prefijo](#a-server-that-prefixes-its-own-tools), y los proveedores rechazan un nombre de más de 64 caracteres, o con
 algo que no sean letras, dígitos, `_` y `-`, rechazando la petición entera. Ese
 nombre se ajusta: los caracteres rechazados se sustituyen, el final se recorta y se
 añaden ocho dígitos hexadecimales de un hash, así que dos nombres largos siguen
@@ -648,6 +654,46 @@ Dos conexiones cuyos nombres se reducen al mismo prefijo se deduplican — gana 
 primera, con un aviso que nombra a la perdedora. Los servidores gestionados por el
 despliegue van ordenados primero, así que ganan a una conexión de usuario que dé
 la casualidad de elegir el mismo nombre.
+
+### Un servidor que pone prefijo a sus propias herramientas { #a-server-that-prefixes-its-own-tools }
+
+Algunos servidores ya ponen su propio nombre delante de cada herramienta. Desde
+una conexión llamada `netbox`, la herramienta `netbox_get_objects` de NetBox
+llegaba al modelo como `netbox_netbox_get_objects`: más larga y más difícil de
+predecir para un modelo, que es como un agent llegó a llamar a una herramienta
+que no existía. **Skip the tool prefix**, en el diálogo Edit de una conexión de
+la organización, muestra al modelo los nombres propios del servidor en su lugar.
+
+La conexión conserva su prefijo de todos modos. La página de servidores MCP lo
+sigue mostrando junto al nombre, sigue siendo único entre las vinculaciones de un
+agent, y la búsqueda de herramientas sigue manteniendo visible el servidor por
+él. Una lista de permitidos compara los nombres propios del servidor, como
+siempre. La conexión propia de un miembro siempre lleva su prefijo: una
+vinculación a la cuenta propia de cada persona presenta la clave del catálogo,
+así que el agent muestra a todos los mismos nombres.
+
+El prefijo garantizaba que ninguna otra herramienta del agent compartiera nombre
+con una del servidor, y una conexión que lo omite renuncia a eso. Así que cada
+una de sus herramientas tiene que evitar todo nombre ya ocupado: la herramienta
+de una capability, las de la propia plataforma (`request_capability`,
+`load_capability`, `search_tools` y el resto), cualquier nombre bajo el prefijo
+de otra vinculación, y un nombre que presente una conexión anterior que también
+omita su prefijo. Un nombre al que una capability renombra su herramienta cuenta
+como de esa capability.
+
+!!! warning "Una colisión se rechaza al publicar, y deja el servidor fuera del run"
+
+    Publicar compara las herramientas que listó la última comprobación de la
+    conexión, y rechaza la vinculación nombrando la herramienta y de quién es el
+    nombre que ocuparía. Restringe las herramientas de la vinculación, o vuelve a
+    activar el prefijo.
+
+    Un run decide según lo que el servidor lista en cada paso, porque un servidor
+    puede añadir una herramienta después de que se publique el agent, y una
+    conexión puede omitir su prefijo más tarde. Donde uno de sus nombres está
+    ocupado, ninguna de las herramientas del servidor se adjunta en ese turno, y
+    al modelo se le dice qué servidor falta y por qué, como en una colisión de
+    prefijos. El turno sigue.
 
 ### Estado, uso y llamadas { #health-users-and-calls }
 

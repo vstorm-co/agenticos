@@ -25,6 +25,10 @@ import type { McpServerRef } from "@/lib/tool-steps";
  * A miss is not a failure. An agent whose server has since been deleted, or a member
  * who cannot list the connection, gets the humanised tool name - which is what the
  * step showed before any of this.
+ *
+ * An organization connection that skips its prefix (#2881) brings the names its last
+ * check listed, which its calls are made under in place of a prefix. Only the
+ * organization's: a member's own connection always carries its prefix.
  */
 export function useMcpToolServers(): McpServerRef[] {
   const { data: personal = [] } = useQuery({
@@ -40,7 +44,11 @@ export function useMcpToolServers(): McpServerRef[] {
 
   return useMemo(
     () => [
-      ...organization.map(({ name, url }) => ({ name, url })),
+      ...organization.map(({ name, url, skip_tool_prefix, last_tools }) =>
+        skip_tool_prefix
+          ? { name, url, tools: (last_tools ?? []).map((tool) => tool.name) }
+          : { name, url },
+      ),
       ...personal.map(({ name, url }) => ({ name, url })),
     ],
     [organization, personal],

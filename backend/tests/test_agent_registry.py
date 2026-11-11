@@ -2477,7 +2477,7 @@ class TestValidateSpec:
         model would be handed two servers under one prefix, which Pydantic AI
         refuses as duplicate tool names - aborting every turn of the agent."""
         ctx = _ctx()
-        connection = MagicMock(visibility="org")
+        connection = MagicMock(visibility="org", skip_tool_prefix=False)
         connection.name = "notion"
 
         with (
@@ -2510,7 +2510,7 @@ class TestValidateSpec:
         """The ordinary shape: the organization's handbook for everybody, and
         each person's own Linear."""
         ctx = _ctx()
-        connection = MagicMock(visibility="org")
+        connection = MagicMock(visibility="org", skip_tool_prefix=False)
         connection.name = "notion-handbook"
 
         with (
@@ -5490,7 +5490,7 @@ class TestOneToolPrefixPerBinding:
 
     @staticmethod
     def _connection(name: str) -> MagicMock:
-        connection = MagicMock(visibility="org")
+        connection = MagicMock(visibility="org", skip_tool_prefix=False)
         connection.name = name
         return connection
 
@@ -5567,10 +5567,164 @@ class TestOneToolPrefixPerBinding:
         )
 
 
+def _skipping(name: str, *tools: str, allowed: list[str] | None = None) -> MagicMock:
+    """An organization connection that skips its tool prefix, as its last check listed it."""
+    connection = MagicMock(
+        visibility="org",
+        skip_tool_prefix=True,
+        last_tools=None if not tools else [{"name": tool} for tool in tools],
+        allowed_tools=allowed,
+    )
+    connection.name = name
+    return connection
+
+
+class TestToolsUnderTheirOwnNames:
+    """A connection that skips its tool prefix presents its server's own names (#2881).
+
+    Nothing else of the agent may hold one of them: two tools of one name make
+    Pydantic AI abort the turn, so a run would leave the server out of every
+    turn instead. Refused here, where the binding can still be narrowed or the
+    prefix turned back on, on the tools the connection's last check listed.
+    """
+
+    async def _problems(self, refs, *, connections: dict, capabilities=()) -> list[str]:
+        async def lookup(_db, *, connection_ids, organization_id):
+            return {cid: connections[cid] for cid in connection_ids if cid in connections}
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            patch(f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_ids", new=lookup),
+        ):
+            try:
+                await AgentRegistryService(_db()).validate_spec(
+                    _ctx(),
+                    _spec(
+                        mcp_servers=refs,
+                        capabilities=list(capabilities),
+                        model_profile_id=uuid.uuid4(),
+                    ),
+                )
+            except BadRequestError as refused:
+                return refused.details["problems"]
+        return []
+
+    @pytest.mark.anyio
+    async def test_the_server_s_own_prefix_is_its_own_to_repeat(self):
+        """The case the toggle exists for: NetBox's `netbox_get_objects` on a
+        connection called `netbox` - shorter, and nobody else's name."""
+        connection_id = uuid.uuid4()
+
+        problems = await self._problems(
+            [OrgMcpServerRef(connection_id=connection_id)],
+            connections={connection_id: _skipping("netbox", "netbox_get_objects")},
+        )
+
+        assert problems == []
+
+    @pytest.mark.anyio
+    async def test_a_name_a_capability_gives_the_agent_is_refused(self):
+        connection_id = uuid.uuid4()
+
+        problems = await self._problems(
+            [OrgMcpServerRef(connection_id=connection_id)],
+            connections={connection_id: _skipping("viz", "create_chart", "list_dashboards")},
+            capabilities=[CapabilityBindingSpec(id="charts")],
+        )
+
+        assert len(problems) == 1
+        assert problems[0].startswith(
+            "The connection 'viz' skips its tool prefix, so its tool 'create_chart' would "
+            "take a name that belongs to the charts capability."
+        )
+        assert "turn its tool prefix back on" in problems[0]
+
+    @pytest.mark.anyio
+    async def test_a_name_the_platform_gives_every_agent_is_refused(self):
+        """`request_capability` is on nearly every agent, so a server offering it
+        would be left out of nearly every turn."""
+        connection_id = uuid.uuid4()
+
+        problems = await self._problems(
+            [OrgMcpServerRef(connection_id=connection_id)],
+            connections={connection_id: _skipping("ops", "request_capability")},
+        )
+
+        assert len(problems) == 1 and "belongs to this platform" in problems[0]
+
+    @pytest.mark.anyio
+    async def test_a_name_under_another_binding_s_prefix_is_refused(self):
+        connection_id = uuid.uuid4()
+
+        problems = await self._problems(
+            [
+                PersonalMcpServerRef(account="personal", catalog_key="notion"),
+                OrgMcpServerRef(connection_id=connection_id),
+            ],
+            connections={connection_id: _skipping("wiki", "notion_search")},
+        )
+
+        assert len(problems) == 1 and "each person's own notion" in problems[0]
+
+    @pytest.mark.anyio
+    async def test_of_two_connections_presenting_one_name_the_later_is_refused(self):
+        first, second = uuid.uuid4(), uuid.uuid4()
+
+        problems = await self._problems(
+            [OrgMcpServerRef(connection_id=first), OrgMcpServerRef(connection_id=second)],
+            connections={first: _skipping("kb", "search"), second: _skipping("wiki", "search")},
+        )
+
+        assert len(problems) == 1
+        assert problems[0].startswith("The connection 'wiki' skips its tool prefix")
+        assert "belongs to the connection 'kb'" in problems[0]
+
+    @pytest.mark.anyio
+    async def test_a_binding_narrowed_off_the_clash_publishes(self):
+        connection_id = uuid.uuid4()
+
+        problems = await self._problems(
+            [OrgMcpServerRef(connection_id=connection_id, allowed_tools=["list_dashboards"])],
+            connections={connection_id: _skipping("viz", "create_chart", "list_dashboards")},
+            capabilities=[CapabilityBindingSpec(id="charts")],
+        )
+
+        assert problems == []
+
+    @pytest.mark.anyio
+    async def test_a_connection_nothing_has_reached_has_no_names_to_refuse(self):
+        """Its names are unknown here, and the run decides on what it lists."""
+        connection_id = uuid.uuid4()
+
+        problems = await self._problems(
+            [OrgMcpServerRef(connection_id=connection_id)],
+            connections={connection_id: _skipping("ops")},
+            capabilities=[CapabilityBindingSpec(id="charts")],
+        )
+
+        assert problems == []
+
+    @pytest.mark.anyio
+    async def test_one_bound_twice_is_refused_once_for_its_prefix(self):
+        """It still holds its prefix, and the prefix check says why - each of its
+        tools refused a second time against itself would only bury that."""
+        connection_id = uuid.uuid4()
+
+        problems = await self._problems(
+            [OrgMcpServerRef(connection_id=connection_id)] * 2,
+            connections={connection_id: _skipping("kb", "search", "fetch")},
+        )
+
+        assert len(problems) == 1 and "under the prefix 'kb'" in problems[0]
+
+
 def _named_connection(name: str) -> MagicMock:
     """A connection row with a real name: `MagicMock(name=...)` names the mock,
     not the row, and the prefix check reads the row's."""
-    connection = MagicMock(visibility="org")
+    connection = MagicMock(visibility="org", skip_tool_prefix=False)
     connection.name = name
     return connection
 

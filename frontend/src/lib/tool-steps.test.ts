@@ -203,6 +203,35 @@ describe("a call from an MCP server", () => {
     expect(mcpCall("linear_", [{ name: "Linear", url: "https://a.example/" }])).toBeNull();
   });
 
+  it("knows a server that skips its prefix by its tool names (#2881)", () => {
+    const servers = [
+      {
+        name: "netbox",
+        url: "https://netbox.example/mcp",
+        tools: ["netbox_get_objects", "list_sites"],
+      },
+    ];
+
+    expect(toolStep("netbox_get_objects", {}, true, t, servers).label).toBe("Netbox · Get objects");
+    expect(toolStep("list_sites", {}, true, t, servers)).toMatchObject({
+      label: "Netbox · List sites",
+      kind: "mcp",
+      logoDomain: "netbox.example",
+    });
+    expect(mcpCall("delete_site", servers)).toBeNull();
+  });
+
+  it("leaves a name under another server's prefix to that server", () => {
+    // A server that skips its prefix yields any such name at run time, so the
+    // call was the prefixed server's.
+    const servers = [
+      { name: "kb", url: "https://kb.example/", tools: ["github_search"] },
+      { name: "github", url: "https://gh.example/" },
+    ];
+
+    expect(mcpCall("github_search", servers)?.server).toBe("github");
+  });
+
   it("has no logo to show for a URL it cannot parse", () => {
     expect(
       mcpCall("linear_create_issue", [{ name: "Linear", url: "not a url" }])?.domain,

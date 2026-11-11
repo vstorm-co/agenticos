@@ -47,6 +47,29 @@ describe("the MCP servers a step can be named after", () => {
     expect(result.current[0]).toEqual({ name: "Linear", url: "https://mcp.linear.app/sse" });
   });
 
+  it("names a server that skips its prefix by the tools its last check listed", async () => {
+    // Its calls carry no prefix to match (#2881); a server nothing has checked yet
+    // has no names to offer, which is a miss rather than a failure.
+    vi.mocked(orgApi.listOrgMcpConnections).mockResolvedValue([
+      {
+        id: "o-1",
+        name: "netbox",
+        url: "https://netbox.example/mcp",
+        skip_tool_prefix: true,
+        last_tools: [{ name: "netbox_get_objects", description: "" }],
+      },
+      { id: "o-2", name: "lab", url: "https://lab.example/mcp", skip_tool_prefix: true },
+    ] as never);
+
+    const { result } = renderHook(() => useMcpToolServers(), { wrapper });
+
+    await waitFor(() => expect(result.current).toHaveLength(2));
+    expect(result.current).toEqual([
+      { name: "netbox", url: "https://netbox.example/mcp", tools: ["netbox_get_objects"] },
+      { name: "lab", url: "https://lab.example/mcp", tools: [] },
+    ]);
+  });
+
   it("answers with nothing rather than failing when neither list can be read", async () => {
     // A member who cannot list connections still has a readable transcript; the step
     // falls back to the humanised tool name.

@@ -194,6 +194,59 @@ describe("the server's own instructions", () => {
   });
 });
 
+describe("the tool prefix", () => {
+  function editing(scope: "organization" | "personal", skipToolPrefix = false): DraftState {
+    return {
+      ...custom(),
+      scope,
+      existing: {
+        id: "c1",
+        name: "netbox",
+        url: "https://netbox.example/mcp",
+        label: null,
+        has_auth_token: false,
+        include_instructions: false,
+        skip_tool_prefix: skipToolPrefix,
+      },
+    } as unknown as DraftState;
+  }
+
+  it("can be skipped on an organization connection, saying what the model then sees", async () => {
+    const onSubmit = open(editing("organization"));
+
+    const toggle = screen.getByRole("switch", { name: "Skip the tool prefix" });
+    expect(toggle).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByText(/without netbox_ in front/)).toBeInTheDocument();
+    await userEvent.click(toggle);
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ skipToolPrefix: true }));
+  });
+
+  it("starts from what the connection already does", () => {
+    open(editing("organization", true));
+
+    expect(screen.getByRole("switch", { name: "Skip the tool prefix" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+  });
+
+  it("is not offered on a member's own connection", () => {
+    // A binding to each person's own account presents the catalog key, so an
+    // agent shows everyone the same names however each person set theirs up.
+    open(editing("personal"));
+
+    expect(screen.queryByRole("switch", { name: "Skip the tool prefix" })).toBeNull();
+  });
+
+  it("is not offered while connecting a new server", () => {
+    open({ ...custom(), scope: "organization" } as DraftState);
+
+    expect(screen.queryByRole("switch", { name: "Skip the tool prefix" })).toBeNull();
+  });
+});
+
 describe("a second account on one service", () => {
   it("asks for its name up front and will not submit without one", async () => {
     const onSubmit = open({ ...custom(), needsLabel: true } as DraftState);

@@ -1,5 +1,5 @@
 ---
-source_sha: "92644f155769"
+source_sha: "5ac6defd4783"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -39,6 +39,7 @@ niczego do konfigurowania.
 | `allowed_tools` | Lista dozwolonych albo null, czyli „wszystko, co serwer oferuje”. Powiązanie zawęża ją dalej — zobacz niżej |
 | `is_enabled` | Wyłączenie bez utraty poświadczenia |
 | `include_instructions` | Dodaje własne instrukcje serwera z `initialize` do instrukcji agenta. Domyślnie wyłączone - to tekst operatora serwera, czytany jak instrukcje agenta - włączane w oknie Edit połączenia |
+| `skip_tool_prefix` | Pokazuje modelowi własne nazwy narzędzi serwera zamiast prefiksu połączonego z nazwą. Domyślnie wyłączone, tylko dla połączeń organizacji, włączane w oknie Edit połączenia. Zobacz [Serwer, który sam dodaje prefiks do swoich narzędzi](#a-server-that-prefixes-its-own-tools) |
 | `last_status` | Co pokazało ostatnie odpytanie i kiedy |
 
 !!! warning "Adres, do którego ten deployment nie może sięgać, zostaje odrzucony — i odmowa to mówi"
@@ -165,6 +166,10 @@ handbook` już tak.
     odpowiedzi na stronie, która nazywa konto. Wyczyść nazwę, a połączenie znów
     czyta się jako swój prefiks — dokładnie tak, jak robiło, zanim nazwę
     ustawiłeś.
+
+    Połączenie, które [pomija prefiks narzędzi](#a-server-that-prefixes-its-own-tools),
+    też go tu zachowuje. Pomijają go tylko nazwy, pod którymi jego narzędzia
+    trafiają do modelu, a każde wywołanie nadal jest zapisywane przy połączeniu.
 
 Spec wskazuje połączenia organizacji w `mcp_servers`, po jednym wpisie na
 powiązanie. Usunięcie połączenia, które agent wciąż wskazuje, odbiera agentowi
@@ -532,8 +537,9 @@ odpytywany ponownie: kolejna tura rozmowy dołącza go od razu. Jeśli w między
 przestał odpowiadać, ta tura idzie dalej bez jego narzędzi, a następna odpytuje go
 znowu.
 
-Nazwa narzędzia trafia do modelu jako prefiks połączony z własną nazwą serwera - a
-dostawcy odrzucają nazwę dłuższą niż 64 znaki albo zawierającą coś poza literami,
+Nazwa narzędzia trafia do modelu jako prefiks połączony z własną nazwą serwera,
+albo jako sama własna nazwa serwera, gdy połączenie
+[pomija prefiks](#a-server-that-prefixes-its-own-tools) - a dostawcy odrzucają nazwę dłuższą niż 64 znaki albo zawierającą coś poza literami,
 cyframi, `_` i `-`, odrzucając całe zapytanie. Taka nazwa jest dopasowywana:
 odrzucane znaki są zamieniane, koniec ucinany i dopisywanych jest osiem cyfr
 szesnastkowych skrótu, więc dwie długie nazwy pozostają dwoma narzędziami. Serwer
@@ -626,6 +632,42 @@ Dwa połączenia, których nazwy sprowadzają się do tego samego prefiksu, są
 deduplikowane — wygrywa pierwsze, z ostrzeżeniem nazywającym przegranego. Serwery
 zarządzane przez deployment są układane jako pierwsze, więc wygrywają
 z połączeniem użytkownika, które trafiło na tę samą nazwę.
+
+### Serwer, który sam dodaje prefiks do swoich narzędzi { #a-server-that-prefixes-its-own-tools }
+
+Niektóre serwery już same poprzedzają każde narzędzie swoją nazwą. Z połączenia
+o nazwie `netbox` narzędzie NetBoxa `netbox_get_objects` docierało do modelu jako
+`netbox_netbox_get_objects`: dłuższe i trudniejsze do przewidzenia dla modelu —
+i tak właśnie agent wywołał kiedyś narzędzie, które nie istniało. Przełącznik
+„Pomiń prefiks narzędzi (Skip the tool prefix)” w oknie Edit połączenia
+organizacji pokazuje modelowi zamiast tego własne nazwy serwera.
+
+Połączenie mimo to zachowuje swój prefiks. Strona serwerów MCP nadal pokazuje go
+obok nazwy, nadal jest on unikalny wśród powiązań agenta, a wyszukiwanie narzędzi
+nadal po nim utrzymuje serwer widocznym. Lista dozwolonych porównuje własne nazwy
+serwera, jak zawsze. Własne połączenie członka zawsze ma prefiks: powiązanie
+z kontem każdej osoby przedstawia klucz katalogu, więc agent pokazuje wszystkim
+te same nazwy.
+
+Prefiks gwarantował, że żadne inne narzędzie agenta nie ma tej samej nazwy co
+narzędzie serwera, a połączenie, które go pomija, z tej gwarancji rezygnuje.
+Każde jego narzędzie musi więc omijać każdą zajętą już nazwę: narzędzie
+capability, narzędzia samej platformy (`request_capability`, `load_capability`,
+`search_tools` i pozostałe), każdą nazwę pod prefiksem innego powiązania oraz
+nazwę, którą przedstawia wcześniejsze połączenie, także pomijające prefiks.
+Nazwa, na którą capability zmienia swoje narzędzie, należy do tej capability.
+
+!!! warning "Kolizja jest odrzucana przy publikacji i wyłącza serwer z runa"
+
+    Publikacja porównuje narzędzia z ostatniego sprawdzenia połączenia
+    i odrzuca powiązanie, wskazując narzędzie i to, czyją nazwę by zajęło.
+    Zawęź narzędzia powiązania albo włącz prefiks z powrotem.
+
+    Run decyduje na podstawie tego, co serwer wystawia na każdym kroku, bo serwer
+    może dodać narzędzie już po publikacji agenta, a połączenie może pominąć
+    prefiks także później. Gdy któraś z jego nazw jest zajęta, w tej turze nie
+    jest dołączane żadne z narzędzi serwera, a model dowiaduje się, którego
+    serwera brakuje i dlaczego — tak jak przy kolizji prefiksów. Tura trwa dalej.
 
 ### Stan, użycie i wywołania { #health-users-and-calls }
 

@@ -50,6 +50,7 @@ async def test_each_server_names_the_agents_using_it(service: MagicMock) -> None
         is_enabled=True,
         include_instructions=False,
         trust_read_only_hints=False,
+        skip_tool_prefix=False,
         auth_type="bearer",
         visibility="org",
         is_default=False,

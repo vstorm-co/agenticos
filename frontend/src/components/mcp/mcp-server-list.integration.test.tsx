@@ -73,6 +73,7 @@ function connection(overrides: Partial<OrgMcpConnectionRecord> = {}): OrgMcpConn
     catalog_key: "github",
     is_default: false,
     trust_read_only_hints: false,
+    skip_tool_prefix: false,
     label: null,
     last_tools: null,
     granted_scopes: null,
@@ -1050,6 +1051,24 @@ describe("naming a connection something a person can read", () => {
         "/me/mcp-connections/p1",
         expect.objectContaining({ label: "" }),
       ),
+    );
+  });
+
+  it("skips an organization server's tool prefix, sending that change alone (#2881)", async () => {
+    await mount({ org: [connection({ id: "o1", name: "github" })] });
+    vi.mocked(apiClient.patch).mockResolvedValue(connection({ skip_tool_prefix: true }));
+    const dialog = await openConnections();
+
+    await userEvent.click(dialog.getByRole("button", { name: "More for github" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Edit" }));
+    const form = within(await screen.findByRole("dialog"));
+    await userEvent.click(form.getByRole("switch", { name: "Skip the tool prefix" }));
+    await userEvent.click(form.getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith("/mcp-connections/o1", {
+        skip_tool_prefix: true,
+      }),
     );
   });
 

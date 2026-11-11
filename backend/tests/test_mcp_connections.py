@@ -176,6 +176,7 @@ def _connection(**overrides) -> McpConnection:
         "is_enabled": True,
         "trust_read_only_hints": False,
         "include_instructions": False,
+        "skip_tool_prefix": False,
         "auth_type": "bearer",
         "purpose": "mcp",
         "oauth_state": None,
@@ -4952,6 +4953,23 @@ class TestOrganizationConnections:
             "trust_read_only_hints": True,
             "read_only_hint_tools": count,
         }
+
+    @pytest.mark.anyio
+    async def test_skipping_the_tool_prefix_is_stored_and_recorded(self, service, ctx, repo, audit):
+        """It renames every tool each bound agent's model reads (#2881), so it is
+        audited like any other edit, and it leaves the last check alone: the
+        server and what it offers are the same, only the names the model sees
+        change."""
+        conn = self._org_connection(ctx)
+        repo.get_org_scoped_by_id.return_value = conn
+        repo.update.return_value = conn
+
+        await service.update_for_org(
+            ctx, connection_id=conn.id, data=OrgMcpConnectionUpdate(skip_tool_prefix=True)
+        )
+
+        assert repo.update.call_args.kwargs["update_data"] == {"skip_tool_prefix": True}
+        assert audit.call_args.kwargs["details"] == {"fields": ["skip_tool_prefix"]}
 
     @pytest.mark.anyio
     async def test_a_no_op_update_writes_no_audit(self, service, ctx, repo, audit):

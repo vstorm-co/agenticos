@@ -67,20 +67,24 @@ export function contentArg(args: Record<string, unknown> | undefined): string | 
 /**
  * One MCP server, as far as naming a tool call goes.
  *
- * Only the two fields a step needs: `name` for the label and `url` for the logo.
+ * `name` for the label and `url` for the logo. `tools` only for a server whose
+ * connection skips its prefix (#2881): its tool names carry none, so they are
+ * what a call is recognised by instead.
  */
 export interface McpServerRef {
   name: string;
   url: string;
+  tools?: readonly string[];
 }
 
 /**
  * The prefix a server's tools carry, mirroring `app/agents/mcp.py::tool_prefix`.
  *
  * The backend prefixes every MCP tool with its connection's name so two servers
- * exposing `create_issue` cannot collide, and that prefix is the only trace of where
- * a tool came from that reaches this side: a tool call arrives as a name and
- * arguments, with no provenance on it. So the rule is duplicated here on purpose,
+ * exposing `create_issue` cannot collide - unless the connection skips it, which
+ * `McpServerRef.tools` covers - and that prefix is the only trace of where a tool
+ * came from that reaches this side: a tool call arrives as a name and arguments,
+ * with no provenance on it. So the rule is duplicated here on purpose,
  * and it must stay identical - the cost of drift is a step reading
  * "Github Work Create Issue" instead of "GitHub · Create issue", which is the
  * behaviour with no match at all.
@@ -106,23 +110,29 @@ export interface McpCall {
  * Which MCP server a tool call came from, if any of these did.
  *
  * Longest prefix first, because connection names nest: "github" and "github_work"
- * both match `github_work_create_issue`, and only the longer one is right.
+ * both match `github_work_create_issue`, and only the longer one is right. A server
+ * that skips its prefix is matched by its tool names, and only where no prefix
+ * claims the call: a name under another server's prefix is that server's (#2881).
  */
 export function mcpCall(toolName: string, servers: readonly McpServerRef[]): McpCall | null {
   if (toolName.startsWith("agenticos_") && toolName.length > "agenticos_".length) {
     return { server: "AgenticOS", action: toolName.slice("agenticos_".length), domain: null };
   }
   const matches = servers
+    .filter((server) => server.tools === undefined)
     .map((server) => ({ server, prefix: `${mcpToolPrefix(server.name)}_` }))
     .filter(({ prefix }) => toolName.startsWith(prefix) && toolName.length > prefix.length)
     .sort((left, right) => right.prefix.length - left.prefix.length);
   const best = matches[0];
-  if (best === undefined) return null;
-  return {
-    server: best.server.name,
-    action: toolName.slice(best.prefix.length),
-    domain: hostOf(best.server.url),
-  };
+  if (best !== undefined) {
+    return {
+      server: best.server.name,
+      action: toolName.slice(best.prefix.length),
+      domain: hostOf(best.server.url),
+    };
+  }
+  const own = servers.find((server) => server.tools?.includes(toolName));
+  return own === undefined ? null : { server: own.name, action: toolName, domain: hostOf(own.url) };
 }
 
 function hostOf(url: string): string | null {

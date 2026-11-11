@@ -37,6 +37,7 @@ function record(overrides: Partial<OrgMcpConnectionRecord> = {}): OrgMcpConnecti
     catalog_key: "github",
     is_default: false,
     trust_read_only_hints: false,
+    skip_tool_prefix: false,
     label: null,
     last_tools: null,
     granted_scopes: null,

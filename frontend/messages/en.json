@@ -4453,6 +4453,8 @@
     "removeStoredCredential": "Remove the stored credential",
     "includeServerInstructions": "Add the server's own instructions to the agent's",
     "includeServerInstructionsHint": "Some servers explain how their tools are meant to be used. Off by default: it is the server operator's text, and the agent reads it as its own instructions.",
+    "skipToolPrefix": "Skip the tool prefix",
+    "skipToolPrefixHint": "The model sees the server's own tool names, without {prefix}_ in front - for a server whose tools already start with its name. If one of them would share a name with another of an agent's tools, that agent is refused at publish and runs without this server.",
     "save": "Save",
     "saveSelection": "Save selection",
     "saving": "Saving…",
@@ -13027,11 +13029,11 @@
       },
       "exclude_mcp_servers": {
         "title": "Always-visible MCP servers",
-        "description": "Comma-separated MCP tool namespace prefixes whose tools stay visible, such as github_work or agenticos. Use the prefix before the tool name, with hyphens replaced by underscores."
+        "description": "Comma-separated MCP tool namespace prefixes whose tools stay visible, such as github_work or agenticos. Use the prefix before the tool name, with hyphens replaced by underscores; a connection that skips its tool prefix keeps it here."
       },
       "exclude_tools": {
         "title": "Always-visible tools",
-        "description": "Comma-separated model-facing tool names to keep visible. Use renamed capability tool names and fully prefixed MCP tool names, such as github_work_list_issues."
+        "description": "Comma-separated model-facing tool names to keep visible. Use renamed capability tool names and fully prefixed MCP tool names, such as github_work_list_issues, or the server's own names for a connection that skips its tool prefix."
       }
     },
     "web_fetch": {

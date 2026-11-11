@@ -90,6 +90,8 @@ export interface OrgMcpConnectionPatch {
   /** `""` clears it, back to showing the slug. */
   label?: string;
   trust_read_only_hints?: boolean;
+  /** Show the model the server's own tool names, without the prefix (#2881). */
+  skip_tool_prefix?: boolean;
 }
 
 const ROOT = "/mcp-connections";

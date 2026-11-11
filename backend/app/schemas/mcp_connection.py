@@ -144,6 +144,9 @@ class McpConnectionRead(TimestampSchema, BaseSchema):
     # for one of their connections per service.
     is_default: bool = False
     trust_read_only_hints: bool = False
+    # Whether the model sees the server's own tool names, without this
+    # connection's prefix. Only an organization connection sets it (#2881).
+    skip_tool_prefix: bool = False
     # The agents binding an organization connection that the reader may see
     # (#2072). Null where the listing did not ask, which is not "none".
     used_by: list[AgentUsage] | None = None
@@ -181,6 +184,7 @@ class McpConnectionRead(TimestampSchema, BaseSchema):
             ),
             is_default=connection.is_default,
             trust_read_only_hints=connection.trust_read_only_hints,
+            skip_tool_prefix=connection.skip_tool_prefix,
             created_at=connection.created_at,
             updated_at=connection.updated_at,
         )
@@ -287,6 +291,15 @@ class OrgMcpConnectionUpdate(BaseSchema):
         description=(
             "Add the server's own `initialize` instructions to the agent's. Off by "
             "default: they are the server operator's text, read as the agent's own."
+        ),
+    )
+    skip_tool_prefix: bool | None = Field(
+        default=None,
+        description=(
+            "Show the model the server's own tool names, without this connection's "
+            "name in front - for a server whose tools already carry its own prefix "
+            "(#2881). Off by default. A binding whose tools would then share a name "
+            "with another tool of the agent is refused at publish and left out of a run."
         ),
     )
     label: str | None = Field(

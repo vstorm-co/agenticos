@@ -38,13 +38,16 @@ async def _setup(db: AsyncSession) -> tuple[Organization, AuthContext]:
     )
 
 
-async def _server(db: AsyncSession, organization: Organization, name: str) -> McpConnection:
+async def _server(
+    db: AsyncSession, organization: Organization, name: str, *, skip_tool_prefix: bool = False
+) -> McpConnection:
     connection = McpConnection(
         scope="org",
         organization_id=organization.id,
         name=name,
         url="https://mcp.example.com/mcp",
         secret_key_version=1,
+        skip_tool_prefix=skip_tool_prefix,
     )
     db.add(connection)
     await db.flush()
@@ -162,6 +165,24 @@ class TestWhatItWasAskedToDo:
         calls = await McpConnectionService(db).recent_calls(owner, connection_id=notion.id)
 
         assert [call.tool for call in calls] == ["fetch"]
+
+    async def test_a_server_skipping_its_prefix_lists_the_names_its_calls_were_made_by(
+        self, db: AsyncSession
+    ) -> None:
+        """Its calls are recorded under the server's own names (#2881): stripping
+        `netbox_` from `netbox_get_objects` would name a tool nobody called. One
+        made while the prefix was still on keeps the name it was made by."""
+        organization, owner = await _setup(db)
+        netbox = await _server(db, organization, "netbox", skip_tool_prefix=True)
+        await _called(db, organization, None, "netbox_netbox_get_objects", ago=9, served_by=netbox)
+        await _called(db, organization, None, "netbox_get_objects", ago=1, served_by=netbox)
+
+        calls = await McpConnectionService(db).recent_calls(owner, connection_id=netbox.id)
+
+        assert [call.tool for call in calls] == [
+            "netbox_get_objects",
+            "netbox_netbox_get_objects",
+        ]
 
     async def test_another_organizations_server_is_not_found(self, db: AsyncSession) -> None:
         organization, _owner = await _setup(db)

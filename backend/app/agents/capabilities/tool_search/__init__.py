@@ -65,7 +65,8 @@ class ToolSearchConfig(BaseModel):
         title="Always-visible MCP servers",
         description=(
             "Comma-separated MCP tool namespace prefixes whose tools stay visible, such as github_work or agenticos. "
-            "Use the prefix before the tool name, with hyphens replaced by underscores."
+            "Use the prefix before the tool name, with hyphens replaced by underscores; a connection that "
+            "skips its tool prefix keeps it here."
         ),
     )
     exclude_tools: list[str] = Field(
@@ -73,7 +74,8 @@ class ToolSearchConfig(BaseModel):
         title="Always-visible tools",
         description=(
             "Comma-separated model-facing tool names to keep visible. Use renamed capability tool names "
-            "and fully prefixed MCP tool names, such as github_work_list_issues."
+            "and fully prefixed MCP tool names, such as github_work_list_issues, or the server's own "
+            "names for a connection that skips its tool prefix."
         ),
     )
 

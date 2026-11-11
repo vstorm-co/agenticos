@@ -16,7 +16,7 @@ import contextlib
 import logging
 import re
 from collections import Counter
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 from uuid import UUID
@@ -55,7 +55,7 @@ from app.agents.capabilities.mirage import backend as mirage_backend
 from app.agents.capabilities.sandbox import SandboxConfig
 from app.agents.capabilities.skills import SkillBody
 from app.agents.capabilities.subagents import SubagentsConfig
-from app.agents.mcp import PLATFORM_MCP_PREFIX, prefix_collisions
+from app.agents.mcp import PLATFORM_MCP_PREFIX, name_holder, prefix_collisions, tool_prefix
 from app.agents.model_resolver import lacks_key
 from app.agents.spec import (
     SPEC_VERSION,
@@ -77,6 +77,7 @@ from app.agents.system_agents import (
     refuse_system_agent,
     unusable_parts,
 )
+from app.agents.tool_names import taken_tool_names
 from app.core.audit import current_impersonator, record_audit
 from app.core.config import settings
 from app.core.exceptions import (
@@ -168,6 +169,7 @@ from app.services.file_storage import (
     avatar_filename,
     get_file_storage,
 )
+from app.services.mcp_connection import unprefixed_tool_names
 from app.services.mirage_mounts import address_fields, default_address, hosts_of
 from app.services.model_outputs import model_outputs, not_chat_refusal
 from app.services.model_profile import (
@@ -586,6 +588,40 @@ def _variable_problems(spec: AgentSpec) -> _SpecProblems:
         prompt_variables.PERSON_TIME_ZONE,
     ) and not prompt_variables.is_time_zone(spec.time_zone):
         refuse("time_zone", f"'{spec.time_zone}' is not a time zone")
+    return problems
+
+
+def _unprefixed_problems(
+    unprefixed: Iterable[tuple[str, list[str]]],
+    *,
+    taken: Mapping[str, str],
+    prefixes: Mapping[str, str],
+) -> list[str]:
+    """Each tool a connection skipping its prefix would present under a name already held.
+
+    In binding order, as a run decides it (#2881): a connection whose names
+    clash would be left out of every turn and so holds none of them, and one
+    whose names are free holds each of them against the connections after it.
+    Decided on the tools its last check listed - a connection nothing has
+    reached yet has none to compare, and the run decides it on what it lists.
+    """
+    problems: list[str] = []
+    held = dict(taken)
+    for name, tools in unprefixed:
+        clashes = [
+            (tool, holder)
+            for tool in tools
+            if (holder := name_holder(tool, taken=held, prefixes=prefixes)) is not None
+        ]
+        problems.extend(
+            f"The connection {name!r} skips its tool prefix, so its tool {tool!r} would "
+            f"take a name that belongs to {holder}. A model cannot be given two tools of "
+            "one name, so the server would be left out of every turn - narrow the "
+            "connection's tools, or turn its tool prefix back on."
+            for tool, holder in clashes
+        )
+        if not clashes:
+            held.update(dict.fromkeys(tools, f"the connection {name!r}"))
     return problems
 
 
@@ -2183,7 +2219,7 @@ class AgentRegistryService:
         problems.add(await self._skill_problems(ctx, spec.skill_ids))
         problems.add(await self._context_problems(ctx, spec.context_ids))
 
-        problems.add(await self._mcp_problems(ctx, spec.mcp_servers))
+        problems.add(await self._mcp_problems(ctx, spec.mcp_servers, taken=taken_tool_names(spec)))
         problems.add(await self._observability_problems(ctx, spec))
         problems.add(await self._speech_to_text_problems(ctx, spec.speech_to_text))
         problems.add(await self._voice_problems(ctx, spec.voice))
@@ -2276,7 +2312,7 @@ class AgentRegistryService:
         if pattern == "model_profile_id" and spec.model_profile_id is not None:
             return await self.model_profile_problems(ctx, spec.model_profile_id)
         if pattern == "mcp_servers/{server}/allowed_tools":
-            return await self._mcp_problems(ctx, spec.mcp_servers)
+            return await self._mcp_problems(ctx, spec.mcp_servers, taken=taken_tool_names(spec))
         return []
 
     async def _binding_problems(
@@ -2706,7 +2742,9 @@ class AgentRegistryService:
                 )
         return problems
 
-    async def _mcp_problems(self, ctx: AuthContext, refs: Sequence[McpServerRef]) -> list[str]:
+    async def _mcp_problems(
+        self, ctx: AuthContext, refs: Sequence[McpServerRef], *, taken: Mapping[str, str]
+    ) -> list[str]:
         """Every way a set of MCP bindings can be unpublishable.
 
         An organization binding must name one of the organization's own
@@ -2717,13 +2755,24 @@ class AgentRegistryService:
         raise on the duplicate tool names and abort every turn. All of it asked
         here, where somebody can still change the binding, rather than at run
         time where the only options are to guess or to quietly drop a server.
+
+        A connection that skips its tool prefix (#2881) presents its server's own
+        names instead, so each must be free: not one of `taken` - the names the
+        agent's other tools hold, from :func:`taken_tool_names` - nor under
+        another binding's prefix, nor an earlier such connection's.
         """
         problems: list[str] = []
         # What each binding would call its tools by, as the toolset builder derives
         # it - `notion-` and `notion` are one prefix. Paired with a label so the
         # same `prefix_collisions` the run uses catches a clash here, where somebody
         # can still fix it, rather than a server being dropped mid-turn (#1442).
+        # A connection skipping its prefix still holds it, as it does in a run.
         prefixed: list[tuple[str, str]] = []
+        # The prefixes the bindings' tools really carry, and the names each
+        # connection that skips its own would present instead - once, however
+        # often it is bound, since binding one twice is refused above already.
+        prefixes: dict[str, str] = {}
+        unprefixed: dict[str, list[str]] = {}
         found = await mcp_connection_repo.get_org_scoped_by_ids(
             self.db,
             connection_ids=[ref.connection_id for ref in refs if isinstance(ref, OrgMcpServerRef)],
@@ -2732,6 +2781,7 @@ class AgentRegistryService:
         for ref in refs:
             if isinstance(ref, PlatformMcpServerRef):
                 prefixed.append((PLATFORM_MCP_PREFIX, "this platform's own server"))
+                prefixes.setdefault(PLATFORM_MCP_PREFIX, "this platform's own server")
                 continue
             if isinstance(ref, PersonalMcpServerRef):
                 if mcp_catalog.get_entry(ref.catalog_key) is None:
@@ -2742,6 +2792,9 @@ class AgentRegistryService:
                     )
                     continue
                 prefixed.append((ref.catalog_key, f"each person's own {ref.catalog_key}"))
+                prefixes.setdefault(
+                    tool_prefix(ref.catalog_key), f"each person's own {ref.catalog_key}"
+                )
                 continue
             connection = found.get(ref.connection_id)
             if (
@@ -2770,12 +2823,20 @@ class AgentRegistryService:
                 )
                 continue
             prefixed.append((connection.name, f"the connection {connection.name!r}"))
+            if connection.skip_tool_prefix:
+                own = unprefixed_tool_names(connection, ref.allowed_tools)
+                unprefixed.setdefault(connection.name, own or [])
+            else:
+                prefixes.setdefault(
+                    tool_prefix(connection.name), f"the connection {connection.name!r}"
+                )
         for prefix, holders in prefix_collisions(prefixed).items():
             problems.append(
                 f"Two bindings would present their tools under the prefix {prefix!r}: "
                 f"{' and '.join(holders)}. The model would see every tool twice, which "
                 "aborts the turn - bind one of them, or rename the connection."
             )
+        problems.extend(_unprefixed_problems(unprefixed.items(), taken=taken, prefixes=prefixes))
         return problems
 
     async def _context_problems(self, ctx: AuthContext, context_ids: Sequence[UUID]) -> list[str]:

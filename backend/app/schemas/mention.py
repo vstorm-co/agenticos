@@ -32,7 +32,10 @@ class Mentionable(MentionRef):
     name: str
     detail: str | None = Field(
         default=None,
-        description="A short line under the name: the MCP tools' prefix, or what an agent does",
+        description=(
+            "A short line under the name: the MCP tools' prefix (their names, for a "
+            "server that skips it), or what an agent does"
+        ),
     )
     icon: str | None = Field(
         default=None,

@@ -1,5 +1,5 @@
 ---
-source_sha: "92644f155769"
+source_sha: "5ac6defd4783"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -39,6 +39,7 @@ konfigurieren wäre.
 | `allowed_tools` | Eine Allowlist, oder null für „alles, was der Server anbietet“. Ein Binding grenzt darin weiter ein — siehe unten |
 | `is_enabled` | Aus, ohne die Zugangsdaten zu verlieren |
 | `include_instructions` | Fügt die eigenen `initialize`-Anweisungen des Servers zu denen des Agenten hinzu. Standardmäßig aus - es ist der Text des Serverbetreibers, gelesen als Anweisungen des Agenten - und im Edit-Dialog der Verbindung eingeschaltet |
+| `skip_tool_prefix` | Zeigt dem Modell die eigenen Tool-Namen des Servers statt Präfix plus Name. Standardmäßig aus, nur für Verbindungen der Organisation, und im Edit-Dialog der Verbindung eingeschaltet. Siehe [Ein Server, der seine Tools selbst präfigiert](#a-server-that-prefixes-its-own-tools) |
 | `last_status` | Was die letzte Prüfung ergeben hat, und wann |
 
 !!! warning "Eine Adresse, die dieses Deployment nicht erreichen darf, wird abgelehnt, und die Ablehnung sagt es"
@@ -170,6 +171,11 @@ workspace` und `Engineering handbook` tun es.
     Seite unbeantwortbar ließe, die das Konto benennt. Löschen Sie den Namen, und
     die Connection liest sich wieder als ihr Präfix — so wie vor dem Setzen eines
     Namens.
+
+    Eine Connection, die [ihr Tool-Präfix weglässt](#a-server-that-prefixes-its-own-tools),
+    behält es hier ebenfalls. Nur die Namen, unter denen ihre Tools das Modell
+    erreichen, lassen es weg, und jeder Aufruf wird weiterhin der Connection
+    zugeordnet.
 
 Ein Spec benennt Organisations-Connections in `mcp_servers`, ein Eintrag je
 Binding. Löschen Sie eine Connection, die ein Agent noch benennt, verliert der
@@ -558,7 +564,8 @@ er inzwischen ausgefallen, läuft dieser Zug ohne seine Tools weiter, und der n�
 prüft ihn wieder.
 
 Der Name eines Tools erreicht das Modell als Präfix plus dem eigenen Namen des
-Servers - und Anbieter lehnen einen Namen über 64 Zeichen oder mit anderem als
+Servers, oder als der eigene Name allein, wo die Connection
+[ihr Präfix weglässt](#a-server-that-prefixes-its-own-tools) - und Anbieter lehnen einen Namen über 64 Zeichen oder mit anderem als
 Buchstaben, Ziffern, `_` und `-` ab, indem sie die ganze Anfrage ablehnen. Ein
 solcher Name wird angepasst: abgelehnte Zeichen ersetzt, das Ende gekürzt und acht
 Hex-Ziffern eines Hashs angehängt, sodass zwei lange Namen zwei Tools bleiben. Der
@@ -657,6 +664,45 @@ Zwei Connections, deren Namen auf dasselbe Präfix hinauslaufen, werden
 dedupliziert — die erste gewinnt, mit einer Warnung, die die unterlegene benennt.
 Vom Deployment verwaltete Server kommen zuerst, gewinnen also gegen eine
 Nutzer-Connection, die zufällig denselben Namen wählt.
+
+### Ein Server, der seine Tools selbst präfigiert { #a-server-that-prefixes-its-own-tools }
+
+Manche Server setzen schon selbst ihren Namen vor jedes Tool. Aus einer
+Connection namens `netbox` erreichte NetBox' `netbox_get_objects` das Modell als
+`netbox_netbox_get_objects`: länger und für ein Modell schwerer vorherzusagen —
+so hat ein Agent einmal ein Tool aufgerufen, das es nicht gab. „Tool-Präfix
+weglassen (Skip the tool prefix)“ im Edit-Dialog einer Connection der
+Organisation zeigt dem Modell stattdessen die eigenen Namen des Servers.
+
+Die Connection behält ihr Präfix trotzdem. Die Seite der MCP-Server zeigt es
+weiter neben dem Namen, es bleibt unter den Bindungen eines Agenten eindeutig,
+und die Tool-Suche hält den Server weiter darüber sichtbar. Eine Allowlist
+vergleicht die eigenen Namen des Servers, wie immer. Die eigene Connection eines
+Mitglieds trägt ihr Präfix immer: Eine Bindung an das eigene Konto jeder Person
+präsentiert den Katalogschlüssel, sodass der Agent allen dieselben Namen zeigt.
+
+Das Präfix garantierte, dass kein anderes Tool des Agenten denselben Namen trägt
+wie eines des Servers, und eine Connection, die es weglässt, gibt das auf. Jedes
+ihrer Tools muss also jeden schon vergebenen Namen meiden: das Tool einer
+Capability, die eigenen der Plattform (`request_capability`, `load_capability`,
+`search_tools` und die übrigen), jeden Namen unter dem Präfix einer anderen
+Bindung und einen Namen, den eine frühere Connection präsentiert, die ihr Präfix
+ebenfalls weglässt. Ein Name, auf den eine Capability ihr Tool umbenennt, gehört
+dieser Capability.
+
+!!! warning "Eine Kollision wird beim Veröffentlichen abgelehnt und nimmt den Server aus dem Run"
+
+    Das Veröffentlichen vergleicht die Tools, die die letzte Prüfung der Connection
+    gefunden hat, und lehnt die Bindung ab, mit dem Tool und dem, dessen Namen es
+    einnehmen würde. Schränken Sie die Tools der Bindung ein, oder schalten Sie das
+    Präfix wieder ein.
+
+    Ein Run entscheidet nach dem, was der Server in jedem Schritt auflistet, denn
+    ein Server kann nach dem Veröffentlichen ein Tool hinzufügen, und eine
+    Connection kann ihr Präfix auch später weglassen. Ist einer seiner Namen
+    vergeben, wird in diesem Zug keines der Tools des Servers angehängt, und das
+    Modell erfährt, welcher Server fehlt und warum — wie bei einer
+    Präfix-Kollision. Der Zug läuft weiter.
 
 ### Zustand, Nutzer und Aufrufe { #health-users-and-calls }
 

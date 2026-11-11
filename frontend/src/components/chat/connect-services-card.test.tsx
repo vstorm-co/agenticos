@@ -87,6 +87,7 @@ function own(overrides: Partial<McpConnectionRecord> = {}): McpConnectionRecord 
     catalog_key: "notion",
     is_default: false,
     trust_read_only_hints: false,
+    skip_tool_prefix: false,
     label: null,
     last_tools: null,
     created_at: "2026-07-01T00:00:00Z",

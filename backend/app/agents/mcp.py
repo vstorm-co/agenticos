@@ -25,7 +25,7 @@ import json
 import logging
 import re
 import time
-from collections.abc import AsyncGenerator, Iterable, Sequence
+from collections.abc import AsyncGenerator, Iterable, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
@@ -198,6 +198,11 @@ class McpServerSpec:
     # Whether the server's `initialize` instructions join the agent's (the
     # connection's own opt-in; Pydantic AI leaves them out by default).
     include_instructions: bool = False
+    # Whether the model sees the server's own tool names, without `name`'s prefix
+    # in front (#2881) - the organization connection's own choice. The prefix
+    # still names the toolset and the source; `OwnToolNames` keeps such a
+    # server's tools off the names the rest of the run holds.
+    skip_tool_prefix: bool = False
     # Which account this is, as its person reads it, where that is a question:
     # a labelled connection, or one of several accounts on one service. Shown
     # beside the call on an approval, so "Send mail" says from which mailbox.
@@ -391,6 +396,24 @@ def tool_prefix(name: str) -> str:
     return re.sub(r"[^a-z0-9_]", "_", name.lower()).strip("_") or "mcp"
 
 
+def name_holder(name: str, *, taken: Mapping[str, str], prefixes: Mapping[str, str]) -> str | None:
+    """Who already answers to `name`, which a server skipping its prefix would present (#2881).
+
+    `taken` maps the names other tools of the agent hold to whose each is, and
+    `prefixes` each prefix a binding puts in front of its tools to that binding.
+    A name under another binding's prefix is that binding's whether or not its
+    server lists the tool today: what a server lists changes with nobody
+    publishing, and for a binding to each person's own account the prefix is all
+    publish can know. Shared by publish and the run, as `prefix_collisions` is,
+    so the two cannot decide one name two ways.
+    """
+    if name in taken:
+        return taken[name]
+    return next(
+        (holder for prefix, holder in prefixes.items() if name.startswith(f"{prefix}_")), None
+    )
+
+
 def prefix_collisions[T](holders: Iterable[tuple[str, T]]) -> dict[str, list[T]]:
     """Which tool prefixes more than one name reduces to, and who holds each.
 
@@ -433,9 +456,11 @@ def _make_toolset(spec: McpServerSpec) -> Any:
     """Build a pydantic-ai toolset for one MCP server.
 
     Tools are prefixed with the connection name so two servers exposing the
-    same tool name can't collide (pydantic-ai raises on duplicates). The
-    allowlist filter runs before prefixing, so it compares against the
-    unprefixed names the user picked in the UI.
+    same tool name can't collide (pydantic-ai raises on duplicates) - unless
+    the connection skips its prefix (#2881), when they keep the server's own
+    names and the run wraps the server in :class:`OwnToolNames`. The allowlist
+    filter runs before prefixing, so it compares against the unprefixed names
+    the user picked in the UI.
 
     A tool error the server reports reaches the model as a failed result
     (`tool_error_behavior="failed"`), not as a retry. A retry spends the tool's
@@ -471,8 +496,9 @@ def _make_toolset(spec: McpServerSpec) -> Any:
         allowed = set(spec.allowed_tools)
         server = server.filtered(lambda _ctx, tool: tool.name in allowed)
     origin = {"test": spec.test, "trust_read_only_hints": spec.trust_read_only_hints}
+    named = server if spec.skip_tool_prefix else server.prefixed(prefix)
     return ApprovalMarked(
-        FittedNames(server.prefixed(prefix).with_metadata(**{MCP_ISOLATION: origin})),
+        FittedNames(named.with_metadata(**{MCP_ISOLATION: origin})),
         policy=spec.approval,
         in_process=spec.in_process,
         account=spec.account,
@@ -614,18 +640,23 @@ class ToolOrigins(WrapperToolset[Any]):
         return tools
 
 
-def unreachable_briefing(server: str, *, binding: str | None, held_by: str | None = None) -> str:
+def unreachable_briefing(
+    server: str, *, binding: str | None, held_by: str | None = None, prefixed: bool = True
+) -> str:
     """What the model is told about a bound server that did not answer this turn.
 
     Told nothing, the model reads the missing tools as an empty answer and
     reports "no data". The failure may be a timeout, a refused token or a
     protocol error, so the text promises neither that a retry works nor that it
     does not. `held_by` is another binding attached under the same prefix.
+    `prefixed` is false for a server that skips its prefix (#2881): its tools
+    carry none, so there is no `prefix_*` for the model to look for.
     """
     named = f"{server} server ({binding})" if binding else f"{server} server"
     prefix = tool_prefix(server)
+    tools = f"{prefix}_* tools" if prefixed else "tools"
     attached = (
-        f"so none of its {prefix}_* tools are attached"
+        f"so none of its {tools} are attached"
         if held_by is None
         else f"so it is not attached; the {prefix}_* tools that are attached belong to "
         f"{held_by}, and what they return comes from that account, not this one"
@@ -652,6 +683,7 @@ class AnsweredRecently(WrapperToolset[Any]):
 
     name: str = ""
     key: str = ""
+    skip_tool_prefix: bool = False
     down: bool = field(default=False, init=False)
 
     async def __aenter__(self) -> AnsweredRecently:
@@ -683,8 +715,73 @@ class AnsweredRecently(WrapperToolset[Any]):
         self, ctx: RunContext[Any]
     ) -> str | InstructionPart | Sequence[str | InstructionPart] | None:
         if self.down:
-            return unreachable_briefing(self.name, binding=None)
+            return unreachable_briefing(self.name, binding=None, prefixed=not self.skip_tool_prefix)
         return await super().get_instructions(ctx)
+
+
+@dataclass
+class OwnToolNames(WrapperToolset[Any]):
+    """A server presenting its tools under their own names, left out where one is taken (#2881).
+
+    The prefix is what kept a server's tools apart from every other tool. Without
+    it, a name another tool of the run already has - a capability's, the
+    platform's own, one under another binding's prefix, or an earlier unprefixed
+    server's - reaches pydantic-ai twice, and the duplicate aborts the turn. So
+    this server yields: it attaches none of its tools and tells the model why,
+    as a prefix collision is told (#1442). Decided on what the server lists each
+    step rather than on its last check, so a tool added since cannot take the
+    turn down; publish refuses the same clash on the tools the last check saw.
+
+    `before` are the run's earlier unprefixed servers, asked what they hold now:
+    binding order decides between two, and one that yielded holds nothing.
+    """
+
+    server: str = ""
+    binding: str = ""
+    taken: Mapping[str, str] = field(default_factory=dict)
+    prefixes: Mapping[str, str] = field(default_factory=dict)
+    before: Sequence[OwnToolNames] = ()
+    clash: tuple[str, str] | None = field(default=None, init=False)
+
+    async def get_tools(self, ctx: RunContext[Any]) -> dict[str, ToolsetTool[Any]]:
+        tools = await super().get_tools(ctx)
+        taken = dict(self.taken)
+        for earlier in self.before:
+            taken.update(dict.fromkeys(await earlier.get_tools(ctx), earlier.binding))
+        clash = next(
+            (
+                (name, holder)
+                for name in tools
+                if (holder := name_holder(name, taken=taken, prefixes=self.prefixes)) is not None
+            ),
+            None,
+        )
+        if clash is not None and clash != self.clash:
+            logger.warning(
+                "Leaving MCP server %r out of this turn: its tool %r would take a name of %s",
+                self.server,
+                *clash,
+            )
+        self.clash = clash
+        return {} if clash is not None else tools
+
+    async def get_instructions(
+        self, ctx: RunContext[Any]
+    ) -> str | InstructionPart | Sequence[str | InstructionPart] | None:
+        # Pydantic AI lists a step's tools before it reads its instructions, so
+        # `clash` is this step's.
+        if self.clash is None:
+            return await super().get_instructions(ctx)
+        tool, holder = self.clash
+        return (
+            f"The {self.server} server ({self.binding}) is not available this turn: it "
+            f"presents its tools without a prefix, and its tool `{tool}` would take a name "
+            f"that belongs to {holder}. Two tools cannot share one name, so none of its tools "
+            f"are attached. If asked for anything in {self.server}, say it is not available "
+            "because two of this agent's tools collide under one name, which the agent's "
+            "author resolves by turning the connection's tool prefix back on or narrowing "
+            "its tools."
+        )
 
 
 PLATFORM_MCP_NAME = "agenticos"
@@ -766,7 +863,9 @@ async def probe_toolsets(specs: list[McpServerSpec]) -> list[tuple[McpServerSpec
             return _make_toolset(spec)
         key = _answer_key(spec)
         if _answered_recently(key):
-            return AnsweredRecently(_make_toolset(spec), name=spec.name, key=key)
+            return AnsweredRecently(
+                _make_toolset(spec), name=spec.name, key=key, skip_tool_prefix=spec.skip_tool_prefix
+            )
         try:
             await probe_mcp_server(spec.url, spec.headers)
         except Exception as exc:

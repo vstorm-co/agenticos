@@ -4335,6 +4335,8 @@
     "removeStoredCredential": "Gespeichertes Credential entfernen",
     "includeServerInstructions": "Die eigenen Anweisungen des Servers zu denen des Agenten hinzufügen",
     "includeServerInstructionsHint": "Manche Server erklären, wie ihre Tools gedacht sind. Standardmäßig aus: Es ist der Text des Serverbetreibers, und der Agent liest ihn als seine eigenen Anweisungen.",
+    "skipToolPrefix": "Tool-Präfix weglassen",
+    "skipToolPrefixHint": "Das Modell sieht die eigenen Tool-Namen des Servers, ohne {prefix}_ davor - für einen Server, dessen Tools schon mit seinem Namen beginnen. Hätte eines davon denselben Namen wie ein anderes Tool eines Agenten, wird dieser Agent beim Veröffentlichen abgelehnt und läuft ohne diesen Server.",
     "save": "Speichern",
     "saveSelection": "Auswahl speichern",
     "saving": "Wird gespeichert …",
@@ -12699,11 +12701,11 @@
       },
       "exclude_mcp_servers": {
         "title": "Immer sichtbare MCP-Server",
-        "description": "Kommagetrennte Namensraum-Präfixe der MCP-Tools, die sichtbar bleiben, etwa github_work oder agenticos. Das Präfix vor dem Tool-Namen verwenden und Bindestriche durch Unterstriche ersetzen."
+        "description": "Kommagetrennte Namensraum-Präfixe der MCP-Tools, die sichtbar bleiben, etwa github_work oder agenticos. Das Präfix vor dem Tool-Namen verwenden und Bindestriche durch Unterstriche ersetzen; eine Verbindung, die ihr Tool-Präfix weglässt, behält es hier."
       },
       "exclude_tools": {
         "title": "Immer sichtbare Tools",
-        "description": "Kommagetrennte Tool-Namen, wie sie das Modell sieht, die sichtbar bleiben sollen. Umbenannte Capability-Tools und vollständige MCP-Tool-Namen mit Präfix verwenden, etwa github_work_list_issues."
+        "description": "Kommagetrennte Tool-Namen, wie sie das Modell sieht, die sichtbar bleiben sollen. Umbenannte Capability-Tools und vollständige MCP-Tool-Namen mit Präfix verwenden, etwa github_work_list_issues, oder die eigenen Namen des Servers bei einer Verbindung, die ihr Tool-Präfix weglässt."
       }
     },
     "web_fetch": {

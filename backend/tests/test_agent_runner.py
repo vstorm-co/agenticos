@@ -74,6 +74,7 @@ from app.agents.spec import (
 from app.agents.steering import SteeringInbox
 from app.agents.subagent_events import SubagentTextDelta
 from app.agents.subagent_runtime import DelegationSpend, DelegationStash, ParkedDelegation
+from app.agents.tool_names import taken_tool_names
 from app.agents.tool_repair import RepairTally
 from app.core.audit import set_impersonator
 from app.core.exceptions import (
@@ -627,6 +628,9 @@ class TestPrepare:
             "platform_credential": None,
             "personal_sources": None,
             "organization_sources": None,
+            # The names the run's other tools hold, which a server skipping its
+            # prefix has to keep off (#2881).
+            "taken_names": taken_tool_names(spec),
         }
         # Alongside what the surface brought, not instead of it: the WebSocket
         # chat still attaches its own, and dropping either half would leave an

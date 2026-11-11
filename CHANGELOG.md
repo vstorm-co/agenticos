@@ -19,6 +19,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **Skip tool prefix** on an organization MCP connection, in its Edit dialog:
+  the model sees the server's own tool names, so NetBox's `netbox_get_objects`
+  is no longer `netbox_netbox_get_objects`. Off by default, so no existing tool
+  name changes. The connection keeps its prefix for the MCP servers page, tool
+  search and the run's records. A tool that would then share a name with
+  another tool of the agent is refused at publish and leaves the server out of
+  a run, which the model is told, rather than aborting the turn (#2881).
+  Migration `0307_mcp_skip_tool_prefix`.
+
 ## [1.64.0] - 2026-11-11
 
 ### Added

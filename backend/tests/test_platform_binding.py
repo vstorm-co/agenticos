@@ -128,7 +128,7 @@ class TestTheCredential:
 class TestPublishing:
     async def test_the_platform_is_bound_under_its_own_prefix(self) -> None:
         registry = AgentRegistryService(MagicMock())
-        connection = MagicMock(visibility="org")
+        connection = MagicMock(visibility="org", skip_tool_prefix=False)
         connection.name = "agenticos"
         org_ref = OrgMcpServerRef(connection_id=uuid.uuid4())
 
@@ -136,9 +136,11 @@ class TestPublishing:
             "app.services.agent_registry.mcp_connection_repo.get_org_scoped_by_ids",
             new=AsyncMock(return_value={org_ref.connection_id: connection}),
         ):
-            alone = await registry._mcp_problems(CTX, [PlatformMcpServerRef(account="platform")])
+            alone = await registry._mcp_problems(
+                CTX, [PlatformMcpServerRef(account="platform")], taken={}
+            )
             clashing = await registry._mcp_problems(
-                CTX, [PlatformMcpServerRef(account="platform"), org_ref]
+                CTX, [PlatformMcpServerRef(account="platform"), org_ref], taken={}
             )
 
         assert alone == []

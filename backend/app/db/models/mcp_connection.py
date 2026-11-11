@@ -317,6 +317,14 @@ class McpConnection(Base, TimestampMixin):
     include_instructions: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=text("false")
     )
+    # Whether the model sees the server's own tool names rather than the prefix
+    # and the name joined (#2881), for a server that already prefixes its own.
+    # Off by default, so no existing tool name changes. The connection keeps its
+    # prefix all the same: it still names the toolset, the source and the run's
+    # records, and stays unique among an agent's bindings.
+    skip_tool_prefix: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
 
     auth_type: Mapped[str] = mapped_column(String(16), nullable=False, default="bearer")
     # CSRF token for an in-flight OAuth authorization redirect; NULL once done.

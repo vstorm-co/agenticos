@@ -32,6 +32,7 @@ Atlassian works alongside a streamable-HTTP one with nothing to configure.
 | `allowed_tools` | An allowlist, or null for "everything the server offers". A binding narrows within it — see below |
 | `is_enabled` | Off without losing the credential |
 | `include_instructions` | Add the server's own `initialize` instructions to the agent's. Off by default - they are the server operator's text, read as the agent's own - and switched on in the connection's Edit dialog |
+| `skip_tool_prefix` | Show the model the server's own tool names instead of the prefix and the name joined. Off by default, organization connections only, and switched on in the connection's Edit dialog. See [A server that prefixes its own tools](#a-server-that-prefixes-its-own-tools) |
 | `last_status` | What the last probe found, and when |
 
 !!! warning "An address this deployment must not reach is refused, and the refusal says so"
@@ -154,6 +155,10 @@ handbook` do.
     did this call `notion-2_search`" unanswerable from the page that names the
     account. Clear the name and the connection reads as its prefix again, which
     is what it did before you set one.
+
+    A connection that [skips its tool prefix](#a-server-that-prefixes-its-own-tools)
+    keeps it here as well. Only the names its tools reach the model under leave
+    it out, and each call is still recorded against the connection.
 
 A spec names organization connections in `mcp_servers`, one entry per binding.
 Deleting a connection an agent still names loses that server for the agent, not
@@ -507,8 +512,9 @@ the last two minutes, with the same credential, is not probed again: a
 conversation's next turn attaches it straight away. If it has gone down in the
 meantime, that turn goes on without its tools and the next one probes it again.
 
-A tool's name reaches the model as the prefix and the server's own name joined -
-and providers refuse a name over 64 characters, or one with anything but letters,
+A tool's name reaches the model as the prefix and the server's own name joined,
+or as the server's own name alone where the connection
+[skips its prefix](#a-server-that-prefixes-its-own-tools) - and providers refuse a name over 64 characters, or one with anything but letters,
 digits, `_` and `-`, by refusing the whole request. Such a name is fitted: the
 refused characters replaced, the end cut and eight hex digits of a hash added, so
 two long names stay two tools. The server is still called by its real name.
@@ -596,6 +602,42 @@ each under its label and its name.
 Two connections whose names reduce to the same prefix are deduplicated — first one
 wins, with a warning naming the loser. Deployment-managed servers are ordered first,
 so they win over a user connection that happens to pick the same name.
+
+### A server that prefixes its own tools
+
+Some servers put their own name in front of every tool already. From a
+connection called `netbox`, NetBox's `netbox_get_objects` reached the model as
+`netbox_netbox_get_objects`: longer, and harder for a model to predict, which is
+how an agent once called a tool that did not exist. **Skip the tool prefix**, in
+an organization connection's Edit dialog, shows the model the server's own names
+instead.
+
+The connection keeps its prefix all the same. The MCP servers page still shows
+it beside the name, it is still unique among an agent's bindings, and tool search
+still keeps the server visible by it. An allowlist compares the server's own
+names, as it always did. A member's own connection always carries its prefix: a
+binding to each person's own account presents the catalog key, so the agent
+shows everyone the same names.
+
+What the prefix guaranteed was that no other tool of the agent shares a name with
+one of the server's, and a connection that skips it gives that up. So each of its
+tools has to keep off every name already taken: a capability's tool, the
+platform's own (`request_capability`, `load_capability`, `search_tools` and the
+rest), any name under another binding's prefix, and a name an earlier connection
+that also skips its prefix presents. A name a capability renames its tool to
+counts as that capability's.
+
+!!! warning "A clash is refused at publish, and leaves the server out of a run"
+
+    Publish compares the tools the connection's last check listed, and refuses
+    the binding by the tool and whose name it would take. Narrow the binding's
+    tools, or turn the prefix back on.
+
+    A run decides on what the server lists at each step, because a server can
+    add a tool after the agent was published, and a connection can skip its
+    prefix later too. Where one of its names is taken, none of the server's tools
+    are attached that turn, and the model is told which server is missing and
+    why, as it is for a prefix collision. The turn goes on.
 
 ### Health, users and calls
 

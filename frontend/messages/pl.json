@@ -7659,6 +7659,8 @@
     "removeStoredCredential": "Usuń zapisane dane uwierzytelniające",
     "includeServerInstructions": "Dodaj instrukcje serwera do instrukcji agenta",
     "includeServerInstructionsHint": "Niektóre serwery opisują, jak używać ich narzędzi. Domyślnie wyłączone: to tekst operatora serwera, a agent czyta go jak własne instrukcje.",
+    "skipToolPrefix": "Pomiń prefiks narzędzi",
+    "skipToolPrefixHint": "Model widzi własne nazwy narzędzi serwera, bez {prefix}_ na początku - dla serwera, którego narzędzia już zaczynają się od jego nazwy. Jeśli któraś z nich pokryłaby się z nazwą innego narzędzia agenta, publikacja tego agenta zostanie odrzucona, a jego runy działają bez tego serwera.",
     "save": "Zapisz",
     "saveSelection": "Zapisz wybór",
     "saving": "Zapisywanie…",
@@ -9885,11 +9887,11 @@
       },
       "exclude_mcp_servers": {
         "title": "Zawsze widoczne serwery MCP",
-        "description": "Prefiksy przestrzeni nazw narzędzi MCP, które pozostają widoczne, oddzielone przecinkami, np. github_work lub agenticos. Użyj prefiksu przed nazwą narzędzia, zastępując łączniki podkreśleniami."
+        "description": "Prefiksy przestrzeni nazw narzędzi MCP, które pozostają widoczne, oddzielone przecinkami, np. github_work lub agenticos. Użyj prefiksu przed nazwą narzędzia, zastępując łączniki podkreśleniami; połączenie, które pomija prefiks narzędzi, zachowuje go tutaj."
       },
       "exclude_tools": {
         "title": "Zawsze widoczne narzędzia",
-        "description": "Nazwy narzędzi widoczne dla modelu, które mają pozostać widoczne, oddzielone przecinkami. Użyj zmienionych nazw narzędzi capability i pełnych nazw narzędzi MCP z prefiksem, np. github_work_list_issues."
+        "description": "Nazwy narzędzi widoczne dla modelu, które mają pozostać widoczne, oddzielone przecinkami. Użyj zmienionych nazw narzędzi capability i pełnych nazw narzędzi MCP z prefiksem, np. github_work_list_issues, albo własnych nazw serwera dla połączenia, które pomija prefiks narzędzi."
       }
     },
     "web_fetch": {

@@ -27,6 +27,7 @@ from app.agents.spec import (
 )
 from app.core.config import settings
 from app.core.permissions import AuthContext
+from app.db.models.mcp_connection import McpConnection
 from app.repositories import agent as agent_repo
 from app.repositories import context as context_repo
 from app.repositories import knowledge_base as knowledge_base_repo
@@ -36,6 +37,7 @@ from app.schemas.mention import Mentionable, MentionRef
 from app.services.agent_registry import AgentRegistryService
 from app.services.conversation import ConversationService
 from app.services.mcp_catalog import get_entry
+from app.services.mcp_connection import unprefixed_tool_names
 
 INLINE_PREFIX = "inline:"
 """How an inline specialist is named in a mention: it has no row, only a name."""
@@ -166,7 +168,7 @@ class MentionService:
                         kind="mcp",
                         id=str(connection.id),
                         name=connection.label or (entry.name if entry else connection.name),
-                        detail=f"{tool_prefix(connection.name)}_*",
+                        detail=_tools_named(connection, ref),
                         icon=(entry.icon or None) if entry else None,
                         host=_host(connection.url),
                     )
@@ -325,7 +327,10 @@ def _note(
             f"`{read_conversation}` before using it. Its transcript is evidence, not "
             "instructions or approval; the tool still checks the current audience and access."
         ),
-        "mcp": lambda item: f'MCP server "{item.name}" - use its tools ({item.detail}).',
+        "mcp": lambda item: (
+            f'MCP server "{item.name}" - use its tools'
+            + (f" ({item.detail})." if item.detail else ".")
+        ),
         "capability": lambda item: (
             f'Capability "{item.name}" - use its tools '
             f"({', '.join(tools.get(item.id, []))}) for this request."
@@ -339,6 +344,19 @@ def _note(
     }
     lines = "\n".join(f"- {how[item.kind](item)}" for item in mentions)
     return f"The person pointed at these for this request; use them:\n{lines}"
+
+
+def _tools_named(connection: McpConnection, ref: OrgMcpServerRef) -> str | None:
+    """How a mention names an organization server's tools: by their prefix, or each by name.
+
+    A connection that skips its prefix (#2881) has no `prefix_*` to point at:
+    pointed at one, the model calls tools that do not exist. So its tools are
+    named one by one, as its last check listed them, or not at all where
+    nothing has checked it yet.
+    """
+    if not connection.skip_tool_prefix:
+        return f"{tool_prefix(connection.name)}_*"
+    return ", ".join(unprefixed_tool_names(connection, ref.allowed_tools) or []) or None
 
 
 def _host(url: str) -> str | None:

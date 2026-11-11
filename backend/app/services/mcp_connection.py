@@ -54,7 +54,9 @@ from app.agents.mcp import (
     McpServerSpec,
     McpSourceIdentity,
     McpToolInfo,
+    OwnToolNames,
     ToolOrigins,
+    fitted_tool_name,
     platform_spec,
     prefix_collisions,
     probe_error_message,
@@ -2391,17 +2393,20 @@ class McpConnectionService:
         Found by the connection each call recorded, so a member's own connection
         that shares the server's name is not listed here, and calls from before it
         was recorded are not listed at all. The tool is named without the prefix
-        the server's current name gives it. The caller must reach the server;
-        arguments and results are never read.
+        the server's current name gives it - none, where the connection skips its
+        prefix (#2881): its calls are recorded under the server's own names, and
+        stripping a prefix from `netbox_get_objects` would name a tool nobody
+        called. The caller must reach the server; arguments and results are
+        never read.
         """
         connection = await self._get_org(ctx, connection_id)
-        prefix = tool_prefix(connection.name)
+        prefix = "" if connection.skip_tool_prefix else f"{tool_prefix(connection.name)}_"
         calls = await conversation_repo.recent_tool_calls(
             self.db, organization_id=ctx.organization_id, connection_id=connection.id, limit=limit
         )
         return [
             McpToolCallRead(
-                tool=call.tool_name.removeprefix(f"{prefix}_"),
+                tool=call.tool_name.removeprefix(prefix),
                 status=call.status,
                 started_at=call.started_at,
                 duration_ms=call.duration_ms,
@@ -2936,6 +2941,8 @@ class UnavailableUnreachableServer:
     server: str
     binding: str
     held_by: str | None = None
+    # False for a connection that skips its prefix (#2881): its tools carry none.
+    prefixed: bool = True
 
 
 # A binding a turn could not honour: a personal one with nobody or nothing to
@@ -2957,10 +2964,12 @@ class AccountNote:
     of the organization's Outlook connections, or a person's own work and
     private Notion - because there the prefixes alone do not say which mailbox
     `outlook_info_send` writes from, and the model has to be told (#2125).
+    `prefix` is `None` for an organization account that skips its prefix
+    (#2881): its tools are the ones that carry none.
     """
 
     service: str
-    prefix: str
+    prefix: str | None
     account: str
     whose: Literal["organization", "personal"]
 
@@ -2998,6 +3007,7 @@ async def build_toolsets_for_agent(
     platform_credential: str | None = None,
     personal_sources: Mapping[UUID, McpSourceIdentity] | None = None,
     organization_sources: Mapping[UUID, McpSourceIdentity] | None = None,
+    taken_names: Mapping[str, str] | None = None,
 ) -> ResolvedMcpToolsets:
     """Agent toolsets for a published agent: exactly the servers its spec names.
 
@@ -3032,6 +3042,14 @@ async def build_toolsets_for_agent(
     comparable across the two. A key mapping to `None` is a binding switched off
     in that environment, as is a test connection that is gone, disabled or
     without credentials: the production connection is never the fallback.
+
+    An organization connection may skip its tool prefix (#2881), and then its
+    server's tools reach the model under their own names. `taken_names` are the
+    names the run's other tools hold, and whose each is - its capabilities' and
+    the platform's own, from :func:`app.agents.tool_names.taken_tool_names`.
+    Such a server is wrapped in :class:`~app.agents.mcp.OwnToolNames`, which
+    leaves it out of a step where one of its names is taken: by one of those,
+    by another binding's prefix, or by an earlier server that also skips its.
 
     Runs in the caller's session rather than opening its own: an OAuth refresh
     spent here has to be persisted by the same transaction that recorded the run.
@@ -3135,6 +3153,7 @@ async def build_toolsets_for_agent(
             trust_read_only_hints=connection.trust_read_only_hints,
             approval=ref.approval,
             include_instructions=connection.include_instructions,
+            skip_tool_prefix=connection.skip_tool_prefix,
             # Its label, where it has one: an organization holding two accounts on a
             # service names the second (#2125), and an approval should say which.
             account=connection.label,
@@ -3146,7 +3165,7 @@ async def build_toolsets_for_agent(
         bindings[id(spec)] = f"the connection {connection.name!r}"
         reaches[id(spec)] = AccountNote(
             service=connection.catalog_key or connection.name,
-            prefix=tool_prefix(connection.name),
+            prefix=None if connection.skip_tool_prefix else tool_prefix(connection.name),
             account=connection.label or connection.name,
             whose="organization",
         )
@@ -3159,6 +3178,8 @@ async def build_toolsets_for_agent(
     # not both lose the turn and be reported as the one attached; among those
     # reachable, the first in binding order keeps the prefix. One connection
     # bound twice is the same binding on both sides: dropped, nothing to report.
+    # A connection that skips its prefix still holds it here (#2881): the prefix
+    # names its toolset and its source, which stay one per binding.
     probed = await probe_toolsets(specs)
     reachable = [(spec, toolset) for spec, toolset in probed if toolset is not None]
     # Only what looks like news is handed on: the row read above says whether an
@@ -3194,27 +3215,49 @@ async def build_toolsets_for_agent(
     # A server whose probe failed is briefed, not left to the warning in the log.
     # Where another binding answered under its prefix, those tools are present,
     # so the briefing says whose they are: read as this binding's, the other
-    # account's results would pass for the one that is down. The same binding
-    # bound twice and answering once is not missing at all.
-    held = {tool_prefix(spec.name): bindings[id(spec)] for spec, _ in attached}
+    # account's results would pass for the one that is down - unless that one
+    # skips its prefix, and none of its tools carry it. The same binding bound
+    # twice and answering once is not missing at all.
+    held = {tool_prefix(spec.name): spec for spec, _ in attached}
     for spec, toolset in probed:
         if toolset is not None:
             continue
         holder = held.get(tool_prefix(spec.name))
-        if holder == bindings[id(spec)]:
+        if holder is not None and bindings[id(holder)] == bindings[id(spec)]:
             continue
         unavailable.append(
             UnavailableUnreachableServer(
-                server=spec.name, binding=bindings[id(spec)], held_by=holder
+                server=spec.name,
+                binding=bindings[id(spec)],
+                held_by=None if holder is None or holder.skip_tool_prefix else bindings[id(holder)],
+                prefixed=not spec.skip_tool_prefix,
             )
         )
-    return ResolvedMcpToolsets(
-        toolsets=[
+    # The prefixes the attached servers' tools carry, which a server presenting
+    # its tools under their own names keeps off.
+    prefixes = {
+        prefix: bindings[id(spec)] for prefix, spec in held.items() if not spec.skip_tool_prefix
+    }
+    unprefixed: list[OwnToolNames] = []
+    toolsets: list[Any] = []
+    for spec, toolset in attached:
+        if spec.skip_tool_prefix:
+            toolset = OwnToolNames(
+                toolset,
+                server=spec.name,
+                binding=bindings[id(spec)],
+                taken=taken_names or {},
+                prefixes=prefixes,
+                before=tuple(unprefixed),
+            )
+            unprefixed.append(toolset)
+        toolsets.append(
             toolset
             if spec.connection_id is None
             else ToolOrigins(toolset, connection_id=spec.connection_id, seen=origins)
-            for spec, toolset in attached
-        ],
+        )
+    return ResolvedMcpToolsets(
+        toolsets=toolsets,
         unavailable=unavailable,
         accounts=_several_accounts(
             [reaches[id(spec)] for spec, _ in attached if id(spec) in reaches]
@@ -3276,8 +3319,11 @@ async def _test_spec(
     ceiling = _narrowed_tools(
         production.allowed_tools if production is not None else None, ref.allowed_tools
     )
+    # Named after production on both counts, its name and whether its prefix is
+    # skipped, so the tool names a test environment shows are production's.
+    named = production if production is not None else test
     return McpServerSpec(
-        name=production.name if production is not None else test.name,
+        name=named.name,
         url=test.url,
         headers=headers,
         allowed_tools=_narrowed_tools(test.allowed_tools, ceiling),
@@ -3285,6 +3331,7 @@ async def _test_spec(
         trust_read_only_hints=test.trust_read_only_hints,
         approval=ref.approval,
         include_instructions=test.include_instructions,
+        skip_tool_prefix=named.skip_tool_prefix,
         account=test.label,
         connection_id=test.id,
     )
@@ -3471,6 +3518,24 @@ async def connect_personal_toolset(ref: PersonalMcpServerRef, *, user_id: UUID) 
     # first; any others of theirs join from their next message on.
     ((_, toolset),) = await probe_toolsets([own[0].spec])
     return "unreachable" if toolset is None else toolset
+
+
+def unprefixed_tool_names(connection: McpConnection, binding: list[str] | None) -> list[str] | None:
+    """The names a connection that skips its prefix shows the model, as its last check saw them.
+
+    What publish compares with the agent's other tools, and what a mention tells
+    the model to call (#2881). Narrowed by both allowlists and fitted, as the
+    run's toolset narrows and fits them. `None` where nothing has reached the
+    server yet: its names are unknown, which is not "it has none".
+    """
+    if connection.last_tools is None:
+        return None
+    allowed = _narrowed_tools(connection.allowed_tools, binding)
+    return [
+        fitted_tool_name(tool["name"])
+        for tool in connection.last_tools
+        if allowed is None or tool["name"] in allowed
+    ]
 
 
 def _narrowed_tools(connection: list[str] | None, binding: list[str] | None) -> list[str] | None:
