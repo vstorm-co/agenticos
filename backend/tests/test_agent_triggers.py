@@ -4393,6 +4393,10 @@ class TestRunningAsTheCreator:
         )
 
         assert tightened == {"max_failures": 1}
+        paused = await self._update(
+            self._limited(), TriggerUpdate(max_failures=1, is_active=False), as_creator=False
+        )
+        assert paused == {"max_failures": 1, "is_active": False, "auto_stopped_at": None}
         assert by_creator["consecutive_failures"] == 0
         assert by_creator["auto_stopped_at"] is None
 
