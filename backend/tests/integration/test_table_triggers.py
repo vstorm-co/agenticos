@@ -30,7 +30,7 @@ from app.core.config import settings
 from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.organization import Organization, OrganizationMember
-from app.db.models.resource_grant import Visibility
+from app.db.models.resource_grant import GrantLevel, Visibility
 from app.db.models.user import User
 from app.db.models.virtual_table import (
     VirtualTableOutbox,
@@ -45,6 +45,7 @@ from app.db.models.virtual_table_trigger import (
 from app.db.models.workflow import Workflow, WorkflowStatus, WorkflowVersion
 from app.db.models.workflow_run import WorkflowRun, WorkflowRunStatus, WorkflowRunTrigger
 from app.main import app
+from app.repositories import resource_grant_repo
 from app.schemas.virtual_table import (
     ColumnInput,
     OptionInput,
@@ -57,6 +58,7 @@ from app.schemas.virtual_table import (
 )
 from app.schemas.virtual_table_trigger import TableTriggerUpdate
 from app.schemas.workflow import WorkflowPublish
+from app.services.access import TABLE
 from app.services.virtual_tables import triggers
 from app.services.virtual_tables.exceptions import SchemaDependencyError
 from app.services.virtual_tables.facade import VirtualTableService
@@ -1292,6 +1294,84 @@ async def test_table_trigger_rechecks_current_app_admin_authority(world):
         user.is_app_admin = False
         await db.flush()
         assert await consumer._fire_context(trigger, table) is None
+
+
+async def _table_editor(world: _World) -> AuthContext:
+    """A member who may edit the Leads table through a grant, and nothing else."""
+    async with world.factory() as db:
+        member = User(
+            id=uuid.uuid4(), email=f"{uuid.uuid4().hex}@x.com", hashed_password="x", is_active=True
+        )
+        db.add(member)
+        await db.flush()
+        db.add(
+            OrganizationMember(
+                id=uuid.uuid4(), organization_id=world.org.id, user_id=member.id, role="member"
+            )
+        )
+        await resource_grant_repo.upsert(
+            db,
+            organization_id=world.org.id,
+            subject_user_id=member.id,
+            resource_type=TABLE.key,
+            resource_id=world.leads.id,
+            level=GrantLevel.EDIT,
+        )
+        await db.commit()
+    return AuthContext(user_id=member.id, organization_id=world.org.id, role="member")
+
+
+@pytest.mark.security
+async def test_a_table_editor_pauses_but_cannot_resume_a_private_workflows_trigger(world):
+    workflow = await world.workflow()
+    async with world.factory() as db:
+        await db.execute(
+            update(Workflow)
+            .where(Workflow.id == workflow.id)
+            .values(visibility=Visibility.PRIVATE.value)
+        )
+        await db.commit()
+    trigger_id = await world.trigger(workflow)
+    editor = await _table_editor(world)
+
+    async with world.factory() as db:
+        service = TableTriggerService(db)
+        paused = await service.set_active(
+            editor, world.leads.id, trigger_id, TableTriggerUpdate(is_active=False)
+        )
+        await db.commit()
+        assert paused.is_active is False
+        with pytest.raises(NotFoundError):
+            await service.set_active(
+                editor, world.leads.id, trigger_id, TableTriggerUpdate(is_active=True)
+            )
+    async with world.factory() as db:
+        stored = await db.get(VirtualTableTrigger, trigger_id)
+        assert stored is not None and stored.is_active is False
+
+    await world.pause(trigger_id, active=True)
+    async with world.factory() as db:
+        stored = await db.get(VirtualTableTrigger, trigger_id)
+        assert stored is not None and stored.is_active is True
+
+
+@pytest.mark.security
+async def test_resuming_from_the_table_needs_the_right_to_run_the_workflow(world):
+    trigger_id = await world.trigger()
+    await world.pause(trigger_id)
+    real = triggers.resolve_access
+
+    async def without_run(db, ctx, resource, perm, **kwargs):
+        return perm is not Perm.WORKFLOWS_RUN and await real(db, ctx, resource, perm, **kwargs)
+
+    with (
+        patch.object(triggers, "resolve_access", new=without_run),
+        pytest.raises(AuthorizationError),
+    ):
+        await world.pause(trigger_id, active=True)
+    async with world.factory() as db:
+        stored = await db.get(VirtualTableTrigger, trigger_id)
+        assert stored is not None and stored.is_active is False
 
 
 @pytest.mark.security

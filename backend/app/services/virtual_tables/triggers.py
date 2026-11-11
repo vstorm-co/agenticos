@@ -3,8 +3,10 @@
 A workflow whose trigger node is `trigger.table_record` is subscribed to its
 table when a version is published (`app.services.workflow_triggers`): the
 trigger runs that version as the member who published it, and nobody can name
-someone else. A later publish moves it to the new version. Pausing and resuming
-from the table need `tables:edit`.
+someone else. A later publish moves it to the new version. Pausing from the
+table needs `tables:edit`; resuming it there also needs `workflows:edit` and
+`workflows:run` on the workflow, the same as the workflow's own switch, because
+the trigger runs the workflow as its publisher.
 
 Switching a trigger on takes the table's schema lock, the one record writes
 wait on, before stamping `activated_at`. A write that started before the switch
@@ -30,7 +32,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
-from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.locks import LockScope, hold_subject
 from app.db.models.virtual_table import (
@@ -239,10 +241,15 @@ class TableTriggerService(Operations):
         """Pause or resume a trigger; it keeps running as whoever published it.
 
         Resuming stamps a new `activated_at`, so the records added while it was
-        paused never start it.
+        paused never start it. Pausing needs only `tables:edit`; resuming starts
+        the workflow as its publisher again, so it also needs what the workflow's
+        own switch needs: `workflows:edit` and `workflows:run` on that workflow.
 
         Raises:
-            NotFoundError: The table or the trigger is out of reach.
+            NotFoundError: The table or the trigger is out of reach, or resuming and
+                the caller may not edit the workflow.
+            AuthorizationError: Resuming, and the caller may edit the workflow but
+                not run it.
             TableArchivedError: The table is archived.
         """
         table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, lock=True)
@@ -250,6 +257,7 @@ class TableTriggerService(Operations):
         trigger = await self._trigger(ctx, table.id, trigger_id)
         if data.is_active:
             require_human_publisher(ctx)
+            await self._may_resume(ctx, trigger)
         changes: dict[str, Any] = {"is_active": data.is_active}
         if data.is_active and not trigger.is_active:
             changes["activated_at"] = trigger_repo.activation_time()
@@ -258,6 +266,24 @@ class TableTriggerService(Operations):
             ctx, trigger, "table.trigger_resumed" if data.is_active else "table.trigger_paused"
         )
         return await self._trigger_read(trigger)
+
+    async def _may_resume(self, ctx: AuthContext, trigger: VirtualTableTrigger) -> None:
+        workflow = await workflow_repo.get(
+            self.db, trigger.workflow_id, organization_id=ctx.organization_id
+        )
+        if workflow is None or not await resolve_access(
+            self.db, ctx, workflow, Perm.WORKFLOWS_EDIT, resource_type=WORKFLOW
+        ):
+            raise NotFoundError(
+                message="Workflow not found", details={"workflow_id": trigger.workflow_id}
+            )
+        if not await resolve_access(
+            self.db, ctx, workflow, Perm.WORKFLOWS_RUN, resource_type=WORKFLOW
+        ):
+            raise AuthorizationError(
+                message="This trigger runs as its publisher, so you need to be able to run it",
+                details={"workflow_id": workflow.id},
+            )
 
     async def set_active_for_workflow(
         self, ctx: AuthContext, workflow: Workflow, active: bool

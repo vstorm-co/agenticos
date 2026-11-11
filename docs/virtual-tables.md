@@ -544,6 +544,11 @@ values as `fields` by label and `author_id`, and for a change or a deletion `bef
 and the `changed` columns by label. **Triggers** on the table's page lists the
 workflows that start from it, pauses and resumes each, and opens its history.
 
+Pausing one there needs `tables:edit` on the table. Resuming one starts the workflow
+as its publisher again, so it also needs `workflows:edit` and `workflows:run` on that
+workflow, as the workflow's own **Active** switch does; a member who can edit the
+table but not the workflow is told the workflow was not found.
+
 A trigger starts only for records added while it is on. Switching it on - a publish,
 or resuming it - takes the table's schema lock, the one every record write waits on, so no record
 committed before that moment ever starts it, and nothing added while it was off is

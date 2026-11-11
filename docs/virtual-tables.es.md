@@ -1,5 +1,5 @@
 ---
-source_sha: "96494123ddae"
+source_sha: "d23f03c02c50"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -577,6 +577,12 @@ Pasa al run el registro: `record_id`, `event`, `values` por id de columna, los m
 valores como `fields` por etiqueta y `author_id`, y en un cambio o un borrado también
 `before` y las columnas `changed` por etiqueta. **Triggers**, en la página de la
 tabla, enumera los workflows, pausa y reanuda cada uno y abre su historial.
+
+Pausar uno allí requiere `tables:edit` en la tabla. Reanudarlo vuelve a ejecutar el
+workflow como la persona que lo publicó, así que también requiere `workflows:edit`
+y `workflows:run` en ese workflow, como el propio interruptor **Active** del
+workflow; a un miembro que puede editar la tabla pero no el workflow se le dice que
+el workflow no existe.
 
 Un trigger solo se inicia con los registros añadidos mientras está activo. Activarlo - una
 publicación o reanudarlo - toma el bloqueo de esquema de la tabla, el que espera toda escritura de

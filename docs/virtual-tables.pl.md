@@ -1,5 +1,5 @@
 ---
-source_sha: "96494123ddae"
+source_sha: "d23f03c02c50"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -573,6 +573,12 @@ wartości jako `fields` według etykiet i `author_id`, a przy zmianie lub usuni�
 także `before` oraz kolumny `changed` według etykiet. **Triggers** na stronie tabeli
 wymienia workflow, które od niej startują, wstrzymuje i wznawia każdy z nich oraz
 otwiera jego historię.
+
+Wstrzymanie go tam wymaga `tables:edit` na tabeli. Wznowienie znowu uruchamia
+workflow jako osobę, która go opublikowała, więc wymaga też `workflows:edit` i
+`workflows:run` na tym workflow, tak jak własny przełącznik **Active** workflow;
+członek, który może edytować tabelę, ale nie workflow, dostaje odpowiedź, że
+workflow nie istnieje.
 
 Wyzwalacz startuje tylko dla rekordów dodanych, gdy jest włączony. Włączenie -
 publikacja albo wznowienie - bierze blokadę schematu tabeli, na którą czeka każdy zapis rekordu, więc żaden
