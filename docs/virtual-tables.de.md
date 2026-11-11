@@ -1,5 +1,5 @@
 ---
-source_sha: "342f48b00889"
+source_sha: "539603f9eb62"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -866,6 +866,15 @@ AgenticOS MCP bietet `list_task_boards`, `ensure_task_board`, `list_tasks`, `get
 Gruppenmitglieder dürfen das Aufgabenboard ihrer Gruppe lesen; Schreibzugriff erfordert zusätzlich Tabellen-Bearbeitungsrechte oder eine ausdrückliche Bearbeitungsfreigabe. Verliert die zugewiesene prüfende Person den Zugriff, wird die Erinnerung blockiert und ihr Ersteller erhält einen Inbox-Fall zur Übergabe. Neue Arbeitsunterhaltungen für Projektaufgaben gehören zum Projekt. Eine Tabellenquote kann die optionale Aufgabe eines Routine-Ergebnisses verhindern; Arbeitschat, Inbox-Fall und Benachrichtigung werden dennoch zugestellt.
 
 Schreiben auf Projekt-Aufgabentafeln erfordert Projektzugriff und Tabellenbearbeitungsrechte oder eine ausdrückliche Edit-Freigabe für die Tabelle. Das Entfernen eines Projekts, einer Gruppe oder eines privaten Eigentümers storniert wartende Aufgaben, schließt ihre Fälle und löscht die verwaltete Tabelle dieses Bereichs samt Datensätzen, Verlauf und Medien in derselben Transaktion. Andere Bereiche bleiben erhalten. Verschwindet die ausgewählte Tafel, wechselt das Aufgabenpanel zur verfügbaren privaten Tafel.
+
+Ein Aufgabenboard selbst zu ändern ist enger gefasst, als darauf zu arbeiten. Das Board
+umzubenennen, seine Spalten oder Standardansicht zu ändern und es zu archivieren oder
+wiederherzustellen braucht `tables:edit` im Scope `ALL` (Owner oder Admin) oder die
+Leitung des Scopes des Boards: die Leitung der Gruppe, den Besitzer des Projekts, die
+Person, der ein privates Board gehört. Alle anderen im Publikum des Boards legen weiterhin
+Aufgaben an und bearbeiten sie; `can_manage` der Tabelle sagt, welches von beidem ein
+Aufrufer darf, und die Konsole zeigt die Steuerelemente des Boards nur, wenn es wahr ist.
+Ein Versuch ohne es wird mit `AUTHORIZATION_ERROR` (403) abgelehnt.
 
 ## Standardansicht {#default-view}
 

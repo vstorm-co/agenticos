@@ -193,8 +193,15 @@ class ProjectTrackingService:
             ctx, BoardEnsure(scope="project", scope_id=project.id)
         )
         table = await VirtualTableService(self.db).describe_table(ctx, board.table_id)
-        # The explicit preset's name also names the project's one shared task board.
-        if table.name != data.table_name:
+        if table.archived_at is not None:
+            raise ConflictError(
+                message="This project's task board is archived. Restore it before "
+                "publishing the tracker.",
+                details={"table_id": table.id},
+            )
+        # The explicit preset's name also names the project's one shared task board, when
+        # this caller may rename it; otherwise the board keeps the name it has.
+        if table.name != data.table_name and table.can_manage:
             table = await VirtualTableService(self.db).update_table(
                 ctx, table.id, TableUpdate(name=data.table_name)
             )

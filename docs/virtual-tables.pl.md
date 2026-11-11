@@ -1,5 +1,5 @@
 ---
-source_sha: "342f48b00889"
+source_sha: "539603f9eb62"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -812,6 +812,14 @@ AgenticOS MCP udostępnia `list_task_boards`, `ensure_task_board`, `list_tasks`,
 Członkostwo w grupie pozwala czytać jej tablicę zadań; zapis wymaga dodatkowo uprawnienia do edycji tabel lub jawnego grantu edycji. Gdy osoba przypisana do przypomnienia traci dostęp, zadanie zostaje zablokowane, a twórca otrzymuje sprawę w Inbox do przekazania pracy. Nowe rozmowy robocze zadań projektowych należą do tego projektu. Limit tabel może zablokować opcjonalne zadanie z wyniku routine, ale rozmowa robocza, sprawa Inbox i powiadomienie nadal są dostarczane.
 
 Zapis na projektowej tablicy zadań wymaga dostępu do projektu oraz uprawnienia edycji tabel lub jawnego grantu Edit do tabeli. Usunięcie projektu, grupy albo prywatnego właściciela anuluje zadania w kolejce, zamyka ich sprawy i usuwa zarządzaną tabelę tego zakresu wraz z rekordami, historią i mediami w tej samej transakcji. Pozostałe zakresy pozostają nienaruszone. Panel zadań wraca do dostępnej prywatnej tablicy, gdy wybrana tablica znika.
+
+Zmiana samej tablicy zadań jest węższa niż praca na niej. Zmiana nazwy tablicy, jej
+kolumn albo domyślnego widoku oraz jej archiwizacja albo przywrócenie wymagają
+`tables:edit` w scope `ALL` (owner albo admin) albo lidera scope tablicy: lidera grupy,
+właściciela projektu, osoby, do której należy prywatna tablica. Każdy inny z odbiorców
+tablicy nadal dodaje i edytuje zadania; `can_manage` tabeli mówi, co z tych dwóch może
+wywołujący, a konsola pokazuje kontrolki samej tablicy tylko wtedy, gdy to prawda. Próba
+bez tego kończy się odmową `AUTHORIZATION_ERROR` (403).
 
 ## Domyślny widok {#default-view}
 

@@ -49,11 +49,21 @@ _WRITE_REFUSALS: dict[int | str, dict[str, Any]] = {
         "description": "Too many table writes in the last minute; see `Retry-After`",
     },
 }
+# A task board's default view is part of the board: refused (403) to a caller who may see
+# it but not change the board.
+_BOARD_VIEW_REFUSALS: dict[int | str, dict[str, Any]] = {
+    **_WRITE_REFUSALS,
+    403: {
+        "model": ErrorEnvelope,
+        "description": "A task board's default view, and this caller may not change the board",
+    },
+}
 _UPDATE_REFUSALS: dict[int | str, dict[str, Any]] = {
     **_WRITE_REFUSALS,
     403: {
         "model": ErrorEnvelope,
-        "description": "Only the view's owner shares it or makes it private",
+        "description": "Only the view's owner shares it or makes it private, and a task "
+        "board's default view is changed only by someone who may change the board",
     },
 }
 
@@ -110,7 +120,8 @@ async def update_view(
 
     Refused (404) to anyone but its owner or a caller whose `tables:edit` scope is `ALL`,
     and another member's private view to everyone, `ALL` scope included. Only the owner
-    changes its `visibility` (403).
+    changes its `visibility`, and only someone who may change a task board changes its
+    default view (403).
     """
     return await service.update_view(ctx, table_id, view_id, data)
 
@@ -119,7 +130,7 @@ async def update_view(
     "/{table_id}/views/{view_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     response_model=None,
-    responses=_WRITE_REFUSALS,
+    responses=_BOARD_VIEW_REFUSALS,
     dependencies=[Depends(limit_table_write)],
 )
 async def delete_view(table_id: UUID, view_id: UUID, service: TableViewSvc, ctx: Auth) -> None:
