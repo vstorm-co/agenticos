@@ -86,6 +86,7 @@ from app.db.models.run_manifest import RunManifest
 from app.db.models.session import Session
 from app.db.models.skill_proposal import SkillProposal
 from app.db.models.suggestion import Suggestion
+from app.db.models.system_agent_profile import MEMORY_MAINTENANCE
 from app.db.models.task_board import TaskBoard
 from app.db.models.telephony import PhoneCall, PhoneContact
 from app.db.models.user import User
@@ -835,6 +836,38 @@ async def forget_runs(db: AsyncSession, run_ids: Iterable[UUID]) -> None:
         update(ToolApproval).where(ToolApproval.run_id.in_(wanted)).values(tool_args={})
     )
     await db.flush()
+
+
+def _maintenance_runs_of(user_id: UUID) -> Select[UUID]:
+    return select(AgentRun.id).where(
+        AgentRun.user_id == user_id, AgentRun.system_role == MEMORY_MAINTENANCE
+    )
+
+
+async def forget_maintenance_runs_of(
+    db: AsyncSession, user_id: UUID, *, organization_id: UUID
+) -> None:
+    """Trim the memory-maintenance manifests made for this person in one organization.
+
+    A maintenance run is attributed to the person whose conversation it read, and
+    its manifest keeps that transcript and the facts drawn from it - the same
+    personal data as the notes and claims an erasure deletes.
+    """
+    await forget_runs(
+        db,
+        await db.scalars(
+            _maintenance_runs_of(user_id).where(AgentRun.organization_id == organization_id)
+        ),
+    )
+
+
+async def forget_all_maintenance_runs_of(db: AsyncSession, user_id: UUID) -> None:
+    """`forget_maintenance_runs_of` in every organization, for a deleted account.
+
+    Unscoped by organization on purpose: the account is going, so nothing it was
+    told in any organization may stay in a manifest.
+    """
+    await forget_runs(db, await db.scalars(_maintenance_runs_of(user_id)))
 
 
 async def scrub_history_turns_of(
