@@ -23,6 +23,7 @@ import {
   InviteMemberDialog,
   OrgApprovalWaiver,
   OrgAssistant,
+  OrgPublicAttribution,
   OrgPublicLiveData,
   OrgProactivity,
   OrgSystemAgents,
@@ -568,6 +569,7 @@ export default function OrgMembersPage({ params }: PageProps) {
         >
           {org && <OrgSpendingLimit org={org} />}
           {org && <OrgApprovalWaiver org={org} />}
+          {org && <OrgPublicAttribution org={org} />}
           {org && <OrgPublicLiveData org={org} />}
         </TabsContent>
         <TabsContent

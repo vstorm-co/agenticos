@@ -515,7 +515,8 @@ def _config_schema_problems(graph: WorkflowGraph, definitions: DefinitionMap) ->
     `node.config` because a binding supplies it instead is not "missing" - it
     is bound; that is the only error class set aside for a bound field, and a
     wrong-shaped value the client *did* supply is still refused exactly as
-    before.
+    before. A step switched off reads no config at all, so its config is not
+    checked: switching it back on is a change to publish, which checks it then.
     """
     problems: Problems = []
     bound_fields_by_node: dict[UUID, set[str]] = {}
@@ -526,7 +527,7 @@ def _config_schema_problems(graph: WorkflowGraph, definitions: DefinitionMap) ->
 
     for node in graph.nodes:
         definition = definitions[node.id]
-        if definition is None:
+        if definition is None or node.disabled:
             continue
         if definition.config_schema is None:
             if node.config:
@@ -572,7 +573,7 @@ def _error_port_clash_problems(graph: WorkflowGraph, definitions: DefinitionMap)
     problems: Problems = []
     for node in graph.nodes:
         definition = definitions.get(node.id)
-        if definition is None or not node.routes_errors:
+        if definition is None or node.disabled or not node.routes_errors:
             continue
         named = _AUTHOR_NAMED_PORTS.get(definition.id)
         if named is None:
@@ -600,12 +601,14 @@ async def _resource_problems(
     Only for a config that validates on its own: a config with a field still to
     be bound at run time, or one already refused above, has nothing settled to
     check yet, and a second refusal about the same field would only repeat it.
+    A step switched off reaches nothing its config names.
     """
     problems: Problems = []
     for node in graph.nodes:
         definition = definitions[node.id]
         if (
             definition is None
+            or node.disabled
             or definition.resource_check is None
             or definition.config_schema is None
         ):
@@ -623,21 +626,32 @@ async def _table_binding_problems(
     db: AsyncSession, ctx: AuthContext, graph: WorkflowGraph
 ) -> Problems:
     problems: Problems = []
-    for index, binding in enumerate(graph.bindings):
-        if not isinstance(binding.source, TableIORef):
-            continue
-        problems += await table_ref_problems(db, ctx, binding.source, field=f"bindings.{index}")
+    for field, ref in graph_table_refs(graph):
+        problems += await table_ref_problems(db, ctx, ref, field=field)
     return problems
 
 
-def graph_file_refs(graph: WorkflowGraph) -> Iterator[tuple[str, FileRef]]:
-    """File imports named by direct bindings and recursively by pinned outputs."""
-    seen: set[UUID] = set()
+def graph_table_refs(graph: WorkflowGraph) -> Iterator[tuple[str, TableIORef]]:
+    """Table bindings consumed by enabled steps; switched-off steps read no input."""
+    disabled = {node.id for node in graph.nodes if node.disabled}
     for index, binding in enumerate(graph.bindings):
+        if binding.target_node_id not in disabled and isinstance(binding.source, TableIORef):
+            yield f"bindings.{index}", binding.source
+
+
+def graph_file_refs(graph: WorkflowGraph) -> Iterator[tuple[str, FileRef]]:
+    """File imports consumed by enabled bindings and recursively by enabled pins."""
+    seen: set[UUID] = set()
+    disabled = {node.id for node in graph.nodes if node.disabled}
+    for index, binding in enumerate(graph.bindings):
+        if binding.target_node_id in disabled:
+            continue
         if isinstance(binding.source, FileRef) and binding.source.file_id not in seen:
             seen.add(binding.source.file_id)
             yield f"bindings.{index}", binding.source
     for node in graph.nodes:
+        if node.disabled:
+            continue
         for ref in file_refs(node.pinned_output):
             if ref.file_id not in seen:
                 seen.add(ref.file_id)
@@ -758,6 +772,25 @@ def _rule_1_single_entry(graph: WorkflowGraph) -> Problems:
 # Rule 2 - reachable outputs
 
 
+def set_aside(graph: WorkflowGraph) -> set[UUID]:
+    """Steps switched off with no edge at all: parked beside the graph, never run.
+
+    The run never reaches one and it would do nothing if it did, so it need not
+    be reachable, and it may be a step that decides the way. Rule 13 still
+    refuses a read of one, since it hands nothing on. A trigger is never one: a
+    run can start at it wired or not.
+    """
+    wired = {edge.source_node_id for edge in graph.edges} | {
+        edge.target_node_id for edge in graph.edges
+    }
+    entries = {node.id for node in entry_nodes(graph)}
+    return {
+        node.id
+        for node in graph.nodes
+        if node.disabled and node.id not in wired and node.id not in entries
+    }
+
+
 def _rule_2_reachable_outputs(
     graph: WorkflowGraph, node_scope: dict[UUID, UUID], outer_order: list[UUID] | None
 ) -> Problems:
@@ -765,11 +798,14 @@ def _rule_2_reachable_outputs(
 
     Checking only sinks would let a second, unreachable zero-in-degree source
     pass undetected - rule 1 only proves the *named* entry has in-degree 0,
-    not that it is the only one.
+    not that it is the only one. A step `set_aside` is not asked to be reached.
     """
     if graph.entry_node_id not in graph.node_by_id:
         return []
-    top_level = [node.id for node in graph.nodes if node.id not in node_scope]
+    parked = set_aside(graph)
+    top_level = [
+        node.id for node in graph.nodes if node.id not in node_scope and node.id not in parked
+    ]
     adjacency = _forward_edges(graph)
     exit_edges = _scope_exit_edges(graph)
     seen: set[UUID] = set()
@@ -1396,7 +1432,8 @@ def _split_problems(graph: WorkflowGraph, definitions: DefinitionMap) -> Problem
     return [
         (f"nodes.{node.id}.policy", "A Split cannot route its errors; route each branch's own")
         for node in graph.nodes
-        if node.routes_errors
+        if not node.disabled
+        and node.routes_errors
         and (definition := definitions.get(node.id)) is not None
         and definition.id == SPLIT
     ]
@@ -1500,7 +1537,8 @@ def _rule_9_required_inputs_bound(graph: WorkflowGraph, definitions: DefinitionM
 
     for node in graph.nodes:
         definition = definitions.get(node.id)
-        if definition is None or definition.input_schema is None:
+        # A step switched off, wired or not, is never handed its input.
+        if definition is None or definition.input_schema is None or node.disabled:
             continue
         if (
             definition.id in _DECIDES_ON_VALUE
@@ -1540,6 +1578,8 @@ def _rule_10_error_routes(graph: WorkflowGraph, definitions: DefinitionMap) -> P
     """
     problems: Problems = []
     for node in graph.nodes:
+        if node.disabled:
+            continue
         definition = definitions.get(node.id)
         if node.routes_errors and not _port_edges(graph, node.id, ERROR_PORT):
             problems.append(
@@ -1692,8 +1732,10 @@ def _body_reachability_problems(graph: WorkflowGraph, item: UUID, direct: list[U
 
     The body's counterpart of rule 2: nothing wires a body to its loop, so a step
     the item never leads to would never run in any iteration. A nested loop is one
-    step here; its own body is checked on its own.
+    step here; its own body is checked on its own. A step `set_aside` is not asked
+    to be reached, as at the top level.
     """
+    parked = set_aside(graph)
     members = set(direct)
     adjacency = _forward_edges(graph)
     seen: set[UUID] = set()
@@ -1711,7 +1753,7 @@ def _body_reachability_problems(graph: WorkflowGraph, item: UUID, direct: list[U
     return [
         (f"nodes.{node_id}", "This step is not reachable from its loop's item step")
         for node_id in direct
-        if node_id not in seen
+        if node_id not in seen and node_id not in parked
     ]
 
 
@@ -1723,12 +1765,13 @@ def _rule_12_policies(graph: WorkflowGraph, definitions: DefinitionMap) -> Probl
 
     The retry guarantee is the call's own when the definition decides it per
     configuration - an `http.request` `GET` may retry, a `POST` without an
-    idempotency header may not.
+    idempotency header may not. A step switched off is never called, so it is
+    never retried either.
     """
     problems: Problems = []
     for node in graph.nodes:
         definition = definitions.get(node.id)
-        if definition is None or node.policy is None:
+        if definition is None or node.policy is None or node.disabled:
             continue
         if definition.handler is None:
             problems.append(
@@ -1781,12 +1824,14 @@ def _rule_13_named_and_switched_off_steps(
 
     Two steps may not share a name, ignoring case: the name is how a builder tells
     them apart in every list of bindings and problems. A step switched off does
-    nothing, so it may be neither the trigger nor a step that decides which way the
-    run goes, and nothing may read its output unless it hands the field on - what
-    came into it has that field (`_hands_on`).
+    nothing, so it may be neither the trigger nor a loop's item or result step, nor
+    - unless it is `set_aside`, with no way to decide - a step that decides which
+    way the run goes. Nothing may read its output unless it hands the field on -
+    what came into it has that field (`_hands_on`).
     """
     problems: Problems = []
     named: dict[str, UUID] = {}
+    parked = set_aside(graph)
     for node in graph.nodes:
         label = (node.label or "").strip()
         if label:
@@ -1802,7 +1847,15 @@ def _rule_13_named_and_switched_off_steps(
         definition = definitions.get(node.id)
         if node.id == graph.entry_node_id:
             problems.append((f"nodes.{node.id}.disabled", "The trigger cannot be switched off"))
-        elif definition is not None and definition.kind == "control":
+        elif node.definition_id in (LOOP_ITEM, LOOP_YIELD):
+            # Started by every iteration whether wired or not, so never set aside.
+            problems.append(
+                (
+                    f"nodes.{node.id}.disabled",
+                    "A loop's item or result step cannot be switched off",
+                )
+            )
+        elif definition is not None and definition.kind == "control" and node.id not in parked:
             problems.append(
                 (
                     f"nodes.{node.id}.disabled",

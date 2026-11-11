@@ -1,5 +1,5 @@
 ---
-source_sha: "4121ce5e0f02"
+source_sha: "b0fd849fcc36"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -3521,7 +3521,7 @@ einwirken.
     still entfernt und ein Aufruf mit Seiteneffekten dann unbeaufsichtigt läuft,
     ohne dass etwas es meldet. Eine id, die keine solche Capability bereitstellt,
 
-wird beim Veröffentlichen abgelehnt, und ebenso ein Name, den kein Modell aufrufen könnte.
+wird beim Veröffentlichen abgelehnt, und ebenso ein Name, den kein Modell aufrufen könnte, oder einer, den schon ein anderes Tool des Agenten trägt - das einer anderen Capability oder eines, das die Plattform selbst hinzufügt, etwa `request_capability`.
 
 ## Scopes { #scopes }
 

@@ -334,6 +334,25 @@ describe("useOrganizations", () => {
     await waitFor(() => expect(result.current.orgs[0]?.chat_may_waive_approvals).toBe(true));
   });
 
+  it("persists an explicit footer opt-out and updates the organization cache", async () => {
+    const result = await hook();
+    vi.mocked(apiClient.patch).mockResolvedValue(org({ public_agenticos_attribution: false }));
+    await result.current.setPublicAttribution("org-1", false);
+    expect(apiClient.patch).toHaveBeenCalledWith("/orgs/org-1", {
+      public_agenticos_attribution: false,
+    });
+    await waitFor(() => expect(result.current.orgs[0]?.public_agenticos_attribution).toBe(false));
+  });
+
+  it("propagates a refused footer change and preserves the cached setting", async () => {
+    const result = await hook([org({ public_agenticos_attribution: true })]);
+    vi.mocked(apiClient.patch).mockRejectedValue(new Error("Not allowed"));
+    await expect(result.current.setPublicAttribution("org-1", false)).rejects.toThrow(
+      "Not allowed",
+    );
+    expect(result.current.orgs[0]?.public_agenticos_attribution).toBe(true);
+  });
+
   it("sends only the public live data field, and keeps the answer in the list", async () => {
     const result = await hook();
     vi.mocked(apiClient.patch).mockResolvedValue(org({ public_live_data: true }));

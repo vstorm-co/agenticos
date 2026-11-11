@@ -1176,6 +1176,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     optional: true,
   },
   {
+    id: "org-public-attribution",
+    page: ORG_MEMBERS,
+    target: "org-public-attribution",
+    activate: "org-tab-governance",
+    permission: Perm.orgSettings,
+  },
+  {
     id: "org-public-live-data",
     page: ORG_MEMBERS,
     target: "org-public-live-data",

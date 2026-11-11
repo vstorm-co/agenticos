@@ -466,6 +466,60 @@ class TestInlineSpecialists:
             "which the framework provides itself - two tools of that name abort the turn"
         ]
 
+    async def test_a_specialist_renaming_a_tool_onto_another_capability_s_is_refused(self):
+        """Two of its capabilities under one name abort its turn as they would the
+        parent's (#2890), so the check the parent gets runs on each specialist."""
+        problems = await _problems(
+            _ctx(),
+            _delegating(
+                {
+                    "inline": [
+                        _specialist(
+                            capabilities=[
+                                {
+                                    "id": "charts",
+                                    "tool_overrides": {"create_chart": {"name": "web_fetch"}},
+                                },
+                                {"id": "web_fetch"},
+                            ]
+                        )
+                    ]
+                }
+            ),
+        )
+
+        assert problems == [
+            "Specialist 'summariser': Capability 'charts' renames a tool to web_fetch, which "
+            "capability 'web_fetch' also offers - two tools of that name abort the turn"
+        ]
+
+    async def test_a_specialist_renaming_onto_a_tool_its_parent_shares_is_refused(self):
+        """It runs with the parent's shared bindings beside its own."""
+        problems = await _problems(
+            _ctx(),
+            _delegating(
+                {
+                    "share_with_delegates": ["web_fetch"],
+                    "inline": [
+                        _specialist(
+                            capabilities=[
+                                {
+                                    "id": "charts",
+                                    "tool_overrides": {"create_chart": {"name": "web_fetch"}},
+                                }
+                            ]
+                        )
+                    ],
+                },
+                capabilities=[{"id": "web_fetch"}],
+            ),
+        )
+
+        assert problems == [
+            "Specialist 'summariser': Capability 'charts' renames a tool to web_fetch, which "
+            "capability 'web_fetch' also offers - two tools of that name abort the turn"
+        ]
+
     async def test_a_specialist_naming_a_model_profile_that_is_gone_is_refused(self, monkeypatch):
         """A specialist may run on a model of its own, and that is a reference too.
 
@@ -620,6 +674,58 @@ class TestInlineSpecialists:
             "desktop sandbox to run it in. Share a 'sandbox' on the 'desktop' runtime with "
             "delegates too, or stop sharing 'computer_use'.",
         ]
+
+    async def test_a_pinned_delegate_lent_a_tool_its_own_rename_takes_is_refused(self, monkeypatch):
+        """Its rename passed at its own publish; beside what this agent lends it,
+        it is the same duplicate (#2890), and the fix is in this agent's share list."""
+        ctx = _ctx()
+        delegate = _published(ctx, "Tester")
+        version = _version(
+            delegate.id,
+            spec=_spec(
+                name="Tester",
+                capabilities=[
+                    {"id": "charts", "tool_overrides": {"create_chart": {"name": "web_fetch"}}}
+                ],
+            ),
+        )
+        _repos(monkeypatch, agents=_agents(delegate), versions=_versions(version))
+
+        problems = await _problems(
+            ctx,
+            _delegating(
+                {"share_with_delegates": ["web_fetch"]},
+                subagents=[_pin(delegate.id, version.id)],
+                capabilities=[{"id": "web_fetch"}],
+            ),
+        )
+
+        assert problems == [
+            "Delegate 'Tester', with what this agent shares: Capability 'charts' renames a "
+            "tool to web_fetch, which capability 'web_fetch' also offers - two tools of that "
+            "name abort the turn"
+        ]
+
+    async def test_a_pinned_delegate_s_own_clash_is_left_to_its_author(self, monkeypatch):
+        """Refusing this publish for it would block a parent on a problem only the
+        delegate's author can fix, as a pin to a version since deleted does."""
+        ctx = _ctx()
+        delegate = _published(ctx, "Tester")
+        version = _version(
+            delegate.id,
+            spec=_spec(
+                name="Tester",
+                capabilities=[
+                    {"id": "charts", "tool_overrides": {"create_chart": {"name": "web_fetch"}}},
+                    {"id": "web_fetch"},
+                ],
+            ),
+        )
+        _repos(monkeypatch, agents=_agents(delegate), versions=_versions(version))
+
+        await AgentRegistryService(_db()).validate_spec(
+            ctx, _delegating({}, subagents=[_pin(delegate.id, version.id)])
+        )
 
     async def test_a_delegation_config_that_does_not_parse_is_reported_once(self):
         """The binding check has already said so; a second guess adds nothing."""

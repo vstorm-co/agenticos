@@ -1,5 +1,5 @@
 ---
-source_sha: "28281f424c57"
+source_sha: "39ef16198c21"
 ---
 
 # Aplikacje { #artifacts }
@@ -14,6 +14,10 @@ Aplikacja nie jest plikiem. Wykres, wygenerowany PDF i plik w workspace'ie mają
 swoje miejsce w czacie i w [workspace'ie](sandbox.md). Aplikacja to rzecz, która
 jest *serwowana*: ma właściciela, widoczność i granty, tak jak agent czy skill, i
 można jej nadać publiczny link dla kogoś bez konta.
+
+## Oznaczenie udostępnionych stron { #shared-page-attribution }
+
+Publiczne podglądy aplikacji domyślnie pokazują pływające oznaczenie z logo AgenticOS i linkiem do GitHuba. Strony udostępnionych rozmów pokazują takie samo oznaczenie pod rozmową. Właściciel lub administrator może ukryć stopkę dla całej organizacji w **Ustawienia organizacji → Nadzór → AgenticOS na udostępnionych stronach**. Kolejne otwarcie strony odczytuje aktualne ustawienie. Aplikacje chronione hasłem pokazują stopkę dopiero po odblokowaniu. Stopka należy do podglądu; pobierane pliki i osadzona treść aplikacji nie są modyfikowane.
 
 ## Wygląd aplikacji { #app-appearance }
 

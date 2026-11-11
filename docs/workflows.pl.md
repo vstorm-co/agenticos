@@ -1,5 +1,5 @@
 ---
-source_sha: "13e511da30cb"
+source_sha: "cba80f115942"
 ---
 
 # Workflows { #workflows }
@@ -348,10 +348,25 @@ następny, oznaczoną na karcie, a zakładka ma kropkę, gdy cokolwiek tam zmien
 Wyłączenie tam **Run this step** albo **Switch off** w menu pod prawym przyciskiem
 zostawia krok na kanwie, przygaszony, i pomija go, gdy przebieg do niego dotrze: nic nie
 robi i przekazuje dalej to, co do niego dotarło. Publikacja odrzuca wyłączony trigger
-albo krok decydujący o drodze oraz krok czytający wyłączony krok, chyba że to, co do
+albo połączony krok decydujący o drodze oraz krok czytający wyłączony krok, chyba że to, co do
 niego dociera - jedynym połączeniem wejściowym, od kroku włączonego - ma czytane pole,
 które wtedy przekazuje dalej. Wszystkie trzy są zapisywane w grafie, więc wersje je
 zachowują.
+
+U wyłączonego kroku, połączonego czy nie, nie sprawdza się wejść ani ustawień: nie
+czyta ani jednych, ani drugich. Ponowne włączenie to zmiana do opublikowania, a
+publikacja sprawdza je wtedy.
+
+Wyłączony krok bez żadnego połączenia jest odstawiony: może stać obok workflow albo
+wewnątrz pętli - na przykład **Combine lists** z danymi testowymi - bez osiągalności.
+Przebieg go pomija i nie wlicza go do limitu kroków runu. Gdy połączysz go z
+czymkolwiek, znowu musi być osiągalny. Odstawić można każdy krok,
+także taki, który decyduje o drodze, jak **If**: bez połączeń nie ma między czym
+wybierać. Zawsze włączone zostają tylko trigger oraz **Loop item** i **Loop result**
+pętli.
+
+
+Wyłączony krok może zachować politykę błędów i powiązania z plikami lub tabelami, nawet gdy zasób nie jest już dostępny. Nie odczytuje ich; po ponownym włączeniu zostaną sprawdzone. Odstawiony krok pojawia się jako **Wyłączony** na karcie kroków przebiegu, bez rekordu wykonania. Przed użyciem **Test step** połącz go z wyzwalaczem.
 
 ### Dane kroku, dane testowe i testowanie jednego kroku { #a-steps-data-pinning-and-testing-one-step }
 

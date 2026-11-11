@@ -1,4 +1,10 @@
 {
+  "sharedAttribution": {
+    "madeWith": "Made with <name>AgenticOS</name>",
+    "cta": "Run your own AgenticOS",
+    "description": "Your AI workspace. Open source.",
+    "ctaShort": "GitHub"
+  },
   "admin": {
     "actions": "Actions",
     "active": "Active",
@@ -5425,6 +5431,10 @@
         "title": "Its alerts",
         "body": "Rules that tell people when this log crosses a threshold: how many matching lines, in how long, and who hears. Anyone who can edit the workflow adds, changes or deletes them."
       },
+      "org-public-attribution": {
+        "title": "AgenticOS on shared pages",
+        "body": "Show a small floating AgenticOS badge with a GitHub link on public apps, dashboards and reports, and below shared conversations."
+      },
       "org-public-live-data": {
         "title": "Live data on public pages",
         "body": "Whether public links and embeds may show table data to people without an account. It's off by default, and each page's owner still has to confirm their page."
@@ -5987,7 +5997,8 @@
         "skipped": "Skipped",
         "cancelled": "Cancelled",
         "notReached": "Not reached",
-        "starting": "Starting"
+        "starting": "Starting",
+        "switchedOff": "Switched off"
       },
       "startRun": "Start a run",
       "startRunTitle": "Start a run",
@@ -8988,6 +8999,11 @@
       "providerNoKey": "{name} (no usable key)",
       "notReadyNoKey": "No key is chosen for {provider}. Agents and bots that inherit it can't transcribe with a provider until you choose one below."
     },
+    "publicAttribution": "AgenticOS on shared pages",
+    "publicAttributionDescription": "Show a small floating AgenticOS badge with a GitHub link on public apps, dashboards and reports, and below shared conversations.",
+    "publicAttributionHint": "Enabled by default. Turn it off to hide AgenticOS branding on this organization's public links.",
+    "publicAttributionSaved": "Shared-page branding saved",
+    "publicAttributionFailed": "Could not update shared-page branding",
     "publicLiveData": "Public pages with live data",
     "publicLiveDataDescription": "Whether public pages may show table data to people without an account.",
     "publicLiveDataHint": "Off by default. When on, a page's public link and embeds show its table data once the owner confirms it. Turning it off hides the data everywhere but keeps the confirmations.",
@@ -10646,6 +10662,7 @@
     "validationLabelTaken": "Another step is already called “{label}”.",
     "validationTriggerSwitchedOff": "The trigger cannot be switched off.",
     "validationControlSwitchedOff": "A step that decides which way the run goes cannot be switched off.",
+    "validationLoopPartSwitchedOff": "A loop's item or result step cannot be switched off.",
     "validationBindingReadsSwitchedOff": "This reads a step that is switched off, so it would receive nothing.",
     "stepName": "Step name",
     "stepNotes": "Note",
@@ -10749,6 +10766,7 @@
     "stepTestNotReached": "This step did not run: the test ended before reaching it.",
     "stepTestStopped": "This step did not run: the test was stopped.",
     "stepTestHint": "Run only this step, on what the steps before it handed on last time",
+    "stepTestNotReachable": "Connect this step to a trigger before testing it.",
     "stepTestInsideALoop": "A step inside a loop runs once per item; test the loop instead",
     "stepTestWriteTitle": "Test a step that writes?",
     "stepTestWriteDescription": "Testing it really does what it does: records are written and messages are sent, just as in a real run.",

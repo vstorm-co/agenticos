@@ -37,6 +37,7 @@ import { WorkflowRunQuestions } from "@/components/workflows/runs/run-questions"
 import { RunAnswer } from "@/components/workflows/runs/run-answer";
 import { outcomeLabels } from "@/components/workflows/logs/outcome-labels";
 import { StepLogs } from "@/components/workflows/logs/step-logs";
+import { SetAsideSteps } from "@/components/workflows/runs/set-aside-steps";
 import { RunFiles } from "@/components/workflows/runs/run-files";
 import { ReplyExpectationControl } from "@/components/workflows/runs/reply-expectation-control";
 import { StepAttentionDialog } from "@/components/workflows/runs/step-attention-dialog";
@@ -393,7 +394,13 @@ export default function WorkflowRunPage({ params }: PageProps) {
                         {formatRunDuration(node.started_at, node.ended_at, locale)}
                       </span>
                     </span>
-                    <NodeRunStatusLabel status={node.status} />
+                    <NodeRunStatusLabel
+                      status={node.status}
+                      switchedOff={
+                        graph?.nodes.find((step) => step.id === node.node_instance_id)?.disabled ===
+                        true
+                      }
+                    />
                   </button>
                   {(finishedLate(node) ||
                     (live && node.status === "needs_attention" && run.can_cancel)) && (
@@ -448,6 +455,11 @@ export default function WorkflowRunPage({ params }: PageProps) {
                   )}
                 </li>
               ))}
+              <SetAsideSteps
+                graph={graph}
+                nameOf={nameOf}
+                onInspect={(nodeId) => inspectNode(nodeId, [])}
+              />
             </ul>
           </TabsContent>
         </Tabs>

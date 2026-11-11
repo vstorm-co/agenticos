@@ -242,6 +242,17 @@ export function useOrganizations() {
     [writeCache],
   );
 
+  const setPublicAttribution = useCallback(
+    async (id: string, enabled: boolean): Promise<Organization> => {
+      const updated = await apiClient.patch<Organization>(`/orgs/${id}`, {
+        public_agenticos_attribution: enabled,
+      });
+      writeCache((prev) => prev.map((o) => (o.id === id ? updated : o)));
+      return updated;
+    },
+    [writeCache],
+  );
+
   const setPublicLiveData = useCallback(
     async (id: string, allowed: boolean): Promise<Organization> => {
       const updated = await apiClient.patch<Organization>(`/orgs/${id}`, {
@@ -312,6 +323,7 @@ export function useOrganizations() {
     setProactivity,
     setWelcomeDm,
     setChatApprovalWaiver,
+    setPublicAttribution,
     setPublicLiveData,
     setVoiceSettings,
     deleteOrg,

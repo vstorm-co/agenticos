@@ -51,10 +51,12 @@ from sqlalchemy.orm.attributes import set_committed_value
 from app.agents import mcp_oauth
 from app.agents.connect_on_use import OwnAccountGap, ServiceOutcome
 from app.agents.mcp import (
+    LeftOutOnClash,
     McpServerSpec,
     McpSourceIdentity,
     McpToolInfo,
     ToolOrigins,
+    fitted_tool_name,
     platform_spec,
     prefix_collisions,
     probe_error_message,
@@ -2998,6 +3000,7 @@ async def build_toolsets_for_agent(
     platform_credential: str | None = None,
     personal_sources: Mapping[UUID, McpSourceIdentity] | None = None,
     organization_sources: Mapping[UUID, McpSourceIdentity] | None = None,
+    taken_names: Mapping[str, str] | None = None,
 ) -> ResolvedMcpToolsets:
     """Agent toolsets for a published agent: exactly the servers its spec names.
 
@@ -3032,6 +3035,13 @@ async def build_toolsets_for_agent(
     comparable across the two. A key mapping to `None` is a binding switched off
     in that environment, as is a test connection that is gone, disabled or
     without credentials: the production connection is never the fallback.
+
+    `taken_names` are the names the run's other tools hold, and whose each is -
+    its capabilities' and the platform's own, from
+    :func:`app.agents.tool_names.taken_tool_names`. A prefix keeps one server's
+    tools apart from another's but not from those, so every server is attached
+    inside :class:`~app.agents.mcp.LeftOutOnClash`, which leaves it out of a step
+    where one of its tool names is taken (#2890).
 
     Runs in the caller's session rather than opening its own: an OAuth refresh
     spent here has to be persisted by the same transaction that recorded the run.
@@ -3208,13 +3218,16 @@ async def build_toolsets_for_agent(
                 server=spec.name, binding=bindings[id(spec)], held_by=holder
             )
         )
-    return ResolvedMcpToolsets(
-        toolsets=[
-            toolset
+    toolsets: list[Any] = []
+    for spec, toolset in attached:
+        guarded = _guarded(toolset, spec, binding=bindings[id(spec)], taken=taken_names)
+        toolsets.append(
+            guarded
             if spec.connection_id is None
-            else ToolOrigins(toolset, connection_id=spec.connection_id, seen=origins)
-            for spec, toolset in attached
-        ],
+            else ToolOrigins(guarded, connection_id=spec.connection_id, seen=origins)
+        )
+    return ResolvedMcpToolsets(
+        toolsets=toolsets,
         unavailable=unavailable,
         accounts=_several_accounts(
             [reaches[id(spec)] for spec, _ in attached if id(spec) in reaches]
@@ -3230,6 +3243,15 @@ async def build_toolsets_for_agent(
             if spec.source_connection_id is not None and spec.authorization_generation is not None
         },
     )
+
+
+def _guarded(
+    toolset: Any, spec: McpServerSpec, *, binding: str, taken: Mapping[str, str] | None
+) -> Any:
+    """`toolset`, left out of a step where one of its tool names is already taken (#2890)."""
+    if not taken:
+        return toolset
+    return LeftOutOnClash(toolset, server=spec.name, binding=binding, taken=taken)
 
 
 def _trust_details(connection: McpConnection) -> dict[str, Any]:
@@ -3454,14 +3476,18 @@ def _extra_prefix(catalog_key: str, account: McpConnection) -> str:
     return f"{catalog_key}-{slug or account.id.hex[:8]}"[:64]
 
 
-async def connect_personal_toolset(ref: PersonalMcpServerRef, *, user_id: UUID) -> ServiceOutcome:
+async def connect_personal_toolset(
+    ref: PersonalMcpServerRef, *, user_id: UUID, taken_names: Mapping[str, str] | None = None
+) -> ServiceOutcome:
     """A person's own connection to this service, read again once they say they made it.
 
     What `connect_account` attaches mid-run (`app.agents.connect_on_use`). In a
     session of its own rather than the run's: the call arrives in the middle of
     a run whose session is busy with it, and the connection it looks for was
     committed by another request after this run's transaction began. An OAuth
-    refresh spent on the way is committed with that session.
+    refresh spent on the way is committed with that session. `taken_names` keeps
+    it off the run's other tools' names, as `build_toolsets_for_agent` keeps the
+    servers it attached (#2890).
     """
     async with get_db_context() as db:
         own = await _own_specs(db, ref, user_id=user_id)
@@ -3469,8 +3495,33 @@ async def connect_personal_toolset(ref: PersonalMcpServerRef, *, user_id: UUID) 
         return own
     # One account answers the turn that waited - their default, else their
     # first; any others of theirs join from their next message on.
-    ((_, toolset),) = await probe_toolsets([own[0].spec])
-    return "unreachable" if toolset is None else toolset
+    ((spec, toolset),) = await probe_toolsets([own[0].spec])
+    if toolset is None:
+        return "unreachable"
+    return _guarded(
+        toolset, spec, binding=f"each person's own {ref.catalog_key}", taken=taken_names
+    )
+
+
+def presented_tool_names(
+    connection: McpConnection, binding: list[str] | None
+) -> list[tuple[str, str]]:
+    """Each tool a connection's last check listed, beside the name the model calls it (#2890).
+
+    The prefix and the server's own name joined, and fitted, as the run's toolset
+    presents them, for the tools both allowlists let through: what publish
+    compares with the agent's other tools. Empty where nothing has reached the
+    server yet - its names are unknown, and the run decides on what it lists.
+    """
+    if connection.last_tools is None:
+        return []
+    allowed = _narrowed_tools(connection.allowed_tools, binding)
+    prefix = tool_prefix(connection.name)
+    return [
+        (tool["name"], fitted_tool_name(f"{prefix}_{tool['name']}"))
+        for tool in connection.last_tools
+        if allowed is None or tool["name"] in allowed
+    ]
 
 
 def _narrowed_tools(connection: list[str] | None, binding: list[str] | None) -> list[str] | None:

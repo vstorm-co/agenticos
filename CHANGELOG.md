@@ -25,6 +25,51 @@ Two things are versioned separately from this file and worth knowing about:
   incoming-call icon suggested the workflow starts on a phone call. It now uses
   the workflow icon, the same as the Run a workflow step that calls it (#2886).
 
+## [1.64.2] - 2026-11-11
+
+### Fixed
+
+- **Two of an agent's tools can no longer share a name.** Pydantic AI aborts a
+  turn on a duplicate tool name, and two cases got through publish: an MCP tool
+  whose prefixed name is a capability's or the platform's own (a connection
+  `request` whose server offers `capability` presents `request_capability`,
+  which nearly every agent has), and a capability tool renamed onto another
+  capability's tool or one of the platform's. Publish now refuses both, the MCP
+  case on the tools the connection's last check listed, and checks renames in
+  the agent's specialists and in what it shares with its delegates. A clash
+  that still reaches a run leaves that whole server out of the turn and tells
+  the model why, instead of aborting it (#2891).
+
+## [1.64.1] - 2026-11-11
+
+### Fixed
+
+- **A switched-off workflow step with no connections no longer blocks publishing.**
+  Publishing refused it as not reachable from the trigger and, for a step with
+  required inputs, as unbound, so a step could only be put aside by deleting it.
+  A step that is off with no connection at all is now set aside: the editor and
+  the server no longer ask it to be reachable, at the top level and inside a
+  loop, and a run finishes without it and does not count it towards its step
+  limit. Any step can be set aside, including one that decides the way, such as
+  If, which the editor now lets you switch off while it has no connection; only
+  the trigger and a loop's Loop item and Loop result always stay on. A step that
+  is off, connected or not, is no longer checked for its inputs, its settings,
+  what its settings name or its retry policy, since it reads and calls none of
+  them; switching it back on is a change to publish, checked then. Nothing may
+  read a step set aside, and a set-aside step no longer counts towards the
+  organization's queued-step admission quota.
+- **A switched-off workflow step reads as switched off.** The editor no longer
+  offers it as an input to later steps - in the binding picker, the Input pane
+  or when a step is inserted - and a run's canvas and step list show it as
+  Switched off from the start, rather than as pending until the engine passes
+  it. The wire into one down a branch the run did not take still fades.
+
+## [1.64.0] - 2026-11-11
+
+### Added
+
+- Public app and shared conversation viewers show the AgenticOS logo and a GitHub link, with a responsive floating badge and an organization setting to hide it. Enabled by default; password-protected apps show it after unlocking.
+
 ## [1.63.0] - 2026-11-10
 
 ### Added
@@ -21251,7 +21296,10 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.63.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.64.2...HEAD
+[1.64.2]: https://github.com/vstorm-co/agenticos/compare/v1.64.1...v1.64.2
+[1.64.1]: https://github.com/vstorm-co/agenticos/compare/v1.64.0...v1.64.1
+[1.64.0]: https://github.com/vstorm-co/agenticos/compare/v1.63.0...v1.64.0
 [1.63.0]: https://github.com/vstorm-co/agenticos/compare/v1.62.8...v1.63.0
 [1.62.8]: https://github.com/vstorm-co/agenticos/compare/v1.62.7...v1.62.8
 [1.62.7]: https://github.com/vstorm-co/agenticos/compare/v1.62.6...v1.62.7

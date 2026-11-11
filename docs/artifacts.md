@@ -10,6 +10,10 @@ have a home in the chat and in the [workspace](sandbox.md). An app is the
 thing that is *served*: it has an owner, a visibility and grants like an agent
 or a skill, and it can be given a public link for somebody with no account.
 
+## Shared-page attribution { #shared-page-attribution }
+
+Public app viewers show a floating badge with the AgenticOS logo and a GitHub link by default. Shared conversation pages show the same badge below the conversation. An Owner or Admin can hide the footer for the whole organization in **Organization settings → Governance → AgenticOS on shared pages**. The next page load uses the current setting. Password-protected apps show the footer only after unlocking. The footer belongs to the viewer; downloaded files and embedded app content are not modified.
+
 ## App appearance { #app-appearance }
 
 The signed-in app viewer and its public link have independent **light** and
