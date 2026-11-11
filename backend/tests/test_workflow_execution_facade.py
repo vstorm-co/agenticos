@@ -1477,3 +1477,35 @@ async def test_a_child_workflow_rejects_nested_input_before_admitting_a_run() ->
         },
     ]
     create_run.assert_not_awaited()
+
+
+@pytest.mark.parametrize("disabled", [False, True])
+async def test_resource_records_exclude_switched_off_binding_targets(disabled: bool) -> None:
+    from app.db.models.workflow_run import WorkflowRun
+
+    entry = NodeInstance(
+        id=uuid.uuid4(),
+        definition_id="core.input",
+        definition_version=1,
+        layout=NodePosition(x=0, y=0),
+    )
+    target = entry.model_copy(
+        update={"id": uuid.uuid4(), "definition_id": "debug.echo", "disabled": disabled}
+    )
+    file_ref = FileRef(file_id=uuid.uuid4(), content_type="text/plain", byte_size=1)
+    table_ref = TableIORef(table_id=uuid.uuid4(), schema_version=1)
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, target),
+        bindings=(
+            Binding(target_node_id=target.id, target_field="file", source=file_ref),
+            Binding(target_node_id=target.id, target_field="table", source=table_ref),
+        ),
+    )
+    run = WorkflowRun(id=uuid.uuid4(), organization_id=uuid.uuid4())
+    service = WorkflowExecutionService(AsyncMock())
+    with patch(f"{FACADE_PATH}.workflow_run_repo.create_resource_ref", new=AsyncMock()) as record:
+        await service._record_resource_refs(run, graph)
+    assert record.await_count == (0 if disabled else 2)
+    if not disabled:
+        assert {call.kwargs["kind"] for call in record.await_args_list} == {"file", "table"}

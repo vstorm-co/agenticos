@@ -52,6 +52,7 @@ from app.workflows.contracts.results import (
     Waiting,
     WorkflowError,
 )
+from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
 from app.workflows.graph.validate import validate_graph
 from tests.integration.workflow_run_support import (
@@ -626,6 +627,64 @@ async def test_a_run_past_its_node_run_ceiling_fails_rather_than_growing(
 
     assert run.status == WorkflowRunStatus.FAILED.value
     assert run.error is not None and run.error["code"] == "NODE_RUN_LIMIT"
+
+
+def _parked_in(loop: _Loop) -> tuple[WorkflowGraph, NodeInstance]:
+    """`loop`'s graph with a step switched off, and wired to nothing, in its body."""
+    parked = _node("data.combine", {"mode": "append"}, scope=loop.loop).model_copy(
+        update={"disabled": True}
+    )
+    return loop.graph.model_copy(update={"nodes": (*loop.graph.nodes, parked)}), parked
+
+
+async def test_a_step_set_aside_in_a_loop_body_publishes_and_never_runs(engine: AsyncEngine):
+    loop = _Loop()
+    graph, parked = _parked_in(loop)
+    seeded = await _run(engine, graph, {"items": ITEMS})
+
+    run = await drive(seeded)
+
+    assert run.status == WorkflowRunStatus.SUCCEEDED.value
+    assert run.output is not None
+    assert run.output["structured"]["count"] == 3
+    assert run.output["structured"]["errors"] == []
+    assert await _body_rows(seeded, parked.id) == []
+
+
+async def test_a_step_with_no_edges_in_a_loop_body_that_is_on_is_still_unreachable(
+    engine: AsyncEngine,
+):
+    loop = _Loop()
+    graph, parked = _parked_in(loop)
+    graph = graph.model_copy(
+        update={
+            "nodes": tuple(
+                node.model_copy(update={"disabled": False}) if node.id == parked.id else node
+                for node in graph.nodes
+            )
+        }
+    )
+
+    with pytest.raises(GraphValidationError) as refused:
+        await _run(engine, graph, {"items": ITEMS})
+
+    assert {
+        "field": f"nodes.{parked.id}",
+        "message": "This step is not reachable from its loop's item step",
+    } in refused.value.details["fields"]
+
+
+async def test_a_step_set_aside_takes_nothing_from_the_node_run_ceiling(
+    engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+):
+    """11 is the tightest ceiling the plain loop fits: its third iteration starts on
+    eight rows and adds three. Counted, the parked step would make that four."""
+    monkeypatch.setattr("app.core.config.settings.WORKFLOW_RUN_MAX_NODE_RUNS", 11)
+    graph, _parked = _parked_in(_Loop())
+
+    run = await drive(await _run(engine, graph, {"items": ITEMS}))
+
+    assert run.status == WorkflowRunStatus.SUCCEEDED.value
 
 
 async def test_nested_loops_keep_each_iteration_in_its_own_scope(engine: AsyncEngine):

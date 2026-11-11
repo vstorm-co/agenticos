@@ -1017,6 +1017,7 @@
     "stepTestNotReached": "Bu adım çalışmadı: test bu adıma ulaşmadan sona erdi.",
     "stepTestStopped": "Bu adım çalışmadı: test durduruldu.",
     "stepTestHint": "Yalnızca bu adımı çalıştırır; önceki adımların son seferde aktardığı veriyi kullanır.",
+    "stepTestNotReachable": "Test etmeden önce bu adımı bir tetikleyiciye bağlayın.",
     "stepTestInsideALoop": "Döngü içindeki adım her öğe için bir kez çalışır; onun yerine döngüyü test edin.",
     "stepTestWriteTitle": "Yazan bir adım test edilsin mi?",
     "stepTestWriteDescription": "Test gerçek işlemi yapar: kayıtlar yazılır ve mesajlar gerçek bir run’da olduğu gibi gönderilir.",
@@ -1336,6 +1337,7 @@
     "validationLabelTaken": "Başka bir adımın adı zaten “{label}”.",
     "validationTriggerSwitchedOff": "Trigger kapatılamaz.",
     "validationControlSwitchedOff": "Run’ın izleyeceği yolu belirleyen bir adım kapatılamaz.",
+    "validationLoopPartSwitchedOff": "Bir döngünün öğe veya sonuç adımı kapatılamaz.",
     "validationBindingReadsSwitchedOff": "Bu değer kapalı bir adımdan okunuyor; dolayısıyla hiçbir veri alınamaz.",
     "stepName": "Adım adı",
     "stepNotes": "Not",
@@ -3778,7 +3780,8 @@
         "skipped": "Atlandı",
         "cancelled": "İptal edildi",
         "notReached": "Ulaşılmadı",
-        "starting": "Başlıyor"
+        "starting": "Başlıyor",
+        "switchedOff": "Kapalı"
       },
       "startRun": "Run başlat",
       "startRunTitle": "Run başlat",

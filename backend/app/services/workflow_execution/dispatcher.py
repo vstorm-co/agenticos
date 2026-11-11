@@ -141,6 +141,7 @@ from app.workflows.graph.validate import (
     derive_scopes,
     node_scope_map,
     owner_chain,
+    set_aside,
 )
 from app.workflows.nodes.control_foreach import (
     ForeachConfig,
@@ -2808,8 +2809,9 @@ async def _succeed_if_finished(
     left to dispatch.
 
     A loop body's rows are not counted here: a loop settles only once its last
-    iteration has. A node that failed through its `error` port settled too - a
-    failure that was not routed ended the run before this is ever asked.
+    iteration has. Nor is a step `set_aside`: nothing reaches it, so it never has
+    a row. A node that failed through its `error` port settled too - a failure
+    that was not routed ended the run before this is ever asked.
 
     Called under the run's lock, both when the last node settles and when a
     stray outbox row is closed, so whichever of the two happens last ends
@@ -2819,7 +2821,10 @@ async def _succeed_if_finished(
         return
     graph = graph or await resolve_graph(db, run)
     node_scope = node_scope_map(graph)
-    top_level = sum(1 for node in graph.nodes if node.id not in node_scope)
+    parked = set_aside(graph)
+    top_level = sum(
+        1 for node in graph.nodes if node.id not in node_scope and node.id not in parked
+    )
     statuses = await workflow_run_repo.list_node_run_statuses(db, workflow_run_id=run.id)
     if len(statuses) == top_level and all(status in _SETTLED for status in statuses):
         await _succeed_run(db, run=run)
@@ -2864,7 +2869,13 @@ async def _start_iteration(
         return []
     loop_id = loop_run.node_instance_id
     node_scope = node_scope_map(graph)
-    body = [node_id for node_id, owner in node_scope.items() if owner == loop_id]
+    # A step set aside never gets a row, so it takes nothing from the ceiling.
+    parked = set_aside(graph)
+    body = [
+        node_id
+        for node_id, owner in node_scope.items()
+        if owner == loop_id and node_id not in parked
+    ]
     existing = await workflow_run_repo.count_node_runs(db, workflow_run_id=run.id)
     limit = settings.WORKFLOW_RUN_MAX_NODE_RUNS
     if existing + len(body) > limit:
