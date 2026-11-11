@@ -261,6 +261,9 @@ class TableTriggerService(Operations):
         table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, lock=True)
         self._ensure_live(table)
         trigger = await self._trigger(ctx, table.id, trigger_id)
+        # The resume's own check above may have read the trigger before another switch
+        # committed; the row as it stands under the table lock is what this one changes.
+        await self.db.refresh(trigger)
         changes: dict[str, Any] = {"is_active": data.is_active}
         if data.is_active and not trigger.is_active:
             changes["activated_at"] = trigger_repo.activation_time()

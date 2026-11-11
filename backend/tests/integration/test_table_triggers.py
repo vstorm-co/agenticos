@@ -1395,6 +1395,24 @@ async def test_a_resume_waits_for_an_archive_in_flight_and_then_refuses(world):
         assert stored is not None and stored.is_active is False
 
 
+async def test_a_resume_after_a_pause_it_read_too_early_still_switches_it_on(world):
+    trigger_id = await world.trigger()
+
+    async with world.factory() as db:
+        service = TableTriggerService(db)
+        early = await service._trigger(world.ctx, world.leads.id, trigger_id)
+        assert early.is_active is True
+        await world.pause(trigger_id)
+        await service.set_active(
+            world.ctx, world.leads.id, trigger_id, TableTriggerUpdate(is_active=True)
+        )
+        await db.commit()
+
+    async with world.factory() as db:
+        stored = await db.get(VirtualTableTrigger, trigger_id)
+        assert stored is not None and stored.is_active is True
+
+
 @pytest.mark.security
 async def test_resuming_from_the_table_needs_the_right_to_run_the_workflow(world):
     trigger_id = await world.trigger()
