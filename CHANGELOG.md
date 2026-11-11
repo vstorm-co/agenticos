@@ -19,6 +19,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **Code-mode scripts can wait for tool approval.** A gated call parks the
+  interpreter and resumes on any worker after the decision, without another
+  model turn or replaying completed operations. Started parallel calls drain
+  before the checkpoint is saved. Rejections become catchable script errors;
+  quotas, guardrails, permissions and approved arguments still apply per call.
+  The manifest keeps one script with its approval/execution status. Damaged,
+  incompatible or changed-tool checkpoints fail before a pending handler runs.
+  Questions, delegations, visible UI tools and existing session/routine policies
+  keep their native-tool behaviour (#2876).
+
 ## [1.65.1] - 2026-11-11
 
 ### Fixed

@@ -1,5 +1,5 @@
 ---
-source_sha: "b373de64c03d"
+source_sha: "f7a146db5510"
 ---
 
 # Governance { #governance }
@@ -1456,12 +1456,31 @@ ein Skript, das Hunderte Sandbox-Aufrufe auffächert, sie nicht alle zugleich
 öffnet.
 
 Jeder Aufruf aus einem Skript durchläuft dieselben Guardrails, dasselbe Budget
-und dieselben Berechtigungsprüfungen wie ein direkter Aufruf. Ein Tool, das eine
-Freigabe braucht, wird nie hineingefaltet: Es bleibt ein normaler Aufruf, und der
-Run hält wie immer für die Person an. Ebenso Rückfragen, Delegationen und
-Tools, deren Aufruf das ist, was die Person sieht (Entwürfe, Diagramme,
-Zeichnungen). Die Run-Ansicht listet jedes Skript und
-jeden Aufruf, den es gemacht hat.
+und dieselben Berechtigungsprüfungen wie ein direkter Aufruf. Braucht ein Tool
+Freigabe, hält der Run an diesem Aufruf an. Bereits gestartete Aufrufe werden
+beendet, bevor der Server Interpreter, Ergebnisse, Manifest und Aufrufzähler
+speichert. Nach der Entscheidung kann jeder Worker das Skript fortsetzen, ohne
+einen weiteren Modell-Turn oder abgeschlossene Operationen zu wiederholen.
+Eine Ablehnung löst im Skript einen `RuntimeError` aus; der Tool-Handler läuft
+nicht. Die Freigabe von `run_code` selbst genehmigt keine verschachtelte Operation.
+
+Der gespeicherte Zustand gehört dem Server und hat eine Größenbegrenzung. Der
+rohe Interpreterzustand ist auf 512 kB begrenzt, alle Code-Checkpoints eines Runs
+zusammen auf 1 MB JSON. Atomare Datenbankreservierungen begrenzen gespeicherte
+Checkpoints auf 8 MB pro auslösendem Benutzer (organisationsübergreifend) und
+32 MB pro Organisation, einschließlich laufender Fortsetzungen. Bei voller
+Kapazität schlägt der Run ohne neue ausstehende Freigaben fehl; ein endgültig
+beendeter Run gibt seine Reservierung frei. Ist er
+beschädigt, hat sich die Tool-Identität geändert oder verhindert ein Update von
+Harness/Monty die Wiederherstellung, schlägt der Aufruf mit einer klaren Meldung
+fehl, bevor ein ausstehendes Tool ausgeführt wird. Das Skript startet niemals
+wieder beim Quelltextanfang.
+
+Rückfragen, Delegationen und direkt sichtbare Tools (Entwürfe, Diagramme,
+Zeichnungen) bleiben nativ. Sitzungen, die vor jedem Tool fragen, und Routine-Runs
+behalten ihre bisherige Richtlinie für native Tools. Die Run-Ansicht zeigt jedes
+Skript einmal mit seinen Aufrufen und deren Freigabe- oder Ausführungsstatus
+über alle Fortsetzungen hinweg.
 
 ### Berichte { #reporting }
 
