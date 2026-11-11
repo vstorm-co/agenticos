@@ -32,11 +32,14 @@ from app.agents.capabilities.budget import (
     SpendLedger,
     SpendLimit,
 )
+from app.agents.spec import AgentSpec
+from app.core.permissions import AuthContext
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.repositories import agent_run_repo
+from app.services.agent_runner import AgentRunnerService
 from app.services.spend import (
     budget_window,
     month_start,
@@ -281,10 +284,28 @@ class TestARunResumedInANewMonth:
     def _last_evening() -> datetime:
         return month_start() - timedelta(hours=2)
 
-    async def test_the_new_months_spend_does_not_refuse_it(self, db) -> None:
+    @staticmethod
+    async def _resumed_guard(db, *, org, agent, parked, cap: Decimal) -> BudgetGuard:
+        """The resumed run's guard: its start month's cap, and this month's for what it adds."""
+        agent_spent, _ = await TestARunResumedInANewMonth._baselines(
+            db, org=org, agent=agent, parked=parked
+        )
+        await db.commit()
+        carried = await AgentRunnerService(db)._this_months_limits(
+            AuthContext(user_id=None, organization_id=org.id, role="owner"),
+            parked,
+            spec=AgentSpec(name="Support", budget={"monthly_usd": float(cap)}),
+            organization_cap=None,
+        )
+        started = TestWhatTheGuardThenSees._guard(
+            agent_spent, already_spent=parked.cost_usd, cap=cap
+        )
+        return BudgetGuard(ledger=started.ledger, limits=[*started.limits, *carried])
+
+    async def test_its_earlier_cost_is_not_counted_against_the_new_month(self, db) -> None:
         org = await _org(db)
         agent = await _agent(db, org)
-        await _run_that_spent(db, org=org, agent=agent, cost=Decimal("8.00"))
+        await _run_that_spent(db, org=org, agent=agent, cost=Decimal("5.00"))
         await _run_that_spent(
             db, org=org, agent=agent, cost=Decimal("1.00"), started_at=self._last_evening()
         )
@@ -294,11 +315,28 @@ class TestARunResumedInANewMonth:
 
         agent_spent, org_spent = await self._baselines(db, org=org, agent=agent, parked=parked)
         assert (agent_spent, org_spent) == (Decimal("1.00"), Decimal("1.00"))
-        guard = TestWhatTheGuardThenSees._guard(
-            agent_spent, already_spent=Decimal("4.00"), cap=Decimal("10.00")
+        guard = await self._resumed_guard(
+            db, org=org, agent=agent, parked=parked, cap=Decimal("10.00")
         )
 
         await _one_request(guard)
+
+    async def test_a_new_month_already_at_its_cap_refuses_it(self, db) -> None:
+        """Booked to the month it started, it still cannot spend past this month's cap."""
+        org = await _org(db)
+        agent = await _agent(db, org)
+        await _run_that_spent(db, org=org, agent=agent, cost=Decimal("10.00"))
+        parked = await _run_that_spent(
+            db, org=org, agent=agent, cost=Decimal("4.00"), started_at=self._last_evening()
+        )
+        guard = await self._resumed_guard(
+            db, org=org, agent=agent, parked=parked, cap=Decimal("10.00")
+        )
+
+        with pytest.raises(BudgetExceeded) as refused:
+            await _one_request(guard)
+
+        assert refused.value.scope is BudgetScope.AGENT
 
     async def test_the_month_it_started_still_binds_it(self, db) -> None:
         org = await _org(db)

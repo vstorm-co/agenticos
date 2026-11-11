@@ -787,11 +787,14 @@ class SpendLimit:
     subject_id: UUID | None = None
     """Which department a `GROUP` limit is; a person can be under several."""
     subject_name: str | None = None
+    period: str | None = None
+    """Which month it meters, where a run is under one cap for two months."""
 
     @property
     def key(self) -> str:
         """What its baseline is cached under: two departments are two quantities."""
-        return f"{self.scope}:{self.subject_id}" if self.subject_id else str(self.scope)
+        key = f"{self.scope}:{self.subject_id}" if self.subject_id else str(self.scope)
+        return key if self.period is None else f"{key}@{self.period}"
 
 
 @dataclass
