@@ -1337,6 +1337,16 @@ class AgentTriggerService:
                 changes.pop(field, None)
             if "is_active" not in changes:
                 changes.pop("auto_stopped_at", None)
+                # Health only checks the limit after the next run, which would be one more
+                # run as the creator past it: a limit already reached pauses now.
+                limit = changes["max_failures"]
+                if (
+                    trigger.is_active
+                    and limit is not None
+                    and (trigger.consecutive_failures or 0) >= limit
+                ):
+                    changes["is_active"] = False
+                    changes["auto_stopped_at"] = datetime.now(UTC)
         if (
             trigger.runs_as_creator
             and not themselves

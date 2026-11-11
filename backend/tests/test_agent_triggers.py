@@ -166,6 +166,7 @@ def _trigger(**overrides: object) -> MagicMock:
         "delivery_conversation_id": None,
         "ends_at": None,
         "monthly_budget_usd": None,
+        "consecutive_failures": 0,
     }
     defaults.update(overrides)
     return MagicMock(**defaults)
@@ -4399,6 +4400,18 @@ class TestRunningAsTheCreator:
         assert paused == {"max_failures": 1, "is_active": False, "auto_stopped_at": None}
         assert by_creator["consecutive_failures"] == 0
         assert by_creator["auto_stopped_at"] is None
+
+    @pytest.mark.security
+    async def test_a_limit_somebody_else_lowers_below_its_failures_pauses_it_now(self):
+        stopped = await self._update(
+            self._limited(consecutive_failures=2), TriggerUpdate(max_failures=1), as_creator=False
+        )
+        running = await self._update(
+            self._limited(consecutive_failures=1), TriggerUpdate(max_failures=2), as_creator=False
+        )
+
+        assert stopped["is_active"] is False and stopped["auto_stopped_at"] is not None
+        assert running == {"max_failures": 2}
 
     @pytest.mark.security
     async def test_changing_what_it_does_does_not_open_a_resume_by_somebody_else(self):
