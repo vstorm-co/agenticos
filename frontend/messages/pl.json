@@ -9154,6 +9154,8 @@
     "approvalForGroup": "Zatwierdzanie: {group}",
     "approvalRunFreely": "Bez pytania",
     "approvalAskFirst": "Najpierw zapytaj",
+    "approvalForTool": "Najpierw zapytaj: {tool}",
+    "approvalPerTool": "Dla każdego narzędzia",
     "connectAnotherOwn": "Połącz kolejne konto",
     "ownAccountMain": "Główne",
     "ownAccountPrefix": "Jego narzędzia zaczynają się od {prefix}",

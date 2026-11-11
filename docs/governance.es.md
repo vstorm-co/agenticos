@@ -1,5 +1,5 @@
 ---
-source_sha: "246a8fe6bac4"
+source_sha: "b373de64c03d"
 ---
 
 # Governance { #governance }
@@ -678,7 +678,8 @@ herramientas o fuentes. **Volver a aprobar las fuentes actuales** renueva
 explícitamente el permiso. Una cuenta principal nueva no sustituye la aprobada.
 
 Cada revisión es un run **proactive** normal atribuido al agente y versión reales.
-Las herramientas de origen deben tener `readOnlyHint`. Se permiten la cuenta
+Las herramientas de origen deben tener `readOnlyHint`, y una lectura ante la que
+pregunta la vinculación MCP del agent queda fuera de la revisión. Se permiten la cuenta
 aprobada, conocimiento/contexto, guardrails, planificación y recordatorios del
 sistema; no están disponibles web, sandbox, skills ejecutables, escritura de
 memoria ni delegación. Las aprobaciones interactivas obligatorias impiden la

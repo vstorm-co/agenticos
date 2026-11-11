@@ -3144,6 +3144,7 @@ async def build_toolsets_for_agent(
             allowed_tools=_narrowed_tools(connection.allowed_tools, ref.allowed_tools),
             trust_read_only_hints=connection.trust_read_only_hints,
             approval=ref.approval,
+            tool_approval=ref.tool_approval,
             include_instructions=connection.include_instructions,
             # Its label, where it has one: an organization holding two accounts on a
             # service names the second (#2125), and an approval should say which.
@@ -3306,6 +3307,7 @@ async def _test_spec(
         test=True,
         trust_read_only_hints=test.trust_read_only_hints,
         approval=ref.approval,
+        tool_approval=ref.tool_approval,
         include_instructions=test.include_instructions,
         account=test.label,
         connection_id=test.id,
@@ -3398,6 +3400,7 @@ async def _own_specs(
             headers=headers,
             allowed_tools=_narrowed_tools(ref.allowed_tools, account.allowed_tools),
             approval=ref.approval,
+            tool_approval=ref.tool_approval,
             include_instructions=account.include_instructions,
             # Named on an approval wherever it is a question: one of several accounts
             # on the service, or one its person labelled.
