@@ -67,6 +67,7 @@ from app.services.virtual_tables.types import COLUMN_TYPES, CellProblem, validat
 from app.services.workflow_authority import require_human_publisher
 from app.services.workflow_execution.exceptions import (
     WorkflowAdmissionQuotaError,
+    WorkflowArchivedError,
     WorkflowBudgetReachedError,
     WorkflowInlineStorageLimitError,
     WorkflowRunInputTooLargeError,
@@ -250,6 +251,7 @@ class TableTriggerService(Operations):
                 the caller may not edit the workflow.
             AuthorizationError: Resuming, and the caller may edit the workflow but
                 not run it.
+            WorkflowArchivedError: Resuming, and the workflow is archived.
             TableArchivedError: The table is archived.
         """
         table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, lock=True)
@@ -276,6 +278,11 @@ class TableTriggerService(Operations):
         ):
             raise NotFoundError(
                 message="Workflow not found", details={"workflow_id": trigger.workflow_id}
+            )
+        if workflow.status == WorkflowStatus.ARCHIVED.value:
+            raise WorkflowArchivedError(
+                workflow_id=workflow.id,
+                message="This workflow is archived, so its trigger cannot be resumed",
             )
         if not await resolve_access(
             self.db, ctx, workflow, Perm.WORKFLOWS_RUN, resource_type=WORKFLOW

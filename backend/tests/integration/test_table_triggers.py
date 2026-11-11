@@ -69,6 +69,7 @@ from app.services.virtual_tables.triggers import (
     TableTriggerService,
 )
 from app.services.workflow_execution.exceptions import (
+    WorkflowArchivedError,
     WorkflowBudgetReachedError,
     WorkflowRunInputTooLargeError,
 )
@@ -1353,6 +1354,25 @@ async def test_a_table_editor_pauses_but_cannot_resume_a_private_workflows_trigg
     async with world.factory() as db:
         stored = await db.get(VirtualTableTrigger, trigger_id)
         assert stored is not None and stored.is_active is True
+
+
+async def test_a_trigger_of_an_archived_workflow_is_not_resumed_from_the_table(world):
+    workflow = await world.workflow()
+    trigger_id = await world.trigger(workflow)
+    await world.pause(trigger_id)
+    async with world.factory() as db:
+        await db.execute(
+            update(Workflow)
+            .where(Workflow.id == workflow.id)
+            .values(status=WorkflowStatus.ARCHIVED.value)
+        )
+        await db.commit()
+
+    with pytest.raises(WorkflowArchivedError):
+        await world.pause(trigger_id, active=True)
+    async with world.factory() as db:
+        stored = await db.get(VirtualTableTrigger, trigger_id)
+        assert stored is not None and stored.is_active is False
 
 
 @pytest.mark.security

@@ -45,6 +45,10 @@ _WRITE_REFUSALS: dict[int | str, dict[str, Any]] = {
 }
 _UPDATE_REFUSALS: dict[int | str, dict[str, Any]] = {
     **_WRITE_REFUSALS,
+    409: {
+        "model": ErrorEnvelope,
+        "description": "The table is archived, or resuming and the workflow is archived",
+    },
     403: {
         "model": ErrorEnvelope,
         "description": "Resuming, and the caller may edit the workflow but not run it",
