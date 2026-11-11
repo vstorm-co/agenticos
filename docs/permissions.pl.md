@@ -1,5 +1,5 @@
 ---
-source_sha: "8042876abacb"
+source_sha: "107659f9bab3"
 ---
 
 # Uprawnienia { #permissions }
@@ -433,7 +433,9 @@ nie istnieje.
 go anulować, dopóki wolno jej uruchamiać ten workflow, a każdy, kto może
 edytować workflow, może anulować każdy jego run. Member, który może uruchomić
 workflow widoczny dla organizacji, zatrzyma swoje runy, ale nie runy kolegi;
-widzenie runa bez żadnego z tych uprawnień kończy się odmową `403`.
+widzenie runa bez żadnego z tych uprawnień kończy się odmową `403`. Ponowienie
+anulowanego runa wymaga tego samego uprawnienia, więc run zatrzymany przez kogoś
+nie zostanie uruchomiony znowu przez członka, który nie mógł go zatrzymać.
 
 **Run działa w imieniu osoby, która go uruchomiła, sprawdzanej ponownie przy
 każdym węźle.** Węzeł może zostać wysłany dni po starcie runa, więc każde

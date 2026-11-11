@@ -1,5 +1,5 @@
 ---
-source_sha: "cba80f115942"
+source_sha: "8cb070f683c3"
 ---
 
 # Workflows { #workflows }
@@ -927,7 +927,9 @@ Nada más del run se toca, así que los pasos vecinos, las aprobaciones y los
 temporizadores siguen.
 
 Solo puede resolver un paso quien inició el run o un editor del workflow, y en un run
-de prueba solo un editor puede resolver un paso o reintentar el run. Por la API se
+de prueba solo un editor puede resolver un paso o reintentar el run. Un run cancelado
+solo lo reintenta quien lo inició o un editor, quienes podrían haberlo cancelado.
+Por la API se
 hace con `POST /api/v1/workflow-runs/{id}/steps/{node_run_id}/rerun` y un `choice`,
 y la decisión queda auditada. Un run cancelado o fallido no tiene paso que resolver:
 **Retry from failed step** inicia un run nuevo. Un paso que terminó después de que su

@@ -1,5 +1,5 @@
 ---
-source_sha: "cba80f115942"
+source_sha: "8cb070f683c3"
 ---
 
 # Workflows { #workflows }
@@ -981,7 +981,8 @@ Timer laufen also weiter.
 
 Einen Schritt klärt nur, wer den Run gestartet hat, oder ein Editor des Workflows,
 und in einem Test-Run darf nur ein Editor einen Schritt klären oder den Run
-wiederholen. Über die API dient dazu `POST
+wiederholen. Einen abgebrochenen Run wiederholt nur, wer ihn gestartet hat, oder ein
+Editor, also wer ihn hätte abbrechen können. Über die API dient dazu `POST
 /api/v1/workflow-runs/{id}/steps/{node_run_id}/rerun` mit einem `choice`, und die
 Entscheidung wird auditiert. Ein abgebrochener oder fehlgeschlagener Run hat keinen
 Schritt mehr zu klären: **Retry from failed step** startet einen neuen Run. Ein
