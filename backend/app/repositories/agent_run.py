@@ -3187,7 +3187,7 @@ async def remembered_tool_approval(
             ToolApproval.decided_by_user_id == user_id,
             ToolApproval.decided_at >= OrganizationMember.joined_at,
             AgentRun.agent_version_id == run.agent_version_id,
-            AgentRun.test_spec.is_(None),
+            or_(AgentRun.test_spec.is_(None), func.jsonb_typeof(AgentRun.test_spec) == "null"),
             AgentRun.surface == RunSurface.WEB.value,
             or_(
                 ToolApproval.remember_scope == "agent",
