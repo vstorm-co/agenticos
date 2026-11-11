@@ -1,5 +1,6 @@
 "use client";
 
+import { sameLocalTarget } from "@/lib/desktop/local-target-content";
 import { ZoneField, isTimeZone } from "./zone-field";
 import { RoutineDialogFrame } from "./routine-dialog-frame";
 
@@ -626,7 +627,7 @@ export function TriggerFormDialog({
         if (runsAsCreator !== trigger.runs_as_creator) patch.runs_as_creator = runsAsCreator;
         // Turning acting-as-me off clears the folder on the server; say nothing then.
         const before = trigger.local_target ?? null;
-        if (runsAsCreator && JSON.stringify(localTarget) !== JSON.stringify(before)) {
+        if (runsAsCreator && !sameLocalTarget(localTarget, before)) {
           const approved = localTarget ? (approvedLocal ?? (await approveTarget())) : null;
           if (!stillHere()) return;
           if (localTarget && !approved) return;
