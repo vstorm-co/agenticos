@@ -48,6 +48,15 @@ _WRITE_REFUSALS: dict[int | str, dict[str, Any]] = {
         "description": "Too many table writes in the last minute; see `Retry-After`",
     },
 }
+# A task board's default view is part of the board: refused (403) to a caller who may see
+# it but not change the board.
+_BOARD_VIEW_REFUSALS: dict[int | str, dict[str, Any]] = {
+    **_WRITE_REFUSALS,
+    403: {
+        "model": ErrorEnvelope,
+        "description": "A task board's default view, and this caller may not change the board",
+    },
+}
 
 
 @router.get(
@@ -92,7 +101,7 @@ async def get_view(table_id: UUID, view_id: UUID, service: TableViewSvc, ctx: Au
 @router.patch(
     "/{table_id}/views/{view_id}",
     response_model=TableViewRead,
-    responses=_WRITE_REFUSALS,
+    responses=_BOARD_VIEW_REFUSALS,
     dependencies=[Depends(limit_table_write)],
 )
 async def update_view(
@@ -109,7 +118,7 @@ async def update_view(
     "/{table_id}/views/{view_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     response_model=None,
-    responses=_WRITE_REFUSALS,
+    responses=_BOARD_VIEW_REFUSALS,
     dependencies=[Depends(limit_table_write)],
 )
 async def delete_view(table_id: UUID, view_id: UUID, service: TableViewSvc, ctx: Auth) -> None:
