@@ -10,7 +10,7 @@ from pydantic_ai import RunContext
 from pydantic_ai.toolsets import WrapperToolset
 from pydantic_ai.toolsets.abstract import ToolsetTool
 
-from app.agents.mcp import needs_approval
+from app.agents.mcp import NEEDS_APPROVAL, needs_approval
 from app.agents.routine_authority import RoutineCheck
 from app.core.exceptions import AuthorizationError, BadRequestError
 
@@ -36,6 +36,9 @@ class WatchSourceTools[DepsT](WrapperToolset[DepsT]):
             name: tool
             for name, tool in tools.items()
             if not needs_approval(tool.tool_def, "writes")
+            # A read its binding asks before is left out: a watch checks with
+            # nobody there to answer (#2884).
+            and (tool.tool_def.metadata or {}).get(NEEDS_APPROVAL) is not True
         }
         if not readable:
             raise BadRequestError(message="The watched source has no available read-only tools.")

@@ -624,7 +624,8 @@ attached sources. **Approve current sources again** explicitly refreshes that
 approval. A newly selected primary account does not replace the approved account.
 
 Each look is an ordinary **proactive** run attributed to the actual selected
-agent and version. Its source tools must carry `readOnlyHint`. The watch preset
+agent and version. Its source tools must carry `readOnlyHint`, and a read the
+agent's MCP binding asks before is left out of the check. The watch preset
 permits only its approved account, knowledge/context, guardrails, planning and
 system reminders; web access, sandbox, executable skills, memory writes and
 delegation are unavailable. Required interactive approvals are refused at setup
