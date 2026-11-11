@@ -1,5 +1,5 @@
 ---
-source_sha: "cba80f115942"
+source_sha: "8cb070f683c3"
 ---
 
 # Workflows { #workflows }
@@ -901,7 +901,9 @@ pętli, albo **Fail the run**. Jeśli krok zgłosił wynik po tym, jak go porzuc
 sąsiednie kroki, zatwierdzenia i timery toczą się dalej.
 
 Krok może rozstrzygnąć tylko osoba, która uruchomiła run, albo edytor workflow, a w
-runie testowym tylko edytor może rozstrzygnąć krok albo ponowić run. Przez API służy do tego `POST
+runie testowym tylko edytor może rozstrzygnąć krok albo ponowić run. Anulowany run
+ponawia tylko osoba, która go uruchomiła, albo edytor, czyli ci, którzy mogli go
+anulować. Przez API służy do tego `POST
 /api/v1/workflow-runs/{id}/steps/{node_run_id}/rerun` z polem `choice`, a decyzja
 trafia do audytu. Run anulowany albo zakończony błędem nie ma kroku do rozstrzygnięcia:
 **Retry from failed step** uruchamia nowy run. Krok, który skończył się po zatrzymaniu

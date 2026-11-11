@@ -872,7 +872,9 @@ a loop, or **Fail the run**. If the step reported a result after it was given up
 siblings, approvals and timers go on.
 
 Only the person who started the run, or an editor of the workflow, may resolve a
-step, and in a test run only an editor may resolve a step or retry the run. Over the
+step, and in a test run only an editor may resolve a step or retry the run. A cancelled run
+is retried only by the person who started it or an editor, the people who could have
+cancelled it. Over the
 API it is `POST /api/v1/workflow-runs/{id}/steps/{node_run_id}/rerun` with a `choice`, and the
 decision is audited. A run that was cancelled, or that failed, has no step to resolve:
 **Retry from failed step** starts a new run. A step that finished after its run
