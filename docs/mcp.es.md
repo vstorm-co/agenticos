@@ -1,5 +1,5 @@
 ---
-source_sha: "274972ac0b9f"
+source_sha: "d0f22d3c54c1"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -648,6 +648,18 @@ Dos conexiones cuyos nombres se reducen al mismo prefijo se deduplican — gana 
 primera, con un aviso que nombra a la perdedora. Los servidores gestionados por el
 despliegue van ordenados primero, así que ganan a una conexión de usuario que dé
 la casualidad de elegir el mismo nombre.
+
+Un prefijo separa las herramientas de un servidor de las de otro, pero no de las
+demás herramientas del agent. Una conexión llamada `request` cuyo servidor ofrece
+`capability` presenta `request_capability`, que casi todo agent ya tiene, y `create`
+con `chart` cae en el `create_chart` de la capability charts.
+
+Publicar rechaza esa vinculación, comparando las herramientas que listó la última comprobación de la
+conexión con las de las capabilities del agent y las de la propia plataforma. Si una
+colisión llega aun así a un run - un servidor añadió la herramienta, o una conexión
+cambió de nombre -, el servidor entero queda fuera de ese turno y al modelo se le
+dice por qué, como en una colisión de prefijos. Cambia el nombre de la conexión o
+restringe sus herramientas.
 
 ### Estado, uso y llamadas { #health-users-and-calls }
 

@@ -28,7 +28,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents import prompt_variables
 from app.agents.capabilities import (
-    FRAMEWORK_TOOL_NAMES,
     TOOL_NAME_PATTERN,
     CapabilityDef,
     all_capabilities,
@@ -42,6 +41,7 @@ from app.agents.capabilities.browser_use import (
     validate_cdp_url,
 )
 from app.agents.capabilities.browser_use._route import check_address
+from app.agents.capabilities.channel_tools import CHANNEL_TOOLS_CAPABILITY_ID
 from app.agents.capabilities.coding_agent import CODING_AGENT_ID, CodingAgentConfig
 from app.agents.capabilities.computer_use import (
     COMPUTER_USE_ID,
@@ -78,6 +78,7 @@ from app.agents.system_agents import (
     refuse_system_agent,
     unusable_parts,
 )
+from app.agents.tool_names import PLATFORM_TOOL_NAMES, taken_tool_names
 from app.core.audit import current_impersonator, record_audit
 from app.core.config import settings
 from app.core.exceptions import (
@@ -170,6 +171,7 @@ from app.services.file_storage import (
     avatar_filename,
     get_file_storage,
 )
+from app.services.mcp_connection import presented_tool_names
 from app.services.mirage_mounts import address_fields, default_address, hosts_of
 from app.services.model_outputs import model_outputs, not_chat_refusal
 from app.services.model_profile import (
@@ -591,6 +593,47 @@ def _variable_problems(spec: AgentSpec) -> _SpecProblems:
     return problems
 
 
+def _rename_clash_problems(spec: AgentSpec) -> list[str]:
+    """Each rename onto a tool name another of the agent's capabilities offers (#2890).
+
+    `_tool_override_problems` sees one binding at a time, so a rename onto a name
+    another binding's capability already has publishes, and every turn then
+    aborts on the duplicate. Renames only, as there: which names the registry's
+    capabilities declare is the registry's to keep apart. A capability the
+    registry does not hold is refused on its own and left out here. The channel
+    tools count although no published spec binds them: a channel adds them per
+    run (`agent_runner._with_channel_tools`), and a rename onto one of their names
+    aborts every turn there.
+    """
+    known = {definition.id: definition for definition in all_capabilities()}
+    offered: dict[str, set[str]] = {
+        CHANNEL_TOOLS_CAPABILITY_ID: {
+            tool.name for tool in known[CHANNEL_TOOLS_CAPABILITY_ID].tools
+        }
+    }
+    for binding in spec.capabilities:
+        definition = known.get(binding.id)
+        if definition is not None and binding.enabled:
+            names = {tool.name for tool in definition.effective_tools(binding.tool_overrides)}
+            offered.setdefault(binding.id, set()).update(names)
+    problems: list[str] = []
+    for binding in spec.capabilities:
+        if binding.id not in offered:
+            continue
+        for override in binding.tool_overrides.values():
+            holders = sorted(
+                other
+                for other, names in offered.items()
+                if other != binding.id and override.name in names
+            )
+            problems.extend(
+                f"Capability '{binding.id}' renames a tool to {override.name}, which "
+                f"capability '{holder}' also offers - two tools of that name abort the turn"
+                for holder in holders
+            )
+    return problems
+
+
 def _tool_override_problems(binding: CapabilityBindingSpec, definition: CapabilityDef) -> list[str]:
     """Everything wrong with how a binding renames its capability's tools.
 
@@ -629,13 +672,14 @@ def _tool_override_problems(binding: CapabilityBindingSpec, definition: Capabili
 
     # The count above only sees this capability's own tools, and the framework
     # adds its own beside them: a run with any deferred capability carries
-    # `load_capability`, so a *rename* onto that name is a duplicate Pydantic AI
-    # refuses mid-turn rather than a collision this loop can see. Renames only -
-    # `skills` declares `load_capability` itself, because that call is where an
-    # approval on opening a skill has to sit.
+    # `load_capability`, nearly every agent `request_capability`, so a *rename*
+    # onto one of those is a duplicate Pydantic AI refuses mid-turn rather than a
+    # collision this loop can see (#2890). Renames only - `skills` declares
+    # `load_capability` itself, because that call is where an approval on opening
+    # a skill has to sit.
     taken = sorted(
         {override.name for override in binding.tool_overrides.values() if override.name is not None}
-        & FRAMEWORK_TOOL_NAMES
+        & PLATFORM_TOOL_NAMES
     )
     if taken:
         problems.append(
@@ -2172,6 +2216,7 @@ class AgentRegistryService:
 
         for binding in spec.capabilities:
             problems.merge(await self._binding_problems(ctx, binding))
+        problems.add(_rename_clash_problems(spec))
 
         # A model, named. There is no organization-wide default to fall back
         # on: a model an agent did not choose is one somebody else's change can
@@ -2197,7 +2242,7 @@ class AgentRegistryService:
         problems.add(await self.skill_problems(ctx, spec.skill_ids, spec.skill_bindings))
         problems.add(await self._context_problems(ctx, spec.context_ids))
 
-        problems.add(await self._mcp_problems(ctx, spec.mcp_servers))
+        problems.add(await self._mcp_problems(ctx, spec.mcp_servers, taken=taken_tool_names(spec)))
         problems.add(await self._observability_problems(ctx, spec))
         problems.add(await self._speech_to_text_problems(ctx, spec.speech_to_text))
         problems.add(await self._voice_problems(ctx, spec.voice))
@@ -2290,7 +2335,7 @@ class AgentRegistryService:
         if pattern == "model_profile_id" and spec.model_profile_id is not None:
             return await self.model_profile_problems(ctx, spec.model_profile_id)
         if pattern == "mcp_servers/{server}/allowed_tools":
-            return await self._mcp_problems(ctx, spec.mcp_servers)
+            return await self._mcp_problems(ctx, spec.mcp_servers, taken=taken_tool_names(spec))
         return []
 
     async def _binding_problems(
@@ -2790,7 +2835,9 @@ class AgentRegistryService:
                     problems.append(f"Skill fork not found: {binding.fork_id}")
         return problems
 
-    async def _mcp_problems(self, ctx: AuthContext, refs: Sequence[McpServerRef]) -> list[str]:
+    async def _mcp_problems(
+        self, ctx: AuthContext, refs: Sequence[McpServerRef], *, taken: Mapping[str, str]
+    ) -> list[str]:
         """Every way a set of MCP bindings can be unpublishable.
 
         An organization binding must name one of the organization's own
@@ -2801,8 +2848,18 @@ class AgentRegistryService:
         raise on the duplicate tool names and abort every turn. All of it asked
         here, where somebody can still change the binding, rather than at run
         time where the only options are to guess or to quietly drop a server.
+
+        A prefix keeps one server's tools apart from another's, not from the
+        agent's other tools: `taken`, from :func:`taken_tool_names`, holds a
+        capability's tools and the platform's own. So each organization
+        connection's tools, as its last check listed them, must not land on one
+        of those (#2890). A member's own account is not known here, and the run
+        leaves out a server that clashes.
         """
         problems: list[str] = []
+        # Each connection once, however often it is bound: binding one twice is
+        # refused as a prefix collision below already.
+        presented: dict[str, list[tuple[str, str]]] = {}
         # What each binding would call its tools by, as the toolset builder derives
         # it - `notion-` and `notion` are one prefix. Paired with a label so the
         # same `prefix_collisions` the run uses catches a clash here, where somebody
@@ -2854,12 +2911,24 @@ class AgentRegistryService:
                 )
                 continue
             prefixed.append((connection.name, f"the connection {connection.name!r}"))
+            presented.setdefault(
+                connection.name, presented_tool_names(connection, ref.allowed_tools)
+            )
         for prefix, holders in prefix_collisions(prefixed).items():
             problems.append(
                 f"Two bindings would present their tools under the prefix {prefix!r}: "
                 f"{' and '.join(holders)}. The model would see every tool twice, which "
                 "aborts the turn - bind one of them, or rename the connection."
             )
+        problems.extend(
+            f"The connection {name!r} presents its tool {tool!r} as {model_name!r}, the "
+            f"name of a tool {taken[model_name]} already gives this agent. Two tools of one "
+            "name abort the turn, so the server would be left out of every run - rename "
+            "the connection, or narrow its tools."
+            for name, tools in presented.items()
+            for tool, model_name in tools
+            if model_name in taken
+        )
         return problems
 
     async def _context_problems(self, ctx: AuthContext, context_ids: Sequence[UUID]) -> list[str]:
@@ -3187,6 +3256,17 @@ class AgentRegistryService:
                         "too, or stop sharing 'computer_use'."
                     ]
                 )
+            # What it is lent can clash with its own tools' names too (#2890).
+            # Only that half: its own clashes are its author's, refused at its
+            # own publish, and a parent cannot fix them.
+            own = set(_rename_clash_problems(delegate.spec))
+            problems.add(
+                [
+                    f"Delegate '{delegate.spec.name}', with what this agent shares: {problem}"
+                    for problem in _rename_clash_problems(_inheriting(delegate.spec, shared))
+                    if problem not in own
+                ]
+            )
         # A delegate's handle is its row's slug; a specialist's is the name as
         # typed, which is already constrained to what a tool argument can carry.
         # Both are what the runtime hands the model, which is the only namespace
@@ -3273,6 +3353,8 @@ class AgentRegistryService:
         problems.add(
             await _computer_use_sandbox_problems(self.db, ctx, _inheriting(as_agent, shared))
         )
+        # Its own renames and what it inherits run in one agent, as the parent's do.
+        problems.add(_rename_clash_problems(_inheriting(as_agent, shared)))
         return problems.within_specialist(specialist.name)
 
     async def _resolve_pins(self, ctx: AuthContext, refs: Sequence[SubagentRef]) -> _ResolvedPins:

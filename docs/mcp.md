@@ -597,6 +597,17 @@ Two connections whose names reduce to the same prefix are deduplicated — first
 wins, with a warning naming the loser. Deployment-managed servers are ordered first,
 so they win over a user connection that happens to pick the same name.
 
+A prefix keeps one server's tools apart from another's, but not from the agent's
+other tools. A connection called `request` whose server offers `capability`
+presents `request_capability`, which nearly every agent already has, and `create`
+with `chart` lands on the charts capability's `create_chart`.
+
+Publish refuses such a binding, comparing the tools the connection's last check listed with the agent's
+capability tools and the platform's own. Where one still reaches a run - a server
+that added the tool, a connection renamed since - the whole server is left out of
+that turn and the model is told why, as for a prefix collision. Rename the
+connection or narrow its tools.
+
 ### Health, users and calls
 
 A server's card on the MCP servers page says when one of its accounts did not

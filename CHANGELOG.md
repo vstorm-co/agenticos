@@ -59,6 +59,19 @@ Two things are versioned separately from this file and worth knowing about:
   only when the person asks, through approval cards. The dashboard shows
   checks and proposed skill changes waiting on the reader.
 
+### Fixed
+
+- **Two of an agent's tools can no longer share a name.** Pydantic AI aborts a
+  turn on a duplicate tool name, and two cases got through publish: an MCP tool
+  whose prefixed name is a capability's or the platform's own (a connection
+  `request` whose server offers `capability` presents `request_capability`,
+  which nearly every agent has), and a capability tool renamed onto another
+  capability's tool or one of the platform's. Publish now refuses both, the MCP
+  case on the tools the connection's last check listed, and checks renames in
+  the agent's specialists and in what it shares with its delegates. A clash
+  that still reaches a run leaves that whole server out of the turn and tells
+  the model why, instead of aborting it (#2891).
+
 ## [1.64.1] - 2026-11-11
 
 ### Fixed

@@ -3154,7 +3154,7 @@ asks nobody; `side_effecting` only tells the Builder which tools act on the worl
     That is what keeps an approval gate attached to a renamed tool. Keying it on
     the visible name would mean a rename silently removes the gate, and a
     side-effecting call then goes unattended with nothing reporting it. An id no such capability exposes
-is refused at publish, and so is a name no model could call.
+is refused at publish, and so is a name no model could call, or one another of the agent's tools already has - another capability's, or one the platform adds itself, such as `request_capability`.
 
 ## Scopes
 
