@@ -1,5 +1,5 @@
 ---
-source_sha: "fab6f4ba1918"
+source_sha: "c9b0a73c254d"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -505,6 +505,8 @@ zwischen **Private** und **Shared** um. Wer die Ansicht eines anderen Mitglieds
 verwaltet, etwa ein Admin, bekommt diesen Schalter nicht: Ob jemandes eigene Filter
 geteilt werden, entscheidet diese Person selbst.
 
+Auf dem Telefon enthält das Menü **Views** einer gespeicherten Ansicht das Speichern einer weiteren Ansicht, Umbenennen, Teilen und Löschen mit denselben Berechtigungen wie die Desktop-Steuerelemente.
+
 `GET/POST /tables/{id}/views` und `GET/PATCH/DELETE /tables/{id}/views/{view_id}`
 listen, erstellen, lesen, aktualisieren und löschen sie. Die Liste ist mit `skip`
 und `limit` (höchstens 100) seitenweise: zuerst die eigenen Ansichten des Aufrufers,
@@ -858,12 +860,12 @@ Schreiben auf Projekt-Aufgabentafeln erfordert Projektzugriff und Tabellenbearbe
 
 ## Standardansicht {#default-view}
 
-Tabelleneditoren können **Als Standard festlegen** in der Werkzeugleiste wählen. Layout, Filter und Gruppierung werden als geteilte Ansicht gespeichert und bei Besuchen ohne ausdrückliche URL-Parameter `view` oder `viewId` geöffnet. Neue Aufgabentabellen starten mit Kanban. Die Standardansicht muss geteilt sein und zur Tabelle gehören. Vor dem Privatmachen muss ein anderer Standard gewählt werden. Löschen stellt das einfache Tabellenlayout wieder her. Die API verwendet `PATCH /tables/{id}` mit `default_view_id`; null entfernt den Standard.
+Tabelleneditoren können **Als Standard festlegen** unter **Ansichtseinstellungen** wählen. Layout, Filter und Gruppierung werden als geteilte Ansicht gespeichert und bei Besuchen ohne ausdrückliche URL-Parameter `view` oder `viewId` geöffnet. Neue Aufgabentabellen starten mit Kanban. Die Standardansicht muss geteilt sein und zur Tabelle gehören. Vor dem Privatmachen muss ein anderer Standard gewählt werden. Löschen stellt das einfache Tabellenlayout wieder her. Die API verwendet `PATCH /tables/{id}` mit `default_view_id`; null entfernt den Standard.
 
 Aufgabennotizen sind Markdown-Dokumente mit demselben Rich-Text-Editor und derselben Vorschau wie andere Dokumentzellen. Separate Beziehungen **Person** und **Agent** behalten die verantwortliche Person und den ausführenden Agenten. **Nächster Schritt** wählt Person oder Agent und kehrt nach einem Ergebnis zur Person zurück. Die verantwortliche Person startet Agentenarbeit mit ihrem eigenen Konto. Für eine Übergabe zuerst die Person als nächsten Schritt wählen und den Empfänger selbst starten lassen.
 
 
-**Group by** wird automatisch gespeichert, wenn ein Bearbeiter eine Spalte auswählt. Ein verwaltbarer gespeicherter Kanban wird aktualisiert; andernfalls wird eine private Ansicht erstellt und ausgewählt. Bei abgelehntem Speichern bleibt die bisherige Gruppierung erhalten. Leser können die Gruppierung vorübergehend ändern. **Set as default** in der Werkzeugleiste speichert das aktuelle Format für alle; normale Tabellen öffnen sich als Table, bis ein Bearbeiter eine andere Standardansicht auswählt.
+**Group by** wird automatisch gespeichert, wenn ein Bearbeiter eine Spalte auswählt. Ein verwaltbarer gespeicherter Kanban wird aktualisiert; andernfalls wird eine private Ansicht erstellt und ausgewählt. Bei abgelehntem Speichern bleibt die bisherige Gruppierung erhalten. Leser können die Gruppierung vorübergehend ändern. **Set as default** unter **View settings** speichert das aktuelle Format für alle; normale Tabellen öffnen sich als Table, bis ein Bearbeiter eine andere Standardansicht auswählt.
 
 Ein Agent kann nicht gelöscht werden, solange eine verwaltete Aufgabe von seiner geplanten Ausführung abhängt. Weise diese Aufgaben zuerst neu zu, schließe sie ab oder brich sie ab; das Löschen darf ihre Ausführung nicht stillschweigend verwerfen.
 

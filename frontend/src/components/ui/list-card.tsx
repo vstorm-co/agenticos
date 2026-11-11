@@ -90,7 +90,9 @@ export function ListCard({
         >
           <CardTitle className="sr-only">{title}</CardTitle>
           {controls && (
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">{controls}</div>
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 max-sm:[&>div:only-child]:flex-1">
+              {controls}
+            </div>
           )}
           <div className="text-muted-foreground shrink-0 text-xs tabular-nums sm:ml-auto">
             {counted === null ? <Skeleton className="h-4 w-24" /> : counted}

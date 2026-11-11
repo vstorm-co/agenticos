@@ -449,6 +449,8 @@ The view's owner switches it between **Private** and **Shared** with the button 
 **Rename**. Someone who manages another member's view, such as an admin, does not
 get the switch: sharing a person's own filters is theirs to choose.
 
+On phones, a saved view’s **Views** menu holds creating another view, renaming, sharing and deleting, according to the same permissions as the desktop controls.
+
 `GET/POST /tables/{id}/views` and `GET/PATCH/DELETE /tables/{id}/views/{view_id}`
 list, create, read, update and delete them. The list is paged with `skip` and
 `limit` (at most 100), the caller's own views first, then the shared ones, each by
@@ -804,7 +806,7 @@ Project task-board writes require project access and table-edit permission or an
 
 ## Default view {#default-view}
 
-An editor can choose **Set as default** in the table toolbar. The current layout,
+An editor can choose **Set as default** inside **View settings**. The current layout,
 filters and grouping are saved as a shared view, then opened whenever someone
 visits the table without an explicit `view` or `viewId` URL override. New task
 boards start in Kanban. A table's default must belong to that table and be shared;
@@ -814,7 +816,7 @@ the table to its plain layout. The API uses `PATCH /tables/{id}` with
 same rich-text editor and preview as other document cells.
 
 
-**Group by** saves automatically when an editor chooses a column. It updates a manageable saved Kanban view; without one, it creates a private view and selects it. A refused save keeps the previous grouping. Readers can change the grouping temporarily. **Set as default** in the toolbar saves the current format for everyone; ordinary tables start in Table until an editor chooses another default.
+**Group by** saves automatically when an editor chooses a column. It updates a manageable saved Kanban view; without one, it creates a private view and selects it. A refused save keeps the previous grouping. Readers can change the grouping temporarily. **Set as default** inside **View settings** saves the current format for everyone; ordinary tables start in Table until an editor chooses another default.
 
 An agent cannot be deleted while a managed task still depends on its scheduled execution. Reassign, complete or cancel those tasks first; deleting an agent must not silently discard its task work.
 

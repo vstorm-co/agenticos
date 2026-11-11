@@ -1,5 +1,5 @@
 ---
-source_sha: "fab6f4ba1918"
+source_sha: "c9b0a73c254d"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -470,6 +470,8 @@ Właściciel widoku przełącza go między **Private** a **Shared** przyciskiem 
 **Rename**. Ktoś, kto zarządza widokiem innego członka, na przykład administrator, nie
 dostaje tego przełącznika: o udostępnieniu czyichś filtrów decyduje ich autor.
 
+Na telefonie menu **Views** zapisanego widoku zawiera zapis nowego widoku, zmianę nazwy, udostępnianie i usuwanie, zgodnie z tymi samymi uprawnieniami co kontrolki na komputerze.
+
 `GET/POST /tables/{id}/views` oraz `GET/PATCH/DELETE /tables/{id}/views/{view_id}`
 listują, tworzą, czytają, aktualizują i usuwają je. Lista jest stronicowana przez
 `skip` i `limit` (najwyżej 100): najpierw własne widoki wywołującego, potem
@@ -805,12 +807,12 @@ Zapis na projektowej tablicy zadań wymaga dostępu do projektu oraz uprawnienia
 
 ## Domyślny widok {#default-view}
 
-Edytor tabeli może wybrać **Ustaw jako domyślny** na pasku narzędzi. Bieżący układ, filtry i grupowanie zapisują się jako współdzielony widok. Otwiera się on przy wejściu bez jawnych parametrów `view` lub `viewId`. Nowe tabele zadań zaczynają od Kanbana. Domyślny widok musi należeć do tej tabeli i być współdzielony; przed ustawieniem go jako prywatny trzeba wybrać inny domyślny widok. Usunięcie przywraca zwykły układ tabeli. API używa `PATCH /tables/{id}` z `default_view_id`; null usuwa wybór.
+Edytor tabeli może wybrać **Ustaw jako domyślny** w **Ustawieniach widoku**. Bieżący układ, filtry i grupowanie zapisują się jako współdzielony widok. Otwiera się on przy wejściu bez jawnych parametrów `view` lub `viewId`. Nowe tabele zadań zaczynają od Kanbana. Domyślny widok musi należeć do tej tabeli i być współdzielony; przed ustawieniem go jako prywatny trzeba wybrać inny domyślny widok. Usunięcie przywraca zwykły układ tabeli. API używa `PATCH /tables/{id}` z `default_view_id`; null usuwa wybór.
 
 Notatki zadania są dokumentami rich text w Markdown, z edytorem i podglądem jak inne komórki dokumentowe. Osobne relacje **Osoba** i **Agent** mogą zachować człowieka odpowiedzialnego za zadanie i wykonującego je agenta. **Następny krok** wskazuje osobę albo agenta; po przygotowaniu wyniku wraca do osoby. Pracę agenta uruchamia odpowiedzialna osoba na własnym koncie. Przekazując zadanie, wybierz najpierw osobę jako następny krok i pozwól odbiorcy rozpocząć pracę na swoim koncie.
 
 
-**Group by** zapisuje się automatycznie, gdy edytor wybierze kolumnę. Zmiana aktualizuje zapisany widok Kanban, którym może zarządzać; bez takiego widoku tworzy i wybiera widok prywatny. Odmowa zapisu zachowuje poprzednie grupowanie. Czytelnik może zmienić grupowanie tymczasowo. **Set as default** na pasku narzędzi zapisuje bieżący format dla wszystkich; zwykłe tabele otwierają się jako Table, dopóki edytor nie wybierze innego widoku domyślnego.
+**Group by** zapisuje się automatycznie, gdy edytor wybierze kolumnę. Zmiana aktualizuje zapisany widok Kanban, którym może zarządzać; bez takiego widoku tworzy i wybiera widok prywatny. Odmowa zapisu zachowuje poprzednie grupowanie. Czytelnik może zmienić grupowanie tymczasowo. **Set as default** w **View settings** zapisuje bieżący format dla wszystkich; zwykłe tabele otwierają się jako Table, dopóki edytor nie wybierze innego widoku domyślnego.
 
 Nie można usunąć agenta, dopóki zarządzane zadanie zależy od jego zaplanowanego wykonania. Najpierw przepisz, ukończ lub anuluj te zadania; usunięcie agenta nie może po cichu porzucać ich wykonania.
 

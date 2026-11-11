@@ -33,6 +33,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Align mobile table view controls, keep format and saved-view names readable,
+  and move the default-view action into View settings. Compact catalog filter
+  buttons leave more room for search without shrinking touch targets.
+
 - Center the public chat send control with its input on desktop and touch
   screens, and keep populated table filters readable on narrow phones with
   full-width fields and a reachable footer.

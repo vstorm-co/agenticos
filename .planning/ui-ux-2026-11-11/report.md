@@ -248,3 +248,33 @@ the expanded CSV/table/filter journey. Targeted ESLint, TypeScript and formattin
 checks passed. The table test explicitly blurs the buffered cell operand before
 closing its popover; Escape alone unmounts that editor without committing it.
 No full local suite was run.
+
+
+## Consistent mobile control rows
+
+The touch pass exposed a 32 px saved-view shell around a 44 px trigger, a squeezed
+format icon and truncated All records label. The format picker and saved-view
+picker now align, share their available width and preserve the default names at
+320 px. Filter, Sort and View settings occupy a deliberate three-column row;
+Set as default belongs inside View settings. Auxiliary hidden-column and Kanban
+grouping controls follow that row. A saved view's management actions move into
+its phone menu, with the existing owner/manage/delete gates unchanged.
+
+Compact ListFilters triggers show their icon and active count on phones, retaining
+their accessible name, expanded state and 44 px touch target. ListCard lets its
+single control group fill the mobile width instead of leaving an empty gap.
+These shared controls cover Agents, Skills, Context, Workflows, Tables and other
+catalogs using ListFilters; the desktop filter labels remain visible.
+
+Actual touch screenshots were reviewed at 320 and 390 px for table detail,
+Agents, Skills and Context. The browser checks cover five populated/API-verified
+catalogs, opening and closing their filters, plus table creation, control geometry,
+format switching, persisted default selection and renaming through the phone menu.
+Fifty focused unit tests cover the shared list controls, views, presentation
+settings and the phone menu's owner/permission gates. Two Chromium journeys pass;
+TypeScript, ESLint and four-language documentation checks are also applied.
+
+| Evidence | Before | After |
+| --- | --- | --- |
+| Table control rows, 320 px touch | [PNG](comparisons/mobile-table-toolbar-before.png) | [PNG](comparisons/mobile-table-toolbar-after.png) |
+| Catalog search and filters, 390 px touch | [PNG](comparisons/mobile-catalog-toolbar-before.png) | [PNG](comparisons/mobile-catalog-toolbar-after.png) |
