@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **The Called by a workflow trigger shows a workflow, not a telephone.** Its
+  incoming-call icon suggested the workflow starts on a phone call. It now uses
+  the workflow icon, the same as the Run a workflow step that calls it.
+
 ## [1.63.0] - 2026-11-10
 
 ### Added
