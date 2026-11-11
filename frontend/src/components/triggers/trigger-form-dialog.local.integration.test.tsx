@@ -201,59 +201,80 @@ describe("local routine creation", () => {
   });
 });
 
-it("does not request another folder approval after unchanged permissions are toggled", async () => {
-  const user = userEvent.setup();
-  const onOpenChange = vi.fn();
-  const localTarget = {
-    operations: { execute: false, write: false, read: true },
-    routine_grant: "grant",
-    device_id: "device",
-    mode: "read_only" as const,
-    folder: "/work",
-  };
-  const trigger: Trigger = {
-    id: "routine",
-    agent_id: "agent",
-    agent_name: null,
-    name: "Report",
-    created_by_user_id: "owner",
-    is_active: true,
-    can_manage: true,
-    environment_id: null,
-    runs_as_creator: true,
-    trigger_type: "schedule",
-    schedule_kind: "interval",
-    interval_seconds: 3600,
-    cron_expression: null,
-    time_zone: null,
-    overlap: "skip",
-    event_source: null,
-    event_config: {},
-    prompt: "Read the report",
-    next_fire_at: null,
-    last_fired_at: null,
-    last_run_id: null,
-    conversation_id: null,
-    webhook_url: null,
-    created_at: null,
-    updated_at: null,
-    local_target: localTarget,
-  };
-  render(<TriggerFormDialog agentId="agent" trigger={trigger} open onOpenChange={onOpenChange} />, {
-    wrapper,
-  });
-  const dialog = within(await screen.findByRole("dialog"));
-  // Local work lives in the routine's existing advanced options.
-  await user.click(dialog.getByText("Advanced options", { exact: true }));
-  const write = dialog.getByRole("checkbox", { name: "Write" });
-  await user.click(write);
-  await user.click(write);
-  fireEvent.change(dialog.getByLabelText("Message"), {
-    target: { value: "Read the updated report" },
-  });
-  await user.click(dialog.getByRole("button", { name: "Save" }));
-  await waitFor(() => expect(apiClient.patch).toHaveBeenCalled());
-  expect(native.allow).not.toHaveBeenCalled();
-  const body = vi.mocked(apiClient.patch).mock.calls[0]?.[1];
-  expect(body).not.toHaveProperty("local_target");
-});
+it.each([false, true])(
+  "reviews a changed folder target only when its permissions remain changed (%s)",
+  async (changed) => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    const localTarget = {
+      operations: { execute: false, write: false, read: true },
+      routine_grant: "grant",
+      device_id: "device",
+      mode: "read_only" as const,
+      folder: "/work",
+    };
+    const trigger: Trigger = {
+      id: "routine",
+      agent_id: "agent",
+      agent_name: null,
+      name: "Report",
+      created_by_user_id: "owner",
+      is_active: true,
+      can_manage: true,
+      environment_id: null,
+      runs_as_creator: true,
+      trigger_type: "schedule",
+      schedule_kind: "interval",
+      interval_seconds: 3600,
+      cron_expression: null,
+      time_zone: null,
+      overlap: "skip",
+      event_source: null,
+      event_config: {},
+      prompt: "Read the report",
+      next_fire_at: null,
+      last_fired_at: null,
+      last_run_id: null,
+      conversation_id: null,
+      webhook_url: null,
+      created_at: null,
+      updated_at: null,
+      local_target: localTarget,
+    };
+    render(
+      <TriggerFormDialog agentId="agent" trigger={trigger} open onOpenChange={onOpenChange} />,
+      {
+        wrapper,
+      },
+    );
+    const dialog = within(await screen.findByRole("dialog"));
+    // Local work lives in the routine's existing advanced options.
+    await user.click(dialog.getByText("Advanced options", { exact: true }));
+    const write = dialog.getByRole("checkbox", { name: "Write" });
+    await user.click(write);
+    if (!changed) await user.click(write);
+    else
+      native.allow.mockResolvedValue({
+        ...approved,
+        mode: "workspace_write",
+        routine_grant: "new-grant",
+        operations: { read: true, write: true, execute: false },
+      });
+    fireEvent.change(dialog.getByLabelText("Message"), {
+      target: { value: "Read the updated report" },
+    });
+    await user.click(dialog.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(apiClient.patch).toHaveBeenCalled());
+    const body = vi.mocked(apiClient.patch).mock.calls[0]?.[1];
+    if (changed) {
+      expect(native.allow).toHaveBeenCalledOnce();
+      expect(native.allow).toHaveBeenCalledWith(
+        expect.objectContaining({ operations: { read: true, write: true, execute: false } }),
+      );
+      expect(body).toHaveProperty("local_target.routine_grant", "new-grant");
+    } else {
+      expect(native.allow).not.toHaveBeenCalled();
+      expect(body).not.toHaveProperty("local_target");
+    }
+  },
+);
