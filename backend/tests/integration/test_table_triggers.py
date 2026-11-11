@@ -8,6 +8,7 @@ pauses, and that a chain of runs writing into each other's tables stops at the
 trigger it already passed.
 """
 
+import asyncio
 import json
 import uuid
 from collections.abc import AsyncGenerator, AsyncIterator
@@ -1370,6 +1371,25 @@ async def test_a_trigger_of_an_archived_workflow_is_not_resumed_from_the_table(w
 
     with pytest.raises(WorkflowArchivedError):
         await world.pause(trigger_id, active=True)
+    async with world.factory() as db:
+        stored = await db.get(VirtualTableTrigger, trigger_id)
+        assert stored is not None and stored.is_active is False
+
+
+async def test_a_resume_waits_for_an_archive_in_flight_and_then_refuses(world):
+    workflow = await world.workflow()
+    trigger_id = await world.trigger(workflow)
+    await world.pause(trigger_id)
+
+    async with world.factory() as archiving:
+        await WorkflowRegistryService(archiving).archive(world.ctx, workflow.id)
+        resume = asyncio.create_task(world.pause(trigger_id, active=True))
+        await asyncio.sleep(0.5)
+        assert not resume.done()
+        await archiving.commit()
+
+    with pytest.raises(WorkflowArchivedError):
+        await asyncio.wait_for(resume, timeout=10)
     async with world.factory() as db:
         stored = await db.get(VirtualTableTrigger, trigger_id)
         assert stored is not None and stored.is_active is False

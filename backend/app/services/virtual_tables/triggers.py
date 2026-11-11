@@ -254,12 +254,13 @@ class TableTriggerService(Operations):
             WorkflowArchivedError: Resuming, and the workflow is archived.
             TableArchivedError: The table is archived.
         """
+        if data.is_active:
+            require_human_publisher(ctx)
+            table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT)
+            await self._may_resume(ctx, await self._trigger(ctx, table.id, trigger_id))
         table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, lock=True)
         self._ensure_live(table)
         trigger = await self._trigger(ctx, table.id, trigger_id)
-        if data.is_active:
-            require_human_publisher(ctx)
-            await self._may_resume(ctx, trigger)
         changes: dict[str, Any] = {"is_active": data.is_active}
         if data.is_active and not trigger.is_active:
             changes["activated_at"] = trigger_repo.activation_time()
@@ -270,7 +271,15 @@ class TableTriggerService(Operations):
         return await self._trigger_read(trigger)
 
     async def _may_resume(self, ctx: AuthContext, trigger: VirtualTableTrigger) -> None:
-        workflow = await workflow_repo.get(
+        """Lock the trigger's workflow and refuse resuming what the workflow's switch would.
+
+        The locks are the ones the workflow's own archive and switch take, in their order -
+        the organization's workflow lock, the workflow row, then the table row - so an
+        archive in flight is waited for and then seen, never raced into an archived
+        workflow with an active trigger.
+        """
+        await hold_subject(self.db, LockScope.WORKFLOW_FILE_BYTES, ctx.organization_id)
+        workflow = await workflow_repo.get_for_update(
             self.db, trigger.workflow_id, organization_id=ctx.organization_id
         )
         if workflow is None or not await resolve_access(
