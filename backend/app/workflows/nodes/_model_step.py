@@ -31,7 +31,7 @@ from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.session import get_worker_db_context
 from app.services.agent_runner import AgentRunnerService
 from app.services.workflow_agents import WorkflowAgentService
-from app.services.workflow_execution import budget, context
+from app.services.workflow_execution import budget, context, questions
 from app.services.workflow_execution.agent_conversations import ChatSourceGuard
 from app.services.workflow_execution.errors import workflow_error
 from app.workflows.contracts.results import Failed, WorkflowError
@@ -155,6 +155,7 @@ async def ask(config: ModelStepConfig, spec: AgentSpec, prompt: str) -> Answer |
                 message="A model step runs only as part of its workflow",
             )
         )
+    run: AgentRun | None = None
     try:
         async with get_worker_db_context() as db:
             source_guard = ChatSourceGuard(db, current.chat_source)
@@ -166,18 +167,31 @@ async def ask(config: ModelStepConfig, spec: AgentSpec, prompt: str) -> Answer |
                 spec=spec,
             )
             answers: list[dict[str, Any]] = []
-            text, run = await AgentRunnerService(db).execute(
-                current.auth,
-                agent_id,
-                prompt,
-                surface=RunSurface.WORKFLOW,
-                version_id=version_id,
-                structured=answers,
-                on_run_open=source_guard.check,
-                check_model_request=source_guard.check_request,
-                on_segment=source_guard.keep_refusal,
-                run_limit_usd=budget.node_limit(current.budget_remaining, config.max_cost_usd),
-            )
+
+            async def opened(child: AgentRun) -> None:
+                nonlocal run
+                await source_guard.check(child)
+                await questions.own_agent_run(db, current, child)
+                run = child
+
+            try:
+                text, run = await AgentRunnerService(db).execute(
+                    current.auth,
+                    agent_id,
+                    prompt,
+                    surface=RunSurface.WORKFLOW,
+                    version_id=version_id,
+                    structured=answers,
+                    on_run_open=opened,
+                    check_model_request=source_guard.check_request,
+                    on_segment=source_guard.keep_refusal,
+                    run_limit_usd=budget.node_limit(current.budget_remaining, config.max_cost_usd),
+                )
+            finally:
+                # Read before the session closes: a raise rolls it back and
+                # expires the row the runner had already committed.
+                if run is not None and (run.cost_usd > 0 or run.cost_is_partial):
+                    context.report_cost(run.cost_usd, partial=run.cost_is_partial)
     except GuardrailBlocked as exc:
         return Failed(
             error=WorkflowError(code="AGENT_GUARDRAIL_BLOCKED", message=str(exc), bypassable=False)
@@ -192,8 +206,6 @@ async def ask(config: ModelStepConfig, spec: AgentSpec, prompt: str) -> Answer |
         return Failed(
             error=WorkflowError(code="AGENT_RUN_FAILED", message="The model request failed")
         )
-    if run.cost_usd > 0 or run.cost_is_partial:
-        context.report_cost(run.cost_usd, partial=run.cost_is_partial)
     failed = outcome(run)
     if failed is not None:
         return failed
