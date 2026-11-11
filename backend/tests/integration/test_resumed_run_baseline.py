@@ -299,6 +299,7 @@ class TestARunResumedInANewMonth:
             spec=AgentSpec(name="Support", budget={"monthly_usd": float(cap)}),
             organization_cap=None,
             opening=opening if opening is not None else parked.cost_usd,
+            month=month_start(),
         )
         started = TestWhatTheGuardThenSees._guard(
             agent_spent, already_spent=parked.cost_usd, cap=cap

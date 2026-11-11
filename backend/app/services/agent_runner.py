@@ -4472,7 +4472,7 @@ class AgentRunnerService:
             since=since,
             until=until,
         )
-        this_month = month_start()
+        this_month = month_start(opened_at)
         carried_opening: tuple[datetime, Decimal] | None = None
         carried_limits: list[SpendLimit] = []
         if existing_run is not None and since < this_month:
@@ -4487,6 +4487,7 @@ class AgentRunnerService:
                 spec=spec,
                 organization_cap=organization.monthly_budget_usd,
                 opening=carried_opening[1],
+                month=this_month,
             )
 
         # A chat in a project works in the project's container and reads its
@@ -6817,6 +6818,7 @@ class AgentRunnerService:
         spec: AgentSpec,
         organization_cap: Decimal | None,
         opening: Decimal,
+        month: datetime,
     ) -> list[SpendLimit]:
         """The current month's caps for a run resumed after the month it started in.
 
@@ -6824,9 +6826,10 @@ class AgentRunnerService:
         limits weigh it against that month; these keep it from spending past a cap
         this month has already reached. Each counts only what the run spends now:
         the ledger arrives holding the run's earlier cost, so `opening` - what it
-        had spent before this month began - comes off the baseline.
+        had spent before `month` began - comes off the baseline. `month` is the
+        one the opening is recorded against, so the two cannot straddle midnight.
         """
-        since = month_start()
+        since = month
 
         def less_opening(lookup: PeriodSpendLookup) -> PeriodSpendLookup:
             async def spent() -> Decimal:
