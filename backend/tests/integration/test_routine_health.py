@@ -185,6 +185,7 @@ async def test_source_failures_count_and_a_verified_read_resets_the_streak(
     assert w.parent.consecutive_failures == 1
 
 
+@pytest.mark.security
 @pytest.mark.parametrize("watch", [False, True])
 async def test_budget_stops_wait_for_the_next_activation_and_do_not_pause(
     db: AsyncSession, watch: bool
