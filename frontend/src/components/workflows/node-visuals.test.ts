@@ -1,4 +1,4 @@
-import { TableIcon as Table2 } from "@/components/icons/product-icons";
+import { TableIcon as Table2, WorkflowIcon as Workflow } from "@/components/icons/product-icons";
 import {
   ArrowUpDown,
   Bot,
@@ -145,6 +145,12 @@ describe("nodeVisual", () => {
 
   it("gives the Outlook trigger a mark of its own", () => {
     expect(nodeVisual("trigger.outlook", "triggers", "colour").icon).not.toBe(Zap);
+  });
+
+  it("draws the Called by a workflow trigger with the icon of the step that calls it", () => {
+    // Not a telephone: phone calls are a real feature here, and this trigger is not one.
+    expect(nodeVisual("trigger.workflow_call", "triggers", "colour").icon).toBe(Workflow);
+    expect(nodeVisual("workflow.run", "control", "colour").icon).toBe(Workflow);
   });
 
   it("falls back to a neutral step for anything it does not know", () => {
