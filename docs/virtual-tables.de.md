@@ -1,5 +1,5 @@
 ---
-source_sha: "96494123ddae"
+source_sha: "7d01a8aa1f37"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -535,6 +535,13 @@ funktioniert wie bei jedem anderen Schreibzugriff auf eine einzelne Ressource
 hier: `NOT_FOUND` (404), nie ein 403, der einem abgelehnten Aufrufer verraten
 würde, dass die Ansicht existiert. `can_manage` und `can_delete` sagen, welches von
 beidem dieser Aufrufer darf.
+
+Die private Ansicht eines anderen Mitglieds ist noch enger: Selbst ein Aufrufer
+mit Scope `ALL` darf sie nur löschen, nie ändern oder zurücklesen, daher
+beantwortet ein `PATCH` sie mit `NOT_FOUND` wie eine Ansicht, die es nicht gibt.
+Und nur der Besitzer einer Ansicht ändert ihre `visibility`: Jeder andere, der
+einen anderen Wert schickt, wird mit `AUTHORIZATION_ERROR` (403) abgelehnt, da
+er die Ansicht ohnehin schon vor sich hat.
 
 Das Archivieren einer Spalte wird mit `SCHEMA_DEPENDENCY` abgelehnt und nennt die
 Ansicht, wenn eine Ansicht, die der Aufrufer sowohl sehen als auch ändern kann, sie

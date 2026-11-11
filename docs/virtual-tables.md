@@ -476,6 +476,12 @@ the same way every other per-resource write here is: `NOT_FOUND` (404), never a 
 that would disclose a view's existence to a caller it refuses. `can_manage` and
 `can_delete` say which of the two this caller may do.
 
+Another member's private view is narrower again: even an `ALL`-scope caller may
+only delete it, never change it or read it back, so a `PATCH` answers `NOT_FOUND`
+as it would for a view that does not exist. And only a view's owner changes its
+`visibility`: anyone else sending a different one is refused with
+`AUTHORIZATION_ERROR` (403), since the view is already in front of them.
+
 Archiving a column is refused with `SCHEMA_DEPENDENCY`, naming the view, when a
 view the caller can both see and change filters, sorts or groups by it: one of their
 own, or - for a caller whose `tables:edit` scope is `ALL` - a shared one. Any other

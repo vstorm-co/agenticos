@@ -1,5 +1,5 @@
 ---
-source_sha: "96494123ddae"
+source_sha: "7d01a8aa1f37"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -498,6 +498,12 @@ członka. Odmowa działa tak samo jak przy każdym innym zapisie na jednym zasob
 tutaj: `NOT_FOUND` (404), nigdy 403, który ujawniłby istnienie widoku wywołującemu,
 któremu go odmówiono. `can_manage` i `can_delete` mówią, co z tych dwóch ten
 wywołujący może zrobić.
+
+Prywatny widok innego członka jest jeszcze węższy: nawet wywołujący ze scope
+`ALL` może go tylko usunąć, nigdy zmienić ani odczytać, więc `PATCH` odpowiada
+`NOT_FOUND` tak, jak dla widoku, który nie istnieje. A `visibility` widoku
+zmienia tylko jego właściciel: każdy inny, kto wyśle inną wartość, dostaje
+odmowę `AUTHORIZATION_ERROR` (403), bo ten widok i tak ma już przed sobą.
 
 Zarchiwizowanie kolumny jest odrzucane z `SCHEMA_DEPENDENCY`, wskazując widok, gdy
 widok, który wywołujący może zarówno zobaczyć, jak i zmienić, nadal używa jej do
