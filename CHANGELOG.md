@@ -19,6 +19,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Context cards in the same row now have equal heights and aligned footers,
+  including cards with longer descriptions or agent usage indicators.
+
 ## [1.64.1] - 2026-11-11
 
 ### Fixed
