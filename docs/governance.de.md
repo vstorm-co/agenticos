@@ -1,5 +1,5 @@
 ---
-source_sha: "f33b8657a820"
+source_sha: "fa7fffc9573a"
 ---
 
 # Governance { #governance }
@@ -105,8 +105,7 @@ Jedes Monats-Cap zählt die gesamten Kosten eines Runs in dem Monat, in dem der 
 begann, wie die Ausgabenberichte auch. Ein Run über eine Monatsgrenze hinweg - am
 letzten Abend an einer Genehmigung geparkt und am Ersten genehmigt - erscheint
 vollständig im früheren Monat und wird beim Fortsetzen gegen die Ausgaben dieses
-Monats geprüft, nicht gegen die des neuen. Was er nach dem Fortsetzen ausgibt, unterliegt zusätzlich
-den Limits des neuen Monats.
+Monats geprüft, nicht gegen die des neuen.
 
 Eine **neue Organisation startet mit bereits gesetzter Obergrenze für die
 Organisation** — dem `DEFAULT_ORG_MONTHLY_BUDGET_USD` des Deployments
