@@ -23,6 +23,7 @@ import asyncio
 import logging
 from collections.abc import Sequence
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
@@ -35,7 +36,15 @@ from pydantic_ai.usage import RunUsage, UsageLimits
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities._metered import MeteredModel
-from app.agents.capabilities.budget import SpendLedger, metered_by
+from app.agents.capabilities.budget import (
+    BudgetExceeded,
+    BudgetGuard,
+    BudgetScope,
+    SpendLedger,
+    SpendLimit,
+    guarded_by,
+    metered_by,
+)
 from app.agents.failures import run_failure_summary
 from app.agents.manifest import RecordingModel, RunRecorder, as_payload, fit
 from app.core.exceptions import AppException
@@ -223,6 +232,7 @@ class ProactiveThinker:
         # worker killed mid-call must leave a run behind, or the spend check and
         # `last_nightly_run_at` never learn the call was made.
         await self.db.commit()
+        limits = await self._limits(ctx, feature, agent, run_id=run.id)
         usage = RunUsage()
         ledger = SpendLedger(run_id=run.id, agent_id=agent.id, organization_id=ctx.organization_id)
         recorder = RunRecorder()
@@ -231,7 +241,7 @@ class ProactiveThinker:
         propagating = False
         transcript: list[ModelMessage] | None = None
         try:
-            with metered_by(ledger):
+            with metered_by(ledger), guarded_by(BudgetGuard(ledger=ledger, limits=limits)):
                 async with run_heartbeat(run.id):
                     result = await Agent(
                         RecordingModel(MeteredModel(request.build()), recorder),
@@ -243,6 +253,10 @@ class ProactiveThinker:
             status = RunStatus.CANCELLED
             propagating = True
             raise
+        except BudgetExceeded as exc:
+            status = RunStatus.BUDGET_EXCEEDED
+            error = str(exc)
+            return None
         except (AgentRunError, httpx.HTTPError) as exc:
             logger.exception("proactive_run_failed", extra={"run_id": str(run.id)})
             error = run_failure_summary(exc)
@@ -275,6 +289,91 @@ class ProactiveThinker:
                     raise
             if cancelled:
                 raise asyncio.CancelledError
+
+    async def _limits(
+        self, ctx: AuthContext, feature: ProactiveFeature, agent: AgentRow, *, run_id: UUID
+    ) -> list[SpendLimit]:
+        """Every limit each of the run's model requests is checked against, narrowest first.
+
+        `allowance` decides whether the run may start; these stop it once it
+        reaches a limit midway. The feature's own monthly limit is what is left
+        of it now, the agent's is its current published version's - the run
+        counts towards that agent's month - and the organization's applies to
+        all of it. A department's does not: these runs count towards none.
+        """
+        organization = await organization_repo.get_by_id(self.db, ctx.organization_id)
+        if organization is None:
+            return []
+        limits: list[SpendLimit] = []
+        left = await self._feature_left(ctx, feature, organization)
+        if left is not None:
+            limits.append(SpendLimit(scope=BudgetScope.RUN, limit_usd=left))
+        if agent.current_version_id is not None:
+            caps = await agent_repo.published_budget_caps(
+                self.db, version_ids=[agent.current_version_id]
+            )
+            cap = caps.get(agent.current_version_id)
+            if cap is not None:
+
+                async def agent_spend() -> Decimal:
+                    return await agent_run_repo.sum_cost_since(
+                        self.db,
+                        organization_id=ctx.organization_id,
+                        since=month_start(),
+                        agent_id=agent.id,
+                        include_delegations=True,
+                        exclude_run_id=run_id,
+                    )
+
+                limits.append(
+                    SpendLimit(
+                        scope=BudgetScope.AGENT,
+                        limit_usd=Decimal(str(cap)),
+                        period_spend=agent_spend,
+                    )
+                )
+        if organization.monthly_budget_usd is not None:
+
+            async def organization_spend() -> Decimal:
+                return await organization_monthly_spend(
+                    self.db, ctx.organization_id, exclude_run_id=run_id
+                )
+
+            limits.append(
+                SpendLimit(
+                    scope=BudgetScope.ORGANIZATION,
+                    limit_usd=organization.monthly_budget_usd,
+                    period_spend=organization_spend,
+                )
+            )
+        return limits
+
+    async def _feature_left(
+        self, ctx: AuthContext, feature: ProactiveFeature, organization: Organization
+    ) -> Decimal | None:
+        """What this month's limit for `feature` has left, or `None` when it has none."""
+        if feature == "maintenance":
+            profile = await system_agent_repo.get(
+                self.db, organization_id=ctx.organization_id, role=MEMORY_MAINTENANCE
+            )
+            if profile is None or profile.monthly_budget_usd is None:
+                return None
+            used = await agent_run_repo.role_spend_since(
+                self.db,
+                organization_id=ctx.organization_id,
+                role=MEMORY_MAINTENANCE,
+                since=month_start(),
+            )
+            return profile.monthly_budget_usd - used
+        if ctx.user_id is None:
+            return None
+        mine = await agent_run_repo.proactive_spend_since(
+            self.db,
+            organization_id=ctx.organization_id,
+            user_id=ctx.user_id,
+            since=month_start(),
+        )
+        return organization.proactive_limit_usd - mine
 
     async def _finish(
         self,

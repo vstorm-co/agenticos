@@ -20,7 +20,9 @@ from pydantic_ai.exceptions import ModelHTTPError
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
+from pydantic_ai.usage import RequestUsage
 
+from app.agents.capabilities.budget import BudgetScope, SpendLimit
 from app.core.exceptions import BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import RunStatus, RunSurface
@@ -76,6 +78,15 @@ def _organization(
         proactive_limit_usd=Decimal(limit),
         monthly_budget_usd=None if cap is None else Decimal(cap),
     )
+
+
+_LIMITS_MIDWAY = ProactiveThinker._limits
+
+
+@pytest.fixture(autouse=True)
+def _no_limits_midway(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`TestTheLimitsMidway` covers the limits; every other run here is under none."""
+    monkeypatch.setattr(ProactiveThinker, "_limits", AsyncMock(return_value=[]))
 
 
 def test_the_facade_and_the_thinker_name_the_same_starter_agent():
@@ -175,12 +186,137 @@ def _session() -> MagicMock:
     return db
 
 
+class TestTheLimitsMidway:
+    """What each of a background run's requests is checked against, once it has started."""
+
+    @staticmethod
+    def _repos(*, organization, agent_cap=None, mine="0", agent_spent="0", org_spent="0"):
+        return (
+            patch(
+                f"{THINKER}.organization_repo.get_by_id", new=AsyncMock(return_value=organization)
+            ),
+            patch(
+                f"{THINKER}.agent_run_repo.proactive_spend_since",
+                new=AsyncMock(return_value=Decimal(mine)),
+            ),
+            patch(
+                f"{THINKER}.agent_repo.published_budget_caps",
+                new=AsyncMock(side_effect=lambda _db, version_ids: {version_ids[0]: agent_cap}),
+            ),
+            patch(
+                f"{THINKER}.agent_run_repo.sum_cost_since",
+                new=AsyncMock(return_value=Decimal(agent_spent)),
+            ),
+            patch(
+                f"{THINKER}.organization_monthly_spend",
+                new=AsyncMock(return_value=Decimal(org_spent)),
+            ),
+        )
+
+    async def test_a_briefing_is_held_to_what_is_left_and_to_the_agent_and_the_organization(
+        self,
+    ):
+        run_id = uuid.uuid4()
+        org, proactive, caps, agent_total, org_total = self._repos(
+            organization=_organization("1", "50"),
+            agent_cap=5.0,
+            mine="0.25",
+            agent_spent="2",
+            org_spent="30",
+        )
+        with org, proactive, caps, agent_total as agent_spend, org_total as org_spend:
+            limits = await _LIMITS_MIDWAY(
+                ProactiveThinker(MagicMock()), _ctx(), "nightly", _agent(), run_id=run_id
+            )
+            spent = [await limit.period_spend() if limit.period_spend else None for limit in limits]
+
+        assert [(limit.scope.value, limit.limit_usd) for limit in limits] == [
+            ("run", Decimal("0.75")),
+            ("agent", Decimal("5.0")),
+            ("organization", Decimal("50")),
+        ]
+        assert spent == [None, Decimal("2"), Decimal("30")]
+        assert agent_spend.await_args.kwargs["exclude_run_id"] == run_id
+        assert org_spend.await_args.kwargs["exclude_run_id"] == run_id
+
+    async def test_an_uncapped_agent_and_organization_add_no_limit_of_their_own(self):
+        org, proactive, caps, agent_total, org_total = self._repos(organization=_organization("1"))
+        with org, proactive, caps, agent_total, org_total:
+            limits = await _LIMITS_MIDWAY(
+                ProactiveThinker(MagicMock()), _ctx(), "nightly", _agent(), run_id=uuid.uuid4()
+            )
+
+        assert [limit.scope.value for limit in limits] == ["run"]
+
+    async def test_maintenance_is_held_to_its_profiles_month(self):
+        profile = MagicMock(monthly_budget_usd=Decimal("2"))
+        org, proactive, caps, agent_total, org_total = self._repos(organization=_organization("1"))
+        with (
+            org,
+            proactive,
+            caps,
+            agent_total,
+            org_total,
+            patch(f"{THINKER}.system_agent_repo.get", new=AsyncMock(return_value=profile)),
+            patch(
+                f"{THINKER}.agent_run_repo.role_spend_since",
+                new=AsyncMock(return_value=Decimal("1.5")),
+            ),
+        ):
+            limits = await _LIMITS_MIDWAY(
+                ProactiveThinker(MagicMock()), _ctx(), "maintenance", _agent(), run_id=uuid.uuid4()
+            )
+
+        assert [(limit.scope.value, limit.limit_usd) for limit in limits] == [
+            ("run", Decimal("0.5"))
+        ]
+
+
 class TestThinking:
     @pytest.fixture(autouse=True)
     def recorded_manifest(self, monkeypatch):
         record = AsyncMock()
         monkeypatch.setattr(_thinker.run_manifest_repo, "record", record)
         return record
+
+    async def test_a_run_that_reaches_a_limit_midway_stops_there_and_books_what_it_spent(
+        self, monkeypatch
+    ):
+        """The first request books more than is left; the retry it would make is refused."""
+        requests: list[int] = []
+
+        def unreadable(_messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+            requests.append(1)
+            return ModelResponse(
+                parts=[TextPart("not the reading")],
+                usage=RequestUsage(input_tokens=1000, output_tokens=100),
+            )
+
+        monkeypatch.setattr(
+            ProactiveThinker,
+            "_limits",
+            AsyncMock(
+                return_value=[SpendLimit(scope=BudgetScope.RUN, limit_usd=Decimal("0.000001"))]
+            ),
+        )
+        get_slug, limits, version, profiles, create, finish = self._patches(
+            FunctionModel(unreadable, model_name="gpt-4.1")
+        )
+        with get_slug, limits, version, profiles, create, finish as finish_run:
+            answer = await ProactiveThinker(_session()).think(
+                _ctx(),
+                feature="nightly",
+                output_type=NightlyReading,
+                instructions="Read.",
+                prompt="{}",
+            )
+
+        assert answer is None
+        assert len(requests) == 1
+        finished = finish_run.await_args.kwargs
+        assert finished["status"] == RunStatus.BUDGET_EXCEEDED.value
+        assert finished["cost_usd"] > 0
+        assert "budget exhausted" in finished["error"]
 
     @staticmethod
     def _patches(model, *, version=True, resolve_error=None):

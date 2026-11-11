@@ -1,5 +1,5 @@
 ---
-source_sha: "246a8fe6bac4"
+source_sha: "352224230acd"
 ---
 
 # Governance { #governance }
@@ -607,6 +607,12 @@ que la organización eligió al activarla (no hay uno por defecto:
 como un run de la superficie **proactive** y contada contra el budget de la
 organización como cualquier otra. Una persona puede excluirse en **Ajustes →
 Asistente**.
+
+Cada petición al modelo de un run así - la primera y cada reintento - se comprueba
+contra el límite de gasto en proactividad de la persona, el budget mensual del
+agent atribuido y el de la organización. Un run que alcanza uno a medio camino se
+detiene ahí, termina como `budget_exceeded` y conserva lo que gastó. Estos runs no
+cuentan para ningún departamento.
 
 La mirada nocturna vence 20 horas después de su propio último intento. Las
 vigilancias y el mantenimiento de memoria no cambian ese momento. Las
