@@ -74,6 +74,7 @@ from app.agents.spec import (
 from app.agents.steering import SteeringInbox
 from app.agents.subagent_events import SubagentTextDelta
 from app.agents.subagent_runtime import DelegationSpend, DelegationStash, ParkedDelegation
+from app.agents.tool_names import taken_tool_names
 from app.agents.tool_repair import RepairTally
 from app.core.audit import set_impersonator
 from app.core.exceptions import (
@@ -627,6 +628,8 @@ class TestPrepare:
             "platform_credential": None,
             "personal_sources": None,
             "organization_sources": None,
+            # What the run's other tools are called, which no MCP tool may be (#2890).
+            "taken_names": taken_tool_names(spec),
         }
         # Alongside what the surface brought, not instead of it: the WebSocket
         # chat still attaches its own, and dropping either half would leave an
@@ -6741,7 +6744,7 @@ class TestWhichGapsAreAskedForOnUse:
         gaps = [UnavailablePersonalService("notion", "not_connected")]
 
         on_use, briefed = _connect_on_use(
-            gaps, refs=[self._NOTION], user_id=uuid.uuid4(), request_connection=None
+            gaps, refs=[self._NOTION], user_id=uuid.uuid4(), request_connection=None, taken_names={}
         )
 
         assert on_use is None
@@ -6751,7 +6754,7 @@ class TestWhichGapsAreAskedForOnUse:
         gaps = [UnavailablePersonalService("notion", "nobody_to_speak_as")]
 
         on_use, briefed = _connect_on_use(
-            gaps, refs=[self._NOTION], user_id=None, request_connection=AsyncMock()
+            gaps, refs=[self._NOTION], user_id=None, request_connection=AsyncMock(), taken_names={}
         )
 
         assert on_use is None
@@ -6759,7 +6762,11 @@ class TestWhichGapsAreAskedForOnUse:
 
     def test_a_run_with_no_gaps_to_offer_adds_no_tool(self):
         on_use, briefed = _connect_on_use(
-            [], refs=[self._NOTION], user_id=uuid.uuid4(), request_connection=AsyncMock()
+            [],
+            refs=[self._NOTION],
+            user_id=uuid.uuid4(),
+            request_connection=AsyncMock(),
+            taken_names={},
         )
 
         assert on_use is None
@@ -6767,7 +6774,10 @@ class TestWhichGapsAreAskedForOnUse:
 
     @pytest.mark.anyio
     async def test_the_service_is_read_again_as_the_person_talking(self):
+        """And kept off the run's other tools' names, as the servers attached at the
+        start of the run are (#2890)."""
         person = uuid.uuid4()
+        taken = {"web_search": "the web_research capability"}
         with patch(
             "app.services.agent_runner.connect_personal_toolset",
             new=AsyncMock(return_value="unreachable"),
@@ -6777,11 +6787,12 @@ class TestWhichGapsAreAskedForOnUse:
                 refs=[self._NOTION],
                 user_id=person,
                 request_connection=AsyncMock(),
+                taken_names=taken,
             )
             assert on_use is not None
             assert await on_use.services[0].resolve() == "unreachable"
 
-        reread.assert_awaited_once_with(self._NOTION, user_id=person)
+        reread.assert_awaited_once_with(self._NOTION, user_id=person, taken_names=taken)
 
 
 class TestWhatAPreparedRunSaysThePersonCannotReach:

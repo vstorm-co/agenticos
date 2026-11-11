@@ -25,7 +25,7 @@ import json
 import logging
 import re
 import time
-from collections.abc import AsyncGenerator, Iterable, Sequence
+from collections.abc import AsyncGenerator, Iterable, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
@@ -685,6 +685,61 @@ class AnsweredRecently(WrapperToolset[Any]):
         if self.down:
             return unreachable_briefing(self.name, binding=None)
         return await super().get_instructions(ctx)
+
+
+@dataclass
+class LeftOutOnClash(WrapperToolset[Any]):
+    """An MCP server left out of a step where one of its tools has another tool's name (#2890).
+
+    Two tools of one name make pydantic-ai abort the turn. A connection's prefix
+    keeps its server's tools apart from every other server's, but not from a
+    capability's or the platform's own: a connection `request` whose server
+    offers `capability` presents `request_capability`, which nearly every agent
+    has. Publish refuses that on the tools the connection's last check listed;
+    this is the run's half, for a server that added the tool since, or a
+    connection renamed after publish.
+
+    The whole server sits out rather than the one tool, as it does for a prefix
+    collision (#1442): one tool quietly missing goes unnoticed, and the clash is
+    a misconfiguration somebody should fix. The model is told which server is
+    missing and why. Decided on what the server lists at each step, so a tool it
+    adds mid-run cannot take the turn down either. `taken` maps the names the
+    run's other tools hold to whose each is.
+    """
+
+    server: str = ""
+    binding: str = ""
+    taken: Mapping[str, str] = field(default_factory=dict)
+    clash: tuple[str, str] | None = field(default=None, init=False)
+
+    async def get_tools(self, ctx: RunContext[Any]) -> dict[str, ToolsetTool[Any]]:
+        tools = await super().get_tools(ctx)
+        clash = next(((name, self.taken[name]) for name in tools if name in self.taken), None)
+        if clash is not None and clash != self.clash:
+            logger.warning(
+                "Leaving MCP server %r out of this turn: its tool %r has the name of a tool of %s",
+                self.server,
+                *clash,
+            )
+        self.clash = clash
+        return {} if clash is not None else tools
+
+    async def get_instructions(
+        self, ctx: RunContext[Any]
+    ) -> str | InstructionPart | Sequence[str | InstructionPart] | None:
+        # Pydantic AI lists a step's tools before it reads its instructions, so
+        # `clash` is this step's.
+        if self.clash is None:
+            return await super().get_instructions(ctx)
+        tool, holder = self.clash
+        return (
+            f"The {self.server} server ({self.binding}) is not available this turn: its "
+            f"tool `{tool}` has the name of a tool {holder} already gives you. Two tools "
+            "cannot share one name, so none of its tools are attached. If asked for "
+            f"anything in {self.server}, say it is not available because two of this "
+            "agent's tools collide under one name, which the agent's author resolves by "
+            "renaming the connection or narrowing its tools."
+        )
 
 
 PLATFORM_MCP_NAME = "agenticos"
