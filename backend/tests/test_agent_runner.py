@@ -10519,3 +10519,127 @@ def test_the_parked_payload_carries_the_history_revision():
     _, _, _, state = _classify_output(result, parked={"approval-1": "send-1"}, history_revision=7)
     assert state is not None
     assert state.model_dump(mode="json")["guardrail_revision"] == 7
+
+
+def test_both_run_surfaces_persist_code_checkpoints_in_the_common_park_hook() -> None:
+    from app.agents.code_checkpoint import CodeCheckpoint, CodeContinuations, CodeHostCall
+
+    prepared = _prepared()
+    prepared.built.deps.code_continuations = CodeContinuations()
+    checkpoint = CodeCheckpoint(
+        parent_tool_call_id="script",
+        runtime="test",
+        code_hash="code",
+        snapshot_hash="digest",
+        snapshot="server-owned-opaque-state",
+        call_count=1,
+        calls=[
+            CodeHostCall(
+                monty_id=1,
+                tool_call_id="script__1",
+                tool_name="write",
+                args={},
+                awaiting_approval=True,
+            )
+        ],
+        history=[],
+        content={},
+        printed="before\n",
+        manifest={},
+    )
+    prepared.built.deps.code_continuations.checkpoints["script"] = checkpoint
+    parked = AgentRunnerService._parked_tree(
+        prepared, PausedRunState(messages=[], tool_call_ids={"approval": "script__1"}), []
+    )
+    restored = PausedRunState.model_validate_json(parked.model_dump_json())
+    assert restored.code_checkpoints == {"script": checkpoint}
+    assert (
+        PausedRunState.model_validate({"messages": [], "tool_call_ids": {}}).code_checkpoints == {}
+    )
+
+
+@pytest.mark.security
+def test_a_failed_checkpoint_does_not_leave_an_unresumable_approval_in_the_queue() -> None:
+    from app.agents.code_checkpoint import CodeCheckpoint, CodeContinuations, CodeHostCall
+    from app.services.agent_runner import ParkedApproval
+
+    prepared = _prepared()
+    kept, failed, native = (uuid.uuid4() for _ in range(3))
+    calls = [(kept, "script__1"), (failed, "other__1"), (native, "native__1")]
+    prepared.approvals.parked = {str(key): call for key, call in calls}
+    prepared.approvals.requested = [
+        ParkedApproval(approval_id=key, tool_call_id=call, tool_name="write", tool_args={})
+        for key, call in calls
+    ]
+    checkpoint = CodeCheckpoint(
+        parent_tool_call_id="script",
+        runtime="test",
+        code_hash="test",
+        snapshot_hash="test",
+        snapshot="opaque",
+        call_count=1,
+        calls=[
+            CodeHostCall(
+                monty_id=1,
+                tool_call_id="script__1",
+                tool_name="write",
+                args={},
+                awaiting_approval=True,
+            )
+        ],
+        history=[],
+        content={},
+        printed="",
+        manifest={},
+    )
+    prepared.built.deps.code_continuations = CodeContinuations(
+        checkpoints={"script": checkpoint}, approval_calls={"script__1", "other__1"}
+    )
+    assert prepared.checkpointed_approvals() == {str(kept): "script__1", str(native): "native__1"}
+    assert [request.approval_id for request in prepared.approvals.requested] == [kept, native]
+    prepared.built.deps.code_continuations.approval_calls.clear()
+    assert prepared.checkpointed_approvals() == {str(kept): "script__1", str(native): "native__1"}
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("accepted", [True, False])
+async def test_checkpoint_storage_refusal_fails_without_persisting_pending_calls(
+    accepted: bool,
+) -> None:
+    from app.agents.code_checkpoint import CodeCheckpoint
+
+    service = AgentRunnerService(_db())
+    prepared = _prepared()
+    checkpoint = CodeCheckpoint(
+        parent_tool_call_id="script",
+        runtime="test",
+        code_hash="hash",
+        snapshot_hash="hash",
+        snapshot="opaque",
+        call_count=0,
+        calls=[],
+        history=[],
+        content={},
+        printed="",
+        manifest={},
+    )
+    state = PausedRunState(messages=[], tool_call_ids={}, code_checkpoints={"script": checkpoint})
+    capacity = AsyncMock(return_value=accepted)
+    approvals = AsyncMock()
+    finish = AsyncMock()
+    with (
+        patch.object(service, "_parked_tree", return_value=state),
+        patch.object(service, "_write_approvals", new=approvals),
+        patch("app.services.agent_runner.agent_run_repo.code_checkpoint_capacity", new=capacity),
+        patch("app.services.agent_runner.agent_run_repo.finish_run", new=finish),
+    ):
+        await service.finish(prepared, status=RunStatus.AWAITING_APPROVAL, paused_state=state)
+    capacity.assert_awaited_once()
+    assert capacity.await_args.kwargs["requested_bytes"] > 0
+    assert approvals.await_args.kwargs["include_pending"] is accepted
+    assert finish.await_args.kwargs["status"] == (
+        RunStatus.AWAITING_APPROVAL.value if accepted else RunStatus.FAILED.value
+    )
+    assert (finish.await_args.kwargs["paused_state"] is not None) is accepted
+    if not accepted:
+        assert "quota exceeded" in finish.await_args.kwargs["error"]

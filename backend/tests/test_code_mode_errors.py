@@ -330,7 +330,7 @@ async def test_non_sandbox_errors_are_left_for_their_own_handler() -> None:
 
     with pytest.raises(RuntimeError, match="host failure"):
         await CodeCalls(recorder=RunRecorder()).wrap_tool_execute(
-            MagicMock(),
+            MagicMock(deps=AgentDeps()),
             call=ToolCallPart("run_code", {"code": "1 + 1"}),
             tool_def=ToolDefinition(name="run_code"),
             args={"code": "1 + 1"},

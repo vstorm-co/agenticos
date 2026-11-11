@@ -1,5 +1,5 @@
 ---
-source_sha: "b373de64c03d"
+source_sha: "f7a146db5510"
 ---
 
 # Governance { #governance }
@@ -1369,12 +1369,31 @@ Naraz działają najwyżej cztery wywołania skryptu, a reszta czeka, więc skry
 rozsyłający setki wywołań w sandboksie nie otworzy ich wszystkich jednocześnie.
 
 Każde wywołanie ze skryptu przechodzi przez te same guardraile, budżet i
-sprawdzenia uprawnień co wywołanie bezpośrednie. Narzędzie wymagające
-zatwierdzenia nigdy nie trafia do skryptu: pozostaje zwykłym wywołaniem, a run
-zatrzymuje się dla człowieka jak zawsze. Tak samo pytania, delegowania i
-narzędzia, których wywołanie jest tym, co widzi osoba (wersje robocze, wykresy,
-rysunki). Widok runu wymienia każdy skrypt i każde
-wywołanie, które wykonał.
+sprawdzenia uprawnień co wywołanie bezpośrednie. Narzędzie wymagające zgody
+zatrzymuje run na tym wywołaniu. Rozpoczęte operacje kończą się, zanim serwer
+zapisze interpreter, wyniki, manifest i licznik wywołań. Po decyzji dowolny worker
+może kontynuować skrypt bez nowej tury modelu i powtarzania zakończonych operacji.
+Odrzucenie zgody podnosi `RuntimeError` wewnątrz skryptu; kod narzędzia nie działa.
+Zgoda na samo `run_code` nie zatwierdza operacji wewnątrz skryptu.
+
+Surowy stan interpretera ma limit 512 kB, a wszystkie checkpointy kodu jednego
+runu — łącznie 1 MB JSON. Atomowe rezerwacje w bazie ograniczają przechowywane
+checkpointy do 8 MB na użytkownika inicjującego (łącznie w organizacjach) i 32 MB
+na organizację, także podczas wznawiania. Po wyczerpaniu miejsca run kończy się
+błędem bez zapisu oczekujących zatwierdzeń; definitywne zakończenie zwalnia
+rezerwację.
+
+
+Zapis wznowienia należy do serwera i ma ograniczony rozmiar. Jeśli jest uszkodzony,
+tożsamość narzędzia się zmieniła lub aktualizacja harness/Monty uniemożliwia jego
+odtworzenie, wywołanie kończy się czytelnym błędem przed wykonaniem oczekującego
+narzędzia. Skrypt nigdy nie uruchamia się ponownie od początku.
+
+Pytania, delegowania i narzędzia widoczne bezpośrednio w interfejsie (wersje
+robocze, wykresy, rysunki) pozostają zwykłymi narzędziami. Sesje pytające przed
+każdym narzędziem i runy rutyn zachowują dotychczasową politykę narzędzi natywnych.
+Widok runu pokazuje każdy skrypt raz, wraz z wywołaniami i ich stanem zgody lub
+wykonania po kolejnych wznowieniach.
 
 ### Raportowanie { #reporting }
 

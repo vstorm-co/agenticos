@@ -8,8 +8,10 @@ from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import (
+    BigInteger,
     ColumnElement,
     DateTime,
+    Text,
     and_,
     case,
     func,
@@ -19,6 +21,9 @@ from sqlalchemy import (
     select,
     tuple_,
     type_coerce,
+)
+from sqlalchemy import (
+    cast as sql_cast,
 )
 from sqlalchemy import update as sql_update
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
@@ -127,6 +132,59 @@ async def create_run(
     await db.flush()
     await db.refresh(run)
     return run
+
+
+# Count the uncompressed JSONB representation, including every delegate, even
+# while a resume is running. A terminal finish clears the reservation.
+CODE_CHECKPOINT_PRINCIPAL_BYTES = 8_000_000
+CODE_CHECKPOINT_ORGANIZATION_BYTES = 32_000_000
+
+
+async def code_checkpoint_capacity(
+    db: AsyncSession, *, run: AgentRun, requested_bytes: int
+) -> bool:
+    """Reserve capacity until the caller stores its checkpoint and commits.
+
+    Principal then organization is the common lock order across all workers.
+    The caller must write the run in this transaction, before releasing locks.
+    """
+    if run.user_id is not None:
+        await db.execute(
+            select(
+                func.pg_advisory_xact_lock(
+                    func.hashtextextended(f"code-checkpoint:user:{run.user_id}", 0)
+                )
+            )
+        )
+    await db.execute(
+        select(
+            func.pg_advisory_xact_lock(
+                func.hashtextextended(f"code-checkpoint:org:{run.organization_id}", 0)
+            )
+        )
+    )
+    size = func.coalesce(
+        func.octet_length(sql_cast(AgentRun.paused_state["code_checkpoints"], Text)), 0
+    )
+    others = AgentRun.id != run.id
+    organization_bytes = await db.scalar(
+        select(func.coalesce(func.sum(size, type_=BigInteger), 0)).where(
+            others, AgentRun.organization_id == run.organization_id
+        )
+    )
+    assert organization_bytes is not None
+    if organization_bytes + requested_bytes > CODE_CHECKPOINT_ORGANIZATION_BYTES:
+        return False
+    if run.user_id is not None:
+        principal_bytes = await db.scalar(
+            select(func.coalesce(func.sum(size, type_=BigInteger), 0)).where(
+                others, AgentRun.user_id == run.user_id
+            )
+        )
+        assert principal_bytes is not None
+        if principal_bytes + requested_bytes > CODE_CHECKPOINT_PRINCIPAL_BYTES:
+            return False
+    return True
 
 
 async def finish_run(

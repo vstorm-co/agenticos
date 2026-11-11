@@ -47,7 +47,9 @@ from app.agents.capabilities._registry import (
     READ_SKILL,
     ApprovalDescriber,
 )
+from app.agents.code_checkpoint import CodeApprovalPause
 from app.agents.deps import AgentDeps
+from app.agents.durable_code import active_code
 from app.agents.mcp import ACCOUNT, NEEDS_APPROVAL
 from app.agents.routine_actions import RoutineToolDecision, RoutineToolPolicy
 from app.core.exceptions import AuthorizationError
@@ -188,7 +190,10 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
     ) -> Any:
         """Ask before executing, and execute only what was asked about."""
         capability_id = tool_def.capability_id
-        gated = self.gates(tool_def)
+        gated = self.gates(tool_def) or (
+            active_code.get() == call.tool_call_id
+            and ctx.deps.code_continuations.requires_approval(call.tool_call_id)
+        )
         try:
             routine = (
                 RoutineToolDecision()
@@ -196,6 +201,8 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
                 else await self.routine_policy(tool_def)
             )
         except AuthorizationError as error:
+            if active_code.get() == call.tool_call_id:
+                raise RuntimeError("The tool call is not authorized") from error
             return refusal(tool_def.name, error.message)
         if tool_def.name in self.asking_tool_names:
             return await handler(args)
@@ -211,6 +218,8 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
                 tool_def.name,
                 ctx.deps.run_id,
             )
+            if active_code.get() == call.tool_call_id:
+                raise RuntimeError("This surface cannot ask anyone to approve the tool call")
             return refusal(tool_def.name, "this surface cannot ask anyone to approve it")
 
         # As JSON, which is how the queue stores them and a person reads them: a tool
@@ -245,8 +254,12 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
         if isinstance(decision, ApprovalPending):
             # Ends the run with the parked call recorded against it, rather than
             # holding a coroutine open for however long a person takes.
+            if active_code.get() == call.tool_call_id:
+                raise CodeApprovalPause()
             raise ApprovalRequired()
         if isinstance(decision, ApprovalRejected):
+            if active_code.get() == call.tool_call_id:
+                raise RuntimeError("The tool call was not approved")
             return refusal(tool_def.name, decision.note or "a reviewer rejected it")
         # The arguments approved are what runs. When they are this call's own, run
         # them as the tool validated them, so an id is a `UUID` again and not its text.

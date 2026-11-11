@@ -522,7 +522,8 @@ class CodeModeSpec(BaseModel):
     Off by default: it changes how the model works, from one call per turn to a
     `run_code` script that calls many, which pays off for an agent that works
     through records or fans out over an MCP server and is noise for one that calls
-    a tool now and then. A tool that needs approval is never called from a script.
+    a tool now and then. Approval-controlled calls suspend and resume the script
+    from a server-owned checkpoint without replaying completed effects.
     See `app/agents/code_mode.py`.
     """
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "b373de64c03d"
+source_sha: "f7a146db5510"
 ---
 
 # Governance { #governance }
@@ -1372,12 +1372,32 @@ un script que reparte cientos de llamadas en el sandbox no puede abrirlas todas
 juntas.
 
 Cada llamada desde un script pasa por los mismos guardrails, el mismo budget y
-las mismas comprobaciones de permisos que una llamada directa. Una herramienta
-que necesita aprobación nunca se pliega: sigue siendo una llamada normal, y el run
-se detiene para la persona como siempre. Lo mismo vale para preguntas,
-delegaciones y herramientas cuya llamada es lo que ve la persona (borradores,
-gráficos, dibujos). La vista del run lista cada script y
-cada llamada que hizo.
+las mismas comprobaciones de permisos que una llamada directa. Si una herramienta
+necesita aprobación, el run se detiene en esa llamada. Las operaciones ya iniciadas
+terminan antes de que el servidor guarde el intérprete, los resultados, el
+manifiesto y el contador de llamadas. Tras la decisión, cualquier worker puede
+continuar el script sin otro turno del modelo ni repetir operaciones terminadas.
+El rechazo lanza un `RuntimeError` dentro del script; el código de la herramienta
+no se ejecuta. Aprobar `run_code` no aprueba ninguna operación interna.
+
+El estado guardado pertenece al servidor y tiene un límite de tamaño. La captura
+bruta del intérprete admite hasta 512 kB y todos los checkpoints de código de un
+run, hasta 1 MB de JSON. Las reservas atómicas en la base de datos limitan los
+checkpoints retenidos a 8 MB por usuario iniciador (entre organizaciones) y 32 MB
+por organización, incluidas las reanudaciones en curso. Si se agota la capacidad,
+el run falla sin guardar aprobaciones pendientes; al terminar definitivamente
+libera su reserva.
+
+Si está
+dañado, cambia la identidad de la herramienta o una actualización de harness/Monty
+impide restaurarlo, la llamada falla con un error claro antes de ejecutar una
+herramienta pendiente. Nunca se reinicia el script desde su código fuente.
+
+Las preguntas, delegaciones y herramientas visibles directamente (borradores,
+gráficos, dibujos) siguen siendo nativas. Las sesiones que preguntan antes de
+cada herramienta y los runs de rutinas mantienen su política de herramientas
+nativas. La vista del run muestra cada script una sola vez, con sus llamadas y
+su estado de aprobación o ejecución a través de las reanudaciones.
 
 ### Informes { #reporting }
 

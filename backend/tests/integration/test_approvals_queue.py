@@ -836,3 +836,52 @@ async def test_remembering_approval_refuses_unattended_or_changed_authority(
         set_impersonator(None)
     assert approval.status == "pending"
     assert approval.remember_scope is None
+
+
+@pytest.mark.parametrize("scope", ["principal", "organization", "anonymous"])
+async def test_checkpoint_quota_is_atomic_across_workers(
+    db: AsyncSession, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch, scope: str
+) -> None:
+    import json
+
+    org, owner = await _org(db)
+    agent = await _agent(db, org)
+    other = await _user(db) if scope == "organization" else owner
+    first = await _run(db, org, agent, started_by=None if scope == "anonymous" else owner)
+    second = await _run(db, org, agent, started_by=None if scope == "anonymous" else other)
+    await db.commit()
+    monkeypatch.setattr(
+        agent_run_repo, "CODE_CHECKPOINT_PRINCIPAL_BYTES", 150 if scope == "principal" else 1000
+    )
+    monkeypatch.setattr(
+        agent_run_repo, "CODE_CHECKPOINT_ORGANIZATION_BYTES", 1000 if scope == "principal" else 150
+    )
+    payload = {"snapshot": "x" * 80}
+    size = len(json.dumps(payload).encode())
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    async def park(run_id: uuid.UUID) -> bool:
+        async with factory() as session:
+            run = await session.get(AgentRun, run_id)
+            assert run is not None
+            accepted = await agent_run_repo.code_checkpoint_capacity(
+                session, run=run, requested_bytes=size
+            )
+            if accepted:
+                run.paused_state = {"code_checkpoints": payload}
+            await session.commit()
+            return accepted
+
+    with pytest.MonkeyPatch.context():
+        results = await asyncio.wait_for(asyncio.gather(park(first.id), park(second.id)), timeout=5)
+    assert sorted(results) == [False, True]
+    winner = first if results[0] else second
+    loser = second if results[0] else first
+    async with factory() as session:
+        run = await session.get(AgentRun, winner.id)
+        assert run is not None
+        # Updating one's own reservation does not count it twice.
+        assert await agent_run_repo.code_checkpoint_capacity(session, run=run, requested_bytes=size)
+        run.paused_state = None
+        await session.commit()
+    assert await park(loser.id)
