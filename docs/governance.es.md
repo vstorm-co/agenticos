@@ -1,5 +1,5 @@
 ---
-source_sha: "f33b8657a820"
+source_sha: "970396df15ad"
 ---
 
 # Governance { #governance }
@@ -101,6 +101,9 @@ los informes de gasto. Un run que cruza el límite de un mes - aparcado en una
 aprobación la última tarde y aprobado el día uno - aparece entero en el mes anterior,
 y al reanudarse se compara con el gasto de ese mes, no con el del nuevo. Lo que gaste después de
 reanudarse también queda sujeto a los límites del mes nuevo.
+
+Lo que gasta un run reanudado después de reanudarse sigue contando en el mes en que empezó el run, así que los runs que empiecen más tarde en el mes nuevo no lo ven: el mes nuevo puede
+superar un límite en tanto como gaste un run reanudado después de reanudarse.
 
 Una **organización nueva empieza con el techo de la organización ya puesto** — el
 `DEFAULT_ORG_MONTHLY_BUDGET_USD` del deployment ([configuración](configuration.md),

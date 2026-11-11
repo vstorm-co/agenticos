@@ -1,5 +1,5 @@
 ---
-source_sha: "f33b8657a820"
+source_sha: "970396df15ad"
 ---
 
 # Governance { #governance }
@@ -102,6 +102,9 @@ tak jak raporty wydatków. Run, który przechodzi przez granicę miesiąca - zap
 na zatwierdzeniu ostatniego wieczoru i zatwierdzony pierwszego dnia - w całości
 trafia do wcześniejszego miesiąca, a po wznowieniu jest sprawdzany względem wydatków
 tamtego miesiąca, nie nowego. To, co wyda po wznowieniu, podlega też limitom nowego miesiąca.
+
+To, co wznowiony run wyda po wznowieniu, nadal trafia do miesiąca startu runu, więc runy, które zaczną się później w nowym miesiącu,
+go nie widzą: nowy miesiąc może przekroczyć limit o tyle, ile wznowiony run wyda po wznowieniu.
 
 **Nowa organizacja startuje z już ustawionym pułapem organizacji** —
 `DEFAULT_ORG_MONTHLY_BUDGET_USD` wdrożenia ([konfiguracja](configuration.md),
