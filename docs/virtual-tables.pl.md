@@ -1,5 +1,5 @@
 ---
-source_sha: "96494123ddae"
+source_sha: "3c8dcd5646af"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -482,7 +482,7 @@ Obiekt `display` przechowuje `column_order`, `hidden_system_columns`, `wrap_text
 |---|---|
 | `kind` | `table`, `kanban` lub `list` - widok jest zapisany *dla* jednego rodzaju |
 | `visibility` | `private` (tylko właściciel) lub `shared` (każdy, kto widzi tabelę) |
-| `can_manage` | Czy ten wywołujący może zmienić nazwę, przekonfigurować lub udostępnić widok |
+| `can_manage` | Czy ten wywołujący może zmienić nazwę lub przekonfigurować widok; udostępnia go tylko właściciel |
 | `can_delete` | Czy ten wywołujący może usunąć widok |
 
 Listowanie, odczyt i usunięcie rozwiązują się względem tabeli (`tables:view`);
@@ -498,6 +498,12 @@ członka. Odmowa działa tak samo jak przy każdym innym zapisie na jednym zasob
 tutaj: `NOT_FOUND` (404), nigdy 403, który ujawniłby istnienie widoku wywołującemu,
 któremu go odmówiono. `can_manage` i `can_delete` mówią, co z tych dwóch ten
 wywołujący może zrobić.
+
+Prywatny widok innego członka jest jeszcze węższy: nawet wywołujący ze scope
+`ALL` może go tylko usunąć, nigdy zmienić ani odczytać, więc `PATCH` odpowiada
+`NOT_FOUND` tak, jak dla widoku, który nie istnieje. A `visibility` widoku
+zmienia tylko jego właściciel: każdy inny, kto wyśle inną wartość, dostaje
+odmowę `AUTHORIZATION_ERROR` (403), bo ten widok i tak ma już przed sobą.
 
 Zarchiwizowanie kolumny jest odrzucane z `SCHEMA_DEPENDENCY`, wskazując widok, gdy
 widok, który wywołujący może zarówno zobaczyć, jak i zmienić, nadal używa jej do

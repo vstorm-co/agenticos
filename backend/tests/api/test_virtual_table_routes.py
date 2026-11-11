@@ -528,7 +528,13 @@ def test_the_openapi_document_lists_403_on_the_gated_routes_and_only_on_them():
 
     with_403 = {key for key, operation in table_routes.items() if "403" in operation["responses"]}
 
-    assert with_403 == {(prefix, "get"), (prefix, "post")}
+    # The collection's role gate, and the one owner-only change a view the caller
+    # can already see refuses outright rather than as a 404.
+    assert with_403 == {
+        (prefix, "get"),
+        (prefix, "post"),
+        (f"{prefix}/{{table_id}}/views/{{view_id}}", "patch"),
+    }
     refusal = table_routes[(prefix, "post")]["responses"]["403"]
     assert refusal["content"]["application/json"]["schema"] == {
         "$ref": "#/components/schemas/ErrorEnvelope"

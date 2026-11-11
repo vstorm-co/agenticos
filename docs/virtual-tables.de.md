@@ -1,5 +1,5 @@
 ---
-source_sha: "96494123ddae"
+source_sha: "3c8dcd5646af"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -518,7 +518,7 @@ Das Objekt `display` enthält `column_order`, `hidden_system_columns`, `wrap_tex
 |---|---|
 | `kind` | `table`, `kanban` oder `list` - eine Ansicht wird *für* eine Art gespeichert |
 | `visibility` | `private` (nur ihr Besitzer) oder `shared` (jeder, der die Tabelle sehen kann) |
-| `can_manage` | Ob dieser Aufrufer sie umbenennen, umkonfigurieren oder teilen darf |
+| `can_manage` | Ob dieser Aufrufer sie umbenennen oder umkonfigurieren darf; teilen darf nur ihr Besitzer |
 | `can_delete` | Ob dieser Aufrufer sie löschen darf |
 
 Auflisten, Lesen und Löschen lösen sich gegen die Tabelle auf (`tables:view`); eine
@@ -535,6 +535,13 @@ funktioniert wie bei jedem anderen Schreibzugriff auf eine einzelne Ressource
 hier: `NOT_FOUND` (404), nie ein 403, der einem abgelehnten Aufrufer verraten
 würde, dass die Ansicht existiert. `can_manage` und `can_delete` sagen, welches von
 beidem dieser Aufrufer darf.
+
+Die private Ansicht eines anderen Mitglieds ist noch enger: Selbst ein Aufrufer
+mit Scope `ALL` darf sie nur löschen, nie ändern oder zurücklesen, daher
+beantwortet ein `PATCH` sie mit `NOT_FOUND` wie eine Ansicht, die es nicht gibt.
+Und nur der Besitzer einer Ansicht ändert ihre `visibility`: Jeder andere, der
+einen anderen Wert schickt, wird mit `AUTHORIZATION_ERROR` (403) abgelehnt, da
+er die Ansicht ohnehin schon vor sich hat.
 
 Das Archivieren einer Spalte wird mit `SCHEMA_DEPENDENCY` abgelehnt und nennt die
 Ansicht, wenn eine Ansicht, die der Aufrufer sowohl sehen als auch ändern kann, sie
