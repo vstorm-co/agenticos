@@ -10406,6 +10406,7 @@ def test_both_run_surfaces_persist_code_checkpoints_in_the_common_park_hook() ->
     )
 
 
+@pytest.mark.security
 def test_a_failed_checkpoint_does_not_leave_an_unresumable_approval_in_the_queue() -> None:
     from app.agents.code_checkpoint import CodeCheckpoint, CodeContinuations, CodeHostCall
     from app.services.agent_runner import ParkedApproval

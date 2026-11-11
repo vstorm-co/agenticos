@@ -334,6 +334,7 @@ async def test_permissions_are_rechecked_after_the_approval() -> None:
     assert record["calls"][0]["status"] == "failed"
 
 
+@pytest.mark.security
 async def test_the_global_tool_budget_is_not_replenished_by_approvals() -> None:
     from pydantic_ai.exceptions import UsageLimitExceeded
 
@@ -349,6 +350,7 @@ async def test_the_global_tool_budget_is_not_replenished_by_approvals() -> None:
     assert script.requests == 1
 
 
+@pytest.mark.security
 def test_resume_routes_inner_approvals_to_their_own_script_and_delegate() -> None:
     from app.agents.code_checkpoint import CodeHostCall
     from app.services.agent_runner import DelegationFrame, PausedRunState, _resume_plan
@@ -415,6 +417,7 @@ def test_subagents_share_checkpoint_storage_with_the_parent() -> None:
     assert child.code_continuations is deps.code_continuations
 
 
+@pytest.mark.security
 async def test_delegate_checkpoint_identity_and_frozen_approval_arguments(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -606,6 +609,7 @@ async def test_corrupt_host_state_is_refused_before_dispatch(damage: str) -> Non
         "import time\ntry:\n    time.sleep(31)\nexcept RuntimeError:\n    pass\nawait write(i=1)",
     ],
 )
+@pytest.mark.security
 async def test_sleeps_remain_bounded_with_an_approval_checkpoint(code: str) -> None:
     script = _Script(code)
     assert isinstance((await script.step()).output, DeferredToolRequests)
@@ -661,6 +665,7 @@ async def test_an_input_guardrail_still_blocks_an_approved_nested_call(
     assert not script.effects
 
 
+@pytest.mark.security
 async def test_binary_arguments_survive_the_approval_checkpoint() -> None:
     script = _Script("payload = await read(i=0)\nawait blob(payload=payload)")
     received: list[bytes] = []
@@ -724,6 +729,7 @@ async def test_an_unhandled_tool_quota_error_remains_a_run_stop() -> None:
     assert script.effects == [0, 1]
 
 
+@pytest.mark.security
 async def test_a_concurrent_quota_stop_outweighs_an_approval_pause(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -845,6 +851,7 @@ async def test_a_valid_monty_snapshot_at_the_wrong_position_is_not_a_continuatio
     assert "No pending tool ran" in str(returns[0].content)
 
 
+@pytest.mark.security
 async def test_a_script_without_an_approval_channel_refuses_the_gated_handler(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -951,6 +958,7 @@ async def test_changing_sequential_execution_invalidates_a_checkpoint() -> None:
         ("asyncio", "float('nan')"),
     ],
 )
+@pytest.mark.security
 async def test_invalid_sleep_cannot_credit_the_persisted_budget(module: str, duration: str) -> None:
     import anyio
 

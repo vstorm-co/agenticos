@@ -138,6 +138,7 @@ async def test_a_caller_without_runs_view_is_refused() -> None:
     assert response.status_code == 403
 
 
+@pytest.mark.security
 async def test_a_script_waiting_for_approval_keeps_its_inner_call_identity() -> None:
     record = _manifest(
         {

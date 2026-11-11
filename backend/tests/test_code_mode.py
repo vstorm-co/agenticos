@@ -279,6 +279,7 @@ async def test_a_run_past_the_kept_scripts_still_runs_them_unrecorded() -> None:
     assert recorder.code_runs == earlier
 
 
+@pytest.mark.security
 def test_a_native_approval_only_excludes_the_owning_agents_tool(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -295,3 +296,101 @@ def test_a_native_approval_only_excludes_the_owning_agents_tool(
     assert mode.tools(ctx, ToolDefinition(name="write"))
     monkeypatch.setattr(code_module, "code_owner", lambda: None)
     assert mode.tools(ctx, ToolDefinition(name="write"))
+
+
+async def test_manifest_retains_one_inner_call_across_repeated_execution_hooks() -> None:
+    from unittest.mock import AsyncMock
+
+    from app.agents.code_mode import current_code_record
+
+    calls = CodeCalls(RunRecorder())
+    ctx = MagicMock(deps=AgentDeps())
+    handler = AsyncMock(return_value="saved")
+
+    async def execute(args):
+        for _ in range(2):
+            assert (
+                await calls.wrap_tool_execute(
+                    ctx,
+                    call=ToolCallPart("write", {}, tool_call_id="inner"),
+                    tool_def=ToolDefinition(name="write"),
+                    args={},
+                    handler=handler,
+                )
+                == "saved"
+            )
+        assert len(current_code_record()["calls"]) == 1
+        return "done"
+
+    assert current_code_record() == {}
+    assert (
+        await calls.wrap_tool_execute(
+            ctx,
+            call=ToolCallPart("run_code", {}, tool_call_id="outer"),
+            tool_def=ToolDefinition(name="run_code"),
+            args={},
+            handler=execute,
+        )
+        == "done"
+    )
+    assert len(calls.recorder.code_runs[0]["calls"]) == 1
+
+
+async def test_manifest_bounds_new_calls_when_the_recording_cap_is_reached(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from unittest.mock import AsyncMock
+
+    import app.agents.code_mode as module
+
+    calls = CodeCalls(RunRecorder())
+    ctx = MagicMock(deps=AgentDeps())
+    monkeypatch.setattr(module, "RECORDED_CALLS", 0)
+
+    async def execute(args):
+        return await calls.wrap_tool_execute(
+            ctx,
+            call=ToolCallPart("write", {}, tool_call_id="inner"),
+            tool_def=ToolDefinition(name="write"),
+            args={},
+            handler=AsyncMock(return_value="saved"),
+        )
+
+    await calls.wrap_tool_execute(
+        ctx,
+        call=ToolCallPart("run_code", {}, tool_call_id="outer"),
+        tool_def=ToolDefinition(name="run_code"),
+        args={},
+        handler=execute,
+    )
+    assert calls.recorder.code_runs[0]["calls"] == []
+    assert calls.recorder.code_runs[0]["omitted_calls"] == 1
+
+
+@pytest.mark.security
+async def test_manifest_marks_a_nested_approval_pause_before_saving() -> None:
+    from unittest.mock import AsyncMock
+
+    from app.agents.code_checkpoint import CodeApprovalPause
+
+    calls = CodeCalls(RunRecorder())
+    ctx = MagicMock(deps=AgentDeps())
+
+    async def execute(args):
+        return await calls.wrap_tool_execute(
+            ctx,
+            call=ToolCallPart("write", {}, tool_call_id="inner"),
+            tool_def=ToolDefinition(name="write"),
+            args={},
+            handler=AsyncMock(side_effect=CodeApprovalPause()),
+        )
+
+    with pytest.raises(CodeApprovalPause):
+        await calls.wrap_tool_execute(
+            ctx,
+            call=ToolCallPart("run_code", {}, tool_call_id="outer"),
+            tool_def=ToolDefinition(name="run_code"),
+            args={},
+            handler=execute,
+        )
+    assert calls.recorder.code_runs[0]["calls"][0]["status"] == "awaiting_approval"
