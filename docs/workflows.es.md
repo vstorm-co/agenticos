@@ -1,5 +1,5 @@
 ---
-source_sha: "a38d3e0e9126"
+source_sha: "99f7dfdc2b7e"
 ---
 
 # Workflows { #workflows }
@@ -1186,6 +1186,35 @@ toda publicación que lo nombre lo exige, porque quien publica pasa a ser el mie
 como el que se lee el buzón, y un mensaje que llega a un workflow cuyo publicador
 ya no lo tiene no inicia ningún run. Si Outlook dice que la carpeta ya no se puede leer, el
 workflow se apaga y el registro de auditoría dice por qué.
+
+Un administrador puede encontrar de antemano los triggers de Outlook que esto
+detiene: los que leen un buzón compartido para un publicador que no es owner, admin
+ni builder y por tanto no tiene `mcp:manage`. Cada uno necesita que lo vuelva a
+publicar alguien que lo tenga, o subir el rol de su publicador. Ejecútalo contra la
+base de datos del despliegue:
+
+```sql
+SELECT o.name AS organization,
+       w.name AS workflow,
+       u.email AS publisher,
+       m.role AS publisher_role,
+       node -> 'config' ->> 'mailbox' AS shared_mailbox
+FROM workflow_exposures AS e
+JOIN workflow_versions AS v ON v.id = e.workflow_version_id
+JOIN workflows AS w ON w.id = e.workflow_id
+JOIN organizations AS o ON o.id = e.organization_id
+JOIN users AS u ON u.id = e.execution_principal_user_id
+LEFT JOIN organization_members AS m
+  ON m.organization_id = e.organization_id AND m.user_id = e.execution_principal_user_id
+CROSS JOIN LATERAL jsonb_array_elements(v.graph -> 'nodes') AS node
+WHERE e.adapter = 'outlook'
+  AND e.is_active
+  AND (node ->> 'id')::uuid = e.node_instance_id
+  AND coalesce(node -> 'config' ->> 'mailbox', '') <> ''
+  AND NOT u.is_app_admin
+  AND coalesce(m.role, '') NOT IN ('owner', 'admin', 'builder');
+```
+
 
 La ejecución recibe los
 mismos campos que una de Gmail, con `labels` con las categorías del mensaje y

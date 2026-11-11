@@ -1,5 +1,5 @@
 ---
-source_sha: "a38d3e0e9126"
+source_sha: "99f7dfdc2b7e"
 ---
 
 # Workflows { #workflows }
@@ -1247,6 +1247,35 @@ Person zu dem Mitglied wird, als das das Postfach gelesen wird, und eine Nachric
 an einen Workflow, dessen Veröffentlicher sie nicht mehr hat, startet keinen Run. Meldet Outlook, dass der Ordner nicht
 mehr gelesen werden kann, wird der Workflow ausgeschaltet, und das Audit-Log nennt
 den Grund.
+
+Ein Administrator kann die Outlook-Trigger, die das stoppt, vorher finden: jene, die
+ein geteiltes Postfach für einen Veröffentlicher lesen, der weder Owner noch Admin
+noch Builder ist und daher `mcp:manage` nicht hat. Jeder braucht eine erneute
+Veröffentlichung durch jemanden, der es hat, oder eine höhere Rolle des
+Veröffentlichers. Gegen die Datenbank der Bereitstellung ausführen:
+
+```sql
+SELECT o.name AS organization,
+       w.name AS workflow,
+       u.email AS publisher,
+       m.role AS publisher_role,
+       node -> 'config' ->> 'mailbox' AS shared_mailbox
+FROM workflow_exposures AS e
+JOIN workflow_versions AS v ON v.id = e.workflow_version_id
+JOIN workflows AS w ON w.id = e.workflow_id
+JOIN organizations AS o ON o.id = e.organization_id
+JOIN users AS u ON u.id = e.execution_principal_user_id
+LEFT JOIN organization_members AS m
+  ON m.organization_id = e.organization_id AND m.user_id = e.execution_principal_user_id
+CROSS JOIN LATERAL jsonb_array_elements(v.graph -> 'nodes') AS node
+WHERE e.adapter = 'outlook'
+  AND e.is_active
+  AND (node ->> 'id')::uuid = e.node_instance_id
+  AND coalesce(node -> 'config' ->> 'mailbox', '') <> ''
+  AND NOT u.is_app_admin
+  AND coalesce(m.role, '') NOT IN ('owner', 'admin', 'builder');
+```
+
 
 Der Lauf bekommt dieselben Felder wie ein Gmail-Lauf, wobei `labels` die
 Kategorien der Nachricht enthält und `mailbox` das gemeinsame Postfach, aus dem sie

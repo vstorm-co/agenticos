@@ -1,5 +1,5 @@
 ---
-source_sha: "a38d3e0e9126"
+source_sha: "99f7dfdc2b7e"
 ---
 
 # Workflows { #workflows }
@@ -1150,6 +1150,34 @@ wyłączany, a dziennik audytu podaje powód. Run dostaje te same pola co run z 
 przy czym `labels` zawiera kategorie wiadomości, a `mailbox` skrzynkę współdzieloną,
 z której przyszła. Zobacz
 [trigger.outlook](reference/workflow-nodes.md#trigger-outlook).
+
+Administrator może zawczasu znaleźć triggery Outlook, które to zatrzyma: te, które
+czytają skrzynkę współdzieloną dla publikującego, który nie jest ownerem, adminem
+ani builderem, więc nie ma `mcp:manage`. Każdy wymaga ponownej publikacji przez
+kogoś, kto je ma, albo podniesienia roli publikującego. Zapytanie do bazy wdrożenia:
+
+```sql
+SELECT o.name AS organization,
+       w.name AS workflow,
+       u.email AS publisher,
+       m.role AS publisher_role,
+       node -> 'config' ->> 'mailbox' AS shared_mailbox
+FROM workflow_exposures AS e
+JOIN workflow_versions AS v ON v.id = e.workflow_version_id
+JOIN workflows AS w ON w.id = e.workflow_id
+JOIN organizations AS o ON o.id = e.organization_id
+JOIN users AS u ON u.id = e.execution_principal_user_id
+LEFT JOIN organization_members AS m
+  ON m.organization_id = e.organization_id AND m.user_id = e.execution_principal_user_id
+CROSS JOIN LATERAL jsonb_array_elements(v.graph -> 'nodes') AS node
+WHERE e.adapter = 'outlook'
+  AND e.is_active
+  AND (node ->> 'id')::uuid = e.node_instance_id
+  AND coalesce(node -> 'config' ->> 'mailbox', '') <> ''
+  AND NOT u.is_app_admin
+  AND coalesce(m.role, '') NOT IN ('owner', 'admin', 'builder');
+```
+
 
 Oba wyzwalacze poczty przyjmują dane z zewnątrz: każdy może wysłać wiadomość do
 skrzynki, więc to, co run z nią robi, wiąż tak jak dla webhooka.
