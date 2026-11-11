@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.65.0] - 2026-11-11
+
 ### Added
 
 - **Approval per MCP tool.** In a server's settings in the Builder, each tool
@@ -21312,7 +21314,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.64.2...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.65.0...HEAD
+[1.65.0]: https://github.com/vstorm-co/agenticos/compare/v1.64.2...v1.65.0
 [1.64.2]: https://github.com/vstorm-co/agenticos/compare/v1.64.1...v1.64.2
 [1.64.1]: https://github.com/vstorm-co/agenticos/compare/v1.64.0...v1.64.1
 [1.64.0]: https://github.com/vstorm-co/agenticos/compare/v1.63.0...v1.64.0
