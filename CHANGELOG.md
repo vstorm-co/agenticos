@@ -27,7 +27,7 @@ Two things are versioned separately from this file and worth knowing about:
   name changes. The connection keeps its prefix for the MCP servers page, tool
   search and the run's records. A tool that would then share a name with
   another tool of the agent is refused at publish and leaves the server out of
-  a run, which the model is told, rather than aborting the turn (#2881).
+  a run, which the model is told, rather than aborting the turn (#2889).
   Migration `0307_mcp_skip_tool_prefix`.
 
 ## [1.64.0] - 2026-11-11
