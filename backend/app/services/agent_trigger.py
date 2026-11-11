@@ -357,6 +357,30 @@ _WHAT_IT_DOES = (
 """The edits that change what a fire does or who reads its answer, and so end its acting as the creator."""
 
 
+def _later(new: Any, old: Any) -> bool:
+    """Whether `new` lets the routine go further than `old`, where null means no limit."""
+    if new is None:
+        return old is not None
+    return old is not None and new > old
+
+
+def _extended_reach(trigger: AgentTrigger, changes: dict[str, Any]) -> list[str]:
+    """The fields of an edit that resume a routine, move its end, or loosen its limits.
+
+    `is_active` counts even on a running routine: setting it starts its failure count
+    afresh. The end date is the creator's to move in either direction; a limit may
+    still be tightened by others, the way a pause may.
+    """
+    extended = ["is_active"] if changes.get("is_active") is True else []
+    if "ends_at" in changes and changes["ends_at"] != trigger.ends_at:
+        extended.append("ends_at")
+    return extended + [
+        field
+        for field in ("max_failures", "monthly_budget_usd")
+        if field in changes and _later(changes[field], getattr(trigger, field))
+    ]
+
+
 def _guard_shared_mailbox(
     ctx: AuthContext,
     event_source: str | None,
@@ -1279,6 +1303,16 @@ class AgentTriggerService:
         fire - or point the answer at a Teams channel they read, which hands them
         what the creator's own connections returned. A pause, a rename or a new
         cadence changes no such thing, so it stays.
+
+        The creator also agreed to the end date and the limits it acts within, so
+        while it acts as them nobody else resumes it, moves its end date or loosens
+        a limit. Tightening a limit, like a pause, stays open to anyone who may edit it,
+        but keeps the failures counted so far: a new limit from the creator starts the
+        count afresh, one from anybody else must not hand the routine more runs.
+
+        Raises:
+            AuthorizationError: Someone other than the creator turns it on, or
+                resumes or extends a routine that acts as its creator.
         """
         themselves = _acts_as_themselves(ctx, trigger.created_by_user_id)
         if changes.get("runs_as_creator") is True and not themselves:
@@ -1286,6 +1320,33 @@ class AgentTriggerService:
                 message="Only the person who made this trigger can let it act as them",
                 details={"trigger_id": str(trigger.id)},
             )
+        acting = changes.get("runs_as_creator", trigger.runs_as_creator)
+        extended = _extended_reach(trigger, changes)
+        if extended and acting and not themselves:
+            message = (
+                "Only the person who made this routine can resume it, reset its failures, "
+                "change its end date or raise its limits while it acts as them. Turn off "
+                "Run as me first."
+            )
+            raise AuthorizationError(
+                message=message,
+                details=field_details(extended[0], message, trigger_id=str(trigger.id)),
+            )
+        if acting and not themselves and "max_failures" in changes:
+            for field in ("health_reset_at", "consecutive_failures"):
+                changes.pop(field, None)
+            if "is_active" not in changes:
+                changes.pop("auto_stopped_at", None)
+                # Health only checks the limit after the next run, which would be one more
+                # run as the creator past it: a limit already reached pauses now.
+                limit = changes["max_failures"]
+                if (
+                    trigger.is_active
+                    and limit is not None
+                    and (trigger.consecutive_failures or 0) >= limit
+                ):
+                    changes["is_active"] = False
+                    changes["auto_stopped_at"] = datetime.now(UTC)
         if (
             trigger.runs_as_creator
             and not themselves

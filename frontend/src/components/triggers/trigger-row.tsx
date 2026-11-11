@@ -64,6 +64,11 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
   const me = useAuthStore((state) => state.user?.id);
   const [consenting, setConsenting] = useState(false);
   const { setActive, runNow, remove } = useTriggers(trigger.agent_id);
+  const impersonating = useAuthStore((state) => Boolean(state.user?.impersonation));
+  // Only its creator resumes a routine that acts as them - not an administrator acting as
+  // the creator; anyone who manages it may pause it.
+  const actsForSomeoneElse =
+    trigger.runs_as_creator && (me !== trigger.created_by_user_id || impersonating);
   const [editing, setEditing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [viewing, setViewing] = useState(false);
@@ -187,18 +192,20 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
           >
             <Pencil className="h-4 w-4" />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            aria-label={trigger.is_active ? t("pause") : t("resume")}
-            disabled={setActive.isPending}
-            onClick={() =>
-              setActive.mutate({ triggerId: trigger.id, isActive: !trigger.is_active })
-            }
-          >
-            {trigger.is_active ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-          </Button>
+          {(trigger.is_active || !actsForSomeoneElse) && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              aria-label={trigger.is_active ? t("pause") : t("resume")}
+              disabled={setActive.isPending}
+              onClick={() =>
+                setActive.mutate({ triggerId: trigger.id, isActive: !trigger.is_active })
+              }
+            >
+              {trigger.is_active ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon"

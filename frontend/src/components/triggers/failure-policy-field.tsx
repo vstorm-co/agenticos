@@ -16,9 +16,12 @@ import {
 export function FailurePolicyField({
   value,
   onChange,
+  highest,
 }: {
   value: number | null;
   onChange: (value: number | null) => void;
+  /** The highest limit this caller may choose; set, it also takes away "off". */
+  highest?: number;
 }) {
   const t = useTranslations("routineHealth");
   const id = useId();
@@ -39,8 +42,8 @@ export function FailurePolicyField({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="off">{t("off")}</SelectItem>
-          {Array.from({ length: 20 }, (_, index) => index + 1).map((count) => (
+          {highest === undefined && <SelectItem value="off">{t("off")}</SelectItem>}
+          {Array.from({ length: highest ?? 20 }, (_, index) => index + 1).map((count) => (
             <SelectItem key={count} value={String(count)}>
               {t("after", { count })}
             </SelectItem>
