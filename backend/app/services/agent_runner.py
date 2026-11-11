@@ -6692,8 +6692,13 @@ class AgentRunnerService:
         exclude_run_id: UUID,
         since: datetime | None = None,
         until: datetime | None = None,
+        opening: Decimal = Decimal(0),
+        period: str | None = None,
     ) -> list[SpendLimit]:
         """The monthly caps of every department the person running this is in (#2072).
+
+        `opening` is taken off each baseline and `period` tags it, for the second
+        month of a run resumed after the one it started in.
 
         None for a run nobody in the organization started - a trigger, a
         channel stranger: a department's month is what its members ran, and
@@ -6716,13 +6721,16 @@ class AgentRunnerService:
         def period_spend(group_id: UUID) -> PeriodSpendLookup:
             async def lookup() -> Decimal:
                 async with get_db_context() as db:
-                    return await agent_run_repo.sum_cost_since(
-                        db,
-                        organization_id=ctx.organization_id,
-                        since=since or month_start(),
-                        until=until,
-                        group_id=group_id,
-                        exclude_run_id=exclude_run_id,
+                    return (
+                        await agent_run_repo.sum_cost_since(
+                            db,
+                            organization_id=ctx.organization_id,
+                            since=since or month_start(),
+                            until=until,
+                            group_id=group_id,
+                            exclude_run_id=exclude_run_id,
+                        )
+                        - opening
                     )
 
             return lookup
@@ -6734,6 +6742,7 @@ class AgentRunnerService:
                 period_spend=period_spend(group.id),
                 subject_id=group.id,
                 subject_name=group.name,
+                period=period,
             )
             for group in groups
         ]
@@ -6790,12 +6799,15 @@ class AgentRunnerService:
                     period="current",
                 )
             )
-        for group in await self._group_limits(
-            self._department_context(ctx, run), exclude_run_id=run.id, since=since
-        ):
-            if group.period_spend is not None:
-                group = replace(group, period_spend=less_opening(group.period_spend))
-            limits.append(replace(group, period="current"))
+        limits.extend(
+            await self._group_limits(
+                self._department_context(ctx, run),
+                exclude_run_id=run.id,
+                since=since,
+                opening=opening,
+                period="current",
+            )
+        )
         if organization_cap is not None:
             limits.append(
                 SpendLimit(

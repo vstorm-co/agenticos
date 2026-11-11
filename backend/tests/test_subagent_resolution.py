@@ -2226,6 +2226,7 @@ class TestResumingIntoADelegation:
             output_tokens=0,
             cost_usd=Decimal(0),
             cost_is_partial=False,
+            started_at=datetime.now(UTC),
         )
         spec = _delegating(inline=[_specialist()])
         version = MagicMock(id=run.agent_version_id, agent_id=run.agent_id)
