@@ -8,11 +8,12 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent import Agent, AgentVersion
-from app.db.models.agent_run import RunSurface
+from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.repositories import agent_run_repo, agent_trigger_repo
 from app.services.agent_runner import AgentRunnerService
+from app.services.routine_health import RoutineHealthService
 from app.services.spend import month_start
 
 pytestmark = pytest.mark.anyio
@@ -157,6 +158,24 @@ class TestAParkedFireResumedAfterItsMonthIsSpent:
         refusal = await AgentRunnerService(db)._routine_budget_spent(parked)
 
         assert refusal is not None and refusal.spent_usd == Decimal("5.50")
+
+    async def test_a_refused_parked_fire_does_not_count_towards_the_automatic_pause(
+        self, db
+    ) -> None:
+        """It waits for the next month; three of them must not switch the routine off."""
+        user, org, agent, version, trigger = await _routine(db)
+        now = datetime.now(UTC)
+        await _run(db, org, agent, version, user, trigger, "4.00", now)
+        for index in range(3):
+            parked = await _run(db, org, agent, version, user, trigger, "1.00", now)
+            assert await AgentRunnerService(db)._routine_budget_spent(parked) is not None
+            parked.status = RunStatus.BUDGET_EXCEEDED.value
+            parked.routine_activation_at = now + timedelta(minutes=index)
+            await db.flush()
+            await RoutineHealthService(db).run_result(parked)
+
+        assert trigger.is_active and trigger.auto_stopped_at is None
+        assert trigger.consecutive_failures == 0
 
     async def test_a_routine_without_a_limit_of_its_own_refuses_nothing(self, db) -> None:
         user, org, agent, version, trigger = await _routine(db)
