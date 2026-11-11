@@ -1,5 +1,5 @@
 ---
-source_sha: "f7a146db5510"
+source_sha: "390d73e39402"
 ---
 
 # Governance { #governance }
@@ -96,6 +96,11 @@ Una rutina vuelve a comprobar su creador, membresía activa, rol y permisos de e
 | **Departamento, mensual** | los ajustes del departamento | los runs que iniciaron sus miembros, en cualquier agent | quien tenga `members:manage` y `budgets:manage` |
 | **Organización, mensual** | los ajustes de la organización | cada run _y_ cada ingesta de la organización | quien tenga `budgets:manage` |
 
+Cada tope mensual cuenta el coste entero de un run en el mes en que empezó, igual que
+los informes de gasto. Un run que cruza el límite de un mes - aparcado en una
+aprobación la última tarde y aprobado el día uno - aparece entero en el mes anterior,
+y al reanudarse se compara con el gasto de ese mes, no con el del nuevo.
+
 Una **organización nueva empieza con el techo de la organización ya puesto** — el
 `DEFAULT_ORG_MONTHLY_BUDGET_USD` del deployment ([configuración](configuration.md),
 $100 de serie) —, así que un tenant recién creado no está a un agent desbocado de
@@ -127,6 +132,11 @@ de agents — el número de la versión _publicada_, ya que es la que aplica el 
 no lo que prometa el borrador en este momento. La tarjeta de margen del dashboard
 cruza estos datos con `GET /spend`, de modo que se puede ver un tope acercándose
 antes de que `budget_exceeded` empiece a aparecer en el historial de runs.
+
+Ese número publicado se aplica a todos los runs del agent, también a un run de una
+versión anterior: una rutina, un entorno o un paso de workflow fijados a ella,
+o un run reanudado en la versión en la que quedó aparcado. Fijar una versión decide
+cómo se comporta el agent, no cuánto puede gastar.
 
 ### El tope de un departamento { #a-departments-cap }
 
@@ -607,6 +617,12 @@ que la organización eligió al activarla (no hay uno por defecto:
 como un run de la superficie **proactive** y contada contra el budget de la
 organización como cualquier otra. Una persona puede excluirse en **Ajustes →
 Asistente**.
+
+Cada petición al modelo de un run así - la primera y cada reintento - se comprueba
+contra el límite de gasto en proactividad de la persona, el budget mensual del
+agent atribuido y el de la organización. Un run que alcanza uno a medio camino se
+detiene ahí, termina como `budget_exceeded` y conserva lo que gastó. Estos runs no
+cuentan para ningún departamento.
 
 La mirada nocturna vence 20 horas después de su propio último intento. Las
 vigilancias y el mantenimiento de memoria no cambian ese momento. Las
@@ -2438,7 +2454,7 @@ Vale la pena decirlo, porque una página de governance da a entender lo contrari
 
 ## Pausa automática por fallos repetidos { #routine-health }
 
-Las rutinas y observaciones se pausan por defecto tras **tres comprobaciones fallidas consecutivas**. El formulario permite elegir un límite de 1 a 20 o desactivarlo. Cuentan los fallos del proveedor o de ejecución, las lecturas inválidas y las fuentes inaccesibles. No cuentan la espera de aprobación, un ordenador desconectado ni los fallos de entrega; una comprobación vacía pero verificada como correcta reinicia la serie. Los demás bloqueos de permisos y presupuesto siguen aplicándose aunque se desactive este límite.
+Las rutinas y observaciones se pausan por defecto tras **tres comprobaciones fallidas consecutivas**. El formulario permite elegir un límite de 1 a 20 o desactivarlo. Cuentan los fallos del proveedor o de ejecución, las lecturas inválidas y las fuentes inaccesibles. No cuentan la espera de aprobación, un ordenador desconectado, los fallos de entrega ni las paradas por presupuesto: una comprobación que el presupuesto rechazó espera a la siguiente y ni alarga la serie ni la reinicia. Una comprobación vacía pero verificada como correcta reinicia la serie. Los demás bloqueos de permisos y presupuesto siguen aplicándose aunque se desactive este límite.
 
 Cada activación tiene una única observación persistente. Los reintentos no aumentan el contador y los resultados tardíos se evalúan según el orden de activación. La pausa automática detiene futuras activaciones; una solicitud al modelo ya iniciada puede terminar.
 

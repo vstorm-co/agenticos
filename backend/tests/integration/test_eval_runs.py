@@ -1555,6 +1555,39 @@ async def test_the_estimate_counts_the_judge_and_the_agents_own_cap(db) -> None:
     assert paired.agent_remaining_usd == Decimal("2")
 
 
+async def test_an_older_version_without_a_cap_is_estimated_against_the_current_cap(db) -> None:
+    """The run is held to the current version's cap, so the estimate must be too."""
+    ctx = await _owner(db)
+    await _assist(db, ctx, on=True)
+    agent, versions = await _agent(db, ctx)
+    versions[7].spec = {"name": "Clerk", "budget": {"monthly_usd": 2}}
+    dataset = await _dataset(db, ctx, cases=4)
+    await db.flush()
+
+    estimate = await EvalRunService(db).estimate(
+        ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6)
+    )
+
+    assert estimate.agent_remaining_usd == Decimal("2")
+
+
+async def test_a_tighter_draft_cap_does_not_shrink_the_estimate(db) -> None:
+    """A draft under test is held to the published cap, not the one it is editing."""
+    ctx = await _owner(db)
+    await _assist(db, ctx, on=True)
+    agent, versions = await _agent(db, ctx)
+    versions[7].spec = {"name": "Clerk", "budget": {"monthly_usd": 5}}
+    agent.draft_spec = {**agent.draft_spec, "budget": {"monthly_usd": 1}}
+    dataset = await _dataset(db, ctx, cases=4)
+    await db.flush()
+
+    estimate = await EvalRunService(db).estimate(
+        ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, candidate="draft")
+    )
+
+    assert estimate.agent_remaining_usd == Decimal("5")
+
+
 async def test_a_model_with_no_history_is_priced_at_its_own_price(db) -> None:
     """A typical case at the model's price, not a flat guess eighty times too high."""
     ctx = await _owner(db)

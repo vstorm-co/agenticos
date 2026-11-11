@@ -1,5 +1,5 @@
 ---
-source_sha: "96494123ddae"
+source_sha: "539603f9eb62"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -487,7 +487,7 @@ El objeto `display` conserva `column_order`, `hidden_system_columns`, `wrap_text
 |---|---|
 | `kind` | `table`, `kanban` o `list` - una vista se guarda *para* un tipo |
 | `visibility` | `private` (solo su propietario) o `shared` (cualquiera que vea la tabla) |
-| `can_manage` | Si este llamante puede renombrarla, reconfigurarla o compartirla |
+| `can_manage` | Si este llamante puede renombrarla o reconfigurarla; solo su propietario la comparte |
 | `can_delete` | Si este llamante puede borrarla |
 
 Listar, leer y borrar se resuelven contra la tabla (`tables:view`); crear o cambiar
@@ -503,6 +503,13 @@ rechaza igual que cualquier otra escritura sobre un recurso individual aquí:
 `NOT_FOUND` (404), nunca un 403 que revelaría la existencia de una vista a un
 llamante al que se le niega. `can_manage` y `can_delete` dicen cuál de las dos cosas
 puede hacer este llamante.
+
+La vista privada de otro miembro es más estrecha todavía: incluso un llamante con
+scope `ALL` solo puede borrarla, nunca cambiarla ni leerla, así que un `PATCH`
+responde `NOT_FOUND` como lo haría con una vista que no existe. Y solo el
+propietario de una vista cambia su `visibility`: a cualquier otro que envíe un
+valor distinto se le rechaza con `AUTHORIZATION_ERROR` (403), porque esa vista ya
+la tiene delante.
 
 Archivar una columna se rechaza con `SCHEMA_DEPENDENCY`, nombrando la vista, cuando
 una vista que el llamante puede ver y también cambiar aún la usa para filtrar,
@@ -577,6 +584,12 @@ Pasa al run el registro: `record_id`, `event`, `values` por id de columna, los m
 valores como `fields` por etiqueta y `author_id`, y en un cambio o un borrado también
 `before` y las columnas `changed` por etiqueta. **Triggers**, en la página de la
 tabla, enumera los workflows, pausa y reanuda cada uno y abre su historial.
+
+Pausar uno allí requiere `tables:edit` en la tabla. Reanudarlo vuelve a ejecutar el
+workflow como la persona que lo publicó, así que también requiere `workflows:edit`
+y `workflows:run` en ese workflow, como el propio interruptor **Active** del
+workflow; a un miembro que puede editar la tabla pero no el workflow se le dice que
+el workflow no existe.
 
 Un trigger solo se inicia con los registros añadidos mientras está activo. Activarlo - una
 publicación o reanudarlo - toma el bloqueo de esquema de la tabla, el que espera toda escritura de
@@ -806,6 +819,15 @@ AgenticOS MCP ofrece `list_task_boards`, `ensure_task_board`, `list_tasks`, `get
 La pertenencia al grupo permite leer su tablero de tareas; escribir requiere además permiso para editar tablas o una concesión explícita de edición. Si la persona asignada a un recordatorio pierde acceso, la tarea queda bloqueada y su creador recibe un caso en Inbox para transferirla. Las conversaciones nuevas de tareas de proyecto pertenecen al proyecto. La cuota de tablas puede impedir la tarea opcional de un resultado de rutina, pero su chat de trabajo, caso de Inbox y notificación siguen entregándose.
 
 Escribir en tableros de proyecto requiere acceso al proyecto y permiso de edición de tablas o una concesión Edit explícita. Eliminar un proyecto, grupo o propietario privado cancela las tareas en cola, resuelve sus casos y elimina la tabla gestionada de ese ámbito con registros, historial y medios en la misma transacción. Los demás ámbitos permanecen intactos. El panel vuelve a un tablero privado accesible si desaparece el seleccionado.
+
+Cambiar el propio tablero de tareas es más estrecho que trabajar en él. Renombrar el
+tablero, cambiar sus columnas o su vista predeterminada, y archivarlo o restaurarlo
+requiere `tables:edit` con scope `ALL` (owner o admin) o ser quien lidera el ámbito del
+tablero: quien lidera el grupo, el propietario del proyecto, la persona a la que
+pertenece un tablero privado. Cualquier otra persona de su audiencia sigue añadiendo y
+editando tareas; `can_manage` de la tabla dice cuál de las dos cosas puede hacer quien
+llama, y la consola muestra los controles del propio tablero solo cuando es verdadero.
+Un intento sin él se rechaza con `AUTHORIZATION_ERROR` (403).
 
 ## Vista predeterminada {#default-view}
 

@@ -303,6 +303,13 @@ class TableSummary(_Schema):
 
 class TableRead(TableSummary):
     columns: list[ColumnDef]
+    can_manage: bool = Field(
+        default=False,
+        description="Whether this caller may rename the table, change its columns or "
+        "default view, or archive it. The same as `can_edit`, except on a task board, "
+        "where adding and editing tasks stays open to its audience and changing the "
+        "board is for an administrator or the leader of its scope.",
+    )
     can_restore: bool = Field(
         default=False,
         description="Whether the table is archived and this caller may restore it with "

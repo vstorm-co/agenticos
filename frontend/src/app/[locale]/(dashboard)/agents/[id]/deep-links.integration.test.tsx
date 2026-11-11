@@ -1,3 +1,4 @@
+import type { AgentSpec } from "@/types/agents";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen } from "@testing-library/react";
 import { Suspense, type ReactNode } from "react";
@@ -73,7 +74,10 @@ vi.mock("@/hooks", async () => {
     useAgent: () => ({
       agent: { ...(page.agent as AgentDetail), kind: page.kind },
       isLoading: false,
-      saveDraft: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
+      saveDraft: {
+        mutateAsync: vi.fn(async (spec: AgentSpec) => ({ draft_spec: spec })),
+        isPending: false,
+      },
       validate: page.validate,
       publish: {
         mutateAsync: vi.fn().mockResolvedValue({ version: 1 }),

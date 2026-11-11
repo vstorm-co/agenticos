@@ -213,11 +213,13 @@ class TableOperations(Operations):
     async def describe_table(self, ctx: AuthContext, table_id: UUID) -> TableRead:
         """One table with the columns of its current schema."""
         table = await self._load_table(ctx, table_id, Perm.TABLES_VIEW)
+        can_edit = await self._can_edit(ctx, table)
         return self._read(
             table,
             await self._columns(table),
-            can_edit=await self._can_edit(ctx, table),
+            can_edit=can_edit,
             can_restore=await self._can_restore(ctx, table),
+            can_manage=can_edit and await self._manages_board(ctx, table),
         )
 
     async def table_source(
@@ -255,6 +257,7 @@ class TableOperations(Operations):
         # every other path that takes both (`create_table` locks no existing row).
         table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, lock=True)
         self._ensure_live(table)
+        await self._ensure_manages_board(ctx, table)
         changes = writable(data, over=VirtualTable)
         if data.default_view_id is not None:
             view = await table_view_repo.get(
@@ -285,6 +288,7 @@ class TableOperations(Operations):
         still depend on is refused, naming them.
         """
         table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, lock=True)
+        await self._ensure_manages_board(ctx, table)
         columns = await self._columns(table)
         # An archived table refuses every write, so neither answer below offers one. The
         # caller passed the edit check `unarchive_table` makes, so both offer the way back.
@@ -312,11 +316,13 @@ class TableOperations(Operations):
 
         Raises:
             NotFoundError: The table is out of reach, or this caller may not edit it.
+            AuthorizationError: A task board this caller may work on but not restore.
             BadRequestError: The table is not archived.
             AlreadyExistsError: A live table has taken its name since it was archived.
         """
         # The row lock before the name lock, the order `update_table` takes them in.
         table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, lock=True)
+        await self._ensure_manages_board(ctx, table)
         if table.archived_at is None:
             raise BadRequestError(
                 message=f"Table '{table.name}' is not archived", details={"table_id": table.id}
@@ -364,9 +370,11 @@ class TableOperations(Operations):
             InvalidSchemaError: The columns are inconsistent, or a column that already
                 has empty cells was made required.
             SchemaDependencyError: Something depends on a column this archives.
+            AuthorizationError: A task board this caller may work on but not reshape.
         """
         table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, lock=True)
         self._ensure_live(table)
+        await self._ensure_manages_board(ctx, table)
         if data.expected_version != table.schema_version:
             raise SchemaVersionConflictError(
                 expected_version=data.expected_version, current_version=table.schema_version

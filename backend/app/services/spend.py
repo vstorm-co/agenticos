@@ -21,7 +21,7 @@ raises the same :class:`~app.agents.capabilities.budget.BudgetExceeded` so a
 refusal reads identically wherever it surfaces.
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
@@ -48,6 +48,19 @@ def month_start(now: datetime | None = None) -> datetime:
     """
     moment = now or datetime.now(UTC)
     return moment.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+
+def budget_window(started_at: datetime | None) -> tuple[datetime, datetime]:
+    """The month a run's spend is checked against: the one it started in, `None` being now.
+
+    A run's whole cost is booked to the month it started, so a run resumed after
+    the first, or a call still talking past midnight on the last day, is weighed
+    against that month's spend, as every report counts it, rather than against a
+    month that never saw its earlier cost. The window is closed at the next first
+    so a baseline read again later stays that month's.
+    """
+    started = month_start(started_at)
+    return started, month_start(started.replace(day=28) + timedelta(days=4))
 
 
 async def organization_spend_since(

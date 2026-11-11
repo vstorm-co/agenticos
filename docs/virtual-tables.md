@@ -462,7 +462,7 @@ presentation. An explicitly empty `visible_columns: []` hides all custom columns
 |---|---|
 | `kind` | `table`, `kanban` or `list` - a view is saved *for* one kind |
 | `visibility` | `private` (only its owner) or `shared` (anyone who can see the table) |
-| `can_manage` | Whether this caller may rename, reconfigure or reshare it |
+| `can_manage` | Whether this caller may rename or reconfigure it; only its owner reshares it |
 | `can_delete` | Whether this caller may delete it |
 
 Listing, reading and deleting resolve against the table (`tables:view`); creating
@@ -475,6 +475,12 @@ table" - so a shared editor cannot silently repoint another member's saved filte
 the same way every other per-resource write here is: `NOT_FOUND` (404), never a 403
 that would disclose a view's existence to a caller it refuses. `can_manage` and
 `can_delete` say which of the two this caller may do.
+
+Another member's private view is narrower again: even an `ALL`-scope caller may
+only delete it, never change it or read it back, so a `PATCH` answers `NOT_FOUND`
+as it would for a view that does not exist. And only a view's owner changes its
+`visibility`: anyone else sending a different one is refused with
+`AUTHORIZATION_ERROR` (403), since the view is already in front of them.
 
 Archiving a column is refused with `SCHEMA_DEPENDENCY`, naming the view, when a
 view the caller can both see and change filters, sorts or groups by it: one of their
@@ -543,6 +549,11 @@ It hands the run the record: `record_id`, `event`, `values` by column id, the sa
 values as `fields` by label and `author_id`, and for a change or a deletion `before`
 and the `changed` columns by label. **Triggers** on the table's page lists the
 workflows that start from it, pauses and resumes each, and opens its history.
+
+Pausing one there needs `tables:edit` on the table. Resuming one starts the workflow
+as its publisher again, so it also needs `workflows:edit` and `workflows:run` on that
+workflow, as the workflow's own **Active** switch does; a member who can edit the
+table but not the workflow is told the workflow was not found.
 
 A trigger starts only for records added while it is on. Switching it on - a publish,
 or resuming it - takes the table's schema lock, the one every record write waits on, so no record
@@ -799,6 +810,14 @@ checklist stays internal to a run and does not create scheduled commitments.
 Group membership permits reading the group’s task board; writes additionally require table-edit permission or an explicit edit grant. If a reminder’s assigned reviewer loses access, the task becomes blocked and its creator receives an Inbox case to arrange a handoff. New working conversations for project tasks stay in that project. A table quota can prevent the optional task projection of a routine finding, but its working chat, Inbox case and notification are still delivered.
 
 Project task-board writes require project access and table-edit permission or an explicit table Edit grant. Removing a project, group or private owner cancels queued task work, resolves task cases and purges that scope’s managed table, records, history and media in the same transaction. Other scopes remain intact. The tasks panel falls back to an accessible private board if the selected board disappears.
+
+Changing a task board itself is narrower than working on it. Renaming the board, changing
+its columns or default view, and archiving or restoring it need `tables:edit` at the `ALL`
+scope (an owner or admin) or the leader of the board's scope: the group's lead, the
+project's owner, the person a private board belongs to. Anyone else in the board's
+audience still adds and edits tasks; the table's `can_manage` says which of the two a
+caller may do, and the console shows the board's own controls only when it is true. An
+attempt without it is refused with `AUTHORIZATION_ERROR` (403).
 
 ## Default view {#default-view}
 

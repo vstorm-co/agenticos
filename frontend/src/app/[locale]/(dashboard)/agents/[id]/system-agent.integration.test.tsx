@@ -94,7 +94,7 @@ function file(id: string, name: string, visibility: string) {
   };
 }
 
-const saveDraft = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const saveDraft = vi.hoisted(() => vi.fn(async (spec: AgentSpec) => ({ draft_spec: spec })));
 
 const page = vi.hoisted(() => ({
   kind: "judge" as AgentKind,

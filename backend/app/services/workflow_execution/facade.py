@@ -1076,7 +1076,9 @@ class WorkflowExecutionService:
             WorkflowRunNotRetryableError: The run did not fail, was not
                 cancelled and did not run out of budget.
             AuthorizationError: The caller may see the run but not run its
-                workflow - or, for a test run, not edit it.
+                workflow - or, for a test run, not edit it - or the run was
+                cancelled and the caller is neither the person who started it nor
+                an editor of its workflow, so could not have cancelled it.
             WorkflowArchivedError: The workflow is archived.
             WorkflowNotRunnableError: The version the run ran no longer resolves.
             WorkflowAdmissionQuotaError: As `start`.
@@ -1094,6 +1096,14 @@ class WorkflowExecutionService:
             )
         ):
             raise AuthorizationError(message="You may not retry this run")
+        if original.status == WorkflowRunStatus.CANCELLED.value and not await self._may_cancel(
+            ctx, original, workflow
+        ):
+            raise AuthorizationError(
+                message="Only the person who started this run, or an editor of its "
+                "workflow, may retry it after it was cancelled",
+                details={"run_id": original.id},
+            )
         if workflow.status == WorkflowStatus.ARCHIVED.value:
             raise WorkflowArchivedError(
                 workflow_id=workflow.id, message="This workflow is archived and cannot be run"

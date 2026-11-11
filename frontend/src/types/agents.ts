@@ -112,6 +112,8 @@ export interface CodeModeSpec {
 
 /** Where this agent's traces go, when not to the deployment's own project. */
 export interface ObservabilitySpec {
+  organization?: string | null;
+  project?: string | null;
   /** An organization secret holding a Logfire write token - an id, never a token. */
   token_secret_id?: string | null;
   /** What the agent is called in Logfire; falls back to the agent's name. */

@@ -117,6 +117,14 @@ def _db() -> MagicMock:
 
 
 @pytest.fixture(autouse=True)
+def _no_current_cap(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No current published version sets a cap; `test_agent_runner` covers one."""
+    monkeypatch.setattr(
+        "app.services.agent_runner.agent_repo.published_budget_caps", AsyncMock(return_value={})
+    )
+
+
+@pytest.fixture(autouse=True)
 def _in_no_group(monkeypatch: pytest.MonkeyPatch) -> None:
     """Nobody here is in a group; `test_prompt_variables` covers `{{groups}}`."""
     monkeypatch.setattr(
@@ -367,7 +375,7 @@ async def test_a_calls_start_reads_its_baselines_off_the_pool_and_its_heartbeats
             new=AsyncMock(return_value=Decimal("1")),
         ),
         patch(
-            "app.services.agent_runner.organization_monthly_spend",
+            "app.services.agent_runner.organization_spend_since",
             new=AsyncMock(return_value=Decimal("2")),
         ),
     ):

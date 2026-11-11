@@ -43,6 +43,17 @@ _WRITE_REFUSALS: dict[int | str, dict[str, Any]] = {
     },
     409: {"model": ErrorEnvelope, "description": "The table is archived"},
 }
+_UPDATE_REFUSALS: dict[int | str, dict[str, Any]] = {
+    **_WRITE_REFUSALS,
+    409: {
+        "model": ErrorEnvelope,
+        "description": "The table is archived, or resuming and the workflow is archived",
+    },
+    403: {
+        "model": ErrorEnvelope,
+        "description": "Resuming, and the caller may edit the workflow but not run it",
+    },
+}
 
 
 @router.get("/{table_id}/triggers", response_model=TableTriggerList, responses=_REFUSALS)
@@ -54,7 +65,7 @@ async def list_table_triggers(table_id: UUID, service: TableTriggerSvc, ctx: Aut
 @router.patch(
     "/{table_id}/triggers/{trigger_id}",
     response_model=TableTriggerRead,
-    responses=_WRITE_REFUSALS,
+    responses=_UPDATE_REFUSALS,
     dependencies=[Depends(limit_table_write)],
 )
 async def update_table_trigger(
@@ -64,7 +75,11 @@ async def update_table_trigger(
     service: TableTriggerSvc,
     ctx: Auth,
 ) -> Any:
-    """Pause or resume a trigger. It keeps running as whoever published its workflow."""
+    """Pause or resume a trigger. It keeps running as whoever published its workflow.
+
+    Pausing needs `tables:edit` on the table. Resuming also needs `workflows:edit` and
+    `workflows:run` on the workflow, as the workflow's own switch does.
+    """
     return await service.set_active(ctx, table_id, trigger_id, data)
 
 

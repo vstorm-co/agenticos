@@ -144,6 +144,15 @@ _TOO_LARGE: dict[int | str, dict[str, Any]] = {
     413: {"model": ErrorEnvelope, "description": "More records match than one export writes"},
 }
 _STORING_REFUSALS: dict[int | str, dict[str, Any]] = {**_WRITE_REFUSALS, **_QUOTA}
+# Changing a task board itself is narrower than working on it: a caller who reaches the
+# table, and so learns nothing from a refusal, may still not rename, reshape or archive it.
+_BOARD_REFUSALS: dict[int | str, dict[str, Any]] = {
+    **_WRITE_REFUSALS,
+    403: {
+        "model": ErrorEnvelope,
+        "description": "A task board this caller may work on but not change",
+    },
+}
 
 _GATED_REFUSALS: dict[int | str, dict[str, Any]] = {
     403: {
@@ -200,7 +209,7 @@ async def describe_table(table_id: UUID, service: VirtualTableSvc, ctx: Auth) ->
 @router.patch(
     "/{table_id}",
     response_model=TableRead,
-    responses=_WRITE_REFUSALS,
+    responses=_BOARD_REFUSALS,
     dependencies=[Depends(limit_table_write)],
 )
 async def update_table(
@@ -213,7 +222,7 @@ async def update_table(
 @router.post(
     "/{table_id}/archive",
     response_model=TableRead,
-    responses=_WRITE_REFUSALS,
+    responses=_BOARD_REFUSALS,
     dependencies=[Depends(limit_table_write)],
 )
 async def archive_table(table_id: UUID, service: VirtualTableSvc, ctx: Auth) -> Any:
@@ -226,7 +235,7 @@ async def archive_table(table_id: UUID, service: VirtualTableSvc, ctx: Auth) -> 
     response_model=TableRead,
     responses={
         400: {"model": ErrorEnvelope, "description": "`BAD_REQUEST`: the table is not archived"},
-        **_WRITE_REFUSALS,
+        **_BOARD_REFUSALS,
     },
     dependencies=[Depends(limit_table_write)],
 )
@@ -243,7 +252,7 @@ async def unarchive_table(table_id: UUID, service: VirtualTableSvc, ctx: Auth) -
 @router.put(
     "/{table_id}/schema",
     response_model=TableRead,
-    responses=_WRITE_REFUSALS,
+    responses=_BOARD_REFUSALS,
     dependencies=[Depends(limit_table_write)],
 )
 async def change_schema(

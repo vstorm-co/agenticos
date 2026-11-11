@@ -481,12 +481,17 @@ async def get_agent(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) -> Any
 
 @router.put(
     "/{agent_id}/draft",
-    response_model=AgentRead,
+    response_model=AgentDetail,
 )
 async def save_draft(
     agent_id: UUID, data: AgentDraftUpdate, service: AgentRegistrySvc, ctx: Auth
 ) -> Any:
-    """Save an edit without making it live. Half-finished specs are allowed here."""
+    """Save an edit and return its normalized draft without making it live.
+
+    Half-finished specs are allowed; reference validation waits for publish.
+    The returned draft is the canonical saved value an editor may adopt when
+    no newer local edits have been made.
+    """
     return await service.save_draft(ctx, agent_id, data.spec)
 
 

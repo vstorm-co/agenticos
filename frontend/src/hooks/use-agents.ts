@@ -379,7 +379,8 @@ export function useAgent(agentId: string | null) {
   );
 
   const saveDraft = useMutation({
-    mutationFn: (spec: AgentSpec) => apiClient.put<Agent>(`/agents/${agentId}/draft`, { spec }),
+    mutationFn: (spec: AgentSpec) =>
+      apiClient.put<AgentDetail>(`/agents/${agentId}/draft`, { spec }),
     onSuccess: invalidate,
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });

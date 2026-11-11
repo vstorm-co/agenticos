@@ -8,14 +8,14 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.group import Group, GroupMember
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.task_board import TaskBoard, TaskLink
 from app.db.models.user import User
 from app.schemas.task import BoardEnsure, TaskCreate, TaskUpdate
-from app.schemas.virtual_table import ColumnInput, RecordUpdate, SchemaUpdate
+from app.schemas.virtual_table import ColumnInput, RecordUpdate, SchemaUpdate, TableUpdate
 from app.services.task_execution import TaskExecution
 from app.services.tasks import TaskLifecycle, TaskService
 from app.services.virtual_tables import VirtualTableService
@@ -1446,3 +1446,252 @@ async def test_concurrently_removed_board_cannot_update_or_purge_an_unrelated_ta
     monkeypatch.setattr(tasks.task_repo, "purge_table", purge)
     await service.purge_scope("private", data.users[0].id, organization_id=data.org.id)
     purge.assert_not_awaited()
+
+
+async def _as_member(db: AsyncSession, data: World) -> AuthContext:
+    member = await db.scalar(
+        select(OrganizationMember).where(OrganizationMember.user_id == data.users[1].id)
+    )
+    assert member is not None
+    member.role = "member"
+    await db.flush()
+    return AuthContext(user_id=data.users[1].id, organization_id=data.org.id, role="member")
+
+
+async def test_a_member_works_on_the_organizations_board_but_cannot_change_it(
+    db: AsyncSession,
+) -> None:
+    data = await world(db)
+    member = await _as_member(db, data)
+    service = TaskService(db)
+    tables = VirtualTableService(db)
+    opened = await service.open_board(member, BoardEnsure(scope="organization"))
+    assert opened.can_edit is True
+
+    seen = await tables.describe_table(member, opened.table_id)
+    assert (seen.can_edit, seen.can_manage) == (True, False)
+    with pytest.raises(AuthorizationError):
+        await tables.archive_table(member, opened.table_id)
+    with pytest.raises(AuthorizationError):
+        await tables.update_table(member, opened.table_id, TableUpdate(name="Mine now"))
+    with pytest.raises(AuthorizationError):
+        await tables.update_schema(
+            member,
+            opened.table_id,
+            SchemaUpdate(
+                expected_version=seen.schema_version,
+                columns=[
+                    *[ColumnInput.model_validate(column.model_dump()) for column in seen.columns],
+                    ColumnInput(label="Extra", type="text"),
+                ],
+            ),
+        )
+    task = await service.create(member, TaskCreate(title="Still mine to add", scope="organization"))
+    assert task.table_id == opened.table_id
+    assert (await tables.describe_table(member, opened.table_id)).archived_at is None
+
+
+async def test_an_owner_archives_and_restores_the_organizations_board(db: AsyncSession) -> None:
+    data = await world(db)
+    owner = data.contexts[0]
+    member = await _as_member(db, data)
+    service = TaskService(db)
+    tables = VirtualTableService(db)
+    opened = await service.open_board(owner, BoardEnsure(scope="organization"))
+    assert opened.can_edit is True
+    assert (await tables.describe_table(owner, opened.table_id)).can_manage is True
+
+    await tables.archive_table(owner, opened.table_id)
+    assert (await tables.describe_table(member, opened.table_id)).can_restore is False
+    with pytest.raises(AuthorizationError):
+        await tables.unarchive_table(member, opened.table_id)
+    restored = await tables.unarchive_table(owner, opened.table_id)
+    assert restored.archived_at is None
+
+
+async def test_a_group_lead_changes_the_groups_board(db: AsyncSession) -> None:
+    data = await world(db)
+    member = await _as_member(db, data)
+    group = Group(organization_id=data.org.id, name="Ops")
+    db.add(group)
+    await db.flush()
+    db.add(GroupMember(group_id=group.id, user_id=data.users[1].id, is_lead=True))
+    await db.flush()
+    tables = VirtualTableService(db)
+    board = await TaskService(db).open_board(member, BoardEnsure(scope="group", scope_id=group.id))
+
+    renamed = await tables.update_table(member, board.table_id, TableUpdate(name="Ops tasks"))
+
+    assert renamed.name == "Ops tasks"
+
+
+async def test_a_board_default_view_is_the_boards_to_change_whoever_saved_it(
+    db: AsyncSession,
+) -> None:
+    from app.schemas.table_view import TableViewUpdate
+    from app.services.virtual_tables import TableViewService
+
+    data = await world(db)
+    member = await _as_member(db, data)
+    opened = await TaskService(db).open_board(member, BoardEnsure(scope="organization"))
+    table = await VirtualTableService(db).describe_table(member, opened.table_id)
+    assert table.default_view_id is not None
+    views = TableViewService(db)
+
+    seen = await views.get_view(member, opened.table_id, table.default_view_id)
+    assert (seen.owner_user_id, seen.can_manage, seen.can_delete) == (
+        data.users[1].id,
+        False,
+        False,
+    )
+    listed = await views.list_views(member, opened.table_id)
+    assert not any(view.can_manage for view in listed.items if view.id == table.default_view_id)
+    with pytest.raises(AuthorizationError):
+        await views.update_view(
+            member, opened.table_id, table.default_view_id, TableViewUpdate(name="Mine")
+        )
+    with pytest.raises(AuthorizationError):
+        await views.delete_view(member, opened.table_id, table.default_view_id)
+
+    renamed = await views.update_view(
+        data.contexts[0], opened.table_id, table.default_view_id, TableViewUpdate(name="Ours")
+    )
+    assert renamed.name == "Ours"
+
+
+async def test_a_group_lead_changes_the_board_default_view_someone_else_saved(
+    db: AsyncSession,
+) -> None:
+    from app.schemas.table_view import TableViewUpdate
+    from app.services.virtual_tables import TableViewService
+
+    data = await world(db)
+    lead = await _as_member(db, data)
+    saver = User(email=f"{uuid4()}@example.com", hashed_password="x", full_name="Saver")
+    db.add(saver)
+    await db.flush()
+    db.add(OrganizationMember(organization_id=data.org.id, user_id=saver.id, role="member"))
+    group = Group(organization_id=data.org.id, name="Ops")
+    db.add(group)
+    await db.flush()
+    db.add_all(
+        [
+            GroupMember(group_id=group.id, user_id=data.users[1].id, is_lead=True),
+            GroupMember(group_id=group.id, user_id=saver.id, is_lead=False),
+        ]
+    )
+    await db.flush()
+    saver_ctx = AuthContext(user_id=saver.id, organization_id=data.org.id, role="member")
+    board = await TaskService(db).open_board(
+        saver_ctx, BoardEnsure(scope="group", scope_id=group.id)
+    )
+    table = await VirtualTableService(db).describe_table(lead, board.table_id)
+    assert table.default_view_id is not None
+    views = TableViewService(db)
+
+    seen = await views.get_view(lead, board.table_id, table.default_view_id)
+    assert (seen.owner_user_id, seen.can_manage, seen.can_delete) == (saver.id, True, True)
+    renamed = await views.update_view(
+        lead, board.table_id, table.default_view_id, TableViewUpdate(name="Ops board")
+    )
+    assert (renamed.name, renamed.can_manage) == ("Ops board", True)
+    with pytest.raises(AuthorizationError):
+        await views.update_view(
+            saver_ctx, board.table_id, table.default_view_id, TableViewUpdate(name="Mine")
+        )
+    await views.delete_view(lead, board.table_id, table.default_view_id)
+
+
+async def test_a_group_lead_is_told_the_board_default_view_uses_a_column_they_archive(
+    db: AsyncSession,
+) -> None:
+    from app.schemas.table_view import TableViewConfig, TableViewUpdate
+    from app.schemas.virtual_table import RecordSort
+    from app.services.virtual_tables import TableViewService
+    from app.services.virtual_tables.exceptions import SchemaDependencyError
+
+    data = await world(db)
+    lead = await _as_member(db, data)
+    saver = User(email=f"{uuid4()}@example.com", hashed_password="x", full_name="Saver")
+    db.add(saver)
+    await db.flush()
+    db.add(OrganizationMember(organization_id=data.org.id, user_id=saver.id, role="member"))
+    group = Group(organization_id=data.org.id, name="Ops")
+    db.add(group)
+    await db.flush()
+    db.add_all(
+        [
+            GroupMember(group_id=group.id, user_id=data.users[1].id, is_lead=True),
+            GroupMember(group_id=group.id, user_id=saver.id, is_lead=False),
+        ]
+    )
+    await db.flush()
+    saver_ctx = AuthContext(user_id=saver.id, organization_id=data.org.id, role="member")
+    board = await TaskService(db).open_board(
+        saver_ctx, BoardEnsure(scope="group", scope_id=group.id)
+    )
+    tables = VirtualTableService(db)
+    table = await tables.describe_table(lead, board.table_id)
+    current = [ColumnInput.model_validate(column.model_dump()) for column in table.columns]
+    table = await tables.update_schema(
+        lead,
+        board.table_id,
+        SchemaUpdate(
+            expected_version=table.schema_version,
+            columns=[*current, ColumnInput(label="Priority", type="text")],
+        ),
+    )
+    priority = next(column for column in table.columns if column.label == "Priority")
+    assert table.default_view_id is not None
+    await TableViewService(db).update_view(
+        lead,
+        board.table_id,
+        table.default_view_id,
+        TableViewUpdate(
+            config=TableViewConfig(
+                group_by=table.columns[1].id, sort=RecordSort(by=str(priority.id))
+            )
+        ),
+    )
+
+    with pytest.raises(SchemaDependencyError):
+        await tables.update_schema(
+            lead,
+            board.table_id,
+            SchemaUpdate(
+                expected_version=table.schema_version,
+                columns=[
+                    ColumnInput.model_validate(
+                        {**column.model_dump(), "archived": column.id == priority.id}
+                    )
+                    for column in table.columns
+                ],
+            ),
+        )
+
+
+async def test_a_member_who_sees_a_board_default_view_is_refused_it_not_told_it_is_missing(
+    db: AsyncSession,
+) -> None:
+    from app.schemas.table_view import TableViewUpdate
+    from app.services.virtual_tables import TableViewService
+
+    data = await world(db)
+    saver = await _as_member(db, data)
+    other = User(email=f"{uuid4()}@example.com", hashed_password="x", full_name="Other")
+    db.add(other)
+    await db.flush()
+    db.add(OrganizationMember(organization_id=data.org.id, user_id=other.id, role="member"))
+    await db.flush()
+    other_ctx = AuthContext(user_id=other.id, organization_id=data.org.id, role="member")
+    board = await TaskService(db).open_board(saver, BoardEnsure(scope="organization"))
+    table = await VirtualTableService(db).describe_table(other_ctx, board.table_id)
+    assert table.default_view_id is not None
+    views = TableViewService(db)
+
+    with pytest.raises(AuthorizationError):
+        await views.update_view(
+            other_ctx, board.table_id, table.default_view_id, TableViewUpdate(name="Mine")
+        )
+    with pytest.raises(AuthorizationError):
+        await views.delete_view(other_ctx, board.table_id, table.default_view_id)
