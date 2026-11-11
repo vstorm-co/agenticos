@@ -21,7 +21,7 @@ raises the same :class:`~app.agents.capabilities.budget.BudgetExceeded` so a
 refusal reads identically wherever it surfaces.
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
@@ -48,6 +48,21 @@ def month_start(now: datetime | None = None) -> datetime:
     """
     moment = now or datetime.now(UTC)
     return moment.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+
+def budget_window(started_at: datetime | None) -> tuple[datetime, datetime | None]:
+    """The month a run's spend is checked against: the one it started in.
+
+    A run's whole cost is booked to the month it started, so a run resumed after
+    the first is weighed against that month's spend, as every report counts it,
+    rather than adding its earlier cost to a month that never saw it. `until` is
+    `None` for a run of the current month.
+    """
+    current = month_start()
+    if started_at is None or started_at >= current:
+        return current, None
+    started = month_start(started_at)
+    return started, month_start(started.replace(day=28) + timedelta(days=4))
 
 
 async def organization_spend_since(

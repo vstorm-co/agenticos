@@ -1,5 +1,5 @@
 ---
-source_sha: "246a8fe6bac4"
+source_sha: "5af32af69853"
 ---
 
 # Governance { #governance }
@@ -100,6 +100,12 @@ Eine Routine prüft vor jedem Werkzeug ihren Ersteller, aktive Mitgliedschaft, R
 | **Agent, monatlich** | dem Spec des Agents | den eigenen Runs dieses Agents | wer den Agent bearbeiten darf |
 | **Abteilung, monatlich** | den Einstellungen der Abteilung | den Runs, die ihre Mitglieder gestartet haben, auf jedem Agent | wer `members:manage` und `budgets:manage` hält |
 | **Organisation, monatlich** | den Einstellungen der Organisation | jedem Run _und_ jeder Ingestion in der Organisation | wer `budgets:manage` hält |
+
+Jedes Monats-Cap zählt die gesamten Kosten eines Runs in dem Monat, in dem der Run
+begann, wie die Ausgabenberichte auch. Ein Run über eine Monatsgrenze hinweg - am
+letzten Abend an einer Genehmigung geparkt und am Ersten genehmigt - erscheint
+vollständig im früheren Monat und wird beim Fortsetzen gegen die Ausgaben dieses
+Monats geprüft, nicht gegen die des neuen.
 
 Eine **neue Organisation startet mit bereits gesetzter Obergrenze für die
 Organisation** — dem `DEFAULT_ORG_MONTHLY_BUDGET_USD` des Deployments

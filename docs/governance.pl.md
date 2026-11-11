@@ -1,5 +1,5 @@
 ---
-source_sha: "246a8fe6bac4"
+source_sha: "5af32af69853"
 ---
 
 # Governance { #governance }
@@ -96,6 +96,12 @@ Rutyna przed każdym narzędziem ponownie sprawdza twórcę, aktywne członkostw
 | **Miesięczny agenta** | spec agenta | runy tego agenta | ten, kto może edytować agenta |
 | **Miesięczny działu** | ustawienia działu | runy uruchomione przez jego członków, na dowolnym agencie | ten, kto ma `members:manage` i `budgets:manage` |
 | **Miesięczny organizacji** | ustawienia organizacji | każdy run _oraz_ ingestię w organizacji | ten, kto ma `budgets:manage` |
+
+Każdy miesięczny limit liczy cały koszt runu w miesiącu, w którym run się zaczął,
+tak jak raporty wydatków. Run, który przechodzi przez granicę miesiąca - zaparkowany
+na zatwierdzeniu ostatniego wieczoru i zatwierdzony pierwszego dnia - w całości
+trafia do wcześniejszego miesiąca, a po wznowieniu jest sprawdzany względem wydatków
+tamtego miesiąca, nie nowego.
 
 **Nowa organizacja startuje z już ustawionym pułapem organizacji** —
 `DEFAULT_ORG_MONTHLY_BUDGET_USD` wdrożenia ([konfiguracja](configuration.md),

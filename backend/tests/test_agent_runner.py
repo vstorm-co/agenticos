@@ -12,7 +12,7 @@ import uuid
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import nullcontext
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
@@ -112,6 +112,7 @@ from app.services.agent_runner import (
     _with_account_notes,
     _with_personal_service_gaps,
     _with_test_secrets,
+    budget_window,
     month_start,
     run_failure_summary,
 )
@@ -255,6 +256,7 @@ def _parked_run(**overrides):
         output_tokens=200,
         cost_usd=Decimal("0.25"),
         cost_is_partial=False,
+        started_at=datetime.now(UTC),
     )
     for name, value in overrides.items():
         setattr(run, name, value)
@@ -266,6 +268,20 @@ class TestMonthBoundary:
         """A rolling window cannot be reconciled against an invoice."""
         moment = datetime(2026, 7, 26, 22, 30, tzinfo=UTC)
         assert month_start(moment) == datetime(2026, 7, 1, tzinfo=UTC)
+
+    def test_a_run_of_this_month_is_weighed_against_this_month_so_far(self):
+        assert budget_window(datetime.now(UTC)) == (month_start(), None)
+        assert budget_window(None) == (month_start(), None)
+
+    def test_an_earlier_run_is_weighed_against_the_whole_month_it_started(self):
+        assert budget_window(datetime(2025, 12, 31, 23, 59, tzinfo=UTC)) == (
+            datetime(2025, 12, 1, tzinfo=UTC),
+            datetime(2026, 1, 1, tzinfo=UTC),
+        )
+        assert budget_window(datetime(2026, 2, 3, tzinfo=UTC)) == (
+            datetime(2026, 2, 1, tzinfo=UTC),
+            datetime(2026, 3, 1, tzinfo=UTC),
+        )
 
 
 class TestPrepare:
@@ -1283,6 +1299,26 @@ class TestPrepare:
         )
         assert total.call_args.kwargs["group_id"] == finance.id
         assert total.call_args.kwargs["exclude_run_id"] == built["run_id"]
+
+    @pytest.mark.anyio
+    async def test_a_department_is_metered_over_the_window_it_is_given(self, monkeypatch):
+        finance = CappedGroup(uuid.uuid4(), "Finance", Decimal("25"))
+        monkeypatch.setattr(
+            "app.services.agent_runner.group_repo.capped_groups_for_member",
+            AsyncMock(return_value=[finance]),
+        )
+        since, until = datetime(2026, 10, 1, tzinfo=UTC), datetime(2026, 11, 1, tzinfo=UTC)
+        (limit,) = await AgentRunnerService(_db())._group_limits(
+            _ctx(), exclude_run_id=uuid.uuid4(), since=since, until=until
+        )
+
+        with patch(
+            "app.services.agent_runner.agent_run_repo.sum_cost_since",
+            new=AsyncMock(return_value=Decimal("3")),
+        ) as total:
+            await limit.period_spend()
+
+        assert (total.call_args.kwargs["since"], total.call_args.kwargs["until"]) == (since, until)
 
     @pytest.mark.anyio
     async def test_a_run_nobody_started_answers_to_no_department(self):
@@ -2393,6 +2429,7 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
             user_id=ctx.user_id,
             key_scopes=None,
             initiated_by_publisher_fallback=False,
+            started_at=datetime.now(UTC),
         )
 
         _, instructions, _, restored, find = await self._prepare(
@@ -2413,12 +2450,14 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
                 user_id=uuid.uuid4(),
                 key_scopes=None,
                 initiated_by_publisher_fallback=False,
+                started_at=datetime.now(UTC),
             ),
             MagicMock(
                 environment_id=None,
                 routine_origin_id=None,
                 key_scopes=["agents:run"],
                 initiated_by_publisher_fallback=False,
+                started_at=datetime.now(UTC),
             ),
         ],
         ids=["released-by-another-approver", "started-by-a-key"],
@@ -3989,6 +4028,7 @@ class TestResume:
         stream_receipt: bool = False,
         conversation_id: uuid.UUID | None = None,
         current_revision: int | None = 0,
+        started_at: datetime | None = None,
     ) -> MagicMock:
         """Resume a parked run and hand back the `build_agent` mock.
 
@@ -4005,6 +4045,7 @@ class TestResume:
             surface=surface.value,
             parent_run_id=parent_run_id,
             conversation_id=conversation_id,
+            started_at=started_at or datetime.now(UTC),
         )
         run.paused_state["tool_call_ids"] = {str(approval.id): "call-1"}
         from contextlib import asynccontextmanager
@@ -4103,6 +4144,41 @@ class TestResume:
         assert self.finished.await_args.kwargs["status"] == (
             RunStatus.COMPLETED.value if allowed else RunStatus.GUARDRAIL_BLOCKED.value
         )
+
+    @pytest.mark.anyio
+    async def test_a_run_resumed_in_a_new_month_is_weighed_against_the_month_it_started(self):
+        """Its whole cost is booked to the month it started, as every report counts it.
+
+        Weighed against the new month instead, its earlier cost - already in the
+        ledger - lands on a month that never saw it, and a continuation the new
+        month has room for is refused.
+        """
+        this_month = month_start()
+        last_month = month_start(this_month - timedelta(days=1))
+        build = await self._resumed(
+            paused_state={"messages": [], "tool_call_ids": {}},
+            started_at=this_month - timedelta(hours=2),
+        )
+        kwargs = build.call_args.kwargs
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.sum_cost_since",
+                new=AsyncMock(return_value=Decimal("0")),
+            ) as runs,
+            patch(
+                "app.services.agent_runner.organization_spend_since",
+                new=AsyncMock(return_value=Decimal("0")),
+            ) as organization,
+        ):
+            await kwargs["agent_period_spend"]()
+            await kwargs["org_period_spend"]()
+
+        window = runs.call_args.kwargs
+        assert (window["since"], window["until"]) == (last_month, this_month)
+        assert window["exclude_run_id"] == self.resumed_run.id
+        assert organization.call_args.args[2] == last_month
+        assert organization.call_args.kwargs["until"] == this_month
 
     @pytest.mark.anyio
     async def test_streamed_resume_announces_its_saved_message_without_a_second_bubble(self):

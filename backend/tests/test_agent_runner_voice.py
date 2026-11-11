@@ -367,7 +367,7 @@ async def test_a_calls_start_reads_its_baselines_off_the_pool_and_its_heartbeats
             new=AsyncMock(return_value=Decimal("1")),
         ),
         patch(
-            "app.services.agent_runner.organization_monthly_spend",
+            "app.services.agent_runner.organization_spend_since",
             new=AsyncMock(return_value=Decimal("2")),
         ),
     ):
