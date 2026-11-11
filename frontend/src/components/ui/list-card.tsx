@@ -81,11 +81,11 @@ export function ListCard({
         {...rest}
       >
         <CardHeader
+          hidden={empty}
           data-tour={headerTour}
           className={cn(
             "shrink-0 flex-col gap-3 space-y-0 border-b px-4 py-3 sm:min-h-14 sm:flex-row sm:items-center sm:justify-between sm:px-5",
             layout === "grid" && "border-0 px-0 pt-0 pb-4 sm:px-0",
-            empty && "sr-only",
           )}
         >
           <CardTitle className="sr-only">{title}</CardTitle>

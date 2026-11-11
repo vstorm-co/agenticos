@@ -19,9 +19,9 @@ export function MeOpening({ orgId, period }: { orgId: string | null; period: Per
   const t = useTranslations("dashboard.widgets.suggestions");
   const { can } = usePermissions();
   return (
-    // Reserve the checklist before its queries settle. Only the briefing stretches
-    // beside it; overriding every child's height erased the checklist's slot.
-    <div className="mt-6 flex flex-col gap-6 lg:flex-row [&>*]:min-w-0 [&>*]:shrink-0 lg:[&>*]:flex-1 [&>.dash-widget]:h-56 [&>.dash-widget]:min-h-56 lg:[&>.dash-widget]:h-[31rem]">
+    // Match the checklist while it is visible; a briefing on its own should not
+    // keep the space of a checklist that has been completed or dismissed.
+    <div className="mt-6 flex flex-col gap-6 lg:flex-row [&>*]:min-w-0 [&>*]:shrink-0 lg:[&>*]:flex-1 [&>.dash-widget]:h-56 [&>.dash-widget]:min-h-56 lg:[&>.dash-widget:not(:only-child)]:h-[31rem]">
       {orgId && <StartChecklist orgId={orgId} className="mt-0" />}
       {can(Perm.agentsRun) && (
         <SuggestionsWidget

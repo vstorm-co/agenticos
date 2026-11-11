@@ -2290,7 +2290,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
 function BuilderSkeleton() {
   const t = useTranslations("pages.agents");
   return (
-    <div role="status" aria-label={t("loading")} className="space-y-6">
+    <div role="status" aria-label={t("loading")} className="min-w-0 space-y-6">
       <div className="mb-6 md:mb-8">
         <div className="bg-foreground/8 mb-3 h-3 w-40 animate-pulse rounded" />
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -2298,7 +2298,7 @@ function BuilderSkeleton() {
             <div className="bg-foreground/10 h-5 w-52 animate-pulse rounded" />
             <div className="bg-foreground/8 h-3.5 w-80 max-w-full animate-pulse rounded" />
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
             {["w-32", "w-28", "w-24", "w-20"].map((width, index) => (
               <div
                 key={index}
@@ -2312,9 +2312,12 @@ function BuilderSkeleton() {
       {/* Tab strip - one placeholder per tab, at the width its label takes.
           Keyed by position rather than by the width class: the classes repeat,
           which React reported as duplicate keys on every load of this page. */}
-      <div className="bg-muted inline-flex h-9 items-center gap-1 rounded-lg p-1">
+      <div className="border-border touch:min-h-11 flex h-9 max-w-full min-w-0 items-center gap-3 overflow-hidden border-b px-2">
         {["w-12", "w-20", "w-28", "w-16", "w-24", "w-16", "w-12"].map((width, index) => (
-          <div key={index} className={cn("bg-foreground/10 h-7 animate-pulse rounded-md", width)} />
+          <div
+            key={index}
+            className={cn("bg-foreground/10 h-4 shrink-0 animate-pulse rounded-md", width)}
+          />
         ))}
       </div>
 

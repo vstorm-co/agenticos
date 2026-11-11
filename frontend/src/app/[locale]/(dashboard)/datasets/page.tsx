@@ -75,6 +75,7 @@ export default function DatasetsPage() {
         fill
         data-tour="datasets-list"
         namedByPage
+        empty={!isLoading && !error && !isFiltering && total === 0}
         title={t("title")}
         counted={error || isLoading ? null : t("datasetCount", { count: total })}
         controls={

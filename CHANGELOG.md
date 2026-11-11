@@ -31,6 +31,24 @@ Two things are versioned separately from this file and worth knowing about:
   Questions, delegations, visible UI tools and existing session/routine policies
   keep their native-tool behaviour (#2876).
 
+### Fixed
+
+- **Console navigation and accessibility.** Browser tabs identify the current
+  page and section, including after navigation, loading and a rename. Empty
+  catalog toolbars no longer leave invisible controls in the keyboard order.
+  Horizontal tab strips indicate content on either side and keep the selected
+  label outside the fade. Keyboard focus remains visible in Windows High
+  Contrast; organization tabs no longer expose extra hint buttons inside the
+  tablist, and the wide permission matrix can be scrolled with a keyboard.
+  The sidebar search shortcut also has sufficient contrast on its tinted badge.
+- **Small-screen and empty-state layout.** The agent Builder's loading state
+  fits a phone without horizontal page overflow. A standalone Briefing no
+  longer reserves space for a dismissed setup card, and an empty dataset
+  catalog omits its redundant count.
+- **Connected accounts in the Vault.** Listing and disconnecting personal and
+  organization accounts now reach the existing backend through the shared,
+  authenticated console proxy instead of returning a frontend 404.
+
 ## [1.65.1] - 2026-11-11
 
 ### Fixed
