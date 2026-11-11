@@ -1,5 +1,5 @@
 ---
-source_sha: "dd3453d3c426"
+source_sha: "f33b8657a820"
 ---
 
 # Governance { #governance }
@@ -135,6 +135,11 @@ na liście agentów — liczba z _opublikowanej_ wersji, bo to ją egzekwuje run
 nie to, co akurat obiecuje draft. Karta zapasu na dashboardzie zestawia je z
 `GET /spend`, więc zbliżający się limit widać, zanim w historii runów zacznie
 pojawiać się `budget_exceeded`.
+
+Ta opublikowana liczba obowiązuje każdy run agenta, także run starszej wersji:
+rutynę, środowisko albo krok workflow przypięte do niej, albo run wznowiony na
+wersji, na której został zaparkowany. Przypięcie decyduje o tym, jak agent działa,
+a nie o tym, ile może wydać.
 
 ### Limit działu { #a-departments-cap }
 
