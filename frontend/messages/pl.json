@@ -2081,12 +2081,12 @@
           "expected": "Oczekiwany wynik",
           "actual": "Zaobserwowany wynik",
           "correction": "Korekta",
-          "export": "Przygotuj przypadek Improve",
-          "review": "Sprawdź tekst przed eksportem z pamięci osobistej. Zaimportuj JSONL do zbioru Improve, przeprowadź ocenę i jawnie zaakceptuj zmianę w Improve. Eksport nie publikuje reguły.",
+          "export": "Dodaj jako przypadek do Improve",
+          "review": "Przejrzyj tekst, zanim opuści pamięć osobistą. Zostanie dodany jako przypadek do wybranego datasetu, gdzie możesz go ocenić i wyraźnie zaakceptować każdą zmianę. To nie publikuje żadnej reguły.",
           "input": "Wejście do oceny",
           "reference": "Oczekiwana odpowiedź",
-          "consent": "Przejrzałem te pola i zgadzam się na ich eksport do pliku zbioru danych.",
-          "download": "Pobierz zatwierdzony przypadek"
+          "consent": "Przejrzałem te pola i zgadzam się na dodanie ich do tego datasetu.",
+          "add": "Dodaj przejrzany przypadek"
         }
       },
       "browser": {

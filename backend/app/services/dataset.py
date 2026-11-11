@@ -1023,6 +1023,50 @@ class DatasetService:
         """Add a case written by hand, as a new version."""
         return await self._add(ctx, dataset_id, data, source=CaseSource.MANUAL)
 
+    async def add_reviewed_case(
+        self,
+        ctx: AuthContext,
+        dataset_id: UUID,
+        data: DatasetCaseContent,
+        *,
+        asked_by: UUID,
+        source_run_id: UUID | None,
+        source_conversation_id: UUID | None,
+    ) -> DatasetCaseRead:
+        """Add a case a person reviewed from their own memory, as a new version.
+
+        The person is recorded as who asked it, which is what an erasure finds the
+        case by. The run and conversation it came from are linked only while they
+        still exist in this organization.
+
+        Raises:
+            NotFoundError: For a dataset the caller may not edit.
+        """
+        await self.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
+        run = (
+            None
+            if source_run_id is None
+            else await agent_run_repo.get_run(
+                self.db, source_run_id, organization_id=ctx.organization_id
+            )
+        )
+        conversation = (
+            None
+            if source_conversation_id is None
+            else await conversation_repo.get_conversation_by_id(self.db, source_conversation_id)
+        )
+        if conversation is not None and conversation.organization_id != ctx.organization_id:
+            conversation = None
+        return await self._add(
+            ctx,
+            dataset_id,
+            data,
+            source=CaseSource.MANUAL,
+            authorship=Authorship(asked_by=asked_by),
+            source_run_id=None if run is None else run.id,
+            source_conversation_id=None if conversation is None else conversation.id,
+        )
+
     async def lock_for_edit(self, ctx: AuthContext, dataset_id: UUID) -> Dataset:
         """The dataset, locked until the transaction ends, for a caller who may edit it.
 
