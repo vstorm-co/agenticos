@@ -93,6 +93,7 @@ const ORG_STEPS = [
   "org-governance",
   "org-proactivity",
   "org-proactivity-model",
+  "org-public-attribution",
   "org-public-live-data",
   "org-voice",
   "org-assistant",

@@ -1,5 +1,5 @@
 ---
-source_sha: "13e511da30cb"
+source_sha: "cba80f115942"
 ---
 
 # Workflows { #workflows }
@@ -358,10 +358,25 @@ en la tarjeta, y la pestaña lleva un punto en cuanto algo allí cambia.
 
 Apagar allí **Run this step**, o **Switch off** en su menú contextual, deja el paso en el
 lienzo, atenuado, y lo salta cuando una ejecución llega a él: no hace nada y entrega lo
-que le llegó. Publicar rechaza un trigger o un paso que decide el camino apagados, y un
+que le llegó. Publicar rechaza un trigger o un paso conectado que decide el camino apagados, y un
 paso que lee uno apagado, salvo que lo que le llega - por su única conexión de entrada,
 desde un paso encendido - tenga el campo leído, que entonces entrega. Los tres se guardan
 en el grafo, así que las versiones los conservan.
+
+En un paso apagado, conectado o no, no se comprueban ni las entradas ni los ajustes:
+no lee ni unas ni otros. Volver a encenderlo es un cambio que hay que publicar, y la
+publicación los comprueba entonces.
+
+Un paso apagado sin ninguna conexión queda apartado: puede estar junto al workflow o
+dentro de un bucle - un **Combine lists** con datos de prueba, por ejemplo - sin ser
+alcanzable. Un run lo ignora y no cuenta para el límite de pasos del run. Si lo
+conectas a algo, vuelve a tener que ser alcanzable. Cualquier
+paso puede quedar apartado, incluso uno que decide el camino, como **If**: sin
+conexiones no tiene entre qué elegir. Solo el trigger y el **Loop item** y el
+**Loop result** de un bucle siguen siempre encendidos.
+
+
+Un paso apagado puede conservar su política de errores y sus enlaces a archivos o tablas, aunque el recurso ya no sea accesible. No los lee; al volver a encenderlo se comprueban de nuevo. Un paso apartado aparece como **Apagado** en la pestaña de pasos del run, sin un registro de ejecución. Conéctalo a un trigger antes de usar **Test step**.
 
 ### Los datos de un paso, datos de prueba y probar un paso { #a-steps-data-pinning-and-testing-one-step }
 

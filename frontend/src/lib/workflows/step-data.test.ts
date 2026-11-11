@@ -333,6 +333,14 @@ describe("earlierSteps", () => {
     expect(earlierSteps(graph, "c", new Set(["c"]))).not.toContain("c");
     expect(earlierSteps(graph, "a", new Set())).toEqual([]);
   });
+
+  it("never offers a step switched off, even the one wired just before", () => {
+    const off = {
+      ...graph,
+      nodes: graph.nodes.map((node) => (node.id === "b" ? { ...node, disabled: true } : node)),
+    };
+    expect(earlierSteps(off, "c", new Set(["a", "b"]))).toEqual(["x", "a", "far"]);
+  });
 });
 
 describe("testEntryGraph", () => {

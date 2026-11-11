@@ -35,6 +35,8 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, delete, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -184,7 +186,6 @@ def test_delete_crosslink_migration_preserves_rows_and_defers_only_checks() -> N
     from app.db.models.agent_trigger import AgentTrigger
     from app.db.models.artifact import Artifact
     from app.db.models.conversation import Conversation
-    from app.db.models.organization import Organization
 
     for action, revision in (
         ("upgrade", "head"),
@@ -200,32 +201,36 @@ def test_delete_crosslink_migration_preserves_rows_and_defers_only_checks() -> N
             owner = User(email=f"{uuid4()}@example.com", hashed_password="x")
             db.add_all([creator, owner])
             db.flush()
-            org = Organization(
-                name="Crosslinks", slug=f"crosslinks-{uuid4()}", created_by_user_id=creator.id
+            # This is the 0304 schema, before columns added by later migrations.
+            org_id = uuid4()
+            db.execute(
+                text(
+                    "INSERT INTO organizations (id, name, slug, is_personal, created_by_user_id) "
+                    "VALUES (:id, 'Crosslinks', :slug, false, :creator)"
+                ),
+                {"id": org_id, "slug": f"crosslinks-{org_id}", "creator": creator.id},
             )
-            db.add(org)
-            db.flush()
-            agent = Agent(organization_id=org.id, name="Reporter", slug=f"reporter-{uuid4()}")
-            chat = Conversation(organization_id=org.id, user_id=owner.id, title="Private")
+            agent = Agent(organization_id=org_id, name="Reporter", slug=f"reporter-{uuid4()}")
+            chat = Conversation(organization_id=org_id, user_id=owner.id, title="Private")
             db.add_all([agent, chat])
             db.flush()
-            version = AgentVersion(organization_id=org.id, agent_id=agent.id, version=1, spec={})
+            version = AgentVersion(organization_id=org_id, agent_id=agent.id, version=1, spec={})
             db.add(version)
             db.flush()
             environment = AgentEnvironment(
-                organization_id=org.id, agent_id=agent.id, version_id=version.id, name="staging"
+                organization_id=org_id, agent_id=agent.id, version_id=version.id, name="staging"
             )
             db.add(environment)
             db.flush()
             page = Artifact(
-                organization_id=org.id,
+                organization_id=org_id,
                 agent_id=agent.id,
                 environment_id=environment.id,
                 name="report",
                 title="Report",
             )
             routine = AgentTrigger(
-                organization_id=org.id,
+                organization_id=org_id,
                 agent_id=agent.id,
                 created_by_user_id=owner.id,
                 prompt="Report",
@@ -491,7 +496,7 @@ def test_improvement_merge_upgrades_either_existing_history(starting_revision: s
             )
             assert (
                 connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-                == "0312_skill_check_reasons"
+                == ScriptDirectory.from_config(Config("alembic.ini")).get_current_head()
             )
         check = _alembic("check")
         assert check.returncode == 0, check.stderr
@@ -1359,7 +1364,7 @@ class TestRunSkillUsesBackfill:
         """
         reset = _alembic("downgrade", "base")
         assert reset.returncode == 0, reset.stderr
-        before = _alembic("upgrade", "0305_defer_delete_crosslinks")
+        before = _alembic("upgrade", "0306_shared_page_attribution")
         assert before.returncode == 0, before.stderr
         engine = create_engine(_url(MIGRATION_DATABASE))
         org, agent = uuid4(), uuid4()
@@ -1483,7 +1488,7 @@ class TestRunSkillUsesBackfill:
                     ).scalar_one()
                     is True
                 )
-            back = _alembic("downgrade", "0305_defer_delete_crosslinks")
+            back = _alembic("downgrade", "0306_shared_page_attribution")
             assert back.returncode == 0, back.stderr
             again = _alembic("upgrade", "head")
             assert again.returncode == 0, again.stderr
@@ -1749,3 +1754,61 @@ class TestDraftPresentationMigration:
             assert check.returncode == 0, check.stderr
         finally:
             engine.dispose()
+
+
+def test_shared_attribution_defaults_and_opt_out_survive_upgrade() -> None:
+    for action, revision in (("upgrade", "head"), ("downgrade", "0305_defer_delete_crosslinks")):
+        result = _alembic(action, revision)
+        assert result.returncode == 0, result.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    user_id, existing_id, new_id = uuid4(), uuid4(), uuid4()
+    insert_org = text(
+        "INSERT INTO organizations (id, name, slug, is_personal, created_by_user_id) "
+        "VALUES (:id, 'Attribution', :slug, false, :creator)"
+    )
+    preference = text("SELECT public_agenticos_attribution FROM organizations WHERE id = :id")
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO users (id, email, is_active, is_app_admin) VALUES (:id, :email, true, false)"
+                ),
+                {"id": user_id, "email": f"{user_id}@example.com"},
+            )
+            connection.execute(
+                insert_org, {"id": existing_id, "slug": str(existing_id), "creator": user_id}
+            )
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+        with engine.begin() as connection:
+            assert connection.execute(preference, {"id": existing_id}).scalar_one() is True
+            connection.execute(insert_org, {"id": new_id, "slug": str(new_id), "creator": user_id})
+            assert connection.execute(preference, {"id": new_id}).scalar_one() is True
+            connection.execute(
+                text(
+                    "UPDATE organizations SET public_agenticos_attribution = false WHERE id = :id"
+                ),
+                {"id": existing_id},
+            )
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+        with engine.connect() as connection:
+            assert connection.execute(preference, {"id": existing_id}).scalar_one() is False
+            assert connection.execute(preference, {"id": new_id}).scalar_one() is True
+        result = _alembic("downgrade", "0305_defer_delete_crosslinks")
+        assert result.returncode == 0, result.stderr
+        with engine.connect() as connection:
+            assert (
+                connection.execute(
+                    text(
+                        "SELECT count(*) FROM information_schema.columns WHERE table_name = 'organizations' AND column_name = 'public_agenticos_attribution'"
+                    )
+                ).scalar_one()
+                == 0
+            )
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+        check = _alembic("check")
+        assert check.returncode == 0, check.stderr
+    finally:
+        engine.dispose()

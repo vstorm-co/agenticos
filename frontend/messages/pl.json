@@ -1,4 +1,10 @@
 {
+  "sharedAttribution": {
+    "madeWith": "Utworzono w <name>AgenticOS</name>",
+    "cta": "Uruchom własny AgenticOS",
+    "description": "Twoje miejsce pracy z AI. Open source.",
+    "ctaShort": "GitHub"
+  },
   "admin": {
     "conversations": "Konwersacje",
     "copy": "Kopiuj",
@@ -5357,6 +5363,10 @@
         "title": "Jego alerty",
         "body": "Reguły, które powiadamiają osoby, gdy ten dziennik przekroczy próg: ile pasujących wierszy, w jakim czasie i kto się o tym dowie. Kto może edytować workflow, dodaje je, zmienia i usuwa."
       },
+      "org-public-attribution": {
+        "title": "AgenticOS na udostępnionych stronach",
+        "body": "Pokazuj pływające oznaczenie AgenticOS z linkiem do GitHuba na publicznych aplikacjach, dashboardach i raportach oraz pod udostępnionymi rozmowami."
+      },
       "org-public-live-data": {
         "title": "Dane na żywo na stronach publicznych",
         "body": "Czy publiczne linki i osadzenia mogą pokazywać dane tabel osobom bez konta. Domyślnie wyłączone, a właściciel każdej strony nadal musi potwierdzić swoją stronę."
@@ -7411,7 +7421,8 @@
         "running": "W toku",
         "waiting": "Czeka",
         "notReached": "Niewykonany",
-        "starting": "Uruchamia się"
+        "starting": "Uruchamia się",
+        "switchedOff": "Wyłączony"
       },
       "startRun": "Rozpocznij uruchomienie",
       "startRunTitle": "Rozpocznij uruchomienie",
@@ -9247,6 +9258,11 @@
       "providerNoKey": "{name} (brak pasującego klucza)",
       "notReadyNoKey": "Nie wybrano klucza dla {provider}. Agenci i boty, które go dziedziczą, nie mogą transkrybować przez providera, dopóki nie wybierzesz klucza poniżej."
     },
+    "publicAttribution": "AgenticOS na udostępnionych stronach",
+    "publicAttributionDescription": "Pokazuj pływające oznaczenie AgenticOS z linkiem do GitHuba na publicznych aplikacjach, dashboardach i raportach oraz pod udostępnionymi rozmowami.",
+    "publicAttributionHint": "Domyślnie włączone. Wyłącz, aby ukryć oznaczenie AgenticOS na publicznych linkach tej organizacji.",
+    "publicAttributionSaved": "Zapisano ustawienie oznaczenia stron",
+    "publicAttributionFailed": "Nie udało się zapisać ustawienia oznaczenia stron",
     "publicLiveData": "Strony publiczne z danymi na żywo",
     "publicLiveDataDescription": "Czy strony publiczne mogą pokazywać dane tabel osobom bez konta.",
     "publicLiveDataHint": "Domyślnie wyłączone. Gdy włączone, publiczny link i osadzenia strony pokazują jej dane tabel po potwierdzeniu przez właściciela. Wyłączenie ukrywa dane wszędzie, ale zachowuje potwierdzenia.",
@@ -10906,6 +10922,7 @@
     "validationLabelTaken": "Inny krok nazywa się już „{label}”.",
     "validationTriggerSwitchedOff": "Wyzwalacza nie można wyłączyć.",
     "validationControlSwitchedOff": "Kroku, który decyduje o drodze przebiegu, nie można wyłączyć.",
+    "validationLoopPartSwitchedOff": "Kroku elementu ani wyniku pętli nie można wyłączyć.",
     "validationBindingReadsSwitchedOff": "To czyta wyłączony krok, więc nic by nie otrzymało.",
     "stepName": "Nazwa kroku",
     "stepNotes": "Notatka",
@@ -11009,6 +11026,7 @@
     "stepTestNotReached": "Ten krok nie został wykonany: test zakończył się, zanim do niego dotarł.",
     "stepTestStopped": "Ten krok nie został wykonany: test został zatrzymany.",
     "stepTestHint": "Uruchom tylko ten krok, na tym, co ostatnio przekazały kroki przed nim",
+    "stepTestNotReachable": "Połącz ten krok z wyzwalaczem, zanim go przetestujesz.",
     "stepTestInsideALoop": "Krok w pętli działa raz na element; przetestuj całą pętlę",
     "stepTestWriteTitle": "Przetestować krok, który zapisuje?",
     "stepTestWriteDescription": "Test naprawdę wykonuje krok: rekordy zostaną zapisane, a wiadomości wysłane, tak jak w prawdziwym przebiegu.",

@@ -19,7 +19,13 @@ from app.core.exceptions import (
 )
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.conversation_share import ConversationShare
-from app.repositories import conversation_repo, conversation_share_repo, member_repo, user_repo
+from app.repositories import (
+    conversation_repo,
+    conversation_share_repo,
+    member_repo,
+    organization_repo,
+    user_repo,
+)
 from app.schemas.conversation_share import (
     SharedConversationBody,
     SharedConversationRead,
@@ -376,9 +382,13 @@ class ConversationShareService:
         # refused, opens nothing: the project decides who reads it.
         if not conv or conv.project_id is not None:
             raise NotFoundError(message="Conversation not found")
+        org = await organization_repo.get_by_id(self.db, conv.organization_id)
+        if org is None:
+            raise NotFoundError(message="Conversation not found")
         drawn = await visuals.shared_visuals(conv)
         drafted = shared_drafts(conv)
         return SharedConversationRead(
+            show_agenticos_attribution=org.public_agenticos_attribution,
             conversation=SharedConversationBody(
                 id=conv.id,
                 title=conv.title,

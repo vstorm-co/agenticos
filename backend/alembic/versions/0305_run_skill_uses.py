@@ -30,7 +30,7 @@ lock on `agent_runs`, held until the backfill has read every row of
 `tool_calls`, which has no index on the tool's name.
 
 Revision ID: 0305_run_skill_uses
-Revises: 0305_defer_delete_crosslinks
+Revises: 0306_shared_page_attribution
 Create Date: 2026-11-02
 """
 
@@ -42,7 +42,7 @@ from sqlalchemy.dialects import postgresql
 from alembic import op
 
 revision: str = "0305_run_skill_uses"
-down_revision: str | None = "0305_defer_delete_crosslinks"
+down_revision: str | None = "0306_shared_page_attribution"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

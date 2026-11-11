@@ -278,15 +278,17 @@ export function OutputPane({
   const canPin = !readOnly && definition.kind !== "control";
   const blocked = isInsideALoop(graph, node.id)
     ? t("stepTestInsideALoop")
-    : problems.length > 0
-      ? tp("runBlockedByProblems", { count: problems.length })
-      : isDirty
-        ? t("publishSaving")
-        : null;
+    : branch === null
+      ? t("stepTestNotReachable")
+      : problems.length > 0
+        ? tp("runBlockedByProblems", { count: problems.length })
+        : isDirty
+          ? t("publishSaving")
+          : null;
 
   const test = (input: Record<string, unknown>) => {
-    // A step no entry reaches cannot be tested; validation blocks the button, so
-    // this only guards the degenerate case instead of starting the wrong entry.
+    // A parked step can be valid without an entry reaching it. Keep this guard
+    // as well as the disabled button if the graph changes during confirmation.
     if (branch === null) return;
     start.mutate(
       {

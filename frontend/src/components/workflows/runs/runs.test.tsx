@@ -19,6 +19,12 @@ describe("run status", () => {
     expect(screen.getByText("Waiting for approval")).toBeTruthy();
     expect(screen.getByText("Skipped")).toBeTruthy();
   });
+
+  it("names a step switched off so, whatever its row says", () => {
+    render(<NodeRunStatusLabel status="pending" switchedOff />);
+    expect(screen.getByText("Switched off")).toBeTruthy();
+    expect(screen.queryByText("Pending")).toBeNull();
+  });
 });
 
 describe("parseRunInput", () => {
