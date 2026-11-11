@@ -1,6 +1,7 @@
 "use client";
 
 import { RoutineAutoPause } from "@/components/triggers/failure-policy-field";
+import { RoutineActionTooltip } from "@/components/triggers/routine-action-tooltip";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -11,7 +12,7 @@ import { toast } from "sonner";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/states";
-import { Badge, Button, ListCard, ListCardEmpty, Switch } from "@/components/ui";
+import { Badge, Button, ListCard, ListCardEmpty, Switch, TooltipProvider } from "@/components/ui";
 import { useAgents, useMcpConnections, useOrganizations } from "@/hooks";
 import { useWatches } from "@/hooks/use-watches";
 import { getErrorMessage } from "@/lib/api-error";
@@ -170,6 +171,7 @@ export function WatchRow({
   onRemove: () => void;
 }) {
   const t = useTranslations("watches");
+  const tTriggers = useTranslations("triggers");
   const tCadence = useTranslations("watches.cadence");
   const tTime = useTranslations("time");
   const locale = useLocale();
@@ -267,29 +269,37 @@ export function WatchRow({
       {watch.is_active && !watch.stopped && lapsed && (
         <Badge variant="outline">{t("signInAgain")}</Badge>
       )}
-      <div className="flex items-center gap-1">
-        <Switch
-          checked={watch.is_active}
-          onCheckedChange={onToggle}
-          aria-label={t("activeLabel", { title: watch.title })}
-        />
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onEdit}
-          aria-label={t("editLabel", { title: watch.title })}
-        >
-          <Pencil className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onRemove}
-          aria-label={t("removeLabel", { title: watch.title })}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </div>
+      <TooltipProvider>
+        <div className="flex items-center gap-1">
+          <RoutineActionTooltip label={tTriggers(watch.is_active ? "pause" : "resume")}>
+            <Switch
+              checked={watch.is_active}
+              onCheckedChange={onToggle}
+              aria-label={t("activeLabel", { title: watch.title })}
+            />
+          </RoutineActionTooltip>
+          <RoutineActionTooltip label={t("editLabel", { title: watch.title })}>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onEdit}
+              aria-label={t("editLabel", { title: watch.title })}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+          </RoutineActionTooltip>
+          <RoutineActionTooltip label={t("removeLabel", { title: watch.title })}>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onRemove}
+              aria-label={t("removeLabel", { title: watch.title })}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </RoutineActionTooltip>
+        </div>
+      </TooltipProvider>
     </li>
   );
 }

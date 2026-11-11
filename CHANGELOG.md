@@ -40,6 +40,9 @@ Two things are versioned separately from this file and worth knowing about:
   folder permissions no longer ask for approval again. Structured workflow
   expectations and paused terminal identities use canonical JSON too (#2892).
 
+- Routine and monitor action icons now show localized labels on hover or focus,
+  including the current pause/resume action and disabled Run now (#2924).
+
 ## [1.65.1] - 2026-11-11
 
 ### Fixed
