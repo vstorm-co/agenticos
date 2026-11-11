@@ -1,5 +1,5 @@
 ---
-source_sha: "5a29be231fd5"
+source_sha: "fc28ea4af1c4"
 ---
 
 # Governance { #governance }
@@ -2418,7 +2418,7 @@ Warto to powiedzieć, bo strona o governance sugeruje coś innego:
 
 ## Automatyczne wstrzymanie po kolejnych błędach { #routine-health }
 
-Rutyny i obserwacje domyślnie wstrzymują się po **trzech kolejnych nieudanych sprawdzeniach**. W formularzu rutyny ustaw limit od 1 do 20 lub wyłącz ten limit. Liczą się błędy dostawcy i wykonania, nieprawidłowe odczyty obserwacji oraz niedostępne źródła. Oczekiwanie na zgodę, komputer offline i błędy dostarczenia nie zwiększają licznika; puste, ale poprawnie zweryfikowane sprawdzenie zeruje serię. Inne blokady uprawnień i budżetu obowiązują także po wyłączeniu tego limitu.
+Rutyny i obserwacje domyślnie wstrzymują się po **trzech kolejnych nieudanych sprawdzeniach**. W formularzu rutyny ustaw limit od 1 do 20 lub wyłącz ten limit. Liczą się błędy dostawcy i wykonania, nieprawidłowe odczyty obserwacji oraz niedostępne źródła. Oczekiwanie na zgodę, komputer offline, błędy dostarczenia i zatrzymania przez budżet nie zwiększają licznika: sprawdzenie odrzucone przez budżet czeka na następne i ani nie wydłuża serii, ani jej nie zeruje. Puste, ale poprawnie zweryfikowane sprawdzenie zeruje serię. Inne blokady uprawnień i budżetu obowiązują także po wyłączeniu tego limitu.
 
 Każda aktywacja ma jeden trwały zapis stanu. Ponowienia nie zwiększają licznika, a opóźnione zakończenia są oceniane według kolejności aktywacji. Automatyczne wstrzymanie zatrzymuje przyszłe aktywacje; trwające żądanie do modelu może się zakończyć.
 

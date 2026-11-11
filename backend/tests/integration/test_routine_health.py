@@ -175,11 +175,40 @@ async def test_source_failures_count_and_a_verified_read_resets_the_streak(
         w.parent, at=NOW + timedelta(minutes=1), status=WatchAttemptStatus.COMPLETED
     )
     assert w.parent.consecutive_failures == 0
-    budget = run(w, 2, status=RunStatus.BUDGET_EXCEEDED)
     await service.watch_result(
-        w.parent, at=NOW + timedelta(minutes=2), status=WatchAttemptStatus.BUDGET_PAUSED, run=budget
+        w.parent, at=NOW + timedelta(minutes=2), status=WatchAttemptStatus.SOURCE_UNAVAILABLE
+    )
+    budget = run(w, 3, status=RunStatus.BUDGET_EXCEEDED)
+    await service.watch_result(
+        w.parent, at=NOW + timedelta(minutes=3), status=WatchAttemptStatus.BUDGET_PAUSED, run=budget
     )
     assert w.parent.consecutive_failures == 1
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("watch", [False, True])
+async def test_budget_stops_wait_for_the_next_activation_and_do_not_pause(
+    db: AsyncSession, watch: bool
+) -> None:
+    """A refused fire waits for the next one; it says nothing about the routine's health."""
+    w = await world(db, watch=watch)
+    service = RoutineHealthService(db)
+    await service.run_result(run(w, 1))
+    for index in (2, 3, 4):
+        stopped = run(w, index, status=RunStatus.BUDGET_EXCEEDED)
+        await service.run_result(stopped)
+        if isinstance(w.parent, Watch):
+            await service.watch_result(
+                w.parent,
+                at=stopped.routine_activation_at,
+                status=WatchAttemptStatus.BUDGET_PAUSED,
+                run=stopped,
+            )
+    assert w.parent.is_active and w.parent.auto_stopped_at is None
+    assert w.parent.consecutive_failures == 1 and await count(db) == 1
+    await service.run_result(run(w, 5))
+    await service.run_result(run(w, 6))
+    assert not w.parent.is_active and w.parent.consecutive_failures == 3
 
 
 async def test_an_explicit_null_policy_is_stored_as_disabled_on_creation(db: AsyncSession) -> None:

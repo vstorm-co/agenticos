@@ -1320,7 +1320,15 @@ class TestPrepare:
 
     @pytest.mark.anyio
     @pytest.mark.parametrize(
-        "fields", [{"user_id": None}, {"trigger_id": uuid.uuid4()}], ids=["nobody", "routine"]
+        "fields",
+        [
+            {"user_id": None},
+            {"trigger_id": uuid.uuid4()},
+            {"routine_origin_id": uuid.uuid4(), "routine_kind": "watch"},
+            {"routine_origin_id": uuid.uuid4(), "trigger_id": None},
+            {"surface": RunSurface.PROACTIVE.value},
+        ],
+        ids=["nobody", "routine", "watch", "deleted-routine", "background"],
     )
     async def test_a_resumed_run_nobody_started_answers_to_no_department(self, fields):
         service = AgentRunnerService(_db())
