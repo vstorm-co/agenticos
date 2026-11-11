@@ -170,6 +170,7 @@ export function WatchRow({
   onRemove: () => void;
 }) {
   const t = useTranslations("watches");
+  const tTriggers = useTranslations("triggers");
   const tCadence = useTranslations("watches.cadence");
   const tTime = useTranslations("time");
   const locale = useLocale();
@@ -272,12 +273,14 @@ export function WatchRow({
           checked={watch.is_active}
           onCheckedChange={onToggle}
           aria-label={t("activeLabel", { title: watch.title })}
+          title={tTriggers(watch.is_active ? "pause" : "resume")}
         />
         <Button
           variant="ghost"
           size="icon"
           onClick={onEdit}
           aria-label={t("editLabel", { title: watch.title })}
+          title={t("editLabel", { title: watch.title })}
         >
           <Pencil className="h-4 w-4" />
         </Button>
@@ -286,6 +289,7 @@ export function WatchRow({
           size="icon"
           onClick={onRemove}
           aria-label={t("removeLabel", { title: watch.title })}
+          title={t("removeLabel", { title: watch.title })}
         >
           <Trash2 className="h-4 w-4" />
         </Button>

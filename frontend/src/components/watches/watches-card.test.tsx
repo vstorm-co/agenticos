@@ -235,6 +235,15 @@ describe("WatchesCard", () => {
     state.watches = [watch(), watch({ id: "w2", title: "Paused one", is_active: false })];
     render(<WatchesCard onNew={onNew} />);
 
+    expect(screen.getByRole("switch", { name: "Watch Reviews" })).toHaveAttribute("title", "Pause");
+    expect(screen.getByRole("button", { name: "Edit Reviews" })).toHaveAttribute(
+      "title",
+      "Edit Reviews",
+    );
+    expect(screen.getByRole("button", { name: "Stop watching Reviews" })).toHaveAttribute(
+      "title",
+      "Stop watching Reviews",
+    );
     await userEvent.click(screen.getByRole("switch", { name: "Watch Reviews" }));
     expect(state.update).toHaveBeenLastCalledWith({ id: "w1", changes: { is_active: false } });
     await waitFor(() => expect(toastSuccess).toHaveBeenLastCalledWith("Paused"));

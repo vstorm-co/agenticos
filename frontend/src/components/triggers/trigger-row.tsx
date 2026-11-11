@@ -160,29 +160,33 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
               className="h-8 w-8"
               data-tour="routine-access"
               aria-label={t("actionConsents.title")}
+              title={t("actionConsents.title")}
               onClick={() => setConsenting(true)}
             >
               <ShieldCheck className="h-4 w-4" />
             </Button>
           )}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            aria-label={t("runNow")}
-            disabled={
-              !trigger.is_active || runNow.isPending || (trigger.waiting_device_count ?? 0) > 0
-            }
-            onClick={fireAndWatch}
-            data-tour="routine-run-now"
-          >
-            <Zap className="h-4 w-4" />
-          </Button>
+          <span title={t("runNow")}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              aria-label={t("runNow")}
+              disabled={
+                !trigger.is_active || runNow.isPending || (trigger.waiting_device_count ?? 0) > 0
+              }
+              onClick={fireAndWatch}
+              data-tour="routine-run-now"
+            >
+              <Zap className="h-4 w-4" />
+            </Button>
+          </span>
           <Button
             variant="ghost"
             size="icon"
             className="h-8 w-8"
             aria-label={t("edit")}
+            title={t("edit")}
             onClick={() => setEditing(true)}
           >
             <Pencil className="h-4 w-4" />
@@ -192,6 +196,7 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
             size="icon"
             className="h-8 w-8"
             aria-label={trigger.is_active ? t("pause") : t("resume")}
+            title={trigger.is_active ? t("pause") : t("resume")}
             disabled={setActive.isPending}
             onClick={() =>
               setActive.mutate({ triggerId: trigger.id, isActive: !trigger.is_active })
@@ -204,6 +209,7 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
             size="icon"
             className="hover:text-destructive h-8 w-8"
             aria-label={t("delete")}
+            title={t("delete")}
             disabled={remove.isPending}
             onClick={() => setConfirmingDelete(true)}
           >

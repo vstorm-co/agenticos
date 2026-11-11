@@ -110,6 +110,24 @@ const OPEN = { name: "See what this trigger has done" };
 describe("TriggerRow run list", () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it("labels routine actions on hover, including a disabled run and resume", () => {
+    const { rerender } = render(<TriggerRow trigger={trigger()} />, { wrapper });
+    expect(screen.getByRole("button", { name: "Run now" }).parentElement).toHaveAttribute(
+      "title",
+      "Run now",
+    );
+    for (const label of ["Edit", "Pause", "Delete"]) {
+      expect(screen.getByRole("button", { name: label })).toHaveAttribute("title", label);
+    }
+    rerender(<TriggerRow trigger={trigger({ is_active: false })} />);
+    expect(screen.getByRole("button", { name: "Run now" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Run now" }).parentElement).toHaveAttribute(
+      "title",
+      "Run now",
+    );
+    expect(screen.getByRole("button", { name: "Resume" })).toHaveAttribute("title", "Resume");
+  });
+
   it("lists each fire with when it ran and how it went", async () => {
     serveRuns([
       run({ id: "r1", status: "completed" }),
