@@ -427,7 +427,21 @@ def carried_over(previous: dict[str, Any], payload: dict[str, Any]) -> dict[str,
     if not earlier_reviews and not earlier_scripts:
         return payload
     reviews = [*earlier_reviews, *payload.get("reviews", [])]
-    scripts = [*earlier_scripts, *payload.get("code_runs", [])]
+    scripts = list(earlier_scripts)
+    for script in payload.get("code_runs", []):
+        existing = next(
+            (
+                i
+                for i, previous_script in enumerate(scripts)
+                if previous_script.get("tool_call_id") == script.get("tool_call_id")
+                and script.get("tool_call_id")
+            ),
+            None,
+        )
+        if existing is None:
+            scripts.append(script)
+        else:
+            scripts[existing] = script
     return {
         **payload,
         "reviews": reviews[:MAX_RECORDED_REVIEWS],

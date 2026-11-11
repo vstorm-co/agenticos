@@ -1283,11 +1283,21 @@ At most four of a script's calls run at once, and the rest wait, so a script
 fanning out over hundreds of sandboxed calls cannot open them all together.
 
 Each call from a script goes through the same guardrails, budget and permission
-checks as a direct call. A tool that needs approval is never folded in: it stays
-an ordinary call, and the run stops for the person as it always does. So do questions,
-delegations and tools whose call is what the person sees (drafts, charts,
-drawings). The run view
-lists each script and every call it made.
+checks as a direct call. When a tool needs approval, the run parks on that call.
+Calls already started finish before the server saves the interpreter, completed
+results, manifest and call counter. After the decision, any worker can continue
+the script without another model request or repeating completed operations.
+Rejecting the call raises a `RuntimeError` inside the script; its handler never
+runs. Approving `run_code` itself does not approve any nested operation.
+
+The checkpoint is server-owned and bounded. If it is damaged, the tool identity
+changed, or a harness/Monty upgrade makes it incompatible, the call fails clearly
+before executing a pending tool. It never restarts the script from source.
+
+Questions, delegations and tools whose call is what the person sees (drafts,
+charts, drawings) stay native. Sessions that ask before every tool and routine
+runs keep their native-tool policy. The run view lists each script once, with
+its calls and their approval/execution status across resumptions.
 
 ### Reporting
 

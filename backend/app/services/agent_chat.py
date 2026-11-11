@@ -692,7 +692,7 @@ class ChatAgentRunner:
                 )
             status, output, _structured, paused = _classify_output(
                 result,
-                parked=prepared.approvals.parked,
+                parked=prepared.checkpointed_approvals(),
                 history_revision=message_history.revision
                 if isinstance(message_history, ModelHistory)
                 else None,

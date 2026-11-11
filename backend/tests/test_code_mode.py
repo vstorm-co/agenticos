@@ -105,21 +105,6 @@ async def test_ten_records_are_updated_in_one_script_and_the_run_lists_each_call
     assert {call["status"] for call in run["calls"]} == {"returned"}
 
 
-@pytest.mark.security
-async def test_a_tool_that_needs_approval_is_never_called_from_a_script() -> None:
-    """It stays a tool the model calls directly, so the run parks on it for the
-    person; a script has no way to park mid-line."""
-    offered: list[list[str]] = []
-    agent, recorder, _ = _agent("await delete_everything()", offered)
-
-    await agent.run("Delete everything.", deps=AgentDeps())
-
-    assert "delete_everything" in offered[0]
-    assert "update_record" not in offered[0]
-    (run,) = as_payload(recorder)["code_runs"]
-    assert run["calls"] == []
-
-
 async def test_a_call_from_a_script_goes_through_the_same_tool_hooks() -> None:
     """The guardrails and the permission checks run on a nested call as on a direct one."""
     offered: list[list[str]] = []
@@ -188,7 +173,9 @@ async def test_a_direct_call_is_not_mistaken_for_a_scripts() -> None:
         deleted.append(True)
         return "deleted"
 
-    await agent.run("Delete everything.", deps=AgentDeps())
+    deps = AgentDeps()
+    deps.code_continuations.native_tools = frozenset({"delete_everything"})
+    await agent.run("Delete everything.", deps=deps)
 
     assert deleted == [True]
     assert recorder.code_runs == []
@@ -198,14 +185,14 @@ async def test_a_direct_call_is_not_mistaken_for_a_scripts() -> None:
     ("tool", "folded"),
     [
         (ToolDefinition(name="update_record"), True),
-        (ToolDefinition(name="delete_everything"), False),
+        (ToolDefinition(name="delete_everything"), True),
         (ToolDefinition(name="ask_user_question", capability_id="ask_user"), False),
         (ToolDefinition(name="task", capability_id="subagents"), False),
         (ToolDefinition(name="write_draft", capability_id="drafts"), False),
         (ToolDefinition(name="create_chart", capability_id="charts"), False),
         (ToolDefinition(name="draw", capability_id="visuals"), False),
         (ToolDefinition(name="connect_account"), False),
-        (ToolDefinition(name="linear_delete", metadata={NEEDS_APPROVAL: True}), False),
+        (ToolDefinition(name="linear_delete", metadata={NEEDS_APPROVAL: True}), True),
     ],
 )
 def test_a_tool_a_person_must_see_or_answer_stays_out_of_scripts(

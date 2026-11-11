@@ -196,6 +196,7 @@ from app.agents.capabilities.sandbox._recording import RecordingWorkspace
 from app.agents.capabilities.skills import SKILL_BODIES_RESOURCE, SkillBody
 from app.agents.capabilities.subagents import SubagentsConfig, acting_delegate
 from app.agents.capabilities.tool_output_limits import SPILL_LOG_RESOURCE
+from app.agents.code_checkpoint import CodeCheckpoint
 from app.agents.computer_on_use import ComputerAccessCallback, RequestComputerOnUse
 from app.agents.connect_on_use import (
     ConnectionCallback,
@@ -1044,6 +1045,9 @@ class PausedRunState(BaseModel):
         default=None, ge=0, exclude_if=lambda value: value is None
     )
     tool_identities: dict[str, ToolIdentity] = Field(default_factory=dict)
+    code_checkpoints: dict[str, CodeCheckpoint] = Field(
+        default_factory=dict, exclude_if=lambda value: not value
+    )
     channel_destination: ChannelDestination | None = None
     channel_file_attempts: int = Field(default=0, ge=0, le=3)
     channel_context: str = ""
@@ -1483,6 +1487,11 @@ def _resume_plan(state: PausedRunState, decided_args: Mapping[str, dict[str, Any
     remains the only thing allowed to decide whether a *gated* tool runs, which is
     why every parked call is approved here and refusals are carried separately.
     """
+    script_parents = {
+        call.tool_call_id: checkpoint.parent_tool_call_id
+        for checkpoint in state.code_checkpoints.values()
+        for call in checkpoint.calls
+    }
     by_delegation: dict[str | None, list[str]] = {}
     for approval_id, tool_call_id in state.tool_call_ids.items():
         by_delegation.setdefault(state.delegated_approvals.get(approval_id), []).append(
@@ -1497,6 +1506,9 @@ def _resume_plan(state: PausedRunState, decided_args: Mapping[str, dict[str, Any
     def level(frames: list[DelegationFrame], own: list[str]) -> DeferredToolResults:
         results = DeferredToolResults()
         for tool_call_id in own:
+            if tool_call_id in script_parents:
+                results.approvals[script_parents[tool_call_id]] = ToolApproved()
+                continue
             results.approvals[tool_call_id] = ToolApproved(
                 override_args=decided_args.get(tool_call_id)
             )
@@ -1824,6 +1836,20 @@ class PreparedRun:
                 authors_by_timestamp=self.channel_authors,
             )
         ]
+
+    def checkpointed_approvals(self) -> dict[str, str]:
+        """Do not queue an approval whose script failed to retain its place."""
+        orphaned = self.built.deps.code_continuations.orphan_approvals
+        if orphaned:
+            self.approvals.parked = {
+                key: call for key, call in self.approvals.parked.items() if call not in orphaned
+            }
+            self.approvals.requested[:] = [
+                request
+                for request in self.approvals.requested
+                if request.tool_call_id not in orphaned
+            ]
+        return self.approvals.parked
 
     async def execute(
         self,
@@ -6634,6 +6660,7 @@ class AgentRunnerService:
                 ],
                 "plan": plan,
                 "generated_files": sorted(prepared.built.deps.generated_files),
+                "code_checkpoints": dict(prepared.built.deps.code_continuations.checkpoints),
                 "channel_destination": prepared.channel_destination,
                 "channel_file_attempts": prepared.channel_file_budget.attempts,
                 "channel_context": prepared.channel_context,
@@ -7357,6 +7384,23 @@ class AgentRunnerService:
         prepared.admitted_as.conversation_task_id = state.admitted_as.conversation_task_id
         prepared.built.deps.conversation_task_id = state.admitted_as.conversation_task_id
         prepared.built.deps.generated_files.update(state.generated_files)
+        prepared.built.deps.code_continuations.checkpoints.update(state.code_checkpoints)
+        pending_ids = set(state.tool_call_ids.values())
+        histories = [state.messages]
+
+        def collect_histories(frames: list[DelegationFrame]) -> None:
+            for frame in frames:
+                histories.append(frame.messages)
+                collect_histories(frame.delegations)
+
+        collect_histories(state.delegations)
+        prepared.built.deps.code_continuations.native_tools = frozenset(
+            part.tool_name
+            for history in histories
+            for message in ModelMessagesTypeAdapter.validate_python(history)
+            for part in message.parts
+            if isinstance(part, ToolCallPart) and part.tool_call_id in pending_ids
+        )
         if can_ask:
             prepared.built.deps.ask_questions = park_the_question
             prepared.built.deps.parks_questions = True
@@ -8136,7 +8180,7 @@ class AgentRunnerService:
             settled = settled_calls_in(new_messages)
             status, output, structured, paused = _classify_output(
                 result,
-                parked=prepared.approvals.parked,
+                parked=prepared.checkpointed_approvals(),
                 history_revision=message_history.revision
                 if isinstance(message_history, ModelHistory)
                 else None,
