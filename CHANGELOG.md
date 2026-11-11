@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.64.1] - 2026-11-11
+
 ### Fixed
 
 - **A switched-off workflow step with no connections no longer blocks publishing.**
@@ -21273,7 +21275,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.64.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.64.1...HEAD
+[1.64.1]: https://github.com/vstorm-co/agenticos/compare/v1.64.0...v1.64.1
 [1.64.0]: https://github.com/vstorm-co/agenticos/compare/v1.63.0...v1.64.0
 [1.63.0]: https://github.com/vstorm-co/agenticos/compare/v1.62.8...v1.63.0
 [1.62.8]: https://github.com/vstorm-co/agenticos/compare/v1.62.7...v1.62.8
