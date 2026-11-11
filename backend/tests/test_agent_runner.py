@@ -1220,6 +1220,31 @@ class TestPrepare:
         assert total.call_args.kwargs.get("agent_id") is None
 
     @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_run_opened_before_midnight_is_weighed_against_the_month_it_opened(
+        self, monkeypatch
+    ):
+        """Its row is dated before the first; its caps must read that month too."""
+        last_evening = month_start() - timedelta(seconds=1)
+
+        class _BeforeMidnight(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return last_evening
+
+        monkeypatch.setattr("app.services.agent_runner.datetime", _BeforeMidnight)
+        built = await self._period_lookups(_ctx())
+
+        with patch(
+            "app.services.agent_runner.agent_run_repo.sum_cost_since",
+            new=AsyncMock(return_value=Decimal("0")),
+        ) as total:
+            await built["agent_period_spend"]()
+
+        assert total.call_args.kwargs["since"] == month_start(last_evening)
+        assert total.call_args.kwargs["until"] == month_start()
+
+    @pytest.mark.anyio
     async def test_the_agents_own_cap_is_metered_on_the_agents_own_spend(self):
         """The defect this pair exists to keep fixed.
 

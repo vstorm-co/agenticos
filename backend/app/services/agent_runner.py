@@ -4317,6 +4317,8 @@ class AgentRunnerService:
         if routine is not None:
             routine.require_project(project)
         run = existing_run
+        opened_at = datetime.now(UTC)
+        started_at = opened_at if existing_run is None else existing_run.started_at
         if run is None:
             require_admission()
             run = await agent_run_repo.create_run(
@@ -4382,7 +4384,7 @@ class AgentRunnerService:
                 if model_spec is not None
                 else None,
                 modality="voice" if voice is not None else "text",
-                started_at=datetime.now(UTC),
+                started_at=opened_at,
                 is_test=is_test,
                 test_spec=test_spec,
             )
@@ -4429,7 +4431,7 @@ class AgentRunnerService:
                 return get_worker_db_context
             return get_db_context
 
-        since, until = budget_window(None if existing_run is None else existing_run.started_at)
+        since, until = budget_window(started_at)
 
         async def agent_period_spend() -> Decimal:
             async with spend_session("agent")() as db:
