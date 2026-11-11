@@ -1,5 +1,5 @@
 ---
-source_sha: "46d816d17acf"
+source_sha: "03fd7c8871db"
 ---
 
 # Governance { #governance }
@@ -135,6 +135,12 @@ Version, denn das ist die, die der Runner durchsetzt, und nicht das, was der
 Draft gerade verspricht. Die Headroom-Karte des Dashboards verbindet diese mit
 `GET /spend`, sodass ein Cap im Anmarsch zu sehen ist, bevor `budget_exceeded` in
 der Run-Historie auftaucht.
+
+Diese veröffentlichte Zahl gilt für jeden Run des Agents, auch für einen Run einer
+älteren Version: eine Routine, eine Umgebung oder ein Workflow-Schritt, die auf
+sie festgelegt sind, oder ein Run, der auf der Version fortgesetzt wird, auf der er
+geparkt wurde. Eine Festlegung bestimmt, wie sich der Agent verhält, nicht, was er
+ausgeben darf.
 
 ### Das Cap einer Abteilung { #a-departments-cap }
 
