@@ -46,10 +46,7 @@ jobs:
       # Platform assets have distinct names; only the final publisher writes latest.json.
       matrix:
         include:
-          - {os: macos-latest, target: aarch64-apple-darwin}
-          - {os: macos-15-intel, target: x86_64-apple-darwin}
           - {os: ubuntu-latest, target: x86_64-unknown-linux-gnu}
-          - {os: windows-latest, target: x86_64-pc-windows-msvc}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     permissions: {contents: write}
