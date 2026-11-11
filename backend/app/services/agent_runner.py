@@ -6649,12 +6649,18 @@ class AgentRunnerService:
         are not the run's - its spend is the starter's, and the starter's caps
         hold it. Departments are a person's, not a role's, so the run's own
         person and flags are enough. `None` where no member started the run:
-        nobody's to begin with, or fired by a routine, which a fresh run tells
-        apart by its flags.
+        nobody's to begin with, fired by a routine - a deleted one's included,
+        whose `trigger_id` is cleared - or background work for a person, which
+        a fresh run tells apart by its flags.
         """
         if existing_run is None:
             return ctx
-        if existing_run.user_id is None or existing_run.trigger_id is not None:
+        if (
+            existing_run.user_id is None
+            or existing_run.trigger_id is not None
+            or existing_run.routine_origin_id is not None
+            or existing_run.surface == RunSurface.PROACTIVE.value
+        ):
             return None
         return replace(
             ctx,
