@@ -1,5 +1,5 @@
 ---
-source_sha: "9913de22e333"
+source_sha: "fc28ea4af1c4"
 ---
 
 # Governance { #governance }
@@ -127,6 +127,11 @@ de agents — el número de la versión _publicada_, ya que es la que aplica el 
 no lo que prometa el borrador en este momento. La tarjeta de margen del dashboard
 cruza estos datos con `GET /spend`, de modo que se puede ver un tope acercándose
 antes de que `budget_exceeded` empiece a aparecer en el historial de runs.
+
+Ese número publicado se aplica a todos los runs del agent, también a un run de una
+versión anterior: una rutina, un entorno o un paso de workflow fijados a ella,
+o un run reanudado en la versión en la que quedó aparcado. Fijar una versión decide
+cómo se comporta el agent, no cuánto puede gastar.
 
 ### El tope de un departamento { #a-departments-cap }
 

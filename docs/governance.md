@@ -122,6 +122,11 @@ enforces, not whatever the draft currently promises. The dashboard's headroom
 card joins these against `GET /spend`, so a cap can be seen approaching before
 `budget_exceeded` starts appearing in run history.
 
+That published number binds every run of the agent, including a run of an older
+version: a routine, an environment or a workflow step pinned to one, or a run
+resumed on the version it was parked on. A pin decides how the agent behaves, not
+what it may spend.
+
 ### A department's cap
 
 A [department](departments.md#a-departments-budget) can carry its own monthly
