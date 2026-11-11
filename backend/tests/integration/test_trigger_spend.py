@@ -116,6 +116,7 @@ async def test_a_routines_month_is_the_cost_of_the_runs_it_started_this_month(
     )
 
 
+@pytest.mark.security
 class TestAParkedFireResumedAfterItsMonthIsSpent:
     """A parked fire waits for the next month, as a fire skipped at admission does.
 

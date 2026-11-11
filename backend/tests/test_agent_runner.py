@@ -4188,6 +4188,7 @@ class TestResume:
         assert organization.call_args.kwargs["until"] == this_month
 
     @pytest.mark.anyio
+    @pytest.mark.security
     async def test_a_parked_fire_whose_routine_spent_its_month_is_refused_before_the_model(
         self, monkeypatch
     ):
@@ -4208,6 +4209,7 @@ class TestResume:
         assert finished["error"].startswith("Routine monthly budget exhausted")
 
     @pytest.mark.anyio
+    @pytest.mark.security
     async def test_a_parked_fire_with_budget_left_continues(self, monkeypatch):
         monkeypatch.setattr(
             AgentRunnerService, "_routine_budget_spent", AsyncMock(return_value=None)
