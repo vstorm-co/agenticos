@@ -57,10 +57,13 @@ enforcement a tool has to remember to call is enforcement a new tool will forget
 
 ## What is *not* gated
 
-**MCP tools.** `approval_required_tools` iterates `spec.capabilities` only. MCP
-server tools are discovered at run time, so nothing declared them and nothing gates
-them. Do not assume otherwise when reviewing a change that adds an MCP connection to
-a published agent.
+**MCP tools, by this mechanism.** `approval_required_tools` iterates
+`spec.capabilities` only: MCP server tools are discovered at run time, so no
+capability declares them. Their gate is the binding's own - `approval` and the
+per-tool `tool_approval`, keyed by the server's tool name - marked on each tool by
+`ApprovalMarked` and enforced by the same `ApprovalGate`. See the `mcp-connections`
+skill. A binding left at `none` gates nothing, so do not assume a newly added MCP
+connection asks before anything.
 
 **A tool the model provider executes** — a native fetch, a native search. There is
 no local execution to wrap, so the gate never sees the call. A capability declares

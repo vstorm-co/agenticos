@@ -766,6 +766,8 @@
     "approvalForGroup": "Approval for {group}",
     "approvalRunFreely": "Run freely",
     "approvalAskFirst": "Ask first",
+    "approvalForTool": "Ask first before {tool}",
+    "approvalPerTool": "Per tool",
     "connectAnotherOwn": "Connect another account",
     "ownAccountMain": "Main",
     "ownAccountPrefix": "Its tools start with {prefix}",

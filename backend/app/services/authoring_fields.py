@@ -275,6 +275,12 @@ def apply(spec: AgentSpec, path: str, op: str, base: Any, new: Any) -> AgentSpec
             server = _server_or_fail(document, address)
             if server.get("approval", "none") == "none":
                 server["approval"] = "writes"
+            # A newly reached tool loses its own `never` as well: the change card
+            # says that each write it adds asks first (#2884).
+            if own := server.get("tool_approval"):
+                server["tool_approval"] = {
+                    tool: mode for tool, mode in own.items() if mode != "never" or tool in base
+                }
     elif op == FieldOp.ADD.value:
         if _index(document, address, new) is not None:
             return None

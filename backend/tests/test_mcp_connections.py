@@ -599,6 +599,70 @@ class TestApprovalMarks:
             f"agenticos_{name}" for name in PLATFORM_UNGATED_TOOLS
         )
 
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        ("policy", "read_only", "own", "expected"),
+        [
+            # A server that marks nothing: its reads run, and the rest ask (#2884).
+            ("writes", None, "never", False),
+            ("writes", None, "default", True),
+            # One write a server marks correctly runs, without `none` for the others.
+            ("writes", False, "never", False),
+            ("none", False, "required", True),
+            ("all", True, "never", False),
+            ("none", True, "required", True),
+        ],
+    )
+    def test_a_tool_s_own_approval_wins_over_the_policy_and_the_hint(
+        self, policy, read_only, own, expected
+    ):
+        from app.agents.mcp import needs_approval
+
+        assert needs_approval(_mcp_tool("t", read_only), policy, own) is expected
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_tool_s_own_approval_is_found_by_the_name_the_model_calls(self):
+        """Keyed by the server's name in the spec, read by the prefixed and fitted
+        one at run time: a name too long for a provider must not lose its gate."""
+        from app.agents.mcp import NEEDS_APPROVAL, ApprovalMarked
+
+        long_name = "query_database_" + "x" * 60
+        spec = McpServerSpec(
+            name="notion",
+            url="https://mcp.notion.com/mcp",
+            approval="writes",
+            tool_approval={"search": "never", long_name: "required"},
+        )
+        inner = MagicMock()
+        inner.get_tools = AsyncMock(
+            return_value={
+                name: ToolsetTool(
+                    toolset=inner,
+                    tool_def=_mcp_tool(name, read_only),
+                    max_retries=1,
+                    args_validator=MagicMock(),
+                )
+                for name, read_only in (
+                    ("notion_search", None),
+                    ("notion_fetch", None),
+                    (f"notion_{long_name}", True),
+                )
+            }
+        )
+
+        marked = await ApprovalMarked(
+            FittedNames(inner), policy="writes", tool_approval=_make_toolset(spec).tool_approval
+        ).get_tools(MagicMock())
+
+        fitted = fitted_tool_name(f"notion_{long_name}")
+        assert fitted != f"notion_{long_name}"
+        assert {name: tool.tool_def.metadata[NEEDS_APPROVAL] for name, tool in marked.items()} == {
+            "notion_search": False,
+            "notion_fetch": True,
+            fitted: True,
+        }
+
 
 class TestToolOrigins:
     @pytest.mark.anyio
@@ -1061,6 +1125,42 @@ class TestToolsetsForAgent:
         )
 
         assert [spec.include_instructions for spec in seen[0]] == [include]
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    @pytest.mark.parametrize("environment", [False, True])
+    async def test_each_tool_s_own_approval_reaches_the_server_that_answers(
+        self, monkeypatch, environment
+    ):
+        """The production connection's, and a test connection's standing in for it (#2884)."""
+        seen = self._capture(monkeypatch)
+        production = _connection(name="crm")
+        sandbox = _connection(name="crm-sandbox")
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo,
+            "get_org_scoped_by_ids",
+            AsyncMock(return_value={production.id: production, sandbox.id: sandbox}),
+        )
+
+        await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[
+                OrgMcpServerRef(
+                    connection_id=production.id,
+                    approval="writes",
+                    tool_approval={"find": "never", "purge": "required"},
+                )
+            ],
+            test_connections={production.id: sandbox.id} if environment else None,
+        )
+
+        (spec,) = seen[0]
+        assert spec.test is environment
+        assert (spec.approval, spec.tool_approval) == (
+            "writes",
+            {"find": "never", "purge": "required"},
+        )
 
     @pytest.mark.anyio
     async def test_a_prefix_collision_drops_the_loser_and_reports_it(self, monkeypatch):
@@ -1608,6 +1708,27 @@ class TestEachPersonsOwnAccount:
         assert seen[0][0].allowed_tools == ["search"]
         assert _attached(resolved) == ["notion"]
         assert resolved.unavailable == []
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_each_tool_s_own_approval_holds_on_every_account_that_answers(self, monkeypatch):
+        seen = self._capture(monkeypatch)
+        self._owns(
+            monkeypatch,
+            [
+                _connection(name="work", catalog_key="notion", is_default=True),
+                _connection(name="home", catalog_key="notion", label="home"),
+            ],
+        )
+
+        await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[self._personal(approval="writes", tool_approval={"search": "never"})],
+            sender_user_id=uuid4(),
+        )
+
+        assert [spec.tool_approval for spec in seen[0]] == [{"search": "never"}] * 2
 
     @pytest.mark.anyio
     async def test_a_collision_between_same_named_bindings_names_the_binding(self, monkeypatch):

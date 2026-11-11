@@ -165,6 +165,8 @@ EXEMPT: dict[str, str] = {
     "tests/test_agent_session.py::TestTellingThePersonWhoLeft::test_a_turn_that_parked_on_an_approval_says_nothing_more": "a parked turn sends no away notice; notification wording, no approval decision",
     "tests/test_agent_session.py::TestATurnThatDidNotFinish::test_a_budget_stop_says_why_the_answer_stopped": "surfaces an error frame explaining the budget stop, display, no enforcement",
     "tests/test_agent_spec_and_factory.py::TestBudgetComposition::test_an_agent_with_no_budget_under_an_uncapped_org_is_unlimited": "no budget under an uncapped org yields no limit, config, no refusal",
+    "tests/test_agent_spec_and_factory.py::TestSpecContract::test_an_mcp_binding_stored_before_per_tool_approval_dumps_unchanged": "a stored binding re-dumps byte for byte, compatibility, no refusal",
+    "tests/test_agent_spec_and_factory.py::TestSpecContract::test_per_tool_mcp_approval_is_stored_sorted_and_only_where_decided": "how per-tool approval is serialized, format, no refusal",
     "tests/test_agent_spec_and_factory.py::TestBudgetComposition::test_budgets_are_decimal_not_float": "budgets are stored as exact Decimal, precision, no refusal",
     "tests/test_agent_templates.py::TestWhatAManifestMayCarry::test_a_budget_that_is_not_a_number_is_dropped_rather_than_guessed": "a non-numeric template budget is dropped, manifest parsing, no security refusal",
     "tests/test_capability_edges.py::TestFactoryHelpers::test_a_float_budget_becomes_an_exact_decimal": "a float budget becomes an exact Decimal, precision helper, no refusal",

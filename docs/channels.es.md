@@ -1,5 +1,5 @@
 ---
-source_sha: "939263497b24"
+source_sha: "026fa67fb1f0"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -2364,7 +2364,7 @@ para mostrar diferencias entre la consola y Mattermost.
     Teams necesita instalar o actualizar el paquete de la aplicación en el equipo o chat de destino, con consentimiento del propietario para `ChannelMessage.Read.Group` y `ChatMessage.Read.Chat`. El paquete los solicita solo con el interruptor activado. Telegram usa los alias de texto `@all`, `@here`, `@channel` y `@everyone`; no notifican al grupo. El bot debe recibir mensajes del grupo; compruebe el modo de privacidad en BotFather. Las menciones, los comandos y las respuestas se verifican contra la identidad real del bot de Telegram. Discord cuenta `@everyone` y `@here` solo cuando el remitente tiene permiso para usarlos, es decir, cuando Discord notifica de verdad a la sala.
 
 - **Enviar archivos del workspace bajo petición también requiere aprobación.** Conceder `send_channel_file` habilita la herramienta; publicar los bytes sigue esperando una confirmación explícita.
-- **Las lecturas MCP de remitentes vinculados siguen la política de aprobación del vínculo; las escrituras siguen requiriendo aprobación.** Una herramienta de solo lectura no pide permiso únicamente por ejecutarse en una app de chat. Las herramientas sin `readOnlyHint: true` siguen pidiéndolo, y una política explícita `all` incluye las lecturas. Se aplica a conexiones personales, de organización y de plataforma, delegados y llamadas reanudadas. Las conexiones personales siguen siendo del remitente actual, nunca del publicador ni de otro participante.
+- **Las lecturas MCP de remitentes vinculados siguen la política de aprobación del vínculo; las escrituras siguen requiriendo aprobación.** Una herramienta de solo lectura no pide permiso únicamente por ejecutarse en una app de chat. Las herramientas sin `readOnlyHint: true` siguen pidiéndolo, incluso una que el Builder deja ejecutarse sin preguntar por sí sola, y una política explícita `all` incluye las lecturas. Se aplica a conexiones personales, de organización y de plataforma, delegados y llamadas reanudadas. Las conexiones personales siguen siendo del remitente actual, nunca del publicador ni de otro participante.
 
 Los mensajes de canal guardan solo el texto del remitente. Las etiquetas del autor se resuelven desde las identidades de canal justo antes de enviar la solicitud al modelo, fuera de las instrucciones del sistema. La consola y las acciones de copiar, fijar y crear atajos reciben el texto original. Los historiales guardados y las ejecuciones pausadas conservan referencias opacas; los manifiestos omiten las partes de referencia del canal añadidas. Al eliminar la cuenta se borran sus identidades, por lo que las solicitudes futuras no pueden resolver sus etiquetas; se conservan los mensajes compartidos.
 
