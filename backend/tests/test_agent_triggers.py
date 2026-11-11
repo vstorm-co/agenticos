@@ -4384,6 +4384,19 @@ class TestRunningAsTheCreator:
         assert changes["name"] == "Renamed"
 
     @pytest.mark.security
+    async def test_somebody_else_tightening_its_failure_limit_keeps_the_failures_counted(self):
+        tightened = await self._update(
+            self._limited(), TriggerUpdate(max_failures=1), as_creator=False
+        )
+        by_creator = await self._update(
+            self._limited(), TriggerUpdate(max_failures=1), as_creator=True
+        )
+
+        assert tightened == {"max_failures": 1}
+        assert by_creator["consecutive_failures"] == 0
+        assert by_creator["auto_stopped_at"] is None
+
+    @pytest.mark.security
     async def test_changing_what_it_does_does_not_open_a_resume_by_somebody_else(self):
         with pytest.raises(AuthorizationError):
             await self._update(

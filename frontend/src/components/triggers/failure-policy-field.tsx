@@ -16,18 +16,18 @@ import {
 export function FailurePolicyField({
   value,
   onChange,
-  disabled = false,
+  highest,
 }: {
   value: number | null;
   onChange: (value: number | null) => void;
-  disabled?: boolean;
+  /** The highest limit this caller may choose; set, it also takes away "off". */
+  highest?: number;
 }) {
   const t = useTranslations("routineHealth");
   const id = useId();
   return (
     <FormField label={t("label")} htmlFor={id} description={t("hint")}>
       <Select
-        disabled={disabled}
         value={value === null ? "off" : String(value)}
         onValueChange={(next) => {
           if (next === "off") {
@@ -42,8 +42,8 @@ export function FailurePolicyField({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="off">{t("off")}</SelectItem>
-          {Array.from({ length: 20 }, (_, index) => index + 1).map((count) => (
+          {highest === undefined && <SelectItem value="off">{t("off")}</SelectItem>}
+          {Array.from({ length: highest ?? 20 }, (_, index) => index + 1).map((count) => (
             <SelectItem key={count} value={String(count)}>
               {t("after", { count })}
             </SelectItem>

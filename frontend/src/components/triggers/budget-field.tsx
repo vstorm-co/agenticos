@@ -14,12 +14,10 @@ export function BudgetField({
   value,
   onChange,
   error,
-  disabled = false,
 }: {
   value: string;
   onChange: (value: string) => void;
   error?: string;
-  disabled?: boolean;
 }) {
   const t = useTranslations("triggers");
   return (
@@ -33,13 +31,18 @@ export function BudgetField({
         id="trigger-budget"
         type="text"
         inputMode="decimal"
-        disabled={disabled}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={t("budgetPlaceholder")}
       />
     </FormField>
   );
+}
+
+/** Whether `parsed` raises or removes the cap `stored`; no cap stored means any cap tightens. */
+export function raisesBudget(parsed: number | null | undefined, stored: number | null): boolean {
+  if (stored === null || parsed === undefined) return false;
+  return parsed === null || parsed > stored;
 }
 
 /** Blank explicitly clears a cap; malformed or nonpositive input is refused. */

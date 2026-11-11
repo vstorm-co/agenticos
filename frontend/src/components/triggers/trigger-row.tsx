@@ -64,8 +64,11 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
   const me = useAuthStore((state) => state.user?.id);
   const [consenting, setConsenting] = useState(false);
   const { setActive, runNow, remove } = useTriggers(trigger.agent_id);
-  // Only its creator resumes a routine that acts as them; anyone who manages it may pause it.
-  const actsForSomeoneElse = trigger.runs_as_creator && me !== trigger.created_by_user_id;
+  const impersonating = useAuthStore((state) => Boolean(state.user?.impersonation));
+  // Only its creator resumes a routine that acts as them - not an administrator acting as
+  // the creator; anyone who manages it may pause it.
+  const actsForSomeoneElse =
+    trigger.runs_as_creator && (me !== trigger.created_by_user_id || impersonating);
   const [editing, setEditing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [viewing, setViewing] = useState(false);

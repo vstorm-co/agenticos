@@ -1306,7 +1306,9 @@ class AgentTriggerService:
 
         The creator also agreed to the end date and the limits it acts within, so
         while it acts as them nobody else resumes it, moves its end date or loosens
-        a limit. Tightening a limit, like a pause, stays open to anyone who may edit it.
+        a limit. Tightening a limit, like a pause, stays open to anyone who may edit it,
+        but keeps the failures counted so far: a new limit from the creator starts the
+        count afresh, one from anybody else must not hand the routine more runs.
 
         Raises:
             AuthorizationError: Someone other than the creator turns it on, or
@@ -1318,8 +1320,9 @@ class AgentTriggerService:
                 message="Only the person who made this trigger can let it act as them",
                 details={"trigger_id": str(trigger.id)},
             )
+        acting = changes.get("runs_as_creator", trigger.runs_as_creator)
         extended = _extended_reach(trigger, changes)
-        if extended and changes.get("runs_as_creator", trigger.runs_as_creator) and not themselves:
+        if extended and acting and not themselves:
             message = (
                 "Only the person who made this routine can resume it, reset its failures, "
                 "change its end date or raise its limits while it acts as them. Turn off "
@@ -1329,6 +1332,11 @@ class AgentTriggerService:
                 message=message,
                 details=field_details(extended[0], message, trigger_id=str(trigger.id)),
             )
+        if acting and not themselves and "max_failures" in changes:
+            for field in ("health_reset_at", "consecutive_failures"):
+                changes.pop(field, None)
+            if "is_active" not in changes:
+                changes.pop("auto_stopped_at", None)
         if (
             trigger.runs_as_creator
             and not themselves
