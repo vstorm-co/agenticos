@@ -1,5 +1,5 @@
 ---
-source_sha: "2df43efb8afc"
+source_sha: "e665c681d628"
 ---
 
 # Konfigurowanie triggera zdarzeniowego { #setting-up-an-event-trigger }
@@ -87,6 +87,9 @@ miesiącu kalendarzowym. Gdy zostanie wykorzystany, jej uruchomienia są pomijan
 rutyna jest pokazana jako wstrzymana z powodu budżetu i rusza od pierwszego bez ręcznego wznawiania.
 Tylko zawęża limity agenta i organizacji. Uruchomienie, które trwa w chwili przekroczenia limitu, kończy
 się, bo limit dotyczy tego, co wydano, a nie prognozy.
+
+Uruchomienie zaparkowane na zatwierdzeniu nie zaczęło jeszcze swojej kontynuacji: zatwierdzone, gdy
+miesiąc rutyny jest już wydany, kończy się jako `budget_exceeded` bez wywołania modelu.
 
 ## Gdzie żyją w produkcie i jak je nazywać { #where-they-live-in-the-product-and-what-to-call-them }
 

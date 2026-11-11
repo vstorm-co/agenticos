@@ -90,6 +90,11 @@ A parked routine without this admission state cannot continue managed-account MC
 | **Department monthly**   | the department's settings | runs its members started, on any agent        | whoever holds `members:manage` and `budgets:manage` |
 | **Organization monthly** | organization settings     | every run _and_ ingestion in the organization | whoever holds `budgets:manage`                      |
 
+Each monthly cap counts a run's whole cost in the month the run started, as the
+spend reports do. A run that spans a month boundary - parked on an approval on the
+last evening and approved on the first - appears entirely in the earlier month, and
+when it resumes it is checked against that month's spend, not the new month's.
+
 A **new organization starts with the organization ceiling already set** — the
 deployment's `DEFAULT_ORG_MONTHLY_BUDGET_USD` ([configuration](configuration.md),
 $100 out of the box) — so a fresh tenant is not one runaway agent away from a

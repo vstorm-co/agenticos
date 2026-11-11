@@ -1,5 +1,5 @@
 ---
-source_sha: "9ba5567cc7b6"
+source_sha: "390d73e39402"
 ---
 
 # Governance { #governance }
@@ -95,6 +95,11 @@ Una rutina vuelve a comprobar su creador, membresía activa, rol y permisos de e
 | **Agent, mensual** | el spec del agent | los runs de ese mismo agent | quien pueda editar el agent |
 | **Departamento, mensual** | los ajustes del departamento | los runs que iniciaron sus miembros, en cualquier agent | quien tenga `members:manage` y `budgets:manage` |
 | **Organización, mensual** | los ajustes de la organización | cada run _y_ cada ingesta de la organización | quien tenga `budgets:manage` |
+
+Cada tope mensual cuenta el coste entero de un run en el mes en que empezó, igual que
+los informes de gasto. Un run que cruza el límite de un mes - aparcado en una
+aprobación la última tarde y aprobado el día uno - aparece entero en el mes anterior,
+y al reanudarse se compara con el gasto de ese mes, no con el del nuevo.
 
 Una **organización nueva empieza con el techo de la organización ya puesto** — el
 `DEFAULT_ORG_MONTHLY_BUDGET_USD` del deployment ([configuración](configuration.md),

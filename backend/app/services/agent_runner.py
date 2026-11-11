@@ -307,6 +307,7 @@ from app.repositories import (
     agent_exposure_repo,
     agent_repo,
     agent_run_repo,
+    agent_trigger_repo,
     channel_prompt_repo,
     chat_file_repo,
     conversation_repo,
@@ -412,7 +413,12 @@ from app.services.skill_proposal import SkillProposalService
 from app.services.skill_workspace import SKILLS_ROOT, MaterialisedSkills, collect_changes
 from app.services.skill_workspace import materialise as materialise_skills
 from app.services.skills import SkillService
-from app.services.spend import month_start, organization_monthly_spend
+from app.services.spend import (
+    budget_window,
+    month_start,
+    organization_monthly_spend,
+    organization_spend_since,
+)
 from app.services.transcript import (
     STOPPED_TOOL_RESULT,
     RecordedToolCall,
@@ -3174,6 +3180,20 @@ def _dynamic_builder(
     return build
 
 
+class RoutineBudgetSpent(BudgetExceeded):
+    """A parked fire resumed once its routine's month is spent, refused as a skipped fire is.
+
+    A fire still running when the limit is crossed finishes; a parked one has not
+    started its continuation, so it waits for the next month like a new fire.
+    """
+
+    def __init__(self, *, limit_usd: Decimal, spent_usd: Decimal) -> None:
+        super().__init__(limit_usd=limit_usd, spent_usd=spent_usd, scope=BudgetScope.RUN)
+        self.args = (
+            f"Routine monthly budget exhausted: ${spent_usd:.4f} spent of ${limit_usd:.2f} limit",
+        )
+
+
 def _spend_already_booked(run: AgentRun) -> SpendEntry:
     """A resumed run's opening balance, as one ledger entry.
 
@@ -4329,6 +4349,8 @@ class AgentRunnerService:
         if routine is not None:
             routine.require_project(project)
         run = existing_run
+        opened_at = datetime.now(UTC)
+        started_at = opened_at if existing_run is None else existing_run.started_at
         if run is None:
             require_admission()
             run = await agent_run_repo.create_run(
@@ -4394,7 +4416,7 @@ class AgentRunnerService:
                 if model_spec is not None
                 else None,
                 modality="voice" if voice is not None else "text",
-                started_at=datetime.now(UTC),
+                started_at=opened_at,
                 is_test=is_test,
                 test_spec=test_spec,
             )
@@ -4441,12 +4463,15 @@ class AgentRunnerService:
                 return get_worker_db_context
             return get_db_context
 
+        since, until = budget_window(started_at)
+
         async def agent_period_spend() -> Decimal:
             async with spend_session("agent")() as db:
                 return await agent_run_repo.sum_cost_since(
                     db,
                     organization_id=ctx.organization_id,
-                    since=month_start(),
+                    since=since,
+                    until=until,
                     agent_id=agent.id,
                     include_delegations=True,
                     exclude_run_id=run.id,
@@ -4454,12 +4479,15 @@ class AgentRunnerService:
 
         async def org_period_spend() -> Decimal:
             async with spend_session("organization")() as db:
-                return await organization_monthly_spend(
-                    db, ctx.organization_id, exclude_run_id=run.id
+                return await organization_spend_since(
+                    db, ctx.organization_id, since, until=until, exclude_run_id=run.id
                 )
 
         group_limits = await self._group_limits(
-            self._department_context(ctx, existing_run), exclude_run_id=run.id
+            self._department_context(ctx, existing_run),
+            exclude_run_id=run.id,
+            since=since,
+            until=until,
         )
 
         # A chat in a project works in the project's container and reads its
@@ -6730,7 +6758,12 @@ class AgentRunnerService:
         )
 
     async def _group_limits(
-        self, ctx: AuthContext | None, *, exclude_run_id: UUID
+        self,
+        ctx: AuthContext | None,
+        *,
+        exclude_run_id: UUID,
+        since: datetime | None = None,
+        until: datetime | None = None,
     ) -> list[SpendLimit]:
         """The monthly caps of every department the person running this is in (#2072).
 
@@ -6758,7 +6791,8 @@ class AgentRunnerService:
                     return await agent_run_repo.sum_cost_since(
                         db,
                         organization_id=ctx.organization_id,
-                        since=month_start(),
+                        since=since or month_start(),
+                        until=until,
                         group_id=group_id,
                         exclude_run_id=exclude_run_id,
                     )
@@ -7471,6 +7505,14 @@ class AgentRunnerService:
         # continue. Nothing above has touched the row, so the run is still parked
         # and still resumable, and no failure path can commit a status that was
         # never written.
+        refusal = await self._routine_budget_spent(run)
+
+        async def opened(child: AgentRun) -> None:
+            if refusal is not None:
+                raise refusal
+            if on_run_open is not None:
+                await on_run_open(child)
+
         await agent_run_repo.mark_running(self.db, run=run)
 
         try:
@@ -7486,7 +7528,7 @@ class AgentRunnerService:
                     ),
                     deferred_tool_results=plan.results,
                     on_segment=on_segment,
-                    on_run_open=on_run_open,
+                    on_run_open=opened,
                     check_model_request=check_model_request,
                     stream=frames.drive if frames is not None else None,
                 )
@@ -8017,6 +8059,29 @@ class AgentRunnerService:
             content=base.content if base else "full",
         )
         return spec.model_copy(update={"observability": merged})
+
+    async def _routine_budget_spent(self, run: AgentRun) -> RoutineBudgetSpent | None:
+        """The refusal for a parked fire whose routine has spent its month, or `None`.
+
+        The month is the one the run started in, as the routine's spend is
+        counted, and this run's own spend so far is part of it.
+        """
+        if run.routine_kind != "trigger" or run.routine_origin_id is None:
+            return None
+        trigger = await agent_trigger_repo.get(
+            self.db, run.routine_origin_id, organization_id=run.organization_id
+        )
+        if trigger is None or trigger.monthly_budget_usd is None:
+            return None
+        since, until = budget_window(run.started_at)
+        spent = (
+            await agent_run_repo.spend_by_trigger_since(
+                self.db, trigger_ids=[trigger.id], since=since, until=until
+            )
+        ).get(trigger.id, Decimal(0))
+        if spent < trigger.monthly_budget_usd:
+            return None
+        return RoutineBudgetSpent(limit_usd=trigger.monthly_budget_usd, spent_usd=spent)
 
     async def _with_current_budget(
         self, agent: Agent, spec: AgentSpec, *, version_id: UUID | None
