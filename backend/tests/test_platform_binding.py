@@ -136,9 +136,11 @@ class TestPublishing:
             "app.services.agent_registry.mcp_connection_repo.get_org_scoped_by_ids",
             new=AsyncMock(return_value={org_ref.connection_id: connection}),
         ):
-            alone = await registry._mcp_problems(CTX, [PlatformMcpServerRef(account="platform")])
+            alone = await registry._mcp_problems(
+                CTX, [PlatformMcpServerRef(account="platform")], taken={}
+            )
             clashing = await registry._mcp_problems(
-                CTX, [PlatformMcpServerRef(account="platform"), org_ref]
+                CTX, [PlatformMcpServerRef(account="platform"), org_ref], taken={}
             )
 
         assert alone == []

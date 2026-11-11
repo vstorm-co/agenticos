@@ -5567,6 +5567,168 @@ class TestOneToolPrefixPerBinding:
         )
 
 
+def _listing_connection(name: str, *tools: str) -> MagicMock:
+    """An organization connection whose last check listed `tools`, or nothing yet."""
+    connection = MagicMock(
+        visibility="org",
+        last_tools=None if not tools else [{"name": tool} for tool in tools],
+        allowed_tools=None,
+    )
+    connection.name = name
+    return connection
+
+
+class TestOneNamePerTool:
+    """Two of an agent's tools under one name make Pydantic AI abort every turn (#2890).
+
+    A prefix keeps one MCP server's tools apart from another's, not from a
+    capability's or the platform's own, and a capability's rename was checked
+    only against its own tools and the two loaders. Refused here, where the
+    connection can still be renamed or narrowed and the rename undone.
+    """
+
+    async def _problems(self, *, mcp_servers=(), connections=None, capabilities=()) -> list[str]:
+        known = connections or {}
+
+        async def lookup(_db, *, connection_ids, organization_id):
+            return {cid: known[cid] for cid in connection_ids if cid in known}
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            patch(f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_ids", new=lookup),
+        ):
+            try:
+                await AgentRegistryService(_db()).validate_spec(
+                    _ctx(),
+                    _spec(
+                        mcp_servers=list(mcp_servers),
+                        capabilities=list(capabilities),
+                        model_profile_id=uuid.uuid4(),
+                    ),
+                )
+            except BadRequestError as refused:
+                return refused.details["problems"]
+        return []
+
+    @pytest.mark.anyio
+    async def test_a_tool_that_would_take_one_of_the_platform_s_names_is_refused(self):
+        """`request` and `capability` make `request_capability`, which the setup
+        briefing gives nearly every agent - the reproduction in #2890."""
+        connection_id = uuid.uuid4()
+
+        problems = await self._problems(
+            mcp_servers=[OrgMcpServerRef(connection_id=connection_id)],
+            connections={connection_id: _listing_connection("request", "capability")},
+        )
+
+        assert problems == [
+            "The connection 'request' presents its tool 'capability' as 'request_capability', "
+            "the name of a tool this platform already gives this agent. Two tools of one name "
+            "abort the turn, so the server would be left out of every run - rename the "
+            "connection, or narrow its tools."
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_tool_that_would_take_a_capability_s_name_is_refused(self):
+        connection_id = uuid.uuid4()
+
+        problems = await self._problems(
+            mcp_servers=[OrgMcpServerRef(connection_id=connection_id)],
+            connections={connection_id: _listing_connection("create", "chart", "dashboard")},
+            capabilities=[CapabilityBindingSpec(id="charts")],
+        )
+
+        assert len(problems) == 1
+        assert "as 'create_chart', the name of a tool the charts capability" in problems[0]
+
+    @pytest.mark.anyio
+    async def test_a_binding_narrowed_off_the_clash_publishes(self):
+        connection_id = uuid.uuid4()
+
+        problems = await self._problems(
+            mcp_servers=[OrgMcpServerRef(connection_id=connection_id, allowed_tools=["dashboard"])],
+            connections={connection_id: _listing_connection("create", "chart", "dashboard")},
+            capabilities=[CapabilityBindingSpec(id="charts")],
+        )
+
+        assert problems == []
+
+    @pytest.mark.anyio
+    async def test_a_connection_nothing_has_reached_has_no_names_to_refuse(self):
+        """Its names are unknown here, and the run decides on what it lists."""
+        connection_id = uuid.uuid4()
+
+        problems = await self._problems(
+            mcp_servers=[OrgMcpServerRef(connection_id=connection_id)],
+            connections={connection_id: _listing_connection("create")},
+            capabilities=[CapabilityBindingSpec(id="charts")],
+        )
+
+        assert problems == []
+
+    @pytest.mark.anyio
+    async def test_one_connection_bound_twice_is_named_once(self):
+        """The prefix check refuses the second binding already; each of its tools
+        refused twice over would only bury that."""
+        connection_id = uuid.uuid4()
+
+        problems = await self._problems(
+            mcp_servers=[OrgMcpServerRef(connection_id=connection_id)] * 2,
+            connections={connection_id: _listing_connection("request", "capability")},
+        )
+
+        assert len(problems) == 2
+        assert sum("'request_capability'" in problem for problem in problems) == 1
+
+    @pytest.mark.anyio
+    async def test_a_rename_onto_another_capability_s_tool_is_refused(self):
+        problems = await self._problems(
+            capabilities=[
+                CapabilityBindingSpec(
+                    id="charts", tool_overrides={"create_chart": {"name": "web_fetch"}}
+                ),
+                CapabilityBindingSpec(id="web_fetch"),
+            ]
+        )
+
+        assert problems == [
+            "Capability 'charts' renames a tool to web_fetch, which capability 'web_fetch' "
+            "also offers - two tools of that name abort the turn"
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_rename_onto_a_switched_off_capability_s_tool_publishes(self):
+        problems = await self._problems(
+            capabilities=[
+                CapabilityBindingSpec(
+                    id="charts", tool_overrides={"create_chart": {"name": "web_fetch"}}
+                ),
+                CapabilityBindingSpec(id="web_fetch", enabled=False),
+            ]
+        )
+
+        assert problems == []
+
+    @pytest.mark.anyio
+    async def test_a_rename_onto_one_of_the_platform_s_own_tools_is_refused(self):
+        """Not only the two loaders: `request_capability` is on nearly every agent."""
+        problems = await self._problems(
+            capabilities=[
+                CapabilityBindingSpec(
+                    id="charts", tool_overrides={"create_chart": {"name": "request_capability"}}
+                )
+            ]
+        )
+
+        assert problems == [
+            "Capability 'charts' renames a tool to request_capability, which the framework "
+            "provides itself - two tools of that name abort the turn"
+        ]
+
+
 def _named_connection(name: str) -> MagicMock:
     """A connection row with a real name: `MagicMock(name=...)` names the mock,
     not the row, and the prefix check reads the row's."""
