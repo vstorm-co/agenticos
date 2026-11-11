@@ -888,13 +888,9 @@ async def test_checkpoint_quota_is_atomic_across_workers(
 
 
 async def test_a_remembered_choice_never_answers_a_tool_that_always_asks(db: AsyncSession):
-    """Even a consent row that says "agent" is no answer to `share_memory`.
-
-    The row is written as a stored choice would have been before the tool was
-    refused one, which is the state a deployment upgrading carries.
-    """
+    """A stored "agent" choice answers a call - unless the row says it always asks."""
     org, user, run, ctx = await _consent_chat(db)
-    await _approval(
+    remembered = await _approval(
         db,
         org,
         run,
@@ -902,15 +898,20 @@ async def test_a_remembered_choice_never_answers_a_tool_that_always_asks(db: Asy
         capability_tool_id="share_memory",
         status=ApprovalStatus.APPROVED.value,
         decided_by_user_id=user.id,
-        decided_at=_NOW,
+        decided_at=datetime.now(UTC),
         remember_scope="agent",
-        always_asks=True,
+    )
+    service = ApprovalService(db)
+    assert (
+        await service.remembered_consent(ctx, run.id, tool_name="share_memory", account=None)
+        == user.id
     )
 
+    remembered.always_asks = True
+    await db.flush()
+
     assert (
-        await ApprovalService(db).remembered_consent(
-            ctx, run.id, tool_name="share_memory", account=None
-        )
+        await service.remembered_consent(ctx, run.id, tool_name="share_memory", account=None)
         is None
     )
 
