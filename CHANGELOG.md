@@ -59,6 +59,14 @@ Two things are versioned separately from this file and worth knowing about:
   only when the person asks, through approval cards. The dashboard shows
   checks and proposed skill changes waiting on the reader.
 
+## [1.65.1] - 2026-11-11
+
+### Fixed
+
+- **The Called by a workflow trigger shows a workflow, not a telephone.** Its
+  incoming-call icon suggested the workflow starts on a phone call. It now uses
+  the workflow icon, the same as the Run a workflow step that calls it (#2886).
+
 ## [1.65.0] - 2026-11-11
 
 ### Added
@@ -21354,7 +21362,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.65.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.65.1...HEAD
+[1.65.1]: https://github.com/vstorm-co/agenticos/compare/v1.65.0...v1.65.1
 [1.65.0]: https://github.com/vstorm-co/agenticos/compare/v1.64.2...v1.65.0
 [1.64.2]: https://github.com/vstorm-co/agenticos/compare/v1.64.1...v1.64.2
 [1.64.1]: https://github.com/vstorm-co/agenticos/compare/v1.64.0...v1.64.1
