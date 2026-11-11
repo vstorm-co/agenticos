@@ -612,6 +612,14 @@ class ToolApproval(Base, TimestampMixin):
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     remember_scope: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    always_asks: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    """Whether only a person's answer to this call could let it run, so it is never remembered.
+
+    Written when the call is parked rather than looked up from the tool later,
+    because a tool may ask always for some calls and not others.
+    """
 
     # How, not what. A row approved by a click and one granted in advance by a
     # conversation's approval mode are both `approved`, and telling them apart is

@@ -1,5 +1,5 @@
 ---
-source_sha: "390d73e39402"
+source_sha: "e6b780414766"
 ---
 
 # Governance { #governance }
@@ -1696,9 +1696,11 @@ Fünf Eigenschaften, die man kennen sollte:
 
 ### Wie sehr eine Unterhaltung gefragt werden will { #how-much-one-conversation-wants-to-be-asked }
 
-Die Freigabekarte bietet auch **Dieses Tool in diesem Chat erlauben** und **Dieses Tool für diesen Agenten immer erlauben**. Die Auswahl gilt nur für das benannte Tool und Konto, die zustimmende Person und die veröffentlichte Agentenversion. Sie erfordert dieselbe Berechtigung und Organisationseinstellung wie die Freigabe aller Aktionen. Sie autorisiert weder Delegierte noch unbeaufsichtigte Ausführungen. Eine neue Agentenversion erfordert eine neue Auswahl.
+Die Freigabekarte bietet auch **Dieses Tool in diesem Chat erlauben** und **Dieses Tool für diesen Agenten immer erlauben**. Die Auswahl gilt nur für das benannte Tool und Konto, die zustimmende Person und die veröffentlichte Agentenversion. Sie erfordert dieselbe Berechtigung und Organisationseinstellung wie die Freigabe aller Aktionen. Sie autorisiert weder Delegierte noch unbeaufsichtigte Ausführungen. Eine neue Agentenversion erfordert eine neue Auswahl. Ein Tool, das jedes Mal fragt, etwa `share_memory`, wird nie gespeichert und von der Freigabe aller Aktionen nicht beantwortet: Seine Karte bietet keine der beiden Optionen an, und der Server lehnt das Speichern ab.
 
 Die Auswahl wird auf dem Server gespeichert. **Chat controls → Preferences → Gespeicherte Tool-Freigaben → Erneut fragen** widerruft eine Zustimmung, ohne die ursprüngliche Entscheidung zu löschen. Vor jeder automatischen Freigabe werden Mitgliedschaft, Freigabeberechtigung und Organisationsrichtlinie erneut geprüft. Der Modus zum Nachfragen bei jeder Aktion hat Vorrang. Jede automatische Freigabe protokolliert weiterhin die zustimmende Person und die tatsächlichen Aufrufargumente.
+
+Die Freigabe-Warteschlange gehört der Organisation, aber manche Aufrufe zitieren, was die Person ihres Runs liest - den Fakt, den `share_memory` teilen würde. Dieses Zitat sieht nur, wer den Run sehen darf: die Person, für die er lief, oder ein Mitglied, das jeden Run liest und den Agent sehen darf. Alle anderen sehen das Tool, den Leserkreis und einen Hinweis, dass der Inhalt verborgen ist.
 
 Die Regel oben gehört dem Agent, wird beim Veröffentlichen und je Tool
 entschieden, und das ist der richtige Ort dafür: Sie ist eine Aussage darüber, was

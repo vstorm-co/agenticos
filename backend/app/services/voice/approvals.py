@@ -140,6 +140,7 @@ class VoiceApprovalBridge:
                 agent_id=channel.agent_id,
                 tool_id=parked.tool_name,
                 tool_args=parked.tool_args,
+                always_asks=parked.always_asks,
             )
         if self._decider is None:
             await self._expire(channel, parked, note=_NOT_POSSIBLE_NOTE)

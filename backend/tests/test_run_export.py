@@ -321,6 +321,7 @@ class TestApprovalsExport:
             "agent_name": "Clerk",
             "tool_id": "send_email",
             "tool_args": {"to": "a@b.co"},
+            "capability_tool_id": None,
             "subagent_name": None,
             "subagent_agent_id": None,
             "status": "pending",

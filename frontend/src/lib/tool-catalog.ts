@@ -630,6 +630,7 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     captionKey: "memorySharing",
     displayNameKey: "shareMemory",
     staysClosed: true,
+    approvalSummary: { key: "approveShareMemory", needs: ["claim", "audience"] },
   },
   remember: {
     kind: "write",

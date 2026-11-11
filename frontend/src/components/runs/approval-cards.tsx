@@ -16,10 +16,13 @@ import type { ToolApproval } from "@/types/runs";
 /**
  * What the call will do in names, resolved when it was parked as the person the
  * run acts for; else, for a call still waiting, the one telling argument, as a
- * call nobody described always read. A decided row keeps its arguments folded.
+ * call nobody described always read. A decided row keeps its arguments folded. A
+ * reader who may not see the run is told why the content is missing.
  */
 function useCallLine(approval: ToolApproval, withArguments: boolean): string | null {
+  const t = useTranslations("pages.runs");
   const tTools = useTranslations("chat.tools");
+  if (approval.content_hidden) return t("contentHidden");
   return (
     approvalSummary(approval.capability_tool_id, approval.context, tTools) ??
     (withArguments ? callSummary(approval.tool_args) : null)

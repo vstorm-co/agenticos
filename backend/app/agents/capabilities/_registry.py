@@ -409,6 +409,13 @@ class CapabilityDef:
     """
     describers: Mapping[str, ApprovalDescriber] = field(default_factory=dict)
     """Tool id to the :data:`ApprovalDescriber` that names a parked call's ids."""
+    private_approval_fields: Mapping[str, frozenset[str]] = field(default_factory=dict)
+    """Tool id to the argument and context keys that quote what the run's person reads.
+
+    The approvals queue is the organization's, while what such a call quotes - a
+    fact from someone's private memory - is the run's. An approver who may not see
+    the run reads the call without these keys.
+    """
 
     def needs_secret(self, config: BaseModel | None) -> bool:
         """Whether a binding with this configuration must name a secret.
@@ -521,6 +528,7 @@ def register(
     protective: bool = False,
     test_key_isolates: bool = False,
     describers: Mapping[str, ApprovalDescriber] | None = None,
+    private_approval_fields: Mapping[str, Iterable[str]] | None = None,
 ) -> Callable[[CapabilityBuilder], CapabilityBuilder]:
     """Register a capability builder.
 
@@ -573,10 +581,14 @@ def register(
     `describers` maps a tool id to the :data:`ApprovalDescriber` that names the
     ids in a parked call of it. A key that is not one of `tools` is a
     `RuntimeError`: it would describe a tool that cannot be parked under that id.
+    `private_approval_fields` is keyed and checked the same way.
     """
     declared_tools = tuple(tools)
-    if stray := sorted(set(describers or {}) - {tool.id for tool in declared_tools}):
+    declared_ids = {tool.id for tool in declared_tools}
+    if stray := sorted(set(describers or {}) - declared_ids):
         raise RuntimeError(f"Capability '{id}' describes tools it does not declare: {stray}")
+    if stray := sorted(set(private_approval_fields or {}) - declared_ids):
+        raise RuntimeError(f"Capability '{id}' hides fields of tools it does not declare: {stray}")
 
     def decorator(builder: CapabilityBuilder) -> CapabilityBuilder:
         definition = CapabilityDef(
@@ -599,6 +611,10 @@ def register(
             protective=protective,
             test_key_isolates=test_key_isolates,
             describers=dict(describers or {}),
+            private_approval_fields={
+                tool_id: frozenset(keys)
+                for tool_id, keys in (private_approval_fields or {}).items()
+            },
         )
         existing = REGISTRY.get(definition.id)
         if existing is not None and existing is not definition:

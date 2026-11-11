@@ -9,7 +9,12 @@ and gets a different answer.
 
 from pydantic import BaseModel
 
-from app.agents.capabilities import ApprovalDescriber, CapabilityDef, CapabilityToolInfo
+from app.agents.capabilities import (
+    ApprovalDescriber,
+    CapabilityDef,
+    CapabilityToolInfo,
+    all_capabilities,
+)
 from app.agents.capabilities import get as get_capability
 from app.agents.spec import AgentSpec, CapabilityBindingSpec
 from app.core.exceptions import BadRequestError
@@ -71,6 +76,40 @@ def approval_required_tools(spec: AgentSpec) -> frozenset[str]:
             if tool_needs_approval(tool=tool, binding=binding)
         )
     return frozenset(required)
+
+
+def always_asking_tools(spec: AgentSpec) -> frozenset[str]:
+    """The tools in a spec whose every call waits for a person, by the name the model calls.
+
+    Narrower than :func:`approval_required_tools`: these are the tools nothing a
+    person set in advance may answer for - not "Approve everything" on the session,
+    not a remembered "Always allow" - because the call is the decision.
+    """
+    return frozenset(
+        tool.name
+        for binding in spec.capabilities
+        if binding.enabled
+        for tool in get_capability(binding.id).effective_tools(binding.tool_overrides)
+        if tool.always_requires_approval
+    )
+
+
+def private_approval_fields(capability_tool_id: str | None) -> frozenset[str]:
+    """The keys of a parked call that only somebody who may see its run reads.
+
+    Looked up by the stable tool id an approval row carries, across every
+    capability, because the row does not name the capability. Two capabilities
+    declaring one id would hide the union of their keys, which errs towards
+    hiding.
+    """
+    if capability_tool_id is None:
+        return frozenset()
+    return frozenset().union(
+        *(
+            definition.private_approval_fields.get(capability_tool_id, frozenset())
+            for definition in all_capabilities()
+        )
+    )
 
 
 def approval_describers(spec: AgentSpec) -> dict[str, ApprovalDescriber]:

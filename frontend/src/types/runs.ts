@@ -397,6 +397,12 @@ export interface ToolApproval {
    */
   context?: Record<string, string> | null;
   /**
+   * The call quotes its run - the fact `share_memory` would share - and the reader
+   * may not see that run, so the quoted keys were left out of `context` and
+   * `tool_args`.
+   */
+  content_hidden?: boolean;
+  /**
    * Which of a service's accounts the call acts as - a labelled connection, or one of
    * several accounts on one service. Null where there is nothing to tell apart.
    */

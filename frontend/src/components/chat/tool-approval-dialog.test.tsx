@@ -361,3 +361,27 @@ it("does not offer remembered approval for delegates or mixed tools", () => {
   );
   expect(screen.queryByRole("button", { name: "More approval options" })).toBeNull();
 });
+
+it("shows the fact share_memory would share, and offers no way to remember the answer", () => {
+  render(
+    <ToolApprovalDialog
+      actionRequests={[
+        action("a-1", {
+          tool_name: "share_memory",
+          capability_tool_id: "share_memory",
+          args: { claim_id: "c-1", to: "project" },
+          context: { claim: "Piotr takes over invoices", audience: "project" },
+          can_remember: false,
+        }),
+      ]}
+      reviewConfigs={[]}
+      onDecisions={vi.fn()}
+      mayRemember
+    />,
+  );
+
+  expect(
+    screen.getByText("Share with the project: “Piotr takes over invoices”"),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "More approval options" })).toBeNull();
+});

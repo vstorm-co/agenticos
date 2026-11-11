@@ -7,6 +7,7 @@ from app.agents.capabilities._registry import (
     CapabilityToolInfo,
     register,
 )
+from app.agents.capabilities.memory_files._approval import SHARE_PRIVATE_FIELDS, describe_share
 from app.agents.capabilities.memory_files._capability import MemoryFiles
 from app.agents.capabilities.memory_files._toolset import INDEX_NAME
 
@@ -101,6 +102,8 @@ class MemoryFilesConfig(BaseModel):
         ),
     ),
     config_schema=MemoryFilesConfig,
+    describers={"share_memory": describe_share},
+    private_approval_fields={"share_memory": SHARE_PRIVATE_FIELDS},
 )
 def _build(ctx: CapabilityBuildContext) -> MemoryFiles:
     """Build the capability from a binding's config.

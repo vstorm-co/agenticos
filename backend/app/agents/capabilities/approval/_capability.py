@@ -96,6 +96,9 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
     # nobody can be asked. Named by the factory for the tools it attached, never
     # read off tool metadata, which an MCP server writes.
     asking_tool_names: frozenset[str] = frozenset()
+    # Tools whose every call waits for a person's answer to it, from
+    # `always_asking_tools`: nothing decided in advance may stand in for one.
+    always_asking_tool_names: frozenset[str] = frozenset()
     # Effective tool name to the capability's describer for it, resolved from the
     # spec by `approval_describers` - a renamed tool keeps its describer.
     describers: Mapping[str, ApprovalDescriber] = field(default_factory=dict)
@@ -235,6 +238,7 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
             ApprovalRequest(
                 capability_id=capability_id,
                 routine_consented_by=consented_by,
+                always_asks=owned and tool_def.name in self.always_asking_tool_names,
                 tool_name=tool_def.name,
                 tool_call_id=call.tool_call_id,
                 tool_args=asked,
