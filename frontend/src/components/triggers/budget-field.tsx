@@ -14,10 +14,12 @@ export function BudgetField({
   value,
   onChange,
   error,
+  disabled = false,
 }: {
   value: string;
   onChange: (value: string) => void;
   error?: string;
+  disabled?: boolean;
 }) {
   const t = useTranslations("triggers");
   return (
@@ -31,6 +33,7 @@ export function BudgetField({
         id="trigger-budget"
         type="text"
         inputMode="decimal"
+        disabled={disabled}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={t("budgetPlaceholder")}

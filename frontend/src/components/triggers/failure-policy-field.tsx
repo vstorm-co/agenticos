@@ -16,15 +16,18 @@ import {
 export function FailurePolicyField({
   value,
   onChange,
+  disabled = false,
 }: {
   value: number | null;
   onChange: (value: number | null) => void;
+  disabled?: boolean;
 }) {
   const t = useTranslations("routineHealth");
   const id = useId();
   return (
     <FormField label={t("label")} htmlFor={id} description={t("hint")}>
       <Select
+        disabled={disabled}
         value={value === null ? "off" : String(value)}
         onValueChange={(next) => {
           if (next === "off") {

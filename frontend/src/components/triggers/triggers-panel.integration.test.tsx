@@ -443,6 +443,43 @@ describe("TriggersPanel", () => {
     });
   });
 
+  it("offers somebody else a pause but no resume of a routine acting as its creator", async () => {
+    useAuthStore.setState({ user: { id: "me" } as never });
+    serve([
+      trigger({ created_by_user_id: "someone-else", runs_as_creator: true }),
+      trigger({
+        id: "t2",
+        created_by_user_id: "someone-else",
+        runs_as_creator: true,
+        is_active: false,
+      }),
+      trigger({ id: "t3", created_by_user_id: "me", runs_as_creator: true, is_active: false }),
+    ]);
+    await mount();
+
+    expect(await screen.findByRole("button", { name: "Pause" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Resume" })).toHaveLength(1);
+  });
+
+  it("locks the end and the limits for somebody else until running as its creator is cleared", async () => {
+    const user = userEvent.setup();
+    useAuthStore.setState({ user: { id: "me" } as never });
+    serve([trigger({ created_by_user_id: "someone-else", runs_as_creator: true })]);
+    await mount();
+
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByLabelText(/Ends at/)).toBeDisabled();
+    expect(within(dialog).getByText(/only they can resume it/)).toBeInTheDocument();
+
+    await user.click(
+      within(dialog).getByRole("checkbox", { name: /Runs as the person who made it/ }),
+    );
+
+    expect(within(dialog).getByLabelText(/Ends at/)).toBeEnabled();
+    expect(within(dialog).queryByText(/only they can resume it/)).toBeNull();
+  });
+
   it("says an event acting as its creator reads memory without writing it", async () => {
     const user = userEvent.setup();
     useAuthStore.setState({ user: { id: "me" } as never });

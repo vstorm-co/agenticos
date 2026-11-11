@@ -291,6 +291,8 @@ export function TriggerFormDialog({
   // A new trigger is the caller's own; an existing one is whoever made it.
   const me = useAuthStore((state) => state.user?.id ?? null);
   const isCreator = trigger === null || trigger.created_by_user_id === me;
+  // The server refuses anybody else resuming or loosening a routine that acts as its creator.
+  const limitsLocked = !isCreator && runsAsCreator;
 
   const seed = trigger?.interval_seconds
     ? intervalToUnit(trigger.interval_seconds)
@@ -941,15 +943,29 @@ export function TriggerFormDialog({
                   hasConversation={hasConversation}
                 />
               )}
-              <FailurePolicyField value={maxFailures} onChange={setMaxFailures} />
+              <FailurePolicyField
+                value={maxFailures}
+                onChange={setMaxFailures}
+                disabled={limitsLocked}
+              />
               <NotificationChannelsField
                 value={notificationChannels}
                 onChange={setNotificationChannels}
               />
 
-              <EndsAtField value={endsAt} onChange={changeEnd} invalid={invalidEnd} />
+              <EndsAtField
+                value={endsAt}
+                onChange={changeEnd}
+                invalid={invalidEnd}
+                disabled={limitsLocked}
+              />
 
-              <BudgetField value={budget} onChange={setBudget} />
+              <BudgetField value={budget} onChange={setBudget} disabled={limitsLocked} />
+              {limitsLocked && (
+                <p className="text-muted-foreground text-xs sm:col-span-2">
+                  {t("limitsCreatorOnly")}
+                </p>
+              )}
 
               <RunAsCreatorField
                 checked={runsAsCreator}

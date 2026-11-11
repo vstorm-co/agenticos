@@ -357,6 +357,23 @@ _WHAT_IT_DOES = (
 """The edits that change what a fire does or who reads its answer, and so end its acting as the creator."""
 
 
+def _later(new: Any, old: Any) -> bool:
+    """Whether `new` lets the routine go further than `old`, where null means no limit."""
+    if new is None:
+        return old is not None
+    return old is not None and new > old
+
+
+def _extended_reach(trigger: AgentTrigger, changes: dict[str, Any]) -> list[str]:
+    """The fields of an edit that resume a routine or loosen the limits it runs within."""
+    extended = ["is_active"] if changes.get("is_active") is True else []
+    return extended + [
+        field
+        for field in ("ends_at", "max_failures", "monthly_budget_usd")
+        if field in changes and _later(changes[field], getattr(trigger, field))
+    ]
+
+
 def _guard_shared_mailbox(
     ctx: AuthContext,
     event_source: str | None,
@@ -1279,12 +1296,30 @@ class AgentTriggerService:
         fire - or point the answer at a Teams channel they read, which hands them
         what the creator's own connections returned. A pause, a rename or a new
         cadence changes no such thing, so it stays.
+
+        The creator also agreed to the end date and the limits it acts within, so
+        while it acts as them nobody else resumes it or moves those further out.
+        Narrowing them, like a pause, stays open to anyone who may edit it.
+
+        Raises:
+            AuthorizationError: Someone other than the creator turns it on, or
+                resumes or extends a routine that acts as its creator.
         """
         themselves = _acts_as_themselves(ctx, trigger.created_by_user_id)
         if changes.get("runs_as_creator") is True and not themselves:
             raise AuthorizationError(
                 message="Only the person who made this trigger can let it act as them",
                 details={"trigger_id": str(trigger.id)},
+            )
+        extended = _extended_reach(trigger, changes)
+        if extended and changes.get("runs_as_creator", trigger.runs_as_creator) and not themselves:
+            message = (
+                "Only the person who made this routine can resume it or extend its end "
+                "date or limits while it acts as them. Turn off Run as me first."
+            )
+            raise AuthorizationError(
+                message=message,
+                details=field_details(extended[0], message, trigger_id=str(trigger.id)),
             )
         if (
             trigger.runs_as_creator

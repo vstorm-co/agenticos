@@ -1,5 +1,5 @@
 ---
-source_sha: "49d132bd9406"
+source_sha: "73f047f7f0ed"
 ---
 
 # Koncepcje { #concepts }
@@ -214,6 +214,11 @@ skrzynce_, którego domyślne ustawienie nie potrafi — na tych warunkach:
 - **Tak samo nowa wersja opublikowana nie przez ciebie osobiście.** Publikacja, promocja
   albo cofnięcie przez kogokolwiek innego to wyłącza - także zrobione twoim
   kluczem API albo przez administratora w impersonacji.
+- **Wznowić go albo poszerzyć możesz tylko ty.** Dopóki działa jako ty, nikt inny
+  nie może go wznowić, usunąć ani przesunąć dalej jego daty końca, ani podnieść
+  albo zdjąć jego limitów porażek i wydatków: dostanie odmowę, dopóki nie wyłączy
+  Run as me. Każdy, kto może go edytować, nadal może go wstrzymać albo zaostrzyć
+  te limity.
 - **Zapis to pokazuje.** Run wskazuje trigger, który go odpalił, a każdy wpis
   audytu zapisany przez odpalenie niesie `via_trigger` z członkiem, jako który
   działało.

@@ -209,6 +209,10 @@ matters in my inbox* the default cannot do — on these terms:
 - **So does a new version you did not publish yourself.** A publish, a
   promotion or a rollback by anybody else turns it off - and so does one made
   through your API key or by an administrator impersonating you.
+- **Only you resume it or extend it.** While it acts as you, nobody else can
+  resume it, clear or postpone its end date, or raise or remove its failure and
+  spending limits: they are refused until they turn Run as me off. Anyone who may
+  edit it can still pause it or tighten those limits.
 - **The record says so.** The run names the trigger that fired it, and every audit
   entry the fire records carries `via_trigger` with the member it acted as.
 - **It may work on the creator's own computer.** With Run as me on, the creator

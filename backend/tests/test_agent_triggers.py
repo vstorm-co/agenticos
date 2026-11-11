@@ -4295,6 +4295,97 @@ class TestRunningAsTheCreator:
         assert "runs_as_creator" not in paused
         assert "runs_as_creator" not in reworded
 
+    @staticmethod
+    def _limited(**overrides: object) -> MagicMock:
+        return _trigger(
+            runs_as_creator=True,
+            ends_at=datetime.now(UTC) + timedelta(days=7),
+            max_failures=3,
+            monthly_budget_usd=Decimal("5"),
+            **overrides,
+        )
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        ("edit", "field"),
+        [
+            ({"is_active": True}, "is_active"),
+            ({"ends_at": None}, "ends_at"),
+            ({"ends_at": datetime.now(UTC) + timedelta(days=30)}, "ends_at"),
+            ({"max_failures": 10}, "max_failures"),
+            ({"max_failures": None}, "max_failures"),
+            ({"monthly_budget_usd": Decimal("50")}, "monthly_budget_usd"),
+            ({"monthly_budget_usd": None}, "monthly_budget_usd"),
+        ],
+    )
+    async def test_somebody_else_cannot_resume_or_extend_it(self, edit, field):
+        trigger = self._limited(is_active=False)
+
+        with pytest.raises(AuthorizationError) as refused:
+            await self._update(trigger, TriggerUpdate(**edit), as_creator=False)
+
+        assert refused.value.details["fields"][0]["field"] == field
+        assert "Run as me" in refused.value.message
+
+    @pytest.mark.parametrize(
+        "edit",
+        [
+            {"is_active": True},
+            {"ends_at": None},
+            {"max_failures": None},
+            {"monthly_budget_usd": Decimal("50")},
+        ],
+    )
+    async def test_the_creator_resumes_and_extends_their_own(self, edit):
+        changes = await self._update(
+            self._limited(is_active=False), TriggerUpdate(**edit), as_creator=True
+        )
+
+        assert changes.items() >= edit.items()
+
+    async def test_somebody_else_may_narrow_it_or_resume_it_once_it_stops_acting(self):
+        narrowed = await self._update(
+            self._limited(),
+            TriggerUpdate(
+                ends_at=datetime.now(UTC) + timedelta(days=1),
+                max_failures=1,
+                monthly_budget_usd=Decimal("1"),
+            ),
+            as_creator=False,
+        )
+        resumed = await self._update(
+            self._limited(is_active=False),
+            TriggerUpdate(is_active=True, runs_as_creator=False),
+            as_creator=False,
+        )
+        not_acting = await self._update(
+            _trigger(is_active=False, max_failures=3),
+            TriggerUpdate(is_active=True),
+            as_creator=False,
+        )
+
+        assert narrowed["max_failures"] == 1
+        assert resumed["is_active"] is True
+        assert not_acting["is_active"] is True
+
+    async def test_sending_the_same_end_again_is_not_a_change(self):
+        trigger = self._limited()
+
+        changes = await self._update(
+            trigger, TriggerUpdate(ends_at=trigger.ends_at, name="Renamed"), as_creator=False
+        )
+
+        assert changes["name"] == "Renamed"
+
+    @pytest.mark.security
+    async def test_changing_what_it_does_does_not_open_a_resume_by_somebody_else(self):
+        with pytest.raises(AuthorizationError):
+            await self._update(
+                self._limited(is_active=False),
+                TriggerUpdate(prompt="and my calendar", is_active=True),
+                as_creator=False,
+            )
+
     def test_an_explicit_null_is_refused_at_the_schema(self):
         with pytest.raises(PydanticValidationError):
             TriggerUpdate.model_validate({"runs_as_creator": None})

@@ -1,5 +1,5 @@
 ---
-source_sha: "49d132bd9406"
+source_sha: "73f047f7f0ed"
 ---
 
 # Begriffe { #concepts }
@@ -233,6 +233,11 @@ nicht kann — zu diesen Bedingungen:
   Veröffentlichung, eine Promotion oder ein Rollback durch jemand anderen schaltet
   es ab - auch eine über deinen API-Schlüssel oder durch einen Administrator, der
   dich impersoniert.
+- **Nur du setzt ihn fort oder erweiterst ihn.** Solange er als du handelt, kann
+  niemand sonst ihn fortsetzen, sein Enddatum entfernen oder nach hinten schieben
+  oder seine Fehler- und Ausgabenlimits anheben oder entfernen: Das wird
+  abgelehnt, bis Run as me ausgeschaltet ist. Wer ihn bearbeiten darf, kann ihn
+  weiterhin pausieren oder diese Limits verschärfen.
 - **Der Nachweis sagt es.** Der Run nennt den Trigger, der ihn ausgelöst hat, und
   jeder Audit-Eintrag, den das Auslösen schreibt, trägt `via_trigger` mit dem
   Mitglied, als das es gehandelt hat.
