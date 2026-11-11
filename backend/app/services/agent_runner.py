@@ -304,6 +304,7 @@ from app.repositories import (
     agent_exposure_repo,
     agent_repo,
     agent_run_repo,
+    agent_trigger_repo,
     channel_prompt_repo,
     chat_file_repo,
     conversation_repo,
@@ -3140,6 +3141,20 @@ def _dynamic_builder(
         )()
 
     return build
+
+
+class RoutineBudgetSpent(BudgetExceeded):
+    """A parked fire resumed once its routine's month is spent, refused as a skipped fire is.
+
+    A fire still running when the limit is crossed finishes; a parked one has not
+    started its continuation, so it waits for the next month like a new fire.
+    """
+
+    def __init__(self, *, limit_usd: Decimal, spent_usd: Decimal) -> None:
+        super().__init__(limit_usd=limit_usd, spent_usd=spent_usd, scope=BudgetScope.RUN)
+        self.args = (
+            f"Routine monthly budget exhausted: ${spent_usd:.4f} spent of ${limit_usd:.2f} limit",
+        )
 
 
 def _spend_already_booked(run: AgentRun) -> SpendEntry:
@@ -7405,6 +7420,14 @@ class AgentRunnerService:
         # continue. Nothing above has touched the row, so the run is still parked
         # and still resumable, and no failure path can commit a status that was
         # never written.
+        refusal = await self._routine_budget_spent(run)
+
+        async def opened(child: AgentRun) -> None:
+            if refusal is not None:
+                raise refusal
+            if on_run_open is not None:
+                await on_run_open(child)
+
         await agent_run_repo.mark_running(self.db, run=run)
 
         try:
@@ -7420,7 +7443,7 @@ class AgentRunnerService:
                     ),
                     deferred_tool_results=plan.results,
                     on_segment=on_segment,
-                    on_run_open=on_run_open,
+                    on_run_open=opened,
                     check_model_request=check_model_request,
                     stream=frames.drive if frames is not None else None,
                 )
@@ -7951,6 +7974,29 @@ class AgentRunnerService:
             content=base.content if base else "full",
         )
         return spec.model_copy(update={"observability": merged})
+
+    async def _routine_budget_spent(self, run: AgentRun) -> RoutineBudgetSpent | None:
+        """The refusal for a parked fire whose routine has spent its month, or `None`.
+
+        The month is the one the run started in, as the routine's spend is
+        counted, and this run's own spend so far is part of it.
+        """
+        if run.routine_kind != "trigger" or run.routine_origin_id is None:
+            return None
+        trigger = await agent_trigger_repo.get(
+            self.db, run.routine_origin_id, organization_id=run.organization_id
+        )
+        if trigger is None or trigger.monthly_budget_usd is None:
+            return None
+        since, until = budget_window(run.started_at)
+        spent = (
+            await agent_run_repo.spend_by_trigger_since(
+                self.db, trigger_ids=[trigger.id], since=since, until=until
+            )
+        ).get(trigger.id, Decimal(0))
+        if spent < trigger.monthly_budget_usd:
+            return None
+        return RoutineBudgetSpent(limit_usd=trigger.monthly_budget_usd, spent_usd=spent)
 
     async def _parked_spec(self, ctx: AuthContext, run: AgentRun) -> tuple[Agent, AgentSpec]:
         """The agent and the exact spec version this run was executing.

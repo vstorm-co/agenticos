@@ -1035,20 +1035,26 @@ async def role_spend_since(
 
 
 async def spend_by_trigger_since(
-    db: AsyncSession, *, trigger_ids: Sequence[UUID], since: datetime
+    db: AsyncSession,
+    *,
+    trigger_ids: Sequence[UUID],
+    since: datetime,
+    until: datetime | None = None,
 ) -> dict[UUID, Decimal]:
     """What the runs each of these triggers started have cost since `since`.
 
     A trigger with no run in the window is absent rather than zero, so a caller asking
     about many reads one grouped row per spender and defaults the rest itself.
+    `until`, when given, closes the window before it.
     """
     if not trigger_ids:
         return {}
-    result = await db.execute(
-        select(AgentRun.trigger_id, func.coalesce(func.sum(AgentRun.cost_usd), 0))
-        .where(AgentRun.trigger_id.in_(list(trigger_ids)), AgentRun.started_at >= since)
-        .group_by(AgentRun.trigger_id)
+    query = select(AgentRun.trigger_id, func.coalesce(func.sum(AgentRun.cost_usd), 0)).where(
+        AgentRun.trigger_id.in_(list(trigger_ids)), AgentRun.started_at >= since
     )
+    if until is not None:
+        query = query.where(AgentRun.started_at < until)
+    result = await db.execute(query.group_by(AgentRun.trigger_id))
     return {
         trigger_id: Decimal(total) for trigger_id, total in result.all() if trigger_id is not None
     }

@@ -1,5 +1,5 @@
 ---
-source_sha: "2df43efb8afc"
+source_sha: "e665c681d628"
 ---
 
 # Einen Event-Trigger einrichten { #setting-up-an-event-trigger }
@@ -91,6 +91,10 @@ Kalendermonat kosten dürfen. Ist es aufgebraucht, werden ihre Läufe übersprun
 wird, die Routine wird als wegen ihres Budgets pausiert angezeigt und startet am Ersten neu, ohne dass man
 etwas fortsetzen muss. Es verengt nur die Limits des Agenten und der Organisation. Ein Lauf, der beim
 Überschreiten schon läuft, wird beendet, denn das Limit gilt dem Ausgegebenen, nicht einer Prognose.
+
+Eine an einer Genehmigung geparkte Auslösung hat ihre Fortsetzung noch nicht begonnen: Wird sie
+genehmigt, nachdem der Monat der Routine aufgebraucht ist, endet sie mit `budget_exceeded`, ohne das
+Modell aufzurufen.
 
 ## Wo sie im Produkt liegen, und wie man sie nennt { #where-they-live-in-the-product-and-what-to-call-them }
 

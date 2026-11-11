@@ -102,6 +102,7 @@ from app.services.agent_runner import (
     PersonalServiceGap,
     PreparedRun,
     RecordedDelegation,
+    RoutineBudgetSpent,
     RunSegment,
     _answer_only,
     _classify_output,
@@ -4179,6 +4180,37 @@ class TestResume:
         assert window["exclude_run_id"] == self.resumed_run.id
         assert organization.call_args.args[2] == last_month
         assert organization.call_args.kwargs["until"] == this_month
+
+    @pytest.mark.anyio
+    async def test_a_parked_fire_whose_routine_spent_its_month_is_refused_before_the_model(
+        self, monkeypatch
+    ):
+        monkeypatch.setattr(
+            AgentRunnerService,
+            "_routine_budget_spent",
+            AsyncMock(
+                return_value=RoutineBudgetSpent(limit_usd=Decimal("5"), spent_usd=Decimal("5.25"))
+            ),
+        )
+
+        build = await self._resumed(paused_state={"messages": [], "tool_call_ids": {}})
+
+        assert build.return_value.agent.run.await_count == 0
+        finished = self.finished.await_args.kwargs
+        assert finished["status"] == RunStatus.BUDGET_EXCEEDED.value
+        assert finished["cost_usd"] == Decimal("0.25")
+        assert finished["error"].startswith("Routine monthly budget exhausted")
+
+    @pytest.mark.anyio
+    async def test_a_parked_fire_with_budget_left_continues(self, monkeypatch):
+        monkeypatch.setattr(
+            AgentRunnerService, "_routine_budget_spent", AsyncMock(return_value=None)
+        )
+
+        build = await self._resumed(paused_state={"messages": [], "tool_call_ids": {}})
+
+        assert build.return_value.agent.run.await_count == 1
+        assert self.finished.await_args.kwargs["status"] == RunStatus.COMPLETED.value
 
     @pytest.mark.anyio
     async def test_streamed_resume_announces_its_saved_message_without_a_second_bubble(self):
