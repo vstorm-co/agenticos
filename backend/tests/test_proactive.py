@@ -134,7 +134,7 @@ class TestTheLimits:
                 f"{THINKER}.organization_repo.get_by_id", new=AsyncMock(return_value=organization)
             ),
             patch(
-                f"{THINKER}.organization_monthly_spend",
+                f"{THINKER}.organization_spend_since",
                 new=AsyncMock(return_value=Decimal(org_spent)),
             ),
             patch(
@@ -347,6 +347,40 @@ class TestTheLimitsMidway:
 
 
 class TestThinking:
+    async def test_admission_uses_the_run_start_month_before_creating_it(self):
+        started = datetime(2026, 10, 31, 23, 59, tzinfo=UTC)
+        get_slug, _allowance, version, profiles, create, finish = self._patches(TestModel())
+        with (
+            get_slug,
+            version,
+            profiles,
+            create,
+            finish,
+            patch(
+                f"{THINKER}.organization_repo.get_by_id",
+                new=AsyncMock(return_value=_organization("1", "50")),
+            ),
+            patch(
+                f"{THINKER}.organization_spend_since", new=AsyncMock(return_value=Decimal("0"))
+            ) as org_spend,
+            patch(
+                f"{THINKER}.agent_run_repo.proactive_spend_since",
+                new=AsyncMock(return_value=Decimal("0")),
+            ) as feature_spend,
+        ):
+            answer = await ProactiveThinker(_session()).think(
+                _ctx(),
+                feature="nightly",
+                output_type=NightlyReading,
+                instructions="Read.",
+                prompt="{}",
+                started_at=started,
+            )
+        assert isinstance(answer, NightlyReading)
+        for lookup in (org_spend, feature_spend):
+            assert lookup.await_args.kwargs["since"] == datetime(2026, 10, 1, tzinfo=UTC)
+            assert lookup.await_args.kwargs["until"] == datetime(2026, 11, 1, tzinfo=UTC)
+
     async def test_a_background_run_checks_the_closed_month_it_started_in(self, monkeypatch):
         started = datetime(2026, 10, 31, 23, 59, tzinfo=UTC)
         since = datetime(2026, 10, 1, tzinfo=UTC)
@@ -1479,7 +1513,7 @@ class TestMemoryMaintenanceAllowance:
             ),
             patch(f"{THINKER}.system_agent_repo.get", new=AsyncMock(return_value=profile)),
             patch(
-                f"{THINKER}.organization_monthly_spend",
+                f"{THINKER}.organization_spend_since",
                 new=AsyncMock(return_value=Decimal(org_spent)),
             ),
             patch(

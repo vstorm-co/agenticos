@@ -65,8 +65,6 @@ from app.services.model_profile import ModelProfileService
 from app.services.run_heartbeat import run_heartbeat
 from app.services.spend import (
     budget_window,
-    month_start,
-    organization_monthly_spend,
     organization_spend_since,
 )
 
@@ -102,15 +100,18 @@ class ProactiveThinker:
         agent = await agent_repo.get_by_slug(self.db, STARTER_SLUG, organization_id=organization_id)
         return agent if agent is not None and agent.current_version_id is not None else None
 
-    async def allowance(self, ctx: AuthContext, feature: ProactiveFeature) -> UUID | None:
+    async def allowance(
+        self, ctx: AuthContext, feature: ProactiveFeature, *, started_at: datetime | None = None
+    ) -> UUID | None:
         """The model this person's background work may run on now, or `None` when it may not.
 
         `None` where the organization has `feature` off or no model for it,
-        and where this month's spending is at either limit.
+        and where the starting month's spending is at either limit.
         """
+        since, until = budget_window(started_at)
         organization = await organization_repo.get_by_id(self.db, ctx.organization_id)
         if feature == "maintenance":
-            return await self._maintenance_allowance(organization, ctx)
+            return await self._maintenance_allowance(organization, ctx, started_at=started_at)
         if (
             organization is None
             or not (
@@ -124,21 +125,24 @@ class ProactiveThinker:
         ):
             return None
         if organization.monthly_budget_usd is not None:
-            spent = await organization_monthly_spend(self.db, ctx.organization_id)
+            spent = await organization_spend_since(
+                self.db, ctx.organization_id, since=since, until=until
+            )
             if spent >= organization.monthly_budget_usd:
                 return None
         mine = await agent_run_repo.proactive_spend_since(
             self.db,
             organization_id=ctx.organization_id,
             user_id=ctx.user_id,
-            since=month_start(),
+            since=since,
+            until=until,
         )
         if mine >= organization.proactive_limit_usd:
             return None
         return organization.proactive_model_profile_id
 
     async def _maintenance_allowance(
-        self, organization: Organization | None, ctx: AuthContext
+        self, organization: Organization | None, ctx: AuthContext, *, started_at: datetime | None
     ) -> UUID | None:
         """The model memory maintenance may run on now, or `None` when it may not.
 
@@ -146,6 +150,7 @@ class ProactiveThinker:
         organization's monthly cap still applies. Nothing is called past either
         limit, and nothing is called without a model somebody chose.
         """
+        since, until = budget_window(started_at)
         if organization is None:
             return None
         profile = await system_agent_repo.get(
@@ -154,7 +159,9 @@ class ProactiveThinker:
         if profile is None or not profile.enabled or profile.model_profile_id is None:
             return None
         if organization.monthly_budget_usd is not None:
-            spent = await organization_monthly_spend(self.db, ctx.organization_id)
+            spent = await organization_spend_since(
+                self.db, ctx.organization_id, since=since, until=until
+            )
             if spent >= organization.monthly_budget_usd:
                 return None
         if profile.monthly_budget_usd is not None:
@@ -162,7 +169,8 @@ class ProactiveThinker:
                 self.db,
                 organization_id=ctx.organization_id,
                 role=MEMORY_MAINTENANCE,
-                since=month_start(),
+                since=since,
+                until=until,
             )
             if used >= profile.monthly_budget_usd:
                 return None
@@ -202,7 +210,8 @@ class ProactiveThinker:
             agent = await self.starter_agent(ctx.organization_id)
         if agent is None or agent.current_version_id is None:
             return None
-        profile_id = await self.allowance(ctx, feature)
+        started = started_at or datetime.now(UTC)
+        profile_id = await self.allowance(ctx, feature, started_at=started)
         if profile_id is None:
             return None
         version = await agent_repo.get_version(
@@ -218,7 +227,6 @@ class ProactiveThinker:
                 extra={"organization_id": str(ctx.organization_id), "agent_id": str(agent.id)},
             )
             return None
-        started = started_at or datetime.now(UTC)
         run = await agent_run_repo.create_run(
             self.db,
             organization_id=ctx.organization_id,
