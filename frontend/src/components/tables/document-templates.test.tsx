@@ -37,6 +37,7 @@ beforeEach(() => {
     updated_at: null,
     can_edit: true,
     can_restore: false,
+    can_manage: true,
     columns: [
       {
         id: "notes",

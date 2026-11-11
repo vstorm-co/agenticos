@@ -19,6 +19,7 @@ function table(overrides: Partial<TableRead> = {}): TableRead {
     updated_at: null,
     can_edit: true,
     can_restore: false,
+    can_manage: true,
     columns: [
       {
         id: "c1",

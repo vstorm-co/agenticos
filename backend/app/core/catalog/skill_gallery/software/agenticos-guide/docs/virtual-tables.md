@@ -800,6 +800,14 @@ Group membership permits reading the group’s task board; writes additionally r
 
 Project task-board writes require project access and table-edit permission or an explicit table Edit grant. Removing a project, group or private owner cancels queued task work, resolves task cases and purges that scope’s managed table, records, history and media in the same transaction. Other scopes remain intact. The tasks panel falls back to an accessible private board if the selected board disappears.
 
+Changing a task board itself is narrower than working on it. Renaming the board, changing
+its columns or default view, and archiving or restoring it need `tables:edit` at the `ALL`
+scope (an owner or admin) or the leader of the board's scope: the group's lead, the
+project's owner, the person a private board belongs to. Anyone else in the board's
+audience still adds and edits tasks; the table's `can_manage` says which of the two a
+caller may do, and the console shows the board's own controls only when it is true. An
+attempt without it is refused with `AUTHORIZATION_ERROR` (403).
+
 ## Default view {#default-view}
 
 An editor can choose **Set as default** in the table toolbar. The current layout,

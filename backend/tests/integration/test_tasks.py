@@ -8,14 +8,14 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.group import Group, GroupMember
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.task_board import TaskBoard, TaskLink
 from app.db.models.user import User
 from app.schemas.task import BoardEnsure, TaskCreate, TaskUpdate
-from app.schemas.virtual_table import ColumnInput, RecordUpdate, SchemaUpdate
+from app.schemas.virtual_table import ColumnInput, RecordUpdate, SchemaUpdate, TableUpdate
 from app.services.task_execution import TaskExecution
 from app.services.tasks import TaskLifecycle, TaskService
 from app.services.virtual_tables import VirtualTableService
@@ -1446,3 +1446,80 @@ async def test_concurrently_removed_board_cannot_update_or_purge_an_unrelated_ta
     monkeypatch.setattr(tasks.task_repo, "purge_table", purge)
     await service.purge_scope("private", data.users[0].id, organization_id=data.org.id)
     purge.assert_not_awaited()
+
+
+async def _as_member(db: AsyncSession, data: World) -> AuthContext:
+    member = await db.scalar(
+        select(OrganizationMember).where(OrganizationMember.user_id == data.users[1].id)
+    )
+    assert member is not None
+    member.role = "member"
+    await db.flush()
+    return AuthContext(user_id=data.users[1].id, organization_id=data.org.id, role="member")
+
+
+async def test_a_member_works_on_the_organizations_board_but_cannot_change_it(
+    db: AsyncSession,
+) -> None:
+    data = await world(db)
+    member = await _as_member(db, data)
+    service = TaskService(db)
+    tables = VirtualTableService(db)
+    opened = await service.open_board(member, BoardEnsure(scope="organization"))
+    assert opened.can_edit is True
+
+    seen = await tables.describe_table(member, opened.table_id)
+    assert (seen.can_edit, seen.can_manage) == (True, False)
+    with pytest.raises(AuthorizationError):
+        await tables.archive_table(member, opened.table_id)
+    with pytest.raises(AuthorizationError):
+        await tables.update_table(member, opened.table_id, TableUpdate(name="Mine now"))
+    with pytest.raises(AuthorizationError):
+        await tables.update_schema(
+            member,
+            opened.table_id,
+            SchemaUpdate(
+                expected_version=seen.schema_version,
+                columns=[
+                    *[ColumnInput.model_validate(column.model_dump()) for column in seen.columns],
+                    ColumnInput(label="Extra", type="text"),
+                ],
+            ),
+        )
+    task = await service.create(member, TaskCreate(title="Still mine to add", scope="organization"))
+    assert task.table_id == opened.table_id
+    assert (await tables.describe_table(member, opened.table_id)).archived_at is None
+
+
+async def test_an_owner_archives_and_restores_the_organizations_board(db: AsyncSession) -> None:
+    data = await world(db)
+    owner = data.contexts[0]
+    member = await _as_member(db, data)
+    service = TaskService(db)
+    tables = VirtualTableService(db)
+    opened = await service.open_board(owner, BoardEnsure(scope="organization"))
+    assert opened.can_edit is True
+    assert (await tables.describe_table(owner, opened.table_id)).can_manage is True
+
+    await tables.archive_table(owner, opened.table_id)
+    assert (await tables.describe_table(member, opened.table_id)).can_restore is False
+    with pytest.raises(AuthorizationError):
+        await tables.unarchive_table(member, opened.table_id)
+    restored = await tables.unarchive_table(owner, opened.table_id)
+    assert restored.archived_at is None
+
+
+async def test_a_group_lead_changes_the_groups_board(db: AsyncSession) -> None:
+    data = await world(db)
+    member = await _as_member(db, data)
+    group = Group(organization_id=data.org.id, name="Ops")
+    db.add(group)
+    await db.flush()
+    db.add(GroupMember(group_id=group.id, user_id=data.users[1].id, is_lead=True))
+    await db.flush()
+    tables = VirtualTableService(db)
+    board = await TaskService(db).open_board(member, BoardEnsure(scope="group", scope_id=group.id))
+
+    renamed = await tables.update_table(member, board.table_id, TableUpdate(name="Ops tasks"))
+
+    assert renamed.name == "Ops tasks"

@@ -220,6 +220,12 @@ export interface TableRead extends TableSummary {
    * false on an archived table, since no write to one succeeds.
    */
   can_restore: boolean;
+  /**
+   * Whether this caller may rename the table, change its columns or default view, or
+   * archive it. The same as `can_edit` except on a task board, where its audience edits
+   * tasks and only an administrator or the leader of its scope changes the board.
+   */
+  can_manage: boolean;
 }
 
 /** A table as the catalog lists it: how much it holds. Mirrors `TableListItem`. */
