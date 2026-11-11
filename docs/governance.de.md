@@ -1,5 +1,5 @@
 ---
-source_sha: "f7a146db5510"
+source_sha: "9ba5567cc7b6"
 ---
 
 # Governance { #governance }
@@ -135,6 +135,12 @@ Version, denn das ist die, die der Runner durchsetzt, und nicht das, was der
 Draft gerade verspricht. Die Headroom-Karte des Dashboards verbindet diese mit
 `GET /spend`, sodass ein Cap im Anmarsch zu sehen ist, bevor `budget_exceeded` in
 der Run-Historie auftaucht.
+
+Diese veröffentlichte Zahl gilt für jeden Run des Agents, auch für einen Run einer
+älteren Version: eine Routine, eine Umgebung oder ein Workflow-Schritt, die auf
+sie festgelegt sind, oder ein Run, der auf der Version fortgesetzt wird, auf der er
+geparkt wurde. Eine Festlegung bestimmt, wie sich der Agent verhält, nicht, was er
+ausgeben darf.
 
 ### Das Cap einer Abteilung { #a-departments-cap }
 
@@ -642,6 +648,12 @@ Standard: `proactive_model_profile_id` ist Pflicht), in der Run-Historie als Run
 der Oberfläche **proactive** festgehalten und wie jeder andere auf das Budget der
 Organisation angerechnet. Eine Person kann sich unter **Einstellungen →
 Assistent** ausnehmen.
+
+Jede Modellanfrage eines solchen Runs - die erste und jeder erneute Versuch -
+wird gegen das Proaktivitäts-Ausgabenlimit der Person, das Monatsbudget des
+zugeordneten Agents und das der Organisation geprüft. Ein Run, der eines davon
+unterwegs erreicht, hält dort an, endet mit `budget_exceeded` und behält, was er
+ausgegeben hat. Solche Runs zählen zu keiner Abteilung.
 
 Der nächtliche Blick wird 20 Stunden nach seinem eigenen letzten Versuch
 fällig. Beobachtungen und Speicherwartung verschieben diesen Zeitpunkt nicht.
@@ -2588,7 +2600,7 @@ Es ist wert, gesagt zu werden, weil eine Governance-Seite anderes nahelegt:
 
 ## Automatische Pause bei wiederholten Fehlern { #routine-health }
 
-Routinen und Beobachtungen pausieren standardmäßig nach **drei aufeinanderfolgenden erfolglosen Prüfungen**. Im Formular lässt sich ein Limit von 1 bis 20 festlegen oder dieses Limit deaktivieren. Anbieter- und Ausführungsfehler, ungültige Beobachtungsergebnisse und unerreichbare Quellen zählen mit. Warten auf Genehmigung, einen Offline-Computer und Zustellfehler zählen nicht; eine leere, aber verifizierte erfolgreiche Prüfung setzt die Serie zurück. Andere Berechtigungs- und Budgetstopps gelten auch bei deaktiviertem Fehlerlimit.
+Routinen und Beobachtungen pausieren standardmäßig nach **drei aufeinanderfolgenden erfolglosen Prüfungen**. Im Formular lässt sich ein Limit von 1 bis 20 festlegen oder dieses Limit deaktivieren. Anbieter- und Ausführungsfehler, ungültige Beobachtungsergebnisse und unerreichbare Quellen zählen mit. Warten auf Genehmigung, einen Offline-Computer, Zustellfehler und Budgetstopps zählen nicht: Eine vom Budget abgelehnte Prüfung wartet auf die nächste und verlängert die Serie weder, noch setzt sie sie zurück. Eine leere, aber verifizierte erfolgreiche Prüfung setzt die Serie zurück. Andere Berechtigungs- und Budgetstopps gelten auch bei deaktiviertem Fehlerlimit.
 
 Jede Aktivierung erhält genau eine dauerhafte Zustandsbeobachtung. Wiederholungen erhöhen den Zähler nicht; verspätete Abschlüsse werden in Aktivierungsreihenfolge ausgewertet. Die automatische Pause stoppt künftige Aktivierungen; eine laufende Modellanfrage kann noch enden.
 

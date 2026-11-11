@@ -160,6 +160,16 @@ def _in_no_group(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
+@pytest.fixture(autouse=True)
+def _no_current_cap(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No current published version sets a cap; `TestTheCurrentVersionsCap` covers one."""
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        "app.services.agent_runner.agent_repo.published_budget_caps", AsyncMock(return_value={})
+    )
+
+
 _THE_ASKER = uuid.uuid4()
 """The person a parked run was answering, told apart from whoever approves it."""
 
@@ -1310,7 +1320,15 @@ class TestPrepare:
 
     @pytest.mark.anyio
     @pytest.mark.parametrize(
-        "fields", [{"user_id": None}, {"trigger_id": uuid.uuid4()}], ids=["nobody", "routine"]
+        "fields",
+        [
+            {"user_id": None},
+            {"trigger_id": uuid.uuid4()},
+            {"routine_origin_id": uuid.uuid4(), "routine_kind": "watch"},
+            {"routine_origin_id": uuid.uuid4(), "trigger_id": None},
+            {"surface": RunSurface.PROACTIVE.value},
+        ],
+        ids=["nobody", "routine", "watch", "deleted-routine", "background"],
     )
     async def test_a_resumed_run_nobody_started_answers_to_no_department(self, fields):
         service = AgentRunnerService(_db())
@@ -10491,3 +10509,58 @@ async def test_checkpoint_storage_refusal_fails_without_persisting_pending_calls
     assert (finish.await_args.kwargs["paused_state"] is not None) is accepted
     if not accepted:
         assert "quota exceeded" in finish.await_args.kwargs["error"]
+
+
+@pytest.mark.anyio
+class TestTheCurrentVersionsCap:
+    """The agent's cap is its current published version's, whatever version runs."""
+
+    async def test_an_older_version_takes_the_current_versions_cap(self, monkeypatch) -> None:
+        current = uuid.uuid4()
+        caps = AsyncMock(return_value={current: 5.0})
+        monkeypatch.setattr("app.services.agent_runner.agent_repo.published_budget_caps", caps)
+        service = AgentRunnerService(MagicMock())
+
+        spec = await service._with_current_budget(
+            MagicMock(current_version_id=current),
+            AgentSpec(name="Support"),
+            version_id=uuid.uuid4(),
+        )
+
+        assert spec.budget is not None
+        assert spec.budget.monthly_usd == 5.0
+        assert caps.await_args.kwargs["version_ids"] == [current]
+
+    async def test_a_cap_the_current_version_dropped_is_dropped(self) -> None:
+        service = AgentRunnerService(MagicMock())
+
+        spec = await service._with_current_budget(
+            MagicMock(current_version_id=uuid.uuid4()),
+            AgentSpec(name="Support", budget={"monthly_usd": 5}),
+            version_id=uuid.uuid4(),
+        )
+
+        assert spec.budget is None
+
+    async def test_the_current_version_and_an_unpublished_agent_keep_their_own(
+        self, monkeypatch
+    ) -> None:
+        caps = AsyncMock(return_value={})
+        monkeypatch.setattr("app.services.agent_runner.agent_repo.published_budget_caps", caps)
+        service = AgentRunnerService(MagicMock())
+        own = AgentSpec(name="Support", budget={"monthly_usd": 5})
+        current = uuid.uuid4()
+
+        assert (
+            await service._with_current_budget(
+                MagicMock(current_version_id=current), own, version_id=current
+            )
+            is own
+        )
+        assert (
+            await service._with_current_budget(
+                MagicMock(current_version_id=None), own, version_id=None
+            )
+            is own
+        )
+        caps.assert_not_awaited()

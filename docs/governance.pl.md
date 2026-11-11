@@ -1,5 +1,5 @@
 ---
-source_sha: "f7a146db5510"
+source_sha: "9ba5567cc7b6"
 ---
 
 # Governance { #governance }
@@ -129,6 +129,11 @@ na liście agentów — liczba z _opublikowanej_ wersji, bo to ją egzekwuje run
 nie to, co akurat obiecuje draft. Karta zapasu na dashboardzie zestawia je z
 `GET /spend`, więc zbliżający się limit widać, zanim w historii runów zacznie
 pojawiać się `budget_exceeded`.
+
+Ta opublikowana liczba obowiązuje każdy run agenta, także run starszej wersji:
+rutynę, środowisko albo krok workflow przypięte do niej, albo run wznowiony na
+wersji, na której został zaparkowany. Przypięcie decyduje o tym, jak agent działa,
+a nie o tym, ile może wydać.
 
 ### Limit działu { #a-departments-cap }
 
@@ -598,6 +603,12 @@ wywołanie modelu, na modelu wybranym przez organizację przy włączaniu (nie m
 domyślnego: `proactive_model_profile_id` jest wymagany), zapisane w historii
 runów jako run z powierzchni **proactive** i liczone do budżetu organizacji jak
 każde inne. Osoba może wyłączyć to dla siebie w **Ustawienia → Asystent**.
+
+Każde żądanie do modelu w takim runie - pierwsze i każda ponowna próba - jest
+sprawdzane względem limitu wydatków na proaktywność danej osoby, miesięcznego
+budżetu przypisanego agenta i budżetu organizacji. Run, który osiągnie któryś z
+nich w trakcie, zatrzymuje się, kończy jako `budget_exceeded` i zachowuje to, co
+wydał. Takie runy nie liczą się do żadnego działu.
 
 Nocny przegląd staje się należny 20 godzin po własnej ostatniej próbie.
 Obserwacje i konserwacja pamięci nie przesuwają tego terminu. Obserwacje nadal
@@ -2433,7 +2444,7 @@ Warto to powiedzieć, bo strona o governance sugeruje coś innego:
 
 ## Automatyczne wstrzymanie po kolejnych błędach { #routine-health }
 
-Rutyny i obserwacje domyślnie wstrzymują się po **trzech kolejnych nieudanych sprawdzeniach**. W formularzu rutyny ustaw limit od 1 do 20 lub wyłącz ten limit. Liczą się błędy dostawcy i wykonania, nieprawidłowe odczyty obserwacji oraz niedostępne źródła. Oczekiwanie na zgodę, komputer offline i błędy dostarczenia nie zwiększają licznika; puste, ale poprawnie zweryfikowane sprawdzenie zeruje serię. Inne blokady uprawnień i budżetu obowiązują także po wyłączeniu tego limitu.
+Rutyny i obserwacje domyślnie wstrzymują się po **trzech kolejnych nieudanych sprawdzeniach**. W formularzu rutyny ustaw limit od 1 do 20 lub wyłącz ten limit. Liczą się błędy dostawcy i wykonania, nieprawidłowe odczyty obserwacji oraz niedostępne źródła. Oczekiwanie na zgodę, komputer offline, błędy dostarczenia i zatrzymania przez budżet nie zwiększają licznika: sprawdzenie odrzucone przez budżet czeka na następne i ani nie wydłuża serii, ani jej nie zeruje. Puste, ale poprawnie zweryfikowane sprawdzenie zeruje serię. Inne blokady uprawnień i budżetu obowiązują także po wyłączeniu tego limitu.
 
 Każda aktywacja ma jeden trwały zapis stanu. Ponowienia nie zwiększają licznika, a opóźnione zakończenia są oceniane według kolejności aktywacji. Automatyczne wstrzymanie zatrzymuje przyszłe aktywacje; trwające żądanie do modelu może się zakończyć.
 

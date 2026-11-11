@@ -122,6 +122,11 @@ enforces, not whatever the draft currently promises. The dashboard's headroom
 card joins these against `GET /spend`, so a cap can be seen approaching before
 `budget_exceeded` starts appearing in run history.
 
+That published number binds every run of the agent, including a run of an older
+version: a routine, an environment or a workflow step pinned to one, or a run
+resumed on the version it was parked on. A pin decides how the agent behaves, not
+what it may spend.
+
 ### A department's cap
 
 A [department](departments.md#a-departments-budget) can carry its own monthly
@@ -558,6 +563,12 @@ call, on the model the organization chose when it turned this on (there is no
 default: `proactive_model_profile_id` is required), recorded in run history as a
 run from the **proactive** surface and counted against the organization's budget
 like any other. A person can leave themselves out under **Settings → Assistant**.
+
+Every model request such a run makes - the first and any retry - is checked
+against the person's proactivity spending limit, the attributed agent's monthly
+budget and the organization's. A run that reaches one midway stops there, ends
+`budget_exceeded` and keeps what it spent. These runs count towards no
+department.
 
 The nightly look becomes due 20 hours after its own last attempt. Watches and
 memory maintenance do not move that clock. Watches still count toward the
@@ -2296,7 +2307,7 @@ Worth stating, because a governance page implies otherwise:
 
 ## Automatic pause after repeated failures { #routine-health }
 
-Routines and watches pause after **three consecutive unsuccessful checks** by default. Set a limit from 1 to 20, or disable this limit, in the routine's form. Provider/runtime failures, invalid watch readings and inaccessible sources count. Waiting for approval, waiting for an offline computer and delivery failures do not count; an empty but verified successful check resets the streak. Other permission and budget stops still apply when this limit is disabled.
+Routines and watches pause after **three consecutive unsuccessful checks** by default. Set a limit from 1 to 20, or disable this limit, in the routine's form. Provider/runtime failures, invalid watch readings and inaccessible sources count. Waiting for approval, waiting for an offline computer, delivery failures and budget stops do not count: a check a budget refused waits for the next one, and neither adds to the streak nor resets it. An empty but verified successful check resets the streak. Other permission and budget stops still apply when this limit is disabled.
 
 Each activation has one durable health observation. Retries cannot increase the count, and late completions are evaluated in activation order. Automatic pause stops future activations; a model request already in flight may finish.
 

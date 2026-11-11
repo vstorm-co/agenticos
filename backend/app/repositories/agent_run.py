@@ -1045,11 +1045,18 @@ async def rated_answers(
 def _counts_for_a_department() -> list[ColumnElement[bool]]:
     """The runs a department's cap holds: its members' own, not a routine's.
 
-    A routine firing as its creator, and a visitor a widget's publisher stands in
-    for, name that person on the run but run under no department cap - the runner
-    gives them none - so counting them would spend a cap that never held them.
+    A routine firing as its creator, a watch or briefing working in the
+    background, and a visitor a widget's publisher stands in for name that person
+    on the run but run under no department cap - the runner gives them none - so
+    counting them would spend a cap that never held them. `routine_origin_id`
+    outlives a deleted routine, whose runs lose `trigger_id`.
     """
-    return [AgentRun.trigger_id.is_(None), AgentRun.initiated_by_publisher_fallback.is_(False)]
+    return [
+        AgentRun.trigger_id.is_(None),
+        AgentRun.routine_origin_id.is_(None),
+        AgentRun.surface != RunSurface.PROACTIVE.value,
+        AgentRun.initiated_by_publisher_fallback.is_(False),
+    ]
 
 
 async def proactive_spend_since(
