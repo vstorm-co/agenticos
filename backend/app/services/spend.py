@@ -50,17 +50,15 @@ def month_start(now: datetime | None = None) -> datetime:
     return moment.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
 
-def budget_window(started_at: datetime | None) -> tuple[datetime, datetime | None]:
-    """The month a run's spend is checked against: the one it started in.
+def budget_window(started_at: datetime | None) -> tuple[datetime, datetime]:
+    """The month a run's spend is checked against: the one it started in, `None` being now.
 
     A run's whole cost is booked to the month it started, so a run resumed after
-    the first is weighed against that month's spend, as every report counts it,
-    rather than adding its earlier cost to a month that never saw it. `until` is
-    `None` for a run of the current month.
+    the first, or a call still talking past midnight on the last day, is weighed
+    against that month's spend, as every report counts it, rather than against a
+    month that never saw its earlier cost. The window is closed at the next first
+    so a baseline read again later stays that month's.
     """
-    current = month_start()
-    if started_at is None or started_at >= current:
-        return current, None
     started = month_start(started_at)
     return started, month_start(started.replace(day=28) + timedelta(days=4))
 

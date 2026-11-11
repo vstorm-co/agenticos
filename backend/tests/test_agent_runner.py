@@ -270,9 +270,12 @@ class TestMonthBoundary:
         moment = datetime(2026, 7, 26, 22, 30, tzinfo=UTC)
         assert month_start(moment) == datetime(2026, 7, 1, tzinfo=UTC)
 
-    def test_a_run_of_this_month_is_weighed_against_this_month_so_far(self):
-        assert budget_window(datetime.now(UTC)) == (month_start(), None)
-        assert budget_window(None) == (month_start(), None)
+    def test_a_run_of_this_month_is_weighed_against_this_month_alone(self):
+        """A call past midnight on the last day re-reads its baseline: still its own month."""
+        this_month = month_start()
+        next_month = month_start(this_month + timedelta(days=32))
+        assert budget_window(datetime.now(UTC)) == (this_month, next_month)
+        assert budget_window(None) == (this_month, next_month)
 
     def test_an_earlier_run_is_weighed_against_the_whole_month_it_started(self):
         assert budget_window(datetime(2025, 12, 31, 23, 59, tzinfo=UTC)) == (
@@ -1200,6 +1203,8 @@ class TestPrepare:
         assert spent == Decimal("4.50")
         assert total.call_args.kwargs["organization_id"] == ctx.organization_id
         assert total.call_args.kwargs["since"] == month_start()
+        # Closed at the next first: a call past midnight re-reads this month, not the next.
+        assert total.call_args.kwargs["until"] == month_start(month_start() + timedelta(days=32))
         # The organization-wide sum narrows to no agent - that absence is the
         # difference between this lookup and the one above it.
         assert total.call_args.kwargs.get("agent_id") is None
