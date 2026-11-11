@@ -84,11 +84,15 @@ class Operations:
             self.db, ctx, table, Perm.TABLES_EDIT, resource_type=TABLE
         ) and await self._manages_board(ctx, table)
 
-    async def _manages_board(self, ctx: AuthContext, table: VirtualTable) -> bool:
-        """False only for a task board this caller may work on but not change."""
+    async def _board_manager(self, ctx: AuthContext, table: VirtualTable) -> bool | None:
+        """Whether this caller may change the task board behind `table`; None when it is none."""
         from app.services.task_access import manages_table
 
-        return await manages_table(self.db, ctx, table.id) is not False
+        return await manages_table(self.db, ctx, table.id)
+
+    async def _manages_board(self, ctx: AuthContext, table: VirtualTable) -> bool:
+        """False only for a task board this caller may work on but not change."""
+        return await self._board_manager(ctx, table) is not False
 
     async def _ensure_manages_board(self, ctx: AuthContext, table: VirtualTable) -> None:
         """Refuse changing a task board itself to anyone but an administrator or its leader.

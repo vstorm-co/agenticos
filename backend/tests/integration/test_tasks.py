@@ -1557,3 +1557,46 @@ async def test_a_board_default_view_is_the_boards_to_change_whoever_saved_it(
         data.contexts[0], opened.table_id, table.default_view_id, TableViewUpdate(name="Ours")
     )
     assert renamed.name == "Ours"
+
+
+async def test_a_group_lead_changes_the_board_default_view_someone_else_saved(
+    db: AsyncSession,
+) -> None:
+    from app.schemas.table_view import TableViewUpdate
+    from app.services.virtual_tables import TableViewService
+
+    data = await world(db)
+    lead = await _as_member(db, data)
+    saver = User(email=f"{uuid4()}@example.com", hashed_password="x", full_name="Saver")
+    db.add(saver)
+    await db.flush()
+    db.add(OrganizationMember(organization_id=data.org.id, user_id=saver.id, role="member"))
+    group = Group(organization_id=data.org.id, name="Ops")
+    db.add(group)
+    await db.flush()
+    db.add_all(
+        [
+            GroupMember(group_id=group.id, user_id=data.users[1].id, is_lead=True),
+            GroupMember(group_id=group.id, user_id=saver.id, is_lead=False),
+        ]
+    )
+    await db.flush()
+    saver_ctx = AuthContext(user_id=saver.id, organization_id=data.org.id, role="member")
+    board = await TaskService(db).open_board(
+        saver_ctx, BoardEnsure(scope="group", scope_id=group.id)
+    )
+    table = await VirtualTableService(db).describe_table(lead, board.table_id)
+    assert table.default_view_id is not None
+    views = TableViewService(db)
+
+    seen = await views.get_view(lead, board.table_id, table.default_view_id)
+    assert (seen.owner_user_id, seen.can_manage, seen.can_delete) == (saver.id, True, True)
+    renamed = await views.update_view(
+        lead, board.table_id, table.default_view_id, TableViewUpdate(name="Ops board")
+    )
+    assert (renamed.name, renamed.can_manage) == ("Ops board", True)
+    with pytest.raises(AuthorizationError):
+        await views.update_view(
+            saver_ctx, board.table_id, table.default_view_id, TableViewUpdate(name="Mine")
+        )
+    await views.delete_view(lead, board.table_id, table.default_view_id)
