@@ -1,5 +1,5 @@
 ---
-source_sha: "fc28ea4af1c4"
+source_sha: "03fd7c8871db"
 ---
 
 # Governance { #governance }
@@ -648,6 +648,12 @@ Standard: `proactive_model_profile_id` ist Pflicht), in der Run-Historie als Run
 der Oberfläche **proactive** festgehalten und wie jeder andere auf das Budget der
 Organisation angerechnet. Eine Person kann sich unter **Einstellungen →
 Assistent** ausnehmen.
+
+Jede Modellanfrage eines solchen Runs - die erste und jeder erneute Versuch -
+wird gegen das Proaktivitäts-Ausgabenlimit der Person, das Monatsbudget des
+zugeordneten Agents und das der Organisation geprüft. Ein Run, der eines davon
+unterwegs erreicht, hält dort an, endet mit `budget_exceeded` und behält, was er
+ausgegeben hat. Solche Runs zählen zu keiner Abteilung.
 
 Der nächtliche Blick wird 20 Stunden nach seinem eigenen letzten Versuch
 fällig. Beobachtungen und Speicherwartung verschieben diesen Zeitpunkt nicht.

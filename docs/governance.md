@@ -564,6 +564,12 @@ default: `proactive_model_profile_id` is required), recorded in run history as a
 run from the **proactive** surface and counted against the organization's budget
 like any other. A person can leave themselves out under **Settings → Assistant**.
 
+Every model request such a run makes - the first and any retry - is checked
+against the person's proactivity spending limit, the attributed agent's monthly
+budget and the organization's. A run that reaches one midway stops there, ends
+`budget_exceeded` and keeps what it spent. These runs count towards no
+department.
+
 The nightly look becomes due 20 hours after its own last attempt. Watches and
 memory maintenance do not move that clock. Watches still count toward the
 person's proactivity spending limit.

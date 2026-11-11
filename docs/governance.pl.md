@@ -1,5 +1,5 @@
 ---
-source_sha: "fc28ea4af1c4"
+source_sha: "03fd7c8871db"
 ---
 
 # Governance { #governance }
@@ -603,6 +603,12 @@ wywołanie modelu, na modelu wybranym przez organizację przy włączaniu (nie m
 domyślnego: `proactive_model_profile_id` jest wymagany), zapisane w historii
 runów jako run z powierzchni **proactive** i liczone do budżetu organizacji jak
 każde inne. Osoba może wyłączyć to dla siebie w **Ustawienia → Asystent**.
+
+Każde żądanie do modelu w takim runie - pierwsze i każda ponowna próba - jest
+sprawdzane względem limitu wydatków na proaktywność danej osoby, miesięcznego
+budżetu przypisanego agenta i budżetu organizacji. Run, który osiągnie któryś z
+nich w trakcie, zatrzymuje się, kończy jako `budget_exceeded` i zachowuje to, co
+wydał. Takie runy nie liczą się do żadnego działu.
 
 Nocny przegląd staje się należny 20 godzin po własnej ostatniej próbie.
 Obserwacje i konserwacja pamięci nie przesuwają tego terminu. Obserwacje nadal
