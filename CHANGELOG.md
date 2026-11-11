@@ -29,7 +29,7 @@ Two things are versioned separately from this file and worth knowing about:
   capability's tool or one of the platform's. Publish now refuses both, the MCP
   case on the tools the connection's last check listed. A clash that still
   reaches a run leaves that whole server out of the turn and tells the model
-  why, instead of aborting it (#2890).
+  why, instead of aborting it (#2891).
 
 ## [1.64.0] - 2026-11-11
 
