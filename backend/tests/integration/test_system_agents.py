@@ -238,6 +238,17 @@ async def test_a_finished_chat_is_queued_for_extraction_only_where_the_role_is_o
     assert jobs[0][0].concurrency_key == f"memory-maintenance:{org.id}"
 
 
+async def test_a_chat_others_read_is_not_read_for_the_persons_memory(db: AsyncSession) -> None:
+    user, org, agent, version, model, ctx = await _world(db)
+    await _enabled(db, org, model)
+    run, _ = await _chat_run(db, org, agent, version, user)
+
+    assert not await extraction.queue_extraction(
+        db, run, SPEC, audience=RunAudience(user_id=user.id, shared_transcript=True)
+    )
+    assert await extraction.queue_extraction(db, run, SPEC, audience=RunAudience(user_id=user.id))
+
+
 @pytest.mark.parametrize(
     "overrides",
     [

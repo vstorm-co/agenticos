@@ -116,6 +116,7 @@ def _eligible(run: AgentRun, audience: RunAudience | None) -> bool:
         and run.parent_run_id is None
         and run.surface
         not in {RunSurface.EMBED.value, RunSurface.A2A.value, RunSurface.PROACTIVE.value}
+        and not (audience is not None and audience.shared_transcript)
         and (
             run.surface == RunSurface.WEB.value
             if audience is None

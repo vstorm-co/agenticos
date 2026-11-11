@@ -1,5 +1,5 @@
 ---
-source_sha: "b0fd849fcc36"
+source_sha: "e56114089316"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -462,6 +462,10 @@ herramienta recibe un ámbito y no hay nada que el agent pueda confundir.
   almacén, y las herramientas lo dicen en vez de guardar en algún sitio. Un run
   iniciado con una [clave API](../api.md#organization-api-keys) tampoco lo tiene:
   la clave actúa por quien la emitió, pero quien la tiene no es esa persona.
+- En un chat que leen otras personas, el de un proyecto o uno compartido con
+  alguien para editar, no hay almacén personal. El agent no muestra, no recupera
+  ni guarda allí lo que sabe de la persona; sigue leyendo los claims del
+  proyecto y de la organización.
 - En una programación o en un trigger de evento tampoco hay almacén, aunque el
   run se ejecuta como el creador del trigger. El creador presta al run su
   autoridad, no su identidad, así que nadie escucha y las herramientas se

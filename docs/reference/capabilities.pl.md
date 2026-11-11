@@ -1,5 +1,5 @@
 ---
-source_sha: "b0fd849fcc36"
+source_sha: "e56114089316"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -451,6 +451,10 @@ wynika po stronie serwera z tego, kto usłyszy odpowiedź, a nigdy z modelu — 
   ma magazynu, a narzędzia mówią to wprost, zamiast zapisywać gdziekolwiek. Run
   uruchomiony [kluczem API](../api.md#organization-api-keys) też go nie ma: klucz
   działa w imieniu wystawcy, ale ten, kto go trzyma, nie jest tą osobą.
+- W czacie, który czytają inni - czacie projektu albo udostępnionym komuś do
+  edycji - nie ma magazynu osobistego. Agent nie pokazuje, nie przywołuje i nie
+  zapisuje tam tego, co wie o osobie; nadal czyta claimy projektu i
+  organizacji.
 - W harmonogramie albo przy triggerze zdarzenia też nie ma magazynu, chociaż run
   wykonuje się jako twórca triggera. Twórca pożycza runowi swoje uprawnienia, a
   nie tożsamość, więc nikt nie słucha i narzędzia odmawiają. Fakt potrzebny
