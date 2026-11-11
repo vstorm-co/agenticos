@@ -149,6 +149,8 @@ export function earlierSteps(
 ): Uuid[] {
   const steps = new Set([...reachable, ...sourcesOf(graph, nodeId)]);
   steps.delete(nodeId);
+  // A step switched off does nothing, so it has nothing to show or to read.
+  for (const node of graph.nodes) if (node.disabled === true) steps.delete(node.id);
   // How many connections back each step is, walking the wires upstream.
   const away = new Map<Uuid, number>([[nodeId, 0]]);
   const queue = [nodeId];

@@ -1,5 +1,5 @@
 ---
-source_sha: "13e511da30cb"
+source_sha: "cba80f115942"
 ---
 
 # Workflows { #workflows }
@@ -372,11 +372,26 @@ geändert ist.
 **Run this step** dort auszuschalten, oder **Switch off** in seinem Kontextmenü, lässt
 einen Schritt gedimmt auf der Zeichenfläche und überspringt ihn, wenn ein Lauf ihn
 erreicht: Er tut nichts und gibt weiter, was bei ihm ankam. Die Veröffentlichung lehnt
-einen abgeschalteten Trigger oder einen Schritt, der den Weg entscheidet, ab, und einen
+einen abgeschalteten Trigger oder einen verbundenen Schritt, der den Weg entscheidet, ab, und einen
 Schritt, der einen abgeschalteten liest, außer das, was bei ihm ankommt - über seine
 eine eingehende Verbindung, von einem eingeschalteten Schritt - hat das gelesene Feld,
 das er dann weitergibt. Alle drei werden im Graphen gespeichert, sodass Versionen sie
 behalten.
+
+Bei einem abgeschalteten Schritt, verbunden oder nicht, werden weder Eingaben noch
+Einstellungen geprüft: Er liest keine von beiden. Ihn wieder einzuschalten ist eine
+Änderung, die veröffentlicht werden muss, und die Veröffentlichung prüft sie dann.
+
+Ein abgeschalteter Schritt ganz ohne Verbindung ist beiseitegestellt: Er kann neben dem
+Workflow oder in einer Schleife stehen - etwa ein **Combine lists** mit Testdaten -,
+ohne erreichbar zu sein. Ein Run übergeht ihn, und er zählt nicht zum Schrittlimit des
+Runs. Wird er mit irgendetwas verbunden, muss er wieder erreichbar sein. Jeder Schritt
+lässt sich so beiseitestellen, auch einer, der den Weg
+entscheidet, etwa **If**: Ohne Verbindung hat er nichts zu wählen. Nur der Trigger
+sowie **Loop item** und **Loop result** einer Schleife bleiben immer eingeschaltet.
+
+
+Ein ausgeschalteter Schritt darf seine Fehlerstrategie und Datei- oder Tabellenbindungen behalten, auch wenn die Ressource nicht mehr zugänglich ist. Er liest nichts davon; beim erneuten Einschalten wird alles geprüft. Ein beiseitegelegter Schritt erscheint im Schritte-Tab als **Ausgeschaltet**, ohne Ausführungsdatensatz. Verbinden Sie ihn vor **Test step** mit einem Trigger.
 
 ### Die Daten eines Schritts, Testdaten und einen Schritt testen { #a-steps-data-pinning-and-testing-one-step }
 

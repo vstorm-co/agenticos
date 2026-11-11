@@ -7609,7 +7609,8 @@
         "running": "Läuft",
         "waiting": "Wartet",
         "notReached": "Nicht erreicht",
-        "starting": "Startet"
+        "starting": "Startet",
+        "switchedOff": "Ausgeschaltet"
       },
       "startRun": "Run starten",
       "startRunTitle": "Run starten",
@@ -10333,6 +10334,7 @@
     "validationLabelTaken": "Ein anderer Schritt heißt bereits „{label}“.",
     "validationTriggerSwitchedOff": "Der Trigger kann nicht ausgeschaltet werden.",
     "validationControlSwitchedOff": "Ein Schritt, der den Weg des Laufs entscheidet, kann nicht ausgeschaltet werden.",
+    "validationLoopPartSwitchedOff": "Der Element- oder Ergebnisschritt einer Schleife kann nicht ausgeschaltet werden.",
     "validationBindingReadsSwitchedOff": "Das liest einen ausgeschalteten Schritt und bekäme daher nichts.",
     "stepName": "Name des Schritts",
     "stepNotes": "Notiz",
@@ -10436,6 +10438,7 @@
     "stepTestNotReached": "Dieser Schritt wurde nicht ausgeführt: Der Test endete, bevor er hier ankam.",
     "stepTestStopped": "Dieser Schritt wurde nicht ausgeführt: Der Test wurde gestoppt.",
     "stepTestHint": "Nur diesen Schritt ausführen, mit dem, was die Schritte davor zuletzt weitergegeben haben",
+    "stepTestNotReachable": "Verbinden Sie diesen Schritt vor dem Testen mit einem Trigger.",
     "stepTestInsideALoop": "Ein Schritt in einer Schleife läuft einmal pro Element; testen Sie die Schleife",
     "stepTestWriteTitle": "Einen schreibenden Schritt testen?",
     "stepTestWriteDescription": "Der Test führt den Schritt wirklich aus: Datensätze werden geschrieben und Nachrichten gesendet, wie bei einem echten Lauf.",
