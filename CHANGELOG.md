@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Public app and shared conversation viewers show the AgenticOS logo and a GitHub link, with a responsive floating badge and an organization setting to hide it. Enabled by default; password-protected apps show it after unlocking.
+
 ## [1.63.0] - 2026-11-10
 
 ### Added

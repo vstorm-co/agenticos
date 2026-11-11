@@ -1,4 +1,10 @@
 {
+  "sharedAttribution": {
+    "madeWith": "Made with <name>AgenticOS</name>",
+    "cta": "Run your own AgenticOS",
+    "description": "Your AI workspace. Open source.",
+    "ctaShort": "GitHub"
+  },
   "admin": {
     "actions": "Actions",
     "active": "Active",
@@ -5425,6 +5431,10 @@
         "title": "Its alerts",
         "body": "Rules that tell people when this log crosses a threshold: how many matching lines, in how long, and who hears. Anyone who can edit the workflow adds, changes or deletes them."
       },
+      "org-public-attribution": {
+        "title": "AgenticOS on shared pages",
+        "body": "Show a small floating AgenticOS badge with a GitHub link on public apps, dashboards and reports, and below shared conversations."
+      },
       "org-public-live-data": {
         "title": "Live data on public pages",
         "body": "Whether public links and embeds may show table data to people without an account. It's off by default, and each page's owner still has to confirm their page."
@@ -8988,6 +8998,11 @@
       "providerNoKey": "{name} (no usable key)",
       "notReadyNoKey": "No key is chosen for {provider}. Agents and bots that inherit it can't transcribe with a provider until you choose one below."
     },
+    "publicAttribution": "AgenticOS on shared pages",
+    "publicAttributionDescription": "Show a small floating AgenticOS badge with a GitHub link on public apps, dashboards and reports, and below shared conversations.",
+    "publicAttributionHint": "Enabled by default. Turn it off to hide AgenticOS branding on this organization's public links.",
+    "publicAttributionSaved": "Shared-page branding saved",
+    "publicAttributionFailed": "Could not update shared-page branding",
     "publicLiveData": "Public pages with live data",
     "publicLiveDataDescription": "Whether public pages may show table data to people without an account.",
     "publicLiveDataHint": "Off by default. When on, a page's public link and embeds show its table data once the owner confirms it. Turning it off hides the data everywhere but keeps the confirmations.",

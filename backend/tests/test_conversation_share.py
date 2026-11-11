@@ -715,3 +715,45 @@ async def test_a_limited_share_persists_nothing_and_sends_no_notification(
             await service.share_conversation(uuid.uuid4(), owner, shared_with=target)
         share_repo.create.assert_not_awaited()
         notification.assert_not_awaited()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("enabled", [True, False])
+async def test_public_chat_footer_uses_its_organization(
+    service: ConversationShareService, enabled: bool
+) -> None:
+    from app.db.models.organization import Organization
+
+    chat = _conversation(uuid.uuid4())
+    chat.id, chat.title, chat.messages = uuid.uuid4(), "Shared report", []
+    share = MagicMock(id=uuid.uuid4(), permission="view")
+    lookup = AsyncMock(return_value=Organization(public_agenticos_attribution=enabled))
+    with (
+        patch(f"{MODULE}.conversation_share_repo.get_by_token", new=AsyncMock(return_value=share)),
+        patch(
+            f"{MODULE}.conversation_repo.get_conversation_by_id", new=AsyncMock(return_value=chat)
+        ),
+        patch(f"{MODULE}.organization_repo.get_by_id", new=lookup),
+    ):
+        result = await service.get_by_token("token")
+    assert result.show_agenticos_attribution is enabled
+    lookup.assert_awaited_once_with(service.db, ORG)
+
+
+@pytest.mark.anyio
+async def test_public_chat_without_its_organization_is_not_served(
+    service: ConversationShareService,
+) -> None:
+    with (
+        patch(
+            f"{MODULE}.conversation_share_repo.get_by_token",
+            new=AsyncMock(return_value=MagicMock()),
+        ),
+        patch(
+            f"{MODULE}.conversation_repo.get_conversation_by_id",
+            new=AsyncMock(return_value=_conversation(uuid.uuid4())),
+        ),
+        patch(f"{MODULE}.organization_repo.get_by_id", new=AsyncMock(return_value=None)),
+        pytest.raises(NotFoundError),
+    ):
+        await service.get_by_token("token")

@@ -166,6 +166,9 @@ class Organization(Base, TimestampMixin):
     # Whether a page's data may reach anonymous visitors of its public link or its
     # embeds (#1975). Off until an Owner or Admin allows it, and a kill switch: off
     # again hides the data at the next load and leaves each page's own consent alone.
+    public_agenticos_attribution: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
     public_live_data: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )
