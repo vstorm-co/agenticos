@@ -62,6 +62,7 @@ jobs:
           # The Azure mirror can fail DNS for every package, consuming the job's
           # entire build allowance. Use Ubuntu's archive and bound network retries.
           sudo sed -Ei 's|https?://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/sources.list.d/ubuntu.sources
+          printf '%s\n' 'https://archive.ubuntu.com/ubuntu' | sudo tee /etc/apt/apt-mirrors.txt > /dev/null
           APT_NETWORK=(-o Acquire::Retries=2 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15)
           sudo apt-get "${APT_NETWORK[@]}" update --error-on=any
           sudo apt-get "${APT_NETWORK[@]}" install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev libxcb-randr0-dev libxcb-shape0-dev libxcb-xfixes0-dev libpipewire-0.3-dev libgbm-dev clang
