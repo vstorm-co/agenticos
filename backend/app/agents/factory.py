@@ -748,6 +748,14 @@ def _as_decimal(value: float) -> Decimal:
     return Decimal(str(value))
 
 
+_SCOPE_ORDER = {
+    BudgetScope.RUN: 0,
+    BudgetScope.AGENT: 1,
+    BudgetScope.GROUP: 2,
+    BudgetScope.ORGANIZATION: 3,
+}
+
+
 def _spend_limits(
     spec: AgentSpec,
     *,
@@ -806,8 +814,10 @@ def _spend_limits(
                 period_spend=org_period_spend,
             )
         )
+    # A run resumed in a later month is under each cap for both months; keeping
+    # each pair together keeps the refusal on the narrowest cap that bound.
     limits.extend(carried_limits)
-    return limits
+    return sorted(limits, key=lambda limit: _SCOPE_ORDER[limit.scope])
 
 
 def _output_type(schema: dict[str, Any] | None) -> OutputSpec[AgentOutput]:

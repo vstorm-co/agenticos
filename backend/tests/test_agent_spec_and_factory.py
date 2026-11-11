@@ -787,6 +787,29 @@ class TestBudgetComposition:
         assert self._lookups(built)[BudgetScope.RUN] is None
         assert BudgetScope.RUN.label == "This run's"
 
+    def test_a_resumed_runs_second_month_sits_beside_each_cap_it_repeats(self):
+        """Narrowest first still: an agent's cap reached in either month is reported
+        before the organization's, so its owner hears and not the administrators."""
+        built = build_agent(
+            AgentSpec(name="x", budget={"monthly_usd": 10}),
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+            org_monthly_budget_usd=Decimal("40"),
+            carried_limits=[
+                SpendLimit(scope=BudgetScope.AGENT, limit_usd=Decimal("10"), period="current"),
+                SpendLimit(
+                    scope=BudgetScope.ORGANIZATION, limit_usd=Decimal("40"), period="current"
+                ),
+            ],
+        )
+
+        assert [(limit.scope, limit.period) for limit in built.budget.limits] == [
+            (BudgetScope.AGENT, None),
+            (BudgetScope.AGENT, "current"),
+            (BudgetScope.ORGANIZATION, None),
+            (BudgetScope.ORGANIZATION, "current"),
+        ]
+
     def test_org_limit_applies_when_the_agent_sets_none(self):
         built = build_agent(
             AgentSpec(name="x"),
