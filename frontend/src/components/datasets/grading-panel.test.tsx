@@ -146,7 +146,7 @@ beforeEach(() => {
     },
     { id: "j1", name: "Refunds judge", system_key: null, kind: "judge" },
   ];
-  state.save.mockResolvedValue({});
+  state.save.mockImplementation(async (scoring: DatasetScoring) => dataset(scoring));
 });
 
 /**
@@ -259,7 +259,7 @@ describe("GradingPanel", () => {
   });
 
   it("saves from the question about leaving, and keeps a copy until then", async () => {
-    state.save.mockResolvedValue({});
+    state.save.mockImplementation(async (scoring: DatasetScoring) => dataset(scoring));
     const proceed = vi.fn();
     render(
       <GradingPanel

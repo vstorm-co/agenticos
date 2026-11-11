@@ -19,6 +19,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **Saved forms become clean when the server reorders JSON or fills defaults.**
+  The agent Builder, remote edit notices and dataset grading compare JSON content
+  independently of object key order. Successful saves adopt the server's
+  normalized copy while preserving edits made in flight. Unchanged routine
+  folder permissions no longer ask for approval again. Structured workflow
+  expectations and paused terminal identities use canonical JSON too (#2892).
+
 ## [1.65.1] - 2026-11-11
 
 ### Fixed

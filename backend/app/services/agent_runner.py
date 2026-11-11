@@ -52,6 +52,7 @@ agent already resolved, and a recorder that writes one row.
 
 import asyncio
 import hashlib
+import json
 import logging
 from collections import Counter
 from collections.abc import AsyncGenerator, Awaitable, Callable, Mapping, Sequence
@@ -5851,12 +5852,23 @@ class AgentRunnerService:
         """
         config = _mirage_config(spec)
         if config is not None:
-            key = hashlib.sha256(
+            legacy_key = hashlib.sha256(
                 f"{ctx.organization_id}:{person_id}:{config.model_dump_json()}".encode()
             ).hexdigest()
+            canonical = json.dumps(
+                config.model_dump(mode="json"), sort_keys=True, separators=(",", ":")
+            )
+            key = (
+                "v2:"
+                + hashlib.sha256(
+                    f"{ctx.organization_id}:{person_id}:{canonical}".encode()
+                ).hexdigest()
+            )
             service = MirageMountService(self.db)
             identity = await service.authority(ctx, config, person_id=person_id)
-            if restoring and (authorities is None or authorities.get(key) != identity):
+            if restoring and (
+                authorities is None or authorities.get(key, authorities.get(legacy_key)) != identity
+            ):
                 raise AuthorizationError(
                     message="A terminal account or credential changed while this run waited. Start a new run to review its targets."
                 )
@@ -5867,6 +5879,7 @@ class AgentRunnerService:
                 )
             if authorities is not None:
                 authorities[key] = identity
+                authorities[legacy_key] = identity
             resources[MIRAGE_MOUNTS_RESOURCE] = terminal
 
     async def _workspace_shared(
