@@ -109,6 +109,8 @@ Agents called from workflows can use their AgenticOS MCP tools in the background
 
 ## The canvas and adding steps { #the-canvas-and-the-palette }
 
+After **Test draft**, the canvas shows the run's status and completed-step count. **Open run** opens its details. On narrow screens the status bar wraps inside the canvas so the link and close button remain reachable.
+
 The editor keeps **Runs**, **Test draft** and **Publish** visible. **More** contains **Versions** and the edit/view switch. **Canvas options** holds the minimap, connection style and shortcuts. A step with no incoming connection leaves more room for parameters by omitting the empty Input pane; **Expected output fields** expands the output schema. **Review setup before testing** opens the unfinished setup.
 
 The **canvas** is where a workflow's steps and connections appear, and it has the

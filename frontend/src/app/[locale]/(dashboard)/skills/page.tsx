@@ -2,6 +2,7 @@
 
 import { FILTER_CONTROL } from "@/components/ui/control-styles";
 
+import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { BookOpen, ChevronDown, Library, ListFilter, Lock, Plus } from "lucide-react";
@@ -125,6 +126,21 @@ export default function SkillsPage() {
     );
     setPage(0);
   }
+
+  const closeEditor = () => {
+    const store = useUnsavedChangesStore.getState();
+    // A resource failure must keep the workbench open before saving the body
+    // (whose successful mutation closes it).
+    const sources = selected
+      ? [
+          ...Object.keys(store.sources).filter((id) =>
+            id.startsWith(`skill-resource:${selected.id}:`),
+          ),
+          `skill-editor:${selected.id}`,
+        ]
+      : [];
+    store.leave(() => setSelected(null), sources);
+  };
 
   async function handleSave(edit: SkillEdit) {
     await save.mutateAsync(edit);
@@ -372,7 +388,7 @@ export default function SkillsPage() {
       <Dialog
         open={selected !== null}
         onOpenChange={(open) => {
-          if (!open) setSelected(null);
+          if (!open) closeEditor();
         }}
       >
         {selected !== null && (
@@ -410,7 +426,7 @@ export default function SkillsPage() {
                 canEdit={selected.can_edit === true}
                 isSaving={save.isPending}
                 onSave={handleSave}
-                onCancel={() => setSelected(null)}
+                onCancel={closeEditor}
                 onDelete={() => setPendingDelete(selected)}
               />
             )}

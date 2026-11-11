@@ -37,6 +37,7 @@ import {
 } from "@/components/ui";
 import { GroupFilter, NothingSharedWithGroup } from "@/components/groups/group-filter";
 import { usePermissions, useUrlState } from "@/hooks";
+import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import { useFileDrop } from "@/hooks/use-file-drop";
 import { useContextFile, useContextFiles } from "@/hooks/use-context";
 import type { ContextEdit, ContextSort } from "@/hooks/use-context";
@@ -126,6 +127,12 @@ export default function ContextPage() {
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const isSearching = search.trim() !== "";
   const isFiltering = isSearching || groupId !== null;
+
+  const closeEditor = () => {
+    useUnsavedChangesStore
+      .getState()
+      .leave(() => setSelected(null), selected ? [`context-editor:${selected.id}`] : []);
+  };
 
   async function handleSave(edit: ContextEdit) {
     await save.mutateAsync(edit);
@@ -340,7 +347,7 @@ export default function ContextPage() {
       <Dialog
         open={selected !== null}
         onOpenChange={(open) => {
-          if (!open) setSelected(null);
+          if (!open) closeEditor();
         }}
       >
         {selected !== null && (
@@ -379,7 +386,7 @@ export default function ContextPage() {
                 canEdit={selected.can_edit === true}
                 isSaving={save.isPending}
                 onSave={handleSave}
-                onCancel={() => setSelected(null)}
+                onCancel={closeEditor}
                 onDelete={() => setPendingDelete(selected)}
               />
             )}

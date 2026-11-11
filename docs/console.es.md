@@ -1,5 +1,5 @@
 ---
-source_sha: "bf0b4309d434"
+source_sha: "7837b7ddf10b"
 ---
 
 # La consola { #the-console }
@@ -7,6 +7,8 @@ source_sha: "bf0b4309d434"
 La consola es la aplicación web desde la que se configura todo lo demás de este
 sitio. Esta página es el mapa: para qué sirve cada área, y qué página la explica
 como es debido.
+
+Al editar los ajustes de un proyecto, un skill o un archivo de contexto, antes de salir eliges guardar, descartar o quedarte. También se pregunta al cambiar desde un recurso de skill editado a otro archivo. Si se rechaza el guardado, el borrador permanece abierto; **Save file** lo descarta solo cuando el servidor confirma la escritura. El texto añadido mientras se guarda ese recurso sigue sin guardar.
 
 Si buscas una pantalla concreta, el camino más rápido es el **"?"** de la
 cabecera de cada página — reproduce el recorrido guiado de esa página, y una

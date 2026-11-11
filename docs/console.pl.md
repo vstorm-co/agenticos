@@ -1,5 +1,5 @@
 ---
-source_sha: "bf0b4309d434"
+source_sha: "7837b7ddf10b"
 ---
 
 # Konsola { #the-console }
@@ -7,6 +7,8 @@ source_sha: "bf0b4309d434"
 Konsola to aplikacja webowa, przez którą konfiguruje się wszystko inne opisane na
 tej stronie. Ta strona jest mapą: do czego służy każdy obszar i która strona
 wyjaśnia go porządnie.
+
+Gdy edytujesz ustawienia projektu, skill lub plik context, wyjście wymaga decyzji: zapisać, odrzucić czy zostać. Dotyczy to także przejścia do innego pliku zasobów skill. Odmowa zapisu pozostawia draft otwarty; **Save file** usuwa go dopiero po potwierdzeniu zapisu przez serwer. Tekst dopisany w trakcie zapisywania tego pliku pozostaje niezapisany.
 
 Jeśli szukasz jednego ekranu, najszybszą drogą jest **"?"** w nagłówku strony —
 odtwarza on przewodnik po tej stronie, a strona, w której nagłówku nie ma "?",

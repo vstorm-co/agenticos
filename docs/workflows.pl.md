@@ -1,5 +1,5 @@
 ---
-source_sha: "cba80f115942"
+source_sha: "a70551f29a1e"
 ---
 
 # Workflows { #workflows }
@@ -113,6 +113,8 @@ Krok agenta może wywołać `ask_user_question`, aby wstrzymać się ze stanem *
 Agenci wywoływani z workflow mogą używać narzędzi AgenticOS MCP w workerze w tle, tak samo jak w czacie internetowym.
 
 ## Kanwa i dodawanie kroków { #the-canvas-and-the-palette }
+
+Po **Test draft** kanwa pokazuje status runu i liczbę ukończonych kroków. **Open run** otwiera szczegóły. Na wąskim ekranie pasek statusu zawija się wewnątrz kanwy, dzięki czemu link i przycisk zamknięcia pozostają dostępne.
 
 Edytor pozostawia widoczne **Runs**, **Test draft** i **Publish**. **More** zawiera **Versions** i przełącznik edycji/podglądu. **Canvas options** mieści minimapę, styl połączeń i skróty. Krok bez połączenia wejściowego pomija pusty panel Input, zostawiając więcej miejsca na parametry; **Expected output fields** rozwija schemat wyjścia. **Review setup before testing** odsłania brakującą konfigurację.
 

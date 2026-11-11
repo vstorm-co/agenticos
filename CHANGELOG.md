@@ -33,6 +33,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Keep console edits when leaving or saving fails.** Project settings,
+  Skills and Context ask before discarding unsaved edits. Skill resources
+  retain a refused save and typing added while a save is in flight. Workflow
+  run status bars wrap on narrow screens so their actions remain reachable.
 - **Console navigation and accessibility.** Browser tabs identify the current
   page and section, including after navigation, loading and a rename. Empty
   catalog toolbars no longer leave invisible controls in the keyboard order.

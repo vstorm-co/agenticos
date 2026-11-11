@@ -1,5 +1,5 @@
 ---
-source_sha: "cba80f115942"
+source_sha: "a70551f29a1e"
 ---
 
 # Workflows { #workflows }
@@ -118,6 +118,8 @@ Ein Agent-Schritt kann mit `ask_user_question` pausieren und **Wartet auf Benutz
 Aus Workflows aufgerufene Agenten können ihre AgenticOS-MCP-Werkzeuge sowohl im Hintergrund-Worker als auch im Webchat verwenden.
 
 ## Die Zeichenfläche und das Hinzufügen von Schritten { #the-canvas-and-the-palette }
+
+Nach **Test draft** zeigt die Zeichenfläche den Status des Runs und die Anzahl abgeschlossener Schritte. **Open run** öffnet die Details. Auf schmalen Bildschirmen bricht die Statusleiste innerhalb der Zeichenfläche um, sodass der Link und die Schaltfläche zum Schließen erreichbar bleiben.
 
 Der Editor zeigt **Runs**, **Test draft** und **Publish** direkt. **More** enthält **Versions** und den Wechsel zwischen Bearbeiten und Ansicht. **Canvas options** enthält Minimap, Verbindungsstil und Tastenkürzel. Ein Schritt ohne eingehende Verbindung lässt das leere Input-Panel weg und gibt Parametern mehr Platz; **Expected output fields** öffnet das Ausgabeschema. **Review setup before testing** zeigt die unvollständige Einrichtung.
 

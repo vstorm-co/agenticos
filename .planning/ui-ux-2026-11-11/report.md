@@ -94,9 +94,9 @@ The test owner is the repository's bootstrap account. No real model/provider key
 configured or charged. The local backend's event-loop watchdog is disabled for this
 inspection process, not in product configuration.
 
-Not exercised end to end: real model responses, approval/run/evaluation outcome
+Not exercised end to end: real provider responses, approval/evaluation outcome
 combinations, authenticated external integrations, OAuth consent providers, knowledge
-parsing with an embedding provider, token-bound public viewers/forms/invitations,
+parsing with an embedding provider, public forms/invitations and other token-bound viewers,
 and native desktop/mobile shells. Those views remain in the source inventory; this
 report does not claim that every possible state of every component was tested.
 
@@ -105,3 +105,54 @@ primary page data. Public GitHub release checks returned 503 after repeated loca
 navigation; those optional network checks were not treated as broken resource lists.
 An automated contrast finding during MCP card fade-in was rechecked with motion
 settled rather than changing otherwise readable colors.
+
+
+## Follow-up: complete user journeys
+
+The second pass follows persisted resources across screens and reloads instead of
+counting visited destinations. The same worktree and PR contain these fixes:
+
+| Confirmed defect | Result |
+| --- | --- |
+| Switching project tabs silently discarded edited instructions, name, description or default agent | The existing unsaved-changes guard offers Stay, Discard and Save; a refused save leaves the form and tab intact |
+| Escape, Cancel and the close button dropped Context edits | Closing asks first; failed saves preserve the edited content |
+| Skill body/metadata edits and resource-file switches had no leave protection | Workbench close and resource switches use the same guard. Resources save before the body so a resource refusal cannot close the workbench |
+| Save file cleared its draft before the write answered | The draft clears only after success. Failed saves/removals keep the open file; typing added during an in-flight resource save remains unsaved |
+| The workflow test-run bar was 378 px wide at a 320 px viewport, placing its start at x = −29 px | Live and stale run bars wrap within the canvas. The live bar measures 262 px, starts at x = 29 px, and keeps Open run and Hide the run reachable |
+
+| Journey | Persisted result verified |
+| --- | --- |
+| Vault → Builder → model → capability → publish → chat → hosted page → Activity → dataset | Instructions reach the local model stub; both authenticated chat and an unauthenticated hosted visitor receive its token. Activity records the model and cost; the curated dataset case contains the answer |
+| Create project → choose default agent → New chat → answer → reload → project Chats → reopen | The selected agent answers, the conversation remains in its project and the stored answer is shown again |
+| Create project → Instructions → Stay → refused save → successful save → Files/upload → reload → discard | Saved settings and uploaded file survive reload at 1440 and 390 px; failed writes and tab switches preserve pending edits |
+| Create Context → edit → Escape/Stay → Cancel/Discard → refused save → save → reopen | The original survives discard, the pending edit survives refusal, and the accepted text survives reload |
+| Create Skill with a file → edit body and resource → refused save/close → switch with save → reopen | Both records survive reload. Saving a resource first prevents a body save from closing the editor after the resource was refused |
+| Create workflow → add Output → configure → publish → reload → Test draft → Open run → Output → reload | The real worker completes both steps; the run stores the configured text and the output is readable on the run page. Its controls fit a 320 px touch viewport |
+
+The workflow uses test mode and no external integration actions. Model responses
+come from the repository's OpenAI-compatible local stub, not a paid provider. The
+backend's local FRONTEND_URL was corrected to port 3100 and its isolated worker
+was started; these are ignored local environment settings, not product changes.
+
+| Follow-up evidence | Before | After |
+| --- | --- | --- |
+| Project instructions lost across tabs | [PNG](comparisons/project-unsaved-before.png) | [PNG](comparisons/project-unsaved-after.png) |
+| Context edit lost on Escape | [PNG](comparisons/context-unsaved-before.png) | [PNG](comparisons/context-unsaved-after.png) |
+| Skill resource after a refused write | [PNG](comparisons/skill-save-before.png) | [PNG](comparisons/skill-save-after.png) |
+| Workflow run controls at 320 px | [PNG](comparisons/workflow-run-before.png) | [PNG](comparisons/workflow-run-after.png) |
+
+Verification for this pass:
+
+- 134 scoped Vitest tests across Projects, Context, Skills and workflow run controls.
+- Nine targeted Chromium tests, including all six journeys above and the three
+  first-pass accessibility regressions. No full application suite was run locally.
+- Regression controls: the project journey fails on the original implementation
+  at the missing leave confirmation; the resource test fails on the original
+  implementation because the pending text is cleared before the write answers.
+- Frontend lint, formatting, TypeScript, i18n and dependency checks; strict MkDocs
+  build in all four locales. Console/workflow documentation and translations
+  describe the changed editing and mobile run behavior.
+
+The route/component inventory remains the full source map, not a claim that all
+states, roles and external integrations have been exercised. Full CI is still
+separate evidence tied to its own commit SHA.

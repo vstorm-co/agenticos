@@ -1,9 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 
 import { ApiError } from "@/lib/api-error";
 import type { LocalTarget } from "@/lib/desktop/commands";
@@ -78,7 +80,7 @@ const projects = {
 };
 const project = {
   moveWorkspace: { isPending: false, mutateAsync: vi.fn() },
-  update: { mutate: vi.fn(), isPending: false },
+  update: { mutateAsync: vi.fn(), isPending: false },
   remove: { mutateAsync: vi.fn(), isPending: false },
 };
 const files = {
@@ -146,6 +148,8 @@ function aProject(overrides: Partial<Project> = {}): Project {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  useUnsavedChangesStore.setState({ sources: {}, prompt: null, saving: false });
+  project.update.mutateAsync.mockReset().mockResolvedValue(undefined);
   nativeProject.enabled = false;
   nativeProject.target = null;
   projects.list.mockReturnValue([]);
@@ -622,7 +626,7 @@ describe("ProjectSettings", () => {
     await userEvent.click(screen.getByRole("option", { name: /Writer/ }));
     await userEvent.click(save);
 
-    expect(project.update.mutate).toHaveBeenCalledWith({
+    expect(project.update.mutateAsync).toHaveBeenCalledWith({
       name: "Launch v2",
       description: null,
       instructions: "Be brief. Cite.",
@@ -635,11 +639,38 @@ describe("ProjectSettings", () => {
     await userEvent.type(screen.getByLabelText("Instructions"), " Cite.");
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
-    expect(project.update.mutate).toHaveBeenCalledWith({
+    expect(project.update.mutateAsync).toHaveBeenCalledWith({
       name: "Launch",
       description: expect.anything(),
       instructions: "Be brief. Cite.",
     });
+  });
+
+  it("keeps a failed save in the editor and prevents leaving", async () => {
+    project.update.mutateAsync.mockRejectedValue(new ApiError(503, "Unavailable"));
+    wrap(<ProjectSettings project={aProject()} />);
+    await userEvent.type(screen.getByLabelText("Instructions"), " Cite.");
+    const proceed = vi.fn();
+    act(() => useUnsavedChangesStore.getState().leave(proceed));
+    await act(() => useUnsavedChangesStore.getState().answer("save"));
+    expect(proceed).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Instructions")).toHaveValue("Be brief. Cite.");
+    expect(Object.keys(useUnsavedChangesStore.getState().sources)).toHaveLength(1);
+  });
+
+  it("discards all pending project fields before leaving", async () => {
+    wrap(<ProjectSettings project={aProject()} />);
+    await userEvent.type(screen.getByLabelText("Instructions"), " Cite.");
+    await userEvent.type(screen.getByLabelText("Name"), " changed");
+    await userEvent.clear(screen.getByLabelText("Description"));
+    const proceed = vi.fn();
+    act(() => useUnsavedChangesStore.getState().leave(proceed));
+    await act(() => useUnsavedChangesStore.getState().answer("discard"));
+    expect(proceed).toHaveBeenCalledOnce();
+    expect(screen.getByLabelText("Instructions")).toHaveValue("Be brief.");
+    expect(screen.getByLabelText("Name")).toHaveValue("Launch");
+    expect(screen.getByLabelText("Description")).toHaveValue("The October launch");
+    expect(project.update.mutateAsync).not.toHaveBeenCalled();
   });
 
   it("deletes after the name is typed, and goes back to the list", async () => {

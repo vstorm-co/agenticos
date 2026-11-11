@@ -1,5 +1,5 @@
 ---
-source_sha: "bf0b4309d434"
+source_sha: "7837b7ddf10b"
 ---
 
 # Die Konsole { #the-console }
@@ -7,6 +7,8 @@ source_sha: "bf0b4309d434"
 Die Konsole ist die Webanwendung, über die alles andere auf dieser Site
 konfiguriert wird. Diese Seite ist die Landkarte: wofür jeder Bereich da ist,
 und welche Seite ihn ausführlich erklärt.
+
+Wenn du Projekteinstellungen, einen Skill oder eine Kontextdatei bearbeitest, fragt die Konsole vor dem Verlassen, ob du speichern, verwerfen oder bleiben möchtest. Das gilt auch beim Wechsel von einer bearbeiteten Skill-Ressource zu einer anderen Datei. Ein abgelehnter Speichervorgang lässt den Entwurf offen; **Save file** verwirft ihn erst nach der Bestätigung des Servers. Während dieses Speichervorgangs ergänzter Text bleibt ungespeichert.
 
 Wenn Sie einen einzelnen Screen suchen, ist der schnellste Weg das **"?"** in
 der Kopfzeile einer Seite — es spielt den Rundgang dieser Seite ab, und eine

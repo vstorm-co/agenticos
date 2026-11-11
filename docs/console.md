@@ -4,6 +4,8 @@ The console is the web application everything else on this site is configured
 through. This page is the map: what each area is for, and which page explains it
 properly.
 
+When you edit project settings, a skill or a context file, leaving asks whether to save, discard or stay. Switching away from an edited skill resource asks too. A refused save keeps the draft open; **Save file** clears it only after the server confirms the write. Typing added while that resource save is in flight remains unsaved.
+
 If you are looking for one screen, the fastest route is the **"?"** in a page's
 header — it replays that page's walkthrough, and a page whose header carries no
 "?" has no walkthrough to replay. Chat has no header: its tips are under the chat
