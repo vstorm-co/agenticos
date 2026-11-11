@@ -130,8 +130,13 @@ export function EmbeddingDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn(DIALOG_COLUMN, DIALOG_WIDE)}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!isSaving) onOpenChange(next);
+      }}
+    >
+      <DialogContent dismissible={!isSaving} className={cn(DIALOG_COLUMN, DIALOG_WIDE)}>
         <DialogHeader>
           <DialogTitle>{t("embeddings")}</DialogTitle>
           <DialogDescription>{t("providerMoveKeepsTheIndex")}</DialogDescription>
@@ -184,7 +189,12 @@ export function EmbeddingDialog({
           )}
         </div>
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isSaving}
+            onClick={() => onOpenChange(false)}
+          >
             {t("cancel")}
           </Button>
           <Button

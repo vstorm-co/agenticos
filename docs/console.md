@@ -4,7 +4,9 @@ The console is the web application everything else on this site is configured
 through. This page is the map: what each area is for, and which page explains it
 properly.
 
-When you edit project settings, an organization name, spending cap or voice defaults, a skill or a context file, leaving asks whether to save, discard or stay. Switching away from an edited skill resource asks too. A refused save keeps the draft open; **Save file** clears it only after the server confirms the write. Typing added while that resource save is in flight remains unsaved.
+When you edit project settings, an organization name, spending cap, voice defaults or data-retention periods, a skill or a context file, leaving asks whether to save, discard or stay. Switching away from an edited skill resource asks too. A refused save keeps the draft open; **Save file** clears it only after the server confirms the write. Typing added while that resource save is in flight remains unsaved.
+
+On phones, knowledge-base documents and organization members use labeled rows with visible actions. Member removal asks for confirmation and a refusal keeps it open. Knowledge-base creation, parsing and embedding-provider dialogs stay open while saving, then restore dismissal if the write is refused. A failed document download shows an error and can be retried.
 
 Changing the knowledge-search question or scope clears previous results and cancels the pending request. A late response cannot replace the results of a newer search.
 

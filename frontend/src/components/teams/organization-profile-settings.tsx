@@ -107,7 +107,7 @@ export function OrganizationProfileSettings({
       data-tour="org-profile"
       data-guided={!!onContinue}
       className={cn(
-        "border-border bg-card flex flex-wrap items-start gap-5 rounded-xl border p-5 sm:p-6",
+        "border-border bg-card @container flex flex-wrap items-start gap-5 rounded-xl border p-5 sm:p-6",
         onContinue && styles.guided,
       )}
     >
@@ -153,7 +153,12 @@ export function OrganizationProfileSettings({
         onChange={handleAvatarUpload}
       />
 
-      <div className={cn("min-w-0 flex-1 space-y-3", onContinue && styles.details)}>
+      <div
+        className={cn(
+          "min-w-0 flex-1 space-y-3",
+          onContinue ? styles.details : "@max-sm:basis-full",
+        )}
+      >
         {!onContinue && heading}
         {canManage && (
           <Button
@@ -172,7 +177,7 @@ export function OrganizationProfileSettings({
         )}
         {onContinue && colors}
         {onContinue && heading}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center">
           <Input
             aria-label={t("workspaceName")}
             type="text"

@@ -51,6 +51,7 @@ export function OrgSpendingLimit({ org }: { org: Organization }) {
 function SpendingLimitForm({ org }: { org: Organization }) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("teams");
+  const tc = useTranslations("common");
   const { setMonthlyBudget } = useOrganizations();
   const { spend } = useSpend();
 
@@ -108,7 +109,7 @@ function SpendingLimitForm({ org }: { org: Organization }) {
       title={t("monthlySpendingLimit")}
       description={t("ceilingWhatEveryAgent") + t("monthNextAgentS") + t("emptyNoLimit")}
     >
-      <div className="flex flex-wrap items-start gap-3">
+      <div className="grid grid-cols-1 items-start gap-3 sm:flex sm:flex-wrap">
         <FormField label={t("limitUsd")} htmlFor="org-monthly-budget" error={error}>
           <Input
             id="org-monthly-budget"
@@ -125,8 +126,8 @@ function SpendingLimitForm({ org }: { org: Organization }) {
           />
         </FormField>
         {changed && (
-          <Button className="mt-6" onClick={handleSave} disabled={saving}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+          <Button className="sm:mt-6" onClick={handleSave} disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : tc("save")}
           </Button>
         )}
       </div>

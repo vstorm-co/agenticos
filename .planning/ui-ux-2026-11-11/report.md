@@ -278,3 +278,58 @@ TypeScript, ESLint and four-language documentation checks are also applied.
 | --- | --- | --- |
 | Table control rows, 320 px touch | [PNG](comparisons/mobile-table-toolbar-before.png) | [PNG](comparisons/mobile-table-toolbar-after.png) |
 | Catalog search and filters, 390 px touch | [PNG](comparisons/mobile-catalog-toolbar-before.png) | [PNG](comparisons/mobile-catalog-toolbar-after.png) |
+
+
+## Mobile knowledge and organization journeys — 2026-11-12
+
+The organization profile's avatar action overflowed at 320 px while the name
+input shrank around Save. The identity form now responds to its container, and
+its phone fields/actions stack. The spending cap's wrapped Save no longer keeps
+the desktop label-offset margin, and its label uses the shared translation.
+
+Knowledge-base document actions and member-management actions sat beyond the
+phone's right edge. Both use the shared table's opt-in narrow-container layout:
+labeled cells, full-width identity, and status/role beside visible actions.
+Explicit table/row/cell roles preserve semantics when CSS changes their display;
+desktop presentation remains tabular. A refused document download is now reported
+rather than silently ignored. Member removal asks before sending DELETE; a refused
+removal keeps both the member and the confirmation visible.
+
+A controlled delayed settings request on the actual page reproduced a KB dialog disappearing on Escape
+before the request settled. Create KB, parsing and embedding-provider dialogs now
+block dismissal during their write and disable Cancel/Close. The shared confirmation
+also keeps pending operations visible. Refusal restores dismissal and preserves
+the form values. Existing Radix dialog primitives and focus behavior are retained.
+
+Retention had no navigation guard or reported write failure, and its button bypassed
+HTML number constraints. It now submits as a form, checks native validity for both
+ordinary and guarded saves, reports a refusal and preserves the draft. Explicitly
+cleared periods still mean null; untouched empty periods remain absent.
+
+The new touch Chromium journeys cover:
+
+- Create a KB against the local embedding fixture; refuse a delayed parsing save
+  after trying Escape; retry and re-read the stored configuration; upload, index
+  and reload a document; preview it; refuse/retry download and compare the actual
+  downloaded bytes; search, refuse/retry and open the original source.
+- Create and select an isolated organization through the phone UI; edit its name,
+  exercise Stay and a refused Save, then persist it; save spending and voice limits
+  before leaving and re-read them; exercise retention Stay/refusal/save/re-entry;
+  inspect an invitation draft and cancel it; return to Personal and delete the fixture.
+- At 320/390 px, verify member action bounds and touch targets, open/cancel forgetting
+  memory, cancel removal before DELETE, and keep a refused removal open. The seeded
+  colleague is not actually removed.
+
+The KB journey runs at 320×740 and opens the source again at 390×844. No paid model,
+real invitation email, external directory or production account is exercised.
+149 focused unit/integration tests in ten files and three browser journeys passed.
+Scoped ESLint, TypeScript, translations and the strict four-language documentation
+build pass. The production import map has been refreshed.
+
+| Evidence | Before | After |
+| --- | --- | --- |
+| Organization identity form, touch phone | [PNG](comparisons/org-profile-mobile-before.png) | [PNG](comparisons/org-profile-mobile-after.png) |
+| Spending cap after editing | [PNG](comparisons/org-budget-mobile-before.png) | [PNG](comparisons/org-budget-mobile-after.png) |
+| Organization members and actions | [PNG](comparisons/org-members-mobile-before.png) | [PNG](comparisons/org-members-mobile-after.png) |
+| KB document actions | [PNG](comparisons/kb-documents-mobile-before.png) | [PNG](comparisons/kb-documents-mobile-after.png) |
+| KB settings dismissed while saving | [PNG](comparisons/kb-save-pending-mobile-before.png) | [PNG](comparisons/kb-save-pending-mobile-after.png) |

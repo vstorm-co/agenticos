@@ -194,10 +194,15 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!isSubmitting) onOpenChange(next);
+      }}
+    >
       {/* A column with one scrolling part, so expanding the settings never
           pushes Create off the bottom of the screen. */}
-      <DialogContent className={cn(DIALOG_COLUMN, DIALOG_FORM)}>
+      <DialogContent dismissible={!isSubmitting} className={cn(DIALOG_COLUMN, DIALOG_FORM)}>
         <DialogHeader>
           <DialogTitle>{t("createKnowledgeBase")}</DialogTitle>
           <DialogDescription>{t("createKbDescription")}</DialogDescription>
@@ -376,7 +381,12 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isSubmitting}
+              onClick={() => onOpenChange(false)}
+            >
               {t("cancel")}
             </Button>
             <Button

@@ -33,6 +33,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Keep document and member actions visible on phones, prevent organization
+  profile controls from overflowing, and align spending-limit saves. Retention
+  edits now guard navigation, validate periods and retain refused drafts.
+  Knowledge-base dialogs cannot disappear during writes, failed downloads show
+  an error, and member removal requires confirmation.
+
 - Align mobile table view controls, keep format and saved-view names readable,
   and move the default-view action into View settings. Compact catalog filter
   buttons leave more room for search without shrinking touch targets.
