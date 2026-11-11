@@ -4312,6 +4312,7 @@ class TestRunningAsTheCreator:
             ({"is_active": True}, "is_active"),
             ({"ends_at": None}, "ends_at"),
             ({"ends_at": datetime.now(UTC) + timedelta(days=30)}, "ends_at"),
+            ({"ends_at": datetime.now(UTC) + timedelta(days=1)}, "ends_at"),
             ({"max_failures": 10}, "max_failures"),
             ({"max_failures": None}, "max_failures"),
             ({"monthly_budget_usd": Decimal("50")}, "monthly_budget_usd"),
@@ -4346,11 +4347,7 @@ class TestRunningAsTheCreator:
     async def test_somebody_else_may_narrow_it_or_resume_it_once_it_stops_acting(self):
         narrowed = await self._update(
             self._limited(),
-            TriggerUpdate(
-                ends_at=datetime.now(UTC) + timedelta(days=1),
-                max_failures=1,
-                monthly_budget_usd=Decimal("1"),
-            ),
+            TriggerUpdate(max_failures=1, monthly_budget_usd=Decimal("1")),
             as_creator=False,
         )
         resumed = await self._update(
@@ -4367,6 +4364,15 @@ class TestRunningAsTheCreator:
         assert narrowed["max_failures"] == 1
         assert resumed["is_active"] is True
         assert not_acting["is_active"] is True
+
+    @pytest.mark.security
+    async def test_somebody_else_cannot_give_it_an_end_it_did_not_have(self):
+        with pytest.raises(AuthorizationError):
+            await self._update(
+                _trigger(runs_as_creator=True, ends_at=None, is_active=True),
+                TriggerUpdate(ends_at=datetime.now(UTC) + timedelta(days=1)),
+                as_creator=False,
+            )
 
     async def test_sending_the_same_end_again_is_not_a_change(self):
         trigger = self._limited()

@@ -365,11 +365,18 @@ def _later(new: Any, old: Any) -> bool:
 
 
 def _extended_reach(trigger: AgentTrigger, changes: dict[str, Any]) -> list[str]:
-    """The fields of an edit that resume a routine or loosen the limits it runs within."""
+    """The fields of an edit that resume a routine, move its end, or loosen its limits.
+
+    `is_active` counts even on a running routine: setting it starts its failure count
+    afresh. The end date is the creator's to move in either direction; a limit may
+    still be tightened by others, the way a pause may.
+    """
     extended = ["is_active"] if changes.get("is_active") is True else []
+    if "ends_at" in changes and changes["ends_at"] != trigger.ends_at:
+        extended.append("ends_at")
     return extended + [
         field
-        for field in ("ends_at", "max_failures", "monthly_budget_usd")
+        for field in ("max_failures", "monthly_budget_usd")
         if field in changes and _later(changes[field], getattr(trigger, field))
     ]
 
@@ -1298,8 +1305,8 @@ class AgentTriggerService:
         cadence changes no such thing, so it stays.
 
         The creator also agreed to the end date and the limits it acts within, so
-        while it acts as them nobody else resumes it or moves those further out.
-        Narrowing them, like a pause, stays open to anyone who may edit it.
+        while it acts as them nobody else resumes it, moves its end date or loosens
+        a limit. Tightening a limit, like a pause, stays open to anyone who may edit it.
 
         Raises:
             AuthorizationError: Someone other than the creator turns it on, or
@@ -1314,8 +1321,9 @@ class AgentTriggerService:
         extended = _extended_reach(trigger, changes)
         if extended and changes.get("runs_as_creator", trigger.runs_as_creator) and not themselves:
             message = (
-                "Only the person who made this routine can resume it or extend its end "
-                "date or limits while it acts as them. Turn off Run as me first."
+                "Only the person who made this routine can resume it, reset its failures, "
+                "change its end date or raise its limits while it acts as them. Turn off "
+                "Run as me first."
             )
             raise AuthorizationError(
                 message=message,
