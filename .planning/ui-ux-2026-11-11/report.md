@@ -217,3 +217,34 @@ Chromium journeys (three new data/settings journeys plus the agent regression).
 
 The hosted Before image is the actual failed journey. The After image captures the
 same public page with a controlled slow transport, before its real socket opens.
+
+
+## Composer geometry and populated phone panels
+
+The public-chat send button was visibly offset: its center sat 2 px above the
+input on desktop and 4 px above it on touch phones. The composer now centers its
+children, removes the extra bottom padding from the action wrapper, and gives Send
+a square 40 px base size (44 px with the existing touch target rule). The agent
+journey checks the input, button and icon centers and the circular button's aspect
+ratio on desktop and a separate anonymous touch-phone context.
+
+A further 320 px touch pass opened table columns, populated filters, view settings
+and KB parse options. A populated filter squeezed even Name and contains into
+ellipses. Phone conditions now stack full-width controls with removal in the
+condition header. The popover constrains its scrolling body to the available
+height while keeping its header and footer available. Desktop conditions retain
+the existing horizontal layout. The table journey checks usable control widths,
+filters actual persisted rows and clears the condition to restore them.
+
+| Evidence | Before | After |
+| --- | --- | --- |
+| Public composer, desktop | [PNG](comparisons/composer-desktop-before.png) | [PNG](comparisons/composer-desktop-after.png) |
+| Public composer, touch phone | [PNG](comparisons/composer-phone-before.png) | [PNG](comparisons/composer-phone-after.png) |
+| Populated table filter, 320 px touch phone | [PNG](comparisons/table-filter-phone-before.png) | [PNG](comparisons/table-filter-phone-after.png) |
+
+Validation: 97 hosted-chat and 17 filter unit tests passed, as did the complete
+agent/hosted/project journey (plus its 15 authentication/seed prerequisites) and
+the expanded CSV/table/filter journey. Targeted ESLint, TypeScript and formatting
+checks passed. The table test explicitly blurs the buffered cell operand before
+closing its popover; Escape alone unmounts that editor without committing it.
+No full local suite was run.

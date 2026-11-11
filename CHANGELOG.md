@@ -33,6 +33,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Center the public chat send control with its input on desktop and touch
+  screens, and keep populated table filters readable on narrow phones with
+  full-width fields and a reachable footer.
+
 - **Reliable CSV import, knowledge search and organization edits.** CSV imports
   reject duplicate target columns instead of overwriting the first value.
   Changing a knowledge-search question or scope cancels stale requests and

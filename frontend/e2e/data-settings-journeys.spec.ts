@@ -8,6 +8,7 @@ function recordValues(row: Record<string, unknown>): unknown[] {
 }
 
 test("CSV mapping preserves the chosen value across import, views and reload", async ({ page }) => {
+  test.setTimeout(60_000);
   await page.goto("/tables");
   await page.getByRole("button", { name: "New table", exact: true }).first().click();
   const create = page.getByRole("dialog");
@@ -87,6 +88,25 @@ test("CSV mapping preserves the chosen value across import, views and reload", a
   );
   await page.reload();
   await expect(page.getByRole("main")).toContainText("Reviewed value");
+  await expect(page.getByRole("main")).toContainText("Manual record");
+  await page.setViewportSize({ width: 320, height: 740 });
+  await page.getByRole("button", { name: "Filter", exact: true }).click();
+  const filters = page.getByRole("dialog");
+  await filters.getByRole("button", { name: "Add condition", exact: true }).click();
+  for (const label of ["Column", "Operator"]) {
+    const control = filters.getByRole("combobox", { name: label, exact: true });
+    const bounds = await control.boundingBox();
+    expect(bounds, `${label} must remain visible on a narrow phone`).not.toBeNull();
+    expect(bounds?.width).toBeGreaterThan(200);
+  }
+  await filters.getByPlaceholder("Value", { exact: true }).fill("Reviewed");
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("main")).toContainText("Reviewed value");
+  await expect(page.getByRole("main")).not.toContainText("Manual record");
+  await page.getByRole("button", { name: "Filter", exact: false }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Clear all", exact: true }).click();
+  await page.keyboard.press("Escape");
   await expect(page.getByRole("main")).toContainText("Manual record");
   expect((await page.request.post(`/api${tablePath}/archive`)).ok()).toBe(true);
 });

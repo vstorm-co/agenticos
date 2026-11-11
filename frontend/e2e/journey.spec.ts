@@ -344,8 +344,22 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
     const ask = hosted.getByRole("textbox", { name: "Ask a question…" });
     await expect(ask).toBeEnabled({ timeout: 30_000 });
     await ask.fill("Say the word.");
+    await expectComposerAlignment(hosted);
     await hosted.getByRole("button", { name: "Send" }).click();
     await expect(hosted.getByText(answerToken)).toBeVisible({ timeout: 120_000 });
+    const phone = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      hasTouch: true,
+      isMobile: true,
+    });
+    try {
+      const phonePage = await phone.newPage();
+      await phonePage.goto(hostedUrl);
+      await phonePage.getByRole("textbox", { name: "Ask a question…" }).fill("A phone draft");
+      await expectComposerAlignment(phonePage);
+    } finally {
+      await phone.close();
+    }
   } finally {
     await stranger.close();
   }
@@ -522,4 +536,23 @@ async function idOf(
   const found = items.find((item) => item[field] === value);
   expect(found, `${path} has no row whose ${field} is ${value}`).toBeDefined();
   return found!["id"]!;
+}
+
+/** Geometry assertions catch misplaced padding as well as stretched icon buttons. */
+async function expectComposerAlignment(page: import("@playwright/test").Page): Promise<void> {
+  const form = await page.locator("form").boundingBox();
+  const input = await page.getByRole("textbox", { name: "Ask a question…" }).boundingBox();
+  const button = await page.getByRole("button", { name: "Send", exact: true }).boundingBox();
+  const icon = await page
+    .getByRole("button", { name: "Send", exact: true })
+    .locator("svg")
+    .boundingBox();
+  if (!form || !input || !button || !icon)
+    throw new Error("Hosted composer controls must have visible bounds");
+  expect(Math.abs(button.width - button.height)).toBeLessThanOrEqual(0.5);
+  const center = form.y + form.height / 2;
+  expect(Math.abs(input.y + input.height / 2 - center)).toBeLessThanOrEqual(0.5);
+  expect(Math.abs(button.y + button.height / 2 - center)).toBeLessThanOrEqual(0.5);
+  expect(Math.abs(icon.y + icon.height / 2 - center)).toBeLessThanOrEqual(0.5);
+  expect(Math.abs(icon.x + icon.width / 2 - button.x - button.width / 2)).toBeLessThanOrEqual(0.5);
 }

@@ -897,7 +897,7 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
                 <DictationBar state={dictation} actions={dictationActions} />
               </div>
             ) : (
-              <div className="flex items-end gap-2 px-3 py-2 sm:px-4">
+              <div className="flex items-center gap-2 px-3 py-2 sm:px-4">
                 <Input
                   ref={draftRef}
                   value={draft}
@@ -911,7 +911,7 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
                   disabled={closed !== null}
                   className="min-h-[40px] flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0"
                 />
-                <div className="flex shrink-0 items-center gap-0.5 pb-1">
+                <div className="flex shrink-0 items-center gap-0.5">
                   {config.allow_files && (
                     <>
                       <input
@@ -981,7 +981,7 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
                   <Button
                     type="submit"
                     size="icon"
-                    className="h-9 w-9 rounded-full text-white hover:opacity-90"
+                    className="size-10 shrink-0 rounded-full p-0 text-white hover:opacity-90"
                     style={{ backgroundColor: "var(--hosted-accent)" }}
                     disabled={
                       !connected ||
