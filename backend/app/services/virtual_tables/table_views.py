@@ -215,6 +215,7 @@ class TableViewOperations(Operations):
         table = await self._load_table(ctx, table_id, Perm.TABLES_VIEW)
         live = await self._live_columns(table)
         edits = await self._edits_table(ctx, table)
+        manages = await self._manages_board(ctx, table)
         views = await table_view_repo.list_visible(
             self.db,
             organization_id=ctx.organization_id,
@@ -232,7 +233,17 @@ class TableViewOperations(Operations):
             kind=kind,
         )
         return TableViewList(
-            items=[self._to_read(ctx, view, live, edits_table=edits) for view in views], total=total
+            items=[
+                self._to_read(
+                    ctx,
+                    view,
+                    live,
+                    edits_table=edits,
+                    fixed=not manages and view.id == table.default_view_id,
+                )
+                for view in views
+            ],
+            total=total,
         )
 
     async def create_view(
@@ -285,6 +296,7 @@ class TableViewOperations(Operations):
             view,
             await self._live_columns(table),
             edits_table=await self._edits_table(ctx, table),
+            fixed=view.id == table.default_view_id and not await self._manages_board(ctx, table),
         )
 
     async def update_view(
@@ -297,9 +309,19 @@ class TableViewOperations(Operations):
         to anyone but its owner or a caller whose `tables:edit` scope is `ALL`. Every
         refusal is a 404, the same as every other per-resource write in this
         package: whether a row may be changed is not disclosed to a caller it refuses.
+
+        A task board's default view is part of the board, so only someone who may
+        change the board changes it, whoever saved it.
+
+        Raises:
+            NotFoundError: The view is not this caller's to change.
+            AuthorizationError: The view is a task board's default and this caller
+                may not change the board.
         """
         table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, lock=True)
         view = await self._manageable_view(ctx, table_id, view_id)
+        if view.id == table.default_view_id:
+            await self._ensure_manages_board(ctx, table)
         # `config` excluded from `writable`: its column is JSONB, not a scalar, so it needs
         # `model_dump(mode="json")` on the nested model to keep a `UUID` from reaching asyncpg
         # unserialized, and `writable` does not offer a per-field dump mode.
@@ -350,10 +372,13 @@ class TableViewOperations(Operations):
         """Delete a view. Refused (404) to anyone but its owner or a caller with `tables:edit` `ALL`.
 
         Needs only `tables:view` on the table, unlike changing one: an owner who lost
-        edit access can still clear away their own views.
+        edit access can still clear away their own views. A task board's default view
+        is deleted only by someone who may change the board (403).
         """
-        await self._load_table(ctx, table_id, Perm.TABLES_VIEW)
+        table = await self._load_table(ctx, table_id, Perm.TABLES_VIEW)
         view = await self._manageable_view(ctx, table_id, view_id)
+        if view.id == table.default_view_id:
+            await self._ensure_manages_board(ctx, table)
         await table_view_repo.delete(self.db, view=view)
 
     async def find_view(
@@ -450,9 +475,15 @@ class TableViewOperations(Operations):
 
     @staticmethod
     def _to_read(
-        ctx: AuthContext, view: TableView, live: list[ColumnDef], *, edits_table: bool
+        ctx: AuthContext,
+        view: TableView,
+        live: list[ColumnDef],
+        *,
+        edits_table: bool,
+        fixed: bool = False,
     ) -> TableViewRead:
-        may_manage = _may_manage(ctx, view)
+        """`fixed` is a task board's default view, which only the board's managers change."""
+        may_manage = _may_manage(ctx, view) and not fixed
         return _read(
             view, columns=live, can_manage=may_manage and edits_table, can_delete=may_manage
         )

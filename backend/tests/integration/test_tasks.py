@@ -1523,3 +1523,37 @@ async def test_a_group_lead_changes_the_groups_board(db: AsyncSession) -> None:
     renamed = await tables.update_table(member, board.table_id, TableUpdate(name="Ops tasks"))
 
     assert renamed.name == "Ops tasks"
+
+
+async def test_a_board_default_view_is_the_boards_to_change_whoever_saved_it(
+    db: AsyncSession,
+) -> None:
+    from app.schemas.table_view import TableViewUpdate
+    from app.services.virtual_tables import TableViewService
+
+    data = await world(db)
+    member = await _as_member(db, data)
+    opened = await TaskService(db).open_board(member, BoardEnsure(scope="organization"))
+    table = await VirtualTableService(db).describe_table(member, opened.table_id)
+    assert table.default_view_id is not None
+    views = TableViewService(db)
+
+    seen = await views.get_view(member, opened.table_id, table.default_view_id)
+    assert (seen.owner_user_id, seen.can_manage, seen.can_delete) == (
+        data.users[1].id,
+        False,
+        False,
+    )
+    listed = await views.list_views(member, opened.table_id)
+    assert not any(view.can_manage for view in listed.items if view.id == table.default_view_id)
+    with pytest.raises(AuthorizationError):
+        await views.update_view(
+            member, opened.table_id, table.default_view_id, TableViewUpdate(name="Mine")
+        )
+    with pytest.raises(AuthorizationError):
+        await views.delete_view(member, opened.table_id, table.default_view_id)
+
+    renamed = await views.update_view(
+        data.contexts[0], opened.table_id, table.default_view_id, TableViewUpdate(name="Ours")
+    )
+    assert renamed.name == "Ours"
