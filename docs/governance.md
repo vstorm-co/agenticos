@@ -96,6 +96,10 @@ last evening and approved on the first - appears entirely in the earlier month, 
 when it resumes it is checked against that month's spend, not the new month's. What it spends after
 resuming is also held to the new month's limits.
 
+What a resumed run spends after resuming is still booked to the month the run started, so runs that
+start later in the new month do not see it: the new month can go over a limit by as much as a resumed
+run spends after resuming.
+
 A **new organization starts with the organization ceiling already set** — the
 deployment's `DEFAULT_ORG_MONTHLY_BUDGET_USD` ([configuration](configuration.md),
 $100 out of the box) — so a fresh tenant is not one runaway agent away from a

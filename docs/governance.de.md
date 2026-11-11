@@ -1,5 +1,5 @@
 ---
-source_sha: "f33b8657a820"
+source_sha: "970396df15ad"
 ---
 
 # Governance { #governance }
@@ -107,6 +107,10 @@ letzten Abend an einer Genehmigung geparkt und am Ersten genehmigt - erscheint
 vollständig im früheren Monat und wird beim Fortsetzen gegen die Ausgaben dieses
 Monats geprüft, nicht gegen die des neuen. Was er nach dem Fortsetzen ausgibt, unterliegt zusätzlich
 den Limits des neuen Monats.
+
+Was ein fortgesetzter Run nach dem Fortsetzen ausgibt, wird weiterhin dem Monat zugerechnet, in dem der
+Run begann, daher sehen später im neuen Monat gestartete Runs sie nicht: Der neue Monat kann ein Limit um so viel
+überschreiten, wie ein fortgesetzter Run nach dem Fortsetzen ausgibt.
 
 Eine **neue Organisation startet mit bereits gesetzter Obergrenze für die
 Organisation** — dem `DEFAULT_ORG_MONTHLY_BUDGET_USD` des Deployments
