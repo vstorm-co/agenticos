@@ -1,5 +1,5 @@
 ---
-source_sha: "99f7dfdc2b7e"
+source_sha: "aa54fb9dafe5"
 ---
 
 # Workflows { #workflows }
@@ -981,7 +981,8 @@ Timer laufen also weiter.
 
 Einen Schritt klärt nur, wer den Run gestartet hat, oder ein Editor des Workflows,
 und in einem Test-Run darf nur ein Editor einen Schritt klären oder den Run
-wiederholen. Über die API dient dazu `POST
+wiederholen. Einen abgebrochenen Run wiederholt nur, wer ihn gestartet hat, oder ein
+Editor, also wer ihn hätte abbrechen können. Über die API dient dazu `POST
 /api/v1/workflow-runs/{id}/steps/{node_run_id}/rerun` mit einem `choice`, und die
 Entscheidung wird auditiert. Ein abgebrochener oder fehlgeschlagener Run hat keinen
 Schritt mehr zu klären: **Retry from failed step** startet einen neuen Run. Ein
@@ -1275,7 +1276,6 @@ WHERE e.adapter = 'outlook'
   AND NOT u.is_app_admin
   AND coalesce(m.role, '') NOT IN ('owner', 'admin', 'builder');
 ```
-
 
 Der Lauf bekommt dieselben Felder wie ein Gmail-Lauf, wobei `labels` die
 Kategorien der Nachricht enthält und `mailbox` das gemeinsame Postfach, aus dem sie
