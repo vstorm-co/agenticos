@@ -34,7 +34,7 @@ from app.repositories.memory_claim import ClaimScope
 from app.schemas.decision_episode import DecisionEpisode
 from app.services.access import PROJECT, acting_member, resolve_access
 from app.services.memory import _claims
-from app.services.memory._native import person_still_exists
+from app.services.memory._native import person_still_exists, refuse_if_erased_during_run
 
 
 @dataclass(frozen=True)
@@ -96,10 +96,15 @@ async def remember(
     effective_from: datetime | None,
     episode: DecisionEpisode | None = None,
 ) -> tuple[ClaimView, bool, bool] | None:
-    """Record a claim. `None` when its person is gone; else (claim, created, disputed)."""
+    """Record a claim. `None` when its person is gone; else (claim, created, disputed).
+
+    Raises:
+        ErasedDuringRun: The scope was erased after `run_id` started.
+    """
     async with get_db_context() as db:
         if not await person_still_exists(db, scope.scope_key):
             return None
+        await refuse_if_erased_during_run(db, owner_key=scope.scope_key, run_id=run_id)
         result = await _claims.remember(
             db,
             organization_id=organization_id,
