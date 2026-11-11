@@ -1,3 +1,4 @@
+import { TRIGGER_IDS } from "./triggers";
 import type { NodeDefinition, NodeInstance, WorkflowGraph } from "./types";
 
 /** A loop's own item and result steps: every iteration starts them, wired or not. */
@@ -23,6 +24,11 @@ export function canSwitchOff(
   definition: NodeDefinition | null | undefined,
 ): boolean {
   if (node.disabled === true) return true;
-  if (node.id === graph.entry_node_id || isLoopPart(node.definition_id)) return false;
+  if (
+    node.id === graph.entry_node_id ||
+    TRIGGER_IDS.has(node.definition_id) ||
+    isLoopPart(node.definition_id)
+  )
+    return false;
   return definition?.kind !== "control" || !isWired(graph, node.id);
 }

@@ -1811,3 +1811,26 @@ describe("a merge judged by run conditions", () => {
     expect(joinCodes(run(g))).toEqual([]);
   });
 });
+
+it.each(["debug.echo", "logic.split", "error.handle"])(
+  "keeps a parked %s step's saved error policy",
+  (definitionId) => {
+    const g = graph({
+      entry: "entry",
+      nodes: [
+        echo("entry"),
+        { ...node("parked", definitionId), disabled: true, policy: { on_error: "route" } },
+      ],
+    });
+    expect(
+      run(g).filter((problem) =>
+        [
+          "error-port-unwired",
+          "error-handler-default-unwired",
+          "split-routes-errors",
+          "port-name-taken",
+        ].includes(problem.code),
+      ),
+    ).toEqual([]);
+  },
+);

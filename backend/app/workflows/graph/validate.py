@@ -573,7 +573,7 @@ def _error_port_clash_problems(graph: WorkflowGraph, definitions: DefinitionMap)
     problems: Problems = []
     for node in graph.nodes:
         definition = definitions.get(node.id)
-        if definition is None or not node.routes_errors:
+        if definition is None or node.disabled or not node.routes_errors:
             continue
         named = _AUTHOR_NAMED_PORTS.get(definition.id)
         if named is None:
@@ -626,21 +626,32 @@ async def _table_binding_problems(
     db: AsyncSession, ctx: AuthContext, graph: WorkflowGraph
 ) -> Problems:
     problems: Problems = []
-    for index, binding in enumerate(graph.bindings):
-        if not isinstance(binding.source, TableIORef):
-            continue
-        problems += await table_ref_problems(db, ctx, binding.source, field=f"bindings.{index}")
+    for field, ref in graph_table_refs(graph):
+        problems += await table_ref_problems(db, ctx, ref, field=field)
     return problems
 
 
-def graph_file_refs(graph: WorkflowGraph) -> Iterator[tuple[str, FileRef]]:
-    """File imports named by direct bindings and recursively by pinned outputs."""
-    seen: set[UUID] = set()
+def graph_table_refs(graph: WorkflowGraph) -> Iterator[tuple[str, TableIORef]]:
+    """Table bindings consumed by enabled steps; switched-off steps read no input."""
+    disabled = {node.id for node in graph.nodes if node.disabled}
     for index, binding in enumerate(graph.bindings):
+        if binding.target_node_id not in disabled and isinstance(binding.source, TableIORef):
+            yield f"bindings.{index}", binding.source
+
+
+def graph_file_refs(graph: WorkflowGraph) -> Iterator[tuple[str, FileRef]]:
+    """File imports consumed by enabled bindings and recursively by enabled pins."""
+    seen: set[UUID] = set()
+    disabled = {node.id for node in graph.nodes if node.disabled}
+    for index, binding in enumerate(graph.bindings):
+        if binding.target_node_id in disabled:
+            continue
         if isinstance(binding.source, FileRef) and binding.source.file_id not in seen:
             seen.add(binding.source.file_id)
             yield f"bindings.{index}", binding.source
     for node in graph.nodes:
+        if node.disabled:
+            continue
         for ref in file_refs(node.pinned_output):
             if ref.file_id not in seen:
                 seen.add(ref.file_id)
@@ -1421,7 +1432,8 @@ def _split_problems(graph: WorkflowGraph, definitions: DefinitionMap) -> Problem
     return [
         (f"nodes.{node.id}.policy", "A Split cannot route its errors; route each branch's own")
         for node in graph.nodes
-        if node.routes_errors
+        if not node.disabled
+        and node.routes_errors
         and (definition := definitions.get(node.id)) is not None
         and definition.id == SPLIT
     ]
@@ -1566,6 +1578,8 @@ def _rule_10_error_routes(graph: WorkflowGraph, definitions: DefinitionMap) -> P
     """
     problems: Problems = []
     for node in graph.nodes:
+        if node.disabled:
+            continue
         definition = definitions.get(node.id)
         if node.routes_errors and not _port_edges(graph, node.id, ERROR_PORT):
             problems.append(

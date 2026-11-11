@@ -63,3 +63,12 @@ describe("isLoopPart and isWired", () => {
     expect([isWired(g, "a"), isWired(g, "b"), isWired(g, "c")]).toEqual([true, true, false]);
   });
 });
+
+it("keeps non-default triggers on too, with or without catalog metadata", () => {
+  const extra = node("other", "trigger.manual");
+  const g = graph({ entry: "a", nodes: [echo("a"), extra] });
+  expect(canSwitchOff(g, extra, makeDefinition({ id: "trigger.manual", kind: "action" }))).toBe(
+    false,
+  );
+  expect(canSwitchOff(g, extra, null)).toBe(false);
+});

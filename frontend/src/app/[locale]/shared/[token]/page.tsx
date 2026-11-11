@@ -1,5 +1,6 @@
 import { ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 
+import { AgenticosAttribution } from "@/components/shared/agenticos-attribution";
 import { formatDateTime } from "@/lib/utils";
 import { getTranslations } from "next-intl/server";
 import { DraftCardView } from "@/components/chat/draft-card";
@@ -87,6 +88,9 @@ export default async function SharedConversationPage({ params }: SharedConversat
         {messages.length === 0 && (
           <p className="text-muted-foreground py-12 text-center">{t("noMessagesYet")}</p>
         )}
+      </div>
+      <div className="mt-8 flex justify-end">
+        <AgenticosAttribution visible={data.show_agenticos_attribution} />
       </div>
     </div>
   );

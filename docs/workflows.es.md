@@ -1,5 +1,5 @@
 ---
-source_sha: "b8e6b6bc7345"
+source_sha: "cba80f115942"
 ---
 
 # Workflows { #workflows }
@@ -358,7 +358,7 @@ en la tarjeta, y la pestaña lleva un punto en cuanto algo allí cambia.
 
 Apagar allí **Run this step**, o **Switch off** en su menú contextual, deja el paso en el
 lienzo, atenuado, y lo salta cuando una ejecución llega a él: no hace nada y entrega lo
-que le llegó. Publicar rechaza un trigger o un paso que decide el camino apagados, y un
+que le llegó. Publicar rechaza un trigger o un paso conectado que decide el camino apagados, y un
 paso que lee uno apagado, salvo que lo que le llega - por su única conexión de entrada,
 desde un paso encendido - tenga el campo leído, que entonces entrega. Los tres se guardan
 en el grafo, así que las versiones los conservan.
@@ -374,6 +374,9 @@ conectas a algo, vuelve a tener que ser alcanzable. Cualquier
 paso puede quedar apartado, incluso uno que decide el camino, como **If**: sin
 conexiones no tiene entre qué elegir. Solo el trigger y el **Loop item** y el
 **Loop result** de un bucle siguen siempre encendidos.
+
+
+Un paso apagado puede conservar su política de errores y sus enlaces a archivos o tablas, aunque el recurso ya no sea accesible. No los lee; al volver a encenderlo se comprueban de nuevo. Un paso apartado aparece como **Apagado** en la pestaña de pasos del run, sin un registro de ejecución. Conéctalo a un trigger antes de usar **Test step**.
 
 ### Los datos de un paso, datos de prueba y probar un paso { #a-steps-data-pinning-and-testing-one-step }
 
@@ -865,7 +868,13 @@ la misma manera.
 
 La respuesta del run - su texto, su resultado estructurado, los pasajes en que se
 apoyó y cuántos archivos creó, con el JSON en sí bajo **Raw output** - y cada paso
-que dio, iteración a iteración, están al lado. Un run en curso se actualiza cada par de segundos, y **Cancel run** lo
+que dio, iteración a iteración, están al lado.
+
+La lista recoge los pasos que empezaron, en el orden en que empezaron. Los fallos
+siguen visibles aunque un paso fallara antes de empezar. Los demás pasos que no
+empezaron solo se ven en el lienzo; los omitidos aparecen atenuados. Al hacer clic
+en la fila de un paso de un bucle se ven su entrada y su salida en esa iteración.
+Un run en curso se actualiza cada par de segundos, y **Cancel run** lo
 detiene y retira los temporizadores que sus pasos en espera habían puesto en cola. Sus **Files** listan lo que guardaron sus pasos - una descarga, una página
 renderizada, la salida de un script -, cada uno descargable.
 

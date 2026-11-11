@@ -108,6 +108,7 @@ def _org_read(
         welcome_dm_enabled=org.welcome_dm_enabled,
         welcome_dm_text=org.welcome_dm_text,
         chat_may_waive_approvals=org.chat_may_waive_approvals,
+        public_agenticos_attribution=org.public_agenticos_attribution,
         public_live_data=org.public_live_data,
         speech_to_text_provider=org.speech_to_text_provider,
         speech_to_text_model=org.speech_to_text_model,
@@ -571,6 +572,10 @@ class OrganizationService:
                 target_type="organization",
                 target_id=str(org.id),
                 details={"from": before, "to": org.public_live_data},
+            )
+        if data.public_agenticos_attribution is not None:
+            org = await organization_repo.set_public_agenticos_attribution(
+                self.db, org, enabled=data.public_agenticos_attribution
             )
         if data.model_fields_set & _SPEECH_FIELDS:
             org = await self._apply_speech_settings(org, data)

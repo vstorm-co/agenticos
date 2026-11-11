@@ -1,0 +1,369 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "AgenticOS Helm values",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "existingSecret",
+    "postgres",
+    "redis",
+    "storage",
+    "public"
+  ],
+  "properties": {
+    "image": {
+      "type": "object",
+      "properties": {
+        "backend": {
+          "type": "string"
+        },
+        "frontend": {
+          "type": "string"
+        },
+        "tag": {
+          "type": "string"
+        },
+        "backendTag": {
+          "type": "string"
+        },
+        "frontendTag": {
+          "type": "string"
+        },
+        "backendDigest": {
+          "type": "string",
+          "pattern": "^$|^sha256:[a-f0-9]{64}$"
+        },
+        "frontendDigest": {
+          "type": "string",
+          "pattern": "^$|^sha256:[a-f0-9]{64}$"
+        },
+        "pullPolicy": {
+          "type": "string"
+        }
+      }
+    },
+    "imagePullSecrets": {
+      "type": "array"
+    },
+    "existingSecret": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"
+    },
+    "serviceAccountName": {
+      "type": "string"
+    },
+    "podSecurityContext": {
+      "type": "object"
+    },
+    "api": {
+      "type": "object",
+      "properties": {
+        "replicas": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "runAsUser": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        }
+      }
+    },
+    "worker": {
+      "type": "object",
+      "properties": {
+        "replicas": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "runAsUser": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        }
+      }
+    },
+    "frontend": {
+      "type": "object",
+      "properties": {
+        "replicas": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "runAsUser": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        }
+      }
+    },
+    "migration": {
+      "type": "object"
+    },
+    "public": {
+      "type": "object",
+      "required": [
+        "siteUrl",
+        "apiUrl",
+        "websocketUrl"
+      ],
+      "properties": {
+        "siteUrl": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^https?://[^/]+/?$"
+        },
+        "apiUrl": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^https?://[^/]+/?$"
+        },
+        "websocketUrl": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^wss?://[^/]+/?$"
+        }
+      }
+    },
+    "postgres": {
+      "type": "object",
+      "required": [
+        "host"
+      ],
+      "properties": {
+        "host": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "redis": {
+      "type": "object",
+      "required": [
+        "host"
+      ],
+      "properties": {
+        "host": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "storage": {
+      "type": "object",
+      "required": [
+        "bucket"
+      ],
+      "properties": {
+        "bucket": {
+          "type": "string",
+          "minLength": 1
+        },
+        "encryption": {
+          "enum": [
+            "sse-s3",
+            "sse-kms",
+            "none"
+          ]
+        }
+      }
+    },
+    "extraEnv": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "nodeSelector": {
+      "type": "object"
+    },
+    "tolerations": {
+      "type": "array"
+    },
+    "affinity": {
+      "type": "object"
+    },
+    "ingress": {
+      "type": "object"
+    },
+    "trust": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "existingSecret": {
+          "type": "string"
+        },
+        "postgresCaKey": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "sslCaKey": {
+          "type": "string",
+          "pattern": "^$|^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        }
+      }
+    },
+    "trustedProxy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "namespaceLabels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "podLabels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "storage": {
+            "properties": {
+              "encryption": {
+                "const": "sse-kms"
+              }
+            },
+            "required": [
+              "encryption"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "storage": {
+            "required": [
+              "kmsKeyId"
+            ],
+            "properties": {
+              "kmsKeyId": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "postgres": {
+            "properties": {
+              "sslMode": {
+                "enum": [
+                  "verify-ca",
+                  "verify-full"
+                ]
+              }
+            },
+            "required": [
+              "sslMode"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "trust": {
+            "required": [
+              "existingSecret",
+              "postgresCaKey"
+            ],
+            "properties": {
+              "existingSecret": {
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "required": [
+          "trust"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "trust": {
+            "properties": {
+              "sslCaKey": {
+                "minLength": 1
+              }
+            },
+            "required": [
+              "sslCaKey"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "trust": {
+            "properties": {
+              "existingSecret": {
+                "minLength": 1
+              }
+            },
+            "required": [
+              "existingSecret"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "trustedProxy": {
+            "properties": {
+              "enabled": {
+                "const": true
+              }
+            },
+            "required": [
+              "enabled"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "trustedProxy": {
+            "properties": {
+              "namespaceLabels": {
+                "minProperties": 1
+              },
+              "podLabels": {
+                "minProperties": 1
+              }
+            },
+            "required": [
+              "namespaceLabels",
+              "podLabels"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

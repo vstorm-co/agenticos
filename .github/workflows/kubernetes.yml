@@ -1,0 +1,61 @@
+name: Kubernetes
+
+on:
+  pull_request:
+    paths:
+      - "charts/**"
+      - "scripts/kubernetes/**"
+      - "backend/app/services/rag_scratch.py"
+      - "backend/app/services/rag_document.py"
+      - "backend/app/worker/tasks/rag_tasks.py"
+      - "backend/Dockerfile"
+      - ".github/workflows/kubernetes.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kubernetes-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pinned cluster tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/kube-tools"
+          cd "$RUNNER_TEMP/kube-tools"
+          curl --fail --silent --show-error --location https://get.helm.sh/helm-v4.3.1-linux-amd64.tar.gz -o helm.tar.gz
+          curl --fail --silent --show-error --location https://get.helm.sh/helm-v4.3.1-linux-amd64.tar.gz.sha256sum -o helm.sha256
+          printf '%s  helm.tar.gz\n' "$(cut -d ' ' -f 1 helm.sha256)" | sha256sum --check
+          tar -xzf helm.tar.gz
+          curl --fail --silent --show-error --location https://github.com/kubernetes-sigs/kind/releases/download/v0.33.0/kind-linux-amd64 -o kind
+          curl --fail --silent --show-error --location https://github.com/kubernetes-sigs/kind/releases/download/v0.33.0/kind-linux-amd64.sha256sum -o kind.sha256
+          printf '%s  kind\n' "$(cut -d ' ' -f 1 kind.sha256)" | sha256sum --check
+          curl --fail --silent --show-error --location https://dl.k8s.io/release/v1.37.0/bin/linux/amd64/kubectl -o kubectl
+          curl --fail --silent --show-error --location https://dl.k8s.io/release/v1.37.0/bin/linux/amd64/kubectl.sha256 -o kubectl.sha256
+          printf '%s  kubectl\n' "$(cat kubectl.sha256)" | sha256sum --check
+          chmod +x kind kubectl
+          echo "$RUNNER_TEMP/kube-tools" >> "$GITHUB_PATH"
+          echo "$RUNNER_TEMP/kube-tools/linux-amd64" >> "$GITHUB_PATH"
+          python3 -m venv "$RUNNER_TEMP/chart-tests"
+          "$RUNNER_TEMP/chart-tests/bin/pip" install PyYAML==6.0.3
+      - name: Validate chart contracts
+        run: |
+          helm lint charts/agenticos --strict -f scripts/kubernetes/smoke-values.yaml
+          "$RUNNER_TEMP/chart-tests/bin/python" scripts/kubernetes/test_chart.py
+      - name: Build source backend
+        run: docker build --file backend/Dockerfile --tag agenticos-smoke-backend:ci .
+      - name: Exercise disposable Kubernetes deployment
+        env:
+          SMOKE_BACKEND_IMAGE: agenticos-smoke-backend:ci
+          SMOKE_FRONTEND_TAG: 1.62.8
+        run: scripts/kubernetes/run-smoke.sh

@@ -41,6 +41,70 @@ Two things are versioned separately from this file and worth knowing about:
   Switched off from the start, rather than as pending until the engine passes
   it. The wire into one down a branch the run did not take still fades.
 
+## [1.64.0] - 2026-11-11
+
+### Added
+
+- Public app and shared conversation viewers show the AgenticOS logo and a GitHub link, with a responsive floating badge and an organization setting to hide it. Enabled by default; password-protected apps show it after unlocking.
+
+## [1.63.0] - 2026-11-10
+
+### Added
+
+- Maintain a Helm chart for the API, worker and console with external pgvector
+  PostgreSQL, Redis/Valkey and S3, blocking migration hooks, restricted container
+  settings, health probes and a reproducible Kubernetes smoke test. Include an
+  OpenShift configuration candidate without claiming cluster validation (#2872).
+
+### Fixed
+
+- Download S3-backed ingestion sources in the worker instead of requiring the
+  API's local scratch directory to be shared across pods (#2872). **Existing S3
+  deployments must drain ingestion and replace workers before upgrading the API,
+  or use a maintenance window:** new API processes no longer write the shared
+  scratch files old workers expect. Local file storage keeps its shared path.
+
+## [1.62.8] - 2026-11-10
+
+### Fixed
+
+- **A workflow run's steps are listed in the order they started.** The run
+  view listed steps in the order they were recorded, so a loop's item step
+  came after the steps it started. The list now holds only the steps that
+  started, sorted by start; a step still waiting or skipped shows on the
+  canvas only. Clicking a loop step's iteration now shows that iteration's
+  input and output, not the last iteration's; an iteration with no result yet
+  shows none. A step test still pins the last iteration's data. A long step
+  list now scrolls inside its panel instead of making the canvas taller. Start
+  order preserves sub-millisecond timestamp precision (#2866).
+
+## [1.62.7] - 2026-11-10
+
+### Fixed
+
+- **Keep the Architect's bundled guide links usable.** Resolve links to included
+  pages within the skill and send other documentation links to the published
+  site. Generate the same output from an empty directory and preserve external
+  links and Markdown code examples (#2862).
+
+## [1.62.6] - 2026-11-10
+
+### Changed
+
+- Remove an unused serialized channel access-policy default and its outdated
+  SQLite comment. Active channel-bot defaults and policies are unchanged (#2869).
+
+## [1.62.5] - 2026-11-10
+
+### Fixed
+
+- **Reclaim old release images before deployment pulls fill the host.** Retain
+  current and rollback images with local pins based on healthy containers, plus
+  two additional unused image IDs per release repository. Protect every running
+  or stopped container, other image aliases and repositories, sandbox runtimes
+  and volumes. Check for 5 GiB of storage headroom before pulling, and download
+  backend and frontend images before restarting either service (#2849).
+
 ## [1.62.4] - 2026-11-10
 
 ### Fixed
@@ -21209,7 +21273,13 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.62.4...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.64.0...HEAD
+[1.64.0]: https://github.com/vstorm-co/agenticos/compare/v1.63.0...v1.64.0
+[1.63.0]: https://github.com/vstorm-co/agenticos/compare/v1.62.8...v1.63.0
+[1.62.8]: https://github.com/vstorm-co/agenticos/compare/v1.62.7...v1.62.8
+[1.62.7]: https://github.com/vstorm-co/agenticos/compare/v1.62.6...v1.62.7
+[1.62.6]: https://github.com/vstorm-co/agenticos/compare/v1.62.5...v1.62.6
+[1.62.5]: https://github.com/vstorm-co/agenticos/compare/v1.62.4...v1.62.5
 [1.62.4]: https://github.com/vstorm-co/agenticos/compare/v1.62.3...v1.62.4
 [1.62.3]: https://github.com/vstorm-co/agenticos/compare/v1.62.2...v1.62.3
 [1.62.2]: https://github.com/vstorm-co/agenticos/compare/v1.62.1...v1.62.2

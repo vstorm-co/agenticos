@@ -339,7 +339,7 @@ on the card, and the tab carries a dot once anything there is changed.
 Turning off
 **Run this step** there, or **Switch off** in its right-click menu, keeps a step on
 the canvas, dimmed, and skips it when a run reaches it: it does nothing and hands on
-what came into it. Publishing refuses the trigger or a step that decides the way
+what came into it. Publishing refuses the trigger or a connected step that decides the way
 switched off, and a step that reads one that is off, unless what comes into it -
 along its one incoming connection, from a step that is on - has the field read,
 which it then hands on. All three are saved in the graph, so versions keep them.
@@ -355,6 +355,9 @@ limit. Connect it to anything and it must be reachable again. Any step can be se
 aside, even one that decides the way, such as **If**: with no connection it has no
 way to choose. Only the trigger and a loop's **Loop item** and **Loop result**
 always stay on.
+
+
+A switched-off step may keep its saved error policy and file or table bindings even when the resource is no longer accessible. It reads none of them; switching it back on checks them again. A step set aside appears as **Switched off** in the run's Steps tab without an execution row. Connect it to a trigger before using **Test step**.
 
 ### A step's data, test data and testing one step { #a-steps-data-pinning-and-testing-one-step }
 
@@ -818,7 +821,12 @@ faded. Only a page open while the run went on moves; one opened later is still. 
 
 The run's answer - its text, its structured result, the passages it drew on and how
 many files it made, with the JSON itself under **Raw output** - and every step it
-took, iteration by iteration, sit alongside. A run still going
+took, iteration by iteration, sit alongside.
+
+The list holds the steps that started, in the order they started. Failures remain
+visible even if a step failed before starting. Other steps that never started stay
+on the canvas; skipped steps appear faded. Clicking a loop step's row shows its
+input and output in that iteration. A run still going
 refreshes itself every couple of seconds, and **Cancel run** stops it, and withdraws the timers its waiting steps had queued. Its **Files** list what its steps stored - a download, a rendered page, a script's output - each one downloadable.
 
 A run waiting on an [**Ask for approval**](reference/workflow-nodes.md#human-approval)

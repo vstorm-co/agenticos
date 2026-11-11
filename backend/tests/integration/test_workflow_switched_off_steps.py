@@ -399,3 +399,58 @@ async def test_two_steps_may_not_share_a_name(engine: AsyncEngine):
     )
 
     assert "Another step is already called 'tidy'" in await _problems(engine, graph)
+
+
+@pytest.mark.parametrize("definition_id", ["data.map", "logic.split", "error.handle"])
+async def test_a_parked_step_keeps_its_error_routing_policy(
+    engine: AsyncEngine, definition_id: str
+) -> None:
+    from app.workflows.contracts.policy import NodePolicy
+
+    entry, output = _node("core.input"), _node("core.output")
+    parked = _node(definition_id, disabled=True, policy=NodePolicy(on_error="route"))
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, output, parked),
+        edges=(_edge(entry, output),),
+        bindings=(_bind(output, "text", entry, "payload", "name"),),
+    )
+    seeded = await seed_run(engine, graph, run_input={"name": "Ada"})
+    async with async_sessionmaker(engine)() as db:
+        await validate_graph(db, seeded.ctx, graph)
+    assert (await drive(seeded)).status == WorkflowRunStatus.SUCCEEDED.value
+
+
+@pytest.mark.parametrize("kind", ["table", "file"])
+async def test_switched_off_resource_bindings_are_checked_only_when_enabled(
+    engine: AsyncEngine, kind: str
+) -> None:
+    from app.workflows.contracts.io import FileRef, TableIORef
+
+    source = (
+        TableIORef(table_id=uuid.uuid4(), schema_version=1)
+        if kind == "table"
+        else FileRef(file_id=uuid.uuid4(), content_type="text/plain", byte_size=1)
+    )
+    entry, output = _node("core.input"), _node("core.output")
+    parked = _node("data.map", MAPPING, disabled=True)
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, output, parked),
+        edges=(_edge(entry, output),),
+        bindings=(
+            _bind(output, "text", entry, "payload", "name"),
+            Binding(target_node_id=parked.id, target_field="source", source=source),
+        ),
+    )
+    seeded = await seed_run(engine, graph, run_input={"name": "Ada"})
+    async with async_sessionmaker(engine)() as db:
+        await validate_graph(db, seeded.ctx, graph)
+    assert (await drive(seeded)).status == WorkflowRunStatus.SUCCEEDED.value
+    enabled = graph.model_copy(
+        update={"nodes": tuple(n.model_copy(update={"disabled": False}) for n in graph.nodes)}
+    )
+    assert any(
+        "does not exist or is not accessible" in message
+        for message in await _problems(engine, enabled)
+    )

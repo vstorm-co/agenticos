@@ -1,5 +1,5 @@
 ---
-source_sha: "b8e6b6bc7345"
+source_sha: "cba80f115942"
 ---
 
 # Workflows { #workflows }
@@ -372,7 +372,7 @@ geändert ist.
 **Run this step** dort auszuschalten, oder **Switch off** in seinem Kontextmenü, lässt
 einen Schritt gedimmt auf der Zeichenfläche und überspringt ihn, wenn ein Lauf ihn
 erreicht: Er tut nichts und gibt weiter, was bei ihm ankam. Die Veröffentlichung lehnt
-einen abgeschalteten Trigger oder einen Schritt, der den Weg entscheidet, ab, und einen
+einen abgeschalteten Trigger oder einen verbundenen Schritt, der den Weg entscheidet, ab, und einen
 Schritt, der einen abgeschalteten liest, außer das, was bei ihm ankommt - über seine
 eine eingehende Verbindung, von einem eingeschalteten Schritt - hat das gelesene Feld,
 das er dann weitergibt. Alle drei werden im Graphen gespeichert, sodass Versionen sie
@@ -389,6 +389,9 @@ Runs. Wird er mit irgendetwas verbunden, muss er wieder erreichbar sein. Jeder S
 lässt sich so beiseitestellen, auch einer, der den Weg
 entscheidet, etwa **If**: Ohne Verbindung hat er nichts zu wählen. Nur der Trigger
 sowie **Loop item** und **Loop result** einer Schleife bleiben immer eingeschaltet.
+
+
+Ein ausgeschalteter Schritt darf seine Fehlerstrategie und Datei- oder Tabellenbindungen behalten, auch wenn die Ressource nicht mehr zugänglich ist. Er liest nichts davon; beim erneuten Einschalten wird alles geprüft. Ein beiseitegelegter Schritt erscheint im Schritte-Tab als **Ausgeschaltet**, ohne Ausführungsdatensatz. Verbinden Sie ihn vor **Test step** mit einem Trigger.
 
 ### Die Daten eines Schritts, Testdaten und einen Schritt testen { #a-steps-data-pinning-and-testing-one-step }
 
@@ -915,7 +918,13 @@ später geöffnete bleibt still. **Open loop body** zeigt die Iterationen einer 
 Die Antwort des Runs - sein Text, sein strukturiertes Ergebnis, die Passagen, auf
 die er sich stützte, und wie viele Dateien er erzeugt hat, mit dem JSON selbst unter
 **Raw output** - und jeder Schritt, den er gemacht hat, Iteration für Iteration,
-stehen daneben. Ein laufender Run aktualisiert sich alle paar Sekunden, und **Cancel
+stehen daneben.
+
+Die Liste enthält die Schritte, die begonnen haben, in der Reihenfolge ihres
+Starts. Fehler bleiben sichtbar, auch wenn ein Schritt vor dem Start fehlschlug.
+Andere Schritte, die noch nicht begonnen haben, erscheinen nur auf der Canvas;
+übersprungene Schritte erscheinen verblasst. Ein Klick auf die Zeile eines
+Schleifenschritts zeigt seine Eingabe und Ausgabe in dieser Iteration. Ein laufender Run aktualisiert sich alle paar Sekunden, und **Cancel
 run** stoppt ihn. Seine **Files** listen, was seine Schritte gespeichert haben - einen Download, eine
 gerenderte Seite, die Ausgabe eines Skripts -, jeweils zum Herunterladen.
 

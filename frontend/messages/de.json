@@ -1,4 +1,10 @@
 {
+  "sharedAttribution": {
+    "madeWith": "Erstellt mit <name>AgenticOS</name>",
+    "cta": "Eigenes AgenticOS betreiben",
+    "description": "Dein KI-Arbeitsplatz. Open Source.",
+    "ctaShort": "GitHub"
+  },
   "admin": {
     "actions": "Aktionen",
     "active": "Aktiv",
@@ -5303,6 +5309,10 @@
         "title": "Seine Warnungen",
         "body": "Regeln, die Personen informieren, wenn dieses Protokoll einen Schwellenwert überschreitet: wie viele passende Zeilen, in welcher Zeit und wer davon erfährt. Wer den Workflow bearbeiten darf, fügt sie hinzu, ändert oder löscht sie."
       },
+      "org-public-attribution": {
+        "title": "AgenticOS auf geteilten Seiten",
+        "body": "Ein dezentes schwebendes AgenticOS-Badge mit GitHub-Link auf öffentlichen Apps, Dashboards und Berichten sowie unter geteilten Unterhaltungen anzeigen."
+      },
       "org-public-live-data": {
         "title": "Live-Daten auf öffentlichen Seiten",
         "body": "Ob öffentliche Links und Einbettungen Tabellendaten Personen ohne Konto zeigen dürfen. Standardmäßig aus, und der Eigentümer jeder Seite muss seine Seite weiterhin bestätigen."
@@ -8868,6 +8878,11 @@
     "waiverFailed": "Es ließ sich nicht ändern, ob Chats Freigaben übergehen dürfen",
     "waiverForbidden": "Unterhaltungen dürfen Freigaben nicht mehr übergehen",
     "you": "(Sie)",
+    "publicAttribution": "AgenticOS auf geteilten Seiten",
+    "publicAttributionDescription": "Ein dezentes schwebendes AgenticOS-Badge mit GitHub-Link auf öffentlichen Apps, Dashboards und Berichten sowie unter geteilten Unterhaltungen anzeigen.",
+    "publicAttributionHint": "Standardmäßig aktiviert. Deaktivieren blendet die AgenticOS-Kennzeichnung auf den öffentlichen Links dieser Organisation aus.",
+    "publicAttributionSaved": "Kennzeichnung geteilter Seiten gespeichert",
+    "publicAttributionFailed": "Kennzeichnung geteilter Seiten konnte nicht gespeichert werden",
     "publicLiveData": "Öffentliche Seiten mit Live-Daten",
     "publicLiveDataDescription": "Ob öffentliche Seiten Tabellendaten Personen ohne Konto zeigen dürfen.",
     "publicLiveDataHint": "Standardmäßig aus. Ist es an, zeigen der öffentliche Link und die Einbettungen einer Seite ihre Tabellendaten, sobald der Eigentümer sie bestätigt hat. Das Ausschalten blendet die Daten überall aus, behält aber die Bestätigungen.",
@@ -10423,6 +10438,7 @@
     "stepTestNotReached": "Dieser Schritt wurde nicht ausgeführt: Der Test endete, bevor er hier ankam.",
     "stepTestStopped": "Dieser Schritt wurde nicht ausgeführt: Der Test wurde gestoppt.",
     "stepTestHint": "Nur diesen Schritt ausführen, mit dem, was die Schritte davor zuletzt weitergegeben haben",
+    "stepTestNotReachable": "Verbinden Sie diesen Schritt vor dem Testen mit einem Trigger.",
     "stepTestInsideALoop": "Ein Schritt in einer Schleife läuft einmal pro Element; testen Sie die Schleife",
     "stepTestWriteTitle": "Einen schreibenden Schritt testen?",
     "stepTestWriteDescription": "Der Test führt den Schritt wirklich aus: Datensätze werden geschrieben und Nachrichten gesendet, wie bei einem echten Lauf.",

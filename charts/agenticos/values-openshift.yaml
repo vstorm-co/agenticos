@@ -1,0 +1,13 @@
+# Candidate restricted-v2 configuration. Real OpenShift validation is required
+# before claiming support; do not grant anyuid or privileged SCCs.
+podSecurityContext:
+  runAsNonRoot: true
+  fsGroup: null
+  seccompProfile:
+    type: RuntimeDefault
+api:
+  runAsUser: null
+worker:
+  runAsUser: null
+frontend:
+  runAsUser: null

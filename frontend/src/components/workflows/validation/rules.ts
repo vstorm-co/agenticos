@@ -287,6 +287,7 @@ export function rule4BranchLocalAvailability(
 export function portNameClashes(graph: WorkflowGraph, definitions: DefinitionMap): RawProblem[] {
   const problems: RawProblem[] = [];
   for (const n of graph.nodes) {
+    if (n.disabled) continue;
     const definition = definitionFor(definitions, n.id);
     const named = definition === null ? undefined : AUTHOR_NAMED_PORTS[definition.id];
     const entries = named === undefined ? undefined : n.config[named.list];
@@ -515,7 +516,7 @@ export function mergeModeProblems(analysis: GraphAnalysis): RawProblem[] {
 /** A Split takes every branch at once, so it has no one way out for an error to take instead. */
 export function splitProblems(graph: WorkflowGraph, definitions: DefinitionMap): RawProblem[] {
   return graph.nodes
-    .filter((n) => routesErrors(n) && definitionFor(definitions, n.id)?.id === SPLIT)
+    .filter((n) => !n.disabled && routesErrors(n) && definitionFor(definitions, n.id)?.id === SPLIT)
     .map((n) => nodeField(n.id, "policy", "split-routes-errors"));
 }
 
@@ -552,6 +553,7 @@ export function errorRoutingProblems(
     graph.edges.some((e) => e.source_node_id === nodeId && e.source_port === port);
   const problems: RawProblem[] = [];
   for (const n of graph.nodes) {
+    if (n.disabled) continue;
     if (routesErrors(n) && !wired(n.id, ERROR_PORT))
       problems.push(node(n.id, "error-port-unwired"));
     if (definitionFor(definitions, n.id)?.id === "error.handle" && !wired(n.id, "default")) {

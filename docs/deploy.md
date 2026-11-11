@@ -1,14 +1,9 @@
 # Deploy to a server
 
-One host, Docker Compose, a reverse proxy in front. That is the whole shipped
-path, and it is what runs the deployments this project is used in.
-
-There are no Kubernetes manifests, and no one-click quickstarts for the
-platform-as-a-service providers. That is not modesty about scale. The stack is
-six containers, two of which hold state, one of which can start containers of
-its own, and one of which is a Postgres that must have pgvector - which is
-already more than a `git push` deploy target models, and a guide that pretended
-otherwise would be describing a deployment nobody has run.
+One host, Docker Compose and a reverse proxy remain the shipped single-server
+path. For clusters, use the maintained [Kubernetes Helm chart](kubernetes.md),
+with external data services and a blocking migration Job. OpenShift has a candidate
+configuration but is not yet validated. There are no one-click PaaS quickstarts.
 
 Past one host - a managed Postgres, several API hosts, several deployments - is
 [Scale beyond one host](scaling.md).
@@ -619,6 +614,50 @@ built, on a host that never needs the toolchain.
 
 It is not zero-downtime. Compose recreates the containers whose image changed, so
 the site is unavailable for the few seconds that takes.
+
+### Release image retention
+
+Before pulling, the script removes old, unused release images from only
+`ghcr.io/vstorm-co/agenticos-backend`, `agenticos-frontend` and `agenticos-browser`.
+It keeps two additional unused image IDs per repository, newest first; several
+SHA or version tags on one ID count as one image. Only `sha-<hex>` and numeric
+version tags are eligible. All aliases of a removable ID are removed together,
+without `--force`. `--no-prune` also prevents implicit deletion of untagged
+parent images.
+
+Every running or stopped container on the host protects its image, including
+other Compose projects. A target image, any mutable/manual tag, or a tag or
+digest in another repository also protects the entire ID. Sandbox/runtime
+images, dangling images and application volumes are outside this cleanup.
+These protections can keep more images than the unused-image allowance.
+
+The hash of the deployment directory separates pins for stacks sharing a host.
+Local `deploy-<stack-hash>-current` and `deploy-<stack-hash>-rollback` tags preserve each component's last
+healthy image and its predecessor after containers are replaced. On first use,
+`deploy-<stack-hash>-current` is seeded from this stack's healthy containers, not the checkout;
+inconsistent healthy image IDs refuse the deploy. Pins advance only after the
+new services pass health checks. Failed deploys retain the recorded pins, and
+redeploying the same image does not replace its rollback. Continue to roll back
+by an approved commit SHA; these local tags are retention markers, not registry
+releases.
+
+The script requires at least **5 GiB free** on Docker's storage filesystem before
+each pull and after optional runtime preparation. It checks `DockerRootDir` and
+the default `/var/lib/containerd` store when present. This is a capacity floor,
+not a reservation or an image-size estimate; monitor custom containerd stores
+separately. Both backend and frontend images are pulled before either service
+is restarted. An insufficient-capacity refusal reports the filesystem and
+available space: free space outside the protections or expand storage, then
+retry the approved deployment. Never use a blanket `docker image prune -a` to
+implement this policy.
+
+On Docker Desktop, the storage directory is inside its Linux VM. The script
+measures VM free space through a temporary, read-only, network-isolated container
+using an already-cached backend image, preferably the last healthy one. The
+probe cannot pull images and is removed automatically. It also checks the host
+filesystem containing the deployment directory; monitor a custom VM backing
+disk's host filesystem separately. This update procedure requires a cached
+backend image; complete the normal initial installation first.
 
 ### From GitHub, with an approval
 

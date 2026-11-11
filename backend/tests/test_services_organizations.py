@@ -55,6 +55,7 @@ def _org_row(*, name: str) -> Organization:
         chat_may_waive_approvals=False,
         ai_assistance_enabled=True,
         public_live_data=False,
+        public_agenticos_attribution=True,
         proactive_enabled=False,
         proactive_days=[1, 2, 3, 4, 5],
         proactive_hour=5,
@@ -1764,3 +1765,56 @@ def test_every_setting_the_row_holds_reaches_the_response():
     assert {name: getattr(read, name) for name in shared} == {
         name: getattr(row, name) for name in shared
     }
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("role", ["owner", "admin", "builder", "member", "viewer"])
+@pytest.mark.parametrize("enabled", [True, False])
+async def test_public_attribution_setting_requires_org_settings(role: str, enabled: bool) -> None:
+    org = _org_row(name="Acme")
+    db = MagicMock(flush=AsyncMock(), refresh=AsyncMock())
+    service = OrganizationService(db)
+    with (
+        patch.object(
+            service, "get_for_user", new=AsyncMock(return_value=(org, MagicMock(role=role)))
+        ),
+        patch(
+            "app.services.organization.organization_repo.update", new=AsyncMock(return_value=org)
+        ),
+    ):
+        if role in {"owner", "admin"}:
+            result = await service.update(
+                org.id,
+                OrganizationUpdate(public_agenticos_attribution=enabled),
+                requester_id=uuid.uuid4(),
+            )
+            assert result.public_agenticos_attribution is enabled
+            db.flush.assert_awaited_once()
+            db.refresh.assert_awaited_once_with(org)
+        else:
+            with pytest.raises(AuthorizationError):
+                await service.update(
+                    org.id,
+                    OrganizationUpdate(public_agenticos_attribution=enabled),
+                    requester_id=uuid.uuid4(),
+                )
+            db.flush.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_api_key_cannot_change_attribution_outside_its_scopes() -> None:
+    org = _org_row(name="Acme")
+    service = OrganizationService(MagicMock())
+    with (
+        patch.object(
+            service, "get_for_user", new=AsyncMock(return_value=(org, MagicMock(role="owner")))
+        ),
+        pytest.raises(AuthorizationError),
+    ):
+        await service.update(
+            org.id,
+            OrganizationUpdate(public_agenticos_attribution=False),
+            requester_id=uuid.uuid4(),
+            key_scopes=set(),
+        )
+    assert org.public_agenticos_attribution is True

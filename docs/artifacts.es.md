@@ -1,5 +1,5 @@
 ---
-source_sha: "28281f424c57"
+source_sha: "39ef16198c21"
 ---
 
 # Aplicaciones { #artifacts }
@@ -15,6 +15,10 @@ workspace ya tienen su sitio en el chat y en el [workspace](sandbox.md). Una
 aplicación es lo que se *sirve*: tiene un propietario, una visibilidad y grants
 como un agent o un skill, y se le puede dar un enlace público para alguien sin
 cuenta.
+
+## Identificación de páginas compartidas { #shared-page-attribution }
+
+Los visores públicos de aplicaciones muestran por defecto una insignia flotante con el logotipo de AgenticOS y un enlace a GitHub. Las conversaciones compartidas muestran la misma insignia debajo de la conversación. Un Owner o Admin puede ocultar el pie para toda la organización en **Configuración de la organización → Gobernanza → AgenticOS en páginas compartidas**. La siguiente carga de la página usa la configuración actual. Las aplicaciones protegidas con contraseña muestran el pie solo después de desbloquearlas. El pie pertenece al visor; no se modifican los archivos descargados ni el contenido de la aplicación incrustada.
 
 ## Apariencia de la app { #app-appearance }
 

@@ -10,6 +10,9 @@ carries a team of a few dozen, and most slowness on a small host is CPU steal or
 an undersized pool rather than a missing replica. The
 [load suite](load-testing.md) runs the same workload against any deployment.
 
+The [Kubernetes Helm chart](kubernetes.md) applies this external-service model
+to API, worker and console pods. OpenShift remains unvalidated.
+
 ## What holds state, and what does not { #what-holds-state-and-what-does-not }
 
 | Part                 | What it keeps                                                                                                 | How it grows                                                                               |
@@ -163,6 +166,3 @@ by frame.
 - Read replicas, or a vector database of its own.
 - Sharding organizations across databases within one deployment.
 - PgBouncer in transaction mode, or Redis Cluster.
-- Kubernetes manifests. The images are the same ones the compose files run, and
-  each service carries its own health check, so a cluster runs them with the
-  environment this page describes.

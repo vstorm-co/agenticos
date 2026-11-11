@@ -1,18 +1,13 @@
 ---
-source_sha: "a41c7a2c6e87"
+source_sha: "0d080c65b077"
 ---
 
 # Wdrożenie na serwer { #deploy-to-a-server }
 
-Jeden host, Docker Compose, reverse proxy z przodu. To cała dostarczana ścieżka i
-to na niej działają wdrożenia, w których ten projekt jest używany.
-
-Nie ma manifestów Kubernetes ani jednoklikowych quickstartów dla dostawców
-platform-as-a-service. To nie jest skromność co do skali. Stack to sześć
-kontenerów, z których dwa trzymają stan, jeden potrafi uruchamiać własne kontenery,
-a jeden jest Postgresem, który musi mieć pgvector - co już przekracza to, co
-modeluje cel wdrożeniowy typu `git push`, a przewodnik udający inaczej opisywałby
-wdrożenie, którego nikt nie uruchomił.
+Jeden host, Docker Compose i reverse proxy pozostają dostarczaną ścieżką dla
+pojedynczego serwera. Dla klastrów użyj utrzymywanego [charta Helm Kubernetes](kubernetes.md),
+z zewnętrznymi usługami danych i blokującym zadaniem migracji. Konfiguracja OpenShift
+jest propozycją i nie została jeszcze zweryfikowana. Nie ma jednoklikowych quickstartów PaaS.
 
 Poza jeden host - zarządzany Postgres, kilka hostów API, kilka wdrożeń - prowadzi
 [Skalowanie poza jeden host](scaling.md).
@@ -629,6 +624,53 @@ działa, jest bajt w bajt to, co zbudowało CI, na hoście, który nigdy nie pot
 
 To nie jest wdrożenie bez przestoju. Compose odtwarza kontenery, których obraz się
 zmienił, więc witryna jest niedostępna przez te kilka sekund, które to zajmuje.
+
+### Retencja obrazów wydań { #release-image-retention }
+
+Przed pobraniem skrypt usuwa stare, nieużywane obrazy wydań wyłącznie z
+`ghcr.io/vstorm-co/agenticos-backend`, `agenticos-frontend` i `agenticos-browser`.
+Zachowuje dwa dodatkowe nieużywane identyfikatory obrazów na repozytorium, od
+najnowszych. Wiele tagów SHA lub wersji jednego ID liczy się jako jeden obraz.
+Usuwane mogą być wyłącznie tagi `sha-<hex>` i numery wersji. Wszystkie aliasy
+usuwanego ID znikają razem, bez `--force`. Flaga `--no-prune` zapobiega też
+niejawnemu usuwaniu obrazów nadrzędnych bez tagów.
+
+Każdy działający lub zatrzymany kontener na hoście chroni swój obraz, także w
+innym projekcie Compose. Obraz docelowy, dowolny tag zmienny lub ręczny oraz tag
+lub digest w innym repozytorium również chronią całe ID. Obrazy sandboxów i
+środowisk wykonawczych, obrazy bez tagów oraz wolumeny aplikacji pozostają poza
+sprzątaniem. Te zabezpieczenia mogą zachować więcej obrazów niż limit obrazów
+nieużywanych.
+
+Skrót katalogu wdrożenia rozdziela przypięcia stosów na wspólnym hoście.
+Lokalne tagi `deploy-<stack-hash>-current` i `deploy-<stack-hash>-rollback` zachowują ostatni zdrowy obraz
+każdego komponentu i jego poprzednika po wymianie kontenerów. Przy pierwszym
+uruchomieniu `deploy-<stack-hash>-current` powstaje ze zdrowych kontenerów tego stosu, nie z
+checkoutu; różne zdrowe ID tego samego komponentu zatrzymują wdrożenie. Przypięcia
+zmieniają się dopiero po pomyślnych testach zdrowia nowych usług. Nieudane
+wdrożenia zachowują zapisane przypięcia, a ponowne wdrożenie tego samego obrazu
+nie zastępuje jego rollbacku. Cofanie nadal wymaga zatwierdzonego SHA commita;
+te lokalne tagi są znacznikami retencji, nie wydaniami w rejestrze.
+
+Skrypt wymaga co najmniej **5 GiB wolnego miejsca** na systemie plików magazynu
+Dockera przed każdym pobraniem i po opcjonalnym przygotowaniu środowisk
+wykonawczych. Sprawdza `DockerRootDir` oraz domyślny magazyn
+`/var/lib/containerd`, jeżeli istnieje. To minimalny próg pojemności, nie
+rezerwacja ani oszacowanie wielkości obrazów; niestandardowe magazyny containerd
+monitoruj osobno. Obrazy backendu i frontendu są pobierane przed restartem
+którejkolwiek usługi. Odmowa z powodu braku miejsca podaje system plików i
+dostępną pojemność: zwolnij miejsce poza chronionymi zasobami lub powiększ
+magazyn, a następnie ponów zatwierdzone wdrożenie. Nie realizuj tej polityki
+przez globalne `docker image prune -a`.
+
+W Docker Desktop katalog magazynu znajduje się wewnątrz maszyny wirtualnej
+Linux. Skrypt mierzy wolne miejsce w VM za pomocą tymczasowego kontenera tylko
+do odczytu, bez sieci, z już lokalnie dostępnym obrazem backendu, najlepiej
+ostatnim zdrowym. Kontener pomiarowy nie może pobierać obrazów i jest usuwany
+automatycznie. Skrypt sprawdza też system plików hosta z katalogiem wdrożenia;
+system plików niestandardowego dysku VM monitoruj osobno. Ta procedura
+aktualizacji wymaga lokalnego obrazu backendu; najpierw zakończ zwykłą pierwszą
+instalację.
 
 ### Z GitHuba, z zatwierdzeniem { #from-github-with-an-approval }
 

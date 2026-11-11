@@ -91,6 +91,18 @@ beforeEach(() => {
 afterEach(() => store.getState().teardown());
 
 describe("InputPane", () => {
+  it("reads its source from the selected run iteration", () => {
+    const selected = node("b", "test.step");
+    const graph = line(selected);
+    seed(graph);
+    store.getState().mergeStepData({ a: { ...KNOWN, output: { echoed: "second" } } });
+    store.getState().setIterationData({ "a/0": { ...KNOWN, output: { echoed: "first" } } });
+    store.getState().editNode("b", [0]);
+    render(<InputPane graph={graph} catalog={[STEP]} node={selected} names={new Map()} readOnly />);
+    expect(screen.getByRole("cell", { name: "first" })).toBeTruthy();
+    expect(screen.queryByRole("cell", { name: "second" })).toBeNull();
+  });
+
   it("says a step with nothing before it reads nothing", () => {
     const graph = line();
     render(
@@ -264,6 +276,17 @@ describe("the fields a step declares, before any run", () => {
 });
 
 describe("OutputPane", () => {
+  it("shows a run's step as it was in the iteration it was opened at", () => {
+    seed(line());
+    store.getState().mergeStepData({ b: { ...KNOWN, output: { echoed: "second" } } });
+    store.getState().setIterationData({ "b/0": { ...KNOWN, output: { echoed: "first" } } });
+    store.getState().editNode("b", [0]);
+    renderOutput();
+
+    expect(screen.getByRole("cell", { name: "first" })).toBeTruthy();
+    expect(screen.queryByRole("cell", { name: "second" })).toBeNull();
+  });
+
   it("shows a table step's records in its table's column order", () => {
     useWorkflowTable.mockReturnValueOnce({
       table: {
@@ -760,4 +783,15 @@ describe("OutputPane refuses a test once its entry no longer reaches the step", 
 
     expect(mutate).not.toHaveBeenCalled();
   });
+});
+
+it("blocks testing an isolated switched-off step with an actionable reason", () => {
+  const graph = { ...line({ disabled: true }), edges: [] };
+  seed(graph);
+  renderOutput();
+  expect(screen.getByRole("button", { name: "Test step" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Test step" })).toHaveAttribute(
+    "title",
+    "Connect this step to a trigger before testing it.",
+  );
 });
