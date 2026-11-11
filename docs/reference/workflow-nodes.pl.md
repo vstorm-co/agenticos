@@ -1,5 +1,5 @@
 ---
-source_sha: "a09299e9af23"
+source_sha: "a586ae2275e1"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -307,9 +307,9 @@ ponawiany. Oba wyzwalacze poczty przyjmują dane z zewnątrz.
 **Folder** i **Shared mailbox** są miejscem, w którym poller szuka, a zarazem
 filtrem, a pierwszy odczyt folderu zaczyna się od chwili opublikowania lub ostatniego włączenia workflow. Wskazanie skrzynki
 współdzielonej, którą otwiera grant Microsoft organizacji, wymaga uprawnienia do
-zarządzania połączeniami, tak jak w triggerach agentów Outlook; workflow, który już
-nasłuchuje takiej skrzynki, zachowuje ją przy kolejnych publikacjach, a jej zmiana znowu
-wymaga tego uprawnienia.
+zarządzania połączeniami, tak jak w triggerach agentów Outlook; wymaga go każda publikacja, która ją wskazuje, bo osoba publikująca staje się
+członkiem, jako który skrzynka jest czytana, a wiadomość do workflow, którego
+publikujący już go nie ma, nie uruchamia runa.
 **Sender contains** dopasowuje adres nadawcy, jak w Gmailu, i wymaga poczty,
 którą uwierzytelniła domena nadawcy albo która przyszła z wnętrza tenanta. Folder
 lub skrzynka współdzielona, które według Outlooka nie dają się odczytać,
@@ -324,7 +324,8 @@ wiadomości. Jej wyjście jest takie samo jak [trigger.gmail](#trigger-gmail).
 
 **Channel message.** Startuje od wiadomości do jednego z botów organizacji na
 Slacku, Mattermost lub Telegramie, na którą bot odpowiedziałby własnym agentem i
-która pasuje do filtra węzła. Publikacja wymaga `channels:manage`, a wiadomości
+która pasuje do filtra węzła. Publikacja wymaga `channels:manage`, sprawdzanego
+ponownie przy każdej wiadomości, a wiadomości
 jednego bota uruchamiają najwyżej jeden workflow. `triggered_by` to `channel_message`.
 Bot Teams jest odrzucany przy publikacji i w przebiegu testowym; nasłuch Teams opublikowany
 wcześniej oddaje swoje wiadomości agentowi bota.

@@ -1,5 +1,5 @@
 ---
-source_sha: "8042876abacb"
+source_sha: "107659f9bab3"
 ---
 
 # Permisos { #permissions }
@@ -449,6 +449,8 @@ mientras siga pudiendo ejecutar el workflow, y cualquiera que pueda editar el
 workflow puede cancelar cualquiera de sus runs. Un Member que puede ejecutar un
 workflow visible para la organización detiene sus propios runs, no los de un
 compañero; ver el run sin ninguno de los dos derechos se rechaza con `403`.
+Reintentar un run cancelado requiere el mismo derecho, así que un run que alguien
+detuvo no lo vuelve a iniciar un miembro que no podía detenerlo.
 
 **Un run actúa en nombre de quien lo inició, y eso se comprueba de nuevo en cada
 nodo.** Un nodo puede despacharse días después de que empezara el run, así que
