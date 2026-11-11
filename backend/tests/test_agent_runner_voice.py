@@ -117,6 +117,14 @@ def _db() -> MagicMock:
 
 
 @pytest.fixture(autouse=True)
+def _no_current_cap(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No current published version sets a cap; `test_agent_runner` covers one."""
+    monkeypatch.setattr(
+        "app.services.agent_runner.agent_repo.published_budget_caps", AsyncMock(return_value={})
+    )
+
+
+@pytest.fixture(autouse=True)
 def _in_no_group(monkeypatch: pytest.MonkeyPatch) -> None:
     """Nobody here is in a group; `test_prompt_variables` covers `{{groups}}`."""
     monkeypatch.setattr(
