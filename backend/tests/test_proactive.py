@@ -263,6 +263,33 @@ class TestTheLimitsMidway:
 
         assert [limit.scope.value for limit in limits] == ["run"]
 
+    async def test_what_has_no_limit_adds_none(self):
+        """No organization, no published agent, no person and no maintenance budget."""
+        org, proactive, caps, agent_total, org_total = self._repos(organization=_organization("1"))
+        thinker = ProactiveThinker(MagicMock())
+        nobody = AuthContext(user_id=None, organization_id=ORG, role=OrgRoleName.MEMBER)
+        with (
+            org,
+            proactive,
+            caps,
+            agent_total,
+            org_total,
+            patch(
+                f"{THINKER}.system_agent_repo.get",
+                new=AsyncMock(return_value=MagicMock(monthly_budget_usd=None)),
+            ),
+        ):
+            unpublished = await _LIMITS_MIDWAY(
+                thinker, nobody, "nightly", _agent(published=False), run_id=uuid.uuid4()
+            )
+            unbudgeted = await _LIMITS_MIDWAY(
+                thinker, _ctx(), "maintenance", _agent(published=False), run_id=uuid.uuid4()
+            )
+        with patch(f"{THINKER}.organization_repo.get_by_id", new=AsyncMock(return_value=None)):
+            gone = await _LIMITS_MIDWAY(thinker, _ctx(), "nightly", _agent(), run_id=uuid.uuid4())
+
+        assert (unpublished, unbudgeted, gone) == ([], [], [])
+
     async def test_maintenance_is_held_to_its_profiles_month(self):
         profile = MagicMock(monthly_budget_usd=Decimal("2"))
         org, proactive, caps, agent_total, org_total = self._repos(organization=_organization("1"))
