@@ -1,5 +1,5 @@
 ---
-source_sha: "246a8fe6bac4"
+source_sha: "b373de64c03d"
 ---
 
 # Governance { #governance }
@@ -717,7 +717,8 @@ erneut genehmigen** erneuert diese Zustimmung ausdrücklich. Ein neues primäres
 Konto ersetzt das genehmigte Konto nicht.
 
 Jede Prüfung ist ein gewöhnlicher **proactive**-Run des tatsächlichen Agenten
-und seiner Version. Quelltools brauchen `readOnlyHint`. Verfügbar sind das
+und seiner Version. Quelltools brauchen `readOnlyHint`, und ein Lesetool, vor dem
+das MCP-Binding des Agenten fragt, bleibt bei der Prüfung außen vor. Verfügbar sind das
 genehmigte Konto, Wissen/Kontext, Guardrails, Planung und Systemerinnerungen;
 Web, Sandbox, ausführbare Skills, Speicherschreibzugriffe und Delegation sind
 nicht verfügbar. Erforderliche interaktive Genehmigungen verhindern die

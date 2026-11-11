@@ -258,6 +258,7 @@ from app.agents.subagent_runtime import (
     SubagentRuntime,
 )
 from app.agents.system_agents import for_the_platform, refuse_system_agent, searches
+from app.agents.tool_names import taken_tool_names
 from app.agents.voice import VoiceOptions, handed_off, without_voice_unavailable
 from app.agents.watch_sources import WatchReadReceipt, WatchSourceTools
 from app.core.audit import current_impersonator, record_audit
@@ -2553,6 +2554,7 @@ def _connect_on_use(
     refs: Sequence[McpServerRef],
     user_id: UUID | None,
     request_connection: ConnectionCallback | None,
+    taken_names: Mapping[str, str],
 ) -> tuple[ConnectOnUse | None, list[UnavailableBinding]]:
     """Split the gaps into those the run offers to connect on use and those it briefs.
 
@@ -2573,7 +2575,12 @@ def _connect_on_use(
         request = ConnectionRequest(
             catalog_key=gap.catalog_key, name=personal_service_gap(gap).name, gap=gap.gap
         )
-        resolve = partial(connect_personal_toolset, personal[gap.catalog_key], user_id=user_id)
+        resolve = partial(
+            connect_personal_toolset,
+            personal[gap.catalog_key],
+            user_id=user_id,
+            taken_names=taken_names,
+        )
         pending.append(PendingService(request=request, resolve=resolve))
     if not pending:
         return None, briefed
@@ -2707,7 +2714,10 @@ def _with_channel_service_approval(
     Linked senders use web chat's read-only classification. An unlinked room
     participant needs approval for every MCP or Mirage call; no member vouched
     for releasing organization data to them. An explicit `all` still includes reads.
-    This also applies to delegates and resumed runs through the shared factory.
+    A tool's own `never` is dropped: it is the author's word, not the server's,
+    and here only the server's `readOnlyHint` lets a tool run unasked (#2884). A
+    tool's own `required` stays. This also applies to delegates and resumed runs
+    through the shared factory.
     """
     if surface not in _CHANNEL_SURFACES:
         return spec
@@ -2730,17 +2740,23 @@ def _with_channel_service_approval(
                 for binding in spec.capabilities
             ],
             "mcp_servers": [
-                ref.model_copy(
-                    update={
-                        "approval": "all"
-                        if not linked_sender or ref.approval == "all"
-                        else "writes"
-                    }
-                )
+                _held_to_channel_approval(ref, linked_sender=linked_sender)
                 for ref in spec.mcp_servers
             ],
         }
     )
+
+
+def _held_to_channel_approval(ref: McpServerRef, *, linked_sender: bool) -> McpServerRef:
+    """One MCP binding, held to what a chat app requires.
+
+    See :func:`_with_channel_service_approval` for the rule.
+    """
+    approval = "all" if not linked_sender or ref.approval == "all" else "writes"
+    if isinstance(ref, PlatformMcpServerRef):
+        return ref.model_copy(update={"approval": approval})
+    asked = {tool: mode for tool, mode in ref.tool_approval.items() if mode == "required"}
+    return ref.model_copy(update={"approval": approval, "tool_approval": asked})
 
 
 def _with_channel_tools(spec: AgentSpec, exposure: AgentExposure | None) -> AgentSpec:
@@ -4184,6 +4200,8 @@ class AgentRunnerService:
         personal_sources = admitted_mcp_sources
         if watch_sources is not None:
             personal_sources = {watch_sources.connection_id: source_identity(watch_sources)}
+        # What the spec's other tools are called, which no MCP tool may also be (#2890).
+        taken_names = taken_tool_names(spec)
         resolved = await build_toolsets_for_agent(
             self.db,
             organization_id=ctx.organization_id,
@@ -4192,6 +4210,7 @@ class AgentRunnerService:
             test_connections=test_connections.mcp,
             personal_sources=personal_sources,
             organization_sources=admitted_mcp_sources,
+            taken_names=taken_names,
             platform_credential=await self._platform_credential(
                 spec,
                 ctx,
@@ -4229,6 +4248,7 @@ class AgentRunnerService:
             refs=spec.mcp_servers,
             user_id=personal_mcp_user_id,
             request_connection=request_connection,
+            taken_names=taken_names,
         )
         context = runtime_context(
             surface.value,
@@ -5697,6 +5717,7 @@ class AgentRunnerService:
             test_connections=delegation.test_connections.mcp,
             personal_sources=delegation.routine_sources,
             organization_sources=delegation.routine_sources,
+            taken_names=taken_tool_names(runnable),
             # The run's own person, as for the parent: on a resume `ctx` is the
             # approver's, and a delegate must not carry their authority either.
             platform_credential=await self._platform_credential(runnable, ctx, delegation.run),

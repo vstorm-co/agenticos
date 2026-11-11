@@ -212,6 +212,20 @@ In the Builder, a server's settings say this
 per group: its **Reads** and the tools that **Change things** each run freely
 or ask first.
 
+Each tool can also run freely or ask first on its own, whatever its group and
+its read-only hint say: press the shield beside it. A server that marks no tool
+read-only lists every tool as one group, which `writes` holds in full; setting its
+reads to run freely is how they run while its writes ask. The same control lets
+one write run unasked without `none` releasing every other one.
+
+The spec keeps these in the binding's `tool_approval`, keyed by the tool's name on
+the server. A group whose tools differ reads **Per tool**, and choosing for the
+group sets all of its tools again. A tool the server adds later follows its group.
+
+Two places go by the server's hint instead. In a chat app, a tool the server does
+not mark read-only asks first even when set to run freely, and a watch never
+reads a tool its binding asks before, because nobody is there to answer.
+
 ### Whose account a binding speaks through
 
 A binding is one of two kinds, and the Builder asks which in the server's
@@ -596,6 +610,17 @@ each under its label and its name.
 Two connections whose names reduce to the same prefix are deduplicated — first one
 wins, with a warning naming the loser. Deployment-managed servers are ordered first,
 so they win over a user connection that happens to pick the same name.
+
+A prefix keeps one server's tools apart from another's, but not from the agent's
+other tools. A connection called `request` whose server offers `capability`
+presents `request_capability`, which nearly every agent already has, and `create`
+with `chart` lands on the charts capability's `create_chart`.
+
+Publish refuses such a binding, comparing the tools the connection's last check listed with the agent's
+capability tools and the platform's own. Where one still reaches a run - a server
+that added the tool, a connection renamed since - the whole server is left out of
+that turn and the model is told why, as for a prefix collision. Rename the
+connection or narrow its tools.
 
 ### Health, users and calls
 

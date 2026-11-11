@@ -24,6 +24,53 @@ Two things are versioned separately from this file and worth knowing about:
 - Context cards in the same row now have equal heights and aligned footers,
   including cards with longer descriptions or agent usage indicators.
 
+## [1.65.1] - 2026-11-11
+
+### Fixed
+
+- **The Called by a workflow trigger shows a workflow, not a telephone.** Its
+  incoming-call icon suggested the workflow starts on a phone call. It now uses
+  the workflow icon, the same as the Run a workflow step that calls it (#2886).
+
+## [1.65.0] - 2026-11-11
+
+### Added
+
+- **Approval per MCP tool.** In a server's settings in the Builder, each tool
+  can run freely or ask first on its own, whatever its group and the server's
+  `readOnlyHint` say. A server that marks no tool read-only can let its reads
+  run while its writes ask, and one write can run unasked without `none`
+  releasing every other one. The spec keeps these in a new `tool_approval` on
+  organization and personal MCP bindings, keyed by the tool's name on the
+  server; a group whose tools differ reads **Per tool**. In a chat app a tool
+  without a read-only hint still asks, a watch leaves out a read its binding
+  asks before, and a routine's standing consent can cover a tool set to run
+  freely. Stored agents dump unchanged, so reviewed routine sources and eval
+  baselines stay valid (#2884).
+
+### Fixed
+
+- **A further account on an MCP server takes the server's settings.**
+  **Add another account** bound the new account with every tool and no
+  approval, while the settings showed, and applied to every account, the first
+  account's tools and approval. Under **Changes things: Ask first**, the second
+  account's writes ran unasked (#2884).
+
+## [1.64.2] - 2026-11-11
+
+### Fixed
+
+- **Two of an agent's tools can no longer share a name.** Pydantic AI aborts a
+  turn on a duplicate tool name, and two cases got through publish: an MCP tool
+  whose prefixed name is a capability's or the platform's own (a connection
+  `request` whose server offers `capability` presents `request_capability`,
+  which nearly every agent has), and a capability tool renamed onto another
+  capability's tool or one of the platform's. Publish now refuses both, the MCP
+  case on the tools the connection's last check listed, and checks renames in
+  the agent's specialists and in what it shares with its delegates. A clash
+  that still reaches a run leaves that whole server out of the turn and tells
+  the model why, instead of aborting it (#2891).
+
 ## [1.64.1] - 2026-11-11
 
 ### Fixed
@@ -21280,7 +21327,10 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.64.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.65.1...HEAD
+[1.65.1]: https://github.com/vstorm-co/agenticos/compare/v1.65.0...v1.65.1
+[1.65.0]: https://github.com/vstorm-co/agenticos/compare/v1.64.2...v1.65.0
+[1.64.2]: https://github.com/vstorm-co/agenticos/compare/v1.64.1...v1.64.2
 [1.64.1]: https://github.com/vstorm-co/agenticos/compare/v1.64.0...v1.64.1
 [1.64.0]: https://github.com/vstorm-co/agenticos/compare/v1.63.0...v1.64.0
 [1.63.0]: https://github.com/vstorm-co/agenticos/compare/v1.62.8...v1.63.0

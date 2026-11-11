@@ -118,6 +118,62 @@ class TestSpecContract:
 
         assert loaded == spec
 
+    def test_an_mcp_binding_stored_before_per_tool_approval_dumps_unchanged(self):
+        """A routine's reviewed sources and an eval's baseline are fingerprints of
+        the dumped spec: a `tool_approval: {}` on every stored binding would change
+        both for an agent nobody touched (#2884)."""
+        stored = [
+            {
+                "account": "organization",
+                "connection_id": str(uuid.uuid4()),
+                "allowed_tools": ["search"],
+                "approval": "writes",
+            },
+            {
+                "account": "personal",
+                "catalog_key": "notion",
+                "allowed_tools": None,
+                "approval": "all",
+            },
+        ]
+
+        spec = AgentSpec.model_validate({"name": "x", "mcp_servers": stored})
+
+        assert spec.model_dump(mode="json")["mcp_servers"] == stored
+        assert "tool_approval" not in spec.to_yaml()
+
+    def test_per_tool_mcp_approval_is_stored_sorted_and_only_where_decided(self):
+        """Sorted because JSONB reorders keys and the Builder compares what it saved
+        with what it reads back; `default` is the same as no entry at all."""
+        spec = AgentSpec(
+            name="x",
+            mcp_servers=[
+                {
+                    "account": "personal",
+                    "catalog_key": "notion",
+                    "approval": "writes",
+                    "tool_approval": {"search": "never", "fetch": "default", "delete": "required"},
+                }
+            ],
+        )
+
+        (dumped,) = spec.model_dump(mode="json")["mcp_servers"]
+        assert list(dumped["tool_approval"].items()) == [
+            ("delete", "required"),
+            ("search", "never"),
+        ]
+        assert AgentSpec.from_yaml(spec.to_yaml()) == spec
+
+    @pytest.mark.security
+    def test_the_platform_server_takes_no_approval_per_tool(self):
+        """Its calls act with the asker's own authority and never drop below
+        `writes`; a tool's `never` would be the way under that floor."""
+        with pytest.raises(ValueError, match="tool_approval"):
+            AgentSpec(
+                name="x",
+                mcp_servers=[{"account": "platform", "tool_approval": {"publish_agent": "never"}}],
+            )
+
     def test_a_tool_cannot_be_bound_twice(self):
         """A duplicate would silently shadow itself in the toolset."""
         with pytest.raises(ValueError, match="more than once"):

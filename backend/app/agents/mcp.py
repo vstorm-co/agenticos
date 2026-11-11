@@ -25,7 +25,7 @@ import json
 import logging
 import re
 import time
-from collections.abc import AsyncGenerator, Iterable, Sequence
+from collections.abc import AsyncGenerator, Iterable, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
@@ -52,7 +52,7 @@ from pydantic_ai.tools import RunContext, ToolDefinition
 from pydantic_ai.toolsets import WrapperToolset
 from pydantic_ai.toolsets.abstract import ToolsetTool
 
-from app.agents.spec import McpApproval
+from app.agents.spec import ApprovalMode, McpApproval
 from app.core.sanitize import NO_PRIVATE_ADDRESSES, mcp_allowlist, validate_webhook_url
 
 if TYPE_CHECKING:
@@ -195,6 +195,9 @@ class McpServerSpec:
     test: bool = False
     trust_read_only_hints: bool = False
     approval: McpApproval = "none"
+    # The binding's `tool_approval`: tools, by the name the server gives them,
+    # whose own approval wins over `approval`.
+    tool_approval: Mapping[str, ApprovalMode] = field(default_factory=dict)
     # Whether the server's `initialize` instructions join the agent's (the
     # connection's own opt-in; Pydantic AI leaves them out by default).
     include_instructions: bool = False
@@ -474,6 +477,10 @@ def _make_toolset(spec: McpServerSpec) -> Any:
     return ApprovalMarked(
         FittedNames(server.prefixed(prefix).with_metadata(**{MCP_ISOLATION: origin})),
         policy=spec.approval,
+        # Keyed as the marks are read: by the name the model calls, fitted.
+        tool_approval={
+            fitted_tool_name(f"{prefix}_{name}"): mode for name, mode in spec.tool_approval.items()
+        },
         in_process=spec.in_process,
         account=spec.account,
         ungated=frozenset(f"{prefix}_{name}" for name in spec.ungated),
@@ -551,18 +558,34 @@ sends lands under `meta` and `annotations`, so it cannot mark its own tools safe
 """
 
 
-def needs_approval(tool: ToolDefinition, policy: McpApproval) -> bool:
+def needs_approval(
+    tool: ToolDefinition, policy: McpApproval, own: ApprovalMode = "default"
+) -> bool:
     """Whether a call to this MCP tool waits for a person, under `policy`.
 
-    `writes` trusts the server's `readOnlyHint` and nothing else: a tool that
-    does not say it only reads is treated as one that writes.
+    `own` is the tool's approval in the binding's `tool_approval`; see
+    :func:`approval_needed` for how the two decide.
     """
+    annotations = (tool.metadata or {}).get("annotations") or {}
+    return approval_needed(policy, read_only=annotations.get("readOnlyHint") is True, own=own)
+
+
+def approval_needed(policy: McpApproval, *, read_only: bool, own: ApprovalMode = "default") -> bool:
+    """Whether an MCP tool waits for a person: the rule, and the only copy of it.
+
+    The tool's `own` approval wins, as on a capability's tool: `required` asks
+    and `never` does not, whatever `policy` says and whatever the server claims
+    (#2884). `default` leaves it to `policy`, and `writes` trusts the server's
+    `readOnlyHint` and nothing else: a tool that does not say it only reads is
+    treated as one that writes.
+    """
+    if own != "default":
+        return own == "required"
     if policy == "all":
         return True
     if policy == "none":
         return False
-    annotations = (tool.metadata or {}).get("annotations") or {}
-    return annotations.get("readOnlyHint") is not True
+    return not read_only
 
 
 @dataclass
@@ -570,6 +593,8 @@ class ApprovalMarked(WrapperToolset[Any]):
     """An MCP server's tools, each marked with whether it waits for approval."""
 
     policy: McpApproval = "none"
+    # Each tool's own approval, by the name the model calls it.
+    tool_approval: Mapping[str, ApprovalMode] = field(default_factory=dict)
     in_process: bool = False
     account: str | None = None
     ungated: frozenset[str] = frozenset()
@@ -586,7 +611,9 @@ class ApprovalMarked(WrapperToolset[Any]):
                         **(tool.tool_def.metadata or {}),
                         PLATFORM_TOOL: self.in_process,
                         NEEDS_APPROVAL: name not in self.ungated
-                        and needs_approval(tool.tool_def, self.policy),
+                        and needs_approval(
+                            tool.tool_def, self.policy, self.tool_approval.get(name, "default")
+                        ),
                         **named,
                     },
                 ),
@@ -685,6 +712,61 @@ class AnsweredRecently(WrapperToolset[Any]):
         if self.down:
             return unreachable_briefing(self.name, binding=None)
         return await super().get_instructions(ctx)
+
+
+@dataclass
+class LeftOutOnClash(WrapperToolset[Any]):
+    """An MCP server left out of a step where one of its tools has another tool's name (#2890).
+
+    Two tools of one name make pydantic-ai abort the turn. A connection's prefix
+    keeps its server's tools apart from every other server's, but not from a
+    capability's or the platform's own: a connection `request` whose server
+    offers `capability` presents `request_capability`, which nearly every agent
+    has. Publish refuses that on the tools the connection's last check listed;
+    this is the run's half, for a server that added the tool since, or a
+    connection renamed after publish.
+
+    The whole server sits out rather than the one tool, as it does for a prefix
+    collision (#1442): one tool quietly missing goes unnoticed, and the clash is
+    a misconfiguration somebody should fix. The model is told which server is
+    missing and why. Decided on what the server lists at each step, so a tool it
+    adds mid-run cannot take the turn down either. `taken` maps the names the
+    run's other tools hold to whose each is.
+    """
+
+    server: str = ""
+    binding: str = ""
+    taken: Mapping[str, str] = field(default_factory=dict)
+    clash: tuple[str, str] | None = field(default=None, init=False)
+
+    async def get_tools(self, ctx: RunContext[Any]) -> dict[str, ToolsetTool[Any]]:
+        tools = await super().get_tools(ctx)
+        clash = next(((name, self.taken[name]) for name in tools if name in self.taken), None)
+        if clash is not None and clash != self.clash:
+            logger.warning(
+                "Leaving MCP server %r out of this turn: its tool %r has the name of a tool of %s",
+                self.server,
+                *clash,
+            )
+        self.clash = clash
+        return {} if clash is not None else tools
+
+    async def get_instructions(
+        self, ctx: RunContext[Any]
+    ) -> str | InstructionPart | Sequence[str | InstructionPart] | None:
+        # Pydantic AI lists a step's tools before it reads its instructions, so
+        # `clash` is this step's.
+        if self.clash is None:
+            return await super().get_instructions(ctx)
+        tool, holder = self.clash
+        return (
+            f"The {self.server} server ({self.binding}) is not available this turn: its "
+            f"tool `{tool}` has the name of a tool {holder} already gives you. Two tools "
+            "cannot share one name, so none of its tools are attached. If asked for "
+            f"anything in {self.server}, say it is not available because two of this "
+            "agent's tools collide under one name, which the agent's author resolves by "
+            "renaming the connection or narrowing its tools."
+        )
 
 
 PLATFORM_MCP_NAME = "agenticos"
