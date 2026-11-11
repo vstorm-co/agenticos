@@ -1,5 +1,5 @@
 ---
-source_sha: "5af32af69853"
+source_sha: "7450afb7fee4"
 ---
 
 # Governance { #governance }
@@ -99,7 +99,8 @@ Una rutina vuelve a comprobar su creador, membresía activa, rol y permisos de e
 Cada tope mensual cuenta el coste entero de un run en el mes en que empezó, igual que
 los informes de gasto. Un run que cruza el límite de un mes - aparcado en una
 aprobación la última tarde y aprobado el día uno - aparece entero en el mes anterior,
-y al reanudarse se compara con el gasto de ese mes, no con el del nuevo.
+y al reanudarse se compara con el gasto de ese mes, no con el del nuevo. Lo que gaste después de
+reanudarse también queda sujeto a los límites del mes nuevo.
 
 Una **organización nueva empieza con el techo de la organización ya puesto** — el
 `DEFAULT_ORG_MONTHLY_BUDGET_USD` del deployment ([configuración](configuration.md),

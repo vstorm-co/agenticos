@@ -4444,6 +4444,16 @@ class AgentRunnerService:
             since=since,
             until=until,
         )
+        carried_limits = (
+            []
+            if existing_run is None or since >= month_start()
+            else await self._this_months_limits(
+                ctx,
+                existing_run,
+                spec=spec,
+                organization_cap=organization.monthly_budget_usd,
+            )
+        )
 
         # A chat in a project works in the project's container and reads its
         # instructions, whichever agent answers - see `_in_project`.
@@ -4963,6 +4973,7 @@ class AgentRunnerService:
             org_monthly_budget_usd=organization.monthly_budget_usd,
             run_limit_usd=run_limit_usd,
             group_limits=group_limits,
+            carried_limits=carried_limits,
             request_approval=channel,
             routine_action_check=None if routine is None else routine.action_policy,
             gate_every_tool=approval_mode is ApprovalMode.ASK_ALL,
@@ -6741,6 +6752,75 @@ class AgentRunnerService:
             )
             for group in groups
         ]
+
+    async def _this_months_limits(
+        self,
+        ctx: AuthContext,
+        run: AgentRun,
+        *,
+        spec: AgentSpec,
+        organization_cap: Decimal | None,
+    ) -> list[SpendLimit]:
+        """The current month's caps for a run resumed after the month it started in.
+
+        Its whole cost stays booked to the month it started, and the run's other
+        limits weigh it against that month; these keep it from spending past a cap
+        this month has already reached. Each counts only what the run spends now:
+        the ledger arrives holding the run's earlier cost, so it comes off the
+        baseline.
+        """
+        opening = run.cost_usd
+        since = month_start()
+
+        def less_opening(lookup: PeriodSpendLookup) -> PeriodSpendLookup:
+            async def spent() -> Decimal:
+                return await lookup() - opening
+
+            return spent
+
+        async def agent_spend() -> Decimal:
+            async with get_db_context() as db:
+                return await agent_run_repo.sum_cost_since(
+                    db,
+                    organization_id=ctx.organization_id,
+                    since=since,
+                    agent_id=run.agent_id,
+                    include_delegations=True,
+                    exclude_run_id=run.id,
+                )
+
+        async def organization_spend() -> Decimal:
+            async with get_db_context() as db:
+                return await organization_spend_since(
+                    db, ctx.organization_id, since, exclude_run_id=run.id
+                )
+
+        limits: list[SpendLimit] = []
+        if spec.budget is not None and spec.budget.monthly_usd is not None:
+            limits.append(
+                SpendLimit(
+                    scope=BudgetScope.AGENT,
+                    limit_usd=Decimal(str(spec.budget.monthly_usd)),
+                    period_spend=less_opening(agent_spend),
+                    period="current",
+                )
+            )
+        for group in await self._group_limits(
+            self._department_context(ctx, run), exclude_run_id=run.id, since=since
+        ):
+            if group.period_spend is not None:
+                group = replace(group, period_spend=less_opening(group.period_spend))
+            limits.append(replace(group, period="current"))
+        if organization_cap is not None:
+            limits.append(
+                SpendLimit(
+                    scope=BudgetScope.ORGANIZATION,
+                    limit_usd=organization_cap,
+                    period_spend=less_opening(organization_spend),
+                    period="current",
+                )
+            )
+        return limits
 
     async def _notify(
         self,

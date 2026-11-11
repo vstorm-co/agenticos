@@ -242,6 +242,7 @@ def build_agent(
     org_monthly_budget_usd: Decimal | None = None,
     run_limit_usd: Decimal | None = None,
     group_limits: Sequence[SpendLimit] = (),
+    carried_limits: Sequence[SpendLimit] = (),
     request_approval: ApprovalCallback | None = None,
     gate_every_tool: bool = False,
     routine_action_check: RoutineToolCheck | None = None,
@@ -300,6 +301,8 @@ def build_agent(
         group_limits: The monthly caps of the departments the person running
             this is in (#2072), each metering its own members' spend. Built by
             the caller, which knows who that person is; a spec does not.
+        carried_limits: The current month's caps for a run resumed after the
+            month it started in, each metering only what the run spends now.
         request_approval: How to put a gated tool call to a human. Omitted on a
             surface that cannot ask anyone, where the gate refuses instead.
         shared_budget: The guard - and therefore the ledger - of the run this
@@ -479,6 +482,7 @@ def build_agent(
                 org_monthly_budget_usd=org_monthly_budget_usd,
                 run_limit_usd=run_limit_usd,
                 group_limits=group_limits,
+                carried_limits=carried_limits,
             ),
         )
     )
@@ -752,6 +756,7 @@ def _spend_limits(
     org_monthly_budget_usd: Decimal | None,
     run_limit_usd: Decimal | None = None,
     group_limits: Sequence[SpendLimit] = (),
+    carried_limits: Sequence[SpendLimit] = (),
 ) -> list[SpendLimit]:
     """Every ceiling this run is under, narrowest first.
 
@@ -801,6 +806,7 @@ def _spend_limits(
                 period_spend=org_period_spend,
             )
         )
+    limits.extend(carried_limits)
     return limits
 
 
