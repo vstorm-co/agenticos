@@ -41,6 +41,7 @@ from app.agents.capabilities.browser_use import (
     validate_cdp_url,
 )
 from app.agents.capabilities.browser_use._route import check_address
+from app.agents.capabilities.channel_tools import CHANNEL_TOOLS_CAPABILITY_ID
 from app.agents.capabilities.coding_agent import CODING_AGENT_ID, CodingAgentConfig
 from app.agents.capabilities.computer_use import (
     COMPUTER_USE_ID,
@@ -597,10 +598,17 @@ def _rename_clash_problems(spec: AgentSpec) -> list[str]:
     another binding's capability already has publishes, and every turn then
     aborts on the duplicate. Renames only, as there: which names the registry's
     capabilities declare is the registry's to keep apart. A capability the
-    registry does not hold is refused on its own and left out here.
+    registry does not hold is refused on its own and left out here. The channel
+    tools count although no published spec binds them: a channel adds them per
+    run (`agent_runner._with_channel_tools`), and a rename onto one of their names
+    aborts every turn there.
     """
     known = {definition.id: definition for definition in all_capabilities()}
-    offered: dict[str, set[str]] = {}
+    offered: dict[str, set[str]] = {
+        CHANNEL_TOOLS_CAPABILITY_ID: {
+            tool.name for tool in known[CHANNEL_TOOLS_CAPABILITY_ID].tools
+        }
+    }
     for binding in spec.capabilities:
         definition = known.get(binding.id)
         if definition is not None and binding.enabled:
@@ -3164,6 +3172,17 @@ class AgentRegistryService:
                         "too, or stop sharing 'computer_use'."
                     ]
                 )
+            # What it is lent can clash with its own tools' names too (#2890).
+            # Only that half: its own clashes are its author's, refused at its
+            # own publish, and a parent cannot fix them.
+            own = set(_rename_clash_problems(delegate.spec))
+            problems.add(
+                [
+                    f"Delegate '{delegate.spec.name}', with what this agent shares: {problem}"
+                    for problem in _rename_clash_problems(_inheriting(delegate.spec, shared))
+                    if problem not in own
+                ]
+            )
         # A delegate's handle is its row's slug; a specialist's is the name as
         # typed, which is already constrained to what a tool argument can carry.
         # Both are what the runtime hands the model, which is the only namespace
@@ -3248,6 +3267,8 @@ class AgentRegistryService:
         problems.add(
             await _computer_use_sandbox_problems(self.db, ctx, _inheriting(as_agent, shared))
         )
+        # Its own renames and what it inherits run in one agent, as the parent's do.
+        problems.add(_rename_clash_problems(_inheriting(as_agent, shared)))
         return problems.within_specialist(specialist.name)
 
     async def _resolve_pins(self, ctx: AuthContext, refs: Sequence[SubagentRef]) -> _ResolvedPins:

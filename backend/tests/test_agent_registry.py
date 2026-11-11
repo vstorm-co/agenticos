@@ -5713,6 +5713,40 @@ class TestOneNamePerTool:
         assert problems == []
 
     @pytest.mark.anyio
+    async def test_a_rename_onto_a_channel_tool_is_refused(self):
+        """No published spec binds the channel tools - a channel adds them per run -
+        and a rename onto one of their names aborts every turn there."""
+        problems = await self._problems(
+            capabilities=[
+                CapabilityBindingSpec(
+                    id="charts", tool_overrides={"create_chart": {"name": "get_channel_info"}}
+                )
+            ]
+        )
+
+        assert problems == [
+            "Capability 'charts' renames a tool to get_channel_info, which capability "
+            "'channel_tools' also offers - two tools of that name abort the turn"
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_rename_onto_the_structured_answer_s_tool_is_refused(self):
+        """`final_result` is Pydantic AI's output tool for a run asked for a
+        structured answer, which a request can ask for on any agent."""
+        problems = await self._problems(
+            capabilities=[
+                CapabilityBindingSpec(
+                    id="charts", tool_overrides={"create_chart": {"name": "final_result"}}
+                )
+            ]
+        )
+
+        assert problems == [
+            "Capability 'charts' renames a tool to final_result, which the framework "
+            "provides itself - two tools of that name abort the turn"
+        ]
+
+    @pytest.mark.anyio
     async def test_a_rename_onto_one_of_the_platform_s_own_tools_is_refused(self):
         """Not only the two loaders: `request_capability` is on nearly every agent."""
         problems = await self._problems(

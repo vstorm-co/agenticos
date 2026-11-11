@@ -13,7 +13,7 @@ from uuid import uuid4
 
 import pytest
 from pydantic_ai import Agent
-from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
+from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCallPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.toolsets import FunctionToolset
 
@@ -93,11 +93,19 @@ class TestTheNamesARunHolds:
             PLATFORM_TOOL_NAMES
         )
 
+    def test_the_channel_tools_are_held_although_no_published_spec_binds_them(self):
+        """A channel adds them per run, after publish, so publish holds them as it
+        holds the platform's own."""
+        taken = taken_tool_names(AgentSpec(name="Support"))
+
+        assert taken["get_channel_info"] == "the channel_tools capability"
+        assert taken["send_channel_file"] == "the channel_tools capability"
+
     def test_a_capability_the_registry_does_not_hold_is_left_out(self):
         """Publish refuses it on its own; it must not take the name check down with it."""
         spec = AgentSpec(name="Support", capabilities=[CapabilityBindingSpec(id="no-such")])
 
-        assert set(taken_tool_names(spec)) == PLATFORM_TOOL_NAMES
+        assert taken_tool_names(spec) == taken_tool_names(AgentSpec(name="Support"))
 
 
 class TestThePlatformsOwnToolsAreAllListed:
@@ -115,14 +123,16 @@ class TestThePlatformsOwnToolsAreAllListed:
 
     @staticmethod
     async def _offered(spec: AgentSpec, **extras: object) -> set[str]:
-        """The tool names the model is offered on a turn's first request."""
+        """The tool names the model is offered on a turn's first request, output tools too."""
         built = build_agent(
             spec, _model_spec(), organization_id=uuid4(), agent_id=uuid4(), **extras
         )
         seen: list[set[str]] = []
 
         def answer(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
-            seen.append({tool.name for tool in info.function_tools})
+            seen.append({tool.name for tool in [*info.function_tools, *info.output_tools]})
+            if info.output_tools:
+                return ModelResponse(parts=[ToolCallPart(info.output_tools[0].name, {})])
             return ModelResponse(parts=[TextPart("ok")])
 
         with built.agent.override(model=FunctionModel(answer)):
@@ -160,13 +170,17 @@ class TestThePlatformsOwnToolsAreAllListed:
             name="Support", capabilities=[{"id": "tool_search", "config": {"strategy": "keywords"}}]
         )
         search = await self._offered(searching, extra_toolsets=[server])
+        # A structured answer is an output tool, offered beside every other.
+        structured = await self._offered(
+            AgentSpec(name="Support", output_schema={"type": "object", "properties": {}})
+        )
         declared = {
             name
             for name, holder in taken_tool_names(searching).items()
             if holder != "this platform"
         }
 
-        offered = (surfaces | search) - declared - {"get_objects"}
+        offered = (surfaces | search | structured) - declared - {"get_objects"}
 
         assert offered - PLATFORM_TOOL_NAMES == set()
         # Each build did switch its tools on, so an empty difference is not a vacuous one.
