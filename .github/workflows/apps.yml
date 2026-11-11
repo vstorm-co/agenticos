@@ -28,7 +28,15 @@ jobs:
         with: {persist-credentials: false}
       - name: Linux native libraries
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev libxcb-randr0-dev libxcb-shape0-dev libxcb-xfixes0-dev libpipewire-0.3-dev libgbm-dev clang xvfb bubblewrap
+        timeout-minutes: 8
+        run: |
+          set -euo pipefail
+          # The Azure mirror can fail DNS for every package, consuming the job's
+          # entire build allowance. Use Ubuntu's archive and bound network retries.
+          sudo sed -Ei 's|https?://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/sources.list.d/ubuntu.sources
+          APT_NETWORK=(-o Acquire::Retries=2 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15)
+          sudo apt-get "${APT_NETWORK[@]}" update --error-on=any
+          sudo apt-get "${APT_NETWORK[@]}" install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev libxcb-randr0-dev libxcb-shape0-dev libxcb-xfixes0-dev libpipewire-0.3-dev libgbm-dev clang xvfb bubblewrap
       # Ubuntu's hosted runner restricts unprivileged user namespaces. Exercise
       # the actual bubblewrap boundary instead of skipping its confinement test.
       - name: Allow sandbox namespaces on the ephemeral Linux runner
