@@ -1849,6 +1849,28 @@ class TestChannelMessages:
         assert len(await _runs(db)) == 1
 
     @pytest.mark.security
+    async def test_a_listener_whose_publisher_lost_channels_manage_starts_nothing(self, db, tenant):
+        owner, org, workflow = tenant
+        bot = await _bot(db, org)
+        await _publish(
+            db,
+            _ctx(owner, org),
+            workflow,
+            _graph("trigger.channel_message", {"bot_id": str(bot.id)}),
+        )
+        service = WorkflowExposureService(db)
+
+        for role, takes in (("builder", False), ("owner", True)):
+            await db.execute(
+                update(OrganizationMember)
+                .where(OrganizationMember.user_id == owner.id)
+                .values(role=role)
+            )
+            taken = await service.receive_channel_message(bot, _message(bot), sender_user_id=None)
+            assert taken is takes
+        assert len(await _runs(db)) == 1
+
+    @pytest.mark.security
     async def test_a_listener_whose_publisher_left_starts_nothing(self, db, tenant):
         owner, org, workflow = tenant
         bot = await _bot(db, org)
@@ -2840,14 +2862,54 @@ class TestOutlook:
         await _publish(
             db, _ctx(owner, org), mine, _graph("trigger.outlook", {"mailbox": "hr@acme.com"})
         )
-        # ... and a member's later publish that leaves it alone needs nothing more,
+        # ... and a member's later publish keeping it is refused too: the member
+        # would become the one the trigger reads that mailbox as.
         again = _graph("trigger.outlook", {"mailbox": "HR@acme.com", "subject_contains": "x"})
-        await _publish(db, ctx, mine, again)
-        # but changing it is refused again.
-        with pytest.raises(AuthorizationError, match="shared mailbox"):
-            await _publish(
-                db, ctx, mine, _graph("trigger.outlook", {"mailbox": "finance@acme.com"})
+        with pytest.raises(AuthorizationError, match="mcp:manage"):
+            await _publish(db, ctx, mine, again)
+
+    @pytest.mark.security
+    async def test_a_shared_mailbox_stops_starting_runs_once_its_publisher_loses_mcp_manage(
+        self, db, tenant, caplog
+    ):
+        owner, org, workflow = tenant
+        await _outlook_mailbox(db, org)
+        await _publish(
+            db, _ctx(owner, org), workflow, _graph("trigger.outlook", {"mailbox": "hr@acme.com"})
+        )
+        await db.execute(
+            update(OrganizationMember)
+            .where(OrganizationMember.user_id == owner.id)
+            .values(role="member")
+        )
+
+        with caplog.at_level("WARNING"):
+            assert await WorkflowExposureService(db).receive_polled_email(
+                organization_id=org.id,
+                source="outlook",
+                events=[_outlook_mail(mailbox="hr@acme.com")],
             )
+
+        assert await _runs(db) == []
+        assert "workflow_mail_trigger_cannot_run" in caplog.text
+
+    async def test_a_member_listening_to_the_accounts_own_mailbox_still_starts_runs(
+        self, db, tenant
+    ):
+        owner, org, workflow = tenant
+        await _outlook_mailbox(db, org)
+        await _publish(db, _ctx(owner, org), workflow, _graph("trigger.outlook"))
+        await db.execute(
+            update(OrganizationMember)
+            .where(OrganizationMember.user_id == owner.id)
+            .values(role="member")
+        )
+
+        assert await WorkflowExposureService(db).receive_polled_email(
+            organization_id=org.id, source="outlook", events=[_outlook_mail()]
+        )
+
+        assert len(await _runs(db)) == 1
 
     @pytest.mark.security
     async def test_another_organizations_mail_never_starts_this_organizations_workflow(
