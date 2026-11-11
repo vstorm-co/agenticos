@@ -50,7 +50,7 @@ class CodeContinuations:
     """Shared by a run and its delegates; only the runner persists it."""
 
     checkpoints: dict[str, CodeCheckpoint] = field(default_factory=dict)
-    native_tools: frozenset[str] = frozenset()
+    native_tools: dict[str | None, frozenset[str]] = field(default_factory=dict)
     approval_calls: set[str] = field(default_factory=set)
 
     @property

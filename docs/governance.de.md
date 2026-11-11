@@ -1,5 +1,5 @@
 ---
-source_sha: "4af1aa1a4054"
+source_sha: "f7a146db5510"
 ---
 
 # Governance { #governance }
@@ -1464,7 +1464,13 @@ einen weiteren Modell-Turn oder abgeschlossene Operationen zu wiederholen.
 Eine Ablehnung löst im Skript einen `RuntimeError` aus; der Tool-Handler läuft
 nicht. Die Freigabe von `run_code` selbst genehmigt keine verschachtelte Operation.
 
-Der gespeicherte Zustand gehört dem Server und hat eine Größenbegrenzung. Ist er
+Der gespeicherte Zustand gehört dem Server und hat eine Größenbegrenzung. Der
+rohe Interpreterzustand ist auf 512 kB begrenzt, alle Code-Checkpoints eines Runs
+zusammen auf 1 MB JSON. Atomare Datenbankreservierungen begrenzen gespeicherte
+Checkpoints auf 8 MB pro auslösendem Benutzer (organisationsübergreifend) und
+32 MB pro Organisation, einschließlich laufender Fortsetzungen. Bei voller
+Kapazität schlägt der Run ohne neue ausstehende Freigaben fehl; ein endgültig
+beendeter Run gibt seine Reservierung frei. Ist er
 beschädigt, hat sich die Tool-Identität geändert oder verhindert ein Update von
 Harness/Monty die Wiederherstellung, schlägt der Aufruf mit einer klaren Meldung
 fehl, bevor ein ausstehendes Tool ausgeführt wird. Das Skript startet niemals

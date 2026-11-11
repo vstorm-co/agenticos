@@ -66,8 +66,8 @@ _CONTENT = TypeAdapter(dict[str, list[UserContent]])
 _JSON_CONTENT = TypeAdapter(dict[str, JsonValue])
 _HOST_ARGS = TypeAdapter(dict[str, object])
 _RUNTIME = f"harness/{version('pydantic-ai-harness')};monty/{version('pydantic-monty')}"
-_MAX_SNAPSHOT = 8_000_000
-_MAX_CHECKPOINT_BYTES = 16_000_000
+_MAX_SNAPSHOT = 512_000
+_MAX_CHECKPOINT_BYTES = 1_000_000
 logger = logging.getLogger(__name__)
 
 
@@ -78,7 +78,7 @@ def _pack(value: object) -> JsonValue:
     if isinstance(value, bytes | bytearray):
         return ["bytes", base64.b64encode(value).decode("ascii")]
     if isinstance(value, list | tuple):
-        return ["list", [_pack(item) for item in value]]
+        return ["tuple" if isinstance(value, tuple) else "list", [_pack(item) for item in value]]
     if isinstance(value, dict) and all(isinstance(key, str) for key in value):
         return ["dict", {key: _pack(item) for key, item in value.items()}]
     raise TypeError("Code tool result is not a sandbox value")
@@ -92,13 +92,15 @@ def _unpack(value: JsonValue) -> object:
             return base64.b64decode(encoded, validate=True)
         case ["list", list(items)]:
             return [_unpack(item) for item in items]
+        case ["tuple", list(items)]:
+            return tuple(_unpack(item) for item in items)
         case ["dict", dict(items)]:
             return {key: _unpack(item) for key, item in items.items()}
         case _:
             raise ValueError("Invalid persisted code tool result")
 
 
-def _code_owner() -> str | None:
+def code_owner() -> str | None:
     from app.agents.capabilities.subagents._journal import acting_delegate
 
     delegate = acting_delegate()
@@ -106,7 +108,7 @@ def _code_owner() -> str | None:
 
 
 def checkpoint_key(parent: str) -> str:
-    owner = _code_owner()
+    owner = code_owner()
     return parent if owner is None else f"{owner}/{parent}"
 
 
@@ -177,7 +179,7 @@ class DurableCodeToolset(CodeModeToolset[AgentDeps]):
                 or saved.runtime != _RUNTIME
                 or saved.code_hash != _hash(code)
                 or saved.parent_tool_call_id != execution.parent_tool_call_id
-                or saved.task_id != _code_owner()
+                or saved.task_id != code_owner()
             ):
                 raise ToolFailed(
                     "The saved code execution is incompatible. No pending tool ran; do not replay completed effects."
@@ -229,6 +231,7 @@ def _definition_hash(definition: ToolDefinition) -> str:
         "name": definition.name,
         "capability": definition.capability_id,
         "schema": definition.parameters_json_schema,
+        "sequential": definition.sequential,
         "origin": None
         if origin is None
         else {
@@ -334,7 +337,7 @@ class _Feed:
             checkpoint_key(execution.parent_tool_call_id)
         ] = CodeCheckpoint(
             parent_tool_call_id=execution.parent_tool_call_id,
-            task_id=_code_owner(),
+            task_id=code_owner(),
             runtime=_RUNTIME,
             snapshot_hash=hashlib.sha256(snapshot).hexdigest(),
             code_hash=_hash(code),
@@ -502,7 +505,7 @@ class _Feed:
                     except RuntimeError as error:
                         progress = await progress.resume(ExternalException(exception=error))
                         continue
-                    if (owner := _code_owner()) is not None:
+                    if (owner := code_owner()) is not None:
                         self.execution.user_content[f"{owner}/{call_id}"] = (
                             self.execution.user_content.pop(call_id)
                         )

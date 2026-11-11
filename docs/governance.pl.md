@@ -1,5 +1,5 @@
 ---
-source_sha: "4af1aa1a4054"
+source_sha: "f7a146db5510"
 ---
 
 # Governance { #governance }
@@ -1375,6 +1375,14 @@ zapisze interpreter, wyniki, manifest i licznik wywołań. Po decyzji dowolny wo
 może kontynuować skrypt bez nowej tury modelu i powtarzania zakończonych operacji.
 Odrzucenie zgody podnosi `RuntimeError` wewnątrz skryptu; kod narzędzia nie działa.
 Zgoda na samo `run_code` nie zatwierdza operacji wewnątrz skryptu.
+
+Surowy stan interpretera ma limit 512 kB, a wszystkie checkpointy kodu jednego
+runu — łącznie 1 MB JSON. Atomowe rezerwacje w bazie ograniczają przechowywane
+checkpointy do 8 MB na użytkownika inicjującego (łącznie w organizacjach) i 32 MB
+na organizację, także podczas wznawiania. Po wyczerpaniu miejsca run kończy się
+błędem bez zapisu oczekujących zatwierdzeń; definitywne zakończenie zwalnia
+rezerwację.
+
 
 Zapis wznowienia należy do serwera i ma ograniczony rozmiar. Jeśli jest uszkodzony,
 tożsamość narzędzia się zmieniła lub aktualizacja harness/Monty uniemożliwia jego

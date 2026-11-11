@@ -174,7 +174,7 @@ async def test_a_direct_call_is_not_mistaken_for_a_scripts() -> None:
         return "deleted"
 
     deps = AgentDeps()
-    deps.code_continuations.native_tools = frozenset({"delete_everything"})
+    deps.code_continuations.native_tools = {None: frozenset({"delete_everything"})}
     await agent.run("Delete everything.", deps=deps)
 
     assert deleted == [True]
@@ -277,3 +277,21 @@ async def test_a_run_past_the_kept_scripts_still_runs_them_unrecorded() -> None:
 
     assert sorted(updated) == list(range(10))
     assert recorder.code_runs == earlier
+
+
+def test_a_native_approval_only_excludes_the_owning_agents_tool(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app.agents.code_mode as code_module
+
+    mode = code_mode(approval_required=frozenset(), asking=frozenset(), max_tool_calls=5)
+    assert callable(mode.tools)
+    deps = AgentDeps()
+    deps.code_continuations.native_tools = {"delegate-a": frozenset({"write"})}
+    ctx = MagicMock(deps=deps)
+    monkeypatch.setattr(code_module, "code_owner", lambda: "delegate-a")
+    assert not mode.tools(ctx, ToolDefinition(name="write"))
+    monkeypatch.setattr(code_module, "code_owner", lambda: "delegate-b")
+    assert mode.tools(ctx, ToolDefinition(name="write"))
+    monkeypatch.setattr(code_module, "code_owner", lambda: None)
+    assert mode.tools(ctx, ToolDefinition(name="write"))

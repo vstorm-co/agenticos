@@ -42,7 +42,7 @@ from pydantic_monty import MontyRuntimeError, MontySyntaxError, MontyTypingError
 from app.agents.code_checkpoint import CodeApprovalPause
 from app.agents.code_diagnostics import name_error_issues, syntax_issues, typing_issues
 from app.agents.deps import AgentDeps
-from app.agents.durable_code import DurableCodeMode, checkpoint_key
+from app.agents.durable_code import DurableCodeMode, checkpoint_key, code_owner
 from app.agents.manifest import RECORDED_SCRIPTS, RunRecorder
 from app.agents.tool_errors import (
     RUN_STOP_ERRORS,
@@ -99,7 +99,9 @@ def code_mode(
     """Fold governed calls too; questions, delegations and visible UI remain native."""
 
     def foldable(_ctx: RunContext[AgentDeps], tool: ToolDefinition) -> bool:
-        if tool.name in asking or tool.name in _ctx.deps.code_continuations.native_tools:
+        if tool.name in asking or tool.name in _ctx.deps.code_continuations.native_tools.get(
+            code_owner(), frozenset()
+        ):
             return False
         return tool.capability_id not in PARKING_CAPABILITIES | SHOWN_CAPABILITIES
 

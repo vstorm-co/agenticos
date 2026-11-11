@@ -52,6 +52,7 @@ agent already resolved, and a recorder that writes one row.
 
 import asyncio
 import hashlib
+import json
 import logging
 from collections import Counter
 from collections.abc import AsyncGenerator, Awaitable, Callable, Mapping, Sequence
@@ -6456,6 +6457,27 @@ class AgentRunnerService:
                 status = RunStatus.FAILED
                 paused_state = None
 
+        parked = (
+            None
+            if paused_state is None
+            else self._parked_tree(prepared, paused_state, await dump_plan(prepared.plan_store))
+        )
+        if parked is not None and parked.code_checkpoints:
+            requested_bytes = len(
+                json.dumps(
+                    {
+                        key: value.model_dump(mode="json")
+                        for key, value in parked.code_checkpoints.items()
+                    }
+                ).encode()
+            )
+            if not await agent_run_repo.code_checkpoint_capacity(
+                self.db, run=prepared.run, requested_bytes=requested_bytes
+            ):
+                status = RunStatus.FAILED
+                error = "Code checkpoint storage quota exceeded; no pending tool ran."
+                parked = None
+
         # The approval rows the run parked, written here rather than while it ran:
         # parking on the channel is deferred off the shared session so two gated
         # calls in one model step cannot race two inserts (agenticos#169), and this
@@ -6467,11 +6489,6 @@ class AgentRunnerService:
         )
         await self._write_interceptions(prepared)
 
-        parked = (
-            None
-            if paused_state is None
-            else self._parked_tree(prepared, paused_state, await dump_plan(prepared.plan_store))
-        )
         ledger = prepared.built.ledger
         # This row's own requests, and an inline or invented specialist's, which
         # has no row and is built as this agent; a published delegate's go on its
@@ -7395,21 +7412,21 @@ class AgentRunnerService:
         prepared.built.deps.generated_files.update(state.generated_files)
         prepared.built.deps.code_continuations.checkpoints.update(state.code_checkpoints)
         pending_ids = set(state.tool_call_ids.values())
-        histories = [state.messages]
+        native_tools = prepared.built.deps.code_continuations.native_tools
 
-        def collect_histories(frames: list[DelegationFrame]) -> None:
+        def collect_native_tools(
+            owner: str | None, history: object, frames: list[DelegationFrame]
+        ) -> None:
+            native_tools[owner] = frozenset(
+                part.tool_name
+                for message in ModelMessagesTypeAdapter.validate_python(history)
+                for part in message.parts
+                if isinstance(part, ToolCallPart) and part.tool_call_id in pending_ids
+            )
             for frame in frames:
-                histories.append(frame.messages)
-                collect_histories(frame.delegations)
+                collect_native_tools(frame.task_id, frame.messages, frame.delegations)
 
-        collect_histories(state.delegations)
-        prepared.built.deps.code_continuations.native_tools = frozenset(
-            part.tool_name
-            for history in histories
-            for message in ModelMessagesTypeAdapter.validate_python(history)
-            for part in message.parts
-            if isinstance(part, ToolCallPart) and part.tool_call_id in pending_ids
-        )
+        collect_native_tools(None, state.messages, state.delegations)
         if can_ask:
             prepared.built.deps.ask_questions = park_the_question
             prepared.built.deps.parks_questions = True

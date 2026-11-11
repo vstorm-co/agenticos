@@ -1291,7 +1291,14 @@ the script without another model request or repeating completed operations.
 Rejecting the call raises a `RuntimeError` inside the script; its handler never
 runs. Approving `run_code` itself does not approve any nested operation.
 
-The checkpoint is server-owned and bounded. If it is damaged, the tool identity
+The checkpoint is server-owned and bounded. A raw interpreter snapshot may be
+at most 512 kB; all code checkpoints in one run may occupy at most 1 MB of JSON.
+Atomic database reservations cap retained checkpoints at 8 MB per initiating
+user (across organizations) and 32 MB per organization, including running
+resumptions. If capacity is exhausted, the run fails without saving pending
+approvals; terminal cleanup releases its reservation.
+
+If it is damaged, the tool identity
 changed, or a harness/Monty upgrade makes it incompatible, the call fails clearly
 before executing a pending tool. It never restarts the script from source.
 

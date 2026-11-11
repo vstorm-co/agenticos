@@ -10446,3 +10446,47 @@ def test_a_failed_checkpoint_does_not_leave_an_unresumable_approval_in_the_queue
     assert [request.approval_id for request in prepared.approvals.requested] == [kept, native]
     prepared.built.deps.code_continuations.approval_calls.clear()
     assert prepared.checkpointed_approvals() == {str(kept): "script__1", str(native): "native__1"}
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("accepted", [True, False])
+async def test_checkpoint_storage_refusal_fails_without_persisting_pending_calls(
+    accepted: bool,
+) -> None:
+    from app.agents.code_checkpoint import CodeCheckpoint
+
+    service = AgentRunnerService(_db())
+    prepared = _prepared()
+    checkpoint = CodeCheckpoint(
+        parent_tool_call_id="script",
+        runtime="test",
+        code_hash="hash",
+        snapshot_hash="hash",
+        snapshot="opaque",
+        call_count=0,
+        calls=[],
+        history=[],
+        content={},
+        printed="",
+        manifest={},
+    )
+    state = PausedRunState(messages=[], tool_call_ids={}, code_checkpoints={"script": checkpoint})
+    capacity = AsyncMock(return_value=accepted)
+    approvals = AsyncMock()
+    finish = AsyncMock()
+    with (
+        patch.object(service, "_parked_tree", return_value=state),
+        patch.object(service, "_write_approvals", new=approvals),
+        patch("app.services.agent_runner.agent_run_repo.code_checkpoint_capacity", new=capacity),
+        patch("app.services.agent_runner.agent_run_repo.finish_run", new=finish),
+    ):
+        await service.finish(prepared, status=RunStatus.AWAITING_APPROVAL, paused_state=state)
+    capacity.assert_awaited_once()
+    assert capacity.await_args.kwargs["requested_bytes"] > 0
+    assert approvals.await_args.kwargs["include_pending"] is accepted
+    assert finish.await_args.kwargs["status"] == (
+        RunStatus.AWAITING_APPROVAL.value if accepted else RunStatus.FAILED.value
+    )
+    assert (finish.await_args.kwargs["paused_state"] is not None) is accepted
+    if not accepted:
+        assert "quota exceeded" in finish.await_args.kwargs["error"]

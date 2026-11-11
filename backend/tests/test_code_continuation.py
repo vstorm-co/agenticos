@@ -528,7 +528,11 @@ async def test_a_rotated_mcp_source_cannot_use_the_old_approval() -> None:
 def test_checkpoint_values_survive_json_without_confusing_user_data_with_tags() -> None:
     from app.agents.durable_code import _pack, _unpack
 
-    original = {"payload": [b"\x00\xff", {"kind": "bytes", "value": "user text"}], "empty": None}
+    original = {
+        "payload": [b"\x00\xff", {"kind": "bytes", "value": "user text"}],
+        "empty": None,
+        "tuple": (1, [2], (b"three",)),
+    }
     assert _unpack(json.loads(json.dumps(_pack(original)))) == original
     with pytest.raises(TypeError, match="not a sandbox value"):
         _pack(object())
@@ -926,3 +930,37 @@ async def test_an_interpreter_restore_failure_does_not_expose_snapshot_bytes(
         if isinstance(part, ToolReturnPart)
     ]
     assert "No pending tool ran" in str(returns[0].content)
+
+
+async def test_changing_sequential_execution_invalidates_a_checkpoint() -> None:
+    script = _Script("await write(i=1)")
+    assert isinstance((await script.step()).output, DeferredToolRequests)
+    script.tools.tools["write"].sequential = True
+    script.approve()
+    assert (await script.step()).output == "done"
+    assert not script.effects
+
+
+@pytest.mark.parametrize(
+    "module, duration",
+    [
+        ("time", "-100"),
+        ("time", "float('nan')"),
+        ("time", "float('inf')"),
+        ("asyncio", "-100"),
+        ("asyncio", "float('nan')"),
+    ],
+)
+async def test_invalid_sleep_cannot_credit_the_persisted_budget(module: str, duration: str) -> None:
+    import anyio
+
+    operation = "await asyncio.sleep" if module == "asyncio" else "time.sleep"
+    script = _Script(
+        f"import {module}\ntry:\n    {operation}({duration})\nexcept (ValueError, OverflowError):\n    pass\nawait write(i=1)"
+    )
+    with anyio.fail_after(2):
+        assert isinstance((await script.step()).output, DeferredToolRequests)
+    assert script.saved["script"].slept_secs == 0
+    script.approve()
+    assert (await script.step()).output == "done"
+    assert script.effects == [1]
