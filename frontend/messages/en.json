@@ -11686,6 +11686,7 @@
       "mapTo": "Where {header} goes",
       "skip": "Don't import",
       "externalId": "External id",
+      "duplicateMapping": "Map each table column only once. Choose a different column or Don't import.",
       "updateExisting": "Update records already here",
       "updateExistingHint": "A row whose external id the table already holds changes that record's cells it names, instead of being refused.",
       "back": "Back",

@@ -1,5 +1,5 @@
 ---
-source_sha: "96494123ddae"
+source_sha: "fab6f4ba1918"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -350,6 +350,8 @@ zarchiwizowana kolumna trafia do **Archived columns**, skąd **Restore** przywra
 razem z jej wartościami.
 
 ### Import i eksport { #import-and-export }
+
+Podczas importu CSV przypisz każdą kolumnę tabeli, także **External id**, tylko raz. Powtórzone przypisania są oznaczone i blokują import do czasu wybrania innej kolumny docelowej lub pominięcia jednej z kolumn pliku.
 
 Eksport odczytuje najwyżej 4 MiB rozwiniętego JSON rekordów na stronę (albo jeden
 rekord), maksymalnie 500 rekordów naraz. Organizacja może przesyłać jeden eksport

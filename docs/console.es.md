@@ -1,5 +1,5 @@
 ---
-source_sha: "7837b7ddf10b"
+source_sha: "b3dc90f2f927"
 ---
 
 # La consola { #the-console }
@@ -8,7 +8,11 @@ La consola es la aplicación web desde la que se configura todo lo demás de est
 sitio. Esta página es el mapa: para qué sirve cada área, y qué página la explica
 como es debido.
 
-Al editar los ajustes de un proyecto, un skill o un archivo de contexto, antes de salir eliges guardar, descartar o quedarte. También se pregunta al cambiar desde un recurso de skill editado a otro archivo. Si se rechaza el guardado, el borrador permanece abierto; **Save file** lo descarta solo cuando el servidor confirma la escritura. El texto añadido mientras se guarda ese recurso sigue sin guardar.
+Al editar los ajustes de un proyecto, el nombre de una organización, el límite de gasto, los valores de voz predeterminados, un skill o un archivo de contexto, antes de salir eliges guardar, descartar o quedarte. También se pregunta al cambiar desde un recurso de skill editado a otro archivo. Si se rechaza el guardado, el borrador permanece abierto; **Save file** lo descarta solo cuando el servidor confirma la escritura. El texto añadido mientras se guarda ese recurso sigue sin guardar.
+
+Cambiar la pregunta o el ámbito de la búsqueda de conocimiento borra los resultados anteriores y cancela la solicitud pendiente. Una respuesta tardía no puede reemplazar los resultados de una búsqueda más reciente.
+
+El chat público permite escribir mientras se conecta, pero habilita Send solo cuando se abre el WebSocket actual. Una conversación nueva espera a su propia conexión; un clic anticipado no puede perder la primera pregunta sin indicarlo.
 
 Si buscas una pantalla concreta, el camino más rápido es el **"?"** de la
 cabecera de cada página — reproduce el recorrido guiado de esa página, y una

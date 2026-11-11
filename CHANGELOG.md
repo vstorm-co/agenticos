@@ -33,6 +33,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Reliable CSV import, knowledge search and organization edits.** CSV imports
+  reject duplicate target columns instead of overwriting the first value.
+  Changing a knowledge-search question or scope cancels stale requests and
+  clears previous results. Leaving edited organization identity, spending
+  caps or voice defaults now asks before discarding the draft. Hosted chat
+  waits for its current WebSocket before enabling Send, so the first
+  question is not silently dropped during connection setup.
 - **Keep console edits when leaving or saving fails.** Project settings,
   Skills and Context ask before discarding unsaved edits. Skill resources
   retain a refused save and typing added while a save is in flight. Workflow

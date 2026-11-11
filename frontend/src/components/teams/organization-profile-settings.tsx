@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { AvatarColorPicker, Button, Input } from "@/components/ui";
 import { useOrganizations } from "@/hooks";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useChanged } from "@/hooks/use-changed";
 import { avatarInitials, avatarPalette } from "@/lib/avatar-color";
 import { getErrorMessage } from "@/lib/api-error";
@@ -50,6 +51,12 @@ export function OrganizationProfileSettings({
       setSavingName(false);
     }
   };
+
+  useUnsavedChanges(`org-profile:${org.id}`, {
+    dirty: canManage && !onContinue && name.trim() !== org.name,
+    save: name.trim() ? handleSaveName : undefined,
+    discard: () => setName(org.name),
+  });
 
   const handleColorChange = async (slot: number | null) => {
     if (slot === (org.avatar_color ?? null)) return;

@@ -97,6 +97,33 @@ describe("ImportCsvDialog", () => {
     expect(screen.getByText("That file has no rows under its header.")).toBeInTheDocument();
   });
 
+  it("blocks duplicate column targets and imports after one is skipped", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ created: 1, failed: [] });
+    renderDialog();
+    await choose("Name,name\nFirst value,Last value\n");
+    expect(screen.getByRole("alert")).toHaveTextContent("Map each table column only once");
+    expect(screen.getByRole("combobox", { name: "Where name goes" })).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "Import 1 row" })).toBeDisabled();
+    expect(apiClient.post).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("combobox", { name: "Where name goes" }));
+    await userEvent.click(screen.getByRole("option", { name: "Don't import" }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Import 1 row" }));
+    expect(await screen.findByText("1 record added.")).toBeVisible();
+    expect(sent()).toEqual([[{ external_id: null, values: { name: "First value" } }]]);
+  });
+
+  it("also blocks duplicate external-id mappings", async () => {
+    renderDialog();
+    await choose("External ID,external_id,Name\none,two,Acme\n");
+    expect(screen.getByRole("button", { name: "Import 1 row" })).toBeDisabled();
+    expect(screen.getByRole("alert")).toBeVisible();
+    expect(apiClient.post).not.toHaveBeenCalled();
+  });
+
   it("maps the file's columns by name, sends what reads and lists what does not", async () => {
     vi.mocked(apiClient.post).mockResolvedValue({
       created: 1,

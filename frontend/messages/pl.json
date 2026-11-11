@@ -11891,6 +11891,7 @@
       "mapTo": "Dokąd trafia {header}",
       "skip": "Nie importuj",
       "externalId": "Identyfikator zewnętrzny",
+      "duplicateMapping": "Przypisz każdą kolumnę tabeli tylko raz. Wybierz inną kolumnę lub pomiń import tego pola.",
       "updateExisting": "Aktualizuj rekordy, które już tu są",
       "updateExistingHint": "Wiersz, którego zewnętrzne id tabela już ma, zmienia wskazane komórki tego rekordu zamiast zostać odrzucony.",
       "back": "Wstecz",

@@ -1,5 +1,5 @@
 ---
-source_sha: "7837b7ddf10b"
+source_sha: "b3dc90f2f927"
 ---
 
 # Konsola { #the-console }
@@ -8,7 +8,11 @@ Konsola to aplikacja webowa, przez którą konfiguruje się wszystko inne opisan
 tej stronie. Ta strona jest mapą: do czego służy każdy obszar i która strona
 wyjaśnia go porządnie.
 
-Gdy edytujesz ustawienia projektu, skill lub plik context, wyjście wymaga decyzji: zapisać, odrzucić czy zostać. Dotyczy to także przejścia do innego pliku zasobów skill. Odmowa zapisu pozostawia draft otwarty; **Save file** usuwa go dopiero po potwierdzeniu zapisu przez serwer. Tekst dopisany w trakcie zapisywania tego pliku pozostaje niezapisany.
+Gdy edytujesz ustawienia projektu, nazwę organizacji, limit wydatków, domyślne ustawienia głosu, skill lub plik context, wyjście wymaga decyzji: zapisać, odrzucić czy zostać. Dotyczy to także przejścia do innego pliku zasobów skill. Odmowa zapisu pozostawia draft otwarty; **Save file** usuwa go dopiero po potwierdzeniu zapisu przez serwer. Tekst dopisany w trakcie zapisywania tego pliku pozostaje niezapisany.
+
+Zmiana pytania lub zakresu wyszukiwania wiedzy usuwa wcześniejsze wyniki i anuluje oczekujące zapytanie. Spóźniona odpowiedź nie może zastąpić wyników nowszego wyszukiwania.
+
+Publiczny czat pozwala pisać podczas łączenia, ale włącza Send dopiero po otwarciu bieżącego WebSocket. Nowa rozmowa czeka na własne połączenie; przedwczesne kliknięcie nie gubi pierwszego pytania.
 
 Jeśli szukasz jednego ekranu, najszybszą drogą jest **"?"** w nagłówku strony —
 odtwarza on przewodnik po tej stronie, a strona, w której nagłówku nie ma "?",

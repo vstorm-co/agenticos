@@ -1,5 +1,5 @@
 ---
-source_sha: "96494123ddae"
+source_sha: "fab6f4ba1918"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -374,6 +374,8 @@ wandert unter **Archived columns**, wo **Restore** sie samt ihren Werten
 zurückbringt.
 
 ### Import und Export { #import-and-export }
+
+Ordne beim CSV-Import jede Tabellenspalte, einschließlich **External id**, nur einmal zu. Doppelte Ziele werden markiert und blockieren den Import, bis du ein anderes Ziel wählst oder eine Dateispalte überspringst.
 
 Exporte lesen höchstens 4 MiB des entpackten Datensatz-JSON pro Seite (oder
 einen Datensatz), mit maximal 500 Datensätzen pro Seite. Eine Organisation kann

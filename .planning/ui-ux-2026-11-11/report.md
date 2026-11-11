@@ -156,3 +156,64 @@ Verification for this pass:
 The route/component inventory remains the full source map, not a claim that all
 states, roles and external integrations have been exercised. Full CI is still
 separate evidence tied to its own commit SHA.
+
+
+## Follow-up: tables, knowledge bases and organization settings
+
+Three further full-stack flows use the same isolated worktree and database:
+
+- CSV table creation/import, duplicate mapping rejection, corrected import on a
+  390 px viewport, Table/List views, reload and archival. Duplicate Name/name or
+  external-id mappings previously overwrote the first value in a successful
+  import. Both collisions are now marked, described and blocked until corrected.
+- Register a local embedding endpoint, create an Ollama-backed KB, upload text,
+  parse/chunk/embed/index through the actual worker, reload, search the selected
+  KB, recover from a refused search, and open the original text on a phone.
+  A controlled delayed real search reproduced old results under a newly typed
+  question. Editing the question or scope now cancels and invalidates the request;
+  late responses cannot overwrite a newer result. The client forwards AbortSignal.
+- Create an isolated organization, select it, rename it, exercise Stay and a
+  refused Save, save and re-enter; edit its spending cap and voice recording limit,
+  save both before leaving and verify them after returning. Organization tabs keep
+  their forms mounted, so tab changes do not get unnecessary confirmations.
+  Identity, budget and voice drafts now use the existing navigation guard.
+
+The embedding fixture creates deterministic lexical vectors through the same
+OpenAI-compatible protocol as the registered local provider. It verifies ingestion,
+storage, retrieval plumbing and source identity, not semantic embedding quality.
+No paid key, external OAuth consent or real teammate invitation is used.
+
+| Evidence | Before | After |
+| --- | --- | --- |
+| Duplicate CSV target | [PNG](comparisons/table-csv-before.png) | [PNG](comparisons/table-csv-after.png) |
+| Organization draft lost on navigation | [PNG](comparisons/org-edit-before.png) | [PNG](comparisons/org-edit-after.png) |
+| KB result from an outdated question | [PNG](comparisons/kb-search-before.png) | [PNG](comparisons/kb-search-after.png) |
+
+Scoped checks cover the importer, record detail/conflict behavior, RAG client and
+search, organization members/permission controls, spending cap and voice settings.
+The three new Chromium journeys assert actual persisted data across reloads; the
+KB journey uses the repository model fixture's new embedding route. Console and
+Virtual Tables documentation explain the behavior in all four languages.
+
+This pass passed 139 targeted Vitest tests in seven files and three new Chromium
+journeys. The table journey additionally edits a stored record and adds one manually
+before reloading and archiving. ESLint, formatting, TypeScript, i18n and dependency
+checks are applied, with strict four-language documentation and translation checks.
+The import graph has been regenerated after the new hook dependencies.
+
+
+The agent regression also reproduced a hosted-chat startup race: Send was enabled
+while the socket was still CONNECTING, and the first click was silently ignored.
+Readiness now belongs to the public key and conversation session; sending stays
+disabled until that socket opens, while the draft remains editable. A controlled
+five-second handshake verified disabled → enabled with the draft preserved, and the
+complete agent/hosted/project journey passed again after the fix. All 97 hosted-chat
+unit tests passed, bringing this pass to 236 targeted tests in eight files and four
+Chromium journeys (three new data/settings journeys plus the agent regression).
+
+| Hosted connection evidence | Before | After |
+| --- | --- | --- |
+| First question during connection setup | [PNG](comparisons/hosted-ready-before.png) | [PNG](comparisons/hosted-ready-after.png) |
+
+The hosted Before image is the actual failed journey. The After image captures the
+same public page with a controlled slow transport, before its real socket opens.

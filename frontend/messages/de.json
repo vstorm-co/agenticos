@@ -11358,6 +11358,7 @@
       "mapTo": "Wohin {header} geht",
       "skip": "Nicht importieren",
       "externalId": "Externe ID",
+      "duplicateMapping": "Ordne jede Tabellenspalte nur einmal zu. Wähle eine andere Spalte oder importiere dieses Feld nicht.",
       "updateExisting": "Datensätze aktualisieren, die schon hier sind",
       "updateExistingHint": "Eine Zeile, deren externe ID die Tabelle schon hat, ändert die genannten Zellen dieses Datensatzes, statt abgelehnt zu werden.",
       "back": "Zurück",

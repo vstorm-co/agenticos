@@ -335,6 +335,8 @@ it back with its values.
 
 ### Import and export { #import-and-export }
 
+Map each table column, including **External id**, only once during CSV import. Duplicate targets are marked and block import until you choose another target or skip one of the file columns.
+
 Exports read at most 4 MiB of decoded record JSON per page (or one record),
 with at most 500 records per page. An organization can stream one export at a
 time and start ten per minute. Further requests return `429` with `Retry-After`;

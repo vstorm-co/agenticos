@@ -1,5 +1,5 @@
 ---
-source_sha: "7837b7ddf10b"
+source_sha: "b3dc90f2f927"
 ---
 
 # Die Konsole { #the-console }
@@ -8,7 +8,11 @@ Die Konsole ist die Webanwendung, über die alles andere auf dieser Site
 konfiguriert wird. Diese Seite ist die Landkarte: wofür jeder Bereich da ist,
 und welche Seite ihn ausführlich erklärt.
 
-Wenn du Projekteinstellungen, einen Skill oder eine Kontextdatei bearbeitest, fragt die Konsole vor dem Verlassen, ob du speichern, verwerfen oder bleiben möchtest. Das gilt auch beim Wechsel von einer bearbeiteten Skill-Ressource zu einer anderen Datei. Ein abgelehnter Speichervorgang lässt den Entwurf offen; **Save file** verwirft ihn erst nach der Bestätigung des Servers. Während dieses Speichervorgangs ergänzter Text bleibt ungespeichert.
+Wenn du Projekteinstellungen, den Organisationsnamen, das Ausgabenlimit, die Sprachvorgaben, einen Skill oder eine Kontextdatei bearbeitest, fragt die Konsole vor dem Verlassen, ob du speichern, verwerfen oder bleiben möchtest. Das gilt auch beim Wechsel von einer bearbeiteten Skill-Ressource zu einer anderen Datei. Ein abgelehnter Speichervorgang lässt den Entwurf offen; **Save file** verwirft ihn erst nach der Bestätigung des Servers. Während dieses Speichervorgangs ergänzter Text bleibt ungespeichert.
+
+Wenn du die Frage oder den Suchbereich der Wissenssuche änderst, werden bisherige Ergebnisse entfernt und die laufende Anfrage abgebrochen. Eine verspätete Antwort kann die Ergebnisse einer neueren Suche nicht ersetzen.
+
+Im öffentlichen Chat kannst du während des Verbindungsaufbaus schreiben. Send wird erst aktiviert, wenn der aktuelle WebSocket geöffnet ist. Eine neue Unterhaltung wartet auf ihre eigene Verbindung; ein früher Klick kann die erste Frage nicht unbemerkt verlieren.
 
 Wenn Sie einen einzelnen Screen suchen, ist der schnellste Weg das **"?"** in
 der Kopfzeile einer Seite — es spielt den Rundgang dieser Seite ab, und eine

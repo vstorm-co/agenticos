@@ -1,5 +1,5 @@
 ---
-source_sha: "96494123ddae"
+source_sha: "fab6f4ba1918"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -352,6 +352,8 @@ En **Columns**, **Required** hace que una columna necesite un valor, y una colum
 archivada pasa a **Archived columns**, donde **Restore** la devuelve con sus valores.
 
 ### Importar y exportar { #import-and-export }
+
+En la importación CSV, asigna cada columna de tabla, incluida **External id**, una sola vez. Los destinos duplicados se marcan y bloquean la importación hasta que elijas otro destino u omitas una columna del archivo.
 
 Las exportaciones leen como máximo 4 MiB de JSON descomprimido por página (o un
 registro), con hasta 500 registros por página. Una organización puede transmitir
