@@ -487,11 +487,12 @@ class TableViewOperations(Operations):
             AuthorizationError: A board's default view, and `ctx` may not change the board.
         """
         board = await self._board_manager(ctx, table) if view_id == table.default_view_id else None
-        if board:
-            # A default view is always shared, so visible to whoever may change the board.
-            return await self._visible_view(ctx, table.id, view_id), True
-        view = await self._manageable_view(ctx, table.id, view_id)
-        if board is False:
+        if board is None:
+            return await self._manageable_view(ctx, table.id, view_id), None
+        # A default view is always shared, so anyone who reaches the board sees it: a
+        # caller who may not change the board is told so rather than told it is missing.
+        view = await self._visible_view(ctx, table.id, view_id)
+        if not board:
             await self._ensure_manages_board(ctx, table)
         return view, board
 

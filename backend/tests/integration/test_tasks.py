@@ -1668,3 +1668,30 @@ async def test_a_group_lead_is_told_the_board_default_view_uses_a_column_they_ar
                 ],
             ),
         )
+
+
+async def test_a_member_who_sees_a_board_default_view_is_refused_it_not_told_it_is_missing(
+    db: AsyncSession,
+) -> None:
+    from app.schemas.table_view import TableViewUpdate
+    from app.services.virtual_tables import TableViewService
+
+    data = await world(db)
+    saver = await _as_member(db, data)
+    other = User(email=f"{uuid4()}@example.com", hashed_password="x", full_name="Other")
+    db.add(other)
+    await db.flush()
+    db.add(OrganizationMember(organization_id=data.org.id, user_id=other.id, role="member"))
+    await db.flush()
+    other_ctx = AuthContext(user_id=other.id, organization_id=data.org.id, role="member")
+    board = await TaskService(db).open_board(saver, BoardEnsure(scope="organization"))
+    table = await VirtualTableService(db).describe_table(other_ctx, board.table_id)
+    assert table.default_view_id is not None
+    views = TableViewService(db)
+
+    with pytest.raises(AuthorizationError):
+        await views.update_view(
+            other_ctx, board.table_id, table.default_view_id, TableViewUpdate(name="Mine")
+        )
+    with pytest.raises(AuthorizationError):
+        await views.delete_view(other_ctx, board.table_id, table.default_view_id)
