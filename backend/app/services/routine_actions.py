@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.capabilities import CapabilityDef, CapabilityToolInfo
 from app.agents.capabilities import get as capability
 from app.agents.capabilities.approval import tool_needs_approval
+from app.agents.mcp import approval_needed
 from app.agents.spec import AgentSpec, OrgMcpServerRef, PersonalMcpServerRef
 from app.core.audit import current_impersonator, record_audit
 from app.core.exceptions import AuthorizationError, BadRequestError, ConflictError
@@ -377,7 +378,14 @@ class RoutineActionService:
                         endpoint_hash=hashlib.sha256(connection.url.encode()).hexdigest(),
                         tool_id=tool.name,
                     )
-                    waivable = ref.approval == "none"
+                    # Standing consent may only stand in for an approval the
+                    # agent itself does not demand - this tool's own, or else
+                    # its binding's.
+                    waivable = not approval_needed(
+                        ref.approval,
+                        read_only=tool.read_only,
+                        own=ref.tool_approval.get(tool.name, "default"),
+                    )
                     previous = offered.get(key)
                     offered[key] = RoutineMcpActionOption(
                         **key.model_dump(),

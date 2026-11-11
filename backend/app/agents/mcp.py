@@ -52,7 +52,7 @@ from pydantic_ai.tools import RunContext, ToolDefinition
 from pydantic_ai.toolsets import WrapperToolset
 from pydantic_ai.toolsets.abstract import ToolsetTool
 
-from app.agents.spec import McpApproval
+from app.agents.spec import ApprovalMode, McpApproval
 from app.core.sanitize import NO_PRIVATE_ADDRESSES, mcp_allowlist, validate_webhook_url
 
 if TYPE_CHECKING:
@@ -195,6 +195,9 @@ class McpServerSpec:
     test: bool = False
     trust_read_only_hints: bool = False
     approval: McpApproval = "none"
+    # The binding's `tool_approval`: tools, by the name the server gives them,
+    # whose own approval wins over `approval`.
+    tool_approval: Mapping[str, ApprovalMode] = field(default_factory=dict)
     # Whether the server's `initialize` instructions join the agent's (the
     # connection's own opt-in; Pydantic AI leaves them out by default).
     include_instructions: bool = False
@@ -474,6 +477,10 @@ def _make_toolset(spec: McpServerSpec) -> Any:
     return ApprovalMarked(
         FittedNames(server.prefixed(prefix).with_metadata(**{MCP_ISOLATION: origin})),
         policy=spec.approval,
+        # Keyed as the marks are read: by the name the model calls, fitted.
+        tool_approval={
+            fitted_tool_name(f"{prefix}_{name}"): mode for name, mode in spec.tool_approval.items()
+        },
         in_process=spec.in_process,
         account=spec.account,
         ungated=frozenset(f"{prefix}_{name}" for name in spec.ungated),
@@ -551,18 +558,34 @@ sends lands under `meta` and `annotations`, so it cannot mark its own tools safe
 """
 
 
-def needs_approval(tool: ToolDefinition, policy: McpApproval) -> bool:
+def needs_approval(
+    tool: ToolDefinition, policy: McpApproval, own: ApprovalMode = "default"
+) -> bool:
     """Whether a call to this MCP tool waits for a person, under `policy`.
 
-    `writes` trusts the server's `readOnlyHint` and nothing else: a tool that
-    does not say it only reads is treated as one that writes.
+    `own` is the tool's approval in the binding's `tool_approval`; see
+    :func:`approval_needed` for how the two decide.
     """
+    annotations = (tool.metadata or {}).get("annotations") or {}
+    return approval_needed(policy, read_only=annotations.get("readOnlyHint") is True, own=own)
+
+
+def approval_needed(policy: McpApproval, *, read_only: bool, own: ApprovalMode = "default") -> bool:
+    """Whether an MCP tool waits for a person: the rule, and the only copy of it.
+
+    The tool's `own` approval wins, as on a capability's tool: `required` asks
+    and `never` does not, whatever `policy` says and whatever the server claims
+    (#2884). `default` leaves it to `policy`, and `writes` trusts the server's
+    `readOnlyHint` and nothing else: a tool that does not say it only reads is
+    treated as one that writes.
+    """
+    if own != "default":
+        return own == "required"
     if policy == "all":
         return True
     if policy == "none":
         return False
-    annotations = (tool.metadata or {}).get("annotations") or {}
-    return annotations.get("readOnlyHint") is not True
+    return not read_only
 
 
 @dataclass
@@ -570,6 +593,8 @@ class ApprovalMarked(WrapperToolset[Any]):
     """An MCP server's tools, each marked with whether it waits for approval."""
 
     policy: McpApproval = "none"
+    # Each tool's own approval, by the name the model calls it.
+    tool_approval: Mapping[str, ApprovalMode] = field(default_factory=dict)
     in_process: bool = False
     account: str | None = None
     ungated: frozenset[str] = frozenset()
@@ -586,7 +611,9 @@ class ApprovalMarked(WrapperToolset[Any]):
                         **(tool.tool_def.metadata or {}),
                         PLATFORM_TOOL: self.in_process,
                         NEEDS_APPROVAL: name not in self.ungated
-                        and needs_approval(tool.tool_def, self.policy),
+                        and needs_approval(
+                            tool.tool_def, self.policy, self.tool_approval.get(name, "default")
+                        ),
                         **named,
                     },
                 ),

@@ -1,5 +1,5 @@
 ---
-source_sha: "d0f22d3c54c1"
+source_sha: "08cb5e1cecff"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -230,6 +230,24 @@ benötigen auch Lesezugriffe eine Freigabe.
 
 Im Builder sagen die Einstellungen eines Servers das je
 Gruppe: **Lesen** und **Ändern** laufen jeweils ohne Rückfrage oder fragen erst.
+
+Jedes Tool kann außerdem für sich ohne Rückfrage laufen oder erst fragen,
+unabhängig von seiner Gruppe und seinem Nur-lesen-Hinweis: Klicken Sie auf das
+Schild daneben. Ein Server, der kein Tool als nur lesend markiert, führt alle Tools
+in einer Gruppe, die `writes` vollständig anhält; stellen Sie seine Lesetools auf
+**Ohne Rückfrage**, laufen sie, während seine Schreibtools erst fragen. Mit
+demselben Schalter läuft ein einzelnes Schreibtool ohne Rückfrage, ohne dass `none`
+alle anderen freigibt.
+
+Der Spec hält diese Einstellungen im `tool_approval` des Bindings, nach dem Namen
+des Tools auf dem Server. Eine Gruppe, deren Tools sich unterscheiden, zeigt
+**Pro Tool**, und eine Wahl für die Gruppe stellt wieder alle ihre Tools ein. Ein
+Tool, das der Server später hinzufügt, folgt seiner Gruppe.
+
+An zwei Stellen gilt stattdessen der Hinweis des Servers. In einer Chat-App fragt
+ein Tool, das der Server nicht als nur lesend markiert, erst, auch wenn es ohne
+Rückfrage laufen soll, und eine Beobachtung liest nie ein Tool, vor dem ihr Binding
+fragt, weil niemand da ist, um zu antworten.
 
 ### Durch wessen Konto ein Binding spricht { #whose-account-a-binding-speaks-through }
 

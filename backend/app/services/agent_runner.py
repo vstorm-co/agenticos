@@ -2765,7 +2765,10 @@ def _with_channel_service_approval(
     Linked senders use web chat's read-only classification. An unlinked room
     participant needs approval for every MCP or Mirage call; no member vouched
     for releasing organization data to them. An explicit `all` still includes reads.
-    This also applies to delegates and resumed runs through the shared factory.
+    A tool's own `never` is dropped: it is the author's word, not the server's,
+    and here only the server's `readOnlyHint` lets a tool run unasked (#2884). A
+    tool's own `required` stays. This also applies to delegates and resumed runs
+    through the shared factory.
     """
     if surface not in _CHANNEL_SURFACES:
         return spec
@@ -2788,17 +2791,23 @@ def _with_channel_service_approval(
                 for binding in spec.capabilities
             ],
             "mcp_servers": [
-                ref.model_copy(
-                    update={
-                        "approval": "all"
-                        if not linked_sender or ref.approval == "all"
-                        else "writes"
-                    }
-                )
+                _held_to_channel_approval(ref, linked_sender=linked_sender)
                 for ref in spec.mcp_servers
             ],
         }
     )
+
+
+def _held_to_channel_approval(ref: McpServerRef, *, linked_sender: bool) -> McpServerRef:
+    """One MCP binding, held to what a chat app requires.
+
+    See :func:`_with_channel_service_approval` for the rule.
+    """
+    approval = "all" if not linked_sender or ref.approval == "all" else "writes"
+    if isinstance(ref, PlatformMcpServerRef):
+        return ref.model_copy(update={"approval": approval})
+    asked = {tool: mode for tool, mode in ref.tool_approval.items() if mode == "required"}
+    return ref.model_copy(update={"approval": approval, "tool_approval": asked})
 
 
 def _with_channel_tools(spec: AgentSpec, exposure: AgentExposure | None) -> AgentSpec:

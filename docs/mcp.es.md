@@ -1,5 +1,5 @@
 ---
-source_sha: "d0f22d3c54c1"
+source_sha: "08cb5e1cecff"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -230,6 +230,24 @@ aprobación. Usa `all` para exigir aprobación también en las lecturas.
 En el Builder, los ajustes de un servidor lo dicen por
 grupos: sus **lecturas** y las herramientas que **cambian cosas** se ejecutan sin
 preguntar o preguntan primero.
+
+Cada herramienta también puede ejecutarse sin preguntar o preguntar primero por sí
+sola, digan lo que digan su grupo y su marca de solo lectura: pulsa el escudo que
+tiene al lado. Un servidor que no marca ninguna herramienta como de solo lectura
+las muestra todas en un solo grupo, que `writes` retiene por completo; si dejas
+que sus lecturas se ejecuten sin preguntar, se ejecutan mientras sus escrituras
+preguntan. El mismo control deja que una sola escritura se ejecute sin
+preguntar, sin que `none` libere todas las demás.
+
+El spec guarda estos ajustes en el `tool_approval` de la vinculación, por el
+nombre de la herramienta en el servidor. Un grupo cuyas herramientas difieren
+muestra **Per tool**, y elegir para el grupo vuelve a ajustar todas sus
+herramientas. Una herramienta que el servidor añada más tarde sigue a su grupo.
+
+En dos casos manda la marca del servidor. En una app de chat, una herramienta que
+el servidor no marca como de solo lectura pregunta primero aunque esté ajustada
+para ejecutarse sin preguntar, y una vigilancia nunca lee una herramienta ante la
+que su vinculación pregunta, porque no hay nadie para responder.
 
 ### A través de qué cuenta habla una vinculación { #whose-account-a-binding-speaks-through }
 
