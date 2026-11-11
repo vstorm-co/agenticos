@@ -1,5 +1,5 @@
 ---
-source_sha: "21023fc3edb1"
+source_sha: "539603f9eb62"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -625,6 +625,12 @@ dieselben Werte als `fields` nach Beschriftung und `author_id`, bei einer Änder
 oder Löschung auch `before` und die `changed` Spalten nach Beschriftung. **Triggers**
 auf der Seite der Tabelle listet die Workflows, pausiert und setzt jeden fort und
 öffnet seinen Verlauf.
+
+Ihn dort zu pausieren braucht `tables:edit` auf der Tabelle. Ihn fortzusetzen
+startet den Workflow wieder als die Person, die ihn veröffentlicht hat, und braucht
+deshalb auch `workflows:edit` und `workflows:run` auf diesem Workflow, wie der
+eigene Schalter **Active** des Workflows; ein Mitglied, das die Tabelle bearbeiten
+darf, den Workflow aber nicht, erfährt, dass der Workflow nicht gefunden wurde.
 
 Ein Trigger startet nur für Datensätze, die hinzukommen, während er eingeschaltet ist.
 Das Einschalten - eine Veröffentlichung oder das Fortsetzen - nimmt die Schema-Sperre der Tabelle, auf die jeder
