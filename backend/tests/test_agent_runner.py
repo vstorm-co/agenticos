@@ -4267,6 +4267,32 @@ class TestResume:
         )
 
         assert carried.await_args.kwargs["opening"] == Decimal("0.10")
+        assert carried.await_args.kwargs["month"] == this_month
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_the_opening_and_this_months_caps_share_one_month_across_midnight(
+        self, monkeypatch
+    ):
+        """Read once: an opening tagged with one month and caps read for the next
+        would look stale at the next resume and reopen the headroom."""
+        last_evening = month_start() - timedelta(seconds=1)
+
+        class _BeforeMidnight(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return last_evening
+
+        monkeypatch.setattr("app.services.agent_runner.datetime", _BeforeMidnight)
+        carried = AsyncMock(return_value=[])
+        monkeypatch.setattr(AgentRunnerService, "_this_months_limits", carried)
+
+        await self._resumed(
+            paused_state={"messages": [], "tool_call_ids": {}},
+            started_at=month_start(last_evening) - timedelta(days=1),
+        )
+
+        assert carried.await_args.kwargs["month"] == month_start(last_evening)
 
     @pytest.mark.anyio
     @pytest.mark.security
@@ -4315,6 +4341,7 @@ class TestResume:
             spec=AgentSpec(name="Support", budget={"monthly_usd": 5}),
             organization_cap=Decimal("50"),
             opening=run.cost_usd,
+            month=month_start(),
         )
         with (
             patch(
