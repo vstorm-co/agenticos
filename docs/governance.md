@@ -93,8 +93,7 @@ A parked routine without this admission state cannot continue managed-account MC
 Each monthly cap counts a run's whole cost in the month the run started, as the
 spend reports do. A run that spans a month boundary - parked on an approval on the
 last evening and approved on the first - appears entirely in the earlier month, and
-when it resumes it is checked against that month's spend, not the new month's. What it spends after
-resuming is also held to the new month's limits.
+when it resumes it is checked against that month's spend, not the new month's.
 
 A **new organization starts with the organization ceiling already set** — the
 deployment's `DEFAULT_ORG_MONTHLY_BUDGET_USD` ([configuration](configuration.md),

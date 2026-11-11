@@ -48,7 +48,6 @@ from app.agents.capabilities.budget import (
     BudgetExceeded,
     BudgetScope,
     SpendLedger,
-    SpendLimit,
     assert_ambient_budget,
     can_afford_ambient_call,
 )
@@ -3600,8 +3599,6 @@ class TestParking:
             # And an empty checklist, which is a run that bound no planning
             # capability: the store the runner always opens held nothing to snapshot.
             "run_limit_usd": None,
-            "month_opening_since": None,
-            "month_opening_usd": None,
             "output_schema": None,
             "plan": [],
             # And no generated files, which is a run whose tools stored none.
@@ -4264,112 +4261,6 @@ class TestResume:
 
         assert build.return_value.agent.run.await_count == 1
         assert self.finished.await_args.kwargs["status"] == RunStatus.COMPLETED.value
-
-    @pytest.mark.anyio
-    async def test_a_run_resumed_in_a_new_month_is_held_to_this_months_caps_too(self, monkeypatch):
-        carried = [SpendLimit(scope=BudgetScope.ORGANIZATION, limit_usd=Decimal("9"))]
-        this_month = AsyncMock(return_value=carried)
-        monkeypatch.setattr(AgentRunnerService, "_this_months_limits", this_month)
-
-        build = await self._resumed(
-            paused_state={"messages": [], "tool_call_ids": {}},
-            started_at=month_start() - timedelta(hours=2),
-        )
-
-        assert build.call_args.kwargs["carried_limits"] == carried
-        assert this_month.await_args.args[1] is self.resumed_run
-
-    @pytest.mark.anyio
-    @pytest.mark.security
-    async def test_a_second_resume_this_month_keeps_the_opening_balance_of_the_first(
-        self, monkeypatch
-    ):
-        """Recomputed from the cost so far, it would wipe this month's earlier
-        continuations off its baseline and reset the cap at every resume."""
-        this_month = month_start()
-        carried = AsyncMock(return_value=[])
-        monkeypatch.setattr(AgentRunnerService, "_this_months_limits", carried)
-
-        await self._resumed(
-            paused_state={
-                "messages": [],
-                "tool_call_ids": {},
-                "month_opening_since": this_month.isoformat(),
-                "month_opening_usd": "0.10",
-            },
-            started_at=this_month - timedelta(hours=2),
-        )
-
-        assert carried.await_args.kwargs["opening"] == Decimal("0.10")
-
-    @pytest.mark.anyio
-    @pytest.mark.security
-    async def test_a_first_resume_this_month_opens_on_what_the_run_had_spent(self, monkeypatch):
-        """An opening recorded in an earlier month is not this month's."""
-        carried = AsyncMock(return_value=[])
-        monkeypatch.setattr(AgentRunnerService, "_this_months_limits", carried)
-        earlier = month_start(month_start() - timedelta(days=1))
-
-        await self._resumed(
-            paused_state={
-                "messages": [],
-                "tool_call_ids": {},
-                "month_opening_since": earlier.isoformat(),
-                "month_opening_usd": "0.10",
-            },
-            started_at=earlier - timedelta(hours=2),
-        )
-
-        assert carried.await_args.kwargs["opening"] == self.resumed_run.cost_usd
-
-    @pytest.mark.anyio
-    async def test_a_run_resumed_in_its_own_month_carries_no_second_month(self, monkeypatch):
-        this_month = AsyncMock(return_value=[])
-        monkeypatch.setattr(AgentRunnerService, "_this_months_limits", this_month)
-
-        build = await self._resumed(paused_state={"messages": [], "tool_call_ids": {}})
-
-        assert build.call_args.kwargs["carried_limits"] == []
-        this_month.assert_not_awaited()
-
-    @pytest.mark.anyio
-    async def test_this_months_caps_count_only_what_the_run_spends_after_resuming(
-        self, monkeypatch
-    ):
-        finance = CappedGroup(uuid.uuid4(), "Finance", Decimal("25"))
-        monkeypatch.setattr(
-            "app.services.agent_runner.group_repo.capped_groups_for_member",
-            AsyncMock(return_value=[finance]),
-        )
-        run = _parked_run(user_id=uuid.uuid4(), initiated_by_publisher_fallback=False)
-
-        limits = await AgentRunnerService(_db())._this_months_limits(
-            _ctx(),
-            run,
-            spec=AgentSpec(name="Support", budget={"monthly_usd": 5}),
-            organization_cap=Decimal("50"),
-            opening=run.cost_usd,
-        )
-        with (
-            patch(
-                "app.services.agent_runner.agent_run_repo.sum_cost_since",
-                new=AsyncMock(return_value=Decimal("3")),
-            ) as runs,
-            patch(
-                "app.services.agent_runner.organization_spend_since",
-                new=AsyncMock(return_value=Decimal("30")),
-            ),
-        ):
-            spent = [await limit.period_spend() for limit in limits if limit.period_spend]
-
-        assert [(limit.scope, limit.limit_usd, limit.period) for limit in limits] == [
-            (BudgetScope.AGENT, Decimal("5"), "current"),
-            (BudgetScope.GROUP, Decimal("25"), "current"),
-            (BudgetScope.ORGANIZATION, Decimal("50"), "current"),
-        ]
-        assert spent == [Decimal("2.75"), Decimal("2.75"), Decimal("29.75")]
-        assert runs.call_args.kwargs["since"] == month_start()
-        assert len({limit.key for limit in limits}) == 3
 
     @pytest.mark.anyio
     async def test_streamed_resume_announces_its_saved_message_without_a_second_bubble(self):

@@ -1,5 +1,5 @@
 ---
-source_sha: "f33b8657a820"
+source_sha: "fa7fffc9573a"
 ---
 
 # Governance { #governance }
@@ -101,7 +101,7 @@ Każdy miesięczny limit liczy cały koszt runu w miesiącu, w którym run się 
 tak jak raporty wydatków. Run, który przechodzi przez granicę miesiąca - zaparkowany
 na zatwierdzeniu ostatniego wieczoru i zatwierdzony pierwszego dnia - w całości
 trafia do wcześniejszego miesiąca, a po wznowieniu jest sprawdzany względem wydatków
-tamtego miesiąca, nie nowego. To, co wyda po wznowieniu, podlega też limitom nowego miesiąca.
+tamtego miesiąca, nie nowego.
 
 **Nowa organizacja startuje z już ustawionym pułapem organizacji** —
 `DEFAULT_ORG_MONTHLY_BUDGET_USD` wdrożenia ([konfiguracja](configuration.md),

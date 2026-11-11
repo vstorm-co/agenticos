@@ -1111,20 +1111,6 @@ class PausedRunState(BaseModel):
             "continued after an approval stays under it"
         ),
     )
-    month_opening_since: datetime | None = Field(
-        default=None,
-        description=(
-            "The month a run resumed after the one it started in first continued in, "
-            "with `month_opening_usd` - what it had spent before that month began"
-        ),
-    )
-    month_opening_usd: Decimal | None = Field(
-        default=None,
-        description=(
-            "Kept so a run parked and resumed again within that month still counts "
-            "its earlier continuations against the month's caps"
-        ),
-    )
     output_schema: dict[str, Any] | None = Field(
         default=None,
         description=(
@@ -1793,10 +1779,6 @@ class PreparedRun:
 
     run_limit_usd: Decimal | None = None
     """The ceiling the caller set on this one run, if any - kept for a park to record."""
-
-    month_opening: tuple[datetime, Decimal] | None = None
-    """For a run resumed after the month it started in: that month and what the run
-    had spent before it - kept for a park to record."""
 
     output_schema: dict[str, Any] | None = None
     """The answer shape the caller asked for in place of the agent's own, if any.
@@ -3915,7 +3897,6 @@ class AgentRunnerService:
         version_id: UUID | None = None,
         environment_id: UUID | None = None,
         plan_items: list[dict[str, Any]] | None = None,
-        month_opening: tuple[datetime, Decimal] | None = None,
         request_connection: ConnectionCallback | None = None,
         isolation: RunIsolation | None = None,
         request_computer_access: ComputerAccessCallback | None = None,
@@ -4472,22 +4453,6 @@ class AgentRunnerService:
             since=since,
             until=until,
         )
-        this_month = month_start()
-        carried_opening: tuple[datetime, Decimal] | None = None
-        carried_limits: list[SpendLimit] = []
-        if existing_run is not None and since < this_month:
-            carried_opening = (
-                month_opening
-                if month_opening is not None and month_opening[0] == this_month
-                else (this_month, existing_run.cost_usd)
-            )
-            carried_limits = await self._this_months_limits(
-                ctx,
-                existing_run,
-                spec=spec,
-                organization_cap=organization.monthly_budget_usd,
-                opening=carried_opening[1],
-            )
 
         # A chat in a project works in the project's container and reads its
         # instructions, whichever agent answers - see `_in_project`.
@@ -5007,7 +4972,6 @@ class AgentRunnerService:
             org_monthly_budget_usd=organization.monthly_budget_usd,
             run_limit_usd=run_limit_usd,
             group_limits=group_limits,
-            carried_limits=carried_limits,
             request_approval=channel,
             routine_action_check=None if routine is None else routine.action_policy,
             gate_every_tool=approval_mode is ApprovalMode.ASK_ALL,
@@ -5037,7 +5001,6 @@ class AgentRunnerService:
             run=run,
             agent=agent,
             spec=spec,
-            month_opening=carried_opening,
             built=built,
             approvals=channel,
             workspace=workspace,
@@ -6683,12 +6646,6 @@ class AgentRunnerService:
                 ),
                 "output_schema": prepared.output_schema,
                 "run_limit_usd": prepared.run_limit_usd,
-                "month_opening_since": None
-                if prepared.month_opening is None
-                else prepared.month_opening[0],
-                "month_opening_usd": None
-                if prepared.month_opening is None
-                else prepared.month_opening[1],
                 "delegated_approvals": {
                     str(parked.approval_id): parked.task_id
                     for parked in prepared.approvals.requested
@@ -6754,13 +6711,8 @@ class AgentRunnerService:
         exclude_run_id: UUID,
         since: datetime | None = None,
         until: datetime | None = None,
-        opening: Decimal = Decimal(0),
-        period: str | None = None,
     ) -> list[SpendLimit]:
         """The monthly caps of every department the person running this is in (#2072).
-
-        `opening` is taken off each baseline and `period` tags it, for the second
-        month of a run resumed after the one it started in.
 
         None for a run nobody in the organization started - a trigger, a
         channel stranger: a department's month is what its members ran, and
@@ -6783,16 +6735,13 @@ class AgentRunnerService:
         def period_spend(group_id: UUID) -> PeriodSpendLookup:
             async def lookup() -> Decimal:
                 async with get_db_context() as db:
-                    return (
-                        await agent_run_repo.sum_cost_since(
-                            db,
-                            organization_id=ctx.organization_id,
-                            since=since or month_start(),
-                            until=until,
-                            group_id=group_id,
-                            exclude_run_id=exclude_run_id,
-                        )
-                        - opening
+                    return await agent_run_repo.sum_cost_since(
+                        db,
+                        organization_id=ctx.organization_id,
+                        since=since or month_start(),
+                        until=until,
+                        group_id=group_id,
+                        exclude_run_id=exclude_run_id,
                     )
 
             return lookup
@@ -6804,82 +6753,9 @@ class AgentRunnerService:
                 period_spend=period_spend(group.id),
                 subject_id=group.id,
                 subject_name=group.name,
-                period=period,
             )
             for group in groups
         ]
-
-    async def _this_months_limits(
-        self,
-        ctx: AuthContext,
-        run: AgentRun,
-        *,
-        spec: AgentSpec,
-        organization_cap: Decimal | None,
-        opening: Decimal,
-    ) -> list[SpendLimit]:
-        """The current month's caps for a run resumed after the month it started in.
-
-        Its whole cost stays booked to the month it started, and the run's other
-        limits weigh it against that month; these keep it from spending past a cap
-        this month has already reached. Each counts only what the run spends now:
-        the ledger arrives holding the run's earlier cost, so `opening` - what it
-        had spent before this month began - comes off the baseline.
-        """
-        since = month_start()
-
-        def less_opening(lookup: PeriodSpendLookup) -> PeriodSpendLookup:
-            async def spent() -> Decimal:
-                return await lookup() - opening
-
-            return spent
-
-        async def agent_spend() -> Decimal:
-            async with get_db_context() as db:
-                return await agent_run_repo.sum_cost_since(
-                    db,
-                    organization_id=ctx.organization_id,
-                    since=since,
-                    agent_id=run.agent_id,
-                    include_delegations=True,
-                    exclude_run_id=run.id,
-                )
-
-        async def organization_spend() -> Decimal:
-            async with get_db_context() as db:
-                return await organization_spend_since(
-                    db, ctx.organization_id, since, exclude_run_id=run.id
-                )
-
-        limits: list[SpendLimit] = []
-        if spec.budget is not None and spec.budget.monthly_usd is not None:
-            limits.append(
-                SpendLimit(
-                    scope=BudgetScope.AGENT,
-                    limit_usd=Decimal(str(spec.budget.monthly_usd)),
-                    period_spend=less_opening(agent_spend),
-                    period="current",
-                )
-            )
-        limits.extend(
-            await self._group_limits(
-                self._department_context(ctx, run),
-                exclude_run_id=run.id,
-                since=since,
-                opening=opening,
-                period="current",
-            )
-        )
-        if organization_cap is not None:
-            limits.append(
-                SpendLimit(
-                    scope=BudgetScope.ORGANIZATION,
-                    limit_usd=organization_cap,
-                    period_spend=less_opening(organization_spend),
-                    period="current",
-                )
-            )
-        return limits
 
     async def _notify(
         self,
@@ -7519,9 +7395,6 @@ class AgentRunnerService:
             # planning capability's, off `PausedRunState.plan`.
             plan_items=state.plan,
             run_limit_usd=ceiling,
-            month_opening=None
-            if state.month_opening_since is None or state.month_opening_usd is None
-            else (state.month_opening_since, state.month_opening_usd),
         )
         prepared.output_schema = state.output_schema
         prepared.run_limit_usd = ceiling
