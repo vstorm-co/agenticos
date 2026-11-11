@@ -3619,7 +3619,8 @@
         "running": "W toku",
         "waiting": "Czeka",
         "notReached": "Niewykonany",
-        "starting": "Uruchamia się"
+        "starting": "Uruchamia się",
+        "switchedOff": "Wyłączony"
       },
       "startRun": "Rozpocznij uruchomienie",
       "startRunTitle": "Rozpocznij uruchomienie",
@@ -10868,6 +10869,7 @@
     "validationLabelTaken": "Inny krok nazywa się już „{label}”.",
     "validationTriggerSwitchedOff": "Wyzwalacza nie można wyłączyć.",
     "validationControlSwitchedOff": "Kroku, który decyduje o drodze przebiegu, nie można wyłączyć.",
+    "validationLoopPartSwitchedOff": "Kroku elementu ani wyniku pętli nie można wyłączyć.",
     "validationBindingReadsSwitchedOff": "To czyta wyłączony krok, więc nic by nie otrzymało.",
     "stepName": "Nazwa kroku",
     "stepNotes": "Notatka",
@@ -10971,6 +10973,7 @@
     "stepTestNotReached": "Ten krok nie został wykonany: test zakończył się, zanim do niego dotarł.",
     "stepTestStopped": "Ten krok nie został wykonany: test został zatrzymany.",
     "stepTestHint": "Uruchom tylko ten krok, na tym, co ostatnio przekazały kroki przed nim",
+    "stepTestNotReachable": "Połącz ten krok z wyzwalaczem, zanim go przetestujesz.",
     "stepTestInsideALoop": "Krok w pętli działa raz na element; przetestuj całą pętlę",
     "stepTestWriteTitle": "Przetestować krok, który zapisuje?",
     "stepTestWriteDescription": "Test naprawdę wykonuje krok: rekordy zostaną zapisane, a wiadomości wysłane, tak jak w prawdziwym przebiegu.",

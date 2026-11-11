@@ -96,12 +96,17 @@ from app.services.workflow_execution.exceptions import (
     WorkflowTriggerMismatchError,
 )
 from app.services.workflow_execution.run_status import refresh_run_status
-from app.workflows.contracts.io import TableIORef
 from app.workflows.contracts.payload import json_byte_size
 from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import WorkflowGraph, jsonb_value_fits
 from app.workflows.graph.step import step_subgraph
-from app.workflows.graph.validate import file_binding_problems, graph_file_refs, validate_graph
+from app.workflows.graph.validate import (
+    file_binding_problems,
+    graph_file_refs,
+    graph_table_refs,
+    set_aside,
+    validate_graph,
+)
 from app.workflows.nodes.core_input._handler import TriggerInputConfig, input_problems
 from app.workflows.triggers import (
     BY_HAND,
@@ -603,12 +608,14 @@ class WorkflowExecutionService:
         # Charge this run's node work against the organization's and the caller's
         # outstanding-node-work ceilings before anything is written, so a caller
         # cannot start many wide graphs below the per-minute run limit and grow a
-        # backlog on the shared runner that starves other tenants (#1907).
+        # backlog on the shared runner that starves other tenants (#1907). A step
+        # set aside never runs, so it reserves nothing.
+        node_count = len(graph.nodes) - len(set_aside(graph))
         await admission.enforce_admission_quota(
             self.db,
             organization_id=ctx.organization_id,
             principal_user_id=ctx.subject_id,
-            requested_node_count=len(graph.nodes),
+            requested_node_count=node_count,
         )
 
         now = datetime.now(UTC)
@@ -668,7 +675,7 @@ class WorkflowExecutionService:
                 None if ctx.key_scopes is None else sorted(scope.value for scope in ctx.key_scopes)
             ),
             budget_limit=budget_limit,
-            node_count=len(graph.nodes),
+            node_count=node_count,
             deadline_at=deadline_at,
             timezone=settings.timezone,
             root_run_id=causation.root_run_id if causation else None,
@@ -1443,15 +1450,14 @@ class WorkflowExecutionService:
                 kind=ResourceRefKind.FILE.value,
                 ref=ref.model_dump(mode="json"),
             )
-        for binding in graph.bindings:
-            if isinstance(binding.source, TableIORef):
-                await workflow_run_repo.create_resource_ref(
-                    self.db,
-                    organization_id=run.organization_id,
-                    workflow_run_id=run.id,
-                    kind=ResourceRefKind.TABLE.value,
-                    ref=binding.source.model_dump(mode="json"),
-                )
+        for _field, ref in graph_table_refs(graph):
+            await workflow_run_repo.create_resource_ref(
+                self.db,
+                organization_id=run.organization_id,
+                workflow_run_id=run.id,
+                kind=ResourceRefKind.TABLE.value,
+                ref=ref.model_dump(mode="json"),
+            )
 
 
 __all__ = ["Causation", "WorkflowExecutionService", "node_run_read"]

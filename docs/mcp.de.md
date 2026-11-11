@@ -1,5 +1,5 @@
 ---
-source_sha: "0f6f5f855004"
+source_sha: "62e7ca10f103"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -675,6 +675,18 @@ Zwei Connections, deren Namen auf dasselbe Präfix hinauslaufen, werden
 dedupliziert — die erste gewinnt, mit einer Warnung, die die unterlegene benennt.
 Vom Deployment verwaltete Server kommen zuerst, gewinnen also gegen eine
 Nutzer-Connection, die zufällig denselben Namen wählt.
+
+Ein Präfix hält die Tools eines Servers von denen eines anderen getrennt, aber nicht
+von den übrigen Tools des Agenten. Eine Connection namens `request`, deren Server
+`capability` anbietet, präsentiert `request_capability`, das fast jeder Agent schon
+hat, und `create` mit `chart` landet auf `create_chart` der Capability charts.
+
+Das Veröffentlichen lehnt eine solche Bindung ab und vergleicht dafür die Tools aus der
+letzten Prüfung der Connection mit den Capability-Tools des Agenten und den eigenen
+der Plattform. Erreicht eine Kollision trotzdem einen Run - ein Server hat das Tool
+hinzugefügt, eine Connection wurde umbenannt -, bleibt in diesem Zug der ganze
+Server außen vor, und das Modell erfährt, warum, wie bei einer Präfix-Kollision.
+Benennen Sie die Connection um, oder schränken Sie ihre Tools ein.
 
 ### Zustand, Nutzer und Aufrufe { #health-users-and-calls }
 

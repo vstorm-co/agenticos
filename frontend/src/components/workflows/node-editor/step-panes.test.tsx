@@ -784,3 +784,14 @@ describe("OutputPane refuses a test once its entry no longer reaches the step", 
     expect(mutate).not.toHaveBeenCalled();
   });
 });
+
+it("blocks testing an isolated switched-off step with an actionable reason", () => {
+  const graph = { ...line({ disabled: true }), edges: [] };
+  seed(graph);
+  renderOutput();
+  expect(screen.getByRole("button", { name: "Test step" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Test step" })).toHaveAttribute(
+    "title",
+    "Connect this step to a trigger before testing it.",
+  );
+});

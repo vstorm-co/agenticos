@@ -55,3 +55,32 @@ async def test_implicit_imports_cannot_exceed_the_binding_allowance_before_datab
         ("files", "A graph imports at most 1 unique files")
     ]
     db.execute.assert_not_awaited()
+
+
+def test_switched_off_bindings_and_pins_import_no_files() -> None:
+    ref = _ref()
+    graph = _graph([ref])
+    entry = graph.nodes[0].model_copy(update={"pinned_output": None})
+    parked = entry.model_copy(
+        update={
+            "id": uuid.uuid4(),
+            "disabled": True,
+            "pinned_output": {"file": ref.model_dump(mode="json")},
+        }
+    )
+    graph = graph.model_copy(
+        update={
+            "nodes": (entry, parked),
+            "bindings": (Binding(target_node_id=parked.id, target_field="data", source=ref),),
+        }
+    )
+    assert list(graph_file_refs(graph)) == []
+    active = graph.model_copy(
+        update={
+            "bindings": (
+                *graph.bindings,
+                Binding(target_node_id=entry.id, target_field="data", source=ref),
+            )
+        }
+    )
+    assert [value.file_id for _field, value in graph_file_refs(active)] == [ref.file_id]

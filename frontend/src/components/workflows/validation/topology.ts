@@ -11,6 +11,7 @@
  */
 
 import { effectiveDefinition } from "@/lib/workflows/ports";
+import { entryNodes } from "@/lib/workflows/triggers";
 import type {
   NodeCatalog,
   NodeDefinition,
@@ -59,6 +60,21 @@ export function definitionFor(definitions: DefinitionMap, nodeId: string): NodeD
 /** The set of node ids actually present in the graph. */
 export function nodeIds(graph: WorkflowGraph): Set<string> {
   return new Set(graph.nodes.map((node) => node.id));
+}
+
+/**
+ * Steps switched off with no edge at all: parked beside the graph, never run. They
+ * need not be reachable, and one may be a step that decides the way; rule 13 still
+ * refuses a read of one. A trigger is never one: a run
+ * can start at it wired or not. Mirrors `set_aside` in
+ * `backend/app/workflows/graph/validate.py`.
+ */
+export function setAside(graph: WorkflowGraph): Set<string> {
+  const wired = new Set(graph.edges.flatMap((e) => [e.source_node_id, e.target_node_id]));
+  for (const entry of entryNodes(graph)) wired.add(entry.id);
+  return new Set(
+    graph.nodes.filter((n) => n.disabled === true && !wired.has(n.id)).map((n) => n.id),
+  );
 }
 
 /** Outgoing edges keyed by source node id. */

@@ -85,6 +85,7 @@ export type ValidationCode =
   | "label-taken"
   | "trigger-switched-off"
   | "control-switched-off"
+  | "loop-part-switched-off"
   | "binding-reads-switched-off";
 
 /**
@@ -146,6 +147,7 @@ export const MESSAGE_KEYS: Record<ValidationCode, string> = {
   "label-taken": "validationLabelTaken",
   "trigger-switched-off": "validationTriggerSwitchedOff",
   "control-switched-off": "validationControlSwitchedOff",
+  "loop-part-switched-off": "validationLoopPartSwitchedOff",
   "binding-reads-switched-off": "validationBindingReadsSwitchedOff",
 };
 

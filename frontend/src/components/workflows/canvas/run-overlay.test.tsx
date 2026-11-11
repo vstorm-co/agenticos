@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import type { WorkflowNodeRunRead } from "@/lib/workflows/types";
+import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import {
   NodeRunOverlayProvider,
@@ -129,6 +130,12 @@ describe("a step's state on a run's canvas", () => {
     ).toEqual(["running", "waiting", "done", "failed", "attention", "skipped", "notReached"]);
   });
 
+  it("reads a step switched off as so, whatever its row says", () => {
+    expect(nodeRunState(null, true, true)).toBe("switchedOff");
+    expect(nodeRunState(summary("pending"), true, true)).toBe("switchedOff");
+    expect(nodeRunState(summary("succeeded"), false, true)).toBe("switchedOff");
+  });
+
   it("draws a wire by the step it leads into, once the step before has done its part", () => {
     expect(wireRunState("done", "running")).toBe("running");
     expect(wireRunState("done", "starting")).toBe("running");
@@ -204,5 +211,47 @@ describe("a step's state on a run's canvas", () => {
       </NodeRunOverlayProvider>,
     );
     expect(screen.getByText("done:pending:true")).toBeTruthy();
+  });
+
+  it("reads a step switched off in the run's graph as so", () => {
+    const before = useWorkflowEditorStore.getState().graph;
+    useWorkflowEditorStore.setState({
+      graph: {
+        entry_node_id: "A",
+        nodes: [
+          {
+            id: "A",
+            definition_id: "t",
+            definition_version: 1,
+            config: {},
+            layout: { x: 0, y: 0 },
+            disabled: true,
+          },
+        ],
+        edges: [],
+        bindings: [],
+        scopes: [],
+      },
+    });
+    function State() {
+      return (
+        <span>{`${useNodeRunState("A")?.state ?? "none"}:${useWireRunState("Z", "A") ?? "none"}`}</span>
+      );
+    }
+    // A run that ended down another branch: Z done, A never reached.
+    render(
+      <NodeRunOverlayProvider
+        value={{
+          summaries: summarizeNodeRuns([row({ node_instance_id: "Z" })]),
+          live: false,
+          watched: false,
+        }}
+      >
+        <State />
+      </NodeRunOverlayProvider>,
+    );
+    // The card says what A is; the wire into it says the run never went there.
+    expect(screen.getByText("switchedOff:faded")).toBeTruthy();
+    useWorkflowEditorStore.setState({ graph: before });
   });
 });

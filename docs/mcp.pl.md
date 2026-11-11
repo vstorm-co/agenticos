@@ -1,5 +1,5 @@
 ---
-source_sha: "0f6f5f855004"
+source_sha: "62e7ca10f103"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -644,6 +644,17 @@ Dwa połączenia, których nazwy sprowadzają się do tego samego prefiksu, są
 deduplikowane — wygrywa pierwsze, z ostrzeżeniem nazywającym przegranego. Serwery
 zarządzane przez deployment są układane jako pierwsze, więc wygrywają
 z połączeniem użytkownika, które trafiło na tę samą nazwę.
+
+Prefiks oddziela narzędzia jednego serwera od narzędzi innego, ale nie od
+pozostałych narzędzi agenta. Połączenie o nazwie `request`, którego serwer oferuje
+`capability`, przedstawia `request_capability`, które ma już prawie każdy agent,
+a `create` z `chart` trafia na `create_chart` z capability charts.
+
+Publikacja odrzuca takie powiązanie, porównując narzędzia z ostatniego sprawdzenia połączenia
+z narzędziami capability agenta i narzędziami samej platformy. Gdy kolizja mimo to
+dociera do runa - serwer dodał narzędzie albo połączenie zmieniło nazwę - w tej
+turze pomijany jest cały serwer, a model dowiaduje się dlaczego, tak jak przy
+kolizji prefiksów. Zmień nazwę połączenia albo zawęź jego narzędzia.
 
 ### Stan, użycie i wywołania { #health-users-and-calls }
 

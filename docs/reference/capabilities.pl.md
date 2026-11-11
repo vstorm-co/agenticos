@@ -1,5 +1,5 @@
 ---
-source_sha: "4121ce5e0f02"
+source_sha: "b0fd849fcc36"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -3276,7 +3276,7 @@ nikogo; `side_effecting` mówi Builderowi tylko, które narzędzia działają na
     bramkę, a wywołanie ze skutkami ubocznymi przechodzi wtedy bez nadzoru i nic
     tego nie zgłasza. Id, którego żadna taka capability nie wystawia, zostaje
 
-odrzucone przy publikacji, i tak samo nazwa, której żaden model nie mógłby zawołać.
+odrzucone przy publikacji, i tak samo nazwa, której żaden model nie mógłby zawołać, albo taka, którą ma już inne narzędzie agenta - narzędzie innej capability albo takie, które platforma dodaje sama, jak `request_capability`.
 
 ## Zakresy { #scopes }
 

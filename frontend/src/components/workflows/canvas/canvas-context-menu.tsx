@@ -9,6 +9,7 @@ import {
   ContextMenuSeparator,
   ContextMenuShortcut,
 } from "@/components/ui";
+import { canSwitchOff } from "@/lib/workflows/switch-off";
 import type { NodeDefinition } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
@@ -39,9 +40,7 @@ export function CanvasContextMenu({
   const definition = catalog.find(
     (item) => item.id === node?.definition_id && item.version === node?.definition_version,
   );
-  // The trigger and a step that decides the way cannot be skipped.
-  const switchable =
-    node !== undefined && node.id !== graph?.entry_node_id && definition?.kind !== "control";
+  const switchable = node !== undefined && graph != null && canSwitchOff(graph, node, definition);
   const sized = node !== undefined && (node.layout.width != null || node.layout.height != null);
   // A loop's Loop item and Loop result go only with their loop: never deleted or copied alone.
   const loopPart = definition?.loop_body_only === true;

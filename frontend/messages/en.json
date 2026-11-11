@@ -5999,7 +5999,8 @@
         "skipped": "Skipped",
         "cancelled": "Cancelled",
         "notReached": "Not reached",
-        "starting": "Starting"
+        "starting": "Starting",
+        "switchedOff": "Switched off"
       },
       "startRun": "Start a run",
       "startRunTitle": "Start a run",
@@ -10663,6 +10664,7 @@
     "validationLabelTaken": "Another step is already called “{label}”.",
     "validationTriggerSwitchedOff": "The trigger cannot be switched off.",
     "validationControlSwitchedOff": "A step that decides which way the run goes cannot be switched off.",
+    "validationLoopPartSwitchedOff": "A loop's item or result step cannot be switched off.",
     "validationBindingReadsSwitchedOff": "This reads a step that is switched off, so it would receive nothing.",
     "stepName": "Step name",
     "stepNotes": "Note",
@@ -10766,6 +10768,7 @@
     "stepTestNotReached": "This step did not run: the test ended before reaching it.",
     "stepTestStopped": "This step did not run: the test was stopped.",
     "stepTestHint": "Run only this step, on what the steps before it handed on last time",
+    "stepTestNotReachable": "Connect this step to a trigger before testing it.",
     "stepTestInsideALoop": "A step inside a loop runs once per item; test the loop instead",
     "stepTestWriteTitle": "Test a step that writes?",
     "stepTestWriteDescription": "Testing it really does what it does: records are written and messages are sent, just as in a real run.",

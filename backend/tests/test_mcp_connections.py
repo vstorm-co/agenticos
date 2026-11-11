@@ -41,6 +41,7 @@ from app.agents.mcp import (
     TOOL_NAME_LIMIT,
     AnsweredRecently,
     FittedNames,
+    LeftOutOnClash,
     McpProbeError,
     McpServerSpec,
     McpToolInfo,
@@ -1163,6 +1164,34 @@ class TestToolsetsForAgent:
         )
 
     @pytest.mark.anyio
+    async def test_every_server_is_attached_inside_the_name_guard(self, monkeypatch):
+        """A prefix keeps one server's tools apart from another's, not from the
+        agent's capabilities' or the platform's own (#2890): each server is left
+        out of a step where one of its tool names is already taken."""
+        self._capture(monkeypatch)
+        bound = _connection(name="request", url="https://r.example/mcp")
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo, "get_org_scoped_by_ids", _batch(bound)
+        )
+        taken = {"request_capability": "this platform"}
+
+        resolved = await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[OrgMcpServerRef(connection_id=bound.id)],
+            taken_names=taken,
+        )
+
+        (guarded,) = _attached(resolved)
+        assert isinstance(guarded, LeftOutOnClash)
+        assert (guarded.wrapped, guarded.server, guarded.binding, guarded.taken) == (
+            "request",
+            "request",
+            "the connection 'request'",
+            taken,
+        )
+
+    @pytest.mark.anyio
     async def test_a_prefix_collision_drops_the_loser_and_reports_it(self, monkeypatch):
         """The run-time half of the publish check (#1442). Two servers whose names
         reduce to one prefix would make pydantic-ai raise on the duplicate tool
@@ -2137,6 +2166,30 @@ class TestConnectingOneMidRun:
             ("notion", "https://mine.example.com/mcp")
         ]
         lookup.assert_awaited_once_with(db, user_id=person, catalog_key="notion")
+
+    @pytest.mark.anyio
+    async def test_the_account_connected_mid_run_keeps_off_the_names_the_run_holds(
+        self, monkeypatch
+    ):
+        """Attached after the turn began, and guarded as the servers attached with it
+        are (#2890)."""
+        self._session(monkeypatch)
+        self._owns(monkeypatch, [_connection(catalog_key="notion")])
+        self._probe(monkeypatch, answers=True)
+        taken = {"notion_search": "the knowledge capability"}
+
+        outcome = await mcp_connection_service.connect_personal_toolset(
+            PersonalMcpServerRef(account="personal", catalog_key="notion"),
+            user_id=uuid4(),
+            taken_names=taken,
+        )
+
+        assert isinstance(outcome, LeftOutOnClash)
+        assert (outcome.wrapped, outcome.binding, outcome.taken) == (
+            "notion",
+            "each person's own notion",
+            taken,
+        )
 
     @pytest.mark.anyio
     async def test_a_persons_own_account_brings_its_instructions_when_it_opted_in(
