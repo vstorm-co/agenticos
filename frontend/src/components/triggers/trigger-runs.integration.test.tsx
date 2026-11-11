@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -110,22 +110,19 @@ const OPEN = { name: "See what this trigger has done" };
 describe("TriggerRow run list", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("labels routine actions on hover, including a disabled run and resume", () => {
+  it("shows action labels on hover and keyboard focus", async () => {
+    const user = userEvent.setup();
+    serveRuns([]);
     const { rerender } = render(<TriggerRow trigger={trigger()} />, { wrapper });
-    expect(screen.getByRole("button", { name: "Run now" }).parentElement).toHaveAttribute(
-      "title",
-      "Run now",
-    );
-    for (const label of ["Edit", "Pause", "Delete"]) {
-      expect(screen.getByRole("button", { name: label })).toHaveAttribute("title", label);
-    }
+    await user.hover(screen.getByRole("button", { name: "Edit" }));
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("Edit");
+    await user.unhover(screen.getByRole("button", { name: "Edit" }));
+    fireEvent.focus(screen.getByRole("button", { name: "Pause" }));
+    await waitFor(() => expect(screen.getByRole("tooltip")).toHaveTextContent("Pause"));
     rerender(<TriggerRow trigger={trigger({ is_active: false })} />);
     expect(screen.getByRole("button", { name: "Run now" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Run now" }).parentElement).toHaveAttribute(
-      "title",
-      "Run now",
-    );
-    expect(screen.getByRole("button", { name: "Resume" })).toHaveAttribute("title", "Resume");
+    await user.hover(screen.getByRole("button", { name: "Run now" }).parentElement!);
+    await waitFor(() => expect(screen.getByRole("tooltip")).toHaveTextContent("Run now"));
   });
 
   it("lists each fire with when it ran and how it went", async () => {
