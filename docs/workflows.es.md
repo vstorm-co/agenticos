@@ -1,5 +1,5 @@
 ---
-source_sha: "cba80f115942"
+source_sha: "a38d3e0e9126"
 ---
 
 # Workflows { #workflows }
@@ -1178,10 +1178,13 @@ contains**, **Has attachments**, **Importance** y **Category**.
 
 La primera lectura de
 una carpeta empieza en el momento en que se publicó o se encendió por última vez el workflow, así que el
-correo que ya está allí no inicia nada. Nombrar un buzón compartido que el grant de Microsoft de la organización pueda abrir
+correo que ya está allí no inicia nada.
+
+Nombrar un buzón compartido que el grant de Microsoft de la organización pueda abrir
 exige el permiso para gestionar conexiones, como en los triggers de agente de Outlook;
-un workflow que ya escucha uno lo conserva en publicaciones posteriores, y cambiarlo
-exige el permiso otra vez. Si Outlook dice que la carpeta ya no se puede leer, el
+toda publicación que lo nombre lo exige, porque quien publica pasa a ser el miembro
+como el que se lee el buzón, y un mensaje que llega a un workflow cuyo publicador
+ya no lo tiene no inicia ningún run. Si Outlook dice que la carpeta ya no se puede leer, el
 workflow se apaga y el registro de auditoría dice por qué.
 
 La ejecución recibe los
@@ -1230,7 +1233,8 @@ entrega un tema solo dentro de un tema de foro.
 Un paso **Send a message** añadido después de un trigger **Channel message** empieza
 como el bot del trigger, con `channel_id` y `thread_id` enlazados, cuando las
 plataformas coinciden. Los mensajes de un bot inician como mucho un workflow, y escuchar a un bot requiere
-`channels:manage`. Una nota de voz llega como su transcripción; los demás adjuntos
+`channels:manage`, comprobado de nuevo en cada mensaje: si quien lo publicó lo
+pierde, responde el propio agente del bot. Una nota de voz llega como su transcripción; los demás adjuntos
 no se entregan. Ver
 [trigger.channel_message](reference/workflow-nodes.md#trigger-channel-message).
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "cba80f115942"
+source_sha: "a38d3e0e9126"
 ---
 
 # Workflows { #workflows }
@@ -1242,8 +1242,9 @@ eingeschaltet wurde; Post, die schon dort liegt, startet nichts.
 
 Ein gemeinsames Postfach, das der Microsoft-Grant der Organisation öffnen kann, zu
 nennen, erfordert die Berechtigung, Verbindungen zu verwalten, wie bei Outlook-Agent-Triggern;
-ein Workflow, der schon eines liest, behält es bei späteren Veröffentlichungen, und es zu
-ändern erfordert die Berechtigung erneut. Meldet Outlook, dass der Ordner nicht
+jede Veröffentlichung, die eines nennt, braucht sie, weil die veröffentlichende
+Person zu dem Mitglied wird, als das das Postfach gelesen wird, und eine Nachricht
+an einen Workflow, dessen Veröffentlicher sie nicht mehr hat, startet keinen Run. Meldet Outlook, dass der Ordner nicht
 mehr gelesen werden kann, wird der Workflow ausgeschaltet, und das Audit-Log nennt
 den Grund.
 
@@ -1292,7 +1293,9 @@ Forenthemas.
 Ein **Send a message**-Schritt, der nach einem **Channel message**-Trigger hinzugefügt
 wird, startet als der Bot des Triggers, mit gebundenen `channel_id` und `thread_id`, wenn
 die Plattformen übereinstimmen. Die Nachrichten eines Bots starten höchstens einen
-Workflow, und das Zuhören braucht `channels:manage`. Eine Sprachnachricht kommt als Transkript an; andere
+Workflow, und das Zuhören braucht `channels:manage`, bei
+jeder Nachricht erneut geprüft: Verliert der Veröffentlicher es, antwortet der
+eigene Agent des Bots. Eine Sprachnachricht kommt als Transkript an; andere
 Anhänge werden nicht übergeben. Siehe
 [trigger.channel_message](reference/workflow-nodes.md#trigger-channel-message).
 

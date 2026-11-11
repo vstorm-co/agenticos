@@ -1112,8 +1112,9 @@ read it starts from the moment the workflow was published or last switched on, s
 mail already there starts nothing.
 
 Naming a shared mailbox the organization's Microsoft grant can open takes the permission
-to manage connections, as it does for Outlook agent triggers; a workflow already
-listening to one keeps it through later publishes, and changing it needs the permission again. If Outlook says the folder can no longer be read, the workflow is
+to manage connections, as it does for Outlook agent triggers; every publish that names one needs it, because whoever publishes becomes the member
+the mailbox is read as, and a message reaching a workflow whose publisher no longer
+holds it starts no run. If Outlook says the folder can no longer be read, the workflow is
 switched off and the audit log says why.
 
 The run gets the same fields as a Gmail
@@ -1157,7 +1158,8 @@ topic only inside a forum topic.
 
 A **Send a message** step added after a **Channel message** trigger starts as the
 trigger's bot, with `channel_id` and `thread_id` bound, when the two platforms match. A
-bot's messages start one workflow at most, and listening to a bot needs `channels:manage`.
+bot's messages start one workflow at most, and listening to a bot needs `channels:manage`, checked again
+at every message: once the publisher loses it, the bot's own agent answers instead.
 A voice note arrives as its transcript; other attachments are not handed on. See
 [trigger.channel_message](https://vstorm-co.github.io/agenticos/reference/workflow-nodes/#trigger-channel-message).
 

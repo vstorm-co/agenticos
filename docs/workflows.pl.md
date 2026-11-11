@@ -1,5 +1,5 @@
 ---
-source_sha: "cba80f115942"
+source_sha: "a38d3e0e9126"
 ---
 
 # Workflows { #workflows }
@@ -1143,9 +1143,9 @@ się od chwili opublikowania lub ostatniego włączenia workflow, więc poczta, 
 uruchamia.
 
 Wskazanie skrzynki współdzielonej, którą otwiera grant Microsoft organizacji, wymaga
-uprawnienia do zarządzania połączeniami, tak jak w triggerach agentów Outlook; workflow, który
-już nasłuchuje takiej skrzynki, zachowuje ją przy kolejnych publikacjach, a jej zmiana
-znowu wymaga tego uprawnienia. Jeśli Outlook zgłosi, że folderu nie da się już czytać, workflow jest
+uprawnienia do zarządzania połączeniami, tak jak w triggerach agentów Outlook; wymaga go każda publikacja, która ją wskazuje, bo osoba publikująca staje się
+członkiem, jako który skrzynka jest czytana, a wiadomość do workflow, którego
+publikujący już go nie ma, nie uruchamia runa. Jeśli Outlook zgłosi, że folderu nie da się już czytać, workflow jest
 wyłączany, a dziennik audytu podaje powód. Run dostaje te same pola co run z Gmaila,
 przy czym `labels` zawiera kategorie wiadomości, a `mailbox` skrzynkę współdzieloną,
 z której przyszła. Zobacz
@@ -1188,8 +1188,9 @@ wyzwalacz Telegrama przekazuje temat tylko wewnątrz tematu forum.
 
 Krok **Send a message** dodany po triggerze **Channel message** startuje jako bot tego
 triggera, z powiązanymi `channel_id` i `thread_id`, gdy platformy się zgadzają.
-Wiadomości jednego bota uruchamiają najwyżej jeden workflow, a nasłuchiwanie bota
-wymaga `channels:manage`. Notatka głosowa przychodzi jako transkrypcja; inne
+Wiadomości jednego bota uruchamiają najwyżej jeden workflow, a nasłuchiwanie bota wymaga `channels:manage`,
+sprawdzanego przy każdej wiadomości: gdy publikujący je straci, odpowiada własny
+agent bota. Notatka głosowa przychodzi jako transkrypcja; inne
 załączniki nie są przekazywane. Zobacz
 [trigger.channel_message](reference/workflow-nodes.md#trigger-channel-message).
 
