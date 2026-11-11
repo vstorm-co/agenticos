@@ -1114,9 +1114,37 @@ read it starts from the moment the workflow was published or last switched on, s
 mail already there starts nothing.
 
 Naming a shared mailbox the organization's Microsoft grant can open takes the permission
-to manage connections, as it does for Outlook agent triggers; a workflow already
-listening to one keeps it through later publishes, and changing it needs the permission again. If Outlook says the folder can no longer be read, the workflow is
+to manage connections, as it does for Outlook agent triggers; every publish that names one needs it, because whoever publishes becomes the member
+the mailbox is read as, and a message reaching a workflow whose publisher no longer
+holds it starts no run. If Outlook says the folder can no longer be read, the workflow is
 switched off and the audit log says why.
+
+Before upgrading to a release with this check, an administrator can find the
+Outlook triggers it will stop: those reading a shared mailbox for a publisher who is not an owner, admin or builder,
+and so lacks `mcp:manage`. Each needs a republish by someone who holds it, or its
+publisher's role raised. Run against the deployment's database:
+
+```sql
+SELECT o.name AS organization,
+       w.name AS workflow,
+       u.email AS publisher,
+       m.role AS publisher_role,
+       node -> 'config' ->> 'mailbox' AS shared_mailbox
+FROM workflow_exposures AS e
+JOIN workflow_versions AS v ON v.id = e.workflow_version_id
+JOIN workflows AS w ON w.id = e.workflow_id
+JOIN organizations AS o ON o.id = e.organization_id
+JOIN users AS u ON u.id = e.execution_principal_user_id
+LEFT JOIN organization_members AS m
+  ON m.organization_id = e.organization_id AND m.user_id = e.execution_principal_user_id
+CROSS JOIN LATERAL jsonb_array_elements(v.graph -> 'nodes') AS node
+WHERE e.adapter = 'outlook'
+  AND e.is_active
+  AND (node ->> 'id')::uuid = e.node_instance_id
+  AND coalesce(node -> 'config' ->> 'mailbox', '') <> ''
+  AND NOT u.is_app_admin
+  AND coalesce(m.role, '') NOT IN ('owner', 'admin', 'builder');
+```
 
 The run gets the same fields as a Gmail
 run, with `labels` holding the message's categories and `mailbox` the shared
@@ -1159,7 +1187,8 @@ topic only inside a forum topic.
 
 A **Send a message** step added after a **Channel message** trigger starts as the
 trigger's bot, with `channel_id` and `thread_id` bound, when the two platforms match. A
-bot's messages start one workflow at most, and listening to a bot needs `channels:manage`.
+bot's messages start one workflow at most, and listening to a bot needs `channels:manage`, checked again
+at every message: once the publisher loses it, the bot's own agent answers instead.
 A voice note arrives as its transcript; other attachments are not handed on. See
 [trigger.channel_message](reference/workflow-nodes.md#trigger-channel-message).
 
