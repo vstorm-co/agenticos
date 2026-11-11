@@ -6491,6 +6491,8 @@
     "approvalForGroup": "{group} için onay",
     "approvalRunFreely": "Serbestçe çalıştır",
     "approvalAskFirst": "Önce sor",
+    "approvalForTool": "{tool} için önce sor",
+    "approvalPerTool": "Tool bazında",
     "connectAnotherOwn": "Başka hesap bağla",
     "ownAccountMain": "Ana hesap",
     "ownAccountPrefix": "Tool'ları {prefix} ile başlar",

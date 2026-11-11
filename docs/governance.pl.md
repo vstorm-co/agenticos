@@ -1,5 +1,5 @@
 ---
-source_sha: "246a8fe6bac4"
+source_sha: "b373de64c03d"
 ---
 
 # Governance { #governance }
@@ -670,7 +670,8 @@ Kolejna publikacja może zawęzić dostęp, ale nie dodaje kont, narzędzi ani �
 nie podmienia konta zatwierdzonego dla obserwacji.
 
 Każdy przegląd jest zwykłym runem **proactive**, przypisanym rzeczywistemu
-agentowi i wersji. Narzędzia źródła muszą mieć `readOnlyHint`. Obserwacja dopuszcza
+agentowi i wersji. Narzędzia źródła muszą mieć `readOnlyHint`, a odczyt, przed
+którym pyta powiązanie MCP agenta, zostaje pominięty w przeglądzie. Obserwacja dopuszcza
 zatwierdzone konto, wiedzę/kontekst, guardrails, planowanie i przypomnienia
 systemowe; nie udostępnia sieci, sandboxa, wykonywalnych skills, zapisu pamięci
 ani delegacji. Wymagane interaktywne zgody blokują konfigurację zamiast zostać

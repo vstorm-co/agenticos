@@ -766,6 +766,8 @@
     "approvalForGroup": "Freigabe: {group}",
     "approvalRunFreely": "Ohne Rückfrage",
     "approvalAskFirst": "Erst fragen",
+    "approvalForTool": "Erst fragen: {tool}",
+    "approvalPerTool": "Pro Tool",
     "connectAnotherOwn": "Weiteres Konto verbinden",
     "ownAccountMain": "Haupt",
     "ownAccountPrefix": "Seine Tools beginnen mit {prefix}",
