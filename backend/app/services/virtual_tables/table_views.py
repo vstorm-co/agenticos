@@ -37,7 +37,7 @@ from app.core.permissions import AuthContext, Perm, Scope
 from app.db.models.table_view import TableView
 from app.db.models.virtual_table import VirtualTable
 from app.db.updates import writable
-from app.repositories import table_view_repo
+from app.repositories import table_view_repo, virtual_table_repo
 from app.schemas.table_view import (
     TableViewConfig,
     TableViewCreate,
@@ -97,20 +97,29 @@ async def table_view_dependents(
     view still uses does.
 
     That is the caller's own views, plus the shared ones for a caller whose
-    `tables:edit` scope is `ALL`. Any other view would block them with nothing they
-    could do about it - and another member's private view would name a row they may
-    not know exists (`_visible_view` answers 404 for it) - so it is left to drop the
-    archived column when read (`_live_config`).
+    `tables:edit` scope is `ALL`, and a task board's default view for whoever may
+    change the board - the same views `_changeable_view` lets them change. Any other
+    view would block them with nothing they could do about it - and another member's
+    private view would name a row they may not know exists (`_visible_view` answers
+    404 for it) - so it is left to drop the archived column when read (`_live_config`).
     """
     if column_ids is None:
         return []
+    from app.services.task_access import manages_table
+
+    table = await virtual_table_repo.get_table(db, table_id, organization_id=organization_id)
+    default_view_id = table.default_view_id if table is not None else None
+    board = await manages_table(db, caller, table_id) if default_view_id is not None else None
     views = await table_view_repo.list_visible(
         db, organization_id=organization_id, table_id=table_id, user_id=caller.subject_id
     )
     return [
         Dependent(kind="table_view", id=view.id, name=view.name)
         for view in views
-        if _may_manage(caller, view) and _referenced_column_ids(view.config) & column_ids
+        if (
+            board if board is not None and view.id == default_view_id else _may_manage(caller, view)
+        )
+        and _referenced_column_ids(view.config) & column_ids
     ]
 
 

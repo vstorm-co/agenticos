@@ -1600,3 +1600,71 @@ async def test_a_group_lead_changes_the_board_default_view_someone_else_saved(
             saver_ctx, board.table_id, table.default_view_id, TableViewUpdate(name="Mine")
         )
     await views.delete_view(lead, board.table_id, table.default_view_id)
+
+
+async def test_a_group_lead_is_told_the_board_default_view_uses_a_column_they_archive(
+    db: AsyncSession,
+) -> None:
+    from app.schemas.table_view import TableViewConfig, TableViewUpdate
+    from app.schemas.virtual_table import RecordSort
+    from app.services.virtual_tables import TableViewService
+    from app.services.virtual_tables.exceptions import SchemaDependencyError
+
+    data = await world(db)
+    lead = await _as_member(db, data)
+    saver = User(email=f"{uuid4()}@example.com", hashed_password="x", full_name="Saver")
+    db.add(saver)
+    await db.flush()
+    db.add(OrganizationMember(organization_id=data.org.id, user_id=saver.id, role="member"))
+    group = Group(organization_id=data.org.id, name="Ops")
+    db.add(group)
+    await db.flush()
+    db.add_all(
+        [
+            GroupMember(group_id=group.id, user_id=data.users[1].id, is_lead=True),
+            GroupMember(group_id=group.id, user_id=saver.id, is_lead=False),
+        ]
+    )
+    await db.flush()
+    saver_ctx = AuthContext(user_id=saver.id, organization_id=data.org.id, role="member")
+    board = await TaskService(db).open_board(
+        saver_ctx, BoardEnsure(scope="group", scope_id=group.id)
+    )
+    tables = VirtualTableService(db)
+    table = await tables.describe_table(lead, board.table_id)
+    current = [ColumnInput.model_validate(column.model_dump()) for column in table.columns]
+    table = await tables.update_schema(
+        lead,
+        board.table_id,
+        SchemaUpdate(
+            expected_version=table.schema_version,
+            columns=[*current, ColumnInput(label="Priority", type="text")],
+        ),
+    )
+    priority = next(column for column in table.columns if column.label == "Priority")
+    assert table.default_view_id is not None
+    await TableViewService(db).update_view(
+        lead,
+        board.table_id,
+        table.default_view_id,
+        TableViewUpdate(
+            config=TableViewConfig(
+                group_by=table.columns[1].id, sort=RecordSort(by=str(priority.id))
+            )
+        ),
+    )
+
+    with pytest.raises(SchemaDependencyError):
+        await tables.update_schema(
+            lead,
+            board.table_id,
+            SchemaUpdate(
+                expected_version=table.schema_version,
+                columns=[
+                    ColumnInput.model_validate(
+                        {**column.model_dump(), "archived": column.id == priority.id}
+                    )
+                    for column in table.columns
+                ],
+            ),
+        )
