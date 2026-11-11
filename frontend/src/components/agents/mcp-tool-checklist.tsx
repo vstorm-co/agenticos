@@ -48,8 +48,7 @@ export function asksFirst(
   approval: McpApproval,
   toolApproval: McpToolApproval,
 ): boolean {
-  const own = toolApproval[tool.name];
-  if (own !== undefined) return own === "required";
+  if (Object.hasOwn(toolApproval, tool.name)) return toolApproval[tool.name] === "required";
   return approval === "all" || (approval === "writes" && tool.read_only !== true);
 }
 

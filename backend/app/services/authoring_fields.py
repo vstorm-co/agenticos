@@ -279,7 +279,9 @@ def apply(spec: AgentSpec, path: str, op: str, base: Any, new: Any) -> AgentSpec
             # says that each write it adds asks first (#2884).
             if own := server.get("tool_approval"):
                 server["tool_approval"] = {
-                    tool: mode for tool, mode in own.items() if mode != "never" or tool in base
+                    tool: mode
+                    for tool, mode in own.items()
+                    if mode != "never" or tool in base or (new is not None and tool not in new)
                 }
     elif op == FieldOp.ADD.value:
         if _index(document, address, new) is not None:

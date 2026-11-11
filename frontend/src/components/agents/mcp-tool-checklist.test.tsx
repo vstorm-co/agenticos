@@ -250,6 +250,18 @@ describe("asksFirst", () => {
   const write = { name: "delete", description: "" };
   const read = { name: "search", description: "", read_only: true };
 
+  it.each(["constructor", "toString", "__proto__"])(
+    "ignores inherited properties when the tool is named %s",
+    (name) => {
+      const tool = { name, description: "" };
+      expect(asksFirst(tool, "writes", {})).toBe(true);
+      expect(asksFirst(tool, "all", {})).toBe(true);
+      expect(asksFirst(tool, "none", {})).toBe(false);
+      expect(asksFirst(tool, "writes", { [name]: "never" })).toBe(false);
+      expect(asksFirst(tool, "none", { [name]: "required" })).toBe(true);
+    },
+  );
+
   it("lets a tool's own approval win over the policy and the server's hint", () => {
     expect(asksFirst(write, "writes", { delete: "never" })).toBe(false);
     expect(asksFirst(read, "none", { search: "required" })).toBe(true);
