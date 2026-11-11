@@ -1,5 +1,5 @@
 ---
-source_sha: "7d01a8aa1f37"
+source_sha: "3c8dcd5646af"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -487,7 +487,7 @@ El objeto `display` conserva `column_order`, `hidden_system_columns`, `wrap_text
 |---|---|
 | `kind` | `table`, `kanban` o `list` - una vista se guarda *para* un tipo |
 | `visibility` | `private` (solo su propietario) o `shared` (cualquiera que vea la tabla) |
-| `can_manage` | Si este llamante puede renombrarla, reconfigurarla o compartirla |
+| `can_manage` | Si este llamante puede renombrarla o reconfigurarla; solo su propietario la comparte |
 | `can_delete` | Si este llamante puede borrarla |
 
 Listar, leer y borrar se resuelven contra la tabla (`tables:view`); crear o cambiar

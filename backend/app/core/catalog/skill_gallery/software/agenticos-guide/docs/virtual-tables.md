@@ -462,7 +462,7 @@ presentation. An explicitly empty `visible_columns: []` hides all custom columns
 |---|---|
 | `kind` | `table`, `kanban` or `list` - a view is saved *for* one kind |
 | `visibility` | `private` (only its owner) or `shared` (anyone who can see the table) |
-| `can_manage` | Whether this caller may rename, reconfigure or reshare it |
+| `can_manage` | Whether this caller may rename or reconfigure it; only its owner reshares it |
 | `can_delete` | Whether this caller may delete it |
 
 Listing, reading and deleting resolve against the table (`tables:view`); creating
