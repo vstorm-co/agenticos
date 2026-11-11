@@ -10704,3 +10704,50 @@ class TestTheCurrentVersionsCap:
             is own
         )
         caps.assert_not_awaited()
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("owners", [{None}, {"delegate-a"}, {"delegate-b"}, {None, "delegate-a"}])
+def test_native_approval_catalogs_do_not_confuse_ids_reused_by_another_owner(
+    owners: set[str | None],
+) -> None:
+    from pydantic import JsonValue, TypeAdapter
+
+    from app.services.agent_runner import DelegationFrame, _native_approval_tools
+
+    def messages(name: str) -> list[dict[str, JsonValue]]:
+        return TypeAdapter(list[dict[str, JsonValue]]).validate_json(
+            ModelMessagesTypeAdapter.dump_json(
+                [ModelResponse(parts=[ToolCallPart(name, {}, tool_call_id="reused-provider-id")])]
+            )
+        )
+
+    names = {None: "root_write", "delegate-a": "delegate_write", "delegate-b": "nested_write"}
+    approval_owners = {f"approval-{owner}": owner for owner in owners}
+    state = PausedRunState(
+        messages=messages(names[None]),
+        tool_call_ids=dict.fromkeys(approval_owners, "reused-provider-id"),
+        delegated_approvals={
+            key: owner for key, owner in approval_owners.items() if owner is not None
+        },
+        delegations=[
+            DelegationFrame(
+                tool_call_id="task-a",
+                task_id="delegate-a",
+                subagent="first",
+                messages=messages(names["delegate-a"]),
+                delegations=[
+                    DelegationFrame(
+                        tool_call_id="task-b",
+                        task_id="delegate-b",
+                        subagent="second",
+                        messages=messages(names["delegate-b"]),
+                    )
+                ],
+            )
+        ],
+    )
+    assert _native_approval_tools(state) == {
+        owner: frozenset({name}) if owner in owners else frozenset()
+        for owner, name in names.items()
+    }

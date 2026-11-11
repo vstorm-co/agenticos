@@ -63,7 +63,12 @@ from app.repositories import (
 )
 from app.services.model_profile import ModelProfileService
 from app.services.run_heartbeat import run_heartbeat
-from app.services.spend import month_start, organization_monthly_spend
+from app.services.spend import (
+    budget_window,
+    month_start,
+    organization_monthly_spend,
+    organization_spend_since,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -213,6 +218,7 @@ class ProactiveThinker:
                 extra={"organization_id": str(ctx.organization_id), "agent_id": str(agent.id)},
             )
             return None
+        started = started_at or datetime.now(UTC)
         run = await agent_run_repo.create_run(
             self.db,
             organization_id=ctx.organization_id,
@@ -226,10 +232,10 @@ class ProactiveThinker:
             model_label=request.label,
             provider=request.provider,
             secret_id=request.secret_id,
-            started_at=started_at or datetime.now(UTC),
+            started_at=started,
             system_role=_ROLE_OF.get(feature),
         )
-        limits = await self._limits(ctx, feature, agent, run_id=run.id)
+        limits = await self._limits(ctx, feature, agent, run_id=run.id, started_at=started)
         # Committed before the provider is called, as the other run paths do: a
         # worker killed mid-call must leave a run behind, or the spend check and
         # `last_nightly_run_at` never learn the call was made.
@@ -292,7 +298,13 @@ class ProactiveThinker:
                 raise asyncio.CancelledError
 
     async def _limits(
-        self, ctx: AuthContext, feature: ProactiveFeature, agent: AgentRow, *, run_id: UUID
+        self,
+        ctx: AuthContext,
+        feature: ProactiveFeature,
+        agent: AgentRow,
+        *,
+        run_id: UUID,
+        started_at: datetime,
     ) -> list[SpendLimit]:
         """Every limit each of the run's model requests is checked against, narrowest first.
 
@@ -301,7 +313,7 @@ class ProactiveThinker:
         of its own, so no connection is held across the model calls.
         `allowance` decides whether the run may start; these stop it once it
         reaches a limit midway. The feature's own monthly limit is what is left
-        of it now, the agent's is its current published version's - the run
+        in the month it started, the agent's is its current published version's - the run
         counts towards that agent's month - and the organization's applies to
         all of it. A department's does not: these runs count towards none.
         """
@@ -309,7 +321,8 @@ class ProactiveThinker:
         if organization is None:
             return []
         limits: list[SpendLimit] = []
-        left = await self._feature_left(ctx, feature, organization)
+        since, until = budget_window(started_at)
+        left = await self._feature_left(ctx, feature, organization, since=since, until=until)
         if left is not None:
             limits.append(SpendLimit(scope=BudgetScope.RUN, limit_usd=left))
         if agent.current_version_id is not None:
@@ -324,7 +337,8 @@ class ProactiveThinker:
                         return await agent_run_repo.sum_cost_since(
                             db,
                             organization_id=ctx.organization_id,
-                            since=month_start(),
+                            since=since,
+                            until=until,
                             agent_id=agent.id,
                             include_delegations=True,
                             exclude_run_id=run_id,
@@ -341,8 +355,8 @@ class ProactiveThinker:
 
             async def organization_spend() -> Decimal:
                 async with get_worker_db_context() as db:
-                    return await organization_monthly_spend(
-                        db, ctx.organization_id, exclude_run_id=run_id
+                    return await organization_spend_since(
+                        db, ctx.organization_id, since=since, until=until, exclude_run_id=run_id
                     )
 
             limits.append(
@@ -355,9 +369,15 @@ class ProactiveThinker:
         return limits
 
     async def _feature_left(
-        self, ctx: AuthContext, feature: ProactiveFeature, organization: Organization
+        self,
+        ctx: AuthContext,
+        feature: ProactiveFeature,
+        organization: Organization,
+        *,
+        since: datetime,
+        until: datetime,
     ) -> Decimal | None:
-        """What this month's limit for `feature` has left, or `None` when it has none."""
+        """What the starting month's limit for `feature` has left, or `None` when it has none."""
         if feature == "maintenance":
             profile = await system_agent_repo.get(
                 self.db, organization_id=ctx.organization_id, role=MEMORY_MAINTENANCE
@@ -368,7 +388,8 @@ class ProactiveThinker:
                 self.db,
                 organization_id=ctx.organization_id,
                 role=MEMORY_MAINTENANCE,
-                since=month_start(),
+                since=since,
+                until=until,
             )
             return profile.monthly_budget_usd - used
         if ctx.user_id is None:
@@ -377,7 +398,8 @@ class ProactiveThinker:
             self.db,
             organization_id=ctx.organization_id,
             user_id=ctx.user_id,
-            since=month_start(),
+            since=since,
+            until=until,
         )
         return organization.proactive_limit_usd - mine
 

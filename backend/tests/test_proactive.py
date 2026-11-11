@@ -209,7 +209,7 @@ class TestTheLimitsMidway:
                 new=AsyncMock(return_value=Decimal(agent_spent)),
             ),
             patch(
-                f"{THINKER}.organization_monthly_spend",
+                f"{THINKER}.organization_spend_since",
                 new=AsyncMock(return_value=Decimal(org_spent)),
             ),
         )
@@ -239,7 +239,12 @@ class TestTheLimitsMidway:
         )
         with org, proactive, caps, agent_total as agent_spend, org_total as org_spend:
             limits = await _LIMITS_MIDWAY(
-                ProactiveThinker(MagicMock()), _ctx(), "nightly", _agent(), run_id=run_id
+                ProactiveThinker(MagicMock()),
+                _ctx(),
+                "nightly",
+                _agent(),
+                run_id=run_id,
+                started_at=datetime.now(UTC),
             )
             spent = [await limit.period_spend() if limit.period_spend else None for limit in limits]
 
@@ -258,7 +263,12 @@ class TestTheLimitsMidway:
         org, proactive, caps, agent_total, org_total = self._repos(organization=_organization("1"))
         with org, proactive, caps, agent_total, org_total:
             limits = await _LIMITS_MIDWAY(
-                ProactiveThinker(MagicMock()), _ctx(), "nightly", _agent(), run_id=uuid.uuid4()
+                ProactiveThinker(MagicMock()),
+                _ctx(),
+                "nightly",
+                _agent(),
+                run_id=uuid.uuid4(),
+                started_at=datetime.now(UTC),
             )
 
         assert [limit.scope.value for limit in limits] == ["run"]
@@ -280,13 +290,30 @@ class TestTheLimitsMidway:
             ),
         ):
             unpublished = await _LIMITS_MIDWAY(
-                thinker, nobody, "nightly", _agent(published=False), run_id=uuid.uuid4()
+                thinker,
+                nobody,
+                "nightly",
+                _agent(published=False),
+                run_id=uuid.uuid4(),
+                started_at=datetime.now(UTC),
             )
             unbudgeted = await _LIMITS_MIDWAY(
-                thinker, _ctx(), "maintenance", _agent(published=False), run_id=uuid.uuid4()
+                thinker,
+                _ctx(),
+                "maintenance",
+                _agent(published=False),
+                run_id=uuid.uuid4(),
+                started_at=datetime.now(UTC),
             )
         with patch(f"{THINKER}.organization_repo.get_by_id", new=AsyncMock(return_value=None)):
-            gone = await _LIMITS_MIDWAY(thinker, _ctx(), "nightly", _agent(), run_id=uuid.uuid4())
+            gone = await _LIMITS_MIDWAY(
+                thinker,
+                _ctx(),
+                "nightly",
+                _agent(),
+                run_id=uuid.uuid4(),
+                started_at=datetime.now(UTC),
+            )
 
         assert (unpublished, unbudgeted, gone) == ([], [], [])
 
@@ -306,7 +333,12 @@ class TestTheLimitsMidway:
             ),
         ):
             limits = await _LIMITS_MIDWAY(
-                ProactiveThinker(MagicMock()), _ctx(), "maintenance", _agent(), run_id=uuid.uuid4()
+                ProactiveThinker(MagicMock()),
+                _ctx(),
+                "maintenance",
+                _agent(),
+                run_id=uuid.uuid4(),
+                started_at=datetime.now(UTC),
             )
 
         assert [(limit.scope.value, limit.limit_usd) for limit in limits] == [
@@ -315,6 +347,48 @@ class TestTheLimitsMidway:
 
 
 class TestThinking:
+    async def test_a_background_run_checks_the_closed_month_it_started_in(self, monkeypatch):
+        started = datetime(2026, 10, 31, 23, 59, tzinfo=UTC)
+        since = datetime(2026, 10, 1, tzinfo=UTC)
+        until = datetime(2026, 11, 1, tzinfo=UTC)
+        monkeypatch.setattr(ProactiveThinker, "_limits", _LIMITS_MIDWAY)
+
+        @asynccontextmanager
+        async def opened():
+            yield MagicMock()
+
+        monkeypatch.setattr(_thinker, "get_worker_db_context", opened)
+        get_slug, allowance, version, profiles, create, finish = self._patches(TestModel())
+        org, proactive, caps, agent_total, org_total = TestTheLimitsMidway._repos(
+            organization=_organization("1", "50"), agent_cap=5.0
+        )
+        with (
+            get_slug,
+            allowance,
+            version,
+            profiles,
+            create as create_run,
+            finish,
+            org,
+            proactive as feature_spend,
+            caps,
+            agent_total as agent_spend,
+            org_total as org_spend,
+        ):
+            create_run.return_value.started_at = started
+            answer = await ProactiveThinker(_session()).think(
+                _ctx(),
+                feature="nightly",
+                output_type=NightlyReading,
+                instructions="Read.",
+                prompt="{}",
+                started_at=started,
+            )
+        assert isinstance(answer, NightlyReading)
+        for lookup in (feature_spend, agent_spend, org_spend):
+            assert lookup.await_args.kwargs["since"] == since
+            assert lookup.await_args.kwargs["until"] == until
+
     @pytest.fixture(autouse=True)
     def recorded_manifest(self, monkeypatch):
         record = AsyncMock()

@@ -1485,6 +1485,27 @@ class _ResumePlan:
     """
 
 
+def _native_approval_tools(state: PausedRunState) -> dict[str | None, frozenset[str]]:
+    """Keep each owner's already parked native calls out of its script catalog."""
+    pending_ids: dict[str | None, set[str]] = {}
+    for approval_id, call_id in state.tool_call_ids.items():
+        pending_ids.setdefault(state.delegated_approvals.get(approval_id), set()).add(call_id)
+    native_tools: dict[str | None, frozenset[str]] = {}
+
+    def collect(owner: str | None, history: object, frames: list[DelegationFrame]) -> None:
+        native_tools[owner] = frozenset(
+            part.tool_name
+            for message in ModelMessagesTypeAdapter.validate_python(history)
+            for part in message.parts
+            if isinstance(part, ToolCallPart) and part.tool_call_id in pending_ids.get(owner, set())
+        )
+        for frame in frames:
+            collect(frame.task_id, frame.messages, frame.delegations)
+
+    collect(None, state.messages, state.delegations)
+    return native_tools
+
+
 def _resume_plan(state: PausedRunState, decided_args: Mapping[str, dict[str, Any]]) -> _ResumePlan:
     """Split a parked run's verdicts across the agents that were waiting on them.
 
@@ -7470,22 +7491,7 @@ class AgentRunnerService:
         prepared.built.deps.conversation_task_id = state.admitted_as.conversation_task_id
         prepared.built.deps.generated_files.update(state.generated_files)
         prepared.built.deps.code_continuations.checkpoints.update(state.code_checkpoints)
-        pending_ids = set(state.tool_call_ids.values())
-        native_tools = prepared.built.deps.code_continuations.native_tools
-
-        def collect_native_tools(
-            owner: str | None, history: object, frames: list[DelegationFrame]
-        ) -> None:
-            native_tools[owner] = frozenset(
-                part.tool_name
-                for message in ModelMessagesTypeAdapter.validate_python(history)
-                for part in message.parts
-                if isinstance(part, ToolCallPart) and part.tool_call_id in pending_ids
-            )
-            for frame in frames:
-                collect_native_tools(frame.task_id, frame.messages, frame.delegations)
-
-        collect_native_tools(None, state.messages, state.delegations)
+        prepared.built.deps.code_continuations.native_tools = _native_approval_tools(state)
         if can_ask:
             prepared.built.deps.ask_questions = park_the_question
             prepared.built.deps.parks_questions = True

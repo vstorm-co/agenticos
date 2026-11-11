@@ -243,6 +243,47 @@ class TestSuggestions:
 
 
 class TestBackgroundSpend:
+    @pytest.mark.parametrize("role", [None, "memory_maintenance"])
+    async def test_a_closed_budget_month_excludes_the_next_month(self, db, role) -> None:
+        user = await _person(db)
+        org = await _organization(db, user)
+        agent = await _agent(db, org)
+        since = datetime(2026, 10, 1, tzinfo=UTC)
+        until = datetime(2026, 11, 1, tzinfo=UTC)
+        for started_at, cost in (
+            (since - timedelta(microseconds=1), "9"),
+            (since, "0.10"),
+            (until - timedelta(microseconds=1), "0.20"),
+            (until, "8"),
+        ):
+            await _run(
+                db,
+                org,
+                agent,
+                user,
+                surface=RunSurface.PROACTIVE,
+                cost=cost,
+                started_at=started_at,
+                system_role=role,
+            )
+        if role is None:
+            spent = await agent_run_repo.proactive_spend_since(
+                db,
+                organization_id=org.id,
+                user_id=user.id,
+                since=since,
+                until=until,
+            )
+        else:
+            spent = await agent_run_repo.role_spend_since(
+                db,
+                organization_id=org.id,
+                role=role,
+                since=since,
+                until=until,
+            )
+        assert spent == Decimal("0.30")
+
     async def test_only_the_persons_background_runs_this_month_count(self, db) -> None:
         user = await _person(db)
         other = await _person(db)

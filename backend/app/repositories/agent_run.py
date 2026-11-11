@@ -1060,18 +1060,24 @@ def _counts_for_a_department() -> list[ColumnElement[bool]]:
 
 
 async def proactive_spend_since(
-    db: AsyncSession, *, organization_id: UUID, user_id: UUID, since: datetime
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    since: datetime,
+    until: datetime | None = None,
 ) -> Decimal:
-    """What the platform spent on one person's background work here since `since` (#2301)."""
-    result = await db.execute(
-        select(func.coalesce(func.sum(AgentRun.cost_usd), 0)).where(
-            AgentRun.organization_id == organization_id,
-            AgentRun.user_id == user_id,
-            AgentRun.surface == RunSurface.PROACTIVE.value,
-            _in_proactivity_limit(),
-            AgentRun.started_at >= since,
-        )
+    """What the platform spent on one person's background work here since `since`, before optional `until` (#2301)."""
+    query = select(func.coalesce(func.sum(AgentRun.cost_usd), 0)).where(
+        AgentRun.organization_id == organization_id,
+        AgentRun.user_id == user_id,
+        AgentRun.surface == RunSurface.PROACTIVE.value,
+        _in_proactivity_limit(),
+        AgentRun.started_at >= since,
     )
+    if until is not None:
+        query = query.where(AgentRun.started_at < until)
+    result = await db.execute(query)
     return Decimal(result.scalar_one())
 
 
@@ -1086,16 +1092,22 @@ def _in_proactivity_limit() -> Any:
 
 
 async def role_spend_since(
-    db: AsyncSession, *, organization_id: UUID, role: str, since: datetime
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    role: str,
+    since: datetime,
+    until: datetime | None = None,
 ) -> Decimal:
-    """What one system role spent in this organization since `since`."""
-    result = await db.execute(
-        select(func.coalesce(func.sum(AgentRun.cost_usd), 0)).where(
-            AgentRun.organization_id == organization_id,
-            AgentRun.system_role == role,
-            AgentRun.started_at >= since,
-        )
+    """What one system role spent in this organization since `since`, before optional `until`."""
+    query = select(func.coalesce(func.sum(AgentRun.cost_usd), 0)).where(
+        AgentRun.organization_id == organization_id,
+        AgentRun.system_role == role,
+        AgentRun.started_at >= since,
     )
+    if until is not None:
+        query = query.where(AgentRun.started_at < until)
+    result = await db.execute(query)
     return Decimal(result.scalar_one())
 
 
