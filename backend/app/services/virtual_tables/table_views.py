@@ -479,11 +479,8 @@ class TableViewOperations(Operations):
         """
         board = await self._board_manager(ctx, table) if view_id == table.default_view_id else None
         if board:
-            view = await table_view_repo.get(
-                self.db, organization_id=ctx.organization_id, view_id=view_id
-            )
-            if view is not None and view.table_id == table.id:
-                return view, True
+            # A default view is always shared, so visible to whoever may change the board.
+            return await self._visible_view(ctx, table.id, view_id), True
         view = await self._manageable_view(ctx, table.id, view_id)
         if board is False:
             await self._ensure_manages_board(ctx, table)
