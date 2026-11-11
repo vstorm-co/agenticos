@@ -463,6 +463,41 @@ class TestTheRequest:
         assert isinstance(refused, Failed) and refused.error.message == "No model selected"
         assert isinstance(broken, Failed) and "sk-123" not in broken.error.message
 
+    @pytest.mark.parametrize(
+        "raised",
+        [RuntimeError("provider down"), BadRequestError(message="The answer broke its shape")],
+    )
+    async def test_a_run_that_spent_and_then_raised_still_books_what_it_spent(
+        self, runner, monkeypatch, raised
+    ):
+        """The runner commits a failed run's cost before it raises; the step owes it too."""
+        owned = AsyncMock()
+        monkeypatch.setattr(_model_step.questions, "own_agent_run", owned)
+        child = self._run_row(RunStatus.FAILED, cost="0.02")
+
+        async def spend_then_raise(*_args, on_run_open, **_kwargs):
+            await on_run_open(child)
+            raise raised
+
+        runner.execute.side_effect = spend_then_raise
+        config = prompt.AiPromptConfig(model_profile_id=MODEL)
+
+        with context.dispatching_as(_dispatch()) as scope:
+            answer = await _model_step.ask(config, AgentSpec(name="x"), "go")
+
+        assert isinstance(answer, Failed)
+        assert scope.cost == Decimal("0.02")
+        assert owned.await_args.args[2] is child
+
+    async def test_a_run_that_never_opened_books_nothing(self, runner):
+        runner.execute.side_effect = RuntimeError("provider down")
+        config = prompt.AiPromptConfig(model_profile_id=MODEL)
+
+        with context.dispatching_as(_dispatch()) as scope:
+            await _model_step.ask(config, AgentSpec(name="x"), "go")
+
+        assert scope.cost == Decimal(0)
+
     @pytest.mark.security
     async def test_a_refused_chat_source_stops_a_model_step(self, runner, monkeypatch):
         from app.repositories import conversation_repo

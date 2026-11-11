@@ -228,6 +228,7 @@ from app.agents.routine_actions import RoutineToolCheck
 from app.agents.routine_authority import RoutineCheck, guard_for
 from app.agents.spec import (
     AgentSpec,
+    BudgetSpec,
     CapabilityBindingSpec,
     ExternalAgentRef,
     McpServerRef,
@@ -3582,8 +3583,9 @@ class AgentRunnerService:
 
         Args:
             source_run: A run whose frozen spec an auxiliary call uses.
-                Current access is still checked; its original instructions, budgets
-                and tracing policy cannot drift to a newly published version.
+                Current access and the current published budget still apply; its
+                original instructions and tracing policy cannot drift to a newly
+                published version.
             aside: A question asked on the side of a run still working (#2087):
                 answered from the conversation alone, with the agent's tools,
                 knowledge, servers and delegates taken away - see `_answer_only`.
@@ -3950,6 +3952,11 @@ class AgentRunnerService:
         system = agent.kind != AgentKind.AGENT.value
         if system:
             spec = for_the_platform(spec)
+        spec = await self._with_current_budget(
+            agent,
+            spec,
+            version_id=version_id if existing_run is None else existing_run.agent_version_id,
+        )
         routine = await RoutineAuthority.capture(
             self.db, ctx, agent_id=agent.id, run=existing_run, version_id=version_id
         )
@@ -6686,12 +6693,18 @@ class AgentRunnerService:
         are not the run's - its spend is the starter's, and the starter's caps
         hold it. Departments are a person's, not a role's, so the run's own
         person and flags are enough. `None` where no member started the run:
-        nobody's to begin with, or fired by a routine, which a fresh run tells
-        apart by its flags.
+        nobody's to begin with, fired by a routine - a deleted one's included,
+        whose `trigger_id` is cleared - or background work for a person, which
+        a fresh run tells apart by its flags.
         """
         if existing_run is None:
             return ctx
-        if existing_run.user_id is None or existing_run.trigger_id is not None:
+        if (
+            existing_run.user_id is None
+            or existing_run.trigger_id is not None
+            or existing_run.routine_origin_id is not None
+            or existing_run.surface == RunSurface.PROACTIVE.value
+        ):
             return None
         return replace(
             ctx,
@@ -8089,6 +8102,25 @@ class AgentRunnerService:
         if spent < trigger.monthly_budget_usd:
             return None
         return RoutineBudgetSpent(limit_usd=trigger.monthly_budget_usd, spent_usd=spent)
+
+    async def _with_current_budget(
+        self, agent: Agent, spec: AgentSpec, *, version_id: UUID | None
+    ) -> AgentSpec:
+        """`spec` held to the monthly cap of the agent's current published version.
+
+        A pinned version - a routine's, an environment's, a workflow step's, a
+        parked run's - decides how the agent behaves, not what it may spend, so a
+        limit published since binds every version that runs. An agent never
+        published keeps its own spec's cap: a draft under test has nothing else.
+        """
+        current = agent.current_version_id
+        if current is None or current == version_id:
+            return spec
+        cap = (await agent_repo.published_budget_caps(self.db, version_ids=[current])).get(current)
+        budget = None if cap is None else BudgetSpec(monthly_usd=cap)
+        if budget == spec.budget:
+            return spec
+        return spec.model_copy(update={"budget": budget})
 
     async def _parked_spec(self, ctx: AuthContext, run: AgentRun) -> tuple[Agent, AgentSpec]:
         """The agent and the exact spec version this run was executing.
