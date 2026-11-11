@@ -435,15 +435,9 @@ setup("a colleague is a member of the organization", async ({ page, browser }) =
   const token = await ensurePendingInvitation(page, organizationId);
   await acceptAsColleague(browser, token);
 
-  // `acceptAsColleague` returns only once the colleague's own screen says they
-  // joined, so the server has answered 204 before this line. Since #353 that
-  // does mean the membership row is readable; before it, the acceptance
-  // committed *after* the response went out, which is what this step lost to.
-  //
-  // This step used to read the list once and assert on it. It was the only one
-  // in the file that did: #222 converted four call sites to `nowThere` and did
-  // not reach this one, which is why this is the step that turns a fixture
-  // project red and takes all eighty-seven product specs with it (#335).
+  // Acceptance navigates to onboarding, so its success text may disappear
+  // before Playwright observes it. The response acknowledges the write; this
+  // poll proves the member exists independently of the screen's navigation.
   await nowThere(page, membersPath, "email", COLLEAGUE_EMAIL);
 });
 
@@ -602,8 +596,16 @@ async function acceptAsColleague(
   try {
     const colleague = await context.newPage();
     await colleague.goto(`/invitations/${token}`);
+    const accepted = colleague.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === `/api/invitations/${token}` &&
+        response.request().method() === "POST" &&
+        response.status() !== 401,
+    );
     await colleague.getByRole("button", { name: "Accept invitation" }).click();
-    await expect(colleague.getByText("You joined the organization!")).toBeVisible();
+    const response = await accepted;
+    expect(response.ok(), `accepting the invitation answered ${response.status()}`).toBe(true);
+    await expect(colleague).toHaveURL(/\/onboarding(?:\?|$)/);
   } finally {
     await context.close();
   }

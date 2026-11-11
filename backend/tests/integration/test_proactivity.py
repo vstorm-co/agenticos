@@ -243,6 +243,7 @@ class TestSuggestions:
 
 
 class TestBackgroundSpend:
+    @pytest.mark.security
     @pytest.mark.parametrize("role", [None, "memory_maintenance"])
     async def test_a_closed_budget_month_excludes_the_next_month(self, db, role) -> None:
         user = await _person(db)
