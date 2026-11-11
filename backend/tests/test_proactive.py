@@ -9,6 +9,7 @@ welcome that fails on one platform still greets on the next.
 
 import asyncio
 import uuid
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
@@ -213,8 +214,20 @@ class TestTheLimitsMidway:
             ),
         )
 
+    @pytest.fixture(autouse=True)
+    def own_session(self, monkeypatch):
+        """The spend each limit meters is read on a short session of its own."""
+        session = MagicMock(name="own session")
+
+        @asynccontextmanager
+        async def opened():
+            yield session
+
+        monkeypatch.setattr(_thinker, "get_worker_db_context", opened)
+        return session
+
     async def test_a_briefing_is_held_to_what_is_left_and_to_the_agent_and_the_organization(
-        self,
+        self, own_session
     ):
         run_id = uuid.uuid4()
         org, proactive, caps, agent_total, org_total = self._repos(
@@ -238,6 +251,8 @@ class TestTheLimitsMidway:
         assert spent == [None, Decimal("2"), Decimal("30")]
         assert agent_spend.await_args.kwargs["exclude_run_id"] == run_id
         assert org_spend.await_args.kwargs["exclude_run_id"] == run_id
+        assert agent_spend.await_args.args[0] is own_session
+        assert org_spend.await_args.args[0] is own_session
 
     async def test_an_uncapped_agent_and_organization_add_no_limit_of_their_own(self):
         org, proactive, caps, agent_total, org_total = self._repos(organization=_organization("1"))
@@ -278,6 +293,33 @@ class TestThinking:
         record = AsyncMock()
         monkeypatch.setattr(_thinker.run_manifest_repo, "record", record)
         return record
+
+    async def test_limits_that_cannot_be_read_leave_no_run_behind(self, monkeypatch):
+        """Read before the run is committed, so a failure there is rolled back with it."""
+        monkeypatch.setattr(
+            ProactiveThinker, "_limits", AsyncMock(side_effect=RuntimeError("database gone"))
+        )
+        db = _session()
+        get_slug, limits, version, profiles, create, finish = self._patches(TestModel())
+        with (
+            get_slug,
+            limits,
+            version,
+            profiles,
+            create,
+            finish as finish_run,
+            pytest.raises(RuntimeError, match="database gone"),
+        ):
+            await ProactiveThinker(db).think(
+                _ctx(),
+                feature="nightly",
+                output_type=NightlyReading,
+                instructions="Read.",
+                prompt="{}",
+            )
+
+        db.commit.assert_not_awaited()
+        finish_run.assert_not_awaited()
 
     async def test_a_run_that_reaches_a_limit_midway_stops_there_and_books_what_it_spent(
         self, monkeypatch

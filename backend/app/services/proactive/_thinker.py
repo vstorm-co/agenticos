@@ -53,6 +53,7 @@ from app.db.models.agent import Agent as AgentRow
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.organization import Organization
 from app.db.models.system_agent_profile import DAILY_BRIEFING, MEMORY_MAINTENANCE
+from app.db.session import get_worker_db_context
 from app.repositories import (
     agent_repo,
     agent_run_repo,
@@ -228,11 +229,11 @@ class ProactiveThinker:
             started_at=started_at or datetime.now(UTC),
             system_role=_ROLE_OF.get(feature),
         )
+        limits = await self._limits(ctx, feature, agent, run_id=run.id)
         # Committed before the provider is called, as the other run paths do: a
         # worker killed mid-call must leave a run behind, or the spend check and
         # `last_nightly_run_at` never learn the call was made.
         await self.db.commit()
-        limits = await self._limits(ctx, feature, agent, run_id=run.id)
         usage = RunUsage()
         ledger = SpendLedger(run_id=run.id, agent_id=agent.id, organization_id=ctx.organization_id)
         recorder = RunRecorder()
@@ -295,6 +296,9 @@ class ProactiveThinker:
     ) -> list[SpendLimit]:
         """Every limit each of the run's model requests is checked against, narrowest first.
 
+        Read in the transaction that opens the run, so a failure here leaves no
+        run behind; the spend each limit meters is read later, on a short session
+        of its own, so no connection is held across the model calls.
         `allowance` decides whether the run may start; these stop it once it
         reaches a limit midway. The feature's own monthly limit is what is left
         of it now, the agent's is its current published version's - the run
@@ -316,14 +320,15 @@ class ProactiveThinker:
             if cap is not None:
 
                 async def agent_spend() -> Decimal:
-                    return await agent_run_repo.sum_cost_since(
-                        self.db,
-                        organization_id=ctx.organization_id,
-                        since=month_start(),
-                        agent_id=agent.id,
-                        include_delegations=True,
-                        exclude_run_id=run_id,
-                    )
+                    async with get_worker_db_context() as db:
+                        return await agent_run_repo.sum_cost_since(
+                            db,
+                            organization_id=ctx.organization_id,
+                            since=month_start(),
+                            agent_id=agent.id,
+                            include_delegations=True,
+                            exclude_run_id=run_id,
+                        )
 
                 limits.append(
                     SpendLimit(
@@ -335,9 +340,10 @@ class ProactiveThinker:
         if organization.monthly_budget_usd is not None:
 
             async def organization_spend() -> Decimal:
-                return await organization_monthly_spend(
-                    self.db, ctx.organization_id, exclude_run_id=run_id
-                )
+                async with get_worker_db_context() as db:
+                    return await organization_monthly_spend(
+                        db, ctx.organization_id, exclude_run_id=run_id
+                    )
 
             limits.append(
                 SpendLimit(
