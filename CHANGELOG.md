@@ -59,6 +59,8 @@ Two things are versioned separately from this file and worth knowing about:
   only when the person asks, through approval cards. The dashboard shows
   checks and proposed skill changes waiting on the reader.
 
+## [1.64.2] - 2026-11-11
+
 ### Fixed
 
 - **Two of an agent's tools can no longer share a name.** Pydantic AI aborts a
@@ -21328,7 +21330,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.64.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.64.2...HEAD
+[1.64.2]: https://github.com/vstorm-co/agenticos/compare/v1.64.1...v1.64.2
 [1.64.1]: https://github.com/vstorm-co/agenticos/compare/v1.64.0...v1.64.1
 [1.64.0]: https://github.com/vstorm-co/agenticos/compare/v1.63.0...v1.64.0
 [1.63.0]: https://github.com/vstorm-co/agenticos/compare/v1.62.8...v1.63.0
