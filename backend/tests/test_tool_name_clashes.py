@@ -18,11 +18,16 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.toolsets import FunctionToolset
 
 from app.agents.capabilities import FRAMEWORK_TOOL_NAMES
+from app.agents.computer_on_use import RequestComputerOnUse
+from app.agents.connect_on_use import ConnectionRequest, ConnectOnUse, PendingService
+from app.agents.factory import build_agent
+from app.agents.hand_off import CallWorker
 from app.agents.mcp import TOOL_NAME_LIMIT, LeftOutOnClash, McpServerSpec, _make_toolset
 from app.agents.setup_briefing import SetupBriefing
 from app.agents.spec import AgentSpec, CapabilityBindingSpec
 from app.agents.tool_names import PLATFORM_TOOL_NAMES, taken_tool_names
 from app.services.mcp_connection import presented_tool_names
+from tests.test_agent_spec_and_factory import _model_spec
 from tests.test_mcp_connections import _connection
 
 pytestmark = pytest.mark.anyio
@@ -93,6 +98,79 @@ class TestTheNamesARunHolds:
         spec = AgentSpec(name="Support", capabilities=[CapabilityBindingSpec(id="no-such")])
 
         assert set(taken_tool_names(spec)) == PLATFORM_TOOL_NAMES
+
+
+class TestThePlatformsOwnToolsAreAllListed:
+    """`PLATFORM_TOOL_NAMES` is kept by hand, and this is what keeps it honest.
+
+    A capability's tools are declared in the registry and read from there. The
+    platform's own are not declared anywhere: each is added by its own module,
+    on the surfaces that need it - the setup briefing, connecting an account,
+    asking for the computer, a voice call's hand-off, tool search's own search.
+    One missing from the list is a name an MCP server can take and abort the
+    turn with (#2890). So an agent is built with every one of them switched on,
+    and whatever the model is offered that no capability declares must be on
+    the list. A surface that adds a tool of its own belongs in these builds too.
+    """
+
+    @staticmethod
+    async def _offered(spec: AgentSpec, **extras: object) -> set[str]:
+        """The tool names the model is offered on a turn's first request."""
+        built = build_agent(
+            spec, _model_spec(), organization_id=uuid4(), agent_id=uuid4(), **extras
+        )
+        seen: list[set[str]] = []
+
+        def answer(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            seen.append({tool.name for tool in info.function_tools})
+            return ModelResponse(parts=[TextPart("ok")])
+
+        with built.agent.override(model=FunctionModel(answer)):
+            await built.agent.run("hello", deps=built.deps)
+        return seen[0]
+
+    async def test_every_tool_the_platform_adds_beside_the_capabilities_is_listed(self):
+        async def unused() -> str:
+            return "unreachable"
+
+        server = FunctionToolset([get_objects])
+        surfaces = await self._offered(
+            AgentSpec(name="Support"),
+            extra_toolsets=[
+                server,
+                CallWorker(MagicMock(), workspace=None, capability_names=[]).toolset(),
+            ],
+            extra_capabilities=[
+                ConnectOnUse(
+                    services=[
+                        PendingService(
+                            request=ConnectionRequest(
+                                catalog_key="notion", name="Notion", gap="not_connected"
+                            ),
+                            resolve=unused,
+                        )
+                    ],
+                    request_connection=AsyncMock(return_value=False),
+                ),
+                RequestComputerOnUse(request_access=AsyncMock(return_value=False)),
+            ],
+        )
+        # Tool search defers the server, so its own search is the one tool offered beside it.
+        searching = AgentSpec(
+            name="Support", capabilities=[{"id": "tool_search", "config": {"strategy": "keywords"}}]
+        )
+        search = await self._offered(searching, extra_toolsets=[server])
+        declared = {
+            name
+            for name, holder in taken_tool_names(searching).items()
+            if holder != "this platform"
+        }
+
+        offered = (surfaces | search) - declared - {"get_objects"}
+
+        assert offered - PLATFORM_TOOL_NAMES == set()
+        # Each build did switch its tools on, so an empty difference is not a vacuous one.
+        assert offered == PLATFORM_TOOL_NAMES - FRAMEWORK_TOOL_NAMES
 
 
 class TestTheNamesAConnectionPresents:
