@@ -528,7 +528,13 @@ def test_the_openapi_document_lists_403_on_the_gated_routes_and_only_on_them():
 
     with_403 = {key for key, operation in table_routes.items() if "403" in operation["responses"]}
 
-    assert with_403 == {(prefix, "get"), (prefix, "post")}
+    # The collection's role gate, and resuming a table trigger, which the caller can
+    # already see but may not restart without the right to run its workflow.
+    assert with_403 == {
+        (prefix, "get"),
+        (prefix, "post"),
+        (f"{prefix}/{{table_id}}/triggers/{{trigger_id}}", "patch"),
+    }
     refusal = table_routes[(prefix, "post")]["responses"]["403"]
     assert refusal["content"]["application/json"]["schema"] == {
         "$ref": "#/components/schemas/ErrorEnvelope"
