@@ -1052,7 +1052,8 @@ class DatasetService:
         await hold_subject(self.db, LockScope.PERSONAL_DATA_PER_USER, asked_by)
         if not await user_repo.existing_ids(self.db, [asked_by]):
             raise ConcurrentChangeError(
-                message="Your account is being erased, so nothing was added to the dataset."
+                message="Your account is being erased, so nothing was added to the dataset.",
+                details={"user_id": asked_by},
             )
         run_id, conversation_id = await dataset_repo.hold_case_sources(
             self.db,

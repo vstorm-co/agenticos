@@ -318,15 +318,17 @@ async def test_a_reviewed_case_for_an_account_being_erased_is_refused(db: AsyncS
     _, _, _, ctx = await seed(db)
     dataset = await DatasetService(db).create(ctx, DatasetCreate(name="Decisions"))
 
-    with pytest.raises(ConcurrentChangeError):
+    gone = uuid4()
+    with pytest.raises(ConcurrentChangeError) as refused:
         await DatasetService(db).add_reviewed_case(
             ctx,
             dataset.id,
             DatasetCaseContent(input="Overdue", reference_answer="Ask"),
-            asked_by=uuid4(),
+            asked_by=gone,
             source_run_id=None,
             source_conversation_id=None,
         )
+    assert refused.value.details == {"user_id": gone}
 
 
 async def test_the_source_of_a_reviewed_case_cannot_be_deleted_before_it_is_linked(
