@@ -58,6 +58,9 @@ MAX_OUTPUT_FILES = 20
 MAX_OUTPUT_BYTES = 100_000_000
 MAX_LOG_BYTES = 10_000_000
 LOG_TAIL_CHARS = 4000
+# A refusal from the service goes into the run's error as it said it; a Docker
+# build failure can quote pages of output, and the step needs the first line.
+MAX_REFUSAL_CHARS = 500
 
 # The connection kind a `sandboxd` service is registered as - the one that runs
 # a job; a Daytona connection cannot.
@@ -345,6 +348,25 @@ async def _inputs(refs: tuple[FileRef, ...]) -> list[tuple[str, bytes]] | Failed
     return staged
 
 
+def _start_refusal(exc: httpx.HTTPStatusError) -> str | None:
+    """Why `sandboxd` could not start a session, as it said it, or `None`.
+
+    The service answers a sandbox it could not start - a workspace directory it
+    may not write, an image that would not build, a missing runtime - with a 502
+    whose `detail` names the cause. Reported as unreachable, that cause was only
+    in the service's own response, and the host looked down while `/healthz` was
+    green.
+    """
+    if exc.response.status_code != 502 or not exc.request.url.path.endswith("/sessions"):
+        return None
+    try:
+        body = exc.response.json()
+    except ValueError:
+        return None
+    detail = body.get("detail") if isinstance(body, dict) else None
+    return detail[:MAX_REFUSAL_CHARS] if isinstance(detail, str) and detail else None
+
+
 async def run_job(
     language: ScriptLanguage,
     *,
@@ -390,6 +412,16 @@ async def run_job(
             await sandbox.purge()
             return _too_large(language)
         except (OSError, RuntimeError, WorkspaceError, httpx.HTTPError) as exc:
+            refusal = _start_refusal(exc) if isinstance(exc, httpx.HTTPStatusError) else None
+            if refusal is not None:
+                logger.warning(
+                    "The sandbox host could not start a script step's sandbox: %s", refusal
+                )
+                return files.failed(
+                    "SANDBOX_START_FAILED",
+                    f"The sandbox host answered but could not start the sandbox: {refusal}",
+                    retryable=True,
+                )
             # The host went away mid-conversation, or refused a write: nothing about
             # the job is known to have changed, and the next dispatch checks again.
             logger.warning("A sandbox script step could not reach its host: %s", exc)

@@ -1,5 +1,5 @@
 ---
-source_sha: "67ab9ca1836d"
+source_sha: "91788a9f15fe"
 ---
 
 # Konfiguration { #configuration }
@@ -1248,7 +1248,7 @@ oder irgendein Pfad, den es nur im Container des Dienstes gibt, wird mit
 
 |  | Standard |  |
 | --- | --- | --- |
-| Lokale Entwicklung | `/tmp/agenticos-sandbox-workspaces` | Docker Desktop teilt es und jeder darf hineinschreiben, ein Laptop braucht also keine Einrichtung |
+| Lokale Entwicklung | `/tmp/agenticos-sandbox-workspaces` | `make dev` legt es vor dem Start des Stacks für alle beschreibbar an. Docker unter Linux legt ein fehlendes Verzeichnis als root an, in das uid 10001 nicht schreiben darf, und jede Sandbox scheitert dann mit `SANDBOX_START_FAILED`; `make dev` meldet ein solches Verzeichnis mit dem `sudo chown 10001`, das es behebt |
 | Die Server-Dateien | `/var/lib/agenticos/sandbox-workspaces` | Muss existieren und für uid 10001 beschreibbar sein — `sudo mkdir -p <path> && sudo chown 10001:10001 <path>`, einmalig. Nicht `install -d -o 10001`: `install` löst den Eigentümer über die passwd-Datenbank auf und lehnt eine uid ab, der kein Konto gehört. Es gehört auf Speicher, den jemand sichert |
 
 Ein Neustart fegt `/tmp` leer, und das ist der eine Grund, ein echtes Deployment

@@ -1,5 +1,5 @@
 ---
-source_sha: "4d205a52251b"
+source_sha: "461d3fda244e"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -1400,6 +1400,7 @@ wybierz runtime bez sieci.
 | Zadanie przekroczyło `timeout_seconds` | `PYTHON_SANDBOX_TIMEOUT`, sesja wyczyszczona |
 | Brak używalnego połączenia `sandboxd` | `SANDBOX_UNAVAILABLE` |
 | Zapisał więcej niż 20 plików albo 100 MB albo wypisał więcej niż 10 MB | `PYTHON_OUTPUT_TOO_LARGE`, zmierzone w sandboksie, zanim cokolwiek zostanie pobrane, a sesja wyczyszczona |
+| Host odpowiedział, ale nie uruchomił sandboxa - nie może pisać do katalogu workspace albo obraz się nie zbudował | `SANDBOX_START_FAILED` z powodem podanym przez host, ponawiane |
 | Nie udało się połączyć z hostem | `SANDBOX_UNREACHABLE`, ponawiane |
 
 ::: app.workflows.nodes.code_python_simple._handler.PythonSimpleConfig

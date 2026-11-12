@@ -1,5 +1,5 @@
 ---
-source_sha: "4d205a52251b"
+source_sha: "461d3fda244e"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -1468,6 +1468,7 @@ vertrauenswürdige Arbeit eine Runtime ohne Netzwerk.
 | Der Job lief länger als `timeout_seconds` | `PYTHON_SANDBOX_TIMEOUT`, Sitzung gelöscht |
 | Keine nutzbare `sandboxd`-Verbindung | `SANDBOX_UNAVAILABLE` |
 | Es schrieb mehr als 20 Dateien oder 100 MB oder gab mehr als 10 MB aus | `PYTHON_OUTPUT_TOO_LARGE`, in der Sandbox gemessen, bevor etwas abgeholt wird, und die Session gelöscht |
+| Der Host antwortete, konnte die Sandbox aber nicht starten - ein Workspace-Verzeichnis, in das er nicht schreiben darf, ein Image, das sich nicht bauen ließ | `SANDBOX_START_FAILED` mit dem Grund des Hosts, wiederholt |
 | Der Host war nicht erreichbar | `SANDBOX_UNREACHABLE`, wiederholt |
 
 ::: app.workflows.nodes.code_python_simple._handler.PythonSimpleConfig

@@ -1,4 +1,4 @@
-.PHONY: ci-test-db-configure test-frontend-jobs-check test-frontend-reports-check test-frontend-merge build-frontend-pack docker-test-db docker-test-db-down docker-minio install format lint desktop-dev desktop-build desktop-check mobile-android mobile-ios mobile-check lint-backend lint-frontend check audit licenses licenses-check build-frontend test run clean help sandbox-token sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build docs-slug-check presentation audit-frontend sbom
+.PHONY: ci-test-db-configure test-frontend-jobs-check test-frontend-reports-check test-frontend-merge build-frontend-pack docker-test-db docker-test-db-down docker-minio install format lint desktop-dev desktop-build desktop-check mobile-android mobile-ios mobile-check lint-backend lint-frontend check audit licenses licenses-check build-frontend test run clean help sandbox-token sandbox-workspace sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build docs-slug-check presentation audit-frontend sbom
 
 # === Environments ===========================================================
 # Three. The images are published to GHCR by `.github/workflows/images.yml`
@@ -45,6 +45,28 @@ sandbox-token:
 		echo "▶ Generated SANDBOXD_TOKEN in backend/.env"; \
 	fi
 
+# Where the sandbox service keeps each session's files, mounted at the same path
+# on the host. Created here, world-writable like `/tmp` itself, because a missing
+# bind source is created by the Docker daemon as root:root 755 on Linux - and the
+# service, running as uid 10001, then cannot write it, so every sandbox fails to
+# start while the service still reports healthy. Docker Desktop shares the path
+# through its VM and was never affected. An existing directory is only checked:
+# changing the owner of one Docker created takes root.
+SANDBOX_WORKSPACE_ROOT ?= /tmp/agenticos-sandbox-workspaces
+
+sandbox-workspace:
+	@dir="$(SANDBOX_WORKSPACE_ROOT)"; \
+	if [ ! -d "$$dir" ]; then \
+		if mkdir -p "$$dir" && chmod 1777 "$$dir"; then \
+			echo "▶ Created $$dir for the sandbox service"; \
+		else \
+			echo "⚠ Could not create $$dir. Create it writable by uid 10001, or sandboxes will not start."; \
+		fi; \
+	elif [ -z "$$(find "$$dir" -maxdepth 0 -perm -0002)" ] && [ "$$(ls -nd "$$dir" | awk '{print $$3}')" != 10001 ]; then \
+		echo "⚠ The sandbox service (uid 10001) cannot write $$dir, so no sandbox will start."; \
+		echo "  Fix it once with: sudo chown 10001 $$dir"; \
+	fi
+
 # The runtime allowlist the compose files hand the sandbox service, written from
 # backend/app/core/catalog/sandbox_runtimes.json. Run it after editing that file;
 # `backend/tests/test_sandbox_runtime_catalog.py` is what fails when nobody did.
@@ -61,7 +83,7 @@ sandbox-runtimes:
 # `sandboxd:0.2` once served an older API than the backend's client spoke, and
 # every command failed as a lost session (#2484). `--pull missing` would add
 # nothing, and would override `pull_policy: never` on the images built here.
-dev: sandbox-token
+dev: sandbox-token sandbox-workspace
 	@echo "▶ Building the backend image and starting the stack (migrations run as the \`migrate\` service)…"
 	@if ! docker compose $(COMPOSE_LOCAL) $(COMPOSE_DEV_PROFILES) up -d --build; then \
 		echo ""; \

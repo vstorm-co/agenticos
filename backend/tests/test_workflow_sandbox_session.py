@@ -6,7 +6,9 @@ import httpx
 import pytest
 from pydantic_ai.workspaces import CommandResult, FileEntry
 
+from app.workflows.contracts.results import Failed
 from app.workflows.nodes import _sandbox_job as job
+from app.workflows.nodes.code_python_sandbox._handler import PYTHON
 
 pytestmark = pytest.mark.anyio
 
@@ -136,3 +138,60 @@ async def test_outputs_added_after_measurement_are_refused_before_their_bytes_ar
         f"{job.ROOT}/result.json",
         f"{job.ROOT}/log.txt",
     ]
+
+
+def _answered(status: int, body: bytes, path: str = "/sessions") -> httpx.HTTPStatusError:
+    request = httpx.Request("POST", f"http://sandboxd:8080{path}")
+    response = httpx.Response(status, content=body, request=request)
+    return httpx.HTTPStatusError("refused", request=request, response=response)
+
+
+async def _run_against(error: Exception) -> Failed:
+    current = MagicMock(idempotency_key="key", node_run_id="run", organization_id="org")
+    with (
+        patch.object(job.context, "current", return_value=current),
+        patch.object(job, "_connection", new=AsyncMock(return_value=MagicMock(kind="docker"))),
+        patch.object(job, "_open", side_effect=error),
+    ):
+        failed = await job.run_job(
+            PYTHON,
+            code="1",
+            timeout_seconds=1,
+            connection_id=None,
+            runtime=None,
+            args={},
+            input_files=(),
+        )
+    assert isinstance(failed, Failed)
+    return failed
+
+
+async def test_a_host_that_could_not_start_the_sandbox_says_why() -> None:
+    """A 502 from opening a session carries the cause; reporting it as unreachable hid it."""
+    cause = "Could not start sandbox: [Errno 13] Permission denied: '/tmp/ws/key'"
+    failed = await _run_against(_answered(502, f'{{"detail": "{cause}"}}'.encode()))
+    assert failed.error.code == "SANDBOX_START_FAILED"
+    assert cause in failed.error.message
+    assert failed.error.retryable
+
+
+async def test_a_long_refusal_is_cut_to_its_start() -> None:
+    failed = await _run_against(_answered(502, b'{"detail": "' + b"x" * 5000 + b'"}'))
+    assert failed.error.message.endswith(": " + "x" * job.MAX_REFUSAL_CHARS)
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        _answered(502, b"<html>Bad Gateway</html>"),
+        _answered(502, b'["not", "an", "object"]'),
+        _answered(502, b'{"detail": ""}'),
+        _answered(503, b'{"detail": "draining"}'),
+        _answered(502, b'{"detail": "gone"}', path="/sessions/abc/run"),
+        httpx.ConnectError("refused"),
+    ],
+)
+async def test_anything_else_is_still_a_host_that_could_not_be_reached(error: Exception) -> None:
+    failed = await _run_against(error)
+    assert failed.error.code == "SANDBOX_UNREACHABLE"
+    assert failed.error.retryable
