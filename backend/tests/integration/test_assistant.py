@@ -805,7 +805,12 @@ async def test_a_publish_refusal_is_one_line_naming_what_it_waits_for(
         AsyncMock(
             side_effect=BadRequestError(
                 message="This agent cannot be published yet",
-                details={"problems": ["This organization has registered no sandbox connection"]},
+                details={
+                    "problems": [
+                        "This organization has registered no sandbox connection",
+                        {"field": "model_profile_id"},
+                    ]
+                },
             )
         ),
     )

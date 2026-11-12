@@ -535,7 +535,11 @@ def _log_install_failure(exc: AppException, failure: str, *args: object) -> None
     """
     problems = (exc.details or {}).get("problems") if isinstance(exc, BadRequestError) else None
     if problems:
-        logger.warning("%s: it waits to publish - %s", failure % args, "; ".join(problems))
+        logger.warning(
+            "%s: it waits to publish - %s",
+            failure % args,
+            "; ".join(str(problem) for problem in problems),
+        )
         return
     logger.error(failure, *args, exc_info=exc)
 
