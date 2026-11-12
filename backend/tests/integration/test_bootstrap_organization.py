@@ -105,3 +105,18 @@ async def test_a_named_organization_wins_over_one_the_owner_already_runs(db: Asy
     assert acme.name == "Acme"
     assert org.id != acme.id
     assert org.name == "Northwind Labs"
+
+
+@pytest.mark.security
+async def test_an_organization_handed_over_under_that_name_is_not_reused(db: AsyncSession) -> None:
+    """A name and an ownership can both be given to the account by somebody else."""
+    owner = await _register(db)
+    other = await _register(db)
+    theirs = await _resolve_organization(db, other, "Northwind Labs", new_owner=True)
+    db.add(OrganizationMember(organization_id=theirs.id, user_id=owner, role="owner"))
+    await db.flush()
+
+    org = await _resolve_organization(db, owner, "Northwind Labs", new_owner=False)
+
+    assert org.id != theirs.id
+    assert org.created_by_user_id == owner

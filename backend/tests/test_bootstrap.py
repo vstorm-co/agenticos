@@ -9,12 +9,14 @@ rather than an agent that silently cannot run.
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import click
 import pytest
 
 from app.agents.model_resolver import PROVIDERS
 from app.commands import bootstrap as bootstrap_cmd
 from app.commands.bootstrap import (
     DEFAULT_MODELS,
+    _organization_name,
     _resolve_model,
     _resolve_organization,
     _resolve_starter_agents,
@@ -56,7 +58,8 @@ class TestOrganization:
     @pytest.mark.anyio
     async def test_the_organization_the_owner_lands_in_is_reused(self):
         """It is where a new operator lands after signing in."""
-        existing = MagicMock(is_personal=False)
+        owner = uuid.uuid4()
+        existing = MagicMock(is_personal=False, created_by_user_id=owner)
         with (
             patch(
                 "app.commands.bootstrap.OrganizationService.fallback_for",
@@ -68,9 +71,42 @@ class TestOrganization:
             ),
         ):
             assert (
-                await _resolve_organization(MagicMock(), uuid.uuid4(), None, new_owner=False)
-                is existing
+                await _resolve_organization(MagicMock(), owner, None, new_owner=False) is existing
             )
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_landing_organization_another_account_created_is_not_filled(self):
+        """Ownership can be handed to the account; only one it created is reused."""
+        handed_over = MagicMock(is_personal=False, created_by_user_id=uuid.uuid4())
+        created = MagicMock(id=uuid.uuid4())
+        with (
+            patch(
+                "app.commands.bootstrap.OrganizationService.fallback_for",
+                new=AsyncMock(return_value=handed_over),
+            ),
+            patch(
+                "app.commands.bootstrap.member_repo.get",
+                new=AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER.value)),
+            ),
+            patch(
+                "app.commands.bootstrap.OrganizationService.create",
+                new=AsyncMock(return_value=created),
+            ),
+        ):
+            assert (
+                await _resolve_organization(MagicMock(), uuid.uuid4(), None, new_owner=False)
+                is created
+            )
+
+    @pytest.mark.parametrize("name", ["", "A", "x" * 129])
+    def test_an_organization_name_the_console_would_refuse_is_refused_up_front(self, name):
+        with pytest.raises(click.BadParameter):
+            _organization_name(name)
+
+    def test_a_valid_organization_name_or_none_passes(self):
+        assert _organization_name("Northwind Labs") == "Northwind Labs"
+        assert _organization_name(None) is None
 
     @pytest.mark.anyio
     @pytest.mark.security

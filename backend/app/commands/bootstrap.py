@@ -15,6 +15,7 @@ import asyncio
 import uuid
 
 import click
+from pydantic import ValidationError
 
 from app.agents.spec import AgentSpec
 from app.commands import command, info, success, warning
@@ -64,6 +65,7 @@ DEFAULT_ORGANIZATION = "Acme"
     "--org",
     "org_name",
     default=None,
+    callback=lambda _ctx, _param, value: _organization_name(value),
     help=f"Organization name. Without it, the one the owner lands in, or {DEFAULT_ORGANIZATION}",
 )
 @click.option(
@@ -166,6 +168,16 @@ async def _resolve_mcp_mirror(db) -> None:
         success(f"Loaded {seeded} MCP catalog checks")
 
 
+def _organization_name(value: str | None) -> str | None:
+    """`--org` as an organization name the console would accept, checked before anything runs."""
+    if value is None:
+        return None
+    try:
+        return OrganizationCreate(name=value).name
+    except ValidationError as invalid:
+        raise click.BadParameter(invalid.errors()[0]["msg"], param_hint="--org") from None
+
+
 async def _resolve_organization(db, owner_id: uuid.UUID, name: str | None, *, new_owner: bool):
     """The organization the owner runs the demo in: the one called `name`, when given.
 
@@ -176,12 +188,14 @@ async def _resolve_organization(db, owner_id: uuid.UUID, name: str | None, *, ne
     rather than only being renamed. An existing account's personal
     organization is never converted.
 
-    Otherwise it is an organization the owner already owns under that name.
-    Without a name, the one a session without an organization named lands in -
-    the deployment's default - is used too, provided the account owns it and it
-    is not personal; a name the operator gave is never traded for it. Failing
-    that, it gets a new one, made the way the console makes one: a unique slug,
-    the default budget, and the bundled skills and system agents.
+    Otherwise bootstrap reuses only an organization this account created and
+    still owns: the one with that name, or without a name the one a session
+    without an organization named lands in - the deployment's default. A name
+    and an ownership can both be handed to an account by somebody else, and an
+    organization reached that way is never filled with credentials on a rerun.
+    A name the operator gave is never traded for the landing one. Failing both,
+    it gets a new one, made the way the console makes one: a unique slug, the
+    default budget, and the bundled skills and system agents.
     """
     named = name is not None
     name = name or DEFAULT_ORGANIZATION
@@ -193,11 +207,11 @@ async def _resolve_organization(db, owner_id: uuid.UUID, name: str | None, *, ne
             success(f"Created organization {name}")
             return org
     for owned in await organization_repo.list_owned_by(db, owner_id):
-        if owned.name == name:
+        if owned.name == name and owned.created_by_user_id == owner_id:
             info(f"Using organization {owned.name}")
             return owned
     landing = None if named else await OrganizationService(db).fallback_for(owner_id)
-    if landing is not None and not landing.is_personal:
+    if landing is not None and not landing.is_personal and landing.created_by_user_id == owner_id:
         membership = await member_repo.get(db, organization_id=landing.id, user_id=owner_id)
         # Bootstrap acts as an owner. A default organization the account joined
         # as a member is not one it may fill with credentials and agents.
