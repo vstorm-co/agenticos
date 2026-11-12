@@ -54,10 +54,18 @@ DEFAULT_MODELS: dict[str, str] = {
 }
 
 
+DEFAULT_ORGANIZATION = "Acme"
+
+
 @command("bootstrap", help="Create an organization, an owner, a model and a working agent")
 @click.option("--email", default="admin@example.com", help="Owner email")
 @click.option("--password", default="admin123", help="Owner password")
-@click.option("--org", "org_name", default="Acme", help="Organization name")
+@click.option(
+    "--org",
+    "org_name",
+    default=None,
+    help=f"Organization name. Without it, the one the owner lands in, or {DEFAULT_ORGANIZATION}",
+)
 @click.option(
     "--provider",
     type=click.Choice(sorted(DEFAULT_MODELS)),
@@ -74,7 +82,7 @@ DEFAULT_MODELS: dict[str, str] = {
 def bootstrap(
     email: str,
     password: str,
-    org_name: str,
+    org_name: str | None,
     provider: str,
     api_key: str | None,
     model_id: str | None,
@@ -86,7 +94,7 @@ def bootstrap(
 async def _bootstrap(
     email: str,
     password: str,
-    org_name: str,
+    org_name: str | None,
     provider: str,
     api_key: str | None,
     model_id: str | None,
@@ -158,8 +166,8 @@ async def _resolve_mcp_mirror(db) -> None:
         success(f"Loaded {seeded} MCP catalog checks")
 
 
-async def _resolve_organization(db, owner_id: uuid.UUID, name: str, *, new_owner: bool):
-    """The organization called `name` that the owner runs the demo in.
+async def _resolve_organization(db, owner_id: uuid.UUID, name: str | None, *, new_owner: bool):
+    """The organization the owner runs the demo in: the one called `name`, when given.
 
     An owner this run registered has only the personal organization sign-up
     gave it, empty, so that one becomes `name` and stays where the operator
@@ -168,12 +176,15 @@ async def _resolve_organization(db, owner_id: uuid.UUID, name: str, *, new_owner
     rather than only being renamed. An existing account's personal
     organization is never converted.
 
-    Otherwise it is an organization the owner already owns under that name, or
-    the one a session without an organization named lands in - the deployment's
-    default - provided the account owns it and it is not personal. Failing
-    both, it gets a new one, made the way the console makes one: a unique
-    slug, the default budget, and the bundled skills and system agents.
+    Otherwise it is an organization the owner already owns under that name.
+    Without a name, the one a session without an organization named lands in -
+    the deployment's default - is used too, provided the account owns it and it
+    is not personal; a name the operator gave is never traded for it. Failing
+    that, it gets a new one, made the way the console makes one: a unique slug,
+    the default budget, and the bundled skills and system agents.
     """
+    named = name is not None
+    name = name or DEFAULT_ORGANIZATION
     if new_owner:
         personal = await organization_repo.get_personal_for_user(db, owner_id)
         if personal is not None:
@@ -185,7 +196,7 @@ async def _resolve_organization(db, owner_id: uuid.UUID, name: str, *, new_owner
         if owned.name == name:
             info(f"Using organization {owned.name}")
             return owned
-    landing = await OrganizationService(db).fallback_for(owner_id)
+    landing = None if named else await OrganizationService(db).fallback_for(owner_id)
     if landing is not None and not landing.is_personal:
         membership = await member_repo.get(db, organization_id=landing.id, user_id=owner_id)
         # Bootstrap acts as an owner. A default organization the account joined

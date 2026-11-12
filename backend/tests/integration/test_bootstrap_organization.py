@@ -94,3 +94,14 @@ async def test_a_taken_slug_gets_a_free_one_rather_than_failing(db: AsyncSession
     assert org.id != taken.id
     assert org.name == "Northwind Labs"
     assert org.slug != taken.slug and org.slug.startswith("northwind-labs")
+
+
+async def test_a_named_organization_wins_over_one_the_owner_already_runs(db: AsyncSession) -> None:
+    owner = await _register(db)
+    acme = await _resolve_organization(db, owner, None, new_owner=True)
+
+    org = await _resolve_organization(db, owner, "Northwind Labs", new_owner=False)
+
+    assert acme.name == "Acme"
+    assert org.id != acme.id
+    assert org.name == "Northwind Labs"

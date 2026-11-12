@@ -68,7 +68,7 @@ class TestOrganization:
             ),
         ):
             assert (
-                await _resolve_organization(MagicMock(), uuid.uuid4(), "Acme", new_owner=False)
+                await _resolve_organization(MagicMock(), uuid.uuid4(), None, new_owner=False)
                 is existing
             )
 
@@ -94,9 +94,32 @@ class TestOrganization:
             ),
         ):
             assert (
-                await _resolve_organization(MagicMock(), uuid.uuid4(), "Acme", new_owner=False)
+                await _resolve_organization(MagicMock(), uuid.uuid4(), None, new_owner=False)
                 is created
             )
+
+    @pytest.mark.anyio
+    async def test_a_named_organization_is_not_traded_for_the_one_it_lands_in(self):
+        """`--org` is the operator's choice; the landing organization stands in only without it."""
+        created = MagicMock(id=uuid.uuid4())
+        with (
+            patch(
+                "app.commands.bootstrap.OrganizationService.fallback_for",
+                new=AsyncMock(return_value=MagicMock(is_personal=False)),
+            ) as fallback,
+            patch(
+                "app.commands.bootstrap.OrganizationService.create",
+                new=AsyncMock(return_value=created),
+            ) as create_org,
+        ):
+            owner = uuid.uuid4()
+            result = await _resolve_organization(
+                MagicMock(), owner, "Northwind Labs", new_owner=False
+            )
+
+        assert result is created
+        fallback.assert_not_awaited()
+        assert create_org.await_args.args == (OrganizationCreate(name="Northwind Labs"), owner)
 
     @pytest.mark.anyio
     async def test_a_fresh_install_gets_an_organization_and_an_owner(self):
@@ -112,7 +135,7 @@ class TestOrganization:
             ) as create_org,
         ):
             owner = uuid.uuid4()
-            result = await _resolve_organization(MagicMock(), owner, "Acme", new_owner=False)
+            result = await _resolve_organization(MagicMock(), owner, None, new_owner=False)
 
         assert result is created
         # The console's own path: unique slug, default budget, owner, skills, system agents.
