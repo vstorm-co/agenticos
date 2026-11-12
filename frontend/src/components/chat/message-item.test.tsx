@@ -1790,3 +1790,31 @@ it("defers a newly received setup card until its answer has been revealed", () =
   );
   expect(screen.queryByTestId("model-setup")).not.toBeInTheDocument();
 });
+
+it("keeps a failed run's cause visible outside folded tool work", () => {
+  render(
+    <MessageItem
+      message={message({
+        content: "",
+        runFailed: true,
+        runError: "The model provider blocked this response with its content filter.",
+        parts: [{ id: "thinking-failure", type: "thinking", content: "Working" }],
+      })}
+    />,
+  );
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "The model provider blocked this response with its content filter.",
+  );
+});
+
+it("shows a generic failure notice without inventing an answer", () => {
+  render(<MessageItem message={message({ content: "", runFailed: true })} />);
+  expect(screen.getByRole("alert")).toHaveTextContent("No final answer was produced.");
+});
+
+it("does not repeat the failure notice on an earlier continuation segment", () => {
+  render(
+    <MessageItem endsTurn={false} message={message({ runFailed: true, runError: "filtered" })} />,
+  );
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});

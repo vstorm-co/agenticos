@@ -33,6 +33,7 @@ import { useInChatScope } from "@/stores/chat-scope-context";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import {
   Bot,
+  CircleAlert,
   CornerUpLeft,
   GitBranch,
   Loader2,
@@ -391,6 +392,21 @@ export const MessageItem = memo(function MessageItem({
           onCiteClick={onCiteClick}
         />
 
+        {!isUser && message.runFailed && endsTurn && (
+          <div
+            role="alert"
+            className="border-destructive/25 bg-destructive/5 flex max-w-2xl gap-3 rounded-xl border px-4 py-3 text-sm"
+          >
+            <CircleAlert aria-hidden className="text-destructive mt-0.5 size-4 shrink-0" />
+            <div className="min-w-0 space-y-1">
+              <p className="font-medium">{t("runFailedTitle")}</p>
+              <p className="text-muted-foreground break-words">
+                {message.runError || t("runFailedHint")}
+              </p>
+            </div>
+          </div>
+        )}
+
         {!isUser && <PlatformObjects calls={toolCallsOf(message)} />}
 
         {!isUser && routines.length > 0 && (
@@ -693,6 +709,7 @@ function MessageBody({
           startedAt={startedAt}
           durationMs={endsTurn ? message.runDurationMs : undefined}
           stopped={message.wasStopped === true}
+          failed={message.runFailed === true}
           waitingFor={message.runWaitingFor}
         />
       ) : (

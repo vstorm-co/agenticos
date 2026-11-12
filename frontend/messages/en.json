@@ -1662,9 +1662,10 @@
       "elapsedMinutes": "{minutes}m{seconds, plural, =0 {} other { #s}}",
       "stopped": "Stopped{count, plural, =0 {} =1 { · 1 step} other { · # steps}}",
       "stoppedAfter": "Stopped after {duration}{count, plural, =0 {} =1 { · 1 step} other { · # steps}}",
-      "activityCount": "{count, plural, one {# action} other {# actions}}"
+      "activityCount": "{count, plural, one {# action} other {# actions}}",
+      "failedAfter": "Failed after {duration}{count, plural, =0 {} =1 { · 1 step} other { · # steps}}",
+      "failedWork": "Failed{count, plural, =0 {} =1 { · 1 step} other { · # steps}}"
     },
-    "streamError": "❌ Error: {message}",
     "turnInterrupted": "The connection dropped mid-answer. The agent finishes the turn and saves it to this conversation.",
     "turnInterruptedRecheck": "Check for it",
     "turnStillArriving": "The earlier answer is still being written. It lands in this conversation when it finishes, below the question you have just asked.",
@@ -2509,7 +2510,9 @@
       "notice": "Setup response · No AI model was called and no provider usage was charged.",
       "ownerHint": "Your workspace administrator can connect AI for the team. You do not need to provide your own key.",
       "contact": "Contact your administrator"
-    }
+    },
+    "runFailedTitle": "Run did not finish",
+    "runFailedHint": "No final answer was produced. You can review the work above."
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",

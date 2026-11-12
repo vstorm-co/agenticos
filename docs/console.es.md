@@ -1,5 +1,5 @@
 ---
-source_sha: "90338e3a8738"
+source_sha: "c48e758593c6"
 ---
 
 # La consola { #the-console }
@@ -87,6 +87,10 @@ En el móvil, los mensajes enviados se detienen debajo de los botones flotantes 
 Los agentes predeterminados terminan una solicitud puntual sin mantener abierta la respuesta con una pregunta sobre automatización opcional. Las preguntas resuelven decisiones necesarias para la tarea actual o una automatización solicitada o aceptada. Las tarjetas opcionales de configuración siguen siendo propuestas que no bloquean la finalización.
 
 El botón compacto bajo una respuesta abre Sources junto a la conversación y ocupa todo el ancho en el móvil. Files y Sources comparten el área lateral: abrir uno sustituye al otro. Las fuentes web muestran el favicon del sitio, solicitado sin Referer, o un logotipo conocido; aparece un globo si el icono no está disponible. Las fuentes de conocimiento conservan sus iconos de archivo y el visor del documento original.
+
+Los enlaces web de las respuestas usan la misma política de favicon, sin depender de conexiones MCP. Para sitios desconocidos solo se solicita `/favicon.ico` de su origen; si falta, aparece un globo. Las vistas inertes de transcripciones tampoco cargan iconos de sitios desconocidos.
+
+Una ejecución fallida muestra el error separado de la respuesta y fuera de las herramientas plegadas, incluso después de recargar la conversación. El filtro de contenido del proveedor tiene una explicación explícita; las respuestas originales del proveedor y los errores históricos desconocidos no se copian a transcripciones compartidas. El trabajo parcial sigue disponible y no se presenta como terminado.
 
 ## El dashboard { #the-dashboard }
 

@@ -725,9 +725,10 @@
       "elapsedMinutes": "{minutes} min{seconds, plural, =0 {} other { # s}}",
       "stopped": "Zatrzymano{count, plural, =0 {} one { · 1 krok} few { · # kroki} many { · # kroków} other { · # kroku}}",
       "stoppedAfter": "Zatrzymano po {duration}{count, plural, =0 {} one { · 1 krok} few { · # kroki} many { · # kroków} other { · # kroku}}",
-      "activityCount": "{count, plural, one {# działanie} few {# działania} many {# działań} other {# działania}}"
+      "activityCount": "{count, plural, one {# działanie} few {# działania} many {# działań} other {# działania}}",
+      "failedAfter": "Błąd po {duration}{count, plural, =0 {} =1 { · 1 krok} few { · # kroki} other { · # kroków}}",
+      "failedWork": "Błąd{count, plural, =0 {} =1 { · 1 krok} few { · # kroki} other { · # kroków}}"
     },
-    "streamError": "❌ Błąd: {message}",
     "turnInterrupted": "Połączenie zerwało się w trakcie odpowiedzi. Agent kończy turę i zapisuje ją w tej rozmowie.",
     "turnInterruptedRecheck": "Sprawdź",
     "turnStillArriving": "Wcześniejsza odpowiedź wciąż się pisze. Pojawi się w tej rozmowie po zakończeniu, pod pytaniem, które właśnie zadałeś.",
@@ -1572,7 +1573,9 @@
       "notice": "Odpowiedź konfiguracyjna · Bez wywołania modelu AI i kosztu użycia dostawcy.",
       "ownerHint": "Administrator workspace może podłączyć AI dla całego zespołu. Nie musisz podawać własnego klucza.",
       "contact": "Skontaktuj się z administratorem"
-    }
+    },
+    "runFailedTitle": "Uruchomienie nie zostało ukończone",
+    "runFailedHint": "Nie powstała końcowa odpowiedź. Możesz przejrzeć wykonane działania powyżej."
   },
   "errors": {
     "authorizationFailed": "Autoryzacja nie powiodła się",
