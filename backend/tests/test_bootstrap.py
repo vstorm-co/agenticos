@@ -113,7 +113,9 @@ class TestOrganization:
     async def test_a_default_organization_it_only_belongs_to_is_not_taken_over(self):
         """Bootstrap acts as an owner; an account that joined the default organization
         as a member gets an organization of its own instead (#2156)."""
-        joined = MagicMock(id=uuid.uuid4(), is_personal=False)
+        owner = uuid.uuid4()
+        # Even one it created: ownership can have moved on, leaving it a member.
+        joined = MagicMock(id=uuid.uuid4(), is_personal=False, created_by_user_id=owner)
         created = MagicMock(id=uuid.uuid4())
         with (
             patch(
@@ -129,10 +131,29 @@ class TestOrganization:
                 new=AsyncMock(return_value=created),
             ),
         ):
-            assert (
-                await _resolve_organization(MagicMock(), uuid.uuid4(), None, new_owner=False)
-                is created
+            assert await _resolve_organization(MagicMock(), owner, None, new_owner=False) is created
+
+    @pytest.mark.anyio
+    async def test_a_named_fresh_owner_without_a_personal_organization_gets_a_new_one(self):
+        """A deployment with personal organizations off gives sign-up nothing to convert."""
+        created = MagicMock(id=uuid.uuid4())
+        with (
+            patch(
+                "app.commands.bootstrap.organization_repo.get_personal_for_user",
+                new=AsyncMock(return_value=None),
+            ),
+            patch(
+                "app.commands.bootstrap.OrganizationService.create",
+                new=AsyncMock(return_value=created),
+            ) as create_org,
+        ):
+            owner = uuid.uuid4()
+            result = await _resolve_organization(
+                MagicMock(), owner, "Northwind Labs", new_owner=True
             )
+
+        assert result is created
+        assert create_org.await_args.args == (OrganizationCreate(name="Northwind Labs"), owner)
 
     @pytest.mark.anyio
     async def test_a_named_organization_is_not_traded_for_the_one_it_lands_in(self):

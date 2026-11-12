@@ -96,15 +96,26 @@ async def test_a_taken_slug_gets_a_free_one_rather_than_failing(db: AsyncSession
     assert org.slug != taken.slug and org.slug.startswith("northwind-labs")
 
 
+async def test_without_a_name_a_fresh_owner_stays_in_its_personal_organization(
+    db: AsyncSession,
+) -> None:
+    """What `make platform-bootstrap` and the e2e seed rely on: nothing renamed, nothing extra."""
+    owner = await _register(db)
+
+    org = await _resolve_organization(db, owner, None, new_owner=True)
+
+    assert (org.name, org.is_personal) == ("Personal", True)
+    assert [o.id for o in await _organizations(db, owner)] == [org.id]
+
+
 async def test_a_named_organization_wins_over_one_the_owner_already_runs(db: AsyncSession) -> None:
     owner = await _register(db)
-    acme = await _resolve_organization(db, owner, None, new_owner=True)
+    landing = await _resolve_organization(db, owner, None, new_owner=True)
 
     org = await _resolve_organization(db, owner, "Northwind Labs", new_owner=False)
 
-    assert acme.name == "Acme"
-    assert org.id != acme.id
-    assert org.name == "Northwind Labs"
+    assert org.id != landing.id
+    assert (org.name, org.is_personal) == ("Northwind Labs", False)
 
 
 @pytest.mark.security
