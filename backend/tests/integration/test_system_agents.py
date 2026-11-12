@@ -494,6 +494,33 @@ async def test_a_chat_shared_during_the_model_call_records_nothing(
     assert await extraction.extract(db, org.id, run.id) == 0
 
 
+async def test_extraction_holds_off_clearing_its_agents_memory(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch, engine
+) -> None:
+    from sqlalchemy.ext.asyncio import AsyncSession as Session
+
+    from app.db.locks import LockScope, try_hold_subject
+
+    user, org, agent, version, model, ctx = await _world(db)
+    run, conversation = await _chat_run(db, org, agent, version, user)
+    await _transcript(db, conversation, run, [("user", "I prefer short answers")])
+    _think(monkeypatch, [extraction._Extracted(statement="Prefers short answers")])
+    remember = extraction._claims.remember
+    clear_could_start: list[bool] = []
+
+    async def writing(*args, **kwargs):
+        async with Session(engine) as other:
+            clear_could_start.append(
+                await try_hold_subject(other, LockScope.MEMORY_PER_AGENT, agent.id)
+            )
+        return await remember(*args, **kwargs)
+
+    monkeypatch.setattr(extraction._claims, "remember", writing)
+
+    assert await extraction.extract(db, org.id, run.id) == 1
+    assert clear_could_start == [False]
+
+
 async def test_a_chat_read_after_its_person_was_forgotten_records_nothing(
     db: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:

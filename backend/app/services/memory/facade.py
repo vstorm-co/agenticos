@@ -481,6 +481,7 @@ class MemoryService:
             self.db, ctx, agent, Perm.AGENTS_EDIT, resource_type=AGENT
         ):
             raise NotFoundError(message="Agent not found", details={"agent_id": agent_id})
+        await hold_subject(self.db, LockScope.MEMORY_PER_AGENT, agent_id)
         notes = await memory_repo.delete_all_for_agent(
             self.db, organization_id=ctx.organization_id, agent_id=agent_id
         )

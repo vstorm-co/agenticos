@@ -110,6 +110,10 @@ class LockScope(IntEnum):
     EMAIL_DELIVERY_STORAGE_PER_ORG = 29
     #: Read/compare/write of claims within one organization, owner and agent scope.
     MEMORY_CLAIMS_PER_SCOPE = 26
+    #: Clearing one agent's memory against writes into its stores: the clear holds
+    #: it whole, a write shares it, so no note lands between the clear's deletes
+    #: and the audit entry later writes are checked against.
+    MEMORY_PER_AGENT = 37
     TASK_BOARD = 27
     #: One organization's generated-media quota (#2310). Each call read what was
     #: used before its paid generation and recorded its file only after it, so
