@@ -15,7 +15,7 @@ from pydantic_ai import RunContext
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.usage import RunUsage
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from app.agents.audience import RunAudience
 from app.agents.capabilities.memory_files._toolset import MemoryToolset
@@ -272,3 +272,42 @@ async def test_asking_about_no_person_and_no_agent_finds_no_erasure(db: AsyncSes
     assert not await audit_log_repo.memory_erased_since(
         db, organization_id=org.id, user_id=None, agent_id=None, since=run.started_at
     )
+
+
+async def _agent_lock_free_elsewhere(engine: AsyncEngine, agent: Agent) -> bool:
+    from app.db.locks import LockScope, try_hold_subject
+
+    async with AsyncSession(engine) as other:
+        return await try_hold_subject(other, LockScope.MEMORY_PER_AGENT, agent.id)
+
+
+async def test_a_write_to_an_agents_memory_holds_off_clearing_it(
+    db: AsyncSession, engine: AsyncEngine
+) -> None:
+    _, org, agent, _ = await _world(db)
+    assert await _agent_lock_free_elsewhere(engine, agent)
+
+    await memory_store.write_file(
+        organization_id=org.id,
+        agent_id=agent.id,
+        owner_key=room_owner_key("slack", "C1"),
+        name="prefs",
+        content="Short",
+        description=None,
+        kind="note",
+        run_id=None,
+    )
+
+    assert not await _agent_lock_free_elsewhere(engine, agent)
+
+
+async def test_clearing_an_agents_memory_holds_off_writes_to_it(
+    db: AsyncSession, engine: AsyncEngine
+) -> None:
+    user, org, agent, _ = await _world(db)
+    ctx = await member_context(db, organization_id=org.id, user_id=user.id)
+    assert ctx is not None
+
+    await MemoryService(db).clear_agent(ctx, agent.id)
+
+    assert not await _agent_lock_free_elsewhere(engine, agent)

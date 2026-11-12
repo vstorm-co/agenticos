@@ -24,7 +24,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.memory_keys import PERSON_PREFIX, is_person_key
-from app.db.locks import LockScope, hold_subject
+from app.db.locks import LockScope, hold_subject, hold_subject_shared
 from app.db.models.agent_run import AgentRun
 from app.db.models.user import User
 from app.db.session import get_db_context
@@ -112,9 +112,12 @@ async def refuse_if_erased_during_run(
     long after. Writing from it would put back what the person was told is gone.
     `agent_id` is the agent whose store is written, which a delegate sharing its
     parent's run need not share with the run; `None` for a store no agent holds.
-    Called after `person_still_exists`, whose lock the erasure takes too. A write
-    with no run has no start to compare against and is not refused here.
+    Called after `person_still_exists`, whose lock the erasure takes too, and holds
+    the shared side of the agent's memory lock, which clearing the agent takes
+    whole. A write with no run has no start to compare against and is not refused.
     """
+    if agent_id is not None:
+        await hold_subject_shared(db, LockScope.MEMORY_PER_AGENT, agent_id)
     if run_id is None:
         return
     run = (
