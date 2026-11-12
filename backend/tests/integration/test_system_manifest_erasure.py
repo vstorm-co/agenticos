@@ -164,7 +164,9 @@ async def test_a_manifest_written_after_an_erasure_mid_call_keeps_only_the_spec(
     )
 
     thinker = ProactiveThinker(db)
-    await thinker._record(run, recorder, None, erased=await thinker._erased_during(run))
+    await thinker._record(
+        run, recorder, None, erased=await thinker._erased_during(run, since=run.started_at)
+    )
 
     manifest = await db.scalar(select(RunManifest).where(RunManifest.run_id == run.id))
     assert manifest is not None
@@ -174,3 +176,33 @@ async def test_a_manifest_written_after_an_erasure_mid_call_keeps_only_the_spec(
         assert "messages" not in manifest.payload and "transcript" not in manifest.payload
         assert SECRET not in str(manifest.payload)
         assert manifest.truncated
+
+
+async def test_an_erasure_before_the_run_but_after_its_material_still_trims_it(
+    db: AsyncSession,
+) -> None:
+    from datetime import timedelta
+
+    from app.services.proactive._thinker import ProactiveThinker
+
+    person, colleague = await _user(db), await _user(db)
+    org, agent = await _org(db, colleague, person)
+    read_from = datetime.now(UTC) - timedelta(hours=2)
+    ctx = await member_context(db, organization_id=org.id, user_id=person.id)
+    assert ctx is not None
+    await MemoryService(db).forget_person(ctx, person.id)
+    run = AgentRun(
+        organization_id=org.id,
+        agent_id=agent.id,
+        user_id=person.id,
+        surface="proactive",
+        system_role=MEMORY_MAINTENANCE,
+        started_at=datetime.now(UTC) + timedelta(minutes=1),
+    )
+    db.add(run)
+    await db.flush()
+    thinker = ProactiveThinker(db)
+
+    # Dated after the erasure, the run alone would not see it; its material predates it.
+    assert not await thinker._erased_during(run, since=run.started_at)
+    assert await thinker._erased_during(run, since=read_from)

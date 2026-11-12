@@ -233,6 +233,7 @@ async def extract(
         instructions=_INSTRUCTIONS,
         prompt=f"Conversation:\n\n{transcript}",
         started_at=read_at,
+        erased_since=run.started_at,
     )
     if found is None:
         return 0
