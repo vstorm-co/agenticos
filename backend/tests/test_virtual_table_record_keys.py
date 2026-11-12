@@ -23,3 +23,12 @@ def test_an_archived_columns_label_is_not_offered_as_the_id_to_use() -> None:
     assert _not_a_column(labels, "region") == (
         "That is not a column of this table - values are keyed by column id"
     )
+
+
+def test_a_computed_columns_label_is_not_offered_as_the_id_to_use() -> None:
+    """A lookup, rollup or formula is never written, so its id would be a second refusal too."""
+    total = ColumnDef(id=uuid.uuid4(), label="Total", type="formula")
+
+    assert _not_a_column(_labels([total]), "total") == (
+        "That is not a column of this table - values are keyed by column id"
+    )
