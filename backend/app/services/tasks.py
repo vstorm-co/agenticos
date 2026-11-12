@@ -89,6 +89,9 @@ class TaskService:
                 resource_type="table",
                 resource_id=board.table_id,
             )
+            await virtual_table_repo.delete_receipts_for_table(
+                self.db, organization_id=board.organization_id, table_id=board.table_id
+            )
             await task_repo.purge_table(self.db, board)
 
     async def ensure_board(self, ctx: AuthContext, data: BoardEnsure) -> TaskBoard:

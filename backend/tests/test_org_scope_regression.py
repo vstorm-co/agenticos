@@ -42,6 +42,7 @@ from app.repositories import (
     personal_data_repo,
     promotion_gate_repo,
     rag_document_repo,
+    virtual_table_repo,
 )
 from app.services.conversation import ConversationService
 
@@ -92,6 +93,7 @@ TENANT_REQUIRED = [
     (message_rating_repo, "get_down_rating_notes_for_messages"),
     (message_rating_repo, "noter_of"),
     (personal_data_repo, "asker_of"),
+    (virtual_table_repo, "delete_receipts_for_table"),
     (personal_data_repo, "forget_system_runs_of"),
     (dataset_repo, "lock"),
     (dataset_repo, "list_visible"),

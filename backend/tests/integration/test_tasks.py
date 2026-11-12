@@ -764,7 +764,7 @@ async def test_removing_scope_purges_managed_table_and_cancels_its_wakeups(
 ) -> None:
     from app.db.models.background_job import BackgroundJob
     from app.db.models.project import Project
-    from app.db.models.virtual_table import VirtualTable, VirtualTableRecord
+    from app.db.models.virtual_table import VirtualTable, VirtualTableReceipt, VirtualTableRecord
     from app.services.group import GroupService
     from app.services.personal_data import PersonalDataService
     from app.services.project import ProjectService
@@ -808,6 +808,41 @@ async def test_removing_scope_purges_managed_table_and_cancels_its_wakeups(
     review_link = await db.get(TaskLink, review.id)
     case_id = review_link.outcome_id
     board_id, table_id = task.board_id, task.table_id
+    receipts = [
+        VirtualTableReceipt(
+            organization_id=data.org.id,
+            principal_id=data.users[1].id,
+            operation=operation,
+            operation_key=f"key-{index}",
+            payload_hash="0" * 64,
+            outcome=outcome,
+        )
+        for index, (operation, outcome) in enumerate(
+            [
+                (
+                    "record.create",
+                    {"record": {"table_id": str(table_id), "values": {"title": "Reminder"}}},
+                ),
+                ("table.create", {"id": str(table_id), "name": "Tasks"}),
+                (
+                    "record.create",
+                    {"record": {"table_id": str(other.table_id), "values": {"title": "Kept"}}},
+                ),
+            ]
+        )
+    ]
+    expired = VirtualTableReceipt(
+        organization_id=data.org.id,
+        principal_id=data.users[1].id,
+        operation="record.update",
+        operation_key="expired",
+        payload_hash="0" * 64,
+        outcome={"record": {"table_id": str(table_id), "values": {"title": "Old"}}},
+        created_at=datetime.now(UTC) - timedelta(days=2),
+    )
+    db.add_all([*receipts, expired])
+    await db.flush()
+    kept_receipt = receipts[2].id
     if kind == "project":
         await ProjectService(db).delete(data.contexts[0], scope_id)
     elif kind == "group":
@@ -835,6 +870,8 @@ async def test_removing_scope_purges_managed_table_and_cancels_its_wakeups(
     assert (
         await db.scalar(select(VirtualTable).where(VirtualTable.id == other.table_id)) is not None
     )
+    # Expired or not, a receipt holds the record's values until it is deleted.
+    assert list(await db.scalars(select(VirtualTableReceipt.id))) == [kept_receipt]
 
 
 async def test_scope_teardown_disables_its_agent_and_cancels_queued_fire(db: AsyncSession) -> None:

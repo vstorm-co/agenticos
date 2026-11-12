@@ -1043,6 +1043,33 @@ async def add_outbox(
     return row
 
 
+async def delete_receipts_for_table(
+    db: AsyncSession, *, organization_id: UUID, table_id: UUID
+) -> None:
+    """Remove every receipt that names this table, before the table itself goes.
+
+    A receipt holds the whole record a keyed write returned, and has no foreign key
+    to the table: it names the table only inside `outcome`. A record write keeps it at
+    `record.table_id`, a table creation at `id`. A record deletion's receipt holds
+    only the record id, so it carries no values and cannot be matched. An expired
+    receipt still holds its values until the retention sweep reaches it, so age is
+    no reason to keep one.
+    """
+    table = str(table_id)
+    await db.execute(
+        delete(VirtualTableReceipt).where(
+            VirtualTableReceipt.organization_id == organization_id,
+            or_(
+                VirtualTableReceipt.outcome["record"]["table_id"].astext == table,
+                and_(
+                    VirtualTableReceipt.operation == "table.create",
+                    VirtualTableReceipt.outcome["id"].astext == table,
+                ),
+            ),
+        )
+    )
+
+
 async def delete_expired_receipt(
     db: AsyncSession,
     *,
