@@ -1,5 +1,5 @@
 ---
-source_sha: "7e9532451783"
+source_sha: "68958b7ea0a1"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -532,6 +532,8 @@ Die Kopie nennt den Claim,
 aus dem sie stammt, das Original behält seinen Leserkreis. Ein Embed, ein Run mit
 API-Key und ein geplanter Run lesen nichts; ein Gruppenchat liest nur seine
 eigenen Claims. Das Korrigieren eines Claims, den das ganze Projekt oder die ganze Organisation liest, braucht dieselbe Berechtigung wie das Teilen dorthin: Lesen ist keine Befugnis zum Umschreiben.
+
+Eine solche Korrektur über `correct_memory` wartet zudem jedes Mal auf eine Person, gleich in welchem Freigabemodus, und ihre Karte zeigt den Fakt vorher und nachher; die Korrektur eines eigenen Claims einer Person wartet nicht. Eine Korrektur, die das Tool aufzeichnet, ist ein Claim des Agents und nennt den Run und die Unterhaltung, aus denen sie stammt; das Audit-Log erhält einen Eintrag `memory.claim.corrected`. Eine Korrektur unter **Settings → Memory** ist die eigene der Person.
 
 - **Eine Korrektur behält, was sie korrigiert.** „Ab Montag übernimmt Piotr die
   Rechnungen“ schließt den früheren Claim zu diesem Datum und fügt den neuen

@@ -17,6 +17,7 @@ from app.agents.approval import (
 )
 from app.agents.capabilities.approval._capability import ApprovalGate
 from app.agents.capabilities.approval._policy import (
+    always_asking_checks,
     always_asking_tools,
     approval_describers,
     approval_required_tools,
@@ -35,6 +36,7 @@ __all__ = [
     "ApprovalPending",
     "ApprovalRejected",
     "ApprovalRequest",
+    "always_asking_checks",
     "always_asking_tools",
     "approval_describers",
     "approval_required_tools",

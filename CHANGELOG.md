@@ -27,6 +27,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Corrections of organization and project memory always wait for a person, including under remembered approvals or Approve everything. The approval shows the fact before and after; agent corrections retain agent/run provenance and a statement-free audit event. Pending shared corrections are repaired by migration `0318_wide_memory_approvals.py`.
+
 - Linked channel senders now keep the agent’s MCP approval policy, including per-tool Run freely, just as in web chat. Unlinked senders still need approval. The tool picker distinguishes explicit read-only and possible-write declarations from missing annotations.
 - Channel metadata follows tool results in provider requests, so repeated approval resumptions and parallel tool results no longer violate Anthropic’s tool-result ordering.
 
