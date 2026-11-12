@@ -1758,3 +1758,51 @@ async def test_reopening_a_case_whose_task_board_is_archived_is_refused(db: Asyn
 
     with pytest.raises(TableArchivedError):
         await SuggestionService(db).restore(owner, finding.id)
+
+
+async def test_waking_a_task_waits_for_its_board_before_it_holds_the_task(engine) -> None:
+    """Restoring a board holds its table, then locks each task: a wake that held its task
+    first and then waited on the table would deadlock with it."""
+    import asyncio
+
+    from sqlalchemy.exc import DBAPIError
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    from app.db.models.virtual_table import VirtualTable, VirtualTableRecord
+
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as db:
+        data = await world(db)
+        task = await TaskService(db).create(
+            data.contexts[0],
+            TaskCreate(title="Send the draft", start_at=datetime.now(UTC) - timedelta(minutes=1)),
+        )
+        await db.commit()
+
+    async def wake() -> None:
+        async with factory() as db:
+            await TaskExecution(db).wake(
+                WakeTask(organization_id=data.org.id, task_id=task.id, revision=task.revision)
+            )
+            await db.commit()
+
+    async with factory() as restoring:
+        await restoring.execute(
+            select(VirtualTable.id).where(VirtualTable.id == task.table_id).with_for_update()
+        )
+        waking = asyncio.create_task(wake())
+        await asyncio.sleep(0.5)
+        try:
+            held = await restoring.scalar(
+                select(VirtualTableRecord.id)
+                .where(VirtualTableRecord.id == task.id)
+                .with_for_update(nowait=True)
+            )
+        except DBAPIError:
+            held = None
+        await restoring.rollback()
+    await waking
+
+    assert held == task.id
+    async with factory() as db:
+        assert (await TaskService(db).get(data.contexts[0], task.id)).status == "waiting_for_user"

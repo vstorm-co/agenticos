@@ -314,9 +314,7 @@ class TaskExecution:
     async def wake(self, payload: WakeTask) -> None:
         from app.services.task_access import board_allows
 
-        record = await task_repo.record(
-            self.db, payload.task_id, payload.organization_id, lock=True
-        )
+        record = await self._locked_record(payload.task_id, payload.organization_id)
         if record is None:
             return
         link = await task_repo.link(self.db, record.id)
@@ -408,7 +406,7 @@ class TaskExecution:
         link = await task_repo.for_trigger(self.db, trigger.id)
         if link is None:
             return False
-        record = await task_repo.record(self.db, link.record_id, ctx.organization_id, lock=True)
+        record = await self._locked_record(link.record_id, ctx.organization_id)
         if record is None:
             return False
         board = await task_repo.for_table(self.db, record.table_id, ctx.organization_id)
@@ -426,7 +424,7 @@ class TaskExecution:
         link = await task_repo.for_trigger(self.db, trigger.id)
         if link is None:
             return
-        record = await task_repo.record(self.db, link.record_id, trigger.organization_id, lock=True)
+        record = await self._locked_record(link.record_id, trigger.organization_id)
         if record is None:
             return
         board = await task_repo.for_table(self.db, record.table_id, trigger.organization_id)
@@ -449,7 +447,7 @@ class TaskExecution:
         trigger.is_active = False
         if link is None or link.creator_user_id is None:
             return
-        record = await task_repo.record(self.db, link.record_id, trigger.organization_id, lock=True)
+        record = await self._locked_record(link.record_id, trigger.organization_id)
         if record is None:
             return
         board = await task_repo.for_table(self.db, record.table_id, trigger.organization_id)
@@ -518,7 +516,7 @@ class TaskExecution:
         link = await task_repo.for_outcome(self.db, outcome.id)
         if link is None:
             return
-        record = await task_repo.record(self.db, link.record_id, outcome.organization_id, lock=True)
+        record = await self._locked_record(link.record_id, outcome.organization_id)
         if record is None:
             return
         board = await task_repo.for_table(self.db, record.table_id, outcome.organization_id)
@@ -577,7 +575,7 @@ class TaskExecution:
                     message="This task was deleted or handed off. Open its current task table instead."
                 )
             return
-        record = await task_repo.record(self.db, link.record_id, outcome.organization_id, lock=True)
+        record = await self._locked_record(link.record_id, outcome.organization_id)
         board = (
             await task_repo.for_table(self.db, record.table_id, outcome.organization_id)
             if record
@@ -596,6 +594,25 @@ class TaskExecution:
         await self._stop(link, outcome.organization_id)
         await self._project(board, record, "waiting_for_user", actor=ctx.user_id)
 
+    async def _locked_record(
+        self, record_id: UUID, organization_id: UUID
+    ) -> VirtualTableRecord | None:
+        """The task's record, row-locked once its board's table is locked FOR SHARE.
+
+        Table before record, the order every record write takes and the one restoring
+        a board needs: it holds the table and then locks each task, so a task moved
+        while holding its record first and waiting on the table would deadlock with it.
+        """
+        from app.repositories import virtual_table_repo
+
+        found = await task_repo.record(self.db, record_id, organization_id)
+        if found is None:
+            return None
+        await virtual_table_repo.get_table(
+            self.db, found.table_id, organization_id=organization_id, for_share=True
+        )
+        return await task_repo.record(self.db, record_id, organization_id, lock=True)
+
     async def _project(
         self,
         board: TaskBoard,
@@ -609,25 +626,15 @@ class TaskExecution:
         Settling a case is not refused for that: the decision stands, and
         `restored_table` brings the task up to date if the board comes back.
         """
-        from app.repositories import user as user_repo
         from app.repositories import virtual_table_repo
-        from app.schemas.virtual_table import RecordSource
+        from app.services.virtual_tables.record_sources import SYSTEM_SOURCE, person_source
 
         table = await virtual_table_repo.get_table(
             self.db, board.table_id, organization_id=board.organization_id, for_share=True
         )
         if table is None or table.archived_at is not None:
             return
-        person = None if actor is None else await user_repo.get_by_id(self.db, actor)
-        source = (
-            RecordSource(kind="system", name="System")
-            if actor is None
-            else RecordSource(
-                kind="user",
-                id=actor,
-                name=(person.full_name or person.email) if person else "User",
-            )
-        )
+        source = SYSTEM_SOURCE if actor is None else await person_source(self.db, actor)
         before = dict(record.values)
         values = {
             **before,
