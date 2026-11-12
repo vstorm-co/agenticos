@@ -180,7 +180,7 @@ def _merge(
     for key, value in submitted.items():
         column = by_id.get(key)
         if column is None:
-            problems.append((f"values.{key}", "That is not a column of this table"))
+            problems.append((f"values.{key}", _not_a_column(columns, key)))
             continue
         if column.archived:
             raise ArchivedColumnError(key)
@@ -205,6 +205,14 @@ def _merge(
     if problems:
         raise InvalidRecordError(problems)
     return merged
+
+
+def _not_a_column(columns: list[ColumnDef], key: str) -> str:
+    """Why `key` names no column, and the id to use when it is one's label."""
+    labelled = [c for c in columns if not c.archived and c.label.casefold() == key.casefold()]
+    if len(labelled) == 1:
+        return f"Values are keyed by column id, not label - use {labelled[0].id} for {key!r}"
+    return "That is not a column of this table - values are keyed by column id"
 
 
 def _changed_cells(
