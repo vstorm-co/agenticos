@@ -10023,7 +10023,7 @@
       },
       "loop": {
         "title": "Stay in the loop",
-        "body": "Approvals arrive as notifications you can answer without opening anything.",
+        "body": "Approval requests arrive as notifications. To answer most of them there, turn off “Hide private content” in Settings → Desktop app.",
         "login": "Open AgenticOS at login",
         "keepRunning": "Keep running when the window is closed",
         "test": "Notifications",
