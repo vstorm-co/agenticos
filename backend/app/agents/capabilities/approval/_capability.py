@@ -39,6 +39,7 @@ from app.agents.approval import (
     ApprovalPending,
     ApprovalRejected,
     ApprovalRequest,
+    has_recorded_decision,
     refusal,
 )
 from app.agents.capabilities._registry import (
@@ -193,9 +194,13 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
     ) -> Any:
         """Ask before executing, and execute only what was asked about."""
         capability_id = tool_def.capability_id
-        gated = self.gates(tool_def) or (
-            active_code.get() == call.tool_call_id
-            and ctx.deps.code_continuations.requires_approval(call.tool_call_id)
+        gated = (
+            has_recorded_decision(ctx.deps.request_approval, call.tool_call_id)
+            or self.gates(tool_def)
+            or (
+                active_code.get() == call.tool_call_id
+                and ctx.deps.code_continuations.requires_approval(call.tool_call_id)
+            )
         )
         try:
             routine = (
