@@ -19,6 +19,68 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Upgrading
+
+- The skill-usage backfill scans existing tool-call history while holding the agent-runs schema lock. Plan an upgrade window for a large deployment. `0315_merge_skills_and_approval_visibility.py` joins skill versioning with `0314_tool_approval_always_asks.py`; both changes are applied.
+- **Skills are versioned, and an agent's spec says which version it uses.**
+  Agent specs move to version 15: each bound skill names the line it follows
+  (main, a version pinned on main, or a fork). An existing agent is upgraded to
+  follow main's newest version, so it reads exactly what it read before.
+  Republish nothing; a YAML export carries the new field.
+- **Migrations `0305_run_skill_uses.py` to `0312_skill_check_reasons.py`** record
+  which skills a run loaded, turn every skill's current text into its first
+  version, and add skill forks, checks, merges and improvement sessions. A
+  downgrade drops versions, forks, checks and pending fork changes; each skill
+  keeps main's newest text, and every agent reads that again.
+
+### Added
+
+- **Skill versions and forks.** Every saved change to a skill is a new version,
+  and **Restore** brings an earlier one back. An agent follows main's newest
+  version, stays pinned on an older one, or uses a fork with its own changes;
+  **Change version** on the skill page moves it, after checking the version on
+  that agent. The skill page lists its agents, its content, its history and a
+  version tree.
+- **Skill checks.** A change to a skill is checked on every agent that uses the
+  line it changes, on the skill's own test questions and each agent's. It
+  passes when no agent is worse and at least one is better; an agent that could
+  not be checked shows why, and a person acknowledges it. A confirmed regression
+  goes to the review queue.
+- **Improve a skill.** The Improve wizard learns from answers where agents
+  loaded the skill and proposes a change, checks it, and offers to apply it, to
+  apply it with the agents it hurt pinned, to make a fork for the agents it
+  helped, or to discard it.
+- **Catch up and move to main.** A pinned agent or a fork behind main is
+  offered an update, checked first; a fork is merged with main's changes, with
+  the model proposing text where both sides changed the same part, and a fork
+  can move its changes to main through the full check.
+- **Skill test questions**, a dataset every agent using the skill is checked
+  on, written from the answers where agents loaded it.
+- The Architect reads skill versions, checks and sessions, and makes changes
+  only when the person asks, through approval cards. The dashboard shows
+  checks and proposed skill changes waiting on the reader.
+
+### Changed
+
+- Routine action consent supports grouped bulk selection, search, explicit reuse of prior choices and up to 1,000 actions, with explanations when a new review is required.
+
+- The Builder offers two capability approval choices and starts newly added capabilities with Always ask. Existing specs retain their policies, and individual tools can still inherit or override them.
+
+### Fixed
+
+- Desktop pages show one clear browser fallback, unlinking a computer requires confirmation, and setup text matches the operating system and notification privacy settings. Quick Ask explains refused computer access and clears that notice for a new conversation.
+
+- Bootstrap honors the requested organization and validates its name before converting a new owner’s personal organization. Setup diagnostics explain vault fallback and publish refusals; demo seeds create their missing agents.
+- Docker console deployments accept a session cookie namespace, and table record validation explains that values are keyed by column IDs.
+
+- Browser Back closes an optimistic URL overlay even when the router has not yet rendered its open state, fixing the intermittent mobile Improve dialog failure.
+
+- Tools that require a decision for every call cannot use standing consent. Private memory approval content is withheld from unauthorized readers, and sharing is decided only where its full approval card can be read.
+
+- Project chats and conversations shared for editing no longer inject, recall, write or extract personal memory. Queued extraction rechecks current sharing before writing.
+
+- Knowledge base details now report the same document counts, indexing progress, agent usage and shared groups as the listing, while preserving effective write access.
+
 ## [1.66.0] - 2026-11-11
 
 ### Added

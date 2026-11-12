@@ -337,6 +337,10 @@ class DatasetRead(BaseSchema):
     agent_id: UUID | None = Field(
         default=None, description="The agent this dataset was made to test, when it names one"
     )
+    skill_id: UUID | None = Field(
+        default=None,
+        description="The skill whose own test questions these are, asked of every agent using it",
+    )
     latest_version: int
     case_count: int
     can_edit: bool = Field(

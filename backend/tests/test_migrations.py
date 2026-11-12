@@ -25,6 +25,7 @@ read identically in pytest's output, and only one of them is acceptable on a
 runner; `_demand_a_server` below is where they are told apart.
 """
 
+import json
 import os
 import re
 import subprocess
@@ -248,22 +249,64 @@ def test_delete_crosslink_migration_preserves_rows_and_defers_only_checks() -> N
             "agent_triggers_delivery_conversation_id_fkey",
             "artifacts_environment_id_fkey",
         )
+        # Per parent table: its SET NULL key, then its cascade, each (table, name, column).
         cascades = (
             (
-                "ALTER TABLE conversations DROP CONSTRAINT conversations_user_id_fkey, ADD CONSTRAINT conversations_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE",
+                "users",
+                (
+                    (
+                        "agent_triggers",
+                        "agent_triggers_created_by_user_id_fkey",
+                        "created_by_user_id",
+                    ),
+                    ("conversations", "conversations_user_id_fkey", "user_id"),
+                ),
                 delete(User).where(User.id == owner_id),
                 constraints[0],
             ),
             (
-                "ALTER TABLE agent_environments DROP CONSTRAINT agent_environments_agent_id_fkey, ADD CONSTRAINT agent_environments_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE",
+                "agents",
+                (
+                    ("artifacts", "artifacts_agent_id_fkey", "agent_id"),
+                    ("agent_environments", "agent_environments_agent_id_fkey", "agent_id"),
+                ),
                 delete(Agent).where(Agent.id == agent_id),
                 constraints[1],
             ),
         )
+
+        def cascade_last(
+            db: DatabaseSession, parent: str, keys: tuple[tuple[str, str, str], ...]
+        ) -> None:
+            """Re-create the SET NULL key, then the cascade, so the cascade fires last.
+
+            A table's triggers fire in name order, and an RI trigger is named after its
+            OID, so the comparison is textual: once the cluster's OID counter gains a
+            digit, a newly created trigger sorts before every older one. Re-creating
+            both keys gives them neighbouring OIDs, whatever the counter has reached.
+            """
+            for (table, name, column), action in zip(keys, ("SET NULL", "CASCADE"), strict=True):
+                db.execute(
+                    text(
+                        f"ALTER TABLE {table} DROP CONSTRAINT {name}, ADD CONSTRAINT {name} "
+                        f"FOREIGN KEY ({column}) REFERENCES {parent}(id) ON DELETE {action}"
+                    )
+                )
+            fired = db.scalars(
+                text(
+                    "SELECT c.confdeltype FROM pg_trigger t "
+                    "JOIN pg_constraint c ON c.oid = t.tgconstraint "
+                    "WHERE t.tgrelid = CAST(:parent AS regclass) "
+                    "AND c.conname IN (:set_null, :cascade) ORDER BY t.tgname"
+                ),
+                {"parent": parent, "set_null": keys[0][1], "cascade": keys[1][1]},
+            ).all()
+            assert fired == ["n", "n", "c", "c"]
+
         # Prove the old, migrated schema has the same defect as create_all.
-        for ddl, deletion, constraint in cascades:
+        for parent, keys, deletion, constraint in cascades:
             with DatabaseSession(engine) as db:
-                db.execute(text(ddl))
+                cascade_last(db, parent, keys)
                 # Unchanged FK columns are rechecked when this transaction has
                 # already written the surviving row, as in the integration tests.
                 db.execute(
@@ -299,7 +342,7 @@ def test_delete_crosslink_migration_preserves_rows_and_defers_only_checks() -> N
                     for row in rows
                 )
 
-        for cascade_last in (False, True):
+        for reordered in (False, True):
             with DatabaseSession(engine) as db:
                 assert (
                     db.scalar(select(Artifact.environment_id).where(Artifact.id == page_id))
@@ -313,9 +356,9 @@ def test_delete_crosslink_migration_preserves_rows_and_defers_only_checks() -> N
                     )
                     == chat_id
                 )
-                if cascade_last:
-                    for ddl, _, _ in cascades:
-                        db.execute(text(ddl))
+                if reordered:
+                    for parent, keys, _, _ in cascades:
+                        cascade_last(db, parent, keys)
                 db.execute(
                     update(AgentTrigger)
                     .where(AgentTrigger.id == routine_id)
@@ -424,6 +467,8 @@ class TestMigrations:
         "0295_tool_approval_consent",
         "0296_merge_evals_main",
         "0303_merge_workflow_onboarding",
+        "0312_skill_check_reasons",
+        "0314_tool_approval_always_asks",
     ],
 )
 def test_improvement_merge_upgrades_either_existing_history(starting_revision: str) -> None:
@@ -1305,6 +1350,151 @@ class TestSkillBindingAvailability:
             upgraded_again = _alembic("upgrade", "0180_remove_skill_enabled")
             assert upgraded_again.returncode == 0, upgraded_again.stderr
         finally:
+            # Their organization was never written, so a later upgrade past 0250,
+            # which gives every skill a version in its organization, would fail on them.
+            with engine.begin() as connection:
+                connection.execute(text("DELETE FROM skills WHERE id IN (:a, :b)"), selected)
+            engine.dispose()
+
+
+class TestRunSkillUsesBackfill:
+    def test_transcripts_become_uses_and_every_older_run_reads_unknown(self) -> None:
+        """Loads and file reads are copied by skill, never to a skill named so later.
+
+        The runs stay unrecorded - an old transcript proves a load, never the
+        absence of one - while a run written after the upgrade is recorded.
+        """
+        reset = _alembic("downgrade", "base")
+        assert reset.returncode == 0, reset.stderr
+        before = _alembic("upgrade", "0306_shared_page_attribution")
+        assert before.returncode == 0, before.stderr
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        org, agent = uuid4(), uuid4()
+        refunds, shipping, renamed = uuid4(), uuid4(), uuid4()
+        loaded, quiet, later = uuid4(), uuid4(), uuid4()
+        now = datetime.now(UTC)
+        try:
+            with engine.begin() as connection:
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                # The parents a use points at; nothing else about them matters here.
+                connection.execute(
+                    text(
+                        "INSERT INTO organizations (id, name, slug, is_personal, created_by_user_id) "
+                        "VALUES (:id, 'Skills', :slug, false, :user)"
+                    ),
+                    {"id": org, "slug": f"skills-{org.hex[:8]}", "user": uuid4()},
+                )
+                connection.execute(
+                    text(
+                        "INSERT INTO agents (id, organization_id, visibility, slug, name, status) "
+                        "VALUES (:id, :org, 'org', :slug, 'Refund desk', 'draft')"
+                    ),
+                    {"id": agent, "org": org, "slug": f"refunds-{agent.hex[:8]}"},
+                )
+                for skill_id, name, created in (
+                    (refunds, "refunds", now - timedelta(days=10)),
+                    (shipping, "shipping", now - timedelta(days=10)),
+                    # Named like a skill a run loaded, and created after that run.
+                    (renamed, "returns", now),
+                ):
+                    connection.execute(
+                        text(
+                            "INSERT INTO skills (id, organization_id, name, description, content, "
+                            "version, visibility, created_at) VALUES "
+                            "(:id, :org, :name, 'A procedure', 'Check', 1, 'org', :created)"
+                        ),
+                        {"id": skill_id, "org": org, "name": name, "created": created},
+                    )
+                calls = {
+                    loaded: [
+                        ("load_capability", {"id": "refunds"}, "completed"),
+                        ("read_skill_resource", {"skill_name": "refunds"}, "completed"),
+                        ("read_skill_resource", {"skill_name": "refunds"}, "completed"),
+                        ("load_skill", {"skill_name": "shipping"}, "completed"),
+                        ("load_capability", {"id": "returns"}, "completed"),
+                        ("search_documents", {"query": "refunds"}, "completed"),
+                    ],
+                    # Calls that never ran opened nothing.
+                    quiet: [
+                        ("load_capability", {"id": "refunds"}, "failed"),
+                        ("read_skill_resource", {"skill_name": "refunds"}, "awaiting_approval"),
+                        ("read_skill_resource", {"skill_name": "refunds"}, "rejected"),
+                    ],
+                }
+                for run_id, made in calls.items():
+                    connection.execute(
+                        text(
+                            "INSERT INTO agent_runs (id, organization_id, agent_id, surface, status, "
+                            "input_tokens, output_tokens, cost_usd, cost_is_partial, started_at) "
+                            "VALUES (:id, :org, :agent, 'chat', 'completed', 0, 0, 0, false, :at)"
+                        ),
+                        {"id": run_id, "org": org, "agent": agent, "at": now - timedelta(days=5)},
+                    )
+                    message = uuid4()
+                    connection.execute(
+                        text(
+                            "INSERT INTO messages (id, conversation_id, role, content, ordinal, run_id) "
+                            "VALUES (:id, :conversation, 'assistant', 'Done', 1, :run)"
+                        ),
+                        {"id": message, "conversation": uuid4(), "run": run_id},
+                    )
+                    for index, (tool, args, status) in enumerate(made):
+                        connection.execute(
+                            text(
+                                "INSERT INTO tool_calls (id, message_id, tool_call_id, tool_name, "
+                                "args, status, started_at) VALUES "
+                                "(:id, :message, :call, :tool, CAST(:args AS jsonb), :status, :at)"
+                            ),
+                            {
+                                "id": uuid4(),
+                                "message": message,
+                                "call": f"c{index}",
+                                "tool": tool,
+                                "args": json.dumps(args),
+                                "status": status,
+                                "at": now,
+                            },
+                        )
+            up = _alembic("upgrade", "0305_run_skill_uses")
+            assert up.returncode == 0, up.stderr
+            with engine.begin() as connection:
+                uses = connection.execute(
+                    text(
+                        "SELECT run_id, agent_id, skill_id, loaded, resource_reads, workspace_reads, "
+                        "skill_version_id FROM run_skill_uses WHERE organization_id = :org"
+                    ),
+                    {"org": org},
+                ).all()
+                assert sorted(
+                    (use.skill_id, use.loaded, use.resource_reads) for use in uses
+                ) == sorted([(refunds, True, 2), (shipping, True, 0)])
+                assert {(use.run_id, use.agent_id) for use in uses} == {(loaded, agent)}
+                assert {(use.workspace_reads, use.skill_version_id) for use in uses} == {(0, None)}
+                assert connection.execute(
+                    text("SELECT skill_uses_recorded FROM agent_runs WHERE id IN (:a, :b)"),
+                    {"a": loaded, "b": quiet},
+                ).scalars().all() == [False, False]
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                connection.execute(
+                    text(
+                        "INSERT INTO agent_runs (id, organization_id, agent_id, surface, status, "
+                        "input_tokens, output_tokens, cost_usd, cost_is_partial) "
+                        "VALUES (:id, :org, :agent, 'chat', 'completed', 0, 0, 0, false)"
+                    ),
+                    {"id": later, "org": org, "agent": agent},
+                )
+                assert (
+                    connection.execute(
+                        text("SELECT skill_uses_recorded FROM agent_runs WHERE id = :id"),
+                        {"id": later},
+                    ).scalar_one()
+                    is True
+                )
+            back = _alembic("downgrade", "0306_shared_page_attribution")
+            assert back.returncode == 0, back.stderr
+            again = _alembic("upgrade", "head")
+            assert again.returncode == 0, again.stderr
+        finally:
             engine.dispose()
 
 
@@ -1623,4 +1813,58 @@ def test_shared_attribution_defaults_and_opt_out_survive_upgrade() -> None:
         check = _alembic("check")
         assert check.returncode == 0, check.stderr
     finally:
+        engine.dispose()
+
+
+def test_a_share_memory_call_still_waiting_is_marked_as_always_asking() -> None:
+    """A call parked before the column existed never expires, so it is marked on the way in."""
+    for action, revision in (("upgrade", "head"), ("downgrade", "0306_shared_page_attribution")):
+        result = _alembic(action, revision)
+        assert result.returncode == 0, result.stderr
+    rows = {
+        "waiting share": ("share_memory", "pending"),
+        "decided share": ("share_memory", "approved"),
+        "waiting email": ("send_email", "pending"),
+    }
+    ids = {name: str(uuid4()) for name in rows}
+    org, agent, run = uuid4(), uuid4(), uuid4()
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    try:
+        with engine.begin() as connection:
+            # Replica mode skips the foreign-key triggers, so no organization,
+            # agent or run has to exist for the approvals to name.
+            connection.execute(text("SET LOCAL session_replication_role = replica"))
+            for name, (tool, status) in rows.items():
+                connection.execute(
+                    text(
+                        "INSERT INTO tool_approvals (id, organization_id, run_id, agent_id, "
+                        "tool_id, capability_tool_id, status) "
+                        "VALUES (:id, :org, :run, :agent, :tool, :tool, :status)"
+                    ),
+                    {
+                        "id": ids[name],
+                        "org": org,
+                        "run": run,
+                        "agent": agent,
+                        "tool": tool,
+                        "status": status,
+                    },
+                )
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+        with engine.connect() as connection:
+            marked = {
+                name: connection.execute(
+                    text("SELECT always_asks FROM tool_approvals WHERE id = :id"),
+                    {"id": ids[name]},
+                ).scalar_one()
+                for name in rows
+            }
+        assert marked == {"waiting share": True, "decided share": False, "waiting email": False}
+    finally:
+        with engine.begin() as connection:
+            connection.execute(
+                text("DELETE FROM tool_approvals WHERE id::text = ANY(:ids)"),
+                {"ids": list(ids.values())},
+            )
         engine.dispose()

@@ -242,6 +242,9 @@ class ProactiveThinker:
             secret_id=request.secret_id,
             started_at=started,
             system_role=_ROLE_OF.get(feature),
+            # A proactive run is served no skills, and never reaches the runner's
+            # terminal write that records them.
+            skill_uses_recorded=True,
         )
         limits = await self._limits(ctx, feature, agent, run_id=run.id, started_at=started)
         # Committed before the provider is called, as the other run paths do: a

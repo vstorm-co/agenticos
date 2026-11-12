@@ -8,6 +8,7 @@ import { formatDateTime } from "@/lib/utils";
 import { ROUTES } from "@/lib/constants";
 import { modelShortName } from "@/lib/model-profiles";
 import type { CaseScore } from "@/types/scoring";
+import { ScoreOrigin } from "./score-origin";
 
 /** Every scored answer shares one table; opening a question keeps its review in a side panel. */
 export function ReviewResultsTable({
@@ -82,12 +83,14 @@ export function ReviewResultsTable({
             href={`${ROUTES.AGENTS}/${score.agent_id}/evals/${score.eval_run_id}`}
             className="text-muted-foreground hover:text-foreground text-xs underline underline-offset-4"
           >
-            {t("evalRunLink")}
+            {score.skill_check || score.eval_attempt ? (
+              <ScoreOrigin score={score} />
+            ) : (
+              t("evalRunLink")
+            )}
           </Link>
         ) : (
-          <span className="text-muted-foreground text-xs">
-            {t(score.eval_run_id === null ? "groupByHand" : "groupEvalSource")}
-          </span>
+          <ScoreOrigin score={score} />
         ),
     },
   ];

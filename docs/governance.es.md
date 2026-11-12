@@ -1,5 +1,5 @@
 ---
-source_sha: "390d73e39402"
+source_sha: "53e0bc6237b8"
 ---
 
 # Governance { #governance }
@@ -804,6 +804,19 @@ alcanzarlo; un caso silenciado sigue silenciado durante ese mes.
 
 ### Consentimiento para acciones { #routine-action-consent }
 
+Las acciones se agrupan por capability o cuenta MCP concreta y se pueden buscar.
+Selecciona o desmarca un grupo o todas las acciones permitidas; los controles masivos
+incluyen entradas ocultas por la búsqueda. Se mantienen las exclusiones individuales.
+Un review admite hasta 1000 acciones seleccionadas; una selección mayor se muestra y
+debe reducirse antes de guardar, nunca se trunca silenciosamente.
+
+Cambiar solo el título o la frecuencia conserva el consentimiento. Si cambia la versión,
+el trabajo, las instrucciones o la cuenta, el diálogo explica el límite afectado.
+**Volver a seleccionar acciones revisadas** es una nueva elección explícita de identidades
+permitidas coincidentes; no concede nada hasta guardar el review actual. Las acciones
+nuevas y cuentas modificadas no se seleccionan automáticamente. Siguen vigentes las
+aprobaciones obligatorias, la revocación y los controles de review obsoleto.
+
 Una rutina desatendida pide aprobación antes de acciones de capacidades, cambios
 en archivos locales y delegaciones. Las llamadas MCP externas preguntan salvo que
 su servidor las marque como solo lectura; sigue vigente una política más estricta
@@ -1455,9 +1468,17 @@ La tarjeta no aparece mientras todas las cachés aguantaron.
 
 ## Aprobaciones { #approvals }
 
-Una herramienta que el autor del agent puso tras una puerta aparca el run y espera
-a una persona. Nada queda tras una puerta hasta que alguien lo pide: una puerta que
-nadie eligió aparca runs en canales y rutinas donde no hay nadie para responderla.
+Una herramienta con aprobación aparca el run y espera a una persona. El Builder ofrece
+**Preguntar siempre** y **No preguntar nunca** para una capability; las herramientas
+individuales también pueden seguir su política. Las capabilities nuevas del Builder
+empiezan con **Preguntar siempre**. Los bindings existentes, incluso sin approval o con
+`default` almacenado, conservan su política anterior.
+
+Las aprobaciones requeridas pueden detener rutinas y canales igual que un chat. Para
+trabajo desatendido, elige expresamente qué acciones pueden ejecutarse sin preguntar.
+Las aprobaciones obligatorias y las políticas más estrictas de la organización siguen
+vigentes. Las herramientas ejecutadas por el provider necesitan un método local para
+pedir aprobación; publicar rechaza una aprobación que no pueda aplicarse.
 
 La resolución va de lo más específico a lo menos:
 
@@ -1601,9 +1622,11 @@ Cinco propiedades que conviene conocer:
 
 ### Cuánto quiere una conversación que se le pregunte { #how-much-one-conversation-wants-to-be-asked }
 
-La tarjeta de aprobación también ofrece permitir esta herramienta en este chat o permitirla siempre para este agente. La elección solo se aplica a la herramienta y cuenta indicadas, a la persona que consiente y a la versión publicada del agente. Requiere el mismo permiso y ajuste de organización que aprobar todas las acciones. No autoriza delegados ni ejecuciones desatendidas. Una nueva versión del agente requiere una nueva elección.
+La tarjeta de aprobación también ofrece permitir esta herramienta en este chat o permitirla siempre para este agente. La elección solo se aplica a la herramienta y cuenta indicadas, a la persona que consiente y a la versión publicada del agente. Requiere el mismo permiso y ajuste de organización que aprobar todas las acciones. No autoriza delegados ni ejecuciones desatendidas. Una nueva versión del agente requiere una nueva elección. Una herramienta que pregunta siempre, como `share_memory`, nunca se recuerda y aprobar todas las acciones no la responde: su tarjeta no ofrece ninguna de las dos opciones y el servidor se niega a recordarla.
 
 Las elecciones se guardan en el servidor. **Chat controls → Preferences → Remembered tool approvals → Ask again** revoca una elección sin borrar la aprobación original. Antes de cada aprobación automática se vuelven a comprobar la pertenencia, el permiso de aprobación y la política de la organización. El modo de preguntar por todo tiene prioridad sobre las elecciones guardadas. Cada aprobación automática sigue registrando quién consintió y los argumentos reales de la llamada.
+
+La cola de aprobaciones es de la organización, pero algunas llamadas citan lo que lee la persona de su run: el hecho que compartiría `share_memory`. Esa cita solo la ve quien puede ver el run: la persona para la que corrió, o un miembro que lee todos los runs y puede ver el agent. Los demás ven la herramienta, la audiencia y un aviso de que el contenido está oculto. Una llamada que pregunta siempre solo la aprueba quien puede leer lo que cita: cualquier otra persona puede rechazarla, y su aprobación se rechaza.
 
 La regla de arriba es la del agent, decidida al publicar y por herramienta, y ese es
 el sitio correcto para ella: es una afirmación sobre lo que el agent _es_. Lo que no

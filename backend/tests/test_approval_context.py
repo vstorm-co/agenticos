@@ -249,7 +249,8 @@ class TestWhichToolsAreDescribed:
             )
         assert "test_stray_describer" not in REGISTRY
 
-    def test_a_capability_may_describe_its_own_tools(self):
+    @pytest.mark.anyio
+    async def test_a_capability_may_describe_its_own_tools(self):
         @register(
             id="test_described",
             name="Described",
@@ -274,9 +275,11 @@ class TestWhichToolsAreDescribed:
                     )
                 ],
             )
-            assert approval_describers(spec) == {
-                "renamed": REGISTRY["test_described"].describers["real"]
-            }
+            described = approval_describers(spec)
+            assert set(described) == {"renamed"}
+            deps, args = MagicMock(), {"id": "1"}
+            await described["renamed"](deps, args)
+            REGISTRY["test_described"].describers["real"].assert_awaited_once_with(deps, args, None)
         finally:
             REGISTRY.pop("test_described")
 

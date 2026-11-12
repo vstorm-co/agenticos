@@ -9,14 +9,11 @@ import {
   Gauge,
   GitBranch,
   Library,
-  Maximize,
   Network,
   Plug,
   Radio,
   UserCog,
   Wallet,
-  ZoomIn,
-  ZoomOut,
 } from "lucide-react";
 import { ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 import type { LucideIcon } from "lucide-react";
@@ -29,10 +26,10 @@ import {
   type MapNode,
 } from "./agent-map-nodes";
 import { MapDetail } from "./agent-map-detail";
+import { MapZoomControls } from "./map-zoom-controls";
 import { useMapView, type EdgeInput } from "./agent-map-view";
 import { useFocusedNode } from "./use-focused-node";
 import { surfaceIconComponent } from "@/components/runs/surface-icon";
-import { Button } from "@/components/ui";
 import { STEP_ICONS } from "@/lib/step-icons";
 import { toolEntry } from "@/lib/tool-catalog";
 import { cn } from "@/lib/utils";
@@ -139,35 +136,11 @@ export function AgentMap({
 
   return (
     <div className="relative min-w-0">
-      <div className="absolute top-2 right-2 z-10 flex gap-1">
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          aria-label={t("zoom")}
-          onClick={() => zoomFromCentre(1.25)}
-        >
-          <ZoomIn className="h-4 w-4" />
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          aria-label={t("zoomOut")}
-          onClick={() => zoomFromCentre(1 / 1.25)}
-        >
-          <ZoomOut className="h-4 w-4" />
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          aria-label={t("resetView")}
-          onClick={resetView}
-        >
-          <Maximize className="h-4 w-4" />
-        </Button>
-      </div>
+      <MapZoomControls
+        onZoomIn={() => zoomFromCentre(1.25)}
+        onZoomOut={() => zoomFromCentre(1 / 1.25)}
+        onReset={resetView}
+      />
 
       {/* The pan/zoom canvas. A click that lands here rather than on a node is
           how a person says "never mind", so it clears the focus - nodes stop

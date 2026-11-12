@@ -1,3 +1,5 @@
+import type { EvidenceItem } from "@/types/authoring";
+
 /** Durable improvement sessions; question and answer text stays behind runs:view. */
 export type ImprovementStatus =
   | "queued"
@@ -97,6 +99,8 @@ export interface Improvement {
   can_discard?: boolean;
   id: string;
   agent_id: string;
+  /** Set on a skill's session, which improves the skill rather than `agent_id`. */
+  skill_id?: string | null;
   created_by_user_id: string | null;
   improver_agent_id: string | null;
   status: ImprovementStatus;
@@ -199,6 +203,8 @@ export interface ImprovementEvidenceItem {
   topic_id?: string | null;
   /** Set when its topic is covered now: nothing is left to draft for it. */
   knowledge_added?: KnowledgeAdded | null;
+  /** The skills the agent itself used in its run, where the reader may see them. */
+  skills?: { skill_id: string; name: string }[];
 }
 export interface ImprovementEvidence {
   items: ImprovementEvidenceItem[];
@@ -250,4 +256,36 @@ export interface MeasurementNoise {
   too_few_shared: boolean;
   by_attempt: { number: number; baseline_unstable: number; candidate_unstable: number }[];
   examples: { case_id: string; input: string; attempts: NoisyAttempt[] }[];
+}
+
+/** How the agent reads one of its skills now. */
+export interface ImprovementSkillBinding {
+  state: "main" | "pinned" | "fork";
+  version: { id: string; number: number; fork_id: string | null };
+  fork: { id: string; name: string; base_number: number; changes: number } | null;
+  behind_main: number;
+}
+
+/** A problem the session's helper found in a skill rather than in the agent. */
+export interface ImprovementSkillProblem {
+  problem: string;
+  evidence: EvidenceItem[];
+}
+
+/** One skill the agent reads, as its Improve session sees it. */
+export interface ImprovementSkill {
+  skill_id: string;
+  name: string;
+  /** Null where the reader may not see the skill. */
+  binding: ImprovementSkillBinding | null;
+  /** Visible agents an Improve of the skill's line would change. */
+  agents_on_line: number | null;
+  hidden_agents: number;
+  problems: ImprovementSkillProblem[];
+  can_improve: boolean;
+  update: { kind: "update_pinned" | "catch_up_fork"; to_version: number } | null;
+}
+
+export interface ImprovementSkills {
+  items: ImprovementSkill[];
 }

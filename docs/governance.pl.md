@@ -1,5 +1,5 @@
 ---
-source_sha: "390d73e39402"
+source_sha: "53e0bc6237b8"
 ---
 
 # Governance { #governance }
@@ -794,6 +794,18 @@ wyciszona przez dany miesiąc.
 
 ### Zgody na działania { #routine-action-consent }
 
+Akcje są grupowane według capability lub konkretnego konta MCP i można je wyszukiwać.
+Zaznacz lub wyczyść grupę albo całą listę dozwolonych akcji; kontrolki grupowe obejmują
+też pozycje ukryte przez wyszukiwanie. Nadal możesz wykluczać pojedyncze akcje.
+Review obsługuje do 1000 zaznaczonych akcji; większy wybór jest pokazany i wymaga
+zmniejszenia przed zapisem, nigdy nie jest po cichu obcinany.
+
+Zmiana samej nazwy lub częstotliwości zachowuje zgodę. Po zmianie wersji, pracy,
+instrukcji lub konta dialog wyjaśnia zmienioną granicę. **Zaznacz ponownie wcześniej
+sprawdzone akcje** to jawny nowy wybór zgodnych, dozwolonych identyfikatorów; nie daje
+zgody przed zapisaniem bieżącego review. Nowe akcje i zmienione konta nie zaznaczają
+się automatycznie. Obowiązkowe akceptacje, cofanie zgody i kontrola aktualności nadal działają.
+
 Rutyna działająca bez nadzoru pyta przed działaniami funkcji, zmianami lokalnych
 plików i delegowaniem. Wywołania zewnętrznego MCP pytają, chyba że serwer oznacza je
 jako tylko do odczytu; silniejsza polityka zatwierdzania połączenia nadal obowiązuje.
@@ -1451,9 +1463,15 @@ Karty nie ma, dopóki każdy cache trzymał.
 
 ## Zatwierdzenia { #approvals }
 
-Narzędzie, które autor agenta objął bramką, parkuje run i czeka na człowieka.
-Nic nie jest za bramką, dopóki ktoś o to nie poprosi: bramka, której nikt nie
-wybrał, parkuje runy w kanałach i rutynach, gdzie nikogo nie ma, żeby odpowiedzieć.
+Narzędzie objęte bramką parkuje run i czeka na osobę. Builder oferuje **Zawsze pytaj**
+i **Nigdy nie pytaj** dla capability; pojedyncze narzędzia mogą też dziedziczyć jej tryb.
+Nowa capability dodana w Builderze zaczyna od **Zawsze pytaj**. Istniejące bindingi,
+w tym pominięte approval i zapisane `default`, zachowują wcześniejszą politykę.
+
+Wymagane akceptacje mogą wstrzymać routines i kanały tak samo jak chat. Dla pracy bez
+nadzoru świadomie wybierz akcje dozwolone bez pytania. Obowiązkowe akceptacje i bardziej
+rygorystyczna polityka organizacji nadal obowiązują. Narzędzia wykonywane przez providera
+potrzebują lokalnej metody, aby pytać; publikacja odrzuca niewykonalną bramkę.
 
 Rozstrzyganie idzie od najbardziej szczegółowego:
 
@@ -1596,9 +1614,11 @@ Pięć właściwości, które warto znać:
 
 ### Jak bardzo jedna rozmowa chce być pytana { #how-much-one-conversation-wants-to-be-asked }
 
-Karta akceptacji oferuje również **Zezwalaj na ten tool w tej rozmowie** i **Zawsze zezwalaj na ten tool dla tego agenta**. Zgoda dotyczy tylko wskazanego narzędzia i konta, osoby udzielającej zgody oraz opublikowanej wersji agenta. Wymaga tego samego uprawnienia i przełącznika organizacji co zatwierdzanie wszystkiego. Nie upoważnia delegata ani pracy bez nadzoru. Zmiana wersji agenta wymaga ponownego wyboru.
+Karta akceptacji oferuje również **Zezwalaj na ten tool w tej rozmowie** i **Zawsze zezwalaj na ten tool dla tego agenta**. Zgoda dotyczy tylko wskazanego narzędzia i konta, osoby udzielającej zgody oraz opublikowanej wersji agenta. Wymaga tego samego uprawnienia i przełącznika organizacji co zatwierdzanie wszystkiego. Nie upoważnia delegata ani pracy bez nadzoru. Zmiana wersji agenta wymaga ponownego wyboru. Tool, który pyta za każdym razem, taki jak `share_memory`, nigdy nie jest zapamiętywany i nie odpowiada na niego zatwierdzanie wszystkiego: jego karta nie oferuje żadnej z tych opcji, a serwer odmawia zapamiętania.
 
 Wybory są zapisywane na serwerze. **Chat controls → Preferences → Zapamiętane akceptacje tooli → Pytaj ponownie** cofa zgodę bez usuwania historii pierwotnej akceptacji. Przed każdym automatycznym zatwierdzeniem ponownie sprawdzane są członkostwo, uprawnienie do akceptacji i polityka organizacji. Tryb pytania o wszystko ma pierwszeństwo przed zapisanymi zgodami. Każde automatyczne zatwierdzenie nadal zapisuje osobę udzielającą zgody i rzeczywiste argumenty wywołania.
+
+Kolejka akceptacji należy do organizacji, ale niektóre wywołania cytują to, co czyta osoba z runu - fakt, który udostępniłby `share_memory`. Ten cytat widzi tylko ktoś, kto może zobaczyć run: osoba, dla której działał, albo członek, który czyta wszystkie runy i może zobaczyć agenta. Pozostali widzą tool, odbiorców i informację, że treść jest ukryta. Wywołanie, które pyta za każdym razem, zatwierdzić może tylko ktoś, kto widzi to, co cytuje: każdy inny może je odrzucić, a jego zatwierdzenie zostaje odrzucone.
 
 Reguła powyżej należy do agenta, jest rozstrzygana w czasie publikacji i per
 narzędzie, i to jest dla niej właściwe miejsce: to wypowiedź o tym, czym agent

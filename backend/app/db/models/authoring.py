@@ -55,6 +55,9 @@ class AuthoringKind(StrEnum):
     VERIFY = "verify"
     """Critique the edits a person made to the draft, against the same evidence."""
 
+    ANALYZE = "analyze"
+    """Group a skill's bad answers into problems, proposing nothing - a skill session's Understand."""
+
 
 class AuthoringTarget(StrEnum):
     AGENT = "agent"
@@ -102,6 +105,10 @@ class HunkKind(StrEnum):
     TOOL_OVERRIDE = "tool_override"
     SPEC_FIELD = "spec_field"
     CREATE_SKILL = "create_skill"
+    SKILL_BODY = "skill_body"
+    """An edit to one passage of a skill's body, anchored as an `instructions` hunk is."""
+    SKILL_DESCRIPTION = "skill_description"
+    """A new description for a skill, which decides when an agent opens it."""
 
 
 class FieldOp(StrEnum):
@@ -193,6 +200,12 @@ class AuthoringRequest(Base):
         nullable=True,
         index=True,
     )
+    skill_improvement_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("skill_improvement_runs.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     # `now()` is one value for a whole transaction; the newest row is the one
     # written last only if each insert reads the clock for itself.
     created_at: Mapped[datetime] = mapped_column(
@@ -206,7 +219,9 @@ class AuthoringRequest(Base):
     heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
-        CheckConstraint("kind IN ('improve', 'verify')", name="ck_authoring_request_kind"),
+        CheckConstraint(
+            "kind IN ('improve', 'verify', 'analyze')", name="ck_authoring_request_kind"
+        ),
         CheckConstraint(
             "(target = 'agent' AND agent_id IS NOT NULL AND skill_id IS NULL "
             "AND context_id IS NULL) OR "
@@ -233,7 +248,7 @@ class AuthoringRequest(Base):
 
 
 class SpecProposalBatch(Base):
-    """What one request proposed for one agent's draft."""
+    """What one request proposed for one agent's draft, or for one line of a skill."""
 
     __tablename__ = "spec_proposal_batches"
 
@@ -246,13 +261,29 @@ class SpecProposalBatch(Base):
         nullable=False,
         index=True,
     )
-    agent_id: Mapped[uuid.UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("agents.id", ondelete="CASCADE"), nullable=False
+    agent_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("agents.id", ondelete="CASCADE"), nullable=True
+    )
+    skill_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("skills.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    fork_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("skill_forks.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    base_skill_version_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), nullable=True
     )
     request_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("authoring_requests.id", ondelete="SET NULL"),
         nullable=True,
+        index=True,
     )
     # Supersession compares start times: an older request finishing last must never
     # replace a newer batch.
@@ -273,6 +304,12 @@ class SpecProposalBatch(Base):
         nullable=True,
         index=True,
     )
+    skill_improvement_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("skill_improvement_runs.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=func.clock_timestamp(),
@@ -285,6 +322,14 @@ class SpecProposalBatch(Base):
         CheckConstraint(
             "status IN ('open', 'superseded', 'published', 'candidate')",
             name="ck_spec_proposal_batch_status",
+        ),
+        # A skill's batch is always a session's candidate: only an agent has an open batch.
+        CheckConstraint(
+            "(agent_id IS NOT NULL AND skill_id IS NULL AND fork_id IS NULL "
+            "AND skill_improvement_run_id IS NULL) OR "
+            "(agent_id IS NULL AND skill_id IS NOT NULL AND skill_improvement_run_id IS NOT NULL "
+            "AND base_skill_version_id IS NOT NULL AND status IN ('candidate', 'superseded'))",
+            name="ck_spec_proposal_batch_target",
         ),
         # One open batch per agent, held where a race cannot slip past it.
         Index(
@@ -379,7 +424,8 @@ class SpecProposalHunk(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "kind IN ('instructions', 'tool_override', 'spec_field', 'create_skill')",
+            "kind IN ('instructions', 'tool_override', 'spec_field', 'create_skill', "
+            "'skill_body', 'skill_description')",
             name="ck_spec_proposal_hunk_kind",
         ),
         CheckConstraint(

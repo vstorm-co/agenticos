@@ -166,6 +166,10 @@ export function useScores(
         queryClient.invalidateQueries({ queryKey: qk.evalSuites.all() }),
         queryClient.invalidateQueries({ queryKey: qk.environments.all() }),
         queryClient.invalidateQueries({ queryKey: qk.notifications.all() }),
+        // A person's verdict judges again the improvements and skill checks it was part of.
+        queryClient.invalidateQueries({ queryKey: qk.improvements.all() }),
+        queryClient.invalidateQueries({ queryKey: qk.skillChecks.all() }),
+        queryClient.invalidateQueries({ queryKey: qk.skills.all() }),
       ]),
     [queryClient, datasetId],
   );

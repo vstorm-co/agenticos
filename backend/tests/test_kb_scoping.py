@@ -2061,6 +2061,7 @@ async def test_custom_embedding_endpoint_requires_connection_authority():
         ("personal", "owner", None, False, False, False),
     ],
 )
+@pytest.mark.usefixtures("kb_contents_unread")
 async def test_detail_reports_effective_write_access(
     mock_db_session: AsyncMock,
     monkeypatch: pytest.MonkeyPatch,
@@ -2080,6 +2081,50 @@ async def test_detail_reports_effective_write_access(
     monkeypatch.setattr(
         "app.repositories.resource_grant_repo.get_level", AsyncMock(return_value=grant)
     )
+    monkeypatch.setattr(
+        "app.repositories.rag_document_repo.counts_by_scope", AsyncMock(return_value={})
+    )
     detail = await KnowledgeBaseService(mock_db_session).describe(kb, ctx=ctx)
     assert detail.model_dump(mode="json")["can_edit"] is expected
     assert detail.id == kb.id
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("filled", [False, True])
+async def test_detail_keeps_the_listing_counts_and_usage(
+    mock_db_session: AsyncMock, monkeypatch: pytest.MonkeyPatch, filled: bool
+) -> None:
+    from app.schemas.resource_usage import AgentUsage
+
+    ctx = _ctx()
+    kb = _readable_kb("handbook")
+    kb.owner_user_id = ctx.user_id
+    kb.organization_id = ctx.organization_id
+    agents = [AgentUsage(id=uuid.uuid4(), name="Research", slug="research")]
+    monkeypatch.setattr(
+        "app.repositories.knowledge_base_repo.get_accessible", AsyncMock(return_value=[kb])
+    )
+    monkeypatch.setattr(
+        "app.repositories.rag_document_repo.counts_by_scope",
+        AsyncMock(
+            return_value={kb.id: CollectionCounts(documents=4, indexed=3, chunks=21)}
+            if filled
+            else {}
+        ),
+    )
+    monkeypatch.setattr(
+        "app.services.knowledge_base.agents_using", AsyncMock(return_value={kb.id: agents})
+    )
+    monkeypatch.setattr(
+        "app.services.knowledge_base.groups_sharing", AsyncMock(return_value={kb.id: ["Research"]})
+    )
+    service = KnowledgeBaseService(mock_db_session)
+    listing = await service.list_readable(ctx)
+    detail = await service.describe(kb, ctx=ctx)
+    assert detail.document_count == (4 if filled else 0)
+    assert detail.indexed_count == (3 if filled else 0)
+    assert detail.chunk_count == (21 if filled else 0)
+    assert detail.used_by == agents
+    assert detail.shared_groups == ["Research"]
+    assert detail.model_dump(exclude={"can_edit"}) == listing.items[0].model_dump()
+    assert detail.can_edit is True

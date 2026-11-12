@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { useWideScreen } from "@/hooks/use-wide-screen";
@@ -103,6 +103,7 @@ export function DiffView({
   context = "",
   trailing = "",
   emptyLabel,
+  modes = true,
 }: {
   before: string;
   after: string;
@@ -112,6 +113,8 @@ export function DiffView({
   trailing?: string;
   /** Said when both sides are empty. */
   emptyLabel?: string;
+  /** Offer unified and side by side; a text with nothing to compare reads in one. */
+  modes?: boolean;
 }) {
   const t = useTranslations("authoring.diff");
   const wide = useWideScreen();
@@ -127,7 +130,7 @@ export function DiffView({
     () => (lines.some((line) => line.kind !== "same") ? foldUnchanged(lines) : lines),
     [lines],
   );
-  const mode = wide ? chosen : "unified";
+  const mode = wide && modes ? chosen : "unified";
   if (!before && !after && emptyLabel)
     return <p className="text-muted-foreground text-xs">{emptyLabel}</p>;
   const shown = folded.flatMap<Shown>((item, at) =>
@@ -148,7 +151,7 @@ export function DiffView({
   );
   return (
     <div className="space-y-1">
-      {wide && (
+      {wide && modes && (
         <div role="group" aria-label={t("view")} className="flex justify-end gap-1">
           {(["unified", "split"] as const).map((value) => (
             <button
@@ -168,6 +171,15 @@ export function DiffView({
       )}
       <div className="overflow-auto rounded-md border md:max-h-96">
         <table className="w-full table-fixed border-collapse font-mono text-xs leading-5">
+          {/* A fixed table sizes its columns from the first row, which may be a fold. */}
+          <colgroup>
+            {(mode === "unified" ? [0] : [0, 1]).map((side) => (
+              <Fragment key={side}>
+                <col className="w-6" />
+                <col />
+              </Fragment>
+            ))}
+          </colgroup>
           <tbody>
             {mode === "unified"
               ? shown.map((item, index) =>

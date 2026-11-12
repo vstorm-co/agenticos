@@ -108,12 +108,11 @@
     "anyoneThoseSites": "Anyone on those sites",
     "approval": "Approval",
     "approvalAlways": "Always ask",
-    "approvalFollow": "Follow the capability",
     "approvalHintDefaultReadOnly": "Runs without approval, because this capability only reads.",
     "approvalHintDefaultSideEffecting": "Runs without approval, though this capability changes something outside the agent. Choose Always ask if a person should see each call first.",
     "approvalHintNeverReadOnly": "No approval, which is what this capability would do anyway.",
     "approvalHintNeverSideEffecting": "The agent acts unattended. Only for actions your organization has decided are safe.",
-    "approvalHintRequired": "A person approves every call before it runs.",
+    "approvalHintRequired": "A person approves every call before it runs. Routines and channels can pause for approval too. Provider-executed tools require a locally executed method before they can ask; publishing checks this. Mandatory approvals still apply when you choose Never ask.",
     "approvalNever": "Never ask",
     "approvalParksTheRun": "A tool that asks for approval parks the run until somebody answers in this dashboard, so on a chat platform the thread sits there meanwhile - which reads as the bot being broken. For an agent people reach from a channel, the workable setting is a shell that is not gated, inside a container with no network.",
     "archive": "Archive",
@@ -232,7 +231,7 @@
     "disabled": "disabled",
     "documentCount": "{count, plural, =1 {1 document} other {# documents}}",
     "draft": "Draft",
-    "draftDiffersFromPublished": "Draft differs from v{version}",
+    "draftDiffersFromPublished": "Draft differs from agent v{version}",
     "draftDiffersHint": "The draft is saved and differs from v{version}, the latest published version. Publishing makes it a new version.",
     "duplicate": "Duplicate",
     "editSurface": "Edit {name}",
@@ -590,7 +589,7 @@
     "unchangedLines": "{count, plural, =1 {1 unchanged line} other {# unchanged lines}}",
     "unknownAuthor": "unknown author",
     "unnamedSpecialist": "Unnamed specialist",
-    "upToDateWithPublished": "Up to date with v{version}",
+    "upToDateWithPublished": "Up to date with agent v{version}",
     "updateToLatest": "Update to latest",
     "urlSafeHint": "A hosted page can only be told a variable through its own URL, and a URL is something the visitor types. Mark only what is safe for them to set.",
     "usageEveryNMessages": "Cost: every {count, plural, =1 {message} other {# messages}}",
@@ -690,7 +689,7 @@
     "noAgentToAddTo": "There is no agent to add it to yet.",
     "createAnAgent": "Create an agent",
     "openInBuilder": "Open in the Builder",
-    "addedToAgent": "{name} added to {agent}'s draft.",
+    "addedToAgent": "{name} added to the draft of {agent}.",
     "alreadyOnAgent": "{agent} already has {name}.",
     "usedByNobody": "Not used by any agent yet",
     "usedBy": "{more, plural, =0 {Used by {names}} other {Used by {names} and # more}}",
@@ -1088,7 +1087,9 @@
     "starterTitlePlaceholder": "Short title (optional)",
     "starterMessageLabel": "Message shown below the title and sent on click",
     "pipelineModelPlaceholder": "Choose a model",
-    "pipelineNoMatches": "No matching models"
+    "pipelineNoMatches": "No matching models",
+    "alreadyHasIt": "Uses it",
+    "inDraftOf": "{more, plural, =0 {In the draft of {names}, not published yet} other {In the drafts of {names} and # more, not published yet}}"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -1934,6 +1935,7 @@
       "approveCreateRecord": "Add a record to {table}",
       "approveDeleteRecord": "Delete a record from {table}",
       "approveUpdateRecord": "Change a record in {table}",
+      "approveShareMemory": "Share with {audience, select, organization {the whole organization} other {the project}}: “{claim}”",
       "approveUpsertRecord": "Create or update a record in {table}",
       "recordsChecking": "Checking for a record",
       "recordsCreating": "Adding a record",
@@ -2460,6 +2462,7 @@
     "approvalRememberOptions": "More approval options",
     "approvalRememberChat": "Allow this tool in this chat",
     "approvalRememberAgent": "Always allow this tool for this agent",
+    "approvalNeedsTheRun": "Only somebody who can see the run can approve this. You can reject it.",
     "approvalRememberedTitle": "Remembered tool approvals",
     "approvalRememberedEmpty": "No remembered approvals.",
     "approvalRememberForget": "Ask again",
@@ -3204,7 +3207,6 @@
         "finished": "Finished",
         "finishedOf": "of {total} runs",
         "waiting": "Waiting on you",
-        "review": "Review them",
         "nothingWaiting": "Nothing waiting",
         "spent": "Spent",
         "spentLabel": "{amount} spent"
@@ -3360,18 +3362,33 @@
       },
       "improvements-waiting": {
         "title": "Improvements waiting for you",
-        "description": "Improvement sessions stopped for your next step or decision.",
+        "description": "Improvement sessions, skill checks and proposed skill changes waiting for your next step or decision.",
         "empty": {
           "title": "Nothing waiting",
-          "description": "An improvement stops here after it reads what went wrong, after it writes changes and when its result is ready."
+          "description": "An improvement stops here after it reads what went wrong, after it writes changes and when its result is ready. Pinned agents and forks that main has moved past are listed here too."
         },
         "open": "Open",
         "what": {
           "understand": "Look at what went wrong",
           "changes": "Review the changes",
           "result": "Review the result",
-          "blocked": "Blocked: end it and start a new one"
-        }
+          "blocked": "Blocked: end it and start a new one",
+          "check": {
+            "running": "Checking on {count, plural, =1 {1 agent} other {# agents}}",
+            "done": "Check finished: decide what to do with the change"
+          },
+          "proposal": "Proposed by an agent · {count, plural, =0 {reaches no agent yet} =1 {reaches 1 agent} other {reaches # agents}}"
+        },
+        "skill": "{name} · {kind, select, main {main} other {fork “{line}”}}",
+        "partial": "{failed, select, skills {Skill sessions could not be read.} behind {What main left behind could not be read.} checks {Skill checks could not be read.} proposals {Proposed skill changes could not be read.} other {Agent sessions could not be read.}}",
+        "catchUp": "Catch up",
+        "behindName": "{name} · {kind, select, fork {fork “{line}”} other {pinned in {line}{specialist, select, yes { through {via}} other {}}}}",
+        "behind": {
+          "pinned": "On v{version} · {count, plural, =1 {1 change behind main} other {# changes behind main}}",
+          "fork": "From v{version} · {agents, plural, =1 {1 agent} other {# agents}} · {count, plural, =1 {1 change behind main} other {# changes behind main}}"
+        },
+        "review": "Review",
+        "proposal": "{kind, select, new {New skill {name}} other {Change to {name}}}"
       },
       "phone-calls": {
         "title": "Telephone calls",
@@ -4718,6 +4735,14 @@
       "create-project-tracker": {
         "title": "Set up a project tracker?",
         "body": "Review an editable published agent and its accounts, then explicitly publish a private tracker with a task table and scheduled checks."
+      },
+      "first-skill-improvement": {
+        "title": "Improve this skill",
+        "body": "See who the change is checked on and what it costs before anything runs. Nothing changes in the skill until you accept it."
+      },
+      "skill-improvement-session": {
+        "title": "Walk through this session",
+        "body": "See the steps, each agent's result, and what you may do with the change."
       }
     },
     "steps": {
@@ -4744,6 +4769,14 @@
       "agent-history": {
         "title": "Every version, kept",
         "body": "Each publish freezes the spec as a version you can promote to an environment, roll back to, or read the run history against."
+      },
+      "agent-improvement-history": {
+        "title": "Every improvement, on record",
+        "body": "Each Improve session the agent had: what it measured, what was decided and what it cost. A finished one opens to be read."
+      },
+      "agent-test-connections": {
+        "title": "Test connections",
+        "body": "A named environment can answer the agent's MCP servers and vault keys with test ones - a sandbox CRM, a test mailbox. Evals run there, and a tool that writes with no test connection is held and recorded instead of run."
       },
       "agent-instructions": {
         "title": "Instructions are the behaviour",
@@ -5089,10 +5122,6 @@
         "title": "Find a server",
         "body": "Search the catalog, or narrow it by category and by whether you've already connected it."
       },
-      "organization-switcher": {
-        "title": "Choose your organization",
-        "body": "The name here is the organization you're working in. Open the menu to switch organizations, manage them or create another. Agents, knowledge and activity follow your selection."
-      },
       "notification-bell": {
         "title": "Stay in the loop",
         "body": "A run that failed, an approval waiting on you, a budget about to run out, a message from an app admin - it all lands here, with an in-app and email toggle for the kinds you can turn off in Settings."
@@ -5240,6 +5269,143 @@
       "artifacts-list": {
         "title": "Published pages",
         "body": "Reports and dashboards your agents published. Open one to see it, pick an earlier version, share it with colleagues or give it a public link."
+      },
+      "datasets-new": {
+        "title": "Collect test cases",
+        "body": "A dataset holds the questions an agent is tested on. Create one here, then add cases by hand, from a file, from an answer rated up or down in chat, or from a turn in Activity."
+      },
+      "runs-score-against-case": {
+        "title": "Score this run",
+        "body": "From this menu, grade this run's answer against a case of a dataset: its checks, the tool calls it expected and, if configured, the judge. The case asking the same question is picked for you; the result is kept on the dataset."
+      },
+      "datasets-list": {
+        "title": "Your datasets",
+        "body": "Every change to a dataset's cases makes a new version, so an eval run always points at questions that do not move."
+      },
+      "datasets-add-case": {
+        "title": "Write a case",
+        "body": "A case is a question the agent answers and what a good answer looks like. Every case you add makes a new version of the dataset."
+      },
+      "datasets-generate": {
+        "title": "Have cases drafted",
+        "body": "The generator drafts cases from four sources: the agent's instructions and tools, its knowledge base, real chats (production only, never eval runs), and red teaming. You see the estimated cost before anything is spent."
+      },
+      "datasets-proposals": {
+        "title": "Decide the drafts",
+        "body": "Drafted cases wait here. Accept them as they are, edit them first, or dismiss them. One Accept is one new version."
+      },
+      "flow-dataset-create": {
+        "title": "Create a dataset",
+        "body": "Choose New dataset - the form opens and we'll fill it together."
+      },
+      "flow-dataset-field-name": {
+        "title": "Name it",
+        "body": "Say what it tests, like refund questions. Then choose Next."
+      },
+      "flow-dataset-field-create": {
+        "title": "Create it",
+        "body": "Choose Create. We'll move on the moment it's saved."
+      },
+      "kb-gaps": {
+        "title": "What it could not answer",
+        "body": "Questions agents searched this collection for and found nothing relevant to, grouped by topic. Open a topic to write the missing content, or finish a model's draft, and add it to this knowledge base - or dismiss a topic that needs none."
+      },
+      "kb-gaps-check": {
+        "title": "Check the answers too",
+        "body": "A search can find something and the agent still not know. With AI assistance on, a model reads recent answers and thumbs-down comments for questions this knowledge base could not answer."
+      },
+      "agent-gaps": {
+        "title": "What it went looking for",
+        "body": "The questions this agent searched a knowledge base for and found nothing. Each one links to the run it came from."
+      },
+      "flow-dataset-open": {
+        "title": "Open your dataset",
+        "body": "It is the first card - the one changed last. Open it to add its first case."
+      },
+      "flow-dataset-add-case": {
+        "title": "Add your first case",
+        "body": "Choose Add case. A case is one question, and what a good answer to it looks like."
+      },
+      "flow-dataset-case-question": {
+        "title": "What the agent is asked",
+        "body": "Write the message the agent should answer, as a real user would phrase it."
+      },
+      "flow-dataset-case-answers": {
+        "title": "What a correct answer contains",
+        "body": "Write a reference answer or the key facts the response should include. You can use tool expectations or checks instead."
+      },
+      "flow-dataset-case-tools": {
+        "title": "The tools it should call",
+        "body": "List the tools the agent must call, with the arguments that have to match. Choose how they are matched: in any order, in this order with others allowed between, or exactly these and nothing else."
+      },
+      "flow-dataset-case-checks": {
+        "title": "Rules about the answer",
+        "body": "A check is a rule the answer is scored by, such as that it mentions 30 days. Each one names its type and carries that rule's parameters."
+      },
+      "flow-dataset-case-labels": {
+        "title": "Tags and a note",
+        "body": "Tags group results, such as billing or refusal. The note says why the case exists - what went wrong, or what it guards."
+      },
+      "flow-dataset-case-save": {
+        "title": "Save the case",
+        "body": "A case has to say what the answer is tested against: a reference answer, a counter-example, a tool call or a check. Until it has one, Save case stays off and says what is missing."
+      },
+      "flow-dataset-sources": {
+        "title": "Where the next cases come from",
+        "body": "Write them here, or import a CSV or JSONL file from this menu. In chat, rate an answer up or down and add it - a thumbs-up keeps it as the reference, a thumbs-down as the counter-example. In Activity, add any agent turn of a run."
+      },
+      "flow-dataset-generate": {
+        "title": "Or let the generator draft them",
+        "body": "Pick an agent and the sources - the agent itself, its knowledge base, real chats or red teaming - and the generator drafts cases for you to review. Nothing reaches the dataset until you accept it."
+      },
+      "agent-evals": {
+        "title": "Evals",
+        "body": "Run the agent over a dataset to see which cases it passes, what it costs, and whether a change made it better or worse than the version before."
+      },
+      "agent-test-draft": {
+        "title": "Test the draft",
+        "body": "Before you publish, run the draft against the live version on a dataset. The verdict says whether the change made the agent better or worse."
+      },
+      "eval-verdict": {
+        "title": "The verdict",
+        "body": "Which side did better, by how many confirmed cases, and the pass rate before and after. From here, see what changed between the versions, open the cases that broke, or publish."
+      },
+      "flow-test-draft": {
+        "title": "Test the draft",
+        "body": "This draft differs from the live version. Test it on a dataset before publishing.",
+        "absent": "The draft is the same as the live version, so there is nothing to test yet. Change something in Build, then test it - or finish here."
+      },
+      "flow-test-target": {
+        "title": "What you are testing",
+        "body": "The draft against the live version is already chosen: both answer the same cases now, so whatever changed is the draft's doing."
+      },
+      "flow-test-run": {
+        "title": "Run it for the price shown",
+        "body": "The cost is worked out as you choose and says what the budgets keep afterwards. Nothing runs before you press this."
+      },
+      "flow-test-verdict": {
+        "title": "Read the verdict",
+        "body": "Once both sides finish, this says whether the draft did better or worse, by how many confirmed cases. From here open the cases that broke, see what changed, or publish."
+      },
+      "flow-dataset-next": {
+        "title": "Next: grading, then an eval",
+        "body": "In Settings, choose how answers are graded. Then run an agent on this dataset and inspect its answers in Results."
+      },
+      "dataset-grading": {
+        "title": "How cases are graded",
+        "body": "Choose the checks every answer must pass and the tool calls a case expects. Save the grading changes together at the bottom."
+      },
+      "dataset-review": {
+        "title": "Review",
+        "body": "All graded answers appear here, including those already reviewed. Filter by outcome, agent or tag, then open an answer to inspect its evidence and record a decision."
+      },
+      "agents-system": {
+        "title": "System agents",
+        "body": "The agents the platform runs itself, grouped by what they do: the judges that grade eval answers, the case generator, the gap drafter and classifier, and the authoring assistant. Open one to change its instructions, model or budget; a dataset picks its judge on its Grading tab, and New agent adds another judge."
+      },
+      "dataset-judge": {
+        "title": "The judge",
+        "body": "Choose a saved model with search, or add a model if you have permission. Set the criteria and reference comparison. Older scores keep the grading configuration they used."
       },
       "settings-api-keys": {
         "title": "Your API keys",
@@ -5445,183 +5611,6 @@
         "title": "Confirm public data again",
         "body": "The data this page shows changed, so its public link shows none until it's confirmed again. Confirm data shows what the link would share, and with whom."
       },
-      "routines-watches": {
-        "title": "What watches your accounts",
-        "body": "Watches read your own connected accounts on a schedule - reviews waiting on you, issues assigned to you - and put what is new in your inbox. Each row says when it last looked and how much of what it found still waits."
-      },
-      "agent-starters": {
-        "title": "First messages",
-        "body": "What the chat offers somebody opening this agent with nothing said yet. A newcomer learns what the agent is for from these more than from its description, so make each one a real question it answers well."
-      },
-      "inbox-filters": {
-        "title": "What came to you on its own",
-        "body": "Findings from your watches and the nightly suggestions, urgent first. Filter by where they came from, or open Done to bring back one you declined."
-      },
-      "org-governance": {
-        "title": "Budget and approvals",
-        "body": "Set the organization spending limit and manage approval waivers. Controls depend on your permissions."
-      },
-      "org-proactivity-model": {
-        "title": "Choose the proactivity model",
-        "body": "Choose a provider, model and vault key, then add the model profile. Creating a profile stores it immediately; Save applies it to nightly suggestions and MCP watches. These checks use this model independently of the AgenticOS starter shown in Activity."
-      },
-      "org-proactivity": {
-        "title": "Proactivity",
-        "body": "Configure nightly suggestions, connection watches and proactive chat greetings. Choose the model, schedule and per-person budget here."
-      },
-      "project-file-location": {
-        "title": "Your computer or shared files",
-        "body": "Computer shows your approved local folder. Shared project files contains uploaded copies for people with project access. The two locations do not synchronize automatically."
-      },
-      "workflow-step-view": {
-        "title": "Focus on one panel",
-        "body": "On a phone, choose step settings, input or output to give the active panel the available space. Switching panels keeps your draft."
-      },
-      "agent-improvement-history": {
-        "title": "Every improvement, on record",
-        "body": "Each Improve session the agent had: what it measured, what was decided and what it cost. A finished one opens to be read."
-      },
-      "agent-test-connections": {
-        "title": "Test connections",
-        "body": "A named environment can answer the agent's MCP servers and vault keys with test ones - a sandbox CRM, a test mailbox. Evals run there, and a tool that writes with no test connection is held and recorded instead of run."
-      },
-      "datasets-new": {
-        "title": "Collect test cases",
-        "body": "A dataset holds the questions an agent is tested on. Create one here, then add cases by hand, from a file, from an answer rated up or down in chat, or from a turn in Activity."
-      },
-      "runs-score-against-case": {
-        "title": "Score this run",
-        "body": "From this menu, grade this run's answer against a case of a dataset: its checks, the tool calls it expected and, if configured, the judge. The case asking the same question is picked for you; the result is kept on the dataset."
-      },
-      "datasets-list": {
-        "title": "Your datasets",
-        "body": "Every change to a dataset's cases makes a new version, so an eval run always points at questions that do not move."
-      },
-      "datasets-add-case": {
-        "title": "Write a case",
-        "body": "A case is a question the agent answers and what a good answer looks like. Every case you add makes a new version of the dataset."
-      },
-      "datasets-generate": {
-        "title": "Have cases drafted",
-        "body": "The generator drafts cases from four sources: the agent's instructions and tools, its knowledge base, real chats (production only, never eval runs), and red teaming. You see the estimated cost before anything is spent."
-      },
-      "datasets-proposals": {
-        "title": "Decide the drafts",
-        "body": "Drafted cases wait here. Accept them as they are, edit them first, or dismiss them. One Accept is one new version."
-      },
-      "flow-dataset-create": {
-        "title": "Create a dataset",
-        "body": "Choose New dataset - the form opens and we'll fill it together."
-      },
-      "flow-dataset-field-name": {
-        "title": "Name it",
-        "body": "Say what it tests, like refund questions. Then choose Next."
-      },
-      "flow-dataset-field-create": {
-        "title": "Create it",
-        "body": "Choose Create. We'll move on the moment it's saved."
-      },
-      "kb-gaps": {
-        "title": "What it could not answer",
-        "body": "Questions agents searched this collection for and found nothing relevant to, grouped by topic. Open a topic to write the missing content, or finish a model's draft, and add it to this knowledge base - or dismiss a topic that needs none."
-      },
-      "kb-gaps-check": {
-        "title": "Check the answers too",
-        "body": "A search can find something and the agent still not know. With AI assistance on, a model reads recent answers and thumbs-down comments for questions this knowledge base could not answer."
-      },
-      "agent-gaps": {
-        "title": "What it went looking for",
-        "body": "The questions this agent searched a knowledge base for and found nothing. Each one links to the run it came from."
-      },
-      "flow-dataset-open": {
-        "title": "Open your dataset",
-        "body": "It is the first card - the one changed last. Open it to add its first case."
-      },
-      "flow-dataset-add-case": {
-        "title": "Add your first case",
-        "body": "Choose Add case. A case is one question, and what a good answer to it looks like."
-      },
-      "flow-dataset-case-question": {
-        "title": "What the agent is asked",
-        "body": "Write the message the agent should answer, as a real user would phrase it."
-      },
-      "flow-dataset-case-answers": {
-        "title": "What a correct answer contains",
-        "body": "Write a reference answer or the key facts the response should include. You can use tool expectations or checks instead."
-      },
-      "flow-dataset-case-tools": {
-        "title": "The tools it should call",
-        "body": "List the tools the agent must call, with the arguments that have to match. Choose how they are matched: in any order, in this order with others allowed between, or exactly these and nothing else."
-      },
-      "flow-dataset-case-checks": {
-        "title": "Rules about the answer",
-        "body": "A check is a rule the answer is scored by, such as that it mentions 30 days. Each one names its type and carries that rule's parameters."
-      },
-      "flow-dataset-case-labels": {
-        "title": "Tags and a note",
-        "body": "Tags group results, such as billing or refusal. The note says why the case exists - what went wrong, or what it guards."
-      },
-      "flow-dataset-case-save": {
-        "title": "Save the case",
-        "body": "A case has to say what the answer is tested against: a reference answer, a counter-example, a tool call or a check. Until it has one, Save case stays off and says what is missing."
-      },
-      "flow-dataset-sources": {
-        "title": "Where the next cases come from",
-        "body": "Write them here, or import a CSV or JSONL file from this menu. In chat, rate an answer up or down and add it - a thumbs-up keeps it as the reference, a thumbs-down as the counter-example. In Activity, add any agent turn of a run."
-      },
-      "flow-dataset-generate": {
-        "title": "Or let the generator draft them",
-        "body": "Pick an agent and the sources - the agent itself, its knowledge base, real chats or red teaming - and the generator drafts cases for you to review. Nothing reaches the dataset until you accept it."
-      },
-      "agent-evals": {
-        "title": "Evals",
-        "body": "Run the agent over a dataset to see which cases it passes, what it costs, and whether a change made it better or worse than the version before."
-      },
-      "agent-test-draft": {
-        "title": "Test the draft",
-        "body": "Before you publish, run the draft against the live version on a dataset. The verdict says whether the change made the agent better or worse."
-      },
-      "eval-verdict": {
-        "title": "The verdict",
-        "body": "Which side did better, by how many confirmed cases, and the pass rate before and after. From here, see what changed between the versions, open the cases that broke, or publish."
-      },
-      "flow-test-draft": {
-        "title": "Test the draft",
-        "body": "This draft differs from the live version. Test it on a dataset before publishing.",
-        "absent": "The draft is the same as the live version, so there is nothing to test yet. Change something in Build, then test it - or finish here."
-      },
-      "flow-test-target": {
-        "title": "What you are testing",
-        "body": "The draft against the live version is already chosen: both answer the same cases now, so whatever changed is the draft's doing."
-      },
-      "flow-test-run": {
-        "title": "Run it for the price shown",
-        "body": "The cost is worked out as you choose and says what the budgets keep afterwards. Nothing runs before you press this."
-      },
-      "flow-test-verdict": {
-        "title": "Read the verdict",
-        "body": "Once both sides finish, this says whether the draft did better or worse, by how many confirmed cases. From here open the cases that broke, see what changed, or publish."
-      },
-      "flow-dataset-next": {
-        "title": "Next: grading, then an eval",
-        "body": "In Settings, choose how answers are graded. Then run an agent on this dataset and inspect its answers in Results."
-      },
-      "dataset-grading": {
-        "title": "How cases are graded",
-        "body": "Choose the checks every answer must pass and the tool calls a case expects. Save the grading changes together at the bottom."
-      },
-      "dataset-review": {
-        "title": "Review",
-        "body": "All graded answers appear here, including those already reviewed. Filter by outcome, agent or tag, then open an answer to inspect its evidence and record a decision."
-      },
-      "agents-system": {
-        "title": "System agents",
-        "body": "The agents the platform runs itself, grouped by what they do: the judges that grade eval answers, the case generator, the gap drafter and classifier, and the authoring assistant. Open one to change its instructions, model or budget; a dataset picks its judge on its Grading tab, and New agent adds another judge."
-      },
-      "dataset-judge": {
-        "title": "The judge",
-        "body": "Choose a saved model with search, or add a model if you have permission. Set the criteria and reference comparison. Older scores keep the grading configuration they used."
-      },
       "agent-eval-suites": {
         "title": "Suites",
         "body": "Hold the agent to a dataset without remembering to: run it every night, on every publish or promotion, or when a skill, knowledge base or context file it reads changes. You are told when a case breaks."
@@ -5637,6 +5626,18 @@
       "evals-all": {
         "title": "Every eval run",
         "body": "The runs of every agent you may see, newest first. Each opens on its verdict; an agent's Evals tab holds the same runs for that agent alone."
+      },
+      "routines-watches": {
+        "title": "What watches your accounts",
+        "body": "Watches read your own connected accounts on a schedule - reviews waiting on you, issues assigned to you - and put what is new in your inbox. Each row says when it last looked and how much of what it found still waits."
+      },
+      "agent-starters": {
+        "title": "First messages",
+        "body": "What the chat offers somebody opening this agent with nothing said yet. A newcomer learns what the agent is for from these more than from its description, so make each one a real question it answers well."
+      },
+      "inbox-filters": {
+        "title": "What came to you on its own",
+        "body": "Findings from your watches and the nightly suggestions, urgent first. Filter by where they came from, or open Done to bring back one you declined."
       },
       "improvement-test-set": {
         "title": "Time and cost",
@@ -5717,6 +5718,26 @@
       "agent-system-knowledge": {
         "title": "Knowledge base",
         "body": "Switch on a search of the knowledge bases the platform hands each run - the graded agent's, the gap's, the ones cases are drafted from - and cap how many paid steps it may take."
+      },
+      "org-governance": {
+        "title": "Budget and approvals",
+        "body": "Set the organization spending limit and manage approval waivers. Controls depend on your permissions."
+      },
+      "org-proactivity-model": {
+        "title": "Choose the proactivity model",
+        "body": "Choose a provider, model and vault key, then add the model profile. Creating a profile stores it immediately; Save applies it to nightly suggestions and MCP watches. These checks use this model independently of the AgenticOS starter shown in Activity."
+      },
+      "org-proactivity": {
+        "title": "Proactivity",
+        "body": "Configure nightly suggestions, connection watches and proactive chat greetings. Choose the model, schedule and per-person budget here."
+      },
+      "project-file-location": {
+        "title": "Your computer or shared files",
+        "body": "Computer shows your approved local folder. Shared project files contains uploaded copies for people with project access. The two locations do not synchronize automatically."
+      },
+      "workflow-step-view": {
+        "title": "Focus on one panel",
+        "body": "On a phone, choose step settings, input or output to give the active panel the available space. Switching panels keeps your draft."
       },
       "improvement-check": {
         "title": "Check",
@@ -5861,6 +5882,114 @@
       "chat-coding-accounts": {
         "title": "Your coding accounts",
         "body": "Connect Codex or Claude Code without leaving the chat. These are your private cloud accounts; local desktop tools keep their own sign-in."
+      },
+      "skill-agents": {
+        "title": "Who uses this skill",
+        "body": "Every agent that uses the skill, with the version it is served: main follows each new version, pinned stays on an older one, and a fork has changes of its own."
+      },
+      "skill-lines": {
+        "title": "One line at a time",
+        "body": "Show the agents on main, the pinned ones, or one fork. Picking a fork also points History and Edit at it."
+      },
+      "skill-change-version": {
+        "title": "Move an agent to another version",
+        "body": "Publishes a new version of the agent with only this change. A version never checked on the agent asks you to confirm first."
+      },
+      "skill-edit": {
+        "title": "Edit makes a new version",
+        "body": "Saving never overwrites. It adds a version to the line on screen, and only the agents following that line get it."
+      },
+      "skill-history": {
+        "title": "Every version, and the way back",
+        "body": "See what each version changed, who made it and where it came from. Restore brings an earlier one back as the newest."
+      },
+      "skill-tree": {
+        "title": "Main and its forks",
+        "body": "Main runs left to right to its newest version, each fork branches off the version it started from on a lane of its own, and every agent sits in the box of the version it uses. Compare puts any versions side by side."
+      },
+      "skill-improve": {
+        "title": "Improve the skill",
+        "body": "Opens a step-by-step session for the line on screen: main, or the fork you picked. Nothing changes until you accept a result."
+      },
+      "skill-improvement-start": {
+        "title": "Who it is checked on",
+        "body": "Every agent of the line is named before anything is spent, the ones that cannot be checked with the reason, and the price comes with a limit you set."
+      },
+      "skill-improvement-steps": {
+        "title": "The same five steps",
+        "body": "Understand, Changes, Check, Result and Accept, as in agent Improve. The session stops for you after Understand, after Changes and at the result."
+      },
+      "skill-improvement-agents": {
+        "title": "A result for every agent",
+        "body": "Each agent of the line comes out better, unchanged, within noise, worse or unknown, worst first, with what it fixed and broke and a link to its run."
+      },
+      "skill-improvement-accept": {
+        "title": "What you may do with it",
+        "body": "Apply it when nobody got worse. When somebody did: keep them on their version, make a fork for the agents it helped, improve it further or discard it."
+      },
+      "skill-improvement-test-set": {
+        "title": "Questions of the skill's own",
+        "body": "Agents without test questions come out unknown. The skill's own questions, written from answers where it was loaded, let them be checked next time."
+      },
+      "improvement-skill-handoffs": {
+        "title": "Belongs to a skill",
+        "body": "Problems the helper found in one of the agent's skills. A skill is shared, so it is improved on its own, and checked on every agent that reads it."
+      },
+      "skill-new-fork": {
+        "title": "A fork for the agents that differ",
+        "body": "New fork starts a line of its own from main's newest version. Agents moved onto it read its changes, and main's agents never see them."
+      },
+      "skill-usage": {
+        "title": "How much it is used",
+        "body": "How often each agent opened the skill in the last 30 days, and the files it read. Eval and test-panel runs are left out."
+      },
+      "skill-catch-up": {
+        "title": "Catch the fork up",
+        "body": "Merges what main changed since the fork started into the fork. The fork's agents check the merge before anything changes."
+      },
+      "skill-merge-start": {
+        "title": "Merge a fork with main",
+        "body": "Shows how many parts both sides changed and what proposing their texts costs. The check is priced later, at Changes."
+      },
+      "skill-merge-changes": {
+        "title": "Settle the merge",
+        "body": "Each part says which side it comes from. A conflict shows both sides and the merged text; rewrite it if it is wrong."
+      },
+      "flow-skill-improvement-start": {
+        "title": "Who it is checked on",
+        "body": "Every agent of the line is named before anything is spent, the ones that cannot be checked with the reason, and the price comes with a limit you set."
+      },
+      "flow-skill-merge-start": {
+        "title": "Merge a fork with main",
+        "body": "Shows how many parts both sides changed and what proposing their texts costs. The check is priced later, at Changes."
+      },
+      "flow-skill-improvement-steps": {
+        "title": "The same five steps",
+        "body": "Understand, Changes, Check, Result and Accept, as in agent Improve. The session stops for you after Understand, after Changes and at the result."
+      },
+      "flow-skill-merge-changes": {
+        "title": "Settle the merge",
+        "body": "Each part says which side it comes from. A conflict shows both sides and the merged text; rewrite it if it is wrong."
+      },
+      "flow-skill-improvement-agents": {
+        "title": "A result for every agent",
+        "body": "Each agent of the line comes out better, unchanged, within noise, worse or unknown, worst first, with what it fixed and broke and a link to its run."
+      },
+      "flow-skill-improvement-accept": {
+        "title": "What you may do with it",
+        "body": "Apply it when nobody got worse. When somebody did: keep them on their version, make a fork for the agents it helped, improve it further or discard it."
+      },
+      "skill-test-questions": {
+        "title": "Its test questions",
+        "body": "Questions every agent using the skill is asked when a change to it is checked. Start them here from recent answers, or empty, and edit them in the dataset."
+      },
+      "skill-content": {
+        "title": "What it says",
+        "body": "The description, instructions and files the line shown serves now, to read without opening the editor."
+      },
+      "organization-switcher": {
+        "title": "Choose your organization",
+        "body": "The name here is the organization you're working in. Open the menu to switch organizations, manage them or create another. Agents, knowledge and activity follow your selection."
       },
       "workflow-run-questions": {
         "title": "Answer the agent",
@@ -7588,6 +7717,8 @@
       "toolState": "{status, select, completed {Done} error {Failed} running {Running} pending {Running} unfinished {Did not finish} awaiting_approval {Waiting for approval} awaiting_answer {Waiting for an answer} other {Unknown}}",
       "wantsTo": "<strong>{actor}</strong> wants to <strong>{tool}</strong>",
       "askedFor": "For {email}",
+      "contentHidden": "What this call would share is shown only to people who can see its run.",
+      "approveNeedsTheRun": "Only somebody who can see the run can approve this. You can reject it.",
       "account": "Account: {account}",
       "openTheRun": "Open the run",
       "decidedByWhom": "by {email}",
@@ -7675,7 +7806,9 @@
       "decisionApprovedInChat": "Approved. Once nothing else is waiting, the agent goes on in the chat it was asked in.",
       "decisionRejectedInChat": "Rejected. Once nothing else is waiting, the agent answers in the chat it was asked in.",
       "runResumedInChat": "Run resumed. Its answer is also sent to the chat it was asked in.",
-      "alreadyContinuing": "This run is already continuing in its chat."
+      "alreadyContinuing": "This run is already continuing in its chat.",
+      "skillsUsed": "Skills used:",
+      "skillVersion": "{onFork, select, yes {{name} · {fork} v{version}} other {{name} · v{version}}}"
     },
     "sandboxes": {
       "addConnection": "Add connection",
@@ -7913,7 +8046,6 @@
       "discordChannel": "Discord"
     },
     "skills": {
-      "agentsBoundSkillWill": "Agents bound to this skill will run without it from their next run. This cannot be undone.",
       "allCategories": "All categories",
       "askAdministratorAccessSkills": "Ask an administrator for access to skills.",
       "categoryCount": "{count, plural, =1 {1 category} other {# categories}}",
@@ -8851,8 +8983,7 @@
     "review": "Review",
     "save": "Save",
     "saveFile": "Save file",
-    "savedAgentsCurrent": "Saved. Every agent using this skill is now current.",
-    "savingReachesEveryAgent": "Saving reaches every agent bound to this skill on its next run. There is no draft and no publish step.",
+    "savedAgentsCurrent": "Saved.",
     "showWhatChangedIn": "Show what changed in {name}",
     "sizeUploadsWhenCreated": "{size} · uploads when the skill is created",
     "support": "support",
@@ -8878,12 +9009,387 @@
         "public-sector": "Public sector and utilities",
         "legal": "Legal and professional services",
         "manufacturing": "Manufacturing and logistics"
-      }
+      },
+      "preview": "Preview",
+      "hidePreview": "Hide preview",
+      "files": "{count, plural, =1 {Comes with 1 file: {names}} other {Comes with # files: {names}}}"
     },
     "moreFiles": "{count, plural, =1 {+1 file} other {+# files}}",
     "bodyPlaceholder": "# Refunds\n\nUse this when a customer asks for their money back.\n\n## Steps\n\n1. Check the order date.\n2. Within 14 days, refund without asking.\n3. After that, ask a person to approve it.",
     "whoCanUseIt": "Who can use it",
-    "expectedEffect": "Expected effect:"
+    "expectedEffect": "Expected effect:",
+    "page": {
+      "skills": "Skills",
+      "mainVersion": "v{number} on main",
+      "forkCount": "{count, plural, =1 {1 fork} other {# forks}}",
+      "editSkill": "Edit",
+      "editFork": "Edit fork “{name}”",
+      "open": "Open",
+      "tabs": {
+        "agents": "Agents",
+        "history": "History",
+        "tree": "Version tree",
+        "content": "Content"
+      },
+      "agentCount": "{count, plural, =0 {No agents} =1 {1 agent} other {# agents}}",
+      "state": {
+        "main": "v{number} · main",
+        "pinned": "v{number} · pinned{behind, plural, =0 {} other { · # behind main}}",
+        "fork": "Fork “{name}” · from v{base}{changes, plural, =0 { · no changes yet} =1 { · 1 change} other { · # changes}}{behind, plural, =0 {} other { · # behind main}}"
+      },
+      "show": {
+        "label": "Which agents to show",
+        "all": "All ({count})",
+        "main": "Main ({count})",
+        "pinned": "Pinned ({count})",
+        "fork": "Fork “{name}” ({count})",
+        "draft": "Only in the draft ({count})"
+      },
+      "agentsTable": {
+        "agent": "Agent",
+        "version": "Version",
+        "actions": "Actions",
+        "viaSpecialist": "Through its specialist {name}",
+        "empty": "No agent uses this skill yet.",
+        "hidden": "{count, plural, =1 {1 more agent you can't see uses this skill.} other {# more agents you can't see use this skill.}}",
+        "draftOnly": "Only in the draft",
+        "environment": "{name}: {binding}",
+        "draftDiffers": "Its draft uses a different version.",
+        "emptyFork": "No agent uses fork “{name}” yet. Move one onto it with Change version.",
+        "emptyShown": "No agent here.",
+        "checked": "Checked on this version {when}: {state}",
+        "notChecked": "Unknown: this version reached it without a check",
+        "notCheckedYet": "Not checked yet"
+      },
+      "changeVersion": {
+        "button": "Change version",
+        "for": "Change the version of the skill for {name}",
+        "title": "Change the version of {skill} for {name}",
+        "now": "Now: {binding}",
+        "legend": "Version to use",
+        "followMain": "Main, latest: follows every new version",
+        "pin": "Pin a main version: stays on it when main moves",
+        "pinVersion": "Version to pin",
+        "versionOption": "v{number}",
+        "fork": "Fork “{name}”, latest",
+        "unchecked": "{version} has not been checked on {name}. Its answers may change.",
+        "understood": "I understand, change it anyway",
+        "publishes": "This publishes a new version of {name} with only this change. Unfinished changes in its draft stay in the draft.",
+        "cancel": "Cancel",
+        "submit": "Change and publish",
+        "published": "Published. {count, plural, =0 {{name} has a new version.} other {The new version of {name} now runs in {environments}.}}",
+        "savedInDraft": "Saved in the draft of {name}. Publish it in the Builder.",
+        "openBuilder": "Open the Builder",
+        "savesToDraft": "You may edit {name} but not publish it, so this change goes into its draft. Somebody who may publish it does that from the Builder.",
+        "submitDraft": "Save to the draft",
+        "versionWhen": "v{number} · {when}",
+        "forkVersion": "{name} v{number}",
+        "pinDetail": "{source} · {who} · {when}",
+        "leavesMain": "{name} stays on this version and stops getting new main versions.",
+        "leavesMainFork": "{name} stops getting new main versions.{behind, plural, =0 {} =1 { Fork “{fork}” is 1 version behind main, so it lacks that change.} other { Fork “{fork}” is # versions behind main, so it lacks their changes.}}",
+        "checkedOn": "{version} was checked on {name} {when}: {state}.",
+        "checksUnseen": "Whether {version} was checked on {name} is not shown to you. Its answers may change.",
+        "answeredBefore": "{name} has answered with {version} before.",
+        "checkFirst": "Check first",
+        "staysPinned": "The check found {version} made {name} worse, so it stays pinned.",
+        "environmentName": "“{name}”"
+      },
+      "history": {
+        "title": "History of {line}",
+        "versionCount": "{count, plural, =1 {1 version} other {# versions}}",
+        "main": "main",
+        "fork": "fork “{name}”",
+        "lines": "Line to show",
+        "showChanges": "Show changes",
+        "hideChanges": "Hide changes",
+        "restore": "Restore",
+        "restoreVersion": "Restore {version}",
+        "restoreTitle": "Restore {version}?",
+        "restoreMain": "{version} comes back as the newest version on main. Agents following main get it at once; pinned agents and forks keep their version.",
+        "restoreFork": "{version} comes back as the newest version of fork “{name}”. The fork's agents get it at once.",
+        "restored": "{version} is back as {made}.",
+        "restoredFrom": "Restored from {version}",
+        "source": {
+          "backfill": "As it was when versions began",
+          "created": "Created",
+          "edit": "Edited",
+          "resources": "Files changed",
+          "library": "From the library",
+          "workspace": "Written back by an agent",
+          "improve": "Improve",
+          "restore": "Restored",
+          "catch_up": "Caught up with main",
+          "from_fork": "Moved in from a fork"
+        },
+        "madeBy": "{who} · {when}{agents, plural, =0 {} =1 { · used by 1 agent} other { · used by # agents}}",
+        "unknownAuthor": "Unknown",
+        "loadingChanges": "Loading the changes",
+        "description": "Description",
+        "body": "Instructions",
+        "bodyUnchanged": "The instructions did not change.",
+        "files": "Files",
+        "file": {
+          "added": "added",
+          "removed": "removed",
+          "changed": "changed"
+        },
+        "versionLabel": "{fork, select, yes {{name} v{number}} other {v{number}}}",
+        "forkEmpty": "No version of its own yet: the fork reads v{number} on main. Edit the fork to make its first change.",
+        "forkStarts": "Fork “{name}” starts here",
+        "fromSession": "From its Improve session",
+        "sessions": {
+          "title": "Improve sessions",
+          "count": "{count, plural, =0 {None yet} =1 {1 session} other {# sessions}}",
+          "none": "Nobody has improved this line yet.",
+          "unknownStarter": "Someone",
+          "meta": "{who} · {when} · {line} · spent {cost}",
+          "continue": "Continue",
+          "open": "Open",
+          "appliedAs": "Applied as {version}",
+          "result": {
+            "open": "Open",
+            "applied": "Applied",
+            "forked": "Made a fork",
+            "discarded": "Discarded",
+            "caught_up": "Caught up with main",
+            "returned_to_main": "Moved to main",
+            "expired": "Expired",
+            "failed": "Failed",
+            "cancelled": "Ended",
+            "stopped": "Stopped without a change"
+          },
+          "countMore": "Newest {count}",
+          "more": "Show older sessions"
+        }
+      },
+      "tree": {
+        "title": "Version tree",
+        "summary": "{versions, plural, =1 {1 version on main} other {# versions on main}}{forks, plural, =0 {} =1 { · 1 fork} other { · # forks}}",
+        "folded": "{count, plural, other {# versions}} (v{from}–v{to})",
+        "number": "v{number}",
+        "latest": "latest",
+        "fork": "Fork “{name}”",
+        "forkFacts": "{changes, plural, =0 {no changes yet} =1 {1 change} other {# changes}}{behind, plural, =0 {} other { · # behind main}}",
+        "forkNumber": "{name} v{number}",
+        "noVersionYet": "No version of its own yet",
+        "compare": "Compare {version}",
+        "compareShort": "Compare",
+        "comparing": "Comparing"
+      },
+      "compare": {
+        "title": "Comparison",
+        "count": "{count, plural, =1 {1 version} other {# versions}}",
+        "clear": "Clear",
+        "pickAnother": "Pick another version on the diagram to put beside this one.",
+        "remove": "Remove {version} from the comparison",
+        "loading": "Loading the version…",
+        "description": "Description",
+        "instructions": "Instructions",
+        "files": "Files",
+        "noFiles": "No files.",
+        "unreadable": "Couldn't load this version.",
+        "retry": "Retry",
+        "reference": "Reference",
+        "setReference": "Set as reference",
+        "onlyDifferences": "Only the differences",
+        "sameAsReference": "same as the reference",
+        "file": {
+          "added": "added",
+          "removed": "removed",
+          "changed": "changed"
+        }
+      },
+      "edit": {
+        "saved": "Saved as v{number}.",
+        "forkTitle": "{skill} · fork “{name}”",
+        "nameHowModelRefers": "The name is how the model refers to this skill.",
+        "warnMain": "Saving makes v{number} on main. {count, plural, =0 {No agent follows main yet.} =1 {1 agent following main gets it at once.} other {# agents following main get it at once.}} Pinned agents and forks keep their version.",
+        "warnFork": "Saving makes v{number} of fork “{name}”. {count, plural, =0 {No agent uses the fork yet.} =1 {Its 1 agent gets it at once.} other {Its # agents get it at once.}}",
+        "lineMoved": "Somebody saved a newer version since you opened this. Your text is still here: copy it, close, and open the newest version to apply it there.",
+        "forkFiles": "Only the description and instructions belong to the fork. Its files come from the main version it started from, and files are edited on main.",
+        "noBase": "This skill has no saved version to write over yet. Reload the page and try again.",
+        "retryFork": "Load the fork again",
+        "savedFork": "Saved as {name} v{number}.",
+        "version": "v{number}",
+        "forkVersion": "{name} v{number}",
+        "confirm": {
+          "title": "Save {version}?",
+          "nobody": "No agent follows this line yet, so no agent's answers change.",
+          "reaches": "{count, plural, =1 {It reaches 1 agent on its next run} other {It reaches # agents on their next run}}{named, select, yes {, among them {names}} other {}}.",
+          "checkHint": "Saving now does not check the change on them. Check on agents first runs each agent's questions with the new text, and applies it from the result.",
+          "back": "Back to editing",
+          "check": "Check on agents first",
+          "save": "Save now"
+        }
+      },
+      "improve": "Improve",
+      "improveFork": "Improve fork “{name}”",
+      "newFork": {
+        "button": "New fork",
+        "title": "New fork of {name}",
+        "description": "A fork is a line of versions with changes of its own, for the agents that need them. It starts from v{number}, main's newest version, and reads the same until it is edited.",
+        "name": "Name",
+        "agents": "Agents to move onto it (optional)",
+        "agentsHint": "Each agent moved gets a new published version that reads the fork, or the change waits in its draft where you may not publish it.",
+        "noAgents": "No agent can be moved onto it from here. Move agents later with Change version.",
+        "agentNow": "{name} · now {binding}",
+        "cancel": "Cancel",
+        "create": "Create fork",
+        "created": "Fork “{name}” created.{moved, plural, =0 {} =1 { 1 agent moved onto it.} other { # agents moved onto it.}}",
+        "moveFailed": "{name} was not moved onto the fork: {reason}",
+        "changesContent": "{count, plural, =1 {{names} reads} other {{names} read}} another version now, and on the fork {count, plural, =1 {gets} other {get}} v{number}'s content, which has not been checked on {count, plural, =1 {it} other {them}}. Move {count, plural, =1 {it} other {them}} anyway.",
+        "mainMoved": "Main has a newer version, v{number}, since this opened. The fork will start from it: press Create fork again."
+      },
+      "deleteSkill": {
+        "title": "Delete {name}?",
+        "description": "Its versions and forks go with it. No agent uses it now. Its test questions, if it has them, stay in Datasets as an ordinary dataset.",
+        "used": "Agents use this skill. It is deleted only once it is off all of them: here, from all of them at once, or one by one in the Builder.",
+        "usedBy": "{named, select, yes {{count, plural, =1 {Used by 1 agent} other {Used by # agents}}: {names}{hidden, plural, =0 {.} =1 {, and 1 you can't see.} other {, and # you can't see.}}} other {{hidden, plural, =1 {Used by 1 agent you can't see.} other {Used by # agents you can't see.}}}}",
+        "cancel": "Cancel",
+        "delete": "Delete",
+        "checking": "Checking which agents use it…",
+        "unread": "Which agents use it could not be read. A skill an agent uses is still refused.",
+        "removeAndDelete": "{count, plural, =1 {Remove from 1 agent and delete} other {Remove from # agents and delete}}",
+        "removeBody": "{count, plural, =1 {The skill is taken out of this agent's draft. Where a published version still uses it, a new version without it is published. Then the skill is deleted with its versions and forks; its test questions, if it has them, stay in Datasets as an ordinary dataset. This cannot be undone.} other {The skill is taken out of these # agents' drafts. Where a published version still uses it, a new version without it is published. Then the skill is deleted with its versions and forks; its test questions, if it has them, stay in Datasets as an ordinary dataset. This cannot be undone.}}",
+        "removeConfirm": "Remove and delete",
+        "back": "Back",
+        "locked": "{count, plural, =1 {You may not change {names}, so it cannot be taken off here. Ask its owner, or remove it there in the Builder.} other {You may not change {names}, so it cannot be taken off here. Ask their owners, or remove it there in the Builder.}}",
+        "hiddenBlocks": "Some of them you cannot see, so it cannot be taken off all of them here. Ask an admin to remove it.",
+        "button": "Delete",
+        "agentsChanged": "An agent started using the skill while it was being removed, so nothing changed. Try again.",
+        "waiting": "{name} still serves it in {environments}, which {count, plural, =1 {waits} other {wait}} for promotion. Promote a version without the skill there first.",
+        "unpublishable": "{name}'s newest spec does not publish without the skill, so nothing changed. <link>Fix it in the Builder</link>, then try again."
+      },
+      "usage": {
+        "title": "Use in the last {days} days",
+        "loads": "{count, plural, =0 {Not opened} =1 {Opened once} other {Opened # times}}",
+        "none": "No agent opened this skill in the last {days} days. Runs of evals and the test panel are not counted.",
+        "hidden": "{count, plural, =1 {1 agent you can't see} other {# agents you can't see}} opened it {loads, plural, =1 {once} other {# times}}.",
+        "chart": "Loads per day, one line per agent",
+        "table": {
+          "agent": "Agent",
+          "loads": "Loads",
+          "files": "Files read",
+          "last": "Last used",
+          "label": "Use per agent"
+        },
+        "never": "Not yet",
+        "probable": "Probably: named its folder in {count, plural, =1 {1 run} other {# runs}}",
+        "pick": "Agents on the chart",
+        "pickNone": "Pick an agent above to draw its line.",
+        "noLoads": "The agents picked did not load the skill in the last 30 days."
+      },
+      "catchUp": "Catch “{name}” up with main",
+      "toMain": "Move “{name}” to main",
+      "nothingToMerge": "Make a change in the fork first; there's nothing to merge yet.",
+      "returnFork": {
+        "button": "Return “{name}” to main",
+        "title": "Return the agents of “{name}” to main",
+        "body": "{count, plural, =0 {Nobody reads this fork, so it is archived.} =1 {The 1 agent reading this fork moves to main's newest version, published where you may publish it and in its draft otherwise. The fork is archived once nobody reads it.} other {The # agents reading this fork move to main's newest version, each published where you may publish it and in its draft otherwise. The fork is archived once nobody reads it.}}",
+        "confirm": "Return to main",
+        "done": "Done"
+      },
+      "checkRunning": {
+        "running": "Check running: {done} of {total} agents checked.",
+        "finished": "A check finished on {total, plural, =1 {1 agent} other {# agents}} and waits for your decision.",
+        "show": "Show",
+        "unreadable": "Whether a check of this line is still running or waiting for you could not be read: {reason}"
+      },
+      "testQuestions": {
+        "title": "Test questions",
+        "count": "{count, plural, =0 {None yet} =1 {1 question} other {# questions}}",
+        "body": "Every agent using this skill is asked these when a change to it is checked, beside its own test questions.",
+        "open": "Open {name}",
+        "none": "This skill has no test questions yet. An agent with no test questions of its own cannot be checked when the skill changes.",
+        "askEditor": "Someone who may edit this skill and create datasets can add them.",
+        "hidden": "This skill has test questions, in a dataset you may not open."
+      },
+      "content": {
+        "title": "What it serves now"
+      },
+      "more": "More actions",
+      "checks": {
+        "title": "Checks",
+        "count": "{count, plural, =1 {1 check} other {# checks}}",
+        "none": "No change to this line has been checked yet.",
+        "over": "Over v{version} · {agents, plural, =1 {1 agent} other {# agents}}",
+        "details": "Details",
+        "verdict": {
+          "passed": "Better, nobody worse",
+          "needs_ack": "Some agents not checked",
+          "blocked": "Made an agent worse",
+          "no_better": "Nobody better"
+        },
+        "status": {
+          "running": "Running",
+          "done": "Waiting for a decision",
+          "cancelled": "Stopped",
+          "applied": "Applied",
+          "forked": "Made a fork",
+          "discarded": "Discarded"
+        }
+      }
+    },
+    "checkOnAgents": "Check on agents",
+    "checkChangeTo": "Check the change to {name} on the agents that use it",
+    "check": {
+      "title": "Check this change on every agent that uses it",
+      "description": "Each agent answers its questions with the skill as it is and with this change. Nothing changes until you decide.",
+      "price": "Most likely {expected}, at most {most}. Each agent's share is billed to that agent.",
+      "start": "Start the check",
+      "running": "Checking. This takes a few minutes. You can close this: the check keeps running, and <page>the skill's page</page> shows it as Check running until you decide it.",
+      "asked": "{count, plural, =1 {Asked 1 question} other {Asked # questions}}",
+      "skillSetOnly": "Checked on the skill's own questions only: none of this agent's questions opened the skill.",
+      "hidden": "{count, plural, =1 {1 more agent uses this skill that you cannot see.} other {# more agents use this skill that you cannot see.}}",
+      "noisy": "Some results were within noise: the check saw a difference it could not confirm.",
+      "forkLine": "This change is to a fork, which cannot be pinned or forked again. Improve it further or discard it.",
+      "acknowledge": "I understand some agents could not be checked.",
+      "discard": "Discard",
+      "apply": "Apply",
+      "applyAndPin": "Apply, and keep the worse agents on their version",
+      "reason": {
+        "no_questions": "Not checked: it has no questions to ask.",
+        "no_access": "Not checked: you may not run this agent.",
+        "no_budget": "Not checked: its budget cannot cover the check.",
+        "no_published_version": "Not checked: it has no published version.",
+        "inconclusive": "Not checked: the check could not grade every answer.",
+        "failed": "Not checked: its run failed.",
+        "other": "Not checked: the check could not measure it.",
+        "unscorable": "Not checked: nothing can grade its questions. Set up grading on their dataset.",
+        "all_evidence": "Not checked: every question came from the conversations this change was learned from.",
+        "cancelled": "Not checked: the check was stopped before it finished.",
+        "own_not_asked": "Not checked: its own questions were not asked once the skill's showed it worse."
+      },
+      "verdict": {
+        "passed": "No agent got worse and at least one got better.",
+        "needs_ack": "No agent that was checked got worse, but some could not be checked.",
+        "blocked": "An agent got worse. You can still apply the change and keep that agent on the version it uses now.",
+        "no_better": "No agent got better, so there is nothing to apply.",
+        "noReaders": "No agent reads this line, so there was nobody to check."
+      },
+      "unaffordable": "The organization's budget left this month cannot cover this check.",
+      "cancel": "Stop the check",
+      "inSession": "This check belongs to an improvement session, so it is decided there.",
+      "openSession": "Open the session",
+      "progress": "{done} of {total} agents checked",
+      "progressLabel": "Agents checked",
+      "updateChecked": "Checked. Go back to decide whether to move the agent.",
+      "backToChange": "Back to Change version",
+      "updateDecidedElsewhere": "This check was made to move one agent to main. Decide it from Change version on that agent.",
+      "backToEditing": "Back to editing",
+      "improveFurther": "Improve further",
+      "discardConfirm": {
+        "title": "Discard this change?",
+        "description": "The change is not applied and this check cannot be decided again. What it found stays in the skill's checks."
+      },
+      "nobody": "None of these agents can be checked, so the check would measure nothing. Add test questions so it can, or go on without a check and confirm that nobody was checked.",
+      "startUnchecked": "Go on without a check",
+      "noReaders": "No agent reads this line, so there is nobody to check. Going on applies the change at once."
+    },
+    "savedMainVersion": "Saved as a new main version. Agents on main read it from their next run; pinned agents and forks keep theirs.",
+    "instructions": "Instructions",
+    "architect": "Architect",
+    "architectHint": "Installed for the AI Architect, which reads it. Editing it changes how the Architect works."
   },
   "states": {
     "loading": "Loading"
@@ -9617,7 +10123,21 @@
       "empty": "This version has no eligible actions to authorize here.",
       "required": "Approval required by the agent",
       "revokeAll": "Revoke all",
-      "save": "Save consent"
+      "save": "Save consent",
+      "search": "Search actions",
+      "selectAll": "Select all eligible actions",
+      "bulkScope": "Bulk controls cover the whole group or inventory, including actions hidden by the search. Required approvals stay enforced.",
+      "selectGroup": "Select eligible actions in {name}",
+      "noMatches": "No actions match your search.",
+      "reselectPrevious": "Reselect previously reviewed actions",
+      "selected": "{count, plural, =1 {1 action selected} other {# actions selected}} · limit {limit}",
+      "tooMany": "{count} actions selected; the limit is {limit}. Deselect actions before saving.",
+      "changed": {
+        "version": "The published agent version changed. Review its actions again.",
+        "intent": "The routine’s work or destination changed. Review its actions again.",
+        "instructions": "The skill, context or project instructions changed. Review its actions again.",
+        "actions": "Some previously selected actions are unavailable, require approval, or have different account authorization. They are not reselected."
+      }
     },
     "sourceConsents": {
       "title": "Reviewed sources",
@@ -9904,13 +10424,24 @@
         "title": "This computer",
         "description": "Let your own agents work here when you choose \"This computer\" in a chat - in the folder you pick, as the mode you pick allows. Nobody else's runs reach it.",
         "notLinked": "Not linked",
-        "connected": "Connected - your agents can work here",
+        "connected": "Linked - your agents can work here",
         "reconnecting": "Linked - reconnecting…",
         "live": "Live",
-        "link": "Let agents work here",
+        "link": "Link this computer",
         "unlink": "Unlink",
         "linkFailed": "This computer could not be linked.",
-        "unlinkFailed": "This computer could not be unlinked."
+        "unlinkFailed": "This computer could not be unlinked.",
+        "unlinkTitle": "Unlink this computer?",
+        "unlinkBody": "Your agents can no longer work here, and the app forgets what you allowed on this computer:",
+        "unlinkClears": {
+          "folders": "Approved folders",
+          "services": "Local services",
+          "consents": "Whole-computer and screen access",
+          "routines": "Folder permissions for routines",
+          "sessions": "Saved local agent sessions"
+        },
+        "unlinkCancel": "Cancel",
+        "unlinkConfirm": "Unlink this computer"
       },
       "services": {
         "title": "Local models and MCP",
@@ -9991,7 +10522,8 @@
       "tabLimit": "You can open up to eight tabs in one window.",
       "earlierMessages": "Load earlier messages",
       "startDictation": "Start dictation",
-      "stopDictation": "Stop dictation"
+      "stopDictation": "Stop dictation",
+      "computerAccessInConsole": "Access to this computer is granted in the console. Continue in the console to allow it."
     },
     "notifications": {
       "approvalTitle": "{agent} wants to run {tool}",
@@ -10002,7 +10534,6 @@
       "questionBody": "Open the conversation to answer the agent."
     },
     "welcome": {
-      "onlyInApp": "This welcome belongs to the AgenticOS desktop app.",
       "skip": "Skip for now",
       "next": "Continue",
       "open": "Open AgenticOS",
@@ -10023,7 +10554,7 @@
       },
       "loop": {
         "title": "Stay in the loop",
-        "body": "Approvals arrive as notifications you can answer without opening anything.",
+        "body": "Approval requests arrive as notifications. To answer most of them there, turn on previews in Settings → Desktop app.",
         "login": "Open AgenticOS at login",
         "keepRunning": "Keep running when the window is closed",
         "test": "Notifications",
@@ -10040,13 +10571,12 @@
     },
     "readiness": {
       "title": "App readiness",
-      "description": "What is ready on this Mac and for your account on this server. Enable only what you want to use.",
-      "desktopOnly": "Open the desktop app to check its setup.",
+      "description": "What is ready on this computer and for your account on this server. Enable only what you want to use.",
       "refresh": "Check again",
       "requestFailed": "Could not change the system permission. Open System Settings and check again.",
       "askAdmin": "Ask an administrator to configure a model for this organization.",
       "askAgentAdmin": "Ask an administrator to publish or share an agent you can use.",
-      "permissionNote": "These checks capture no screen, audio or clipboard. Permissions are optional and requested only when you click. macOS may require restarting the app after a Screen Recording change.",
+      "permissionNote": "These checks capture no screen, audio or clipboard. Permissions are optional and requested only when you click.",
       "screenCaptureDenied": "macOS has not granted screen access to this running app. If AgenticOS is already enabled in System Settings, quit and reopen this copy of the app, then refresh. A different installed copy can have different permissions.",
       "retryScreenshot": "Try the screenshot again",
       "welcome": "Finish connecting this desktop",
@@ -10055,11 +10585,10 @@
       "done": "Continue",
       "retry": "Retry",
       "enable": "Set up",
-      "connect": "Connect",
       "configure": "Configure",
       "items": {
         "account": "Signed-in account",
-        "device": "Paired computer",
+        "device": "Linked computer",
         "agent": "An agent you can use",
         "model": "AI Architect model",
         "screen_capture": "Screen Recording",
@@ -10077,7 +10606,10 @@
       },
       "viewAgents": "View agents",
       "finishFailed": "Could not finish this connection. Please retry.",
-      "opening": "Opening your workspace…"
+      "opening": "Opening your workspace…",
+      "permissionNoteMac": "These checks capture no screen, audio or clipboard. Permissions are optional and requested only when you click. macOS may require restarting the app after a Screen Recording change.",
+      "screenCaptureDeniedElsewhere": "Your system has not granted screen access to this app. Allow it in the system's privacy settings, then refresh.",
+      "link": "Link"
     },
     "notificationSettings": {
       "title": "Desktop notifications",
@@ -10092,7 +10624,7 @@
       "enable": "Set up system notifications",
       "test": "Send a test notification",
       "testTitle": "Test notification",
-      "testBody": "If you can see this message, macOS delivered the notification.",
+      "testBody": "If you can see this message, your system delivered the notification.",
       "failedTest": "Could not send the test. Check the system notification settings.",
       "unmuteAll": "{count, plural, one {Unmute # conversation} other {Unmute # conversations}}",
       "mute": "Mute notifications for this conversation",
@@ -10108,6 +10640,10 @@
       "question": "{agent} · needs an answer",
       "approval": "{agent} · approval needed",
       "agent": "Agent"
+    },
+    "onlyInApp": {
+      "title": "This opens in the AgenticOS desktop app.",
+      "hint": "Open the desktop app on your computer to use it; a browser has nothing to show here."
     }
   },
   "mobile": {
@@ -13956,7 +14492,6 @@
       "suggestReferenceAction": "Compare with the reference",
       "judgeChanged": "Scores graded by the previous judge or model will not compare with the ones graded from now on.",
       "cancel": "Cancel",
-      "groupByHand": "Graded by hand",
       "groupEvalRun": "Eval run · {when}",
       "agentGone": "An agent that is gone",
       "agentVersion": "{name} · v{version}",
@@ -14054,7 +14589,12 @@
       "criterionHelp": "Describe one thing the answer must get right. Include the expected fact or a clear pass condition.",
       "scaleHelp": "The highest score for each criterion, from 2 to 10.",
       "passHelp": "The minimum score required to pass a criterion.",
-      "groupEvalSource": "Eval run"
+      "origin": {
+        "check": "Skill check · {arm, select, proposed {{known, select, yes {proposed v{version}} other {proposed text}}} other {{known, select, yes {current v{version}} other {current text}}}}",
+        "eval": "Eval run",
+        "hand": "Graded by hand",
+        "rerun": "{source} · re-ask {attempt}"
+      }
     },
     "title": "Datasets",
     "pageDescription": "The questions your agents are tested on. Every change to a dataset's cases makes a new version, so two eval runs on one version saw the same questions.",
@@ -14436,7 +14976,8 @@
       "date": "Date",
       "source": "Source",
       "version": "v{number}"
-    }
+    },
+    "skillTestSet": "Skill's test questions"
   },
   "knowledgeGaps": {
     "tab": "Knowledge gaps",
@@ -14580,6 +15121,10 @@
     "versionPlus": "v{version} + {count, plural, =1 {1 suggestion} other {# suggestions}}",
     "proposedSkill": "v{version} + proposed skill",
     "proposedContext": "v{version} + proposed context file",
+    "skillCurrent": "{agent} · current skill",
+    "skillCurrentVersion": "{agent} · current skill (v{version})",
+    "skillCurrentFork": "{agent} · current skill (fork “{fork}” v{version})",
+    "skillProposed": "{agent} · proposed skill",
     "version": "v{version}",
     "status": {
       "queued": "Queued",
@@ -14776,7 +15321,9 @@
       "passRate": "Pass rate {from} → {to}, each case as most of its tries came out{undecided, plural, =0 {} other { · # of {cases} cases undecided}}",
       "firstPassRate": "First answers alone: {from} → {to}",
       "unsteady": "Run it again, or test on a steadier model: a model that answers differently each time cannot confirm a change.",
-      "undecidedWhy": "Inconclusive until every case is decided: {ungraded, plural, =0 {} =1 {1 has nothing that grades it} other {# have nothing that grades them}}{both, select, true {, and } other {}}{incomplete, plural, =0 {} =1 {1 could not be decided - the provider or a scorer failed on it, or its tries tied} other {# could not be decided - the provider or a scorer failed on them, or their tries tied}}."
+      "undecidedWhy": "Inconclusive until every case is decided: {ungraded, plural, =0 {} =1 {1 has nothing that grades it} other {# have nothing that grades them}}{both, select, true {, and } other {}}{incomplete, plural, =0 {} =1 {1 could not be decided - the provider or a scorer failed on it, or its tries tied} other {# could not be decided - the provider or a scorer failed on them, or their tries tied}}.",
+      "tooFew": "{candidate} and {baseline} cannot be compared yet: too few held-out questions were graded to measure a change.",
+      "tooFewInStage": "This stage has too few held-out questions to judge on its own. The check judges the agent on all its stages together."
     },
     "live": {
       "answering": "{done} of {total} first answers in. Cases whose result changes are then rerun to confirm it.",
@@ -14827,7 +15374,8 @@
       "against": "{candidate} vs {baseline}",
       "agent": "{agent} · {title}",
       "rate": "{model} {rate}{undecided, plural, =0 {} other { · # undecided}}",
-      "firstRate": "First answers alone: {rate}"
+      "firstRate": "First answers alone: {rate}",
+      "checkStage": "Skill check stage · {title}"
     },
     "dataset": {
       "counted": "{runs, plural, =0 {No runs yet} =1 {1 run of 1 agent} other {# runs of {agents, plural, =1 {1 agent} other {# agents}}}}",
@@ -15093,7 +15641,18 @@
       "title": "Setup needs attention",
       "body": "Every case stopped with the same error. These results do not measure answer quality. Fix the setup, then run the evaluation again.",
       "attempts": "{count, plural, =1 {1 case attempted} other {# cases attempted}}"
-    }
+    },
+    "checkStage": {
+      "title": "Stage of the check of {skill} on {agent}. <check>Open the check</check>",
+      "aSkill": "a skill",
+      "proposed": "Proposed text",
+      "current": "Current text",
+      "currentVersion": "Current v{version}",
+      "currentFork": "Current “{fork}” v{version}",
+      "pooled": "This run is one stage of the check. The check judges each agent on the held-out questions of all its stages together, so this stage alone can say less than the check."
+    },
+    "notAsked": "{count, plural, =1 {1 question of this dataset was not in this stage's sample, so it was not asked.} other {# questions of this dataset were not in this stage's sample, so they were not asked.}}",
+    "runMetaStage": "{date} · spent {cost}"
   },
   "authoring": {
     "strip": {
@@ -15169,7 +15728,10 @@
         "context": "context file “{name}”",
         "mcpTools": "{count, plural, =0 {every tool of {server}} =1 {tool {tools} of {server}} other {tools {tools} of {server}}}, asking for approval where they write",
         "keeps": "Where the server asked for nothing, accepting makes every tool of it that writes ask for approval - not only the added ones. Undo puts the tools back and keeps them asking."
-      }
+      },
+      "skillBody": "Skill instructions",
+      "skillDescription": "Skill description",
+      "other": "Other change"
     },
     "evidence": {
       "none": "No evidence that could be checked.",
@@ -15248,9 +15810,6 @@
       "askAdmin": "Ask an admin to turn it on."
     },
     "skill": {
-      "improve": "Improve with the assistant",
-      "working": "Reading the runs…",
-      "aiOff": "AI assistance is off for this organization",
       "check": "Check with evals"
     },
     "context": {
@@ -15296,7 +15855,8 @@
         "tool_override": "Tool",
         "spec_field": "Setting",
         "finding": "Finding",
-        "create_skill": "New skill"
+        "create_skill": "New skill",
+        "skill_problem": "Skill problem"
       },
       "reason": {
         "unanchored": "The passage it changes is not in the instructions",
@@ -15316,7 +15876,11 @@
         "unsupported": "Said the edit is supported, with no evidence that could be checked",
         "edit_not_in_diff": "The line it names is not part of the edit",
         "superseded": "A request started later had already replaced the suggestions",
-        "insufficient_evidence": "Fewer than three different answers asked for this, so it was not added on its own."
+        "insufficient_evidence": "Fewer than three different answers asked for this, so it was not added on its own.",
+        "copies_skill": "It copies one of the agent's skills, which the agent already reads",
+        "duplicates_skill": "The agent already has a skill with this name or text",
+        "unknown_skill": "The agent has no such skill",
+        "skill_not_used": "None of the answers it cites used this version of the skill"
       },
       "about": "About: {line}",
       "decide": "{count, plural, =1 {1 more idea needs your decision} other {# more ideas need your decision}}",
@@ -15344,7 +15908,8 @@
       "runsNow": "Runs now: {suites}.",
       "atPromotion": "{suites} {count, plural, =1 {checks} other {check}} it at the next promotion.",
       "suites": "{count, plural, =1 {1 eval suite} other {# eval suites}}",
-      "nowhere": "No published agent reads it yet, so applying it changes no answers today."
+      "nowhere": "No published agent reads it yet, so applying it changes no answers today.",
+      "afterCheck": "Goes live for {agents} once a check on them lets it."
     },
     "result": {
       "open": "Review result",
@@ -15736,7 +16301,8 @@
       "running": "Running",
       "needs_you": "Needs you",
       "skipped": "Skipped",
-      "pending": "Not started"
+      "pending": "Not started",
+      "ended": "Ended without changes"
     },
     "paidRestartOwner": "Only the session requester using the original account and credentials can restart paid work. Other editors can review the results or start their own session.",
     "improveAgain": "Improve again",
@@ -15974,7 +16540,8 @@
       "hintSingle": "Correct the wording if needed. The next step is priced before you press.",
       "saveWordingFirst": "Save or discard the wording first.",
       "unmeasurable": "This attempt can't be tested: {count, plural, one {# more question} other {# more questions}} kept aside would be needed once the ones its examples came from are left out. This session keeps the questions it started with, so adding some won't help it: end the session, add questions, and start a new one.",
-      "likely": "Most likely about {cost}: the higher figure holds only if answers have to be asked again."
+      "likely": "Most likely about {cost}: the higher figure holds only if answers have to be asked again.",
+      "lineMoved": "The skill's line got a newer version meanwhile, so the step was priced again on it: up to {cost}. Press again to go on."
     },
     "waitingFor": {
       "understand": "Waiting for you: look at what went wrong",
@@ -16043,7 +16610,25 @@
     "startDatasetHint": "Choose the cases used to check this agent’s answers.",
     "analysisEstimate": "Estimated analysis cost",
     "startCostHint": "Analysis comes first. Each later attempt is estimated separately, around {cost}, within the session limit.",
-    "comparisonInvalid": "These results cannot be compared. Review the individual answers without treating differences as fixes or regressions."
+    "comparisonInvalid": "These results cannot be compared. Review the individual answers without treating differences as fixes or regressions.",
+    "skills": {
+      "title": "Belongs to a skill",
+      "intro": "A skill is shared by other agents, so these are not changed here. Improve the skill itself, where the change is checked on every agent that reads it.",
+      "mainLine": "Main · {count, plural, =1 {1 agent} other {# agents}}",
+      "forkLine": "Fork \"{fork}\" · {count, plural, =1 {1 agent} other {# agents}}",
+      "hidden": "{count, plural, =1 {1 more agent you cannot see uses this skill.} other {# more agents you cannot see use this skill.}}",
+      "improve": "Improve {name}",
+      "improveFork": "Improve {name}, fork \"{fork}\"",
+      "askEditor": "Ask someone who can edit {name} to improve it.",
+      "behind": "This agent is {count, plural, =1 {1 version} other {# versions}} behind main.",
+      "updatePinned": "Update to v{version}",
+      "catchUp": "Catch up the fork"
+    },
+    "usedSkill": "Used skill {name}",
+    "evidenceOnly": {
+      "body": "Every question of this dataset comes from the conversations this change learned from, so none of them can test it.",
+      "addQuestions": "Add questions from other conversations"
+    }
   },
   "unsaved": {
     "title": "You have unsaved changes",
@@ -16728,6 +17313,283 @@
       },
       "guideName": "AgenticOS",
       "advancedAccess": "Email domains, starting roles and account limits ↗"
+    }
+  },
+  "skillImprovement": {
+    "title": "Improve {name}",
+    "skills": "Skills",
+    "heading": "Improve",
+    "permission": "Improving a skill needs edit access to it and permission to read runs.",
+    "openSkill": "Open the skill",
+    "line": "Line: {line}",
+    "checkWaiting": "The check on the line's agents has not started yet.",
+    "checkTitle": "Checking each agent",
+    "resultTitle": "How each agent did",
+    "toAccept": "Decide what to do",
+    "acceptClosed": "This session is closed. Its result stays here to read.",
+    "agents": {
+      "hidden": "{count, plural, =0 {} =1 {1 more agent you can't see was checked.} other {# more agents you can't see were checked.}}{unknown, plural, =0 {} =1 { 1 of them could not be.} other { # of them could not be.}}",
+      "viaSpecialist": "Through its specialist {name}",
+      "state": {
+        "queued": "Waiting",
+        "running": "Checking",
+        "better": "Better",
+        "no_change": "No change",
+        "within_noise": "Within noise",
+        "worse": "Worse",
+        "unknown": "Unknown"
+      },
+      "fixedBroken": "{fixed, plural, =1 {Fixes 1 question} other {Fixes # questions}}, {broken, plural, =1 {breaks 1} other {breaks #}}.",
+      "fixedBrokenUnconfirmed": "{fixed, plural, =1 {1 question looked fixed} other {# questions looked fixed}} and {broken, plural, =1 {1 looked broken} other {# looked broken}} at first, but asking them again did not confirm it, so the agent counts as no change.",
+      "unknown": {
+        "no_questions": "Not checked: it has no test questions where it loaded the skill, and the skill has none of its own.",
+        "no_access": "Not checked: you may not run this agent.",
+        "no_budget": "Not checked: its budget is spent.",
+        "no_published_version": "Not checked: it has no published version.",
+        "failed": "Not checked: its check failed.",
+        "inconclusive": "Not checked: its run could not grade every answer. Check it again.",
+        "other": "Not checked: the check could not measure it.",
+        "unscorable": "Not checked: nothing can grade its questions - no check, expected tool call or judge.",
+        "all_evidence": "Not checked: every question came from the conversations the change was learned from.",
+        "cancelled": "Not checked: the check was stopped before its runs finished.",
+        "own_not_asked": "Not checked: its own questions were left unasked, and they now decide it."
+      },
+      "skillSetOnly": "Checked only on the skill's own questions: it had none of its own where it loaded the skill.",
+      "stage": {
+        "skill_set": "Run on the skill's questions",
+        "dataset_sample": "{named, select, yes {Run on a sample of {name}} other {Run on a sample of the agent's questions}}",
+        "dataset": "{named, select, yes {Run on {name}} other {Run on the agent's questions}}"
+      },
+      "summary": {
+        "worse": "{count} worse",
+        "unknown": "{count} not known",
+        "same": "{count} no change",
+        "better": "{count} better",
+        "pending": "{count} still checking",
+        "filter": "Show only"
+      },
+      "seen": "Seen",
+      "details": "Details of {name}",
+      "stageCounts": "{better} better · {same} same · {worse} worse · {unknown} not known",
+      "stageCountsFirst": "At first: {better} better · {same} same · {worse} worse · {unknown} not known",
+      "stageLoading": "Reading the results…",
+      "stageUnread": "Its results could not be read.",
+      "openAgent": "Open {name}",
+      "left": "Left to look at: {left} of {total}",
+      "nothingLeft": "Nothing worse or unknown to look at",
+      "onlyUnseen": "Only the ones not looked at",
+      "search": "Find an agent",
+      "noMatch": "No agent matches.",
+      "group": {
+        "worse": "Worse ({count})",
+        "unknown": "Not known ({count})",
+        "pending": "Still checking ({count})",
+        "same": "No change ({count})",
+        "better": "Better ({count})"
+      },
+      "brokeOnSkill": "{broke} of {total} broke on the skill's own questions, which every agent shares.",
+      "ownNotAsked": "Its own questions were not asked: the skill's questions already showed it worse."
+    },
+    "testSet": {
+      "has": "{count, plural, =1 {The skill has 1 test question} other {The skill has # test questions}}",
+      "add": "Add test questions",
+      "addHint": "Written from answers where agents loaded the skill, and empty when there are none yet - you add the rest on its page. Then an agent without questions of its own can be checked.",
+      "grading": "Set up grading on {name}"
+    },
+    "accept": {
+      "title": "Accept",
+      "verdict": {
+        "passed": "No agent got worse and at least one got better.",
+        "blocked": "At least one agent got worse. Apply it only by keeping those agents on their version, save it as a fork, or improve it further.",
+        "no_better": "No agent got better, so there is nothing to apply.",
+        "needs_ack": "No agent got worse and at least one got better, but some agents could not be checked."
+      },
+      "warning": {
+        "within_noise": "Some agents changed within the test's noise: the difference may be chance."
+      },
+      "forkLineOnly": "On a fork, the agents that got worse cannot be pinned or forked again: improve it further or discard it.",
+      "acknowledge": "{count, plural, =1 {I know 1 agent could not be checked{named, select, yes { ({names})} other {}}, and it gets the change all the same.} other {I know # agents could not be checked{named, select, yes { ({names})} other {}}, and they get the change all the same.}}",
+      "apply": "Apply as the next version of {line}",
+      "applyAndPin": "Apply, and keep {names} on the version it has",
+      "forkName": "Name of the new fork",
+      "fork": {
+        "open": "Save as a fork…",
+        "title": "Save this change as a fork",
+        "description": "Main stays as it is. The agents you pick move onto the fork; with none picked it waits until one moves to it.",
+        "agents": "Agents to move onto the fork",
+        "stays": "You cannot change it: stays on its version",
+        "defaultName": "Attempt {attempt}",
+        "throughSpecialist": "{count, plural, =1 {1 agent reads the skill through a specialist and is moved in its Builder.} other {# agents read the skill through a specialist and are moved in their Builder.}}",
+        "hidden": "{count, plural, =1 {1 agent you cannot see stays where it is.} other {# agents you cannot see stay where they are.}}",
+        "submit": "{count, plural, =0 {Make the fork, moving no agent} =1 {Make the fork and move 1 agent} other {Make the fork and move # agents}}"
+      },
+      "catchUpVerdict": {
+        "passed": "No agent got worse with the merge, and at least one got better.",
+        "no_better": "No agent got worse with the merge.",
+        "blocked": "At least one agent got worse with the merge, so it is not taken in. Discard it, or catch up again later.",
+        "needs_ack": "No agent got worse with the merge, but some agents could not be checked."
+      },
+      "catchUp": "Make the merge the next version of {line}",
+      "returnToMain": "Return the agents of {line} to main instead"
+    },
+    "start": {
+      "title": "Start improving",
+      "openSession": "This line already has a session open.",
+      "continue": "Continue it",
+      "hidden": "{count, plural, =1 {1 more agent you can't see uses this line.} other {# more agents you can't see use this line.}}",
+      "price": "Up to {cost} (estimate) to its first proposal; each attempt after it about {perRound}, up to {rounds, plural, =1 {1 attempt} other {# attempts}}. The limit of {limit} caps the whole session.",
+      "limit": "Spending limit for the whole session (USD)",
+      "limitHint": "Filled in for the first proposal and every attempt it may make. Lower it to stop sooner; the session stops before a step that would go over it.",
+      "belowEstimate": "The limit is below what the session costs to its first proposal, {cost}. Raise it to at least that.",
+      "unaffordable": "The organization's budget does not cover this.",
+      "start": "Start",
+      "reads": "{runs, plural, =1 {It reads 1 answer that loaded this line and was rated down or failed.} other {It reads # answers that loaded this line and were rated down or failed.}} {agents, plural, =1 {The line serves 1 agent.} other {The line serves # agents.}}",
+      "usageUnknown": "{count, plural, =1 {1 answer is from before skill loads were recorded and is not read.} other {# answers are from before skill loads were recorded and are not read.}}",
+      "checkNamedLater": "Before the changes are checked, each agent they run on is named, and the ones they cannot run on, with the reason.",
+      "noEvidence": "No answer that loaded this line was rated down or failed yet, so there is nothing to learn from. Rate down an answer in chat where an agent used this skill, then start again."
+    },
+    "understand": {
+      "title": "Understand",
+      "loading": "Reading what went wrong…",
+      "summary": "{count, plural, =0 {No problem with the skill found} =1 {1 problem with the skill} other {# problems with the skill}}{elsewhere, plural, =0 {} other {, # answers whose trouble lies elsewhere}}{fine, plural, =0 {} other {, # that were fine}}.",
+      "usageUnknown": "{count, plural, =1 {1 answer is from before skill loads were recorded and is not counted.} other {# answers are from before skill loads were recorded and are not counted.}}",
+      "agent": "{name} ({runs})",
+      "occursIn": "In {runs, plural, =1 {1 answer} other {# answers}}, at {agents}{hidden, plural, =0 {} =1 { and 1 agent you can't see} other { and # agents you can't see}}.",
+      "hiddenExamples": "{count, plural, =1 {+1 hidden example} other {+# hidden examples}}"
+    },
+    "checkEstimate": {
+      "agents": "{count, plural, =0 {No agent on this line can be checked.} =1 {It will be checked on 1 agent: {names}.} other {It will be checked on # agents: {names}.}}",
+      "unchecked": "{name} cannot be checked: {reason, select, no_questions {it has no test questions where it loaded the skill} no_access {you may not run it} no_budget {its budget is spent} no_published_version {it has no published version} inconclusive {its run could not grade every answer} other {its check failed}}.",
+      "hidden": "{count, plural, =1 {1 more agent you can't see uses this line.} other {# more agents you can't see use this line.}}",
+      "thorough": "The description changed, which decides when agents open the skill, so every agent's own questions are asked too."
+    },
+    "checkAgain": {
+      "why": "The line or its agents changed since this result was checked, so it may no longer hold. Check the same changes again on the line as it is now before deciding.",
+      "pricing": "Pricing the check…",
+      "priceMoved": "The price changed to up to {cost}. Press again to check.",
+      "overLimit": "The check costs more than this session has left. Raise the limit for this check to go on.",
+      "go": "Check again · up to {cost}",
+      "goUnpriced": "Check again",
+      "raise": "Use this limit"
+    },
+    "staleChanges": "The line got a newer version since these changes were written. Next step checks them on the newest version.",
+    "mergeHint": {
+      "catch_up": "Check the merged skill on the fork's agents before it becomes the fork's next version.",
+      "to_main": "Check the merged skill on main's agents before it becomes main's next version."
+    },
+    "settleFirst": "{count, plural, =1 {Settle the 1 open part first.} other {Settle the # open parts first.}}",
+    "mergeWorking": "The assistant is writing a combined text for each conflict.",
+    "merge": {
+      "sides": {
+        "catch_up": "Takes main v{main} into “{line}” v{fork}. Both started from main v{base}.",
+        "to_main": "Takes the fork's v{fork} into main v{main}. The fork started from main v{base}."
+      },
+      "unresolved": "{count, plural, =1 {1 part waits for you. The check starts once it is settled.} other {# parts wait for you. The check starts once they are settled.}}",
+      "leftForYou": "{count, plural, =1 {The assistant could not write a text for 1 conflict, so it is left for you.} other {The assistant could not write a text for # conflicts, so they are left for you.}}",
+      "settledAll": "{conflicts, plural, =0 {Nothing conflicts: each part takes the side that changed it.} =1 {The 1 conflict is settled. Read it before you check the merge.} other {All # conflicts are settled. Read them before you check the merge.}}",
+      "descriptionSame": "The description is the same on both sides.",
+      "description": "Description",
+      "part": "Part {number}",
+      "unchangedLines": "{count, plural, =1 {1 line neither side changed} other {# lines neither side changed}}",
+      "files": "Files",
+      "state": {
+        "same": "Unchanged",
+        "fork": "From the fork",
+        "main": "From main",
+        "both": "Same change on both",
+        "conflict": "Conflict"
+      },
+      "settled": {
+        "open": "Waits for you",
+        "proposed": "The assistant's text",
+        "edited": "Your text"
+      },
+      "forkSide": "Fork",
+      "mainSide": "Main",
+      "resultSide": "Merged",
+      "resultOf": "Merged text of {label}",
+      "save": "Save",
+      "unsettled": "Not settled yet.",
+      "fileOpen": "Both sides changed it. Keep one side.",
+      "kept": {
+        "fork": "The fork's version is kept",
+        "forkDropped": "Dropped, as on the fork",
+        "main": "Main's version is kept",
+        "mainDropped": "Dropped, as on main"
+      },
+      "take": {
+        "fork": "Keep the fork's",
+        "forkDropped": "Drop it, as the fork did",
+        "main": "Keep main's",
+        "mainDropped": "Drop it, as main did"
+      }
+    },
+    "mainAlone": {
+      "title": "Main alone",
+      "choice": "Also check main's newest version alone on the fork's agents",
+      "choicePriced": "Also check main's newest version alone on the fork's agents (+{cost})",
+      "choiceWhy": "Only this check can show that the fork is no longer needed. Without it, the result does not offer to return the fork's agents to main.",
+      "none": {
+        "off": "Main alone was not checked, so returning the fork's agents to main is not offered.",
+        "same": "The merge is main's newest version, so it was checked once.",
+        "checked": "Main alone is being checked."
+      },
+      "acknowledge": "{count, plural, =1 {I know main alone could not be checked on 1 agent{named, select, yes { ({names})} other {}}, and it returns to main all the same.} other {I know main alone could not be checked on # agents{named, select, yes { ({names})} other {}}, and they return to main all the same.}}"
+    },
+    "mergeStart": {
+      "openSession": "This line already has an open session.",
+      "continue": "Continue it",
+      "title": {
+        "catch_up": "Catch “{fork}” up with main",
+        "to_main": "Move “{fork}” to main"
+      },
+      "what": {
+        "catch_up": "Main's changes since the version the fork is based on are merged into the fork, and the fork keeps its own. Then the fork's agents check the result.",
+        "to_main": "The fork's changes are merged into main v{version}, and main keeps its own. Then main's agents check the result."
+      },
+      "conflicts": "{count, plural, =0 {Nothing conflicts: each part takes the side that changed it.} =1 {1 part was changed on both sides. The assistant proposes a text for it, and you can change it.} other {# parts were changed on both sides. The assistant proposes a text for each, and you can change them.}}",
+      "agents": "{count, plural, =0 {No agent you can see reads this line.} =1 {1 agent checks the result.} other {# agents check the result.}}",
+      "hidden": "{count, plural, =1 {1 more agent you cannot see reads this line.} other {# more agents you cannot see read this line.}}",
+      "price": "Proposing the conflicts' texts costs about {cost}. The check is priced at Changes.",
+      "limit": "Spending limit for the session (USD)",
+      "limitHint": "You can raise it at Changes, when the check is priced.",
+      "unaffordable": "The organization's budget does not cover this.",
+      "start": {
+        "catch_up": "Start the catch-up",
+        "to_main": "Start the move"
+      }
+    },
+    "mergeReading": "Reading the merge…",
+    "mergeAgain": {
+      "moved": "The fork or main has a newer version than this merge read, so it is not checked again.",
+      "start": "Discard this merge and start again"
+    },
+    "returned": {
+      "title": "What returning to main did",
+      "live": "Moved to main and published: {names}.",
+      "drafts": "{count, plural, =1 {Moved to main in its draft, which waits to be published: {names}.} other {Moved to main in their drafts, which wait to be published: {names}.}}",
+      "refused": "{name} stays on the fork: {reason}",
+      "hidden": "{count, plural, =1 {1 agent you cannot see was left as it was.} other {# agents you cannot see were left as they were.}}",
+      "archived": "Nobody reads the fork any more, so it was archived.",
+      "remaining": "{count, plural, =0 {The fork was left as it was.} =1 {1 agent still reads the fork, so it was not archived.} other {# agents still read the fork, so it was not archived.}}"
+    },
+    "forked": {
+      "title": "What forking did",
+      "made": "The change is now the fork “{name}”.",
+      "live": "Moved onto it and published: {names}.",
+      "drafts": "{count, plural, =1 {Moved onto it in its draft, which waits to be published: {names}.} other {Moved onto it in their drafts, which wait to be published: {names}.}}",
+      "nobody": "No agent was moved onto it; move agents from the skill's page."
+    },
+    "understandWorking": "Reading the answers that loaded this skill and were rated down or failed, and what in the skill they point to…",
+    "mergeTitle": {
+      "named": {
+        "catch_up": "Catch {fork} up with main",
+        "to_main": "Move {fork} to main"
+      },
+      "plain": {
+        "catch_up": "Catch up with main",
+        "to_main": "Move to main"
+      }
     }
   }
 }

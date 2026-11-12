@@ -29,7 +29,9 @@ interface SkillShortcutProps {
  * the answer, because the answer is what shows how. The Architect cannot see
  * this chat, so it is handed the conversation's id and reads all of it - the
  * steps and tool calls that made the answer, not only its last words - with
- * `read_conversation`; a turn not yet saved hands it the answer instead.
+ * `read_conversation`; a turn not yet saved hands it the answer instead. The ask is
+ * written into the Architect's message box, not sent: the person reads it and sends
+ * it, since sending starts a run on the organization's budget.
  */
 export function SkillShortcut({ request, answer, conversationId }: SkillShortcutProps) {
   const t = useTranslations("chat.extras");
@@ -44,7 +46,7 @@ export function SkillShortcut({ request, answer, conversationId }: SkillShortcut
   return (
     <button
       type="button"
-      onClick={() => ask(question)}
+      onClick={() => ask(question, { draft: true })}
       title={t("makeSkill")}
       aria-label={t("makeSkill")}
       className={cn(TURN_ACTION, "sm:opacity-0 sm:group-hover:opacity-100")}

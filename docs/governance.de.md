@@ -1,5 +1,5 @@
 ---
-source_sha: "390d73e39402"
+source_sha: "53e0bc6237b8"
 ---
 
 # Governance { #governance }
@@ -847,6 +847,19 @@ Meldung bei dessen Erreichen; ein stummgeschalteter Fall bleibt im Monat stumm.
 
 ### Aktionsfreigaben { #routine-action-consent }
 
+Aktionen sind nach Capability oder konkretem MCP-Konto gruppiert und durchsuchbar.
+Wähle eine Gruppe oder alle zulässigen Aktionen aus oder ab; die Sammelauswahl umfasst
+auch ausgefilterte Einträge. Einzelne Ausnahmen bleiben möglich. Ein Review unterstützt
+bis zu 1.000 ausgewählte Aktionen; eine größere Auswahl wird angezeigt und muss vor
+dem Speichern verkleinert werden, statt still gekürzt zu werden.
+
+Nur Titel oder Zeitplan zu ändern erhält die Zustimmung. Ändern sich Version, Aufgabe,
+Anweisungen oder Konto, erklärt der Dialog die betroffene Grenze. **Zuvor geprüfte
+Aktionen erneut auswählen** ist eine ausdrückliche neue Wahl passender zulässiger
+Identitäten; erst das Speichern des aktuellen Reviews erteilt Zustimmung. Neue Aktionen
+und geänderte Konten werden nicht automatisch ausgewählt. Verbindliche Freigaben,
+Widerruf und die Prüfung auf veraltete Reviews gelten weiterhin.
+
 Eine unbeaufsichtigte Routine fragt vor Fähigkeitsaktionen, lokalen Dateiänderungen
 und Delegation. Externe MCP-Aufrufe fragen, sofern ihr Server sie nicht als nur
 lesend kennzeichnet; eine strengere Bestätigungspolitik der Verbindung gilt weiter.
@@ -1542,10 +1555,16 @@ auch eine Komprimierung den gecachten Prompt verkleinern kann. Solange jeder Cac
 
 ## Freigaben { #approvals }
 
-Ein Tool, das der Autor des Agents hinter ein Gate gestellt hat, parkt den Run und
-wartet auf eine Person. Nichts steht hinter einem Gate, bis jemand darum bittet:
-Ein Gate, das niemand gewählt hat, parkt Runs in Kanälen und Routinen, in denen
-niemand da ist, um zu antworten.
+Ein gesperrtes Tool parkt den Run und wartet auf eine Person. Der Builder bietet
+**Immer fragen** und **Nie fragen** für eine Capability; einzelne Tools können auch
+der Capability folgen. Neue Capabilities im Builder beginnen mit **Immer fragen**.
+Bestehende Bindings, auch ohne Approval oder mit gespeichertem `default`, behalten ihre Politik.
+
+Erforderliche Freigaben können Routinen und Kanäle ebenso wie Chats anhalten. Wähle für
+unbeaufsichtigte Arbeit bewusst die Aktionen, die ohne Rückfrage laufen dürfen.
+Verbindliche Freigaben und strengere Organisationsregeln gelten weiter. Vom Provider
+ausgeführte Tools brauchen eine lokale Methode für Freigaben; eine nicht durchsetzbare
+Sperre wird beim Veröffentlichen abgelehnt.
 
 Die Auflösung geht vom Spezifischsten aus:
 
@@ -1696,9 +1715,11 @@ Fünf Eigenschaften, die man kennen sollte:
 
 ### Wie sehr eine Unterhaltung gefragt werden will { #how-much-one-conversation-wants-to-be-asked }
 
-Die Freigabekarte bietet auch **Dieses Tool in diesem Chat erlauben** und **Dieses Tool für diesen Agenten immer erlauben**. Die Auswahl gilt nur für das benannte Tool und Konto, die zustimmende Person und die veröffentlichte Agentenversion. Sie erfordert dieselbe Berechtigung und Organisationseinstellung wie die Freigabe aller Aktionen. Sie autorisiert weder Delegierte noch unbeaufsichtigte Ausführungen. Eine neue Agentenversion erfordert eine neue Auswahl.
+Die Freigabekarte bietet auch **Dieses Tool in diesem Chat erlauben** und **Dieses Tool für diesen Agenten immer erlauben**. Die Auswahl gilt nur für das benannte Tool und Konto, die zustimmende Person und die veröffentlichte Agentenversion. Sie erfordert dieselbe Berechtigung und Organisationseinstellung wie die Freigabe aller Aktionen. Sie autorisiert weder Delegierte noch unbeaufsichtigte Ausführungen. Eine neue Agentenversion erfordert eine neue Auswahl. Ein Tool, das jedes Mal fragt, etwa `share_memory`, wird nie gespeichert und von der Freigabe aller Aktionen nicht beantwortet: Seine Karte bietet keine der beiden Optionen an, und der Server lehnt das Speichern ab.
 
 Die Auswahl wird auf dem Server gespeichert. **Chat controls → Preferences → Gespeicherte Tool-Freigaben → Erneut fragen** widerruft eine Zustimmung, ohne die ursprüngliche Entscheidung zu löschen. Vor jeder automatischen Freigabe werden Mitgliedschaft, Freigabeberechtigung und Organisationsrichtlinie erneut geprüft. Der Modus zum Nachfragen bei jeder Aktion hat Vorrang. Jede automatische Freigabe protokolliert weiterhin die zustimmende Person und die tatsächlichen Aufrufargumente.
+
+Die Freigabe-Warteschlange gehört der Organisation, aber manche Aufrufe zitieren, was die Person ihres Runs liest - den Fakt, den `share_memory` teilen würde. Dieses Zitat sieht nur, wer den Run sehen darf: die Person, für die er lief, oder ein Mitglied, das jeden Run liest und den Agent sehen darf. Alle anderen sehen das Tool, den Leserkreis und einen Hinweis, dass der Inhalt verborgen ist. Einen Aufruf, der jedes Mal fragt, gibt nur frei, wer lesen kann, was er zitiert: Alle anderen können ihn ablehnen, und ihre Freigabe wird abgewiesen.
 
 Die Regel oben gehört dem Agent, wird beim Veröffentlichen und je Tool
 entschieden, und das ist der richtige Ort dafür: Sie ist eine Aussage darüber, was

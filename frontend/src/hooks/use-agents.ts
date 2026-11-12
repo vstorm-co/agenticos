@@ -712,7 +712,12 @@ export function useAddToAgent() {
       });
       return { already: false };
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.agents.all() }),
+    // A skill's card names the drafts it was added to, so its listing is read again too.
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: qk.agents.all() }),
+        queryClient.invalidateQueries({ queryKey: qk.skills.all() }),
+      ]),
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 }

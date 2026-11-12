@@ -64,7 +64,7 @@ describe("the publish-state badge", () => {
   it("says the draft is up to date when it matches the published version", () => {
     render(<PublishState agentId="a-1" production={production()} draftSpec={spec()} />);
 
-    expect(screen.getByText("Up to date with v7")).toBeInTheDocument();
+    expect(screen.getByText("Up to date with agent v7")).toBeInTheDocument();
   });
 
   it("says the draft differs from the version it is based on", () => {
@@ -76,7 +76,7 @@ describe("the publish-state badge", () => {
       />,
     );
 
-    const badge = screen.getByText("Draft differs from v7");
+    const badge = screen.getByText("Draft differs from agent v7");
     expect(badge).toHaveAttribute(
       "title",
       "The draft is saved and differs from v7, the latest published version. Publishing makes it a new version.",
@@ -132,7 +132,7 @@ describe("the publish-state badge", () => {
     const reordered = Object.fromEntries(Object.entries(spec()).reverse()) as unknown as AgentSpec;
     render(<PublishState agentId="a-1" production={production()} draftSpec={reordered} />);
 
-    expect(screen.getByText("Up to date with v7")).toBeInTheDocument();
+    expect(screen.getByText("Up to date with agent v7")).toBeInTheDocument();
   });
 
   it("says which version production runs when its guards hold it back", () => {
@@ -143,7 +143,7 @@ describe("the publish-state badge", () => {
         draftSpec={spec()}
       />,
     );
-    expect(screen.getByText("Up to date with v7")).toBeInTheDocument();
+    expect(screen.getByText("Up to date with agent v7")).toBeInTheDocument();
     expect(screen.getByText("production on v6")).toHaveAttribute(
       "title",
       "Channels, widgets and the API answer with v6: production runs it until a newer version is promoted.",

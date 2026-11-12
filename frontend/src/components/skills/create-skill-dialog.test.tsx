@@ -46,9 +46,9 @@ function textFile(path: string, body = "body"): File {
 
 const name = () => screen.getByLabelText("Name");
 const description = () => screen.getByLabelText("Description");
-// The body is SKILL.md in the file pane, as the workbench has it - editable
+// The body is Instructions in the file pane, as the workbench has it - editable
 // directly in its source view.
-const content = () => screen.getByLabelText("SKILL.md source");
+const content = () => screen.getByLabelText("Instructions source");
 const create = () => screen.getByRole("button", { name: "Create" });
 
 async function fill() {
@@ -64,7 +64,7 @@ async function fill() {
  * typed into - which is the flow a person goes through too.
  */
 async function fillWithBody() {
-  await userEvent.click(screen.getByRole("button", { name: "SKILL.md" }));
+  await userEvent.click(screen.getByRole("button", { name: "Instructions" }));
   await fill();
 }
 
@@ -80,12 +80,12 @@ describe("CreateSkillDialog", () => {
     render(<CreateSkillDialog open onOpenChange={vi.fn()} />, { wrapper });
   });
 
-  it("lays the body out as SKILL.md, the way the editor will show it forever after", async () => {
+  it("lays the body out as Instructions, the way the editor will show it forever after", async () => {
     // The create form used to be the only place a skill did not look like a
     // folder. The second time anybody saw their skill it looked nothing like
     // the first - same tree, same pane, from the start.
     // Twice: once in the tree, once naming the open pane.
-    expect(screen.getAllByText("SKILL.md")).toHaveLength(2);
+    expect(screen.getAllByText("Instructions")).toHaveLength(2);
     expect(screen.getByRole("button", { name: "Preview" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Source" })).toBeNull();
   });
@@ -464,9 +464,9 @@ describe("CreateSkillDialog files", () => {
     await userEvent.type(screen.getByLabelText("Path"), "a.md");
     await userEvent.click(screen.getByRole("button", { name: "Add file" }));
 
-    await userEvent.click(screen.getByRole("button", { name: "SKILL.md" }));
+    await userEvent.click(screen.getByRole("button", { name: "Instructions" }));
 
-    expect(screen.getByRole("button", { name: "SKILL.md" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Instructions" })).toHaveAttribute(
       "aria-current",
       "true",
     );

@@ -18,6 +18,7 @@ from app.api.deps import (
     EvalRunSvc,
     ParkedRunSvc,
     RunExportSvc,
+    SkillSvc,
     require,
 )
 from app.api.public_api import INTERNAL, PUBLIC
@@ -53,6 +54,7 @@ from app.schemas.agent_run import (
 )
 from app.schemas.conversation import MessageList
 from app.schemas.run_manifest import RunManifestRead
+from app.services.approvals import withhold
 from app.services.channels.handback import continues_in_chat
 
 router = APIRouter(dependencies=[PUBLIC])
@@ -280,7 +282,9 @@ async def export_runs(
 @router.get(
     "/runs/{run_id}", response_model=AgentRunRead, dependencies=[Depends(require(Perm.RUNS_VIEW))]
 )
-async def get_run(run_id: UUID, service: AgentRunnerSvc, evals: EvalRunSvc, ctx: Auth) -> Any:
+async def get_run(
+    run_id: UUID, service: AgentRunnerSvc, evals: EvalRunSvc, skills: SkillSvc, ctx: Auth
+) -> Any:
     """One run, its trace link, and its neighbours in its conversation.
 
     `logfire_url` is on this read and not on the list: resolving it needs the
@@ -289,7 +293,8 @@ async def get_run(run_id: UUID, service: AgentRunnerSvc, evals: EvalRunSvc, ctx:
     `prev_run_id`/`next_run_id` ride here for the same reason - a detail view
     walks to its neighbours, a list already is the neighbours. `eval_case` names
     the eval run and the case an eval run's answer belongs to, which is where its
-    answer and grade are read - such a run keeps no conversation.
+    answer and grade are read - such a run keeps no conversation. `skills_used`
+    names the skills it opened or read, at the version each was served.
     """
     run = await service.get_run(ctx, run_id)
     evaluated = run.surface == RunSurface.EVAL.value
@@ -305,6 +310,7 @@ async def get_run(run_id: UUID, service: AgentRunnerSvc, evals: EvalRunSvc, ctx:
             "next_run_id": next_run_id,
             "eval_case": eval_case,
             "origin": origin,
+            "skills_used": await skills.used_in_run(ctx, run.id),
             "continues_in_chat": continues_in_chat(run, ctx),
         }
     )
@@ -658,8 +664,15 @@ async def decide_approval(
         note=data.note,
         **({"remember_scope": data.remember_scope} if data.remember_scope else {}),
     )
-    return ApprovalRead.model_validate(decided.approval).model_copy(
-        update={"continues_in_chat": decided.continues_in_chat}
+    read = ApprovalRead.model_validate(decided.approval)
+    tool_args, context = withhold(decided.hidden, tool_args=read.tool_args, context=read.context)
+    return read.model_copy(
+        update={
+            "continues_in_chat": decided.continues_in_chat,
+            "tool_args": tool_args,
+            "context": context,
+            "content_hidden": bool(decided.hidden),
+        }
     )
 
 

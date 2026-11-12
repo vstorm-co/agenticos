@@ -13,7 +13,10 @@ vi.mock("@/hooks", () => ({
 const others = vi.hoisted(() => ({
   value: { review: 0, suites: 0, suggestions: 0, settled: true },
 }));
-vi.mock("@/hooks/use-waiting-on-me", () => ({ useWaitingOnMe: () => others.value }));
+vi.mock("@/hooks/use-waiting-on-me", async (original) => ({
+  ...(await original<typeof import("@/hooks/use-waiting-on-me")>()),
+  useWaitingOnMe: () => others.value,
+}));
 let user: { full_name?: string | null; email: string } | null = null;
 vi.mock("@/stores", () => ({
   useAuthStore: (select: (state: { user: typeof user }) => unknown) => select({ user }),

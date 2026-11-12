@@ -14,6 +14,7 @@ import type { CaseScore, ScorerResult } from "@/types/scoring";
 import { ScoreAnswer } from "./score-answer";
 import { ScoreDecision, type Verdict } from "./score-decision";
 import { ScoreExpectation } from "./score-expectation";
+import { ScoreOrigin } from "./score-origin";
 import { KnowledgeFindings } from "./score-knowledge";
 
 export type { Verdict } from "./score-decision";
@@ -121,11 +122,14 @@ function ScoreSource({ score, linksRuns }: { score: CaseScore; linksRuns: boolea
     <span className="text-muted-foreground ml-auto flex flex-wrap items-center gap-2 text-xs">
       {score.agent_name !== null && (
         <span className="text-foreground font-medium">
-          {score.agent_version === null
-            ? t("agentDraft", { name: score.agent_name })
-            : t("agentVersion", { name: score.agent_name, version: score.agent_version })}
+          {score.skill_check
+            ? score.agent_name
+            : score.agent_version === null
+              ? t("agentDraft", { name: score.agent_name })
+              : t("agentVersion", { name: score.agent_name, version: score.agent_version })}
         </span>
       )}
+      <ScoreOrigin score={score} />
       {score.run_model !== null && <span className="font-mono">{score.run_model}</span>}
       <time dateTime={score.created_at}>{formatDateTime(score.created_at, locale)}</time>
       {linksRuns &&

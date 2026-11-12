@@ -1,5 +1,5 @@
 ---
-source_sha: "bf0b4309d434"
+source_sha: "5b558c2a28fd"
 ---
 
 # La consola { #the-console }
@@ -105,7 +105,7 @@ puedes abrir. Todos empiezan en **Me**:
 
 | Vista | Responde a |
 | --- | --- |
-| **Me** | Un saludo, tu periodo y todo lo que te espera, en dos frases - llamadas, respuestas por revisar, suites que fallan, sugerencias del asistente; tus runs, cuántos terminaron, lo que te espera y lo que costó; después las llamadas que te esperan, tus conversaciones, los agents que necesitan atención, las mejoras que te esperan, tus agents, lo que han compartido contigo, tus [datasets](datasets.md) con aquello contra lo que prueban sus casos, los eval runs y suites más recientes, las sugerencias del asistente por agent, skill y archivo, y las lagunas de conocimiento |
+| **Me** | Un saludo, tu periodo y todo lo que te espera, en dos frases - llamadas, respuestas por revisar, suites que fallan, sugerencias del asistente; tus runs, cuántos terminaron, lo que te espera (contado igual) y lo que costó; después las llamadas que te esperan, tus conversaciones, los agents que necesitan atención, las mejoras que te esperan, tus agents, lo que han compartido contigo, tus [datasets](datasets.md) con aquello contra lo que prueban sus casos, los eval runs y suites más recientes, las sugerencias del asistente por agent, skill y archivo, y las lagunas de conocimiento |
 | **Me** | Un saludo y tu periodo en una frase; tus runs, cuántos terminaron, lo que te espera y lo que costó; después las llamadas que te esperan, tus conversaciones, tus agents y lo que han compartido contigo |
 | **Organization** | La página que se ordena, descrita abajo |
 | **Group** | Los miembros de un [grupo](departments.md) - sus runs, gasto, modelos, cuándo trabajan y quién lo usa más. El grupo se elige junto al selector. Un grupo cuyos miembros no ejecutaron nada en el periodo lo dice una vez, con un enlace al grupo, en lugar de una página de tarjetas vacías |
@@ -122,7 +122,12 @@ hasta que la nueva versión acumule las suyas. Ambos requieren `runs:view`.
 
 Debajo, **Improvements waiting for you** lista las sesiones de
 [Improve](authoring.md#the-improve-wizard) detenidas a la espera de tu siguiente
-paso o decisión, cada una abierta en su parada.
+paso o decisión, cada una abierta en su parada, y las
+[comprobaciones de un cambio de skill](skills.md#when-an-agent-got-worse) que
+puedes decidir y que siguen en curso o esperan una decisión. Después vienen los
+cambios de skills que propusieron los agents, luego los agents fijados y los forks
+que main [ha dejado atrás](skills.md#which-version-an-agent-reads). Un
+fork se pone al día desde ahí, y un agent fijado se mueve en la página de su skill.
 
 La vista de la organización muestra las tarjetas que responden con datos,
 agrupadas en bandas. El resto - integraciones, canales, rutinas, sincronización

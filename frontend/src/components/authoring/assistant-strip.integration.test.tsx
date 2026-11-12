@@ -5,8 +5,7 @@ import { agentAuthoring } from "@/test-utils/authoring";
 import type { AgentSpec } from "@/types/agents";
 import { Perm, type Permission } from "@/types/permissions";
 import { AssistantStrip } from "./assistant-strip";
-import { ImproveSkillButton } from "./improve-skill-button";
-import { SkillCheckButton } from "./skill-check-button";
+import { ImproveContextButton } from "./improve-skill-button";
 
 const held = vi.hoisted(() => ({ permissions: new Set<string>() }));
 vi.mock("@/hooks/use-permissions", () => ({
@@ -43,6 +42,13 @@ vi.mock("@/hooks/use-authoring", () => {
       checkEstimate: idle,
       check: idle,
     }),
+    useContextAuthoring: () => ({
+      latest: null,
+      estimate: idle,
+      start: idle,
+      checkEstimate: idle,
+      check: idle,
+    }),
   };
 });
 
@@ -58,8 +64,7 @@ function surfaces({ canCheck = true } = {}) {
         persist={vi.fn()}
         onDraft={vi.fn()}
       />
-      <ImproveSkillButton skillId="skill-1" />
-      <SkillCheckButton skillId="skill-1" proposalId="change-1" />
+      <ImproveContextButton contextId="context-1" />
     </>,
   );
 }
@@ -89,7 +94,7 @@ describe("the assistant's controls, by permission", () => {
     surfaces();
     expect(screen.queryByRole("button", { name: "Improve agent-1" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Verify my edits" })).toBeNull();
-    expect(screen.getAllByRole("button", { name: "Check with evals" })).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Check with evals" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Improve with the assistant" })).toBeInTheDocument();
   });
 
@@ -97,7 +102,6 @@ describe("the assistant's controls, by permission", () => {
     held.permissions = new Set([Perm.agentsEdit, Perm.skillsEdit, Perm.runsView]);
     surfaces({ canCheck: false });
     expect(screen.queryByRole("button", { name: "Improve agent-1" })).toBeNull();
-    // The one left is the skill change's, which checks on an agent of its own.
-    expect(screen.getAllByRole("button", { name: "Check with evals" })).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "Check with evals" })).toBeNull();
   });
 });

@@ -120,6 +120,10 @@ def catalog() -> tuple[TemplateIndustry, ...]:
     return tuple(industries)
 
 
+ARCHITECT_KEY = "general/platform-assistant"
+"""The template the organization's AI Architect is installed from."""
+
+
 def get(key: str) -> AgentTemplate | None:
     """One template by its `<industry>/<folder>` key."""
     return next(

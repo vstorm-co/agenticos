@@ -1,5 +1,5 @@
 ---
-source_sha: "b0fd849fcc36"
+source_sha: "7e9532451783"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -44,7 +44,9 @@ desactiva lo que el agente no deba hacer.
 
 Acabe con las capabilities que acabe, cada run recibe en sus instrucciones, bajo
 **Your setup**, cuáles tiene y cuáles no - así describe solo lo que puede hacer y
-dice qué habría que activar para el resto.
+dice qué habría que activar para el resto. A un agent con skills se le dice al
+final, bajo **Your skills**, que abra con `read_skill` el skill en el que cae
+una pregunta; pedir un skill con la tarjeta recibe eso como respuesta.
 
 Cuando una petición necesita una que el agent no tiene, muestra en el chat una
 tarjeta con ella y su motivo. Quien puede editar el agent la activa desde la
@@ -462,6 +464,14 @@ herramienta recibe un ámbito y no hay nada que el agent pueda confundir.
   almacén, y las herramientas lo dicen en vez de guardar en algún sitio. Un run
   iniciado con una [clave API](../api.md#organization-api-keys) tampoco lo tiene:
   la clave actúa por quien la emitió, pero quien la tiene no es esa persona.
+- En un chat que leen otras personas, el de un proyecto o uno compartido con
+  alguien para editar, no hay almacén personal. El agent no muestra, no recupera
+  ni guarda allí lo que sabe de la persona; sigue leyendo los claims del
+  proyecto y de la organización. Compartir un chat para editar, o moverlo a un
+  proyecto, muestra su historial, incluidas las respuestas escritas mientras era
+  privado; desde ese momento, las respuestas siguientes no usan memoria
+  personal. Un chat compartido solo para ver muestra todas las respuestas,
+  también las posteriores escritas con memoria personal.
 - En una programación o en un trigger de evento tampoco hay almacén, aunque el
   run se ejecuta como el creador del trigger. El creador presta al run su
   autoridad, no su identidad, así que nadie escucha y las herramientas se
@@ -505,6 +515,8 @@ Una escritura automática se queda en el scope de la conversación de la que vin
 un chat de grupo nunca escribe un perfil. Solo `share_memory` amplía un claim, y
 solo por orden de una persona que pueda: `projects:edit` en el proyecto, o
 `context:edit` para toda la organización. Siempre espera a que una persona apruebe exactamente ese claim y esa audiencia, sean cuales sean los ajustes de aprobación del agent, así que un texto leído por el agent no puede convencerlo de compartir.
+
+Tampoco lo responden **Approve everything** ni un **Permitir siempre** recordado, y su tarjeta no ofrece ninguna de las dos opciones. La tarjeta muestra el hecho y su audiencia; en la cola de aprobaciones el hecho solo lo ve quien puede ver el run del que viene.
 
 La copia nombra el claim del que viene y
 el original conserva su audiencia. Un embed, un run con clave de API y un run
@@ -1753,8 +1765,8 @@ lista de prefijos de comandos hace de una shell algo de solo lectura, porque
 `git log --output=<archivo>` encaja con `git log` igual que cualquier lectura. Codex dentro de un contenedor no tiene `read_only`: su modo de solo lectura es una
 sandbox propia, que no arranca dentro del contenedor del agent, y la publicación
 rechaza la combinación. Que una persona diga sí antes de cada tarea es la
-**Aprobación humana** de la capability, puesta en **Preguntar siempre** — como toda
-compuerta, está desactivada hasta que alguien la pone. No hay pestaña de
+**Aprobación humana** de la capability, puesta en **Preguntar siempre**. El Builder elige este modo para bindings nuevos;
+los existentes conservan su política. No hay pestaña de
 herramientas: la única herramienta es la capability.
 
 **Sesiones con nombre.** Cada tarea indica una `session` - `main` cuando no indica ninguna. El mismo nombre continúa el trabajo anterior de esa sesión en la conversación; un nombre nuevo abre otra, y las sesiones independientes se ejecutan en paralelo cuando el agente llama a la herramienta varias veces a la vez. `fresh_session` reinicia una sesión. En este ordenador una sesión también puede elegir su `harness` - Claude Code o Codex, con la sesión iniciada en ese ordenador - y una `folder` dentro de la carpeta del chat, de modo que dos proyectos, o ambos harnesses, trabajan a la vez. En una sandbox o en una tarea privada en la nube el harness del binding es el único, porque la clave o la cuenta le pertenecen.

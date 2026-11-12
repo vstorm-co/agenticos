@@ -7,7 +7,6 @@ rather than an agent that silently cannot run.
 """
 
 import uuid
-from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -23,6 +22,7 @@ from app.commands.bootstrap import (
 from app.core.exceptions import BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.resource_grant import Visibility
+from app.schemas.organization import OrganizationCreate
 from app.services.agent_templates import STARTER_TEMPLATE
 
 
@@ -46,10 +46,17 @@ class TestProviderDefaults:
 
 
 class TestOrganization:
+    @pytest.fixture(autouse=True)
+    def _owns_nothing_by_that_name(self):
+        with patch(
+            "app.commands.bootstrap.organization_repo.list_owned_by", new=AsyncMock(return_value=[])
+        ):
+            yield
+
     @pytest.mark.anyio
     async def test_the_organization_the_owner_lands_in_is_reused(self):
         """It is where a new operator lands after signing in."""
-        existing = MagicMock(name="Personal")
+        existing = MagicMock(is_personal=False)
         with (
             patch(
                 "app.commands.bootstrap.OrganizationService.fallback_for",
@@ -60,14 +67,17 @@ class TestOrganization:
                 new=AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER.value)),
             ),
         ):
-            assert await _resolve_organization(MagicMock(), uuid.uuid4(), "Acme") is existing
+            assert (
+                await _resolve_organization(MagicMock(), uuid.uuid4(), None, new_owner=False)
+                is existing
+            )
 
     @pytest.mark.anyio
     @pytest.mark.security
     async def test_a_default_organization_it_only_belongs_to_is_not_taken_over(self):
         """Bootstrap acts as an owner; an account that joined the default organization
         as a member gets an organization of its own instead (#2156)."""
-        joined = MagicMock(id=uuid.uuid4())
+        joined = MagicMock(id=uuid.uuid4(), is_personal=False)
         created = MagicMock(id=uuid.uuid4())
         with (
             patch(
@@ -79,12 +89,37 @@ class TestOrganization:
                 new=AsyncMock(return_value=MagicMock(role=OrgRoleName.MEMBER.value)),
             ),
             patch(
-                "app.commands.bootstrap.organization_repo.create",
+                "app.commands.bootstrap.OrganizationService.create",
                 new=AsyncMock(return_value=created),
             ),
-            patch("app.commands.bootstrap.member_repo.create", new=AsyncMock()),
         ):
-            assert await _resolve_organization(MagicMock(), uuid.uuid4(), "Acme") is created
+            assert (
+                await _resolve_organization(MagicMock(), uuid.uuid4(), None, new_owner=False)
+                is created
+            )
+
+    @pytest.mark.anyio
+    async def test_a_named_organization_is_not_traded_for_the_one_it_lands_in(self):
+        """`--org` is the operator's choice; the landing organization stands in only without it."""
+        created = MagicMock(id=uuid.uuid4())
+        with (
+            patch(
+                "app.commands.bootstrap.OrganizationService.fallback_for",
+                new=AsyncMock(return_value=MagicMock(is_personal=False)),
+            ) as fallback,
+            patch(
+                "app.commands.bootstrap.OrganizationService.create",
+                new=AsyncMock(return_value=created),
+            ) as create_org,
+        ):
+            owner = uuid.uuid4()
+            result = await _resolve_organization(
+                MagicMock(), owner, "Northwind Labs", new_owner=False
+            )
+
+        assert result is created
+        fallback.assert_not_awaited()
+        assert create_org.await_args.args == (OrganizationCreate(name="Northwind Labs"), owner)
 
     @pytest.mark.anyio
     async def test_a_fresh_install_gets_an_organization_and_an_owner(self):
@@ -95,17 +130,16 @@ class TestOrganization:
                 new=AsyncMock(return_value=None),
             ),
             patch(
-                "app.commands.bootstrap.organization_repo.create",
+                "app.commands.bootstrap.OrganizationService.create",
                 new=AsyncMock(return_value=created),
             ) as create_org,
-            patch("app.commands.bootstrap.member_repo.create", new=AsyncMock()) as add_member,
         ):
-            result = await _resolve_organization(MagicMock(), uuid.uuid4(), "Acme")
+            owner = uuid.uuid4()
+            result = await _resolve_organization(MagicMock(), owner, None, new_owner=False)
 
         assert result is created
-        assert add_member.call_args.kwargs["role"] == OrgRoleName.OWNER.value
-        # A bootstrapped org gets the same default cap as any other (#785).
-        assert create_org.await_args.kwargs["monthly_budget_usd"] == Decimal("100")
+        # The console's own path: unique slug, default budget, owner, skills, system agents.
+        assert create_org.await_args.args == (OrganizationCreate(name="Acme"), owner)
 
 
 class TestModel:
@@ -288,6 +322,21 @@ class TestStarterAgents:
         mocks["publish"].assert_not_awaited()
         # The sandbox does not wait for a model: it is set up on the first run.
         mocks["sandbox"].assert_awaited_once()
+
+    @pytest.mark.anyio
+    async def test_without_a_model_it_says_the_architect_waits_for_one(self, capsys):
+        _, _, patches = self._patches(assistant_status="needs_model")
+        await self._run(patches, None)
+        assert "publishes once there is a model" in capsys.readouterr().out
+
+    @pytest.mark.anyio
+    async def test_with_a_model_an_unpublished_architect_is_not_blamed_on_the_model(self, capsys):
+        """The publish refusal is logged with its reason; the summary must not contradict it."""
+        _, _, patches = self._patches(assistant_status="needs_model")
+        await self._run(patches, uuid.uuid4())
+        out = capsys.readouterr().out
+        assert "once there is a model" not in out
+        assert "not published yet" in out
 
     @pytest.mark.anyio
     async def test_a_second_run_does_not_install_a_second_one(self):

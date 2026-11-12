@@ -221,6 +221,7 @@ export async function signInAs(
   browser: Browser,
   email: string,
   password: string,
+  organizationId?: string,
 ): Promise<BrowserContext> {
   const context = await browser.newContext();
   try {
@@ -230,6 +231,22 @@ export async function signInAs(
     await page.getByLabel("Password").fill(password);
     await page.getByRole("button", { name: "Login" }).click();
     await expect(page).toHaveURL(/\/chat(\?.*)?$/);
+    if (organizationId) {
+      const organizations = await rowsAt(context.request, "/api/orgs");
+      expect(
+        organizations.some((organization) => organization.id === organizationId),
+        "the signed-in account does not belong to the fixture's organization",
+      ).toBe(true);
+      // Select a UI preference, not authority: membership comes from the API.
+      await page.evaluate((id) => {
+        localStorage.setItem(
+          "org-storage",
+          JSON.stringify({ state: { activeOrgId: id }, version: 0 }),
+        );
+      }, organizationId);
+      await page.reload();
+      await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
+    }
     await page.close();
     return context;
   } catch (error) {
@@ -454,13 +471,13 @@ export async function saveDraft(page: Page): Promise<void> {
 /**
  * The card for one skill in the gallery.
  *
- * A card is a button labelled by the skill's own name and description — there
- * is no heading or test id to aim at. Anchoring the name to the start is what
- * separates it from the icon-only delete button beside it, whose accessible
- * name is "Delete <the same skill>".
+ * A card is a link to the skill's page, labelled by the skill's own name and
+ * description — there is no heading or test id to aim at. Anchoring the name to
+ * the start is what separates it from the controls beside it, whose accessible
+ * names repeat the skill's.
  */
 export function skillCard(page: Page, name: string): Locator {
-  return page.getByRole("main").getByRole("button", { name: new RegExp(`^${name}\\b`) });
+  return page.getByRole("main").getByRole("link", { name: new RegExp(`^${name}\\b`) });
 }
 
 /**
@@ -740,4 +757,24 @@ export async function walkPageTour(
   }
   await expect(popover).toBeHidden();
   return seen;
+}
+
+/**
+ * One call to the API, renewing the session once when it answers 401.
+ *
+ * The page's own requests renew the 15-minute access cookie through `apiClient`;
+ * these share its cookies but not that renewal, so a journey that outlives the
+ * cookie it started with would read as signed out halfway through.
+ */
+export async function callApi(
+  api: APIRequestContext,
+  method: "get" | "post" | "put" | "patch",
+  path: string,
+  options: { headers: Record<string, string>; data?: object },
+) {
+  const response = await api[method](`/api${path}`, options);
+  if (response.status() !== 401) return response;
+  const renewed = await api.post("/api/auth/refresh");
+  expect(renewed.ok(), `the session could not be renewed: ${await renewed.text()}`).toBeTruthy();
+  return api[method](`/api${path}`, options);
 }

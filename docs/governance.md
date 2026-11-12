@@ -743,6 +743,18 @@ limit allows a new breach notice; a muted case stays muted for that month.
 
 ### Action consent { #routine-action-consent }
 
+Actions are grouped by capability or concrete MCP account and can be searched.
+Select or clear a group, or the entire eligible inventory; bulk controls also cover
+items hidden by the search. Individual exclusions remain available. A review supports
+up to 1,000 selected actions; a larger selection is shown and cannot be saved until
+reduced, never silently truncated.
+
+Changing only the title or cadence retains consent. When the version, work, instructions
+or an account changes, the dialog explains which boundary changed. **Reselect previously
+reviewed actions** is an explicit new choice over matching eligible identities; it grants
+nothing until you save the current review. New actions and changed accounts are not
+selected automatically. Mandatory approvals, revocation and stale-review checks still apply.
+
 An unattended routine asks before capability actions, local file changes and
 delegation. External MCP calls ask unless their server marks them read-only;
 a connection's stronger approval policy still applies. Ordinary interactive
@@ -1360,9 +1372,15 @@ shrink the prompt the cache held. The card is not shown while every cache held.
 
 ## Approvals
 
-A tool the agent's author gated parks the run and waits for a person. Nothing
-is gated until somebody asks: a gate nobody chose parks runs in channels and
-routines where nobody is there to answer it.
+A gated tool parks the run and waits for a person. The Builder offers **Always ask**
+and **Never ask** for a capability; individual tools can also **Follow the capability**.
+New capabilities added in the Builder start with **Always ask**. Existing bindings,
+including omitted approval and stored `default`, keep their previous policy.
+
+Required approvals can pause routines and channels as well as chat. For unattended
+work, deliberately choose which actions may run without approval. Mandatory approvals
+and stricter organization policies still apply. Provider-executed tools need a locally
+executed method to support approval; publication refuses an unenforceable gate.
 
 Resolution is most-specific-first:
 
@@ -1496,9 +1514,11 @@ Five properties worth knowing:
 
 ### How much one conversation wants to be asked
 
-The approval card also offers **Allow this tool in this chat** and **Always allow this tool for this agent**. These remember only the named tool and account, for the consenting person and the published agent version. They require the same permission and organization switch as **Approve everything**. They never authorize a delegate or an unattended run. Changing the agent version requires a new choice.
+The approval card also offers **Allow this tool in this chat** and **Always allow this tool for this agent**. These remember only the named tool and account, for the consenting person and the published agent version. They require the same permission and organization switch as **Approve everything**. They never authorize a delegate or an unattended run. Changing the agent version requires a new choice. A tool that asks every time, such as `share_memory`, is never remembered and is not answered by **Approve everything**: its card offers neither option, and the server refuses to remember it.
 
 Remembered choices are stored on the server. **Chat controls → Preferences → Remembered tool approvals → Ask again** withdraws one without erasing the original approval. Current membership, approval permission and organization policy are checked again before each remembered grant. **Ask about everything** overrides remembered choices. Each automatic grant still records who consented and the actual call arguments.
+
+The approvals queue is the organization's, but some calls quote what their run's person reads - the fact `share_memory` would share. That quote reaches only somebody who may see the run: the person it ran for, or a member who reads every run and may view the agent. Everyone else sees the tool and the audience, and a note that the content is hidden. A call that asks every time is approved only by somebody who can read what it quotes: anyone else may reject it, and an approval from them is refused.
 
 The rule above is the agent's, decided at publish time and per tool, and that is
 the right place for it: it is a statement about what the agent _is_. What it

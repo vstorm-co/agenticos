@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Tag } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Badge, BlankPeek, Card, DocPeek, TextPeek } from "@/components/ui";
@@ -8,20 +9,19 @@ import { UsedBy } from "@/components/agents/used-by";
 import { AudienceChip } from "@/components/sharing/audience-chip";
 import type { SkillSummary } from "@/types/providers";
 import { categoryLabel } from "@/components/skills/category-input";
+import { ROUTES } from "@/lib/constants";
 
 interface SkillCardProps {
   skill: SkillSummary;
-  onOpen: () => void;
 }
 
 /** Preview, usage and the next action, with concise metadata beside the action. */
-export function SkillCard({ skill, onOpen }: SkillCardProps) {
+export function SkillCard({ skill }: SkillCardProps) {
   const t = useTranslations("skills");
   return (
     <Card className="peek-card group hover:border-foreground/20 flex flex-col overflow-hidden">
-      <button
-        type="button"
-        onClick={onOpen}
+      <Link
+        href={ROUTES.SKILL_DETAIL(skill.id)}
         className="flex w-full flex-1 flex-col rounded-[inherit] text-left focus-visible:outline-offset-[-2px]"
       >
         <DocPeek
@@ -40,13 +40,22 @@ export function SkillCard({ skill, onOpen }: SkillCardProps) {
               {skill.name}
             </span>
             {skill.built_in && <Badge variant="secondary">built-in</Badge>}
+            {skill.architect && (
+              <Badge variant="outline" title={t("architectHint")}>
+                {t("architect")}
+              </Badge>
+            )}
           </span>
           <span className="text-foreground/85 line-clamp-2 min-h-10 text-sm leading-relaxed">
             {skill.description}
           </span>
         </span>
-      </button>
-      <UsedBy agents={skill.used_by} className="text-foreground/85 mx-4 mb-3 gap-2" />
+      </Link>
+      <UsedBy
+        agents={skill.used_by}
+        drafted={skill.drafted_by}
+        className="text-foreground/85 mx-4 mb-3 gap-2"
+      />
       <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3">
         <div className="text-muted-foreground flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs">
           {skill.category !== null && (
@@ -60,6 +69,7 @@ export function SkillCard({ skill, onOpen }: SkillCardProps) {
         <AddToAgent
           resource={{ kind: "skill", id: skill.id }}
           name={skill.name}
+          has={skill.used_by?.map((usage) => usage.id)}
           className="h-8 shrink-0"
         />
       </div>

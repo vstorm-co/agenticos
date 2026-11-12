@@ -26,13 +26,16 @@ from app.api import deps
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import AgentRun
 from app.main import app
-from app.schemas.agent_run import RunOriginRead
+from app.schemas.agent_run import RunOriginRead, RunSkillUseRead
 from app.schemas.eval_run import EvalCaseLinkRead
 
 pytestmark = pytest.mark.anyio
 
 _ORGANIZATION_ID = uuid4()
 _CONVERSATION_ID = uuid4()
+
+
+_SKILL_ID = uuid4()
 
 
 @asynccontextmanager
@@ -42,6 +45,13 @@ async def _client(service: MagicMock) -> AsyncIterator[AsyncClient]:
     )
     app.dependency_overrides[deps.get_auth_context] = lambda: context
     app.dependency_overrides[deps.get_agent_runner_service] = lambda: service
+    skills = MagicMock()
+    skills.used_in_run = AsyncMock(
+        return_value=[
+            RunSkillUseRead(skill_id=_SKILL_ID, name="returns", version=2, fork=None, loaded=True)
+        ]
+    )
+    app.dependency_overrides[deps.get_skill_service] = lambda: skills
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             yield client
@@ -372,6 +382,7 @@ class TestTheDetailReadCarriesItsNeighbours:
         body = response.json()
         assert body["prev_run_id"] == str(prev_id)
         assert body["next_run_id"] == str(next_id)
+        assert [(use["name"], use["version"]) for use in body["skills_used"]] == [("returns", 2)]
 
     async def test_an_eval_run_names_the_case_it_answered(self):
         run = AgentRun(

@@ -28,6 +28,23 @@ async def get(
     return result.scalar_one_or_none()
 
 
+async def lock(
+    db: AsyncSession, proposal_id: UUID, *, organization_id: UUID
+) -> SkillProposal | None:
+    """One proposal locked until the transaction ends, read afresh: starting a check of it
+    waits for another start, so the second finds the first's check."""
+    result = await db.execute(
+        select(SkillProposal)
+        .where(
+            SkillProposal.id == proposal_id,
+            SkillProposal.organization_id == organization_id,
+        )
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    return result.scalar_one_or_none()
+
+
 async def get_pending_for_skill(
     db: AsyncSession,
     *,
@@ -84,6 +101,8 @@ async def create(
     content: str,
     resources: dict[str, Any],
     base_version: int | None,
+    base_version_id: UUID | None,
+    fork_id: UUID | None,
 ) -> SkillProposal:
     proposal = SkillProposal(
         organization_id=organization_id,
@@ -95,6 +114,8 @@ async def create(
         content=content,
         resources=resources,
         base_version=base_version,
+        base_version_id=base_version_id,
+        fork_id=fork_id,
     )
     db.add(proposal)
     await db.flush()
@@ -111,10 +132,13 @@ async def replace_body(
     resources: dict[str, Any],
     conversation_id: UUID | None,
     base_version: int | None,
+    base_version_id: UUID | None,
+    fork_id: UUID | None,
 ) -> SkillProposal | None:
     """Rewrite a pending proposal in place, so one edit session is one proposal.
 
-    The body is now written against `base_version`, so that is what it applies onto.
+    The body is now written against `base_version_id` on `fork_id`'s line, so that
+    is what it applies onto.
     Its revision moves, so a decision made on what it said before is refused. Only
     while it is pending as read: `None` once a decision or another rewrite changed
     it since, and the caller makes a new proposal instead of writing over that.
@@ -133,6 +157,8 @@ async def replace_body(
             resources=resources,
             conversation_id=conversation_id,
             base_version=base_version,
+            base_version_id=base_version_id,
+            fork_id=fork_id,
             revision=SkillProposal.revision + 1,
         )
         .returning(SkillProposal)
@@ -193,6 +219,8 @@ async def replace_pending(
     resources: dict[str, Any],
     conversation_id: UUID | None,
     base_version: int | None,
+    base_version_id: UUID | None,
+    fork_id: UUID | None,
 ) -> SkillProposal | None:
     """Rewrite the waiting proposal for this skill, or `None` when none is left to rewrite.
 
@@ -214,6 +242,24 @@ async def replace_pending(
             resources=resources,
             conversation_id=conversation_id,
             base_version=base_version,
+            base_version_id=base_version_id,
+            fork_id=fork_id,
         )
         if rewritten is not None:
             return rewritten
+
+
+async def from_source(
+    db: AsyncSession, *, organization_id: UUID, skill_id: UUID, source: str
+) -> list[SkillProposal]:
+    """Every change one source proposed for a skill, decided or waiting, newest first."""
+    rows = await db.execute(
+        select(SkillProposal)
+        .where(
+            SkillProposal.organization_id == organization_id,
+            SkillProposal.skill_id == skill_id,
+            SkillProposal.source == source,
+        )
+        .order_by(SkillProposal.created_at.desc())
+    )
+    return list(rows.scalars())
