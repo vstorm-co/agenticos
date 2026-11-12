@@ -104,7 +104,9 @@ async def remember(
     async with get_db_context() as db:
         if not await person_still_exists(db, scope.scope_key):
             return None
-        await refuse_if_erased_during_run(db, owner_key=scope.scope_key, run_id=run_id)
+        await refuse_if_erased_during_run(
+            db, owner_key=scope.scope_key, agent_id=scope.agent_id, run_id=run_id
+        )
         result = await _claims.remember(
             db,
             organization_id=organization_id,

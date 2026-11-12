@@ -214,3 +214,61 @@ async def test_a_run_that_cannot_be_found_is_not_refused(db: AsyncSession) -> No
         kind="note",
         run_id=uuid.uuid4(),
     )
+
+
+async def test_a_delegate_is_held_to_the_agent_whose_store_it_writes(db: AsyncSession) -> None:
+    user, org, parent, run = await _world(db)
+    specialist = Agent(
+        organization_id=org.id,
+        name="Specialist",
+        created_by_user_id=user.id,
+        slug=f"a-{uuid.uuid4().hex[:8]}",
+    )
+    db.add(specialist)
+    await db.flush()
+    ctx = await member_context(db, organization_id=org.id, user_id=user.id)
+    assert ctx is not None
+    room = room_owner_key("slack", "C1")
+
+    async def write(agent: Agent, name: str) -> bool:
+        return await memory_store.write_file(
+            organization_id=org.id,
+            agent_id=agent.id,
+            owner_key=room,
+            name=name,
+            content="Short",
+            description=None,
+            kind="note",
+            run_id=run.id,
+        )
+
+    await MemoryService(db).clear_agent(ctx, parent.id)
+    assert await write(specialist, "kept")
+    await MemoryService(db).clear_agent(ctx, specialist.id)
+    with pytest.raises(memory_store.ErasedDuringRun):
+        await write(specialist, "refused")
+
+
+async def test_a_cleared_agent_does_not_refuse_a_profile_claim_no_agent_holds(
+    db: AsyncSession,
+) -> None:
+    user, org, agent, run = await _world(db)
+    ctx = await member_context(db, organization_id=org.id, user_id=user.id)
+    assert ctx is not None
+    await MemoryService(db).clear_agent(ctx, agent.id)
+
+    said = await MemoryToolset().remember(
+        _ctx(user, org, agent, run), "Prefers short answers", profile=True
+    )
+
+    assert said.startswith("Recorded")
+
+
+async def test_asking_about_no_person_and_no_agent_finds_no_erasure(db: AsyncSession) -> None:
+    from app.repositories import audit_log_repo
+
+    _, org, _, run = await _world(db)
+
+    assert not await audit_log_repo.memory_erased_since(
+        db, organization_id=org.id, user_id=None, agent_id=None, since=run.started_at
+    )

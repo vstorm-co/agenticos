@@ -103,13 +103,15 @@ class ErasedDuringRun(Exception):
 
 
 async def refuse_if_erased_during_run(
-    db: AsyncSession, *, owner_key: str, run_id: UUID | None
+    db: AsyncSession, *, owner_key: str, agent_id: UUID | None, run_id: UUID | None
 ) -> None:
     """Raise `ErasedDuringRun` when this store was erased after the run started.
 
     A run admitted before "forget me", or before its agent's memory was cleared,
     still holds the conversation it read - and a run parked on an approval resumes
     long after. Writing from it would put back what the person was told is gone.
+    `agent_id` is the agent whose store is written, which a delegate sharing its
+    parent's run need not share with the run; `None` for a store no agent holds.
     Called after `person_still_exists`, whose lock the erasure takes too. A write
     with no run has no start to compare against and is not refused here.
     """
@@ -117,9 +119,7 @@ async def refuse_if_erased_during_run(
         return
     run = (
         await db.execute(
-            select(AgentRun.organization_id, AgentRun.agent_id, AgentRun.started_at).where(
-                AgentRun.id == run_id
-            )
+            select(AgentRun.organization_id, AgentRun.started_at).where(AgentRun.id == run_id)
         )
     ).one_or_none()
     if run is None or run.started_at is None:
@@ -128,7 +128,7 @@ async def refuse_if_erased_during_run(
         db,
         organization_id=run.organization_id,
         user_id=_person_of(owner_key),
-        agent_id=run.agent_id,
+        agent_id=agent_id,
         since=run.started_at,
     ):
         raise ErasedDuringRun
@@ -162,7 +162,7 @@ async def write_file(
             # note that lands after the purge has read the table is personal
             # data the erasure reported as removed (#1421).
             return False
-        await refuse_if_erased_during_run(db, owner_key=owner_key, run_id=run_id)
+        await refuse_if_erased_during_run(db, owner_key=owner_key, agent_id=agent_id, run_id=run_id)
         # The write path is the one that sees a suppressed note, because the name
         # is taken in the database either way and a create that could not see it
         # would fail on the constraint with nothing useful to say. A suppressed
@@ -229,7 +229,7 @@ async def edit_file(
     async with get_db_context() as db:
         if not await person_still_exists(db, owner_key):
             return False
-        await refuse_if_erased_during_run(db, owner_key=owner_key, run_id=run_id)
+        await refuse_if_erased_during_run(db, owner_key=owner_key, agent_id=agent_id, run_id=run_id)
         row = await memory_repo.get_by_name(
             db,
             organization_id=organization_id,
