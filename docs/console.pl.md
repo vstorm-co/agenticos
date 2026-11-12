@@ -1,8 +1,10 @@
 ---
-source_sha: "b487267da4e3"
+source_sha: "cd10761f61b8"
 ---
 
 # Konsola { #the-console }
+
+Na telefonach rejestracja kanału używa zwartego wyboru platformy. Anulowanie nowego kanału, nowego klucza w sejfie lub rotacji klucza czyści wpisane poświadczenia. Formularze kanałów i sejfu blokują edycję oraz zamykanie podczas zapisu; odmowa zachowuje wartości do poprawienia i ponowienia. Edycja kanału i rotacja klucza utrzymują przyciski w widocznej stopce także na niskim ekranie.
 
 Na telefonach nowy plik kontekstu pokazuje edytor treści przed opcjonalnymi szczegółami. Szczegóły pokazują rzeczywisty dostęp także po zwinięciu; rozwiń je, aby zmienić opis lub dostęp. Błąd opisu automatycznie rozwija tę sekcję, aby można go było poprawić.
 

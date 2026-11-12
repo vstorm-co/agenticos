@@ -1,8 +1,10 @@
 ---
-source_sha: "b487267da4e3"
+source_sha: "cd10761f61b8"
 ---
 
 # Die Konsole { #the-console }
+
+Auf Telefonen verwendet die Kanalregistrierung eine kompakte Plattformauswahl. Abbrechen eines neuen Kanals, eines neuen Tresorschlüssels oder einer Schlüsselrotation löscht die eingegebenen Zugangsdaten. Kanal- und Tresorformulare sperren Bearbeitung und Schließen während des Schreibvorgangs; eine Ablehnung erhält die Werte zur Korrektur und Wiederholung. Kanalbearbeitung und Schlüsselrotation halten ihre Aktionsleiste auch in niedrigen Fenstern sichtbar.
 
 Auf Telefonen zeigt eine neue Kontextdatei den Quelltexteditor vor optionalen Details. Details nennt den wirksamen Zugriff auch im eingeklappten Zustand; öffne den Bereich, um Beschreibung oder Zugriff zu ändern. Eine abgelehnte Beschreibung öffnet den Bereich automatisch zur Korrektur.
 

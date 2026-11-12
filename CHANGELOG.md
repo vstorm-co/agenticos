@@ -33,6 +33,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Channel registration uses a compact platform selector on phones. Cancelling
+  channel and vault creation or key rotation clears entered credentials. These
+  forms freeze fields and dismissal while saving and preserve refused writes
+  for retry; channel editing and rotation keep their action footer reachable.
+
 - Project, context-file and dataset creation protect drafts before closing and
   lock their fields while saving. Multi-file context imports keep their queue;
   dataset details and cases retain refused writes and reachable save actions.

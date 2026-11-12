@@ -1,8 +1,10 @@
 ---
-source_sha: "b487267da4e3"
+source_sha: "cd10761f61b8"
 ---
 
 # La consola { #the-console }
+
+En teléfonos, el registro de canales usa un selector compacto de plataforma. Cancelar un canal nuevo, una clave nueva de la bóveda o una rotación borra las credenciales introducidas. Los formularios de canales y bóveda bloquean la edición y el cierre durante la escritura; un rechazo conserva los valores para corregirlos y reintentar. La edición de canales y la rotación mantienen sus acciones visibles también en ventanas bajas.
 
 En teléfonos, los archivos de contexto nuevos muestran el editor antes de los detalles opcionales. Details indica el acceso efectivo incluso cerrado; ábrelo para cambiar la descripción o el acceso. Un error en la descripción abre automáticamente la sección para poder corregirlo.
 

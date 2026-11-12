@@ -469,3 +469,37 @@ separate evidence. The route/component import map is refreshed.
 | New dataset during save | [PNG](comparisons/dataset-create-mobile-before.png) | [PNG](comparisons/dataset-create-mobile-after.png) |
 | Dataset details during save | [PNG](comparisons/dataset-edit-mobile-before.png) | [PNG](comparisons/dataset-edit-mobile-after.png) |
 | Dataset case during save | [PNG](comparisons/dataset-case-mobile-before.png) | [PNG](comparisons/dataset-case-mobile-after.png) |
+
+
+## Mobile channels and vault — 2026-11-12
+
+Browser reproduction confirmed that Cancel in channel registration, vault creation
+and key rotation bypassed the reset used by Escape. Reopening restored a cancelled
+credential; rotation could carry it into another attempt. All close routes now
+clear these ephemeral values when no write is pending. Credentials are never
+stored in a persistent draft.
+
+Channel registration now uses a compact eight-option selector below the desktop
+breakpoint; the desktop keeps its platform cards. Channel and vault fields and
+close controls freeze during writes, including ChatGPT sign-in/reconnection.
+A refusal restores editing with the same draft. Channel editing and key rotation
+use the shared scrolling body and fixed footer rather than independent vh limits.
+
+58 focused tests in six component files pass. Two touch Chromium journeys at
+320×740 and 320×568 verify cancellation/re-entry, held 403 responses and retries,
+real channel registration and editing, real vault creation and rotation, reloads
+and the unchanged secret ID. Read responses expose the hint, not the fake token.
+The channel fixture is Slack in webhook mode, so no external stream opens. The
+vault uses dummy API keys and makes no provider call. Every journey deletes its
+own fixtures. Two leftovers from an initial test-helper failure were also removed.
+TypeScript and focused ESLint pass. Full CI remains separate evidence.
+
+| Evidence | Before | After |
+| --- | --- | --- |
+| Platform selection at 320 px | [PNG](comparisons/channel-platform-mobile-before.png) | [PNG](comparisons/channel-platform-mobile-after.png) |
+| Cancelled channel reopened | [PNG](comparisons/channel-cancel-mobile-before.png) | [PNG](comparisons/channel-cancel-mobile-after.png) |
+| Cancelled vault creation reopened | [PNG](comparisons/vault-cancel-mobile-before.png) | [PNG](comparisons/vault-cancel-mobile-after.png) |
+| Cancelled key rotation reopened at 320×568 | [PNG](comparisons/vault-rotate-mobile-before.png) | [PNG](comparisons/vault-rotate-mobile-after.png) |
+
+Routine creation/editing was inspected in source, but its pending-state findings
+still need a browser reproduction and a separate verified correction.

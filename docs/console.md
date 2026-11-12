@@ -1,5 +1,7 @@
 # The console
 
+On phones, channel registration uses a compact platform selector. Cancelling a new channel, new vault key or key rotation clears its entered credentials. Channel and vault forms block editing and dismissal during a write; a refused write keeps the values for correction and retry. Channel editing and key rotation keep their action footer visible in short windows.
+
 The console is the web application everything else on this site is configured
 through. This page is the map: what each area is for, and which page explains it
 properly.
