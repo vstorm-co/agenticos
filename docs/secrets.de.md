@@ -1,5 +1,5 @@
 ---
-source_sha: "6be4e8d3a870"
+source_sha: "c5e5aa3e7df5"
 ---
 
 # Secrets und der Vault { #secrets-and-the-vault }
@@ -397,7 +397,7 @@ versiegelt — die Nutzlasten bleiben unberührt, und das macht die Rotation
 günstig.
 
 ```bash
-uv run agenticos cmd doctor    # reports whether a vault key is configured at all
+uv run agenticos cmd doctor    # says whether a dedicated key or the SECRET_KEY fallback seals the vault
 ```
 
 `make platform-bootstrap BOOTSTRAP_API_KEY=sk-...` hinterlegt den ersten

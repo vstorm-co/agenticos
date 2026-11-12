@@ -1,5 +1,5 @@
 ---
-source_sha: "6be4e8d3a870"
+source_sha: "c5e5aa3e7df5"
 ---
 
 # Sekrety i vault { #secrets-and-the-vault }
@@ -379,7 +379,7 @@ wciąż istnieje. Przepieczętowywany jest tylko opakowany klucz danych — ład
 pozostają nietknięte i to właśnie czyni rotację tanią.
 
 ```bash
-uv run agenticos cmd doctor    # reports whether a vault key is configured at all
+uv run agenticos cmd doctor    # says whether a dedicated key or the SECRET_KEY fallback seals the vault
 ```
 
 `make platform-bootstrap BOOTSTRAP_API_KEY=sk-...` zapisuje za ciebie pierwszy
