@@ -1,6 +1,6 @@
 """Rows in `eval_runs`, `eval_run_arms` and `eval_run_cases`."""
 
-from collections.abc import Sequence
+from collections.abc import Collection, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any, NamedTuple
 from uuid import UUID
@@ -72,6 +72,14 @@ async def lock(db: AsyncSession, eval_run_id: UUID, *, organization_id: UUID) ->
         .execution_options(populate_existing=True)
     )
     return result.scalar_one_or_none()
+
+
+async def update_arm(db: AsyncSession, *, arm: EvalRunArm, values: dict[str, Any]) -> EvalRunArm:
+    for name, value in values.items():
+        setattr(arm, name, value)
+    await db.flush()
+    await db.refresh(arm)
+    return arm
 
 
 async def update_run(db: AsyncSession, *, run: EvalRun, values: dict[str, Any]) -> EvalRun:
@@ -376,6 +384,24 @@ async def list_cases(
         .order_by(EvalRunCase.position, EvalRunCase.arm_id, EvalRunCase.attempt)
     )
     return list(result.scalars().all())
+
+
+async def asked_counts(
+    db: AsyncSession, eval_run_ids: Sequence[UUID], *, organization_id: UUID
+) -> dict[UUID, int]:
+    """How many questions each run asks, by run; a run with none yet is left out."""
+    if not eval_run_ids:
+        return {}
+    result = await db.execute(
+        select(EvalRunCase.eval_run_id, func.count(func.distinct(EvalRunCase.case_id)))
+        .where(
+            EvalRunCase.eval_run_id.in_(eval_run_ids),
+            EvalRunCase.organization_id == organization_id,
+            EvalRunCase.attempt == 0,
+        )
+        .group_by(EvalRunCase.eval_run_id)
+    )
+    return dict(result.tuples().all())
 
 
 async def case_of_agent_run(
@@ -688,13 +714,15 @@ async def latest_arm(
     execution: RunExecution | None = None,
     since: datetime | None = None,
     exclude_run_id: UUID | None = None,
+    skill_versions: Mapping[str, str] | None,
 ) -> tuple[EvalRunArm, EvalRun] | None:
     """The newest arm of a completed run that ran this version, as published, on this dataset.
 
     Only an arm that can stand for the version: one that served no proposed
-    skill or context body, in a run that left out none of its cases. Each
-    narrowing argument left `None` matches anything. `execution` matches a run
-    with no environment only to one with none.
+    skill or context body, in a run that left out none of its cases, and was
+    served exactly `skill_versions` - `None` for a version that binds no skill.
+    Each other narrowing argument left `None` matches anything. `execution`
+    matches a run with no environment only to one with none.
     """
     conditions = [
         EvalRunArm.organization_id == organization_id,
@@ -706,6 +734,9 @@ async def latest_arm(
         EvalRunArm.skill_bodies.is_(None),
         EvalRunArm.context_bodies.is_(None),
         func.cardinality(EvalRun.excluded_case_ids) == 0,
+        EvalRunArm.skill_versions.is_(None)
+        if skill_versions is None
+        else EvalRunArm.skill_versions == cast(dict(skill_versions), JSONB),
     ]
     if dataset_version_id is not None:
         conditions.append(EvalRun.dataset_version_id == dataset_version_id)
@@ -953,6 +984,22 @@ async def scores(
         )
     )
     return {score.id: score for score in result.scalars().all()}
+
+
+async def score_attempts(
+    db: AsyncSession, score_ids: Collection[UUID], *, organization_id: UUID
+) -> dict[UUID, int]:
+    """Of these scores, the ones an eval run gave, with the attempt each answered: 0 for a
+    case's first answer, then each re-ask that confirmed a change."""
+    if not score_ids:
+        return {}
+    rows = await db.execute(
+        select(EvalRunCase.case_score_id, EvalRunCase.attempt).where(
+            EvalRunCase.organization_id == organization_id,
+            EvalRunCase.case_score_id.in_(list(score_ids)),
+        )
+    )
+    return {score_id: attempt for score_id, attempt in rows.tuples().all() if score_id is not None}
 
 
 async def revisions(

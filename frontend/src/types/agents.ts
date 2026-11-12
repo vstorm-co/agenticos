@@ -21,6 +21,16 @@ export type AgentStatus = "draft" | "published" | "archived";
 export type ApprovalMode = "default" | "required" | "never";
 
 /**
+ * A bound skill that does not read its main line's newest version: a main version
+ * it stays on (`version`), or a fork it follows (`fork_id`). Exactly one is set.
+ */
+export interface SkillBindingSpec {
+  skill_id: string;
+  version?: number | null;
+  fork_id?: string | null;
+}
+
+/**
  * What one tool is called and how it is described *for this agent*.
  *
  * Both are prompt, not labelling: the description is what the model reads
@@ -102,6 +112,8 @@ export interface CodeModeSpec {
 
 /** Where this agent's traces go, when not to the deployment's own project. */
 export interface ObservabilitySpec {
+  organization?: string | null;
+  project?: string | null;
   /** An organization secret holding a Logfire write token - an id, never a token. */
   token_secret_id?: string | null;
   /** What the agent is called in Logfire; falls back to the agent's name. */
@@ -291,6 +303,8 @@ export interface SpecialistSpec {
   capabilities: CapabilityBindingSpec[];
   collection_ids: string[];
   skill_ids: string[];
+  /** Which version of a bound skill it reads, where not main's newest. */
+  skill_bindings?: SkillBindingSpec[];
   context_ids: string[];
   max_steps?: number | null;
   preferred_mode?: DelegationMode | null;
@@ -439,6 +453,8 @@ export interface AgentSpec {
   capabilities: CapabilityBindingSpec[];
   collection_ids: string[];
   skill_ids: string[];
+  /** Which version of a bound skill it reads, where not main's newest. */
+  skill_bindings?: SkillBindingSpec[];
   context_ids: string[];
   /** App data bindings, not a separate tool capability. */
   table_bindings?: { table_id: string; operations: ("read" | "create" | "update" | "delete")[] }[];

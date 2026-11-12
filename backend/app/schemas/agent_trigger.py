@@ -903,3 +903,36 @@ class TriggerCreateRead(TriggerRead):
 class TriggerList(BaseSchema):
     items: list[TriggerRead]
     total: int
+
+
+TriggerAttemptStatus = Literal["blocked", "failed"]
+TriggerAttemptStage = Literal["source_review", "preparation"]
+TriggerAttemptReason = Literal[
+    "platform_identity_required",
+    "source_review_required",
+    "agent_unavailable",
+    "preparation_failed",
+]
+
+
+class TriggerAttemptRead(BaseSchema):
+    """A safely redacted failure before an agent run existed; never a billed run."""
+
+    id: UUID
+    activation_id: UUID
+    status: TriggerAttemptStatus
+    stage: TriggerAttemptStage
+    reason: TriggerAttemptReason
+    occurred_at: datetime
+
+
+class TriggerAttemptList(BaseSchema):
+    items: list[TriggerAttemptRead]
+    total: int
+
+
+class TriggerFireResult(BaseSchema):
+    """Worker processing is separate from successful execution by an agent."""
+
+    outcome: Literal["processed", "blocked", "failed"]
+    attempt_id: UUID | None = None

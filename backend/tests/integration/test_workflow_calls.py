@@ -1,6 +1,7 @@
 """One workflow running another as a step: the call, the wait, the answer, the limits."""
 
 import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, patch
@@ -12,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 from app.core.permissions import AuthContext
 from app.db.models.resource_grant import Visibility
 from app.db.models.workflow import Workflow, WorkflowStatus, WorkflowVersion
+from app.db.models.workflow_approval import WorkflowApproval
 from app.db.models.workflow_run import DispatchOutbox, NodeRunStatus, WorkflowRun
 from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.workflow import WorkflowPublish
@@ -27,6 +29,7 @@ from tests.integration.workflow_run_support import (
     drive,
     node_statuses,
     queued_dispatches,
+    run_row,
     seed_member,
     seed_run,
 )
@@ -721,7 +724,108 @@ async def test_a_detached_call_cannot_escape_a_finite_caller_budget(engine: Asyn
     assert ended.error is not None and ended.error["code"] == "DETACHED_CALL_WITH_BUDGET"
 
 
-async def test_a_called_run_stops_before_its_next_step_after_the_caller_is_cancelled(
+def _callee_asking() -> WorkflowGraph:
+    """Called by a workflow, it waits for a person's approval with no time limit."""
+    entry = _node("trigger.workflow_call", FIELDS)
+    ask = _node("human.approval", {"title": "Enrich this lead?"})
+    out = _node("core.output")
+    return WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, ask, out),
+        edges=(
+            _edge(entry, ask),
+            Edge(
+                id=uuid.uuid4(),
+                source_node_id=ask.id,
+                source_port="approved",
+                target_node_id=out.id,
+                target_port="in",
+            ),
+        ),
+    )
+
+
+async def _approvals(seeded: SeededRun) -> list[str]:
+    async with seeded.factory() as db:
+        return list(
+            await db.scalars(
+                select(WorkflowApproval.status).where(
+                    WorkflowApproval.workflow_run_id == seeded.run.id
+                )
+            )
+        )
+
+
+def _relay(callee_id: uuid.UUID) -> WorkflowGraph:
+    """Called by a workflow, it calls `callee_id` with what it was given and waits."""
+    entry = _node("trigger.workflow_call", FIELDS)
+    call = _node("workflow.run", {"workflow_id": str(callee_id), "wait": True})
+    out = _node("core.output")
+    return WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, call, out),
+        edges=(_edge(entry, call), _edge(call, out)),
+        bindings=(
+            _read(call, "input", entry, "payload"),
+            _read(out, "structured", call, "output"),
+        ),
+    )
+
+
+async def _publish_beside(engine: AsyncEngine, ctx: AuthContext, graph: WorkflowGraph) -> Workflow:
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as db:
+        workflow = Workflow(
+            id=uuid.uuid4(),
+            organization_id=ctx.organization_id,
+            owner_user_id=ctx.subject_id,
+            slug=f"wf-{uuid.uuid4().hex[:8]}",
+            name="Enrich and file a lead",
+            status=WorkflowStatus.DRAFT.value,
+            visibility=Visibility.ORG.value,
+            draft_graph=graph.model_dump(mode="json"),
+        )
+        db.add(workflow)
+        await db.flush()
+        await WorkflowRegistryService(db).publish(
+            ctx, workflow.id, WorkflowPublish(expected_revision=workflow.draft_revision)
+        )
+        await db.commit()
+    return workflow
+
+
+@pytest.mark.parametrize("depth", [1, 2])
+@pytest.mark.security
+async def test_cancelling_a_caller_cancels_what_it_called_and_withdraws_their_approvals(
+    engine: AsyncEngine, depth: int
+) -> None:
+    from app.services.workflow_execution import WorkflowExecutionService
+
+    ctx, callee, member = await _published_callee(engine, _callee_asking())
+    if depth == 2:
+        callee = await _publish_beside(engine, ctx, _relay(callee.id))
+    graph, step = _caller(callee.id)
+    caller = await seed_run(engine, graph, member=member)
+    await drive(caller)
+    chain = [await _called_run(caller, step)]
+    await drive(chain[-1])
+    if depth == 2:
+        relay = next(node for node in chain[-1].graph.nodes if node.definition_id == "workflow.run")
+        chain.append(await _called_run(chain[-1], relay))
+        await drive(chain[-1])
+    asking = chain[-1]
+    assert (await run_row(asking)).status == "waiting_approval"
+    assert await _approvals(asking) == ["pending"]
+
+    async with caller.factory() as db:
+        await WorkflowExecutionService(db).cancel(caller.ctx, caller.run.id)
+        await db.commit()
+
+    assert [(await run_row(called)).status for called in chain] == ["cancelled"] * depth
+    assert await _approvals(asking) == ["cancelled"]
+
+
+async def test_a_called_run_busy_when_its_caller_is_cancelled_stops_before_its_next_step(
     engine: AsyncEngine,
 ) -> None:
     from app.services.workflow_execution import WorkflowExecutionService
@@ -731,9 +835,15 @@ async def test_a_called_run_stops_before_its_next_step_after_the_caller_is_cance
     caller = await seed_run(engine, graph, member=member)
     await drive(caller)
     child = await _called_run(caller, step)
-    async with caller.factory() as db:
-        await WorkflowExecutionService(db).cancel(caller.ctx, caller.run.id)
-        await db.commit()
+    # The child's own dispatch holds its row: the cancel does not wait for it.
+    async with child.factory() as busy:
+        await busy.execute(
+            select(WorkflowRun).where(WorkflowRun.id == child.run.id).with_for_update()
+        )
+        async with caller.factory() as db:
+            await WorkflowExecutionService(db).cancel(caller.ctx, caller.run.id)
+            await db.commit()
+        await busy.rollback()
     stopped = await drive(child)
     assert stopped.status == "failed"
     assert stopped.error is not None and stopped.error["code"] == "PARENT_RUN_STOPPED"
@@ -860,13 +970,19 @@ async def test_retry_refuses_to_repeat_a_still_running_child(engine: AsyncEngine
     caller = await seed_run(engine, graph, member=member)
     await drive(caller)
     child = await _called_run(caller, step)
-    async with caller.factory() as db:
-        service = WorkflowExecutionService(db)
-        await service.cancel(caller.ctx, caller.run.id)
-        retry = await service.retry(caller.ctx, caller.run.id)
-        await db.commit()
-        row = await db.get(WorkflowRun, retry.id)
-        assert row is not None
+    # Busy with its own step while the caller is cancelled, the child outlives it.
+    async with child.factory() as busy:
+        await busy.execute(
+            select(WorkflowRun).where(WorkflowRun.id == child.run.id).with_for_update()
+        )
+        async with caller.factory() as db:
+            service = WorkflowExecutionService(db)
+            await service.cancel(caller.ctx, caller.run.id)
+            retry = await service.retry(caller.ctx, caller.run.id)
+            await db.commit()
+            row = await db.get(WorkflowRun, retry.id)
+            assert row is not None
+        await busy.rollback()
     retried = SeededRun(
         run=row, graph=graph, principal=caller.principal, org=caller.org, factory=caller.factory
     )
@@ -1166,3 +1282,36 @@ async def test_a_called_workflow_keeps_refusal_provenance_without_chat_delivery(
         message_id,
     )
     assert "source_message_id" not in child.run.input
+
+
+async def test_cancelling_a_caller_reaches_live_descendants_of_a_failed_intermediate_run(
+    engine: AsyncEngine,
+) -> None:
+    from app.services.workflow_execution import WorkflowExecutionService
+
+    ctx, leaf, member = await _published_callee(engine, _callee_asking())
+    relay = await _publish_beside(engine, ctx, _relay(leaf.id))
+    graph, step = _caller(relay.id)
+    caller = await seed_run(engine, graph, member=member)
+    await drive(caller)
+    middle = await _called_run(caller, step)
+    await drive(middle)
+    relay_call = next(node for node in middle.graph.nodes if node.definition_id == "workflow.run")
+    child = await _called_run(middle, relay_call)
+    await drive(child)
+    assert (await run_row(child)).status == "waiting_approval"
+    assert await _approvals(child) == ["pending"]
+    # A failed caller leaves its children alive; a later ancestor cancellation
+    # must still reach them through that terminal intermediate row.
+    async with middle.factory() as db:
+        row = await db.get(WorkflowRun, middle.run.id)
+        assert row is not None
+        row.status = "failed"
+        row.ended_at = datetime.now(UTC)
+        await db.commit()
+    async with caller.factory() as db:
+        await WorkflowExecutionService(db).cancel(caller.ctx, caller.run.id)
+        await db.commit()
+    assert (await run_row(middle)).status == "failed"
+    assert (await run_row(child)).status == "cancelled"
+    assert await _approvals(child) == ["cancelled"]

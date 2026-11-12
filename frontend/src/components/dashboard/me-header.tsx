@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { useUsageStats } from "@/hooks";
-import { useWaitingOnMe } from "@/hooks/use-waiting-on-me";
+import { useWaitingOnMe, waitingOn } from "@/hooks/use-waiting-on-me";
 import { useAuthStore } from "@/stores";
 import type { Period } from "@/lib/dashboard/period";
 import { PageHeader } from "./page-header";
@@ -59,16 +59,9 @@ export function MeHeader({
   const name = firstName(user?.full_name, user?.email);
   const runs = usage?.total_runs ?? 0;
   const others = useWaitingOnMe();
-  const waiting = (
-    [
-      ["approvals", usage?.pending_approvals ?? 0],
-      ["review", others.review],
-      ["suites", others.suites],
-      ["suggestions", others.suggestions],
-    ] as const
-  )
-    .filter(([, count]) => count > 0)
-    .map(([kind, count]) => t(`waiting.${kind}`, { count }));
+  const waiting = waitingOn(usage?.pending_approvals ?? 0, others).map(([kind, count]) =>
+    t(`waiting.${kind}`, { count }),
+  );
   const bold = (chunks: ReactNode) => <span className="text-foreground font-medium">{chunks}</span>;
 
   return (

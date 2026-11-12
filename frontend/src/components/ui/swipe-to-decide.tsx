@@ -35,6 +35,7 @@ export function SwipeToDecide({
   approveLabel,
   rejectLabel,
   disabled = false,
+  rejectOnly = false,
   className,
   children,
 }: {
@@ -43,6 +44,8 @@ export function SwipeToDecide({
   approveLabel: string;
   rejectLabel: string;
   disabled?: boolean;
+  /** Only the swipe that rejects decides; the row does not follow a finger towards approving. */
+  rejectOnly?: boolean;
   className?: string;
   children: ReactNode;
 }) {
@@ -79,8 +82,9 @@ export function SwipeToDecide({
       setDragging(true);
       event.currentTarget.setPointerCapture?.(event.pointerId);
     }
-    setOffset(dx);
-    const beyond = Math.abs(dx) >= SWIPE_THRESHOLD;
+    const moved = rejectOnly ? Math.min(dx, 0) : dx;
+    setOffset(moved);
+    const beyond = Math.abs(moved) >= SWIPE_THRESHOLD;
     if (beyond !== past.current) {
       past.current = beyond;
       if (beyond) haptic("threshold");

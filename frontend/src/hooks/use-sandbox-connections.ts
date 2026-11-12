@@ -163,7 +163,7 @@ interface UseLocalSandboxServiceResult {
   /** Store this deployment's own token in the vault, and answer with its id. */
   storeCredential: () => Promise<string>;
   /** Ask an unsaved address what it allows. Throws with what went wrong. */
-  probe: (baseUrl: string, secretId: string | null) => Promise<SandboxPolicy>;
+  probe: typeof probeSandboxService;
 }
 
 /**

@@ -874,7 +874,9 @@ a loop, or **Fail the run**. If the step reported a result after it was given up
 siblings, approvals and timers go on.
 
 Only the person who started the run, or an editor of the workflow, may resolve a
-step, and in a test run only an editor may resolve a step or retry the run. Over the
+step, and in a test run only an editor may resolve a step or retry the run. A cancelled run
+is retried only by the person who started it or an editor, the people who could have
+cancelled it. Over the
 API it is `POST /api/v1/workflow-runs/{id}/steps/{node_run_id}/rerun` with a `choice`, and the
 decision is audited. A run that was cancelled, or that failed, has no step to resolve:
 **Retry from failed step** starts a new run. A step that finished after its run
@@ -988,6 +990,16 @@ in `X-Signature-256`, and names each delivery in `X-Delivery-Id`; GitHub's own
 headers work as well. The trigger hands on the delivery's JSON as `body`, with its
 `delivery_id`. A retry that repeats an id is answered with the first run and starts
 nothing, because the id is recorded with the run it admitted, in one transaction.
+
+The id is not part of what the sender signs, so the same signed request under another id
+within 24 hours is a copy too: it is answered with the first run and starts nothing,
+whichever of the two signature headers carries it. Identical content sent again after 24
+hours starts a run. A sender that sends the same body more often on purpose makes each one
+differ, with its own id or time in the body, or signs the time: with
+`X-Signature-Timestamp` (Unix seconds) the signature covers `{timestamp}.{body}` and is
+refused more than five minutes from the server's clock.
+
+Deliveries admitted before signed digests were recorded retain delivery-ID deduplication. Their signed copies under a different ID cannot be recognized from those older rows; signature-based copy detection starts with deliveries recorded by the new version.
 
 A **Schedule** trigger runs every so often, daily at a set time or on a cron
 expression, in the workflow's timezone (UTC unless its **Settings** name another)
@@ -1114,9 +1126,37 @@ read it starts from the moment the workflow was published or last switched on, s
 mail already there starts nothing.
 
 Naming a shared mailbox the organization's Microsoft grant can open takes the permission
-to manage connections, as it does for Outlook agent triggers; a workflow already
-listening to one keeps it through later publishes, and changing it needs the permission again. If Outlook says the folder can no longer be read, the workflow is
+to manage connections, as it does for Outlook agent triggers; every publish that names one needs it, because whoever publishes becomes the member
+the mailbox is read as, and a message reaching a workflow whose publisher no longer
+holds it starts no run. If Outlook says the folder can no longer be read, the workflow is
 switched off and the audit log says why.
+
+Before upgrading to a release with this check, an administrator can find the
+Outlook triggers it will stop: those reading a shared mailbox for a publisher who is not an owner, admin or builder,
+and so lacks `mcp:manage`. Each needs a republish by someone who holds it, or its
+publisher's role raised. Run against the deployment's database:
+
+```sql
+SELECT o.name AS organization,
+       w.name AS workflow,
+       u.email AS publisher,
+       m.role AS publisher_role,
+       node -> 'config' ->> 'mailbox' AS shared_mailbox
+FROM workflow_exposures AS e
+JOIN workflow_versions AS v ON v.id = e.workflow_version_id
+JOIN workflows AS w ON w.id = e.workflow_id
+JOIN organizations AS o ON o.id = e.organization_id
+JOIN users AS u ON u.id = e.execution_principal_user_id
+LEFT JOIN organization_members AS m
+  ON m.organization_id = e.organization_id AND m.user_id = e.execution_principal_user_id
+CROSS JOIN LATERAL jsonb_array_elements(v.graph -> 'nodes') AS node
+WHERE e.adapter = 'outlook'
+  AND e.is_active
+  AND (node ->> 'id')::uuid = e.node_instance_id
+  AND coalesce(node -> 'config' ->> 'mailbox', '') <> ''
+  AND NOT u.is_app_admin
+  AND coalesce(m.role, '') NOT IN ('owner', 'admin', 'builder');
+```
 
 The run gets the same fields as a Gmail
 run, with `labels` holding the message's categories and `mailbox` the shared
@@ -1159,7 +1199,8 @@ topic only inside a forum topic.
 
 A **Send a message** step added after a **Channel message** trigger starts as the
 trigger's bot, with `channel_id` and `thread_id` bound, when the two platforms match. A
-bot's messages start one workflow at most, and listening to a bot needs `channels:manage`.
+bot's messages start one workflow at most, and listening to a bot needs `channels:manage`, checked again
+at every message: once the publisher loses it, the bot's own agent answers instead.
 A voice note arrives as its transcript; other attachments are not handed on. See
 [trigger.channel_message](reference/workflow-nodes.md#trigger-channel-message).
 
@@ -1181,12 +1222,17 @@ already running in the chain, or more than five calls deep, is refused.
 Called workflows inherit the caller's remaining run budget and the earlier deadline.
 Their spend counts toward the caller's total; `own_cost` exposes the caller's direct
 fees for consumers aggregating run records without counting descendants twice.
-With a finite caller budget, **Wait for it to finish** must stay on. Cancelling a
-caller or revoking its access stops a child before its next dispatch; an external
-request already in flight may finish. Retrying a failed call reuses successful
-steps of its original, frozen child rather than repeating their effects. A still
-running original child must finish or be stopped first. File outputs are explicitly
-imported into the caller, and callee access is rechecked when a waiting call resumes.
+With a finite caller budget, **Wait for it to finish** must stay on.
+
+Cancelling a caller, or its running out of budget, cancels every unfinished run it
+called and every run those called, with their approval requests and questions. A called
+run whose step is executing at that moment stops before its next dispatch, as does one
+whose caller lost its access; an external request already in flight may finish.
+
+Retrying a failed call reuses successful steps of its original, frozen child rather than
+repeating their effects. A still running original child must finish or be stopped first.
+File outputs are explicitly imported into the caller, and callee access is rechecked
+when a waiting call resumes.
 
 The caller's daily chart and per-step statistics include called-run fees too.
 
@@ -1246,7 +1292,7 @@ needs an idempotency key of its own. Each step's retry promise is listed in the
 | What you see | Why | What to do |
 |---|---|---|
 | **Needs attention** | A step that may have acted was interrupted, or stopped waiting with nothing to wake it | Check whether its effect happened, then **Resolve** the step on the run: run it again, use a result it reported late, take its error route or fail the run. Cancelling the run, then **Retry from failed step**, starts over |
-| `PRINCIPAL_REVOKED` | The member the run acts as lost access, or their account was deactivated | Have a member who may run the workflow publish it again, so its trigger runs as them |
+| `PRINCIPAL_REVOKED` | The member the run acts as lost access, or their account was deactivated, or the API key that started the run was revoked | Have a member who may run the workflow publish it again, so its trigger runs as them |
 | `WORKFLOW_TRIGGER_MISMATCH` | The run was asked for through a door its live trigger is not: by hand or the API for a workflow that starts from a webhook, or in the chat for one that does not start from a chat message | Start it the way its trigger says, or test the draft, which takes any trigger |
 | `INVALID_BINDING` | A value did not fit the field it was bound to | The step's error names the field; fix the binding or the value upstream |
 | `REVISION_CONFLICT` | Someone changed a record after the step read it | Route the step's error to a fresh read with `error.handle` |

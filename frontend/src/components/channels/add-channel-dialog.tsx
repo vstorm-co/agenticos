@@ -6,9 +6,8 @@ import { toast } from "sonner";
 
 import {
   AnswerStyleFields,
-  DEFAULT_ANSWER_STYLE,
+  defaultAnswerStyle,
   REACTION_PATTERN,
-  reactsOn,
 } from "@/components/channels/answer-style-fields";
 import { ChannelPlatformIcon } from "@/components/channels/channel-platform-icon";
 import { SlackTransport } from "@/components/channels/slack-transport";
@@ -151,7 +150,9 @@ export function AddChannelDialog({
   const [teamsTenantId, setTeamsTenantId] = useState("");
   const [respondToBroadcasts, setRespondToBroadcasts] = useState(false);
   const [discordGuilds, setDiscordGuilds] = useState("");
-  const [answerStyle, setAnswerStyle] = useState<AnswerStyle>(DEFAULT_ANSWER_STYLE);
+  const [answerStyle, setAnswerStyle] = useState<AnswerStyle>(() =>
+    defaultAnswerStyle(initialPlatform),
+  );
   const [transcription, setTranscription] = useState<TranscriptionChoice>(INHERIT);
   // A bot not yet registered serves no agent, so what it would inherit today is
   // the organization's pair; binding an agent with its own may change that.
@@ -205,7 +206,7 @@ export function AddChannelDialog({
     setSlackWebhook(true);
     setTeamsAppId("");
     setTeamsTenantId("");
-    setAnswerStyle(DEFAULT_ANSWER_STYLE);
+    setAnswerStyle(defaultAnswerStyle(initialPlatform));
     setRespondToBroadcasts(false);
     setDiscordGuilds("");
     setTranscription(INHERIT);
@@ -223,8 +224,7 @@ export function AddChannelDialog({
     setAppToken("");
     setTeamsAppId("");
     setTeamsTenantId("");
-    // Hidden where the bot cannot react, and a hidden choice would still be sent.
-    if (!reactsOn(next)) setAnswerStyle((style) => ({ ...style, ack_reaction: null }));
+    setAnswerStyle((style) => ({ ...style, ack_reaction: defaultAnswerStyle(next).ack_reaction }));
     setErrors({});
   }
 

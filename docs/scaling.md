@@ -46,6 +46,11 @@ one per deployment as well. An agent moves between them as its spec: export it
 as YAML on one (`GET /agents/{id}/spec.yaml`), and import it into an agent on
 the other.
 
+Two deployments on one host name, on different ports, also share the console's
+cookies, because a browser keys cookies by host and not by port: signing in to
+one signs you out of the other. Give each its own host name, or set
+[`SESSION_COOKIE_NAMESPACE`](configuration.md#docker-production) on each console.
+
 ## An external Postgres { #an-external-postgres }
 
 A managed or self-run Postgres works when it has these:

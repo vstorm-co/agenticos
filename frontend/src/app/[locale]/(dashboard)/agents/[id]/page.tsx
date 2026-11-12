@@ -1,5 +1,6 @@
 "use client";
 
+import { canonicalJson, sameJson } from "@/lib/canonical-json";
 import { MoreOptions } from "@/components/ui/more-options";
 
 import { useResourceCreation, mergeResourceChoices } from "@/components/agents/resource-creation";
@@ -530,10 +531,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
   // A draft differs from what is live the moment anything is edited. Showing
   // that difference is what stops someone testing a change that never shipped.
-  const isDirty = useMemo(
-    () => JSON.stringify(spec) !== JSON.stringify(storedDraft),
-    [spec, storedDraft],
-  );
+  const isDirty = useMemo(() => !sameJson(spec, storedDraft), [spec, storedDraft]);
 
   // The draft stores itself. A Builder with a Save button is a Builder where
   // the tab closed on twenty minutes of instructions; the debounce means a
@@ -581,7 +579,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
       !spec.name.trim()
     )
       return;
-    const payload = JSON.stringify(spec);
+    const payload = canonicalJson(spec);
     if (payload === attempts.current.payload && attempts.current.tries >= 2) return;
     const timer = setTimeout(() => {
       attempts.current =
@@ -590,10 +588,20 @@ export default function AgentBuilderPage({ params }: PageProps) {
           : { payload, tries: 1 };
       // Errors already toast in the hook; the badge only needs to keep saying
       // "unsaved", which `isDirty` staying true does on its own.
-      void storeDraft(spec).catch(() => null);
+      void storeDraft(spec)
+        .then((saved) => {
+          setSpec((current) =>
+            sameJson(current, spec)
+              ? isSystem
+                ? forSystemAgent(saved.draft_spec)
+                : saved.draft_spec
+              : current,
+          );
+        })
+        .catch(() => null);
     }, 1200);
     return () => clearTimeout(timer);
-  }, [spec, storedDraft, isDirty, canEdit, storeDraft, storing, remote.held]);
+  }, [spec, storedDraft, isDirty, canEdit, storeDraft, storing, remote.held, isSystem]);
 
   // Asked once per visit, and only of someone who may publish: the dialog still
   // validates first and still asks before anything goes live.

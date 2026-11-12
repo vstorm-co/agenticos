@@ -977,6 +977,46 @@ class TestStaleClaims:
         assert outbox.id not in {row.id for row in found}
 
 
+class TestExpiredKeysBehindRuns:
+    @pytest.mark.security
+    async def test_a_lapsed_run_credential_is_kept_while_a_run_acts_with_it(self, db: AsyncSession):
+        from app.db.models.api_key import ApiKey
+        from app.repositories import api_key as api_key_repo
+
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        key = ApiKey(
+            organization_id=org.id,
+            user_id=org.created_by_user_id,
+            name="Run credential",
+            prefix=f"aos_{uuid.uuid4().hex[:8]}",
+            key_hash=uuid.uuid4().hex,
+            scopes=[],
+            internal=True,
+            expires_at=datetime.now(UTC) - timedelta(hours=1),
+        )
+        db.add(key)
+        await db.flush()
+        run = await _run(db, org, workflow, status=WorkflowRunStatus.RUNNING.value)
+        await workflow_run_repo.update_run(
+            db, run=run, update_data={"execution_api_key_id": key.id}
+        )
+
+        await api_key_repo.delete_expired_internal(
+            db, user_id=org.created_by_user_id, before=datetime.now(UTC)
+        )
+        assert await db.get(ApiKey, key.id, populate_existing=True) is not None
+
+        await workflow_run_repo.update_run(
+            db, run=run, update_data={"status": WorkflowRunStatus.SUCCEEDED.value}
+        )
+        await api_key_repo.delete_expired_internal(
+            db, user_id=org.created_by_user_id, before=datetime.now(UTC)
+        )
+        db.expunge(key)
+        assert await db.get(ApiKey, key.id) is None
+
+
 class TestReprs:
     async def test_every_model_repr_names_its_identity(self, db: AsyncSession):
         org = await _org(db)

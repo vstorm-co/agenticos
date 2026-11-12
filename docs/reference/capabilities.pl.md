@@ -1,5 +1,5 @@
 ---
-source_sha: "b0fd849fcc36"
+source_sha: "68958b7ea0a1"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -44,7 +44,10 @@ powinien robić.
 
 Niezależnie od tego, z jakimi capabilities agent skończy, każdy run dostaje w
 instrukcjach, pod **Your setup**, listę tych, które ma, i tych, których nie ma -
-więc opisuje tylko to, co potrafi, i mówi, co trzeba by włączyć do reszty.
+więc opisuje tylko to, co potrafi, i mówi, co trzeba by włączyć do reszty. Agent
+ze skillami słyszy na końcu, pod **Your skills**, że skill, którego dotyczy
+pytanie, otwiera przez `read_skill`; prośba o skill kartą dostaje w
+odpowiedzi właśnie to.
 
 Gdy prośba wymaga capability, której agent nie ma, pokazuje w czacie kartę z
 nią i z powodem. Ktoś, kto może edytować agenta, włącza ją z karty - powiązaną
@@ -451,6 +454,14 @@ wynika po stronie serwera z tego, kto usłyszy odpowiedź, a nigdy z modelu — 
   ma magazynu, a narzędzia mówią to wprost, zamiast zapisywać gdziekolwiek. Run
   uruchomiony [kluczem API](../api.md#organization-api-keys) też go nie ma: klucz
   działa w imieniu wystawcy, ale ten, kto go trzyma, nie jest tą osobą.
+- W czacie, który czytają inni - czacie projektu albo udostępnionym komuś do
+  edycji - nie ma magazynu osobistego. Agent nie pokazuje, nie przywołuje i nie
+  zapisuje tam tego, co wie o osobie; nadal czyta claimy projektu i
+  organizacji. Udostępnienie czatu do edycji albo przeniesienie go do projektu
+  pokazuje jego historię, łącznie z odpowiedziami napisanymi, gdy był prywatny;
+  od tej chwili kolejne odpowiedzi nie korzystają z pamięci osobistej. Czat
+  udostępniony tylko do odczytu pokazuje każdą odpowiedź, także późniejsze
+  napisane z pamięcią osobistą.
 - W harmonogramie albo przy triggerze zdarzenia też nie ma magazynu, chociaż run
   wykonuje się jako twórca triggera. Twórca pożycza runowi swoje uprawnienia, a
   nie tożsamość, więc nikt nie słucha i narzędzia odmawiają. Fakt potrzebny
@@ -492,9 +503,13 @@ nigdy nie zapisuje profilu. Tylko `share_memory` poszerza claim, i to tylko na
 polecenie osoby, która może: `projects:edit` w projekcie albo `context:edit` dla
 całej organizacji. Zawsze czeka, aż osoba zatwierdzi dokładnie ten claim i odbiorców, niezależnie od ustawień zatwierdzeń agenta, więc tekst przeczytany przez agenta nie może go skłonić do udostępnienia.
 
+Nie odpowiada na nie też **Approve everything** ani zapamiętane **Zawsze zezwalaj na ten tool dla tego agenta**, a jego karta nie oferuje żadnej z tych opcji. Karta pokazuje fakt i jego odbiorców; w kolejce akceptacji fakt widzi tylko ktoś, kto może zobaczyć run, z którego pochodzi.
+
 Kopia wskazuje claim, z którego powstała, a oryginał zachowuje
 swoich odbiorców. Embed, run z kluczem API i run z harmonogramu nie czytają
 niczego; czat grupowy czyta tylko własne claimy. Poprawienie claimu, który czyta cały projekt lub organizacja, wymaga tego samego uprawnienia co udostępnienie do niego: odczyt nie jest uprawnieniem do przepisywania.
+
+Taka poprawka przez `correct_memory` też za każdym razem czeka na osobę, niezależnie od trybu zatwierdzeń, a jej karta pokazuje fakt przed i po zmianie; poprawka własnego claimu osoby nie czeka. Poprawka zapisana przez tool jest claimem agenta, wskazuje run i rozmowę, z których pochodzi, a dziennik audytu dostaje wpis `memory.claim.corrected`. Poprawka w **Settings → Memory** jest własną poprawką osoby.
 
 - **Poprawka zachowuje to, co poprawia.** „Od poniedziałku Piotr przejmuje
   faktury” zamyka wcześniejszy claim w tej dacie i dodaje nowy; to, że Anna
@@ -1713,8 +1728,8 @@ czytających: żadna lista prefiksów poleceń nie robi z powłoki narzędzia ty
 odczytu, bo `git log --output=<plik>` pasuje do `git log` tak samo jak każdy odczyt. Codex w kontenerze nie ma `read_only`: jego tryb tylko do odczytu
 to jego własny sandbox, który nie startuje w kontenerze agenta, więc publikacja
 odrzuca to połączenie. To, czy człowiek mówi „tak” przed każdym zadaniem, ustawia
-**Zatwierdzenie przez człowieka** capability na **Zawsze pytaj** — jak każda bramka,
-jest wyłączona, dopóki ktoś jej nie ustawi. Nie ma zakładki Narzędzia: jedno
+**Zatwierdzenie przez człowieka** capability na **Zawsze pytaj**. Builder wybiera ten tryb dla nowych bindingów;
+istniejące zachowują swoją politykę. Nie ma zakładki Narzędzia: jedno
 narzędzie to sama capability.
 
 **Nazwane sesje.** Każde zadanie wskazuje `session` - `main`, gdy nie wskazuje żadnej. Ta sama nazwa kontynuuje wcześniejszą pracę tej sesji w rozmowie; nowa nazwa otwiera kolejną, a niezależne sesje działają równolegle, gdy agent wywołuje narzędzie kilka razy naraz. `fresh_session` zaczyna jedną sesję od nowa. Na tym komputerze sesja może też wybrać `harness` - Claude Code albo Codex, na logowaniu tego komputera - oraz `folder` wewnątrz folderu czatu, więc dwa projekty albo oba harnessy pracują jednocześnie. W sandboxie i w prywatnym zadaniu w chmurze jedynym harnessem jest ten z bindingu, bo należy do niego klucz albo konto.

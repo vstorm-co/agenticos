@@ -10,7 +10,7 @@ import { formatDateTime } from "@/lib/utils";
 import type { EvalRun } from "@/types/eval-runs";
 import { EvalStatusBadge } from "./eval-status-badge";
 import { percent, usd } from "./format";
-import { sideName } from "./names";
+import { sideName, type SideCheck } from "./names";
 import { VERDICT_TONE } from "./verdict-headline";
 
 /**
@@ -53,21 +53,39 @@ export function VerdictChip({ run }: { run: EvalRun }) {
   return <Badge variant={VERDICT_TONE[outcome.verdict]}>{t(outcome.verdict, counts)}</Badge>;
 }
 
+/** A run that is one stage of a skill's check, with the version its current side read. */
+function stageOf(run: EvalRun): SideCheck | null {
+  const record = run.proposal_check;
+  if (record?.kind !== "skill" || !record.skill_check_id) return null;
+  const skill = run.arms.find((arm) => arm.role === "candidate")?.skill_ids?.[0];
+  return {
+    ...record,
+    current: run.arms
+      .find((arm) => arm.role === "baseline")
+      ?.skill_versions?.find((served) => served.skill_id === skill),
+  };
+}
+
 /**
  * One run in a list: what was tested against what, when, on which model, how
  * it came out and what it cost. `agentName` prefixes it where runs of several
- * agents share a list.
+ * agents share a list. A stage of a skill's check says so and names its sides
+ * by the text each read, since its verdict belongs to the check.
  */
 export function EvalRunRow({ run, agentName }: { run: EvalRun; agentName?: string }) {
   const t = useTranslations("evals");
   const locale = useLocale();
   const candidates = run.arms.filter((arm) => arm.role === "candidate");
   const first = candidates[0];
-  const baseline = run.outcome?.baseline ?? run.arms.find((arm) => arm.role === "baseline");
-  const tested = first ? sideName(first, t) : "";
-  const title = baseline
-    ? t("row.against", { candidate: tested, baseline: sideName(baseline, t) })
+  const stage = stageOf(run);
+  const baseline = stage
+    ? run.arms.find((arm) => arm.role === "baseline")
+    : (run.outcome?.baseline ?? run.arms.find((arm) => arm.role === "baseline"));
+  const tested = first ? sideName(first, t, stage) : "";
+  const against = baseline
+    ? t("row.against", { candidate: tested, baseline: sideName(baseline, t, stage) })
     : tested;
+  const title = stage ? t("row.checkStage", { title: against }) : against;
   return (
     <li>
       <Link

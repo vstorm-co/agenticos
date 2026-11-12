@@ -440,6 +440,7 @@ export function McpBindingDialog({
           {(bindings.length > 0 || tools) && (
             <section className="min-w-0 space-y-2.5">
               <h3 className="text-sm font-medium">{t("serverTools")}</h3>
+              <p className="text-muted-foreground text-xs">{t("channelRunFreelyHint")}</p>
               {tools ? (
                 <McpToolChecklist
                   tools={tools}

@@ -70,6 +70,7 @@ async def create(
     base_url: str | None = None,
     secret_id: UUID | None = None,
     default_runtime: str | None = None,
+    secure_access: bool = False,
     is_default: bool = False,
 ) -> SandboxConnection:
     connection = SandboxConnection(
@@ -79,6 +80,7 @@ async def create(
         base_url=base_url,
         secret_id=secret_id,
         default_runtime=default_runtime,
+        secure_access=secure_access,
         is_default=is_default,
     )
     db.add(connection)

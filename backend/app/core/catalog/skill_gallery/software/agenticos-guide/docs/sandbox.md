@@ -731,6 +731,16 @@ sandboxes run, and are billed, on its own account. A sandbox is paused at the en
 of its hour rather than killed, so a longer-scoped workspace keeps its files, and
 the destroy sweep ends it as it ends a Daytona one.
 
+**An OpenSandbox connection.** Select `opensandbox` in **Settings → Sandboxes → Connections**, enter the backend-reachable server URL, choose that server’s API key from the vault and set a sandbox image such as `python:3.12-slim`. The image needs a POSIX shell and basic file tools. The server is operated separately; both Docker and Kubernetes deployments are supported. Follow the [OpenSandbox server configuration](https://open-sandbox.ai/getting-started/configuration). Use server/execd `release-1.2.0` or later compatible releases; execd must be at least 1.1.1 for command output. AgenticOS uses SDK 1.2 with retries disabled for commands and creation.
+
+Press **Test server and image** to create one disposable sandbox, check its shell and remove it. This explicit test can pull the image and use server capacity; opening the form never creates one. Publish an agent with the existing sandbox capability on this connection; the file and shell tools and workspace sharing scopes work as before. The connection default holds image references up to 512 characters; an agent’s optional runtime override remains limited to 64.
+
+**Secure Access** is optional and requires OpenSandbox’s Kubernetes ingress gateway. Docker rejects this mode. The setting applies to new workspaces; changing it never recreates existing files. Reset or move a workspace explicitly to change its mode. AgenticOS always uses the authenticated API-server proxy. This protects endpoint access, not workload containment or egress. The API key controls every sandbox on that server: organizations sharing a server do not gain separate server credentials or runtime isolation merely by creating separate AgenticOS connections. Operators must isolate the server, Docker socket, workloads and networks; use separate servers where a shared server is outside the trust boundary. Keep the API on a private network or behind authenticated TLS, and do not expose sandbox endpoints publicly.
+
+A later turn attaches to its recorded workspace. A missing or unreachable workspace is refused; its ref is retained rather than silently replaced with empty files. Reset explicitly after recovering any files. Closing a turn releases HTTP clients, while the workspace survives according to its scope; explicit cleanup uses the existing durable destroy queue. Keep its connection and vault key until pending cleanup succeeds. AgenticOS does not enumerate all sandboxes on an OpenSandbox server; sandboxd-specific session/limit panels do not describe this provider.
+
+Validation for this integration covered the Docker lifecycle, file persistence, reattachment, missing-workspace refusal and cleanup on server/execd 1.2.0. Kubernetes Secure Access was not validated on a live cluster. Downgrading migration `0317_opensandbox_connections.py` is refused while OpenSandbox connections or runtime names longer than 64 characters remain.
+
 **The person's own computer.** In the [desktop app](desktop.md#work-on-this-computer)
 a chat can work in a folder on the computer it runs on. The tools reach it
 through the app's connection to the server, and the app - not this server -

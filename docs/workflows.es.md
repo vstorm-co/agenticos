@@ -1,5 +1,5 @@
 ---
-source_sha: "a70551f29a1e"
+source_sha: "30ef52f0532a"
 ---
 
 # Workflows { #workflows }
@@ -929,7 +929,9 @@ Nada más del run se toca, así que los pasos vecinos, las aprobaciones y los
 temporizadores siguen.
 
 Solo puede resolver un paso quien inició el run o un editor del workflow, y en un run
-de prueba solo un editor puede resolver un paso o reintentar el run. Por la API se
+de prueba solo un editor puede resolver un paso o reintentar el run. Un run cancelado
+solo lo reintenta quien lo inició o un editor, quienes podrían haberlo cancelado.
+Por la API se
 hace con `POST /api/v1/workflow-runs/{id}/steps/{node_run_id}/rerun` y un `choice`,
 y la decisión queda auditada. Un run cancelado o fallido no tiene paso que resolver:
 **Retry from failed step** inicia un run nuevo. Un paso que terminó después de que su
@@ -1053,6 +1055,16 @@ en `X-Delivery-Id`; las cabeceras propias de GitHub también funcionan. El trigg
 el JSON de la entrega como `body`, con su `delivery_id`. Un reintento que repite un id
 recibe como respuesta el primer run y no inicia nada, porque el id se guarda junto con
 el run que admitió, en una sola transacción.
+
+El id no forma parte de lo que firma el remitente, así que la misma solicitud firmada con
+otro id en 24 horas también es una copia: recibe como respuesta el primer run y no inicia
+nada, la lleve cualquiera de las dos cabeceras de firma. El mismo contenido enviado de
+nuevo pasadas 24 horas inicia un run. Un remitente que envía el mismo cuerpo más a menudo a
+propósito hace que cada uno sea distinto, con su propio id u hora en el cuerpo, o firma la
+hora: con `X-Signature-Timestamp` (segundos Unix) la firma cubre `{timestamp}.{body}` y se
+rechaza a más de cinco minutos del reloj del servidor.
+
+Las entregas admitidas antes de guardar resúmenes de firmas conservan la deduplicación por ID de entrega. Esas filas antiguas no permiten reconocer copias firmadas con otro ID; la detección por firma empieza con las entregas guardadas por la nueva versión.
 
 Un trigger **Schedule** se ejecuta cada cierto tiempo, a diario a una hora fija o
 según una expresión cron, en la zona horaria del workflow (UTC salvo que sus **Settings** indiquen otra)
@@ -1180,11 +1192,42 @@ contains**, **Has attachments**, **Importance** y **Category**.
 
 La primera lectura de
 una carpeta empieza en el momento en que se publicó o se encendió por última vez el workflow, así que el
-correo que ya está allí no inicia nada. Nombrar un buzón compartido que el grant de Microsoft de la organización pueda abrir
+correo que ya está allí no inicia nada.
+
+Nombrar un buzón compartido que el grant de Microsoft de la organización pueda abrir
 exige el permiso para gestionar conexiones, como en los triggers de agente de Outlook;
-un workflow que ya escucha uno lo conserva en publicaciones posteriores, y cambiarlo
-exige el permiso otra vez. Si Outlook dice que la carpeta ya no se puede leer, el
+toda publicación que lo nombre lo exige, porque quien publica pasa a ser el miembro
+como el que se lee el buzón, y un mensaje que llega a un workflow cuyo publicador
+ya no lo tiene no inicia ningún run. Si Outlook dice que la carpeta ya no se puede leer, el
 workflow se apaga y el registro de auditoría dice por qué.
+
+Un administrador puede encontrar de antemano los triggers de Outlook que esto
+detiene: los que leen un buzón compartido para un publicador que no es owner, admin
+ni builder y por tanto no tiene `mcp:manage`. Cada uno necesita que lo vuelva a
+publicar alguien que lo tenga, o subir el rol de su publicador. Ejecútalo contra la
+base de datos del despliegue:
+
+```sql
+SELECT o.name AS organization,
+       w.name AS workflow,
+       u.email AS publisher,
+       m.role AS publisher_role,
+       node -> 'config' ->> 'mailbox' AS shared_mailbox
+FROM workflow_exposures AS e
+JOIN workflow_versions AS v ON v.id = e.workflow_version_id
+JOIN workflows AS w ON w.id = e.workflow_id
+JOIN organizations AS o ON o.id = e.organization_id
+JOIN users AS u ON u.id = e.execution_principal_user_id
+LEFT JOIN organization_members AS m
+  ON m.organization_id = e.organization_id AND m.user_id = e.execution_principal_user_id
+CROSS JOIN LATERAL jsonb_array_elements(v.graph -> 'nodes') AS node
+WHERE e.adapter = 'outlook'
+  AND e.is_active
+  AND (node ->> 'id')::uuid = e.node_instance_id
+  AND coalesce(node -> 'config' ->> 'mailbox', '') <> ''
+  AND NOT u.is_app_admin
+  AND coalesce(m.role, '') NOT IN ('owner', 'admin', 'builder');
+```
 
 La ejecución recibe los
 mismos campos que una de Gmail, con `labels` con las categorías del mensaje y
@@ -1232,7 +1275,8 @@ entrega un tema solo dentro de un tema de foro.
 Un paso **Send a message** añadido después de un trigger **Channel message** empieza
 como el bot del trigger, con `channel_id` y `thread_id` enlazados, cuando las
 plataformas coinciden. Los mensajes de un bot inician como mucho un workflow, y escuchar a un bot requiere
-`channels:manage`. Una nota de voz llega como su transcripción; los demás adjuntos
+`channels:manage`, comprobado de nuevo en cada mensaje: si quien lo publicó lo
+pierde, responde el propio agente del bot. Una nota de voz llega como su transcripción; los demás adjuntos
 no se entregan. Ver
 [trigger.channel_message](reference/workflow-nodes.md#trigger-channel-message).
 
@@ -1256,8 +1300,14 @@ niveles, se rechaza.
 Los workflows llamados heredan el presupuesto restante del llamador y el plazo más
 cercano. Su gasto cuenta en el total del llamador; `own_cost` muestra solo los cargos
 directos para evitar duplicarlos al sumar registros. Con un presupuesto limitado debe
-mantenerse la espera hasta finalizar. Cancelar el llamador o revocar su acceso detiene
-al hijo antes del siguiente paso; una solicitud externa en curso puede terminar.
+mantenerse la espera hasta finalizar.
+
+Cancelar el llamador, o que agote su presupuesto, cancela cada hijo sin terminar que
+llamó y cada uno que estos llamaron, con sus solicitudes de aprobación y preguntas. Un
+hijo cuyo paso se está ejecutando en ese momento se detiene antes del siguiente paso,
+igual que uno cuyo llamador perdió el acceso; una solicitud externa en curso puede
+terminar.
+
 Reintentar una llamada reutiliza los pasos exitosos del hijo original con su versión
 fijada. Si ese hijo sigue activo, debe terminar o detenerse primero. Los archivos de
 salida se importan explícitamente al llamador y el acceso se comprueba al reanudar.
@@ -1321,7 +1371,7 @@ reintento de cada paso está en la [referencia de nodos](reference/workflow-node
 | Lo que ves | Por qué | Qué hacer |
 |---|---|---|
 | **Needs attention** | Se interrumpió un paso que pudo haber actuado, o dejó de esperar y nada lo despierta | Comprueba si su efecto ocurrió y resuelve el paso en el run con **Resolve**: ejecutarlo de nuevo, usar un resultado informado tarde, tomar su camino de error o hacer fallar el run. Cancelar el run y luego **Retry from failed step** empieza de cero |
-| `PRINCIPAL_REVOKED` | El miembro con el que actúa el run perdió el acceso o su cuenta se desactivó | Que un miembro que pueda ejecutar el workflow lo vuelva a publicar, para que su trigger se ejecute como él |
+| `PRINCIPAL_REVOKED` | El miembro con el que actúa el run perdió el acceso o su cuenta se desactivó, o se revocó la clave API que inició el run | Que un miembro que pueda ejecutar el workflow lo vuelva a publicar, para que su trigger se ejecute como él |
 | `WORKFLOW_TRIGGER_MISMATCH` | El run se pidió por una vía que no es su trigger en vivo: a mano o por la API para un workflow que empieza por un webhook, o en el chat para uno que no empieza por un mensaje del chat | Inícialo como dice su trigger, o prueba el draft, que acepta cualquier trigger |
 | `INVALID_BINDING` | Un valor no encajaba en el campo al que estaba enlazado | El error del paso nombra el campo; corrige el enlace o el valor anterior |
 | `REVISION_CONFLICT` | Alguien cambió un registro después de que el paso lo leyera | Encamina el error del paso con `error.handle` hacia una lectura nueva |

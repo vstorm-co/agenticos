@@ -81,7 +81,10 @@ vi.mock("@/hooks", async () => {
       isLoading: false,
       error: state.agentError,
       refetch: refetchAgent,
-      saveDraft: { mutateAsync: vi.fn(), isPending: false },
+      saveDraft: {
+        mutateAsync: vi.fn(async (spec: AgentSpec) => ({ draft_spec: spec })),
+        isPending: false,
+      },
       validate,
       publish: { mutateAsync: vi.fn(), isPending: false },
       rollback: { mutateAsync: vi.fn() },

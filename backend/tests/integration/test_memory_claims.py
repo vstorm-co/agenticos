@@ -676,15 +676,27 @@ async def test_concurrent_corrections_cannot_rewrite_a_superseded_id(db: AsyncSe
     assert sum(result is not None for result in results) == 1
 
 
-async def test_a_second_future_correction_cannot_make_two_owners_current(db: AsyncSession) -> None:
+@pytest.mark.parametrize(
+    ("first", "second"), [("person", "person"), ("agent", "person"), ("person", "agent")]
+)
+async def test_a_second_future_correction_cannot_make_two_owners_current(
+    db: AsyncSession, first: str, second: str
+) -> None:
+    """Whether the console or an agent's tool scheduled it, the first correction stands."""
     from app.core.exceptions import ConflictError
 
     org, user, _, _ = await _tenant(db)
     original = (await _say(db, org, ClaimScope(person_owner_key(user.id), None), "Anna")).claim
     tomorrow = datetime.now(UTC) + timedelta(days=1)
     pending = await claims.correct(
-        db, claim=original, statement="Piotr", author_user_id=user.id, effective_from=tomorrow
+        db,
+        claim=original,
+        statement="Piotr",
+        author_user_id=user.id,
+        effective_from=tomorrow,
+        origin=first,
     )
+    assert pending.origin == first
     with pytest.raises(ConflictError, match="future correction"):
         await claims.correct(
             db,
@@ -692,6 +704,7 @@ async def test_a_second_future_correction_cannot_make_two_owners_current(db: Asy
             statement="Marta",
             author_user_id=user.id,
             effective_from=tomorrow + timedelta(days=1),
+            origin=second,
         )
     await db.refresh(original)
     assert original.effective_to == tomorrow

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { appHistoryState, HELD_ENTRY, OVERLAY_ENTRY, traverseHistory } from "@/lib/history-entries";
@@ -59,6 +59,16 @@ export interface UrlOverlay {
  */
 export function useUrlOverlay(key: string): [string | null, UrlOverlay] {
   const [value, show] = useParamValue(key);
+  // Back can return before the router ever renders the pushed parameter. Its
+  // unchanged value then cannot clear the optimistic overlay by itself.
+  const onTraverse = useEffectEvent(() => {
+    show(new URL(window.location.href).searchParams.get(key));
+  });
+  useEffect(() => {
+    const traversed = () => onTraverse();
+    window.addEventListener("popstate", traversed);
+    return () => window.removeEventListener("popstate", traversed);
+  }, []);
   // The object already being closed: a dialog can report closing twice before Back lands.
   const closing = useRef<string | null>(null);
   const replace = (next: string | null) => {

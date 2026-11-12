@@ -52,11 +52,12 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.skill import Skill
 from app.db.models.skill_proposal import SkillProposal
 from app.db.models.user import User
-from app.repositories import authoring_repo, eval_suite_repo
+from app.repositories import authoring_repo, eval_suite_repo, skill_usage_repo
 from app.schemas.api_key import ApiKeyCreate
 from app.schemas.authoring import AuthoringStart, FileWaiting, HunkDecision, ProposalCheck
 from app.schemas.dataset import DatasetCaseCreate, DatasetCreate
 from app.schemas.scoring import DatasetScoring
+from app.schemas.skill_usage import SkillUseRecord
 from app.services.agent_registry import AgentRegistryService
 from app.services.agent_runner import AgentRunnerService
 from app.services.api_key import KEY_GONE, ApiKeyService
@@ -924,23 +925,14 @@ class TestSkills:
         )
         db.add(skill)
         await db.flush()
-        from app.db.models.conversation import ToolCall
-
-        answer = (
-            await db.execute(
-                select(Message).where(Message.run_id == run.id, Message.role == "assistant")
-            )
-        ).scalar_one()
-        db.add(
-            ToolCall(
-                message_id=answer.id,
-                tool_call_id="call-1",
-                tool_name="load_capability",
-                args={"id": "refunds"},
-                started_at=datetime.now(UTC),
-            )
+        # What the runner records when the model opens the skill.
+        await skill_usage_repo.record_uses(
+            db,
+            [SkillUseRecord(agent_id=run.agent_id, skill_id=skill.id, loaded=True)],
+            organization_id=ctx.organization_id,
+            run_id=run.id,
+            started_at=datetime.now(UTC),
         )
-        await db.flush()
         service = AuthoringService(db)
 
         for _ in range(2):
@@ -1312,23 +1304,14 @@ class TestWorkerTargets:
         )
         db.add(skill)
         await db.flush()
-        from app.db.models.conversation import ToolCall
-
-        answer = (
-            await db.execute(
-                select(Message).where(Message.run_id == run.id, Message.role == "assistant")
-            )
-        ).scalar_one()
-        db.add(
-            ToolCall(
-                message_id=answer.id,
-                tool_call_id="call-1",
-                tool_name="load_capability",
-                args={"id": "refunds"},
-                started_at=datetime.now(UTC),
-            )
+        # What the runner records when the model opens the skill.
+        await skill_usage_repo.record_uses(
+            db,
+            [SkillUseRecord(agent_id=run.agent_id, skill_id=skill.id, loaded=True)],
+            organization_id=ctx.organization_id,
+            run_id=run.id,
+            started_at=datetime.now(UTC),
         )
-        await db.flush()
         started = await AuthoringService(db).start_skill(ctx, skill.id, AuthoringStart())
 
         with patch(

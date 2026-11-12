@@ -1,5 +1,5 @@
 ---
-source_sha: "30c984fec99a"
+source_sha: "cb511d45cf48"
 ---
 
 # Konsola { #the-console }
@@ -125,7 +125,7 @@ możesz otworzyć. Każdy zaczyna od widoku **Ja**:
 
 | Widok | Odpowiada na |
 | --- | --- |
-| **Ja** | Powitanie, Twój okres i wszystko, co na Ciebie czeka, w dwóch zdaniach - wywołania, odpowiedzi do przeglądu, oblane suity, sugestie asystenta; Twoje runy, ile się skończyło, co na Ciebie czeka i ile to kosztowało; potem wywołania czekające na Ciebie, Twoje rozmowy, agenci wymagający uwagi, poprawki czekające na Ciebie, Twoi agenci, co Ci udostępniono, Twoje [datasety](datasets.md) z tym, z czym porównują odpowiedź ich przypadki, ostatnie runy i suity ewaluacji, sugestie asystenta według agenta, skilla i pliku oraz luki w wiedzy |
+| **Ja** | Powitanie, Twój okres i wszystko, co na Ciebie czeka, w dwóch zdaniach - wywołania, odpowiedzi do przeglądu, oblane suity, sugestie asystenta; Twoje runy, ile się skończyło, co na Ciebie czeka (liczone tak samo) i ile to kosztowało; potem wywołania czekające na Ciebie, Twoje rozmowy, agenci wymagający uwagi, poprawki czekające na Ciebie, Twoi agenci, co Ci udostępniono, Twoje [datasety](datasets.md) z tym, z czym porównują odpowiedź ich przypadki, ostatnie runy i suity ewaluacji, sugestie asystenta według agenta, skilla i pliku oraz luki w wiedzy |
 | **Ja** | Powitanie i Twój okres w jednym zdaniu; Twoje runy, ile się skończyło, co na Ciebie czeka i ile to kosztowało; potem wywołania czekające na Ciebie, Twoje rozmowy, Twoi agenci i co Ci udostępniono |
 | **Organizacja** | Układalna strona opisana niżej |
 | **Grupa** | Członkowie jednej [grupy](departments.md) - ich runy, wydatki, modele, kiedy pracują i kto korzysta najwięcej. Grupę wybierasz obok przełącznika. Grupa, której członkowie nic nie uruchomili w okresie, mówi to raz, z przejściem do grupy, zamiast strony pustych kart |
@@ -141,7 +141,12 @@ teraz w domyślnym środowisku: opublikowanie poprawki czyści sygnał, dopóki 
 wersja nie zbierze własnych. Oba wymagają `runs:view`.
 
 Pod nią karta **Poprawki czekające na Ciebie** wymienia sesje [Ulepsz](authoring.md#the-improve-wizard)
-zatrzymane na Twój następny krok albo decyzję, każdą otwierając na jej postoju.
+zatrzymane na Twój następny krok albo decyzję, każdą otwierając na jej postoju, oraz
+[sprawdzenia zmian skilli](skills.md#when-an-agent-got-worse), o których możesz
+zdecydować, a które trwają albo czekają na decyzję. Po nich są zmiany skilli
+zaproponowane przez agentów, a potem przypięci agenci i forki, które main
+[wyprzedził](skills.md#which-version-an-agent-reads). Fork dogania się stamtąd,
+a przypiętego agenta przenosi się na stronie jego skilla.
 
 Widok organizacji pokazuje karty, które odpowiadają danymi, pogrupowane w pasy.
 Reszta - integracje, kanały, rutyny, synchronizacja wiedzy, działy, członkowie,
@@ -1128,3 +1133,7 @@ pomocą; ich zamknięcie nie tworzy udanego wykonania. Integracje, pliki, budowa
 agentów, zaproszenia i rutyny są opcjonalnymi kolejnymi krokami.
 
 Osoby zarządzające członkami mogą sprawdzić, czy wraz z wybranym członkiem mogą uruchomić wspólnego opublikowanego agenta. Podgląd zwraca tylko tę informację, bez nazw prywatnych agentów i bez wywołania modelu. Nie potwierdza dostępności dostawcy. Centrum startu blokuje zaproszenia z adresu lokalnego komputera; potrzebny jest adres serwera osiągalny dla odbiorcy.
+
+Zakończone tury chatu pokazują tekst przekazany przed pytaniem agenta obok końcowej odpowiedzi, także po odmowie odpowiedzi na pytanie lub wznowieniu runu. Wyniki narzędzi i rozumowanie pozostają w rozwijanej historii pracy. Dotyczy to zapisanych rozmów i udostępnionych widoków; długość tekstu nie decyduje o jego klasyfikacji.
+
+Historia runów rozróżnia osobę pytającą od publikującego, którego uprawnienia dopuszczają zewnętrzne zapytanie. Niepowiązany nadawca z kanału jest pokazany jako jawnie niezweryfikowane konto chatu, na komputerze i telefonie; anonimowe zapytanie nie otrzymuje wymyślonej tożsamości członka. API zachowuje `user_id` jako kontekst uprawnień i udostępnia `initiated_by_publisher_fallback` oraz `asked_in_chat` do poprawnego przypisania nadawcy. Ten widok nie łączy kont ani nie udostępnia osobistych połączeń publikującego.

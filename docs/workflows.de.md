@@ -1,5 +1,5 @@
 ---
-source_sha: "a70551f29a1e"
+source_sha: "30ef52f0532a"
 ---
 
 # Workflows { #workflows }
@@ -983,7 +983,8 @@ Timer laufen also weiter.
 
 Einen Schritt klärt nur, wer den Run gestartet hat, oder ein Editor des Workflows,
 und in einem Test-Run darf nur ein Editor einen Schritt klären oder den Run
-wiederholen. Über die API dient dazu `POST
+wiederholen. Einen abgebrochenen Run wiederholt nur, wer ihn gestartet hat, oder ein
+Editor, also wer ihn hätte abbrechen können. Über die API dient dazu `POST
 /api/v1/workflow-runs/{id}/steps/{node_run_id}/rerun` mit einem `choice`, und die
 Entscheidung wird auditiert. Ein abgebrochener oder fehlgeschlagener Run hat keinen
 Schritt mehr zu klären: **Retry from failed step** startet einen neuen Run. Ein
@@ -1112,6 +1113,17 @@ Header funktionieren ebenfalls. Der Trigger gibt das JSON der Zustellung als `bo
 weiter, mit ihrer `delivery_id`. Ein Retry, der eine ID wiederholt, wird mit dem
 ersten Run beantwortet und startet nichts, weil die ID zusammen mit dem Run, den sie
 zugelassen hat, in einer Transaktion gespeichert wird.
+
+Die ID gehört nicht zu dem, was der Absender signiert, daher ist dieselbe signierte Anfrage
+unter einer anderen ID innerhalb von 24 Stunden ebenfalls eine Kopie: Sie wird mit dem
+ersten Run beantwortet und startet nichts, gleich in welchem der beiden Signatur-Header sie
+steckt. Derselbe Inhalt startet nach 24 Stunden wieder einen Run. Ein Absender, der
+denselben Body absichtlich öfter sendet, macht jeden unterscheidbar, mit eigener ID oder
+Zeit im Body, oder signiert die Zeit: Mit `X-Signature-Timestamp` (Unix-Sekunden) deckt
+die Signatur `{timestamp}.{body}` ab und wird abgelehnt, wenn sie mehr als fünf Minuten
+von der Serveruhr abweicht.
+
+Vor der Speicherung von Signatur-Digests angenommene Zustellungen bleiben über ihre Zustellungs-ID dedupliziert. Signierte Kopien unter einer anderen ID lassen sich aus diesen älteren Zeilen nicht erkennen; die signaturbasierte Erkennung beginnt mit von der neuen Version gespeicherten Zustellungen.
 
 Ein **Schedule**-Trigger läuft in einem festen Abstand, täglich zu einer festen
 Uhrzeit oder nach einem Cron-Ausdruck, in der Zeitzone des Workflows (UTC, sofern seine **Settings** keine andere nennen)
@@ -1244,10 +1256,39 @@ eingeschaltet wurde; Post, die schon dort liegt, startet nichts.
 
 Ein gemeinsames Postfach, das der Microsoft-Grant der Organisation öffnen kann, zu
 nennen, erfordert die Berechtigung, Verbindungen zu verwalten, wie bei Outlook-Agent-Triggern;
-ein Workflow, der schon eines liest, behält es bei späteren Veröffentlichungen, und es zu
-ändern erfordert die Berechtigung erneut. Meldet Outlook, dass der Ordner nicht
+jede Veröffentlichung, die eines nennt, braucht sie, weil die veröffentlichende
+Person zu dem Mitglied wird, als das das Postfach gelesen wird, und eine Nachricht
+an einen Workflow, dessen Veröffentlicher sie nicht mehr hat, startet keinen Run. Meldet Outlook, dass der Ordner nicht
 mehr gelesen werden kann, wird der Workflow ausgeschaltet, und das Audit-Log nennt
 den Grund.
+
+Ein Administrator kann die Outlook-Trigger, die das stoppt, vorher finden: jene, die
+ein geteiltes Postfach für einen Veröffentlicher lesen, der weder Owner noch Admin
+noch Builder ist und daher `mcp:manage` nicht hat. Jeder braucht eine erneute
+Veröffentlichung durch jemanden, der es hat, oder eine höhere Rolle des
+Veröffentlichers. Gegen die Datenbank der Bereitstellung ausführen:
+
+```sql
+SELECT o.name AS organization,
+       w.name AS workflow,
+       u.email AS publisher,
+       m.role AS publisher_role,
+       node -> 'config' ->> 'mailbox' AS shared_mailbox
+FROM workflow_exposures AS e
+JOIN workflow_versions AS v ON v.id = e.workflow_version_id
+JOIN workflows AS w ON w.id = e.workflow_id
+JOIN organizations AS o ON o.id = e.organization_id
+JOIN users AS u ON u.id = e.execution_principal_user_id
+LEFT JOIN organization_members AS m
+  ON m.organization_id = e.organization_id AND m.user_id = e.execution_principal_user_id
+CROSS JOIN LATERAL jsonb_array_elements(v.graph -> 'nodes') AS node
+WHERE e.adapter = 'outlook'
+  AND e.is_active
+  AND (node ->> 'id')::uuid = e.node_instance_id
+  AND coalesce(node -> 'config' ->> 'mailbox', '') <> ''
+  AND NOT u.is_app_admin
+  AND coalesce(m.role, '') NOT IN ('owner', 'admin', 'builder');
+```
 
 Der Lauf bekommt dieselben Felder wie ein Gmail-Lauf, wobei `labels` die
 Kategorien der Nachricht enthält und `mailbox` das gemeinsame Postfach, aus dem sie
@@ -1294,7 +1335,9 @@ Forenthemas.
 Ein **Send a message**-Schritt, der nach einem **Channel message**-Trigger hinzugefügt
 wird, startet als der Bot des Triggers, mit gebundenen `channel_id` und `thread_id`, wenn
 die Plattformen übereinstimmen. Die Nachrichten eines Bots starten höchstens einen
-Workflow, und das Zuhören braucht `channels:manage`. Eine Sprachnachricht kommt als Transkript an; andere
+Workflow, und das Zuhören braucht `channels:manage`, bei
+jeder Nachricht erneut geprüft: Verliert der Veröffentlicher es, antwortet der
+eigene Agent des Bots. Eine Sprachnachricht kommt als Transkript an; andere
 Anhänge werden nicht übergeben. Siehe
 [trigger.channel_message](reference/workflow-nodes.md#trigger-channel-message).
 
@@ -1319,12 +1362,18 @@ wird abgelehnt.
 Aufgerufene Workflows übernehmen das verbleibende Laufbudget des Aufrufers und
 die frühere Frist. Ihre Kosten zählen zum Gesamtbetrag des Aufrufers; `own_cost`
 enthält nur dessen direkte Gebühren, damit aggregierte Laufdaten nichts doppelt zählen.
-Bei begrenztem Budget muss das Warten auf den Abschluss aktiviert bleiben. Abbruch
-oder entzogene Berechtigungen des Aufrufers stoppen das Kind vor dem nächsten Schritt;
-eine laufende externe Anfrage kann noch enden. Ein erneuter Aufruf verwendet die
-erfolgreichen Schritte des ursprünglichen, eingefrorenen Kindes. Ein noch laufendes
-Kind muss zuerst enden oder gestoppt werden. Ergebnisdateien werden ausdrücklich in
-den Aufrufer importiert; beim Fortsetzen wird der Zugriff erneut geprüft.
+Bei begrenztem Budget muss das Warten auf den Abschluss aktiviert bleiben.
+
+Bricht der Aufrufer ab oder ist sein Budget erschöpft, wird jedes noch offene Kind, das
+er aufgerufen hat, und jedes von diesem aufgerufene abgebrochen, samt Freigabeanfragen
+und Fragen. Ein Kind, dessen Schritt gerade ausgeführt wird, stoppt vor dem nächsten
+Schritt, ebenso eines, dessen Aufrufer seine Berechtigungen verloren hat; eine laufende
+externe Anfrage kann noch enden.
+
+Ein erneuter Aufruf verwendet die erfolgreichen Schritte des ursprünglichen,
+eingefrorenen Kindes. Ein noch laufendes Kind muss zuerst enden oder gestoppt werden.
+Ergebnisdateien werden ausdrücklich in den Aufrufer importiert; beim Fortsetzen wird der
+Zugriff erneut geprüft.
 
 Tagesdiagramm und Schrittstatistiken des Aufrufers enthalten ebenfalls die Gebühren aufgerufener Läufe.
 
@@ -1389,7 +1438,7 @@ Idempotenzschlüssel. Das Wiederholungsversprechen jedes Schritts steht in der
 | Was Sie sehen | Warum | Was tun |
 |---|---|---|
 | **Braucht Aufmerksamkeit** | Ein Schritt, der gewirkt haben kann, wurde unterbrochen oder hat aufgehört zu warten, und nichts weckt ihn | Prüfen Sie, ob seine Wirkung eingetreten ist, und klären Sie den Schritt dann im Run mit **Resolve**: erneut ausführen, ein spät gemeldetes Ergebnis verwenden, seinen Fehlerpfad nehmen oder den Run fehlschlagen lassen. Den Run abzubrechen und dann **Retry from failed step** zu wählen, beginnt von vorn |
-| `PRINCIPAL_REVOKED` | Das Mitglied, als das der Run handelt, hat den Zugriff verloren oder sein Konto wurde deaktiviert | Ein Mitglied, das den Workflow ausführen darf, veröffentlicht ihn erneut, damit sein Trigger als es läuft |
+| `PRINCIPAL_REVOKED` | Das Mitglied, als das der Run handelt, hat den Zugriff verloren oder sein Konto wurde deaktiviert, oder der API-Schlüssel, der den Run gestartet hat, wurde widerrufen | Ein Mitglied, das den Workflow ausführen darf, veröffentlicht ihn erneut, damit sein Trigger als es läuft |
 | `WORKFLOW_TRIGGER_MISMATCH` | Der Run wurde über einen Weg angefordert, der nicht sein Live-Trigger ist: von Hand oder per API für einen Workflow, der mit einem Webhook startet, oder im Chat für einen, der nicht mit einer Chatnachricht startet | Starten Sie ihn so, wie sein Trigger es sagt, oder testen Sie den Draft, der jeden Trigger nimmt |
 | `INVALID_BINDING` | Ein Wert passte nicht zu dem Feld, an das er gebunden war | Der Fehler des Schritts nennt das Feld; korrigieren Sie die Bindung oder den Wert davor |
 | `REVISION_CONFLICT` | Jemand hat einen Datensatz geändert, nachdem der Schritt ihn gelesen hat | Leiten Sie den Fehler des Schritts mit `error.handle` zu einem frischen Lesen um |

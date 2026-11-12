@@ -262,6 +262,9 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   if (error || !table) return <ErrorState />;
 
   const canEdit = table.can_edit;
+  // On a task board everyone in its audience edits tasks, but only an administrator or
+  // the scope's leader changes the board itself.
+  const canManage = canEdit && table.can_manage;
   const allColumns = [...liveColumns, ...TABLE_SYSTEM_COLUMNS];
   const columns = orderedTableColumns(allColumns, display.column_order).filter((column) =>
     column.system
@@ -364,13 +367,15 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
     );
   const columnActions: ColumnActions = {
     onSort: setSort,
-    onRename: setRenaming,
     onHide: (column) => setShown(column.id, false),
-    onArchive: (column) => {
-      // A refusal from the last archive belongs to that column, not this one.
-      changeSchema.reset();
-      setArchiving(column);
-    },
+    ...(canManage && {
+      onRename: setRenaming,
+      onArchive: (column: ColumnDef) => {
+        // A refusal from the last archive belongs to that column, not this one.
+        changeSchema.reset();
+        setArchiving(column);
+      },
+    }),
   };
 
   const content = (
@@ -402,7 +407,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
         }
         secondaryActions={
           <div className="flex flex-wrap items-center gap-2">
-            {canEdit && (
+            {canManage && (
               <Button
                 variant="outline"
                 size="sm"
@@ -445,7 +450,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
                 <DropdownMenuItem disabled={exporting} onSelect={exportShown}>
                   <Download className="h-4 w-4" /> {t("export")}
                 </DropdownMenuItem>
-                {canEdit && (
+                {canManage && (
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
@@ -597,7 +602,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
             <RecordSortPopover columns={allColumns} sort={sort} onChange={setSort} />
             <ViewSettingsPopover
               actions={
-                canEdit && (
+                canManage && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -714,7 +719,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
                     canEdit={canEdit}
                     onAddRecord={canEdit ? addRecord : undefined}
                     columnActions={canEdit ? columnActions : undefined}
-                    onAddColumn={canEdit ? () => setAddingColumn(true) : undefined}
+                    onAddColumn={canManage ? () => setAddingColumn(true) : undefined}
                     columns={columns}
                     records={grid.records}
                     isLoading={grid.isLoading}
@@ -776,7 +781,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
                         <p className="text-muted-foreground max-w-md text-sm">
                           {t("kanbanNoGroupable")}
                         </p>
-                        {canEdit && (
+                        {canManage && (
                           <Button size="sm" onClick={() => setAddingColumn(true)}>
                             <Plus className="h-4 w-4" /> {t("kanbanAddColumn")}
                           </Button>

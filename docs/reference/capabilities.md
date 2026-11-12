@@ -37,7 +37,10 @@ platform tools and budget. Its author switches off what it should not do.
 
 Whichever capabilities an agent ends up with, every run is told which it has and
 which it has not, under **Your setup** in its instructions - so it describes only
-what it can do, and says what would have to be switched on for the rest.
+what it can do, and says what would have to be switched on for the rest. An agent
+with skills is told last, under **Your skills**, to open the one a question falls
+within with `read_skill`; asking for a skill with the card instead is
+answered with that.
 
 When a request needs one it lacks, the agent shows a card for it in the chat,
 with its reason. Someone who may edit the agent switches it on from the card,
@@ -426,6 +429,13 @@ there is nothing for the agent to get wrong.
   there is no store, and the tools say so rather than saving somewhere. A run
   started with an [API key](../api.md#organization-api-keys) has none either:
   the key acts for its issuer, but whoever holds it is not that person.
+- In a chat other people read - a project's, or one shared with somebody to
+  edit - there is no personal store. The agent neither shows, recalls nor saves
+  what it knows about the person there; it still reads the project's and the
+  organization's claims. Sharing a chat to edit, or moving it into a project,
+  shows its history, answers written while it was private included; from that
+  moment, later answers use no personal memory. A chat shared only to view
+  shows every answer, later ones written with personal memory included.
 - On a schedule or an event trigger there is no store either, even though the
   run executes as the trigger's creator. The creator lends the run their
   authority, not their identity, so nobody is listening and the tools refuse.
@@ -466,9 +476,13 @@ group chat never writes a profile. Only `share_memory` widens a claim, and only 
 a person who may: `projects:edit` on the project, or `context:edit` for the whole
 organization. It always waits for a person to approve the exact claim and audience, whatever the agent's approval settings say, so text the agent read cannot talk it into sharing.
 
+**Approve everything** and a remembered **Always allow** do not answer it either, and its card offers neither. The card shows the fact and its audience; in the approvals queue the fact is shown only to somebody who may see the run it came from.
+
 The copy names the claim it came from and the original keeps its
 audience. An embed, an API-key run and a scheduled run read nothing; a group chat
 reads only its own claims. Correcting a claim that the whole project or organization reads needs the same permission as sharing into it: reading it is not authority to rewrite it.
+
+Such a correction through `correct_memory` also waits for a person every time, whatever the approval mode, and its card shows the fact before and after; correcting a person's own claim does not wait. A correction the tool records is the agent's claim, naming the run and conversation it came from, and the audit log gets a `memory.claim.corrected` entry. A correction made at **Settings → Memory** is the person's own.
 
 - **A correction keeps what it corrects.** "From Monday, Piotr takes over
   invoices" closes the earlier claim at that date and adds the new one; Anna
@@ -1647,8 +1661,8 @@ command prefixes keeps a shell read-only, since `git log --output=<file>` matche
 `git log` as well as any read does. Codex in a container has no `read_only`: its read-only mode is a
 sandbox of its own, which cannot start inside the agent's container, and publish
 refuses the combination. Whether a person says yes before each task is the
-capability's **Human approval**, set to **Always ask** — like every gate, it is off
-until somebody sets it. There is no Tools tab: the one tool is the capability.
+capability's **Human approval**, set to **Always ask**. The Builder starts newly added bindings in this mode;
+existing bindings retain their policy. There is no Tools tab: the one tool is the capability.
 
 **Named sessions.** Each task names a `session` - `main` when it names none. The same name continues that session's earlier work in the conversation; a new name opens another, and independent local sessions run side by side when the agent calls the tool several times at once; sandbox calls in the same toolset queue to keep their workspace snapshots separate. `fresh_session` starts one session over. On this computer a session may also choose its `harness` - Claude Code or Codex, on the sign-in that computer has - and a `folder` inside the chat's folder, so two projects, or both harnesses, work at once. In a sandbox or a private cloud task the binding's harness is the only one, since its key or account belongs to it.
 

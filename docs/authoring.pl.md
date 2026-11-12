@@ -1,5 +1,5 @@
 ---
-source_sha: "f30353327843"
+source_sha: "0ec608602ddd"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -22,12 +22,13 @@ Robi trzy rzeczy:
 - **Sprawdza** Twoje zmiany: porównuje wersję roboczą z wersją, na której się
   opiera - najnowszą opublikowaną - na tych samych dowodach i mówi, co zmiany
   poprawiają, czym ryzykują i co usunęły.
-- **Ulepsza skill** albo **plik kontekstowy**: sugeruje nową treść na podstawie
-  runów, które go czytały.
+- **Ulepsza plik kontekstowy**: sugeruje nową treść na podstawie runów, które go
+  czytały. Skill poprawia się krok po kroku na jego własnej stronie - zobacz
+  [Poprawianie skilla](skills.md#improving-a-skill).
 
 W Agent Builderze **Budowa** zawiera konfigurację, a **Test** otwiera interaktywny panel wersji roboczej. Otwórz **Ewaluacje**, aby porównać wersję roboczą z opublikowaną wersją na datasecie lub uruchomić **Popraw**. Wycena pojawia się przed wykonaniem. Dawny endpoint sprawdzania na podstawie dowodów pozostaje dostępny dla zgodności API.
 
-**Improve** otwiera sesję ulepszania. Model i instrukcje ulepszania należą do **Ustawień** wybranego datasetu; pomocnicy mają domyślne instrukcje w kodzie i nie mają strony edycji w katalogu agentów. Dialogi ulepszania skilli i kontekstu wybierają model bezpośrednio. Nadal obowiązują budżety i zapisy runów w Aktywności.
+**Improve** otwiera sesję ulepszania. Model i instrukcje ulepszania należą do **Ustawień** wybranego datasetu; pomocnicy mają domyślne instrukcje w kodzie i nie mają strony edycji w katalogu agentów. Dialog ulepszania pliku kontekstowego wybiera model bezpośrednio. Nadal obowiązują budżety i zapisy runów w Aktywności.
 
 ## Co czyta { #what-it-reads }
 
@@ -237,16 +238,18 @@ ponownie.
 
 ## Skille { #skills }
 
-Skill ulepsza się z jego workbencha w zakładce Skille. Asystent sugeruje całą
-nową treść, która czeka razem z innymi zmianami [skilli](skills.md) w zakładce
-Skille, z uzasadnieniem i dowodami.
+Skill poprawia się na jego własnej stronie w zakładce Skille. **Popraw** otwiera
+tam sesję dla linii widocznej na ekranie, w tych samych pięciu krokach co dla
+agenta, i sprawdza zmianę na każdym agencie tej linii, zanim cokolwiek zostanie
+zastosowane - zobacz [Poprawianie skilla](skills.md#improving-a-skill).
 
-Zastosowanie zmiany skilla działa od razu: każdy agent powiązany ze skillem
-czyta nową treść przy następnym runie. Dlatego zmianę skilla można najpierw
-sprawdzić w ewaluacji na agencie, który go używa: obie strony uruchamiają
-opublikowaną wersję tego agenta, a różni się tylko treść skilla. Zmiana
-napisana dla starszej wersji skilla jest odrzucana, jeśli ktoś w międzyczasie
-zmienił skill.
+Zastosowanie zmiany skilla działa od razu: każdy agent podążający za linią
+skilla czyta nową treść przy następnym runie. Dlatego zmiana skilla trafia na
+żywo tylko przez
+[sprawdzenie na każdym agencie jej linii](skills.md#checking-a-change-on-every-agent):
+opublikowana wersja każdego z nich odpowiada ze skillem takim, jaki jest, i ze
+zmianą, a zmianę stosuje się z wyniku tego sprawdzenia. Zmiana napisana dla
+starszej wersji skilla jest odrzucana, jeśli ktoś w międzyczasie zmienił skill.
 
 ## Pliki kontekstowe { #context-files }
 
@@ -493,6 +496,21 @@ Asystent może zaproponować **Warto utworzyć skill**, gdy procedura występuje
 Procedura z mniej niż trzech różnych odpowiedzi nie trafia do sugestii. Czeka w zakładce **Do decyzji**, w grupie Nowe skille, z pełną treścią. **Odrzuć** przenosi go do **Zdecydowane**, a Cofnij przywraca. **Create skill** otwiera podgląd: nazwę, opis i treść można edytować, a ostrzeżenie mówi, na ilu odpowiedziach się opiera. **Create skill** w podglądzie tworzy skill w bibliotece i przypina go do wersji roboczej agenta, nigdy do opublikowanej wersji. Wymaga tych samych uprawnień co Accept i nie wywołuje modelu. Drugie kliknięcie zwraca już utworzony skill.
 
 Szacowany koszt uwzględnia pełną proponowaną treść dla każdej odpowiedzi kandydata i jej powtórzeń potwierdzających, oprócz historycznego kosztu odpowiedzi.
+
+### Ulepszanie skilla { #improving-a-skill }
+
+Skill czytany przez kilku agentów ulepsza się z jego własnej strony, jedną linię
+naraz, jak opisuje [Poprawianie skilla](skills.md#improving-a-skill).
+
+### Gdy błąd jest w skillu { #when-the-fault-is-in-a-skill }
+
+Ten sam skill mogą czytać inni agenci, więc agent Improve nigdy go nie zmienia. Pomocnik czyta skille agenta: nazwę, opis i wersję każdego z nich oraz pełny tekst tych, których użyły dowody. Gdy runy pokazują, że skill jest błędny, pomocnik zgłasza problem dla tego skilla. Nie przepisuje tekstu skilla do instrukcji agenta. Wycena uwzględnia tekst skilli, który czyta pomocnik.
+
+Zmiana, która powtarza 200-znakowy fragment powiązanego skilla, zostaje odrzucona, tak samo jak nowy skill z nazwą lub tekstem powiązanego skilla. Zgłoszony problem zostaje tylko wtedy, gdy wskazuje skill agenta i cytuje run, który użył wersji czytanej teraz przez agenta; cytaty z innych runów są z niego usuwane. Run, który dostał starszą wersję albo inny fork, nie jest dowodem przeciw tekstowi, który czyta pomocnik.
+
+Krok Changes pokazuje te problemy w sekcji **Należy do skilla**. Każda karta zawiera problemy z cytatami oraz liczbę agentów czytających tę samą linię skilla. **Popraw X** otwiera Improve samego skilla z problemami z tej sesji jako dowodami startowymi. Jeśli agent korzysta z forka, ten Improve pracuje na forku; problemy przypiętego agenta trafiają do main. Bez prawa edycji skilla karta mówi, kogo poprosić.
+
+Gdy agent jest za main, karta **Zaktualizuj do vN** albo **Dogoń main w forku** otwiera stronę skilla. Jeśli skilli nie da się odczytać, sekcja mówi o tym zamiast znikać.
 
 ### Sprawdzanie szkicu wiedzy { #checking-a-knowledge-draft }
 

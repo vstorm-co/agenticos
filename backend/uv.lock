@@ -10,7 +10,7 @@ overrides = [
 
 [[package]]
 name = "agenticos"
-version = "1.65.1"
+version = "1.71.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiogram" },
@@ -45,13 +45,14 @@ dependencies = [
     { name = "odfpy" },
     { name = "olefile" },
     { name = "openpyxl" },
+    { name = "opensandbox" },
     { name = "phonenumberslite" },
     { name = "pillow" },
     { name = "psutil" },
     { name = "psycopg2-binary" },
     { name = "pydantic", extra = ["email"] },
     { name = "pydantic-ai-backend", extra = ["console", "daytona", "remote", "workspaces"] },
-    { name = "pydantic-ai-harness", extra = ["e2b", "repair-tool-arguments"] },
+    { name = "pydantic-ai-harness", extra = ["e2b", "opensandbox", "repair-tool-arguments"] },
     { name = "pydantic-ai-otari" },
     { name = "pydantic-ai-skills" },
     { name = "pydantic-ai-slim", extra = ["anthropic", "cohere", "duckduckgo", "google", "google-realtime", "groq", "huggingface", "mcp", "mistral", "openai-realtime", "openrouter", "web-fetch", "xai", "xai-realtime"] },
@@ -152,13 +153,14 @@ requires-dist = [
     { name = "odfpy", specifier = ">=1.4.1" },
     { name = "olefile", specifier = ">=0.47" },
     { name = "openpyxl", specifier = ">=3.1.0" },
+    { name = "opensandbox", specifier = ">=1.2.0,<2" },
     { name = "phonenumberslite", specifier = ">=9.0.43" },
     { name = "pillow", specifier = ">=10.0.0" },
     { name = "psutil", specifier = ">=7.0" },
     { name = "psycopg2-binary", specifier = ">=2.9.13" },
     { name = "pydantic", extras = ["email"], specifier = ">=2.14.3" },
     { name = "pydantic-ai-backend", extras = ["console", "remote", "workspaces", "daytona"], specifier = ">=0.2.39" },
-    { name = "pydantic-ai-harness", extras = ["e2b", "repair-tool-arguments"], specifier = ">=0.66.0" },
+    { name = "pydantic-ai-harness", extras = ["e2b", "opensandbox", "repair-tool-arguments"], specifier = ">=0.66.0" },
     { name = "pydantic-ai-otari", specifier = ">=0.1.0,<0.2" },
     { name = "pydantic-ai-skills", specifier = ">=2.1.1" },
     { name = "pydantic-ai-slim", extras = ["mcp"], specifier = ">=2.66.0" },
@@ -1821,6 +1823,15 @@ http2 = [
 ]
 
 [[package]]
+name = "httpx-sse"
+version = "0.4.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/0f/4c/751061ffa58615a32c31b2d82e8482be8dd4a89154f003147acee90f2be9/httpx_sse-0.4.3.tar.gz", hash = "sha256:9b1ed0127459a66014aec3c56bebd93da3c1bc8bb6618c8082039a44889a755d", size = 15943, upload-time = "2025-10-10T21:48:22.271Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d2/fd/6668e5aec43ab844de6fc74927e155a3b37bf40d7c3790e49fc0406b6578/httpx_sse-0.4.3-py3-none-any.whl", hash = "sha256:0ac1c9fe3c0afad2e0ebb25a934a59f4c7823b60792691f779fad2c5568830fc", size = 8960, upload-time = "2025-10-10T21:48:21.158Z" },
+]
+
+[[package]]
 name = "httpx-ws"
 version = "0.9.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2902,6 +2913,24 @@ wheels = [
 ]
 
 [[package]]
+name = "opensandbox"
+version = "1.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "attrs" },
+    { name = "httpcore" },
+    { name = "httpx" },
+    { name = "httpx-sse" },
+    { name = "opentelemetry-api" },
+    { name = "pydantic", extra = ["email"] },
+    { name = "python-dateutil" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/0b/2f/6682d18a69043b5ad29e8a411e969e2ee4216127dbc2257752690f502287/opensandbox-1.2.0.tar.gz", hash = "sha256:e7936d0bf3f7defa4e26571b0634089b4c3eb15d023909f6da9d940b95736c54", size = 329030, upload-time = "2026-10-27T12:36:39.214Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4f/18/2de1578aead2e5da094c352e2c1610d750c399070769feac02cb42ff8941/opensandbox-1.2.0-py3-none-any.whl", hash = "sha256:15a0f3c3245018afa43b75fb14e892a64c2c8807276a0fdaf2a1a469f5e214ea", size = 744130, upload-time = "2026-10-27T12:36:37.805Z" },
+]
+
+[[package]]
 name = "opentelemetry-api"
 version = "1.45.1"
 source = { registry = "https://pypi.org/simple" }
@@ -3667,6 +3696,9 @@ wheels = [
 [package.optional-dependencies]
 e2b = [
     { name = "e2b" },
+]
+opensandbox = [
+    { name = "opensandbox" },
 ]
 repair-tool-arguments = [
     { name = "json-repair" },

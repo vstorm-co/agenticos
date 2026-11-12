@@ -85,9 +85,15 @@ logger = logging.getLogger(__name__)
 # settings of the engine it no longer runs (`mode`, `headless`) and keeps
 # `use_vision` as `vision`. A spec that bound both keeps the step-by-step one,
 # which was the one that could run.
+#
 # 14 withdraws the Tables capability. Table grants remain app-binding data;
 # agent operations use the platform MCP, which must be explicitly connected.
-SPEC_VERSION = 14
+#
+# 15 versions skills. `skill_bindings` says, for a bound skill that should not
+# read its main line's newest version, which main version to stay on or which
+# fork to follow. Nothing migrates: a spec without the field reads main, latest,
+# which is what every agent did before skills had versions.
+SPEC_VERSION = 15
 
 
 MAX_STARTERS = 4
@@ -1195,6 +1201,49 @@ class ExternalAgentRef(BaseModel):
     )
 
 
+class SkillBindingSpec(BaseModel):
+    """Which line of a bound skill an agent reads, when not main's newest version.
+
+    A skill in `skill_ids` with no entry here reads main, latest - every binding
+    written before skills had versions does. An entry stays on one main version, by
+    its number, or follows a fork's newest version. Checked at publish: the version
+    must be on that skill's main line, and the fork one of that skill's that is not
+    archived.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    skill_id: UUID
+    version: int | None = Field(
+        default=None, ge=1, description="A main version to stay on, by its number"
+    )
+    fork_id: UUID | None = Field(default=None, description="A fork whose newest version to read")
+
+    @model_validator(mode="after")
+    def _one_line(self) -> SkillBindingSpec:
+        if (self.version is None) == (self.fork_id is None):
+            raise ValueError(
+                "A skill binding names either a main version or a fork - one of the two"
+            )
+        return self
+
+
+def _bindings_still_bound(
+    bindings: list[SkillBindingSpec], skill_ids: list[UUID]
+) -> list[SkillBindingSpec]:
+    """The bindings of skills that are still bound; a skill bound twice is refused.
+
+    Unticking a skill leaves its binding behind in a draft the Builder saves as it
+    is, so a binding for a skill no longer bound is dropped rather than refused.
+    """
+    counts = Counter(binding.skill_id for binding in bindings)
+    duplicates = sorted(str(skill_id) for skill_id, count in counts.items() if count > 1)
+    if duplicates:
+        raise ValueError(f"Skill bound to more than one version: {', '.join(duplicates)}")
+    bound = set(skill_ids)
+    return [binding for binding in bindings if binding.skill_id in bound]
+
+
 class SpecialistSpec(BaseModel):
     """A specialist defined inside another agent, rather than published.
 
@@ -1295,6 +1344,10 @@ class SpecialistSpec(BaseModel):
             "wrote, and a private one bound here would be read by every run."
         ),
     )
+    skill_bindings: list[SkillBindingSpec] = Field(
+        default_factory=list,
+        description="Which version of each skill it reads, where not main's newest",
+    )
     context_ids: list[UUID] = Field(
         default_factory=list,
         description=(
@@ -1348,6 +1401,12 @@ class SpecialistSpec(BaseModel):
             raise ValueError(f"Capability bound more than once: {', '.join(duplicates)}")
         return capabilities
 
+    @model_validator(mode="after")
+    def _bindings_of_bound_skills(self) -> SpecialistSpec:
+        """A skill bound twice is refused; a binding of one no longer bound is dropped."""
+        self.skill_bindings = _bindings_still_bound(self.skill_bindings, self.skill_ids)
+        return self
+
     def bindings(self) -> list[CapabilityBinding]:
         """The specialist's capabilities as the registry consumes them."""
         return [capability.to_binding() for capability in self.capabilities]
@@ -1398,6 +1457,7 @@ class SpecialistSpec(BaseModel):
             capabilities=self.capabilities,
             collection_ids=self.collection_ids,
             skill_ids=self.skill_ids,
+            skill_bindings=self.skill_bindings,
             context_ids=self.context_ids,
             max_steps=self.max_steps,
             observability=trace_content_block(trace_content),
@@ -1576,6 +1636,13 @@ class AgentSpec(BaseModel):
             "publisher's own access: binding a skill hands its body and its files "
             "to every run of the agent, so it can only lend what the publisher "
             "could read themselves."
+        ),
+    )
+    skill_bindings: list[SkillBindingSpec] = Field(
+        default_factory=list,
+        description=(
+            "Which version of each bound skill this agent reads, where not its main "
+            "line's newest: a main version it stays on, or a fork it follows"
         ),
     )
     context_ids: list[UUID] = Field(
@@ -1927,6 +1994,12 @@ class AgentSpec(BaseModel):
         if duplicates:
             raise ValueError(f"Agent delegated to more than once: {', '.join(duplicates)}")
         return subagents
+
+    @model_validator(mode="after")
+    def _bindings_of_bound_skills(self) -> AgentSpec:
+        """A skill bound twice is refused; a binding of one no longer bound is dropped."""
+        self.skill_bindings = _bindings_still_bound(self.skill_bindings, self.skill_ids)
+        return self
 
     def bindings(self) -> list[CapabilityBinding]:
         """The spec's capabilities as the registry consumes them."""

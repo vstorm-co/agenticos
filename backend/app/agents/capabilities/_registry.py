@@ -258,10 +258,13 @@ class CapabilityToolInfo(BaseModel):
         return data
 
 
-type ApprovalDescriber = Callable[[AgentDeps, Mapping[str, Any]], Awaitable[dict[str, str] | None]]
+type ApprovalDescriber = Callable[
+    [AgentDeps, Mapping[str, Any], BaseModel | None], Awaitable[dict[str, str] | None]
+]
 """How one tool describes a parked call of its own to the person deciding it.
 
-Given the run's deps and the call's validated arguments, it answers the ids in
+Given the run's deps, the call's validated arguments and the binding's validated
+config - so it reads no more than the tool itself would - it answers the ids in
 them as names - `{"table": "Support"}` - which the approval card and the queue
 put into a sentence above the raw arguments. An `update_record` card that says
 only `table_id: 6f1c…` asks a person to approve something they cannot read.
@@ -275,6 +278,20 @@ courtesy and the approval is not.
 Declared per capability on :func:`register`, keyed by tool id, rather than on
 :class:`CapabilityToolInfo`: that model is served in the catalog, and a callable
 is not something a catalog can carry.
+"""
+
+type BoundDescriber = Callable[[AgentDeps, Mapping[str, Any]], Awaitable[dict[str, str] | None]]
+"""An :data:`ApprovalDescriber` with its binding's config already given, as the gate calls it."""
+
+
+type AlwaysAsksWhen = Callable[[AgentDeps, Mapping[str, Any]], Awaitable[bool]]
+"""Whether one call of a tool may only run on a person's answer to that call.
+
+For a tool whose risk depends on what it is called with: `correct_memory` on
+somebody's own fact is theirs to make, and on a fact the whole organization
+reads it is not. Answering `True` gates the call whatever the binding says and
+puts it beyond standing and remembered consent, as `always_requires_approval`
+does for every call of a tool. The gate treats a failure as `True`.
 """
 
 
@@ -409,6 +426,15 @@ class CapabilityDef:
     """
     describers: Mapping[str, ApprovalDescriber] = field(default_factory=dict)
     """Tool id to the :data:`ApprovalDescriber` that names a parked call's ids."""
+    always_asks_when: Mapping[str, AlwaysAsksWhen] = field(default_factory=dict)
+    """Tool id to the :data:`AlwaysAsksWhen` that decides it for one call."""
+    private_approval_fields: Mapping[str, frozenset[str]] = field(default_factory=dict)
+    """Tool id to the argument and context keys that quote what the run's person reads.
+
+    The approvals queue is the organization's, while what such a call quotes - a
+    fact from someone's private memory - is the run's. An approver who may not see
+    the run reads the call without these keys.
+    """
 
     def needs_secret(self, config: BaseModel | None) -> bool:
         """Whether a binding with this configuration must name a secret.
@@ -521,6 +547,8 @@ def register(
     protective: bool = False,
     test_key_isolates: bool = False,
     describers: Mapping[str, ApprovalDescriber] | None = None,
+    private_approval_fields: Mapping[str, Iterable[str]] | None = None,
+    always_asks_when: Mapping[str, AlwaysAsksWhen] | None = None,
 ) -> Callable[[CapabilityBuilder], CapabilityBuilder]:
     """Register a capability builder.
 
@@ -573,10 +601,16 @@ def register(
     `describers` maps a tool id to the :data:`ApprovalDescriber` that names the
     ids in a parked call of it. A key that is not one of `tools` is a
     `RuntimeError`: it would describe a tool that cannot be parked under that id.
+    `private_approval_fields` and `always_asks_when` are keyed and checked the same way.
     """
     declared_tools = tuple(tools)
-    if stray := sorted(set(describers or {}) - {tool.id for tool in declared_tools}):
+    declared_ids = {tool.id for tool in declared_tools}
+    if stray := sorted(set(describers or {}) - declared_ids):
         raise RuntimeError(f"Capability '{id}' describes tools it does not declare: {stray}")
+    if stray := sorted(set(private_approval_fields or {}) - declared_ids):
+        raise RuntimeError(f"Capability '{id}' hides fields of tools it does not declare: {stray}")
+    if stray := sorted(set(always_asks_when or {}) - declared_ids):
+        raise RuntimeError(f"Capability '{id}' asks about tools it does not declare: {stray}")
 
     def decorator(builder: CapabilityBuilder) -> CapabilityBuilder:
         definition = CapabilityDef(
@@ -599,6 +633,11 @@ def register(
             protective=protective,
             test_key_isolates=test_key_isolates,
             describers=dict(describers or {}),
+            always_asks_when=dict(always_asks_when or {}),
+            private_approval_fields={
+                tool_id: frozenset(keys)
+                for tool_id, keys in (private_approval_fields or {}).items()
+            },
         )
         existing = REGISTRY.get(definition.id)
         if existing is not None and existing is not definition:

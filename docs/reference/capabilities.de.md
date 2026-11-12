@@ -1,5 +1,5 @@
 ---
-source_sha: "b0fd849fcc36"
+source_sha: "68958b7ea0a1"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -44,7 +44,10 @@ Agent nicht tun soll.
 
 Mit welchen Capabilities ein Agent auch endet: Jeder Run erfährt in seinen
 Instruktionen unter **Your setup**, welche er hat und welche nicht - so beschreibt
-er nur, was er kann, und sagt, was für den Rest eingeschaltet werden müsste.
+er nur, was er kann, und sagt, was für den Rest eingeschaltet werden müsste. Ein
+Agent mit Skills erfährt zuletzt, unter **Your skills**, dass er den Skill, in den
+eine Frage fällt, mit `read_skill` öffnet; wer stattdessen mit der Karte nach
+einem Skill fragt, bekommt genau das zur Antwort.
 
 Braucht eine Anfrage eine Capability, die dem Agent fehlt, zeigt er im Chat eine
 Karte dafür, mit seinem Grund. Wer den Agent bearbeiten darf, schaltet sie auf der
@@ -471,6 +474,14 @@ Agent falsch machen könnte.
   [API-Schlüssel](../api.md#organization-api-keys) gestarteter Run hat auch
   keinen: Der Schlüssel handelt für die ausstellende Person, aber wer ihn hält,
   ist nicht diese Person.
+- In einem Chat, den andere lesen - dem eines Projekts oder einem, der zum
+  Bearbeiten geteilt ist -, gibt es keinen persönlichen Speicher. Der Agent
+  zeigt dort nicht, ruft nicht ab und speichert nicht, was er über die Person
+  weiß; die Claims des Projekts und der Organisation liest er weiterhin. Wer
+  einen Chat zum Bearbeiten teilt oder in ein Projekt verschiebt, zeigt seinen
+  Verlauf, auch Antworten aus der Zeit, als er privat war; ab diesem Moment
+  nutzen weitere Antworten kein persönliches Gedächtnis. Ein nur zum Lesen
+  geteilter Chat zeigt jede Antwort, auch spätere mit persönlichem Gedächtnis.
 - Bei einem Zeitplan oder einem Ereignis-Trigger gibt es ebenfalls keinen
   Speicher, obwohl der Run als Ersteller des Triggers ausgeführt wird. Der
   Ersteller leiht dem Run seine Befugnisse, nicht seine Identität, also hört
@@ -515,10 +526,14 @@ und ein Gruppenchat schreibt nie ein Profil. Nur `share_memory` erweitert einen
 Claim, und nur auf Anweisung einer Person, die das darf: `projects:edit` auf dem
 Projekt oder `context:edit` für die ganze Organisation. Sie wartet immer darauf, dass eine Person genau diesen Claim und Leserkreis freigibt, gleich welche Freigabe-Einstellungen der Agent hat, damit ein vom Agent gelesener Text ihn nicht zum Teilen überreden kann.
 
+Auch **Approve everything** und ein gespeichertes **Dieses Tool für diesen Agenten immer erlauben** beantworten ihn nicht, und seine Karte bietet keines von beiden an. Die Karte zeigt den Fakt und seinen Leserkreis; in der Freigabe-Warteschlange sieht den Fakt nur, wer den Run sehen darf, aus dem er stammt.
+
 Die Kopie nennt den Claim,
 aus dem sie stammt, das Original behält seinen Leserkreis. Ein Embed, ein Run mit
 API-Key und ein geplanter Run lesen nichts; ein Gruppenchat liest nur seine
 eigenen Claims. Das Korrigieren eines Claims, den das ganze Projekt oder die ganze Organisation liest, braucht dieselbe Berechtigung wie das Teilen dorthin: Lesen ist keine Befugnis zum Umschreiben.
+
+Eine solche Korrektur über `correct_memory` wartet zudem jedes Mal auf eine Person, gleich in welchem Freigabemodus, und ihre Karte zeigt den Fakt vorher und nachher; die Korrektur eines eigenen Claims einer Person wartet nicht. Eine Korrektur, die das Tool aufzeichnet, ist ein Claim des Agents und nennt den Run und die Unterhaltung, aus denen sie stammt; das Audit-Log erhält einen Eintrag `memory.claim.corrected`. Eine Korrektur unter **Settings → Memory** ist die eigene der Person.
 
 - **Eine Korrektur behält, was sie korrigiert.** „Ab Montag übernimmt Piotr die
   Rechnungen“ schließt den früheren Claim zu diesem Datum und fügt den neuen
@@ -1819,7 +1834,7 @@ Lesezugriff. Codex in einem Container hat kein `read_only`: Sein
 Nur-Lesen-Modus ist ein eigener Sandbox, der im Container des Agent nicht startet,
 und das Veröffentlichen lehnt die Kombination ab. Ob ein Mensch vor jeder Aufgabe Ja
 sagt, ist die **Freigabe durch einen Menschen** der Capability, auf **Immer fragen**
-gesetzt — wie jede Sperre ist sie aus, bis jemand sie setzt. Es gibt keinen
+gesetzt. Der Builder wählt diesen Modus für neue Bindings; bestehende behalten ihre Politik. Es gibt keinen
 Tools-Tab: Das eine Tool ist die Capability.
 
 **Benannte Sitzungen.** Jede Aufgabe nennt eine `session` - `main`, wenn sie keine nennt. Derselbe Name setzt die bisherige Arbeit dieser Sitzung in der Unterhaltung fort; ein neuer Name öffnet eine weitere, und unabhängige Sitzungen laufen nebeneinander, wenn der Agent das Tool mehrmals gleichzeitig aufruft. `fresh_session` beginnt eine Sitzung neu. Auf diesem Computer kann eine Sitzung außerdem ihren `harness` wählen - Claude Code oder Codex, mit der Anmeldung dieses Computers - und einen `folder` innerhalb des Chat-Ordners, sodass zwei Projekte oder beide Harnesses gleichzeitig arbeiten. In einer Sandbox oder einer privaten Cloud-Aufgabe ist der Harness des Bindings der einzige, da Schlüssel oder Konto zu ihm gehören.

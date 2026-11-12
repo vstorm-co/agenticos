@@ -1,5 +1,5 @@
 ---
-source_sha: "30c984fec99a"
+source_sha: "cb511d45cf48"
 ---
 
 # Die Konsole { #the-console }
@@ -127,7 +127,7 @@ an, die Sie öffnen dürfen. Alle starten in der Ansicht **Ich**:
 
 | Ansicht | Beantwortet |
 | --- | --- |
-| **Ich** | Eine Begrüßung, Ihr Zeitraum und alles, was auf Sie wartet, in zwei Sätzen - Aufrufe, Antworten zur Prüfung, durchgefallene Suites, Vorschläge des Assistenten; Ihre Runs, wie viele fertig wurden, was auf Sie wartet und was es gekostet hat; dann die Aufrufe, die auf Sie warten, Ihre Unterhaltungen, die Agents, die Aufmerksamkeit brauchen, die Verbesserungen, die auf Sie warten, Ihre Agents, was mit Ihnen geteilt wurde, Ihre [Datasets](datasets.md) mit dem, woran ihre Fälle die Antwort messen, die neuesten Eval-Runs und Suites, die Vorschläge des Assistenten nach Agent, Skill und Datei und die Wissenslücken |
+| **Ich** | Eine Begrüßung, Ihr Zeitraum und alles, was auf Sie wartet, in zwei Sätzen - Aufrufe, Antworten zur Prüfung, durchgefallene Suites, Vorschläge des Assistenten; Ihre Runs, wie viele fertig wurden, was auf Sie wartet (gleich gezählt) und was es gekostet hat; dann die Aufrufe, die auf Sie warten, Ihre Unterhaltungen, die Agents, die Aufmerksamkeit brauchen, die Verbesserungen, die auf Sie warten, Ihre Agents, was mit Ihnen geteilt wurde, Ihre [Datasets](datasets.md) mit dem, woran ihre Fälle die Antwort messen, die neuesten Eval-Runs und Suites, die Vorschläge des Assistenten nach Agent, Skill und Datei und die Wissenslücken |
 | **Ich** | Eine Begrüßung und Ihr Zeitraum in einem Satz; Ihre Runs, wie viele fertig wurden, was auf Sie wartet und was es gekostet hat; dann die Aufrufe, die auf Sie warten, Ihre Unterhaltungen, Ihre Agents und was mit Ihnen geteilt wurde |
 | **Organisation** | Die anordenbare Seite unten |
 | **Gruppe** | Die Mitglieder einer [Gruppe](departments.md) - ihre Runs, Ausgaben, Modelle, wann sie arbeiten und wer es am meisten nutzt. Die Gruppe wählen Sie neben dem Schalter. Eine Gruppe, deren Mitglieder im Zeitraum nichts ausgeführt haben, sagt das einmal, mit einem Weg zur Gruppe, statt eine Seite leerer Karten zu zeigen |
@@ -145,7 +145,13 @@ eigene sammelt. Beides erfordert `runs:view`.
 
 Darunter listet **Verbesserungen, die auf Sie warten** die
 [Verbessern](authoring.md#the-improve-wizard)-Sitzungen, die für Ihren nächsten
-Schritt oder Ihre Entscheidung angehalten haben, jede an ihrem Halt geöffnet.
+Schritt oder Ihre Entscheidung angehalten haben, jede an ihrem Halt geöffnet, und
+die [Prüfungen einer Skill-Änderung](skills.md#when-an-agent-got-worse), über die
+Sie entscheiden können und die noch laufen oder auf eine Entscheidung warten.
+Danach folgen die von Agents vorgeschlagenen Skill-Änderungen, dann die
+festgesetzten Agents und die Forks, an denen main
+[vorbeigezogen ist](skills.md#which-version-an-agent-reads). Ein Fork wird von
+dort nachgezogen, ein festgesetzter Agent auf der Seite seines Skills verschoben.
 
 Die Ansicht der Organisation zeigt die Karten, die mit Daten antworten, in
 Gruppen. Der Rest - Integrationen, Kanäle, Routinen, Wissens-Sync, Abteilungen,
@@ -1217,3 +1223,7 @@ sind optionale Hilfe; ihr Schließen erzeugt keinen erfolgreichen Lauf.
 Integrationen, Dateien, Agentenbau, Einladungen und Routinen sind optionale Folgeschritte.
 
 Mitgliederverwalter können prüfen, ob sie und ein bestehendes Mitglied einen gemeinsamen veröffentlichten Agenten ausführen können. Die Vorschau liefert nur diese Antwort, keine privaten Agentennamen, und ruft kein Modell auf. Sie bestätigt nicht die Erreichbarkeit des Anbieters. Einladungen von einer Loopback-Adresse sind in diesem Start gesperrt; verwenden Sie eine für den Empfänger erreichbare Serveradresse.
+
+Abgeschlossene Chat-Turns zeigen den vor einer Agentenfrage gelieferten Text neben der abschließenden Antwort, auch nach Ablehnung der Frage oder Fortsetzung des Runs. Tool-Ergebnisse und Überlegungen bleiben im aufklappbaren Arbeitsverlauf. Dies gilt für gespeicherte und geteilte Chats; die Textlänge entscheidet nicht über die Einordnung.
+
+Der Run-Verlauf unterscheidet die anfragende Person vom Herausgeber, dessen Berechtigung eine externe Anfrage zulässt. Nicht verknüpfte Kanalabsender erscheinen auf Desktop und Mobilgeräten als ausdrücklich unbestätigte Chat-Konten; anonyme Anfragen erhalten keine erfundene Mitgliedsidentität. Die Run-API behält `user_id` als Berechtigungskontext und ergänzt `initiated_by_publisher_fallback` und `asked_in_chat` für eine korrekte Zuordnung. Die Anzeige verknüpft keine Konten und gewährt keinen Zugriff auf persönliche Verbindungen des Herausgebers.

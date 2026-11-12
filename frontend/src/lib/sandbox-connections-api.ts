@@ -16,7 +16,7 @@
 import { apiClient } from "./api-client";
 
 /** What a sandbox connection points at. */
-export type SandboxConnectionKind = "docker" | "daytona" | "e2b";
+export type SandboxConnectionKind = "docker" | "daytona" | "e2b" | "opensandbox";
 
 export interface SandboxConnectionRecord {
   id: string;
@@ -27,6 +27,8 @@ export interface SandboxConnectionRecord {
   /** The vault entry holding the token. An id - never the value. */
   secret_id: string | null;
   default_runtime: string | null;
+  /** New OpenSandbox workspaces require the Kubernetes gateway when enabled. */
+  secure_access?: boolean;
   /** Which connection an agent naming none resolves to. One per organization. */
   is_default: boolean;
   is_active: boolean;
@@ -45,6 +47,7 @@ export interface SandboxConnectionInput {
   base_url?: string | null;
   secret_id?: string | null;
   default_runtime?: string | null;
+  secure_access?: boolean;
   is_default?: boolean;
 }
 
@@ -54,6 +57,7 @@ export interface SandboxConnectionPatch {
   base_url?: string | null;
   secret_id?: string | null;
   default_runtime?: string | null;
+  secure_access?: boolean;
   is_default?: boolean;
   is_active?: boolean;
 }
@@ -249,13 +253,25 @@ export async function storeLocalSandboxCredential(): Promise<SandboxLocalCredent
  * to name. It is what makes `Default runtime` a list of aliases the service will
  * accept rather than free text where a typo is refused at the first tool call.
  */
+export interface OpenSandboxProbeOptions {
+  kind: "opensandbox";
+  image: string;
+  secureAccess: boolean;
+}
+
 export async function probeSandboxService(
   baseUrl: string,
   secretId: string | null,
+  options?: OpenSandboxProbeOptions,
 ): Promise<SandboxPolicy> {
   return apiClient.post<SandboxPolicy>(`${ROOT}/probe`, {
     base_url: baseUrl,
     secret_id: secretId,
+    ...(options && {
+      kind: options.kind,
+      default_runtime: options.image,
+      secure_access: options.secureAccess,
+    }),
   });
 }
 

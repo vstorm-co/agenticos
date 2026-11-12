@@ -135,7 +135,7 @@ export function VerdictHeadline({
   const shown = example(comparison, verdict === "better" ? "fixed" : "regression");
   const sentence = {
     ...values,
-    baseline: sideName(baseline, tSide),
+    baseline: sideName(baseline, tSide, run.proposal_check),
     broke,
     fixed,
     others: (verdict === "better" ? fixed : broke) - 1,
@@ -151,9 +151,17 @@ export function VerdictHeadline({
     verdict === "no_difference" && (sentence.changes >= UNSTEADY_CHANGES || gap >= UNSTEADY_GAP);
   const firstTo = percent(comparison.candidate_summary.first_pass_rate, locale);
   const firstFrom = percent(comparison.baseline_summary?.first_pass_rate ?? null, locale);
+  // Too few held-out questions is no fault of the grading; a check's stage is judged
+  // with the agent's other stages, so it is never meant to stand alone.
+  const said =
+    verdict === "invalid" && comparison.invalid_reason_code === "too_few_held_out"
+      ? run.proposal_check?.skill_check_id
+        ? "tooFewInStage"
+        : "tooFew"
+      : verdict;
   return (
     <>
-      <span className="block">{t(verdict, sentence)}</span>
+      <span className="block">{t(said, sentence)}</span>
       {unsteady && (
         <span className="text-muted-foreground block text-sm font-normal">{t("unsteady")}</span>
       )}

@@ -1,9 +1,23 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { BudgetField, parseBudget } from "./budget-field";
+import { BudgetField, parseBudget, raisesBudget } from "./budget-field";
 
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
+
+describe("raisesBudget", () => {
+  it.each([
+    [10, 5, true],
+    [null, 5, true],
+    [5, 5, false],
+    [2, 5, false],
+    [undefined, 5, false],
+    [10, null, false],
+    [null, null, false],
+  ])("%s against a stored cap of %s raises it: %s", (parsed, stored, expected) => {
+    expect(raisesBudget(parsed, stored)).toBe(expected);
+  });
+});
 
 describe("parseBudget", () => {
   it.each([

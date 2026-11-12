@@ -14,6 +14,7 @@ Firing ends in the one admission path every surface shares
 (`WorkflowExecutionService.admit_pinned`), on the version the exposure pinned.
 """
 
+import hashlib
 import json
 import logging
 import secrets
@@ -115,6 +116,11 @@ logger = logging.getLogger(__name__)
 # Their delivery ids are in a header, so neither needs the payload `delivery_id` reads
 # for HubSpot's batches.
 _SIGNED_SOURCES = ("webhook", "github")
+
+# A signed request seen again under another delivery id within this window is a copy of
+# the first, not a new delivery: the id is not part of what either scheme signs. Past it,
+# identical content starts a run again, for a sender that sends the same body on purpose.
+_SIGNED_COPY_WINDOW = timedelta(hours=24)
 
 # The portal whose connected account registers a GitHub trigger's hook.
 _GITHUB_PORTAL = "github"
@@ -264,6 +270,16 @@ async def _queue_due_check(db: AsyncSession, exposure: WorkflowExposure) -> None
         run_after=due + _DUE_CHECK_MARGIN,
         dedupe_key=f"workflow-schedule-due:{due.isoformat()}",
     )
+
+
+def _signed_digest(signature: str) -> str:
+    """What a copy of a signed request is recognised by: its signature, hashed.
+
+    The same bytes signed with the same secret always carry the same signature, and
+    both signed headers carry the same one for a body-only signature, so moving it
+    from one header to the other does not make a new request.
+    """
+    return hashlib.sha256(signature.encode("latin-1", "ignore")).hexdigest()
 
 
 class WorkflowExposureService:
@@ -504,7 +520,7 @@ class WorkflowExposureService:
             BadRequestError: The organization has no Outlook mailbox connected, so
                 nothing would ever start the workflow.
         """
-        await self._guard_shared_mailbox(ctx, workflow, version, node_id)
+        self._guard_shared_mailbox(ctx, version, node_id)
         return await self._switch_on_mailbox(
             ctx,
             workflow,
@@ -516,39 +532,23 @@ class WorkflowExposureService:
             "trigger step, or the Outlook portal",
         )
 
-    async def _guard_shared_mailbox(
-        self, ctx: AuthContext, workflow: Workflow, version: WorkflowVersion, node_id: UUID
-    ) -> None:
+    @staticmethod
+    def _guard_shared_mailbox(ctx: AuthContext, version: WorkflowVersion, node_id: UUID) -> None:
         """Refuse a shared mailbox the publisher may not name, as an agent's trigger does.
 
         The organization's Outlook grant reads with `Mail.Read.Shared`: every
         shared mailbox the account that consented can open. Naming one spends that
         reach, and the runs put its mail where the publisher reads it, so it takes
-        `mcp:manage` - the permission that connected the account. A workflow left
-        on the account's own mailbox, or on the shared one it already listened to,
-        needs nothing more.
+        `mcp:manage` - the permission that connected the account. That holds on a
+        republish that keeps the mailbox too, because whoever publishes becomes the
+        member every later fire reads it as, and each fire checks it again. A
+        workflow left on the account's own mailbox needs nothing more.
         """
         node = WorkflowGraph.model_validate(version.graph).node_by_id[node_id]
-        mailbox = (OutlookTriggerConfig.model_validate(node.config).mailbox or "").casefold()
+        mailbox = OutlookTriggerConfig.model_validate(node.config).mailbox
         if not mailbox or ctx.has(Perm.MCP_MANAGE):
             return
-        current = await workflow_exposure_repo.get_for_workflow(
-            self.db,
-            workflow_id=workflow.id,
-            organization_id=ctx.organization_id,
-            adapter=ExposureAdapter.OUTLOOK.value,
-        )
-        if current is not None and current.adapter == ExposureAdapter.OUTLOOK.value:
-            pinned = cast(
-                WorkflowVersion,
-                await workflow_repo.get_version(
-                    self.db, current.workflow_version_id, organization_id=ctx.organization_id
-                ),
-            )
-            before = self._mail_config(current, pinned, OutlookTriggerConfig, source="outlook")
-            if before is not None and (before.mailbox or "").casefold() == mailbox:
-                return
-        message = "Reading a shared mailbox needs the permission to manage connections"
+        message = "Reading a shared mailbox needs mcp:manage, the permission to manage connections"
         raise AuthorizationError(
             message=message,
             details=field_details(f"nodes.{node_id}.config.mailbox", message),
@@ -1278,9 +1278,10 @@ class WorkflowExposureService:
         """Answer a redelivery with the run it already admitted, else admit one GitHub
         delivery as one run or skip one the trigger does not name.
 
-        A redelivery is looked up by its signed delivery id before the current
-        filters and run permission apply, so it gets `duplicate: true` even after the
-        trigger was republished or its member lost access.
+        A redelivery is looked up by its delivery id, and then as a copy of a signed
+        request seen within `_SIGNED_COPY_WINDOW`, before the current filters and run
+        permission apply, so it gets `duplicate: true` even after the trigger was
+        republished or its member lost access.
 
         Called with no auth context: the delivery is authenticated by GitHub's
         `X-Hub-Signature-256` under the exposure's own secret, and the run acts as
@@ -1322,6 +1323,10 @@ class WorkflowExposureService:
         )
         if seen is not None:
             return WebhookAdmitted(run_id=seen.workflow_run_id, duplicate=True)
+        signed = _signed_digest(trigger_events.signature("github", headers))
+        copy = await self._signed_copy(exposure.id, signed)
+        if copy is not None:
+            return WebhookAdmitted(run_id=copy, duplicate=True)
         payload = parse_webhook_body(body)
         fire = await self._fire_context(exposure)
         if fire is None:
@@ -1369,6 +1374,7 @@ class WorkflowExposureService:
             exposure_id=exposure.id,
             delivery_id=delivery_id,
             workflow_run_id=run.id,
+            signed_digest=signed,
         )
         await workflow_exposure_repo.update(
             self.db,
@@ -1386,7 +1392,9 @@ class WorkflowExposureService:
         against the exposure's own secret, and the run acts as the exposure's
         member. Every delivery must name itself (`X-Delivery-Id`, or GitHub's
         `X-GitHub-Delivery`); the id is recorded in the transaction that admits
-        the run, so a retry of it - however late - returns the first run.
+        the run, so a retry of it - however late - returns the first run. The id is
+        not signed, so the same signed request under another id within
+        `_SIGNED_COPY_WINDOW` returns the first run too.
 
         A version whose graph holds a Respond to webhook step is answered by it:
         the admission is committed here, so the run can start, and the delivery
@@ -1410,10 +1418,17 @@ class WorkflowExposureService:
         ):
             raise NotFoundError(message="Webhook not found", details={"exposure_id": exposure_id})
         secret = self._secret_of(exposure)
-        if not any(
-            trigger_events.verify_signature(source, secret=secret, body=body, headers=headers)
-            for source in _SIGNED_SOURCES
-        ):
+        verified = next(
+            (
+                source
+                for source in _SIGNED_SOURCES
+                if trigger_events.verify_signature(
+                    source, secret=secret, body=body, headers=headers
+                )
+            ),
+            None,
+        )
+        if verified is None:
             raise AuthorizationError(
                 message="Webhook signature did not verify",
                 details={"exposure_id": str(exposure_id)},
@@ -1441,6 +1456,10 @@ class WorkflowExposureService:
         )
         if seen is not None:
             return await self._replay(seen.workflow_run_id)
+        signed = _signed_digest(trigger_events.signature(verified, headers))
+        copy = await self._signed_copy(exposure.id, signed)
+        if copy is not None:
+            return await self._replay(copy)
         await self._spend_delivery_allowance(exposure)
 
         fire = await self._fire_context(exposure)
@@ -1464,6 +1483,7 @@ class WorkflowExposureService:
             exposure_id=exposure.id,
             delivery_id=delivery_id,
             workflow_run_id=run.id,
+            signed_digest=signed,
         )
         await workflow_exposure_repo.update(
             self.db,
@@ -1494,6 +1514,19 @@ class WorkflowExposureService:
                 message="This webhook is taking too many deliveries. Try again shortly.",
                 details={"retry_after_seconds": decision.retry_after_seconds},
             )
+
+    async def _signed_copy(self, exposure_id: UUID, signed_digest: str) -> UUID | None:
+        """The run a copy of this signed request admitted within `_SIGNED_COPY_WINDOW`."""
+        await workflow_exposure_repo.lock_signed_copy(
+            self.db, exposure_id=exposure_id, signed_digest=signed_digest
+        )
+        copy = await workflow_exposure_repo.get_signed_copy(
+            self.db,
+            exposure_id=exposure_id,
+            signed_digest=signed_digest,
+            within=_SIGNED_COPY_WINDOW,
+        )
+        return None if copy is None else copy.workflow_run_id
 
     async def _replay(self, run_id: UUID) -> WebhookAdmitted | WebhookAnswer:
         """What a retried delivery gets: the answer its first run gave, if it gave one."""
@@ -1600,7 +1633,9 @@ class WorkflowExposureService:
 
         Re-resolved on every fire, never cached: authority is whatever the
         member's membership and the workflow's grants say now. `get_active`, so a
-        deactivated account - whose membership row stays - no longer fires.
+        deactivated account - whose membership row stays - no longer fires. So is
+        what publishing the trigger needed beyond running the workflow: a channel
+        listener's `channels:manage`, a shared mailbox's `mcp:manage`.
         """
         if exposure.execution_principal_user_id is None:
             return None
@@ -1639,7 +1674,19 @@ class WorkflowExposureService:
                 self.db, exposure.workflow_version_id, organization_id=exposure.organization_id
             ),
         )
+        if not self._still_publishable(ctx, exposure, version):
+            return None
         return ctx, workflow, version
+
+    def _still_publishable(
+        self, ctx: AuthContext, exposure: WorkflowExposure, version: WorkflowVersion
+    ) -> bool:
+        if exposure.adapter == ExposureAdapter.CHANNEL.value:
+            return ctx.has(Perm.CHANNELS_MANAGE)
+        if exposure.adapter == ExposureAdapter.OUTLOOK.value:
+            config = self._mail_config(exposure, version, OutlookTriggerConfig, source="outlook")
+            return config is None or not config.mailbox or ctx.has(Perm.MCP_MANAGE)
+        return True
 
     async def _last_run_live(self, exposure: WorkflowExposure) -> bool:
         if exposure.last_run_id is None:

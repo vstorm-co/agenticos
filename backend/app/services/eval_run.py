@@ -32,7 +32,7 @@ import json
 import logging
 from collections import defaultdict
 from collections.abc import Collection, Mapping, Sequence
-from dataclasses import dataclass, field, replace
+from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Literal
@@ -44,7 +44,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.budget import price_request
 from app.agents.capabilities.context import ContextBody
-from app.agents.capabilities.skills import SkillBody
+from app.agents.capabilities.skills import SkillBody, SkillBodyFile
 from app.agents.spec import AgentSpec
 from app.agents.system_agents import JUDGE, refuse_system_agent, steps
 from app.core.config import settings
@@ -71,6 +71,7 @@ from app.db.models.eval_run import (
     EvalRunStatus,
 )
 from app.db.models.eval_suite import EvalSuiteTrigger
+from app.db.models.skill_version import SkillFork, SkillVersion
 from app.repositories import (
     agent_repo,
     agent_run_repo,
@@ -80,12 +81,14 @@ from app.repositories import (
     eval_suite_repo,
     member_repo,
     organization_repo,
+    skill_version_repo,
 )
 from app.repositories.authoring import EvidenceInputs
 from app.repositories.eval_run import RunExecution
 from app.schemas.dataset import StoredCaseContent
 from app.schemas.eval_run import (
     ArmEstimate,
+    ArmSkillVersionRead,
     ArmSummaryRead,
     CaseFlipRead,
     ComparisonSide,
@@ -117,6 +120,7 @@ from app.services.agent_registry import (
     AgentRegistryService,
     PublishedCandidate,
     UnpublishedCandidate,
+    delegation_binding,
 )
 from app.services.background_jobs import enqueue
 from app.services.dataset import DatasetService
@@ -130,6 +134,7 @@ from app.services.eval_comparison import (
     efficiency,
     flips_by_tag,
     quality_verdict,
+    settle,
     summarize,
 )
 from app.services.eval_suite_threshold import judge
@@ -183,15 +188,41 @@ def spec_hash(
 
 def _bodies_json(
     bodies: Mapping[UUID, SkillBody] | Mapping[UUID, ContextBody],
-) -> dict[str, dict[str, str | None]]:
+) -> dict[str, dict[str, object]]:
     return {
         str(key): {
             "description": body.description,
             "content": body.content,
             **({"name": body.name} if body.name is not None else {}),
+            **(
+                {"resources": [asdict(file) for file in body.resources]}
+                if isinstance(body, SkillBody) and body.resources is not None
+                else {}
+            ),
+            **(
+                {"fork_id": str(body.fork_id)}
+                if isinstance(body, SkillBody) and body.fork_id is not None
+                else {}
+            ),
+            **({"over_pin": True} if isinstance(body, SkillBody) and body.over_pin else {}),
         }
         for key, body in bodies.items()
     }
+
+
+def skill_body_from_json(body: Mapping[str, object]) -> SkillBody:
+    """A projected skill body as `_bodies_json` stored it."""
+    files = body.get("resources")
+    return SkillBody(
+        description=TypeAdapter(str).validate_python(body["description"]),
+        content=TypeAdapter(str).validate_python(body["content"]),
+        name=TypeAdapter(str | None).validate_python(body.get("name")),
+        resources=None
+        if files is None
+        else tuple(TypeAdapter(list[SkillBodyFile]).validate_python(files)),
+        fork_id=TypeAdapter(UUID | None).validate_python(body.get("fork_id")),
+        over_pin=TypeAdapter(bool).validate_python(body.get("over_pin", False)),
+    )
 
 
 def attempt_state(attempt: EvalRunCase, score: CaseScore | None) -> CaseState:
@@ -299,6 +330,8 @@ class ArmPlan:
     cached: tuple[EvalRunArm, EvalRun] | None = None
     skill_bodies: Mapping[UUID, SkillBody] = field(default_factory=dict)
     context_bodies: Mapping[UUID, ContextBody] = field(default_factory=dict)
+    skill_versions: Mapping[str, str] | None = None
+    """The stored skill versions the spec is served, by skill; `None` when it binds none."""
 
 
 @dataclass(frozen=True)
@@ -328,6 +361,8 @@ class RunPlan:
     ungraded: int = 0
     """Cases no required scorer can decide, which leave the result inconclusive."""
     excluded_case_ids: list[UUID] = field(default_factory=list)
+    not_asked: int = 0
+    """Of the excluded cases, the ones a sample of named questions did not pick."""
 
 
 @dataclass(frozen=True)
@@ -388,6 +423,13 @@ def _attempt(
     )
 
 
+def _skill_check_stage(run: EvalRun) -> bool:
+    return (
+        run.proposal_check is not None
+        and ProposalCheckRecord.model_validate(run.proposal_check).skill_check_id is not None
+    )
+
+
 class EvalRunService:
     """Estimating, starting, cancelling, reading and comparing eval runs."""
 
@@ -396,6 +438,65 @@ class EvalRunService:
         self.registry = AgentRegistryService(db)
         self.datasets = DatasetService(db)
         self.models = ModelProfileService(db)
+
+    async def served_skill_versions(
+        self, ctx: AuthContext, spec: AgentSpec
+    ) -> dict[str, str] | None:
+        """The stored version of each skill the spec and its inline specialists are served.
+
+        A skill's text is not part of the agent version that binds it: an agent on
+        main reads whatever main's newest version is when it runs. So two runs of
+        one agent version answered from the same skill text only when these match.
+        Keyed by reader and skill - `":<skill>"` for the agent, `"<specialist>:<skill>"`
+        for an inline specialist - since each may bind the skill differently. A
+        published delegate is another agent with versions of its own, and is not read.
+        """
+        from app.agents.capabilities.subagents import SubagentsConfig
+        from app.services.skills import SkillService
+
+        readers = [("", spec.skill_ids, spec.skill_bindings)]
+        binding = delegation_binding(spec)
+        if binding is not None:
+            try:
+                inline = SubagentsConfig.model_validate(binding.config).inline
+            except ValidationError:
+                inline = []
+            readers += [(item.name, item.skill_ids, item.skill_bindings) for item in inline]
+        served: dict[str, str] = {}
+        skills = SkillService(self.db)
+        for reader, skill_ids, bindings in readers:
+            for skill in await skills.resolve_for_agent(ctx, skill_ids, bindings=bindings):
+                if skill.latest_version_id is not None:
+                    served[f"{reader}:{skill.id}"] = str(skill.latest_version_id)
+        return served or None
+
+    async def forget_moved_skills(self, ctx: AuthContext | None, run: EvalRun) -> None:
+        """Unmark the arms of a finished run whose skills moved while it answered.
+
+        `skill_versions` is what lets an arm stand in as a cached baseline, and it is
+        read when the run is planned; the runner reads each skill's newest version when
+        a case runs. An arm whose skills advanced in between answered with a mix, so it
+        stands for no versions: `{}`, which no lookup asks for. Without a context to
+        read with - the starter left - nothing is assumed and every arm is unmarked.
+        """
+        for arm in await eval_run_repo.list_arms(
+            self.db, [run.id], organization_id=run.organization_id
+        ):
+            if not arm.skill_versions:
+                continue
+            if ctx is not None:
+                if arm.agent_version_id is not None:
+                    version = await agent_repo.get_version(
+                        self.db, arm.agent_version_id, organization_id=run.organization_id
+                    )
+                    spec = None if version is None else AgentSpec.model_validate(version.spec)
+                else:
+                    spec = AgentSpec.model_validate(arm.spec)
+                if spec is not None and await self.served_skill_versions(ctx, spec) == dict(
+                    arm.skill_versions
+                ):
+                    continue
+            await eval_run_repo.update_arm(self.db, arm=arm, values={"skill_versions": {}})
 
     async def plan(
         self,
@@ -480,12 +581,13 @@ class EvalRunService:
             raise BadRequestError(
                 message="The selected questions are not available in this dataset version"
             )
-        excluded = [
-            case.case_id
-            for case in cases
-            if case.source_conversation_id in left_out
-            or (selected_ids is not None and case.case_id not in selected_ids)
-        ]
+        evidence = {case.case_id for case in cases if case.source_conversation_id in left_out}
+        unselected = (
+            set()
+            if selected_ids is None
+            else {case.case_id for case in cases if case.case_id not in selected_ids} - evidence
+        )
+        excluded = [case.case_id for case in cases if case.case_id in evidence | unselected]
         if excluded:
             cases = [case for case in cases if case.case_id not in excluded]
             if not cases:
@@ -495,7 +597,11 @@ class EvalRunService:
                         "this change was derived from, so none can measure it. Add cases "
                         "from other conversations, or pick another dataset."
                     ),
-                    details={"dataset_id": dataset.id, "excluded": len(excluded)},
+                    details={
+                        "dataset_id": dataset.id,
+                        "excluded": len(excluded),
+                        "reason": "all_evidence",
+                    },
                 )
         config = scoring or DatasetScoring.model_validate(dataset.scoring)
         if not judge_pinned and config.judge.instructions is None:
@@ -580,8 +686,8 @@ class EvalRunService:
                 skill_bodies=dict(baseline_skills or {}),
                 context_bodies=dict(baseline_contexts or {}),
             )
-            # A skill's or a context file's stored body is live rather than versioned,
-            # so a cached baseline may have read an older one than the body replaced.
+            # A projected body is no stored version a cached arm could have read, and a
+            # context file's stored body is live, so neither side is taken from the cache.
             cached = (
                 None
                 if excluded
@@ -672,6 +778,7 @@ class EvalRunService:
             missing_baseline=missing,
             ungraded=sum(1 for case in cases if not decidable(case, config)),
             excluded_case_ids=excluded,
+            not_asked=len(unselected),
         )
 
     async def _named_earlier(self, ctx: AuthContext, run_id: UUID) -> ArmPlan:
@@ -739,6 +846,7 @@ class EvalRunService:
             model_profile_id=spec.model_profile_id,
             scoring_hash=scoring_hash,
             execution=execution,
+            skill_versions=await self.served_skill_versions(ctx, spec),
         )
         if found is None or not await self._graded_as_now(
             ctx,
@@ -774,12 +882,9 @@ class EvalRunService:
             model_profile_id=arm.model_profile_id,
             model_label=arm.model_label,
             cached=(arm, run),
+            skill_versions=arm.skill_versions,
             skill_bodies={
-                UUID(key): SkillBody(
-                    description=body["description"],
-                    content=body["content"],
-                    name=TypeAdapter(str | None).validate_python(body.get("name")),
-                )
+                UUID(key): skill_body_from_json(body)
                 for key, body in (arm.skill_bodies or {}).items()
             },
             context_bodies={
@@ -953,6 +1058,7 @@ class EvalRunService:
             spec=spec,
             model_profile_id=model_profile_id or spec.model_profile_id,
             model_label=model.label,
+            skill_versions=await self.served_skill_versions(ctx, spec),
         )
 
     async def _judge_model(
@@ -1005,7 +1111,8 @@ class EvalRunService:
         """A completed baseline arm that may stand in for running this one.
 
         Only one that matches on everything the comparison holds constant: the
-        version, the dataset version, the model, the scoring, the environment
+        version and the skill versions it was served, the dataset version, the
+        model, the scoring, the environment
         whose test connections answered and whether recordings did - and the judge,
         whose published version and prompt must be the ones that graded every
         case, or no judge at all when none would grade now. Every first answer
@@ -1023,6 +1130,7 @@ class EvalRunService:
             dataset_version_id=dataset_version.id,
             model_profile_id=arm.model_profile_id,
             scoring_hash=scoring_hash,
+            skill_versions=arm.skill_versions,
             execution=execution,
             since=since,
         )
@@ -1402,16 +1510,25 @@ class EvalRunService:
         )
 
     async def _agent_left(self, ctx: AuthContext, plan: RunPlan) -> Decimal | None:
-        """What the agent has left this month under the tightest cap of the sides it runs.
+        """What the agent has left this month under the cap its runs are held to.
 
-        Every side bills the same agent and each is stopped by its own spec's cap,
+        Every side bills the same agent and is held to the agent's current
+        published cap, whatever version or draft it runs. An agent never
+        published has none, and each side is then stopped by its own spec's cap,
         so the lowest one decides how far the run gets.
         """
-        caps = [
-            arm.spec.budget.monthly_usd
-            for arm in plan.arms
-            if arm.spec.budget and arm.spec.budget.monthly_usd is not None
-        ]
+        current = plan.agent.current_version_id
+        if current is not None:
+            published = (
+                await agent_repo.published_budget_caps(self.db, version_ids=[current])
+            ).get(current)
+            caps = [] if published is None else [published]
+        else:
+            caps = [
+                arm.spec.budget.monthly_usd
+                for arm in plan.arms
+                if arm.spec.budget and arm.spec.budget.monthly_usd is not None
+            ]
         if not caps:
             return None
         cap = min(caps)
@@ -1527,7 +1644,11 @@ class EvalRunService:
             excluded_case_ids=plan.excluded_case_ids,
             suite_check=None if suite is None else suite.model_dump(mode="json"),
             proposal_check=(
-                None if proposal_check is None else proposal_check.model_dump(mode="json")
+                None
+                if proposal_check is None
+                else proposal_check.model_copy(update={"not_asked": plan.not_asked}).model_dump(
+                    mode="json"
+                )
             ),
         )
         arms = [
@@ -1540,6 +1661,7 @@ class EvalRunService:
                 spec=None if arm.version else arm.spec.model_dump(mode="json"),
                 spec_hash=spec_hash(arm.spec, arm.skill_bodies, arm.context_bodies),
                 skill_bodies=_bodies_json(arm.skill_bodies) if arm.skill_bodies else None,
+                skill_versions=dict(arm.skill_versions) if arm.skill_versions else None,
                 context_bodies=_bodies_json(arm.context_bodies) if arm.context_bodies else None,
                 model_profile_id=arm.model_profile_id,
                 model_label=arm.model_label,
@@ -1960,6 +2082,20 @@ class EvalRunService:
         suites = await eval_suite_repo.started_runs(
             self.db, [run.id for run in runs], organization_id=org
         )
+        served_ids = {
+            UUID(version_id)
+            for arms in arms_by_run.values()
+            for arm in arms
+            for version_id in (arm.skill_versions or {}).values()
+        }
+        skill_versions = await skill_version_repo.get_versions(
+            self.db, served_ids, organization_id=org
+        )
+        skill_forks = await skill_version_repo.get_forks(
+            self.db,
+            {v.fork_id for v in skill_versions.values() if v.fork_id is not None},
+            organization_id=org,
+        )
         reads = []
         for run in runs:
             attempts = await eval_run_repo.list_cases(self.db, run.id, organization_id=org)
@@ -1989,6 +2125,9 @@ class EvalRunService:
                         spec_hash=arm.spec_hash,
                         skill_ids=[UUID(skill_id) for skill_id in arm.skill_bodies or {}],
                         context_ids=[UUID(key) for key in arm.context_bodies or {}],
+                        skill_versions=_served_skill_versions(
+                            arm.skill_versions, skill_versions, skill_forks
+                        ),
                         summary=_summary_read(summary),
                         by_tag={tag: _summary_read(s) for tag, s in summary.by_tag.items()},
                         ungraded_cases=[
@@ -2381,11 +2520,21 @@ class EvalRunService:
         )
 
     async def outcomes(
-        self, ctx: AuthContext, arm: EvalRunArm, attempts: Sequence[EvalRunCase]
+        self,
+        ctx: AuthContext,
+        arm: EvalRunArm,
+        attempts: Sequence[EvalRunCase],
+        *,
+        overturned_by_majority: bool = False,
     ) -> dict[UUID, tuple[Outcome, tuple[Outcome, ...], tuple[str, ...]]]:
         """Each case's first outcome on an arm, its rerun outcomes and its tags.
 
         `attempts` are the attempts of the run the arm belongs to.
+        `overturned_by_majority` gives a case whose first answer a person decided,
+        and that was asked again, as most of its answers came out in place of that
+        first one: the person decided that answer, not the re-asks, which keep their
+        own grades - so a flip the re-asks confirmed stays one. A skill check's stage
+        reads its cases so; any other run lets the person's verdict settle the case.
         """
         own = await self._arm_attempts(ctx, arm, attempts)
         scores = await self._scores(ctx, own)
@@ -2393,17 +2542,27 @@ class EvalRunService:
         firsts: dict[UUID, Outcome] = {}
         reruns: dict[UUID, list[Outcome]] = defaultdict(list)
         case_tags: dict[UUID, tuple[str, ...]] = {}
+        by_person: set[UUID] = set()
         for attempt in sorted(own, key=lambda a: a.attempt):
-            decided = attempt_outcome(attempt, scores.get(attempt.case_score_id))
+            score = scores.get(attempt.case_score_id)
+            decided = attempt_outcome(attempt, score)
             case_tags[attempt.case_id] = tags.get(attempt.case_revision_id, ())
             # A rerun not yet answered, or skipped, decides nothing - so it leaves
             # the flip unconfirmed rather than being left out of the count.
             if attempt.attempt == 0:
                 firsts[attempt.case_id] = decided
+                if score is not None and score.human_passed is not None:
+                    by_person.add(attempt.case_id)
             else:
                 reruns[attempt.case_id].append(decided)
         return {
-            case_id: (first, tuple(reruns[case_id]), case_tags[case_id])
+            case_id: (
+                settle((first, *reruns[case_id]))
+                if overturned_by_majority and case_id in by_person and reruns[case_id]
+                else first,
+                tuple(reruns[case_id]),
+                case_tags[case_id],
+            )
             for case_id, first in firsts.items()
         }
 
@@ -2415,12 +2574,15 @@ class EvalRunService:
         arm_id: UUID | None = None,
         baseline_run_id: UUID | None = None,
         measurement_only: bool = True,
+        holdout_minimum: bool = True,
     ) -> EvalComparisonRead:
         """One candidate arm against its baseline.
 
         `arm_id` picks the candidate arm (the first when omitted).
         `baseline_run_id` compares with that run's first candidate arm instead
         of the default; it must be a run of the same agent and dataset.
+        `holdout_minimum` False leaves a measured run's held-out minimum to the
+        caller, which pools several runs' held-out questions into one result.
         """
         run = await self._readable(ctx, run_id)
         return await self._comparison(
@@ -2429,6 +2591,7 @@ class EvalRunService:
             arm_id=arm_id,
             baseline_run_id=baseline_run_id,
             measurement_only=measurement_only,
+            holdout_minimum=holdout_minimum,
         )
 
     @staticmethod
@@ -2499,6 +2662,7 @@ class EvalRunService:
         arm_id: UUID | None = None,
         baseline_run_id: UUID | None = None,
         measurement_only: bool = True,
+        holdout_minimum: bool = True,
     ) -> EvalComparisonRead:
         arms = await eval_run_repo.list_arms(self.db, [run.id], organization_id=ctx.organization_id)
         candidates = [a for a in arms if a.role == ArmRole.CANDIDATE.value]
@@ -2515,7 +2679,8 @@ class EvalRunService:
         attempts = await eval_run_repo.list_cases(
             self.db, run.id, organization_id=ctx.organization_id
         )
-        mine = await self.outcomes(ctx, candidate, attempts)
+        by_majority = _skill_check_stage(run)
+        mine = await self.outcomes(ctx, candidate, attempts, overturned_by_majority=by_majority)
         candidate_side = await self._side(ctx, run, candidate)
         candidate_attempts = await self._first_attempts(ctx, candidate, attempts)
         measured = self._measurement(run) if measurement_only else None
@@ -2538,6 +2703,7 @@ class EvalRunService:
                 fixed_unconfirmed=0,
                 compared=0,
                 not_compared=len(mine),
+                gradable_holdout=None if measured is None else measured.gradable_holdout,
                 candidate_summary=_summary_read(
                     summarize([c.attempt for c in candidate_attempts], with_tags=False)
                 ),
@@ -2547,7 +2713,7 @@ class EvalRunService:
                 flips_by_tag={},
             )
         theirs = (
-            await self.outcomes(ctx, baseline.here, attempts)
+            await self.outcomes(ctx, baseline.here, attempts, overturned_by_majority=by_majority)
             if baseline.here is not None
             else await self.outcomes(
                 ctx,
@@ -2557,6 +2723,7 @@ class EvalRunService:
                 else await eval_run_repo.list_cases(
                     self.db, baseline.run.id, organization_id=ctx.organization_id
                 ),
+                overturned_by_majority=by_majority,
             )
         )
         drift = drifts(run, candidate, baseline)
@@ -2579,7 +2746,7 @@ class EvalRunService:
             for case_id in common
         ]
         invalid_reason = await self._incomparable(ctx, run, candidate, baseline, attempts)
-        invalid_reason_code: Literal["knowledge_not_retrieved"] | None = None
+        invalid_reason_code: Literal["knowledge_not_retrieved", "too_few_held_out"] | None = None
         if run.proposal_check is not None:
             knowledge = ProposalCheckRecord.model_validate(run.proposal_check).knowledge
             if knowledge is not None and knowledge.invalidated:
@@ -2600,10 +2767,14 @@ class EvalRunService:
                         "Search did not return the draft for every confirmed improvement"
                     )
                     invalid_reason_code = "knowledge_not_retrieved"
-        if measured is not None and measured.gradable_holdout < measured.minimum_holdout:
+        if (
+            holdout_minimum
+            and measured is not None
+            and measured.gradable_holdout < measured.minimum_holdout
+        ):
             missing = measured.minimum_holdout - measured.gradable_holdout
             invalid_reason = f"Add {missing} more held-out test questions to measure a change"
-            invalid_reason_code = None
+            invalid_reason_code = "too_few_held_out"
         if (
             measured is not None
             and invalid_reason is None
@@ -2659,6 +2830,7 @@ class EvalRunService:
             fixed_unconfirmed=count(Flip.FIXED, False),
             compared=len(common),
             not_compared=len(set(mine) ^ set(theirs)),
+            gradable_holdout=None if measured is None else measured.gradable_holdout,
             changed=len(changed),
             baseline_rerun=confirmed_here or drift,
             candidate_summary=_summary_read(mine_summary),
@@ -2865,6 +3037,27 @@ def case_content(revision: DatasetCase) -> str:
         },
         sort_keys=True,
     )
+
+
+def _served_skill_versions(
+    served: Mapping[str, str] | None,
+    versions: Mapping[UUID, SkillVersion],
+    forks: Mapping[UUID, SkillFork],
+) -> list[ArmSkillVersionRead]:
+    """Each skill a side was served once, by its stored version: an agent and its
+    inline specialists may read one skill, and a version since deleted is left out."""
+    by_skill: dict[UUID, ArmSkillVersionRead] = {}
+    for version_id in (served or {}).values():
+        version = versions.get(UUID(version_id))
+        if version is None or version.skill_id in by_skill:
+            continue
+        fork = forks.get(version.fork_id) if version.fork_id is not None else None
+        by_skill[version.skill_id] = ArmSkillVersionRead(
+            skill_id=version.skill_id,
+            number=version.number,
+            fork_name=fork.name if fork is not None else None,
+        )
+    return list(by_skill.values())
 
 
 def _failed_alike(firsts: Sequence[EvalRunCase]) -> str | None:

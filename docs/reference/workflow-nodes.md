@@ -295,8 +295,9 @@ at a time, so **Folder** and **Shared mailbox** are where the poll looks as well
 filter, and the first read of a folder starts at the moment the workflow was
 published or last switched on. Naming a shared mailbox the organization's Microsoft
 grant can open takes the permission to manage connections, as it does for Outlook
-agent triggers; a workflow already listening to one keeps it through later publishes,
-and changing it needs the permission again. **Sender contains** matches the sender's
+agent triggers; every publish that names one needs it, because whoever publishes becomes the member
+the mailbox is read as, and a message reaching a workflow whose publisher no longer
+holds it starts no run. **Sender contains** matches the sender's
 address, as for Gmail, and needs mail the sender's domain authenticated or that came
 from inside the tenant. A folder or shared mailbox Outlook says cannot be read
 switches the workflow off, with `mailbox_folder_unreadable` in the audit log. A
@@ -310,7 +311,8 @@ categories. Its output is the one of [trigger.gmail](#trigger-gmail).
 
 **Channel message.** Started by a message to one of the organization's Slack,
 Mattermost or Telegram bots that the bot would have answered with its own agent and
-that fits the node's filter. Publishing it needs `channels:manage`, and a bot's
+that fits the node's filter. Publishing it needs `channels:manage`, checked again at every
+message, and a bot's
 messages start one workflow at most. `triggered_by` is `channel_message`.
 A Teams bot is refused at publish and on a test run; a Teams listener published before
 that hands its messages back to the bot's agent.
@@ -980,7 +982,7 @@ Activity or over `GET /api/v1/workflow-approvals`. `approvers` names who may
 decide, and they are notified in the app; left empty, anyone holding
 `approvals:decide` may. Past `timeout_hours` the request expires and the step
 leaves by `rejected` with `decision: "expired"`. Cancelling the run cancels what
-it asked. Each run of the step asks once, so a retry or a loop iteration never
+it asked, and so does cancelling a workflow that called the run. Each run of the step asks once, so a retry or a loop iteration never
 asks twice for the same thing.
 
 Named approvers must be active members holding `approvals:decide`. Publishing checks this, and the step checks again before asking; a person who lost that permission fails the step with `APPROVER_UNAVAILABLE` rather than leaving an undecidable request.

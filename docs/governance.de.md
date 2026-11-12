@@ -1,5 +1,5 @@
 ---
-source_sha: "f7a146db5510"
+source_sha: "66ff628633d4"
 ---
 
 # Governance { #governance }
@@ -86,6 +86,10 @@ Im Routineformular können Sie das Ende festlegen oder entfernen. Das Datum verw
 
 Eine Routine prüft vor jedem Werkzeug ihren Ersteller, aktive Mitgliedschaft, Rolle und Ausführungsrechte erneut, auch bei Delegationen und nach einer Freigabe. Pausieren, Löschen, Ablauf, Widerruf persönlicher Zustimmung oder Änderungen dieser Berechtigung verhindern weitere Werkzeugaufrufe. Bereits an externe Dienste gesendete Effekte werden dadurch nicht zurückgerufen. Migration `0260_routine_run_origin` bewahrt den Ursprung beim Löschen; ältere geparkte Zeitpläne mit verlorenem Ursprung werden abgelehnt, statt die Rechte der freigebenden Person zu übernehmen.
 
+Der integrierte AgenticOS-MCP-Server erfordert **Als Ersteller handeln**, auch wenn ein veröffentlichter Delegat ihn einbindet. Ohne eine personenbezogene Identität lehnen die Quellenprüfung und das Erstellen der Routine diese Konfiguration mit einer konkreten Erklärung ab. Aktivieren Sie die Option oder entfernen Sie die Plattformbindung aus dem Agenten und seinen Delegaten. Die Plattform übernimmt niemals automatisch die Identität des Erstellers.
+
+Der Routinenverlauf zeigt auch blockierte oder fehlgeschlagene Versuche vor dem Erstellen eines Agentenlaufs. Jeder enthält Zeitpunkt, Phase und einen Reparaturhinweis. Es entstehen keine Modellkosten; Prompts, Anbieterfehler und Zugangsdaten werden nie gespeichert. Die Einträge bleiben bis zum Löschen der Routine oder Organisation erhalten, unabhängig von der Benachrichtigungszustellung. Der Worker-Job fire-trigger speichert ein separates blockiertes oder fehlgeschlagenes Ergebnis. Ein abgeschlossener Warteschlangenjob bedeutet nicht, dass ein Agent erfolgreich lief.
+
 ## Budgets { #budgets }
 
 !!! abstract "Drei Ebenen, und sie sind keine Varianten einer Zahl"
@@ -100,6 +104,12 @@ Eine Routine prüft vor jedem Werkzeug ihren Ersteller, aktive Mitgliedschaft, R
 | **Agent, monatlich** | dem Spec des Agents | den eigenen Runs dieses Agents | wer den Agent bearbeiten darf |
 | **Abteilung, monatlich** | den Einstellungen der Abteilung | den Runs, die ihre Mitglieder gestartet haben, auf jedem Agent | wer `members:manage` und `budgets:manage` hält |
 | **Organisation, monatlich** | den Einstellungen der Organisation | jedem Run _und_ jeder Ingestion in der Organisation | wer `budgets:manage` hält |
+
+Jedes Monats-Cap zählt die gesamten Kosten eines Runs in dem Monat, in dem der Run
+begann, wie die Ausgabenberichte auch. Ein Run über eine Monatsgrenze hinweg - am
+letzten Abend an einer Genehmigung geparkt und am Ersten genehmigt - erscheint
+vollständig im früheren Monat und wird beim Fortsetzen gegen die Ausgaben dieses
+Monats geprüft, nicht gegen die des neuen.
 
 Eine **neue Organisation startet mit bereits gesetzter Obergrenze für die
 Organisation** — dem `DEFAULT_ORG_MONTHLY_BUDGET_USD` des Deployments
@@ -135,6 +145,12 @@ Version, denn das ist die, die der Runner durchsetzt, und nicht das, was der
 Draft gerade verspricht. Die Headroom-Karte des Dashboards verbindet diese mit
 `GET /spend`, sodass ein Cap im Anmarsch zu sehen ist, bevor `budget_exceeded` in
 der Run-Historie auftaucht.
+
+Diese veröffentlichte Zahl gilt für jeden Run des Agents, auch für einen Run einer
+älteren Version: eine Routine, eine Umgebung oder ein Workflow-Schritt, die auf
+sie festgelegt sind, oder ein Run, der auf der Version fortgesetzt wird, auf der er
+geparkt wurde. Eine Festlegung bestimmt, wie sich der Agent verhält, nicht, was er
+ausgeben darf.
 
 ### Das Cap einer Abteilung { #a-departments-cap }
 
@@ -643,6 +659,12 @@ der Oberfläche **proactive** festgehalten und wie jeder andere auf das Budget d
 Organisation angerechnet. Eine Person kann sich unter **Einstellungen →
 Assistent** ausnehmen.
 
+Jede Modellanfrage eines solchen Runs - die erste und jeder erneute Versuch -
+wird gegen das Proaktivitäts-Ausgabenlimit der Person, das Monatsbudget des
+zugeordneten Agents und das der Organisation geprüft. Ein Run, der eines davon
+unterwegs erreicht, hält dort an, endet mit `budget_exceeded` und behält, was er
+ausgegeben hat. Solche Runs zählen zu keiner Abteilung.
+
 Der nächtliche Blick wird 20 Stunden nach seinem eigenen letzten Versuch
 fällig. Beobachtungen und Speicherwartung verschieben diesen Zeitpunkt nicht.
 Beobachtungen zählen weiterhin zum persönlichen Proaktivitätsbudget.
@@ -828,6 +850,19 @@ ausstehende Zustellungen storniert. Ein geändertes Limit erlaubt eine neue
 Meldung bei dessen Erreichen; ein stummgeschalteter Fall bleibt im Monat stumm.
 
 ### Aktionsfreigaben { #routine-action-consent }
+
+Aktionen sind nach Capability oder konkretem MCP-Konto gruppiert und durchsuchbar.
+Wähle eine Gruppe oder alle zulässigen Aktionen aus oder ab; die Sammelauswahl umfasst
+auch ausgefilterte Einträge. Einzelne Ausnahmen bleiben möglich. Ein Review unterstützt
+bis zu 1.000 ausgewählte Aktionen; eine größere Auswahl wird angezeigt und muss vor
+dem Speichern verkleinert werden, statt still gekürzt zu werden.
+
+Nur Titel oder Zeitplan zu ändern erhält die Zustimmung. Ändern sich Version, Aufgabe,
+Anweisungen oder Konto, erklärt der Dialog die betroffene Grenze. **Zuvor geprüfte
+Aktionen erneut auswählen** ist eine ausdrückliche neue Wahl passender zulässiger
+Identitäten; erst das Speichern des aktuellen Reviews erteilt Zustimmung. Neue Aktionen
+und geänderte Konten werden nicht automatisch ausgewählt. Verbindliche Freigaben,
+Widerruf und die Prüfung auf veraltete Reviews gelten weiterhin.
 
 Eine unbeaufsichtigte Routine fragt vor Fähigkeitsaktionen, lokalen Dateiänderungen
 und Delegation. Externe MCP-Aufrufe fragen, sofern ihr Server sie nicht als nur
@@ -1524,10 +1559,16 @@ auch eine Komprimierung den gecachten Prompt verkleinern kann. Solange jeder Cac
 
 ## Freigaben { #approvals }
 
-Ein Tool, das der Autor des Agents hinter ein Gate gestellt hat, parkt den Run und
-wartet auf eine Person. Nichts steht hinter einem Gate, bis jemand darum bittet:
-Ein Gate, das niemand gewählt hat, parkt Runs in Kanälen und Routinen, in denen
-niemand da ist, um zu antworten.
+Ein gesperrtes Tool parkt den Run und wartet auf eine Person. Der Builder bietet
+**Immer fragen** und **Nie fragen** für eine Capability; einzelne Tools können auch
+der Capability folgen. Neue Capabilities im Builder beginnen mit **Immer fragen**.
+Bestehende Bindings, auch ohne Approval oder mit gespeichertem `default`, behalten ihre Politik.
+
+Erforderliche Freigaben können Routinen und Kanäle ebenso wie Chats anhalten. Wähle für
+unbeaufsichtigte Arbeit bewusst die Aktionen, die ohne Rückfrage laufen dürfen.
+Verbindliche Freigaben und strengere Organisationsregeln gelten weiter. Vom Provider
+ausgeführte Tools brauchen eine lokale Methode für Freigaben; eine nicht durchsetzbare
+Sperre wird beim Veröffentlichen abgelehnt.
 
 Die Auflösung geht vom Spezifischsten aus:
 
@@ -1678,9 +1719,11 @@ Fünf Eigenschaften, die man kennen sollte:
 
 ### Wie sehr eine Unterhaltung gefragt werden will { #how-much-one-conversation-wants-to-be-asked }
 
-Die Freigabekarte bietet auch **Dieses Tool in diesem Chat erlauben** und **Dieses Tool für diesen Agenten immer erlauben**. Die Auswahl gilt nur für das benannte Tool und Konto, die zustimmende Person und die veröffentlichte Agentenversion. Sie erfordert dieselbe Berechtigung und Organisationseinstellung wie die Freigabe aller Aktionen. Sie autorisiert weder Delegierte noch unbeaufsichtigte Ausführungen. Eine neue Agentenversion erfordert eine neue Auswahl.
+Die Freigabekarte bietet auch **Dieses Tool in diesem Chat erlauben** und **Dieses Tool für diesen Agenten immer erlauben**. Die Auswahl gilt nur für das benannte Tool und Konto, die zustimmende Person und die veröffentlichte Agentenversion. Sie erfordert dieselbe Berechtigung und Organisationseinstellung wie die Freigabe aller Aktionen. Sie autorisiert weder Delegierte noch unbeaufsichtigte Ausführungen. Eine neue Agentenversion erfordert eine neue Auswahl. Ein Tool, das jedes Mal fragt, etwa `share_memory`, wird nie gespeichert und von der Freigabe aller Aktionen nicht beantwortet: Seine Karte bietet keine der beiden Optionen an, und der Server lehnt das Speichern ab.
 
 Die Auswahl wird auf dem Server gespeichert. **Chat controls → Preferences → Gespeicherte Tool-Freigaben → Erneut fragen** widerruft eine Zustimmung, ohne die ursprüngliche Entscheidung zu löschen. Vor jeder automatischen Freigabe werden Mitgliedschaft, Freigabeberechtigung und Organisationsrichtlinie erneut geprüft. Der Modus zum Nachfragen bei jeder Aktion hat Vorrang. Jede automatische Freigabe protokolliert weiterhin die zustimmende Person und die tatsächlichen Aufrufargumente.
+
+Die Freigabe-Warteschlange gehört der Organisation, aber manche Aufrufe zitieren, was die Person ihres Runs liest - den Fakt, den `share_memory` teilen würde. Dieses Zitat sieht nur, wer den Run sehen darf: die Person, für die er lief, oder ein Mitglied, das jeden Run liest und den Agent sehen darf. Alle anderen sehen das Tool, den Leserkreis und einen Hinweis, dass der Inhalt verborgen ist. Einen Aufruf, der jedes Mal fragt, gibt nur frei, wer lesen kann, was er zitiert: Alle anderen können ihn ablehnen, und ihre Freigabe wird abgewiesen.
 
 Die Regel oben gehört dem Agent, wird beim Veröffentlichen und je Tool
 entschieden, und das ist der richtige Ort dafür: Sie ist eine Aussage darüber, was
@@ -2588,7 +2631,7 @@ Es ist wert, gesagt zu werden, weil eine Governance-Seite anderes nahelegt:
 
 ## Automatische Pause bei wiederholten Fehlern { #routine-health }
 
-Routinen und Beobachtungen pausieren standardmäßig nach **drei aufeinanderfolgenden erfolglosen Prüfungen**. Im Formular lässt sich ein Limit von 1 bis 20 festlegen oder dieses Limit deaktivieren. Anbieter- und Ausführungsfehler, ungültige Beobachtungsergebnisse und unerreichbare Quellen zählen mit. Warten auf Genehmigung, einen Offline-Computer und Zustellfehler zählen nicht; eine leere, aber verifizierte erfolgreiche Prüfung setzt die Serie zurück. Andere Berechtigungs- und Budgetstopps gelten auch bei deaktiviertem Fehlerlimit.
+Routinen und Beobachtungen pausieren standardmäßig nach **drei aufeinanderfolgenden erfolglosen Prüfungen**. Im Formular lässt sich ein Limit von 1 bis 20 festlegen oder dieses Limit deaktivieren. Anbieter- und Ausführungsfehler, ungültige Beobachtungsergebnisse und unerreichbare Quellen zählen mit. Warten auf Genehmigung, einen Offline-Computer, Zustellfehler und Budgetstopps zählen nicht: Eine vom Budget abgelehnte Prüfung wartet auf die nächste und verlängert die Serie weder, noch setzt sie sie zurück. Eine leere, aber verifizierte erfolgreiche Prüfung setzt die Serie zurück. Andere Berechtigungs- und Budgetstopps gelten auch bei deaktiviertem Fehlerlimit.
 
 Jede Aktivierung erhält genau eine dauerhafte Zustandsbeobachtung. Wiederholungen erhöhen den Zähler nicht; verspätete Abschlüsse werden in Aktivierungsreihenfolge ausgewertet. Die automatische Pause stoppt künftige Aktivierungen; eine laufende Modellanfrage kann noch enden.
 

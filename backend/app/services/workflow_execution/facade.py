@@ -722,7 +722,9 @@ class WorkflowExecutionService:
         dispatch row and queued job, every pending approval request, the agent
         run each parked step waits on, and every live step, which becomes
         `cancelled`. A step whose attempt is executing at that moment finishes
-        on its own; its result is recorded and nothing follows from it.
+        on its own; its result is recorded and nothing follows from it. Every
+        unfinished run it called, and every run those called, is cancelled the
+        same way (`cleanup.stop_called_runs`).
 
         Raises:
             WorkflowRunNotFoundError: No such run, or this caller may not see
@@ -774,6 +776,7 @@ class WorkflowExecutionService:
         )
         await events.append(self.db, run=run, kind=events.EventKind.RUN_CANCELLED)
         await delivery.deliver_result(self.db, run=run)
+        await cleanup.stop_called_runs(self.db, run=run, now=ended_at)
         return _read(run, can_cancel=True)
 
     async def edit_reply_expectation(
@@ -1076,7 +1079,9 @@ class WorkflowExecutionService:
             WorkflowRunNotRetryableError: The run did not fail, was not
                 cancelled and did not run out of budget.
             AuthorizationError: The caller may see the run but not run its
-                workflow - or, for a test run, not edit it.
+                workflow - or, for a test run, not edit it - or the run was
+                cancelled and the caller is neither the person who started it nor
+                an editor of its workflow, so could not have cancelled it.
             WorkflowArchivedError: The workflow is archived.
             WorkflowNotRunnableError: The version the run ran no longer resolves.
             WorkflowAdmissionQuotaError: As `start`.
@@ -1094,6 +1099,14 @@ class WorkflowExecutionService:
             )
         ):
             raise AuthorizationError(message="You may not retry this run")
+        if original.status == WorkflowRunStatus.CANCELLED.value and not await self._may_cancel(
+            ctx, original, workflow
+        ):
+            raise AuthorizationError(
+                message="Only the person who started this run, or an editor of its "
+                "workflow, may retry it after it was cancelled",
+                details={"run_id": original.id},
+            )
         if workflow.status == WorkflowStatus.ARCHIVED.value:
             raise WorkflowArchivedError(
                 workflow_id=workflow.id, message="This workflow is archived and cannot be run"

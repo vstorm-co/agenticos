@@ -18,7 +18,7 @@ export const DEFAULT_ANSWER_STYLE: AnswerStyle = {
   ack_reaction: null,
   stream_answers: true,
   step_display: "timeline",
-  rate_answers: true,
+  rate_answers: false,
 };
 
 /** An emoji's name as the platforms spell it, without colons - what the server accepts. */
@@ -50,6 +50,14 @@ const REACTS: readonly ChannelPlatform[] = ["slack", "telegram", "mattermost", "
 /** Whether the bot can react to a question on `platform`. */
 export function reactsOn(platform: ChannelPlatform): boolean {
   return REACTS.includes(platform);
+}
+
+/** New bots acknowledge messages with a reaction native to their platform. */
+export function defaultAnswerStyle(platform: ChannelPlatform): AnswerStyle {
+  return {
+    ...DEFAULT_ANSWER_STYLE,
+    ack_reaction: platform === "imessage" ? "emphasize" : reactsOn(platform) ? "eyes" : null,
+  };
 }
 
 /** The select's value for "no reaction" - a name no platform spells. */

@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type SetStateAction } from "react";
 import { ArrowRight, Lightbulb, ListChecks, Scale, TriangleAlert } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import { sameJson } from "@/lib/canonical-json";
 import { Button } from "@/components/ui";
 import { useSetScoring } from "@/hooks/use-scoring";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
@@ -52,14 +53,31 @@ export function GradingPanel({
   const tErrors = useTranslations("errors");
   const save = useSetScoring(dataset.id);
   const stored = dataset.scoring;
-  const [draft, setDraft] = useState<DatasetScoring>(stored);
-  const [defaults, setDefaults] = useState<CheckDraft[]>(stored.checks.defaults.map(checkDraft));
+  const [{ draft, defaults }, setCopy] = useState<GradingCopy>(() => ({
+    draft: stored,
+    defaults: stored.checks.defaults.map(checkDraft),
+  }));
+  const setDraft = useCallback(
+    (next: SetStateAction<DatasetScoring>) =>
+      setCopy((current) => ({
+        ...current,
+        draft: typeof next === "function" ? next(current.draft) : next,
+      })),
+    [],
+  );
+  const setDefaults = useCallback(
+    (next: SetStateAction<CheckDraft[]>) =>
+      setCopy((current) => ({
+        ...current,
+        defaults: typeof next === "function" ? next(current.defaults) : next,
+      })),
+    [],
+  );
   const [defaultsProblem, setDefaultsProblem] = useState<string | null>(null);
   const [restored, setRestored] = useState<number | null>(null);
   if (restore !== undefined && restore.at !== restored) {
     setRestored(restore.at);
-    setDraft(restore.value.draft);
-    setDefaults(restore.value.defaults);
+    setCopy(restore.value);
   }
   const canEdit = dataset.can_edit;
   const disabled = !canEdit || save.isPending;
@@ -67,9 +85,8 @@ export function GradingPanel({
   const set = <K extends Part>(key: K, value: DatasetScoring[K]) =>
     setDraft((current) => ({ ...current, [key]: value }));
   const dirty = (parts: Part[]) =>
-    parts.some((part) => JSON.stringify(draft[part]) !== JSON.stringify(stored[part])) ||
-    (parts.includes("checks") &&
-      JSON.stringify(defaults) !== JSON.stringify(stored.checks.defaults.map(checkDraft)));
+    parts.some((part) => !sameJson(draft[part], stored[part])) ||
+    (parts.includes("checks") && !sameJson(defaults, stored.checks.defaults.map(checkDraft)));
   const problem = scoringProblem(draft);
   const unsaved = dirty(PASSES) || dirty(JUDGING);
   const ungraded = ungradedCases(draft, dataset.stats, defaults.length);
@@ -102,8 +119,13 @@ export function GradingPanel({
     setDefaultsProblem(null);
     const next = { ...draft, checks: { ...draft.checks, defaults: read.checks } };
     try {
-      await save.mutateAsync(next);
-      setDraft(next);
+      const sent = { draft, defaults };
+      const saved = await save.mutateAsync(next);
+      setCopy((current) =>
+        sameJson(current, sent)
+          ? { draft: saved.scoring, defaults: saved.scoring.checks.defaults.map(checkDraft) }
+          : current,
+      );
       toast.success(t("saved"));
       return true;
     } catch (failure) {

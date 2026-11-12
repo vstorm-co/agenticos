@@ -456,3 +456,19 @@ async def test_project_deletion_erases_memory_descendants_and_deregisters_its_we
     remove.assert_awaited_once()
     assert remove.await_args.args[1].id == installed.trigger_id
     assert await db.get(AgentTrigger, installed.trigger_id, populate_existing=True) is None
+
+
+async def test_a_tracker_is_not_published_onto_an_archived_board(db: AsyncSession):
+    from app.schemas.task import BoardEnsure
+    from app.services.tasks import TaskService
+    from app.services.virtual_tables import VirtualTableService
+
+    ctx, project, agent, version = await seed(db)
+    data = await request(db, ctx, project, agent, version)
+    board = await TaskService(db).ensure_board(ctx, BoardEnsure(scope="project", scope_id=project))
+    await VirtualTableService(db).archive_table(ctx, board.table_id)
+
+    with pytest.raises(ConflictError, match="archived"):
+        await ProjectTrackingService(db).create(ctx, project, data)
+
+    assert await db.scalar(select(func.count()).select_from(AgentTrigger)) == 0

@@ -9,10 +9,10 @@ it was parked on, with the spend it had already booked.
 import asyncio
 import logging
 import uuid
-from collections.abc import AsyncGenerator, Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable, Iterator
 from contextlib import nullcontext
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
@@ -64,6 +64,7 @@ from app.agents.connect_on_use import ConnectionRequest, ConnectOnUse
 from app.agents.deps import AgentDeps
 from app.agents.isolation import InterceptedCall, RecordedCall, RunIsolation, ToolRecording
 from app.agents.loop_guard import ToolLoopStopped
+from app.agents.memory_scope import may_inject_memory, memory_owner_key
 from app.agents.spec import (
     AgentSpec,
     CapabilityBindingSpec,
@@ -85,10 +86,12 @@ from app.core.exceptions import (
     RunExecutionError,
     RunFailedError,
 )
+from app.core.memory_keys import person_owner_key
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent_environment import AgentEnvironmentConnection
 from app.db.models.agent_run import ApprovalStatus, RunStatus, RunSurface
 from app.db.models.intercepted_tool_call import InterceptionOutcome, InterceptionReason
+from app.db.models.skill import Skill
 from app.db.vector_tables import VectorScope
 from app.repositories.group import CappedGroup
 from app.services.agent_registry import UnpublishedCandidate
@@ -102,6 +105,7 @@ from app.services.agent_runner import (
     PersonalServiceGap,
     PreparedRun,
     RecordedDelegation,
+    RoutineBudgetSpent,
     RunSegment,
     _answer_only,
     _classify_output,
@@ -112,6 +116,7 @@ from app.services.agent_runner import (
     _with_account_notes,
     _with_personal_service_gaps,
     _with_test_secrets,
+    budget_window,
     month_start,
     run_failure_summary,
 )
@@ -160,12 +165,47 @@ def _in_no_group(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
+@pytest.fixture(autouse=True)
+def _no_current_cap(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No current published version sets a cap; `TestTheCurrentVersionsCap` covers one."""
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        "app.services.agent_runner.agent_repo.published_budget_caps", AsyncMock(return_value={})
+    )
+
+
 _THE_ASKER = uuid.uuid4()
 """The person a parked run was answering, told apart from whoever approves it."""
 
 
+def _served_skill(name: str, version_id: uuid.UUID) -> Skill:
+    return Skill(
+        id=uuid.uuid4(),
+        name=name,
+        description=name,
+        content=name,
+        resources=[],
+        latest_version_id=version_id,
+    )
+
+
 def _ctx() -> AuthContext:
     return AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.OWNER)
+
+
+@pytest.fixture(autouse=True)
+def _no_conversation_shares() -> Iterator[None]:
+    """A chat is shared with nobody unless a test says otherwise.
+
+    Every admission asks, to keep the person's memory out of a chat others read,
+    and `_db()` cannot answer a query.
+    """
+    with patch(
+        "app.services.agent_runner.conversation_share_repo.get_shares_for_conversation",
+        new=AsyncMock(return_value=[]),
+    ):
+        yield
 
 
 def _db(monthly_budget_usd: Decimal | None = None):
@@ -255,6 +295,7 @@ def _parked_run(**overrides):
         output_tokens=200,
         cost_usd=Decimal("0.25"),
         cost_is_partial=False,
+        started_at=datetime.now(UTC),
     )
     for name, value in overrides.items():
         setattr(run, name, value)
@@ -266,6 +307,23 @@ class TestMonthBoundary:
         """A rolling window cannot be reconciled against an invoice."""
         moment = datetime(2026, 7, 26, 22, 30, tzinfo=UTC)
         assert month_start(moment) == datetime(2026, 7, 1, tzinfo=UTC)
+
+    def test_a_run_of_this_month_is_weighed_against_this_month_alone(self):
+        """A call past midnight on the last day re-reads its baseline: still its own month."""
+        this_month = month_start()
+        next_month = month_start(this_month + timedelta(days=32))
+        assert budget_window(datetime.now(UTC)) == (this_month, next_month)
+        assert budget_window(None) == (this_month, next_month)
+
+    def test_an_earlier_run_is_weighed_against_the_whole_month_it_started(self):
+        assert budget_window(datetime(2025, 12, 31, 23, 59, tzinfo=UTC)) == (
+            datetime(2025, 12, 1, tzinfo=UTC),
+            datetime(2026, 1, 1, tzinfo=UTC),
+        )
+        assert budget_window(datetime(2026, 2, 3, tzinfo=UTC)) == (
+            datetime(2026, 2, 1, tzinfo=UTC),
+            datetime(2026, 3, 1, tzinfo=UTC),
+        )
 
 
 class TestPrepare:
@@ -776,6 +834,76 @@ class TestPrepare:
         assert spec.capabilities[0].config["session_scope"] == scope
 
     @pytest.mark.anyio
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        ("chat", "personal"),
+        [("private", True), ("view", True), ("project", False), ("edit", False)],
+    )
+    async def test_personal_memory_stays_out_of_a_chat_others_read(self, chat: str, personal: bool):
+        """A project's members, and anybody it is shared with to edit, read the
+        transcript, so the person's profile and facts must not be put into it."""
+        ctx = _ctx()
+        service = AgentRunnerService(_db())
+        agent = MagicMock(
+            id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None, kind="agent"
+        )
+        project = None
+        if chat == "project":
+            project = MagicMock(
+                id=uuid.uuid4(),
+                description=None,
+                instructions="",
+                backend="state",
+                sandbox_connection_id=None,
+                runtime=None,
+            )
+            project.name = "Launch"
+        shares = (
+            [MagicMock(shared_with=uuid.uuid4(), permission=chat)]
+            if chat in {"view", "edit"}
+            else []
+        )
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(
+                    return_value=(agent, AgentSpec(name="Writer"), agent.current_version_id)
+                ),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+            ),
+            patch(
+                "app.services.agent_runner.ProjectService.for_run",
+                new=AsyncMock(return_value=project),
+            ),
+            patch(
+                "app.services.agent_runner.conversation_share_repo.get_shares_for_conversation",
+                new=AsyncMock(return_value=shares),
+            ),
+            patch("app.services.agent_runner.build_agent") as build,
+            patch.object(service.workspaces, "open", new=AsyncMock(return_value=None)),
+        ):
+            await service.prepare(ctx, agent.id, conversation_id=uuid.uuid4())
+
+        audience = build.call_args.kwargs["audience"]
+        assert may_inject_memory(audience, allow_personal=True) is personal
+        assert (
+            memory_owner_key(audience, allow_personal=True) == person_owner_key(ctx.user_id)
+        ) is personal
+
+    @pytest.mark.anyio
     @pytest.mark.parametrize("aside", [False, True])
     async def test_a_chat_in_a_project_works_in_the_projects_container(self, aside: bool):
         """Whichever agent answers, and whatever scope its own binding asks for:
@@ -1183,9 +1311,36 @@ class TestPrepare:
         assert spent == Decimal("4.50")
         assert total.call_args.kwargs["organization_id"] == ctx.organization_id
         assert total.call_args.kwargs["since"] == month_start()
+        # Closed at the next first: a call past midnight re-reads this month, not the next.
+        assert total.call_args.kwargs["until"] == month_start(month_start() + timedelta(days=32))
         # The organization-wide sum narrows to no agent - that absence is the
         # difference between this lookup and the one above it.
         assert total.call_args.kwargs.get("agent_id") is None
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_run_opened_before_midnight_is_weighed_against_the_month_it_opened(
+        self, monkeypatch
+    ):
+        """Its row is dated before the first; its caps must read that month too."""
+        last_evening = month_start() - timedelta(seconds=1)
+
+        class _BeforeMidnight(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return last_evening
+
+        monkeypatch.setattr("app.services.agent_runner.datetime", _BeforeMidnight)
+        built = await self._period_lookups(_ctx())
+
+        with patch(
+            "app.services.agent_runner.agent_run_repo.sum_cost_since",
+            new=AsyncMock(return_value=Decimal("0")),
+        ) as total:
+            await built["agent_period_spend"]()
+
+        assert total.call_args.kwargs["since"] == month_start(last_evening)
+        assert total.call_args.kwargs["until"] == month_start()
 
     @pytest.mark.anyio
     async def test_the_agents_own_cap_is_metered_on_the_agents_own_spend(self):
@@ -1285,6 +1440,26 @@ class TestPrepare:
         assert total.call_args.kwargs["exclude_run_id"] == built["run_id"]
 
     @pytest.mark.anyio
+    async def test_a_department_is_metered_over_the_window_it_is_given(self, monkeypatch):
+        finance = CappedGroup(uuid.uuid4(), "Finance", Decimal("25"))
+        monkeypatch.setattr(
+            "app.services.agent_runner.group_repo.capped_groups_for_member",
+            AsyncMock(return_value=[finance]),
+        )
+        since, until = datetime(2026, 10, 1, tzinfo=UTC), datetime(2026, 11, 1, tzinfo=UTC)
+        (limit,) = await AgentRunnerService(_db())._group_limits(
+            _ctx(), exclude_run_id=uuid.uuid4(), since=since, until=until
+        )
+
+        with patch(
+            "app.services.agent_runner.agent_run_repo.sum_cost_since",
+            new=AsyncMock(return_value=Decimal("3")),
+        ) as total:
+            await limit.period_spend()
+
+        assert (total.call_args.kwargs["since"], total.call_args.kwargs["until"]) == (since, until)
+
+    @pytest.mark.anyio
     async def test_a_run_nobody_started_answers_to_no_department(self):
         """A trigger or a channel stranger is in no department, so none of their caps apply."""
         keyless = AuthContext(user_id=None, organization_id=uuid.uuid4(), role="member")
@@ -1310,7 +1485,15 @@ class TestPrepare:
 
     @pytest.mark.anyio
     @pytest.mark.parametrize(
-        "fields", [{"user_id": None}, {"trigger_id": uuid.uuid4()}], ids=["nobody", "routine"]
+        "fields",
+        [
+            {"user_id": None},
+            {"trigger_id": uuid.uuid4()},
+            {"routine_origin_id": uuid.uuid4(), "routine_kind": "watch"},
+            {"routine_origin_id": uuid.uuid4(), "trigger_id": None},
+            {"surface": RunSurface.PROACTIVE.value},
+        ],
+        ids=["nobody", "routine", "watch", "deleted-routine", "background"],
     )
     async def test_a_resumed_run_nobody_started_answers_to_no_department(self, fields):
         service = AgentRunnerService(_db())
@@ -2054,9 +2237,10 @@ def _skill() -> SimpleNamespace:
         id=uuid.uuid4(),
         name="reconcile",
         version=1,
+        latest_version_id=uuid.uuid4(),
         description="Match the ledger",
         content="Run reconcile.py.",
-        resources=[SimpleNamespace(name="reconcile.py", content="print('ok')")],
+        resources=[SimpleNamespace(name="reconcile.py", description=None, content="print('ok')")],
     )
 
 
@@ -2198,6 +2382,7 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
         resumed: MagicMock | None = None,
         spec: AgentSpec | None = None,
         use_workspace: bool = True,
+        resolve_skills: AsyncMock | None = None,
     ):
         """`prepare`, or with `resumed` the same assembly continuing that parked run."""
         service = AgentRunnerService(_db())
@@ -2229,7 +2414,11 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
             patch.object(
                 service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
             ),
-            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch.object(
+                service.skills,
+                "resolve_for_agent",
+                new=resolve_skills or AsyncMock(return_value=[]),
+            ),
             patch(
                 "app.services.agent_runner.agent_run_repo.create_run",
                 new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
@@ -2265,7 +2454,8 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
             kwargs = dict(find.await_args.kwargs)
             screen = kwargs.pop("screen")
             # Without a guardrail, nothing is screened.
-            assert (screen is None) == (spec is None)
+            guarded = spec is not None and any(b.id == "guardrails" for b in spec.capabilities)
+            assert (screen is None) == (not guarded)
             assert kwargs == {
                 "conversation_id": conversation_id,
                 "organization_id": ctx.organization_id,
@@ -2382,6 +2572,98 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
         assert "if it is still not there, say it could not be put back" in instructions
 
     @pytest.mark.anyio
+    async def test_a_resumed_run_keeps_the_skill_versions_it_served_and_adds_the_new(self):
+        ctx = _ctx()
+        before, now = uuid.uuid4(), uuid.uuid4()
+        resumed = MagicMock(
+            environment_id=None,
+            routine_origin_id=None,
+            user_id=ctx.user_id,
+            key_scopes=None,
+            initiated_by_publisher_fallback=False,
+            skill_version_ids=[before],
+        )
+
+        prepared, *_ = await self._prepare(
+            _sandbox(StateBackend()),
+            earlier=None,
+            ctx=ctx,
+            resumed=resumed,
+            resolve_skills=AsyncMock(
+                return_value=[_served_skill("refunds", before), _served_skill("shipping", now)]
+            ),
+        )
+
+        assert prepared.run.skill_version_ids == [before, now]
+
+    @pytest.mark.anyio
+    async def test_a_run_records_its_specialists_skill_versions_from_one_resolve_each(self):
+        """The specialist's skills are the ones it was built with, not resolved again."""
+        own, specialist = (
+            _served_skill("refunds", uuid.uuid4()),
+            _served_skill("invoices", uuid.uuid4()),
+        )
+        spec = AgentSpec.model_validate(
+            {
+                "name": "Books",
+                "skill_ids": [str(own.id)],
+                "capabilities": [
+                    {
+                        "id": "subagents",
+                        "config": {
+                            "inline": [
+                                {
+                                    "name": "billing",
+                                    "description": "Bills.",
+                                    "instructions": "Bill.",
+                                    "skill_ids": [str(specialist.id)],
+                                }
+                            ]
+                        },
+                    }
+                ],
+            }
+        )
+        resolve = AsyncMock(
+            side_effect=lambda ctx, skill_ids, **_: [
+                skill for skill in (own, specialist) if skill.id in skill_ids
+            ]
+        )
+
+        prepared, *_ = await self._prepare(
+            _sandbox(StateBackend()), earlier=None, spec=spec, resolve_skills=resolve
+        )
+
+        assert prepared.run.skill_version_ids == [
+            own.latest_version_id,
+            specialist.latest_version_id,
+        ]
+        assert [call.args[1] for call in resolve.await_args_list] == [[own.id], [specialist.id]]
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(("before", "after"), [(True, None), (False, False), (None, None)])
+    async def test_a_resumed_run_s_skill_uses_are_unknown_until_its_segment_is_written(
+        self, before: bool | None, after: bool | None
+    ):
+        """A segment that dies after the resume must not read as recorded with no uses."""
+        ctx = _ctx()
+        resumed = MagicMock(
+            environment_id=None,
+            routine_origin_id=None,
+            user_id=ctx.user_id,
+            key_scopes=None,
+            initiated_by_publisher_fallback=False,
+            skill_version_ids=[],
+            skill_uses_recorded=before,
+        )
+
+        prepared, *_ = await self._prepare(
+            _sandbox(StateBackend()), earlier=None, ctx=ctx, resumed=resumed
+        )
+
+        assert prepared.run.skill_uses_recorded is after
+
+    @pytest.mark.anyio
     async def test_a_run_its_own_person_resumes_looks_again(self):
         """Its sandbox may first be used after the park, when the fresh half's
         first-use set-up never ran - and the run then completes, closing the window
@@ -2393,6 +2675,7 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
             user_id=ctx.user_id,
             key_scopes=None,
             initiated_by_publisher_fallback=False,
+            started_at=datetime.now(UTC),
         )
 
         _, instructions, _, restored, find = await self._prepare(
@@ -2413,12 +2696,14 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
                 user_id=uuid.uuid4(),
                 key_scopes=None,
                 initiated_by_publisher_fallback=False,
+                started_at=datetime.now(UTC),
             ),
             MagicMock(
                 environment_id=None,
                 routine_origin_id=None,
                 key_scopes=["agents:run"],
                 initiated_by_publisher_fallback=False,
+                started_at=datetime.now(UTC),
             ),
         ],
         ids=["released-by-another-approver", "started-by-a-key"],
@@ -2535,6 +2820,46 @@ class TestSkillChangesARunProposed:
             await service.finish(prepared, status=RunStatus.COMPLETED)
 
         assert finish.call_args.kwargs["status"] == RunStatus.COMPLETED.value
+
+    @pytest.mark.anyio
+    async def test_a_change_is_proposed_for_the_fork_the_run_was_bound_to(self):
+        """A fork with no versions of its own serves a main version; the binding says
+        which line the change is for."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        skill_id, fork_id = uuid.uuid4(), uuid.uuid4()
+        own_main, specialists_fork = uuid.uuid4(), uuid.uuid4()
+
+        def bound(skill: uuid.UUID, fork: uuid.UUID) -> dict[str, str]:
+            return {"skill_id": str(skill), "fork_id": str(fork)}
+
+        specialist = {
+            "name": "billing",
+            "description": "Bills.",
+            "instructions": "Bill.",
+            "skill_ids": [str(own_main), str(specialists_fork)],
+            "skill_bindings": [bound(own_main, uuid.uuid4()), bound(specialists_fork, fork_id)],
+        }
+        prepared.spec = AgentSpec.model_validate(
+            {
+                "name": "Books",
+                "skill_ids": [str(skill_id), str(own_main)],
+                "skill_bindings": [bound(skill_id, fork_id)],
+                "capabilities": [{"id": "subagents", "config": {"inline": [specialist]}}],
+            }
+        )
+        prepared.ctx = MagicMock(organization_id=uuid.uuid4())
+        prepared.workspace = MagicMock()
+        prepared.materialised_skills = MagicMock()
+        service.proposals = MagicMock(record=AsyncMock())
+
+        with patch("app.services.agent_runner.collect_changes", return_value=[MagicMock()]):
+            await service._propose_skill_changes(prepared)
+
+        assert service.proposals.record.await_args.kwargs["forks"] == {
+            skill_id: fork_id,
+            specialists_fork: fork_id,
+        }
 
     @pytest.mark.anyio
     async def test_a_run_that_left_its_skills_alone_proposes_nothing(self):
@@ -3989,6 +4314,7 @@ class TestResume:
         stream_receipt: bool = False,
         conversation_id: uuid.UUID | None = None,
         current_revision: int | None = 0,
+        started_at: datetime | None = None,
     ) -> MagicMock:
         """Resume a parked run and hand back the `build_agent` mock.
 
@@ -4005,6 +4331,7 @@ class TestResume:
             surface=surface.value,
             parent_run_id=parent_run_id,
             conversation_id=conversation_id,
+            started_at=started_at or datetime.now(UTC),
         )
         run.paused_state["tool_call_ids"] = {str(approval.id): "call-1"}
         from contextlib import asynccontextmanager
@@ -4103,6 +4430,74 @@ class TestResume:
         assert self.finished.await_args.kwargs["status"] == (
             RunStatus.COMPLETED.value if allowed else RunStatus.GUARDRAIL_BLOCKED.value
         )
+
+    @pytest.mark.anyio
+    async def test_a_run_resumed_in_a_new_month_is_weighed_against_the_month_it_started(self):
+        """Its whole cost is booked to the month it started, as every report counts it.
+
+        Weighed against the new month instead, its earlier cost - already in the
+        ledger - lands on a month that never saw it, and a continuation the new
+        month has room for is refused.
+        """
+        this_month = month_start()
+        last_month = month_start(this_month - timedelta(days=1))
+        build = await self._resumed(
+            paused_state={"messages": [], "tool_call_ids": {}},
+            started_at=this_month - timedelta(hours=2),
+        )
+        kwargs = build.call_args.kwargs
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.sum_cost_since",
+                new=AsyncMock(return_value=Decimal("0")),
+            ) as runs,
+            patch(
+                "app.services.agent_runner.organization_spend_since",
+                new=AsyncMock(return_value=Decimal("0")),
+            ) as organization,
+        ):
+            await kwargs["agent_period_spend"]()
+            await kwargs["org_period_spend"]()
+
+        window = runs.call_args.kwargs
+        assert (window["since"], window["until"]) == (last_month, this_month)
+        assert window["exclude_run_id"] == self.resumed_run.id
+        assert organization.call_args.args[2] == last_month
+        assert organization.call_args.kwargs["until"] == this_month
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_parked_fire_whose_routine_spent_its_month_is_refused_before_the_model(
+        self, monkeypatch
+    ):
+        monkeypatch.setattr(
+            AgentRunnerService,
+            "_routine_budget_spent",
+            AsyncMock(
+                return_value=RoutineBudgetSpent(limit_usd=Decimal("5"), spent_usd=Decimal("5.25"))
+            ),
+        )
+
+        build = await self._resumed(paused_state={"messages": [], "tool_call_ids": {}})
+
+        assert build.return_value.agent.run.await_count == 0
+        finished = self.finished.await_args.kwargs
+        assert finished["status"] == RunStatus.BUDGET_EXCEEDED.value
+        assert finished["cost_usd"] == Decimal("0.25")
+        assert finished["error"].startswith("Routine monthly budget exhausted")
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_parked_fire_with_budget_left_continues(self, monkeypatch):
+        monkeypatch.setattr(
+            AgentRunnerService, "_routine_budget_spent", AsyncMock(return_value=None)
+        )
+
+        build = await self._resumed(paused_state={"messages": [], "tool_call_ids": {}})
+
+        assert build.return_value.agent.run.await_count == 1
+        assert self.finished.await_args.kwargs["status"] == RunStatus.COMPLETED.value
 
     @pytest.mark.anyio
     async def test_streamed_resume_announces_its_saved_message_without_a_second_bubble(self):
@@ -5994,11 +6389,12 @@ class TestTheModelIsToldWhereTheSkillFilesWent:
         spec = AgentSpec(name="Analyst", capabilities=[{"id": "sandbox", "config": {}}])
         skill = MagicMock(
             id=uuid.uuid4(),
-            name="refunds",
             description="Handle refunds",
             content="Ask.",
             resources=[],
         )
+        # `MagicMock(name=...)` names the mock, not the attribute.
+        skill.name = "refunds"
 
         _, built = await TestTheWorkspaceReachesTheAgent._prepare(spec, skills=[skill])
 
@@ -10491,3 +10887,105 @@ async def test_checkpoint_storage_refusal_fails_without_persisting_pending_calls
     assert (finish.await_args.kwargs["paused_state"] is not None) is accepted
     if not accepted:
         assert "quota exceeded" in finish.await_args.kwargs["error"]
+
+
+@pytest.mark.anyio
+class TestTheCurrentVersionsCap:
+    """The agent's cap is its current published version's, whatever version runs."""
+
+    async def test_an_older_version_takes_the_current_versions_cap(self, monkeypatch) -> None:
+        current = uuid.uuid4()
+        caps = AsyncMock(return_value={current: 5.0})
+        monkeypatch.setattr("app.services.agent_runner.agent_repo.published_budget_caps", caps)
+        service = AgentRunnerService(MagicMock())
+
+        spec = await service._with_current_budget(
+            MagicMock(current_version_id=current),
+            AgentSpec(name="Support"),
+            version_id=uuid.uuid4(),
+        )
+
+        assert spec.budget is not None
+        assert spec.budget.monthly_usd == 5.0
+        assert caps.await_args.kwargs["version_ids"] == [current]
+
+    async def test_a_cap_the_current_version_dropped_is_dropped(self) -> None:
+        service = AgentRunnerService(MagicMock())
+
+        spec = await service._with_current_budget(
+            MagicMock(current_version_id=uuid.uuid4()),
+            AgentSpec(name="Support", budget={"monthly_usd": 5}),
+            version_id=uuid.uuid4(),
+        )
+
+        assert spec.budget is None
+
+    async def test_the_current_version_and_an_unpublished_agent_keep_their_own(
+        self, monkeypatch
+    ) -> None:
+        caps = AsyncMock(return_value={})
+        monkeypatch.setattr("app.services.agent_runner.agent_repo.published_budget_caps", caps)
+        service = AgentRunnerService(MagicMock())
+        own = AgentSpec(name="Support", budget={"monthly_usd": 5})
+        current = uuid.uuid4()
+
+        assert (
+            await service._with_current_budget(
+                MagicMock(current_version_id=current), own, version_id=current
+            )
+            is own
+        )
+        assert (
+            await service._with_current_budget(
+                MagicMock(current_version_id=None), own, version_id=None
+            )
+            is own
+        )
+        caps.assert_not_awaited()
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("owners", [{None}, {"delegate-a"}, {"delegate-b"}, {None, "delegate-a"}])
+def test_native_approval_catalogs_do_not_confuse_ids_reused_by_another_owner(
+    owners: set[str | None],
+) -> None:
+    from pydantic import JsonValue, TypeAdapter
+
+    from app.services.agent_runner import DelegationFrame, _native_approval_tools
+
+    def messages(name: str) -> list[dict[str, JsonValue]]:
+        return TypeAdapter(list[dict[str, JsonValue]]).validate_json(
+            ModelMessagesTypeAdapter.dump_json(
+                [ModelResponse(parts=[ToolCallPart(name, {}, tool_call_id="reused-provider-id")])]
+            )
+        )
+
+    names = {None: "root_write", "delegate-a": "delegate_write", "delegate-b": "nested_write"}
+    approval_owners = {f"approval-{owner}": owner for owner in owners}
+    state = PausedRunState(
+        messages=messages(names[None]),
+        tool_call_ids=dict.fromkeys(approval_owners, "reused-provider-id"),
+        delegated_approvals={
+            key: owner for key, owner in approval_owners.items() if owner is not None
+        },
+        delegations=[
+            DelegationFrame(
+                tool_call_id="task-a",
+                task_id="delegate-a",
+                subagent="first",
+                messages=messages(names["delegate-a"]),
+                delegations=[
+                    DelegationFrame(
+                        tool_call_id="task-b",
+                        task_id="delegate-b",
+                        subagent="second",
+                        messages=messages(names["delegate-b"]),
+                    )
+                ],
+            )
+        ],
+    )
+    assert _native_approval_tools(state) == {
+        owner: frozenset({name}) if owner in owners else frozenset()
+        for owner, name in names.items()
+    }

@@ -100,7 +100,7 @@ class SandboxConfig(BaseModel):
             "organization's default. An id, never an address or a token - a spec is "
             "exported to a client's git repository, so the only thing it may carry "
             "is a reference. The connection decides whether that is a container on "
-            "a host you run or a sandbox in Daytona's cloud."
+            "a host you run or a sandbox on a cloud provider or OpenSandbox server."
         ),
     )
     # The default on every surface; a binding on one exposure may say otherwise. A
@@ -121,9 +121,10 @@ class SandboxConfig(BaseModel):
         default=None,
         max_length=64,
         description=(
-            "Which environment a container-backed workspace runs, named from the "
-            "list the connection's service allows. Empty takes the connection's "
-            "default. An alias, never an image."
+            "Optional provider-specific runtime override, up to 64 characters: "
+            "a sandboxd alias, E2B template, Daytona snapshot or OpenSandbox image. "
+            "Empty uses the connection's default; configure longer OpenSandbox "
+            "image references on the connection."
         ),
     )
     include_execute: bool = Field(

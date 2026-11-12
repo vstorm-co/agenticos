@@ -26,12 +26,18 @@ from uuid import UUID
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+)
+from app.core.field_errors import field_details
 from app.core.permissions import AuthContext, Perm, Scope
 from app.db.models.table_view import TableView
 from app.db.models.virtual_table import VirtualTable
 from app.db.updates import writable
-from app.repositories import table_view_repo
+from app.repositories import table_view_repo, virtual_table_repo
 from app.schemas.table_view import (
     TableViewConfig,
     TableViewCreate,
@@ -91,20 +97,29 @@ async def table_view_dependents(
     view still uses does.
 
     That is the caller's own views, plus the shared ones for a caller whose
-    `tables:edit` scope is `ALL`. Any other view would block them with nothing they
-    could do about it - and another member's private view would name a row they may
-    not know exists (`_visible_view` answers 404 for it) - so it is left to drop the
-    archived column when read (`_live_config`).
+    `tables:edit` scope is `ALL`, and a task board's default view for whoever may
+    change the board - the same views `_changeable_view` lets them change. Any other
+    view would block them with nothing they could do about it - and another member's
+    private view would name a row they may not know exists (`_visible_view` answers
+    404 for it) - so it is left to drop the archived column when read (`_live_config`).
     """
     if column_ids is None:
         return []
+    from app.services.task_access import manages_table
+
+    table = await virtual_table_repo.get_table(db, table_id, organization_id=organization_id)
+    default_view_id = table.default_view_id if table is not None else None
+    board = await manages_table(db, caller, table_id) if default_view_id is not None else None
     views = await table_view_repo.list_visible(
         db, organization_id=organization_id, table_id=table_id, user_id=caller.subject_id
     )
     return [
         Dependent(kind="table_view", id=view.id, name=view.name)
         for view in views
-        if _may_manage(caller, view) and _referenced_column_ids(view.config) & column_ids
+        if (
+            board if board is not None and view.id == default_view_id else _may_manage(caller, view)
+        )
+        and _referenced_column_ids(view.config) & column_ids
     ]
 
 
@@ -215,6 +230,7 @@ class TableViewOperations(Operations):
         table = await self._load_table(ctx, table_id, Perm.TABLES_VIEW)
         live = await self._live_columns(table)
         edits = await self._edits_table(ctx, table)
+        board = await self._board_manager(ctx, table)
         views = await table_view_repo.list_visible(
             self.db,
             organization_id=ctx.organization_id,
@@ -232,7 +248,17 @@ class TableViewOperations(Operations):
             kind=kind,
         )
         return TableViewList(
-            items=[self._to_read(ctx, view, live, edits_table=edits) for view in views], total=total
+            items=[
+                self._to_read(
+                    ctx,
+                    view,
+                    live,
+                    edits_table=edits,
+                    board_default=board if view.id == table.default_view_id else None,
+                )
+                for view in views
+            ],
+            total=total,
         )
 
     async def create_view(
@@ -285,6 +311,9 @@ class TableViewOperations(Operations):
             view,
             await self._live_columns(table),
             edits_table=await self._edits_table(ctx, table),
+            board_default=(
+                await self._board_manager(ctx, table) if view.id == table.default_view_id else None
+            ),
         )
 
     async def update_view(
@@ -294,12 +323,33 @@ class TableViewOperations(Operations):
 
         Needs `tables:edit` on the table, the same as creating one: an owner whose
         edit access was taken away may no longer publish or repoint a view. Refused
-        to anyone but its owner or a caller whose `tables:edit` scope is `ALL`. Every
+        to anyone but its owner or a caller whose `tables:edit` scope is `ALL`, and a
+        private view only ever to its owner: an `ALL`-scope caller may delete another
+        member's private view but never change it or read it back. Every such
         refusal is a 404, the same as every other per-resource write in this
         package: whether a row may be changed is not disclosed to a caller it refuses.
+
+        Sharing a view or making it private is its owner's choice alone, so a
+        visibility change from anyone else is refused outright. A task board's default
+        view is part of the board, so only someone who may change the board changes it,
+        whoever saved it.
+
+        Raises:
+            NotFoundError: The view is not this caller's to change.
+            AuthorizationError: Someone other than the owner changes its visibility, or
+                the view is a task board's default and this caller may not change the board.
         """
         table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, lock=True)
-        view = await self._manageable_view(ctx, table_id, view_id)
+        view, board_default = await self._changeable_view(ctx, table, view_id)
+        if not self._visible_to(ctx, view):
+            raise _view_not_found(view_id)
+        if (
+            data.visibility is not None
+            and data.visibility != view.visibility
+            and view.owner_user_id != ctx.subject_id
+        ):
+            message = "Only the person who saved this view can share it or make it private"
+            raise AuthorizationError(message=message, details=field_details("visibility", message))
         # `config` excluded from `writable`: its column is JSONB, not a scalar, so it needs
         # `model_dump(mode="json")` on the nested model to keep a `UUID` from reaching asyncpg
         # unserialized, and `writable` does not offer a per-field dump mode.
@@ -344,16 +394,23 @@ class TableViewOperations(Operations):
                     message=f"A view named '{new_name}' already exists.",
                     details={"name": new_name},
                 ) from exc
-        return self._to_read(ctx, view, await self._live_columns(table), edits_table=True)
+        return self._to_read(
+            ctx,
+            view,
+            await self._live_columns(table),
+            edits_table=True,
+            board_default=board_default,
+        )
 
     async def delete_view(self, ctx: AuthContext, table_id: UUID, view_id: UUID) -> None:
         """Delete a view. Refused (404) to anyone but its owner or a caller with `tables:edit` `ALL`.
 
         Needs only `tables:view` on the table, unlike changing one: an owner who lost
-        edit access can still clear away their own views.
+        edit access can still clear away their own views. A task board's default view
+        is deleted only by someone who may change the board (403).
         """
-        await self._load_table(ctx, table_id, Perm.TABLES_VIEW)
-        view = await self._manageable_view(ctx, table_id, view_id)
+        table = await self._load_table(ctx, table_id, Perm.TABLES_VIEW)
+        view, _board_default = await self._changeable_view(ctx, table, view_id)
         await table_view_repo.delete(self.db, view=view)
 
     async def find_view(
@@ -415,6 +472,30 @@ class TableViewOperations(Operations):
             raise _view_not_found(view_id)
         return view
 
+    async def _changeable_view(
+        self, ctx: AuthContext, table: VirtualTable, view_id: UUID
+    ) -> tuple[TableView, bool | None]:
+        """The view `ctx` may change or delete, and whether it is a task board's default.
+
+        A board's default view belongs to the board rather than to whoever saved it:
+        someone who may change the board - its group's lead or project's owner as much
+        as an administrator - changes it, and nobody else does, not even its owner.
+        Every other view is `_manageable_view`'s.
+
+        Raises:
+            NotFoundError: The view is not this caller's to change.
+            AuthorizationError: A board's default view, and `ctx` may not change the board.
+        """
+        board = await self._board_manager(ctx, table) if view_id == table.default_view_id else None
+        if board is None:
+            return await self._manageable_view(ctx, table.id, view_id), None
+        # A default view is always shared, so anyone who reaches the board sees it: a
+        # caller who may not change the board is told so rather than told it is missing.
+        view = await self._visible_view(ctx, table.id, view_id)
+        if not board:
+            await self._ensure_manages_board(ctx, table)
+        return view, board
+
     async def _manageable_view(self, ctx: AuthContext, table_id: UUID, view_id: UUID) -> TableView:
         """A view the caller may change or delete - its owner, or a `tables:edit` `ALL` scope.
 
@@ -450,9 +531,16 @@ class TableViewOperations(Operations):
 
     @staticmethod
     def _to_read(
-        ctx: AuthContext, view: TableView, live: list[ColumnDef], *, edits_table: bool
+        ctx: AuthContext,
+        view: TableView,
+        live: list[ColumnDef],
+        *,
+        edits_table: bool,
+        board_default: bool | None = None,
     ) -> TableViewRead:
-        may_manage = _may_manage(ctx, view)
+        """`board_default` is, for a task board's default view, whether `ctx` may change the
+        board - which decides it in place of who saved the view; None for any other view."""
+        may_manage = _may_manage(ctx, view) if board_default is None else board_default
         return _read(
             view, columns=live, can_manage=may_manage and edits_table, can_delete=may_manage
         )

@@ -957,6 +957,17 @@ class ParkedCall(BaseSchema):
         default=None,
         description="Which account of an MCP service the call acts as, where that is a question.",
     )
+    content_hidden: bool = Field(
+        default=False,
+        description="As `ApprovalRead.content_hidden`: what the call quotes was left out for this caller.",
+    )
+    always_asks: bool = Field(
+        default=False,
+        description=(
+            "As `ApprovalRead.always_asks`. With `content_hidden`, the caller may reject the "
+            "call but not approve it"
+        ),
+    )
 
 
 class ParkedQuestion(BaseSchema):

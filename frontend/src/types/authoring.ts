@@ -86,10 +86,15 @@ export type Rejection =
   | "unsupported"
   | "edit_not_in_diff"
   | "superseded"
-  | "insufficient_evidence";
+  | "insufficient_evidence"
+  | "copies_skill"
+  | "duplicates_skill"
+  | "unknown_skill"
+  | "skill_not_used";
 
 export interface RejectedChange {
-  kind: "instructions" | "tool_override" | "spec_field" | "create_skill" | "finding";
+  kind:
+    "instructions" | "tool_override" | "spec_field" | "create_skill" | "finding" | "skill_problem";
   reason: Rejection;
   /** The skill a person created from this idea, once they have. */
   skill_id?: string;
@@ -117,6 +122,9 @@ export interface RejectedChange {
     /** A new skill's procedure, and how many distinct answers it was drawn from. */
     content?: string;
     answers?: number;
+    /** A skill problem's skill, as the improver named it, and what it found wrong. */
+    skill?: string;
+    problem?: string;
   };
 }
 
@@ -176,7 +184,13 @@ export interface FieldEffect {
 
 export interface Hunk {
   id: string;
-  kind: "instructions" | "tool_override" | "spec_field" | "create_skill";
+  kind:
+    | "instructions"
+    | "tool_override"
+    | "spec_field"
+    | "create_skill"
+    | "skill_body"
+    | "skill_description";
   origin: AuthoringKind;
   status: HunkStatus;
   old_text: string;

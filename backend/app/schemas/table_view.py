@@ -98,9 +98,9 @@ class TableViewRead(_Schema):
     visibility: ViewVisibility
     config: TableViewConfig
     can_manage: bool = Field(
-        description="Whether this caller may rename, reconfigure or reshare this view: "
-        "its owner, or a caller whose `tables:edit` scope is `ALL`, while holding "
-        "`tables:edit` on the table."
+        description="Whether this caller may rename or reconfigure this view: its owner, "
+        "or a caller whose `tables:edit` scope is `ALL`, while holding `tables:edit` on "
+        "the table. Changing its `visibility` is its owner's alone (`owner_user_id`)."
     )
     can_delete: bool = Field(
         description="Whether this caller may delete this view: its owner, or a caller whose "

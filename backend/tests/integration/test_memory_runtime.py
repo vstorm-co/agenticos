@@ -141,6 +141,9 @@ async def test_recall_and_correct_stay_inside_the_scopes_given(db: AsyncSession)
         statement="Acme stays",
         author_user_id=user.id,
         effective_from=None,
+        run_id=None,
+        conversation_id=None,
+        agent_id=None,
     )
     fixed = await runtime.correct(
         organization_id=org.id,
@@ -149,9 +152,12 @@ async def test_recall_and_correct_stay_inside_the_scopes_given(db: AsyncSession)
         statement="The Acme renewal is due in April",
         author_user_id=user.id,
         effective_from=None,
+        run_id=None,
+        conversation_id=None,
+        agent_id=None,
     )
     assert refused is None
-    assert fixed is not None and fixed.origin == "person"
+    assert fixed is not None and fixed.origin == "agent"
 
 
 async def test_an_owner_shares_to_the_project_and_the_organization(db: AsyncSession) -> None:
@@ -304,6 +310,9 @@ async def test_reading_an_organization_claim_is_not_authority_to_rewrite_it(
             statement="Office closes at five",
             author_user_id=user.id,
             effective_from=None,
+            run_id=None,
+            conversation_id=None,
+            agent_id=None,
         )
 
 
@@ -325,6 +334,9 @@ async def test_an_owner_may_rewrite_what_the_organization_and_the_project_read(
             statement="Launch is April",
             author_user_id=user.id,
             effective_from=None,
+            run_id=None,
+            conversation_id=None,
+            agent_id=None,
         )
 
         assert fixed is not None and fixed.statement == "Launch is April"
@@ -349,6 +361,9 @@ async def test_a_project_the_person_may_not_edit_or_that_is_gone_cannot_be_rewri
         "statement": "x",
         "author_user_id": user.id,
         "effective_from": None,
+        "run_id": None,
+        "conversation_id": None,
+        "agent_id": None,
     }
 
     with pytest.raises(runtime.ShareRefused, match="may not edit this project"):
@@ -373,6 +388,9 @@ async def test_nobody_behind_the_run_may_rewrite_a_wide_claim(db: AsyncSession) 
             statement="x",
             author_user_id=uuid.uuid4(),
             effective_from=None,
+            run_id=None,
+            conversation_id=None,
+            agent_id=None,
         )
 
 
@@ -391,6 +409,9 @@ async def test_an_id_from_an_earlier_recall_cannot_correct_or_share_what_is_no_l
         statement="Launch is 5 March",
         author_user_id=user.id,
         effective_from=None,
+        run_id=None,
+        conversation_id=None,
+        agent_id=None,
     )
 
     again = await runtime.correct(
@@ -400,6 +421,9 @@ async def test_an_id_from_an_earlier_recall_cannot_correct_or_share_what_is_no_l
         statement="Launch is 9 March",
         author_user_id=user.id,
         effective_from=None,
+        run_id=None,
+        conversation_id=None,
+        agent_id=None,
     )
     shared = await runtime.share(
         organization_id=org.id,
@@ -452,6 +476,9 @@ async def test_an_expired_claim_cannot_replace_or_republish_its_successor(db: As
             statement="Piotr handles invoices",
             author_user_id=user.id,
             effective_from=None,
+            run_id=None,
+            conversation_id=None,
+            agent_id=None,
         )
         is None
     )
@@ -492,6 +519,9 @@ async def test_a_claim_conflict_after_admission_is_reported_to_the_agent(
                 statement="Correction",
                 author_user_id=user.id,
                 effective_from=None,
+                run_id=None,
+                conversation_id=None,
+                agent_id=None,
             )
         else:
             await runtime.share(
@@ -502,3 +532,123 @@ async def test_a_claim_conflict_after_admission_is_reported_to_the_agent(
                 run_person=user.id,
                 conversation_id=conversation.id,
             )
+
+
+async def test_a_project_chat_recalls_the_projects_claims_and_none_of_the_persons(
+    db: AsyncSession,
+) -> None:
+    from pydantic_ai import RunContext
+    from pydantic_ai.models.test import TestModel
+    from pydantic_ai.usage import RunUsage
+
+    from app.agents.audience import RunAudience
+    from app.agents.capabilities.memory_files._toolset import MemoryToolset
+    from app.agents.deps import AgentDeps
+
+    user, org, agent, project, conversation = await _world(db)
+    personal = ClaimScope(person_owner_key(user.id), None)
+    shared = ClaimScope(project_owner_key(project.id), None)
+    assert await _remember(org, personal, "Ada is on sick leave until Friday", user)
+    assert await _remember(org, shared, "The launch slips to Friday", user, subject="launch")
+    deps = AgentDeps(
+        organization_id=org.id,
+        agent_id=agent.id,
+        conversation_id=conversation.id,
+        run_person=user.id,
+        audience=RunAudience(user_id=user.id, shared_transcript=True),
+    )
+    ctx = RunContext(deps=deps, model=TestModel(), usage=RunUsage(), retry=0, max_retries=1)
+
+    found = await MemoryToolset().recall(ctx, "Friday")
+
+    assert "The launch slips to Friday" in found
+    assert "sick leave" not in found
+
+
+async def test_an_approval_card_reads_only_a_live_claim_the_run_may_read(db: AsyncSession) -> None:
+    user, org, agent, *_ = await _world(db)
+    mine = ClaimScope(person_owner_key(user.id), agent.id)
+    theirs = ClaimScope(person_owner_key(uuid.uuid4()), agent.id)
+    saved = await _remember(org, mine, "The Acme renewal is due in March", user, subject="acme")
+    foreign = await _remember(org, theirs, "Acme is leaving", user, subject="acme")
+    assert saved is not None and foreign is not None
+
+    read = await runtime.claim_for_approval(
+        organization_id=org.id, claim_id=saved[0].id, scopes=[mine]
+    )
+    assert read is not None and read.statement == "The Acme renewal is due in March"
+    assert (
+        await runtime.claim_for_approval(
+            organization_id=org.id, claim_id=foreign[0].id, scopes=[mine]
+        )
+        is None
+    )
+
+    await runtime.correct(
+        organization_id=org.id,
+        claim_id=saved[0].id,
+        scopes=[mine],
+        statement="The Acme renewal is due in April",
+        author_user_id=user.id,
+        effective_from=None,
+        run_id=None,
+        conversation_id=None,
+        agent_id=None,
+    )
+    assert (
+        await runtime.claim_for_approval(
+            organization_id=org.id, claim_id=saved[0].id, scopes=[mine]
+        )
+        is None
+    )
+
+
+async def test_a_correction_from_a_run_names_the_run_and_is_audited(db: AsyncSession) -> None:
+    from sqlalchemy import select
+
+    from app.db.models.audit_log import AppAdminAuditLog
+    from app.db.models.memory_claim import MemoryClaim
+
+    user, org, agent, project, conversation = await _world(db)
+    wide = ClaimScope(organization_owner_key(org.id), None)
+    saved = await _remember(org, wide, "Office closes at six", user, subject="office")
+    assert saved is not None
+    run_id = uuid.uuid4()
+
+    fixed = await runtime.correct(
+        organization_id=org.id,
+        claim_id=saved[0].id,
+        scopes=[wide],
+        statement="Office closes at five",
+        author_user_id=user.id,
+        effective_from=None,
+        run_id=run_id,
+        conversation_id=conversation.id,
+        agent_id=agent.id,
+    )
+
+    assert fixed is not None and fixed.origin == "agent" and fixed.status == "current"
+    stored = await db.get(MemoryClaim, fixed.id)
+    assert stored is not None
+    assert stored.source_run_id == run_id
+    assert stored.source_conversation_id == conversation.id
+    assert stored.supersedes_id == saved[0].id
+    old = await db.get(MemoryClaim, saved[0].id)
+    assert old is not None and old.status == "superseded"
+    [entry] = (
+        await db.scalars(
+            select(AppAdminAuditLog).where(
+                AppAdminAuditLog.organization_id == org.id,
+                AppAdminAuditLog.action == "memory.claim.corrected",
+            )
+        )
+    ).all()
+    assert entry.actor_user_id == user.id
+    assert entry.target_id == str(saved[0].id)
+    assert entry.details == {
+        "replacement": str(fixed.id),
+        "scope": "org",
+        "run_id": str(run_id),
+        "agent_id": str(agent.id),
+    }
+    assert "Office" not in str(entry.details)

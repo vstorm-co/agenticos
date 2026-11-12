@@ -1,5 +1,5 @@
 ---
-source_sha: "9c37b08af0c5"
+source_sha: "1e63060a548e"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -542,7 +542,10 @@ wiederholen kann, das sein Leser nicht sehen darf.
 Jeder Score behält Modell, veröffentlichte Helferidentität, Kriterienhash, Aufgabenversion und Anweisungshash. Dataset-Modell und Anweisungen dürfen geändert werden; Bewertungen unterschiedlicher Konfigurationen sind nicht unmittelbar vergleichbar.
 
 ### Prüfung { #review }
+
 Prüfung zeigt alle bewerteten Antworten in einer Tabelle mit Frage, Agent, Ergebnis, Modell, Datum und Quelle. Eine gewählte Antwort öffnet Evidenz, Bewertung und Entscheidung im Seitenpanel. Speichern hält das Panel offen und die Zeile an ihrer Position; Entscheidungen lassen sich zurücknehmen oder rückgängig machen. Ändert der Server die Datenschutzmaske, werden Panel und ungespeicherte Notiz verworfen.
+
+Die Quelle sagt, woher jede Antwort stammt: aus einem Eval-Run, aus einer Bewertung von Hand oder von einer Seite einer Skill-Prüfung (der vorgeschlagene Text oder die aktuelle Version), und welche Wiederholung sie war, sodass eine mehrfach gestellte Frage als unterscheidbare Zeilen erscheint; die Antworten einer Skill-Prüfung stehen unter der Überschrift der Prüfung.
 
 Ein Score wartet in der **Warteschlange zur Prüfung**, wenn jemand ihn dorthin
 schickt oder ein Eval-Run es tut. Hat er erneut ausgeführt, was gekippt ist,

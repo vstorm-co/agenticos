@@ -705,7 +705,11 @@
     },
     "moreFiles": "{count, plural, =1 {+1 dosya} other {+# dosya}}",
     "bodyPlaceholder": "# İadeler\n\nBir müşteri parasını geri istediğinde bunu kullanın.\n\n## Adımlar\n\n1. Sipariş tarihini kontrol edin.\n2. 14 gün içinde, sormadan iade edin.\n3. Sonrasında bir kişiden onay isteyin.",
-    "whoCanUseIt": "Kimler kullanabilir?"
+    "whoCanUseIt": "Kimler kullanabilir?",
+    "page": {
+      "skillDetails": "Beceri ayrıntıları",
+      "openFullView": "Tam görünümü aç"
+    }
   },
   "workflows": {
     "conditionOps": {
@@ -816,6 +820,11 @@
       "email": "Kuruluşunuzun dışındaki kişilere e-posta gönderin",
       "gmail": "Posta tetikleyicisi ve Gmail işlemleri",
       "outlook": "Posta tetikleyicisi ve Outlook eylemleri"
+    },
+    "pickerFound": {
+      "groups": "Kategoriler",
+      "steps": "Yerleşik adımlar",
+      "actions": "Uygulama eylemleri"
     },
     "pickerSection": {
       "start": "Başlangıç",
@@ -4383,6 +4392,7 @@
       "perVersionCostPerRun": "run başına",
       "perVersionLatency": "p95",
       "personColumn": "Kişi",
+      "askedByColumn": "İsteyen",
       "personFilter": "Kişiye göre filtrele",
       "previousRun": "Önceki run",
       "problemsOnly": "Sorunlar",
@@ -4486,6 +4496,8 @@
       "toolState": "{status, select, completed {Tamamlandı} error {Başarısız} running {Çalışıyor} pending {Çalışıyor} unfinished {Tamamlanmadı} awaiting_approval {Onay bekliyor} awaiting_answer {Yanıt bekliyor} other {Bilinmiyor}}",
       "wantsTo": "<strong>{actor}</strong>, <strong>{tool}</strong> aracını kullanmak istiyor",
       "askedFor": "{email} için",
+      "contentHidden": "Bu çağrının run’ından alıntıladığı içeriği yalnızca o run’ı görebilenler görür.",
+      "approveNeedsTheRun": "Bunu yalnızca run’ı görebilen biri onaylayabilir. Reddedebilirsiniz.",
       "account": "Hesap: {account}",
       "openTheRun": "Runı aç",
       "decidedByWhom": "{email} tarafından",
@@ -4531,7 +4543,9 @@
       "stepApprovalEdited": "Düzenlendi",
       "surfaceProactive": "Proaktif",
       "standaloneRequest": "Model isteği",
-      "standaloneResponse": "Model yanıtı"
+      "standaloneResponse": "Model yanıtı",
+      "unverifiedSender": "Doğrulanmamış",
+      "anonymousRequester": "Anonim katılımcı"
     },
     "adminSettingsLayout": {
       "title": "Dağıtım ayarları",
@@ -4703,8 +4717,9 @@
     },
     "authFilter": "Oturum açma",
     "anyAuth": "Herhangi bir oturum açma yöntemi",
-    "toolReadsOnly": "okur",
-    "toolWrites": "yazar",
+    "toolReadsOnly": "salt okunur",
+    "toolWrites": "verileri değiştirebilir",
+    "toolUnspecified": "belirtilmemiş",
     "moreOptions": "Diğer seçenekler",
     "configureNamed": "Bağlanmadan önce {name} öğesini yapılandırın",
     "configure": "Yapılandır",
@@ -4753,6 +4768,18 @@
       "kindE2b": "E2B cloud",
       "e2bKeyHint": "E2B dashboard'unuzdaki bir API key. Sandbox'lar bu hesapta çalışır ve ücretlendirilir.",
       "e2bTemplateWhat": "Bir E2B template adı; boş bırakırsanız E2B varsayılanı kullanılır. Bilgisayar kullanımı için desktop seçin.",
+      "kindOpenSandbox": "OpenSandbox",
+      "secretNameOpenSandbox": "OpenSandbox API anahtarı",
+      "openSandboxAddressHint": "Arka uçtan erişilebilen API sunucusu. İstekler kimliği doğrulanmış sunucu vekilini kullanır.",
+      "openSandboxKeyHint": "Bu sunucunun kasadaki API anahtarı tüm sandbox’larını yönetir. Sunucuyu ve ağı hedef kuruluşlar için yalıtın.",
+      "openSandboxImage": "Sandbox imajı",
+      "openSandboxImageHint": "POSIX kabuğu ve dosya araçları içeren OCI imajı; örneğin python:3.12-slim.",
+      "openSandboxSecureAccess": "Secure Access (Kubernetes)",
+      "openSandboxSecureAccessHint": "OpenSandbox Kubernetes ağ geçidi gerektirir; Docker desteklemez. Yalnızca yeni çalışma alanları: mevcut alanlar açıkça sıfırlanana kadar modunu korur.",
+      "openSandboxTestHint": "Geçici sandbox başlatır, kabuğunu denetler ve kaldırır. İmaj indirebilir ve sunucu kapasitesi kullanabilir.",
+      "openSandboxTest": "Sunucuyu ve imajı test et",
+      "openSandboxTesting": "Sunucu ve imaj test ediliyor…",
+      "openSandboxTestSuccess": "Sunucu, anahtar ve imaj çalışma alanı testini geçti.",
       "secretNameE2b": "E2B API key"
     },
     "daytonaSnapshotImageWhat": "Bir Daytona snapshot'ı veya image'ı. İzin verdiği şey karşı taraftaki hesap ayarlarına bağlıdır; bu nedenle sunulacak bir liste yoktur.",
@@ -5273,7 +5300,7 @@
       },
       "connection_id": {
         "title": "Sandbox bağlantısı",
-        "description": "Kullanılacak kayıtlı sandbox bağlantısı; boşsa kuruluşun varsayılanı alınır. Adres veya token değil, yalnızca bir id: spec müşterinin git repository'sine aktarılabileceğinden sadece referans taşıyabilir. Bağlantı, çalıştırdığınız host'taki container'ı mı yoksa Daytona cloud'daki sandbox'ı mı kullanacağını belirler."
+        "description": "Kullanılacak kayıtlı sandbox bağlantısı; boş bırakılırsa kuruluşun varsayılanı seçilir. Bir kimliktir, asla adres veya token değildir — belirtim müşterinin deposuna aktarılır ve yalnızca bir referans içerebilir. Bağlantı, kendi sunucunuzdaki bir konteyneri, bulut sağlayıcısındaki sandboxı veya OpenSandbox sunucusunu belirler."
       },
       "session_scope": {
         "title": "Workspace'i kimlerle paylaş",
@@ -5281,7 +5308,7 @@
       },
       "runtime": {
         "title": "Runtime",
-        "description": "Container tabanlı workspace'in hangi ortamda çalışacağı; bağlantının service'inin izin verdiği listeden seçilir. Boşsa bağlantının varsayılanı kullanılır. Image değil, alias girin."
+        "description": "En fazla 64 karakterlik isteğe bağlı sağlayıcı çalışma ortamı: sandboxd takma adı, E2B şablonu, Daytona anlık görüntüsü veya OpenSandbox imajı. Boşsa bağlantının varsayılanı kullanılır; daha uzun OpenSandbox imaj referanslarını bağlantıda yapılandırın."
       },
       "include_execute": {
         "title": "Shell komutlarına izin ver",
@@ -5840,12 +5867,11 @@
     "anyoneThoseSites": "Bu sitelerdeki herkes",
     "approval": "Onay",
     "approvalAlways": "Her zaman sor",
-    "approvalFollow": "Capability ayarını izle",
     "approvalHintDefaultReadOnly": "Bu capability yalnızca okuma yaptığı için onaysız çalışır.",
     "approvalHintDefaultSideEffecting": "Bu capability Agent'ın dışında bir şeyi değiştirse de onaysız çalışır. Her çağrıdan önce birinin görmesi gerekiyorsa Her zaman sor'u seçin.",
     "approvalHintNeverReadOnly": "Onay gerekmez; bu capability zaten onaysız çalışacaktı.",
     "approvalHintNeverSideEffecting": "Agent gözetimsiz işlem yapar. Yalnızca kuruluşunuzun güvenli olduğuna karar verdiği işlemler için kullanın.",
-    "approvalHintRequired": "Her çağrı çalışmadan önce bir kişi tarafından onaylanır.",
+    "approvalHintRequired": "Her çağrı çalışmadan önce bir kişi tarafından onaylanır. Rutinler ve kanallar da onay bekleyebilir. Provider tarafından çalıştırılan araçların onay istemesi için yerel bir yöntem gerekir; yayımlama bunu denetler. Asla sorma seçilse de zorunlu onaylar geçerlidir.",
     "approvalNever": "Asla sorma",
     "approvalParksTheRun": "Onay isteyen bir tool, biri bu dashboard'da yanıt verene kadar run'ı bekletir; bu sırada chat platformundaki thread bot bozulmuş gibi görünür. Kanaldan erişilen bir Agent için işe yarayan ayar, ağ erişimi olmayan bir container içinde onay denetimine takılmayan bir shell kullanmaktır.",
     "archive": "Arşivle",
@@ -6474,6 +6500,7 @@
     "menuArchiveHint": "Seçim listelerinden kaldırır, geçmişi korur",
     "menuRestoreHint": "Olduğu gibi seçim listelerine geri getirir",
     "menuDeleteHint": "Tüm sürümleriyle kalıcı olarak siler",
+    "channelRunFreelyHint": "Bağlı kanal göndericileri, diğer kişilerin mesajları dahil tüm oda geçmişiyle bu ayarları kullanır. Run freely ek onay olmadan çağrılara izin verir; yalnızca güvendiğiniz araçlar ve odalar için kullanın.",
     "serverTools": "Tool'lar",
     "loadTools": "Tool'larını yükle",
     "toolsAfterConnecting": "{name} hesabı bağlandığında tool'ları listelenir.",
@@ -9252,6 +9279,8 @@
       "approveCreateRecord": "{table} tablosuna kayıt ekle",
       "approveDeleteRecord": "{table} tablosundan kayıt sil",
       "approveUpdateRecord": "{table} tablosundaki kaydı değiştir",
+      "approveCorrectMemory": "“{before}” ifadesini “{after}” olarak düzelt",
+      "approveShareMemory": "{audience, select, organization {Tüm kuruluşla} other {Projeyle}} paylaş: “{claim}”",
       "approveUpsertRecord": "{table} tablosunda kayıt oluştur veya güncelle",
       "recordsChecking": "Kayıt aranıyor",
       "recordsCreating": "Kayıt ekleniyor",
@@ -9771,6 +9800,7 @@
     "approvalRememberOptions": "Diğer onay seçenekleri",
     "approvalRememberChat": "Bu sohbette bu araca izin ver",
     "approvalRememberAgent": "Bu ajan için bu araca her zaman izin ver",
+    "approvalNeedsTheRun": "Bunu yalnızca run’ı görebilen biri onaylayabilir. Reddedebilirsiniz.",
     "approvalRememberedTitle": "Hatırlanan araç onayları",
     "approvalRememberedEmpty": "Hatırlanan onay yok.",
     "approvalRememberForget": "Tekrar sor",
@@ -10385,6 +10415,25 @@
     "useIntegration": "Bu entegrasyonu kullan"
   },
   "triggers": {
+    "attemptsTitle": "Aracı başlamadan önce",
+    "attemptsHint": "Bu denemeler bir aracı çalıştırması başlatmadı ve model ücreti oluşturmadı.",
+    "attemptsError": "Aracı başlamadan önceki denemeler okunamadı.",
+    "attemptsRetry": "Geçmişi yeniden yükle",
+    "attemptCount": "{count, plural, one {# deneme} other {# deneme}}",
+    "attemptStatus": {
+      "blocked": "Engellendi",
+      "failed": "Başarısız"
+    },
+    "attemptStage": {
+      "source_review": "Kaynak incelemesi",
+      "preparation": "Aracı hazırlanıyor"
+    },
+    "attemptReason": {
+      "platform_identity_required": "Oluşturan olarak davran seçeneğini açın veya yerleşik platform MCP bağlantısını aracıdan ve delegelerinden kaldırın.",
+      "source_review_required": "Yeniden denemeden önce rutinin kaynaklarını ve kullanılamayan bağlantıları inceleyin.",
+      "agent_unavailable": "Rutini yeniden etkinleştirmeden önce aracının yayımlanmış sürümünü, yapılandırmasını ve erişimini kontrol edin.",
+      "preparation_failed": "Bir aracı çalıştırması oluşturulmadan önce hazırlık başarısız oldu. Operatörden bu zamana ait çalışan günlüklerini incelemesini isteyin."
+    },
     "runAsMe": "Run’ı benim adıma çalıştır",
     "runAsCreator": "Run’ı oluşturan kişi adına çalıştır",
     "runAsMeScheduleHint": "Her run sizin belleğinizi ve kendi bağlantılarınızı (posta kutunuz, takviminiz gibi) kendi sohbetinizdeki gibi kullanır. Sizin için not kaydedebilir; geçmiş konuşmalarınızı asla aramaz.",
@@ -10629,7 +10678,34 @@
     "resultReportHint": "Her çalışmadan sonra seçilen sohbete bir rapor gönderin.",
     "resultInboxHint": "Her kaynak öğesi için bir Inbox kaydı ve çalışma sohbeti oluşturun. İstenen taslakları buraya yazın; değişmeyen kontroller sessiz kalır. Göndermek yine yetki ve onay gerektirir.",
     "clearSearch": "Aramayı temizle",
-    "noRoutineMatchesHint": "Agent adı, rutin başlığı veya mesajındaki sözcüklerle arayın."
+    "noRoutineMatchesHint": "Agent adı, rutin başlığı veya mesajındaki sözcüklerle arayın.",
+    "actionConsents": {
+      "checkConnections": "Eylemlerini incelemek için bu bağlantıları kontrol edin: {names}.",
+      "personalAccount": "{name} · hesabınız",
+      "organizationAccount": "{name} · organizasyon hesabı",
+      "title": "Eylem izni",
+      "description": "Rutin eylemleri varsayılan olarak onay ister. Yalnızca listelenen eylemlere sormadan çalışma izni verin. İzin, bu yayımlanmış sürüm ve rutin yapılandırması için geçerlidir; agent tarafından zorunlu tutulan onaylar geçerlidir. Her MCP eylemi yalnızca belirtilen hesaba uygulanır.",
+      "retry": "Yeniden dene",
+      "notAllowed": "Onay yetkileriniz ve organizasyonun kalıcı izin ayarı istisnalara izin vermelidir. Tüm izinleri yine de iptal edebilirsiniz.",
+      "empty": "Bu sürümde burada yetkilendirilebilecek eylem yok.",
+      "required": "Agent onayı gerekli",
+      "revokeAll": "Tümünü iptal et",
+      "save": "İzni kaydet",
+      "search": "Eylemleri ara",
+      "selectAll": "İzin verilebilir tüm eylemleri seç",
+      "bulkScope": "Toplu seçim, aramada gizlenenler dahil tüm grubu veya listeyi kapsar. Zorunlu onaylar geçerliliğini korur.",
+      "selectGroup": "{name} içindeki izin verilebilir eylemleri seç",
+      "noMatches": "Aramayla eşleşen eylem yok.",
+      "reselectPrevious": "Daha önce incelenen eylemleri yeniden seç",
+      "selected": "{count, plural, =1 {1 eylem seçildi} other {# eylem seçildi}} · sınır {limit}",
+      "tooMany": "{count} eylem seçildi; sınır {limit}. Kaydetmeden önce bazı eylemlerin seçimini kaldırın.",
+      "changed": {
+        "version": "Yayımlanan agent sürümü değişti. Eylemlerini yeniden inceleyin.",
+        "intent": "Rutinin işi veya hedefi değişti. Eylemleri yeniden inceleyin.",
+        "instructions": "Skill, context veya proje talimatları değişti. Eylemleri yeniden inceleyin.",
+        "actions": "Önceden seçilen bazı eylemler kullanılamıyor, onay gerektiriyor veya hesap yetkilendirmesi değişmiş. Bunlar yeniden seçilmez."
+      }
+    }
   },
   "teams": {
     "acmeCom": "acme.com",
@@ -11411,13 +11487,24 @@
         "title": "Bu bilgisayar",
         "description": "Chat'te “Bu bilgisayar”ı seçtiğinizde Agent'larınızın burada, seçtiğiniz klasörde ve belirlediğiniz modun izin verdiği şekilde çalışmasına izin verin. Başka kimsenin run'ı bu bilgisayara ulaşmaz.",
         "notLinked": "Bağlı değil",
-        "connected": "Bağlandı - Agent'larınız burada çalışabilir",
+        "connected": "Bağlı - Agent'larınız burada çalışabilir",
         "reconnecting": "Bağlı - yeniden bağlanıyor…",
-        "live": "Bağlı",
-        "link": "Agent'ların burada çalışmasına izin ver",
+        "live": "Canlı",
+        "link": "Bu bilgisayarı bağla",
         "unlink": "Bağlantıyı kes",
         "linkFailed": "Bu bilgisayar bağlanamadı.",
-        "unlinkFailed": "Bu bilgisayarın bağlantısı kesilemedi."
+        "unlinkFailed": "Bu bilgisayarın bağlantısı kesilemedi.",
+        "unlinkTitle": "Bu bilgisayarın bağlantısı kaldırılsın mı?",
+        "unlinkBody": "Agent'larınız artık burada çalışamaz ve uygulama bu bilgisayarda izin verdiklerinizi unutur:",
+        "unlinkClears": {
+          "folders": "Onaylı klasörler",
+          "services": "Yerel hizmetler",
+          "consents": "Bilgisayarın tamamına ve ekrana erişim",
+          "routines": "Rutinler için klasör izinleri",
+          "sessions": "Kayıtlı yerel agent oturumları"
+        },
+        "unlinkCancel": "İptal",
+        "unlinkConfirm": "Bu bilgisayarın bağlantısını kaldır"
       },
       "services": {
         "title": "Yerel modeller ve MCP",
@@ -11498,7 +11585,8 @@
       "tabLimit": "Bir pencerede en fazla sekiz sekme açabilirsiniz.",
       "earlierMessages": "Önceki mesajları yükle",
       "startDictation": "Dikteyi başlat",
-      "stopDictation": "Dikteyi durdur"
+      "stopDictation": "Dikteyi durdur",
+      "computerAccessInConsole": "Quick Ask, bu bilgisayara erişim isteğini reddetti. İzin vermek için konsolda yeniden isteyin."
     },
     "notifications": {
       "approvalTitle": "{agent}, {tool} çalıştırmak istiyor",
@@ -11509,7 +11597,6 @@
       "questionBody": "Agent'a yanıt vermek için konuşmayı açın."
     },
     "welcome": {
-      "onlyInApp": "Bu karşılama AgenticOS desktop app'ine aittir.",
       "skip": "Şimdilik atla",
       "next": "Devam et",
       "open": "AgenticOS'u aç",
@@ -11530,7 +11617,7 @@
       },
       "loop": {
         "title": "Gelişmelerden haberdar olun",
-        "body": "Onaylar, hiçbir şeyi açmadan yanıtlayabileceğiniz bildirimler olarak gelir.",
+        "body": "Onay istekleri bildirim olarak gelir. Çoğunu oradan yanıtlamak için Ayarlar → Masaüstü uygulaması bölümünde önizlemeleri açın.",
         "login": "Oturum açıldığında AgenticOS'u aç",
         "keepRunning": "Pencere kapalıyken çalışmaya devam et",
         "test": "Bildirimler",
@@ -11547,13 +11634,12 @@
     },
     "readiness": {
       "title": "App hazırlığı",
-      "description": "Bu Mac'te ve bu server'daki hesabınız için hazır olanlar. Yalnızca kullanmak istediklerinizi etkinleştirin.",
-      "desktopOnly": "Kurulumu denetlemek için desktop app'i açın.",
+      "description": "Bu bilgisayarda ve bu server'daki hesabınız için hazır olanlar. Yalnızca kullanmak istediklerinizi etkinleştirin.",
       "refresh": "Yeniden denetle",
       "requestFailed": "Sistem izni değiştirilemedi. Sistem Ayarları'nı açıp yeniden denetleyin.",
       "askAdmin": "Yöneticiden bu kuruluş için model ayarlamasını isteyin.",
       "askAgentAdmin": "Kullanabileceğiniz bir Agent'ı yayınlaması veya paylaşması için yöneticiden istekte bulunun.",
-      "permissionNote": "Bu denetimler ekran, ses veya panoyu kaydetmez. İzinler isteğe bağlıdır ve yalnızca tıkladığınızda istenir. Ekran Kaydı izni değişikliğinden sonra macOS app'in yeniden başlatılmasını gerektirebilir.",
+      "permissionNote": "Bu denetimler ekran, ses veya panoyu kaydetmez. İzinler isteğe bağlıdır ve yalnızca tıkladığınızda istenir.",
       "screenCaptureDenied": "macOS, çalışmakta olan bu app'e ekran erişimi vermedi. AgenticOS Sistem Ayarları'nda zaten etkinse bu app kopyasından çıkıp yeniden açın ve yenileyin. Yüklü başka bir kopyanın izinleri farklı olabilir.",
       "retryScreenshot": "Ekran görüntüsünü yeniden dene",
       "welcome": "Bu desktop'ın bağlantısını tamamlayın",
@@ -11562,11 +11648,10 @@
       "done": "Devam et",
       "retry": "Yeniden dene",
       "enable": "Ayarla",
-      "connect": "Bağlan",
       "configure": "Yapılandır",
       "items": {
         "account": "Oturum açılmış hesap",
-        "device": "Eşleştirilmiş bilgisayar",
+        "device": "Bağlı bilgisayar",
         "agent": "Kullanabileceğiniz bir Agent",
         "model": "AI Architect modeli",
         "screen_capture": "Ekran Kaydı",
@@ -11584,7 +11669,10 @@
       },
       "viewAgents": "Agent'ları görüntüle",
       "finishFailed": "Bu bağlantı tamamlanamadı. Lütfen yeniden deneyin.",
-      "opening": "Workspace'iniz açılıyor…"
+      "opening": "Workspace'iniz açılıyor…",
+      "permissionNoteMac": "Bu denetimler ekran, ses veya panoyu kaydetmez. İzinler isteğe bağlıdır ve yalnızca tıkladığınızda istenir. Ekran Kaydı izni değişikliğinden sonra macOS app'in yeniden başlatılmasını gerektirebilir.",
+      "screenCaptureDeniedElsewhere": "Sisteminiz bu app'e ekran erişimi vermedi. Sistemin gizlilik ayarlarından izin verin, ardından yenileyin.",
+      "link": "Bağla"
     },
     "notificationSettings": {
       "title": "Desktop bildirimleri",
@@ -11599,7 +11687,7 @@
       "enable": "Sistem bildirimlerini ayarla",
       "test": "Test bildirimi gönder",
       "testTitle": "Test bildirimi",
-      "testBody": "Bu mesajı görebiliyorsanız bildirimi macOS iletmiş demektir.",
+      "testBody": "Bu mesajı görebiliyorsanız bildirimi sisteminiz iletmiş demektir.",
       "failedTest": "Test gönderilemedi. Sistem bildirim ayarlarını denetleyin.",
       "unmuteAll": "{count, plural, one {# konuşmanın sesini aç} other {# konuşmanın sesini aç}}",
       "mute": "Bu konuşmanın bildirimlerini sessize al",
@@ -11615,6 +11703,10 @@
       "question": "{agent} · yanıt bekliyor",
       "approval": "{agent} · onay gerekiyor",
       "agent": "Agent"
+    },
+    "onlyInApp": {
+      "title": "Bu, AgenticOS masaüstü uygulamasında açılır.",
+      "hint": "Kullanmak için bilgisayarınızdaki masaüstü uygulamasını açın; tarayıcıda burada gösterilecek bir şey yok."
     }
   },
   "projects": {

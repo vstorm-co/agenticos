@@ -33,9 +33,17 @@ const review = vi.hoisted(() => ({
 }));
 const loaded = vi.hoisted(() => ({
   agent: { can_run: true, can_edit: true } as
-    { can_run: boolean; can_edit: boolean; can_publish?: boolean } | undefined,
+    { can_run: boolean; can_edit: boolean; can_publish?: boolean; name?: string } | undefined,
 }));
 vi.mock("@/hooks/use-agents", () => ({ useAgent: () => ({ agent: loaded.agent }) }));
+
+const skills = vi.hoisted(() => ({ asked: [] as (string | null)[], readable: true }));
+vi.mock("@/hooks/use-skills", () => ({
+  useSkill: (id: string | null) => {
+    skills.asked.push(id);
+    return { skill: id === null || !skills.readable ? undefined : { name: "returns-policy" } };
+  },
+}));
 
 vi.mock("@/hooks/use-datasets", () => ({
   useDataset: () => ({ dataset: { can_edit: review.canEdit, can_run: review.canRun } }),
@@ -114,6 +122,8 @@ beforeEach(() => {
   review.mutate = vi.fn();
   review.rescore = vi.fn();
   loaded.agent = { can_run: true, can_edit: true };
+  skills.asked = [];
+  skills.readable = true;
   navigation.params = new URLSearchParams();
   useAuthStore.setState({ user: null });
   state.comparisonError = null;
@@ -410,6 +420,143 @@ describe("EvalRunView", () => {
         "A check sends nothing to review by itself: nothing is accepted by checking. Send its failed answers by hand if a person should look at them.",
       ),
     ).toBeVisible();
+  });
+
+  it("names a skill's check by its agent, on the skill as it is and as proposed", () => {
+    loaded.agent = { can_run: true, can_edit: true, name: "Online returns desk" };
+    state.run = {
+      ...state.run,
+      run: evalRun({
+        proposal_check: { kind: "skill", base_version: 3, on_draft: false, suggestions: 0 },
+        arms: [
+          arm({ source: "explicit", version_number: 3, skill_ids: ["skill-1"] }),
+          arm({
+            id: "arm-0",
+            role: "baseline",
+            version_number: 3,
+            skill_versions: [{ skill_id: "skill-1", number: 4, fork_name: null }],
+          }),
+        ],
+      }),
+    };
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.getAllByText(/Online returns desk · proposed skill/).length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText(/Online returns desk · current skill \(v4\)/).length,
+    ).toBeGreaterThan(0);
+    expect(screen.queryByText(/v3 \+ proposed skill/)).toBeNull();
+  });
+
+  it("says a check's stage is one, names its sides by their text and judges it truthfully", () => {
+    loaded.agent = { can_run: true, can_edit: true, name: "Store counter" };
+    state.run = {
+      ...state.run,
+      run: evalRun({
+        proposal_check: {
+          kind: "skill",
+          base_version: 3,
+          on_draft: false,
+          suggestions: 1,
+          skill_check_id: "check-9",
+          not_asked: 5,
+          measurement: {
+            train_case_ids: [],
+            holdout_case_ids: ["case-1"],
+            excluded_case_ids: ["a", "b", "c", "d", "e"],
+            gradable_holdout: 1,
+            minimum_holdout: 5,
+          },
+        },
+        excluded_case_ids: ["a", "b", "c", "d", "e", "f"],
+        arms: [
+          arm({ source: "explicit", version_number: 3, skill_ids: ["skill-1"] }),
+          arm({
+            id: "arm-0",
+            role: "baseline",
+            version_number: 3,
+            skill_versions: [{ skill_id: "skill-1", number: 3, fork_name: null }],
+          }),
+        ],
+      }),
+    };
+    state.comparison = comparison({
+      verdict: "invalid",
+      invalid_reason: "Add 4 more held-out test questions to measure a change",
+      invalid_reason_code: "too_few_held_out",
+      baseline_summary: null,
+    });
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+
+    expect(screen.getByText(/Stage of the check of returns-policy on Store counter/)).toBeVisible();
+    expect(screen.getByRole("link", { name: "Open the check" })).toHaveAttribute(
+      "href",
+      "/skills/skill-1?tab=history&check=check-9",
+    );
+    expect(screen.getByText(/too few held-out questions to judge/)).toBeVisible();
+    expect(screen.queryByText(/different judge or rubric/)).toBeNull();
+    expect(screen.queryByText(/Add 4 more held-out/)).toBeNull();
+    expect(screen.queryByText("Questions used to write the changes")).toBeNull();
+    expect(
+      screen.getByText(/5 questions of this dataset were not in this stage's sample/),
+    ).toBeVisible();
+    expect(screen.getByText(/1 case was left out: taken from the conversations/)).toBeVisible();
+    expect(screen.getAllByText(/Proposed text/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Current v3/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/of an estimated/)).toBeNull();
+    expect(screen.queryByRole("link", { name: "Back to Build" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Back to the skill change" })).toBeNull();
+  });
+
+  it("names a check stage's sides before the skill and the fork it reads are known", () => {
+    skills.readable = false;
+    loaded.agent = { can_run: true, can_edit: true, name: "Store counter" };
+    state.run = {
+      ...state.run,
+      run: evalRun({
+        proposal_check: {
+          kind: "skill",
+          base_version: 3,
+          on_draft: false,
+          suggestions: 1,
+          skill_check_id: "check-9",
+        },
+        arms: [
+          arm({ source: "explicit", version_number: 3, skill_ids: ["skill-1"] }),
+          arm({
+            id: "arm-0",
+            role: "baseline",
+            version_number: 3,
+            skill_versions: [{ skill_id: "skill-1", number: 2, fork_name: "Prints" }],
+          }),
+        ],
+      }),
+    };
+    state.comparison = comparison({
+      verdict: "invalid",
+      invalid_reason: "Add 4 more held-out test questions to measure a change",
+      invalid_reason_code: "too_few_held_out",
+      baseline_summary: null,
+    });
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+
+    expect(screen.getAllByText(/Current “Prints” v2/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Stage of the check of a skill on Store counter/)).toBeVisible();
+  });
+
+  it("says a run outside a check is too small to compare, not graded differently", () => {
+    state.comparison = comparison({
+      verdict: "invalid",
+      invalid_reason: "Add 4 more held-out test questions to measure a change",
+      invalid_reason_code: "too_few_held_out",
+      baseline_summary: null,
+    });
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+
+    expect(screen.getByText(/cannot be compared yet: too few held-out/)).toBeVisible();
+    expect(
+      screen.getByText("Add 4 more held-out test questions to measure a change"),
+    ).toBeVisible();
+    expect(skills.asked.every((id) => id === null)).toBe(true);
   });
 
   it("says when it could not send its answers to review, beside the way to send them", () => {

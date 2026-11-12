@@ -1,5 +1,5 @@
 ---
-source_sha: "f7a146db5510"
+source_sha: "66ff628633d4"
 ---
 
 # Governance { #governance }
@@ -82,6 +82,10 @@ El formulario de la rutina permite definir o quitar su fecha de fin. La fecha us
 
 Una rutina vuelve a comprobar su creador, membresía activa, rol y permisos de ejecución antes de cada herramienta, también en delegaciones y después de una aprobación. Pausar, borrar, caducar, retirar el consentimiento personal o cambiar esa autoridad impide las siguientes llamadas. La comprobación no revierte efectos ya enviados a servicios externos. La migración `0260_routine_run_origin` conserva el origen tras borrar la rutina; los horarios antiguos aparcados cuyo origen ya se perdió se rechazan en lugar de usar la autoridad de quien aprueba.
 
+El servidor MCP integrado de AgenticOS requiere **Actuar como creador**, también cuando lo vincula un delegado publicado. Sin una identidad de persona, la revisión de fuentes y la creación de la rutina rechazan esta configuración con una explicación concreta. Active la opción o quite la vinculación de plataforma del agente y sus delegados. La plataforma nunca adopta automáticamente la identidad del creador.
+
+El historial de la rutina también muestra intentos bloqueados o fallidos anteriores a un run del agente. Cada uno incluye la hora, la etapa y una indicación para solucionarlo. No generan cargos de modelo ni contienen prompts, errores del proveedor o credenciales. Los registros permanecen hasta eliminar la rutina o la organización; un fallo en la entrega de notificaciones no los elimina. El job fire-trigger guarda un resultado separado bloqueado o fallido. Completar el job de la cola no significa que el agente se haya ejecutado correctamente.
+
 ## Budgets { #budgets }
 
 !!! abstract "Tres niveles, y no son variaciones de un mismo número"
@@ -95,6 +99,11 @@ Una rutina vuelve a comprobar su creador, membresía activa, rol y permisos de e
 | **Agent, mensual** | el spec del agent | los runs de ese mismo agent | quien pueda editar el agent |
 | **Departamento, mensual** | los ajustes del departamento | los runs que iniciaron sus miembros, en cualquier agent | quien tenga `members:manage` y `budgets:manage` |
 | **Organización, mensual** | los ajustes de la organización | cada run _y_ cada ingesta de la organización | quien tenga `budgets:manage` |
+
+Cada tope mensual cuenta el coste entero de un run en el mes en que empezó, igual que
+los informes de gasto. Un run que cruza el límite de un mes - aparcado en una
+aprobación la última tarde y aprobado el día uno - aparece entero en el mes anterior,
+y al reanudarse se compara con el gasto de ese mes, no con el del nuevo.
 
 Una **organización nueva empieza con el techo de la organización ya puesto** — el
 `DEFAULT_ORG_MONTHLY_BUDGET_USD` del deployment ([configuración](configuration.md),
@@ -127,6 +136,11 @@ de agents — el número de la versión _publicada_, ya que es la que aplica el 
 no lo que prometa el borrador en este momento. La tarjeta de margen del dashboard
 cruza estos datos con `GET /spend`, de modo que se puede ver un tope acercándose
 antes de que `budget_exceeded` empiece a aparecer en el historial de runs.
+
+Ese número publicado se aplica a todos los runs del agent, también a un run de una
+versión anterior: una rutina, un entorno o un paso de workflow fijados a ella,
+o un run reanudado en la versión en la que quedó aparcado. Fijar una versión decide
+cómo se comporta el agent, no cuánto puede gastar.
 
 ### El tope de un departamento { #a-departments-cap }
 
@@ -608,6 +622,12 @@ como un run de la superficie **proactive** y contada contra el budget de la
 organización como cualquier otra. Una persona puede excluirse en **Ajustes →
 Asistente**.
 
+Cada petición al modelo de un run así - la primera y cada reintento - se comprueba
+contra el límite de gasto en proactividad de la persona, el budget mensual del
+agent atribuido y el de la organización. Un run que alcanza uno a medio camino se
+detiene ahí, termina como `budget_exceeded` y conserva lo que gastó. Estos runs no
+cuentan para ningún departamento.
+
 La mirada nocturna vence 20 horas después de su propio último intento. Las
 vigilancias y el mantenimiento de memoria no cambian ese momento. Las
 vigilancias siguen contando para el límite personal de gasto en proactividad.
@@ -787,6 +807,19 @@ se cancelan las entregas pendientes. Cambiar el límite permite otro aviso al
 alcanzarlo; un caso silenciado sigue silenciado durante ese mes.
 
 ### Consentimiento para acciones { #routine-action-consent }
+
+Las acciones se agrupan por capability o cuenta MCP concreta y se pueden buscar.
+Selecciona o desmarca un grupo o todas las acciones permitidas; los controles masivos
+incluyen entradas ocultas por la búsqueda. Se mantienen las exclusiones individuales.
+Un review admite hasta 1000 acciones seleccionadas; una selección mayor se muestra y
+debe reducirse antes de guardar, nunca se trunca silenciosamente.
+
+Cambiar solo el título o la frecuencia conserva el consentimiento. Si cambia la versión,
+el trabajo, las instrucciones o la cuenta, el diálogo explica el límite afectado.
+**Volver a seleccionar acciones revisadas** es una nueva elección explícita de identidades
+permitidas coincidentes; no concede nada hasta guardar el review actual. Las acciones
+nuevas y cuentas modificadas no se seleccionan automáticamente. Siguen vigentes las
+aprobaciones obligatorias, la revocación y los controles de review obsoleto.
 
 Una rutina desatendida pide aprobación antes de acciones de capacidades, cambios
 en archivos locales y delegaciones. Las llamadas MCP externas preguntan salvo que
@@ -1439,9 +1472,17 @@ La tarjeta no aparece mientras todas las cachés aguantaron.
 
 ## Aprobaciones { #approvals }
 
-Una herramienta que el autor del agent puso tras una puerta aparca el run y espera
-a una persona. Nada queda tras una puerta hasta que alguien lo pide: una puerta que
-nadie eligió aparca runs en canales y rutinas donde no hay nadie para responderla.
+Una herramienta con aprobación aparca el run y espera a una persona. El Builder ofrece
+**Preguntar siempre** y **No preguntar nunca** para una capability; las herramientas
+individuales también pueden seguir su política. Las capabilities nuevas del Builder
+empiezan con **Preguntar siempre**. Los bindings existentes, incluso sin approval o con
+`default` almacenado, conservan su política anterior.
+
+Las aprobaciones requeridas pueden detener rutinas y canales igual que un chat. Para
+trabajo desatendido, elige expresamente qué acciones pueden ejecutarse sin preguntar.
+Las aprobaciones obligatorias y las políticas más estrictas de la organización siguen
+vigentes. Las herramientas ejecutadas por el provider necesitan un método local para
+pedir aprobación; publicar rechaza una aprobación que no pueda aplicarse.
 
 La resolución va de lo más específico a lo menos:
 
@@ -1585,9 +1626,11 @@ Cinco propiedades que conviene conocer:
 
 ### Cuánto quiere una conversación que se le pregunte { #how-much-one-conversation-wants-to-be-asked }
 
-La tarjeta de aprobación también ofrece permitir esta herramienta en este chat o permitirla siempre para este agente. La elección solo se aplica a la herramienta y cuenta indicadas, a la persona que consiente y a la versión publicada del agente. Requiere el mismo permiso y ajuste de organización que aprobar todas las acciones. No autoriza delegados ni ejecuciones desatendidas. Una nueva versión del agente requiere una nueva elección.
+La tarjeta de aprobación también ofrece permitir esta herramienta en este chat o permitirla siempre para este agente. La elección solo se aplica a la herramienta y cuenta indicadas, a la persona que consiente y a la versión publicada del agente. Requiere el mismo permiso y ajuste de organización que aprobar todas las acciones. No autoriza delegados ni ejecuciones desatendidas. Una nueva versión del agente requiere una nueva elección. Una herramienta que pregunta siempre, como `share_memory`, nunca se recuerda y aprobar todas las acciones no la responde: su tarjeta no ofrece ninguna de las dos opciones y el servidor se niega a recordarla.
 
 Las elecciones se guardan en el servidor. **Chat controls → Preferences → Remembered tool approvals → Ask again** revoca una elección sin borrar la aprobación original. Antes de cada aprobación automática se vuelven a comprobar la pertenencia, el permiso de aprobación y la política de la organización. El modo de preguntar por todo tiene prioridad sobre las elecciones guardadas. Cada aprobación automática sigue registrando quién consintió y los argumentos reales de la llamada.
+
+La cola de aprobaciones es de la organización, pero algunas llamadas citan lo que lee la persona de su run: el hecho que compartiría `share_memory`. Esa cita solo la ve quien puede ver el run: la persona para la que corrió, o un miembro que lee todos los runs y puede ver el agent. Los demás ven la herramienta, la audiencia y un aviso de que el contenido está oculto. Una llamada que pregunta siempre solo la aprueba quien puede leer lo que cita: cualquier otra persona puede rechazarla, y su aprobación se rechaza.
 
 La regla de arriba es la del agent, decidida al publicar y por herramienta, y ese es
 el sitio correcto para ella: es una afirmación sobre lo que el agent _es_. Lo que no
@@ -2438,7 +2481,7 @@ Vale la pena decirlo, porque una página de governance da a entender lo contrari
 
 ## Pausa automática por fallos repetidos { #routine-health }
 
-Las rutinas y observaciones se pausan por defecto tras **tres comprobaciones fallidas consecutivas**. El formulario permite elegir un límite de 1 a 20 o desactivarlo. Cuentan los fallos del proveedor o de ejecución, las lecturas inválidas y las fuentes inaccesibles. No cuentan la espera de aprobación, un ordenador desconectado ni los fallos de entrega; una comprobación vacía pero verificada como correcta reinicia la serie. Los demás bloqueos de permisos y presupuesto siguen aplicándose aunque se desactive este límite.
+Las rutinas y observaciones se pausan por defecto tras **tres comprobaciones fallidas consecutivas**. El formulario permite elegir un límite de 1 a 20 o desactivarlo. Cuentan los fallos del proveedor o de ejecución, las lecturas inválidas y las fuentes inaccesibles. No cuentan la espera de aprobación, un ordenador desconectado, los fallos de entrega ni las paradas por presupuesto: una comprobación que el presupuesto rechazó espera a la siguiente y ni alarga la serie ni la reinicia. Una comprobación vacía pero verificada como correcta reinicia la serie. Los demás bloqueos de permisos y presupuesto siguen aplicándose aunque se desactive este límite.
 
 Cada activación tiene una única observación persistente. Los reintentos no aumentan el contador y los resultados tardíos se evalúan según el orden de activación. La pausa automática detiene futuras activaciones; una solicitud al modelo ya iniciada puede terminar.
 

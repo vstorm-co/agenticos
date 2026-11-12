@@ -45,7 +45,8 @@ from app.agents.capabilities._registry import (
     FRAMEWORK_TOOL_NAMES,
     LOAD_CAPABILITY,
     READ_SKILL,
-    ApprovalDescriber,
+    AlwaysAsksWhen,
+    BoundDescriber,
 )
 from app.agents.code_checkpoint import CodeApprovalPause
 from app.agents.deps import AgentDeps
@@ -96,9 +97,14 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
     # nobody can be asked. Named by the factory for the tools it attached, never
     # read off tool metadata, which an MCP server writes.
     asking_tool_names: frozenset[str] = frozenset()
+    # Tools whose every call waits for a person's answer to it, from
+    # `always_asking_tools`: nothing decided in advance may stand in for one.
+    always_asking_tool_names: frozenset[str] = frozenset()
+    # Tools that decide per call whether it always asks, from `always_asking_checks`.
+    always_asking_checks: Mapping[str, AlwaysAsksWhen] = field(default_factory=dict)
     # Effective tool name to the capability's describer for it, resolved from the
     # spec by `approval_describers` - a renamed tool keeps its describer.
-    describers: Mapping[str, ApprovalDescriber] = field(default_factory=dict)
+    describers: Mapping[str, BoundDescriber] = field(default_factory=dict)
     # Effective tool name to the stable id its capability declares it under, from
     # `approval_tool_ids`, so the request names the tool the way a surface words it.
     tool_ids: Mapping[str, str] = field(default_factory=dict)
@@ -134,7 +140,7 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
     async def _describe(
         ctx: RunContext[AgentDeps],
         tool_def: ToolDefinition,
-        describe: ApprovalDescriber,
+        describe: BoundDescriber,
         args: dict[str, Any],
     ) -> dict[str, str] | None:
         """The call's ids as names for the person deciding, or `None`.
@@ -155,6 +161,33 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
             )
             return None
         return described or None
+
+    async def _always_asks(
+        self, ctx: RunContext[AgentDeps], tool_def: ToolDefinition, args: dict[str, Any]
+    ) -> bool:
+        """Whether only a person's answer to this call may let it run.
+
+        A check that fails or answers late is a yes: what it guards is a call
+        that must not run on consent given in advance.
+        """
+        if tool_def.capability_id is None:
+            return False
+        if tool_def.name in self.always_asking_tool_names:
+            return True
+        check = self.always_asking_checks.get(tool_def.name)
+        if check is None:
+            return False
+        try:
+            async with asyncio.timeout(DESCRIBE_TIMEOUT_SECONDS):
+                return await check(ctx.deps, args)
+        except Exception:
+            logger.warning(
+                "Could not decide whether %s on run %s always asks; asking",
+                tool_def.name,
+                ctx.deps.run_id,
+                exc_info=True,
+            )
+            return True
 
     def gates(self, tool_def: ToolDefinition) -> bool:
         """Whether a call to this tool waits for a person's decision."""
@@ -190,9 +223,14 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
     ) -> Any:
         """Ask before executing, and execute only what was asked about."""
         capability_id = tool_def.capability_id
-        gated = self.gates(tool_def) or (
-            active_code.get() == call.tool_call_id
-            and ctx.deps.code_continuations.requires_approval(call.tool_call_id)
+        always_asks = await self._always_asks(ctx, tool_def, args)
+        gated = (
+            always_asks
+            or self.gates(tool_def)
+            or (
+                active_code.get() == call.tool_call_id
+                and ctx.deps.code_continuations.requires_approval(call.tool_call_id)
+            )
         )
         try:
             routine = (
@@ -235,6 +273,7 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
             ApprovalRequest(
                 capability_id=capability_id,
                 routine_consented_by=consented_by,
+                always_asks=always_asks,
                 tool_name=tool_def.name,
                 tool_call_id=call.tool_call_id,
                 tool_args=asked,

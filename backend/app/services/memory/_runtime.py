@@ -17,6 +17,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.audit import record_audit
 from app.core.exceptions import ConflictError
 from app.core.memory_keys import (
     ORGANIZATION_PREFIX,
@@ -178,8 +179,15 @@ async def correct(
     statement: str,
     author_user_id: UUID,
     effective_from: datetime | None,
+    run_id: UUID | None,
+    conversation_id: UUID | None,
+    agent_id: UUID | None,
 ) -> ClaimView | None:
-    """A person's correction of a claim in a scope they may read; `None` if there is none.
+    """An agent's record of a person's correction, in a scope they may read; `None` if none.
+
+    Stored as an `agent` claim naming the run and conversation it came from, and
+    audited, because the run may have acted on text it read rather than on the
+    person's word.
 
     Raises:
         ShareRefused: The claim is one the whole project or organization reads and the
@@ -209,9 +217,27 @@ async def correct(
                 statement=statement,
                 author_user_id=author_user_id,
                 effective_from=effective_from,
+                origin="agent",
+                run_id=run_id,
+                conversation_id=conversation_id,
             )
         except ConflictError as exc:
             raise ShareRefused(exc.message) from exc
+        await record_audit(
+            db,
+            actor_user_id=author_user_id,
+            organization_id=organization_id,
+            action="memory.claim.corrected",
+            target_type="memory_claim",
+            target_id=str(claim_id),
+            # Never the statements: an entry holding what it corrected keeps it.
+            details={
+                "replacement": str(fixed.id),
+                "scope": claim.scope_key.split(":", 1)[0],
+                "run_id": None if run_id is None else str(run_id),
+                "agent_id": None if agent_id is None else str(agent_id),
+            },
+        )
         return _view(fixed)
 
 
@@ -266,3 +292,23 @@ async def share(
         except ConflictError as exc:
             raise ShareRefused(exc.message) from exc
         return _view(shared)
+
+
+async def claim_for_approval(
+    *, organization_id: UUID, claim_id: UUID, scopes: Sequence[ClaimScope]
+) -> ClaimView | None:
+    """The live claim a parked call names, if it is in a scope the run reads; else `None`.
+
+    Read for the person deciding the call, so it answers only what `correct` and
+    `share` would act on: a claim since corrected, merged or retracted is `None`.
+    """
+    async with get_db_context() as db:
+        claim = await claim_repo.get(db, organization_id=organization_id, claim_id=claim_id)
+        allowed = {(scope.scope_key, scope.agent_id) for scope in scopes}
+        if (
+            claim is None
+            or (claim.scope_key, claim.agent_id) not in allowed
+            or not _claims.mutable(claim)
+        ):
+            return None
+        return _view(claim)

@@ -141,6 +141,8 @@ describe("useScores", () => {
     expect(apiClient.post).toHaveBeenCalledWith("/datasets/d1/scores/s1/review");
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.datasets.allScores("d1") });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.datasets.allReviewQueue() });
+    for (const queryKey of [qk.improvements.all(), qk.skillChecks.all(), qk.skills.all()])
+      expect(invalidate).toHaveBeenCalledWith({ queryKey });
   });
 });
 

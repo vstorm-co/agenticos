@@ -76,6 +76,10 @@ Routine runs retain the MCP accounts and tool aliases admitted for that executio
 
 A parked routine without this admission state cannot continue managed-account MCP calls. Start a new run after reviewing its access. Ordinary interactive agent defaults and explicit approval policies are unchanged; account-specific routine approval exceptions are still separate from this source check.
 
+The built-in AgenticOS platform MCP server requires **Act as creator**, including when a published delegate binds it. Without a person-backed identity, source review and routine creation refuse this configuration with an explicit explanation. Enable Act as creator or remove the platform binding from the agent and its delegates. The platform never borrows the creator’s identity automatically.
+
+Routine history also lists blocked or failed attempts that ended before an agent run existed. Each shows its time, stage and a repair direction. They incur no model charges and never contain prompts, provider errors or credentials. Records remain until their routine or organization is deleted. Notification delivery failure does not remove this history. The fire-trigger worker job records a separate blocked or failed outcome; completing the queue job does not imply an agent ran successfully.
+
 ## Budgets
 
 !!! abstract "Three levels, and they are not variations on one number"
@@ -89,6 +93,11 @@ A parked routine without this admission state cannot continue managed-account MC
 | **Agent monthly**        | the agent's spec          | that agent's own runs                         | whoever may edit the agent                          |
 | **Department monthly**   | the department's settings | runs its members started, on any agent        | whoever holds `members:manage` and `budgets:manage` |
 | **Organization monthly** | organization settings     | every run _and_ ingestion in the organization | whoever holds `budgets:manage`                      |
+
+Each monthly cap counts a run's whole cost in the month the run started, as the
+spend reports do. A run that spans a month boundary - parked on an approval on the
+last evening and approved on the first - appears entirely in the earlier month, and
+when it resumes it is checked against that month's spend, not the new month's.
 
 A **new organization starts with the organization ceiling already set** — the
 deployment's `DEFAULT_ORG_MONTHLY_BUDGET_USD` ([configuration](configuration.md),
@@ -121,6 +130,11 @@ listing - the _published_ version's number, since that is the one the runner
 enforces, not whatever the draft currently promises. The dashboard's headroom
 card joins these against `GET /spend`, so a cap can be seen approaching before
 `budget_exceeded` starts appearing in run history.
+
+That published number binds every run of the agent, including a run of an older
+version: a routine, an environment or a workflow step pinned to one, or a run
+resumed on the version it was parked on. A pin decides how the agent behaves, not
+what it may spend.
 
 ### A department's cap
 
@@ -559,6 +573,12 @@ default: `proactive_model_profile_id` is required), recorded in run history as a
 run from the **proactive** surface and counted against the organization's budget
 like any other. A person can leave themselves out under **Settings → Assistant**.
 
+Every model request such a run makes - the first and any retry - is checked
+against the person's proactivity spending limit, the attributed agent's monthly
+budget and the organization's. A run that reaches one midway stops there, ends
+`budget_exceeded` and keeps what it spent. These runs count towards no
+department.
+
 The nightly look becomes due 20 hours after its own last attempt. Watches and
 memory maintenance do not move that clock. Watches still count toward the
 person's proactivity spending limit.
@@ -726,6 +746,18 @@ budget cases resolve and pending sends are cancelled. Changing the configured
 limit allows a new breach notice; a muted case stays muted for that month.
 
 ### Action consent { #routine-action-consent }
+
+Actions are grouped by capability or concrete MCP account and can be searched.
+Select or clear a group, or the entire eligible inventory; bulk controls also cover
+items hidden by the search. Individual exclusions remain available. A review supports
+up to 1,000 selected actions; a larger selection is shown and cannot be saved until
+reduced, never silently truncated.
+
+Changing only the title or cadence retains consent. When the version, work, instructions
+or an account changes, the dialog explains which boundary changed. **Reselect previously
+reviewed actions** is an explicit new choice over matching eligible identities; it grants
+nothing until you save the current review. New actions and changed accounts are not
+selected automatically. Mandatory approvals, revocation and stale-review checks still apply.
 
 An unattended routine asks before capability actions, local file changes and
 delegation. External MCP calls ask unless their server marks them read-only;
@@ -1344,9 +1376,15 @@ shrink the prompt the cache held. The card is not shown while every cache held.
 
 ## Approvals
 
-A tool the agent's author gated parks the run and waits for a person. Nothing
-is gated until somebody asks: a gate nobody chose parks runs in channels and
-routines where nobody is there to answer it.
+A gated tool parks the run and waits for a person. The Builder offers **Always ask**
+and **Never ask** for a capability; individual tools can also **Follow the capability**.
+New capabilities added in the Builder start with **Always ask**. Existing bindings,
+including omitted approval and stored `default`, keep their previous policy.
+
+Required approvals can pause routines and channels as well as chat. For unattended
+work, deliberately choose which actions may run without approval. Mandatory approvals
+and stricter organization policies still apply. Provider-executed tools need a locally
+executed method to support approval; publication refuses an unenforceable gate.
 
 Resolution is most-specific-first:
 
@@ -1480,9 +1518,11 @@ Five properties worth knowing:
 
 ### How much one conversation wants to be asked
 
-The approval card also offers **Allow this tool in this chat** and **Always allow this tool for this agent**. These remember only the named tool and account, for the consenting person and the published agent version. They require the same permission and organization switch as **Approve everything**. They never authorize a delegate or an unattended run. Changing the agent version requires a new choice.
+The approval card also offers **Allow this tool in this chat** and **Always allow this tool for this agent**. These remember only the named tool and account, for the consenting person and the published agent version. They require the same permission and organization switch as **Approve everything**. They never authorize a delegate or an unattended run. Changing the agent version requires a new choice. A tool that asks every time, such as `share_memory`, is never remembered and is not answered by **Approve everything**: its card offers neither option, and the server refuses to remember it.
 
 Remembered choices are stored on the server. **Chat controls → Preferences → Remembered tool approvals → Ask again** withdraws one without erasing the original approval. Current membership, approval permission and organization policy are checked again before each remembered grant. **Ask about everything** overrides remembered choices. Each automatic grant still records who consented and the actual call arguments.
+
+The approvals queue is the organization's, but some calls quote what their run's person reads - the fact `share_memory` would share. That quote reaches only somebody who may see the run: the person it ran for, or a member who reads every run and may view the agent. Everyone else sees the tool and the audience, and a note that the content is hidden. A call that asks every time is approved only by somebody who can read what it quotes: anyone else may reject it, and an approval from them is refused.
 
 The rule above is the agent's, decided at publish time and per tool, and that is
 the right place for it: it is a statement about what the agent _is_. What it
@@ -2296,7 +2336,7 @@ Worth stating, because a governance page implies otherwise:
 
 ## Automatic pause after repeated failures { #routine-health }
 
-Routines and watches pause after **three consecutive unsuccessful checks** by default. Set a limit from 1 to 20, or disable this limit, in the routine's form. Provider/runtime failures, invalid watch readings and inaccessible sources count. Waiting for approval, waiting for an offline computer and delivery failures do not count; an empty but verified successful check resets the streak. Other permission and budget stops still apply when this limit is disabled.
+Routines and watches pause after **three consecutive unsuccessful checks** by default. Set a limit from 1 to 20, or disable this limit, in the routine's form. Provider/runtime failures, invalid watch readings and inaccessible sources count. Waiting for approval, waiting for an offline computer, delivery failures and budget stops do not count: a check a budget refused waits for the next one, and neither adds to the streak nor resets it. An empty but verified successful check resets the streak. Other permission and budget stops still apply when this limit is disabled.
 
 Each activation has one durable health observation. Retries cannot increase the count, and late completions are evaluated in activation order. Automatic pause stops future activations; a model request already in flight may finish.
 

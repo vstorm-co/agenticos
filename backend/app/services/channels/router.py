@@ -56,7 +56,7 @@ from app.services.channels.base import (
     memory_room_key,
     split_thread,
 )
-from app.services.channels.dedupe import claim_delivery, release_delivery
+from app.services.channels.dedupe import claim_delivery, release_delivery, remember_unaddressed
 from app.services.channels.directory import BoundChannelDirectory
 from app.services.channels.discord_roles import PLATFORM as DISCORD_PLATFORM
 from app.services.channels.discord_roles import DiscordRoleSync
@@ -578,6 +578,7 @@ class ChannelMessageRouter:
             # minted for every bystander the bot would never answer. A message
             # naming a handle is not overheard even here - whether that handle is
             # ours is `_answer_mention`'s to judge, and its refusal stays its own.
+            await remember_unaddressed(incoming)
             logger.debug(
                 "channel_message_not_addressed",
                 extra={"platform": incoming.platform, "bot_id": incoming.bot_id},

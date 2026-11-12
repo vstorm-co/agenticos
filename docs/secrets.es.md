@@ -1,5 +1,5 @@
 ---
-source_sha: "6be4e8d3a870"
+source_sha: "c5e5aa3e7df5"
 ---
 
 # Secretos y el vault { #secrets-and-the-vault }
@@ -380,7 +380,7 @@ existe. Solo se vuelve a sellar la clave de datos envuelta — las cargas útile
 quedan intactas, y eso es lo que hace barata la rotación.
 
 ```bash
-uv run agenticos cmd doctor    # reports whether a vault key is configured at all
+uv run agenticos cmd doctor    # says whether a dedicated key or the SECRET_KEY fallback seals the vault
 ```
 
 `make platform-bootstrap BOOTSTRAP_API_KEY=sk-...` guarda por ti la primera clave

@@ -182,3 +182,24 @@ describe("useRemoteDraft", () => {
     expect(view.result.current.held).toBe(true);
   });
 });
+
+it("does not report a remote conflict for reordered nested JSON", () => {
+  const first = {
+    instructions: "Be kind.",
+    schema: { type: "object", properties: { a: { type: "string" }, b: { type: "number" } } },
+  };
+  const reordered = {
+    schema: { properties: { b: { type: "number" }, a: { type: "string" } }, type: "object" },
+    instructions: "Be kind.",
+  };
+  const view = renderHook(
+    ({ local, stored, fetchedAt }) =>
+      useRemoteDraft({ resource: "agent", id: "agent-1", adopt, local, stored, fetchedAt }),
+    { initialProps: { local: first, stored: first, fetchedAt: 1 } },
+  );
+  act(() => announceChange(change()));
+  view.rerender({ local: first, stored: reordered, fetchedAt: 2 });
+  expect(view.result.current.held).toBe(false);
+  expect(view.result.current.conflict).toBeNull();
+  expect(adopt).not.toHaveBeenCalled();
+});

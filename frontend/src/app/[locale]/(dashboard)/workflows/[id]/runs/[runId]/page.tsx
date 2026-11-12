@@ -227,7 +227,8 @@ export default function WorkflowRunPage({ params }: PageProps) {
             </Button>
             {isRunRetryable(run.status) &&
               can(Perm.workflowsRun) &&
-              (run.mode === "real" || workflow.can_edit) && (
+              (run.mode === "real" || workflow.can_edit) &&
+              (run.status !== "cancelled" || run.can_cancel) && (
                 <Button
                   disabled={retry.isPending}
                   onClick={() =>

@@ -1,5 +1,5 @@
 ---
-source_sha: "f7a146db5510"
+source_sha: "66ff628633d4"
 ---
 
 # Governance { #governance }
@@ -83,6 +83,10 @@ Formularz rutyny pozwala ustawić lub usunąć datę zakończenia. Data używa p
 
 Rutyna przed każdym narzędziem ponownie sprawdza twórcę, aktywne członkostwo, rolę i granty uruchamiania, także w delegacjach i po zatwierdzeniu. Pauza, usunięcie, wygaśnięcie, cofnięcie zgody na osobiste konta lub zmiana tych uprawnień odmawia kolejnych wywołań. Kontrola nie cofa efektu już wysłanego do zewnętrznej usługi. Migracja `0260_routine_run_origin` zachowuje pochodzenie po usunięciu rutyny; starszy zaparkowany harmonogram, który utracił pochodzenie, jest odrzucany zamiast pożyczać uprawnienia zatwierdzającego.
 
+Wbudowany serwer MCP AgenticOS wymaga opcji **Działaj jako twórca**, również gdy używa go opublikowany delegat. Bez tożsamości użytkownika przegląd źródeł i tworzenie procedury odrzucają tę konfigurację z jasnym wyjaśnieniem. Włącz tę opcję albo usuń powiązanie platformowego MCP z agenta i jego delegatów. Platforma nigdy nie pożycza automatycznie tożsamości twórcy.
+
+Historia procedury pokazuje też zablokowane i nieudane próby zakończone przed utworzeniem runu agenta. Każda ma czas, etap i wskazówkę naprawy. Nie naliczają kosztów modelu ani nie zawierają promptów, błędów dostawcy lub poświadczeń. Rekordy pozostają do usunięcia procedury lub organizacji. Błąd dostarczenia powiadomienia nie usuwa historii. Zadanie workera fire-trigger zapisuje osobny wynik zablokowany lub nieudany; zakończenie zadania kolejki nie oznacza poprawnego uruchomienia agenta.
+
 ## Budżety { #budgets }
 
 !!! abstract "Trzy poziomy, i nie są to warianty jednej liczby"
@@ -96,6 +100,12 @@ Rutyna przed każdym narzędziem ponownie sprawdza twórcę, aktywne członkostw
 | **Miesięczny agenta** | spec agenta | runy tego agenta | ten, kto może edytować agenta |
 | **Miesięczny działu** | ustawienia działu | runy uruchomione przez jego członków, na dowolnym agencie | ten, kto ma `members:manage` i `budgets:manage` |
 | **Miesięczny organizacji** | ustawienia organizacji | każdy run _oraz_ ingestię w organizacji | ten, kto ma `budgets:manage` |
+
+Każdy miesięczny limit liczy cały koszt runu w miesiącu, w którym run się zaczął,
+tak jak raporty wydatków. Run, który przechodzi przez granicę miesiąca - zaparkowany
+na zatwierdzeniu ostatniego wieczoru i zatwierdzony pierwszego dnia - w całości
+trafia do wcześniejszego miesiąca, a po wznowieniu jest sprawdzany względem wydatków
+tamtego miesiąca, nie nowego.
 
 **Nowa organizacja startuje z już ustawionym pułapem organizacji** —
 `DEFAULT_ORG_MONTHLY_BUDGET_USD` wdrożenia ([konfiguracja](configuration.md),
@@ -129,6 +139,11 @@ na liście agentów — liczba z _opublikowanej_ wersji, bo to ją egzekwuje run
 nie to, co akurat obiecuje draft. Karta zapasu na dashboardzie zestawia je z
 `GET /spend`, więc zbliżający się limit widać, zanim w historii runów zacznie
 pojawiać się `budget_exceeded`.
+
+Ta opublikowana liczba obowiązuje każdy run agenta, także run starszej wersji:
+rutynę, środowisko albo krok workflow przypięte do niej, albo run wznowiony na
+wersji, na której został zaparkowany. Przypięcie decyduje o tym, jak agent działa,
+a nie o tym, ile może wydać.
 
 ### Limit działu { #a-departments-cap }
 
@@ -599,6 +614,12 @@ domyślnego: `proactive_model_profile_id` jest wymagany), zapisane w historii
 runów jako run z powierzchni **proactive** i liczone do budżetu organizacji jak
 każde inne. Osoba może wyłączyć to dla siebie w **Ustawienia → Asystent**.
 
+Każde żądanie do modelu w takim runie - pierwsze i każda ponowna próba - jest
+sprawdzane względem limitu wydatków na proaktywność danej osoby, miesięcznego
+budżetu przypisanego agenta i budżetu organizacji. Run, który osiągnie któryś z
+nich w trakcie, zatrzymuje się, kończy jako `budget_exceeded` i zachowuje to, co
+wydał. Takie runy nie liczą się do żadnego działu.
+
 Nocny przegląd staje się należny 20 godzin po własnej ostatniej próbie.
 Obserwacje i konserwacja pamięci nie przesuwają tego terminu. Obserwacje nadal
 wliczają się do limitu wydatków na proaktywność danej osoby.
@@ -776,6 +797,18 @@ pozwala wysłać nowy komunikat po jego wykorzystaniu; sprawa wyciszona pozostaj
 wyciszona przez dany miesiąc.
 
 ### Zgody na działania { #routine-action-consent }
+
+Akcje są grupowane według capability lub konkretnego konta MCP i można je wyszukiwać.
+Zaznacz lub wyczyść grupę albo całą listę dozwolonych akcji; kontrolki grupowe obejmują
+też pozycje ukryte przez wyszukiwanie. Nadal możesz wykluczać pojedyncze akcje.
+Review obsługuje do 1000 zaznaczonych akcji; większy wybór jest pokazany i wymaga
+zmniejszenia przed zapisem, nigdy nie jest po cichu obcinany.
+
+Zmiana samej nazwy lub częstotliwości zachowuje zgodę. Po zmianie wersji, pracy,
+instrukcji lub konta dialog wyjaśnia zmienioną granicę. **Zaznacz ponownie wcześniej
+sprawdzone akcje** to jawny nowy wybór zgodnych, dozwolonych identyfikatorów; nie daje
+zgody przed zapisaniem bieżącego review. Nowe akcje i zmienione konta nie zaznaczają
+się automatycznie. Obowiązkowe akceptacje, cofanie zgody i kontrola aktualności nadal działają.
 
 Rutyna działająca bez nadzoru pyta przed działaniami funkcji, zmianami lokalnych
 plików i delegowaniem. Wywołania zewnętrznego MCP pytają, chyba że serwer oznacza je
@@ -1434,9 +1467,15 @@ Karty nie ma, dopóki każdy cache trzymał.
 
 ## Zatwierdzenia { #approvals }
 
-Narzędzie, które autor agenta objął bramką, parkuje run i czeka na człowieka.
-Nic nie jest za bramką, dopóki ktoś o to nie poprosi: bramka, której nikt nie
-wybrał, parkuje runy w kanałach i rutynach, gdzie nikogo nie ma, żeby odpowiedzieć.
+Narzędzie objęte bramką parkuje run i czeka na osobę. Builder oferuje **Zawsze pytaj**
+i **Nigdy nie pytaj** dla capability; pojedyncze narzędzia mogą też dziedziczyć jej tryb.
+Nowa capability dodana w Builderze zaczyna od **Zawsze pytaj**. Istniejące bindingi,
+w tym pominięte approval i zapisane `default`, zachowują wcześniejszą politykę.
+
+Wymagane akceptacje mogą wstrzymać routines i kanały tak samo jak chat. Dla pracy bez
+nadzoru świadomie wybierz akcje dozwolone bez pytania. Obowiązkowe akceptacje i bardziej
+rygorystyczna polityka organizacji nadal obowiązują. Narzędzia wykonywane przez providera
+potrzebują lokalnej metody, aby pytać; publikacja odrzuca niewykonalną bramkę.
 
 Rozstrzyganie idzie od najbardziej szczegółowego:
 
@@ -1579,9 +1618,11 @@ Pięć właściwości, które warto znać:
 
 ### Jak bardzo jedna rozmowa chce być pytana { #how-much-one-conversation-wants-to-be-asked }
 
-Karta akceptacji oferuje również **Zezwalaj na ten tool w tej rozmowie** i **Zawsze zezwalaj na ten tool dla tego agenta**. Zgoda dotyczy tylko wskazanego narzędzia i konta, osoby udzielającej zgody oraz opublikowanej wersji agenta. Wymaga tego samego uprawnienia i przełącznika organizacji co zatwierdzanie wszystkiego. Nie upoważnia delegata ani pracy bez nadzoru. Zmiana wersji agenta wymaga ponownego wyboru.
+Karta akceptacji oferuje również **Zezwalaj na ten tool w tej rozmowie** i **Zawsze zezwalaj na ten tool dla tego agenta**. Zgoda dotyczy tylko wskazanego narzędzia i konta, osoby udzielającej zgody oraz opublikowanej wersji agenta. Wymaga tego samego uprawnienia i przełącznika organizacji co zatwierdzanie wszystkiego. Nie upoważnia delegata ani pracy bez nadzoru. Zmiana wersji agenta wymaga ponownego wyboru. Tool, który pyta za każdym razem, taki jak `share_memory`, nigdy nie jest zapamiętywany i nie odpowiada na niego zatwierdzanie wszystkiego: jego karta nie oferuje żadnej z tych opcji, a serwer odmawia zapamiętania.
 
 Wybory są zapisywane na serwerze. **Chat controls → Preferences → Zapamiętane akceptacje tooli → Pytaj ponownie** cofa zgodę bez usuwania historii pierwotnej akceptacji. Przed każdym automatycznym zatwierdzeniem ponownie sprawdzane są członkostwo, uprawnienie do akceptacji i polityka organizacji. Tryb pytania o wszystko ma pierwszeństwo przed zapisanymi zgodami. Każde automatyczne zatwierdzenie nadal zapisuje osobę udzielającą zgody i rzeczywiste argumenty wywołania.
+
+Kolejka akceptacji należy do organizacji, ale niektóre wywołania cytują to, co czyta osoba z runu - fakt, który udostępniłby `share_memory`. Ten cytat widzi tylko ktoś, kto może zobaczyć run: osoba, dla której działał, albo członek, który czyta wszystkie runy i może zobaczyć agenta. Pozostali widzą tool, odbiorców i informację, że treść jest ukryta. Wywołanie, które pyta za każdym razem, zatwierdzić może tylko ktoś, kto widzi to, co cytuje: każdy inny może je odrzucić, a jego zatwierdzenie zostaje odrzucone.
 
 Reguła powyżej należy do agenta, jest rozstrzygana w czasie publikacji i per
 narzędzie, i to jest dla niej właściwe miejsce: to wypowiedź o tym, czym agent
@@ -2433,7 +2474,7 @@ Warto to powiedzieć, bo strona o governance sugeruje coś innego:
 
 ## Automatyczne wstrzymanie po kolejnych błędach { #routine-health }
 
-Rutyny i obserwacje domyślnie wstrzymują się po **trzech kolejnych nieudanych sprawdzeniach**. W formularzu rutyny ustaw limit od 1 do 20 lub wyłącz ten limit. Liczą się błędy dostawcy i wykonania, nieprawidłowe odczyty obserwacji oraz niedostępne źródła. Oczekiwanie na zgodę, komputer offline i błędy dostarczenia nie zwiększają licznika; puste, ale poprawnie zweryfikowane sprawdzenie zeruje serię. Inne blokady uprawnień i budżetu obowiązują także po wyłączeniu tego limitu.
+Rutyny i obserwacje domyślnie wstrzymują się po **trzech kolejnych nieudanych sprawdzeniach**. W formularzu rutyny ustaw limit od 1 do 20 lub wyłącz ten limit. Liczą się błędy dostawcy i wykonania, nieprawidłowe odczyty obserwacji oraz niedostępne źródła. Oczekiwanie na zgodę, komputer offline, błędy dostarczenia i zatrzymania przez budżet nie zwiększają licznika: sprawdzenie odrzucone przez budżet czeka na następne i ani nie wydłuża serii, ani jej nie zeruje. Puste, ale poprawnie zweryfikowane sprawdzenie zeruje serię. Inne blokady uprawnień i budżetu obowiązują także po wyłączeniu tego limitu.
 
 Każda aktywacja ma jeden trwały zapis stanu. Ponowienia nie zwiększają licznika, a opóźnione zakończenia są oceniane według kolejności aktywacji. Automatyczne wstrzymanie zatrzymuje przyszłe aktywacje; trwające żądanie do modelu może się zakończyć.
 

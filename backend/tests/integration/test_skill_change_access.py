@@ -37,7 +37,7 @@ async def _member(db: AsyncSession, org: Organization) -> User:
 async def _proposal_for_skill_of(
     db: AsyncSession, org: Organization, owner: User | None, name: str
 ) -> SkillProposal:
-    skill_id = None
+    skill = None
     if owner is not None:
         skill = await skill_repo.create(
             db,
@@ -47,18 +47,19 @@ async def _proposal_for_skill_of(
             description="A private skill.",
             content="Do it this way.",
         )
-        skill_id = skill.id
     return await skill_proposal_repo.create(
         db,
         organization_id=org.id,
-        skill_id=skill_id,
+        skill_id=None if skill is None else skill.id,
         agent_id=None,
         conversation_id=None,
         name=name,
         description="Proposed.",
         content="Do it the new way.",
         resources={},
-        base_version=skill.version if owner is not None else None,
+        base_version=None if skill is None else skill.version,
+        base_version_id=None if skill is None else skill.latest_version_id,
+        fork_id=None,
     )
 
 

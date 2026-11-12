@@ -85,7 +85,7 @@ const PHONE_SCROLLS = "max-md:overflow-y-auto";
  * New skill, laid out as the editor it becomes.
  *
  * The same arrangement as `SkillWorkbench`, deliberately: a strip of facts on
- * top, the body as `SKILL.md` in a file tree on the left, one pane reading a
+ * top, the body as Instructions in a file tree on the left, one pane reading a
  * file on the right. It used to be a stacked form with a lone "Content"
  * textarea, which meant the second time anybody saw their skill it looked
  * nothing like the first - and the create form was the only place in the
@@ -307,7 +307,7 @@ export function CreateSkillDialog({ open, onOpenChange, onCreated }: CreateSkill
                   )}
                 >
                   <BookOpen className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate font-mono text-xs">{BODY}</span>
+                  <span className="truncate text-xs">{t("instructions")}</span>
                 </button>
                 <FileTree
                   nodes={tree}
@@ -345,6 +345,7 @@ export function CreateSkillDialog({ open, onOpenChange, onCreated }: CreateSkill
               ) : (
                 <FileEditor
                   name={BODY}
+                  label={t("instructions")}
                   content={content}
                   canEdit
                   // The shape a skill body takes - when it applies, then the

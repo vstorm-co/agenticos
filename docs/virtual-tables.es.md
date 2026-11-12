@@ -1,5 +1,5 @@
 ---
-source_sha: "c9b0a73c254d"
+source_sha: "1110129a78f1"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -176,8 +176,11 @@ las columnas actuales:
   entero; una fecha pasa a fecha y hora; una elección pasa a varias y vuelve cuando es
   una. Cualquier otro cambio se rechaza, igual que uno que algún valor no supera - con
   cuántos y un ejemplo, y no se escribe nada. Lo que usa la columna lo rechaza como a un
-  archivado. La revisión del registro avanza, así que una edición contra su valor
-  antiguo es un conflicto.
+  archivado. Un registro cuyo valor se lee de otra forma en el nuevo tipo pasa a una
+  nueva revisión, así que una edición contra su valor antiguo es un conflicto, y su
+  historial registra el cambio a nombre de quien lo hizo; un valor que el cambio deja
+  igual mantiene la revisión de su registro. Un cambio de tipo no dispara ningún
+  [trigger](#triggers): una edición del esquema no inicia un workflow por registro.
 - El texto pasa a una columna `email`, `url`, `phone` o `rating` cuando cada valor se
   lee como tal, y un número pasa a valoración cuando es un entero de 1 a 5. Cada una
   vuelve a texto, y una valoración también a número.
@@ -197,7 +200,7 @@ las columnas actuales:
   opciones, no cambia nada: no se añade versión y se devuelve la tabla actual. Reordenar o
   cambiar una etiqueta es un cambio.
 
-Los registros no se reescriben. Un registro escrito con la versión 1 sigue siendo legible
+Salvo un cambio de tipo, los registros no se reescriben. Un registro escrito con la versión 1 sigue siendo legible
 y editable con la versión 4; una columna obligatoria que nunca tuvo recibe su valor por
 defecto la próxima vez que se edita el registro.
 
@@ -381,10 +384,17 @@ en el tipo de su columna hace fallar su fila antes de enviar nada. El resto va d
 enumera los rechazados con sus códigos, y la consola enumera cada fila fallida con su
 línea. Cada registro añadido inicia los disparadores de la tabla, como cualquier otro.
 
-Con **External id** asignado, **Update records already here** vuelve a importar un archivo
-para poner la tabla al día: una fila cuyo id externo ya tiene la tabla cambia las celdas
-que nombra de ese registro, en lugar de rechazarse como ocupada (`update_existing` en el
-lote), y la importación cuenta lo que añadió y lo que actualizó.
+Con **External id** asignado, **Update records already here** vuelve a importar un
+archivo para poner la tabla al día: una fila cuyo id externo ya tiene la tabla cambia
+las celdas que nombra de ese registro, en lugar de rechazarse como ocupada
+(`update_existing` en el lote), y la importación cuenta lo que añadió y lo que
+actualizó.
+
+Un registro que alguien cambió después de empezar la importación se deja como estaba y
+se lista como `REVISION_CONFLICT`: el primer lote responde `as_of`, el momento en que
+empezó según el reloj del servidor, y los demás lo devuelven. Una fila que repite un id
+externo que el archivo ya nombró se lista en lugar de enviarse, y el lote rechaza con
+`INVALID_RECORD` una fila que repite un id que ya contiene.
 
 **New table** empieza con una columna **Name**. Primero indica el nombre y las columnas; la descripción y la visibilidad están en **More options**, con visibilidad privada por defecto. En su lugar puede empezar desde un
 archivo: **Start from a CSV file** convierte la cabecera en columnas y da a cada una el tipo más estrecho
@@ -402,7 +412,7 @@ respuesta, con `Idempotent-Replayed: true`, y no escribe nada, aunque el registr
 cambiado entretanto. La misma clave con un cuerpo distinto se rechaza con
 `IDEMPOTENCY_KEY_REUSED`.
 
-La cabecera marca un create, update o upsert repetido. Un borrado repetido responde 204
+La cabecera marca un create, update, upsert o lote repetido. Un borrado repetido responde 204
 como la primera vez y no se marca.
 
 Una clave pertenece al llamante y al tipo de escritura, así que dos llamantes pueden usar
@@ -491,7 +501,7 @@ El objeto `display` conserva `column_order`, `hidden_system_columns`, `wrap_text
 |---|---|
 | `kind` | `table`, `kanban` o `list` - una vista se guarda *para* un tipo |
 | `visibility` | `private` (solo su propietario) o `shared` (cualquiera que vea la tabla) |
-| `can_manage` | Si este llamante puede renombrarla, reconfigurarla o compartirla |
+| `can_manage` | Si este llamante puede renombrarla o reconfigurarla; solo su propietario la comparte |
 | `can_delete` | Si este llamante puede borrarla |
 
 Listar, leer y borrar se resuelven contra la tabla (`tables:view`); crear o cambiar
@@ -507,6 +517,13 @@ rechaza igual que cualquier otra escritura sobre un recurso individual aquí:
 `NOT_FOUND` (404), nunca un 403 que revelaría la existencia de una vista a un
 llamante al que se le niega. `can_manage` y `can_delete` dicen cuál de las dos cosas
 puede hacer este llamante.
+
+La vista privada de otro miembro es más estrecha todavía: incluso un llamante con
+scope `ALL` solo puede borrarla, nunca cambiarla ni leerla, así que un `PATCH`
+responde `NOT_FOUND` como lo haría con una vista que no existe. Y solo el
+propietario de una vista cambia su `visibility`: a cualquier otro que envíe un
+valor distinto se le rechaza con `AUTHORIZATION_ERROR` (403), porque esa vista ya
+la tiene delante.
 
 Archivar una columna se rechaza con `SCHEMA_DEPENDENCY`, nombrando la vista, cuando
 una vista que el llamante puede ver y también cambiar aún la usa para filtrar,
@@ -581,6 +598,12 @@ Pasa al run el registro: `record_id`, `event`, `values` por id de columna, los m
 valores como `fields` por etiqueta y `author_id`, y en un cambio o un borrado también
 `before` y las columnas `changed` por etiqueta. **Triggers**, en la página de la
 tabla, enumera los workflows, pausa y reanuda cada uno y abre su historial.
+
+Pausar uno allí requiere `tables:edit` en la tabla. Reanudarlo vuelve a ejecutar el
+workflow como la persona que lo publicó, así que también requiere `workflows:edit`
+y `workflows:run` en ese workflow, como el propio interruptor **Active** del
+workflow; a un miembro que puede editar la tabla pero no el workflow se le dice que
+el workflow no existe.
 
 Un trigger solo se inicia con los registros añadidos mientras está activo. Activarlo - una
 publicación o reanudarlo - toma el bloqueo de esquema de la tabla, el que espera toda escritura de
@@ -811,6 +834,15 @@ La pertenencia al grupo permite leer su tablero de tareas; escribir requiere ade
 
 Escribir en tableros de proyecto requiere acceso al proyecto y permiso de edición de tablas o una concesión Edit explícita. Eliminar un proyecto, grupo o propietario privado cancela las tareas en cola, resuelve sus casos y elimina la tabla gestionada de ese ámbito con registros, historial y medios en la misma transacción. Los demás ámbitos permanecen intactos. El panel vuelve a un tablero privado accesible si desaparece el seleccionado.
 
+Cambiar el propio tablero de tareas es más estrecho que trabajar en él. Renombrar el
+tablero, cambiar sus columnas o su vista predeterminada, y archivarlo o restaurarlo
+requiere `tables:edit` con scope `ALL` (owner o admin) o ser quien lidera el ámbito del
+tablero: quien lidera el grupo, el propietario del proyecto, la persona a la que
+pertenece un tablero privado. Cualquier otra persona de su audiencia sigue añadiendo y
+editando tareas; `can_manage` de la tabla dice cuál de las dos cosas puede hacer quien
+llama, y la consola muestra los controles del propio tablero solo cuando es verdadero.
+Un intento sin él se rechaza con `AUTHORIZATION_ERROR` (403).
+
 ## Vista predeterminada {#default-view}
 
 Los editores pueden elegir **Establecer como predeterminada** dentro de **Ajustes de vista**. El diseño, los filtros y la agrupación se guardan como vista compartida y se abren al visitar la tabla sin parámetros explícitos `view` o `viewId`. Las tablas nuevas de tareas empiezan en Kanban. La vista predeterminada debe ser compartida y pertenecer a la tabla; antes de hacerla privada hay que elegir otra. Eliminarla restaura el diseño de tabla simple. La API usa `PATCH /tables/{id}` con `default_view_id`; null elimina la selección.
@@ -822,4 +854,4 @@ Las notas de tareas son documentos Markdown con el mismo editor rich text y vist
 
 No se puede eliminar un agent mientras una tarea gestionada dependa de su ejecución programada. Reasigna, completa o cancela primero esas tareas; eliminar el agent no debe descartar su trabajo silenciosamente.
 
-Restaurar un tablero administrado archivado vuelve a poner en cola sus recordatorios planificados para personas, incluidos los que vencieron durante el archivo. La entrega sigue comprobando el acceso actual del creador original y del destinatario; restaurar el tablero no autoriza nuevo trabajo del agente.
+Restaurar un tablero administrado archivado vuelve a poner en cola sus recordatorios planificados para personas, incluidos los que vencieron durante el archivo. La entrega sigue comprobando el acceso actual del creador original y del destinatario; restaurar el tablero no autoriza nuevo trabajo del agente. Un tablero archivado tampoco acepta escrituras de sus tareas: un caso resuelto en Inbox mientras tanto deja su tarea como estaba, y al restaurar el tablero la tarea pasa entonces a hecha o cancelada. Reabrir un caso cuya tarea está en un tablero archivado se rechaza con `TABLE_ARCHIVED`.

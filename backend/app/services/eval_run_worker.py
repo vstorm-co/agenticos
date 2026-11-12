@@ -32,7 +32,6 @@ from pydantic_ai_harness.guardrails.detectors import redact_secrets
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.context import ContextBody
-from app.agents.capabilities.skills import SkillBody
 from app.agents.failures import run_failure_summary
 from app.agents.isolation import RunIsolation, ToolRecording, recorded_args
 from app.agents.spec import AgentSpec
@@ -75,7 +74,7 @@ from app.services.agent_registry import Candidate, PublishedCandidate, Unpublish
 from app.services.agent_runner import AgentRunnerService
 from app.services.api_key import job_context
 from app.services.eval_comparison import Flip, classify
-from app.services.eval_run import EvalRunService, drifts
+from app.services.eval_run import EvalRunService, drifts, skill_body_from_json
 from app.services.message_history import HistoryMessage, build_message_history
 from app.services.notifications import NotificationService
 from app.services.rag.overlay import KnowledgeOverlay, OverlayDocument
@@ -127,11 +126,7 @@ type Sessions = Callable[[], AbstractAsyncContextManager[AsyncSession]]
 
 def _candidate(arm: EvalRunArm) -> Candidate:
     bodies = {
-        UUID(skill_id): SkillBody(
-            description=body["description"],
-            content=body["content"],
-            name=TypeAdapter(str | None).validate_python(body.get("name")),
-        )
+        UUID(skill_id): skill_body_from_json(body)
         for skill_id, body in (arm.skill_bodies or {}).items()
     }
     contexts = {
@@ -984,7 +979,10 @@ class EvalRunWorker:
         Only what the run itself can stand behind: the regressions it confirmed
         and the answers the judge failed to grade. The rest of its failures go
         when a person sends them. A check of the authoring assistant's proposal
-        sends nothing: it measures a change nobody accepted.
+        to an agent sends nothing: it measures a change nobody accepted. A skill
+        check's stage does send, since a person's verdict there decides whether the
+        change goes live; its answers say they were given with the proposed text,
+        and never take the place of a score already waiting on that case.
 
         The answers and their scores are kept by then, so a refusal here leaves
         the run to complete: what was refused is kept on it as `routing_error`,
@@ -997,14 +995,21 @@ class EvalRunWorker:
             if (
                 run is None
                 or run.status != EvalRunStatus.RUNNING.value
-                or run.proposal_check is not None
+                or (
+                    run.proposal_check is not None
+                    and ProposalCheckRecord.model_validate(run.proposal_check).skill_check_id
+                    is None
+                )
             ):
                 return
             try:
                 async with db.begin_nested():
                     worthy = await EvalRunService(db).review_worthy(ctx, run)
                     routed = await ScoringService(db).route_to_review(
-                        ctx, dataset_id=run.dataset_id, score_ids=worthy
+                        ctx,
+                        dataset_id=run.dataset_id,
+                        score_ids=worthy,
+                        displace=run.proposal_check is None,
                     )
             except AppException as exc:
                 logger.warning(
@@ -1022,6 +1027,18 @@ class EvalRunWorker:
                 values={"routed_to_review": routed.queued, "routed_replacing": routed.replaced},
             )
 
+    async def _reader(self, db: AsyncSession, run: EvalRun) -> AuthContext | None:
+        """The starter's context as it stands, or `None` when it no longer holds."""
+        try:
+            return await job_context(
+                db,
+                organization_id=run.organization_id,
+                user_id=run.created_by_user_id,
+                api_key_id=run.created_by_api_key_id,
+            )
+        except AuthenticationError:
+            return None
+
     async def _close(self, status: EvalRunStatus, *, only_from: EvalRunStatus) -> None:
         async with self.sessions() as db:
             run = await eval_run_repo.lock(
@@ -1032,4 +1049,15 @@ class EvalRunWorker:
             await eval_run_repo.update_run(
                 db, run=run, values={"status": status.value, "ended_at": datetime.now(UTC)}
             )
+            if status is EvalRunStatus.COMPLETED:
+                await EvalRunService(db).forget_moved_skills(await self._reader(db, run), run)
             await NotificationService(db).eval_run_finished(run)
+            record = (
+                None
+                if run.proposal_check is None
+                else ProposalCheckRecord.model_validate(run.proposal_check)
+            )
+            if record is not None and record.skill_check_id is not None:
+                from app.services.skill_check import SkillCheckService
+
+                await SkillCheckService(db).after_run(run.organization_id, run.id)

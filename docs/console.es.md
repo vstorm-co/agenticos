@@ -1,5 +1,5 @@
 ---
-source_sha: "30c984fec99a"
+source_sha: "cb511d45cf48"
 ---
 
 # La consola { #the-console }
@@ -127,7 +127,7 @@ puedes abrir. Todos empiezan en **Me**:
 
 | Vista | Responde a |
 | --- | --- |
-| **Me** | Un saludo, tu periodo y todo lo que te espera, en dos frases - llamadas, respuestas por revisar, suites que fallan, sugerencias del asistente; tus runs, cuántos terminaron, lo que te espera y lo que costó; después las llamadas que te esperan, tus conversaciones, los agents que necesitan atención, las mejoras que te esperan, tus agents, lo que han compartido contigo, tus [datasets](datasets.md) con aquello contra lo que prueban sus casos, los eval runs y suites más recientes, las sugerencias del asistente por agent, skill y archivo, y las lagunas de conocimiento |
+| **Me** | Un saludo, tu periodo y todo lo que te espera, en dos frases - llamadas, respuestas por revisar, suites que fallan, sugerencias del asistente; tus runs, cuántos terminaron, lo que te espera (contado igual) y lo que costó; después las llamadas que te esperan, tus conversaciones, los agents que necesitan atención, las mejoras que te esperan, tus agents, lo que han compartido contigo, tus [datasets](datasets.md) con aquello contra lo que prueban sus casos, los eval runs y suites más recientes, las sugerencias del asistente por agent, skill y archivo, y las lagunas de conocimiento |
 | **Me** | Un saludo y tu periodo en una frase; tus runs, cuántos terminaron, lo que te espera y lo que costó; después las llamadas que te esperan, tus conversaciones, tus agents y lo que han compartido contigo |
 | **Organization** | La página que se ordena, descrita abajo |
 | **Group** | Los miembros de un [grupo](departments.md) - sus runs, gasto, modelos, cuándo trabajan y quién lo usa más. El grupo se elige junto al selector. Un grupo cuyos miembros no ejecutaron nada en el periodo lo dice una vez, con un enlace al grupo, en lugar de una página de tarjetas vacías |
@@ -144,7 +144,12 @@ hasta que la nueva versión acumule las suyas. Ambos requieren `runs:view`.
 
 Debajo, **Improvements waiting for you** lista las sesiones de
 [Improve](authoring.md#the-improve-wizard) detenidas a la espera de tu siguiente
-paso o decisión, cada una abierta en su parada.
+paso o decisión, cada una abierta en su parada, y las
+[comprobaciones de un cambio de skill](skills.md#when-an-agent-got-worse) que
+puedes decidir y que siguen en curso o esperan una decisión. Después vienen los
+cambios de skills que propusieron los agents, luego los agents fijados y los forks
+que main [ha dejado atrás](skills.md#which-version-an-agent-reads). Un
+fork se pone al día desde ahí, y un agent fijado se mueve en la página de su skill.
 
 La vista de la organización muestra las tarjetas que responden con datos,
 agrupadas en bandas. El resto - integraciones, canales, rutinas, sincronización
@@ -1162,3 +1167,7 @@ guiadas son ayuda opcional; cerrarlas no crea una ejecución correcta. Integraci
 archivos, agentes, invitaciones y rutinas son pasos siguientes opcionales.
 
 Quienes gestionan miembros pueden comprobar si ellos y otro miembro pueden ejecutar un mismo agente publicado. La vista previa devuelve solo esa respuesta, sin nombres de agentes privados ni llamadas al modelo. No confirma la disponibilidad del proveedor. Este inicio bloquea las invitaciones desde una dirección de bucle local; use una dirección del servidor accesible para el destinatario.
+
+Los turnos de chat completados mantienen visible el texto entregado antes de una pregunta del agente junto a la respuesta final, incluso tras rechazar la pregunta o reanudar la ejecución. Los resultados de herramientas y el razonamiento permanecen en el historial desplegable. Se aplica a chats guardados y compartidos; no clasifica las respuestas por su longitud.
+
+El historial distingue a quien pregunta del publicador cuya autoridad admite una solicitud externa. Los remitentes de canales sin vincular aparecen como cuentas de chat explícitamente no verificadas, tanto en escritorio como en móvil; una solicitud anónima no recibe una identidad de miembro inventada. La API conserva `user_id` como contexto de autoridad y expone `initiated_by_publisher_fallback` y `asked_in_chat` para atribuir correctamente la solicitud. Esta presentación no vincula cuentas ni concede acceso a conexiones personales del publicador.

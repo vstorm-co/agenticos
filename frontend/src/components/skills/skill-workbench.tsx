@@ -17,7 +17,6 @@ import { useSkill } from "@/hooks";
 import type { SkillEdit } from "@/hooks/use-skills";
 import type { Skill } from "@/types/providers";
 import { useTranslations } from "next-intl";
-import { ImproveSkillButton } from "@/components/authoring/improve-skill-button";
 
 /** The body's place in the tree. A skill is a folder, and this is its manifest. */
 const BODY = "SKILL.md";
@@ -29,7 +28,16 @@ interface SkillWorkbenchProps {
   isSaving: boolean;
   /** What the category field suggests: shelves in use plus the deployment's predefined ones. */
   categorySuggestions?: string[];
-  onSave: (edit: SkillEdit) => Promise<void>;
+  /** What saving does to the agents using the line being edited. */
+  saveWarning: string;
+  /**
+   * Editing a fork: only its description and body are its own, so the files and the
+   * category - shared with main - stay read-only.
+   */
+  fork?: boolean;
+  onSave: (edit: SkillEdit) => Promise<boolean | void>;
+  /** A file was written: each such write is a new version the next save builds on. */
+  onFilesWritten: () => void;
   onCancel: () => void;
   onDelete?: () => void;
 }
@@ -42,10 +50,10 @@ interface SkillWorkbenchProps {
  * dialog and left the files looking like an afterthought bolted below it -
  * they are not, they are the same skill.
  *
- * So the body sits in the tree as `SKILL.md`, where a reader who has seen a
- * skill on disk expects it, and it gets the same pane every other file gets:
- * Markdown with a preview, because that is what it is. Everything below it is a
- * file. One footer, at the bottom, saving the skill.
+ * So the body sits at the top of the tree as Instructions - the name History and
+ * the diff give it too - and it gets the same pane every other file gets:
+ * Markdown with a preview, because `SKILL.md` is what it is on disk. Everything
+ * below it is a file. One footer, at the bottom, saving the skill.
  *
  * The body's own state is seeded once, so mount this keyed by skill id: the
  * unsaved diff is what decides whether to warn about the blast radius, and
@@ -56,7 +64,10 @@ export function SkillWorkbench({
   canEdit,
   isSaving,
   categorySuggestions = [],
+  saveWarning,
+  fork = false,
   onSave,
+  onFilesWritten,
   onCancel,
   onDelete,
 }: SkillWorkbenchProps) {
@@ -88,8 +99,7 @@ export function SkillWorkbench({
 
   const save = async (): Promise<boolean> => {
     try {
-      await onSave({ description, content, category: editedCategory });
-      return true;
+      return (await onSave({ description, content, category: editedCategory })) !== false;
     } catch {
       // The mutation owns error feedback; keep the unsaved fields available.
       return false;
@@ -112,7 +122,7 @@ export function SkillWorkbench({
 
   const upload = async (picked: File[]) => {
     if (picked.length === 0) return;
-    await uploadResources.mutateAsync(picked).catch(() => null);
+    await uploadResources.mutateAsync(picked).then(onFilesWritten, () => null);
   };
 
   return (
@@ -175,7 +185,7 @@ export function SkillWorkbench({
             onChange={setCategory}
             suggestions={categorySuggestions}
             maxLength={64}
-            readOnly={!canEdit}
+            readOnly={!canEdit || fork}
           />
           <p className="text-muted-foreground text-xs">{t("groupsListingNeverReaches")}</p>
         </div>
@@ -189,7 +199,7 @@ export function SkillWorkbench({
             !filesOpen && "max-md:hidden",
           )}
         >
-          {canEdit && (
+          {canEdit && !fork && (
             // One row of three, above the tree: stacked below it they wrapped
             // onto two lines and read as an afterthought under a tall empty box.
             <div className="grid grid-cols-3 gap-1">
@@ -233,7 +243,7 @@ export function SkillWorkbench({
               )}
             >
               <BookOpen className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
-              <span className="truncate font-mono text-xs">{BODY}</span>
+              <span className="truncate text-xs">{t("instructions")}</span>
             </button>
             <FileTree
               nodes={tree}
@@ -258,6 +268,7 @@ export function SkillWorkbench({
               onCancel={() => setAdding(false)}
               onSubmit={async (draft) => {
                 await addResource.mutateAsync(draft);
+                onFilesWritten();
                 setAdding(false);
                 setFilesOpen(false);
               }}
@@ -267,12 +278,16 @@ export function SkillWorkbench({
               key={selected.id}
               skillId={skill.id}
               resource={selected}
-              canEdit={canEdit}
+              canEdit={canEdit && !fork}
               busy={saveResource.isPending}
-              onSave={(body) => saveResource.mutateAsync({ id: selected.id, content: body })}
+              onSave={async (body) => {
+                await saveResource.mutateAsync({ id: selected.id, content: body });
+                onFilesWritten();
+              }}
               onDelete={async () => {
                 try {
                   await removeResource.mutateAsync(selected.id);
+                  onFilesWritten();
                   setOpenId(null);
                 } catch {
                   // The mutation reports the refusal; leave the open file and draft intact.
@@ -280,7 +295,13 @@ export function SkillWorkbench({
               }}
             />
           ) : (
-            <FileEditor name={BODY} content={content} canEdit={canEdit} onChange={setContent} />
+            <FileEditor
+              name={BODY}
+              label={t("instructions")}
+              content={content}
+              canEdit={canEdit}
+              onChange={setContent}
+            />
           )}
         </div>
       </div>
@@ -288,7 +309,7 @@ export function SkillWorkbench({
       {changed && (
         <Alert variant="warning">
           <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>{t("savingReachesEveryAgent")}</AlertDescription>
+          <AlertDescription>{saveWarning}</AlertDescription>
         </Alert>
       )}
 
@@ -301,7 +322,6 @@ export function SkillWorkbench({
             name={skill.name}
             canManage={canEdit}
           />
-          {canEdit && <ImproveSkillButton skillId={skill.id} />}
           {canEdit && onDelete && (
             <ResourceActions
               name={skill.name}

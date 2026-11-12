@@ -353,7 +353,7 @@ version too, so the next secret sealed into it lands on a key that still exists.
 are untouched, which is what makes rotation cheap.
 
 ```bash
-uv run agenticos cmd doctor    # reports whether a vault key is configured at all
+uv run agenticos cmd doctor    # says whether a dedicated key or the SECRET_KEY fallback seals the vault
 ```
 
 `make platform-bootstrap BOOTSTRAP_API_KEY=sk-...` stores the first provider key

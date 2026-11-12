@@ -28,6 +28,7 @@ export function LocalTargetField({
   function operations(write: boolean, execute: boolean) {
     if (!value || !editable) return;
     onChange({
+      ...value,
       folder: value.folder,
       device_id: value.device_id,
       mode: write ? "workspace_write" : "read_only",

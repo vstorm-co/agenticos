@@ -219,6 +219,43 @@ describe("ImportCsvDialog", () => {
     expect(screen.queryByText(/more\./)).not.toBeInTheDocument();
   });
 
+  it("sends the time the import began with every batch after the first", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({
+      created: 200,
+      failed: [],
+      as_of: "2026-11-12T09:00:00Z",
+    });
+    const user = userEvent.setup();
+    renderDialog();
+    const rows = Array.from({ length: 250 }, (_, i) => `Row ${i},r-${i}`).join("\n");
+
+    await choose(`Name,External ID\n${rows}\n`);
+    await user.click(screen.getByRole("checkbox", { name: /Update records already here/ }));
+    await user.click(screen.getByRole("button", { name: "Import 250 rows" }));
+
+    expect(await screen.findByText("400 records added.")).toBeInTheDocument();
+    const bodies = vi.mocked(apiClient.post).mock.calls.map(([, body]) => body as object);
+    expect(bodies[0]).not.toHaveProperty("as_of");
+    expect(bodies[1]).toMatchObject({ as_of: "2026-11-12T09:00:00Z" });
+  });
+
+  it("lists a row repeating an external id the file already named, and sends it nowhere", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ created: 1, failed: [], as_of: "x" });
+    const user = userEvent.setup();
+    renderDialog();
+
+    await choose("Name,External ID\nAcme,a-1\nAcme Ltd,a-1\nAnon,\n");
+    await user.click(screen.getByRole("button", { name: "Import 3 rows" }));
+
+    expect(await screen.findByText("Repeats the external id on line 2")).toBeInTheDocument();
+    expect(sent()).toEqual([
+      [
+        { external_id: "a-1", values: { name: "Acme" } },
+        { external_id: null, values: { name: "Anon" } },
+      ],
+    ]);
+  });
+
   it("offers no import while every column is skipped, and goes back to choose again", async () => {
     const user = userEvent.setup();
     renderDialog();

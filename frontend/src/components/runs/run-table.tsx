@@ -85,6 +85,48 @@ export function RunTable({
   const meId = useAuthStore((state) => state.user?.id ?? null);
   const sortable = sort !== undefined && onSort !== undefined;
 
+  const personLabel = (run: AgentRun) => {
+    const chat = run.asked_in_chat;
+    if (chat) {
+      const description = t(chat.bot_name ? "askedInChatThrough" : "askedInChat", {
+        platform: surfaceLabel(chat.platform, t),
+        name: chat.name,
+        bot: chat.bot_name ?? "",
+      });
+      return (
+        <span className="flex min-w-0 items-center gap-1.5 text-xs" title={description}>
+          <SurfaceIcon surface={chat.platform} />
+          <span className="max-w-[10rem] truncate">{chat.name}</span>
+          <Badge variant="outline" className="shrink-0">
+            {t("unverifiedSender")}
+          </Badge>
+        </span>
+      );
+    }
+    if (run.initiated_by_publisher_fallback) {
+      return <span className="text-muted-foreground text-xs">{t("anonymousRequester")}</span>;
+    }
+    const member = run.user_id === null ? undefined : membersById?.get(run.user_id);
+    if (member === undefined) return <span className="text-muted-foreground text-xs">-</span>;
+    return (
+      <span className="flex items-center gap-2 text-xs whitespace-nowrap">
+        <EntityAvatar
+          seed={member.user_id}
+          name={member.full_name || member.email}
+          imageSrc={`/api/users/avatar/${member.user_id}`}
+          className="h-5 w-5 shrink-0 text-[9px]"
+          ariaHidden
+        />
+        <span className="max-w-[10rem] truncate" title={displayName(member)}>
+          {displayName(member)}
+        </span>
+      </span>
+    );
+  };
+  const hasPeople =
+    membersById !== undefined ||
+    runs.some((run) => run.asked_in_chat || run.initiated_by_publisher_fallback);
+
   /** The agent's face and name, or nothing when the reader cannot resolve it. */
   const agentLabel = (run: AgentRun) => {
     // Work a platform role did is named for the role, not for the starter agent it is
@@ -157,6 +199,11 @@ export function RunTable({
                 : t("delegatedTask", { taskId: run.subagent_task_id })}
             </Badge>
           )}
+          {(run.asked_in_chat || run.initiated_by_publisher_fallback) && (
+            <span className="block max-w-[calc(100vw-10rem)] min-w-0 sm:hidden">
+              {personLabel(run)}
+            </span>
+          )}
           {/* On a phone the row is this cell and the cost: who ran and when,
               folded under the status rather than six columns swiped sideways.
               Bounded by the screen, or a long agent name widens the column and
@@ -194,32 +241,13 @@ export function RunTable({
           },
         ] as Column<AgentRun>[])
       : []),
-    ...(membersById !== undefined
+    ...(hasPeople
       ? ([
           {
             key: "user",
             hideBelow: "sm",
-            header: t("personColumn"),
-            cell: (run) => {
-              const member = run.user_id === null ? undefined : membersById.get(run.user_id);
-              if (member === undefined) {
-                return <span className="text-muted-foreground text-xs">-</span>;
-              }
-              return (
-                <span className="flex items-center gap-2 text-xs whitespace-nowrap">
-                  <EntityAvatar
-                    seed={member.user_id}
-                    name={member.full_name || member.email}
-                    imageSrc={`/api/users/avatar/${member.user_id}`}
-                    className="h-5 w-5 shrink-0 text-[9px]"
-                    ariaHidden
-                  />
-                  <span className="max-w-[10rem] truncate" title={displayName(member)}>
-                    {displayName(member)}
-                  </span>
-                </span>
-              );
-            },
+            header: t("askedByColumn"),
+            cell: personLabel,
           },
         ] as Column<AgentRun>[])
       : []),
@@ -359,7 +387,10 @@ export function RunTable({
       // lists its owner's threads, so anybody else's link would land on an
       // empty sidebar dressed as the conversation.
       cell: (run) =>
-        run.conversation_id !== null && run.user_id !== null && run.user_id === meId ? (
+        run.conversation_id !== null &&
+        !run.initiated_by_publisher_fallback &&
+        run.user_id !== null &&
+        run.user_id === meId ? (
           <Link
             href={`${ROUTES.CHAT}?id=${run.conversation_id}`}
             aria-label={t("openTheChatBehind")}

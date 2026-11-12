@@ -1,5 +1,5 @@
 ---
-source_sha: "c9b0a73c254d"
+source_sha: "1110129a78f1"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -184,8 +184,12 @@ Der Service gleicht sie mit den aktuellen Spalten ab:
   wird zu Datum und Uhrzeit; eine Auswahl wird zu mehreren und zurück, wenn es eine
   ist. Jede andere Änderung wird abgelehnt, ebenso eine, die ein Wert nicht übersteht -
   mit Anzahl und Beispiel, und nichts wird geschrieben. Was die Spalte verwendet, lehnt
-  sie wie eine Archivierung ab. Die Revision eines Datensatzes rückt weiter, sodass
-  eine Bearbeitung gegen den alten Wert ein Konflikt ist.
+  sie wie eine Archivierung ab. Ein Datensatz, dessen Wert sich im neuen Typ anders
+  liest, erhält eine neue Revision, sodass eine Bearbeitung gegen den alten Wert ein
+  Konflikt ist, und sein Verlauf hält die Änderung unter der Person fest, die sie
+  vorgenommen hat; ein Wert, den die Änderung nicht berührt, lässt die Revision seines
+  Datensatzes unverändert. Eine Typänderung löst keinen [Trigger](#triggers) aus: Eine
+  Schemaänderung startet nicht für jeden Datensatz einen Workflow.
 - Text wird zu einer `email`-, `url`-, `phone`- oder `rating`-Spalte, wenn jeder Wert
   sich so liest, und eine Zahl wird zu einer Bewertung, wenn sie eine ganze Zahl von 1
   bis 5 ist. Jede davon wird wieder zu Text, eine Bewertung auch zu einer Zahl.
@@ -208,7 +212,7 @@ Der Service gleicht sie mit den aktuellen Spalten ab:
   angehängt, und die aktuelle Tabelle wird zurückgegeben. Eine neue Reihenfolge oder eine
   geänderte Bezeichnung ist eine Änderung.
 
-Datensätze werden nicht umgeschrieben. Ein unter Version 1 geschriebener Datensatz
+Außer bei einer Typänderung werden Datensätze nicht umgeschrieben. Ein unter Version 1 geschriebener Datensatz
 bleibt unter Version 4 lesbar und bearbeitbar; eine Pflichtspalte, die er nie hatte,
 erhält beim nächsten Bearbeiten des Datensatzes ihren Standardwert.
 
@@ -410,6 +414,13 @@ hat, ändert die genannten Zellen dieses Datensatzes, statt als vergeben abgeleh
 werden (`update_existing` im Batch), und der Import zählt, was er hinzugefügt und was er
 aktualisiert hat.
 
+Einen Datensatz, den jemand nach Beginn des Imports geändert hat, lässt er unverändert
+und führt ihn als `REVISION_CONFLICT` auf: Der erste Batch antwortet mit `as_of`, dem
+Beginn nach der Serveruhr, und die übrigen senden es zurück. Eine Zeile, die eine
+externe ID wiederholt, die die Datei schon genannt hat, wird aufgeführt statt gesendet,
+und der Batch lehnt eine Zeile, die eine ID wiederholt, die er schon enthält, mit
+`INVALID_RECORD` ab.
+
 **New table** beginnt mit einer Spalte **Name**. Geben Sie zuerst den Tabellennamen und die Spalten an; Beschreibung und Sichtbarkeit stehen unter **More options**, standardmäßig privat. Stattdessen kann sie mit einer Datei
 beginnen: **Start from a CSV file** macht aus der Kopfzeile Spalten und gibt jeder den engsten Typ, als den
 sich alle ihre Werte lesen lassen - Ganzzahl, Zahl, Ja/Nein, Datum, Datum und
@@ -427,7 +438,7 @@ erste Antwort mit `Idempotent-Replayed: true` und schreibt nichts, selbst wenn s
 Datensatz inzwischen geändert hat. Derselbe Schlüssel mit einem anderen Body wird mit
 `IDEMPOTENCY_KEY_REUSED` abgelehnt.
 
-Der Header kennzeichnet ein wiederholtes Create, Update oder Upsert. Ein wiederholtes
+Der Header kennzeichnet ein wiederholtes Create, Update, Upsert oder einen wiederholten Batch. Ein wiederholtes
 Delete antwortet wie beim ersten Mal mit 204 und wird nicht gekennzeichnet.
 
 Ein Schlüssel gehört dem Aufrufer und der Art des Schreibzugriffs, sodass zwei Aufrufer
@@ -522,7 +533,7 @@ Das Objekt `display` enthält `column_order`, `hidden_system_columns`, `wrap_tex
 |---|---|
 | `kind` | `table`, `kanban` oder `list` - eine Ansicht wird *für* eine Art gespeichert |
 | `visibility` | `private` (nur ihr Besitzer) oder `shared` (jeder, der die Tabelle sehen kann) |
-| `can_manage` | Ob dieser Aufrufer sie umbenennen, umkonfigurieren oder teilen darf |
+| `can_manage` | Ob dieser Aufrufer sie umbenennen oder umkonfigurieren darf; teilen darf nur ihr Besitzer |
 | `can_delete` | Ob dieser Aufrufer sie löschen darf |
 
 Auflisten, Lesen und Löschen lösen sich gegen die Tabelle auf (`tables:view`); eine
@@ -539,6 +550,13 @@ funktioniert wie bei jedem anderen Schreibzugriff auf eine einzelne Ressource
 hier: `NOT_FOUND` (404), nie ein 403, der einem abgelehnten Aufrufer verraten
 würde, dass die Ansicht existiert. `can_manage` und `can_delete` sagen, welches von
 beidem dieser Aufrufer darf.
+
+Die private Ansicht eines anderen Mitglieds ist noch enger: Selbst ein Aufrufer
+mit Scope `ALL` darf sie nur löschen, nie ändern oder zurücklesen, daher
+beantwortet ein `PATCH` sie mit `NOT_FOUND` wie eine Ansicht, die es nicht gibt.
+Und nur der Besitzer einer Ansicht ändert ihre `visibility`: Jeder andere, der
+einen anderen Wert schickt, wird mit `AUTHORIZATION_ERROR` (403) abgelehnt, da
+er die Ansicht ohnehin schon vor sich hat.
 
 Das Archivieren einer Spalte wird mit `SCHEMA_DEPENDENCY` abgelehnt und nennt die
 Ansicht, wenn eine Ansicht, die der Aufrufer sowohl sehen als auch ändern kann, sie
@@ -622,6 +640,12 @@ dieselben Werte als `fields` nach Beschriftung und `author_id`, bei einer Änder
 oder Löschung auch `before` und die `changed` Spalten nach Beschriftung. **Triggers**
 auf der Seite der Tabelle listet die Workflows, pausiert und setzt jeden fort und
 öffnet seinen Verlauf.
+
+Ihn dort zu pausieren braucht `tables:edit` auf der Tabelle. Ihn fortzusetzen
+startet den Workflow wieder als die Person, die ihn veröffentlicht hat, und braucht
+deshalb auch `workflows:edit` und `workflows:run` auf diesem Workflow, wie der
+eigene Schalter **Active** des Workflows; ein Mitglied, das die Tabelle bearbeiten
+darf, den Workflow aber nicht, erfährt, dass der Workflow nicht gefunden wurde.
 
 Ein Trigger startet nur für Datensätze, die hinzukommen, während er eingeschaltet ist.
 Das Einschalten - eine Veröffentlichung oder das Fortsetzen - nimmt die Schema-Sperre der Tabelle, auf die jeder
@@ -858,6 +882,15 @@ Gruppenmitglieder dürfen das Aufgabenboard ihrer Gruppe lesen; Schreibzugriff e
 
 Schreiben auf Projekt-Aufgabentafeln erfordert Projektzugriff und Tabellenbearbeitungsrechte oder eine ausdrückliche Edit-Freigabe für die Tabelle. Das Entfernen eines Projekts, einer Gruppe oder eines privaten Eigentümers storniert wartende Aufgaben, schließt ihre Fälle und löscht die verwaltete Tabelle dieses Bereichs samt Datensätzen, Verlauf und Medien in derselben Transaktion. Andere Bereiche bleiben erhalten. Verschwindet die ausgewählte Tafel, wechselt das Aufgabenpanel zur verfügbaren privaten Tafel.
 
+Ein Aufgabenboard selbst zu ändern ist enger gefasst, als darauf zu arbeiten. Das Board
+umzubenennen, seine Spalten oder Standardansicht zu ändern und es zu archivieren oder
+wiederherzustellen braucht `tables:edit` im Scope `ALL` (Owner oder Admin) oder die
+Leitung des Scopes des Boards: die Leitung der Gruppe, den Besitzer des Projekts, die
+Person, der ein privates Board gehört. Alle anderen im Publikum des Boards legen weiterhin
+Aufgaben an und bearbeiten sie; `can_manage` der Tabelle sagt, welches von beidem ein
+Aufrufer darf, und die Konsole zeigt die Steuerelemente des Boards nur, wenn es wahr ist.
+Ein Versuch ohne es wird mit `AUTHORIZATION_ERROR` (403) abgelehnt.
+
 ## Standardansicht {#default-view}
 
 Tabelleneditoren können **Als Standard festlegen** unter **Ansichtseinstellungen** wählen. Layout, Filter und Gruppierung werden als geteilte Ansicht gespeichert und bei Besuchen ohne ausdrückliche URL-Parameter `view` oder `viewId` geöffnet. Neue Aufgabentabellen starten mit Kanban. Die Standardansicht muss geteilt sein und zur Tabelle gehören. Vor dem Privatmachen muss ein anderer Standard gewählt werden. Löschen stellt das einfache Tabellenlayout wieder her. Die API verwendet `PATCH /tables/{id}` mit `default_view_id`; null entfernt den Standard.
@@ -869,4 +902,4 @@ Aufgabennotizen sind Markdown-Dokumente mit demselben Rich-Text-Editor und derse
 
 Ein Agent kann nicht gelöscht werden, solange eine verwaltete Aufgabe von seiner geplanten Ausführung abhängt. Weise diese Aufgaben zuerst neu zu, schließe sie ab oder brich sie ab; das Löschen darf ihre Ausführung nicht stillschweigend verwerfen.
 
-Beim Wiederherstellen einer archivierten verwalteten Aufgabentafel werden geplante Erinnerungen für Personen erneut eingereiht, auch wenn ihr Termin während der Archivierung verstrichen ist. Die Zustellung prüft weiterhin den aktuellen Zugriff des ursprünglichen Erstellers und Empfängers; die Wiederherstellung autorisiert keine neue Agentenarbeit.
+Beim Wiederherstellen einer archivierten verwalteten Aufgabentafel werden geplante Erinnerungen für Personen erneut eingereiht, auch wenn ihr Termin während der Archivierung verstrichen ist. Die Zustellung prüft weiterhin den aktuellen Zugriff des ursprünglichen Erstellers und Empfängers; die Wiederherstellung autorisiert keine neue Agentenarbeit. Auch die eigenen Aufgaben schreiben nicht in eine archivierte Tafel: Ein Fall, der in der Zwischenzeit in der Inbox erledigt wird, lässt seine Aufgabe unverändert, und erst die Wiederherstellung der Tafel setzt sie auf erledigt oder abgebrochen. Einen Fall wieder zu öffnen, dessen Aufgabe auf einer archivierten Tafel liegt, wird mit `TABLE_ARCHIVED` abgelehnt.

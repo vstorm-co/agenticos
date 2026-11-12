@@ -885,3 +885,140 @@ async def test_checkpoint_quota_is_atomic_across_workers(
         run.paused_state = None
         await session.commit()
     assert await park(loser.id)
+
+
+async def test_a_remembered_choice_never_answers_a_tool_that_always_asks(db: AsyncSession):
+    """A stored "agent" choice answers a call - unless the row says it always asks."""
+    org, user, run, ctx = await _consent_chat(db)
+    remembered = await _approval(
+        db,
+        org,
+        run,
+        tool_id="share_memory",
+        capability_tool_id="share_memory",
+        status=ApprovalStatus.APPROVED.value,
+        decided_by_user_id=user.id,
+        decided_at=datetime.now(UTC),
+        remember_scope="agent",
+    )
+    service = ApprovalService(db)
+    assert (
+        await service.remembered_consent(ctx, run.id, tool_name="share_memory", account=None)
+        == user.id
+    )
+
+    remembered.always_asks = True
+    await db.flush()
+
+    assert (
+        await service.remembered_consent(ctx, run.id, tool_name="share_memory", account=None)
+        is None
+    )
+
+
+class TestWhatAQueueReaderMaySeeOfAFact:
+    """The fact `share_memory` would share reaches only somebody who may see its run."""
+
+    async def _parked_share(self, db: AsyncSession):
+        org, owner = await _org(db)
+        asker = await _user(db)
+        reader = await _user(db)
+        db.add_all(
+            [
+                OrganizationMember(
+                    id=uuid.uuid4(), organization_id=org.id, user_id=user.id, role="member"
+                )
+                for user in (asker, reader)
+            ]
+        )
+        await db.flush()
+        run = await _run(db, org, await _agent(db, org), started_by=asker)
+        await _approval(
+            db,
+            org,
+            run,
+            tool_id="share_memory",
+            capability_tool_id="share_memory",
+            tool_args={"claim_id": str(uuid.uuid4()), "to": "organization"},
+            context={"claim": "The Acme renewal is due in March", "audience": "organization"},
+            always_asks=True,
+        )
+        return org, owner, asker, reader
+
+    async def _read_as(self, db: AsyncSession, org: Organization, user: User, role: str):
+        ctx = AuthContext(user_id=user.id, organization_id=org.id, role=role)
+        [row], _ = await ApprovalService(db).list_approvals(ctx)
+        return row
+
+    async def test_a_member_who_cannot_see_the_run_reads_only_the_audience(self, db) -> None:
+        org, _, _, reader = await self._parked_share(db)
+
+        row = await self._read_as(db, org, reader, OrgRoleName.MEMBER)
+
+        assert row.content_hidden
+        assert row.context == {"audience": "organization"}
+
+    async def test_the_person_who_asked_reads_the_fact(self, db) -> None:
+        org, _, asker, _ = await self._parked_share(db)
+
+        row = await self._read_as(db, org, asker, OrgRoleName.MEMBER)
+
+        assert not row.content_hidden
+        assert row.context["claim"] == "The Acme renewal is due in March"
+
+    async def test_an_owner_who_reads_every_run_reads_the_fact(self, db) -> None:
+        org, owner, _, _ = await self._parked_share(db)
+
+        row = await self._read_as(db, org, owner, OrgRoleName.OWNER)
+
+        assert not row.content_hidden
+
+    async def _decide_as(self, db: AsyncSession, org, user: User, role: str, *, approved: bool):
+        ctx = AuthContext(user_id=user.id, organization_id=org.id, role=role)
+        [row], _ = await ApprovalService(db).list_approvals(ctx)
+        with patch("app.services.approvals.spawn_after_commit") as spawn:
+            spawn.side_effect = lambda _, coroutine, **kwargs: coroutine.close()
+            return await ApprovalService(db).decide(ctx, row.id, approved=approved)
+
+    async def test_a_reader_who_cannot_see_the_fact_may_not_approve_sharing_it(self, db) -> None:
+        from app.core.exceptions import AuthorizationError
+
+        org, _, _, reader = await self._parked_share(db)
+
+        with pytest.raises(AuthorizationError, match="may approve it; you may reject it"):
+            await self._decide_as(db, org, reader, OrgRoleName.MEMBER, approved=True)
+
+    async def test_they_may_still_reject_it(self, db) -> None:
+        org, _, _, reader = await self._parked_share(db)
+
+        decided = await self._decide_as(db, org, reader, OrgRoleName.MEMBER, approved=False)
+
+        assert decided.status == ApprovalStatus.REJECTED.value
+
+    async def test_the_person_who_asked_may_approve_it(self, db) -> None:
+        org, _, asker, _ = await self._parked_share(db)
+
+        decided = await self._decide_as(db, org, asker, OrgRoleName.MEMBER, approved=True)
+
+        assert decided.status == ApprovalStatus.APPROVED.value
+
+    async def test_the_queue_says_the_call_always_asks(self, db) -> None:
+        org, owner, _, _ = await self._parked_share(db)
+
+        assert (await self._read_as(db, org, owner, OrgRoleName.OWNER)).always_asks
+
+    async def test_the_run_s_parked_calls_hide_the_fact_from_the_same_reader(self, db) -> None:
+        org, _, asker, reader = await self._parked_share(db)
+        [run] = (await db.scalars(select(AgentRun).where(AgentRun.organization_id == org.id))).all()
+        runner = AgentRunnerService(db)
+
+        [hidden] = await runner.parked_calls(
+            AuthContext(user_id=reader.id, organization_id=org.id, role=OrgRoleName.MEMBER), run
+        )
+        [shown] = await runner.parked_calls(
+            AuthContext(user_id=asker.id, organization_id=org.id, role=OrgRoleName.MEMBER), run
+        )
+
+        assert hidden.content_hidden and hidden.context == {"audience": "organization"}
+        assert not shown.content_hidden
+        assert shown.context is not None and "claim" in shown.context

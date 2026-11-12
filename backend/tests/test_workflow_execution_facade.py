@@ -681,10 +681,13 @@ class TestCancel:
             ) as update_run,
             patch(f"{FACADE_PATH}.events.append", new=AsyncMock()),
             patch(f"{FACADE_PATH}.delivery.deliver_result", new=AsyncMock()) as delivered,
+            patch(f"{FACADE_PATH}.cleanup.stop_called_runs", new=AsyncMock()) as called_stopped,
         ):
             result = await service.cancel(_ctx(), run.id)
 
         assert result.status == WorkflowRunStatus.CANCELLED.value
+        # What it called is cancelled once the run itself has ended.
+        assert called_stopped.await_args.kwargs["run"] is cancelled
         # Every live step, request, queued job and parked agent run is closed first.
         stopped.assert_awaited_once()
         assert stopped.await_args.kwargs["run"] is run

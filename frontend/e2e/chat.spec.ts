@@ -8,6 +8,7 @@ import {
   SEEDED_AGENT_HANDLE,
   SEEDED_AGENT_NAME,
   agentCard,
+  nowListed,
 } from "./helpers";
 
 test.use({ storageState: AUTH_STATE });
@@ -26,6 +27,9 @@ test.use({ storageState: AUTH_STATE });
  * reload. The answer itself needs a key and real money, so it lives in
  * `journey.spec.ts`.
  */
+
+/** What the conversation sidebar reads, newest first. */
+const CONVERSATIONS = "/api/conversations?limit=30&sort_by=updated_at&sort_dir=desc&hide_api=true";
 
 /** The composer, once the socket is up. Disabled means "not connected". */
 async function readyComposer(page: Page) {
@@ -88,17 +92,17 @@ test.describe("Chat", () => {
     await expect(input).toHaveText("");
     await expect(page.getByText(message)).toBeVisible();
 
-    // The sidebar is fed by the conversations API, and the title is derived
-    // server-side from the first message. Its appearance is the proof that the
-    // message reached the backend rather than only the DOM.
+    // The title is derived server-side from the first message, so a conversation
+    // listed under it is the proof that the message reached the backend rather
+    // than only the DOM. The API is asked first: the sidebar's refetch right
+    // after the write is sometimes answered with the list from before it.
+    await nowListed(page.request, CONVERSATIONS, "title", message);
+
+    // Then a fresh page load draws it, which no client-side state could fake.
     // Inside `main`: the layout's navigation is a `complementary` landmark too,
     // and it is the one that comes first in the DOM.
-    const conversations = page.getByRole("main").getByRole("complementary");
-    await expect(conversations.getByText(message)).toBeVisible();
-
-    // And it is still there on a fresh page load, which no client-side state
-    // could fake.
     await page.reload();
+    const conversations = page.getByRole("main").getByRole("complementary");
     await expect(conversations.getByText(message)).toBeVisible();
     await conversations.getByText(message).click();
     await expect(page.getByRole("main").getByText(message).first()).toBeVisible();
@@ -118,9 +122,7 @@ test.describe("Chat", () => {
     await input.fill(message);
     await input.press("Enter");
     await expect(input).toHaveText("");
-    await expect(
-      page.getByRole("main").getByRole("complementary").getByText(message),
-    ).toBeVisible();
+    await nowListed(page.request, CONVERSATIONS, "title", message);
   });
 });
 

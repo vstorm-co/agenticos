@@ -1,5 +1,5 @@
 ---
-source_sha: "a09299e9af23"
+source_sha: "4d205a52251b"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -323,9 +323,9 @@ gelesen, deshalb sind **Folder** und **Shared mailbox** zugleich der Ort, an dem
 Poller sucht, und ein Filter; das erste Lesen eines Ordners beginnt mit dem Zeitpunkt
 der Veröffentlichung oder des letzten Einschaltens des Workflows. Ein gemeinsames Postfach, das der
 Microsoft-Grant der Organisation öffnen kann, zu nennen, erfordert die Berechtigung,
-Verbindungen zu verwalten, wie bei Outlook-Agent-Triggern; ein Workflow, der schon eines
-liest, behält es bei späteren Veröffentlichungen, und es zu ändern erfordert die
-Berechtigung erneut. **Sender contains** prüft die Adresse des
+Verbindungen zu verwalten, wie bei Outlook-Agent-Triggern; jede Veröffentlichung, die eines nennt, braucht sie, weil die veröffentlichende
+Person zu dem Mitglied wird, als das das Postfach gelesen wird, und eine Nachricht
+an einen Workflow, dessen Veröffentlicher sie nicht mehr hat, startet keinen Run. **Sender contains** prüft die Adresse des
 Absenders wie bei Gmail und verlangt Post, die die Absenderdomain authentifiziert hat
 oder die aus dem Tenant stammt. Ein Ordner oder gemeinsames Postfach, das Outlook als
 nicht lesbar meldet, schaltet den Workflow aus, mit `mailbox_folder_unreadable` im
@@ -341,7 +341,7 @@ Poller. Die Anhänge werden wie bei [trigger.gmail](#trigger-gmail) gespeichert,
 **Channel message.** Gestartet von einer Nachricht an einen der Slack-, Mattermost-
 oder Telegram-Bots der Organisation, die der Bot mit seinem eigenen Agenten
 beantwortet hätte und die zum Filter des Knotens passt. Das Veröffentlichen braucht
-`channels:manage`, und die Nachrichten eines Bots starten höchstens einen Workflow.
+`channels:manage`, bei jeder Nachricht erneut geprüft, und die Nachrichten eines Bots starten höchstens einen Workflow.
 `triggered_by` ist `channel_message`.
 Ein Teams-Bot wird beim Veröffentlichen und im Testlauf abgelehnt; ein früher
 veröffentlichter Teams-Listener gibt seine Nachrichten an den Agenten des Bots zurück.
@@ -1056,7 +1056,7 @@ Tab **Approvals** unter Activity oder über `GET /api/v1/workflow-approvals`.
 `approvers` nennt, wer entscheiden darf, und diese Personen werden in der App
 benachrichtigt; leer darf jeder mit `approvals:decide`. Nach `timeout_hours`
 läuft die Anfrage ab, und der Schritt geht über `rejected` mit
-`decision: "expired"` weiter. Einen Run abzubrechen bricht seine Anfragen ab.
+`decision: "expired"` weiter. Einen Run abzubrechen bricht seine Anfragen ab, ebenso der Abbruch eines Workflows, der diesen Run aufgerufen hat.
 Jeder Lauf des Schritts fragt einmal, sodass eine Wiederholung oder eine
 Schleifeniteration nie zweimal nach demselben fragt.
 

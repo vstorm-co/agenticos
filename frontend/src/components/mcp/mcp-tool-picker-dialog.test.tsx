@@ -65,20 +65,21 @@ const list = () => within(screen.getByRole("dialog")).queryAllByRole("checkbox")
  * thing a person is deciding here was the one thing the dialog would not say.
  */
 describe("McpToolPickerDialog", () => {
-  it("says which tools only read and which write, where the server said (#2103)", () => {
+  it("distinguishes declared reads, possible writes and absent annotations", () => {
     render(
       <Harness
         tools={[
           { name: "search", description: "", read_only: true },
-          { name: "create", description: "", read_only: false },
+          { name: "create", description: "", read_only: false, read_only_hint: false },
           { name: "older", description: "" },
+          { name: "legacy-false", description: "", read_only: false },
         ]}
       />,
     );
 
-    expect(screen.getByText("reads")).toBeInTheDocument();
-    expect(screen.getByText("writes")).toBeInTheDocument();
-    expect(screen.getAllByText(/^(reads|writes)$/)).toHaveLength(2);
+    expect(screen.getByText("read-only")).toBeInTheDocument();
+    expect(screen.getByText("may change data")).toBeInTheDocument();
+    expect(screen.getAllByText("not declared")).toHaveLength(2);
   });
 
   it("says how many of how many are on", () => {

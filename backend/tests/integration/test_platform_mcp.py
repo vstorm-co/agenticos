@@ -1001,3 +1001,80 @@ async def test_mcp_never_reads_refused_turns_quotes_or_conversation_titles(
         original = await client.get(f"/api/v1/conversations/{chat.id}/transcript")
         assert original.status_code == 200
         assert "XYZZY refused" in original.text
+
+
+@pytest.mark.security
+async def test_connection_discovery_is_compact_and_targeted_contracts_remain_tenant_scoped(
+    db: AsyncSession, served: None
+) -> None:
+    from app.db.models.mcp_connection import McpConnection
+
+    key, organization = await _owner_key(db, Perm.MCP_MANAGE, Perm.AGENTS_VIEW)
+    _foreign_key, foreign_org = await _owner_key(db, Perm.MCP_MANAGE)
+    connection = McpConnection(
+        scope="org",
+        purpose="mcp",
+        organization_id=organization.id,
+        created_by_user_id=organization.created_by_user_id,
+        name="crm",
+        url="https://crm.example/mcp",
+        is_enabled=True,
+        last_tools=[
+            {
+                "name": f"lookup_{i}",
+                "description": "Read a record",
+                "read_only_hint": True,
+                "input_schema": {"type": "object", "description": "x" * 5000},
+            }
+            for i in range(190)
+        ],
+    )
+    foreign = McpConnection(
+        scope="org",
+        purpose="mcp",
+        organization_id=foreign_org.id,
+        created_by_user_id=foreign_org.created_by_user_id,
+        name="foreign",
+        url="https://private.example/mcp",
+        is_enabled=True,
+    )
+    db.add_all([connection, foreign])
+    await db.commit()
+    async with _connected(key) as session:
+        listing = await session.call_tool("list_org_connections", {})
+        assert not listing.is_error, listing
+        page = _content(listing)
+        assert len(json.dumps(page)) < 2000
+        assert page["total"] == 1 and page["items"][0]["tool_count"] == 190
+        tools = await session.call_tool(
+            "list_mcp_connection_tools",
+            {
+                "connection_id": str(connection.id),
+                "q": "lookup_189",
+            },
+        )
+        assert not tools.is_error, tools
+        assert _content(tools)["items"][0]["read_only_hint"] is True
+        detail = await session.call_tool(
+            "get_mcp_connection_tool",
+            {
+                "connection_id": str(connection.id),
+                "tool_name": "lookup_189",
+            },
+        )
+        assert not detail.is_error, detail
+        assert _content(detail)["tool"]["input_schema"]["description"] == "x" * 5000
+        refused = await session.call_tool(
+            "get_mcp_connection_tool",
+            {
+                "connection_id": str(foreign.id),
+                "tool_name": "lookup_0",
+            },
+        )
+        assert refused.is_error and "private.example" not in str(refused)
+        capabilities = _content(await session.call_tool("list_capabilities", {"q": "clock"}))
+        assert capabilities["total"] >= 1
+        assert "config_schema" not in capabilities["items"][0]
+        contract = await session.call_tool("get_capability", {"capability_id": "clock"})
+        assert not contract.is_error, contract
+        assert isinstance(_content(contract)["config_schema"], dict)

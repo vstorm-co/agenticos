@@ -20,6 +20,12 @@ rename.
 | First messages | What an empty chat offers whoever opens the agent, one click each | `starters` |
 | Capability | Something an agent may do, switched on in the Builder | `capabilities[]` |
 | Skill | Know-how written once and read by any agent that needs it | `skill` |
+| Skill version | One saved state of a skill, never changed afterwards; **Restore** brings an earlier one back as a new version | `skill_version` |
+| Main | A skill's main line; an agent on main reads its newest version | `state: main` |
+| Pinned | An agent that stays on one main version of a skill until somebody moves it | `state: pinned` |
+| Fork | A named line of a skill, started from a main version, with versions of its own for some agents | `skill_fork`, `state: fork` |
+| Behind main | How many main versions a pinned agent or a fork has not taken | `behind_main` |
+| Catch up | Bring a pinned agent or a fork onto main's newest version; only on request, and checked first | `/skills/behind-main` |
 | Context file | Standing knowledge an agent always has, such as a glossary or a policy | `context` |
 | Knowledge base | Documents an agent searches and cites | `collection` |
 | Knowledge gap | A topic of questions a knowledge base could not answer, grouped by meaning; Improve counts them as **Missing from the knowledge base** | `knowledge_gap_topic` |
@@ -101,6 +107,9 @@ rename.
 | Try again | Starts another attempt from the result, with an optional **Note for the helper**; it writes new changes and stops at **Changes** | `/{run_id}/continue` with `note` |
 | Spending limit | What one session may spend in all, analysis and every attempt included; each step is priced before it starts | `budget_usd` |
 | Automatic check | **Check these questions automatically on every change**: on accepting, a suite that asks the session's questions before each publish and allows no confirmed regression | `automatic_check` |
+| Improve a skill | A session that improves one line of a skill, main or a fork, and checks the change on every agent of that line | `/skills/{id}/improvements` |
+| Skill check | A skill change run on every agent of its line; better when no agent has a confirmed regression and at least one is better | `skill_check` |
+| Unknown | An agent a skill check could not run, named with the reason; the person acknowledges it before applying | `state: unknown` |
 
 ## Capabilities
 

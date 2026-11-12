@@ -1,6 +1,6 @@
 import type { APIRequestContext, Page, TestInfo } from "@playwright/test";
 import { expect, test } from "./fixtures";
-import { AUTH_STATE, walkPageTour } from "./helpers";
+import { AUTH_STATE, callApi, walkPageTour } from "./helpers";
 
 // A click that cannot happen fails within a minute, not at the end of the whole journey.
 test.use({ storageState: AUTH_STATE, actionTimeout: 60_000 });
@@ -21,7 +21,7 @@ function items(value: Record<string, unknown>): Record<string, unknown>[] {
   return value.items.map(record);
 }
 async function read(api: APIRequestContext, path: string, headers: Record<string, string>) {
-  const response = await api.get(`/api${path}`, { headers });
+  const response = await callApi(api, "get", path, { headers });
   expect(response.ok(), `${path}: ${await response.text()}`).toBeTruthy();
   return record(await response.json());
 }
@@ -32,7 +32,7 @@ async function write(
   headers: Record<string, string>,
   data: object,
 ) {
-  const response = await api[method](`/api${path}`, { headers, data });
+  const response = await callApi(api, method, path, { headers, data });
   expect(response.ok(), `${path}: ${await response.text()}`).toBeTruthy();
   return record(await response.json());
 }

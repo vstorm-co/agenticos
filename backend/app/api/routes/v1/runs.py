@@ -18,6 +18,7 @@ from app.api.deps import (
     EvalRunSvc,
     ParkedRunSvc,
     RunExportSvc,
+    SkillSvc,
     require,
 )
 from app.api.public_api import INTERNAL, PUBLIC
@@ -53,6 +54,7 @@ from app.schemas.agent_run import (
 )
 from app.schemas.conversation import MessageList
 from app.schemas.run_manifest import RunManifestRead
+from app.services.approvals import withhold
 from app.services.channels.handback import continues_in_chat
 
 router = APIRouter(dependencies=[PUBLIC])
@@ -196,10 +198,17 @@ async def list_runs(
         questions={run_id: link.case_input for run_id, link in links.items()},
     )
     chains = await service.voice_chains(ctx, [run.id for run in items if run.modality == "voice"])
+    channel_runs = [
+        run.id
+        for run in items
+        if run.initiated_by_publisher_fallback and run.channel_identity_id is not None
+    ]
+    askers = await service.run_chat_askers(ctx, channel_runs) if channel_runs else {}
     return AgentRunList(
         items=[
             AgentRunRead.model_validate(run).model_copy(
                 update={
+                    "asked_in_chat": askers.get(run.id),
                     "down_rated": run.id in down_rated,
                     "eval_case": links.get(run.id),
                     "origin": origins.get(run.id),
@@ -280,7 +289,9 @@ async def export_runs(
 @router.get(
     "/runs/{run_id}", response_model=AgentRunRead, dependencies=[Depends(require(Perm.RUNS_VIEW))]
 )
-async def get_run(run_id: UUID, service: AgentRunnerSvc, evals: EvalRunSvc, ctx: Auth) -> Any:
+async def get_run(
+    run_id: UUID, service: AgentRunnerSvc, evals: EvalRunSvc, skills: SkillSvc, ctx: Auth
+) -> Any:
     """One run, its trace link, and its neighbours in its conversation.
 
     `logfire_url` is on this read and not on the list: resolving it needs the
@@ -289,7 +300,8 @@ async def get_run(run_id: UUID, service: AgentRunnerSvc, evals: EvalRunSvc, ctx:
     `prev_run_id`/`next_run_id` ride here for the same reason - a detail view
     walks to its neighbours, a list already is the neighbours. `eval_case` names
     the eval run and the case an eval run's answer belongs to, which is where its
-    answer and grade are read - such a run keeps no conversation.
+    answer and grade are read - such a run keeps no conversation. `skills_used`
+    names the skills it opened or read, at the version each was served.
     """
     run = await service.get_run(ctx, run_id)
     evaluated = run.surface == RunSurface.EVAL.value
@@ -297,14 +309,21 @@ async def get_run(run_id: UUID, service: AgentRunnerSvc, evals: EvalRunSvc, ctx:
     origin = (await service.origins(ctx, [run.id])).get(run.id) if evaluated else None
     down_rated = await service.down_rated_run_ids(ctx, [run.id])
     prev_run_id, next_run_id = await service.neighbor_run_ids(ctx, run)
+    askers = (
+        await service.run_chat_askers(ctx, [run.id])
+        if run.initiated_by_publisher_fallback and run.channel_identity_id is not None
+        else {}
+    )
     return AgentRunRead.model_validate(run).model_copy(
         update={
+            "asked_in_chat": askers.get(run.id),
             "logfire_url": await service.trace_url(ctx, run),
             "down_rated": run.id in down_rated,
             "prev_run_id": prev_run_id,
             "next_run_id": next_run_id,
             "eval_case": eval_case,
             "origin": origin,
+            "skills_used": await skills.used_in_run(ctx, run.id),
             "continues_in_chat": continues_in_chat(run, ctx),
         }
     )
@@ -324,6 +343,10 @@ async def get_run_transcript(
             "thread it sits in, each turn carrying its `run_id` so a client can "
             "still tell which ones are this run's"
         ),
+    ),
+    for_model: bool = Query(
+        False,
+        description="Omit guardrail-refused turns before pagination and quoted reply excerpts",
     ),
 ) -> Any:
     """The turns one run produced, for a run detail view to render as steps.
@@ -347,14 +370,21 @@ async def get_run_transcript(
     that reads as "the run did nothing".
     """
     run, messages, total = await service.get_run_transcript(
-        ctx, run_id, skip=skip, limit=limit, whole_conversation=scope == "conversation"
+        ctx,
+        run_id,
+        skip=skip,
+        limit=limit,
+        whole_conversation=scope == "conversation",
+        for_model=for_model,
     )
     ratings = await service.transcript_ratings(ctx, [m.id for m in messages])
     return RunTranscript(
         run_id=run.id,
         conversation_id=run.conversation_id,
         items=[
-            RunTranscriptMessage.model_validate(m).model_copy(update=ratings[m.id])
+            RunTranscriptMessage.model_validate(m).model_copy(
+                update={**ratings[m.id], **({"reply_to": None} if for_model else {})}
+            )
             for m in messages
         ],
         total=total,
@@ -658,8 +688,15 @@ async def decide_approval(
         note=data.note,
         **({"remember_scope": data.remember_scope} if data.remember_scope else {}),
     )
-    return ApprovalRead.model_validate(decided.approval).model_copy(
-        update={"continues_in_chat": decided.continues_in_chat}
+    read = ApprovalRead.model_validate(decided.approval)
+    tool_args, context = withhold(decided.hidden, tool_args=read.tool_args, context=read.context)
+    return read.model_copy(
+        update={
+            "continues_in_chat": decided.continues_in_chat,
+            "tool_args": tool_args,
+            "context": context,
+            "content_hidden": bool(decided.hidden),
+        }
     )
 
 

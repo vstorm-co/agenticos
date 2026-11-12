@@ -66,9 +66,8 @@ interface CapabilitySettingsProps {
   configProblems?: readonly FieldProblem[];
 }
 
-/** The three modes, in order. Their words live in the catalog under `approval*`. */
+/** Explicit capability policies; a tool additionally offers inheritance. */
 const APPROVAL_OPTIONS: { value: ApprovalMode; words: string }[] = [
-  { value: "default", words: "approvalFollow" },
   { value: "required", words: "approvalAlways" },
   { value: "never", words: "approvalNever" },
 ];
@@ -126,9 +125,8 @@ export function resolveToolApproval(
 }
 
 /**
- * What a capability's own mode comes out to. `default` is no approval: a gate
- * nobody chose parks runs in channels and routines where nobody is there to
- * answer it, so a person is asked only once the author says so.
+ * Legacy `default` remains ungated. Newly added bindings use `required`, while
+ * opening an existing spec must neither change its policy nor write it back.
  */
 function resolveCapabilityApproval(mode: ApprovalMode): ResolvedApproval {
   return mode === "required" ? "required" : "never";
@@ -371,7 +369,7 @@ export function CapabilityDetail({
         <div className="space-y-2">
           <Label htmlFor={`${binding.id}-approval`}>{t("humanApproval")}</Label>
           <Select
-            value={binding.approval}
+            value={resolveCapabilityApproval(binding.approval)}
             disabled={disabled}
             onValueChange={(approval) =>
               onChange({ ...binding, approval: approval as ApprovalMode })
@@ -1134,7 +1132,7 @@ function ToolRow({ binding, tool, contract, onChange, disabled, approvals }: Too
                     ? t("followCapabilityAlwaysAsk")
                     : t("followCapabilityNeverAsk")}
                 </SelectItem>
-                {APPROVAL_OPTIONS.filter((option) => option.value !== "default").map((option) => (
+                {APPROVAL_OPTIONS.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {t(option.words)}
                   </SelectItem>

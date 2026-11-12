@@ -95,7 +95,13 @@ from app.repositories import routine_device_wait as device_wait_repo
 from app.schemas.agent_trigger import (
     _EVENT_CONFIG_MODELS,
     GithubTriggerConfig,
+    TriggerAttemptList,
+    TriggerAttemptRead,
+    TriggerAttemptReason,
+    TriggerAttemptStage,
+    TriggerAttemptStatus,
     TriggerCreate,
+    TriggerFireResult,
     TriggerRead,
     TriggerUpdate,
     webhook_url,
@@ -137,7 +143,12 @@ from app.services.routine_devices import (
     local_scope,
 )
 from app.services.routine_devices import ready as local_device_ready
-from app.services.routine_sources import RoutineSourceService, RoutineSourcesRequired, read_policy
+from app.services.routine_sources import (
+    PlatformRoutineIdentityRequired,
+    RoutineSourceService,
+    RoutineSourcesRequired,
+    read_policy,
+)
 from app.services.spend import month_start
 from app.worker.jobs import FIRE_TRIGGER, FireTrigger
 
@@ -357,6 +368,30 @@ _WHAT_IT_DOES = (
 """The edits that change what a fire does or who reads its answer, and so end its acting as the creator."""
 
 
+def _later(new: Any, old: Any) -> bool:
+    """Whether `new` lets the routine go further than `old`, where null means no limit."""
+    if new is None:
+        return old is not None
+    return old is not None and new > old
+
+
+def _extended_reach(trigger: AgentTrigger, changes: dict[str, Any]) -> list[str]:
+    """The fields of an edit that resume a routine, move its end, or loosen its limits.
+
+    `is_active` counts even on a running routine: setting it starts its failure count
+    afresh. The end date is the creator's to move in either direction; a limit may
+    still be tightened by others, the way a pause may.
+    """
+    extended = ["is_active"] if changes.get("is_active") is True else []
+    if "ends_at" in changes and changes["ends_at"] != trigger.ends_at:
+        extended.append("ends_at")
+    return extended + [
+        field
+        for field in ("max_failures", "monthly_budget_usd")
+        if field in changes and _later(changes[field], getattr(trigger, field))
+    ]
+
+
 def _guard_shared_mailbox(
     ctx: AuthContext,
     event_source: str | None,
@@ -505,6 +540,51 @@ class AgentTriggerService:
             reads.append(read)
         await self._mark_spend(list(zip(reads, rows, strict=True)))
         return reads
+
+    async def attempts(
+        self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID, *, skip: int, limit: int
+    ) -> TriggerAttemptList:
+        """Before-run failures visible under the same agent scope as its routines."""
+        agent = await self.agents.get(ctx, agent_id)
+        trigger = await agent_trigger_repo.get(
+            self.db, trigger_id, organization_id=ctx.organization_id
+        )
+        if (
+            trigger is None
+            or trigger.agent_id != agent.id
+            or (trigger.one_shot is True and trigger.created_by_user_id != ctx.subject_id)
+        ):
+            raise NotFoundError(message="Trigger not found")
+        rows, total = await agent_trigger_repo.list_attempts(
+            self.db,
+            trigger_id=trigger.id,
+            organization_id=ctx.organization_id,
+            skip=skip,
+            limit=limit,
+        )
+        return TriggerAttemptList(
+            items=[TriggerAttemptRead.model_validate(row) for row in rows], total=total
+        )
+
+    async def _record_attempt(
+        self,
+        trigger: AgentTrigger,
+        activation_id: UUID,
+        *,
+        stage: TriggerAttemptStage,
+        reason: TriggerAttemptReason,
+        status: TriggerAttemptStatus = "blocked",
+    ) -> TriggerAttemptRead:
+        attempt = await agent_trigger_repo.record_attempt(
+            self.db,
+            trigger_id=trigger.id,
+            organization_id=trigger.organization_id,
+            activation_id=activation_id,
+            status=status,
+            stage=stage,
+            reason=reason,
+        )
+        return TriggerAttemptRead.model_validate(attempt)
 
     async def list_for_organization(
         self, ctx: AuthContext, *, skip: int = 0, limit: int = 50
@@ -1279,6 +1359,16 @@ class AgentTriggerService:
         fire - or point the answer at a Teams channel they read, which hands them
         what the creator's own connections returned. A pause, a rename or a new
         cadence changes no such thing, so it stays.
+
+        The creator also agreed to the end date and the limits it acts within, so
+        while it acts as them nobody else resumes it, moves its end date or loosens
+        a limit. Tightening a limit, like a pause, stays open to anyone who may edit it,
+        but keeps the failures counted so far: a new limit from the creator starts the
+        count afresh, one from anybody else must not hand the routine more runs.
+
+        Raises:
+            AuthorizationError: Someone other than the creator turns it on, or
+                resumes or extends a routine that acts as its creator.
         """
         themselves = _acts_as_themselves(ctx, trigger.created_by_user_id)
         if changes.get("runs_as_creator") is True and not themselves:
@@ -1286,6 +1376,33 @@ class AgentTriggerService:
                 message="Only the person who made this trigger can let it act as them",
                 details={"trigger_id": str(trigger.id)},
             )
+        acting = changes.get("runs_as_creator", trigger.runs_as_creator)
+        extended = _extended_reach(trigger, changes)
+        if extended and acting and not themselves:
+            message = (
+                "Only the person who made this routine can resume it, reset its failures, "
+                "change its end date or raise its limits while it acts as them. Turn off "
+                "Run as me first."
+            )
+            raise AuthorizationError(
+                message=message,
+                details=field_details(extended[0], message, trigger_id=str(trigger.id)),
+            )
+        if acting and not themselves and "max_failures" in changes:
+            for field in ("health_reset_at", "consecutive_failures"):
+                changes.pop(field, None)
+            if "is_active" not in changes:
+                changes.pop("auto_stopped_at", None)
+                # Health only checks the limit after the next run, which would be one more
+                # run as the creator past it: a limit already reached pauses now.
+                limit = changes["max_failures"]
+                if (
+                    trigger.is_active
+                    and limit is not None
+                    and (trigger.consecutive_failures or 0) >= limit
+                ):
+                    changes["is_active"] = False
+                    changes["auto_stopped_at"] = datetime.now(UTC)
         if (
             trigger.runs_as_creator
             and not themselves
@@ -2158,12 +2275,17 @@ class AgentTriggerService:
         trigger = await agent_trigger_repo.get_by_id(
             self.db, trigger_id, fresh=True, for_update=True
         )
+        if trigger is None:
+            return None
+        if organization_id is not None and trigger.organization_id != organization_id:
+            raise AuthorizationError(message="The routine belongs to another organization")
         try:
-            if trigger is None:
-                return None
             source_policy = read_policy(trigger.approved_sources)
         except RoutineSourcesRequired:
-            if trigger is not None and trigger.is_active:
+            await self._record_attempt(
+                trigger, activation_id, stage="source_review", reason="source_review_required"
+            )
+            if trigger.is_active:
                 await NotificationService(self.db).routine_blocked(
                     organization_id=trigger.organization_id,
                     owner_user_id=trigger.created_by_user_id,
@@ -2179,9 +2301,14 @@ class AgentTriggerService:
                     self.db, trigger_id=trigger_id, claimed_at=claimed_at
                 )
             return None
-        if organization_id is not None and trigger.organization_id != organization_id:
-            raise AuthorizationError(message="The routine belongs to another organization")
         if source_policy_id is not None and source_policy_id != source_policy.id:
+            await self._record_attempt(
+                trigger, activation_id, stage="source_review", reason="source_review_required"
+            )
+            if claimed_at is not None:
+                await agent_trigger_repo.clear_fire_marker(
+                    self.db, trigger_id=trigger_id, claimed_at=claimed_at
+                )
             return None
         native: LocalTarget | None = None
         if trigger is not None and trigger.local_target is not None:
@@ -2335,8 +2462,19 @@ class AgentTriggerService:
             )
         return [trigger for trigger, _ticket in fired]
 
-    async def fire_job(self, payload: FireTrigger) -> None:
+    async def fire_job(self, payload: FireTrigger) -> TriggerFireResult:
+        activation_id = payload.activation_id or uuid4()
         trigger = await agent_trigger_repo.get_by_id(self.db, payload.trigger_id, fresh=True)
+        if trigger is not None:
+            previous = await agent_trigger_repo.attempt_for_activation(
+                self.db,
+                trigger_id=trigger.id,
+                organization_id=trigger.organization_id,
+                activation_id=activation_id,
+            )
+            if previous is not None:
+                read = TriggerAttemptRead.model_validate(previous)
+                return TriggerFireResult(outcome=read.status, attempt_id=read.id)
         try:
             current_id = None if trigger is None else read_policy(trigger.approved_sources).id
         except RoutineSourcesRequired:
@@ -2349,18 +2487,36 @@ class AgentTriggerService:
             if payload.activation_id is not None:
                 await device_wait_repo.settle(
                     self.db,
-                    activation_id=payload.activation_id,
+                    activation_id=activation_id,
                     status="cancelled",
                     reason="routine_changed",
                 )
-            return
+            if trigger is not None:
+                attempt = await self._record_attempt(
+                    trigger, activation_id, stage="source_review", reason="source_review_required"
+                )
+                return TriggerFireResult(outcome="blocked", attempt_id=attempt.id)
+            return TriggerFireResult(outcome="processed")
+        assert trigger is not None
+        organization_id = trigger.organization_id
         await self.fire(
             payload.trigger_id,
             event_context=payload.event_context,
             claimed_at=payload.claimed_at,
-            activation_id=payload.activation_id,
+            activation_id=activation_id,
             source_policy_id=payload.source_policy_id,
         )
+
+        attempt = await agent_trigger_repo.attempt_for_activation(
+            self.db,
+            trigger_id=payload.trigger_id,
+            organization_id=organization_id,
+            activation_id=activation_id,
+        )
+        if attempt is None:
+            return TriggerFireResult(outcome="processed")
+        read = TriggerAttemptRead.model_validate(attempt)
+        return TriggerFireResult(outcome=read.status, attempt_id=read.id)
 
     async def fire(
         self,
@@ -2561,7 +2717,15 @@ class AgentTriggerService:
         ctx = replace(ctx, routine_source_policy_id=source_policy_id)
         try:
             await self.sources.require_current(ctx, trigger, expected_id=source_policy_id)
-        except AuthorizationError, NotFoundError, BadRequestError:
+        except (AuthorizationError, NotFoundError, BadRequestError) as refusal:
+            await self._record_attempt(
+                trigger,
+                activation_id,
+                stage="source_review",
+                reason="platform_identity_required"
+                if isinstance(refusal, PlatformRoutineIdentityRequired)
+                else "source_review_required",
+            )
             await NotificationService(self.db).routine_blocked(
                 organization_id=trigger.organization_id,
                 owner_user_id=trigger.created_by_user_id,
@@ -2750,10 +2914,22 @@ class AgentTriggerService:
                 name=local_trigger_name,
             )
             return
-        except RoutineSourcesRequired:
+        except RoutineSourcesRequired as refusal:
+            await self.db.rollback()
+            current = await agent_trigger_repo.get_by_id(self.db, local_trigger_id, fresh=True)
+            if current is None:
+                return
+            await self._record_attempt(
+                current,
+                activation_id,
+                stage="preparation",
+                reason="platform_identity_required"
+                if isinstance(refusal, PlatformRoutineIdentityRequired)
+                else "source_review_required",
+            )
             await NotificationService(self.db).routine_blocked(
-                organization_id=trigger.organization_id,
-                owner_user_id=trigger.created_by_user_id,
+                organization_id=current.organization_id,
+                owner_user_id=current.created_by_user_id,
                 routine_id=local_trigger_id,
                 routine_kind="trigger",
                 reason="run",
@@ -2767,7 +2943,7 @@ class AgentTriggerService:
             # disable, do not raise into a retry.
             await self._disable(trigger, reason="creator_cannot_run_agent")
             return
-        except BadRequestError as refusal:
+        except BadRequestError:
             # The agent is no longer runnable - unpublished back to a draft,
             # archived, or its version withdrawn - so `get_runnable_spec` refuses
             # inside execute. Left active, every cadence would dispatch another run
@@ -2779,13 +2955,16 @@ class AgentTriggerService:
             #
             # Preparation flushed this fire's run before refusing; rolled back, it
             # does not linger as `running` until the stale-run sweep calls it a
-            # crash. The owner is told the refusal itself - "this agent works on
-            # your computer" is a different fix from "it was unpublished".
+            # crash. The owner gets a repair direction and a bounded reason in
+            # history, without retaining a provider's preparation error.
             await self.db.rollback()
             current = await agent_trigger_repo.get_by_id(self.db, local_trigger_id, fresh=True)
             if current is None:
                 return
             await self._disable(current, reason="agent_not_runnable")
+            await self._record_attempt(
+                current, activation_id, stage="preparation", reason="agent_unavailable"
+            )
             await NotificationService(self.db).routine_blocked(
                 organization_id=current.organization_id,
                 owner_user_id=current.created_by_user_id,
@@ -2793,7 +2972,7 @@ class AgentTriggerService:
                 routine_kind="trigger",
                 reason="run",
                 name=local_trigger_name,
-                detail=refusal.message,
+                detail="The agent cannot run with its current configuration. Review its published version and routine settings.",
                 observed_at=datetime.now(UTC),
             )
             return
@@ -2831,6 +3010,15 @@ class AgentTriggerService:
                 # deleted since publish - or the tail is still the previous
                 # fire's run. Nothing to stamp; the next interval tries again
                 # once the cause is fixed.
+                current = await agent_trigger_repo.get_by_id(self.db, local_trigger_id, fresh=True)
+                if current is not None:
+                    await self._record_attempt(
+                        current,
+                        activation_id,
+                        stage="preparation",
+                        reason="preparation_failed",
+                        status="failed",
+                    )
                 return
             if run.status != RunStatus.FAILED.value:
                 # A durable row this fire cannot claim as its own outcome: a

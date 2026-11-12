@@ -1,5 +1,5 @@
 ---
-source_sha: "a09299e9af23"
+source_sha: "4d205a52251b"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -312,9 +312,9 @@ conectado de la organización que encaja con todos los filtros puestos, leído e
 **Folder** y **Shared mailbox** son a la vez donde mira el poller y un filtro, y la
 primera lectura de una carpeta empieza en el momento en que se publicó o se encendió por última vez el workflow. Nombrar un
 buzón compartido que el grant de Microsoft de la organización pueda abrir exige el
-permiso para gestionar conexiones, como en los triggers de agente de Outlook; un workflow
-que ya escucha uno lo conserva en publicaciones posteriores, y cambiarlo exige el permiso
-otra vez.
+permiso para gestionar conexiones, como en los triggers de agente de Outlook; toda publicación que lo nombre lo exige, porque quien publica pasa a ser el miembro
+como el que se lee el buzón, y un mensaje que llega a un workflow cuyo publicador
+ya no lo tiene no inicia ningún run.
 **Sender contains** compara la dirección del remitente, como en Gmail, y exige correo
 que el dominio del remitente autenticó o que vino de dentro del tenant. Una carpeta o
 un buzón compartido que Outlook dice que no se pueden leer apaga el workflow, con
@@ -329,7 +329,8 @@ que ya no valida la omite el poller. Los adjuntos se guardan como en
 
 **Channel message.** Se inicia con un mensaje a uno de los bots de Slack,
 Mattermost o Telegram de la organización que el bot habría respondido con su propio
-agente y que encaja con el filtro del nodo. Publicarlo requiere `channels:manage`, y
+agente y que encaja con el filtro del nodo. Publicarlo requiere `channels:manage`,
+comprobado de nuevo en cada mensaje, y
 los mensajes de un bot inician como mucho un workflow. `triggered_by` es
 `channel_message`.
 Un bot de Teams se rechaza al publicar y en una ejecución de prueba; un oyente de
@@ -1027,7 +1028,7 @@ Activity o por `GET /api/v1/workflow-approvals`. `approvers` nombra quién puede
 decidir, y esas personas reciben un aviso en la aplicación; vacío, puede
 cualquiera con `approvals:decide`. Pasado `timeout_hours` la solicitud caduca y el
 paso sale por `rejected` con `decision: "expired"`. Cancelar el run cancela lo que
-pidió. Cada ejecución del paso pregunta una vez, así que un reintento o una
+pidió, y también cancelar un workflow que llamó a ese run. Cada ejecución del paso pregunta una vez, así que un reintento o una
 iteración de un bucle nunca preguntan dos veces lo mismo.
 
 Los aprobadores nombrados deben ser miembros activos con `approvals:decide`. Se comprueba al publicar y de nuevo antes de pedir la aprobación. Si han perdido ese permiso, el paso falla con `APPROVER_UNAVAILABLE` en lugar de dejar una solicitud que nadie puede resolver.

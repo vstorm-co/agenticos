@@ -28,7 +28,7 @@ from sqlalchemy import (
 )
 from sqlalchemy import delete as sql_delete
 from sqlalchemy import update as sql_update
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, distinct_on
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, defer, load_only, raiseload, selectinload
@@ -2251,6 +2251,7 @@ async def get_messages_by_run(
     limit: int = 100,
     include_tool_calls: bool = False,
     newest: bool = False,
+    for_model: bool = False,
 ) -> list[Message]:
     """The turns one run produced, chronologically; optionally select its newest page.
 
@@ -2260,6 +2261,8 @@ async def get_messages_by_run(
     for a run that never ended.
     """
     query = select(Message).where(Message.run_id == run_id)
+    if for_model:
+        query = query.where(Message.guardrail_refused.is_(False))
     if include_tool_calls:
         query = query.options(selectinload(Message.tool_calls))
     query = query.options(
@@ -2270,7 +2273,7 @@ async def get_messages_by_run(
         .offset(skip)
         .limit(limit)
     )
-    result = await db.execute(query)
+    result = await db.execute(query.execution_options(populate_existing=for_model))
     rows = list(result.scalars().all())
     return list(reversed(rows)) if newest else rows
 
@@ -2290,6 +2293,26 @@ async def first_user_turns(
     return {run_id: content for run_id, content in result.tuples().all() if run_id}
 
 
+async def last_answers_of_runs(
+    db: AsyncSession, run_ids: Collection[UUID], *, organization_id: UUID
+) -> dict[UUID, UUID]:
+    """The id of the last assistant turn each of this organization's runs recorded."""
+    if not run_ids:
+        return {}
+    result = await db.execute(
+        select(Message.run_id, Message.id)
+        .join(AgentRun, AgentRun.id == Message.run_id)
+        .where(
+            Message.run_id.in_(run_ids),
+            Message.role == "assistant",
+            AgentRun.organization_id == organization_id,
+        )
+        .ext(distinct_on(Message.run_id))
+        .order_by(Message.run_id, Message.ordinal.desc())
+    )
+    return {run_id: message_id for run_id, message_id in result.tuples().all() if run_id}
+
+
 async def last_answer_of_run(db: AsyncSession, run_id: UUID) -> str | None:
     """The latest assistant turn one run wrote that says something, or `None`."""
     result = await db.execute(
@@ -2306,9 +2329,11 @@ async def last_answer_of_run(db: AsyncSession, run_id: UUID) -> str | None:
     return result.scalar_one_or_none()
 
 
-async def count_messages_by_run(db: AsyncSession, run_id: UUID) -> int:
+async def count_messages_by_run(db: AsyncSession, run_id: UUID, *, for_model: bool = False) -> int:
     """Count the turns one run produced."""
     query = select(func.count(Message.id)).where(Message.run_id == run_id)
+    if for_model:
+        query = query.where(Message.guardrail_refused.is_(False))
     result = await db.execute(query)
     return result.scalar() or 0
 

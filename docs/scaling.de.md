@@ -1,5 +1,5 @@
 ---
-source_sha: "2f74a407e5a3"
+source_sha: "f5b9c5b37782"
 ---
 
 # Über einen Host hinaus skalieren { #scale-beyond-one-host }
@@ -52,6 +52,12 @@ brauchen eigene Datenbanken (`POSTGRES_DB`), auf einem Redis eigene
 bleiben. Auch ein Bucket gehört zu genau einem Deployment. Ein Agent wechselt
 als seine Spec zwischen ihnen: auf dem einen als YAML exportieren
 (`GET /agents/{id}/spec.yaml`) und auf dem anderen in einen Agenten importieren.
+
+Zwei Deployments unter einem Hostnamen auf verschiedenen Ports teilen sich auch
+die Cookies der Konsole, denn ein Browser unterscheidet Cookies nach Host, nicht
+nach Port: Die Anmeldung am einen meldet Sie vom anderen ab. Geben Sie jedem einen
+eigenen Hostnamen oder setzen Sie in jeder Konsole
+[`SESSION_COOKIE_NAMESPACE`](configuration.md#docker-production).
 
 ## Ein externes Postgres { #an-external-postgres }
 

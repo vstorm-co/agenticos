@@ -99,6 +99,14 @@ RUNNER = "app.services.agent_runner"
 
 
 @pytest.fixture(autouse=True)
+def _no_current_cap(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No current published version sets a cap; `test_agent_runner` covers one."""
+    monkeypatch.setattr(
+        "app.services.agent_runner.agent_repo.published_budget_caps", AsyncMock(return_value={})
+    )
+
+
+@pytest.fixture(autouse=True)
 def _no_registered_architect(monkeypatch: pytest.MonkeyPatch) -> None:
     """These hand-built delegates are ordinary agents, not the organization assistant."""
     monkeypatch.setattr(
@@ -2226,6 +2234,7 @@ class TestResumingIntoADelegation:
             output_tokens=0,
             cost_usd=Decimal(0),
             cost_is_partial=False,
+            started_at=datetime.now(UTC),
         )
         spec = _delegating(inline=[_specialist()])
         version = MagicMock(id=run.agent_version_id, agent_id=run.agent_id)

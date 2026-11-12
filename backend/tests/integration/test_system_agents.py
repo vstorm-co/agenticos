@@ -238,6 +238,17 @@ async def test_a_finished_chat_is_queued_for_extraction_only_where_the_role_is_o
     assert jobs[0][0].concurrency_key == f"memory-maintenance:{org.id}"
 
 
+async def test_a_chat_others_read_is_not_read_for_the_persons_memory(db: AsyncSession) -> None:
+    user, org, agent, version, model, ctx = await _world(db)
+    await _enabled(db, org, model)
+    run, _ = await _chat_run(db, org, agent, version, user)
+
+    assert not await extraction.queue_extraction(
+        db, run, SPEC, audience=RunAudience(user_id=user.id, shared_transcript=True)
+    )
+    assert await extraction.queue_extraction(db, run, SPEC, audience=RunAudience(user_id=user.id))
+
+
 @pytest.mark.parametrize(
     "overrides",
     [
@@ -421,6 +432,65 @@ async def test_the_job_reads_one_run_in_its_own_session(
     read.assert_awaited_once_with(db, org_id, run_id)
 
 
+@pytest.mark.parametrize("moved", ["project", "edit share"])
+async def test_a_chat_others_read_by_the_time_the_job_runs_records_nothing(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch, moved: str
+) -> None:
+    from app.db.models.conversation_share import ConversationShare
+    from app.db.models.organization import OrganizationMember
+    from app.db.models.project import Project
+
+    user, org, agent, version, model, ctx = await _world(db)
+    run, conversation = await _chat_run(db, org, agent, version, user)
+    await _transcript(db, conversation, run, [("user", "I prefer short answers")])
+    think = _think(monkeypatch, [extraction._Extracted(statement="Prefers short answers")])
+    if moved == "project":
+        project = Project(organization_id=org.id, owner_user_id=user.id, name="Launch")
+        db.add(project)
+        await db.flush()
+        conversation.project_id = project.id
+    else:
+        colleague = User(email=f"{uuid.uuid4()}@example.com", hashed_password="x")
+        db.add(colleague)
+        await db.flush()
+        db.add(OrganizationMember(organization_id=org.id, user_id=colleague.id, role="member"))
+        db.add(
+            ConversationShare(
+                conversation_id=conversation.id,
+                shared_by=user.id,
+                shared_with=colleague.id,
+                permission="edit",
+            )
+        )
+    await db.flush()
+
+    assert await extraction.extract(db, org.id, run.id) == 0
+    assert not think.await_count
+
+
+async def test_a_chat_shared_during_the_model_call_records_nothing(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.db.models.project import Project
+
+    user, org, agent, version, model, ctx = await _world(db)
+    run, conversation = await _chat_run(db, org, agent, version, user)
+    await _transcript(db, conversation, run, [("user", "I prefer short answers")])
+    found = extraction._Extraction(claims=[extraction._Extracted(statement="Prefers short")])
+
+    async def moved_meanwhile(*args, **kwargs):
+        project = Project(organization_id=org.id, owner_user_id=user.id, name="Launch")
+        db.add(project)
+        await db.flush()
+        conversation.project_id = project.id
+        await db.flush()
+        return found
+
+    monkeypatch.setattr(_thinker.ProactiveThinker, "think", moved_meanwhile)
+
+    assert await extraction.extract(db, org.id, run.id) == 0
+
+
 async def test_a_chat_read_after_its_person_was_forgotten_records_nothing(
     db: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -553,6 +623,40 @@ async def test_channel_capture_preserves_the_admitted_audience(
     assert job is not None
     assert job.payload["audience_user_id"] == str(user.id)
     assert job.payload["audience_room_key"] == audience.room_key
+
+
+async def test_a_group_chat_shared_to_edit_still_records_the_rooms_claims(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.db.models.conversation_share import ConversationShare
+    from app.db.models.organization import OrganizationMember
+
+    user, org, agent, version, model, ctx = await _world(db)
+    await _enabled(db, org, model)
+    run, conversation = await _chat_run(
+        db, org, agent, version, user, surface=RunSurface.SLACK.value
+    )
+    await _transcript(db, conversation, run, [("user", "We decided to renew Acme in March")])
+    colleague = User(email=f"{uuid.uuid4()}@example.com", hashed_password="x")
+    db.add(colleague)
+    await db.flush()
+    db.add(OrganizationMember(organization_id=org.id, user_id=colleague.id, role="member"))
+    db.add(
+        ConversationShare(
+            conversation_id=conversation.id,
+            shared_by=user.id,
+            shared_with=colleague.id,
+            permission="edit",
+        )
+    )
+    await db.flush()
+    audience = RunAudience(user_id=user.id, room_key="room:slack:C123", shared_transcript=True)
+    _think(monkeypatch, [extraction._Extracted(statement="Acme renews in March")])
+
+    assert await extraction.queue_extraction(db, run, SPEC, audience=audience)
+    assert await extraction.extract(db, org.id, run.id, audience=audience) == 1
+    claim = await db.scalar(select(MemoryClaim).where(MemoryClaim.source_run_id == run.id))
+    assert claim is not None and claim.scope_key == "room:slack:C123"
 
 
 @pytest.mark.parametrize("case", ["wrong-person", "read-only", "failed", "key", "test", "embed"])
