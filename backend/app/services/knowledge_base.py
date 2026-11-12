@@ -555,10 +555,16 @@ class KnowledgeBaseService:
         return kb
 
     async def describe(self, kb: KnowledgeBase, *, ctx: AuthContext) -> KnowledgeBaseDetailRead:
-        """Serialize an authorized row with the write decision used by mutations."""
-        read = KnowledgeBaseRead.model_validate(kb)
+        """Describe an authorized base with its contents, usage and effective write access."""
+        counts = await self.counts_for([kb])
+        used = await agents_using(self.db, ctx, field="collection_ids", resource_ids=[kb.id])
+        groups = await groups_sharing(self.db, ctx, resource_type=COLLECTION, resource_ids=[kb.id])
+        read = _with_counts(kb, counts.get(kb.id))
         return KnowledgeBaseDetailRead(
-            **read.model_dump(), can_edit=await writable_kb(self.db, ctx, kb)
+            **read.model_dump(exclude={"used_by", "shared_groups"}),
+            used_by=used[kb.id],
+            shared_groups=groups[kb.id],
+            can_edit=await writable_kb(self.db, ctx, kb),
         )
 
     async def get_for_write(self, kb_id: UUID, *, ctx: AuthContext) -> KnowledgeBase:
