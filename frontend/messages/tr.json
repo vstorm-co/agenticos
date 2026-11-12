@@ -2287,7 +2287,7 @@
     "linkSettings": "Bağlantı ayarları",
     "passwordProtected": "Parola korumalı",
     "expiresOn": "Bitiş: {date}",
-    "embedSiteCount": "{count} yerleştirme sitesi"
+    "embedSiteCount": "{count, plural, one {# yerleştirme sitesi} other {# yerleştirme sitesi}}"
   },
   "mcpOauth": {
     "title": "{client} sizin adınıza işlem yapmak istiyor",
@@ -9027,9 +9027,10 @@
       "elapsedMinutes": "{minutes} dk.{seconds, plural, =0 {} other { # sn.}}",
       "stopped": "Durduruldu{count, plural, =0 {} =1 { · 1 adım} other { · # adım}}",
       "stoppedAfter": "{duration} sonra durduruldu{count, plural, =0 {} =1 { · 1 adım} other { · # adım}}",
-      "activityCount": "{count, plural, one {# işlem} other {# işlem}}"
+      "activityCount": "{count, plural, one {# işlem} other {# işlem}}",
+      "failedWork": "Başarısız{count, plural, =0 {} =1 { · 1 adım} other { · # adım}}",
+      "failedAfter": "{duration} sonra başarısız{count, plural, =0 {} =1 { · 1 adım} other { · # adım}}"
     },
-    "streamError": "❌ Hata: {message}",
     "turnInterrupted": "Yanıtın ortasında bağlantı kesildi. Agent turu tamamlayıp yanıtı bu konuşmaya kaydeder.",
     "turnInterruptedRecheck": "Yanıtı kontrol et",
     "turnStillArriving": "Önceki yanıt hâlâ yazılıyor. Tamamlandığında bu konuşmada, az önce sorduğunuz sorunun altında görünür.",
@@ -9852,7 +9853,9 @@
       "notice": "Kurulum yanıtı · AI modeli çağrılmadı ve sağlayıcı kullanım ücreti oluşmadı.",
       "ownerHint": "Çalışma alanı yöneticin ekip için AI bağlayabilir. Kendi anahtarını sağlaman gerekmez.",
       "contact": "Yöneticinle iletişime geç"
-    }
+    },
+    "runFailedTitle": "Çalıştırma tamamlanmadı",
+    "runFailedHint": "Nihai yanıt üretilmedi. Yukarıdaki çalışmayı inceleyebilirsiniz."
   },
   "admin": {
     "actions": "Eylemler",
