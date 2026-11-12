@@ -13352,7 +13352,6 @@
       "questionBody": "Otwórz rozmowę, aby odpowiedzieć agentowi."
     },
     "welcome": {
-      "onlyInApp": "To powitanie należy do aplikacji desktopowej AgenticOS.",
       "skip": "Pomiń na razie",
       "next": "Dalej",
       "open": "Otwórz AgenticOS",
@@ -13391,7 +13390,6 @@
     "readiness": {
       "title": "Gotowość aplikacji",
       "description": "Stan tego komputera oraz Twojego konta na tym serwerze. Włącz tylko to, z czego chcesz korzystać.",
-      "desktopOnly": "Otwórz aplikację desktopową, aby sprawdzić jej konfigurację.",
       "refresh": "Sprawdź ponownie",
       "requestFailed": "Nie udało się zmienić uprawnienia systemowego. Otwórz Ustawienia systemowe i sprawdź ponownie.",
       "askAdmin": "Poproś administratora o skonfigurowanie modelu dla organizacji.",
@@ -13460,6 +13458,10 @@
       "question": "{agent} · potrzebuje odpowiedzi",
       "approval": "{agent} · wymaga zgody",
       "agent": "Agent"
+    },
+    "onlyInApp": {
+      "title": "To otwiera się w aplikacji desktopowej AgenticOS.",
+      "hint": "Otwórz aplikację desktopową na swoim komputerze, żeby z tego skorzystać; w przeglądarce nie ma tu nic do pokazania."
     }
   },
   "mobile": {

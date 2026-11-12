@@ -9794,7 +9794,6 @@
     "readiness": {
       "title": "App-Bereitschaft",
       "description": "Der Zustand dieses Computers und Ihres Kontos auf diesem Server. Aktivieren Sie nur benötigte Funktionen.",
-      "desktopOnly": "Öffnen Sie die Desktop-App, um ihre Einrichtung zu prüfen.",
       "refresh": "Erneut prüfen",
       "requestFailed": "Die Systemberechtigung konnte nicht geändert werden. Öffnen Sie die Systemeinstellungen und prüfen Sie erneut.",
       "askAdmin": "Bitten Sie einen Administrator, ein Modell für die Organisation einzurichten.",
@@ -9866,6 +9865,10 @@
     },
     "notifications": {
       "questionBody": "Öffnen Sie das Gespräch, um dem Agent zu antworten."
+    },
+    "onlyInApp": {
+      "title": "Das öffnet sich in der AgenticOS-Desktop-App.",
+      "hint": "Öffnen Sie die Desktop-App auf Ihrem Computer, um es zu nutzen; im Browser gibt es hier nichts anzuzeigen."
     }
   },
   "agentPin": {

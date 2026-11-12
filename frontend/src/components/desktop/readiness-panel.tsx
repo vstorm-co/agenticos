@@ -23,7 +23,6 @@ import { Button } from "@/components/ui";
 import { type SetupKey, type SetupState, useDesktopSetup } from "@/hooks/use-desktop-setup";
 import { useShell } from "@/hooks/use-shell";
 import { retryDesktopScreenshot, SYSTEM_PERMISSIONS } from "@/lib/desktop/readiness";
-import { isDesktopShell } from "@/lib/desktop/shell";
 import { useRouter } from "@/lib/locale-navigation";
 import { useMutation } from "@tanstack/react-query";
 import { reportShellFailure } from "@/lib/desktop/shell";
@@ -48,12 +47,8 @@ const STATUS_ICONS: Record<SetupState, LucideIcon> = {
   unsupported: Minus,
 };
 
+/** What is ready on this computer; its callers show it only inside the desktop app. */
 export function ReadinessPanel({ repair }: { repair?: string | null }) {
-  const shell = useShell();
-  const t = useTranslations("desktop.readiness");
-  return isDesktopShell(shell) ? <ReadyItems repair={repair} /> : <p>{t("desktopOnly")}</p>;
-}
-function ReadyItems({ repair }: { repair?: string | null }) {
   const t = useTranslations("desktop.readiness");
   const setup = useDesktopSetup();
   // The screen-recording advice names macOS settings; elsewhere it would send people

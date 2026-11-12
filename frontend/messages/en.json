@@ -10003,7 +10003,6 @@
       "questionBody": "Open the conversation to answer the agent."
     },
     "welcome": {
-      "onlyInApp": "This welcome belongs to the AgenticOS desktop app.",
       "skip": "Skip for now",
       "next": "Continue",
       "open": "Open AgenticOS",
@@ -10042,7 +10041,6 @@
     "readiness": {
       "title": "App readiness",
       "description": "What is ready on this computer and for your account on this server. Enable only what you want to use.",
-      "desktopOnly": "Open the desktop app to check its setup.",
       "refresh": "Check again",
       "requestFailed": "Could not change the system permission. Open System Settings and check again.",
       "askAdmin": "Ask an administrator to configure a model for this organization.",
@@ -10111,6 +10109,10 @@
       "question": "{agent} · needs an answer",
       "approval": "{agent} · approval needed",
       "agent": "Agent"
+    },
+    "onlyInApp": {
+      "title": "This opens in the AgenticOS desktop app.",
+      "hint": "Open the desktop app on your computer to use it; a browser has nothing to show here."
     }
   },
   "mobile": {
