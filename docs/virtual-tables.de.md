@@ -1,5 +1,5 @@
 ---
-source_sha: "539603f9eb62"
+source_sha: "6c7e6940e76d"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -184,8 +184,12 @@ Der Service gleicht sie mit den aktuellen Spalten ab:
   wird zu Datum und Uhrzeit; eine Auswahl wird zu mehreren und zurück, wenn es eine
   ist. Jede andere Änderung wird abgelehnt, ebenso eine, die ein Wert nicht übersteht -
   mit Anzahl und Beispiel, und nichts wird geschrieben. Was die Spalte verwendet, lehnt
-  sie wie eine Archivierung ab. Die Revision eines Datensatzes rückt weiter, sodass
-  eine Bearbeitung gegen den alten Wert ein Konflikt ist.
+  sie wie eine Archivierung ab. Ein Datensatz, dessen Wert sich im neuen Typ anders
+  liest, erhält eine neue Revision, sodass eine Bearbeitung gegen den alten Wert ein
+  Konflikt ist, und sein Verlauf hält die Änderung unter der Person fest, die sie
+  vorgenommen hat; ein Wert, den die Änderung nicht berührt, lässt die Revision seines
+  Datensatzes unverändert. Eine Typänderung löst keinen [Trigger](#triggers) aus: Eine
+  Schemaänderung startet nicht für jeden Datensatz einen Workflow.
 - Text wird zu einer `email`-, `url`-, `phone`- oder `rating`-Spalte, wenn jeder Wert
   sich so liest, und eine Zahl wird zu einer Bewertung, wenn sie eine ganze Zahl von 1
   bis 5 ist. Jede davon wird wieder zu Text, eine Bewertung auch zu einer Zahl.
@@ -208,7 +212,7 @@ Der Service gleicht sie mit den aktuellen Spalten ab:
   angehängt, und die aktuelle Tabelle wird zurückgegeben. Eine neue Reihenfolge oder eine
   geänderte Bezeichnung ist eine Änderung.
 
-Datensätze werden nicht umgeschrieben. Ein unter Version 1 geschriebener Datensatz
+Außer bei einer Typänderung werden Datensätze nicht umgeschrieben. Ein unter Version 1 geschriebener Datensatz
 bleibt unter Version 4 lesbar und bearbeitbar; eine Pflichtspalte, die er nie hatte,
 erhält beim nächsten Bearbeiten des Datensatzes ihren Standardwert.
 

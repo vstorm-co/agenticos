@@ -1,5 +1,5 @@
 ---
-source_sha: "539603f9eb62"
+source_sha: "6c7e6940e76d"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -176,8 +176,11 @@ las columnas actuales:
   entero; una fecha pasa a fecha y hora; una elección pasa a varias y vuelve cuando es
   una. Cualquier otro cambio se rechaza, igual que uno que algún valor no supera - con
   cuántos y un ejemplo, y no se escribe nada. Lo que usa la columna lo rechaza como a un
-  archivado. La revisión del registro avanza, así que una edición contra su valor
-  antiguo es un conflicto.
+  archivado. Un registro cuyo valor se lee de otra forma en el nuevo tipo pasa a una
+  nueva revisión, así que una edición contra su valor antiguo es un conflicto, y su
+  historial registra el cambio a nombre de quien lo hizo; un valor que el cambio deja
+  igual mantiene la revisión de su registro. Un cambio de tipo no dispara ningún
+  [trigger](#triggers): una edición del esquema no inicia un workflow por registro.
 - El texto pasa a una columna `email`, `url`, `phone` o `rating` cuando cada valor se
   lee como tal, y un número pasa a valoración cuando es un entero de 1 a 5. Cada una
   vuelve a texto, y una valoración también a número.
@@ -197,7 +200,7 @@ las columnas actuales:
   opciones, no cambia nada: no se añade versión y se devuelve la tabla actual. Reordenar o
   cambiar una etiqueta es un cambio.
 
-Los registros no se reescriben. Un registro escrito con la versión 1 sigue siendo legible
+Salvo un cambio de tipo, los registros no se reescriben. Un registro escrito con la versión 1 sigue siendo legible
 y editable con la versión 4; una columna obligatoria que nunca tuvo recibe su valor por
 defecto la próxima vez que se edita el registro.
 

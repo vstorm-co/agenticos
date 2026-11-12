@@ -430,42 +430,49 @@ async def rewrite_column(
     table_id: UUID,
     column_id: UUID,
     values: Sequence[tuple[UUID, Any]],
-) -> None:
+    updated_by: UUID | None,
+    source: dict[str, str | int | bool | None],
+) -> dict[UUID, int]:
     """Set one column's value on each record named, bumping its revision.
 
     A value of None takes the key out, as an empty cell is stored. The bumped
     revision makes an edit made against the old value a conflict, not a write of a
-    value its column no longer accepts.
+    value its column no longer accepts. Returns each rewritten record's new revision.
     """
     key = str(column_id)
     kept = [(record_id, value) for record_id, value in values if value is not None]
     cleared = [record_id for record_id, value in values if value is None]
+    stamp = {
+        "revision": VirtualTableRecord.revision + 1,
+        "updated_by": updated_by,
+        "updated_source": source,
+    }
+    revisions: dict[UUID, int] = {}
     for start in range(0, len(kept), _REWRITE_BATCH):
         cells = sa_values(
             sa_column("rid", PG_UUID(as_uuid=True)), sa_column("cell", JSONB), name="cells"
         ).data(kept[start : start + _REWRITE_BATCH])
-        await db.execute(
+        rows = await db.execute(
             update(VirtualTableRecord)
             .where(VirtualTableRecord.table_id == table_id, VirtualTableRecord.id == cells.c.rid)
-            .values(
-                values=func.jsonb_set(VirtualTableRecord.values, [key], cells.c.cell),
-                revision=VirtualTableRecord.revision + 1,
-            )
+            .values(values=func.jsonb_set(VirtualTableRecord.values, [key], cells.c.cell), **stamp)
+            .returning(VirtualTableRecord.id, VirtualTableRecord.revision)
             .execution_options(synchronize_session=False)
         )
+        revisions.update(rows.tuples().all())
     for start in range(0, len(cleared), _REWRITE_BATCH):
-        await db.execute(
+        rows = await db.execute(
             update(VirtualTableRecord)
             .where(
                 VirtualTableRecord.table_id == table_id,
                 VirtualTableRecord.id.in_(cleared[start : start + _REWRITE_BATCH]),
             )
-            .values(
-                values=VirtualTableRecord.values.op("-")(key),
-                revision=VirtualTableRecord.revision + 1,
-            )
+            .values(values=VirtualTableRecord.values.op("-")(key), **stamp)
+            .returning(VirtualTableRecord.id, VirtualTableRecord.revision)
             .execution_options(synchronize_session=False)
         )
+        revisions.update(rows.tuples().all())
+    return revisions
 
 
 async def count_records_without_value(db: AsyncSession, *, table_id: UUID, column_id: UUID) -> int:
@@ -1017,6 +1024,35 @@ async def add_history(
     db.add(row)
     await db.flush()
     return row
+
+
+async def add_history_rows(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    table_id: UUID,
+    operation: str,
+    actor_user_id: UUID | None,
+    rows: Sequence[tuple[UUID, int, dict[str, Any] | None, dict[str, Any] | None]],
+) -> None:
+    """One history row per `(record_id, revision, before, after)`, a batch per statement."""
+    for start in range(0, len(rows), _REWRITE_BATCH):
+        await db.execute(
+            pg_insert(VirtualTableRecordHistory),
+            [
+                {
+                    "organization_id": organization_id,
+                    "table_id": table_id,
+                    "record_id": record_id,
+                    "revision": revision,
+                    "operation": operation,
+                    "actor_user_id": actor_user_id,
+                    "before": before,
+                    "after": after,
+                }
+                for record_id, revision, before, after in rows[start : start + _REWRITE_BATCH]
+            ],
+        )
 
 
 async def add_outbox(
