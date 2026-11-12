@@ -9,9 +9,13 @@ from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.api_key import ApiKey
+from app.db.models.authoring import AuthoringRequest, AuthoringStatus
 from app.db.models.background_job import BackgroundJob
+from app.db.models.case_generation import CaseGeneration, GenerationStatus
 from app.db.models.eval_run import EvalRun, EvalRunStatus
 from app.db.models.improvement import UNSETTLED_STATUSES, ImprovementRun
+from app.db.models.skill_check import CheckStatus, SkillCheck
+from app.db.models.skill_improvement import SkillImprovementRun
 from app.db.models.user import User
 from app.db.models.workflow_run import WorkflowRun, WorkflowRunStatus
 
@@ -114,6 +118,31 @@ def _backs_unfinished_run() -> ColumnElement[bool]:
     """
     workflow_ended = [status.value for status in WorkflowRunStatus if status.is_terminal]
     return or_(
+        exists().where(
+            AuthoringRequest.organization_id == ApiKey.organization_id,
+            AuthoringRequest.created_by_api_key_id == ApiKey.id,
+            AuthoringRequest.status.in_(
+                [AuthoringStatus.QUEUED.value, AuthoringStatus.RUNNING.value]
+            ),
+        ),
+        exists().where(
+            SkillCheck.organization_id == ApiKey.organization_id,
+            SkillCheck.created_by_api_key_id == ApiKey.id,
+            SkillCheck.status == CheckStatus.RUNNING.value,
+        ),
+        exists().where(
+            SkillImprovementRun.organization_id == ApiKey.organization_id,
+            or_(
+                SkillImprovementRun.created_by_api_key_id == ApiKey.id,
+                SkillImprovementRun.actor_api_key_id == ApiKey.id,
+            ),
+            SkillImprovementRun.status.in_([status.value for status in UNSETTLED_STATUSES]),
+        ),
+        exists().where(
+            CaseGeneration.organization_id == ApiKey.organization_id,
+            CaseGeneration.created_by_api_key_id == ApiKey.id,
+            CaseGeneration.status == GenerationStatus.RUNNING.value,
+        ),
         exists().where(
             BackgroundJob.organization_id == ApiKey.organization_id,
             BackgroundJob.status.in_(["queued", "running"]),

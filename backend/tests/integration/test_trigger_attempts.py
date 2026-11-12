@@ -166,3 +166,59 @@ async def test_preparation_failure_survives_rollback_and_has_no_raw_error(
     assert len(page.items) == 1 and page.items[0].reason == expected
     assert "secret-provider-error" not in page.model_dump_json()
     assert await db.scalar(select(func.count()).select_from(AgentRun)) == 0
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("policy", ["invalid", "stale"])
+@pytest.mark.parametrize("claimed", [False, True])
+async def test_admission_refusals_remain_in_attempt_history(
+    db: AsyncSession, policy: str, claimed: bool
+) -> None:
+    from datetime import UTC, datetime
+
+    from app.db.models.background_job import BackgroundJob
+
+    ctx, trigger, _, _ = await world(db)
+    activation = uuid4()
+    ticket = datetime.now(UTC) if claimed else None
+    trigger.fire_in_flight_since = ticket
+    if policy == "invalid":
+        trigger.approved_sources = {}
+    await db.flush()
+    service = AgentTriggerService(db)
+    with patch("app.services.notifications.NotificationService.routine_blocked", AsyncMock()):
+        queued = await service.queue_fire(
+            trigger.id,
+            organization_id=ctx.organization_id,
+            activation_id=activation,
+            claimed_at=ticket,
+            source_policy_id=uuid4() if policy == "stale" else None,
+        )
+    assert queued is None
+    attempts = await service.attempts(ctx, trigger.agent_id, trigger.id, skip=0, limit=10)
+    assert [(item.activation_id, item.reason) for item in attempts.items] == [
+        (activation, "source_review_required")
+    ]
+    await db.refresh(trigger)
+    assert trigger.fire_in_flight_since is None
+    assert await db.scalar(select(func.count()).select_from(BackgroundJob)) == 0
+    assert await db.scalar(select(func.count()).select_from(AgentRun)) == 0
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("foreign", [False, True])
+async def test_missing_or_foreign_admissions_do_not_record_attempts(
+    db: AsyncSession, foreign: bool
+) -> None:
+    from app.core.exceptions import AuthorizationError
+
+    ctx, trigger, _, _ = await world(db)
+    trigger.approved_sources = {}
+    await db.flush()
+    service = AgentTriggerService(db)
+    if foreign:
+        with pytest.raises(AuthorizationError):
+            await service.queue_fire(trigger.id, organization_id=uuid4())
+    else:
+        assert await service.queue_fire(uuid4(), organization_id=ctx.organization_id) is None
+    assert (await service.attempts(ctx, trigger.agent_id, trigger.id, skip=0, limit=10)).total == 0

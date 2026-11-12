@@ -144,9 +144,7 @@ async def test_restored_board_does_not_rearm_missing_or_nonplanned_work(
         world.fields.status = "done"
     queued = AsyncMock()
     monkeypatch.setattr(module, "enqueue", queued)
-    await world.service.restored_table(
-        world.board.table_id, world.ctx.organization_id, archived_at=datetime.now(UTC)
-    )
+    await world.service.restored_table(world.board.table_id, world.ctx.organization_id)
     queued.assert_not_awaited()
 
 
@@ -376,9 +374,7 @@ async def test_restoring_a_non_task_table_has_no_side_effects(
     world: World, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(task_repo, "for_table", AsyncMock(return_value=None))
-    await world.service.restored_table(
-        uuid4(), world.ctx.organization_id, archived_at=datetime.now(UTC)
-    )
+    await world.service.restored_table(uuid4(), world.ctx.organization_id)
     module.enqueue.assert_not_awaited()
 
 

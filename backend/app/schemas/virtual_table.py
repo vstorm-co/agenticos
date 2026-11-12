@@ -365,7 +365,7 @@ class RecordBatchCreate(_Request):
     )
     as_of: AwareDatetime | None = Field(
         default=None,
-        description="When the import began: the `as_of` its first batch answered. An "
+        description="When the import began: the `as_of` its first batch answered, never a future time. An "
         "`update_existing` row leaves a record changed after it as it is and reports it as "
         "`REVISION_CONFLICT`. Omitted, the batch begins an import of its own.",
     )

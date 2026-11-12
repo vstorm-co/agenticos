@@ -577,3 +577,26 @@ async def test_export_cursor_keeps_one_record_snapshot_across_concurrent_edits(
         )
         await other.commit()
     assert [line.strip() async for line in export.lines] == ["original"] * 4
+
+
+async def test_future_batch_cutoffs_are_refused_without_overwriting_records(db):
+    from datetime import timedelta
+
+    service, ctx, table = await _setup(db)
+    quantity = cid(table, "Quantity")
+    made = await service.create_record(
+        ctx, table.id, RecordCreate(external_id="acme", values={quantity: 7})
+    )
+    with pytest.raises(InvalidQueryError) as refused:
+        await service.create_records(
+            ctx,
+            table.id,
+            RecordBatchCreate(
+                update_existing=True,
+                as_of=datetime.now(UTC) + timedelta(days=1),
+                records=[RecordCreate(external_id="acme", values={quantity: 2})],
+            ),
+        )
+    assert refused.value.details["fields"][0]["field"] == "as_of"
+    read = await service.get_record(ctx, table.id, made.record.id)
+    assert read.values[quantity] == 7 and read.revision == made.record.revision

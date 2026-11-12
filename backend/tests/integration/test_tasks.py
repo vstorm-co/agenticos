@@ -1697,8 +1697,10 @@ async def test_a_member_who_sees_a_board_default_view_is_refused_it_not_told_it_
         await views.delete_view(other_ctx, board.table_id, table.default_view_id)
 
 
+@pytest.mark.parametrize("settled_before_archive", [False, True])
 async def test_a_case_settled_while_its_board_is_archived_moves_the_task_once_it_returns(
     db: AsyncSession,
+    settled_before_archive: bool,
 ) -> None:
     from app.db.models.virtual_table import VirtualTableRecord
     from app.services.outcome import OutcomeService
@@ -1724,6 +1726,17 @@ async def test_a_case_settled_while_its_board_is_archived_moves_the_task_once_it
     revision = record.revision
 
     await OutcomeService(db).settle(owner, case, "resolve", via="inbox")
+    if settled_before_archive:
+        # Settlement is stamped before taking the board lock; archive can win that lock.
+        from app.db.models.outcome import Outcome
+        from app.db.models.virtual_table import VirtualTable
+
+        board_row = await db.get(VirtualTable, settled.table_id)
+        case_row = await db.get(Outcome, case)
+        assert board_row is not None and board_row.archived_at is not None
+        assert case_row is not None
+        case_row.settled_at = board_row.archived_at - timedelta(microseconds=1)
+        await db.flush()
 
     await db.refresh(record)
     assert record.revision == revision

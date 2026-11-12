@@ -1,5 +1,5 @@
 ---
-source_sha: "140538001acf"
+source_sha: "d9eb2ee93fb0"
 ---
 
 # API HTTP { #the-http-api }
@@ -532,7 +532,7 @@ jedno wywołanie przez dwie minuty. Wywołanie nie potrzebuje podpisu, dostaje
 odpowiedź `{"captured": true}` i nie uruchamia runa. `GET .../webhook-test/{token}`
 odczytuje `state` (`listening`, `caught` albo `expired`) i odebrane `delivery`.
 
-Wiersze wygasłych kluczy wewnętrznych i OAuth pozostają, dopóki potrzebuje ich workflow, ewaluacja, ulepszanie lub zadanie w kolejce albo w trakcie wykonania. Po zakończeniu pracy standardowe sprzątanie może je usunąć.
+Wiersze wygasłych kluczy wewnętrznych i OAuth pozostają, dopóki potrzebuje ich workflow, ewaluacja, ulepszanie, edycja z pomocą AI, test umiejętności, generowanie przypadków lub zadanie w kolejce albo w trakcie wykonania. Po zakończeniu pracy standardowe sprzątanie może je usunąć.
 
 ## Praca z tabelami { #working-with-tables }
 

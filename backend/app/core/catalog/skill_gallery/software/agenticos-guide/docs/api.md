@@ -523,7 +523,7 @@ for one call for two minutes. The call needs no signature, is answered
 `{"captured": true}` and starts no run. `GET .../webhook-test/{token}` reads back
 `state` (`listening`, `caught` or `expired`) and the `delivery` it caught.
 
-Expired internal and OAuth key rows are retained while a workflow, eval, improvement run or queued/running background job still needs them. Once that work finishes, the usual cleanup may remove them.
+Expired internal and OAuth key rows are retained while a workflow, eval, improvement run, authoring request, skill check, case generation or queued/running background job still needs them. Once that work finishes, the usual cleanup may remove them.
 
 ## Working with tables { #working-with-tables }
 

@@ -33,10 +33,8 @@ class TaskExecution:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def restored_table(
-        self, table_id: UUID, organization_id: UUID, *, archived_at: datetime
-    ) -> None:
-        """Catch a board that was archived since `archived_at` up with what happened meanwhile.
+    async def restored_table(self, table_id: UUID, organization_id: UUID) -> None:
+        """Catch a restored board up with the authoritative state of its linked cases.
 
         A case settled while the board was archived could not move its task, so the
         task takes that outcome now. Planned human reminders consumed meanwhile are
@@ -54,12 +52,8 @@ class TaskExecution:
             fields = from_cells(board, record.values)
             if link.outcome_id is not None and fields.status not in _TERMINAL:
                 case = await task_repo.case(self.db, link.outcome_id, organization_id)
-                if (
-                    case is not None
-                    and case.status in _SETTLED
-                    and case.settled_at is not None
-                    and case.settled_at >= archived_at
-                ):
+                # Settlement can be stamped before an archive wins the board lock.
+                if case is not None and case.status in _SETTLED:
                     await self.settled(case)
                     continue
             if fields.next_actor != "user" or fields.status != "planned" or fields.start_at is None:

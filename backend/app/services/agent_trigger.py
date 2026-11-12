@@ -2275,12 +2275,17 @@ class AgentTriggerService:
         trigger = await agent_trigger_repo.get_by_id(
             self.db, trigger_id, fresh=True, for_update=True
         )
+        if trigger is None:
+            return None
+        if organization_id is not None and trigger.organization_id != organization_id:
+            raise AuthorizationError(message="The routine belongs to another organization")
         try:
-            if trigger is None:
-                return None
             source_policy = read_policy(trigger.approved_sources)
         except RoutineSourcesRequired:
-            if trigger is not None and trigger.is_active:
+            await self._record_attempt(
+                trigger, activation_id, stage="source_review", reason="source_review_required"
+            )
+            if trigger.is_active:
                 await NotificationService(self.db).routine_blocked(
                     organization_id=trigger.organization_id,
                     owner_user_id=trigger.created_by_user_id,
@@ -2296,9 +2301,14 @@ class AgentTriggerService:
                     self.db, trigger_id=trigger_id, claimed_at=claimed_at
                 )
             return None
-        if organization_id is not None and trigger.organization_id != organization_id:
-            raise AuthorizationError(message="The routine belongs to another organization")
         if source_policy_id is not None and source_policy_id != source_policy.id:
+            await self._record_attempt(
+                trigger, activation_id, stage="source_review", reason="source_review_required"
+            )
+            if claimed_at is not None:
+                await agent_trigger_repo.clear_fire_marker(
+                    self.db, trigger_id=trigger_id, claimed_at=claimed_at
+                )
             return None
         native: LocalTarget | None = None
         if trigger is not None and trigger.local_target is not None:

@@ -58,6 +58,11 @@ export function TriggerRunsView({
   const t = useTranslations("triggers");
   const locale = useLocale();
   const [page, setPage] = useState(0);
+  const [lastPendingSince, setLastPendingSince] = useState(pendingSince);
+  if (lastPendingSince !== pendingSince) {
+    setLastPendingSince(pendingSince);
+    if (pendingSince !== null) setPage(0);
+  }
   const query = useTriggerAttempts(trigger, page, pendingSince !== null);
   const attempts = query.data;
   const settled =

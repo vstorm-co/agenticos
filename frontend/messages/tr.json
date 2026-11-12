@@ -10386,7 +10386,7 @@
     "attemptsHint": "Bu denemeler bir aracı çalıştırması başlatmadı ve model ücreti oluşturmadı.",
     "attemptsError": "Aracı başlamadan önceki denemeler okunamadı.",
     "attemptsRetry": "Geçmişi yeniden yükle",
-    "attemptCount": "{count} deneme",
+    "attemptCount": "{count, plural, one {# deneme} other {# deneme}}",
     "attemptStatus": {
       "blocked": "Engellendi",
       "failed": "Başarısız"

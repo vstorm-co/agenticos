@@ -1,5 +1,5 @@
 ---
-source_sha: "140538001acf"
+source_sha: "d9eb2ee93fb0"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -575,7 +575,7 @@ Signatur, wird mit `{"captured": true}` beantwortet und startet keinen Run.
 `GET .../webhook-test/{token}` liest `state` (`listening`, `caught` oder `expired`)
 und die empfangene `delivery` zurück.
 
-Abgelaufene interne und OAuth-Schlüssel bleiben gespeichert, solange ein Workflow, eine Evaluation, ein Verbesserungslauf oder ein wartender oder laufender Hintergrundjob sie benötigt. Nach Abschluss darf die reguläre Bereinigung sie entfernen.
+Abgelaufene interne und OAuth-Schlüssel bleiben gespeichert, solange ein Workflow, eine Evaluation, ein Verbesserungslauf, eine Autorenanfrage, eine Skill-Prüfung, eine Fallgenerierung oder ein wartender oder laufender Hintergrundjob sie benötigt. Nach Abschluss darf die reguläre Bereinigung sie entfernen.
 
 ## Mit Tabellen arbeiten { #working-with-tables }
 

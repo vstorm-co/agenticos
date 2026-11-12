@@ -205,19 +205,47 @@ class TestWhatTheCheckAndTheCardRead:
 
         assert scopes.call_args.kwargs["allow_personal"] is allow_personal
 
-    async def test_the_wideness_check_reads_no_personal_scope(self) -> None:
-        scopes = MagicMock(return_value=[])
-        project_of, claim_for_approval = _reading(None)
-        with (
-            patch(
-                "app.agents.capabilities.memory_files._approval.readable_claim_scopes", new=scopes
-            ),
-            project_of,
-            claim_for_approval,
-        ):
-            await correction_is_wide(_deps(), {"claim_id": str(uuid.uuid4())})
+    @pytest.mark.parametrize("scope", ["org", "project"])
+    async def test_private_runs_detect_shared_claims_without_reading_personal_claims(
+        self, scope: str
+    ) -> None:
+        from collections.abc import Sequence
+        from datetime import UTC, datetime
 
-        assert scopes.call_args.kwargs["allow_personal"] is False
+        from app.agents.audience import RunAudience
+        from app.repositories.memory_claim import ClaimScope
+        from app.services.memory._runtime import ClaimView
+
+        deps = _deps()
+        deps.audience = RunAudience(user_id=uuid.uuid4())
+        project = uuid.uuid4()
+        claim_id = uuid.uuid4()
+        key = f"{scope}:{deps.organization_id if scope == 'org' else project}"
+        claim = ClaimView(
+            id=claim_id,
+            statement="Office closes at six",
+            subject=None,
+            kind="fact",
+            origin="person",
+            status="current",
+            scope=scope,
+            effective_from=None,
+            observed_at=datetime.now(UTC),
+        )
+
+        async def read(
+            *, organization_id: uuid.UUID, claim_id: uuid.UUID, scopes: Sequence[ClaimScope]
+        ) -> ClaimView | None:
+            assert organization_id == deps.organization_id
+            assert claim_id == claim.id
+            assert all(not item.scope_key.startswith("person:") for item in scopes)
+            return claim if ClaimScope(key) in scopes else None
+
+        with (
+            patch("app.services.memory._runtime.project_of", AsyncMock(return_value=project)),
+            patch("app.services.memory._runtime.claim_for_approval", side_effect=read),
+        ):
+            assert await correction_is_wide(deps, {"claim_id": str(claim_id)}) is True
 
 
 def _correction_row(triggered_by: uuid.UUID) -> ApprovalRow:

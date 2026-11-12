@@ -848,7 +848,10 @@ class RecordOperations(Operations):
         table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, share=True)
         self._ensure_live(table)
         await quotas.lock_storage(self.db, ctx)
-        as_of = data.as_of or await virtual_table_repo.database_time(self.db)
+        now = await virtual_table_repo.database_time(self.db)
+        if data.as_of is not None and data.as_of > now:
+            raise InvalidQueryError("as_of", "The import timestamp cannot be in the future")
+        as_of = data.as_of or now
         named: dict[str, int] = {}
         created = updated = 0
         failed: list[RecordBatchFailure] = []

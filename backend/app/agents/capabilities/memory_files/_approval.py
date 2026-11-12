@@ -26,7 +26,7 @@ _WIDE_SCOPES = frozenset(
 
 
 async def _named_claim(
-    deps: AgentDeps, args: Mapping[str, Any], *, allow_personal: bool
+    deps: AgentDeps, args: Mapping[str, Any], *, allow_personal: bool, only_wide: bool = False
 ) -> ClaimView | None:
     """The live claim a call names, if the run's audience may read it, else `None`."""
     if deps.organization_id is None or deps.agent_id is None:
@@ -42,6 +42,12 @@ async def _named_claim(
         project_id=await memory_store.runtime.project_of(deps.conversation_id),
         allow_personal=allow_personal,
     )
+    if only_wide:
+        scopes = [
+            scope
+            for scope in scopes
+            if scope.scope_key.startswith((ORGANIZATION_PREFIX, PROJECT_PREFIX))
+        ]
     return await memory_store.runtime.claim_for_approval(
         organization_id=deps.organization_id, claim_id=claim_id, scopes=scopes
     )
@@ -86,5 +92,7 @@ async def correction_is_wide(deps: AgentDeps, args: Mapping[str, Any]) -> bool:
 
     Reads no personal scope: a fact in one is never wide, so there is nothing to learn there.
     """
-    claim = await _named_claim(deps, args, allow_personal=False)
+    # Disabling personal memory drops wide scopes too for a private audience.
+    # Resolve normal access first, then query only the project/organization stores.
+    claim = await _named_claim(deps, args, allow_personal=True, only_wide=True)
     return claim is not None and claim.scope in _WIDE_SCOPES

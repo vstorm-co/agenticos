@@ -353,3 +353,34 @@ describe("before-run attempts", () => {
     expect(await screen.findByRole("heading", { name: "Before the agent started" })).toBeVisible();
   });
 });
+
+it("returns to the newest attempt page when another fire starts", async () => {
+  let firing = false;
+  const old = {
+    ...attempt("preparation_failed"),
+    occurred_at: new Date(Date.now() - 3600000).toISOString(),
+  };
+  vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+    if (path === "/runs") return { items: [], total: 0 };
+    if (path.includes("/attempts?")) {
+      const newest = firing && path.includes("skip=0&");
+      return { items: [newest ? attempt() : old], total: 11 };
+    }
+    if (path === "/agents") return { items: [], total: 0 };
+    return { items: [trigger()], total: 1 };
+  });
+  const view = render(<TriggerRunsView trigger={trigger()} pendingSince={null} />, { wrapper });
+  await screen.findByRole("heading", { name: "Before the agent started" });
+  await userEvent.click(
+    within(screen.getByRole("group", { name: "Before the agent started" })).getByRole("button", {
+      name: "Next page",
+    }),
+  );
+  await waitFor(() =>
+    expect(apiClient.get).toHaveBeenCalledWith("/agents/a1/triggers/t1/attempts?skip=10&limit=10"),
+  );
+  firing = true;
+  view.rerender(<TriggerRunsView trigger={trigger()} pendingSince={Date.now() - 1000} />);
+  expect(await screen.findByText(/Enable Act as creator/)).toBeVisible();
+  expect(screen.queryByText("Starting…")).toBeNull();
+});

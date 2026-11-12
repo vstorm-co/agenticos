@@ -1,5 +1,5 @@
 ---
-source_sha: "140538001acf"
+source_sha: "d9eb2ee93fb0"
 ---
 
 # La API HTTP { #the-http-api }
@@ -561,7 +561,7 @@ abierta para una llamada durante dos minutos. La llamada no necesita firma, reci
 `{"captured": true}` y no inicia ningún run. `GET .../webhook-test/{token}` lee
 `state` (`listening`, `caught` o `expired`) y la `delivery` recibida.
 
-Las claves internas y OAuth caducadas se conservan mientras un workflow, una evaluación, una mejora o un trabajo en cola o en ejecución las necesite. Al terminar, la limpieza habitual puede eliminarlas.
+Las claves internas y OAuth caducadas se conservan mientras un workflow, una evaluación, una mejora, una solicitud de autoría, una comprobación de skills, una generación de casos o un trabajo en cola o en ejecución las necesite. Al terminar, la limpieza habitual puede eliminarlas.
 
 ## Trabajar con tablas { #working-with-tables }
 
