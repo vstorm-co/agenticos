@@ -11,6 +11,7 @@ from app.commands.bootstrap import _resolve_organization
 from app.db.models.agent import Agent
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.skill import Skill
+from app.db.models.user import User
 from app.schemas.user import UserCreate
 from app.services.organization import OrganizationService
 from app.services.user import UserService
@@ -121,3 +122,24 @@ async def test_an_invalid_explicit_name_does_not_change_the_personal_organizatio
     await db.refresh(personal)
     assert (personal.name, personal.slug, personal.is_personal) == original
     assert [org.id for org in await _organizations(db, owner)] == [personal.id]
+
+
+async def test_a_new_owner_without_a_personal_organization_gets_the_named_one(
+    db: AsyncSession,
+) -> None:
+    owner = User(email=f"{uuid.uuid4().hex[:12]}@example.com", is_active=True)
+    db.add(owner)
+    await db.flush()
+
+    org = await _resolve_organization(db, owner.id, "Northwind Labs", new_owner=True)
+
+    assert (org.name, org.is_personal) == ("Northwind Labs", False)
+    assert [owned.id for owned in await _organizations(db, owner.id)] == [org.id]
+    membership = await db.scalar(
+        select(OrganizationMember).where(
+            OrganizationMember.organization_id == org.id,
+            OrganizationMember.user_id == owner.id,
+        )
+    )
+    assert membership is not None and membership.role == "owner"
+    assert all(await _seeded(db, org))
