@@ -105,7 +105,17 @@ export function OnboardingTour() {
   const locale = useLocale() as Locale;
   const chooseLocale = useChooseLocale();
   const saveContext = useSaveAgentContext();
-  const { isOpen, steps, step, index, isFirst, isLast, next, back, dismiss } = useOnboardingTour();
+  const {
+    isOpen,
+    steps,
+    step,
+    index,
+    isFirst,
+    isLast,
+    next: stepNext,
+    back: stepBack,
+    dismiss,
+  } = useOnboardingTour();
   const mode = useOnboardingStore((state) => state.mode);
   const openOffer = useOnboardingStore((state) => state.openOffer);
   const systemAgentPage = useOnboardingStore((state) => state.systemAgentPage);
@@ -121,6 +131,18 @@ export function OnboardingTour() {
   // When the walk arrived on the page it is on, so an optional stop absent from a
   // page that has long finished loading is skipped at once rather than after a wait.
   const arrivedRef = useRef({ path: "", at: 0 });
+  // Which way the reader last moved, so an absent stop is passed in that direction:
+  // Back onto one skips on back, rather than forward to where the reader just was.
+  const backwardsRef = useRef(false);
+  const absentRef = useRef(new Set<string>());
+  const next = useCallback(() => {
+    backwardsRef.current = false;
+    stepNext();
+  }, [stepNext]);
+  const back = useCallback(() => {
+    backwardsRef.current = true;
+    stepBack();
+  }, [stepBack]);
 
   const closeWalk = useCallback(() => {
     dismiss();
@@ -170,6 +192,10 @@ export function OnboardingTour() {
     // While an interactive flow runs, the coach owns the screen — the passive
     // driver.js overlay must stay down so it does not sit over the create dialog.
     if (!isOpen || !step || mode === "flow") {
+      if (!isOpen) {
+        absentRef.current.clear();
+        backwardsRef.current = false;
+      }
       tour.destroy();
       spotlightRef.current?.destroy();
       spotlightRef.current = null;
@@ -183,6 +209,7 @@ export function OnboardingTour() {
       arrivedRef.current = { path: here, at: performance.now() };
     const detail = step.page ? detailTargets[step.page] : undefined;
 
+    const isAbsent = (other: { id: string }) => absentRef.current.has(other.id);
     const buttons: AllowedButtons[] = isFirst ? ["next", "close"] : ["previous", "next", "close"];
     // Resolves once the light has arrived on `element`, so whatever follows — the
     // pulse of a control about to fire — plays where the reader is looking rather
@@ -199,7 +226,10 @@ export function OnboardingTour() {
           description: t(`steps.${step.id}.body`),
           showButtons: buttons,
           showProgress: true,
-          progressText: t("progress", { current: index + 1, total: steps.length }),
+          progressText: t("progress", {
+            current: index + 1 - steps.slice(0, index).filter(isAbsent).length,
+            total: steps.length - steps.filter(isAbsent).length,
+          }),
           nextBtnText: isLast ? t("finish") : t("next"),
           prevBtnText: t("back"),
           onNextClick: () => (isLast ? completeWalk() : next()),
@@ -334,14 +364,19 @@ export function OnboardingTour() {
       // add and connect controls when the catalog is empty — is skipped rather
       // than pinned to the middle of the screen with nothing highlighted.
       if (step.optional && step.target && !element) {
-        if (isLast) completeWalk();
+        absentRef.current.add(step.id);
+        if (backwardsRef.current && !isFirst) back();
+        else if (isLast) completeWalk();
         else next();
         return;
       }
       // A `<details>` keeps its content in the document while hiding it, so the
       // wait above returns a control the reader cannot see and driver.js
       // spotlights a zero-height box.
-      if (element) revealDisclosures(element);
+      if (element) {
+        absentRef.current.delete(step.id);
+        revealDisclosures(element);
+      }
       void show(element ?? undefined);
       // After the highlight, because the caption it is kept clear of is the one
       // driver.js has just built for this step.

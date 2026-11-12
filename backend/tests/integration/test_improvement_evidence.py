@@ -1,6 +1,7 @@
 """A session reads pinned, still-readable evidence without another model call."""
 
 from dataclasses import replace
+from datetime import UTC, datetime
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -13,8 +14,8 @@ from app.db.models.conversation import Message
 from app.db.models.knowledge_gap import KnowledgeGapClassification
 from app.repositories import knowledge_gap_repo
 from app.services.improvement_pipeline import ImprovementPipelineService
+from tests.integration.test_authoring import _clerk, _rated
 from tests.integration.test_authoring import _environment as _environment
-from tests.integration.test_authoring import _rated
 from tests.integration.test_improvement_pipeline import _started
 from tests.integration.test_knowledge_gaps import _knowledge_base
 
@@ -217,3 +218,55 @@ async def test_a_knowledge_document_set_aside_stays_aside_for_the_session(db):
     assert back.deferred_topic_ids == []
     with pytest.raises(NotFoundError, match="topic not found"):
         await service.defer_topic(ctx, agent.id, session.id, uuid4(), TopicDeferral(later=True))
+
+
+async def test_each_example_names_the_skills_its_run_used(db):
+    from app.db.models.skill import Skill
+    from app.repositories import skill_usage_repo
+    from app.schemas.skill_usage import SkillUseRecord
+
+    ctx, agent, _dataset, session = await _started(db)
+    delegate = await _clerk(db, ctx)
+    service = ImprovementPipelineService(db)
+    [item] = (await service.evidence(ctx, agent.id, run_id=session.id)).items
+    assert item.skills == []
+    skills = [
+        Skill(
+            id=uuid4(),
+            organization_id=ctx.organization_id,
+            name=name,
+            description=name,
+            content=f"How {name} works",
+            visibility="org",
+        )
+        for name in ("shipping", "refunds", "delegated")
+    ]
+    db.add_all(skills)
+    await db.flush()
+    await skill_usage_repo.record_uses(
+        db,
+        [SkillUseRecord(agent_id=agent.id, skill_id=skill.id, loaded=True) for skill in skills[:2]]
+        # A delegate's use is the delegate's, not this agent's.
+        + [SkillUseRecord(agent_id=delegate.id, skill_id=skills[2].id, loaded=True)],
+        organization_id=ctx.organization_id,
+        run_id=item.run_id,
+        started_at=datetime.now(UTC),
+    )
+
+    [item] = (await service.evidence(ctx, agent.id, run_id=session.id)).items
+
+    assert [skill.name for skill in item.skills] == ["refunds", "shipping"]
+    no_skills = replace(
+        ctx,
+        key_scopes=frozenset(
+            {Perm.AGENTS_VIEW, Perm.RUNS_VIEW, Perm.DATASETS_VIEW, Perm.DATASETS_RUN}
+        ),
+    )
+    [item] = (await service.evidence(no_skills, agent.id, run_id=session.id)).items
+    assert item.skills == []
+    assert (
+        await skill_usage_repo.skills_in_runs(
+            db, organization_id=ctx.organization_id, agent_id=agent.id, run_ids=[]
+        )
+        == {}
+    )

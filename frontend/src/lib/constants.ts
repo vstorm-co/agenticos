@@ -65,6 +65,10 @@ export const ROUTES = {
   DOCUMENTS: "/documents",
   DOCUMENT_FOLDER: (id: string) => `/documents/${id}`,
   SKILLS: "/skills",
+  SKILL_DETAIL: (id: string) => `/skills/${id}`,
+  /** A skill's Improve, started from what an agent's Improve session found in it. */
+  SKILL_IMPROVE_FROM_RUN: (id: string, runId: string) =>
+    `/skills/${id}/improve/new?from_run=${runId}`,
   CONTEXT: "/context",
   DATASETS: "/datasets",
   EVALS: "/evals",

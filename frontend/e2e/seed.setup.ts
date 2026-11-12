@@ -126,8 +126,8 @@ setup("a skill exists", async ({ page }) => {
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Name").fill(SEEDED_SKILL_NAME);
   await dialog.getByLabel("Description").fill(SEEDED_SKILL_DESCRIPTION);
-  // Creation opens directly on the source of the selected file.
-  await dialog.getByLabel(/SKILL\.md source/).fill(SEEDED_SKILL_CONTENT);
+  // Creation opens directly on the source of the body, which the pane calls Instructions.
+  await dialog.getByLabel(/Instructions source/).fill(SEEDED_SKILL_CONTENT);
   await submitDialog(page, {
     dialog,
     submit: dialog.getByRole("button", { name: "Create" }),

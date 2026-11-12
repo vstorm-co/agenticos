@@ -28,6 +28,28 @@ function decidable(datasets: PendingDataset[]): number {
   );
 }
 
+/** What a person may be waited on for, in the order the dashboard says them. */
+export type WaitingKind = "approvals" | "review" | "suites" | "suggestions";
+
+/**
+ * Everything waiting on the reader, their tool calls first, each kind with its
+ * count and none at zero. The dashboard's greeting and its "Waiting on you" figure
+ * both say this, so the two never count different things.
+ */
+export function waitingOn(
+  approvals: number,
+  others: { review: number; suites: number; suggestions: number },
+): [WaitingKind, number][] {
+  return (
+    [
+      ["approvals", approvals],
+      ["review", others.review],
+      ["suites", others.suites],
+      ["suggestions", others.suggestions],
+    ] as [WaitingKind, number][]
+  ).filter(([, count]) => count > 0);
+}
+
 /**
  * What waits on the reader besides their own tool calls: answers sent to
  * review, suites failing, and the assistant's suggestions. Each counts only what
@@ -35,7 +57,8 @@ function decidable(datasets: PendingDataset[]): number {
  * and beside the dashboard's cards it costs no request of its own, since they
  * read the same queries. `settled` says the permissions and every list it read
  * answered, so "nothing waits" is a finding rather than a list that has not
- * arrived, failed, or was never asked for.
+ * arrived, failed, or was never asked for. `failed` tells a refused list from one
+ * still on its way, and `retry` reads the refused ones again.
  */
 export function useWaitingOnMe() {
   const { can, isLoaded } = usePermissions();
@@ -48,5 +71,9 @@ export function useWaitingOnMe() {
     suites: suites.suites.filter((suite) => suiteState(suite) === "failing").length,
     suggestions: suggestionCount(suggestions.waiting),
     settled: isLoaded && reads.every((read) => !read.isLoading && read.error === null),
+    failed: reads.some((read) => read.error !== null),
+    retry: () => {
+      for (const read of reads) if (read.error !== null) void read.refetch();
+    },
   };
 }

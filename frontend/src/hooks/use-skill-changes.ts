@@ -91,3 +91,21 @@ export function useSkillChanges(status: ProposalStatus = "pending"): UseSkillCha
     isDeciding: applied.isPending || discarded.isPending,
   };
 }
+
+/**
+ * The skill changes agents proposed that nobody decided yet, for "Waiting for you".
+ * Read under `skills:edit`, so a reader without it asks nothing.
+ */
+export function useSkillProposalsAwaiting({ enabled = true }: { enabled?: boolean } = {}) {
+  const query = useQuery({
+    queryKey: qk.skillChanges.list("pending"),
+    queryFn: () => listSkillChanges("pending"),
+    enabled,
+  });
+  return {
+    changes: query.data ?? [],
+    isLoading: query.isLoading,
+    error: query.error,
+    refetch: query.refetch,
+  };
+}

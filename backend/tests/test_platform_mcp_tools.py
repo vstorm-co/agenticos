@@ -782,7 +782,6 @@ CALLS.extend(
 
 CALLS.extend(
     [
-        ("get_skill", {"skill_id": str(KB)}, ("GET", f"/skills/{KB}", {})),
         (
             "update_skill",
             {"skill_id": str(KB), "changes": {"content": "Revised"}},

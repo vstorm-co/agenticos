@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  SKILL_DETAIL,
+  SKILL_IMPROVEMENT,
+  SKILL_IMPROVEMENT_START,
   IMPROVEMENT,
   IMPROVEMENT_START,
   AGENT_BUILDER,
@@ -121,6 +124,9 @@ describe("pageKey", () => {
   });
 
   it("collapses every concrete collection route onto the one KB identity", () => {
+    expect(pageKey("/skills/abc-123")).toBe(SKILL_DETAIL);
+    expect(pageKey("/skills/abc-123/improve/new")).toBe(SKILL_IMPROVEMENT_START);
+    expect(pageKey("/skills/abc-123/improve/s-1")).toBe(SKILL_IMPROVEMENT);
     expect(pageKey("/rag/abc-123")).toBe(KB_DETAIL);
     expect(pageKey("/rag/abc-123/anything")).toBe(KB_DETAIL);
     expect(pageKey("/groups/abc-123")).toBe(GROUP_DETAIL);
@@ -754,6 +760,7 @@ it("describes every stage of an improvement on its own page", () => {
       "improvement-evidence",
       "improvement-test-questions",
       "improvement-changes",
+      "improvement-skill-handoffs",
       "improvement-next-step",
       "improvement-check",
       "improvement-open-check",

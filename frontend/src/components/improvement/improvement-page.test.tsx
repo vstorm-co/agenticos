@@ -97,6 +97,7 @@ vi.mock("@/hooks/use-improvements", () => ({
     refetch: vi.fn(),
   }),
   useAttemptChanges: () => ({ changes: state.hunks, isLoading: false, error: null }),
+  useImprovementSkills: () => ({ skills: { items: [] }, error: null }),
 }));
 vi.mock("@/hooks/use-eval-suites", () => ({ useAgentEvalSuites: () => ({ suites: [] }) }));
 vi.mock("./knowledge-drafts", async (actual) => ({

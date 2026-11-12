@@ -1,7 +1,7 @@
 """Transactional improvement transitions and recovery of queued child completions."""
 
 from app.db.session import get_worker_db_context
-from app.worker.jobs import AdvanceImprovement
+from app.worker.jobs import AdvanceImprovement, AdvanceSkillImprovement
 
 
 async def advance_improvement(job: AdvanceImprovement) -> None:
@@ -36,3 +36,41 @@ async def sweep_improvements() -> int:
 
     async with get_worker_db_context() as db:
         return await ImprovementPipelineService(db).sweep()
+
+
+async def advance_skill_improvement(job: AdvanceSkillImprovement) -> None:
+    from app.repositories import skill_improvement_repo
+    from app.schemas.change_event import ChangeEvent
+    from app.services.change_feed import connect_in_worker, publish
+    from app.services.skill_improvement import SkillImprovementService
+
+    await connect_in_worker()
+    async with get_worker_db_context() as db:
+        row = await skill_improvement_repo.get_run(
+            db, job.run_id, organization_id=job.organization_id
+        )
+        before = None if row is None else (row.status, row.stage, row.iteration)
+        await SkillImprovementService(db).advance(job.run_id, job.organization_id)
+        after = None if row is None else (row.status, row.stage, row.iteration)
+        skill_id = row.skill_id if row else None
+    # A session waiting on a person is listed under the skill, and the console hears
+    # it as a change to the skill.
+    if skill_id is not None and before != after:
+        await publish(
+            ChangeEvent(
+                organization_id=job.organization_id,
+                resource="skill",
+                id=skill_id,
+                action="updated",
+                surface="system",
+                actor_user_id=None,
+                actor_name=None,
+            )
+        )
+
+
+async def sweep_skill_improvements() -> int:
+    from app.services.skill_improvement import SkillImprovementService
+
+    async with get_worker_db_context() as db:
+        return await SkillImprovementService(db).sweep()

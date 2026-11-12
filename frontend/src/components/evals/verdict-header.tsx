@@ -18,10 +18,21 @@ import { JudgeNotes } from "./judge-notes";
 import { UngradedNote } from "./ungraded-note";
 import { undecidedOf, VerdictBadge, VerdictHeadline } from "./verdict-headline";
 
+/** The check of a skill change that a run is one stage of, as the page names it. */
+export interface CheckStage {
+  skillId: string;
+  /** Null until the skill is read, or for a reader who may not see it. */
+  skillName: string | null;
+  agent: string;
+  checkId: string;
+}
+
 /**
  * The top of a run's page: what was run, then - once both sides have finished -
  * the verdict in a sentence and what to do about it. While the run answers it
- * says how far it got and that the comparison waits for both sides.
+ * says how far it got and that the comparison waits for both sides. A stage of a
+ * skill's check says so and links the check, which owns its price and its verdict,
+ * so the stage's own estimate and the way back to Build are left out.
  */
 export function VerdictHeader({
   agentId,
@@ -34,6 +45,7 @@ export function VerdictHeader({
   onShowBroken,
   onTestAgain,
   onRetryComparison,
+  stage = null,
 }: {
   agentId: string;
   run: EvalRun;
@@ -49,6 +61,7 @@ export function VerdictHeader({
   onTestAgain?: () => void;
   /** Read the verdict again, when reading it failed. */
   onRetryComparison?: () => void;
+  stage?: CheckStage | null;
 }) {
   const t = useTranslations("evals");
   const tc = useTranslations("common");
@@ -75,6 +88,22 @@ export function VerdictHeader({
       <CardContent className="space-y-4 pt-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 flex-1 space-y-3 break-words">
+            {stage && (
+              <p className="text-sm font-medium">
+                {t.rich("checkStage.title", {
+                  skill: stage.skillName ?? t("checkStage.aSkill"),
+                  agent: stage.agent,
+                  check: (chunks) => (
+                    <Link
+                      className="underline underline-offset-4"
+                      href={`${ROUTES.SKILL_DETAIL(stage.skillId)}?tab=history&check=${stage.checkId}`}
+                    >
+                      {chunks}
+                    </Link>
+                  ),
+                })}
+              </p>
+            )}
             {!live && candidate && comparison && candidate.failed_alike !== null && (
               <div className="flex items-start gap-4">
                 <DatasetIcon tone="red" icon={TriangleAlert} className="size-10" />
@@ -122,9 +151,10 @@ export function VerdictHeader({
                 </Button>
               </p>
             )}
-            {comparison?.invalid_reason && (
-              <p className="text-muted-foreground text-sm">{comparison.invalid_reason}</p>
-            )}
+            {comparison?.invalid_reason &&
+              !(stage && comparison.invalid_reason_code === "too_few_held_out") && (
+                <p className="text-muted-foreground text-sm">{comparison.invalid_reason}</p>
+              )}
             {comparison !== undefined && comparison.changed > 0 && (
               <p className="text-muted-foreground text-sm">
                 {t("changedSinceBaseline", { count: comparison.changed })}
@@ -168,15 +198,20 @@ export function VerdictHeader({
           </p>
         )}
         <p className="text-muted-foreground text-xs">
-          {t("runMeta", {
-            date: formatDateTime(run.created_at, locale),
-            cost: usd(run.cost_usd, locale),
-            estimate: usd(run.estimate_usd, locale),
-            ceiling:
-              compares && Number(run.rerun_ceiling_usd) > 0
-                ? usd(run.rerun_ceiling_usd, locale)
-                : "none",
-          })}
+          {stage
+            ? t("runMetaStage", {
+                date: formatDateTime(run.created_at, locale),
+                cost: usd(run.cost_usd, locale),
+              })
+            : t("runMeta", {
+                date: formatDateTime(run.created_at, locale),
+                cost: usd(run.cost_usd, locale),
+                estimate: usd(run.estimate_usd, locale),
+                ceiling:
+                  compares && Number(run.rerun_ceiling_usd) > 0
+                    ? usd(run.rerun_ceiling_usd, locale)
+                    : "none",
+              })}
         </p>
         {run.suite && (
           <p className="text-muted-foreground text-xs">
@@ -222,12 +257,14 @@ export function VerdictHeader({
                   : t("actions.showBroken", { count: broke })}
               </Button>
             )}
-            <Button size="sm" variant="outline" asChild>
-              <Link href={`${ROUTES.AGENTS}/${agentId}?tab=build`}>
-                <Settings2 className="size-4" aria-hidden />
-                {t("actions.backToBuild")}
-              </Link>
-            </Button>
+            {!stage && (
+              <Button size="sm" variant="outline" asChild>
+                <Link href={`${ROUTES.AGENTS}/${agentId}?tab=build`}>
+                  <Settings2 className="size-4" aria-hidden />
+                  {t("actions.backToBuild")}
+                </Link>
+              </Button>
+            )}
             <SendToReviewButton run={run} arm={candidate} />
             {setupFailed && !run.draft_changed && onTestAgain && (
               <Button size="sm" onClick={onTestAgain}>

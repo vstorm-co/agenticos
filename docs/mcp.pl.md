@@ -1,5 +1,5 @@
 ---
-source_sha: "62e7ca10f103"
+source_sha: "08cb5e1cecff"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -1248,8 +1248,14 @@ Sprawdzenie połączenia aktualizuje wykryte narzędzia i status. Dlatego `test_
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
 | `create_skill` | `skills:edit` |
-| `get_skill` | `skills:view` |
+| `get_skill`, `list_skill_versions`, `get_skill_version` | `skills:view`; agenci, których wywołujący nie widzi, są tylko policzeni |
 | `update_skill`, `add_skill_resource` | `skills:edit` |
+| `list_skill_improvements`, `get_skill_improvement` | `skills:view` i `runs:view` |
+| `estimate_skill_improvement`, `start_skill_improvement`, `estimate_next_skill_improvement_step`, `run_next_skill_improvement_step`, `retry_skill_improvement_step`, `accept_skill_improvement`, `end_skill_improvement` | prawo edycji skilla i `runs:view`; przypięcie gorszych agentów także `agents:publish` na każdym z nich |
+| `change_skill_version` | prawo edycji agenta; wejście na żywo także `agents:publish` |
+| `list_skills_behind_main` | `skills:view` |
+| `estimate_skill_update_check`, `start_skill_update_check`, `estimate_skill_catch_up`, `start_skill_catch_up` | prawo edycji skilla i `runs:view`; sprawdzenie aktualizacji także dostęp do agenta |
+| `return_skill_fork_to_main` | prawo edycji każdego agenta; wejście na żywo także `agents:publish` |
 | `list_context_files`, `get_context_file` | `context:view` |
 | `create_context_file`, `update_context_file` | `context:edit` |
 | `list_projects` | `projects:view` |

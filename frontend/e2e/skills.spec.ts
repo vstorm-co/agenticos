@@ -12,10 +12,10 @@ import {
 test.use({ storageState: AUTH_STATE });
 
 /**
- * Skills are the one thing on this platform that has no draft and no publish
- * step: a save is live everywhere on the next run. The gallery has to list what
- * exists, the editor has to open it with what is actually stored, and the
- * editor has to say out loud how far a save reaches.
+ * A skill's save makes a new version on one line, live at once for every agent
+ * following that line. The gallery has to list what exists, a skill's page has to
+ * open its editor with what is actually stored, and the editor has to say out loud
+ * how far a save reaches.
  *
  * `seed.setup.ts` writes the skill these assert on, through this same UI —
  * bootstrap creates none, and a gallery asserted to be empty is a gallery that
@@ -48,6 +48,8 @@ test.describe("Skills", () => {
     await page.goto("/skills");
     await expect(pageHeading(page, "Skills")).toBeVisible();
     await skillCard(page, SEEDED_SKILL_NAME).click();
+    await expect(pageHeading(page, SEEDED_SKILL_NAME)).toBeVisible();
+    await page.getByRole("button", { name: "Edit", exact: true }).click();
 
     const dialog = page.getByRole("dialog");
     // Description and content are the two halves of a skill: the description is
@@ -60,13 +62,14 @@ test.describe("Skills", () => {
     );
 
     // The editor opens on the source: assert the stored text, not the toggle.
-    await expect(dialog.getByLabel(/SKILL\.md source/)).toHaveValue(SEEDED_SKILL_CONTENT);
+    await expect(dialog.getByLabel(/Instructions source/)).toHaveValue(SEEDED_SKILL_CONTENT);
   });
 
   test("editing a skill warns how far the save reaches", async ({ page }) => {
     await page.goto("/skills");
     await expect(pageHeading(page, "Skills")).toBeVisible();
     await skillCard(page, SEEDED_SKILL_NAME).click();
+    await page.getByRole("button", { name: "Edit", exact: true }).click();
 
     const dialog = page.getByRole("dialog");
     // The editor loads the full skill after the dialog opens; wait for it before
@@ -87,8 +90,8 @@ test.describe("Skills", () => {
     await dialog.getByLabel("Description", { exact: true }).fill("Edited by the E2E suite.");
 
     // A skill has no draft and no publish step, so this warning is the only
-    // moment anyone is told that every agent bound to the skill changes too.
-    await expect(blastRadius).toContainText("Saving reaches every agent bound to this skill");
+    // moment anyone is told that the agents following main change too.
+    await expect(blastRadius).toContainText("on main");
     await expect(save).toBeEnabled();
   });
 
@@ -110,23 +113,28 @@ test.describe("Skills", () => {
     await expect(skillCard(page, name)).toBeVisible();
 
     await skillCard(page, name).click();
+    const edit = page.getByRole("button", { name: "Edit", exact: true });
+    await edit.click();
     await expect(dialog.getByLabel("Description", { exact: true })).toHaveValue(
       "Written by the E2E suite.",
     );
     await dialog.getByLabel("Description", { exact: true }).fill(edited);
     await dialog.getByRole("button", { name: "Save" }).click();
-    await expect(dialog).toBeHidden();
+    // A changed text asks before it goes live, naming the agents it would reach.
+    await page.getByRole("button", { name: "Save now" }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
 
     // Reloaded rather than read off the cache the mutation patched: a panel that
     // only looks right until the next fetch is a panel that never wrote
     // anything.
     await page.reload();
-    await expect(skillCard(page, name)).toContainText(edited);
+    await edit.click();
+    await expect(dialog.getByLabel("Description", { exact: true })).toHaveValue(edited);
 
-    await skillCard(page, name).click();
     await dialog.getByRole("button", { name: `More actions for ${name}`, exact: true }).click();
     await page.getByRole("menuitem", { name: `Delete ${name}`, exact: true }).click();
     await page.getByRole("button", { name: "Delete", exact: true }).click();
+    await expect(pageHeading(page, "Skills")).toBeVisible();
     await expect(skillCard(page, name)).toHaveCount(0);
   });
 });

@@ -79,6 +79,8 @@ describe("format", () => {
     expect(usd("0", "en")).toBe("$0.00");
     expect(limitText("0.850000", "en")).toBe("0.85");
     expect(limitText("0.9101", "pl")).toBe("0,92");
+    expect(limitText("0.560000", "en")).toBe("0.56");
+    expect(limitText("1.1", "en")).toBe("1.10");
     expect(limitValue(" 0,92 ")).toBe("0.92");
     expect(percent(0.75, "en")).toBe("75%");
     expect(percent(null, "en")).toBe("—");
@@ -869,6 +871,32 @@ describe("CaseDetail", () => {
     expect(screen.getByText("not graded: judge_new_reason")).toBeInTheDocument();
   });
 
+  it("heads a skill check's answers with the agent and which skill each side read", () => {
+    render(
+      <CaseDetail
+        arms={[
+          arm({ version_number: 1, source: "explicit" }),
+          arm({ id: "arm-2", role: "baseline", version_number: 1 }),
+        ]}
+        attempts={[attempt(), attempt({ id: "att-2", arm_id: "arm-2" })]}
+        check={{
+          kind: "skill",
+          base_version: 1,
+          on_draft: false,
+          suggestions: 0,
+          agent: "Online returns desk",
+          current: { number: 3, fork_name: null },
+        }}
+        datasetId="ds-1"
+        caseId="case-1"
+        expectation={null}
+      />,
+    );
+
+    expect(screen.getByText(/Online returns desk · proposed skill/)).toBeInTheDocument();
+    expect(screen.getByText(/Online returns desk · current skill \(v3\)/)).toBeInTheDocument();
+  });
+
   it("puts what the case expects above the answers, and the way to its dataset", () => {
     render(
       <CaseDetail
@@ -931,7 +959,7 @@ describe("CaseDetail", () => {
   });
 });
 
-it("puts failing scorers first, folds evidence, and warns once per case", () => {
+it("keeps scorers in the order the dataset configures them, folds evidence, and warns once per case", () => {
   const result = {
     scorer: "judge" as const,
     name: "Tone",
@@ -963,8 +991,9 @@ it("puts failing scorers first, folds evidence, and warns once per case", () => 
     />,
   );
   const summaries = document.querySelectorAll("details > summary");
-  expect(summaries[0]).toHaveTextContent("Accuracy");
-  expect(summaries[0]).toHaveTextContent("25%");
+  expect(summaries[0]).toHaveTextContent("Tone");
+  expect(summaries[1]).toHaveTextContent("Accuracy");
+  expect(summaries[1]).toHaveTextContent("25%");
   expect(document.querySelector("details")).not.toHaveAttribute("open");
   expect(screen.getAllByText(/Unverified: nothing quoted/)).toHaveLength(1);
 });

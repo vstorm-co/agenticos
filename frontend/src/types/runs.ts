@@ -103,6 +103,8 @@ export interface AgentRun {
    * only when the caller may see the dataset. Such a run keeps no conversation.
    */
   eval_case?: EvalCaseLink | null;
+  /** The skills the run opened or read, at their versions; only the single-run read sends it. */
+  skills_used?: RunSkillUse[];
   /** For a platform agent's run - the judge, the assistant, the knowledge-gap and case helpers. */
   origin?: RunOrigin | null;
   /**
@@ -685,6 +687,18 @@ export interface WireQuestion {
 export interface ParkedQuestion {
   tool_call_id: string;
   questions: WireQuestion[];
+}
+
+/** A skill a run opened or read, at the version it was served. */
+export interface RunSkillUse {
+  skill_id: string;
+  name: string;
+  /** The version's number on its line; null where none is known. */
+  version: number | null;
+  /** The fork that version is on; null on main. */
+  fork: string | null;
+  /** It opened the skill, rather than only reading one of its files. */
+  loaded: boolean;
 }
 
 /** A live chat's correlated acknowledgement for a parked question answer. */

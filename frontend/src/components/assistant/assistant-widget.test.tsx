@@ -60,6 +60,7 @@ vi.mock("@/components/chat/chat-container", () => ({
       data-testid="chat"
       data-prompt={prompt?.text ?? ""}
       data-files={incomingFiles?.files.length ?? 0}
+      data-draft={incomingFiles?.text ?? ""}
     >
       {emptyState(() => undefined)}
       <a href={CONSOLE_LINK}>console link</a>
@@ -258,6 +259,18 @@ describe("the Architect widget", () => {
 
     act(() => useArchitectAskStore.getState().ask("And another"));
     expect(chat()).toHaveAttribute("data-prompt", "And another");
+  });
+
+  it("writes a draft ask into the message box for the reader to send, sending nothing", () => {
+    useArchitectAskStore.setState({ request: null });
+    render(<AssistantWidget />);
+
+    act(() => useArchitectAskStore.getState().ask("Make a skill of this", { draft: true }));
+
+    expect(screen.getByRole("dialog", { name: "Architect" })).not.toHaveClass("hidden");
+    expect(chat()).toHaveAttribute("data-draft", "Make a skill of this");
+    expect(chat()).toHaveAttribute("data-prompt", "");
+    expect(useArchitectAskStore.getState().request).toBeNull();
   });
 
   it("lets a bubble fade when nobody answers it, and holds it while the pointer rests on it", () => {

@@ -7,7 +7,7 @@ import { Badge, Card, CardContent, CardHeader, CardTitle } from "@/components/ui
 import { ROUTES } from "@/lib/constants";
 import { formatDateTime } from "@/lib/utils";
 import type { CaseFlip, ComparisonSide, EvalComparison, Flip, Trend } from "@/types/eval-runs";
-import { sideName } from "./names";
+import { sideName, type SideCheck } from "./names";
 
 const TREND_TONE: Record<Trend, "success" | "destructive" | "secondary" | "outline"> = {
   better: "success",
@@ -16,7 +16,15 @@ const TREND_TONE: Record<Trend, "success" | "destructive" | "secondary" | "outli
   unknown: "outline",
 };
 
-function Side({ side, agentId }: { side: ComparisonSide; agentId: string }) {
+function Side({
+  side,
+  agentId,
+  check,
+}: {
+  side: ComparisonSide;
+  agentId: string;
+  check: SideCheck | null | undefined;
+}) {
   const t = useTranslations("evals");
   const locale = useLocale();
   return (
@@ -25,7 +33,7 @@ function Side({ side, agentId }: { side: ComparisonSide; agentId: string }) {
       className="hover:bg-accent/40 block rounded-md px-2 py-1 text-sm"
     >
       {t("comparison.side", {
-        candidate: sideName(side, t),
+        candidate: sideName(side, t, check),
         model: side.model_label,
         dataset: side.dataset_version,
         date: side.finished_at
@@ -49,10 +57,13 @@ export function ComparisonCard({
   agentId,
   comparison,
   tag,
+  check,
 }: {
   agentId: string;
   comparison: EvalComparison;
   tag: string | null;
+  /** The proposal the run checked, which names its sides. */
+  check?: SideCheck | null;
 }) {
   const t = useTranslations("evals.comparison");
   const { baseline, efficiency } = comparison;
@@ -84,13 +95,13 @@ export function ComparisonCard({
         <div className="grid gap-2 sm:grid-cols-2">
           <div>
             <p className="text-muted-foreground text-xs">{t("candidate")}</p>
-            <Side side={comparison.candidate} agentId={agentId} />
+            <Side side={comparison.candidate} agentId={agentId} check={check} />
           </div>
           <div>
             <p className="text-muted-foreground text-xs">
               {comparison.paired ? t("baselinePaired") : t("baselinePast")}
             </p>
-            <Side side={baseline} agentId={agentId} />
+            <Side side={baseline} agentId={agentId} check={check} />
           </div>
         </div>
         <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">

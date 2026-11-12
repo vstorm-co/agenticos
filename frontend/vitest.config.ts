@@ -59,6 +59,7 @@ export default defineConfig({
         "src/components/agents/**/*.{ts,tsx}",
         "src/components/authoring/**/*.tsx",
         "src/components/improvement/**/*.tsx",
+        "src/components/skill-improvement/**/*.tsx",
         "src/components/triggers/source-consents-panel.tsx",
         "src/components/triggers/action-selection.tsx",
         "src/components/triggers/routine-options.tsx",

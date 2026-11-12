@@ -800,7 +800,7 @@ async def test_changing_the_guards_needs_the_permission_and_is_audited(db) -> No
     [listed] = [e for e in await environments.list_for_agent(ctx, agent.id) if e.id == env_id]
     assert listed.guard_suite_ids == []
     changes = await _audit(db, ctx, "agent.environment_guards_changed")
-    assert [c.details["removed"] for c in changes if c.details] == [[], [str(suite.id)]]
+    assert sorted(c.details["removed"] for c in changes if c.details) == [[], [str(suite.id)]]
 
 
 @pytest.mark.security

@@ -22,6 +22,7 @@ from pydantic_ai.toolsets import FunctionToolset
 
 from app.agents.capabilities import CapabilityDef, all_capabilities
 from app.agents.capabilities._failures import steer
+from app.agents.capabilities._registry import READ_SKILL
 from app.agents.spec import AgentSpec
 
 PLUMBING = frozenset(
@@ -98,7 +99,9 @@ def setup_briefing(spec: AgentSpec, *, agent_id: UUID | None) -> str:
     if missing:
         lines += [
             "",
-            "Not switched on, so you cannot do these here:",
+            "## Not switched on",
+            "",
+            "You cannot do these here:",
             *(f"- **{d.name}** (`{d.id}`): {_summary(d.description)}" for d in missing),
         ]
     if agent_id is not None and missing:
@@ -111,11 +114,26 @@ def setup_briefing(spec: AgentSpec, *, agent_id: UUID | None) -> str:
     lines += [
         "",
         (
-            "When somebody asks what you can do, answer from the first list in plain words, "
-            "with an example of each that fits what they do. When a request needs something "
-            f"from the second, say so plainly, do what you can without it, and {unlock}."
+            "When somebody asks what you can do, answer from the switched-on list in plain "
+            "words, with an example of each that fits what they do. When a request needs "
+            "something not switched on, say so plainly, do what you can without it, and "
+            f"{unlock}."
         ),
     ]
+    if spec.skill_ids:
+        # Last, so the framework's list of capabilities to load follows this heading
+        # rather than the paragraph about asking for what is missing.
+        lines += [
+            "",
+            "## Your skills",
+            "",
+            (
+                "Your skills are switched on already: they are the available skills listed next, "
+                f"which open with `{READ_SKILL}`. When a question falls within one, call "
+                f"`{READ_SKILL}` with its id before you answer, and follow what it says. "
+                f"Never ask for a skill with `{REQUEST_CAPABILITY}`."
+            ),
+        ]
     return "\n".join(lines)
 
 
@@ -136,7 +154,7 @@ class RequestCapabilityToolset(FunctionToolset[Any]):
         """Show the person a card that switches on a capability you lack.
 
         Use it when a request needs something under "Not switched on" in your
-        setup. Whoever may edit you switches it on with one click; anyone else
+        setup - never for a skill, which you open with `read_skill`. Whoever may edit you switches it on with one click; anyone else
         asks your owner from it. Say in your answer what you would do once it is
         on, and do the rest of the request without it.
 
@@ -147,6 +165,13 @@ class RequestCapabilityToolset(FunctionToolset[Any]):
         Returns:
             JSON the card is drawn from - nothing to repeat to the person.
         """
+        loadable = ctx.capabilities.get(capability_id)
+        if loadable is not None and loadable.defer_loading is True:
+            return steer(
+                ctx,
+                f"{capability_id!r} is yours already, to read rather than to ask for. Call "
+                f'`{READ_SKILL}` with id "{capability_id}", then answer with what it says.',
+            )
         name = self._missing.get(capability_id)
         if name is None:
             return steer(

@@ -197,6 +197,35 @@ describe("ReviewPanel", () => {
     expect(screen.queryByRole("button", { name: /from the queue/ })).toBeNull();
   });
 
+  it("says which side of a skill's check and which re-ask each answer came from", () => {
+    const checked = { skill_id: "sk-1", check_id: "c-1", version: 3 };
+    state.answer = {
+      scores: [
+        caseScore({
+          id: "a",
+          eval_run_id: "e1",
+          agent_id: "x",
+          agent_name: "Store counter",
+          skill_check: { ...checked, arm: "proposed", version: null },
+          eval_attempt: 0,
+        }),
+        caseScore({
+          id: "b",
+          eval_run_id: "e1",
+          agent_id: "x",
+          agent_name: "Store counter",
+          skill_check: { ...checked, arm: "current" },
+          eval_attempt: 1,
+        }),
+      ],
+      total: 2,
+    };
+    render(<ReviewPanel dataset={dataset({ can_edit: false })} />);
+
+    expect(screen.getByText("Skill check · proposed text")).toBeInTheDocument();
+    expect(screen.getByText("Skill check · current v3 · re-ask 1")).toBeInTheDocument();
+  });
+
   it("links no eval run or Activity run to a reader without runs:view", () => {
     state.canViewRuns = false;
     state.answer = {

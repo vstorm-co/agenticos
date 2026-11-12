@@ -210,8 +210,91 @@ function improvementReply(body: ChatRequest): string | null {
   return null;
 }
 
+/**
+ * Who an agent is to a shared skill, and what a question asks about it.
+ *
+ * `skill-improvement.spec.ts` checks one skill on several agents, so the answer
+ * has to come from the skill version the platform served rather than from the
+ * agent's own instructions. The agent opens the skill through `CALL-TOOL`, and
+ * once the skill has answered, its body holds one `<role>/<topic>: PONG-…` line
+ * per agent and topic. Nothing in the instructions names a token, so a check
+ * that measured the wrong version would see the wrong answer.
+ */
+const SKILL_ROLE = /\bE2E-SKILL-AS:([a-z]+)\b/;
+const SKILL_TOPIC = /\bTOPIC:([a-z]+)\b/;
+const SKILL_TOKEN = /^PONG-[A-Za-z0-9-]+/;
+
+/** The token the served skill gives this role on this topic, once the skill was opened. */
+function skillReply(body: ChatRequest): string | null {
+  if (!toolAnswered(body)) return null;
+  const text = allText(body);
+  const role = SKILL_ROLE.exec(text)?.[1];
+  const topic = SKILL_TOPIC.exec(text)?.[1];
+  if (role === undefined || topic === undefined) return null;
+  const line = `${role}/${topic}: `;
+  for (let at = text.indexOf(line); at >= 0; at = text.indexOf(line, at + 1)) {
+    // The tool's answer is JSON, so a line break arrives as the two characters `\n`.
+    const before = text.slice(Math.max(0, at - 2), at);
+    if (at === 0 || /\s$/.test(before) || before === "\\n") {
+      return SKILL_TOKEN.exec(text.slice(at + line.length))?.[0] ?? null;
+    }
+  }
+  return null;
+}
+
+/** The marker `skill-improvement.spec.ts` writes into its skill's description. */
+const SKILL_SESSION = "E2E-SKILL";
+
+/**
+ * The analyst's and the improver's answers in a skill session, for the shared-skill
+ * journey only. The edit follows from the body the session is at, so the first
+ * session turns every receipt line to a refund - which breaks the gift shop - and
+ * the next fixes the online desk's digital line alone.
+ */
+function skillSessionReply(body: ChatRequest): string | null {
+  const text = allText(body);
+  if (!text.includes(SKILL_SESSION)) return null;
+  const properties = contractProperties(body);
+  if (properties === null) return null;
+  if ("problems" in properties) {
+    return JSON.stringify({
+      problems: [
+        {
+          title: "Store rules answered from the old policy",
+          summary: "The skill gives the answers its agents' customers rate down.",
+          cause: "skill",
+          run_ids: [],
+          evidence: [],
+        },
+      ],
+    });
+  }
+  if (!("edits" in properties)) return null;
+  const current = /# Its current body\n<skill>\n([\s\S]*?)\n<\/skill>/.exec(text)?.[1] ?? "";
+  const edit = (old_text: string, new_text: string) => ({
+    old_text,
+    new_text,
+    after: "",
+    rationale: "The rated answers ask for this rule.",
+    evidence: [],
+  });
+  const edits = current.includes("online/receipt: PONG-SL-CREDIT")
+    ? [
+        edit("online/receipt: PONG-SL-CREDIT", "online/receipt: PONG-SL-REFUND"),
+        edit("counter/receipt: PONG-SL-CREDIT", "counter/receipt: PONG-SL-REFUND"),
+      ]
+    : [edit("online/digital: PONG-SL-NO\n", "online/digital: PONG-SL-NO-AFTER-DOWNLOAD\n")];
+  return JSON.stringify({
+    summary: "Refund on an order number; no refund after a download.",
+    expected_effect: "The online desk answers as its customers expect.",
+    edits,
+    description: null,
+    description_rationale: "",
+  });
+}
+
 function replyFor(body: ChatRequest): string {
-  return ECHO.exec(allText(body))?.[0] ?? FALLBACK;
+  return skillReply(body) ?? ECHO.exec(allText(body))?.[0] ?? FALLBACK;
 }
 
 /**
@@ -467,7 +550,8 @@ const server = createServer((request, response) => {
     // Empty on a tool-calling turn, which is what a provider sends beside a tool
     // call: the agent has not said anything yet, and inventing prose for it
     // would put words in the transcript the agent never generated.
-    const answer = call === null ? (improvementReply(body) ?? replyFor(body)) : "";
+    const answer =
+      call === null ? (skillSessionReply(body) ?? improvementReply(body) ?? replyFor(body)) : "";
     const usage = usageFor(allText(body), answer);
 
     if (body.stream === true) {

@@ -1,10 +1,11 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api-error";
 import { SESSION } from "@/test-utils/improvement";
 import type { ContinuationEstimate, Improvement } from "@/types/improvement";
 import { NextStep } from "./next-step";
+import { ContinueSession } from "./continue-session";
 import { ReadOnlyProvider } from "./read-only";
 
 const state = vi.hoisted(() => ({ estimate: vi.fn(), start: vi.fn(), pending: false }));
@@ -14,6 +15,8 @@ vi.mock("@/hooks/use-improvements", () => ({
     continueSession: { mutateAsync: state.start, isPending: state.pending },
   }),
 }));
+
+vi.mock("./continue-session", () => ({ ContinueSession: vi.fn(() => <p>try again</p>) }));
 
 const QUOTE: ContinuationEstimate = {
   mode: "next_step",
@@ -25,6 +28,17 @@ const QUOTE: ContinuationEstimate = {
 };
 const AT_UNDERSTAND: Improvement = { ...SESSION, status: "waiting", stage: "classifying" };
 const AT_CHANGES: Improvement = { ...SESSION, status: "waiting", stage: "filtering" };
+const EVIDENCE_ONLY = new ApiError(
+  400,
+  "Every case of 'Refunds' was taken from the conversations",
+  {
+    error: {
+      code: "BAD_REQUEST",
+      message: "Every case of 'Refunds' was taken from the conversations",
+      details: { dataset_id: "d7", excluded: 3, reason: "all_evidence" },
+    },
+  },
+);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -41,7 +55,7 @@ it("prices the next step before anyone asks, and pressing it consents to that pr
   const go = await screen.findByRole("button", {
     name: "Next step: write the changes · up to $0.04",
   });
-  expect(state.estimate).toHaveBeenCalledWith(AT_UNDERSTAND.budget_usd);
+  expect(state.estimate).toHaveBeenCalledWith({ budget: AT_UNDERSTAND.budget_usd });
   expect(state.start).not.toHaveBeenCalled();
   await userEvent.click(go);
   expect(state.start).toHaveBeenCalledWith(QUOTE);
@@ -127,7 +141,7 @@ it("asks for a higher limit when the next step costs more than is left", async (
   await userEvent.type(screen.getByLabelText(/limit/i), "3");
   state.estimate.mockResolvedValue({ ...QUOTE, total_usd: "2", budget_usd: "3" });
   await userEvent.click(raise);
-  expect(state.estimate).toHaveBeenLastCalledWith("3");
+  expect(state.estimate).toHaveBeenLastCalledWith({ budget: "3" });
   expect(
     await screen.findByRole("button", { name: "Next step: write the changes · up to $2.00" }),
   ).toBeEnabled();
@@ -143,6 +157,29 @@ it("says a step that cannot be measured is final for this session, rather than a
   expect(await screen.findByRole("alert")).toHaveTextContent(
     /can't be tested: 1 more question kept aside .* end the session, add questions, and start a new one\./,
   );
+});
+
+it("sends a check whose questions all come from the evidence to add others", async () => {
+  state.estimate.mockRejectedValue(EVIDENCE_ONLY);
+  render(<NextStep session={AT_CHANGES} onStarted={vi.fn()} />);
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Every question of this dataset comes from the conversations this change learned from, so none of them can test it.",
+  );
+  expect(
+    screen.getByRole("link", { name: "Add questions from other conversations" }),
+  ).toHaveAttribute("href", "/datasets/d7");
+});
+
+it("sends a step refused at the press because its questions all come from the evidence to add others", async () => {
+  state.start.mockRejectedValueOnce(EVIDENCE_ONLY);
+  render(<NextStep session={AT_CHANGES} onStarted={vi.fn()} />);
+
+  await userEvent.click(await screen.findByRole("button", { name: /Next step/ }));
+
+  expect(
+    await screen.findByRole("link", { name: "Add questions from other conversations" }),
+  ).toHaveAttribute("href", "/datasets/d7");
 });
 
 it("says the session's own reason a step cannot be taken, without pricing it", () => {
@@ -206,6 +243,18 @@ it("offers nothing to a reader who may not start an improvement on the agent", (
   expect(state.estimate).not.toHaveBeenCalled();
 });
 
+it.each([AT_UNDERSTAND, AT_CHANGES])(
+  "offers a skill's waiting step although Try again could not start there",
+  async (stop) => {
+    const session = { ...stop, skill_id: "k1", can_restart: false };
+    render(<NextStep session={session} onStarted={vi.fn()} />);
+    expect(
+      await screen.findByRole("button", { name: /^Next step: .* · up to \$0\.04$/ }),
+    ).toBeEnabled();
+    expect(state.estimate).toHaveBeenCalledWith({ budget: session.budget_usd });
+  },
+);
+
 it("prices a check as the most it may cost, and says what it most likely costs", async () => {
   state.estimate.mockResolvedValue({ ...QUOTE, total_usd: "0.28", expected_usd: "0.07" });
   const view = render(<NextStep session={AT_CHANGES} onStarted={vi.fn()} />);
@@ -222,4 +271,111 @@ it("prices a check as the most it may cost, and says what it most likely costs",
   render(<NextStep session={AT_CHANGES} onStarted={vi.fn()} />);
   await screen.findByRole("button", { name: /up to \$0\.04/ });
   expect(screen.queryByText(/Most likely/)).not.toBeInTheDocument();
+});
+
+it("says what the priced step will do under its price", async () => {
+  render(
+    <NextStep
+      session={AT_UNDERSTAND}
+      detail={(quote) => <p>runs on Support for {quote.total_usd}</p>}
+      onStarted={vi.fn()}
+    />,
+  );
+
+  expect(await screen.findByText(/runs on Support for/)).toBeInTheDocument();
+});
+
+it("re-prices on a skill line that got a newer version, and says so", async () => {
+  state.start.mockRejectedValueOnce(
+    new ApiError(409, "The line moved", {
+      error: { code: "LINE_MOVED", message: "The line moved" },
+    }),
+  );
+  render(<NextStep session={AT_CHANGES} onStarted={vi.fn()} />);
+  const first = await screen.findByRole("button", {
+    name: /test the selected changes · up to \$0.04/,
+  });
+  state.estimate.mockResolvedValue({ ...QUOTE, total_usd: "0.07" });
+  await userEvent.click(first);
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "got a newer version meanwhile, so the step was priced again on it: up to $0.07",
+  );
+  expect(screen.queryByText("try again")).not.toBeInTheDocument();
+});
+
+it("leaves trying again when the edits no longer apply to the moved line", async () => {
+  vi.mocked(ContinueSession).mockClear();
+  state.start.mockRejectedValueOnce(
+    new ApiError(409, "The line moved", {
+      error: { code: "LINE_MOVED", message: "The line moved" },
+    }),
+  );
+  render(<NextStep session={AT_CHANGES} onStarted={vi.fn()} />);
+  await screen.findByRole("button", { name: /test the selected changes · up to \$0.04/ });
+  state.estimate.mockRejectedValueOnce(
+    new ApiError(400, "The edits no longer apply", {
+      error: { code: "BAD_REQUEST", message: "The edits no longer apply" },
+    }),
+  );
+  await userEvent.click(screen.getByRole("button", { name: /test the selected changes/ }));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent("The edits no longer apply");
+  expect(screen.getByText("try again")).toBeInTheDocument();
+  state.start.mockRejectedValueOnce(new ApiError(409, "The price changed"));
+  await userEvent.click(screen.getByRole("button", { name: /test the selected changes/ }));
+  expect(await screen.findByText(/The price changed to up to/)).toBeInTheDocument();
+  expect(screen.queryByText("try again")).not.toBeInTheDocument();
+});
+
+it("prices and starts the step with what the session's kind adds, and prices it again when that changes", async () => {
+  const view = render(
+    <NextStep session={AT_UNDERSTAND} body={{ main_alone: true }} onStarted={vi.fn()} />,
+  );
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Next step: write the changes · up to $0.04" }),
+  );
+  expect(state.estimate).toHaveBeenLastCalledWith({
+    budget: AT_UNDERSTAND.budget_usd,
+    body: { main_alone: true },
+  });
+  expect(state.start).toHaveBeenLastCalledWith({ ...QUOTE, body: { main_alone: true } });
+  view.rerender(
+    <NextStep session={AT_UNDERSTAND} body={{ main_alone: false }} onStarted={vi.fn()} />,
+  );
+  await waitFor(() =>
+    expect(state.estimate).toHaveBeenLastCalledWith({
+      budget: AT_UNDERSTAND.budget_usd,
+      body: { main_alone: false },
+    }),
+  );
+});
+
+it("prices nothing while held, and prices again once settled", async () => {
+  const merging = { ...AT_CHANGES, skill_id: "k1" };
+  const view = render(
+    <NextStep session={merging} blocked="Settle the 1 open part first." hold onStarted={vi.fn()} />,
+  );
+  expect(screen.getByText("Settle the 1 open part first.")).toBeVisible();
+  expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  expect(state.estimate).not.toHaveBeenCalled();
+
+  view.rerender(<NextStep session={merging} revision="r2" onStarted={vi.fn()} />);
+  expect(
+    await screen.findByRole("button", {
+      name: "Next step: test the selected changes · up to $0.04",
+    }),
+  ).toBeEnabled();
+  expect(state.estimate).toHaveBeenCalledOnce();
+});
+
+it("drops a refusal once the step is priced again on what changed", async () => {
+  const merging = { ...AT_CHANGES, skill_id: "k1" };
+  state.estimate.mockRejectedValueOnce(new ApiError(400, "Resolve every conflict"));
+  const view = render(<NextStep session={merging} revision="r1" onStarted={vi.fn()} />);
+  expect(await screen.findByRole("alert")).toHaveTextContent("Resolve every conflict");
+
+  view.rerender(<NextStep session={merging} revision="r2" onStarted={vi.fn()} />);
+  await screen.findByRole("button", { name: "Next step: test the selected changes · up to $0.04" });
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 });

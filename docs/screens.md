@@ -68,7 +68,7 @@ The Builder, tab by tab.
 
 ### Build
 
-Instructions, model and endpoint. The behaviour lives here rather than in code, in Markdown the model reads for structure - and the header carries `published` beside `Draft differs from v40`, which is the whole point: editing does not ship.
+Instructions, model and endpoint. The behaviour lives here rather than in code, in Markdown the model reads for structure - and the header carries `published` beside `Draft differs from agent v40`, which is the whole point: editing does not ship.
 
 ![Build](assets/screens/light/agent-builder.webp?v=20261102-industrial#only-light)
 ![Build](assets/screens/dark/agent-builder.webp?v=20261102-industrial#only-dark)

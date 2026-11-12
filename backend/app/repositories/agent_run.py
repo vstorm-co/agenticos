@@ -16,6 +16,7 @@ from sqlalchemy import (
     case,
     func,
     literal,
+    null,
     or_,
     select,
     tuple_,
@@ -85,6 +86,7 @@ async def create_run(
     test_spec: dict[str, Any] | None = None,
     key_scopes: list[str] | None = None,
     improvement_run_id: UUID | None = None,
+    skill_uses_recorded: bool | None = None,
     system_role: str | None = None,
     trigger_id: UUID | None = None,
     routine_origin_id: UUID | None = None,
@@ -121,6 +123,10 @@ async def create_run(
         subagent_task_id=subagent_task_id,
         status=RunStatus.RUNNING.value,
         started_at=started_at,
+        # Null until its terminal write records the skills it used: a run that
+        # dies before then is unknown, not one that used none. `null()`, because a
+        # plain None gives way to the column's default.
+        skill_uses_recorded=null() if skill_uses_recorded is None else skill_uses_recorded,
     )
     db.add(run)
     await db.flush()
@@ -1309,6 +1315,38 @@ async def recent_usage(
         )
     ).one()
     return int(count), float(input_tokens or 0), float(output_tokens or 0)
+
+
+async def agents_of_runs(
+    db: AsyncSession, run_ids: Sequence[UUID], *, organization_id: UUID
+) -> dict[UUID, UUID]:
+    """The agent each of these runs belongs to; a run retention has removed is absent."""
+    if not run_ids:
+        return {}
+    result = await db.execute(
+        select(AgentRun.id, AgentRun.agent_id).where(
+            AgentRun.id.in_(list(run_ids)), AgentRun.organization_id == organization_id
+        )
+    )
+    return {row.id: row.agent_id for row in result.all()}
+
+
+async def conversations_of_runs(
+    db: AsyncSession, run_ids: Sequence[UUID], *, organization_id: UUID
+) -> list[UUID]:
+    """The conversations these runs answered in; a run without one names none."""
+    if not run_ids:
+        return []
+    result = await db.scalars(
+        select(AgentRun.conversation_id)
+        .where(
+            AgentRun.id.in_(list(run_ids)),
+            AgentRun.organization_id == organization_id,
+            AgentRun.conversation_id.is_not(None),
+        )
+        .distinct()
+    )
+    return [conversation_id for conversation_id in result.all() if conversation_id is not None]
 
 
 async def cost_of_runs(

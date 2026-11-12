@@ -2,9 +2,10 @@
 import { MarkdownContent } from "@/components/chat/markdown-content";
 
 import Link from "next/link";
-import { BookCheck, MessageSquareQuote } from "lucide-react";
+import { BookCheck, MessageSquareQuote, Sparkles } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useImprovementEvidence } from "@/hooks/use-improvements";
+import { subjectOf } from "@/lib/improvement-subject";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { Improvement, ImprovementEvidenceItem, KnowledgeAdded } from "@/types/improvement";
@@ -69,7 +70,7 @@ function problems(items: ImprovementEvidenceItem[]) {
 
 export function Understand({ session }: { session: Improvement }) {
   const t = useTranslations("improvement");
-  const sources = useImprovementEvidence(session.agent_id, {
+  const sources = useImprovementEvidence(subjectOf(session), {
     sessionId: session.id,
     live: session.status === "running" || session.status === "queued",
   });
@@ -225,6 +226,19 @@ function TopicCard({ items }: { items: ImprovementEvidenceItem[] }) {
                   : t(item.kind === "train_eval" ? "trainExample" : "chatExample")}
             </span>
             {item.knowledge_added && <KnowledgeAddedNote added={item.knowledge_added} />}
+            {[
+              ...new Map(
+                items.flatMap((each) => each.skills ?? []).map((skill) => [skill.skill_id, skill]),
+              ).values(),
+            ].map((skill) => (
+              <span
+                key={skill.skill_id}
+                className="bg-muted text-muted-foreground inline-flex items-center gap-1 rounded px-1.5 text-xs"
+              >
+                <Sparkles className="size-3.5" aria-hidden />
+                {t("usedSkill", { name: skill.name })}
+              </span>
+            ))}
             {comments.length > 0 && (
               <span className="text-muted-foreground inline-flex items-center gap-1 text-xs">
                 <MessageSquareQuote className="size-3.5" aria-hidden />

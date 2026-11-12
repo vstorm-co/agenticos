@@ -1,5 +1,5 @@
 ---
-source_sha: "7dcd344b79b9"
+source_sha: "7e9532451783"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -44,7 +44,10 @@ powinien robić.
 
 Niezależnie od tego, z jakimi capabilities agent skończy, każdy run dostaje w
 instrukcjach, pod **Your setup**, listę tych, które ma, i tych, których nie ma -
-więc opisuje tylko to, co potrafi, i mówi, co trzeba by włączyć do reszty.
+więc opisuje tylko to, co potrafi, i mówi, co trzeba by włączyć do reszty. Agent
+ze skillami słyszy na końcu, pod **Your skills**, że skill, którego dotyczy
+pytanie, otwiera przez `read_skill`; prośba o skill kartą dostaje w
+odpowiedzi właśnie to.
 
 Gdy prośba wymaga capability, której agent nie ma, pokazuje w czacie kartę z
 nią i z powodem. Ktoś, kto może edytować agenta, włącza ją z karty - powiązaną

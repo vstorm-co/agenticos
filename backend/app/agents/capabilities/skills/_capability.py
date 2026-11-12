@@ -15,14 +15,17 @@ from typing import Annotated, Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field, ValidationError
-from pydantic_ai import ModelRetry
-from pydantic_ai.tools import AgentDepsT
+from pydantic_ai import ModelRetry, RunContext
+from pydantic_ai.capabilities import ValidatedToolArgs
+from pydantic_ai.messages import ToolCallPart
+from pydantic_ai.tools import AgentDepsT, ToolDefinition
 from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai_skills import Skill as ToolkitSkill
 from pydantic_ai_skills import SkillResource as ToolkitResource
 from pydantic_ai_skills import SkillsCapability
 
 from app.agents.capabilities._tool_text import ToolText
+from app.agents.capabilities.skills._log import SkillUseLog
 from app.db.models.skill import Skill
 
 # What this capability publishes as a tool. The catalog and the skill bodies are
@@ -46,6 +49,15 @@ served where the stored one would be, and nothing is written to the skill.
 
 
 @dataclass(frozen=True)
+class SkillBodyFile:
+    """One file of a skill as a proposal would leave it."""
+
+    name: str
+    description: str | None
+    content: str
+
+
+@dataclass(frozen=True)
 class SkillBody:
     """A skill's description and instructions, as a proposal would leave them."""
 
@@ -53,6 +65,27 @@ class SkillBody:
     content: str
     name: str | None = None
     """A name marks a new skill projected for this run only, with no stored row."""
+    resources: tuple[SkillBodyFile, ...] | None = None
+    """The files in place of the stored ones; `None` keeps the stored files."""
+    fork_id: UUID | None = None
+    """The line the body was written for: a fork, or `None` for main. An inline
+    specialist binding the skill another way does not read it."""
+    over_pin: bool = False
+    """Served to the run's own agent even where it is pinned to a main version, as
+    moving it to main would leave it. Its inline specialists still read the skill as
+    they are bound."""
+
+
+def served_files(skill: Skill, body: SkillBody | None = None) -> list[SkillBodyFile]:
+    """The files a run is given for a skill: the body's when it brings its own."""
+    if body is not None and body.resources is not None:
+        return list(body.resources)
+    return [
+        SkillBodyFile(
+            name=resource.name, description=resource.description, content=resource.content
+        )
+        for resource in skill.resources
+    ]
 
 
 def to_toolkit_skill(skill: Skill, body: SkillBody | None = None) -> ToolkitSkill:
@@ -62,17 +95,15 @@ def to_toolkit_skill(skill: Skill, body: SkillBody | None = None) -> ToolkitSkil
         description=skill.description if body is None else body.description,
         content=skill.content if body is None else body.content,
     )
-    for resource in skill.resources:
-        content = _resource_content(resource.content)
+    for file in served_files(skill, body):
+        content = _resource_content(file.content)
         if isinstance(content, str):
             converted.resources.append(
-                ToolkitResource(
-                    name=resource.name, description=resource.description, content=content
-                )
+                ToolkitResource(name=file.name, description=file.description, content=content)
             )
         else:
             converted.resource(
-                content, name=resource.name, description=resource.description, takes_ctx=False
+                content, name=file.name, description=file.description, takes_ctx=False
             )
     return converted
 
@@ -148,7 +179,12 @@ class Skills(SkillsCapability[AgentDepsT]):
     cleanup, a race between concurrent runs, and a path traversal surface.
     """
 
-    def __init__(self, skills: list[Skill], bodies: Mapping[UUID, SkillBody] | None = None) -> None:
+    def __init__(
+        self,
+        skills: list[Skill],
+        bodies: Mapping[UUID, SkillBody] | None = None,
+        log: SkillUseLog | None = None,
+    ) -> None:
         """Build the deferred catalog, and re-describe the tool it carries.
 
         A set of skills that ships no files carries no toolset at all - there is
@@ -160,7 +196,9 @@ class Skills(SkillsCapability[AgentDepsT]):
                 an agent with no skills gets no capability at all, which is what
                 keeps an unusable tool out of the list the model reads each turn.
             bodies: Candidate bodies to serve instead of the stored ones, by id.
+            log: Where the skills this agent uses are counted for the run's record.
         """
+        self._log = log
         candidates = bodies or {}
         super().__init__(
             skills=[
@@ -173,6 +211,26 @@ class Skills(SkillsCapability[AgentDepsT]):
         toolset = self.get_toolset()
         if isinstance(toolset, FunctionToolset):
             _describe(toolset)
+
+    async def after_tool_execute(
+        self,
+        ctx: RunContext[AgentDepsT],
+        *,
+        call: ToolCallPart,
+        tool_def: ToolDefinition,
+        args: ValidatedToolArgs,
+        result: object,
+    ) -> object:
+        """Count the call against the skills it used.
+
+        Every tool call of the agent passes here, not only this capability's:
+        `load_capability` is the framework's, and a skill's files are also read
+        with the sandbox's tools. The arguments as the model wrote them, since
+        validation adds defaults it never sent.
+        """
+        if self._log is not None:
+            self._log.observe(tool_def.name, call.args_as_dict(raise_if_invalid=False))
+        return result
 
 
 def _describe(toolset: FunctionToolset[Any]) -> None:
