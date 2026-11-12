@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/use-auth";
 import { useDesktopState, useSetBlobby, useSetWindowPreferences } from "@/hooks/use-desktop";
+import { useHydrated } from "@/hooks/use-hydrated";
 import { useShell } from "@/hooks/use-shell";
 import { describeAccelerator } from "@/lib/desktop/accelerator";
 import { faceOf } from "@/lib/desktop/blobby-cast";
@@ -178,6 +179,7 @@ export function DesktopWelcome() {
   const t = useTranslations("desktop.welcome");
   const router = useRouter();
   const shell = useShell();
+  const hydrated = useHydrated();
   const { isAuthenticated, isLoading } = useAuth();
   const { data } = useDesktopState();
   const [step, setStep] = useState<Step>("blobby");
@@ -194,6 +196,7 @@ export function DesktopWelcome() {
       .finally(() => router.replace("/onboarding"));
   };
 
+  if (!hydrated) return null;
   if (!isDesktopShell(shell)) return <OnlyInTheAppScreen />;
   if (!data || !isAuthenticated) return null;
 
