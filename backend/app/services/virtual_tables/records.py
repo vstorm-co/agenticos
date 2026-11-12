@@ -163,6 +163,9 @@ class RecordWrite:
     """Whether this is the stored answer to an earlier request with the same operation key."""
 
 
+_UNKNOWN_KEYS_NAMED = 20
+
+
 def _merge(
     columns: list[ColumnDef], submitted: dict[str, CellValue], stored: dict[str, CellValue] | None
 ) -> dict[str, CellValue]:
@@ -177,10 +180,17 @@ def _merge(
     by_id = {str(column.id): column for column in columns}
     merged = dict(stored or {})
     problems: list[tuple[str, str]] = []
+    labels: dict[str, list[ColumnDef]] | None = None
+    unknown = 0
     for key, value in submitted.items():
         column = by_id.get(key)
         if column is None:
-            problems.append((f"values.{key}", _not_a_column(columns, key)))
+            # A write can carry any number of keys, so the label index is built once and
+            # only the first few unknown keys are named; the refusal stands either way.
+            unknown += 1
+            if unknown <= _UNKNOWN_KEYS_NAMED:
+                labels = _labels(columns) if labels is None else labels
+                problems.append((f"values.{key}", _not_a_column(labels, key)))
             continue
         if column.archived:
             raise ArchivedColumnError(key)
@@ -202,14 +212,27 @@ def _merge(
             merged[key] = column.default
         elif not column.nullable:
             problems.append((f"values.{key}", "This column is required"))
+    if unknown > _UNKNOWN_KEYS_NAMED:
+        problems.append(
+            ("values", f"{unknown - _UNKNOWN_KEYS_NAMED} more keys name no column of this table")
+        )
     if problems:
         raise InvalidRecordError(problems)
     return merged
 
 
-def _not_a_column(columns: list[ColumnDef], key: str) -> str:
+def _labels(columns: list[ColumnDef]) -> dict[str, list[ColumnDef]]:
+    """The live columns by case-folded label."""
+    labels: dict[str, list[ColumnDef]] = {}
+    for column in columns:
+        if not column.archived:
+            labels.setdefault(column.label.casefold(), []).append(column)
+    return labels
+
+
+def _not_a_column(labels: dict[str, list[ColumnDef]], key: str) -> str:
     """Why `key` names no column, and the id to use when it is one's label."""
-    labelled = [c for c in columns if not c.archived and c.label.casefold() == key.casefold()]
+    labelled = labels.get(key.casefold(), [])
     if len(labelled) == 1:
         return f"Values are keyed by column id, not label - use {labelled[0].id} for {key!r}"
     return "That is not a column of this table - values are keyed by column id"
