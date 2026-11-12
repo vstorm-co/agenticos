@@ -1399,8 +1399,8 @@ describe("the work before an answer", () => {
     expect(foldWork(runsOf([text("n", "First."), text("ans", "Second.")]))).toBeNull();
   });
 
-  it("keeps long progress, questions and errors in history before the final answer", () => {
-    // All progress stays chronological inside the one completed history.
+  it("keeps text delivered before a question visible beside the final answer", () => {
+    // A question can follow a completed report; its length is not the signal.
     const long = text("long", "x".repeat(401));
     const asked: MessagePart = { id: "p-q", type: "ask_user", question: "Which?", answer: "A" };
     const steer: MessagePart = { id: "p-s", type: "steer", content: "Also B." };
@@ -1408,8 +1408,8 @@ describe("the work before an answer", () => {
       runsOf([call("a"), long, asked, steer, call("bad", "error"), text("ans", "Done.")]),
     );
     expect(split?.steps).toBe(2);
-    expect(split?.shown).toHaveLength(1);
-    expect(split?.folded).toHaveLength(5);
+    expect(split?.shown).toHaveLength(2);
+    expect(split?.folded).toHaveLength(4);
   });
 
   it("keeps routine and failed calls in the same live history", () => {
@@ -1455,6 +1455,26 @@ describe("the work before an answer", () => {
 
     item({ parts, runDurationMs: 12_400 }, { endsTurn: false });
     expect(screen.getByRole("button", { name: "Worked · 1 step" })).toBeInTheDocument();
+  });
+
+  it("shows a report before a declined question even when this segment is not the last", () => {
+    item(
+      {
+        parts: [
+          thought,
+          call("inspect"),
+          text("report", "Audit findings that the person needs to read."),
+          call("question", "completed", "ask_user_question"),
+        ],
+        isStreaming: false,
+      },
+      { endsTurn: false },
+    );
+    expect(screen.getByText("Audit findings that the person needs to read.")).toBeVisible();
+    expect(screen.getByRole("button", { name: /Worked/ })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
   });
 
   it("uses the shared run clock instead of a resumed segment timestamp", () => {

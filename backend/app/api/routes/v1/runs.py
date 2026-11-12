@@ -331,6 +331,10 @@ async def get_run_transcript(
             "still tell which ones are this run's"
         ),
     ),
+    for_model: bool = Query(
+        False,
+        description="Omit guardrail-refused turns before pagination and quoted reply excerpts",
+    ),
 ) -> Any:
     """The turns one run produced, for a run detail view to render as steps.
 
@@ -353,14 +357,21 @@ async def get_run_transcript(
     that reads as "the run did nothing".
     """
     run, messages, total = await service.get_run_transcript(
-        ctx, run_id, skip=skip, limit=limit, whole_conversation=scope == "conversation"
+        ctx,
+        run_id,
+        skip=skip,
+        limit=limit,
+        whole_conversation=scope == "conversation",
+        for_model=for_model,
     )
     ratings = await service.transcript_ratings(ctx, [m.id for m in messages])
     return RunTranscript(
         run_id=run.id,
         conversation_id=run.conversation_id,
         items=[
-            RunTranscriptMessage.model_validate(m).model_copy(update=ratings[m.id])
+            RunTranscriptMessage.model_validate(m).model_copy(
+                update={**ratings[m.id], **({"reply_to": None} if for_model else {})}
+            )
             for m in messages
         ],
         total=total,

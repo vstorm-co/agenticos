@@ -1066,3 +1066,5 @@ are optional help; closing one does not create a successful run. Integrations,
 files, agent building, team invitations and routines are optional next steps.
 
 Member managers can check whether an existing teammate and they can run a common published agent. The preview returns only that answer, never private agent names, and makes no model call. It does not certify provider availability. Team invitations from a loopback address are blocked in this start; use a server address reachable by the recipient.
+
+Completed chat turns keep the text delivered before an agent asks a question visible beside the final answer, including after the question is declined or the run resumes. Tool results and reasoning stay in the expandable work history. This applies to stored conversations and shared chat views; it does not infer answers from text length.

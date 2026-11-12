@@ -19,6 +19,19 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Focused platform MCP discovery for connection tools and capabilities, with search, pagination and explicit response budgets. Run inspection reads bounded message and tool-payload windows under existing run permissions; run history accepts diagnostic filters.
+
+### Changed
+
+- Platform MCP connection and capability listings return summaries. Clients must follow `next_skip` and use the detail tools for configuration schemas. Skill discovery omits body excerpts and defaults to 20 items. Console REST responses are unchanged.
+
+### Fixed
+
+- Keep chat reports delivered before a question visible after the run resumes instead of folding them into tool history.
+- Find named agents beyond the first catalog page and reject cross-page ambiguities when reading Improve sessions.
+
 ## [1.69.0] - 2026-11-12
 
 ### Added

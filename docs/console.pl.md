@@ -1,5 +1,5 @@
 ---
-source_sha: "5b558c2a28fd"
+source_sha: "9ac2c7198237"
 ---
 
 # Konsola { #the-console }
@@ -1097,3 +1097,5 @@ pomocą; ich zamknięcie nie tworzy udanego wykonania. Integracje, pliki, budowa
 agentów, zaproszenia i rutyny są opcjonalnymi kolejnymi krokami.
 
 Osoby zarządzające członkami mogą sprawdzić, czy wraz z wybranym członkiem mogą uruchomić wspólnego opublikowanego agenta. Podgląd zwraca tylko tę informację, bez nazw prywatnych agentów i bez wywołania modelu. Nie potwierdza dostępności dostawcy. Centrum startu blokuje zaproszenia z adresu lokalnego komputera; potrzebny jest adres serwera osiągalny dla odbiorcy.
+
+Zakończone tury chatu pokazują tekst przekazany przed pytaniem agenta obok końcowej odpowiedzi, także po odmowie odpowiedzi na pytanie lub wznowieniu runu. Wyniki narzędzi i rozumowanie pozostają w rozwijanej historii pracy. Dotyczy to zapisanych rozmów i udostępnionych widoków; długość tekstu nie decyduje o jego klasyfikacji.

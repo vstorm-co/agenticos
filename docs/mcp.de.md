@@ -1,5 +1,5 @@
 ---
-source_sha: "ba0360b18a65"
+source_sha: "a707f5254f28"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -1503,3 +1503,17 @@ Die Migration `0293_connected_account_sources.py` verlangt erneute Zustimmung f�
 Mirage-Freigabepausen binden Kontoidentitäten und Geheimnisgenerationen. Änderungen während der Pause erfordern einen neuen Lauf mit Freigabe. Routinenprüfungen binden dieselben Generationen; Terminalschreibvorgänge und Befehle brauchen die Zustimmung zu Routinenaktionen, auch wenn Schreibfreigaben des Mounts deaktiviert sind.
 
 Das Entfernen eines Mitglieds widerruft dessen persönliche Freigaben über diese Organisation dauerhaft; eine erneute Einladung erfordert eine neue Zustimmung.
+
+## Begrenzte Suche und Run-Analyse { #bounded-discovery }
+
+Das Plattform-MCP liefert zunächst Zusammenfassungen statt aller Verträge. `list_org_connections` und `list_my_connections` unterstützen `q`, `limit` (1–50, Standard 20) und `skip`; folgen Sie `next_skip` bis null. Gespeicherte Tool-Schemas und Agentenlisten werden ausgelassen. `tool_count: null` bedeutet, dass kein Katalog gespeichert wurde; null Tools als Zahl bedeutet einen gespeicherten leeren Katalog. `allowed_tool_count: null` bedeutet keine Tool-Zulassungsliste. `list_my_connections(include_tools=true)` bleibt für kleine Antworten verfügbar, lehnt aber Antworten über 64 KiB ab.
+
+`list_mcp_connection_tools(connection_id, account, q, limit, skip)` sucht Tools einer zugänglichen Verbindung. Es liefert Namen, begrenzte Beschreibungsauszüge, Zulassungsstatus und den expliziten `read_only_hint` des Servers. Null bedeutet keine Erklärung, keinen nachgewiesenen Schreibzugriff. `get_mcp_connection_tool` liefert einen vollständigen gespeicherten Vertrag einschließlich Eingabeschema. Ein null-Schema wurde nicht gespeichert und bedeutet nicht, dass keine Argumente existieren. Beide lesen den zuletzt gespeicherten Katalog ohne Tool-Ausführung oder Servertest; beachten Sie `last_checked_at` und `tools_cached`. Organisationszugriff erfordert `mcp:manage`, persönlicher Zugriff bleibt auf eigene Verbindungen beschränkt.
+
+`list_capabilities(q, limit, skip)` liefert Zusammenfassungen. Lesen Sie vor der Konfiguration mit `get_capability(capability_id)` Schema, Standardwerte und Tool-Verträge. `list_skills` liefert standardmäßig 20 Einträge, reicht `q` an die API weiter und lässt Inhaltsauszüge aus. `get_skill` liest den Inhalt; `include_usage=true` ergänzt nutzende Agenten. Diese Suchantworten haben ein Budget von 64 KiB und lehnen Überschreitungen mit einem Hinweis auf engere Anfragen ab. Erforderliche Schemafelder werden nicht still abgeschnitten. Bestehende MCP-Clients müssen Konfiguration über die Detail-Tools lesen und Seitenfortsetzungen beachten. Die REST-Antworten der Konsole bleiben unverändert.
+
+`list_runs` filtert nach Status, Kanal, eingefrorener Version und Datumswerten mit Zeitzone. Historische Fehler beweisen keinen Fehler der aktuellen Version. `read_conversation` bleibt auf eigene Chats beschränkt. `read_run_transcript` liest autorisierte Runs, auch von Kollegen oder Kanälen, nach der bestehenden `runs:view`-Regel. Durch Guardrails abgewiesene Nachrichten werden vor der Seitenauswahl entfernt, zitierte Antworten ausgelassen.
+
+Nachrichtenindizes beziehen sich auf dieses gefilterte Transkript. Zurückgegeben werden begrenzte Textfenster und Tool-Metadaten statt aller Argumente und Ergebnisse. Folgen Sie `next_skip`, `next_offset` und `next_tool_skip`; setzen Sie für weitere Teile einer langen Nachricht `limit=1`. `read_run_tool_call` liest ein Fenster von `args` oder `result` eines Aufrufs und prüft die Nachrichten-ID gegen die Seite; es führt nichts aus. Nicht verfügbare Ergebnisse sind null. Privater Gesprächszugriff wird nicht erweitert.
+
+Die Namenssuche für Improve prüft alle Agentenseiten, bevor sie einen Treffer auswählt oder Mehrdeutigkeit meldet; die ersten 100 Agenten gelten nicht als vollständiger Katalog.

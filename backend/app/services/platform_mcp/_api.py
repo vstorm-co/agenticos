@@ -28,7 +28,8 @@ Refusal = Callable[[str], dict[str, Any]]
 
 _NOT_EMPTY = (
     "This call failed; it is not an empty result, so never report it as none. "
-    "Look the id up again with list_agents or list_improvements, then retry."
+    "Verify the id with the matching listing tool before retrying. A 404 can "
+    "also mean this caller cannot read that resource; never bypass its permissions."
 )
 """Said with a refusal a model might otherwise read as "nothing found"."""
 

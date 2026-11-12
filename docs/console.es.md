@@ -1,5 +1,5 @@
 ---
-source_sha: "5b558c2a28fd"
+source_sha: "9ac2c7198237"
 ---
 
 # La consola { #the-console }
@@ -1129,3 +1129,5 @@ guiadas son ayuda opcional; cerrarlas no crea una ejecución correcta. Integraci
 archivos, agentes, invitaciones y rutinas son pasos siguientes opcionales.
 
 Quienes gestionan miembros pueden comprobar si ellos y otro miembro pueden ejecutar un mismo agente publicado. La vista previa devuelve solo esa respuesta, sin nombres de agentes privados ni llamadas al modelo. No confirma la disponibilidad del proveedor. Este inicio bloquea las invitaciones desde una dirección de bucle local; use una dirección del servidor accesible para el destinatario.
+
+Los turnos de chat completados mantienen visible el texto entregado antes de una pregunta del agente junto a la respuesta final, incluso tras rechazar la pregunta o reanudar la ejecución. Los resultados de herramientas y el razonamiento permanecen en el historial desplegable. Se aplica a chats guardados y compartidos; no clasifica las respuestas por su longitud.

@@ -1,5 +1,5 @@
 ---
-source_sha: "5b558c2a28fd"
+source_sha: "9ac2c7198237"
 ---
 
 # Die Konsole { #the-console }
@@ -1185,3 +1185,5 @@ sind optionale Hilfe; ihr Schließen erzeugt keinen erfolgreichen Lauf.
 Integrationen, Dateien, Agentenbau, Einladungen und Routinen sind optionale Folgeschritte.
 
 Mitgliederverwalter können prüfen, ob sie und ein bestehendes Mitglied einen gemeinsamen veröffentlichten Agenten ausführen können. Die Vorschau liefert nur diese Antwort, keine privaten Agentennamen, und ruft kein Modell auf. Sie bestätigt nicht die Erreichbarkeit des Anbieters. Einladungen von einer Loopback-Adresse sind in diesem Start gesperrt; verwenden Sie eine für den Empfänger erreichbare Serveradresse.
+
+Abgeschlossene Chat-Turns zeigen den vor einer Agentenfrage gelieferten Text neben der abschließenden Antwort, auch nach Ablehnung der Frage oder Fortsetzung des Runs. Tool-Ergebnisse und Überlegungen bleiben im aufklappbaren Arbeitsverlauf. Dies gilt für gespeicherte und geteilte Chats; die Textlänge entscheidet nicht über die Einordnung.
