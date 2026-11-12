@@ -1,5 +1,6 @@
 "use client";
 
+import { normalizeIdentifier } from "@/lib/normalize-identifier";
 import { useState } from "react";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -69,7 +70,8 @@ export function SlashCommandsManager() {
   };
 
   const handleSubmit = async () => {
-    const name = draftName.trim().toLowerCase();
+    const original = records.find((record) => record.id === editingId);
+    const name = draftName === original?.name ? draftName : normalizeIdentifier(draftName);
     const prompt = draftPrompt.trim();
     if (!NAME_PATTERN.test(name)) {
       toast.error(t("nameMustBeLowercase"));
@@ -243,7 +245,14 @@ export function SlashCommandsManager() {
                 <Input
                   id="cmd-name"
                   value={draftName}
-                  onChange={(e) => setDraftName(e.target.value.toLowerCase())}
+                  onChange={(e) => setDraftName(e.target.value)}
+                  onBlur={() => {
+                    const original = records.find((record) => record.id === editingId);
+                    if (draftName !== original?.name) setDraftName(normalizeIdentifier(draftName));
+                  }}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   placeholder={t("todo")}
                   maxLength={32}
                   autoFocus

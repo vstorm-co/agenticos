@@ -349,3 +349,31 @@ run 43111576233 also found stale generated Architect guide copies; regeneration
 and `gen_architect_guide.py --check` now pass. That older run's frontend coverage
 and unrelated workflow-run failures do not constitute verification of the new
 head; full CI remains pending.
+
+## Human-entered technical names — 2026-11-12
+
+Reproduced the reported skill-creation failure on a touch phone: `Strategic
+Diagnostic` produced a server validation error. The console now formats a name
+on blur and again at submission, preserving the text and caret while typing.
+Capitals become lowercase, separators become single hyphens, and Latin accents
+(including Polish ł) are simplified. No fallback name or silent truncation is
+introduced. The server's canonical validation and capability-name checks remain.
+
+The same behavior covers editable authoring skill proposals, environment creation
+and rename, MCP prefixes in both connection entry points, and custom slash
+commands. Identifier keyboards disable autocorrection, capitalization and spell
+checking. Skill and MCP helper text is connected to its field. Authoring names
+no longer start red or become red during ordinary typing. Existing unchanged
+MCP prefixes and command names retain their stored identity on unrelated saves.
+
+210 scoped tests in eight files pass. Two touch Chromium journeys verify real
+skill creation and reload, a normalized-name collision retaining the draft,
+correction and retry, and command creation followed by reload. Both remove their
+own fixtures. The original UI's refused skill creation was reproduced before
+editing and captured at the same phone width. ESLint/TypeScript and documentation
+checks run with the change; full CI remains separate evidence.
+
+| Evidence | Before | After |
+| --- | --- | --- |
+| Skill creation accepts a human title | [PNG](comparisons/skill-name-mobile-before.png) | [PNG](comparisons/skill-name-mobile-after.png) |
+| Custom command name | — | [PNG](comparisons/command-name-mobile-after.png) |

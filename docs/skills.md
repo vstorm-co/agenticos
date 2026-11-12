@@ -116,8 +116,12 @@ the skill - or that none does yet. Context files and knowledge bases offer the s
 
 **A skill's name is the id a model loads it by**, so it takes the form models
 write ids in: lowercase letters and digits joined by single hyphens, such as
-`refund-policy`. A name with spaces or capitals is refused when the skill is
-created. A name the model has to reproduce exactly, like `Refund policy`, was
+`refund-policy`. In the console, capitals, spaces, punctuation and Latin accents
+are formatted automatically when you leave the name field or submit it: `Refund Policy`
+becomes `refund-policy`. The API still requires the canonical format. Existing-name
+collisions and capability names are refused without discarding the draft.
+
+A name the model has to reproduce exactly, like `Refund policy`, was
 loaded as `refund-policy` instead, and two wrong guesses end the turn
 ([#1911](https://github.com/vstorm-co/agenticos/issues/1911)).
 

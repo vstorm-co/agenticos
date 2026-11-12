@@ -1,5 +1,6 @@
 "use client";
 
+import { normalizeIdentifier } from "@/lib/normalize-identifier";
 import { useEffect, useMemo, useState } from "react";
 import { Plug, Plus, Settings2 } from "lucide-react";
 import { toast } from "sonner";
@@ -460,7 +461,8 @@ export function McpServerList({
 
   const handleSubmit = async (values: ConnectionFormValues) => {
     if (!activeDraft) return;
-    const name = values.name.trim().toLowerCase();
+    const name =
+      values.name === activeDraft.existing?.name ? values.name : normalizeIdentifier(values.name);
     const label = values.label.trim();
     const url = values.url.trim();
     // Only a token connection carries one. Switching to OAuth or None and

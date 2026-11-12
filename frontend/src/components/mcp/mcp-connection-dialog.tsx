@@ -1,5 +1,6 @@
 "use client";
 
+import { normalizeIdentifier } from "@/lib/normalize-identifier";
 import { useState } from "react";
 import { Building2, User } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -211,14 +212,19 @@ function ConnectionForm({
           id="mcp-name"
           value={name}
           onChange={(event) => {
-            setName(event.target.value.toLowerCase());
+            setName(event.target.value);
             setPrefixEdited(true);
           }}
+          onBlur={() => setName(name === draft.existing?.name ? name : normalizeIdentifier(name))}
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          aria-describedby="mcp-name-hint"
           placeholder={t("prefixPlaceholder")}
           maxLength={32}
           className="mt-1.5"
         />
-        <p className="text-muted-foreground mt-1 text-xs">
+        <p id="mcp-name-hint" className="text-muted-foreground mt-1 text-xs">
           {t("namePrefixesToolNames", { scope })}
         </p>
       </div>
@@ -519,7 +525,7 @@ function ConnectionForm({
             }
             onSubmit({
               label,
-              name,
+              name: name === draft.existing?.name ? name : normalizeIdentifier(name),
               url,
               token,
               auth,

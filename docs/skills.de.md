@@ -1,5 +1,5 @@
 ---
-source_sha: "5ccafc29c291"
+source_sha: "508f0112f139"
 ---
 
 # Skills { #skills }
@@ -126,8 +126,13 @@ Kontextdateien und Wissensdatenbanken bieten dasselbe.
 
 **Der Name eines Skills ist die id, unter der ein Modell ihn lädt**, also hat
 er die Form, in der Modelle ids schreiben: Kleinbuchstaben und Ziffern, verbunden
-durch einzelne Bindestriche, etwa `refund-policy`. Ein Name mit Leerzeichen oder
-Großbuchstaben wird beim Anlegen des Skills abgelehnt. Einen Namen, den das Modell
+durch einzelne Bindestriche, etwa `refund-policy`. Die Konsole formatiert Großbuchstaben,
+Leerzeichen, Satzzeichen und lateinische Akzente beim Verlassen des Feldes oder Speichern
+automatisch: `Refund Policy` wird zu `refund-policy`. Die API verlangt weiterhin das
+kanonische Format. Vorhandene Namen und Capability-Namen werden abgelehnt, ohne den
+Entwurf zu verwerfen.
+
+Einen Namen, den das Modell
 exakt wiedergeben müsste, wie `Refund policy`, lud es stattdessen als
 `refund-policy`, und zwei falsche Vermutungen beenden die Runde
 ([#1911](https://github.com/vstorm-co/agenticos/issues/1911)).

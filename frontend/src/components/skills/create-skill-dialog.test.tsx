@@ -107,12 +107,35 @@ describe("CreateSkillDialog", () => {
     expect(screen.getByLabelText("Category")).toHaveValue("something-nobody-suggested");
   });
 
+  it("keeps typing intact and normalizes the name before submitting, even without blur", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "skill-new", name: "strategic-diagnostic" });
+    fireEvent.change(name(), { target: { value: "Strategic Diagnostic" } });
+    expect(name()).toHaveValue("Strategic Diagnostic");
+    fireEvent.change(description(), { target: { value: "A diagnostic" } });
+    fireEvent.click(create());
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/skills",
+        expect.objectContaining({ name: "strategic-diagnostic" }),
+      ),
+    );
+  });
+
+  it("formats a pasted name on blur and keeps its hint connected", () => {
+    fireEvent.change(name(), { target: { value: "Zażółć GĘŚLĄ" } });
+    fireEvent.blur(name());
+    expect(name()).toHaveValue("zazolc-gesla");
+    expect(name()).toHaveAttribute("aria-describedby", "new-skill-name-hint");
+  });
+
   it("keeps the whole draft when the name is taken", async () => {
     // Content is a ten row editor. Losing it - or making somebody re-open a
     // dialog to find out what a toast said - is the cost of treating an
     // expected refusal as a failure.
     vi.mocked(apiClient.post).mockRejectedValue(NAME_TAKEN);
     await fill();
+    await userEvent.clear(name());
+    await userEvent.type(name(), "Refund Policy");
     await userEvent.click(create());
 
     await waitFor(() => expect(name()).toHaveAttribute("aria-invalid", "true"));

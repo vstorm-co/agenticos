@@ -33,6 +33,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Console skill names, environment names, MCP prefixes and custom slash commands
+  format human-entered titles automatically instead of rejecting capitals and
+  spaces. Typing stays intact until blur or submission; identifier fields turn
+  off mobile text correction, and name conflicts preserve the draft.
+
 - Keep document and member actions visible on phones, prevent organization
   profile controls from overflowing, and align spending-limit saves. Retention
   edits now guard navigation, validate periods and retain refused drafts.

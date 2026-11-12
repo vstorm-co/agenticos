@@ -1,5 +1,5 @@
 ---
-source_sha: "5ccafc29c291"
+source_sha: "508f0112f139"
 ---
 
 # Skille { #skills }
@@ -122,8 +122,12 @@ używają skilla - albo że jeszcze żaden. Pliki kontekstu i bazy wiedzy mają 
 
 **Nazwa skilla to id, pod którym model go ładuje**, więc ma formę, w jakiej
 modele piszą id: małe litery i cyfry połączone pojedynczymi myślnikami, na przykład
-`refund-policy`. Nazwa ze spacjami lub wielkimi literami jest odrzucana przy
-tworzeniu skilla. Nazwę, którą model musiałby odtworzyć dokładnie, jak
+`refund-policy`. Konsola automatycznie formatuje wielkie litery, spacje, interpunkcję
+i łacińskie znaki diakrytyczne po opuszczeniu pola lub przy zapisie: `Refund Policy`
+zmienia się w `refund-policy`. API nadal wymaga formatu kanonicznego. Kolizje z
+istniejącą nazwą i nazwy capabilities są odrzucane bez utraty formularza.
+
+Nazwę, którą model musiałby odtworzyć dokładnie, jak
 `Refund policy`, ładował jako `refund-policy`, a dwie błędne próby kończą turę
 ([#1911](https://github.com/vstorm-co/agenticos/issues/1911)).
 

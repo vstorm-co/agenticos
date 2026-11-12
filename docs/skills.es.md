@@ -1,5 +1,5 @@
 ---
-source_sha: "5ccafc29c291"
+source_sha: "508f0112f139"
 ---
 
 # Skills { #skills }
@@ -126,8 +126,12 @@ de conocimiento ofrecen lo mismo.
 
 **El nombre de un skill es el id con el que un modelo lo carga**, así que
 tiene la forma en que los modelos escriben ids: minúsculas y dígitos unidos por
-guiones simples, como `refund-policy`. Un nombre con espacios o mayúsculas se
-rechaza al crear el skill. Un nombre que el modelo tuviera que reproducir
+guiones simples, como `refund-policy`. La consola formatea automáticamente mayúsculas,
+espacios, puntuación y acentos latinos al salir del campo o guardar: `Refund Policy`
+pasa a `refund-policy`. La API sigue exigiendo el formato canónico. Las colisiones con
+nombres existentes y los nombres de capabilities se rechazan sin perder el borrador.
+
+Un nombre que el modelo tuviera que reproducir
 exactamente, como `Refund policy`, lo cargaba como `refund-policy`, y dos
 suposiciones erróneas terminan el turno ([#1911](https://github.com/vstorm-co/agenticos/issues/1911)).
 
