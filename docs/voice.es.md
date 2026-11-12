@@ -1,5 +1,5 @@
 ---
-source_sha: "f415e83adfe5"
+source_sha: "4154d0af5d18"
 title: "Conversaciones de voz"
 seo_title: "Conversaciones de voz: habla con un agent publicado"
 description: "Llama a un agent publicado y habla con él: modelos realtime, aprobaciones en la llamada, límites de tiempo y budgets, redes de seguridad y transcripciones."
@@ -183,6 +183,10 @@ la llamada lo dice en voz alta.
   llama el modelo de texto, o uno de sus subagents, muestra la misma tarjeta de
   aprobación que una que llama la llamada. La llamada de un visitante tampoco
   lleva aquí herramientas con aprobación.
+- **Una llamada que pregunta siempre se decide por escrito.** Una herramienta
+  como `share_memory` espera a alguien que lea exactamente lo que cambiaría, y una
+  tarjeta de voz no puede mostrarlo. La llamada la rechaza y el agent propone
+  preguntar en el chat de texto.
 - **Un traspaso cada vez.** Cada uno continúa lo que hizo el anterior en esa
   llamada, así que «ahora envía ese archivo» funciona después de «redáctalo».
 - **Un fallo se dice, no se oculta.** Un traspaso que se queda sin presupuesto o
