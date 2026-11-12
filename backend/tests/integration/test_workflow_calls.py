@@ -795,6 +795,7 @@ async def _publish_beside(engine: AsyncEngine, ctx: AuthContext, graph: Workflow
 
 
 @pytest.mark.parametrize("depth", [1, 2])
+@pytest.mark.security
 async def test_cancelling_a_caller_cancels_what_it_called_and_withdraws_their_approvals(
     engine: AsyncEngine, depth: int
 ) -> None:
