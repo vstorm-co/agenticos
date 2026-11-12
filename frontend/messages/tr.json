@@ -11500,7 +11500,7 @@
       },
       "loop": {
         "title": "Gelişmelerden haberdar olun",
-        "body": "Onaylar, hiçbir şeyi açmadan yanıtlayabileceğiniz bildirimler olarak gelir.",
+        "body": "Onay istekleri bildirim olarak gelir. Çoğunu oradan yanıtlamak için Ayarlar → Masaüstü uygulaması bölümünde “Özel içeriği gizle” seçeneğini kapatın.",
         "login": "Oturum açıldığında AgenticOS'u aç",
         "keepRunning": "Pencere kapalıyken çalışmaya devam et",
         "test": "Bildirimler",
