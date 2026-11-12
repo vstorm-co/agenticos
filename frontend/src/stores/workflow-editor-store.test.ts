@@ -447,6 +447,34 @@ describe("useWorkflowEditorStore graph slice", () => {
     expect(edges[1]).toMatchObject({ source_node_id: "b", target_node_id: "a" });
   });
 
+  it("connectNodes makes a trigger wired into the start the new start", () => {
+    store.getState().seedGraph({
+      ...seededGraph(),
+      nodes: [
+        ...seededGraph().nodes,
+        { ...nodeAt("s", 0, 100), definition_id: "trigger.schedule" },
+      ],
+    });
+    store
+      .getState()
+      .connectNodes({ source: "s", target: "a", sourceHandle: "out", targetHandle: "in" });
+    expect(store.getState().graph?.entry_node_id).toBe("s");
+  });
+
+  it("connectNodes keeps the start when the trigger is wired into another step", () => {
+    store.getState().seedGraph({
+      ...seededGraph(),
+      nodes: [
+        ...seededGraph().nodes,
+        { ...nodeAt("s", 0, 100), definition_id: "trigger.schedule" },
+      ],
+    });
+    store
+      .getState()
+      .connectNodes({ source: "s", target: "b", sourceHandle: "out", targetHandle: "in" });
+    expect(store.getState().graph?.entry_node_id).toBe("a");
+  });
+
   it("connectNodes adds the bindings it is given with the edge, as one undoable edit", () => {
     store.getState().seedGraph(seededGraph());
     const binding = {
@@ -672,6 +700,48 @@ describe("useWorkflowEditorStore graph slice", () => {
     expect(graph?.edges).toHaveLength(0);
     expect(graph?.entry_node_id).toBe("b");
     expect(store.getState().selection).toEqual({ nodeIds: [], edgeIds: [] });
+  });
+
+  it("deleteSelection re-homes a removed start on a surviving trigger, not the step after it", () => {
+    store.getState().seedGraph({
+      entry_node_id: "manual",
+      nodes: [
+        { ...nodeAt("manual", 0, 0), definition_id: "trigger.manual" },
+        nodeAt("step", 100, 0),
+        { ...nodeAt("schedule", 0, 100), definition_id: "trigger.schedule" },
+      ],
+      edges: [
+        {
+          id: "e1",
+          source_node_id: "manual",
+          source_port: "out",
+          target_node_id: "step",
+          target_port: "in",
+        },
+      ],
+      bindings: [],
+      scopes: [],
+    });
+    store.getState().setSelection({ nodeIds: ["manual"], edgeIds: [] });
+    store.getState().deleteSelection();
+    expect(store.getState().graph?.entry_node_id).toBe("schedule");
+  });
+
+  it("deleteSelection does not re-home the start on a trigger inside a loop", () => {
+    store.getState().seedGraph({
+      entry_node_id: "a",
+      nodes: [
+        nodeAt("a", 0, 0),
+        nodeAt("b", 100, 0),
+        { ...nodeAt("nested", 0, 100), definition_id: "trigger.schedule", scope_id: "b" },
+      ],
+      edges: [],
+      bindings: [],
+      scopes: [],
+    });
+    store.getState().setSelection({ nodeIds: ["a"], edgeIds: [] });
+    store.getState().deleteSelection();
+    expect(store.getState().graph?.entry_node_id).toBe("b");
   });
 
   it("deleteSelection prunes the bindings and scopes a removed node leaves dangling", () => {

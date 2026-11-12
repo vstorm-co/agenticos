@@ -19,6 +19,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- **Workflow step search is grouped.** Searching the step picker lists matching categories first, then built-in steps, then actions from connected apps, each under its own heading. A matching category opens like it does when browsing.
+
+### Fixed
+
+- **Replacing a workflow's trigger.** Deleting the starting trigger now makes another trigger on the canvas the start, rather than the first step. Connecting a top-level trigger into the current start makes that trigger the start, repairing drafts that previously failed with "The starting step cannot be the target of a connection".
+
 ## [1.70.0] - 2026-11-12
 
 ### Upgrading
