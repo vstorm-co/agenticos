@@ -1,5 +1,5 @@
 ---
-source_sha: "390d73e39402"
+source_sha: "00ea34b0321a"
 ---
 
 # Governance { #governance }
@@ -78,6 +78,8 @@ Uruchomienia rutyn zachowują konta MCP i aliasy narzędzi dopuszczone dla daneg
 Wstrzymana rutyna bez tego zapisu dopuszczenia nie może kontynuować wywołań MCP zarządzanych kont. Po przeglądzie dostępu rozpocznij nowy run. Domyślne zachowanie agenta interaktywnego i jawne polityki zatwierdzania nie zmieniają się; wyjątki zatwierdzania dla konkretnych kont pozostają osobnym mechanizmem względem kontroli źródła.
 
 Wybór wersji pozwala śledzić domyślną opublikowaną wersję albo przypiąć jedną niezmienną wersję. Publikacja nie przesuwa pinu. Usuń go, aby ponownie śledzić wersję domyślną. Nazwane środowisko i pin wersji wzajemnie się wykluczają; nadal obowiązują bieżące uprawnienia, budżety i zatwierdzenia.
+
+Przypięta wersja - rutyny, środowiska, kroku workflow, delegata albo zaparkowanego runu - zachowuje instrukcje, toole i model, ale zatwierdzenia tooli pochodzą z bieżącej opublikowanej wersji agenta: obowiązuje ją bramka dodana później, a także zdjęcie bramki. Jeśli bieżąca wersja wymaga zatwierdzenia toola, który przypięta wersja przekazuje dostawcy modelu, przypięta wersja jest odrzucana do ponownej publikacji.
 
 Formularz rutyny pozwala ustawić lub usunąć datę zakończenia. Data używa pokazanej przy polu strefy urządzenia, niezależnie od strefy harmonogramu cron, i trafia do API jako timestamp z offsetem. Edycja innego pola zachowuje dotychczasowy koniec bez zmian.
 

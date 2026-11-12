@@ -1,5 +1,5 @@
 ---
-source_sha: "390d73e39402"
+source_sha: "00ea34b0321a"
 ---
 
 # Governance { #governance }
@@ -77,6 +77,8 @@ Las ejecuciones de rutinas conservan las cuentas MCP y los alias de herramientas
 Una rutina pausada sin este estado de admisión no puede continuar llamadas MCP de cuentas gestionadas. Inicia una ejecución nueva tras revisar su acceso. No cambian los valores del agente interactivo ni las políticas explícitas de aprobación; las excepciones de aprobación por cuenta siguen siendo independientes de esta comprobación del origen.
 
 La política de versiones permite seguir la versión publicada predeterminada o fijar una versión inmutable. Una publicación no cambia la versión fijada. Elimina la fijación para volver a seguir la predeterminada. Un entorno con nombre y una versión fijada se excluyen mutuamente; siguen vigentes los permisos, presupuestos y aprobaciones actuales.
+
+Una versión fijada - la de una rutina, un entorno, un paso de workflow, un delegado o un run aparcado - conserva sus instrucciones, herramientas y modelo, pero sus aprobaciones de herramientas vienen de la versión publicada actual del agent: le aplica un control añadido después, y también uno retirado. Si la versión actual exige aprobar una herramienta que la versión fijada entrega al proveedor del modelo, la versión fijada se rechaza hasta que se vuelva a publicar.
 
 El formulario de la rutina permite definir o quitar su fecha de fin. La fecha usa la zona horaria del dispositivo indicada junto al campo, independientemente de la zona del cron, y se envía a la API como un instante con desplazamiento UTC. Editar otro campo conserva el fin existente.
 

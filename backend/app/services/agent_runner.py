@@ -129,6 +129,7 @@ from app.agents.capabilities.approval import (
     ApprovalPending,
     ApprovalRejected,
     ApprovalRequest,
+    with_current_approvals,
 )
 from app.agents.capabilities.browser_use import (
     BROWSER_CAPABILITY_ID,
@@ -1280,6 +1281,10 @@ class ApprovalChannel:
     rows do not exist yet while the run is going, and re-reading them would be a
     query per parked call to recover what this object already had in hand.
     """
+
+    def has_decision(self, tool_call_id: str) -> bool:
+        """Whether a resumed run carries a decision on this call that is still to be used."""
+        return tool_call_id in self.decided
 
     async def __call__(self, request: ApprovalRequest) -> ApprovalDecision:
         decision = self.decided.pop(request.tool_call_id, None)
@@ -4007,13 +4012,10 @@ class AgentRunnerService:
         if surface != RunSurface.EVAL:
             refuse_system_agent(agent, action=f"a {surface.value} run")
         system = agent.kind != AgentKind.AGENT.value
+        run_version_id = version_id if existing_run is None else existing_run.agent_version_id
         if system:
             spec = for_the_platform(spec)
-        spec = await self._with_current_budget(
-            agent,
-            spec,
-            version_id=version_id if existing_run is None else existing_run.agent_version_id,
-        )
+        spec = await self._with_current_budget(agent, spec, version_id=run_version_id)
         routine = await RoutineAuthority.capture(
             self.db, ctx, agent_id=agent.id, run=existing_run, version_id=version_id
         )
@@ -4032,6 +4034,10 @@ class AgentRunnerService:
                             ]
                         }
                     )
+        # After the routine has checked the version it reviewed: the current
+        # approvals are policy laid over that version, not part of its sources.
+        if not system:
+            spec = await self._with_current_approvals(agent, spec, version_id=run_version_id)
         spec = _with_local_capabilities(
             await self.registry.with_assistant_guidance(agent, spec),
             local,
@@ -5713,7 +5719,11 @@ class AgentRunnerService:
                 },
             )
 
-        published = AgentSpec.model_validate(version.spec)
+        # Pinned for how it behaves; who must approve its tool calls is the
+        # delegate's current published version's to say, as for the run's own agent.
+        published = await self._with_current_approvals(
+            delegate, AgentSpec.model_validate(version.spec), version_id=ref.agent_version_id
+        )
         pinned = _with_shared(published, shared)
         pinned = await self.registry.with_assistant_guidance(delegate, pinned)
         delegate_resources = await self._delegate_resources(
@@ -8119,6 +8129,26 @@ class AgentRunnerService:
         if budget == spec.budget:
             return spec
         return spec.model_copy(update={"budget": budget})
+
+    async def _with_current_approvals(
+        self, agent: Agent, spec: AgentSpec, *, version_id: UUID | None
+    ) -> AgentSpec:
+        """`spec` under the tool approvals of the agent's current published version.
+
+        A pinned version - a routine's, an environment's, a workflow step's, a
+        parked run's - decides how the agent behaves, not who must approve what it
+        does. A draft under test (no version) and an agent never published keep
+        their own: there is no other statement to take.
+        """
+        current = agent.current_version_id
+        if current is None or version_id is None or current == version_id:
+            return spec
+        version = await agent_repo.get_version(
+            self.db, current, organization_id=agent.organization_id
+        )
+        if version is None:
+            return spec
+        return with_current_approvals(spec, AgentSpec.model_validate(version.spec))
 
     async def _parked_spec(self, ctx: AuthContext, run: AgentRun) -> tuple[Agent, AgentSpec]:
         """The agent and the exact spec version this run was executing.
