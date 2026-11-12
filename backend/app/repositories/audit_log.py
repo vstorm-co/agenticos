@@ -135,31 +135,40 @@ async def memory_erased_since(
     db: AsyncSession,
     *,
     organization_id: UUID,
-    user_id: UUID,
-    agent_id: UUID,
+    user_id: UUID | None,
+    agent_id: UUID | None,
     since: datetime,
 ) -> bool:
     """Whether this person's memory, or this agent's, was erased after `since`.
 
     An erasure writes the trail as it commits, so this is the cutoff a queued read of an
     older conversation must respect: the transcript outlives the erasure, and reading it
-    again would put back what the person was just told is gone.
+    again would put back what the person was just told is gone. Only the erasures of
+    the person and the agent given are asked about; with neither there is nothing to ask.
     """
+    erased = []
+    if agent_id is not None:
+        erased.append(
+            and_(
+                AppAdminAuditLog.action == "memory.agent.cleared",
+                AppAdminAuditLog.target_id == str(agent_id),
+            )
+        )
+    if user_id is not None:
+        erased.append(
+            and_(
+                AppAdminAuditLog.action == "memory.person.forgotten",
+                AppAdminAuditLog.target_id == str(user_id),
+            )
+        )
+    if not erased:
+        return False
     found = await db.scalar(
         select(AppAdminAuditLog.id)
         .where(
             AppAdminAuditLog.organization_id == organization_id,
             AppAdminAuditLog.created_at > since,
-            or_(
-                and_(
-                    AppAdminAuditLog.action == "memory.person.forgotten",
-                    AppAdminAuditLog.target_id == str(user_id),
-                ),
-                and_(
-                    AppAdminAuditLog.action == "memory.agent.cleared",
-                    AppAdminAuditLog.target_id == str(agent_id),
-                ),
-            ),
+            or_(*erased),
         )
         .limit(1)
     )
