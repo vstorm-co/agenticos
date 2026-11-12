@@ -2061,6 +2061,7 @@ async def test_custom_embedding_endpoint_requires_connection_authority():
         ("personal", "owner", None, False, False, False),
     ],
 )
+@pytest.mark.usefixtures("kb_contents_unread")
 async def test_detail_reports_effective_write_access(
     mock_db_session: AsyncMock,
     monkeypatch: pytest.MonkeyPatch,
