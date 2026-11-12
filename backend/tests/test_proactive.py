@@ -85,6 +85,12 @@ _LIMITS_MIDWAY = ProactiveThinker._limits
 
 
 @pytest.fixture(autouse=True)
+def _nobody_erased(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Erasure during a run is covered against Postgres, where its lock is real."""
+    monkeypatch.setattr(ProactiveThinker, "_erased_during", AsyncMock(return_value=False))
+
+
+@pytest.fixture(autouse=True)
 def _no_limits_midway(monkeypatch: pytest.MonkeyPatch) -> None:
     """`TestTheLimitsMidway` covers the limits; every other run here is under none."""
     monkeypatch.setattr(ProactiveThinker, "_limits", AsyncMock(return_value=[]))
