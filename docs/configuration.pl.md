@@ -1,5 +1,5 @@
 ---
-source_sha: "91072bbd4d91"
+source_sha: "67ab9ca1836d"
 ---
 
 # Konfiguracja { #configuration }
@@ -1566,6 +1566,7 @@ wystarczy.
 | `DOMAIN` | `example.com` | Domena produkcyjna (dla Traefika) |
 | `ACME_EMAIL` | `admin@example.com` | Adres e-mail dla Let's Encrypt do certyfikatów SSL |
 | `REDIS_PASSWORD` | `change-me-in-production` | Hasło Redisa dla produkcji |
+| `SESSION_COOKIE_NAMESPACE` | (puste) | Czyta go kontener konsoli. Małe litery, cyfry i myślniki, najwyżej 48: ciasteczka sesji nazywają się wtedy `agenticos_<namespace>_access_token` i `agenticos_<namespace>_refresh_token`. Ustaw inną wartość w każdym wdrożeniu, które dzieli nazwę hosta z innym na innym porcie - przeglądarka rozróżnia ciasteczka po hoście, nie po porcie, więc inaczej zalogowanie do jednego wylogowuje z drugiego. Zmiana jednorazowo wylogowuje wszystkich z konsoli. Zapasowe odczytanie ciasteczka przez WebSocket w API zna tylko nazwę bez prefiksu; konsola uwierzytelnia swoje gniazda samym tokenem, więc to jej nie dotyczy |
 
 ## Lista kontrolna przed produkcją { #production-checklist }
 

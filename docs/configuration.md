@@ -1533,6 +1533,7 @@ minute is soon enough for that.
 | `DOMAIN` | `example.com` | Production domain (for Traefik) |
 | `ACME_EMAIL` | `admin@example.com` | Let's Encrypt email for SSL certs |
 | `REDIS_PASSWORD` | `change-me-in-production` | Redis password for production |
+| `SESSION_COOKIE_NAMESPACE` | (empty) | Read by the console's container. Lowercase letters, digits and hyphens, at most 48: the session cookies become `agenticos_<namespace>_access_token` and `agenticos_<namespace>_refresh_token`. Set a different one on each deployment that shares a host name with another on a different port - a browser keys cookies by host, not port, so otherwise signing in to one signs you out of the other. Changing it signs everyone out of the console once. The API's WebSocket cookie fallback reads only the unprefixed name; the console authenticates its sockets with the token itself, so it is unaffected |
 
 ## Production checklist
 

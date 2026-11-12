@@ -1,5 +1,5 @@
 ---
-source_sha: "2f74a407e5a3"
+source_sha: "f5b9c5b37782"
 ---
 
 # Escalar más allá de un host { #scale-beyond-one-host }
@@ -52,6 +52,12 @@ Redis sus propios números de `REDIS_DB`, para que los buckets de límites y las
 respuestas en caché no se mezclen. Un bucket también es de un solo despliegue.
 Un agente pasa de uno a otro como su spec: se exporta como YAML en uno
 (`GET /agents/{id}/spec.yaml`) y se importa en un agente del otro.
+
+Dos despliegues con un mismo nombre de host, en puertos distintos, comparten
+también las cookies de la consola, porque el navegador las distingue por host y no
+por puerto: iniciar sesión en uno cierra la sesión en el otro. Dale a cada uno su
+propio nombre de host o define
+[`SESSION_COOKIE_NAMESPACE`](configuration.md#docker-production) en cada consola.
 
 ## Un Postgres externo { #an-external-postgres }
 
