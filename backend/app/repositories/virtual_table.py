@@ -1044,19 +1044,22 @@ async def add_outbox(
 
 
 async def delete_receipts_for_table(
-    db: AsyncSession, *, organization_id: UUID, table_id: UUID
+    db: AsyncSession, *, organization_id: UUID, table_id: UUID, since: datetime
 ) -> None:
-    """Remove every receipt that names this table, before the table itself goes.
+    """Remove every receipt created after `since` that names this table, before it goes.
 
     A receipt holds the whole record a keyed write returned, and has no foreign key
     to the table: it names the table only inside `outcome`. A record write keeps it at
     `record.table_id`, a table creation at `id`. A record deletion's receipt holds
-    only the record id, so it carries no values and cannot be matched.
+    only the record id, so it carries no values and cannot be matched. `since` keeps
+    the match on the organization's creation-time index: older receipts have
+    expired, and the retention sweep removes them.
     """
     table = str(table_id)
     await db.execute(
         delete(VirtualTableReceipt).where(
             VirtualTableReceipt.organization_id == organization_id,
+            VirtualTableReceipt.created_at >= since,
             or_(
                 VirtualTableReceipt.outcome["record"]["table_id"].astext == table,
                 and_(

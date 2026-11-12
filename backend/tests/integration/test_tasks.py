@@ -831,7 +831,16 @@ async def test_removing_scope_purges_managed_table_and_cancels_its_wakeups(
             ]
         )
     ]
-    db.add_all(receipts)
+    expired = VirtualTableReceipt(
+        organization_id=data.org.id,
+        principal_id=data.users[1].id,
+        operation="record.update",
+        operation_key="expired",
+        payload_hash="0" * 64,
+        outcome={"record": {"table_id": str(table_id), "values": {"title": "Old"}}},
+        created_at=datetime.now(UTC) - timedelta(days=2),
+    )
+    db.add_all([*receipts, expired])
     await db.flush()
     kept_receipt = receipts[2].id
     if kind == "project":
@@ -861,7 +870,8 @@ async def test_removing_scope_purges_managed_table_and_cancels_its_wakeups(
     assert (
         await db.scalar(select(VirtualTable).where(VirtualTable.id == other.table_id)) is not None
     )
-    assert list(await db.scalars(select(VirtualTableReceipt.id))) == [kept_receipt]
+    # An expired receipt is the retention sweep's, which keeps the purge on its index.
+    assert set(await db.scalars(select(VirtualTableReceipt.id))) == {kept_receipt, expired.id}
 
 
 async def test_scope_teardown_disables_its_agent_and_cancels_queued_fire(db: AsyncSession) -> None:
