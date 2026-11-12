@@ -1,8 +1,12 @@
 ---
-source_sha: "9c832ede7eda"
+source_sha: "cbb6611c5cdf"
 ---
 
 # Konsola { #the-console }
+
+Rozpoczęcie logowania MCP zachowuje otwarty formularz do uzyskania adresu zgody. Odmowa zachowuje wpisane dane do poprawienia i ponowienia próby.
+
+Edycja własnych komend slash pyta przed porzuceniem formularza. Zapis blokuje pola i zamykanie do zakończenia żądania; odmowa zachowuje dane. Na telefonach akcje komendy mają osobny wiersz i pola dotykowe. Przełącznik w trakcie zapisu blokuje sprzeczne akcje, a usuwanie wymaga potwierdzenia. Formularze połączeń MCP również blokują pola i zamykanie podczas zapisu.
 
 Konsola to aplikacja webowa, przez którą konfiguruje się wszystko inne opisane na
 tej stronie. Ta strona jest mapą: do czego służy każdy obszar i która strona

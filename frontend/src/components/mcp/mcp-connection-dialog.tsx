@@ -93,7 +93,7 @@ export function McpConnectionDialog({
       {/* Scrolls as one piece: with OAuth chosen the form carries a client
           block under the auth choice, and on a laptop viewport a dialog with
           no ceiling put "Connect & check" below the fold. */}
-      <DialogContent className={cn(DIALOG_FORM, DIALOG_SCROLL)}>
+      <DialogContent dismissible={!submitting} className={cn(DIALOG_FORM, DIALOG_SCROLL)}>
         {draft !== null && (
           <ConnectionForm
             key={draft.existing?.id ?? draft.row.key}
@@ -318,7 +318,8 @@ function ConnectionForm({
               : t("connectForScope", { name: draft.row.name, scope })}
         </DialogTitle>
       </DialogHeader>
-      <div className="space-y-4" data-tour="mcp-dialog-form">
+      <fieldset disabled={submitting} className="min-w-0 space-y-4" data-tour="mcp-dialog-form">
+        <legend className="sr-only">{t("connectAction")}</legend>
         {!known && (
           <>
             {identity}
@@ -512,7 +513,7 @@ function ConnectionForm({
             )}
           </MoreOptions>
         )}
-      </div>
+      </fieldset>
       <DialogFooter>
         <Button variant="ghost" onClick={onCancel} disabled={submitting}>
           {t("cancel")}

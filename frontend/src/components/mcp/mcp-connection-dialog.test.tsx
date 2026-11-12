@@ -236,3 +236,26 @@ describe("human-entered prefixes", () => {
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ name: "support-crm" }));
   });
 });
+
+describe("pending connection writes", () => {
+  it("freezes the form and dismissal until the request settles", async () => {
+    const draft = custom();
+    const onClose = vi.fn();
+    const onSubmit = vi.fn();
+    const props = { draft, onClose, onSubmit, canManageOrganization: true };
+    const view = render(<McpConnectionDialog {...props} submitting={false} />);
+    await userEvent.type(screen.getByLabelText("Name", { exact: true }), "Company workspace");
+    view.rerender(<McpConnectionDialog {...props} submitting />);
+    expect(screen.getByLabelText("Name", { exact: true })).toBeDisabled();
+    expect(screen.getByLabelText("Tool prefix")).toBeDisabled();
+    expect(screen.getByLabelText("Server URL")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+    await userEvent.keyboard("{Escape}");
+    expect(onClose).not.toHaveBeenCalled();
+    view.rerender(<McpConnectionDialog {...props} submitting={false} />);
+    expect(screen.getByLabelText("Name", { exact: true })).toBeEnabled();
+    expect(screen.getByLabelText("Name", { exact: true })).toHaveValue("Company workspace");
+    expect(screen.getByRole("button", { name: "Close" })).toBeEnabled();
+  });
+});

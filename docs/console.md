@@ -4,6 +4,10 @@ The console is the web application everything else on this site is configured
 through. This page is the map: what each area is for, and which page explains it
 properly.
 
+Starting MCP sign-in keeps the form open until the consent destination is ready. A refused start preserves its values for correction and retry.
+
+Custom slash-command editing asks before dropping a draft. Save freezes its fields and dismissal until the request settles; a refusal keeps the draft. On phones, command actions have their own row and touch-sized controls. A pending toggle blocks conflicting actions, and removal asks for confirmation. MCP connection forms also freeze their fields and dismissal while saving.
+
 When you edit project settings, an organization name, spending cap, voice defaults or data-retention periods, a skill or a context file, leaving asks whether to save, discard or stay. Switching away from an edited skill resource asks too. A refused save keeps the draft open; **Save file** clears it only after the server confirms the write. Typing added while that resource save is in flight remains unsaved.
 
 On phones, knowledge-base documents and organization members use labeled rows with visible actions. Member removal asks for confirmation and a refusal keeps it open. Knowledge-base creation, parsing and embedding-provider dialogs keep their fields disabled and stay open while saving, then restore editing and dismissal if the write is refused. A failed document download shows an error and can be retried.

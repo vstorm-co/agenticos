@@ -367,7 +367,7 @@ export function McpServerList({
     client?: McpOAuthClient,
     audience?: AudiencePayload,
     label?: string,
-  ) => {
+  ): Promise<boolean> => {
     setBusyId(row.key);
     try {
       const { authorization_url } = await startMcpOAuth(
@@ -384,12 +384,14 @@ export function McpServerList({
       rememberMcpOAuthReturn(serverReturn(row.key));
       // `assign`, not a write to `href`: the React compiler reads a property
       // write on `window` as mutating a value from outside the component.
+      // On success the browser navigates away - leave the row busy.
       window.location.assign(authorization_url);
+      return true;
     } catch (caught) {
       toast.error(getErrorMessage(caught, tErrors, t("couldNotStartSign")));
       setBusyId(null);
+      return false;
     }
-    // On success the browser navigates away - leave the row busy.
   };
 
   // The key `?connect=` arrived with, read once. Lazily, so the server render -
@@ -492,8 +494,8 @@ export function McpServerList({
         toast.error(t("clientSecretNeedsId"));
         return;
       }
-      closeDraft();
-      await handleOAuth(
+      setSubmitting(true);
+      const started = await handleOAuth(
         { ...row, url },
         name,
         scope,
@@ -501,6 +503,8 @@ export function McpServerList({
         scope === "organization" ? values.audience : undefined,
         label,
       );
+      if (started) closeDraft();
+      setSubmitting(false);
       return;
     }
 

@@ -33,6 +33,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Custom command controls fit touch phones, retain edited drafts on close and
+  failed saves, block conflicting writes and confirm removal in the console.
+  Command and MCP connection fields and dismissal stay locked during a save.
+  A refused MCP OAuth start keeps the connection draft available for retry.
+
 - Console skill names, environment names, MCP prefixes and custom slash commands
   format human-entered titles automatically instead of rejecting capitals and
   spaces. Typing stays intact until blur or submission; identifier fields turn

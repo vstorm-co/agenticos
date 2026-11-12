@@ -377,3 +377,45 @@ checks run with the change; full CI remains separate evidence.
 | --- | --- | --- |
 | Skill creation accepts a human title | [PNG](comparisons/skill-name-mobile-before.png) | [PNG](comparisons/skill-name-mobile-after.png) |
 | Custom command name | — | [PNG](comparisons/command-name-mobile-after.png) |
+
+## Commands and MCP configuration journeys — 2026-11-12
+
+At 320 px, custom command edit/delete buttons measured 28×28 px; the command name
+was squeezed between them and its switch, while New command extended beyond its
+section. Commands now adapt to their container: the heading/action wraps, names
+can use the row's width, and controls get a separate row with 44×44 touch targets.
+Action names identify the command. Built-in and custom toggles remain disabled
+until their writes settle, and custom edits/removal cannot race that toggle.
+
+Command editing now uses a native form and a bounded scrolling body with a fixed
+footer. A 320×568 viewport retains its Save button inside the visible viewport.
+Closing a changed draft uses the console's Save/Discard/Stay guard; a refused save
+keeps the editor and values. Pending saves disable the named fieldset, Cancel and
+Close, and prevent Escape/backdrop dismissal. Removal uses an application
+confirmation: Cancel sends no DELETE, refusal keeps it open, and retry can finish.
+Command confirmations, action names and mutation feedback use all four UI locales.
+The shared unsaved-changes prompt also visibly disables Close while saving.
+
+MCP connection fields were editable while a connection write was pending. The
+shared dialog now freezes its native fieldset and dismissal, including both
+connection entry points. Separately, the server list closed the OAuth draft
+*before* starting consent; an actual controlled 403 reproduced a vanished form.
+The draft now stays open while OAuth start is pending and remains editable after
+refusal. It closes only after the start produced a consent destination.
+
+143 scoped tests in five files pass. Three touch Chromium journeys cover command
+creation/reload, Stay, refused pending save, guarded retry/save, persisted toggle,
+canceled/refused/successful removal; MCP creation/refusal/retry and stored label
+edit/re-entry; and refused OAuth start followed by a redirect retry. MCP transport
+probes are controlled refusals, and the OAuth destination is a local stand-in:
+configuration persists in the actual backend, but no live provider grant is made.
+Strict documentation builds in all four published languages pass. Full CI remains
+separate evidence. The route/component import map is refreshed.
+
+| Evidence | Before | After |
+| --- | --- | --- |
+| Custom command actions at 320 px | [PNG](comparisons/command-actions-mobile-before.png) | [PNG](comparisons/command-actions-mobile-after.png) |
+| Command fields during save | [PNG](comparisons/command-pending-mobile-before.png) | [PNG](comparisons/command-pending-mobile-after.png) |
+| MCP connection fields during save | [PNG](comparisons/mcp-pending-mobile-before.png) | [PNG](comparisons/mcp-pending-mobile-after.png) |
+| Refused OAuth start retains its draft | [PNG](comparisons/mcp-oauth-refusal-mobile-before.png) | [PNG](comparisons/mcp-oauth-refusal-mobile-after.png) |
+| Command removal confirmation | — | [PNG](comparisons/command-delete-mobile-after.png) |

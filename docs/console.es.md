@@ -1,8 +1,12 @@
 ---
-source_sha: "9c832ede7eda"
+source_sha: "cbb6611c5cdf"
 ---
 
 # La consola { #the-console }
+
+Al iniciar sesión MCP, el formulario permanece abierto hasta obtener el destino de consentimiento. Un inicio rechazado conserva los datos para corregirlos y reintentar.
+
+La edición de comandos slash propios pregunta antes de descartar un borrador. Al guardar se bloquean los campos y el cierre hasta recibir respuesta; un rechazo conserva los datos. En teléfonos, las acciones tienen una fila propia y controles táctiles. Un cambio de estado pendiente bloquea acciones incompatibles y la eliminación pide confirmación. Los formularios MCP también bloquean campos y cierre al guardar.
 
 La consola es la aplicación web desde la que se configura todo lo demás de este
 sitio. Esta página es el mapa: para qué sirve cada área, y qué página la explica
