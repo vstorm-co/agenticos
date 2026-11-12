@@ -1,5 +1,5 @@
 ---
-source_sha: "b7366acd6c90"
+source_sha: "33487d05e802"
 ---
 
 # Workflows { #workflows }
@@ -1021,6 +1021,16 @@ GitHuba też działają. Wyzwalacz przekazuje JSON dostarczenia jako `body`, raz
 jego `delivery_id`. Ponowienie, które powtarza id, dostaje odpowiedź z pierwszym
 runem i niczego nie uruchamia, bo id jest zapisywane razem z runem, który wpuściło,
 w jednej transakcji.
+
+Id nie jest częścią tego, co nadawca podpisuje, więc to samo podpisane żądanie pod innym
+id w ciągu 24 godzin też jest kopią: dostaje odpowiedź z pierwszym runem i niczego nie
+uruchamia, niezależnie od tego, który z dwóch nagłówków podpisu je niesie. Ta sama treść
+wysłana ponownie po 24 godzinach uruchamia run. Nadawca, który celowo wysyła to samo body
+częściej, sprawia, że każde się różni, umieszczając w nim własne id albo czas, albo
+podpisuje czas: z `X-Signature-Timestamp` (sekundy Unix) podpis obejmuje
+`{timestamp}.{body}` i jest odrzucany, gdy różni się od zegara serwera o ponad pięć minut.
+
+Dostawy przyjęte przed zapisywaniem skrótów podpisów zachowują deduplikację po identyfikatorze dostawy. Starsze wiersze nie pozwalają rozpoznać podpisanej kopii pod innym identyfikatorem; wykrywanie kopii po podpisie zaczyna się od dostaw zapisanych przez nową wersję.
 
 Wyzwalacz **Schedule** uruchamia się co jakiś czas, codziennie o ustalonej godzinie
 albo według wyrażenia cron, w strefie czasowej workflow (UTC, chyba że jego **Settings** wskazują inną) i

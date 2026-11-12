@@ -989,6 +989,16 @@ headers work as well. The trigger hands on the delivery's JSON as `body`, with i
 `delivery_id`. A retry that repeats an id is answered with the first run and starts
 nothing, because the id is recorded with the run it admitted, in one transaction.
 
+The id is not part of what the sender signs, so the same signed request under another id
+within 24 hours is a copy too: it is answered with the first run and starts nothing,
+whichever of the two signature headers carries it. Identical content sent again after 24
+hours starts a run. A sender that sends the same body more often on purpose makes each one
+differ, with its own id or time in the body, or signs the time: with
+`X-Signature-Timestamp` (Unix seconds) the signature covers `{timestamp}.{body}` and is
+refused more than five minutes from the server's clock.
+
+Deliveries admitted before signed digests were recorded retain delivery-ID deduplication. Their signed copies under a different ID cannot be recognized from those older rows; signature-based copy detection starts with deliveries recorded by the new version.
+
 A **Schedule** trigger runs every so often, daily at a set time or on a cron
 expression, in the workflow's timezone (UTC unless its **Settings** name another)
 and at most once a minute. It fires at its tick, not at the next minute's sweep

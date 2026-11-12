@@ -27,6 +27,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Signed workflow webhook copies delivered under different IDs within 24 hours now return the first run without spending another allowance or starting duplicate work.
+
 - Cancelling a workflow or ending it at its budget limit withdraws approvals and questions in called runs, including live descendants behind a failed intermediate run. Busy child rows are not waited on, preserving lock order.
 
 - Corrections of organization and project memory always wait for a person, including under remembered approvals or Approve everything. The approval shows the fact before and after; agent corrections retain agent/run provenance and a statement-free audit event. Pending shared corrections are repaired by migration `0318_wide_memory_approvals.py`.

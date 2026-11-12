@@ -14,6 +14,7 @@ Firing ends in the one admission path every surface shares
 (`WorkflowExecutionService.admit_pinned`), on the version the exposure pinned.
 """
 
+import hashlib
 import json
 import logging
 import secrets
@@ -115,6 +116,11 @@ logger = logging.getLogger(__name__)
 # Their delivery ids are in a header, so neither needs the payload `delivery_id` reads
 # for HubSpot's batches.
 _SIGNED_SOURCES = ("webhook", "github")
+
+# A signed request seen again under another delivery id within this window is a copy of
+# the first, not a new delivery: the id is not part of what either scheme signs. Past it,
+# identical content starts a run again, for a sender that sends the same body on purpose.
+_SIGNED_COPY_WINDOW = timedelta(hours=24)
 
 # The portal whose connected account registers a GitHub trigger's hook.
 _GITHUB_PORTAL = "github"
@@ -264,6 +270,16 @@ async def _queue_due_check(db: AsyncSession, exposure: WorkflowExposure) -> None
         run_after=due + _DUE_CHECK_MARGIN,
         dedupe_key=f"workflow-schedule-due:{due.isoformat()}",
     )
+
+
+def _signed_digest(signature: str) -> str:
+    """What a copy of a signed request is recognised by: its signature, hashed.
+
+    The same bytes signed with the same secret always carry the same signature, and
+    both signed headers carry the same one for a body-only signature, so moving it
+    from one header to the other does not make a new request.
+    """
+    return hashlib.sha256(signature.encode("latin-1", "ignore")).hexdigest()
 
 
 class WorkflowExposureService:
@@ -1262,9 +1278,10 @@ class WorkflowExposureService:
         """Answer a redelivery with the run it already admitted, else admit one GitHub
         delivery as one run or skip one the trigger does not name.
 
-        A redelivery is looked up by its signed delivery id before the current
-        filters and run permission apply, so it gets `duplicate: true` even after the
-        trigger was republished or its member lost access.
+        A redelivery is looked up by its delivery id, and then as a copy of a signed
+        request seen within `_SIGNED_COPY_WINDOW`, before the current filters and run
+        permission apply, so it gets `duplicate: true` even after the trigger was
+        republished or its member lost access.
 
         Called with no auth context: the delivery is authenticated by GitHub's
         `X-Hub-Signature-256` under the exposure's own secret, and the run acts as
@@ -1306,6 +1323,10 @@ class WorkflowExposureService:
         )
         if seen is not None:
             return WebhookAdmitted(run_id=seen.workflow_run_id, duplicate=True)
+        signed = _signed_digest(trigger_events.signature("github", headers))
+        copy = await self._signed_copy(exposure.id, signed)
+        if copy is not None:
+            return WebhookAdmitted(run_id=copy, duplicate=True)
         payload = parse_webhook_body(body)
         fire = await self._fire_context(exposure)
         if fire is None:
@@ -1353,6 +1374,7 @@ class WorkflowExposureService:
             exposure_id=exposure.id,
             delivery_id=delivery_id,
             workflow_run_id=run.id,
+            signed_digest=signed,
         )
         await workflow_exposure_repo.update(
             self.db,
@@ -1370,7 +1392,9 @@ class WorkflowExposureService:
         against the exposure's own secret, and the run acts as the exposure's
         member. Every delivery must name itself (`X-Delivery-Id`, or GitHub's
         `X-GitHub-Delivery`); the id is recorded in the transaction that admits
-        the run, so a retry of it - however late - returns the first run.
+        the run, so a retry of it - however late - returns the first run. The id is
+        not signed, so the same signed request under another id within
+        `_SIGNED_COPY_WINDOW` returns the first run too.
 
         A version whose graph holds a Respond to webhook step is answered by it:
         the admission is committed here, so the run can start, and the delivery
@@ -1394,10 +1418,17 @@ class WorkflowExposureService:
         ):
             raise NotFoundError(message="Webhook not found", details={"exposure_id": exposure_id})
         secret = self._secret_of(exposure)
-        if not any(
-            trigger_events.verify_signature(source, secret=secret, body=body, headers=headers)
-            for source in _SIGNED_SOURCES
-        ):
+        verified = next(
+            (
+                source
+                for source in _SIGNED_SOURCES
+                if trigger_events.verify_signature(
+                    source, secret=secret, body=body, headers=headers
+                )
+            ),
+            None,
+        )
+        if verified is None:
             raise AuthorizationError(
                 message="Webhook signature did not verify",
                 details={"exposure_id": str(exposure_id)},
@@ -1425,6 +1456,10 @@ class WorkflowExposureService:
         )
         if seen is not None:
             return await self._replay(seen.workflow_run_id)
+        signed = _signed_digest(trigger_events.signature(verified, headers))
+        copy = await self._signed_copy(exposure.id, signed)
+        if copy is not None:
+            return await self._replay(copy)
         await self._spend_delivery_allowance(exposure)
 
         fire = await self._fire_context(exposure)
@@ -1448,6 +1483,7 @@ class WorkflowExposureService:
             exposure_id=exposure.id,
             delivery_id=delivery_id,
             workflow_run_id=run.id,
+            signed_digest=signed,
         )
         await workflow_exposure_repo.update(
             self.db,
@@ -1478,6 +1514,19 @@ class WorkflowExposureService:
                 message="This webhook is taking too many deliveries. Try again shortly.",
                 details={"retry_after_seconds": decision.retry_after_seconds},
             )
+
+    async def _signed_copy(self, exposure_id: UUID, signed_digest: str) -> UUID | None:
+        """The run a copy of this signed request admitted within `_SIGNED_COPY_WINDOW`."""
+        await workflow_exposure_repo.lock_signed_copy(
+            self.db, exposure_id=exposure_id, signed_digest=signed_digest
+        )
+        copy = await workflow_exposure_repo.get_signed_copy(
+            self.db,
+            exposure_id=exposure_id,
+            signed_digest=signed_digest,
+            within=_SIGNED_COPY_WINDOW,
+        )
+        return None if copy is None else copy.workflow_run_id
 
     async def _replay(self, run_id: UUID) -> WebhookAdmitted | WebhookAnswer:
         """What a retried delivery gets: the answer its first run gave, if it gave one."""
