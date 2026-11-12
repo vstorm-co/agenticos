@@ -133,8 +133,13 @@ export function CodeArea({
   // A text face, not a code one: what is written here is prose for a model to
   // read, and set in a terminal font it read as configuration.
   // iOS fields use 16px; the painted copy must wrap at exactly the same glyphs.
+  // Both layers reserve the scrollbar gutter: only the textarea scrolls, and a
+  // classic scrollbar narrowed its lines alone, so a long prompt wrapped
+  // differently underneath and the caret drifted off the text it edits.
+  // Text rendering is pinned because the browser resets it on a textarea while
+  // the underlay inherits the body's, which changes kerning in some engines.
   const shared =
-    "px-3 py-3 font-sans text-base md:text-[14px] leading-6 whitespace-pre-wrap break-words sm:px-4";
+    "px-3 py-3 font-sans text-base md:text-[14px] leading-6 whitespace-pre-wrap break-words sm:px-4 [scrollbar-gutter:stable] [text-rendering:optimizeLegibility]";
 
   return (
     // Both layers are absolutely positioned against this box, so they are the

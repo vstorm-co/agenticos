@@ -19,6 +19,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- The caret in Markdown source editors, such as an agent's instructions, stays on the text it edits once the text is long enough to scroll. The highlighted copy under the field no longer wraps differently from the field itself.
+
+### Fixed
+
+- The caret in Markdown source editors, such as an agent's instructions, stays on the text it edits once the text is long enough to scroll. The highlighted copy under the field no longer wraps differently from the field itself.
+
 ## [1.68.0] - 2026-11-12
 
 ### Upgrading
