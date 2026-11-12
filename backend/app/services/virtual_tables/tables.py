@@ -50,7 +50,7 @@ from app.services.virtual_tables.exceptions import (
     SchemaVersionConflictError,
 )
 from app.services.virtual_tables.principals import principal_problems
-from app.services.virtual_tables.quotas import enforce_table_count
+from app.services.virtual_tables.quotas import enforce_storage, enforce_table_count, lock_storage
 from app.services.virtual_tables.receipts import run_once
 from app.services.virtual_tables.record_sources import source_for
 from app.services.virtual_tables.schema import build_columns, diff
@@ -373,6 +373,8 @@ class TableOperations(Operations):
             InvalidSchemaError: The columns are inconsistent, or a column that already
                 has empty cells was made required.
             SchemaDependencyError: Something depends on a column this archives.
+            QuotaExceededError: The values a type change rewrites, with their history,
+                would take the organization past its table storage.
             AuthorizationError: A task board this caller may work on but not reshape.
         """
         table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, lock=True)
@@ -395,7 +397,13 @@ class TableOperations(Operations):
         await self._check_references(ctx, columns, previous)
         change = diff(previous, columns)
         await self._refuse_dependents(ctx, table, column_ids=change.archived | change.retyped)
-        columns = await self._retype(ctx, table, previous, columns, change.retyped)
+        if change.retyped:
+            # Rewritten values and their history count toward the organization's storage,
+            # taken in the order a record write takes it; over the limit, nothing is written.
+            await lock_storage(self.db, ctx)
+            async with self.db.begin_nested():
+                columns = await self._retype(ctx, table, previous, columns, change.retyped)
+                await enforce_storage(self.db, ctx, table)
         await self._refuse_empty_required(table, columns, change.required)
         version = table.schema_version + 1
         await virtual_table_repo.add_schema_version(

@@ -485,6 +485,52 @@ async def test_a_value_a_type_change_empties_is_recorded_as_cleared(db):
     assert (row.before, row.after) == ({str(score_id): " "}, {})
 
 
+@pytest.mark.security
+async def test_a_type_change_past_the_storage_limit_writes_nothing(db, monkeypatch):
+    from app.core.config import settings
+    from app.db.models.virtual_table import VirtualTableRecord, VirtualTableRecordHistory
+    from app.repositories import virtual_table_repo
+    from app.services.virtual_tables.exceptions import QuotaExceededError
+
+    service, ctx, _owner, org = await _setup(db)
+    table = await service.create_table(
+        ctx, TableCreate(name="Leads", columns=[column("Score", "integer")])
+    )
+    score_id = table.columns[0].id
+    for score in range(20):
+        await service.create_record(ctx, table.id, RecordCreate(values={str(score_id): score}))
+    # The refusal audits in its own transaction, which waits on the audit chain this one holds.
+    await db.commit()
+    used = await virtual_table_repo.storage_bytes(db, organization_id=org.id)
+    monkeypatch.setattr(settings, "TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION", used)
+
+    with pytest.raises(QuotaExceededError):
+        await service.update_schema(
+            ctx,
+            table.id,
+            SchemaUpdate(expected_version=1, columns=[column("Score", "text", id=score_id)]),
+        )
+
+    assert (await service.describe_table(ctx, table.id)).schema_version == 1
+    held = await db.scalars(
+        select(VirtualTableRecord.values[str(score_id)]).where(
+            VirtualTableRecord.table_id == table.id
+        )
+    )
+    assert all(isinstance(value, int) for value in held)
+    assert (
+        await db.scalar(
+            select(func.count())
+            .select_from(VirtualTableRecordHistory)
+            .where(
+                VirtualTableRecordHistory.table_id == table.id,
+                VirtualTableRecordHistory.operation == "update",
+            )
+        )
+        == 0
+    )
+
+
 async def test_a_type_change_a_value_does_not_survive_writes_nothing(db, monkeypatch):
     service, ctx, _owner, _org = await _setup(db)
     table = await service.create_table(
