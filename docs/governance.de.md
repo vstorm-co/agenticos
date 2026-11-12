@@ -1,5 +1,5 @@
 ---
-source_sha: "634c107121cd"
+source_sha: "00ea34b0321a"
 ---
 
 # Governance { #governance }
@@ -82,7 +82,7 @@ Eine angehaltene Routine ohne diesen Zulassungsstand kann MCP-Aufrufe verwaltete
 
 Die Versionsauswahl folgt entweder der standardmäßig veröffentlichten Version oder legt eine unveränderliche Version fest. Eine Veröffentlichung verschiebt diese Festlegung nicht. Entfernen Sie sie, um wieder der Standardversion zu folgen. Eine benannte Umgebung und eine festgelegte Version schließen sich aus; aktuelle Zugriffsrechte, Budgets und Freigaben gelten weiterhin.
 
-Eine festgelegte Version - die einer Routine, einer Umgebung, eines Workflow-Schritts oder eines geparkten Runs - behält ihre Anweisungen, Tools und ihr Modell, aber ihre Tool-Freigaben stammen aus der aktuellen veröffentlichten Version des Agents: Eine seitdem hinzugefügte Freigabepflicht gilt für sie, ebenso eine entfernte. Verlangt die aktuelle Version eine Freigabe für ein Tool, das die festgelegte Version dem Modellanbieter überlässt, wird die festgelegte Version bis zur erneuten Veröffentlichung abgelehnt.
+Eine festgelegte Version - die einer Routine, einer Umgebung, eines Workflow-Schritts, eines Delegierten oder eines geparkten Runs - behält ihre Anweisungen, Tools und ihr Modell, aber ihre Tool-Freigaben stammen aus der aktuellen veröffentlichten Version des Agents: Eine seitdem hinzugefügte Freigabepflicht gilt für sie, ebenso eine entfernte. Verlangt die aktuelle Version eine Freigabe für ein Tool, das die festgelegte Version dem Modellanbieter überlässt, wird die festgelegte Version bis zur erneuten Veröffentlichung abgelehnt.
 
 Im Routineformular können Sie das Ende festlegen oder entfernen. Das Datum verwendet die am Feld angezeigte Gerätezeitzone, unabhängig von der Cron-Zeitzone, und wird mit UTC-Offset an die API gesendet. Änderungen anderer Felder lassen das bestehende Ende unverändert.
 

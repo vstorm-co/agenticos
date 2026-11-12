@@ -5719,7 +5719,11 @@ class AgentRunnerService:
                 },
             )
 
-        published = AgentSpec.model_validate(version.spec)
+        # Pinned for how it behaves; who must approve its tool calls is the
+        # delegate's current published version's to say, as for the run's own agent.
+        published = await self._with_current_approvals(
+            delegate, AgentSpec.model_validate(version.spec), version_id=ref.agent_version_id
+        )
         pinned = _with_shared(published, shared)
         pinned = await self.registry.with_assistant_guidance(delegate, pinned)
         delegate_resources = await self._delegate_resources(

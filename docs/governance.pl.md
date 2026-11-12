@@ -1,5 +1,5 @@
 ---
-source_sha: "634c107121cd"
+source_sha: "00ea34b0321a"
 ---
 
 # Governance { #governance }
@@ -79,7 +79,7 @@ Wstrzymana rutyna bez tego zapisu dopuszczenia nie może kontynuować wywołań 
 
 Wybór wersji pozwala śledzić domyślną opublikowaną wersję albo przypiąć jedną niezmienną wersję. Publikacja nie przesuwa pinu. Usuń go, aby ponownie śledzić wersję domyślną. Nazwane środowisko i pin wersji wzajemnie się wykluczają; nadal obowiązują bieżące uprawnienia, budżety i zatwierdzenia.
 
-Przypięta wersja - rutyny, środowiska, kroku workflow albo zaparkowanego runu - zachowuje instrukcje, toole i model, ale zatwierdzenia tooli pochodzą z bieżącej opublikowanej wersji agenta: obowiązuje ją bramka dodana później, a także zdjęcie bramki. Jeśli bieżąca wersja wymaga zatwierdzenia toola, który przypięta wersja przekazuje dostawcy modelu, przypięta wersja jest odrzucana do ponownej publikacji.
+Przypięta wersja - rutyny, środowiska, kroku workflow, delegata albo zaparkowanego runu - zachowuje instrukcje, toole i model, ale zatwierdzenia tooli pochodzą z bieżącej opublikowanej wersji agenta: obowiązuje ją bramka dodana później, a także zdjęcie bramki. Jeśli bieżąca wersja wymaga zatwierdzenia toola, który przypięta wersja przekazuje dostawcy modelu, przypięta wersja jest odrzucana do ponownej publikacji.
 
 Formularz rutyny pozwala ustawić lub usunąć datę zakończenia. Data używa pokazanej przy polu strefy urządzenia, niezależnie od strefy harmonogramu cron, i trafia do API jako timestamp z offsetem. Edycja innego pola zachowuje dotychczasowy koniec bez zmian.
 
