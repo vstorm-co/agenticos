@@ -9651,6 +9651,7 @@
     "menuArchiveHint": "Znika z wyborów; historia zostaje",
     "menuRestoreHint": "Wraca do wyborów, jak był",
     "menuDeleteHint": "Na zawsze, z każdą wersją",
+    "channelRunFreelyHint": "Powiązani nadawcy na kanałach korzystają z tych ustawień z pełną historią pokoju, także wiadomościami innych osób. Run freely pozwala wykonywać wywołania bez kolejnego potwierdzenia; wybieraj je dla zaufanych narzędzi i pokoi.",
     "serverTools": "Narzędzia",
     "loadTools": "Wczytaj narzędzia",
     "toolsAfterConnecting": "Narzędzia pojawią się po połączeniu konta {name}.",

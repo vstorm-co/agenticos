@@ -741,6 +741,7 @@
     "menuArchiveHint": "Aus den Auswahllisten; der Verlauf bleibt",
     "menuRestoreHint": "Zurück in den Auswahllisten, wie er war",
     "menuDeleteHint": "Endgültig weg, mit jeder Version",
+    "channelRunFreelyHint": "Verknüpfte Kanalabsender verwenden diese Einstellungen mit dem gesamten Raumverlauf, auch mit Nachrichten anderer Personen. Run freely erlaubt Aufrufe ohne weitere Bestätigung; verwende es nur für vertrauenswürdige Werkzeuge und Räume.",
     "serverTools": "Tools",
     "loadTools": "Tools laden",
     "toolsAfterConnecting": "Die Tools erscheinen, sobald ein {name}-Konto verbunden ist.",
