@@ -124,6 +124,12 @@ async def _bootstrap(
 
         org = await _resolve_organization(db, user.id, org_name, new_owner=new_owner)
         ctx = AuthContext(user_id=user.id, organization_id=org.id, role=OrgRoleName.OWNER)
+        landing = await OrganizationService(db).fallback_for(user.id)
+        if landing is not None and landing.id != org.id:
+            # A deployment's default organization comes before any other at sign-in.
+            info(
+                f"Signing in opens {landing.name}; switch to {org.name} in the organization switcher"
+            )
 
         profile_id = await _resolve_model(db, ctx, provider, api_key, model_id)
         await _resolve_starter_agents(db, ctx, profile_id)

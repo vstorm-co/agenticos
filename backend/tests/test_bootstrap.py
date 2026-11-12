@@ -417,7 +417,38 @@ class TestEndToEnd:
         stub = AsyncMock()
         monkeypatch.setattr(bootstrap_cmd, "_resolve_mcp_mirror", stub)
         self.mirror = stub
+        self.landing = AsyncMock(return_value=None)
+        monkeypatch.setattr(bootstrap_cmd.OrganizationService, "fallback_for", self.landing)
         return stub
+
+    @pytest.mark.anyio
+    async def test_it_says_where_signing_in_opens_when_that_is_not_the_named_org(self, capsys):
+        """A deployment default organization comes first at sign-in, whatever --org named."""
+        from app.commands.bootstrap import _bootstrap
+
+        db = MagicMock()
+        db.commit = AsyncMock()
+        org = MagicMock(id=uuid.uuid4())
+        org.name = "Northwind Labs"
+        default = MagicMock(id=uuid.uuid4())
+        default.name = "Company"
+        self.landing.return_value = default
+
+        with (
+            patch("app.commands.bootstrap.get_db_context", self._db_context(db)),
+            patch(
+                "app.commands.bootstrap.UserService.get_by_email",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch("app.commands.bootstrap._resolve_organization", new=AsyncMock(return_value=org)),
+            patch("app.commands.bootstrap._resolve_model", new=AsyncMock(return_value=None)),
+            patch("app.commands.bootstrap._resolve_starter_agents", new=AsyncMock()),
+        ):
+            await _bootstrap(
+                "admin@example.com", "password123", "Northwind Labs", "openai", None, None
+            )
+
+        assert "Signing in opens Company; switch to Northwind Labs" in capsys.readouterr().out
 
     @staticmethod
     def _db_context(db):
