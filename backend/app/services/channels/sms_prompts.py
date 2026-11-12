@@ -6,12 +6,16 @@ approvals sends two texts - so the numbers never repeat: the second prompt carri
 where the first stopped (3 and 4, not 1 and 2), and each reply names exactly one choice of
 one prompt.
 
-What a number means is remembered per bot and chat for a day, in the deployment's shared
-Redis because the reply may reach a different worker than the one that sent the prompt.
-It is only the way to name a choice, not the approval's state: a prompt is dropped when the
-router settles it, when its owner changes, or when a day passes. A reply that is a number
-with nothing pending, or one that names no choice, is an ordinary message, so a person is
-never silenced by a prompt they ignored.
+What a number means is remembered per bot and chat, in the deployment's shared Redis
+because the reply may reach a different worker than the one that sent the prompt. It is
+only the way to name a choice, not the approval's state: a prompt is dropped when the
+router settles it or its owner changes, and each number stops answering a day after it
+was handed out. A reply that is a number with nothing pending, or one that names no
+choice, is an ordinary message, so a person is never silenced by a prompt they ignored.
+
+Three digits run out, so numbering wraps around after 999. A number is handed out again
+only once nothing waits on it and a week has passed since it last was, so a late reply to
+an old text cannot decide a newer request unless it is over a week late.
 
 SMS and e-mail share this: neither has buttons, and `platform` keeps their numbers apart.
 """
@@ -27,6 +31,12 @@ logger = logging.getLogger(__name__)
 
 TTL_SECONDS = 24 * 60 * 60
 """How long a numbered prompt stays answerable; an approval left longer is for the console."""
+
+QUARANTINE_SECONDS = 7 * 24 * 60 * 60
+"""How long a number is not handed out again after it was."""
+
+NUMBERING_TTL_SECONDS = 90 * 24 * 60 * 60
+"""How long a quiet chat keeps its place in the numbering before it starts again at 1."""
 
 MAX_DIGITS = 3
 """A reply longer than this is a sentence, not a choice."""
@@ -44,34 +54,27 @@ def _key(bot_id: str, chat_id: str, platform: str) -> str:
     return f"channel:{platform}:prompt:{bot_id}:{chat_id}"
 
 
-async def _pending(bot_id: str, chat_id: str, platform: str) -> dict[str, str]:
-    if _redis is None:
-        return {}
-    stored = await _redis.get(_key(bot_id, chat_id, platform))
-    return json.loads(stored) if stored else {}
-
-
-async def first_number(bot_id: str, chat_id: str, *, platform: str = "sms") -> int:
-    """The number the next prompt's first choice should carry: one past whatever is waiting."""
-    return max((int(code) for code in await _pending(bot_id, chat_id, platform)), default=0) + 1
-
-
 async def reserve(bot_id: str, chat_id: str, count: int, *, platform: str = "sms") -> int:
     """Reserve before sending so concurrent workers never advertise the same choices.
 
-    A failed send leaves a gap, not an answerable prompt. Numbers are not recycled
-    after settlement: a delayed reply must never decide a later approval.
+    A failed send leaves a gap, not an answerable prompt. A number is not handed out
+    again while it waits or within `QUARANTINE_SECONDS`: a delayed reply must never
+    decide a later approval.
     """
     if _redis is None:
         raise ChannelNotConfigured("Numbered replies require the shared prompt store.")
-    minimum = await first_number(bot_id, chat_id, platform=platform) - 1
-    start = await _redis.reserve_range(
-        _key(bot_id, chat_id, platform) + ":counter",
-        minimum=minimum,
+    key = _key(bot_id, chat_id, platform)
+    start = await _redis.reserve_numbers(
+        key + ":counter",
+        issued=key + ":issued",
+        pending=key,
         count=count,
-        ttl=TTL_SECONDS,
+        highest=10**MAX_DIGITS - 1,
+        quarantine=QUARANTINE_SECONDS,
+        answerable=TTL_SECONDS,
+        ttl=NUMBERING_TTL_SECONDS,
     )
-    if start + count - 1 > 10**MAX_DIGITS - 1:
+    if start == 0:
         raise ChannelNotConfigured("Too many pending choices; decide this request in the console.")
     return start
 
@@ -104,7 +107,8 @@ async def settle(bot_id: str, chat_id: str, value: str, *, platform: str = "sms"
     pressed = read_press(value)
     if _redis is None or pressed is None:
         return
-    pending = await _pending(bot_id, chat_id, platform)
+    stored = await _redis.get(_key(bot_id, chat_id, platform))
+    pending: dict[str, str] = json.loads(stored) if stored else {}
     remove = [
         code
         for code, choice in pending.items()
@@ -123,6 +127,7 @@ async def answer(bot_id: str, chat_id: str, text: str, *, platform: str = "sms")
     there, so a repeated delivery of the same number does no harm.
     """
     digits = text.strip()
-    if len(digits) > MAX_DIGITS or not digits.isdigit() or digits.startswith("0"):
+    if _redis is None or len(digits) > MAX_DIGITS or not digits.isdigit() or digits.startswith("0"):
         return None
-    return (await _pending(bot_id, chat_id, platform)).get(digits)
+    key = _key(bot_id, chat_id, platform)
+    return await _redis.numbered_answer(key, issued=key + ":issued", number=digits, ttl=TTL_SECONDS)
