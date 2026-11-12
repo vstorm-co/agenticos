@@ -438,6 +438,9 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
                 statement=statement,
                 author_user_id=UUID(str(audience.user_id)),
                 effective_from=start,
+                run_id=deps.run_id,
+                conversation_id=deps.conversation_id,
+                agent_id=deps.agent_id,
             )
         except ShareRefused as refused:
             return f"Not corrected: {refused}"

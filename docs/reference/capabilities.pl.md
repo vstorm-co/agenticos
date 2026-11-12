@@ -1,5 +1,5 @@
 ---
-source_sha: "726aa02e9407"
+source_sha: "d27ee686f1e4"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -497,6 +497,8 @@ Nie odpowiada na nie też **Approve everything** ani zapamiętane **Zawsze zezwa
 Kopia wskazuje claim, z którego powstała, a oryginał zachowuje
 swoich odbiorców. Embed, run z kluczem API i run z harmonogramu nie czytają
 niczego; czat grupowy czyta tylko własne claimy. Poprawienie claimu, który czyta cały projekt lub organizacja, wymaga tego samego uprawnienia co udostępnienie do niego: odczyt nie jest uprawnieniem do przepisywania.
+
+Taka poprawka przez `correct_memory` też za każdym razem czeka na osobę, niezależnie od trybu zatwierdzeń, a jej karta pokazuje fakt przed i po zmianie; poprawka własnego claimu osoby nie czeka. Poprawka zapisana przez tool jest claimem agenta, wskazuje run i rozmowę, z których pochodzi, a dziennik audytu dostaje wpis `memory.claim.corrected`. Poprawka w **Settings → Memory** jest własną poprawką osoby.
 
 - **Poprawka zachowuje to, co poprawia.** „Od poniedziałku Piotr przejmuje
   faktury” zamyka wcześniejszy claim w tej dacie i dodaje nowy; to, że Anna

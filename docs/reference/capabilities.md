@@ -472,6 +472,8 @@ The copy names the claim it came from and the original keeps its
 audience. An embed, an API-key run and a scheduled run read nothing; a group chat
 reads only its own claims. Correcting a claim that the whole project or organization reads needs the same permission as sharing into it: reading it is not authority to rewrite it.
 
+Such a correction through `correct_memory` also waits for a person every time, whatever the approval mode, and its card shows the fact before and after; correcting a person's own claim does not wait. A correction the tool records is the agent's claim, naming the run and conversation it came from, and the audit log gets a `memory.claim.corrected` entry. A correction made at **Settings → Memory** is the person's own.
+
 - **A correction keeps what it corrects.** "From Monday, Piotr takes over
   invoices" closes the earlier claim at that date and adds the new one; Anna
   handling them before Monday stays true and visible.

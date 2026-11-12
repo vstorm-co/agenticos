@@ -5,8 +5,10 @@ and a run's own short-lived sessions (see `_native`) share one set of rules.
 
 The rules that matter, in the order a reviewer will look for them:
 
-- **A source claim is never rewritten.** A correction is a new `person` claim that
-  supersedes the old one; the old keeps its text, its source and its validity.
+- **A source claim is never rewritten.** A correction is a new claim that supersedes
+  the old one; the old keeps its text, its source and its validity. A correction made
+  in the console is a `person` claim; one an agent's tool recorded is an `agent`
+  claim naming its run, because the agent may have been told by text it read.
 - **A person's word outranks an inference.** An agent's claim that contradicts a
   current person claim is stored `disputed` - kept, visible, and never put in front
   of the model as established.
@@ -127,11 +129,14 @@ async def remember(
     run_id: UUID | None = None,
     effective_from: datetime | None = None,
     episode: DecisionEpisode | None = None,
+    corrects: bool = False,
 ) -> Remembered:
     """Record one claim in `scope`, applying the precedence rules above.
 
     Writing the same statement again is a no-op that returns the existing claim, so
-    a retried run or a repeated mention never multiplies a fact.
+    a retried run or a repeated mention never multiplies a fact. A `person` claim and
+    a correction (`corrects`) supersede what is live about the subject; any other
+    claim that disagrees with it is a dispute.
     """
     if episode is not None and kind != "decision":
         raise BadRequestError(message="Structured episodes belong to decision claims")
@@ -151,8 +156,11 @@ async def remember(
             return Remembered(existing, created=False, disputed=existing.status == "disputed")
 
     now = datetime.now(UTC)
-    if origin == "person" and any(
-        item.origin == "person" and item.effective_from is not None and item.effective_from > now
+    supersedes_live = corrects or origin == "person"
+    if supersedes_live and any(
+        (item.origin == "person" or item.supersedes_id is not None)
+        and item.effective_from is not None
+        and item.effective_from > now
         for item in live
     ):
         raise ConflictError(
@@ -164,7 +172,7 @@ async def remember(
     disputed = False
     if topic is not None and live:
         people = [claim for claim in live if claim.origin == "person" and claim.status == "current"]
-        if origin == "person":
+        if supersedes_live:
             for old in live:
                 if effective_from is not None and effective_from > now:
                     # Dated for later: the old claim stays true until then, so it is closed
@@ -213,8 +221,11 @@ async def correct(
     author_user_id: UUID,
     effective_from: datetime | None = None,
     episode: DecisionEpisode | None = None,
+    origin: str = "person",
+    run_id: UUID | None = None,
+    conversation_id: UUID | None = None,
 ) -> MemoryClaim:
-    """A person's correction of one claim: a new claim that supersedes it.
+    """A correction of one claim: a new claim that supersedes it.
 
     The corrected claim keeps its text, source and validity; it is closed at the
     correction's effective date so "Anna handled invoices until Monday" stays true
@@ -234,8 +245,11 @@ async def correct(
         statement=statement,
         subject=subject,
         kind=claim.kind,
-        origin="person",
+        origin=origin,
+        corrects=True,
         author_user_id=author_user_id,
+        conversation_id=conversation_id,
+        run_id=run_id,
         effective_from=effective_from,
         episode=episode
         or (

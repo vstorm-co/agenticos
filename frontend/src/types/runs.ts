@@ -397,9 +397,9 @@ export interface ToolApproval {
    */
   context?: Record<string, string> | null;
   /**
-   * The call quotes its run - the fact `share_memory` would share - and the reader
-   * may not see that run, so the quoted keys were left out of `context` and
-   * `tool_args`.
+   * The call quotes its run - the fact `share_memory` would share, or the two
+   * versions of one `correct_memory` would change - and the reader may not see
+   * that run, so the quoted keys were left out of `context` and `tool_args`.
    */
   content_hidden?: boolean;
   /**

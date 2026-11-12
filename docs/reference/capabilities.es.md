@@ -1,5 +1,5 @@
 ---
-source_sha: "726aa02e9407"
+source_sha: "d27ee686f1e4"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -511,6 +511,8 @@ Tampoco lo responden **Approve everything** ni un **Permitir siempre** recordado
 La copia nombra el claim del que viene y
 el original conserva su audiencia. Un embed, un run con clave de API y un run
 programado no leen nada; un chat de grupo lee solo sus propios claims. Corregir un claim que lee todo el proyecto o la organización exige el mismo permiso que compartir hacia allí: leerlo no es autoridad para reescribirlo.
+
+Una corrección así mediante `correct_memory` además espera a una persona cada vez, sea cual sea el modo de aprobación, y su tarjeta muestra el hecho antes y después; corregir un claim propio de una persona no espera. Una corrección que registra la herramienta es un claim del agent, nombra el run y la conversación de los que viene, y el registro de auditoría recibe una entrada `memory.claim.corrected`. Una corrección hecha en **Settings → Memory** es de la propia persona.
 
 - **Una corrección conserva lo que corrige.** «Desde el lunes Piotr se encarga de
   las facturas» cierra el claim anterior en esa fecha y añade el nuevo; que Anna
