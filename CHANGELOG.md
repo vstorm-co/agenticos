@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.70.0] - 2026-11-12
+
 ### Upgrading
 
 Platform MCP clients must follow page and text-window continuations instead of expecting all cached schemas or recorded tool results inline. Use `get_mcp_connection_tool` and `get_capability` for selected full contracts, and the run or conversation tool-call readers for recorded payloads. New channel bots acknowledge incoming questions and leave answer ratings disabled; existing bots keep their saved settings.
@@ -21494,7 +21496,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.69.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.70.0...HEAD
+[1.70.0]: https://github.com/vstorm-co/agenticos/compare/v1.69.0...v1.70.0
 [1.69.0]: https://github.com/vstorm-co/agenticos/compare/v1.68.0...v1.69.0
 [1.68.0]: https://github.com/vstorm-co/agenticos/compare/v1.67.0...v1.68.0
 [1.67.0]: https://github.com/vstorm-co/agenticos/compare/v1.66.0...v1.67.0
