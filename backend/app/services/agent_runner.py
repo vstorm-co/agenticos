@@ -5984,12 +5984,9 @@ class AgentRunnerService:
 
     async def _shared_for_editing(self, ctx: AuthContext, conversation_id: UUID | None) -> bool:
         """Whether somebody the conversation is shared with may write in it."""
-        if conversation_id is None:
-            return False
-        shares = await conversation_share_repo.get_shares_for_conversation(
+        return conversation_id is not None and await conversation_share_repo.has_edit_share(
             self.db, conversation_id, organization_id=ctx.organization_id
         )
-        return any(share.shared_with is not None and share.permission == "edit" for share in shares)
 
     @staticmethod
     def _delegation_recorder(

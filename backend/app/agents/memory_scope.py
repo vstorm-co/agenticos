@@ -108,14 +108,15 @@ def readable_claim_scopes(
     shared profile, the project the conversation belongs to and the organization.
     An anonymous run reads nothing: an organization's claims are not for a public
     embed, and there is no person whose profile it could be. A chat other people
-    read keeps the project's and the organization's claims and none of the person's.
+    read keeps the project's and the organization's claims, whether or not the agent
+    keeps personal memory, and none of the person's.
     """
     key = memory_owner_key(audience, allow_personal=allow_personal)
     if audience.room_key is not None:
         # What a room reads aloud is the room's own: a channel's members are not
         # necessarily a project's, and the organization's claims are not for it.
         return [ClaimScope(audience.room_key, agent_id)]
-    if audience.user_id is None or not allow_personal:
+    if audience.user_id is None or (not allow_personal and not audience.shared_transcript):
         return []
     scopes = [] if key is None else [ClaimScope(key, agent_id), ClaimScope(key, None)]
     if project_id is not None:

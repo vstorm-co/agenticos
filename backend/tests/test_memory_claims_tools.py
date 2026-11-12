@@ -163,6 +163,20 @@ class TestScopes:
             ClaimScope(organization_owner_key(ORG), None),
         ]
 
+    def test_a_chat_others_read_keeps_shared_claims_without_personal_memory(self):
+        scopes = readable_claim_scopes(
+            RunAudience(user_id=PERSON, shared_transcript=True),
+            organization_id=ORG,
+            agent_id=AGENT,
+            project_id=PROJECT,
+            allow_personal=False,
+        )
+
+        assert scopes == [
+            ClaimScope(project_owner_key(PROJECT), None),
+            ClaimScope(organization_owner_key(ORG), None),
+        ]
+
     def test_a_chat_others_read_writes_no_personal_claim(self):
         assert (
             claim_write_scope(

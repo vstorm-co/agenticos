@@ -38,6 +38,7 @@ from app.repositories import (
     agent_run_repo,
     audit_log_repo,
     conversation_repo,
+    conversation_share_repo,
     system_agent_repo,
 )
 from app.schemas.decision_episode import DecisionEpisode
@@ -165,6 +166,22 @@ async def queue_extraction(
     return job is not None
 
 
+async def _read_by_others(db: AsyncSession, run: AgentRun) -> bool:
+    """Whether people besides the person read the run's conversation now.
+
+    Asked when the job runs, not only when it was queued: a chat moved into a project
+    or shared to edit in between is no longer the person's alone.
+    """
+    assert run.conversation_id is not None
+    conversation = await conversation_repo.get_conversation_by_id(db, run.conversation_id)
+    return conversation is not None and (
+        conversation.project_id is not None
+        or await conversation_share_repo.has_edit_share(
+            db, run.conversation_id, organization_id=run.organization_id
+        )
+    )
+
+
 async def _erased_since(db: AsyncSession, run: AgentRun) -> bool:
     """Whether the person's memory or this agent's was erased after this run began.
 
@@ -215,7 +232,7 @@ async def extract(
     ):
         return 0
     ctx = await member_context(db, organization_id=organization_id, user_id=run.user_id)
-    if ctx is None or await _erased_since(db, run):
+    if ctx is None or await _erased_since(db, run) or await _read_by_others(db, run):
         return 0
     messages = await conversation_repo.get_messages_by_run(db, run.id, limit=60, newest=True)
     turns = [f"{m.role}: {m.content.strip()}" for m in messages if m.role in ("user", "assistant")]
@@ -237,6 +254,7 @@ async def extract(
     await hold_subject(db, LockScope.PERSONAL_DATA_PER_USER, run.user_id)
     if (
         await _erased_since(db, run)
+        or await _read_by_others(db, run)
         or await member_context(db, organization_id=organization_id, user_id=run.user_id) is None
     ):
         return 0

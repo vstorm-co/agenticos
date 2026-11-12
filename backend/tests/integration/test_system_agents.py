@@ -432,6 +432,65 @@ async def test_the_job_reads_one_run_in_its_own_session(
     read.assert_awaited_once_with(db, org_id, run_id)
 
 
+@pytest.mark.parametrize("moved", ["project", "edit share"])
+async def test_a_chat_others_read_by_the_time_the_job_runs_records_nothing(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch, moved: str
+) -> None:
+    from app.db.models.conversation_share import ConversationShare
+    from app.db.models.organization import OrganizationMember
+    from app.db.models.project import Project
+
+    user, org, agent, version, model, ctx = await _world(db)
+    run, conversation = await _chat_run(db, org, agent, version, user)
+    await _transcript(db, conversation, run, [("user", "I prefer short answers")])
+    think = _think(monkeypatch, [extraction._Extracted(statement="Prefers short answers")])
+    if moved == "project":
+        project = Project(organization_id=org.id, owner_user_id=user.id, name="Launch")
+        db.add(project)
+        await db.flush()
+        conversation.project_id = project.id
+    else:
+        colleague = User(email=f"{uuid.uuid4()}@example.com", hashed_password="x")
+        db.add(colleague)
+        await db.flush()
+        db.add(OrganizationMember(organization_id=org.id, user_id=colleague.id, role="member"))
+        db.add(
+            ConversationShare(
+                conversation_id=conversation.id,
+                shared_by=user.id,
+                shared_with=colleague.id,
+                permission="edit",
+            )
+        )
+    await db.flush()
+
+    assert await extraction.extract(db, org.id, run.id) == 0
+    assert not think.await_count
+
+
+async def test_a_chat_shared_during_the_model_call_records_nothing(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.db.models.project import Project
+
+    user, org, agent, version, model, ctx = await _world(db)
+    run, conversation = await _chat_run(db, org, agent, version, user)
+    await _transcript(db, conversation, run, [("user", "I prefer short answers")])
+    found = extraction._Extraction(claims=[extraction._Extracted(statement="Prefers short")])
+
+    async def moved_meanwhile(*args, **kwargs):
+        project = Project(organization_id=org.id, owner_user_id=user.id, name="Launch")
+        db.add(project)
+        await db.flush()
+        conversation.project_id = project.id
+        await db.flush()
+        return found
+
+    monkeypatch.setattr(_thinker.ProactiveThinker, "think", moved_meanwhile)
+
+    assert await extraction.extract(db, org.id, run.id) == 0
+
+
 async def test_a_chat_read_after_its_person_was_forgotten_records_nothing(
     db: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
