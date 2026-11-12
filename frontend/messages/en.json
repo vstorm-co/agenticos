@@ -11217,6 +11217,11 @@
       "gmail": "Mail trigger and Gmail actions",
       "outlook": "Mail trigger and Outlook actions"
     },
+    "pickerFound": {
+      "groups": "Categories",
+      "steps": "Built-in steps",
+      "actions": "App actions"
+    },
     "pickerSection": {
       "start": "Start",
       "ai": "AI",

@@ -15,6 +15,7 @@ import { carryPortRenameToMerges } from "@/components/workflows/property-panel/m
 import { carryMergeKeyRename, mergeKeyRename } from "@/lib/workflows/merge-key-rename";
 import { carryPortRename, portRename } from "@/lib/workflows/port-rename";
 import type { StepData } from "@/lib/workflows/step-data";
+import { TRIGGER_IDS } from "@/lib/workflows/triggers";
 import {
   outputRefs,
   renameOutputRefs,
@@ -455,11 +456,18 @@ function withoutBodiesOf(graph: WorkflowGraph, removed: ReadonlySet<string>): Wo
   return nodes.length === graph.nodes.length ? graph : { ...graph, nodes };
 }
 
+/** Whether `node` is a trigger on the top-level canvas - a way the workflow can start. */
+function isRootTrigger(node: NodeInstance | undefined): node is NodeInstance {
+  return node !== undefined && !node.scope_id && TRIGGER_IDS.has(node.definition_id);
+}
+
 /**
  * Drop everything the current node set no longer supports — an edge or binding
- * or scope that names a removed node — and re-home the entry on the first
- * surviving node if it was the one removed. The client mirror of the invariant
- * the server keeps: the graph never references a node it does not hold.
+ * or scope that names a removed node — and re-home the entry if it was the one
+ * removed: on a surviving trigger, else on the first surviving node. A step the
+ * trigger feeds would be a start that a wire leads into, which publishing
+ * refuses. The client mirror of the invariant the server keeps: the graph never
+ * references a node it does not hold.
  */
 function pruneToNodes(graph: WorkflowGraph): WorkflowGraph {
   const ids = new Set(graph.nodes.map((node) => node.id));
@@ -477,8 +485,8 @@ function pruneToNodes(graph: WorkflowGraph): WorkflowGraph {
       ids.has(scope.exit_node_id) &&
       scope.body_node_ids.every((id) => ids.has(id)),
   );
-  const firstNode = graph.nodes[0];
-  const entry_node_id = ids.has(graph.entry_node_id) ? graph.entry_node_id : (firstNode?.id ?? "");
+  const rehomed = graph.nodes.find(isRootTrigger) ?? graph.nodes[0];
+  const entry_node_id = ids.has(graph.entry_node_id) ? graph.entry_node_id : (rehomed?.id ?? "");
   // Notes name no step, so nothing here prunes them.
   return { ...graph, entry_node_id, edges, bindings, scopes };
 }
@@ -738,8 +746,14 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
         target_node_id: target,
         target_port: targetHandle,
       };
+      // A trigger wired into the start takes its place: the start cannot be a
+      // wire's target, and the builder means the trigger to run what follows.
+      const takesEntry =
+        target === graph.entry_node_id &&
+        isRootTrigger(graph.nodes.find((node) => node.id === source));
       commit({
         ...graph,
+        entry_node_id: takesEntry ? source : graph.entry_node_id,
         nodes: withConfigs(graph.nodes, configs),
         edges: [...graph.edges, edge],
         bindings: [...graph.bindings, ...bindings],
