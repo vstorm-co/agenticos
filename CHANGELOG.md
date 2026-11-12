@@ -26,6 +26,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Failed chat turns remain visibly failed.** A safe failure notice stays outside folded work and survives transcript reloads; partial answers remain separate from platform errors. Provider content-filter refusals get an explicit explanation without exposing raw provider payloads or unknown historical errors.
+- **Favicons for ordinary web links.** Unknown HTTP(S) sites use their own favicon even without an MCP connection, with a globe if unavailable. Inert transcript views make no remote icon requests, and a missing icon on one site does not suppress another site's icon.
+
 - Match skill/context editor loading to the real dialog and pane geometry on
   desktop and phones. Keep dataset detail chrome and load Cases through its real
   table columns; align catalog placeholders and remove invented panel/form grids.

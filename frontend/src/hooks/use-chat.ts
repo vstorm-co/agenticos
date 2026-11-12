@@ -1293,14 +1293,13 @@ export function useChat(options: UseChatOptions = {}) {
             currentMessageIdRef.current ??
             (unanswered ? createNewMessage("") : null);
           if (id) {
-            // Into the timeline rather than onto `content` directly: the store's
-            // append keeps the two in step, and it starts a parts list for a
-            // message that has none - which is what a replayed turn looks like.
-            appendTextDelta(
-              id,
-              `\n\n${t("streamError", { message: message || t("unknownError") })}`,
-            );
-            updateMessage(id, (msg) => ({ ...msg, isStreaming: false }));
+            // A failure belongs to the run, not to the assistant's answer.
+            updateMessage(id, (msg) => ({
+              ...msg,
+              isStreaming: false,
+              runFailed: true,
+              runError: message || t("unknownError"),
+            }));
             abandonOpenCalls(id);
           }
           if (followingRef.current === null) setIsProcessing(false);

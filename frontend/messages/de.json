@@ -1662,9 +1662,10 @@
       "elapsedMinutes": "{minutes} min{seconds, plural, =0 {} other { # s}}",
       "stopped": "Gestoppt{count, plural, =0 {} =1 { · 1 Schritt} other { · # Schritte}}",
       "stoppedAfter": "Nach {duration} gestoppt{count, plural, =0 {} =1 { · 1 Schritt} other { · # Schritte}}",
-      "activityCount": "{count, plural, one {# Aktion} other {# Aktionen}}"
+      "activityCount": "{count, plural, one {# Aktion} other {# Aktionen}}",
+      "failedAfter": "Fehlgeschlagen nach {duration}{count, plural, =0 {} =1 { · 1 Schritt} other { · # Schritte}}",
+      "failedWork": "Fehlgeschlagen{count, plural, =0 {} =1 { · 1 Schritt} other { · # Schritte}}"
     },
-    "streamError": "❌ Fehler: {message}",
     "turnInterrupted": "Die Verbindung ist mitten in der Antwort abgerissen. Der Agent beendet den Zug und speichert ihn in dieser Unterhaltung.",
     "turnInterruptedRecheck": "Danach sehen",
     "turnStillArriving": "Die frühere Antwort wird noch geschrieben. Sie landet in dieser Unterhaltung, sobald sie fertig ist - unter der Frage, die Sie gerade gestellt haben.",
@@ -2509,7 +2510,9 @@
       "notice": "Einrichtungsantwort · Kein KI-Aufruf und keine Nutzungsgebühren beim Anbieter.",
       "ownerHint": "Dein Workspace-Administrator kann KI für das Team verbinden. Du brauchst keinen eigenen Schlüssel.",
       "contact": "Administrator kontaktieren"
-    }
+    },
+    "runFailedTitle": "Ausführung nicht abgeschlossen",
+    "runFailedHint": "Es wurde keine abschließende Antwort erstellt. Die bisherigen Schritte stehen oben."
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",

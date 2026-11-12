@@ -202,6 +202,11 @@ for (const platform of ["ios", "android"] as const) {
       for (const width of [320, 390]) {
         await page.setViewportSize({ width, height: 844 });
         await page.goto("/agents");
+        // The toolbar mounts before the catalog query settles. Interact with
+        // the loaded seeded page, including after the viewport/navigation change.
+        await expect(
+          page.getByRole("heading", { name: "AgenticOS", exact: true, level: 3 }),
+        ).toBeVisible();
         const toggle = page.getByRole("button", { name: /^Filters/ });
         await expectTouchTarget(toggle);
         const status = page.getByRole("combobox", { name: "Filter by status" });

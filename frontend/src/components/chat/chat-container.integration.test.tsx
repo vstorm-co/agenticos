@@ -1579,9 +1579,10 @@ describe("the chat container - late transcript reconciliation", () => {
     );
     await act(async () => {});
     expect(useChatStore.getState().messages.at(-1)?.content).toContain("Unsaved answer");
-    expect(useChatStore.getState().messages.at(-1)?.content).toContain(
-      "Could not persist this answer",
-    );
+    expect(useChatStore.getState().messages.at(-1)).toMatchObject({
+      runFailed: true,
+      runError: "Could not persist this answer",
+    });
     expect(await screen.findByText(/Could not persist this answer/)).toBeVisible();
   });
 });

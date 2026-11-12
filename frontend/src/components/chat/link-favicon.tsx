@@ -15,17 +15,18 @@ import { cn } from "@/lib/utils";
  * referrer, so it learns nothing about where the link was written.
  */
 export function LinkFavicon({ url, className }: { url: string; className?: string }) {
-  const [missing, setMissing] = useState(false);
+  const [missingOrigin, setMissingOrigin] = useState<string | null>(null);
   const brand = brandForUrl(url);
   const size = cn("h-4 w-4 shrink-0", className);
   if (brand) return <BrandIcon name={brand} aria-hidden className={size} />;
   let origin: string | null = null;
   try {
-    origin = new URL(url).origin;
+    const parsed = new URL(url);
+    origin = parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.origin : null;
   } catch {
     origin = null;
   }
-  if (origin === null || missing) {
+  if (origin === null || missingOrigin === origin) {
     return <Globe aria-hidden className={cn(size, "text-muted-foreground")} />;
   }
   return (
@@ -36,7 +37,7 @@ export function LinkFavicon({ url, className }: { url: string; className?: strin
       aria-hidden
       referrerPolicy="no-referrer"
       loading="lazy"
-      onError={() => setMissing(true)}
+      onError={() => setMissingOrigin(origin)}
       className={cn(size, "rounded-[3px] object-contain")}
     />
   );
