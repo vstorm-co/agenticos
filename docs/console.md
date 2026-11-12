@@ -946,6 +946,18 @@ reads them at the start of a run, so you never repeat them in a chat; "every Mon
 at 9" is your 9. The time zone is taken from your browser the first time you sign
 in, until you choose one.
 
+Profile settings keep your portrait, display name and email in one form, with
+fallback colours under an expandable control. Save sits below the fields and
+Enter submits the identity or role form. While any profile write is pending,
+both identity and context fields stay locked; a refusal retains the draft.
+Working days use larger targets, with separate start and end fields on phones.
+
+**Settings → Notifications** searches event names and descriptions and lists six
+events per page. The chat selector changes the additional channel without
+changing other preferences. Connected private-chat destinations appear first;
+other platforms are folded below. Failed preference, destination and linked-account
+reads offer Retry instead of displaying invented defaults or an empty account list.
+
 ## The next step
 
 A page that is empty because nothing exists yet offers the way to make the first

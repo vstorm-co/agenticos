@@ -6971,7 +6971,6 @@
       "agentActivity": "Agent-Aktivität",
       "allConversationsKnowledgeBase": "Alle Unterhaltungen, Inhalte der Wissensdatenbank, API-Schlüssel und persönlichen Daten werden endgültig gelöscht. Aktive Abonnements werden gekündigt.",
       "alwaysSent": "Wird immer gesendet",
-      "avatar": "Avatar",
       "avatarTooLargeMaximum2": "Avatar zu groß. Höchstens 2 MB.",
       "avatarUpdated": "Avatar aktualisiert",
       "cancel": "Abbrechen",
@@ -7016,7 +7015,7 @@
       "noMarketingEmail": "Keine Marketing-E-Mails.",
       "notOptional": "Nicht optional –",
       "notificationPreferences": "Benachrichtigungseinstellungen",
-      "notificationPreferencesDescription": "Wähle Ereignisse für jeden Kanal. Die Chatauswahl ändert die zusätzliche Spalte unten; ein privates Ziel muss auch oben aktiviert sein. Nicht gesetzte Ereignisschalter sind standardmäßig an.",
+      "notificationPreferencesDescription": "Wähle die Ereignisse für jeden Kanal. Private Chats brauchen zusätzlich ein Ziel unter Benachrichtigungen in privaten Chats. Ereignisse sind aktiviert, bis du sie ausschaltest.",
       "nothingChanged": "Nichts geändert",
       "nothingHereChargesYou": "Nichts hier stellt Ihnen etwas in Rechnung, es gibt also keine Verlängerungen, fehlgeschlagenen Zahlungen oder Guthabenwarnungen.",
       "optionalApprovals": "Freigabeanfragen",
@@ -7057,7 +7056,6 @@
       "revokesEveryActiveSession": "Das widerruft jede aktive Sitzung und meldet Sie auch auf diesem Gerät ab.",
       "saveChanges": "Änderungen speichern",
       "saving2": "Wird gespeichert …",
-      "saving3": "Wird gespeichert …",
       "selfDeleteNotEnabled": "Selbstlöschung ist nicht aktiviert. Wenden Sie sich an den Support.",
       "selfHostedDeploymentThere": "Dies ist ein selbst gehostetes Deployment. Es gibt keinen Newsletter und keine Abonnentenliste.",
       "sentInvitation": "Einladung in eine Organisation",
@@ -7182,7 +7180,12 @@
       "smsChannel": "SMS",
       "chatChannelPreferences": "Einstellungen für den Chatkanal",
       "imessageChannel": "iMessage",
-      "discordChannel": "Discord"
+      "discordChannel": "Discord",
+      "notificationSearch": "Benachrichtigungen suchen…",
+      "notificationNoMatches": "Keine passenden Benachrichtigungen",
+      "notificationSearchHint": "Suche nach einem Ereignisnamen oder einem Wort aus der Beschreibung.",
+      "notificationClearSearch": "Suche zurücksetzen",
+      "notificationEventCount": "{count, plural, =1 {1 Ereignis} other {# Ereignisse}}"
     },
     "skills": {
       "agentsBoundSkillWill": "An diesen Skill gebundene Agents laufen ab ihrem nächsten Run ohne ihn. Das lässt sich nicht rückgängig machen.",
@@ -15800,7 +15803,8 @@
     "teams": "Microsoft Teams",
     "sms": "SMS",
     "imessage": "iMessage",
-    "discord": "Discord"
+    "discord": "Discord",
+    "platformOptions": "Chat-Plattformen"
   },
   "routineHealth": {
     "label": "Bei wiederholten Fehlern pausieren",

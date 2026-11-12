@@ -1,5 +1,5 @@
 ---
-source_sha: "63b02f93b44f"
+source_sha: "30c984fec99a"
 ---
 
 # Konsola { #the-console }
@@ -978,6 +978,18 @@ pracujesz i twoją strefę czasową. Każdy agent czyta je na początku runu, wi
 nigdy nie powtarzasz ich w czacie; „w każdy poniedziałek o 9” to twoja 9. Strefa
 czasowa jest brana z przeglądarki przy pierwszym logowaniu, dopóki nie wybierzesz
 własnej.
+
+Ustawienia profilu łączą avatar, nazwę i e-mail w jednym formularzu, z kolorami
+zastępczymi pod rozwinięciem. Zapis jest pod polami, a Enter wysyła formularz
+nazwy lub roli. Podczas zapisu profilu pola danych i kontekstu są zablokowane;
+odmowa zachowuje formularz. Dni pracy mają większe pola dotyku, a godziny
+początku i końca są osobnymi polami także na telefonie.
+
+**Ustawienia → Powiadomienia** wyszukują nazwy i opisy zdarzeń, po sześć na
+stronie. Selektor czatu zmienia dodatkowy kanał bez zmiany pozostałych preferencji.
+Połączone miejsca powiadomień w prywatnych czatach są pierwsze; pozostałe platformy
+są pod rozwinięciem. Błędy odczytu preferencji, miejsc lub połączonych kont mają
+przycisk ponowienia zamiast pozornych wartości domyślnych lub pustej listy kont.
 
 ## Następny krok { #the-next-step }
 

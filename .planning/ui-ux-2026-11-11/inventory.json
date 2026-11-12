@@ -937,14 +937,12 @@
     {
       "path": "frontend/src/app/[locale]/(dashboard)/settings/notifications/page.tsx",
       "imports": [
-        899,
         1791,
         1375,
-        1239,
         1105,
         1209,
-        1934,
         1211,
+        2173,
         1213,
         1575,
         1790,
@@ -12504,7 +12502,8 @@
     {
       "path": "frontend/src/components/settings/chat-accounts.tsx",
       "imports": [
-        899,
+        489,
+        1239,
         1791,
         1375,
         300,
@@ -12611,6 +12610,7 @@
         1934,
         1791,
         1681,
+        489,
         1239,
         1375,
         1213
@@ -20592,6 +20592,27 @@
         2021,
         2124
       ]
+    },
+    {
+      "path": "frontend/src/components/settings/notification-event-catalog.ts",
+      "imports": [
+        899,
+        1934
+      ]
+    },
+    {
+      "path": "frontend/src/components/settings/notification-event-preferences.tsx",
+      "imports": [
+        489,
+        1239,
+        1375,
+        1575,
+        1928,
+        1791,
+        1934,
+        2172,
+        1213
+      ]
     }
   ],
   "routes": [
@@ -22699,7 +22720,8 @@
         1215,
         1216,
         1217,
-        2171
+        2171,
+        2173
       ]
     },
     {

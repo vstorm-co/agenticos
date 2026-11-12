@@ -33,6 +33,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Profile identity and context forms keep their drafts after refused writes,
+  block overlapping changes and support keyboard submission. Portrait controls,
+  native colour choices and working hours fit phones. Notification events are
+  searchable and paginated with clear channel controls; unconnected platforms
+  stay folded. Failed preferences, destinations and chat-account reads offer
+  retry without inventing enabled switches or an empty account list.
+
 - API key settings put active credentials first and retain names, expiry and
   usage details on phones. Keys and custom permissions are searchable. Creation supports keyboard submission,
   locks fields and dismissal during writes, preserves refused drafts and clears

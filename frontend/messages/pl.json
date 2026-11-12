@@ -3193,7 +3193,6 @@
       "agentActivity": "Aktywność agentów",
       "allConversationsKnowledgeBase": "Wszystkie rozmowy, zawartość baz wiedzy, klucze API i dane osobowe zostaną trwale usunięte. Aktywne subskrypcje zostaną anulowane.",
       "alwaysSent": "Zawsze wysyłane",
-      "avatar": "Awatar",
       "avatarTooLargeMaximum2": "Awatar jest za duży. Maksymalnie 2 MB.",
       "avatarUpdated": "Awatar zaktualizowany",
       "cancel": "Anuluj",
@@ -3238,7 +3237,7 @@
       "noMarketingEmail": "Bez e-maili marketingowych.",
       "notOptional": "Nieopcjonalne -",
       "notificationPreferences": "Ustawienia powiadomień",
-      "notificationPreferencesDescription": "Wybierz zdarzenia dla poszczególnych kanałów. Selektor czatu zmienia dodatkową kolumnę poniżej; prywatne miejsce trzeba też włączyć powyżej. Nieustawiony przełącznik zdarzenia jest domyślnie włączony.",
+      "notificationPreferencesDescription": "Wybierz zdarzenia dla każdego kanału. Prywatne czaty wymagają też miejsca dostarczania w sekcji Powiadomienia w prywatnych czatach. Zdarzenia są włączone, dopóki ich nie wyłączysz.",
       "nothingChanged": "Nic się nie zmieniło",
       "nothingHereChargesYou": "Nic tutaj Cię nie obciąża, więc nie ma odnowień, nieudanych płatności ani ostrzeżeń o kredytach.",
       "optionalApprovals": "Prośby o zatwierdzenie",
@@ -3273,7 +3272,6 @@
       "revokesEveryActiveSession": "To unieważnia każdą aktywną sesję i wylogowuje Cię także z tego urządzenia.",
       "saveChanges": "Zapisz zmiany",
       "saving2": "Zapisywanie…",
-      "saving3": "Zapisywanie…",
       "selfDeleteNotEnabled": "Samodzielne usuwanie konta nie jest włączone. Skontaktuj się z pomocą.",
       "selfHostedDeploymentThere": "To wdrożenie self-hosted. Nie ma newslettera ani listy subskrybentów.",
       "sentInvitation": "Zaproszenie do organizacji",
@@ -3396,7 +3394,12 @@
       "smsChannel": "SMS",
       "chatChannelPreferences": "Preferencje kanału czatu",
       "imessageChannel": "iMessage",
-      "discordChannel": "Discord"
+      "discordChannel": "Discord",
+      "notificationSearch": "Szukaj powiadomień…",
+      "notificationNoMatches": "Brak pasujących powiadomień",
+      "notificationSearchHint": "Spróbuj nazwy zdarzenia lub słowa z jego opisu.",
+      "notificationClearSearch": "Wyczyść wyszukiwanie",
+      "notificationEventCount": "{count, plural, one {# zdarzenie} few {# zdarzenia} many {# zdarzeń} other {# zdarzenia}}"
     },
     "tables": {
       "title": "Tabele",
@@ -15901,7 +15904,8 @@
     "teams": "Microsoft Teams",
     "sms": "SMS",
     "imessage": "iMessage",
-    "discord": "Discord"
+    "discord": "Discord",
+    "platformOptions": "Platformy czatu"
   },
   "routineHealth": {
     "label": "Wstrzymaj po kolejnych błędach",

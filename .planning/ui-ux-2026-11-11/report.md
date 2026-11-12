@@ -699,3 +699,59 @@ call or external integration is triggered.
 | Create key, touch phone 320×740 | [PNG](comparisons/api-key-create-phone-before.png) | [PNG](comparisons/api-key-create-phone-after.png) |
 | Custom permissions, desktop 1440×1000 | [PNG](comparisons/api-key-custom-desktop-before.png) | [PNG](comparisons/api-key-custom-desktop-after.png) |
 | Custom permissions, touch phone 320×740 | [PNG](comparisons/api-key-custom-phone-before.png) | [PNG](comparisons/api-key-custom-phone-after.png) |
+
+
+## Profile and notification journeys — 2026-11-12
+
+Profile combines portrait and identity in one card, folds fallback colours and
+places Save below the fields. Native forms support Enter; named fieldsets freeze
+identity, portrait, colour and agent-context controls during conflicting writes.
+Refused saves retain drafts and allow retry. Working days have 44px touch targets,
+with equal-width, labelled start/end fields at 320px. Native avatar-colour radios
+support arrow keys and retain native appearance in forced colours.
+
+Event preferences have translated search, six-event pagination, compact channel
+cards and a branded chat-platform selector. Paging scrolls the new first result
+into view. Loading shows skeletons rather than guessed enabled switches; failed
+reads offer Retry. Connected/selected destinations lead their section, with unused
+platforms folded away. Linked chat accounts show platform logos and wrapping
+identities, hosts and agent names; a failed read no longer looks like an empty
+account list.
+
+75 focused tests across nine files and two full Chromium journeys pass at
+1440×1000 and touch 320×740. Journeys cover held refusals, pending locks, retries,
+keyboard submit, profile/context changes, event/channel changes, navigation,
+re-entry and reload. Regression checks fail on the previous context form and
+linked-account error handling. The paging assertion also fails before its fix:
+the next page's first result has viewport ratio zero. Final checks pass frontend
+lint (including TypeScript, i18n and dependency checks), strict multilingual MkDocs,
+translation freshness, paragraph checks and generated Architect-guide drift.
+Full CI, coverage and cross-browser suites have not run locally.
+
+The original profile and all 276 stored notification values are restored and
+verified after the journeys and captures. Browser portrait coverage exercises a
+refused upload; successful upload/retry is covered with a component mock rather
+than replacing the existing portrait. Chat-account screenshot pairs use one
+controlled read fixture to show a long Mattermost identity; no external account
+is connected or disconnected. Context screenshots use unsaved demonstration
+text. No email, phone, push delivery or model call is triggered.
+
+Twelve equal-viewport pairs capture the previous committed UI with the same local
+runtime and records, followed by the working UI. Production files are restored
+byte for byte after baseline capture. The source map now covers 99 routes,
+1194 component modules and 57 families.
+
+| Evidence | Before | After |
+| --- | --- | --- |
+| Profile identity, desktop 1440×1000 | [PNG](comparisons/profile-desktop-before.png) | [PNG](comparisons/profile-desktop-after.png) |
+| Profile identity, phone 320×740 | [PNG](comparisons/profile-phone-before.png) | [PNG](comparisons/profile-phone-after.png) |
+| Personal agent context and working hours, desktop 1440×1000 | [PNG](comparisons/profile-context-desktop-before.png) | [PNG](comparisons/profile-context-desktop-after.png) |
+| Personal agent context and working hours, phone 320×740 | [PNG](comparisons/profile-context-phone-before.png) | [PNG](comparisons/profile-context-phone-after.png) |
+| Linked chat accounts, desktop 1440×1000 | [PNG](comparisons/profile-chat-accounts-desktop-before.png) | [PNG](comparisons/profile-chat-accounts-desktop-after.png) |
+| Linked chat accounts, phone 320×740 | [PNG](comparisons/profile-chat-accounts-phone-before.png) | [PNG](comparisons/profile-chat-accounts-phone-after.png) |
+| Notification settings overview, desktop 1440×1000 | [PNG](comparisons/notifications-desktop-before.png) | [PNG](comparisons/notifications-desktop-after.png) |
+| Notification settings overview, phone 320×740 | [PNG](comparisons/notifications-phone-before.png) | [PNG](comparisons/notifications-phone-after.png) |
+| Searchable event preferences, desktop 1440×1000 | [PNG](comparisons/notification-preferences-desktop-before.png) | [PNG](comparisons/notification-preferences-desktop-after.png) |
+| Searchable event preferences, phone 320×740 | [PNG](comparisons/notification-preferences-phone-before.png) | [PNG](comparisons/notification-preferences-phone-after.png) |
+| Private chat destinations, desktop 1440×1000 | [PNG](comparisons/notification-routes-desktop-before.png) | [PNG](comparisons/notification-routes-desktop-after.png) |
+| Private chat destinations, phone 320×740 | [PNG](comparisons/notification-routes-phone-before.png) | [PNG](comparisons/notification-routes-phone-after.png) |

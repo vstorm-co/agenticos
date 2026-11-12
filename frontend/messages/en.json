@@ -7699,7 +7699,6 @@
       "agentActivity": "Agent activity",
       "allConversationsKnowledgeBase": "All conversations, knowledge base contents, API keys, and personal data will be permanently deleted. Active subscriptions will be canceled.",
       "alwaysSent": "Always sent",
-      "avatar": "Avatar",
       "avatarTooLargeMaximum2": "Avatar too large. Maximum 2MB.",
       "avatarUpdated": "Avatar updated",
       "cancel": "Cancel",
@@ -7744,7 +7743,7 @@
       "noMarketingEmail": "No marketing email.",
       "notOptional": "Not optional -",
       "notificationPreferences": "Notification preferences",
-      "notificationPreferencesDescription": "Choose which events reach each channel. The chat selector changes the additional column below; a private destination must also be enabled above. An unset event switch defaults to on.",
+      "notificationPreferencesDescription": "Choose which events reach each channel. Private chats also need a destination in Private chat notifications. Event switches are on unless you turn them off.",
       "nothingChanged": "Nothing changed",
       "nothingHereChargesYou": "Nothing here charges you, so there are no renewals, payment failures or credit warnings.",
       "optionalApprovals": "Approval requests",
@@ -7785,7 +7784,6 @@
       "revokesEveryActiveSession": "This revokes every active session and signs you out of this device too.",
       "saveChanges": "Save changes",
       "saving2": "Saving…",
-      "saving3": "Saving…",
       "selfDeleteNotEnabled": "Self-delete not enabled. Contact support.",
       "selfHostedDeploymentThere": "This is a self-hosted deployment. There is no newsletter and no subscriber list.",
       "sentInvitation": "Organization invitation",
@@ -7910,7 +7908,12 @@
       "smsChannel": "SMS",
       "chatChannelPreferences": "Chat channel preferences",
       "imessageChannel": "iMessage",
-      "discordChannel": "Discord"
+      "discordChannel": "Discord",
+      "notificationSearch": "Find notifications…",
+      "notificationNoMatches": "No matching notifications",
+      "notificationSearchHint": "Try an event name or a word from its description.",
+      "notificationClearSearch": "Clear search",
+      "notificationEventCount": "{count, plural, =1 {1 event} other {# events}}"
     },
     "skills": {
       "agentsBoundSkillWill": "Agents bound to this skill will run without it from their next run. This cannot be undone.",
@@ -16128,7 +16131,8 @@
     "teams": "Microsoft Teams",
     "sms": "SMS",
     "imessage": "iMessage",
-    "discord": "Discord"
+    "discord": "Discord",
+    "platformOptions": "Chat platforms"
   },
   "routineHealth": {
     "label": "Pause after repeated failures",

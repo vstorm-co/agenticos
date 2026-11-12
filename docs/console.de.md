@@ -1,5 +1,5 @@
 ---
-source_sha: "63b02f93b44f"
+source_sha: "30c984fec99a"
 ---
 
 # Die Konsole { #the-console }
@@ -1054,6 +1054,20 @@ Profile)** hält den Rest dessen, was Agents über Sie wissen: Ihre Rolle, woran
 arbeiten und Ihre Zeitzone. Jeder Agent liest sie zu Beginn eines Runs, sodass Sie
 sie in keinem Chat wiederholen; „jeden Montag um 9“ ist Ihre 9. Die Zeitzone wird
 bei der ersten Anmeldung aus Ihrem Browser übernommen, bis Sie eine wählen.
+
+Die Profileinstellungen verbinden Porträt, Anzeigename und E-Mail in einem
+Formular; Ersatzfarben stehen unter einer aufklappbaren Zeile. Speichern steht
+unter den Feldern, Enter sendet das Namens- oder Rollenformular. Während eines
+Profilzugriffs zum Speichern bleiben Identität und Kontext gesperrt; eine
+Ablehnung behält den Entwurf. Arbeitstage haben größere Touch-Ziele; Beginn
+und Ende stehen auch auf dem Smartphone in getrennten Feldern.
+
+**Einstellungen → Benachrichtigungen** durchsucht Ereignisnamen und Beschreibungen,
+mit sechs Ereignissen pro Seite. Die Chatauswahl ändert den zusätzlichen Kanal,
+ohne andere Einstellungen zu verändern. Verknüpfte private Chatziele stehen
+zuerst; weitere Plattformen sind eingeklappt. Fehlgeschlagene Lesevorgänge für
+Einstellungen, Ziele oder Konten bieten einen neuen Versuch statt erfundener
+Standardwerte oder einer scheinbar leeren Kontenliste.
 
 ## Der nächste Schritt { #the-next-step }
 

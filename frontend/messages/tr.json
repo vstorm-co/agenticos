@@ -3369,7 +3369,6 @@
       "agentActivity": "Agent etkinliği",
       "allConversationsKnowledgeBase": "Tüm konuşmalar, bilgi tabanı içerikleri, API anahtarları ve kişisel veriler kalıcı olarak silinir. Etkin abonelikler iptal edilir.",
       "alwaysSent": "Her zaman gönderilir",
-      "avatar": "Avatar",
       "avatarTooLargeMaximum2": "Avatar çok büyük. En fazla 2 MB olabilir.",
       "avatarUpdated": "Avatar güncellendi",
       "cancel": "İptal",
@@ -3414,7 +3413,7 @@
       "noMarketingEmail": "Pazarlama e-postası yok.",
       "notOptional": "İsteğe bağlı değil -",
       "notificationPreferences": "Bildirim tercihleri",
-      "notificationPreferencesDescription": "Yukarıdaki e-posta ayarlarından daha ayrıntılıdır: agentlarınız canlı olarak izlenmiyorken çalıştığında olay bazında uygulama içi veya e-posta bildirimi gönderir. Açıkça ayarlanmamış anahtar varsayılan olarak açıktır.",
+      "notificationPreferencesDescription": "Her kanala ulaşacak olayları seçin. Özel sohbetler için Özel sohbet bildirimleri bölümünde bir hedef de gerekir. Olayları kapatmadığınız sürece bildirimler açıktır.",
       "nothingChanged": "Değişiklik yapılmadı",
       "nothingHereChargesYou": "Burada ücret alınmaz; dolayısıyla yenileme, ödeme hatası veya kredi uyarısı yoktur.",
       "optionalApprovals": "Onay istekleri",
@@ -3455,7 +3454,6 @@
       "revokesEveryActiveSession": "Bu işlem tüm etkin oturumları iptal eder ve bu cihazdaki oturumunuzu da kapatır.",
       "saveChanges": "Değişiklikleri kaydet",
       "saving2": "Kaydediliyor…",
-      "saving3": "Kaydediliyor…",
       "selfDeleteNotEnabled": "Kendi hesabınızı silme özelliği etkin değil. Destek ekibiyle iletişime geçin.",
       "selfHostedDeploymentThere": "Bu dağıtım kendi sunucunuzda barındırılıyor. Bülten veya abone listesi yok.",
       "sentInvitation": "Kuruluş daveti",
@@ -3558,7 +3556,12 @@
           "turnOff": "Bu iPhone’da kapat"
         }
       },
-      "whoReceivesThis": "Bu bildirimi kim alır?"
+      "whoReceivesThis": "Bu bildirimi kim alır?",
+      "notificationSearch": "Bildirimlerde ara…",
+      "notificationNoMatches": "Eşleşen bildirim yok",
+      "notificationSearchHint": "Olay adını veya açıklamasından bir kelimeyi deneyin.",
+      "notificationClearSearch": "Aramayı temizle",
+      "notificationEventCount": "{count, plural, =1 {1 olay} other {# olay}}"
     },
     "rag": {
       "active": "Etkin",
@@ -13265,5 +13268,25 @@
       "guideName": "AgenticOS",
       "advancedAccess": "E-posta alan adları, başlangıç rolleri ve hesap sınırları ↗"
     }
+  },
+  "notificationRoutes": {
+    "title": "Özel sohbet bildirimleri",
+    "description": "Bu kuruluşun bildirimlerinizi nereye gönderebileceğini seçin. Yalnızca bağladığınız özel sohbetler kullanılabilir. Olay ve rutin tercihleri geçerliliğini korur. E-posta ve push ayrı yapılandırılır.",
+    "off": "Kapalı",
+    "unavailable": "Hedef kullanılamıyor — yeniden seçin veya kapatın",
+    "connect": "Önce bu kuruluşun botlarından birine özel mesaj gönderin ve hesabınızı bağlayın.",
+    "destination": "{bot} · {account} · {id}",
+    "loadFailed": "Bildirim hedefleri yüklenemedi",
+    "saveFailed": "Bildirim hedefi kaydedilemedi",
+    "email": "E-posta",
+    "push": "Cihaz bildirimleri",
+    "slack": "Slack",
+    "telegram": "Telegram",
+    "mattermost": "Mattermost",
+    "teams": "Microsoft Teams",
+    "sms": "SMS",
+    "imessage": "iMessage",
+    "discord": "Discord",
+    "platformOptions": "Sohbet platformları"
   }
 }

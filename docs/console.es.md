@@ -1,5 +1,5 @@
 ---
-source_sha: "63b02f93b44f"
+source_sha: "30c984fec99a"
 ---
 
 # La consola { #the-console }
@@ -1005,6 +1005,20 @@ resto de lo que los agents saben de ti: tu rol, en qué trabajas y tu zona horar
 Cada agent los lee al empezar un run, así que nunca los repites en un chat; «cada
 lunes a las 9» son tus 9. La zona horaria se toma de tu navegador la primera vez
 que inicias sesión, hasta que eliges una.
+
+Los ajustes de perfil reúnen el retrato, el nombre y el correo en un formulario,
+con los colores alternativos bajo una opción desplegable. Guardar está debajo
+de los campos; Intro envía el formulario del nombre o del rol. Durante una
+escritura del perfil, se bloquean los campos de identidad y contexto; un rechazo
+conserva el borrador. Los días tienen áreas táctiles mayores y el inicio y el fin
+son campos separados también en el móvil.
+
+**Settings → Notifications** busca nombres y descripciones de eventos y muestra
+seis por página. El selector de chat cambia el canal adicional sin alterar las
+demás preferencias. Los destinos privados conectados aparecen primero; otras
+plataformas están plegadas. Si falla la lectura de preferencias, destinos o
+cuentas vinculadas, se ofrece reintentar sin inventar valores predeterminados
+ni mostrar una lista de cuentas aparentemente vacía.
 
 ## El siguiente paso { #the-next-step }
 

@@ -1,6 +1,6 @@
 # Console UI/UX inventory — 2026-11-11
 
-99 page routes; 1193 component modules in 57 families.
+99 page routes; 1194 component modules in 57 families.
 
 Generated from local TypeScript imports and re-exports. Layout dependencies include shared providers and barrel exports, so reachability is deliberately broader than actual rendering. Runtime status belongs in the audit report; source mapping does not mean a screen was tested. Dynamic imports require runtime verification.
 
@@ -89,8 +89,8 @@ Generated from local TypeScript imports and re-exports. Layout dependencies incl
 | `/settings/mcp` | 149 | `frontend/src/app/[locale]/(dashboard)/settings/mcp/page.tsx` |
 | `/settings/memory` | 155 | `frontend/src/app/[locale]/(dashboard)/settings/memory/page.tsx` |
 | `/settings/mobile` | 151 | `frontend/src/app/[locale]/(dashboard)/settings/mobile/page.tsx` |
-| `/settings/notifications` | 155 | `frontend/src/app/[locale]/(dashboard)/settings/notifications/page.tsx` |
-| `/settings/profile` | 155 | `frontend/src/app/[locale]/(dashboard)/settings/profile/page.tsx` |
+| `/settings/notifications` | 158 | `frontend/src/app/[locale]/(dashboard)/settings/notifications/page.tsx` |
+| `/settings/profile` | 156 | `frontend/src/app/[locale]/(dashboard)/settings/profile/page.tsx` |
 | `/settings/shortcuts` | 146 | `frontend/src/app/[locale]/(dashboard)/settings/shortcuts/page.tsx` |
 | `/settings/sign-ins` | 147 | `frontend/src/app/[locale]/(dashboard)/settings/sign-ins/page.tsx` |
 | `/settings/slash-commands` | 146 | `frontend/src/app/[locale]/(dashboard)/settings/slash-commands/page.tsx` |
@@ -154,7 +154,7 @@ Generated from local TypeScript imports and re-exports. Layout dependencies incl
 | remote-agents | 2 |
 | runs | 24 |
 | sandboxes | 21 |
-| settings | 28 |
+| settings | 29 |
 | shared | 1 |
 | sharing | 10 |
 | skills | 7 |
