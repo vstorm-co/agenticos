@@ -134,7 +134,7 @@ export function AddToGroupDialog({
             {error ? (
               <ErrorState description={getErrorMessage(error, tErrors)} />
             ) : isLoading ? (
-              <LoadingState variant="skeleton-panel" rows={3} />
+              <LoadingState variant="pending" />
             ) : shown.length === 0 ? (
               <p className="text-muted-foreground py-6 text-center text-sm">
                 {needle ? t("addToGroupNoMatch") : t("addToGroupNothing")}

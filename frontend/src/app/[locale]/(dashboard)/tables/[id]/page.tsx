@@ -260,7 +260,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   const matching = useTableRecordCount(id, { filters: applied, search });
 
   if (isLoading || (!!table?.default_view_id && !viewIdParam && !tabParam && viewsLoading))
-    return <LoadingState variant="skeleton-panel" rows={3} />;
+    return <LoadingState variant="pending" />;
   if (error || !table) return <ErrorState />;
 
   const canEdit = table.can_edit;

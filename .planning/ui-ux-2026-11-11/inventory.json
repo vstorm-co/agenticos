@@ -284,6 +284,7 @@
         409,
         410,
         652,
+        2256,
         1238,
         1374,
         891,
@@ -346,7 +347,8 @@
         638,
         639,
         885,
-        1396,
+        2254,
+        2256,
         1238,
         1374,
         891,
@@ -418,6 +420,7 @@
         805,
         808,
         842,
+        2253,
         1238,
         1374,
         1626,
@@ -439,6 +442,7 @@
         652,
         762,
         765,
+        2256,
         1238,
         1374,
         1574,
@@ -735,6 +739,7 @@
         652,
         1105,
         1109,
+        2256,
         1238,
         1374,
         1574,
@@ -1006,8 +1011,10 @@
         1231,
         1230,
         1234,
+        2255,
         1232,
         1229,
+        2256,
         1238,
         1374,
         891,
@@ -1065,6 +1072,7 @@
     {
       "path": "frontend/src/app/[locale]/(dashboard)/tables/page.tsx",
       "imports": [
+        2256,
         1776,
         1408,
         1381,
@@ -1205,6 +1213,7 @@
     {
       "path": "frontend/src/app/[locale]/(dashboard)/workflows/page.tsx",
       "imports": [
+        2256,
         1776,
         1408,
         1381,
@@ -9125,6 +9134,7 @@
     {
       "path": "frontend/src/components/files/file-editor.tsx",
       "imports": [
+        2254,
         883,
         1374,
         1383,
@@ -11527,6 +11537,7 @@
       "path": "frontend/src/components/projects/project-apps.tsx",
       "imports": [
         410,
+        2256,
         1238,
         1374,
         1588,
@@ -12960,6 +12971,7 @@
     {
       "path": "frontend/src/components/states/loading-state.tsx",
       "imports": [
+        1398,
         2020
       ]
     },
@@ -21044,6 +21056,7 @@
         2215,
         2217,
         1235,
+        2254,
         1238,
         1374,
         1574,
@@ -21170,6 +21183,8 @@
       "imports": [
         1374,
         1238,
+        2255,
+        1868,
         2210,
         2209,
         2223,
@@ -21456,6 +21471,38 @@
       "path": "frontend/src/types/skill-versions.ts",
       "imports": [
         2249
+      ]
+    },
+    {
+      "path": "frontend/src/components/datasets/dataset-loading.tsx",
+      "imports": [
+        652,
+        1374,
+        1830
+      ]
+    },
+    {
+      "path": "frontend/src/components/files/editor-loading.tsx",
+      "imports": [
+        1691,
+        2154,
+        1374
+      ]
+    },
+    {
+      "path": "frontend/src/components/skills/skill-editor-loading-dialog.tsx",
+      "imports": [
+        1374,
+        2254,
+        1868,
+        2020
+      ]
+    },
+    {
+      "path": "frontend/src/components/states/catalog-loading.tsx",
+      "imports": [
+        1396,
+        2020
       ]
     }
   ],
@@ -23056,7 +23103,8 @@
         803,
         805,
         808,
-        2179
+        2179,
+        2253
       ]
     },
     {
@@ -23143,7 +23191,8 @@
         882,
         883,
         884,
-        886
+        886,
+        2254
       ]
     },
     {
@@ -23674,7 +23723,8 @@
         2226,
         2227,
         2228,
-        2229
+        2229,
+        2255
       ]
     },
     {
@@ -23685,7 +23735,8 @@
         1239,
         1240,
         1241,
-        1242
+        1242,
+        2256
       ]
     },
     {

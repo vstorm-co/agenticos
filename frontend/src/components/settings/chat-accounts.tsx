@@ -86,7 +86,7 @@ export function ChatAccounts() {
           }}
         />
       )}
-      {!error && accounts === null && <LoadingState variant="skeleton-panel" rows={2} />}
+      {!error && accounts === null && <LoadingState variant="pending" />}
       {!error && accounts !== null && accounts.length === 0 && (
         <p className="text-muted-foreground text-sm">{t("noChatAccountsYet")}</p>
       )}

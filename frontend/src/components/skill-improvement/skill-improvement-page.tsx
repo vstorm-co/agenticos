@@ -67,7 +67,7 @@ export function SkillImprovementPage({
   const tErrors = useTranslations("errors");
   const { skill, isLoading, error } = useSkill(skillId);
   const { can } = usePermissions();
-  if (isLoading) return <LoadingState variant="skeleton-cards" rows={3} />;
+  if (isLoading) return <LoadingState variant="pending" />;
   if (error || !skill) return <ErrorState description={getErrorMessage(error, tErrors)} />;
   const header = (
     <SkillImprovementHeader
@@ -145,7 +145,7 @@ function SkillSession({
     return (
       <>
         {unread}
-        <LoadingState variant="skeleton-cards" rows={3} />
+        <LoadingState variant="pending" />
       </>
     );
   if (actions.error || !session)

@@ -88,7 +88,7 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
   // binding serves it and a picker would offer one option.
   const namedEnvironments = environments.filter((environment) => !environment.is_default);
 
-  if (isLoading) return <LoadingState variant="skeleton-panel" rows={2} />;
+  if (isLoading) return <LoadingState variant="pending" />;
 
   return (
     <Card>

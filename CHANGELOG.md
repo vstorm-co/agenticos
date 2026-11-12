@@ -26,6 +26,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Match skill/context editor loading to the real dialog and pane geometry on
+  desktop and phones. Keep dataset detail chrome and load Cases through its real
+  table columns; align catalog placeholders and remove invented panel/form grids.
+- Simplify the event-trigger service picker into compact branded disclosures,
+  with presets and connection requirements available after expansion.
+
 - Keep Briefing loading stable while onboarding and suggestion reads settle,
   without blocking other Dashboard widgets or repeatedly retrying failed reads.
 - Align Datasets and skill/context improvement screens with the console's neutral

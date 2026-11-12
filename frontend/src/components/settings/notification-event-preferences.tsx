@@ -103,7 +103,7 @@ export function NotificationEventPreferences() {
             </Select>
           </div>
           {isLoading ? (
-            <LoadingState variant="skeleton-panel" rows={3} />
+            <LoadingState variant="pending" />
           ) : list.visible.length === 0 ? (
             <EmptyState
               icon={Search}

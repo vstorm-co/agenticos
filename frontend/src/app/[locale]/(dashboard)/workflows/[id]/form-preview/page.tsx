@@ -27,8 +27,7 @@ export default function DraftFormPreview({ params }: { params: Promise<{ id: str
       candidate.definition_id === FORM_TRIGGER &&
       (query.get("entry") === null || candidate.id === query.get("entry")),
   );
-  if (isLoading)
-    return <LoadingState variant="skeleton-panel" className="mx-auto w-full max-w-xl" />;
+  if (isLoading) return <LoadingState variant="pending" className="mx-auto w-full max-w-xl" />;
   if (error || !node) return <ErrorState title={t("unavailable")} />;
   const page = formPageOf(node.config, {
     title: t("title.placeholder"),

@@ -36,7 +36,7 @@ export function ConsentScreen({ requestId }: { requestId: string }) {
   const { request, isLoading, error, approve, deny } = useConsentRequest(requestId);
 
   if (isLoading) {
-    return <LoadingState variant="skeleton-panel" rows={4} />;
+    return <LoadingState variant="pending" />;
   }
   if (request === null || error) {
     return <EmptyState icon={TimerOff} title={t("expiredTitle")} description={t("expiredWhy")} />;

@@ -848,3 +848,87 @@ source map covers 101 routes, 1248 component modules and 58 families.
 | briefing-loading-desktop | [PNG](comparisons/briefing-loading-desktop-before.png) | [PNG](comparisons/briefing-loading-desktop-after.png) |
 
 Additional dark-theme checks: [Workflows](comparisons/workflows-dark-after.png), [Datasets](comparisons/datasets-dark-after.png).
+
+
+## Loading geometry audit and event service picker — 12 November 2026
+
+The production-source census covers 1371 TSX files and records 482 loading or
+pulsing presentation sites across 244 files in [loading-inventory.md](loading-inventory.md)
+and [loading-inventory.json](loading-inventory.json). This includes local
+placeholders, step-specific onboarding, frame-constrained widgets/charts, real
+form loading, table cells, catalog grids and modal bodies. Some pulsing indicators
+represent live activity rather than a read. A source census does not mean every
+permission, data size or browser combination has been visually verified.
+
+Confirmed mismatches and fixes:
+
+- Skills initially used a 512x387 dialog before becoming a 1280x968 editor on
+  desktop. Its chunk/data loading dialogs now use the editor's actual canvas,
+  title, metadata, file tree, pane and footer slots. Catalog title/access metadata
+  is reused while the body loads; lazy loading remains, and its fallback closes.
+- Context's loading body invented three columns and a second large metadata row.
+  It now mirrors Description and its helper text, the pane toolbar and footer.
+  Both editor skeletons follow the real mobile metadata/file disclosures and
+  the context footer's two-row wrapping. Fork text uses the same workbench shape.
+- Dataset detail had an unrelated bordered panel, followed by cards while its
+  Cases table loaded. Metadata loading now retains header/breadcrumbs, workspace
+  tabs and the case surface. Row loading uses CasesTable/DataTable itself, so
+  column names, widths and responsive hiding match. The generic text-file pane
+  also retains its toolbar and shows content lines rather than a loading sentence.
+- Seven primary catalogs and project Apps now share explicit document/resource/
+  project slots and the actual 768/1280px grid breakpoints. Skills and Context
+  retain the desktop document preview area while hiding it on phones. Shared
+  Skeleton bounds cannot exceed their container width.
+- Generic skeleton-panel is removed: it invented nested forms across unrelated
+  views. Data-dependent improvement, review, settings, exposure and detail reads
+  reserve a neutral pending region until their structure is known. Known tables,
+  lists, charts, widget frames and onboarding step-specific layouts remain shaped
+  for their own content. The Activity permission read no longer guesses a table
+  before the permitted tabs are known. Judge datasets loads as its row list.
+- The event-trigger modal uses short branded service disclosures in two desktop
+  columns and one phone column. Descriptions, presets and connection prerequisites
+  remain available after expansion; connection grants and actions are unchanged.
+  Search/category filtering and the compact API trigger remain available. The
+  full portal catalog retains its expanded cards.
+
+Verification: 147 focused tests across ten files plus 117 consumer tests across
+seven additional files pass. Regression coverage exercises pending-to-editor
+geometry tokens and dismissal, dataset metadata-to-page and table row loading,
+responsive table column continuity, file loading accessibility and disclosure
+behavior. Frontend lint includes ESLint, formatting, TypeScript, i18n and dependency
+checks. Whole coverage/CI/cross-browser suites are left to CI rather than run on
+this laptop.
+
+Chromium held and released real API reads at desktop 1440x1000 and touch phone
+390x844. For Skills and Context, every measured outer dialog and inner editor-pane
+coordinate/dimension is identical before and after the read (not just within a
+rounded visual tolerance). Dataset metadata and row reads resolve into the real
+page. Event selection covers expansion, keyboard collapse, search and dismissal.
+Twenty-one catalog reads cover all seven catalogs at 1440, 800 and 390px: each
+renders the same 3/2/1 columns as its loaded grid, without horizontal overflow.
+No dataset, skill, credential, external integration or model state is written.
+
+Ten equal-viewport before/after pairs are below; the archive additionally contains
+ready-state references for all four editor transitions and fourteen catalog
+loading captures. Baselines are captured against the previous commit and source
+files are restored byte for byte. The route graph now covers 101 routes and 1252
+component modules in 58 families.
+
+| Evidence | Before | After |
+| --- | --- | --- |
+| modal-loading-skills-desktop | [PNG](comparisons/modal-loading-skills-desktop-before.png) | [PNG](comparisons/modal-loading-skills-desktop-after.png) |
+| modal-loading-skills-phone | [PNG](comparisons/modal-loading-skills-phone-before.png) | [PNG](comparisons/modal-loading-skills-phone-after.png) |
+| modal-loading-context-desktop | [PNG](comparisons/modal-loading-context-desktop-before.png) | [PNG](comparisons/modal-loading-context-desktop-after.png) |
+| modal-loading-context-phone | [PNG](comparisons/modal-loading-context-phone-before.png) | [PNG](comparisons/modal-loading-context-phone-after.png) |
+| dataset-loading-metadata-desktop | [PNG](comparisons/dataset-loading-metadata-desktop-before.png) | [PNG](comparisons/dataset-loading-metadata-desktop-after.png) |
+| dataset-loading-metadata-phone | [PNG](comparisons/dataset-loading-metadata-phone-before.png) | [PNG](comparisons/dataset-loading-metadata-phone-after.png) |
+| dataset-loading-cases-desktop | [PNG](comparisons/dataset-loading-cases-desktop-before.png) | [PNG](comparisons/dataset-loading-cases-desktop-after.png) |
+| dataset-loading-cases-phone | [PNG](comparisons/dataset-loading-cases-phone-before.png) | [PNG](comparisons/dataset-loading-cases-phone-after.png) |
+| event-picker-desktop | [PNG](comparisons/event-picker-desktop-before.png) | [PNG](comparisons/event-picker-desktop-after.png) |
+| event-picker-phone | [PNG](comparisons/event-picker-phone-before.png) | [PNG](comparisons/event-picker-phone-after.png) |
+
+Ready editor references: [skills desktop](comparisons/modal-ready-skills-desktop-after.png), [skills phone](comparisons/modal-ready-skills-phone-after.png), [context desktop](comparisons/modal-ready-context-desktop-after.png), [context phone](comparisons/modal-ready-context-phone-after.png).
+
+Catalog loading captures: [apps desktop](comparisons/loading-catalog-apps-desktop.png), [apps phone](comparisons/loading-catalog-apps-phone.png), [skills desktop](comparisons/loading-catalog-skills-desktop.png), [skills phone](comparisons/loading-catalog-skills-phone.png), [context desktop](comparisons/loading-catalog-context-desktop.png), [context phone](comparisons/loading-catalog-context-phone.png), [datasets desktop](comparisons/loading-catalog-datasets-desktop.png), [datasets phone](comparisons/loading-catalog-datasets-phone.png), [projects desktop](comparisons/loading-catalog-projects-desktop.png), [projects phone](comparisons/loading-catalog-projects-phone.png), [tables desktop](comparisons/loading-catalog-tables-desktop.png), [tables phone](comparisons/loading-catalog-tables-phone.png), [workflows desktop](comparisons/loading-catalog-workflows-desktop.png), [workflows phone](comparisons/loading-catalog-workflows-phone.png).
+
+Seven additional permission/fork/reader tests bring this batch to 271 passing tests. Focused V8 coverage for `files/editor-loading.tsx` is 100% statements, branches, functions and lines; the whole frontend coverage suite has not run locally.

@@ -11,6 +11,7 @@ import { categorySuggestions } from "@/components/skills/category-input";
 import { SaveConfirmDialog } from "@/components/skills/save-confirm-dialog";
 import { SkillCheckDialog } from "@/components/skills/skill-check-dialog";
 import { SkillWorkbench } from "@/components/skills/skill-workbench";
+import { EditorLoading } from "@/components/files/editor-loading";
 import { ErrorState } from "@/components/states";
 import {
   Dialog,
@@ -18,7 +19,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  Skeleton,
 } from "@/components/ui";
 import { useSkill, useSkills } from "@/hooks";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
@@ -209,7 +209,7 @@ export function EditSkillDialog({
             cta={{ label: t("retryFork"), onClick: () => void forkText.refetch() }}
           />
         ) : fork !== null && forkText.version === undefined ? (
-          <Skeleton className="min-h-[22rem] w-full" />
+          <EditorLoading kind="skill" canEdit={skill.can_edit === true} files={false} />
         ) : (
           <SkillWorkbench
             key={`${skill.id}:${opened}`}

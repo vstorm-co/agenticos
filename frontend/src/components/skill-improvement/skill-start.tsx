@@ -62,7 +62,7 @@ export function SkillStart({
       });
   }, [isLoading, error, open, price, locale, tErrors]);
 
-  if (isLoading) return <LoadingState variant="skeleton-cards" rows={2} />;
+  if (isLoading) return <LoadingState variant="pending" />;
   if (error) return <ErrorState description={getErrorMessage(error, tErrors)} />;
   if (open) {
     return (
@@ -79,7 +79,7 @@ export function SkillStart({
   }
   if (evidence !== null && quote === null) return <EvidenceOnly datasetId={evidence} />;
   if (refusal !== null && quote === null) return <ErrorState description={refusal} />;
-  if (quote === null) return <LoadingState variant="skeleton-cards" rows={2} />;
+  if (quote === null) return <LoadingState variant="pending" />;
 
   const typed = Number(limitValue(limit));
   // The session is refused a limit that cannot pay for its first proposal.

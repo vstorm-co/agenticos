@@ -83,7 +83,7 @@ export function SkillDetails({
   const failed = error ?? lines.error ?? mainVersions.error;
   if (failed) return <ErrorState description={getErrorMessage(failed, tErrors)} />;
   if (skill === undefined || lines.isLoading || mainVersions.isLoading) {
-    return <LoadingState variant="skeleton-panel" rows={3} />;
+    return <LoadingState variant="pending" />;
   }
   const { forks } = lines;
 

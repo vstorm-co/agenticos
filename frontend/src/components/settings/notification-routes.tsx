@@ -93,7 +93,7 @@ export function NotificationRoutes() {
           cta={{ label: tc("retry"), onClick: () => void refetch() }}
         />
       ) : isLoading ? (
-        <LoadingState variant="skeleton-panel" rows={2} />
+        <LoadingState variant="pending" />
       ) : (
         <div className="space-y-4">
           {connected.length > 0 ? (

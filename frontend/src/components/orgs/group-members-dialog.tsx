@@ -70,7 +70,7 @@ export function GroupMembersDialog({ orgId, group, canManage, onClose }: GroupMe
           {error ? (
             <ErrorState description={getErrorMessage(error, tErrors)} />
           ) : isLoading ? (
-            <LoadingState variant="skeleton-panel" rows={3} />
+            <LoadingState variant="pending" />
           ) : members.length === 0 ? (
             <p className="text-muted-foreground py-6 text-center text-sm">{t("nobodyYet")}</p>
           ) : (

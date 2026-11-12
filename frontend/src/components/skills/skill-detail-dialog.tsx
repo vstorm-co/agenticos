@@ -4,7 +4,9 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui";
-import { ErrorState, LoadingState } from "@/components/states";
+import { ErrorState } from "@/components/states";
+import { SkillEditorLoadingDialog } from "./skill-editor-loading-dialog";
+import { DIALOG_CANVAS, DIALOG_FILL } from "@/lib/dialog-sizes";
 import { EditSkillDialog } from "./edit-skill-dialog";
 import { DeleteSkillDialog } from "./delete-skill-dialog";
 import { eachAgentOnce } from "./skill-lines";
@@ -16,7 +18,17 @@ import { ROUTES } from "@/lib/constants";
 import { Perm } from "@/types/permissions";
 
 /** The catalog opens the skill's instructions and files; history is a deliberate next step. */
-export function SkillDetailDialog({ id, onClose }: { id: string; onClose: () => void }) {
+export function SkillDetailDialog({
+  id,
+  name,
+  canEdit,
+  onClose,
+}: {
+  id: string;
+  name?: string;
+  canEdit?: boolean;
+  onClose: () => void;
+}) {
   const t = useTranslations("skills.page");
   const errors = useTranslations("errors");
   const router = useRouter();
@@ -26,7 +38,16 @@ export function SkillDetailDialog({ id, onClose }: { id: string; onClose: () => 
   const agents = useSkillAgents(id);
   const [deleting, setDeleting] = useState(false);
   const failed = error ?? versions.error ?? agents.error;
-  if (failed || !skill || versions.isLoading || agents.isLoading) {
+  if (!failed && (!skill || versions.isLoading || agents.isLoading)) {
+    return (
+      <SkillEditorLoadingDialog
+        name={skill?.name ?? name}
+        canEdit={skill?.can_edit ?? canEdit}
+        onClose={onClose}
+      />
+    );
+  }
+  if (failed || !skill) {
     return (
       <Dialog
         open
@@ -34,13 +55,9 @@ export function SkillDetailDialog({ id, onClose }: { id: string; onClose: () => 
           if (!open) onClose();
         }}
       >
-        <DialogContent>
+        <DialogContent className={`${DIALOG_FILL} ${DIALOG_CANVAS}`}>
           <DialogTitle>{t("skillDetails")}</DialogTitle>
-          {failed ? (
-            <ErrorState description={getErrorMessage(failed, errors)} />
-          ) : (
-            <LoadingState variant="skeleton-panel" rows={3} />
-          )}
+          <ErrorState description={getErrorMessage(failed, errors)} />
         </DialogContent>
       </Dialog>
     );

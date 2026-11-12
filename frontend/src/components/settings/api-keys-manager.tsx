@@ -174,7 +174,7 @@ export function ApiKeysManager() {
               cta={{ label: tc("retry"), onClick: () => void refetch() }}
             />
           ) : isLoading ? (
-            <LoadingState variant="skeleton-cards" rows={2} />
+            <LoadingState variant="pending" />
           ) : list.visible.length === 0 ? (
             <EmptyState
               icon={Search}

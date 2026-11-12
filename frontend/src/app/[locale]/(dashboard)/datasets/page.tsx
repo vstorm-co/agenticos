@@ -7,7 +7,8 @@ import { useTranslations } from "next-intl";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { CreateDatasetDialog } from "@/components/datasets/create-dataset-dialog";
 import { DatasetCard } from "@/components/datasets/dataset-card";
-import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { CatalogLoading } from "@/components/states/catalog-loading";
+import { EmptyState, ErrorState } from "@/components/states";
 import {
   Button,
   ConfirmDialog,
@@ -93,7 +94,7 @@ export default function DatasetsPage() {
         }
       >
         {isLoading || isLoadingPermissions ? (
-          <LoadingState variant="skeleton-cards" rows={3} />
+          <CatalogLoading kind="resource" />
         ) : error ? (
           <ErrorState
             description={getErrorMessage(error, tErrors)}
