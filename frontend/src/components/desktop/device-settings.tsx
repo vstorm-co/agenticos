@@ -24,6 +24,8 @@ import {
   Button,
 } from "@/components/ui";
 import { useDeviceLink, useDeviceStatus } from "@/hooks/use-desktop";
+import { DIALOG_CONFIRM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
+import { cn } from "@/lib/utils";
 
 /**
  * This computer as a place the person's own agents can work (#2305): linked once,
@@ -84,7 +86,7 @@ function UnlinkButton({ pending, onConfirm }: { pending: boolean; onConfirm: () 
           {t("unlink")}
         </Button>
       </AlertDialogTrigger>
-      <AlertDialogContent>
+      <AlertDialogContent className={cn(DIALOG_CONFIRM, DIALOG_SCROLL)}>
         <AlertDialogHeader>
           <AlertDialogTitle>{t("unlinkTitle")}</AlertDialogTitle>
           <AlertDialogDescription>{t("unlinkBody")}</AlertDialogDescription>

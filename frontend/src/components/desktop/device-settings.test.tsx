@@ -60,6 +60,7 @@ it("asks before unlinking, says what it clears, and changes nothing when cancell
   await userEvent.click(screen.getByRole("button", { name: "Unlink" }));
   const dialog = screen.getByRole("alertdialog");
   expect(dialog).toHaveTextContent("Unlink this computer?");
+  expect(dialog).toHaveClass("sm:max-w-lg", "overflow-y-auto");
   for (const cleared of [
     "Approved folders",
     "Local services",
