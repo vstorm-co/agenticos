@@ -1,8 +1,10 @@
 ---
-source_sha: "cb511d45cf48"
+source_sha: "e418602353c0"
 ---
 
 # Die Konsole { #the-console }
+
+Das persönliche Dashboard liest Onboarding und Briefing gemeinsam, bevor es die erste Zeile anzeigt. Ein reservierter Ladebereich verhindert wechselnde Platzhalterlayouts; andere Widgets laden unabhängig. Fehlgeschlagene Lesevorgänge können erneut versucht werden. Arbeitsbereiche lassen sich auf Smartphones erweitern; beim Wechsel zum Desktop kehrt die Navigation zurück und ungespeicherte Felder bleiben erhalten.
 
 Die Kontexteinstellungen zeigen kompakte Dateizeilen mit Einstellungen für die Nutzung durch den Agenten. Lange Beschreibungen strecken benachbarte Dateien nicht mehr; ausschließlich eingefügter Kontext erhält einen neutralen Hinweis. Availability zeigt das Plattformlogo neben dem Botnamen. Beim Teilen einer App stehen Seitenlink und Personen mit Zugriff zuerst. Ablaufdatum, Versionsbindung, Einbettung und Passwort sind zunächst unter Link-Einstellungen eingeklappt. Aktive Einschränkungen bleiben als Kennzeichnungen sichtbar; Einklappen erhält die Bearbeitung.
 

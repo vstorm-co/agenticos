@@ -1,8 +1,10 @@
 ---
-source_sha: "cb511d45cf48"
+source_sha: "e418602353c0"
 ---
 
 # La consola { #the-console }
+
+El dashboard personal lee onboarding y Briefing juntos antes de mostrar su primera fila. Una zona de carga reservada evita cambios entre diseños de marcadores; los demás widgets cargan por separado. Los errores de lectura permiten reintentar. La ampliación del área de trabajo se ofrece en teléfonos; al pasar al escritorio se recupera la navegación y se conservan los campos sin guardar.
 
 Los ajustes de contexto muestran filas compactas con controles de uso por agente. Las descripciones largas ya no estiran los archivos vecinos y el contexto solo inyectado muestra una nota informativa. Availability incluye el logotipo de la plataforma junto al nombre del bot. Al compartir una app aparecen primero el enlace de la página y las personas con acceso; caducidad, versión fija, inserción y contraseña empiezan cerradas en los ajustes del enlace. Las restricciones activas siguen visibles como etiquetas y cerrar las opciones conserva las ediciones.
 

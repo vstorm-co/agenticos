@@ -1,8 +1,10 @@
 ---
-source_sha: "30ef52f0532a"
+source_sha: "e23a2fdc098e"
 ---
 
 # Workflows { #workflows }
+
+Ikonę workflow wybierasz obok jego nazwy w edytorze. Ten sam neutralny kafelek pojawia się w katalogu. Wybór pozostaje po odświeżeniu; **Użyj domyślnej ikony** go resetuje. Zmieniają się metadane wyglądu, a nie rewizja draftu ani opublikowany graf.
 
 **Workflow** łączy kroki w automatyzację, którą wykonują Twoje agenty: odczytać
 [tabelę](virtual-tables.md), wywołać agenta, rozgałęzić się na podstawie wyniku,

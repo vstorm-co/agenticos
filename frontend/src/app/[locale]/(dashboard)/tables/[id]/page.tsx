@@ -25,6 +25,7 @@ import {
 import { TableIcon as Table2 } from "@/components/icons/product-icons";
 
 import { cn } from "@/lib/utils";
+import { ResourceIcon, ResourceIconPicker } from "@/components/ui/resource-icon";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { getErrorMessage, schemaDependents } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
@@ -144,6 +145,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
     isLoading,
     error,
     changeSchema,
+    update: updateMetadata,
     archive,
     unarchive,
     invalidate: refreshTable,
@@ -383,6 +385,18 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
       <PageHeader
         className="mb-4"
         title={table.name}
+        icon={
+          canManage ? (
+            <ResourceIconPicker
+              kind="table"
+              icon={table.icon}
+              disabled={updateMetadata.isPending}
+              onChange={(icon) => updateMetadata.mutateAsync({ icon })}
+            />
+          ) : (
+            <ResourceIcon kind="table" icon={table.icon} />
+          )
+        }
         descriptionMode="summary"
         description={table.description ?? undefined}
         breadcrumbs={[{ label: tp("title"), href: ROUTES.TABLES }, { label: table.name }]}

@@ -1,8 +1,10 @@
 ---
-source_sha: "1110129a78f1"
+source_sha: "e49637ff7aa2"
 ---
 
 # Virtual Tables { #virtual-tables }
+
+Das Tabellensymbol wählen Sie neben dem Namen in der Detailansicht. Katalogkarte und Dashboard-Zeile verwenden dasselbe Zeichen. **Standardsymbol verwenden** setzt es zurück; Spalten, Datensätze und Schemaversionen bleiben unverändert. Die Steuerung folgt dem Verwaltungsrecht der Tabelle, einschließlich der Einschränkungen von Aufgabenboards.
 
 Eine **Virtual Table** ist eine typisierte Tabelle mit Datensätzen, die eine
 Organisation für ihre Agents, [Workflows](workflows.md) und Integrationen führt: abzugleichende

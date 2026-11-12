@@ -1,5 +1,7 @@
 "use client";
 
+import { ExternalLink } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
@@ -47,6 +49,7 @@ export function EditSkillDialog({
   draft,
   onClose,
   onDelete,
+  onOpenFull,
 }: {
   skill: Skill;
   fork: SkillFork | null;
@@ -63,6 +66,7 @@ export function EditSkillDialog({
   draft?: { description: string; content: string; baseVersionId: string };
   onClose: () => void;
   onDelete: () => void;
+  onOpenFull?: () => void;
 }) {
   const t = useTranslations("skills.page.edit");
   const tSkills = useTranslations("skills");
@@ -156,23 +160,40 @@ export function EditSkillDialog({
     }
   }
 
-  const closeEditor = () => {
+  const leaveEditor = (proceed: () => void) => {
     if (edit.isPending || save.isPending) return;
     const store = useUnsavedChangesStore.getState();
     const sources = [
       ...Object.keys(store.sources).filter((key) => key.startsWith(`skill-resource:${skill.id}:`)),
       `skill-editor:${skill.id}`,
     ];
-    store.leave(onClose, sources);
+    store.leave(proceed, sources);
   };
 
+  const closeEditor = () => leaveEditor(onClose);
   return (
     <Dialog open onOpenChange={(open) => !open && closeEditor()}>
       <DialogContent className={cn(DIALOG_FILL, DIALOG_CANVAS, "max-md:overflow-y-auto")}>
         <DialogHeader>
-          <DialogTitle className="font-mono">
-            {fork === null ? skill.name : t("forkTitle", { skill: skill.name, name: fork.name })}
-          </DialogTitle>
+          <div className="flex min-w-0 items-center justify-between gap-3 pr-8">
+            <DialogTitle className="min-w-0 font-mono [overflow-wrap:anywhere]">
+              {fork === null ? skill.name : t("forkTitle", { skill: skill.name, name: fork.name })}
+            </DialogTitle>
+            {onOpenFull && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                aria-label={tSkills("page.openFullView")}
+                className="shrink-0 px-2 sm:px-3"
+                disabled={edit.isPending || save.isPending}
+                onClick={() => leaveEditor(onOpenFull)}
+              >
+                <ExternalLink className="size-4" aria-hidden />
+                <span className="hidden sm:inline">{tSkills("page.openFullView")}</span>
+              </Button>
+            )}
+          </div>
           <DialogDescription>
             {fork === null ? t("nameHowModelRefers") : t("forkFiles")}
           </DialogDescription>

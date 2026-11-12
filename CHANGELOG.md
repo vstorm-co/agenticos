@@ -19,7 +19,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Choose and reset persistent table and workflow icons from their detail headers,
+  with matching neutral marks in catalogs and Dashboard table rows.
+
 ### Fixed
+
+- Keep Briefing loading stable while onboarding and suggestion reads settle,
+  without blocking other Dashboard widgets or repeatedly retrying failed reads.
+- Align Datasets and skill/context improvement screens with the console's neutral
+  styling. Open skills in their instructions/files modal first, with an explicit
+  full Content view action; remove the Version tree while retaining History diffs.
+- Show the Agents status filter directly and reserve workspace fullscreen controls
+  for phones, restoring navigation and page scrolling on desktop resize.
+
 
 - The first chat message keeps its composer mounted when the server names the
   new conversation, instead of briefly replacing it with an access-check notice.

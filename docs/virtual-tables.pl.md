@@ -1,8 +1,10 @@
 ---
-source_sha: "1110129a78f1"
+source_sha: "e49637ff7aa2"
 ---
 
 # Virtual Tables { #virtual-tables }
+
+Ikonę tabeli wybierasz obok jej nazwy w szczegółach. Karta katalogu i wiersz dashboardu używają tego samego symbolu. **Użyj domyślnej ikony** resetuje wybór; kolumny, rekordy i wersje schematu pozostają bez zmian. Kontrolka respektuje prawo zarządzania tabelą, także ograniczenia tablic zadań.
 
 **Virtual table** to typowana tabela rekordów, którą organizacja trzyma dla swoich
 agentów, [workflow](workflows.md) i integracji: zamówienia do uzgodnienia, pliki do przetworzenia,

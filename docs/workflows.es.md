@@ -1,8 +1,10 @@
 ---
-source_sha: "30ef52f0532a"
+source_sha: "e23a2fdc098e"
 ---
 
 # Workflows { #workflows }
+
+Elige el icono del workflow junto a su nombre en el editor. El catálogo muestra la misma ficha neutra. La selección se conserva al recargar; **Usar icono predeterminado** la restablece. Solo cambia metadatos de presentación, no la revisión del borrador ni el grafo publicado.
 
 Un **workflow** encadena pasos en una automatización que llevan a cabo tus agents:
 leer una [tabla](virtual-tables.md), llamar a un agent, ramificar según el

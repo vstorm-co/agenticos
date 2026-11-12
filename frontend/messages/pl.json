@@ -7509,10 +7509,6 @@
         "title": "Każda wersja i droga powrotu",
         "body": "Zobacz, co zmieniła każda wersja, kto ją zrobił i skąd się wzięła. Przywróć sprowadza wcześniejszą jako najnowszą."
       },
-      "skill-tree": {
-        "title": "Main i jego forki",
-        "body": "Main biegnie od lewej do najnowszej wersji, każdy fork odchodzi na własnym torze od wersji, z której wystartował, a każdy agent siedzi w polu wersji, której używa. Porównaj stawia dowolne wersje obok siebie."
-      },
       "skill-improve": {
         "title": "Popraw skill",
         "body": "Otwiera sesję krok po kroku dla widocznej linii: main albo wybranego forka. Nic się nie zmienia, dopóki nie zaakceptujesz wyniku."
@@ -7998,7 +7994,6 @@
       "tabs": {
         "agents": "Agenci",
         "history": "Historia",
-        "tree": "Drzewo wersji",
         "content": "Treść"
       },
       "agentCount": "{count, plural, =0 {Brak agentów} one {# agent} few {# agentów} many {# agentów} other {# agenta}}",
@@ -8133,41 +8128,8 @@
         }
       },
       "tree": {
-        "title": "Drzewo wersji",
-        "summary": "{versions, plural, one {# wersja na main} few {# wersje na main} many {# wersji na main} other {# wersji na main}}{forks, plural, =0 {} one { · # fork} few { · # forki} many { · # forków} other { · # forka}}",
-        "folded": "{count, plural, one {# wersja} few {# wersje} many {# wersji} other {# wersji}} (v{from}–v{to})",
         "number": "v{number}",
-        "latest": "najnowsza",
-        "fork": "Fork „{name}”",
-        "forkFacts": "{changes, plural, =0 {jeszcze bez zmian} one {# zmiana} few {# zmiany} many {# zmian} other {# zmiany}}{behind, plural, =0 {} one { · 1 wersja za mainem} few { · # wersje za mainem} many { · # wersji za mainem} other { · # wersji za mainem}}",
-        "forkNumber": "{name} v{number}",
-        "noVersionYet": "Jeszcze bez własnej wersji",
-        "compare": "Porównaj {version}",
-        "compareShort": "Porównaj",
-        "comparing": "W porównaniu"
-      },
-      "compare": {
-        "title": "Porównanie",
-        "count": "{count, plural, one {# wersja} few {# wersje} many {# wersji} other {# wersji}}",
-        "clear": "Wyczyść",
-        "pickAnother": "Wybierz na diagramie kolejną wersję, żeby postawić ją obok tej.",
-        "remove": "Usuń {version} z porównania",
-        "loading": "Wczytywanie wersji…",
-        "description": "Opis",
-        "instructions": "Instrukcje",
-        "files": "Pliki",
-        "noFiles": "Brak plików.",
-        "unreadable": "Nie udało się wczytać tej wersji.",
-        "retry": "Spróbuj ponownie",
-        "reference": "Wzorzec",
-        "setReference": "Ustaw jako wzorzec",
-        "onlyDifferences": "Tylko różnice",
-        "sameAsReference": "tak samo jak wzorzec",
-        "file": {
-          "added": "dodany",
-          "removed": "usunięty",
-          "changed": "zmieniony"
-        }
+        "forkNumber": "{name} v{number}"
       },
       "edit": {
         "saved": "Zapisano jako v{number}.",
@@ -8275,7 +8237,11 @@
         "hidden": "Ten skill ma pytania testowe w datasecie, którego nie możesz otworzyć."
       },
       "content": {
-        "title": "Co teraz serwuje"
+        "title": "Co teraz serwuje",
+        "description": "Opis",
+        "instructions": "Instrukcje",
+        "files": "Pliki",
+        "noFiles": "Brak plików."
       },
       "more": "Więcej akcji",
       "checks": {
@@ -10046,7 +10012,8 @@
     "pipelineModelPlaceholder": "Wybierz model",
     "pipelineNoMatches": "Brak pasujących modeli",
     "alreadyHasIt": "Używa",
-    "inDraftOf": "{more, plural, =0 {W wersji roboczej: {names}, jeszcze nieopublikowane} other {W wersji roboczej: {names} i jeszcze #, jeszcze nieopublikowane}}"
+    "inDraftOf": "{more, plural, =0 {W wersji roboczej: {names}, jeszcze nieopublikowane} other {W wersji roboczej: {names} i jeszcze #, jeszcze nieopublikowane}}",
+    "useDefaultModel": "Użyj domyślnego modelu"
   },
   "steps": {
     "skills-gallery": {
@@ -17440,5 +17407,19 @@
         "to_main": "Przeniesienie na main"
       }
     }
+  },
+  "resourceAppearance": {
+    "title": "Ikona",
+    "change": "Zmień ikonę",
+    "table": "Tabela",
+    "workflow": "Workflow",
+    "reset": "Użyj domyślnej ikony"
+  },
+  "improvementSetup": {
+    "noFeedback": "Brak opinii do analizy",
+    "openChat": "Otwórz czat",
+    "contextTitle": "Ulepsz kontekst",
+    "contextBody": "Asystent korzysta z opinii o rozmowach, w których agenci używali tego pliku kontekstu. Sprawdź każdą propozycję przed jej zastosowaniem.",
+    "costs": "Koszty i limity"
   }
 }

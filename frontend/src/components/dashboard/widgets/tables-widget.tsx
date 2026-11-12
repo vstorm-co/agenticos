@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { TableIcon as Table2 } from "@/components/icons/product-icons";
 
+import { ResourceIcon } from "@/components/ui/resource-icon";
 import { WidgetFrame } from "../widget-frame";
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 import type { DashboardWidgetProps } from "./types";
@@ -58,9 +59,7 @@ export function TablesWidget({ title, hint, seeAll, options }: DashboardWidgetPr
                 href={ROUTES.TABLE_DETAIL(table.id)}
                 className="hover:bg-accent flex min-h-11 items-center gap-3 rounded-md px-1 py-2 text-sm"
               >
-                <span className="bg-foreground/[0.04] text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-lg">
-                  <Table2 aria-hidden="true" className="size-4" />
-                </span>
+                <ResourceIcon kind="table" icon={table.icon} className="size-8 [&>svg]:size-4" />
                 <span className="min-w-0 flex-1 truncate">{table.name}</span>
               </Link>
             </li>

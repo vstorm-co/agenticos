@@ -1,6 +1,6 @@
 # Console UI/UX inventory — 2026-11-11
 
-99 page routes; 1194 component modules in 57 families.
+101 page routes; 1248 component modules in 58 families.
 
 Generated from local TypeScript imports and re-exports. Layout dependencies include shared providers and barrel exports, so reachability is deliberately broader than actual rendering. Runtime status belongs in the audit report; source mapping does not mean a screen was tested. Dynamic imports require runtime verification.
 
@@ -18,9 +18,9 @@ Generated from local TypeScript imports and re-exports. Layout dependencies incl
 | `/admin/system` | 145 | `frontend/src/app/[locale]/(dashboard)/admin/system/page.tsx` |
 | `/admin/users` | 146 | `frontend/src/app/[locale]/(dashboard)/admin/users/page.tsx` |
 | `/agents` | 158 | `frontend/src/app/[locale]/(dashboard)/agents/page.tsx` |
-| `/agents/[id]` | 517 | `frontend/src/app/[locale]/(dashboard)/agents/[id]/page.tsx` |
+| `/agents/[id]` | 520 | `frontend/src/app/[locale]/(dashboard)/agents/[id]/page.tsx` |
 | `/agents/[id]/evals/[runId]` | 178 | `frontend/src/app/[locale]/(dashboard)/agents/[id]/evals/[runId]/page.tsx` |
-| `/agents/[id]/improve/[session]` | 198 | `frontend/src/app/[locale]/(dashboard)/agents/[id]/improve/[session]/page.tsx` |
+| `/agents/[id]/improve/[session]` | 201 | `frontend/src/app/[locale]/(dashboard)/agents/[id]/improve/[session]/page.tsx` |
 | `/apps` | 158 | `frontend/src/app/[locale]/(dashboard)/apps/page.tsx` |
 | `/apps/[id]` | 197 | `frontend/src/app/[locale]/(viewer)/apps/[id]/page.tsx` |
 | `/auth/callback` | 145 | `frontend/src/app/[locale]/auth/callback/page.tsx` |
@@ -29,13 +29,13 @@ Generated from local TypeScript imports and re-exports. Layout dependencies incl
 | `/auth/pair` | 146 | `frontend/src/app/[locale]/auth/pair/page.tsx` |
 | `/browse/[runId]/[callId]` | 152 | `frontend/src/app/[locale]/(dashboard)/browse/[runId]/[callId]/page.tsx` |
 | `/channels` | 161 | `frontend/src/app/[locale]/(dashboard)/channels/page.tsx` |
-| `/chat` | 324 | `frontend/src/app/[locale]/(dashboard)/chat/page.tsx` |
+| `/chat` | 326 | `frontend/src/app/[locale]/(dashboard)/chat/page.tsx` |
 | `/context` | 178 | `frontend/src/app/[locale]/(dashboard)/context/page.tsx` |
 | `/dashboard` | 306 | `frontend/src/app/[locale]/(dashboard)/dashboard/page.tsx` |
 | `/datasets` | 152 | `frontend/src/app/[locale]/(dashboard)/datasets/page.tsx` |
-| `/datasets/[id]` | 229 | `frontend/src/app/[locale]/(dashboard)/datasets/[id]/page.tsx` |
+| `/datasets/[id]` | 230 | `frontend/src/app/[locale]/(dashboard)/datasets/[id]/page.tsx` |
 | `/desktop/blobby` | 148 | `frontend/src/app/[locale]/desktop/blobby/page.tsx` |
-| `/desktop/quick-ask` | 322 | `frontend/src/app/[locale]/desktop/quick-ask/page.tsx` |
+| `/desktop/quick-ask` | 324 | `frontend/src/app/[locale]/desktop/quick-ask/page.tsx` |
 | `/desktop/readiness` | 147 | `frontend/src/app/[locale]/desktop/readiness/page.tsx` |
 | `/desktop/welcome` | 147 | `frontend/src/app/[locale]/desktop/welcome/page.tsx` |
 | `/dev/components` | 69 | `frontend/src/app/[locale]/(dashboard)/dev/components/page.tsx` |
@@ -76,8 +76,8 @@ Generated from local TypeScript imports and re-exports. Layout dependencies incl
 | `/register` | 154 | `frontend/src/app/[locale]/(auth)/register/page.tsx` |
 | `/remote-agents` | 149 | `frontend/src/app/[locale]/(dashboard)/remote-agents/page.tsx` |
 | `/reset-password` | 146 | `frontend/src/app/[locale]/(auth)/reset-password/page.tsx` |
-| `/routines` | 188 | `frontend/src/app/[locale]/(dashboard)/routines/page.tsx` |
-| `/runs` | 195 | `frontend/src/app/[locale]/(dashboard)/runs/page.tsx` |
+| `/routines` | 190 | `frontend/src/app/[locale]/(dashboard)/routines/page.tsx` |
+| `/runs` | 196 | `frontend/src/app/[locale]/(dashboard)/runs/page.tsx` |
 | `/sandboxes` | 154 | `frontend/src/app/[locale]/(dashboard)/sandboxes/page.tsx` |
 | `/settings` | 0 | `frontend/src/app/[locale]/(dashboard)/settings/page.tsx` |
 | `/settings/account` | 146 | `frontend/src/app/[locale]/(dashboard)/settings/account/page.tsx` |
@@ -95,13 +95,15 @@ Generated from local TypeScript imports and re-exports. Layout dependencies incl
 | `/settings/sign-ins` | 147 | `frontend/src/app/[locale]/(dashboard)/settings/sign-ins/page.tsx` |
 | `/settings/slash-commands` | 146 | `frontend/src/app/[locale]/(dashboard)/settings/slash-commands/page.tsx` |
 | `/shared/[token]` | 160 | `frontend/src/app/[locale]/shared/[token]/page.tsx` |
-| `/skills` | 179 | `frontend/src/app/[locale]/(dashboard)/skills/page.tsx` |
-| `/tables` | 172 | `frontend/src/app/[locale]/(dashboard)/tables/page.tsx` |
-| `/tables/[id]` | 198 | `frontend/src/app/[locale]/(dashboard)/tables/[id]/page.tsx` |
+| `/skills` | 172 | `frontend/src/app/[locale]/(dashboard)/skills/page.tsx` |
+| `/skills/[id]` | 198 | `frontend/src/app/[locale]/(dashboard)/skills/[id]/page.tsx` |
+| `/skills/[id]/improve/[session]` | 190 | `frontend/src/app/[locale]/(dashboard)/skills/[id]/improve/[session]/page.tsx` |
+| `/tables` | 173 | `frontend/src/app/[locale]/(dashboard)/tables/page.tsx` |
+| `/tables/[id]` | 199 | `frontend/src/app/[locale]/(dashboard)/tables/[id]/page.tsx` |
 | `/vault` | 161 | `frontend/src/app/[locale]/(dashboard)/vault/page.tsx` |
 | `/work` | 157 | `frontend/src/app/[locale]/(dashboard)/work/page.tsx` |
-| `/workflows` | 161 | `frontend/src/app/[locale]/(dashboard)/workflows/page.tsx` |
-| `/workflows/[id]` | 276 | `frontend/src/app/[locale]/(dashboard)/workflows/[id]/page.tsx` |
+| `/workflows` | 159 | `frontend/src/app/[locale]/(dashboard)/workflows/page.tsx` |
+| `/workflows/[id]` | 277 | `frontend/src/app/[locale]/(dashboard)/workflows/[id]/page.tsx` |
 | `/workflows/[id]/form-preview` | 150 | `frontend/src/app/[locale]/(dashboard)/workflows/[id]/form-preview/page.tsx` |
 | `/workflows/[id]/logs` | 154 | `frontend/src/app/[locale]/(dashboard)/workflows/[id]/logs/page.tsx` |
 | `/workflows/[id]/runs` | 155 | `frontend/src/app/[locale]/(dashboard)/workflows/[id]/runs/page.tsx` |
@@ -114,7 +116,7 @@ Generated from local TypeScript imports and re-exports. Layout dependencies incl
 | --- | ---: |
 | .. | 1 |
 | admin | 15 |
-| agents | 102 |
+| agents | 103 |
 | artifacts | 29 |
 | assistant | 9 |
 | auth | 8 |
@@ -122,18 +124,18 @@ Generated from local TypeScript imports and re-exports. Layout dependencies incl
 | branding | 5 |
 | browser | 2 |
 | channels | 12 |
-| charts | 1 |
+| charts | 2 |
 | chat | 133 |
 | context | 4 |
-| dashboard | 99 |
-| datasets | 56 |
+| dashboard | 98 |
+| datasets | 57 |
 | desktop | 27 |
 | evals | 36 |
 | files | 9 |
 | groups | 6 |
 | hosted | 1 |
 | icons | 4 |
-| improvement | 33 |
+| improvement | 36 |
 | inbox | 2 |
 | kb | 14 |
 | knowledge-gaps | 14 |
@@ -157,14 +159,15 @@ Generated from local TypeScript imports and re-exports. Layout dependencies incl
 | settings | 29 |
 | shared | 1 |
 | sharing | 10 |
-| skills | 7 |
+| skill-improvement | 21 |
+| skills | 32 |
 | states | 6 |
 | tables | 40 |
 | tasks | 3 |
 | teams | 15 |
 | theme | 5 |
-| triggers | 32 |
-| ui | 61 |
+| triggers | 34 |
+| ui | 62 |
 | vault | 9 |
 | voice | 12 |
 | watches | 4 |

@@ -1,5 +1,9 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+import { Sparkles, MessageSquare } from "lucide-react";
+import { EmptyState } from "@/components/states";
+import { ROUTES } from "@/lib/constants";
 import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
@@ -27,16 +31,20 @@ import type { AuthoringEstimate, AuthoringKind, AuthoringStart } from "@/types/a
  */
 export function ImproveDialog({
   kind,
+  subject,
   estimate,
   start,
   onOpenChange,
 }: {
   kind: AuthoringKind;
+  subject?: "context";
   estimate: (body: AuthoringStart) => Promise<AuthoringEstimate>;
   start: (body: AuthoringStart) => Promise<unknown>;
   onOpenChange: (open: boolean) => void;
 }) {
   const t = useTranslations("authoring.improve");
+  const router = useRouter();
+  const setup = useTranslations("improvementSetup");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
   const [modelId, setModelId] = useState<string | null>(null);
@@ -60,6 +68,7 @@ export function ImproveDialog({
   }, [kind, estimate, tErrors, modelId]);
 
   async function go() {
+    if (starting || quote === null || quote.reason !== null || !quote.affordable) return;
     setStarting(true);
     try {
       await start({
@@ -76,11 +85,23 @@ export function ImproveDialog({
 
   const blocked = quote === null || quote.reason !== null || !quote.affordable;
   return (
-    <Dialog open onOpenChange={onOpenChange}>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!starting) onOpenChange(open);
+      }}
+    >
       <DialogContent className={`${DIALOG_COLUMN} ${DIALOG_FORM}`}>
         <DialogHeader>
-          <DialogTitle>{t(`${kind}.title`)}</DialogTitle>
-          <DialogDescription>{t(`${kind}.body`)}</DialogDescription>
+          <DialogTitle className="flex items-center gap-3">
+            <span className="bg-muted text-muted-foreground grid size-10 shrink-0 place-items-center rounded-xl">
+              <Sparkles className="size-5" aria-hidden />
+            </span>
+            {subject === "context" ? setup("contextTitle") : t(`${kind}.title`)}
+          </DialogTitle>
+          <DialogDescription>
+            {subject === "context" ? setup("contextBody") : t(`${kind}.body`)}
+          </DialogDescription>
         </DialogHeader>
         <div className={`${DIALOG_BODY} space-y-4`}>
           {quote !== null && quote.reason === null && (
@@ -93,7 +114,26 @@ export function ImproveDialog({
               })}
             </p>
           )}
-          {quote?.reason != null && <p className="text-sm">{t(`reason.${quote.reason}`)}</p>}
+          {quote?.reason === "no_evidence" ? (
+            <EmptyState
+              icon={MessageSquare}
+              title={setup("noFeedback")}
+              description={t("reason.no_evidence")}
+              cta={{
+                label: setup("openChat"),
+                onClick: () => {
+                  onOpenChange(false);
+                  router.push(ROUTES.CHAT);
+                },
+              }}
+            />
+          ) : (
+            quote?.reason != null && (
+              <p className="bg-muted/30 rounded-xl border p-4 text-sm leading-relaxed">
+                {t(`reason.${quote.reason}`)}
+              </p>
+            )
+          )}
           {quote !== null && quote.reason === null && !quote.affordable && (
             <p className="text-destructive-ink text-sm">{t("overBudget")}</p>
           )}
@@ -102,25 +142,30 @@ export function ImproveDialog({
               {error}
             </p>
           )}
-          <ModelProfilePicker
-            profiles={profiles}
-            profilesStatus={profilesStatus}
-            value={modelId}
-            onChange={(value) => {
-              setQuote(null);
-              setError(null);
-              setModelId(value);
-            }}
-            disabled={starting}
-          />
+          {quote?.reason !== "no_evidence" && (
+            <ModelProfilePicker
+              compact
+              profiles={profiles}
+              profilesStatus={profilesStatus}
+              value={modelId}
+              onChange={(value) => {
+                setQuote(null);
+                setError(null);
+                setModelId(value);
+              }}
+              disabled={starting}
+            />
+          )}
         </div>
         <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" disabled={starting} onClick={() => onOpenChange(false)}>
             {t("cancel")}
           </Button>
-          <Button disabled={blocked || starting} onClick={() => void go()}>
-            {t("start")}
-          </Button>
+          {quote?.reason !== "no_evidence" && (
+            <Button loading={starting} disabled={blocked || starting} onClick={() => void go()}>
+              {t("start")}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -1,5 +1,7 @@
 # Virtual Tables
 
+Choose a table’s icon beside its name in the detail view. Its catalog card and dashboard row use the same mark. **Use default icon** resets it; the choice does not change columns, records or schema versions. The control follows the table’s management access, including task-board restrictions.
+
 A **virtual table** is a typed table of records that an organization keeps for its
 agents, [workflows](workflows.md) and integrations: orders to reconcile, files to
 process, leads to follow up.

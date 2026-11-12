@@ -1,10 +1,10 @@
 ---
-source_sha: "5a22c5485c7b"
+source_sha: "539189006626"
 ---
 
 # Skills { #skills }
 
-Al abrir un skill del catálogo aparece un modal sin perder la búsqueda, los filtros ni la página de la lista. **Abrir vista completa** abre la misma pestaña y línea seleccionada en su página propia. El árbol de versiones crece con su contenido hasta una altura limitada; una sola versión no deja un lienzo vacío enorme. Una vista previa individual ocupa el ancho disponible y muestra las instrucciones como Markdown, con acceso al código fuente. Varias versiones comparten el espacio en escritorio y se desplazan dentro de la comparación en el teléfono.
+Al abrir un skill del catálogo aparece un modal con sus instrucciones, descripción y archivos sin perder la búsqueda, los filtros ni la página de la lista. **Abrir vista completa** abre la pestaña Contenido en su página propia, junto a Agents e Historial. Al salir con cambios sin guardar se pregunta qué conservar. Sin comentarios disponibles, Improve indica el siguiente paso en lugar de un formulario de gasto que no puede iniciarse.
 
 
 Un skill es saber hacer algo, escrito una vez y adjuntado a muchos agents: cómo
@@ -823,21 +823,6 @@ línea: cuándo se hizo cada una y quién la empezó, cómo terminó - aplicada 
 versión, un fork, descartada, caducada - y cuánto costó. **Continuar** abre una
 sesión que aún te espera; **Abrir** muestra una terminada. Una versión que aplicó
 una sesión enlaza con ella.
-
-**Árbol de versiones** dibuja main como una línea de cajas de izquierda a derecha que
-termina en su versión más nueva. Cada fork sale, en un carril propio, de la versión
-en que empezó, y cada agent está en la caja de la versión que usa. En una línea de
-ocho versiones o más, los tramos que ningún agent usa se pliegan en una sola caja.
-**Comparar** en una versión la añade a una comparación debajo del diagrama. Elige
-tantas versiones como quieras, de main y de forks, para ver lado a lado sus
-descripciones, instrucciones y archivos. El diagrama se arrastra y se acerca con la
-rueda o los botones, como el mapa de un agent.
-
-La primera versión elegida es la **Referencia**, siempre la primera, tras una línea
-divisoria. Cada otra columna marca lo que dice
-distinto de ella, palabra por palabra como los diffs del historial, y sus archivos
-como añadidos, eliminados o cambiados. **Fijar como referencia** hace referencia a otra
-columna, y **Solo las diferencias** pliega las partes que dicen lo mismo.
 
 **Editar** guarda una versión nueva en la línea en pantalla. En main, los agents que
 siguen main la reciben de inmediato; los agents fijados y los forks conservan su

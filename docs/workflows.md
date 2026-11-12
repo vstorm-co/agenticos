@@ -1,5 +1,7 @@
 # Workflows
 
+Choose a workflow’s icon beside its name in the editor. The same neutral tile appears in the catalog. A selected mark survives reload; **Use default icon** resets it. This changes presentation metadata, not the draft revision or published graph.
+
 A **workflow** chains steps into an automation your agents carry out: read a
 [table](virtual-tables.md), call an agent, branch on the result, loop over a
 list. You build it on a canvas, wire the steps together, and publish it as an

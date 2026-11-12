@@ -1,5 +1,7 @@
 # The console
 
+The personal dashboard reads onboarding and Briefing together before drawing its opening row. A single reserved loading area avoids alternating placeholder layouts; other widgets load independently. Failed reads retain their retry state. Workspace expansion is offered on phones; resizing to desktop restores navigation and keeps unsaved fields.
+
 Context settings lists files in compact rows with per-agent usage controls. Long descriptions no longer stretch neighbouring files, and injected-only context uses an informational note. Availability shows each chat app’s platform logo beside the bot name. App sharing puts the page link and people with access first; expiration, version pinning, embedding and password settings start collapsed under Link settings. Active restrictions remain visible as badges, and collapsing the options preserves edits.
 
 On phones, channel registration uses a compact platform selector. Cancelling a new channel, new vault key or key rotation clears its entered credentials. Channel and vault forms block editing and dismissal during a write; a refused write keeps the values for correction and retry. Channel editing and key rotation keep their action footer visible in short windows.

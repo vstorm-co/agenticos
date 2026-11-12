@@ -1,5 +1,6 @@
 "use client";
 
+import { Spinner } from "@/components/ui/spinner";
 import { useTranslations } from "next-intl";
 
 import { usePermissions } from "@/hooks";
@@ -15,9 +16,29 @@ import { SuggestionsWidget } from "./widgets/suggestions";
  * Once the checklist is done or closed it renders nothing, and the Briefing
  * takes the whole row.
  */
-export function MeOpening({ orgId, period }: { orgId: string | null; period: Period }) {
+export function MeOpening({
+  orgId,
+  period,
+  pending = false,
+}: {
+  orgId: string | null;
+  period: Period;
+  pending?: boolean;
+}) {
   const t = useTranslations("dashboard.widgets.suggestions");
+  const states = useTranslations("dashboard.states");
   const { can } = usePermissions();
+  if (pending)
+    return (
+      <div
+        role="status"
+        aria-busy="true"
+        aria-label={states("loading")}
+        className="bg-card mt-6 flex h-56 items-center justify-center rounded-2xl border"
+      >
+        <Spinner className="text-muted-foreground size-5" aria-hidden />
+      </div>
+    );
   return (
     // Match the checklist while it is visible; a briefing on its own should not
     // keep the space of a checklist that has been completed or dismissed.

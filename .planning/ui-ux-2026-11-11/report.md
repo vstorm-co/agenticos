@@ -783,3 +783,68 @@ The baseline captures show the original access notice under the same conditions.
 | Dashboard tables, phone | [PNG](comparisons/table-widget-phone-before.png) | [PNG](comparisons/table-widget-phone-after.png) |
 | First-message composer, desktop | [PNG](comparisons/composer-flash-desktop-before.png) | [PNG](comparisons/composer-flash-desktop-after.png) |
 | First-message composer, phone | [PNG](comparisons/composer-flash-phone-before.png) | [PNG](comparisons/composer-flash-phone-after.png) |
+
+
+## Catalogs, knowledge editors and stable Briefing loading — 12 November 2026
+
+Tables and workflows now share a neutral mark in catalogs, detail headers and
+Dashboard rows. Their header picker saves one of 14 validated icons, including
+reset to the default. The nullable metadata columns are introduced by
+`0321_resource_icons.py`; choosing an icon changes neither table schema version
+nor workflow draft revision. Existing resource grants and task-board management
+restrictions remain enforced.
+
+Agents exposes its primary status filter directly; secondary facets keep their
+disclosure. The shared workspace fullscreen action is phone-only and restores
+page scrolling and navigation when resized to desktop. Skills opens its existing
+instructions/files editor as the catalog default, with an explicit full Content
+view action and an unsaved-change guard. The Version tree and unused comparison
+assets are removed; History retains its saved-version diffs. Context and skill
+improvement use matching sections, a compact model selector and an actionable
+no-feedback state instead of unusable start controls. Dataset catalogs and empty
+Cases use neutral marks and compact actions while retaining permissions.
+
+Briefing no longer alternates guessed widget skeletons. The optional opening row
+coordinates onboarding and suggestion reads in a stable 224px area, independently
+of other widgets. A controlled dismissed-onboarding read reproduced the previous
+496px-to-224px contraction. Failed reads do not restart on every child observer
+mount; an explicit retry remains available.
+
+Verification: 100 focused tests across eight editor/icon/fullscreen files
+(including the two additional compact selector cases), 66 dashboard/dataset/filter
+tests and 72 header/table tests pass. Backend validation, schema/service and
+coverage-contract tests pass (112 tests), as do frontend/backend lint, scoped ty,
+Alembic drift and strict multilingual documentation. Migration up/down/up was
+checked on connection-local temporary tables without downgrading user data.
+Chromium exercised actual icon save/reload/catalog persistence for both resources
+at 1440px desktop and touch 320px phone widths, plus Skills modal-to-Content
+navigation and phone fullscreen-to-desktop cleanup. Original icons were restored.
+Dark/light mark contrast measured 6.43:1 and 5.21:1 respectively.
+
+Screenshot comparisons use equal 1440x1000 or 390x844 viewports. Briefing captures
+hold read-only onboarding/suggestion fixtures; no onboarding state is persisted.
+No model improvement, external notification or account operation is started.
+Full CI, coverage and cross-browser suites have not run locally. The refreshed
+source map covers 101 routes, 1248 component modules and 58 families.
+
+| Evidence | Before | After |
+| --- | --- | --- |
+| catalog-agents-desktop | [PNG](comparisons/catalog-agents-desktop-before.png) | [PNG](comparisons/catalog-agents-desktop-after.png) |
+| catalog-agents-phone | [PNG](comparisons/catalog-agents-phone-before.png) | [PNG](comparisons/catalog-agents-phone-after.png) |
+| catalog-workflows-desktop | [PNG](comparisons/catalog-workflows-desktop-before.png) | [PNG](comparisons/catalog-workflows-desktop-after.png) |
+| catalog-workflows-phone | [PNG](comparisons/catalog-workflows-phone-before.png) | [PNG](comparisons/catalog-workflows-phone-after.png) |
+| catalog-tables-desktop | [PNG](comparisons/catalog-tables-desktop-before.png) | [PNG](comparisons/catalog-tables-desktop-after.png) |
+| catalog-tables-phone | [PNG](comparisons/catalog-tables-phone-before.png) | [PNG](comparisons/catalog-tables-phone-after.png) |
+| catalog-skills-desktop | [PNG](comparisons/catalog-skills-desktop-before.png) | [PNG](comparisons/catalog-skills-desktop-after.png) |
+| catalog-skills-phone | [PNG](comparisons/catalog-skills-phone-before.png) | [PNG](comparisons/catalog-skills-phone-after.png) |
+| datasets-catalog-desktop | [PNG](comparisons/datasets-catalog-desktop-before.png) | [PNG](comparisons/datasets-catalog-desktop-after.png) |
+| datasets-catalog-phone | [PNG](comparisons/datasets-catalog-phone-before.png) | [PNG](comparisons/datasets-catalog-phone-after.png) |
+| datasets-empty-desktop | [PNG](comparisons/datasets-empty-desktop-before.png) | [PNG](comparisons/datasets-empty-desktop-after.png) |
+| datasets-empty-phone | [PNG](comparisons/datasets-empty-phone-before.png) | [PNG](comparisons/datasets-empty-phone-after.png) |
+| skill-improve-desktop | [PNG](comparisons/skill-improve-desktop-before.png) | [PNG](comparisons/skill-improve-desktop-after.png) |
+| skill-improve-phone | [PNG](comparisons/skill-improve-phone-before.png) | [PNG](comparisons/skill-improve-phone-after.png) |
+| context-improve-desktop | [PNG](comparisons/context-improve-desktop-before.png) | [PNG](comparisons/context-improve-desktop-after.png) |
+| context-improve-phone | [PNG](comparisons/context-improve-phone-before.png) | [PNG](comparisons/context-improve-phone-after.png) |
+| briefing-loading-desktop | [PNG](comparisons/briefing-loading-desktop-before.png) | [PNG](comparisons/briefing-loading-desktop-after.png) |
+
+Additional dark-theme checks: [Workflows](comparisons/workflows-dark-after.png), [Datasets](comparisons/datasets-dark-after.png).

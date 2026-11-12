@@ -1,8 +1,10 @@
 ---
-source_sha: "cb511d45cf48"
+source_sha: "e418602353c0"
 ---
 
 # Konsola { #the-console }
+
+Osobisty dashboard odczytuje onboarding i Briefing razem przed pokazaniem pierwszego wiersza. Jedno zarezerwowane miejsce ładowania zapobiega zmianom układu placeholderów; pozostałe widżety ładują się niezależnie. Błędy odczytu zachowują możliwość ponowienia. Rozszerzanie obszaru roboczego jest dostępne na telefonach; przejście na desktop przywraca nawigację i zachowuje niezapisane pola.
 
 Ustawienia kontekstu pokazują zwarte wiersze plików z wyborem sposobu użycia przez agenta. Długie opisy nie rozciągają sąsiednich pozycji, a wyłącznie wstrzykiwany kontekst ma neutralną informację. Dostępność pokazuje logo platformy obok nazwy bota. Udostępnianie aplikacji zaczyna się od adresu i osób z dostępem; wygaśnięcie, przypięcie wersji, osadzanie i hasło są zwinięte w Ustawieniach linku. Aktywne ograniczenia pozostają widoczne jako etykiety, a zwinięcie opcji zachowuje edycję.
 

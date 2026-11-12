@@ -123,6 +123,7 @@ class TableOperations(Operations):
                 owner_user_id=ctx.subject_id,
                 name=data.name,
                 description=data.description,
+                icon=data.icon,
                 visibility=data.visibility,
             )
             await virtual_table_repo.add_schema_version(

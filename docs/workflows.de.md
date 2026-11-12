@@ -1,8 +1,10 @@
 ---
-source_sha: "30ef52f0532a"
+source_sha: "e23a2fdc098e"
 ---
 
 # Workflows { #workflows }
+
+Das Workflow-Symbol wählen Sie neben dem Namen im Editor. Dieselbe neutrale Kachel erscheint im Katalog. Die Auswahl bleibt nach dem Neuladen erhalten; **Standardsymbol verwenden** setzt sie zurück. Dies ändert Darstellungsmetadaten, weder die Entwurfsrevision noch den veröffentlichten Graphen.
 
 Ein **Workflow** verkettet Schritte zu einer Automatisierung, die Ihre Agents
 ausführen: eine [Tabelle](virtual-tables.md) lesen, einen Agent aufrufen, auf das

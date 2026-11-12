@@ -708,7 +708,13 @@
     "whoCanUseIt": "Kimler kullanabilir?",
     "page": {
       "skillDetails": "Beceri ayrıntıları",
-      "openFullView": "Tam görünümü aç"
+      "openFullView": "Tam görünümü aç",
+      "content": {
+        "description": "Açıklama",
+        "instructions": "Talimatlar",
+        "files": "Dosyalar",
+        "noFiles": "Dosya yok."
+      }
     }
   },
   "workflows": {
@@ -6756,7 +6762,8 @@
     "stavEndpointHint": "api.stav.ai için boş bırakın. Yalnızca Stav.ai’nin bölgesel veya test uç noktası için değiştirin.",
     "otariEndpointHint": "Modelleri yüklemeden önce /api/v1 ile biten ağ geçidi URL’sini girin. Barındırılan hizmet: https://api.otari.ai/api/v1. AB: https://eu.api.otari.ai/api/v1.",
     "loadGatewayModels": "Modelleri yükle",
-    "modelIdOtariHint": "Otari ağ geçidinizde tanımlanan provider:model biçimini veya bir takma ad/yönlendirme politikasını kullanın."
+    "modelIdOtariHint": "Otari ağ geçidinizde tanımlanan provider:model biçimini veya bir takma ad/yönlendirme politikasını kullanın.",
+    "useDefaultModel": "Varsayılan modeli kullan"
   },
   "dashboard": {
     "edit": {
@@ -13380,5 +13387,19 @@
     "imessage": "iMessage",
     "discord": "Discord",
     "platformOptions": "Sohbet platformları"
+  },
+  "resourceAppearance": {
+    "title": "Simge",
+    "change": "Simgeyi değiştir",
+    "table": "Tablo",
+    "workflow": "İş akışı",
+    "reset": "Varsayılan simgeyi kullan"
+  },
+  "improvementSetup": {
+    "noFeedback": "Henüz geri bildirim yok",
+    "openChat": "Sohbeti aç",
+    "contextTitle": "Bağlamı iyileştir",
+    "contextBody": "Asistan, agentların bu bağlam dosyasını kullandığı konuşmalardaki geri bildirimleri kullanır. Uygulamadan önce her öneriyi inceleyin.",
+    "costs": "Maliyetler ve sınırlar"
   }
 }

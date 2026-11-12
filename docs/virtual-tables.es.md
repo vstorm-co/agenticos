@@ -1,8 +1,10 @@
 ---
-source_sha: "1110129a78f1"
+source_sha: "e49637ff7aa2"
 ---
 
 # Virtual Tables { #virtual-tables }
+
+Elige el icono de una tabla junto a su nombre en la vista de detalle. La tarjeta del catálogo y la fila del dashboard usan el mismo símbolo. **Usar icono predeterminado** lo restablece; no cambian columnas, registros ni versiones del esquema. El control respeta el acceso de administración, incluidas las restricciones de los tableros de tareas.
 
 Una **virtual table** es una tabla tipada de registros que una organización mantiene
 para sus agents, [workflows](workflows.md) e integraciones: pedidos por conciliar, archivos por

@@ -1089,7 +1089,8 @@
     "pipelineModelPlaceholder": "Choose a model",
     "pipelineNoMatches": "No matching models",
     "alreadyHasIt": "Uses it",
-    "inDraftOf": "{more, plural, =0 {In the draft of {names}, not published yet} other {In the drafts of {names} and # more, not published yet}}"
+    "inDraftOf": "{more, plural, =0 {In the draft of {names}, not published yet} other {In the drafts of {names} and # more, not published yet}}",
+    "useDefaultModel": "Use default model"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -5906,10 +5907,6 @@
         "title": "Every version, and the way back",
         "body": "See what each version changed, who made it and where it came from. Restore brings an earlier one back as the newest."
       },
-      "skill-tree": {
-        "title": "Main and its forks",
-        "body": "Main runs left to right to its newest version, each fork branches off the version it started from on a lane of its own, and every agent sits in the box of the version it uses. Compare puts any versions side by side."
-      },
       "skill-improve": {
         "title": "Improve the skill",
         "body": "Opens a step-by-step session for the line on screen: main, or the fork you picked. Nothing changes until you accept a result."
@@ -9053,7 +9050,6 @@
       "tabs": {
         "agents": "Agents",
         "history": "History",
-        "tree": "Version tree",
         "content": "Content"
       },
       "agentCount": "{count, plural, =0 {No agents} =1 {1 agent} other {# agents}}",
@@ -9188,41 +9184,8 @@
         }
       },
       "tree": {
-        "title": "Version tree",
-        "summary": "{versions, plural, =1 {1 version on main} other {# versions on main}}{forks, plural, =0 {} =1 { · 1 fork} other { · # forks}}",
-        "folded": "{count, plural, other {# versions}} (v{from}–v{to})",
         "number": "v{number}",
-        "latest": "latest",
-        "fork": "Fork “{name}”",
-        "forkFacts": "{changes, plural, =0 {no changes yet} =1 {1 change} other {# changes}}{behind, plural, =0 {} other { · # behind main}}",
-        "forkNumber": "{name} v{number}",
-        "noVersionYet": "No version of its own yet",
-        "compare": "Compare {version}",
-        "compareShort": "Compare",
-        "comparing": "Comparing"
-      },
-      "compare": {
-        "title": "Comparison",
-        "count": "{count, plural, =1 {1 version} other {# versions}}",
-        "clear": "Clear",
-        "pickAnother": "Pick another version on the diagram to put beside this one.",
-        "remove": "Remove {version} from the comparison",
-        "loading": "Loading the version…",
-        "description": "Description",
-        "instructions": "Instructions",
-        "files": "Files",
-        "noFiles": "No files.",
-        "unreadable": "Couldn't load this version.",
-        "retry": "Retry",
-        "reference": "Reference",
-        "setReference": "Set as reference",
-        "onlyDifferences": "Only the differences",
-        "sameAsReference": "same as the reference",
-        "file": {
-          "added": "added",
-          "removed": "removed",
-          "changed": "changed"
-        }
+        "forkNumber": "{name} v{number}"
       },
       "edit": {
         "saved": "Saved as v{number}.",
@@ -9330,7 +9293,11 @@
         "hidden": "This skill has test questions, in a dataset you may not open."
       },
       "content": {
-        "title": "What it serves now"
+        "title": "What it serves now",
+        "description": "Description",
+        "instructions": "Instructions",
+        "files": "Files",
+        "noFiles": "No files."
       },
       "more": "More actions",
       "checks": {
@@ -17667,5 +17634,19 @@
         "to_main": "Move to main"
       }
     }
+  },
+  "resourceAppearance": {
+    "title": "Icon",
+    "change": "Change icon",
+    "table": "Table",
+    "workflow": "Workflow",
+    "reset": "Use default icon"
+  },
+  "improvementSetup": {
+    "noFeedback": "No feedback yet",
+    "openChat": "Open chat",
+    "contextTitle": "Improve context",
+    "contextBody": "The assistant uses feedback from conversations where agents used this context file. Review every suggestion before applying it.",
+    "costs": "Costs and limits"
   }
 }

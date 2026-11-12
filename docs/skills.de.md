@@ -1,10 +1,10 @@
 ---
-source_sha: "5a22c5485c7b"
+source_sha: "539189006626"
 ---
 
 # Skills { #skills }
 
-Ein Klick auf einen Skill im Katalog öffnet einen Dialog, ohne Suche, Filter oder Listenseite zu verlieren. **Vollständige Ansicht öffnen** öffnet denselben Tab und die ausgewählte Linie auf einer eigenen Seite. Der Versionsbaum wächst mit seinem Inhalt bis zu einer begrenzten Höhe; eine einzelne Version hinterlässt keine große leere Fläche. Eine einzelne Vergleichsvorschau nutzt die verfügbare Breite und zeigt Anweisungen als Markdown mit optionalem Quelltext. Mehrere Versionen teilen den Platz auf dem Desktop und lassen sich auf dem Smartphone innerhalb des Vergleichs horizontal verschieben.
+Ein Klick auf einen Skill im Katalog öffnet Anweisungen, Beschreibung und Dateien in einem Dialog, ohne Suche, Filter oder Listenseite zu verlieren. **Vollständige Ansicht öffnen** öffnet den Tab Inhalt auf einer eigenen Seite; Agenten und Verlauf bleiben dort erreichbar. Beim Verlassen ungespeicherter Änderungen wird nachgefragt. Ohne Feedback zeigt Improve den nächsten Schritt statt eines nicht ausführbaren Kostenformulars.
 
 
 Ein Skill ist Wissen, das einmal geschrieben und an viele Agents gebunden wird:
@@ -872,22 +872,6 @@ Linie: wann jede lief und wer sie begann, wie sie endete - als Version übernomm
 ein Fork, verworfen, abgelaufen - und was sie kostete. **Fortsetzen** öffnet eine
 Sitzung, die noch auf Sie wartet; **Öffnen** zeigt eine beendete. Eine Version, die
 eine Sitzung übernommen hat, verweist auf sie.
-
-**Versionsbaum** zeichnet main als Reihe von Feldern von links nach rechts, die bei
-der neuesten Version endet. Jeder Fork zweigt auf einer eigenen Spur von der Version
-ab, bei der er begann, und jeder Agent steht im Feld der Version, die er nutzt. Auf
-einer Linie mit acht oder mehr Versionen werden Abschnitte, die kein Agent nutzt, zu
-einem Feld zusammengefaltet. **Vergleichen** an einer Version legt sie in einen
-Vergleich unter dem Diagramm. Wählen Sie beliebig viele Versionen aus main und
-Forks, um ihre Beschreibungen, Anweisungen und Dateien nebeneinander zu sehen. Das
-Diagramm lässt sich ziehen und mit dem Mausrad oder den Schaltflächen zoomen, wie die
-Karte eines Agents.
-
-Die zuerst gewählte Version ist die **Referenz** und steht immer zuerst, hinter einer
-Trennlinie. Jede andere Spalte markiert, was
-sie anders sagt als diese, Wort für Wort wie die Diffs im Verlauf, und ihre Dateien
-als hinzugefügt, entfernt oder geändert. **Als Referenz setzen** macht eine andere
-Spalte zur Referenz, und **Nur Unterschiede** klappt die Teile zu, die dasselbe sagen.
 
 **Bearbeiten** speichert eine neue Version auf der angezeigten Linie. Auf main
 bekommen die Agents, die main folgen, sie sofort; festgesetzte Agents und Forks

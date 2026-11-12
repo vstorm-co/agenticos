@@ -16,6 +16,7 @@ import {
 import { WorkflowIcon as Workflow } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
 
+import { ResourceIcon, ResourceIconPicker } from "@/components/ui/resource-icon";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { LiveRun, LiveRunStop, StaleRun, WorkflowCanvas } from "@/components/workflows/canvas";
 import {
@@ -195,6 +196,18 @@ export default function WorkflowEditorPage({ params }: PageProps) {
         // would keep for breathing room.
         className="mb-0 md:mb-0"
         title={workflow.name}
+        icon={
+          editing ? (
+            <ResourceIconPicker
+              kind="workflow"
+              icon={workflow.icon}
+              disabled={actions.update.isPending}
+              onChange={(icon) => actions.update.mutateAsync({ id: workflow.id, update: { icon } })}
+            />
+          ) : (
+            <ResourceIcon kind="workflow" icon={workflow.icon} />
+          )
+        }
         breadcrumbs={[{ label: t("title"), href: ROUTES.WORKFLOWS }, { label: workflow.name }]}
         badges={statusBadge}
         actions={
