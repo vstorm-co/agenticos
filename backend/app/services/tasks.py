@@ -1,13 +1,11 @@
 """Durable tasks backed by scoped Virtual Tables, with transactional lifecycle hooks."""
 
 from contextvars import ContextVar
-from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid5
 
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.locks import LockScope, hold_subject
@@ -92,10 +90,7 @@ class TaskService:
                 resource_id=board.table_id,
             )
             await virtual_table_repo.delete_receipts_for_table(
-                self.db,
-                organization_id=board.organization_id,
-                table_id=board.table_id,
-                since=datetime.now(UTC) - timedelta(hours=settings.TABLES_RECEIPT_TTL_HOURS),
+                self.db, organization_id=board.organization_id, table_id=board.table_id
             )
             await task_repo.purge_table(self.db, board)
 

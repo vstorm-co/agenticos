@@ -760,8 +760,12 @@ async def test_project_use_does_not_grant_operator_table_edits(db: AsyncSession)
 
 @pytest.mark.parametrize("kind", ["private", "project", "group"])
 async def test_removing_scope_purges_managed_table_and_cancels_its_wakeups(
-    db: AsyncSession, kind: str
+    db: AsyncSession, kind: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    from app.repositories import virtual_table as virtual_table_repo
+
+    # One receipt per statement, so the purge runs through several batches.
+    monkeypatch.setattr(virtual_table_repo, "_RECEIPT_PURGE_BATCH", 1)
     from app.db.models.background_job import BackgroundJob
     from app.db.models.project import Project
     from app.db.models.virtual_table import VirtualTable, VirtualTableReceipt, VirtualTableRecord
@@ -870,8 +874,8 @@ async def test_removing_scope_purges_managed_table_and_cancels_its_wakeups(
     assert (
         await db.scalar(select(VirtualTable).where(VirtualTable.id == other.table_id)) is not None
     )
-    # An expired receipt is the retention sweep's, which keeps the purge on its index.
-    assert set(await db.scalars(select(VirtualTableReceipt.id))) == {kept_receipt, expired.id}
+    # Expired or not, a receipt holds the record's values until it is deleted.
+    assert list(await db.scalars(select(VirtualTableReceipt.id))) == [kept_receipt]
 
 
 async def test_scope_teardown_disables_its_agent_and_cancels_queued_fire(db: AsyncSession) -> None:

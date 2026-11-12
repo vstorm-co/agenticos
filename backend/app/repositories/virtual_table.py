@@ -1043,32 +1043,41 @@ async def add_outbox(
     return row
 
 
+_RECEIPT_PURGE_BATCH = 1000
+"""Receipts removed per statement when a table is purged, so one purge stays bounded."""
+
+
 async def delete_receipts_for_table(
-    db: AsyncSession, *, organization_id: UUID, table_id: UUID, since: datetime
+    db: AsyncSession, *, organization_id: UUID, table_id: UUID
 ) -> None:
-    """Remove every receipt created after `since` that names this table, before it goes.
+    """Remove every receipt that names this table, before the table itself goes.
 
     A receipt holds the whole record a keyed write returned, and has no foreign key
     to the table: it names the table only inside `outcome`. A record write keeps it at
     `record.table_id`, a table creation at `id`. A record deletion's receipt holds
-    only the record id, so it carries no values and cannot be matched. `since` keeps
-    the match on the organization's creation-time index: older receipts have
-    expired, and the retention sweep removes them.
+    only the record id, so it carries no values and cannot be matched. An expired
+    receipt still holds its values until the retention sweep reaches it, so age is
+    no reason to keep one; the delete goes in batches instead.
     """
     table = str(table_id)
-    await db.execute(
-        delete(VirtualTableReceipt).where(
-            VirtualTableReceipt.organization_id == organization_id,
-            VirtualTableReceipt.created_at >= since,
-            or_(
-                VirtualTableReceipt.outcome["record"]["table_id"].astext == table,
-                and_(
-                    VirtualTableReceipt.operation == "table.create",
-                    VirtualTableReceipt.outcome["id"].astext == table,
-                ),
+    names_the_table = and_(
+        VirtualTableReceipt.organization_id == organization_id,
+        or_(
+            VirtualTableReceipt.outcome["record"]["table_id"].astext == table,
+            and_(
+                VirtualTableReceipt.operation == "table.create",
+                VirtualTableReceipt.outcome["id"].astext == table,
             ),
-        )
+        ),
     )
+    while True:
+        batch = select(VirtualTableReceipt.id).where(names_the_table).limit(_RECEIPT_PURGE_BATCH)
+        deleted = await db.execute(
+            delete(VirtualTableReceipt).where(VirtualTableReceipt.id.in_(batch))
+        )
+        # A DML statement returns a `CursorResult`, which has `rowcount`.
+        if (deleted.rowcount or 0) < _RECEIPT_PURGE_BATCH:  # ty: ignore[unresolved-attribute]
+            return
 
 
 async def delete_expired_receipt(
