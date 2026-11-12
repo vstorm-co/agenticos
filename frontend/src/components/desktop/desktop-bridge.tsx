@@ -117,19 +117,26 @@ function Bridge({ shell }: { shell: ShellInfo }) {
     const fresh = seenApprovals.current ? newApprovals(seenApprovals.current, approvals) : [];
     seenApprovals.current = new Set(approvals.map((approval) => approval.id));
     for (const approval of fresh) {
+      const title = t("approvalTitle", {
+        agent: approval.agent_name ?? t("anAgent"),
+        tool: approval.tool_id,
+      });
+      const body = argumentsPreview(approval.tool_args);
+      // The server refuses this reader's approval, and a notification's buttons
+      // cannot offer Reject alone, so it only leads to the queue.
+      const unreadable = approval.always_asks && approval.content_hidden;
       sendNotice(
-        {
-          kind: "approval",
-          title: t("approvalTitle", {
-            agent: approval.agent_name ?? t("anAgent"),
-            tool: approval.tool_id,
-          }),
-          body: argumentsPreview(approval.tool_args),
-          path: APPROVALS_PATH,
-          approval_id: approval.id,
-          approve_label: t("approve"),
-          reject_label: t("reject"),
-        },
+        unreadable
+          ? { kind: "inbox", title, body, path: APPROVALS_PATH }
+          : {
+              kind: "approval",
+              title,
+              body,
+              path: APPROVALS_PATH,
+              approval_id: approval.id,
+              approve_label: t("approve"),
+              reject_label: t("reject"),
+            },
         "approval_requested",
         approval.run_id,
       ).catch((error: unknown) => reportShellFailure("could not notify an approval", error));
