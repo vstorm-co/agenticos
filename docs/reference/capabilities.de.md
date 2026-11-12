@@ -1,5 +1,5 @@
 ---
-source_sha: "afe85f4216bf"
+source_sha: "64df2ad4b5d2"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -471,6 +471,14 @@ Agent falsch machen könnte.
   [API-Schlüssel](../api.md#organization-api-keys) gestarteter Run hat auch
   keinen: Der Schlüssel handelt für die ausstellende Person, aber wer ihn hält,
   ist nicht diese Person.
+- In einem Chat, den andere lesen - dem eines Projekts oder einem, der zum
+  Bearbeiten geteilt ist -, gibt es keinen persönlichen Speicher. Der Agent
+  zeigt dort nicht, ruft nicht ab und speichert nicht, was er über die Person
+  weiß; die Claims des Projekts und der Organisation liest er weiterhin. Wer
+  einen Chat zum Bearbeiten teilt oder in ein Projekt verschiebt, zeigt seinen
+  Verlauf, auch Antworten aus der Zeit, als er privat war; ab diesem Moment
+  nutzen weitere Antworten kein persönliches Gedächtnis. Ein nur zum Lesen
+  geteilter Chat zeigt jede Antwort, auch spätere mit persönlichem Gedächtnis.
 - Bei einem Zeitplan oder einem Ereignis-Trigger gibt es ebenfalls keinen
   Speicher, obwohl der Run als Ersteller des Triggers ausgeführt wird. Der
   Ersteller leiht dem Run seine Befugnisse, nicht seine Identität, also hört
