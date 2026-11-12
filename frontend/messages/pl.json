@@ -11401,6 +11401,11 @@
       "gmail": "Wyzwalacz poczty i akcje Gmail",
       "outlook": "Wyzwalacz poczty i akcje Outlook"
     },
+    "pickerFound": {
+      "groups": "Kategorie",
+      "steps": "Kroki wbudowane",
+      "actions": "Akcje aplikacji"
+    },
     "pickerSection": {
       "start": "Start",
       "ai": "AI",

@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- **Workflow step search is grouped.** Searching the step picker lists matching categories first, then built-in steps, then actions from connected apps, each under its own heading. A matching category opens like it does when browsing.
+
 ## [1.69.0] - 2026-11-12
 
 ### Added

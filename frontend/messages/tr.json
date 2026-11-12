@@ -816,6 +816,11 @@
       "gmail": "Posta tetikleyicisi ve Gmail işlemleri",
       "outlook": "Posta tetikleyicisi ve Outlook eylemleri"
     },
+    "pickerFound": {
+      "groups": "Kategoriler",
+      "steps": "Yerleşik adımlar",
+      "actions": "Uygulama eylemleri"
+    },
     "pickerSection": {
       "start": "Başlangıç",
       "ai": "yapay zeka",

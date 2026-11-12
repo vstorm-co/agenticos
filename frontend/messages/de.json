@@ -10898,6 +10898,11 @@
       "gmail": "Mail-Trigger und Gmail-Aktionen",
       "outlook": "Mail-Trigger und Outlook-Aktionen"
     },
+    "pickerFound": {
+      "groups": "Kategorien",
+      "steps": "Integrierte Schritte",
+      "actions": "App-Aktionen"
+    },
     "pickerSection": {
       "start": "Start",
       "ai": "KI",
