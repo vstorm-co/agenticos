@@ -56,6 +56,9 @@ export function ReadinessPanel({ repair }: { repair?: string | null }) {
 function ReadyItems({ repair }: { repair?: string | null }) {
   const t = useTranslations("desktop.readiness");
   const setup = useDesktopSetup();
+  // The screen-recording advice names macOS settings; elsewhere it would send people
+  // looking for a System Settings pane their computer does not have.
+  const mac = useShell()?.platform === "macos";
   const start = useTranslations("start");
   const router = useRouter();
   const retryScreenshot = useMutation({
@@ -114,7 +117,7 @@ function ReadyItems({ repair }: { repair?: string | null }) {
                 {item.key === "screen_capture" &&
                   setup.native.status.data?.screen_capture === "denied" && (
                     <p className="text-muted-foreground mt-1 max-w-sm text-xs leading-relaxed">
-                      {t("screenCaptureDenied")}
+                      {t(mac ? "screenCaptureDenied" : "screenCaptureDeniedElsewhere")}
                     </p>
                   )}
                 {item.key === "model" && item.state === "missing" && !manage && (
@@ -142,7 +145,7 @@ function ReadyItems({ repair }: { repair?: string | null }) {
                       : permission
                         ? "enable"
                         : item.key === "device"
-                          ? "connect"
+                          ? "link"
                           : item.key === "agent"
                             ? "viewAgents"
                             : "configure",
@@ -155,7 +158,7 @@ function ReadyItems({ repair }: { repair?: string | null }) {
       </ul>
       <p className="text-muted-foreground flex items-start gap-2 text-xs leading-relaxed">
         <ShieldCheck className="mt-0.5 size-4 shrink-0" aria-hidden />
-        <span>{t("permissionNote")}</span>
+        <span>{t(mac ? "permissionNoteMac" : "permissionNote")}</span>
       </p>
       {repair === "screen_capture" && setup.native.status.data?.screen_capture === "granted" && (
         <Button disabled={retryScreenshot.isPending} onClick={() => retryScreenshot.mutate()}>

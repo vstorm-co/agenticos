@@ -37,12 +37,13 @@ beforeEach(() => {
 });
 it("links only after the person chooses the action and waits for native consent", async () => {
   const view = render(<DeviceSettings />);
-  const link = screen.getByRole("button", { name: "Let agents work here" });
+  expect(screen.getByText("Not linked")).toBeInTheDocument();
+  const link = screen.getByRole("button", { name: "Link this computer" });
   await userEvent.click(link);
   expect(env.link).toHaveBeenCalledOnce();
   env.pending = true;
   view.rerender(<DeviceSettings />);
-  expect(screen.getByRole("button", { name: "Let agents work here" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Link this computer" })).toBeDisabled();
   expect(screen.getByTestId("services")).toBeInTheDocument();
 });
 it("shows reconnecting and live states and disconnects the paired computer", async () => {
@@ -59,4 +60,11 @@ it("offers desktop settings only in the desktop app", () => {
   env.shell = { ...MAC_MAIN, platform: "ios" };
   render(<DeviceSettings />);
   expect(screen.queryByTestId("services")).not.toBeInTheDocument();
+});
+it("says linked for the link and live for the connection, in one verb pair", () => {
+  env.status = { linked: true, connected: true };
+  render(<DeviceSettings />);
+  expect(screen.getByText("Linked - your agents can work here")).toBeInTheDocument();
+  expect(screen.getByText("Live")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Unlink" })).toBeInTheDocument();
 });

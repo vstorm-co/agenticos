@@ -9904,10 +9904,10 @@
         "title": "This computer",
         "description": "Let your own agents work here when you choose \"This computer\" in a chat - in the folder you pick, as the mode you pick allows. Nobody else's runs reach it.",
         "notLinked": "Not linked",
-        "connected": "Connected - your agents can work here",
+        "connected": "Linked - your agents can work here",
         "reconnecting": "Linked - reconnecting…",
         "live": "Live",
-        "link": "Let agents work here",
+        "link": "Link this computer",
         "unlink": "Unlink",
         "linkFailed": "This computer could not be linked.",
         "unlinkFailed": "This computer could not be unlinked."
@@ -9991,7 +9991,8 @@
       "tabLimit": "You can open up to eight tabs in one window.",
       "earlierMessages": "Load earlier messages",
       "startDictation": "Start dictation",
-      "stopDictation": "Stop dictation"
+      "stopDictation": "Stop dictation",
+      "computerAccessInConsole": "Access to this computer is granted in the console. Continue in the console to allow it."
     },
     "notifications": {
       "approvalTitle": "{agent} wants to run {tool}",
@@ -10040,13 +10041,13 @@
     },
     "readiness": {
       "title": "App readiness",
-      "description": "What is ready on this Mac and for your account on this server. Enable only what you want to use.",
+      "description": "What is ready on this computer and for your account on this server. Enable only what you want to use.",
       "desktopOnly": "Open the desktop app to check its setup.",
       "refresh": "Check again",
       "requestFailed": "Could not change the system permission. Open System Settings and check again.",
       "askAdmin": "Ask an administrator to configure a model for this organization.",
       "askAgentAdmin": "Ask an administrator to publish or share an agent you can use.",
-      "permissionNote": "These checks capture no screen, audio or clipboard. Permissions are optional and requested only when you click. macOS may require restarting the app after a Screen Recording change.",
+      "permissionNote": "These checks capture no screen, audio or clipboard. Permissions are optional and requested only when you click.",
       "screenCaptureDenied": "macOS has not granted screen access to this running app. If AgenticOS is already enabled in System Settings, quit and reopen this copy of the app, then refresh. A different installed copy can have different permissions.",
       "retryScreenshot": "Try the screenshot again",
       "welcome": "Finish connecting this desktop",
@@ -10055,11 +10056,10 @@
       "done": "Continue",
       "retry": "Retry",
       "enable": "Set up",
-      "connect": "Connect",
       "configure": "Configure",
       "items": {
         "account": "Signed-in account",
-        "device": "Paired computer",
+        "device": "Linked computer",
         "agent": "An agent you can use",
         "model": "AI Architect model",
         "screen_capture": "Screen Recording",
@@ -10077,7 +10077,10 @@
       },
       "viewAgents": "View agents",
       "finishFailed": "Could not finish this connection. Please retry.",
-      "opening": "Opening your workspace…"
+      "opening": "Opening your workspace…",
+      "permissionNoteMac": "These checks capture no screen, audio or clipboard. Permissions are optional and requested only when you click. macOS may require restarting the app after a Screen Recording change.",
+      "screenCaptureDeniedElsewhere": "Your system has not granted screen access to this app. Allow it in the system's privacy settings, then refresh.",
+      "link": "Link"
     },
     "notificationSettings": {
       "title": "Desktop notifications",
@@ -10092,7 +10095,7 @@
       "enable": "Set up system notifications",
       "test": "Send a test notification",
       "testTitle": "Test notification",
-      "testBody": "If you can see this message, macOS delivered the notification.",
+      "testBody": "If you can see this message, your system delivered the notification.",
       "failedTest": "Could not send the test. Check the system notification settings.",
       "unmuteAll": "{count, plural, one {Unmute # conversation} other {Unmute # conversations}}",
       "mute": "Mute notifications for this conversation",

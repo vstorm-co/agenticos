@@ -11382,10 +11382,10 @@
         "title": "Bu bilgisayar",
         "description": "Chat'te “Bu bilgisayar”ı seçtiğinizde Agent'larınızın burada, seçtiğiniz klasörde ve belirlediğiniz modun izin verdiği şekilde çalışmasına izin verin. Başka kimsenin run'ı bu bilgisayara ulaşmaz.",
         "notLinked": "Bağlı değil",
-        "connected": "Bağlandı - Agent'larınız burada çalışabilir",
+        "connected": "Bağlı - Agent'larınız burada çalışabilir",
         "reconnecting": "Bağlı - yeniden bağlanıyor…",
-        "live": "Bağlı",
-        "link": "Agent'ların burada çalışmasına izin ver",
+        "live": "Canlı",
+        "link": "Bu bilgisayarı bağla",
         "unlink": "Bağlantıyı kes",
         "linkFailed": "Bu bilgisayar bağlanamadı.",
         "unlinkFailed": "Bu bilgisayarın bağlantısı kesilemedi."
@@ -11469,7 +11469,8 @@
       "tabLimit": "Bir pencerede en fazla sekiz sekme açabilirsiniz.",
       "earlierMessages": "Önceki mesajları yükle",
       "startDictation": "Dikteyi başlat",
-      "stopDictation": "Dikteyi durdur"
+      "stopDictation": "Dikteyi durdur",
+      "computerAccessInConsole": "Bu bilgisayara erişim konsolda verilir. İzin vermek için konsolda devam edin."
     },
     "notifications": {
       "approvalTitle": "{agent}, {tool} çalıştırmak istiyor",
@@ -11518,13 +11519,13 @@
     },
     "readiness": {
       "title": "App hazırlığı",
-      "description": "Bu Mac'te ve bu server'daki hesabınız için hazır olanlar. Yalnızca kullanmak istediklerinizi etkinleştirin.",
+      "description": "Bu bilgisayarda ve bu server'daki hesabınız için hazır olanlar. Yalnızca kullanmak istediklerinizi etkinleştirin.",
       "desktopOnly": "Kurulumu denetlemek için desktop app'i açın.",
       "refresh": "Yeniden denetle",
       "requestFailed": "Sistem izni değiştirilemedi. Sistem Ayarları'nı açıp yeniden denetleyin.",
       "askAdmin": "Yöneticiden bu kuruluş için model ayarlamasını isteyin.",
       "askAgentAdmin": "Kullanabileceğiniz bir Agent'ı yayınlaması veya paylaşması için yöneticiden istekte bulunun.",
-      "permissionNote": "Bu denetimler ekran, ses veya panoyu kaydetmez. İzinler isteğe bağlıdır ve yalnızca tıkladığınızda istenir. Ekran Kaydı izni değişikliğinden sonra macOS app'in yeniden başlatılmasını gerektirebilir.",
+      "permissionNote": "Bu denetimler ekran, ses veya panoyu kaydetmez. İzinler isteğe bağlıdır ve yalnızca tıkladığınızda istenir.",
       "screenCaptureDenied": "macOS, çalışmakta olan bu app'e ekran erişimi vermedi. AgenticOS Sistem Ayarları'nda zaten etkinse bu app kopyasından çıkıp yeniden açın ve yenileyin. Yüklü başka bir kopyanın izinleri farklı olabilir.",
       "retryScreenshot": "Ekran görüntüsünü yeniden dene",
       "welcome": "Bu desktop'ın bağlantısını tamamlayın",
@@ -11533,11 +11534,10 @@
       "done": "Devam et",
       "retry": "Yeniden dene",
       "enable": "Ayarla",
-      "connect": "Bağlan",
       "configure": "Yapılandır",
       "items": {
         "account": "Oturum açılmış hesap",
-        "device": "Eşleştirilmiş bilgisayar",
+        "device": "Bağlı bilgisayar",
         "agent": "Kullanabileceğiniz bir Agent",
         "model": "AI Architect modeli",
         "screen_capture": "Ekran Kaydı",
@@ -11555,7 +11555,10 @@
       },
       "viewAgents": "Agent'ları görüntüle",
       "finishFailed": "Bu bağlantı tamamlanamadı. Lütfen yeniden deneyin.",
-      "opening": "Workspace'iniz açılıyor…"
+      "opening": "Workspace'iniz açılıyor…",
+      "permissionNoteMac": "Bu denetimler ekran, ses veya panoyu kaydetmez. İzinler isteğe bağlıdır ve yalnızca tıkladığınızda istenir. Ekran Kaydı izni değişikliğinden sonra macOS app'in yeniden başlatılmasını gerektirebilir.",
+      "screenCaptureDeniedElsewhere": "Sisteminiz bu app'e ekran erişimi vermedi. Sistemin gizlilik ayarlarından izin verin, ardından yenileyin.",
+      "link": "Bağla"
     },
     "notificationSettings": {
       "title": "Desktop bildirimleri",
@@ -11570,7 +11573,7 @@
       "enable": "Sistem bildirimlerini ayarla",
       "test": "Test bildirimi gönder",
       "testTitle": "Test bildirimi",
-      "testBody": "Bu mesajı görebiliyorsanız bildirimi macOS iletmiş demektir.",
+      "testBody": "Bu mesajı görebiliyorsanız bildirimi sisteminiz iletmiş demektir.",
       "failedTest": "Test gönderilemedi. Sistem bildirim ayarlarını denetleyin.",
       "unmuteAll": "{count, plural, one {# konuşmanın sesini aç} other {# konuşmanın sesini aç}}",
       "mute": "Bu konuşmanın bildirimlerini sessize al",

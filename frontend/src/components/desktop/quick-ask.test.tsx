@@ -918,8 +918,13 @@ it("cancels selected native files across logout and refuses parallel attachment 
   expect(env.chat.sendMessage).not.toHaveBeenCalled();
 });
 
-it("declines computer access instead of waiting on a dialog outside Quick Ask", async () => {
+it("declines computer access instead of waiting on a dialog outside Quick Ask, and says why", async () => {
   env.chat.pendingComputerAccess = { reason: "Read local files" };
   render(<QuickAsk />);
   await waitFor(() => expect(env.chat.sendComputerAccessResponse).toHaveBeenCalledWith(false));
+  expect(
+    screen.getByText(
+      "Access to this computer is granted in the console. Continue in the console to allow it.",
+    ),
+  ).toBeInTheDocument();
 });

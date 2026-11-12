@@ -13253,10 +13253,10 @@
         "title": "Ten komputer",
         "description": "Pozwól swoim agentom pracować tutaj, gdy w czacie wybierzesz „Ten komputer” - w wybranym folderze i w trybie, który wybierzesz. Runy innych osób tu nie trafiają.",
         "notLinked": "Niepołączony",
-        "connected": "Połączony - Twoje agenty mogą tu pracować",
-        "reconnecting": "Połączony - łączenie ponownie…",
+        "connected": "Połączony i aktywny - Twoje agenty mogą tu pracować",
+        "reconnecting": "Połączony - przywracanie łączności…",
         "live": "Na żywo",
-        "link": "Pozwól agentom tu pracować",
+        "link": "Połącz ten komputer",
         "unlink": "Odłącz",
         "linkFailed": "Nie udało się połączyć tego komputera.",
         "unlinkFailed": "Nie udało się odłączyć tego komputera."
@@ -13340,7 +13340,8 @@
       "tabLimit": "W jednym oknie możesz otworzyć do ośmiu zakładek.",
       "earlierMessages": "Wczytaj wcześniejsze wiadomości",
       "startDictation": "Zacznij dyktowanie",
-      "stopDictation": "Zatrzymaj dyktowanie"
+      "stopDictation": "Zatrzymaj dyktowanie",
+      "computerAccessInConsole": "Dostęp do tego komputera przyznaje się w konsoli. Kontynuuj w konsoli, aby na niego zezwolić."
     },
     "notifications": {
       "approvalTitle": "{agent} chce uruchomić {tool}",
@@ -13389,13 +13390,13 @@
     },
     "readiness": {
       "title": "Gotowość aplikacji",
-      "description": "Stan tego Maca oraz Twojego konta na tym serwerze. Włącz tylko to, z czego chcesz korzystać.",
+      "description": "Stan tego komputera oraz Twojego konta na tym serwerze. Włącz tylko to, z czego chcesz korzystać.",
       "desktopOnly": "Otwórz aplikację desktopową, aby sprawdzić jej konfigurację.",
       "refresh": "Sprawdź ponownie",
       "requestFailed": "Nie udało się zmienić uprawnienia systemowego. Otwórz Ustawienia systemowe i sprawdź ponownie.",
       "askAdmin": "Poproś administratora o skonfigurowanie modelu dla organizacji.",
       "askAgentAdmin": "Poproś administratora o opublikowanie lub udostępnienie agenta, z którego możesz korzystać.",
-      "permissionNote": "Sprawdzenie nie przechwytuje ekranu, dźwięku ani schowka. Uprawnienia są opcjonalne i wymagają kliknięcia. Po zmianie Nagrywania ekranu macOS może wymagać restartu aplikacji.",
+      "permissionNote": "Sprawdzenie nie przechwytuje ekranu, dźwięku ani schowka. Uprawnienia są opcjonalne i wymagają kliknięcia.",
       "screenCaptureDenied": "macOS nie udostępnia ekranu tej uruchomionej aplikacji. Jeśli AgenticOS jest już włączony w ustawieniach systemowych, zamknij i otwórz ponownie tę kopię aplikacji, a następnie odśwież status. Inna zainstalowana kopia może mieć inne uprawnienia.",
       "retryScreenshot": "Spróbuj ponownie zrobić zrzut",
       "welcome": "Dokończ łączenie tej aplikacji",
@@ -13404,11 +13405,10 @@
       "done": "Kontynuuj",
       "retry": "Ponów",
       "enable": "Skonfiguruj",
-      "connect": "Połącz",
       "configure": "Skonfiguruj",
       "items": {
         "account": "Zalogowane konto",
-        "device": "Sparowany komputer",
+        "device": "Połączony komputer",
         "agent": "Dostępny agent",
         "model": "Model Architekta AI",
         "screen_capture": "Nagrywanie ekranu",
@@ -13426,7 +13426,10 @@
       },
       "viewAgents": "Zobacz agentów",
       "finishFailed": "Nie udało się zakończyć konfiguracji połączenia. Spróbuj ponownie.",
-      "opening": "Otwieranie przestrzeni roboczej…"
+      "opening": "Otwieranie przestrzeni roboczej…",
+      "permissionNoteMac": "Sprawdzenie nie przechwytuje ekranu, dźwięku ani schowka. Uprawnienia są opcjonalne i wymagają kliknięcia. Po zmianie Nagrywania ekranu macOS może wymagać restartu aplikacji.",
+      "screenCaptureDeniedElsewhere": "System nie udostępnia ekranu tej aplikacji. Zezwól na to w ustawieniach prywatności systemu, a następnie odśwież status.",
+      "link": "Połącz"
     },
     "notificationSettings": {
       "title": "Powiadomienia desktopowe",
@@ -13441,7 +13444,7 @@
       "enable": "Skonfiguruj powiadomienia systemowe",
       "test": "Wyślij powiadomienie testowe",
       "testTitle": "Test powiadomień",
-      "testBody": "Jeśli widzisz tę wiadomość, macOS dostarczył powiadomienie.",
+      "testBody": "Jeśli widzisz tę wiadomość, system dostarczył powiadomienie.",
       "failedTest": "Nie udało się wysłać testu. Sprawdź systemowe ustawienia powiadomień.",
       "unmuteAll": "{count, plural, one {Włącz powiadomienia dla # rozmowy} few {Włącz powiadomienia dla # rozmów} many {Włącz powiadomienia dla # rozmów} other {Włącz powiadomienia dla # rozmowy}}",
       "mute": "Wycisz powiadomienia tej rozmowy",
