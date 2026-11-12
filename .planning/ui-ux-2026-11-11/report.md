@@ -341,3 +341,11 @@ the request settles, preventing a later reset from erasing text typed during the
 write. Two additional regression tests cover refusal and restoration of editing.
 The interrupted dev environment was restored from its own persisted database and
 cache containers; a corrupt Next dev manifest was moved aside and regenerated.
+
+Two additional organization-role browser checks pass after updating stale E2E
+selectors for the permission row headers, aligning the denied-scope marker with
+the rendered `-`, and asserting both member and viewer scopes. Historical CI
+run 43111576233 also found stale generated Architect guide copies; regeneration
+and `gen_architect_guide.py --check` now pass. That older run's frontend coverage
+and unrelated workflow-run failures do not constitute verification of the new
+head; full CI remains pending.
