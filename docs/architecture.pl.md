@@ -1,5 +1,5 @@
 ---
-source_sha: "a709a06f672e"
+source_sha: "0a32b884bf8a"
 ---
 
 # Architektura { #architecture }
@@ -1047,3 +1047,6 @@ opracowany przykład.
   importuje jego podmodułów.
 
 Operacje telefoniczne również wymagają trwałej granicy: `telephony.runtime.dial`, przyjęcie połączenia, przekierowanie i zakończenie zatwierdzają zamiar przed wywołaniem operatora. Niepewny wynik zachowuje zamiar dla podpisanych callbacków i sprzątania, bez ponownego wybierania numeru. Przyjęcie strumienia zatwierdza jednorazową rezerwację przed otwarciem sesji modelu.
+
+
+Przyjęcie wiadomości z kanału także zatwierdza transakcję przed przygotowaniem runu: `ChannelMessageRouter._route_inner` zapisuje identity, sesję i rozmowę po sprawdzeniu dostępu oraz limitu. Klucz platformowego MCP powstaje w osobnej transakcji i wskazuje tę rozmowę; sam flush nie zapewnia jej widoczności. Nieudany commit zatrzymuje przygotowanie.

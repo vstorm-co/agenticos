@@ -1,5 +1,5 @@
 ---
-source_sha: "a709a06f672e"
+source_sha: "0a32b884bf8a"
 ---
 
 # Architektur { #architecture }
@@ -1074,3 +1074,6 @@ durchgearbeitetes Beispiel.
   und nichts außerhalb importiert deren Sub-Module.
 
 Telefonaktionen benötigen ebenfalls eine dauerhafte Grenze: `telephony.runtime.dial`, Eingangsannahme, Weiterleitung und Auflegen bestätigen ihre Absicht vor dem Provideraufruf. Unklare Annahme bleibt für signierte Callbacks und Bereinigung gespeichert, ohne automatische Neuwahl. Die Medienannahme bestätigt ihren einmaligen Anspruch vor der Modellsitzung.
+
+
+Auch die Kanalannahme bestätigt ihre Transaktion vor der Run-Vorbereitung: `ChannelMessageRouter._route_inner` speichert Identität, Sitzung und Unterhaltung nach Zugriffs- und Limitprüfungen. Der Plattform-MCP-Schlüssel entsteht in einer unabhängigen Transaktion und verweist auf die Unterhaltung; ein Flush allein macht sie dort nicht sichtbar. Schlägt der Commit fehl, beginnt die Vorbereitung nicht.
