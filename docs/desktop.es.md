@@ -1,5 +1,5 @@
 ---
-source_sha: "2277b0624af5"
+source_sha: "123eeb10aff0"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -354,7 +354,8 @@ diálogo nativo y luego elige una carpeta y su modo de acceso en el mismo panel.
 aquí** ofrece la misma acción. La app obtiene una sesión propia para este
 ordenador y guarda su refresh token en el llavero del sistema. Mantiene una
 conexión WebSocket saliente al device hub del servidor (`/api/v1/ws/device`);
-nada escucha en el ordenador. **Desvincular** termina esa sesión.
+nada escucha en el ordenador. **Desvincular** termina esa sesión; antes pregunta y
+enumera lo que borra.
 
 **Elígelo por chat.** En la app de escritorio los ajustes del chat ofrecen
 **Trabajar en (Work on): Nube / Este ordenador**. Elegir este ordenador pide una

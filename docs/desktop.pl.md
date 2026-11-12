@@ -1,5 +1,5 @@
 ---
-source_sha: "2277b0624af5"
+source_sha: "123eeb10aff0"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -340,7 +340,8 @@ tryb dostępu w tym samym panelu. **Ustawienia → Aplikacja desktopowa → Ten 
 → Pozwól agentom tu pracować** oferuje tę samą akcję łączenia. Aplikacja dostaje
 własną sesję dla tego komputera i przechowuje jej refresh token w systemowym pęku
 kluczy. Trzyma jedno wychodzące połączenie WebSocket do device huba serwera
-(`/api/v1/ws/device`); nic nie nasłuchuje na komputerze. **Rozłącz** kończy tę sesję.
+(`/api/v1/ws/device`); nic nie nasłuchuje na komputerze. **Rozłącz** kończy tę sesję; najpierw pyta i
+wymienia, co usunie.
 
 **Wybierz to dla czatu.** W aplikacji desktopowej ustawienia czatu oferują
 **Pracuj na (Work on): Chmura / Ten komputer**. Wybranie tego komputera prosi o
