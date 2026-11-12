@@ -1438,8 +1438,13 @@ async def create_outbox(
     return outbox
 
 
+async def database_time(db: AsyncSession) -> datetime:
+    """The database's clock now - the one a lease is written and checked against."""
+    return (await db.execute(select(func.clock_timestamp()))).scalar_one()
+
+
 async def claim_outbox(
-    db: AsyncSession, *, node_run_id: UUID, token: UUID, lease_expires_at: datetime
+    db: AsyncSession, *, node_run_id: UUID, token: UUID, lease_seconds: float
 ) -> DispatchOutbox | None:
     """The compare-and-swap claim: a `pending` row, or a `claimed` one whose lease expired.
 
@@ -1454,6 +1459,11 @@ async def claim_outbox(
     instant its worker died mid-lease. `available_at <= now()` keeps a
     scheduled-but-not-yet-due retry from being claimed early by a direct wake
     racing the poller.
+
+    The lease ends `lease_seconds` after the database's clock, the one every
+    expiry check reads: an application host whose clock runs ahead or behind
+    would otherwise hand out a lease that is already over, or one that outlives
+    its holder.
     """
     result = await db.execute(
         sql_update(DispatchOutbox)
@@ -1468,7 +1478,8 @@ async def claim_outbox(
         )
         .values(
             claimed_by=token,
-            lease_expires_at=lease_expires_at,
+            lease_expires_at=func.clock_timestamp()
+            + literal(timedelta(seconds=lease_seconds), Interval()),
             status=DispatchOutboxStatus.CLAIMED.value,
         )
         .returning(DispatchOutbox)
