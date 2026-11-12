@@ -33,6 +33,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Project, context-file and dataset creation protect drafts before closing and
+  lock their fields while saving. Multi-file context imports keep their queue;
+  dataset details and cases retain refused writes and reachable save actions.
+  Phone context creation puts the editor before expandable description/access
+  details, with the effective audience kept visible.
+
 - Custom command controls fit touch phones, retain edited drafts on close and
   failed saves, block conflicting writes and confirm removal in the console.
   Command and MCP connection fields and dismissal stay locked during a save.

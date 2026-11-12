@@ -148,6 +148,7 @@ function aProject(overrides: Partial<Project> = {}): Project {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  projects.create.isPending = false;
   useUnsavedChangesStore.setState({ sources: {}, prompt: null, saving: false });
   project.update.mutateAsync.mockReset().mockResolvedValue(undefined);
   nativeProject.enabled = false;
@@ -192,6 +193,53 @@ describe("ProjectCard", () => {
 });
 
 describe("CreateProjectDialog", () => {
+  it("disables pending creation fields and dismissal", async () => {
+    projects.create.isPending = true;
+    const onOpenChange = vi.fn();
+    wrap(<CreateProjectDialog open onOpenChange={onOpenChange} onCreated={vi.fn()} />);
+    expect(screen.getByLabelText("Name")).toBeDisabled();
+    expect(screen.getByLabelText("Instructions")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+    await userEvent.keyboard("{Escape}");
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it("guards a new project draft and resets it after an explicit discard", async () => {
+    const onOpenChange = vi.fn();
+    wrap(<CreateProjectDialog open onOpenChange={onOpenChange} onCreated={vi.fn()} />);
+    await userEvent.type(screen.getByLabelText("Name"), "Mobile workspace");
+    await userEvent.type(screen.getByLabelText("Instructions"), "Keep the draft.");
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await act(() => useUnsavedChangesStore.getState().answer("stay"));
+    expect(screen.getByLabelText("Instructions")).toHaveValue("Keep the draft.");
+    await userEvent.keyboard("{Escape}");
+    await act(() => useUnsavedChangesStore.getState().answer("discard"));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(screen.getByLabelText("Name")).toHaveValue("");
+    expect(screen.getByLabelText("Instructions")).toHaveValue("");
+  });
+
+  it("clears a name refusal when the rejected value changes", async () => {
+    projects.create.mutateAsync.mockRejectedValueOnce(
+      new ApiError(409, "Name already used", {
+        error: {
+          code: "ALREADY_EXISTS",
+          message: "Name already used",
+          details: { name: "Mobile workspace" },
+        },
+      }),
+    );
+    wrap(<CreateProjectDialog open onOpenChange={vi.fn()} onCreated={vi.fn()} />);
+    await userEvent.type(screen.getByLabelText("Name"), "Mobile workspace");
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Name")).toHaveAttribute("aria-invalid", "true"),
+    );
+    await userEvent.type(screen.getByLabelText("Name"), " revised");
+    expect(screen.getByLabelText("Name")).not.toHaveAttribute("aria-invalid", "true");
+  });
+
   it("creates a private project with the agent chosen, and hands it back", async () => {
     const created = aProject();
     projects.create.mutateAsync.mockResolvedValue(created);

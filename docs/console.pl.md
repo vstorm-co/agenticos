@@ -1,8 +1,14 @@
 ---
-source_sha: "cbb6611c5cdf"
+source_sha: "b487267da4e3"
 ---
 
 # Konsola { #the-console }
+
+Na telefonach nowy plik kontekstu pokazuje edytor treści przed opcjonalnymi szczegółami. Szczegóły pokazują rzeczywisty dostęp także po zwinięciu; rozwiń je, aby zmienić opis lub dostęp. Błąd opisu automatycznie rozwija tę sekcję, aby można go było poprawić.
+
+Formularze nowego projektu, pliku kontekstu i datasetu pytają przed porzuceniem danych. Zostań zachowuje wersję roboczą, a Odrzuć ją zeruje. Podczas tworzenia pola, Anuluj, Zamknij i Escape są zablokowane do zakończenia zapisu. Odmowa przywraca edycję i zachowuje wartości. Źródło pliku kontekstu jest w tym czasie tylko do odczytu.
+
+Przy wielu upuszczonych plikach kontekstu zamknięcie oferuje tylko Zostań lub Odrzuć; użyj Utwórz, aby przetwarzać je po kolei. Ustawienia datasetu i formularze przypadków także blokują pola i zamykanie podczas zapisu, w tym przełącznik formularz/JSON. Zapis pozostaje dostępny w krótkich oknach telefonu.
 
 Rozpoczęcie logowania MCP zachowuje otwarty formularz do uzyskania adresu zgody. Odmowa zachowuje wpisane dane do poprawienia i ponowienia próby.
 

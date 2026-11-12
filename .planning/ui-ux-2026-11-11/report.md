@@ -419,3 +419,53 @@ separate evidence. The route/component import map is refreshed.
 | MCP connection fields during save | [PNG](comparisons/mcp-pending-mobile-before.png) | [PNG](comparisons/mcp-pending-mobile-after.png) |
 | Refused OAuth start retains its draft | [PNG](comparisons/mcp-oauth-refusal-mobile-before.png) | [PNG](comparisons/mcp-oauth-refusal-mobile-after.png) |
 | Command removal confirmation | — | [PNG](comparisons/command-delete-mobile-after.png) |
+
+## Mobile creation and dataset authoring — 2026-11-12
+
+Controlled pending creates reproduced editable fields and Escape dismissal in
+New project, New context file and New dataset. All three now use named native
+fieldsets and block closing while the write settles; context source editing is
+also read-only. Refusal restores editing with the submitted values. Closing a
+changed creation form now asks Save/Discard/Stay; explicit discard resets its
+state instead of leaving the abandoned values in the next opening. Project field
+refusals clear when that field is edited.
+
+Context creation formerly placed the source below the description and three
+large audience cards on phones. Optional metadata is now collapsed there, with
+Details showing the effective audience even when closed. The source is visible
+immediately. A description refusal expands its hidden field; helper/error notes
+are linked to the controls. Desktop fields remain expanded.
+
+A drop containing multiple context files is special: closing offers Stay or
+Discard, while Create advances the queue. Saving just the first file from a
+close prompt would otherwise abandon the remaining files as navigation proceeded.
+The browser journey verifies both files and their distinct bodies in order.
+
+Dataset details and case editing also allowed changes and closing during a save.
+Both now freeze fields and dismissal. The case form/JSON switch is blocked too,
+including while checking for a duplicate question. Dataset details use a scrolling
+body and fixed footer; the 320×568 check keeps Save inside the viewport.
+
+100 focused tests in five files pass. Four touch Chromium flows verify:
+
+- Project creation with Stay, delayed refusal and retry, file upload and reload,
+  followed by reading the saved instructions.
+- Context creation with collapsed metadata, source preservation after a refused
+  write, then a saved edit and another opening.
+- Dataset creation/refusal/retry, settings refusal and persisted percentage,
+  case refusal/retry and persisted question, and a real CSV download whose bytes
+  contain the saved question and answer.
+- Two dropped context files, Stay without losing the queue, creation in order,
+  and both files listed after reload.
+
+Each journey removes its own fixtures. No paid model or evaluation run is needed.
+Strict docs build in all four published languages passes; full CI remains
+separate evidence. The route/component import map is refreshed.
+
+| Evidence | Before | After |
+| --- | --- | --- |
+| New project during save | [PNG](comparisons/project-create-mobile-before.png) | [PNG](comparisons/project-create-mobile-after.png) |
+| Context creation: source and pending state | [PNG](comparisons/context-create-mobile-before.png) | [PNG](comparisons/context-create-mobile-after.png) |
+| New dataset during save | [PNG](comparisons/dataset-create-mobile-before.png) | [PNG](comparisons/dataset-create-mobile-after.png) |
+| Dataset details during save | [PNG](comparisons/dataset-edit-mobile-before.png) | [PNG](comparisons/dataset-edit-mobile-after.png) |
+| Dataset case during save | [PNG](comparisons/dataset-case-mobile-before.png) | [PNG](comparisons/dataset-case-mobile-after.png) |

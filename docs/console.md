@@ -4,6 +4,12 @@ The console is the web application everything else on this site is configured
 through. This page is the map: what each area is for, and which page explains it
 properly.
 
+On phones, new context files put the source editor before optional details. Details shows the effective audience even while collapsed; expand it to change the description or access. A refused description automatically expands that section so its error can be corrected.
+
+New project, context-file and dataset forms ask before discarding a draft. Stay preserves it; Discard resets it. During creation, fields, Cancel, Close and Escape are blocked until the write settles. A refusal restores editing and retains the values. Context source editing is read-only during that write.
+
+When several context files were dropped, closing asks only Stay or Discard; use Create to process them in order. Dataset details and case forms also lock fields and dismissal while saving, including the case form/JSON switch. Their Save actions remain reachable in short phone windows.
+
 Starting MCP sign-in keeps the form open until the consent destination is ready. A refused start preserves its values for correction and retry.
 
 Custom slash-command editing asks before dropping a draft. Save freezes its fields and dismissal until the request settles; a refusal keeps the draft. On phones, command actions have their own row and touch-sized controls. A pending toggle blocks conflicting actions, and removal asks for confirmation. MCP connection forms also freeze their fields and dismissal while saving.

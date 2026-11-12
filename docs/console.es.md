@@ -1,8 +1,14 @@
 ---
-source_sha: "cbb6611c5cdf"
+source_sha: "b487267da4e3"
 ---
 
 # La consola { #the-console }
+
+En teléfonos, los archivos de contexto nuevos muestran el editor antes de los detalles opcionales. Details indica el acceso efectivo incluso cerrado; ábrelo para cambiar la descripción o el acceso. Un error en la descripción abre automáticamente la sección para poder corregirlo.
+
+Los formularios de nuevos proyectos, archivos de contexto y datasets preguntan antes de descartar un borrador. Stay lo conserva y Discard lo restablece. Durante la creación se bloquean campos, Cancel, Close y Escape hasta terminar la escritura. Un rechazo conserva los valores y permite volver a editarlos. El código fuente de contexto queda de solo lectura durante la escritura.
+
+Al soltar varios archivos de contexto, cerrar ofrece solo Stay o Discard; usa Create para procesarlos en orden. Los detalles del dataset y los formularios de casos también bloquean campos y cierre al guardar, incluido el cambio formulario/JSON. Guardar sigue accesible en ventanas cortas de teléfono.
 
 Al iniciar sesión MCP, el formulario permanece abierto hasta obtener el destino de consentimiento. Un inicio rechazado conserva los datos para corregirlos y reintentar.
 

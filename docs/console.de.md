@@ -1,8 +1,14 @@
 ---
-source_sha: "cbb6611c5cdf"
+source_sha: "b487267da4e3"
 ---
 
 # Die Konsole { #the-console }
+
+Auf Telefonen zeigt eine neue Kontextdatei den Quelltexteditor vor optionalen Details. Details nennt den wirksamen Zugriff auch im eingeklappten Zustand; öffne den Bereich, um Beschreibung oder Zugriff zu ändern. Eine abgelehnte Beschreibung öffnet den Bereich automatisch zur Korrektur.
+
+Formulare für neue Projekte, Kontextdateien und Datasets fragen vor dem Verwerfen eines Entwurfs. Bleiben erhält ihn, Verwerfen setzt ihn zurück. Beim Anlegen sind Felder, Abbrechen, Schließen und Escape bis zum Ende des Schreibvorgangs gesperrt. Eine Ablehnung erhält die Werte und erlaubt wieder die Bearbeitung. Der Kontextquelltext ist währenddessen schreibgeschützt.
+
+Bei mehreren abgelegten Kontextdateien bietet das Schließen nur Bleiben oder Verwerfen; mit Erstellen werden sie der Reihe nach verarbeitet. Dataset-Details und Fallformulare sperren beim Speichern ebenfalls Felder und Schließen, einschließlich des Formular/JSON-Wechsels. Speichern bleibt in kurzen Telefonfenstern erreichbar.
 
 Beim Start der MCP-Anmeldung bleibt das Formular offen, bis das Zustimmungsziel bereitsteht. Ein abgelehnter Start erhält die Werte für Korrektur und Wiederholung.
 

@@ -1,8 +1,10 @@
 "use client";
 
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
+import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import { ArrowRight, FlaskConical, ListChecks, Play, Scale } from "lucide-react";
 import { DatasetChip, DatasetIcon } from "./dataset-chip";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -55,20 +57,40 @@ export function CreateDatasetDialog({ open, onOpenChange }: CreateDatasetDialogP
     if (errors[field]) setErrors(({ [field]: _removed, ...rest }) => rest);
   }
 
-  async function handleCreate() {
+  const source = useId();
+  function reset() {
+    setName("");
+    setDescription("");
+    setErrors({});
+    setAudience(EVERYONE);
+    setMoreOpen(false);
+  }
+  useUnsavedChanges(source, {
+    dirty: open && (name !== "" || description !== "" || audience.mode !== EVERYONE.mode),
+    save: name.trim() !== "" ? handleCreate : undefined,
+    discard: () => {
+      reset();
+      onOpenChange(false);
+    },
+  });
+  function changeOpen(next: boolean) {
+    if (create.isPending) return;
+    if (next) onOpenChange(true);
+    else useUnsavedChangesStore.getState().leave(() => onOpenChange(false), [source]);
+  }
+
+  async function handleCreate(): Promise<boolean> {
+    if (create.isPending || name.trim() === "") return false;
     try {
       const dataset = await create.mutateAsync({
         name: name.trim(),
         description: description.trim() === "" ? null : description.trim(),
         visibility: audience.mode === "private" ? "private" : "org",
       });
-      setName("");
-      setDescription("");
-      setErrors({});
-      setAudience(EVERYONE);
-      setMoreOpen(false);
+      reset();
       onOpenChange(false);
       router.push(ROUTES.DATASET_DETAIL(dataset.id));
+      return true;
     } catch (error) {
       const failure = submitFailure(
         error,
@@ -78,12 +100,13 @@ export function CreateDatasetDialog({ open, onOpenChange }: CreateDatasetDialogP
       setErrors(failure.fields);
       if (failure.fields.description) setMoreOpen(true);
       if (failure.toast) toast.error(failure.toast);
+      return false;
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn(DIALOG_FORM, DIALOG_COLUMN)}>
+    <Dialog open={open} onOpenChange={changeOpen}>
+      <DialogContent dismissible={!create.isPending} className={cn(DIALOG_FORM, DIALOG_COLUMN)}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
             <DatasetIcon tone="blue" icon={FlaskConical} className="size-9" />
@@ -91,40 +114,43 @@ export function CreateDatasetDialog({ open, onOpenChange }: CreateDatasetDialogP
           </DialogTitle>
           <DialogDescription>{t("newDatasetBody")}</DialogDescription>
         </DialogHeader>
-        <div className={cn(DIALOG_BODY, "space-y-4")}>
-          <FormField htmlFor="dataset-name" label={t("name")} error={errors.name} required>
-            <Input
-              data-tour="datasets-dialog-name"
-              maxLength={120}
-              value={name}
-              placeholder={t("namePlaceholder")}
-              onChange={(event) => edit("name", event.target.value)}
-            />
-          </FormField>
-          <div className="space-y-1.5">
-            <Label>{ta("label")}</Label>
-            <AudiencePicker
-              value={audience}
-              onChange={setAudience}
-              withChosen={false}
-              disabled={create.isPending}
-            />
-          </div>
-          <MoreOptions label={t("moreOptions")} open={moreOpen} onOpenChange={setMoreOpen}>
-            <FormField
-              htmlFor="dataset-description"
-              label={t("description")}
-              error={errors.description}
-            >
-              <Textarea
-                rows={2}
-                maxLength={500}
-                value={description}
-                placeholder={t("descriptionPlaceholder")}
-                onChange={(event) => edit("description", event.target.value)}
+        <div className={DIALOG_BODY}>
+          <fieldset disabled={create.isPending} className="min-w-0 space-y-4">
+            <legend className="sr-only">{t("newDataset")}</legend>
+            <FormField htmlFor="dataset-name" label={t("name")} error={errors.name} required>
+              <Input
+                data-tour="datasets-dialog-name"
+                maxLength={120}
+                value={name}
+                placeholder={t("namePlaceholder")}
+                onChange={(event) => edit("name", event.target.value)}
               />
             </FormField>
-          </MoreOptions>
+            <div className="space-y-1.5">
+              <Label>{ta("label")}</Label>
+              <AudiencePicker
+                value={audience}
+                onChange={setAudience}
+                withChosen={false}
+                disabled={create.isPending}
+              />
+            </div>
+            <MoreOptions label={t("moreOptions")} open={moreOpen} onOpenChange={setMoreOpen}>
+              <FormField
+                htmlFor="dataset-description"
+                label={t("description")}
+                error={errors.description}
+              >
+                <Textarea
+                  rows={2}
+                  maxLength={500}
+                  value={description}
+                  placeholder={t("descriptionPlaceholder")}
+                  onChange={(event) => edit("description", event.target.value)}
+                />
+              </FormField>
+            </MoreOptions>
+          </fieldset>
         </div>
         <div className="bg-muted/30 space-y-2 rounded-xl border p-3">
           <p className="text-muted-foreground text-xs">{t("journey.afterCreate")}</p>
@@ -143,7 +169,7 @@ export function CreateDatasetDialog({ open, onOpenChange }: CreateDatasetDialogP
           </div>
         </div>
         <DialogFooter className="border-t">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => changeOpen(false)} disabled={create.isPending}>
             {t("cancel")}
           </Button>
           <Button
