@@ -98,15 +98,26 @@ async def test_a_taken_slug_gets_a_free_one_rather_than_failing(db: AsyncSession
     assert org.slug != taken.slug and org.slug.startswith("northwind-labs")
 
 
+async def test_without_a_name_a_fresh_owner_stays_in_its_personal_organization(
+    db: AsyncSession,
+) -> None:
+    """What `make platform-bootstrap` and the e2e seed rely on: nothing renamed, nothing extra."""
+    owner = await _register(db)
+
+    org = await _resolve_organization(db, owner, None, new_owner=True)
+
+    assert (org.name, org.is_personal) == ("Personal", True)
+    assert [o.id for o in await _organizations(db, owner)] == [org.id]
+
+
 async def test_a_named_organization_wins_over_one_the_owner_already_runs(db: AsyncSession) -> None:
     owner = await _register(db)
-    acme = await _resolve_organization(db, owner, None, new_owner=True)
+    landing = await _resolve_organization(db, owner, None, new_owner=True)
 
     org = await _resolve_organization(db, owner, "Northwind Labs", new_owner=False)
 
-    assert acme.name == "Acme"
-    assert org.id != acme.id
-    assert org.name == "Northwind Labs"
+    assert org.id != landing.id
+    assert (org.name, org.is_personal) == ("Northwind Labs", False)
 
 
 @pytest.mark.parametrize("name", ["", " ", "A"])
@@ -143,3 +154,18 @@ async def test_a_new_owner_without_a_personal_organization_gets_the_named_one(
     )
     assert membership is not None and membership.role == "owner"
     assert all(await _seeded(db, org))
+
+
+@pytest.mark.security
+async def test_an_organization_handed_over_under_that_name_is_not_reused(db: AsyncSession) -> None:
+    """A name and an ownership can both be given to the account by somebody else."""
+    owner = await _register(db)
+    other = await _register(db)
+    theirs = await _resolve_organization(db, other, "Northwind Labs", new_owner=True)
+    db.add(OrganizationMember(organization_id=theirs.id, user_id=owner, role="owner"))
+    await db.flush()
+
+    org = await _resolve_organization(db, owner, "Northwind Labs", new_owner=False)
+
+    assert org.id != theirs.id
+    assert org.created_by_user_id == owner

@@ -95,6 +95,7 @@ from app.services.virtual_tables.receipts import DeleteOutcome, WriteOutcome, ru
 from app.services.virtual_tables.record_sources import source_for
 from app.services.virtual_tables.types import (
     COLUMN_TYPES,
+    COMPUTED_TYPES,
     OPTION_TYPES,
     SEARCHED_TYPES,
     CellProblem,
@@ -231,10 +232,10 @@ def _merge(
 
 
 def _labels(columns: list[ColumnDef]) -> dict[str, list[ColumnDef]]:
-    """The live columns by case-folded label."""
+    """The columns a write can name, by case-folded label: live and not computed."""
     labels: dict[str, list[ColumnDef]] = {}
     for column in columns:
-        if not column.archived:
+        if not column.archived and column.type not in COMPUTED_TYPES:
             labels.setdefault(column.label.casefold(), []).append(column)
     return labels
 

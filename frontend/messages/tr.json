@@ -11545,7 +11545,7 @@
       "earlierMessages": "Önceki mesajları yükle",
       "startDictation": "Dikteyi başlat",
       "stopDictation": "Dikteyi durdur",
-      "computerAccessInConsole": "Bu bilgisayara erişim konsolda verilir. İzin vermek için konsolda devam edin."
+      "computerAccessInConsole": "Quick Ask, bu bilgisayara erişim isteğini reddetti. İzin vermek için konsolda yeniden isteyin."
     },
     "notifications": {
       "approvalTitle": "{agent}, {tool} çalıştırmak istiyor",
