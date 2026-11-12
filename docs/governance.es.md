@@ -1,5 +1,5 @@
 ---
-source_sha: "018f74739e6a"
+source_sha: "5239e0561ec4"
 ---
 
 # Governance { #governance }
@@ -803,6 +803,19 @@ se cancelan las entregas pendientes. Cambiar el límite permite otro aviso al
 alcanzarlo; un caso silenciado sigue silenciado durante ese mes.
 
 ### Consentimiento para acciones { #routine-action-consent }
+
+Las acciones se agrupan por capability o cuenta MCP concreta y se pueden buscar.
+Selecciona o desmarca un grupo o todas las acciones permitidas; los controles masivos
+incluyen entradas ocultas por la búsqueda. Se mantienen las exclusiones individuales.
+Un review admite hasta 1000 acciones seleccionadas; una selección mayor se muestra y
+debe reducirse antes de guardar, nunca se trunca silenciosamente.
+
+Cambiar solo el título o la frecuencia conserva el consentimiento. Si cambia la versión,
+el trabajo, las instrucciones o la cuenta, el diálogo explica el límite afectado.
+**Volver a seleccionar acciones revisadas** es una nueva elección explícita de identidades
+permitidas coincidentes; no concede nada hasta guardar el review actual. Las acciones
+nuevas y cuentas modificadas no se seleccionan automáticamente. Siguen vigentes las
+aprobaciones obligatorias, la revocación y los controles de review obsoleto.
 
 Una rutina desatendida pide aprobación antes de acciones de capacidades, cambios
 en archivos locales y delegaciones. Las llamadas MCP externas preguntan salvo que

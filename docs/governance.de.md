@@ -1,5 +1,5 @@
 ---
-source_sha: "018f74739e6a"
+source_sha: "5239e0561ec4"
 ---
 
 # Governance { #governance }
@@ -846,6 +846,19 @@ ausstehende Zustellungen storniert. Ein geändertes Limit erlaubt eine neue
 Meldung bei dessen Erreichen; ein stummgeschalteter Fall bleibt im Monat stumm.
 
 ### Aktionsfreigaben { #routine-action-consent }
+
+Aktionen sind nach Capability oder konkretem MCP-Konto gruppiert und durchsuchbar.
+Wähle eine Gruppe oder alle zulässigen Aktionen aus oder ab; die Sammelauswahl umfasst
+auch ausgefilterte Einträge. Einzelne Ausnahmen bleiben möglich. Ein Review unterstützt
+bis zu 1.000 ausgewählte Aktionen; eine größere Auswahl wird angezeigt und muss vor
+dem Speichern verkleinert werden, statt still gekürzt zu werden.
+
+Nur Titel oder Zeitplan zu ändern erhält die Zustimmung. Ändern sich Version, Aufgabe,
+Anweisungen oder Konto, erklärt der Dialog die betroffene Grenze. **Zuvor geprüfte
+Aktionen erneut auswählen** ist eine ausdrückliche neue Wahl passender zulässiger
+Identitäten; erst das Speichern des aktuellen Reviews erteilt Zustimmung. Neue Aktionen
+und geänderte Konten werden nicht automatisch ausgewählt. Verbindliche Freigaben,
+Widerruf und die Prüfung auf veraltete Reviews gelten weiterhin.
 
 Eine unbeaufsichtigte Routine fragt vor Fähigkeitsaktionen, lokalen Dateiänderungen
 und Delegation. Externe MCP-Aufrufe fragen, sofern ihr Server sie nicht als nur

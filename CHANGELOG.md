@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Routine action consent supports grouped bulk selection, search, explicit reuse of prior choices and up to 1,000 actions, with explanations when a new review is required.
+
 - The Builder offers two capability approval choices and starts newly added capabilities with Always ask. Existing specs retain their policies, and individual tools can still inherit or override them.
 
 ### Fixed

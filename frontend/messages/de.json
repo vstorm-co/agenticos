@@ -9495,7 +9495,21 @@
       "empty": "Diese Version hat hier keine freigebbaren Aktionen.",
       "required": "Bestätigung vom Agenten verlangt",
       "revokeAll": "Alle widerrufen",
-      "save": "Freigaben speichern"
+      "save": "Freigaben speichern",
+      "search": "Aktionen suchen",
+      "selectAll": "Alle zulässigen Aktionen auswählen",
+      "bulkScope": "Die Sammelauswahl gilt für die ganze Gruppe oder Liste, auch für ausgefilterte Aktionen. Verbindliche Freigaben bleiben erforderlich.",
+      "selectGroup": "Zulässige Aktionen in {name} auswählen",
+      "noMatches": "Keine Aktionen entsprechen der Suche.",
+      "reselectPrevious": "Zuvor geprüfte Aktionen erneut auswählen",
+      "selected": "{count, plural, =1 {1 Aktion ausgewählt} other {# Aktionen ausgewählt}} · Grenze {limit}",
+      "tooMany": "{count} Aktionen ausgewählt; die Grenze ist {limit}. Wähle vor dem Speichern Aktionen ab.",
+      "changed": {
+        "version": "Die veröffentlichte Agent-Version hat sich geändert. Prüfe ihre Aktionen erneut.",
+        "intent": "Aufgabe oder Ziel der Routine haben sich geändert. Prüfe ihre Aktionen erneut.",
+        "instructions": "Anweisungen von Skill, Context oder Projekt haben sich geändert. Prüfe die Aktionen erneut.",
+        "actions": "Einige zuvor ausgewählte Aktionen sind nicht verfügbar, benötigen eine Freigabe oder haben eine andere Kontoautorisierung. Sie werden nicht erneut ausgewählt."
+      }
     },
     "sourceConsents": {
       "title": "Geprüfte Quellen",

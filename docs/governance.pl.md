@@ -1,5 +1,5 @@
 ---
-source_sha: "018f74739e6a"
+source_sha: "5239e0561ec4"
 ---
 
 # Governance { #governance }
@@ -793,6 +793,18 @@ pozwala wysłać nowy komunikat po jego wykorzystaniu; sprawa wyciszona pozostaj
 wyciszona przez dany miesiąc.
 
 ### Zgody na działania { #routine-action-consent }
+
+Akcje są grupowane według capability lub konkretnego konta MCP i można je wyszukiwać.
+Zaznacz lub wyczyść grupę albo całą listę dozwolonych akcji; kontrolki grupowe obejmują
+też pozycje ukryte przez wyszukiwanie. Nadal możesz wykluczać pojedyncze akcje.
+Review obsługuje do 1000 zaznaczonych akcji; większy wybór jest pokazany i wymaga
+zmniejszenia przed zapisem, nigdy nie jest po cichu obcinany.
+
+Zmiana samej nazwy lub częstotliwości zachowuje zgodę. Po zmianie wersji, pracy,
+instrukcji lub konta dialog wyjaśnia zmienioną granicę. **Zaznacz ponownie wcześniej
+sprawdzone akcje** to jawny nowy wybór zgodnych, dozwolonych identyfikatorów; nie daje
+zgody przed zapisaniem bieżącego review. Nowe akcje i zmienione konta nie zaznaczają
+się automatycznie. Obowiązkowe akceptacje, cofanie zgody i kontrola aktualności nadal działają.
 
 Rutyna działająca bez nadzoru pyta przed działaniami funkcji, zmianami lokalnych
 plików i delegowaniem. Wywołania zewnętrznego MCP pytają, chyba że serwer oznacza je

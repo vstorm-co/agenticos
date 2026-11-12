@@ -10605,7 +10605,34 @@
     "resultReport": "Tamamlanan her çalışmadan sonra",
     "resultInbox": "Yalnızca dikkat gerektiğinde",
     "resultReportHint": "Her çalışmadan sonra seçilen sohbete bir rapor gönderin.",
-    "resultInboxHint": "Her kaynak öğesi için bir Inbox kaydı ve çalışma sohbeti oluşturun. İstenen taslakları buraya yazın; değişmeyen kontroller sessiz kalır. Göndermek yine yetki ve onay gerektirir."
+    "resultInboxHint": "Her kaynak öğesi için bir Inbox kaydı ve çalışma sohbeti oluşturun. İstenen taslakları buraya yazın; değişmeyen kontroller sessiz kalır. Göndermek yine yetki ve onay gerektirir.",
+    "actionConsents": {
+      "checkConnections": "Eylemlerini incelemek için bu bağlantıları kontrol edin: {names}.",
+      "personalAccount": "{name} · hesabınız",
+      "organizationAccount": "{name} · organizasyon hesabı",
+      "title": "Eylem izni",
+      "description": "Rutin eylemleri varsayılan olarak onay ister. Yalnızca listelenen eylemlere sormadan çalışma izni verin. İzin, bu yayımlanmış sürüm ve rutin yapılandırması için geçerlidir; agent tarafından zorunlu tutulan onaylar geçerlidir. Her MCP eylemi yalnızca belirtilen hesaba uygulanır.",
+      "retry": "Yeniden dene",
+      "notAllowed": "Onay yetkileriniz ve organizasyonun kalıcı izin ayarı istisnalara izin vermelidir. Tüm izinleri yine de iptal edebilirsiniz.",
+      "empty": "Bu sürümde burada yetkilendirilebilecek eylem yok.",
+      "required": "Agent onayı gerekli",
+      "revokeAll": "Tümünü iptal et",
+      "save": "İzni kaydet",
+      "search": "Eylemleri ara",
+      "selectAll": "İzin verilebilir tüm eylemleri seç",
+      "bulkScope": "Toplu seçim, aramada gizlenenler dahil tüm grubu veya listeyi kapsar. Zorunlu onaylar geçerliliğini korur.",
+      "selectGroup": "{name} içindeki izin verilebilir eylemleri seç",
+      "noMatches": "Aramayla eşleşen eylem yok.",
+      "reselectPrevious": "Daha önce incelenen eylemleri yeniden seç",
+      "selected": "{count, plural, =1 {1 eylem seçildi} other {# eylem seçildi}} · sınır {limit}",
+      "tooMany": "{count} eylem seçildi; sınır {limit}. Kaydetmeden önce bazı eylemlerin seçimini kaldırın.",
+      "changed": {
+        "version": "Yayımlanan agent sürümü değişti. Eylemlerini yeniden inceleyin.",
+        "intent": "Rutinin işi veya hedefi değişti. Eylemleri yeniden inceleyin.",
+        "instructions": "Skill, context veya proje talimatları değişti. Eylemleri yeniden inceleyin.",
+        "actions": "Önceden seçilen bazı eylemler kullanılamıyor, onay gerektiriyor veya hesap yetkilendirmesi değişmiş. Bunlar yeniden seçilmez."
+      }
+    }
   },
   "teams": {
     "acmeCom": "acme.com",

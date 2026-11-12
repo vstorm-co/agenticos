@@ -8368,7 +8368,21 @@
       "empty": "Ta wersja nie ma działań, dla których można tu udzielić zgody.",
       "required": "Agent wymaga zatwierdzenia",
       "revokeAll": "Cofnij wszystkie",
-      "save": "Zapisz zgody"
+      "save": "Zapisz zgody",
+      "search": "Szukaj akcji",
+      "selectAll": "Zaznacz wszystkie dozwolone akcje",
+      "bulkScope": "Zaznaczanie grupowe obejmuje całą grupę lub listę, także akcje ukryte przez wyszukiwanie. Obowiązkowe akceptacje pozostają wymagane.",
+      "selectGroup": "Zaznacz dozwolone akcje w {name}",
+      "noMatches": "Brak akcji pasujących do wyszukiwania.",
+      "reselectPrevious": "Zaznacz ponownie wcześniej sprawdzone akcje",
+      "selected": "{count, plural, one {Zaznaczono # akcję} few {Zaznaczono # akcje} many {Zaznaczono # akcji} other {Zaznaczono # akcji}} · limit {limit}",
+      "tooMany": "Zaznaczono {count} akcji; limit to {limit}. Odznacz akcje przed zapisaniem.",
+      "changed": {
+        "version": "Zmieniła się opublikowana wersja agenta. Sprawdź ponownie jej akcje.",
+        "intent": "Zmieniła się praca lub miejsce docelowe routine. Sprawdź ponownie akcje.",
+        "instructions": "Zmieniły się instrukcje skill, context lub projektu. Sprawdź ponownie akcje.",
+        "actions": "Niektóre poprzednio wybrane akcje są niedostępne, wymagają akceptacji lub mają inną autoryzację konta. Nie zostaną zaznaczone ponownie."
+      }
     },
     "sourceConsents": {
       "title": "Zatwierdzone źródła",

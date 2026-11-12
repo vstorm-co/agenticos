@@ -743,6 +743,18 @@ limit allows a new breach notice; a muted case stays muted for that month.
 
 ### Action consent { #routine-action-consent }
 
+Actions are grouped by capability or concrete MCP account and can be searched.
+Select or clear a group, or the entire eligible inventory; bulk controls also cover
+items hidden by the search. Individual exclusions remain available. A review supports
+up to 1,000 selected actions; a larger selection is shown and cannot be saved until
+reduced, never silently truncated.
+
+Changing only the title or cadence retains consent. When the version, work, instructions
+or an account changes, the dialog explains which boundary changed. **Reselect previously
+reviewed actions** is an explicit new choice over matching eligible identities; it grants
+nothing until you save the current review. New actions and changed accounts are not
+selected automatically. Mandatory approvals, revocation and stale-review checks still apply.
+
 An unattended routine asks before capability actions, local file changes and
 delegation. External MCP calls ask unless their server marks them read-only;
 a connection's stronger approval policy still applies. Ordinary interactive

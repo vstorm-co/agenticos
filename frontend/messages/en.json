@@ -9616,7 +9616,21 @@
       "empty": "This version has no eligible actions to authorize here.",
       "required": "Approval required by the agent",
       "revokeAll": "Revoke all",
-      "save": "Save consent"
+      "save": "Save consent",
+      "search": "Search actions",
+      "selectAll": "Select all eligible actions",
+      "bulkScope": "Bulk controls cover the whole group or inventory, including actions hidden by the search. Required approvals stay enforced.",
+      "selectGroup": "Select eligible actions in {name}",
+      "noMatches": "No actions match your search.",
+      "reselectPrevious": "Reselect previously reviewed actions",
+      "selected": "{count, plural, =1 {1 action selected} other {# actions selected}} · limit {limit}",
+      "tooMany": "{count} actions selected; the limit is {limit}. Deselect actions before saving.",
+      "changed": {
+        "version": "The published agent version changed. Review its actions again.",
+        "intent": "The routine’s work or destination changed. Review its actions again.",
+        "instructions": "The skill, context or project instructions changed. Review its actions again.",
+        "actions": "Some previously selected actions are unavailable, require approval, or have different account authorization. They are not reselected."
+      }
     },
     "sourceConsents": {
       "title": "Reviewed sources",
