@@ -278,6 +278,31 @@ async def _run(
     )
 
 
+class TestWhatATurnStoppedOn:
+    async def test_a_call_granted_in_advance_is_not_one_the_turn_stopped_on(self):
+        """A remembered "Always allow" or "Approve everything" ran the call; only a
+        call still waiting is put in front of the person as an approval."""
+        from app.services.agent_runner import ParkedApproval
+
+        waiting = ParkedApproval(
+            approval_id=uuid.uuid4(), tool_call_id="call-2", tool_name="send_email", tool_args={}
+        )
+        granted = ParkedApproval(
+            approval_id=uuid.uuid4(),
+            tool_call_id="call-1",
+            tool_name="write_memory",
+            tool_args={},
+            standing=True,
+        )
+        prepared = _prepared()
+        prepared.approvals = MagicMock(parked={}, requested=[granted, waiting])
+
+        with _runner(prepared):
+            turn = await _run(_db())
+
+        assert turn.parked == (waiting,)
+
+
 class TestKeepingASummary:
     """A summary is a model request over a history that is by definition long.
     Bought once, it has to leave the run it was bought in, or the next turn buys
