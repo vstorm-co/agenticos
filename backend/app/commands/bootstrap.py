@@ -266,8 +266,13 @@ async def _resolve_starter_agents(db, ctx: AuthContext, profile_id: uuid.UUID | 
     assistant = await AssistantService(db).state(ctx)
     if assistant.status == "ready":
         success(f"Installed and published the {assistant.name}")
-    else:
+    elif profile_id is None:
         info(f"The {assistant.name} is installed - it publishes once there is a model")
+    else:
+        warning(
+            f"The {assistant.name} is installed but not published yet - "
+            "the warning above says what it waits for"
+        )
 
     template = agent_templates.get(agent_templates.STARTER_TEMPLATE)
     if template is None:  # pragma: no cover - the template ships with the image
