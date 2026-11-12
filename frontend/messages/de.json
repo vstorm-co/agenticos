@@ -2461,6 +2461,7 @@
     "approvalRememberOptions": "Weitere Freigabeoptionen",
     "approvalRememberChat": "Dieses Tool in diesem Chat erlauben",
     "approvalRememberAgent": "Dieses Tool für diesen Agenten immer erlauben",
+    "approvalNeedsTheRun": "Freigeben kann das nur, wer den Run sehen kann. Sie können es ablehnen.",
     "approvalRememberedTitle": "Gespeicherte Tool-Freigaben",
     "approvalRememberedEmpty": "Keine gespeicherten Freigaben.",
     "approvalRememberForget": "Erneut fragen",

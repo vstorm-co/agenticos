@@ -339,7 +339,7 @@ from app.services.agent_registry import (
     models_a_run_reaches,
 )
 from app.services.api_key import mint_for_run
-from app.services.approvals import ApprovalService
+from app.services.approvals import ApprovalService, withhold
 from app.services.attachments import (
     UPLOAD_DIR,
     AttachmentRouter,
@@ -7171,23 +7171,35 @@ class AgentRunnerService:
         )
         state = run.paused_state or {}
         by_approval = state.get("tool_call_ids", {}) if isinstance(state, dict) else {}
-        return [
-            ParkedCall(
-                id=approval.id,
-                tool_call_id=by_approval.get(str(approval.id)),
-                tool_name=approval.tool_id,
-                subagent_name=approval.subagent_name,
-                can_remember=ApprovalService.can_remember_in_run(ctx, run)
-                and approval.subagent_name is None
-                and not approval.always_asks,
-                tool_args=approval.tool_args or {},
-                capability_tool_id=approval.capability_tool_id,
-                context=approval.context,
-                account=approval.account,
+        reader = ApprovalService(self.db)
+        parked: list[ParkedCall] = []
+        for approval in approvals:
+            if approval.status != ApprovalStatus.PENDING.value:
+                continue
+            # The same withholding the approvals queue applies: this route is
+            # reachable with the run's id by anybody who may read the queue.
+            hidden = await reader.hidden_fields(ctx, approval)
+            tool_args, context = withhold(
+                hidden, tool_args=approval.tool_args or {}, context=approval.context
             )
-            for approval in approvals
-            if approval.status == ApprovalStatus.PENDING.value
-        ]
+            parked.append(
+                ParkedCall(
+                    id=approval.id,
+                    tool_call_id=by_approval.get(str(approval.id)),
+                    tool_name=approval.tool_id,
+                    subagent_name=approval.subagent_name,
+                    can_remember=ApprovalService.can_remember_in_run(ctx, run)
+                    and approval.subagent_name is None
+                    and not approval.always_asks,
+                    tool_args=tool_args,
+                    capability_tool_id=approval.capability_tool_id,
+                    context=context,
+                    account=approval.account,
+                    content_hidden=bool(hidden),
+                    always_asks=approval.always_asks,
+                )
+            )
+        return parked
 
     @asynccontextmanager
     async def _resume_stream(

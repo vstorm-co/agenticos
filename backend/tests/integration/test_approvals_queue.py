@@ -1006,3 +1006,19 @@ class TestWhatAQueueReaderMaySeeOfAFact:
         org, owner, _, _ = await self._parked_share(db)
 
         assert (await self._read_as(db, org, owner, OrgRoleName.OWNER)).always_asks
+
+    async def test_the_run_s_parked_calls_hide_the_fact_from_the_same_reader(self, db) -> None:
+        org, _, asker, reader = await self._parked_share(db)
+        [run] = (await db.scalars(select(AgentRun).where(AgentRun.organization_id == org.id))).all()
+        runner = AgentRunnerService(db)
+
+        [hidden] = await runner.parked_calls(
+            AuthContext(user_id=reader.id, organization_id=org.id, role=OrgRoleName.MEMBER), run
+        )
+        [shown] = await runner.parked_calls(
+            AuthContext(user_id=asker.id, organization_id=org.id, role=OrgRoleName.MEMBER), run
+        )
+
+        assert hidden.content_hidden and hidden.context == {"audience": "organization"}
+        assert not shown.content_hidden
+        assert shown.context is not None and "claim" in shown.context

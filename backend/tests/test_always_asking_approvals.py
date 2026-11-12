@@ -34,7 +34,7 @@ from app.services.agent_runner import AgentRunnerService, ApprovalChannel, Parke
 from app.services.approvals import ApprovalService, withhold
 from app.services.memory._runtime import ClaimView
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 @pytest.fixture(autouse=True)
@@ -245,10 +245,40 @@ class TestRemembering:
             patch(
                 "app.services.agent_runner.ApprovalService.can_remember_in_run", return_value=True
             ),
+            patch(
+                "app.services.agent_runner.ApprovalService.hidden_fields",
+                new=AsyncMock(return_value=frozenset()),
+            ),
         ):
             [call] = await service.parked_calls(ctx, run)
 
         assert call.can_remember is False
+        assert call.always_asks and not call.content_hidden
+        assert call.context is not None and call.context["claim"] == "Anna owns invoices"
+
+    async def test_a_parked_call_leaves_out_what_its_reader_may_not_see(self) -> None:
+        ctx = _member()
+        run = MagicMock(
+            status=RunStatus.AWAITING_APPROVAL.value,
+            paused_state={},
+            organization_id=ctx.organization_id,
+        )
+        service = AgentRunnerService(MagicMock())
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.list_approvals_for_run",
+                new=AsyncMock(return_value=[_approval(always_asks=True)]),
+            ),
+            patch(
+                "app.services.agent_runner.ApprovalService.hidden_fields",
+                new=AsyncMock(return_value=frozenset({"claim"})),
+            ),
+        ):
+            [call] = await service.parked_calls(ctx, run)
+
+        assert call.content_hidden
+        assert call.context == {"audience": "organization"}
 
 
 def _row(

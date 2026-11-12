@@ -2461,6 +2461,7 @@
     "approvalRememberOptions": "More approval options",
     "approvalRememberChat": "Allow this tool in this chat",
     "approvalRememberAgent": "Always allow this tool for this agent",
+    "approvalNeedsTheRun": "Only somebody who can see the run can approve this. You can reject it.",
     "approvalRememberedTitle": "Remembered tool approvals",
     "approvalRememberedEmpty": "No remembered approvals.",
     "approvalRememberForget": "Ask again",
