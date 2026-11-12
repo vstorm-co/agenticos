@@ -95,7 +95,7 @@ describe("DesktopWelcome", () => {
     expect(screen.queryByText(/answer without opening/i)).toBeNull();
     expect(
       screen.getByText(
-        "Approval requests arrive as notifications. To answer them there, turn on previews in Settings → Desktop app.",
+        "Approval requests arrive as notifications. To answer most of them there, turn on previews in Settings → Desktop app.",
       ),
     ).toBeInTheDocument();
   });

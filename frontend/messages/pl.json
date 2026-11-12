@@ -13372,7 +13372,7 @@
       },
       "loop": {
         "title": "Bądź na bieżąco",
-        "body": "Prośby o akceptację przychodzą jako powiadomienia. Aby odpowiadać na nie bezpośrednio, włącz podglądy w Ustawienia → Aplikacja desktopowa.",
+        "body": "Prośby o akceptację przychodzą jako powiadomienia. Aby odpowiadać na większość z nich bezpośrednio, włącz podglądy w Ustawienia → Aplikacja desktopowa.",
         "login": "Otwieraj AgenticOS przy logowaniu",
         "keepRunning": "Działaj po zamknięciu okna",
         "test": "Powiadomienia",

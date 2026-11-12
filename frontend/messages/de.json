@@ -4519,7 +4519,8 @@
     "whatsNewDescription": "Änderungen in der verwendeten Version.",
     "whatsNewDone": "Verstanden",
     "monitoring": "Überwachung",
-    "backgroundWork": "Arbeit im Hintergrund"
+    "backgroundWork": "Arbeit im Hintergrund",
+    "desktopApp": "Desktop-App"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -9764,7 +9765,7 @@
       },
       "loop": {
         "title": "Auf dem Laufenden bleiben",
-        "body": "Freigabeanfragen kommen als Benachrichtigungen. Um sie direkt dort zu beantworten, schalten Sie unter Einstellungen → Desktop-App die Vorschau ein.",
+        "body": "Freigabeanfragen kommen als Benachrichtigungen. Um die meisten direkt dort zu beantworten, schalten Sie unter Einstellungen → Desktop-App die Vorschau ein.",
         "login": "AgenticOS bei der Anmeldung öffnen",
         "keepRunning": "Weiterlaufen, wenn das Fenster geschlossen ist",
         "test": "Benachrichtigungen",
