@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.67.0] - 2026-11-12
+
 ### Upgrading
 
 - The skill-usage backfill scans existing tool-call history while holding the agent-runs schema lock. Plan an upgrade window for a large deployment. `0315_merge_skills_and_approval_visibility.py` joins skill versioning with `0314_tool_approval_always_asks.py`; both changes are applied.
@@ -21426,7 +21428,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.66.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.67.0...HEAD
+[1.67.0]: https://github.com/vstorm-co/agenticos/compare/v1.66.0...v1.67.0
 [1.66.0]: https://github.com/vstorm-co/agenticos/compare/v1.65.1...v1.66.0
 [1.65.1]: https://github.com/vstorm-co/agenticos/compare/v1.65.0...v1.65.1
 [1.65.0]: https://github.com/vstorm-co/agenticos/compare/v1.64.2...v1.65.0
