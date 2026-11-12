@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **Replacing a workflow's trigger.** Deleting the starting trigger now makes another trigger on the canvas the start, rather than the first step. Previously, connecting a Schedule added beforehand to that step failed with "The starting step cannot be the target of a connection". Drawing a trigger's wire into the current start also makes that trigger the start, which repairs drafts already in this state.
+
 ## [1.69.0] - 2026-11-12
 
 ### Added
