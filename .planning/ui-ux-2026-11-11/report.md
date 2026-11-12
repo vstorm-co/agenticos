@@ -503,3 +503,50 @@ TypeScript and focused ESLint pass. Full CI remains separate evidence.
 
 Routine creation/editing was inspected in source, but its pending-state findings
 still need a browser reproduction and a separate verified correction.
+
+
+## Production feedback: context, availability and app sharing — 2026-11-12
+
+Context settings no longer stretches a two-column gallery to its longest file
+or selected file's controls. Single-column rows clamp descriptions for scanning,
+wrap long names, and keep per-agent mode and enabled state together. The toolbar
+shows the file count. Redundant introductory copy and duplicate capability IDs
+are omitted. Inject-only context is explained with a shorter neutral information
+note; a disabled capability with bound files retains its warning.
+
+Availability uses the shared brand mark for each bot's platform, with its name
+and platform on separate lines. The row wraps on phones instead of truncating the
+identity against the environment and action buttons.
+
+App sharing leads with its page link and people/access controls. Public-link
+expiry, pinning, embedding, iframe code and password controls sit in a native
+`details` disclosure. Active restrictions remain visible as badges. Closing the
+disclosure preserves drafts; a pending write freezes its fields and prevents
+collapse. Refusals leave the open draft intact. Pending access/version requests
+stay first, including when opened from their badge or a notification; an empty
+request section moves below the ordinary sharing controls. Public-data consent
+controls and permission gates remain in their existing paths.
+
+408 focused tests in eight files pass, including retaining password drafts,
+pending disclosure behavior, existing consent/refusal cases and request ordering.
+One touch Chromium journey publishes a demo app through the real agent/tool path
+using the local stub model, persists a context-file override and reloads it, then
+creates a public link, changes expiry/version/embed sites, holds and refuses a
+save before retrying, sets a password, reopens the app and turns the link off.
+TypeScript, scoped ESLint and the strict four-language docs build pass. Full CI
+remains separate evidence.
+
+The screenshots use four real demo context files and an app published by a local
+stub run. Only the Mattermost exposure read is a controlled browser fixture: no
+external Mattermost server was connected. Desktop screenshots are 1440×1000;
+phone screenshots are 390×844. Initial test fixtures left by an outdated button
+label assertion were explicitly removed, as were the review's demo records.
+
+| Evidence | Before | After |
+| --- | --- | --- |
+| Context settings, desktop | [PNG](comparisons/context-settings-desktop-before.png) | [PNG](comparisons/context-settings-desktop-after.png) |
+| Context settings, phone | [PNG](comparisons/context-settings-phone-before.png) | [PNG](comparisons/context-settings-phone-after.png) |
+| Availability, desktop | [PNG](comparisons/availability-desktop-before.png) | [PNG](comparisons/availability-desktop-after.png) |
+| Availability, phone | [PNG](comparisons/availability-phone-before.png) | [PNG](comparisons/availability-phone-after.png) |
+| App sharing, desktop | [PNG](comparisons/app-share-desktop-before.png) | [PNG](comparisons/app-share-desktop-after.png) |
+| App sharing, phone | [PNG](comparisons/app-share-phone-before.png) | [PNG](comparisons/app-share-phone-after.png) |

@@ -8571,9 +8571,8 @@
     "connectionSDefaultIs": "Domyślny z połączenia - {alias}",
     "considerOnlyMostLikely": "Rozważaj tylko najbardziej prawdopodobne tokeny składające się na tę część masy prawdopodobieństwa. Ustaw to albo temperaturę, nie oba.",
     "contextCount": "{count, plural, =1 {1 plik kontekstu} few {# pliki kontekstu} many {# plików kontekstu} other {# pliku kontekstu}}",
-    "contextFilesDetail": "Stały kontekst, który czyta ten agent - słowniczek lub polityka wstrzyknięta do jego promptu, albo pliki, które czyta na żądanie.",
     "contextFilesHeading": "Pliki kontekstu",
-    "contextInjectOnlyNoTools": "Każdy plik powiązany tutaj jest wstrzykiwany do promptu, więc narzędzia odczytu (list_context, read_context) nie są dołączane - agent ma już tekst i nie ma czego czytać na żądanie. Ustaw plik jako połączony (linked), aby dać mu te narzędzia.",
+    "contextInjectOnlyNoTools": "Wstrzykiwany kontekst trafia do promptu. Narzędzia odczytu kontekstu pojawiają się, gdy co najmniej jeden włączony plik jest połączony.",
     "contextLoadingHint": "Wstrzyknięty plik jest dodawany do każdego runu; połączony plik agent czyta tylko wtedy, gdy uzna go za istotny. <link>Zarządzaj kontekstem</link>",
     "contextOffButBound": "Kontekst jest wyłączony, więc żaden z tych plików nie dociera do modelu - nawet te wstrzykiwane, bo wstrzykiwanie odbywa się tutaj. Pozostają w spec i nadal są sprawdzane przy publikacji; włącz go powyżej albo odznacz.",
     "contextPlacement": "Kontekst dla tego umiejscowienia",
@@ -11646,7 +11645,11 @@
       "blockedLink": "Strona nie ma publicznego linku. Najpierw go włącz."
     },
     "lightTheme": "Użyj jasnego motywu aplikacji",
-    "darkTheme": "Użyj ciemnego motywu aplikacji"
+    "darkTheme": "Użyj ciemnego motywu aplikacji",
+    "linkSettings": "Ustawienia linku",
+    "passwordProtected": "Chroniony hasłem",
+    "expiresOn": "Wygasa {date}",
+    "embedSiteCount": "{count, plural, one {# witryna osadzająca} few {# witryny osadzające} many {# witryn osadzających} other {# witryny osadzającej}}"
   },
   "tables": {
     "cells": {

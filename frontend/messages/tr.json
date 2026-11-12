@@ -2267,7 +2267,11 @@
       "blockedLink": "Sayfanın herkese açık bağlantısı yok. Önce bağlantı oluşturun."
     },
     "lightTheme": "Açık uygulama temasını kullan",
-    "darkTheme": "Koyu uygulama temasını kullan"
+    "darkTheme": "Koyu uygulama temasını kullan",
+    "linkSettings": "Bağlantı ayarları",
+    "passwordProtected": "Parola korumalı",
+    "expiresOn": "Bitiş: {date}",
+    "embedSiteCount": "{count} yerleştirme sitesi"
   },
   "mcpOauth": {
     "title": "{client} sizin adınıza işlem yapmak istiyor",
@@ -5903,9 +5907,8 @@
     "connectionSDefaultIs": "Bağlantının varsayılanı - {alias}",
     "considerOnlyMostLikely": "Bu olasılık kütlesini oluşturan en olası token'ları dikkate alın. Bunu veya temperature'ı ayarlayın, ikisini birden değil.",
     "contextCount": "{count, plural, =1 {1 context dosyası} other {# context dosyası}}",
-    "contextFilesDetail": "Agent'ın sürekli okuduğu context: prompt'una eklenen bir sözlük veya politika ya da ihtiyaç duyduğunda okuduğu dosyalar.",
     "contextFilesHeading": "Context dosyaları",
-    "contextInjectOnlyNoTools": "Buraya bağlanan her dosya prompt'a eklenir; bu nedenle okuma tool'ları (list_context, read_context) eklenmez. Agent metne zaten sahiptir ve gerektiğinde okuyacağı başka bir şey yoktur. Tool'ları vermek için dosyayı bağlantılı olarak ayarlayın.",
+    "contextInjectOnlyNoTools": "Eklenen bağlam prompt'a dahil edilir. En az bir etkin dosya bağlantılı olduğunda bağlam okuma araçları görünür.",
     "contextLoadingHint": "Eklenen dosya her run'a dahil edilir; bağlantılı dosyayı Agent yalnızca ilgili olduğuna karar verirse okur. <link>Context'i yönet</link>",
     "contextOffButBound": "Context kapalı; eklenenler dahil hiçbir dosya modele ulaşmaz çünkü ekleme burada yapılır. Dosyalar spec'te kalır ve yayınlarken denetlenir. Yukarıdan açın veya seçimlerini kaldırın.",
     "contextPlacement": "Bu yerleşim için context",

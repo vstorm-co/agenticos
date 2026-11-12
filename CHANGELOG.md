@@ -33,6 +33,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Context settings use compact file rows and a neutral injected-context note;
+  Availability identifies bot bindings with platform logos. App sharing puts
+  people and links first, with optional link settings collapsed, active
+  restrictions summarized and edits preserved when the options are closed.
+
 - Channel registration uses a compact platform selector on phones. Cancelling
   channel and vault creation or key rotation clears entered credentials. These
   forms freeze fields and dismissal while saving and preserve refused writes

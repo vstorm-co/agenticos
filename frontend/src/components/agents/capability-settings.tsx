@@ -423,7 +423,9 @@ export function CapabilityDetail({
       <CardContent className="space-y-4 p-4 sm:p-5">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium">{definition.name}</span>
-          <span className="text-muted-foreground font-mono text-xs">{definition.id}</span>
+          {definition.name.toLowerCase() !== definition.id.toLowerCase() && (
+            <span className="text-muted-foreground font-mono text-xs">{definition.id}</span>
+          )}
           {definition.side_effecting && (
             <Badge variant="outline" className="gap-1">
               <ShieldAlert className="h-3 w-3" />

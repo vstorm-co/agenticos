@@ -179,9 +179,8 @@
     "connectionSDefaultIs": "Der Standard der Verbindung - {alias}",
     "considerOnlyMostLikely": "Nur die wahrscheinlichsten Token berücksichtigen, die zusammen diese Wahrscheinlichkeitsmasse ausmachen. Setzen Sie dies oder die Temperatur, nicht beides.",
     "contextCount": "{count, plural, =1 {1 Kontextdatei} other {# Kontextdateien}}",
-    "contextFilesDetail": "Ständiger Kontext, den dieser Agent liest – ein Glossar oder eine Richtlinie, in seinen Prompt eingefügt, oder Dateien, die er bei Bedarf liest.",
     "contextFilesHeading": "Kontextdateien",
-    "contextInjectOnlyNoTools": "Jede hier gebundene Datei wird in den Prompt eingefügt, deshalb werden die Lese-Tools (list_context, read_context) nicht angehängt – der Agent hat den Text bereits und hat nichts bei Bedarf zu lesen. Setzen Sie eine Datei auf verknüpft, um ihm die Tools zu geben.",
+    "contextInjectOnlyNoTools": "Eingefügter Kontext wird im Prompt mitgegeben. Werkzeuge zum Lesen des Kontexts erscheinen, sobald mindestens eine aktivierte Datei verknüpft ist.",
     "contextLoadingHint": "Eine eingefügte Datei kommt zu jedem Run hinzu; eine verknüpfte liest der Agent nur, wenn er sie für relevant hält. <link>Kontext verwalten</link>",
     "contextOffButBound": "Kontext ist ausgeschaltet, keine dieser Dateien erreicht also das Modell – auch die eingefügten nicht, denn das Einfügen passiert hier. Sie bleiben im Spec und werden beim Veröffentlichen weiterhin geprüft; schalten Sie ihn oben ein, oder wählen Sie die Dateien ab.",
     "contextPlacement": "Kontext für diese Platzierung",
@@ -11113,7 +11112,11 @@
       "blockedLink": "Die Seite hat keinen öffentlichen Link. Schalten Sie ihn zuerst ein."
     },
     "lightTheme": "Helles App-Design verwenden",
-    "darkTheme": "Dunkles App-Design verwenden"
+    "darkTheme": "Dunkles App-Design verwenden",
+    "linkSettings": "Link-Einstellungen",
+    "passwordProtected": "Passwortgeschützt",
+    "expiresOn": "Läuft am {date} ab",
+    "embedSiteCount": "{count, plural, one {# einbettende Website} other {# einbettende Websites}}"
   },
   "tables": {
     "cells": {

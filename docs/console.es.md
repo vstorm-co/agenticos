@@ -1,8 +1,10 @@
 ---
-source_sha: "cd10761f61b8"
+source_sha: "f0fdffe19a7d"
 ---
 
 # La consola { #the-console }
+
+Los ajustes de contexto muestran filas compactas con controles de uso por agente. Las descripciones largas ya no estiran los archivos vecinos y el contexto solo inyectado muestra una nota informativa. Availability incluye el logotipo de la plataforma junto al nombre del bot. Al compartir una app aparecen primero el enlace de la página y las personas con acceso; caducidad, versión fija, inserción y contraseña empiezan cerradas en los ajustes del enlace. Las restricciones activas siguen visibles como etiquetas y cerrar las opciones conserva las ediciones.
 
 En teléfonos, el registro de canales usa un selector compacto de plataforma. Cancelar un canal nuevo, una clave nueva de la bóveda o una rotación borra las credenciales introducidas. Los formularios de canales y bóveda bloquean la edición y el cierre durante la escritura; un rechazo conserva los valores para corregirlos y reintentar. La edición de canales y la rotación mantienen sus acciones visibles también en ventanas bajas.
 
