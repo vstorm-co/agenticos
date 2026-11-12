@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.68.0] - 2026-11-12
+
 ### Upgrading
 
 - **Linked channel senders now honor existing Run freely settings.** If a deployment relied on the channel’s additional confirmation for writes or unannotated MCP tools, set those bindings or tools to Ask first before upgrading. Sender identity, access checks and the platform MCP minimum policy remain enforced.
@@ -21437,7 +21439,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.67.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.68.0...HEAD
+[1.68.0]: https://github.com/vstorm-co/agenticos/compare/v1.67.0...v1.68.0
 [1.67.0]: https://github.com/vstorm-co/agenticos/compare/v1.66.0...v1.67.0
 [1.66.0]: https://github.com/vstorm-co/agenticos/compare/v1.65.1...v1.66.0
 [1.65.1]: https://github.com/vstorm-co/agenticos/compare/v1.65.0...v1.65.1
