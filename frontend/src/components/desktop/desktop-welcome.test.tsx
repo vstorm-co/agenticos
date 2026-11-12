@@ -2,6 +2,8 @@ import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { DEFAULT_DESKTOP_NOTIFICATIONS } from "@/stores/desktop-preferences-store";
+
 import { DesktopWelcome } from "./desktop-welcome";
 import { DESKTOP_STATE, MAC_MAIN } from "./fixtures";
 
@@ -82,6 +84,20 @@ describe("DesktopWelcome", () => {
     await userEvent.click(screen.getByRole("button", { name: "Open AgenticOS" }));
     expect(env.finish).toHaveBeenCalled();
     await vi.waitFor(() => expect(env.replace).toHaveBeenCalledWith("/onboarding"));
+  });
+
+  it("promises only what a notification does by default, with previews hidden", async () => {
+    expect(DEFAULT_DESKTOP_NOTIFICATIONS.hide_previews).toBe(true);
+    render(<DesktopWelcome />);
+    await next();
+    await next();
+    expect(screen.getByRole("heading", { name: "Stay in the loop" })).toBeInTheDocument();
+    expect(screen.queryByText(/answer without opening/i)).toBeNull();
+    expect(
+      screen.getByText(
+        "Approval requests arrive as notifications. To answer them there, turn on previews in Settings → Desktop app.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("can be skipped, and still marks itself as done", async () => {

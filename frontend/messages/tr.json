@@ -11501,7 +11501,7 @@
       },
       "loop": {
         "title": "Gelişmelerden haberdar olun",
-        "body": "Onaylar, hiçbir şeyi açmadan yanıtlayabileceğiniz bildirimler olarak gelir.",
+        "body": "Onay istekleri bildirim olarak gelir. Onları oradan yanıtlamak için Ayarlar → Masaüstü uygulaması bölümünde önizlemeleri açın.",
         "login": "Oturum açıldığında AgenticOS'u aç",
         "keepRunning": "Pencere kapalıyken çalışmaya devam et",
         "test": "Bildirimler",

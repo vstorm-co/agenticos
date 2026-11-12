@@ -9761,6 +9761,18 @@
     "welcome": {
       "shortcuts": {
         "open_console": "AgenticOS öffnen"
+      },
+      "loop": {
+        "title": "Auf dem Laufenden bleiben",
+        "body": "Freigabeanfragen kommen als Benachrichtigungen. Um sie direkt dort zu beantworten, schalten Sie unter Einstellungen → Desktop-App die Vorschau ein.",
+        "login": "AgenticOS bei der Anmeldung öffnen",
+        "keepRunning": "Weiterlaufen, wenn das Fenster geschlossen ist",
+        "test": "Benachrichtigungen",
+        "testHint": "Ihr Computer fragt einmal, ob AgenticOS Sie benachrichtigen darf.",
+        "send": "Test senden",
+        "sent": "Gesendet",
+        "testTitle": "AgenticOS",
+        "testBody": "Hier werden Ihre Agents Sie erreichen."
       }
     },
     "quickAsk": {
