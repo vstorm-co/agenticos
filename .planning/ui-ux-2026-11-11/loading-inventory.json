@@ -1,7 +1,7 @@
 {
-  "sourceFiles": 1371,
-  "files": 244,
-  "sites": 482,
+  "sourceFiles": 1370,
+  "files": 242,
+  "sites": 477,
   "entries": [
     {
       "file": "frontend/src/app/[locale]/(dashboard)/admin/organizations/[id]/page.tsx",
@@ -600,17 +600,10 @@
     },
     {
       "file": "frontend/src/app/[locale]/(dashboard)/skills/page.tsx",
-      "line": 172,
+      "line": 166,
       "tag": "CatalogLoading",
       "props": "kind=\"document\"",
       "family": "catalog slots and breakpoints"
-    },
-    {
-      "file": "frontend/src/app/[locale]/(dashboard)/skills/page.tsx",
-      "line": 365,
-      "tag": "SkillEditorLoadingDialog",
-      "props": "name={skills.find((skill) => skill.id === selectedSkill)?.name} canEdit={skills.find((skill) => skill.id === selectedSkill)?.can_edit} onClose={skillView.close}",
-      "family": "editor geometry"
     },
     {
       "file": "frontend/src/app/[locale]/(dashboard)/tables/[id]/page.tsx",
@@ -625,27 +618,6 @@
       "tag": "CatalogLoading",
       "props": "kind=\"resource\"",
       "family": "catalog slots and breakpoints"
-    },
-    {
-      "file": "frontend/src/app/[locale]/(dashboard)/vault/page.tsx",
-      "line": 73,
-      "tag": "Skeleton",
-      "props": "className=\"h-8 w-8 shrink-0 rounded-lg\"",
-      "family": "local placeholder; check parent layout"
-    },
-    {
-      "file": "frontend/src/app/[locale]/(dashboard)/vault/page.tsx",
-      "line": 75,
-      "tag": "Skeleton",
-      "props": "className=\"h-4 w-40\"",
-      "family": "local placeholder; check parent layout"
-    },
-    {
-      "file": "frontend/src/app/[locale]/(dashboard)/vault/page.tsx",
-      "line": 76,
-      "tag": "Skeleton",
-      "props": "className=\"h-3 w-72 max-w-full\"",
-      "family": "local placeholder; check parent layout"
     },
     {
       "file": "frontend/src/app/[locale]/(dashboard)/work/page.tsx",
@@ -1657,126 +1629,133 @@
     },
     {
       "file": "frontend/src/components/files/editor-loading.tsx",
-      "line": 36,
+      "line": 38,
       "tag": "Skeleton",
       "props": "className=\"touch:min-h-11 h-8 w-28 rounded-lg\"",
       "family": "local placeholder; check parent layout"
     },
     {
       "file": "frontend/src/components/files/editor-loading.tsx",
-      "line": 37,
+      "line": 39,
       "tag": "Skeleton",
       "props": "className=\"touch:min-h-11 h-8 w-20 rounded-lg\"",
       "family": "local placeholder; check parent layout"
     },
     {
       "file": "frontend/src/components/files/editor-loading.tsx",
-      "line": 49,
+      "line": 51,
       "tag": "Skeleton",
       "props": "className=\"touch:min-h-11 h-10 w-full rounded-md\"",
       "family": "local placeholder; check parent layout"
     },
     {
       "file": "frontend/src/components/files/editor-loading.tsx",
-      "line": 63,
+      "line": 65,
       "tag": "Skeleton",
       "props": "className=\"touch:min-h-11 h-10 w-full rounded-md\"",
       "family": "local placeholder; check parent layout"
     },
     {
       "file": "frontend/src/components/files/editor-loading.tsx",
-      "line": 80,
+      "line": 82,
       "tag": "Skeleton",
       "props": "key={key} className=\"touch:min-h-11 h-8 rounded-md\"",
       "family": "local placeholder; check parent layout"
     },
     {
       "file": "frontend/src/components/files/editor-loading.tsx",
-      "line": 85,
+      "line": 87,
       "tag": "Skeleton",
       "props": "className=\"h-8 w-full rounded-md\"",
       "family": "local placeholder; check parent layout"
     },
     {
       "file": "frontend/src/components/files/editor-loading.tsx",
-      "line": 89,
+      "line": 91,
       "tag": "FileEditorLoading",
       "props": "",
       "family": "editor geometry"
     },
     {
       "file": "frontend/src/components/files/editor-loading.tsx",
-      "line": 93,
+      "line": 95,
       "tag": "Skeleton",
       "props": "className=\"inline-flex rounded-lg\"",
       "family": "local placeholder; check parent layout"
     },
     {
       "file": "frontend/src/components/files/editor-loading.tsx",
-      "line": 100,
+      "line": 102,
       "tag": "Skeleton",
       "props": "className=\"inline-flex rounded-lg\"",
       "family": "local placeholder; check parent layout"
     },
     {
       "file": "frontend/src/components/files/editor-loading.tsx",
-      "line": 108,
+      "line": 110,
       "tag": "Skeleton",
       "props": "className=\"inline-flex rounded-lg\"",
       "family": "local placeholder; check parent layout"
     },
     {
       "file": "frontend/src/components/files/editor-loading.tsx",
-      "line": 115,
+      "line": 118,
       "tag": "Skeleton",
       "props": "className=\"inline-flex rounded-lg\"",
       "family": "local placeholder; check parent layout"
     },
     {
       "file": "frontend/src/components/files/editor-loading.tsx",
-      "line": 123,
+      "line": 125,
       "tag": "Skeleton",
       "props": "className=\"inline-flex rounded-lg\"",
       "family": "local placeholder; check parent layout"
     },
     {
       "file": "frontend/src/components/files/editor-loading.tsx",
-      "line": 143,
+      "line": 133,
+      "tag": "Skeleton",
+      "props": "className=\"inline-flex rounded-lg\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/files/editor-loading.tsx",
+      "line": 153,
       "tag": "Skeleton",
       "props": "className=\"h-4 w-28\"",
       "family": "local placeholder; check parent layout"
     },
     {
       "file": "frontend/src/components/files/editor-loading.tsx",
-      "line": 144,
+      "line": 154,
       "tag": "Skeleton",
       "props": "className=\"touch:min-h-11 ml-auto h-9 w-24 rounded-md\"",
       "family": "local placeholder; check parent layout"
     },
     {
       "file": "frontend/src/components/files/editor-loading.tsx",
-      "line": 145,
+      "line": 155,
       "tag": "Skeleton",
       "props": "className=\"touch:min-h-11 h-9 w-9 rounded-md\"",
       "family": "local placeholder; check parent layout"
     },
     {
       "file": "frontend/src/components/files/editor-loading.tsx",
-      "line": 155,
+      "line": 165,
       "tag": "Skeleton",
       "props": "className=\"h-4 w-3/5\"",
       "family": "local placeholder; check parent layout"
     },
     {
       "file": "frontend/src/components/files/editor-loading.tsx",
-      "line": 156,
+      "line": 166,
       "tag": "Skeleton",
       "props": "className=\"h-4 w-4/5\"",
       "family": "local placeholder; check parent layout"
     },
     {
       "file": "frontend/src/components/files/editor-loading.tsx",
-      "line": 157,
+      "line": 167,
       "tag": "Skeleton",
       "props": "className=\"h-4 w-2/3\"",
       "family": "local placeholder; check parent layout"
@@ -3015,9 +2994,9 @@
     },
     {
       "file": "frontend/src/components/skills/edit-skill-dialog.tsx",
-      "line": 212,
+      "line": 199,
       "tag": "EditorLoading",
-      "props": "kind=\"skill\" canEdit={skill.can_edit === true} files={false}",
+      "props": "kind=\"skill\" canEdit={skill.can_edit === true} files={false} fullView={onOpenFull !== undefined}",
       "family": "editor geometry"
     },
     {
@@ -3050,9 +3029,9 @@
     },
     {
       "file": "frontend/src/components/skills/skill-detail-dialog.tsx",
-      "line": 43,
-      "tag": "SkillEditorLoadingDialog",
-      "props": "name={skill?.name ?? name} canEdit={skill?.can_edit ?? canEdit} onClose={onClose}",
+      "line": 45,
+      "tag": "EditorLoading",
+      "props": "kind=\"skill\" canEdit={skill?.can_edit ?? canEdit} fullView",
       "family": "editor geometry"
     },
     {
@@ -3061,20 +3040,6 @@
       "tag": "LoadingState",
       "props": "variant=\"pending\"",
       "family": "unknown layout, reserved loader"
-    },
-    {
-      "file": "frontend/src/components/skills/skill-editor-loading-dialog.tsx",
-      "line": 40,
-      "tag": "Skeleton",
-      "props": "className=\"touch:min-h-11 h-8 w-8 shrink-0 rounded-md sm:w-32\" aria-hidden",
-      "family": "local placeholder; check parent layout"
-    },
-    {
-      "file": "frontend/src/components/skills/skill-editor-loading-dialog.tsx",
-      "line": 44,
-      "tag": "EditorLoading",
-      "props": "kind=\"skill\" canEdit={canEdit}",
-      "family": "editor geometry"
     },
     {
       "file": "frontend/src/components/skills/skill-gallery-dialog.tsx",

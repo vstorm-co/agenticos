@@ -2,7 +2,7 @@
 
 import { FILTER_CONTROL } from "@/components/ui/control-styles";
 
-import { lazy, Suspense, useState } from "react";
+import { useState } from "react";
 import type { ReactNode } from "react";
 import { BookOpen, ChevronDown, Library, ListFilter, Lock, Plus } from "lucide-react";
 
@@ -11,7 +11,7 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { ProposedChanges } from "@/components/skills/proposed-changes";
 import { CreateSkillDialog } from "@/components/skills/create-skill-dialog";
 import { SkillGalleryDialog } from "@/components/skills/skill-gallery-dialog";
-import { SkillEditorLoadingDialog } from "@/components/skills/skill-editor-loading-dialog";
+import { SkillDetailDialog } from "@/components/skills/skill-detail-dialog";
 import { SkillCard } from "@/components/skills/skill-card";
 import { categoryLabel } from "@/components/skills/category-input";
 import { CatalogLoading } from "@/components/states/catalog-loading";
@@ -74,12 +74,6 @@ function Chip({
     </button>
   );
 }
-
-const SkillDetailDialog = lazy(() =>
-  import("@/components/skills/skill-detail-dialog").then((module) => ({
-    default: module.SkillDetailDialog,
-  })),
-);
 
 export default function SkillsPage() {
   const [selectedSkill, skillView] = useUrlOverlay("skill");
@@ -360,22 +354,12 @@ export default function SkillsPage() {
       </ListCard>
 
       {selectedSkill !== null && (
-        <Suspense
-          fallback={
-            <SkillEditorLoadingDialog
-              name={skills.find((skill) => skill.id === selectedSkill)?.name}
-              canEdit={skills.find((skill) => skill.id === selectedSkill)?.can_edit}
-              onClose={skillView.close}
-            />
-          }
-        >
-          <SkillDetailDialog
-            id={selectedSkill}
-            name={skills.find((skill) => skill.id === selectedSkill)?.name}
-            canEdit={skills.find((skill) => skill.id === selectedSkill)?.can_edit}
-            onClose={skillView.close}
-          />
-        </Suspense>
+        <SkillDetailDialog
+          id={selectedSkill}
+          name={skills.find((skill) => skill.id === selectedSkill)?.name}
+          canEdit={skills.find((skill) => skill.id === selectedSkill)?.can_edit}
+          onClose={skillView.close}
+        />
       )}
       <CreateSkillDialog open={createOpen} onOpenChange={setCreateOpen} />
       <SkillGalleryDialog open={galleryOpen} onOpenChange={setGalleryOpen} />

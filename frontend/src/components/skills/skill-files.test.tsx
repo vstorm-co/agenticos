@@ -307,7 +307,7 @@ describe("the file pane", () => {
     loaded.isLoading = true;
     mount();
 
-    expect(screen.getByText("Loading...")).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: /Loading/ })).toHaveAttribute("aria-busy", "true");
   });
 });
 

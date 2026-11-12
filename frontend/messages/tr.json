@@ -595,11 +595,11 @@
     "share": "Paylaş",
     "sharingUpdated": "Paylaşım güncellendi",
     "visibilityOrg": "Kuruluştaki herkes",
-    "visibilityOrgReaches": "{resource, select, agent {agentları} skill {skill'leri} collection {koleksiyonları} artifact {uygulamaları} dataset {datasetler} context {bağlam dosyalarını} mcp_connection {MCP sunucularını} other {gizli bilgileri}} görüntüleyebilen kuruluştaki herkes.",
+    "visibilityOrgReaches": "{resource, select, agent {agentları} skill {skill'leri} collection {koleksiyonları} artifact {uygulamaları} dataset {datasetler} context {bağlam dosyalarını} mcp_connection {MCP sunucularını} project {projeler} other {gizli bilgileri}} görüntüleyebilen kuruluştaki herkes.",
     "visibilityPrivate": "Yalnızca erişimi olan kişiler",
-    "visibilityPrivateReaches": "Yalnızca yukarıda listelenen kişiler. Başka hiç kimse listesinde bu {resource, select, agent {Agent'ı} skill {skill'i} collection {koleksiyonu} artifact {uygulamayı} dataset {datasetler} context {bağlam dosyasını} mcp_connection {MCP sunucusunu} other {gizli bilgiyi}} göremez - henüz sahibi yoksa sahibi siz olursunuz.",
+    "visibilityPrivateReaches": "Yalnızca yukarıda listelenen kişiler. Başka hiç kimse listesinde bu {resource, select, agent {Agent'ı} skill {skill'i} collection {koleksiyonu} artifact {uygulamayı} dataset {datasetler} context {bağlam dosyasını} mcp_connection {MCP sunucusunu} project {proje} other {gizli bilgiyi}} göremez - henüz sahibi yoksa sahibi siz olursunuz.",
     "visibilityTeam": "Ekip (artık sunulmuyor)",
-    "visibilityTeamReaches": "Rolü ekip {resource, select, agent {agentlarına} skill {skill'lerine} collection {koleksiyonlarına} artifact {uygulamalarına} dataset {datasetler} context {bağlam dosyalarına} mcp_connection {MCP sunucularına} other {gizli bilgilere}} erişim sağlayan herkes. Bu kuruluşta ekip yok - yukarıdaki iki seçenekten birini seçin.",
+    "visibilityTeamReaches": "Rolü ekip {resource, select, agent {agentlarına} skill {skill'lerine} collection {koleksiyonlarına} artifact {uygulamalarına} dataset {datasetler} context {bağlam dosyalarına} mcp_connection {MCP sunucularına} project {projeler} other {gizli bilgilere}} erişim sağlayan herkes. Bu kuruluşta ekip yok - yukarıdaki iki seçenekten birini seçin.",
     "visibilityUpdated": "Görünürlük güncellendi",
     "groupsHeading": "Gruplar",
     "membersHeading": "Üyeler",
@@ -3628,15 +3628,18 @@
     "vault": {
       "accessTo": "{name} erişimi",
       "addKey": "Anahtar ekle",
-      "addKey2": "Anahtar ekle",
-      "addOneBecomesSelectable": "Bir anahtar ekleyin; Builder içindeki model providerı veya capability içindeki arama hizmeti gibi, gerektiği yerlerde seçilebilir olsun.",
-      "keys": "Anahtarlar",
-      "noKeysYet": "Henüz anahtar yok",
       "pageDescription": "Bu kuruluşun sakladığı tüm anahtarlar. Şifrelenir, kuruluşa bağlanır ve yeniden okunamaz; anahtar gösterilmek yerine değiştirilebilir.",
       "storedCount": "{count, plural, =1 {1 anahtar saklandı} other {# anahtar saklandı}}",
       "vault": "Vault",
-      "vault2": "Vault",
-      "whoCanBindKey": "Bu anahtarı hangi kullanıcıların agenta bağlayıp yenileyebileceği veya silebileceği. Kimsenin erişemediği bir anahtarla hiçbir capability yapılandırılamaz."
+      "whoCanBindKey": "Bu anahtarı hangi kullanıcıların agenta bağlayıp yenileyebileceği veya silebileceği. Kimsenin erişemediği bir anahtarla hiçbir capability yapılandırılamaz.",
+      "connectAccount": "Hesap bağla",
+      "personalAccount": "Hesabınız",
+      "organizationAccount": "Kuruluş hesabı",
+      "emptyTitle": "Henüz kimlik bilgisi yok",
+      "emptyDetail": "Ajanlarınızla kullanmak için bir anahtar ekleyin veya hesap bağlayın.",
+      "connectedAccounts": {
+        "reconnectNamed": "{email} hesabını yeniden bağla"
+      }
     },
     "workspaces": {
       "failedLoadWorkspaces": "Workspace içerikleri yüklenemedi",
@@ -8246,7 +8249,7 @@
       },
       "vault-keys": {
         "title": "Saklananlar",
-        "body": "Kuruluştaki tüm kimlik bilgileri ad ve türlerine göre listelenir. Agent bir key’e adıyla başvurur; kaydettikten sonra değeri kimseye gösterilmez."
+        "body": "Anahtarlar ve bağlı hesaplar aynı tabloda yer alır. Her kaydın erişimini ve işlemlerini kontrol edin; kayıtlı anahtar değerleri ve OAuth belirteçleri gizli kalır. Üstteki Hesap bağla düğmesiyle kendi hesabınızı veya yönetebildiğiniz bir kuruluş hesabını ekleyin."
       },
       "vault-new": {
         "title": "Vault",
@@ -11963,7 +11966,9 @@
       "noneInVault": "Vault’ta henüz {provider} key’i yok. Önce vault’a ekleyin, ardından buradan seçin.",
       "notShared": "{name} vault’ta var ancak burada kullanılmadan önce tüm kuruluşla paylaşılmalı. Vault’tan erişimini değiştirin.",
       "chatGPTSignIn": "{name}, ChatGPT aboneliği üzerinden model erişimi sağlayan bir ChatGPT oturum açmasıdır. Voice özellikleri OpenAI API key’i gerektirir; bu oturum açma burada kullanılamaz."
-    }
+    },
+    "notRecorded": "Kaydedilmedi",
+    "googleAccount": "Google hesabı"
   },
   "portals": {
     "mailboxInterval": {

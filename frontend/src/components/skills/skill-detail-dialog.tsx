@@ -1,13 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui";
 import { ErrorState } from "@/components/states";
-import { SkillEditorLoadingDialog } from "./skill-editor-loading-dialog";
-import { DIALOG_CANVAS, DIALOG_FILL } from "@/lib/dialog-sizes";
-import { EditSkillDialog } from "./edit-skill-dialog";
+import { SkillEditorFrame } from "./skill-editor-frame";
+import { EditorLoading } from "@/components/files/editor-loading";
 import { DeleteSkillDialog } from "./delete-skill-dialog";
 import { eachAgentOnce } from "./skill-lines";
 import { useSkill } from "@/hooks";
@@ -16,6 +14,10 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { Perm } from "@/types/permissions";
+
+const EditSkillDialogBody = lazy(() =>
+  import("./edit-skill-dialog").then((module) => ({ default: module.EditSkillDialogBody })),
+);
 
 /** The catalog opens the skill's instructions and files; history is a deliberate next step. */
 export function SkillDetailDialog({
@@ -37,48 +39,43 @@ export function SkillDetailDialog({
   const versions = useSkillVersions(id, null, 0);
   const agents = useSkillAgents(id);
   const [deleting, setDeleting] = useState(false);
+  const [busy, setBusy] = useState(false);
   const failed = error ?? versions.error ?? agents.error;
-  if (!failed && (!skill || versions.isLoading || agents.isLoading)) {
-    return (
-      <SkillEditorLoadingDialog
-        name={skill?.name ?? name}
-        canEdit={skill?.can_edit ?? canEdit}
-        onClose={onClose}
-      />
-    );
-  }
-  if (failed || !skill) {
-    return (
-      <Dialog
-        open
-        onOpenChange={(open) => {
-          if (!open) onClose();
-        }}
-      >
-        <DialogContent className={`${DIALOG_FILL} ${DIALOG_CANVAS}`}>
-          <DialogTitle>{t("skillDetails")}</DialogTitle>
-          <ErrorState description={getErrorMessage(failed, errors)} />
-        </DialogContent>
-      </Dialog>
-    );
-  }
+  const loading = !skill || versions.isLoading || agents.isLoading;
+  const placeholder = <EditorLoading kind="skill" canEdit={skill?.can_edit ?? canEdit} fullView />;
   return (
     <>
-      <EditSkillDialog
-        skill={skill}
-        fork={null}
-        followers={versions.versions[0]?.agents ?? 0}
-        readers={eachAgentOnce(
-          (agents.agents?.items ?? []).filter(
-            (usage) => !usage.draft_only && usage.binding.state === "main",
-          ),
-        ).map((usage) => usage.agent.name)}
-        canCheck={can(Perm.runsView)}
+      <SkillEditorFrame
+        id={id}
+        title={skill?.name ?? name ?? t("skillDetails")}
+        busy={busy}
         onClose={onClose}
-        onDelete={() => setDeleting(true)}
-        onOpenFull={() => router.push(`${ROUTES.SKILL_DETAIL(id)}?tab=content`)}
-      />
-      {deleting && (
+      >
+        {failed ? (
+          <ErrorState description={getErrorMessage(failed, errors)} />
+        ) : loading || !skill ? (
+          placeholder
+        ) : (
+          <Suspense fallback={placeholder}>
+            <EditSkillDialogBody
+              skill={skill}
+              fork={null}
+              followers={versions.versions[0]?.agents ?? 0}
+              readers={eachAgentOnce(
+                (agents.agents?.items ?? []).filter(
+                  (usage) => !usage.draft_only && usage.binding.state === "main",
+                ),
+              ).map((usage) => usage.agent.name)}
+              canCheck={can(Perm.runsView)}
+              onClose={onClose}
+              onDelete={() => setDeleting(true)}
+              onOpenFull={() => router.push(`${ROUTES.SKILL_DETAIL(id)}?tab=content`)}
+              onBusyChange={setBusy}
+            />
+          </Suspense>
+        )}
+      </SkillEditorFrame>
+      {deleting && skill && (
         <DeleteSkillDialog
           skill={skill}
           agents={agents.agents}

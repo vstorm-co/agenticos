@@ -35,6 +35,11 @@ describe("editor loading slots", () => {
     expect(screen.queryByText("Improve with the assistant")).toBeNull();
     expect(screen.getByText("Save")).toBeInTheDocument();
   });
+  it("reserves the full-view footer action in the catalog editor", () => {
+    render(<EditorLoading kind="skill" fullView />);
+    expect(screen.getByText("Open full view")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open full view" })).toBeNull();
+  });
   it("keeps a named pane's toolbar and content placeholders together", () => {
     const { container } = render(<FileEditorLoading />);
     expect(container.firstElementChild).toHaveAttribute("aria-hidden", "true");

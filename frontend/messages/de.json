@@ -5098,7 +5098,7 @@
       },
       "vault-keys": {
         "title": "Was gespeichert ist",
-        "body": "Jedes Credential in dieser Organisation, nach Name und Art gelistet. Ein Agent verweist per Name auf einen Schlüssel; der Wert selbst wird nach dem Speichern niemandem mehr gezeigt."
+        "body": "Schlüssel und verbundene Konten stehen in einer Tabelle. Prüfe Zugriff und Aktionen jedes Eintrags; gespeicherte Schlüsselwerte und OAuth-Tokens bleiben verborgen. Über Konto verbinden in der Kopfzeile fügst du dein eigenes Konto oder ein Organisationskonto hinzu, das du verwalten darfst."
       },
       "vault-new": {
         "title": "Der Vault",
@@ -7354,14 +7354,9 @@
     "vault": {
       "accessTo": "Zugriff auf {name}",
       "addKey": "Schlüssel hinzufügen",
-      "addKey2": "Schlüssel hinzufügen",
-      "addOneBecomesSelectable": "Fügen Sie einen hinzu, und er wird überall dort wählbar, wo er gebraucht wird – ein Modell-Provider im Builder, ein Suchdienst in einer Capability.",
-      "keys": "Schlüssel",
-      "noKeysYet": "Noch keine Schlüssel",
       "pageDescription": "Jeder Schlüssel, den diese Organisation gespeichert hat. Verschlüsselt, an diese Organisation gebunden und nie wieder lesbar – ein Schlüssel lässt sich ersetzen, nicht offenlegen.",
       "storedCount": "{count, plural, =1 {1 Schlüssel gespeichert} other {# Schlüssel gespeichert}}",
       "vault": "Vault",
-      "vault2": "Vault",
       "whoCanBindKey": "Wer diesen Schlüssel an einen Agent binden und wer ihn rotieren oder löschen darf. Ein Schlüssel, den niemand erreicht, ist eine Capability, die niemand konfigurieren kann.",
       "connectedAccounts": {
         "personalTitle": "Ihre verbundenen Konten",
@@ -7369,16 +7364,20 @@
         "count": "{count, plural, one {# Konto} other {# Konten}}",
         "connect": "Google-Konto verbinden",
         "noneYet": "Noch keine Konten verbunden",
-        "personalDetail": "Ein Agent, dessen virtuelles Terminal die eigenen Konten jeder Person liest, bindet diese ein, wenn Sie mit ihm sprechen.",
-        "organizationDetail": "Das virtuelle Terminal eines Agenten kann eines dieser Konten für alle lesen, die mit ihm sprechen.",
         "needsReconnect": "Die Anmeldung funktioniert nicht mehr. Verbinden Sie das Konto erneut.",
         "scopes": "{count, plural, one {# Berechtigung erteilt} other {# Berechtigungen erteilt}}",
         "reconnect": "Erneut verbinden",
         "disconnect": "{email} trennen",
         "disconnectTitle": "{email} trennen?",
         "disconnectDetail": "Agenten, die dieses Konto lesen, verlieren seine Ordner beim nächsten Lauf. Die Freigabe wird aus dem Vault gelöscht.",
-        "disconnectConfirm": "Trennen"
-      }
+        "disconnectConfirm": "Trennen",
+        "reconnectNamed": "{email} erneut verbinden"
+      },
+      "connectAccount": "Konto verbinden",
+      "personalAccount": "Dein Konto",
+      "organizationAccount": "Organisationskonto",
+      "emptyTitle": "Noch keine Zugangsdaten",
+      "emptyDetail": "Füge einen Schlüssel hinzu oder verbinde ein Konto, um es mit deinen Agenten zu nutzen."
     },
     "workspaces": {
       "failedLoadWorkspaces": "Workspaces konnten nicht geladen werden",
@@ -8808,11 +8807,11 @@
     "share": "Freigeben",
     "sharingUpdated": "Freigabe aktualisiert",
     "visibilityOrg": "Alle in der Organisation",
-    "visibilityOrgReaches": "Alle in der Organisation, die {resource, select, agent {Agents} skill {Skills} collection {Collections} artifact {Apps} dataset {Datasets} context {Kontextdateien} mcp_connection {MCP-Server} other {Secrets}} überhaupt ansehen dürfen.",
+    "visibilityOrgReaches": "Alle in der Organisation, die {resource, select, agent {Agents} skill {Skills} collection {Collections} artifact {Apps} dataset {Datasets} context {Kontextdateien} mcp_connection {MCP-Server} project {Projekte} other {Secrets}} überhaupt ansehen dürfen.",
     "visibilityPrivate": "Nur Personen mit Zugriff",
-    "visibilityPrivateReaches": "Nur die oben aufgeführten Personen. Sonst findet niemand {resource, select, agent {diesen Agent} skill {diesen Skill} collection {diese Collection} artifact {diese App} dataset {dieses Dataset} context {diese Kontextdatei} mcp_connection {diesen MCP-Server} other {dieses Secret}} in seiner Liste – und wenn es noch keinen Besitzer hat, wird es Ihres.",
+    "visibilityPrivateReaches": "Nur die oben aufgeführten Personen. Sonst findet niemand {resource, select, agent {diesen Agent} skill {diesen Skill} collection {diese Collection} artifact {diese App} dataset {dieses Dataset} context {diese Kontextdatei} mcp_connection {diesen MCP-Server} project {Projekt} other {dieses Secret}} in seiner Liste – und wenn es noch keinen Besitzer hat, wird es Ihres.",
     "visibilityTeam": "Team (wird nicht mehr angeboten)",
-    "visibilityTeamReaches": "Jeder, dessen Rolle {resource, select, agent {Team-Agents} skill {Team-Skills} collection {Team-Collections} artifact {Team-Apps} dataset {Team-Datasets} context {Team-Kontextdateien} mcp_connection {Team-MCP-Server} other {Team-Secrets}} erreicht. Diese Organisation hat keine Teams – wählen Sie eine der beiden Optionen darüber.",
+    "visibilityTeamReaches": "Jeder, dessen Rolle {resource, select, agent {Team-Agents} skill {Team-Skills} collection {Team-Collections} artifact {Team-Apps} dataset {Team-Datasets} context {Team-Kontextdateien} mcp_connection {Team-MCP-Server} project {Projekte} other {Team-Secrets}} erreicht. Diese Organisation hat keine Teams – wählen Sie eine der beiden Optionen darüber.",
     "visibilityUpdated": "Sichtbarkeit aktualisiert",
     "groupsHeading": "Gruppen",
     "membersHeading": "Mitglieder",
@@ -9644,7 +9643,9 @@
       "noneInVault": "Im Vault gibt es noch keine {provider}-Schlüssel. Fügen Sie einen im Vault hinzu und wählen Sie ihn dann hier.",
       "notShared": "{name} ist bereits im Vault, muss aber für die gesamte Organisation freigegeben werden, bevor der Schlüssel hier verwendet werden kann. Ändern Sie den Zugriff im Vault.",
       "chatGPTSignIn": "{name} ist eine ChatGPT-Anmeldung für den Modellzugriff über ein ChatGPT-Abonnement. Sprachfunktionen benötigen einen OpenAI-API-Schlüssel; diese Anmeldung kann hier nicht verwendet werden."
-    }
+    },
+    "notRecorded": "Nicht erfasst",
+    "googleAccount": "Google-Konto"
   },
   "context": {
     "created": "{name} erstellt",

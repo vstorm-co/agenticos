@@ -2,7 +2,7 @@
 
 Static inventory of every JSX skeleton/loading component and inline pulsing placeholder in production TSX. Tests are excluded. Parent structures and shared renderers determine geometry; this inventory is not a claim that every permission/data/browser combination was visually exercised.
 
-1371 source files scanned; 482 loading sites across 244 files.
+1370 source files scanned; 477 loading sites across 242 files.
 
 | Source | Component | Shape | Props |
 | --- | --- | --- | --- |
@@ -91,13 +91,9 @@ Static inventory of every JSX skeleton/loading component and inline pulsing plac
 | [frontend/src/app/[locale]/(dashboard)/runs/page.tsx:194](../../frontend/src/app/[locale]/(dashboard)/runs/page.tsx#L194) | LoadingState | unknown layout, reserved loader | `variant="pending"` |
 | [frontend/src/app/[locale]/(dashboard)/sandboxes/page.tsx:129](../../frontend/src/app/[locale]/(dashboard)/sandboxes/page.tsx#L129) | Skeleton | local placeholder; check parent layout | `key={row} className="h-10 w-full"` |
 | [frontend/src/app/[locale]/(dashboard)/sandboxes/page.tsx:161](../../frontend/src/app/[locale]/(dashboard)/sandboxes/page.tsx#L161) | Skeleton | local placeholder; check parent layout | `key={row} className="h-10 w-full"` |
-| [frontend/src/app/[locale]/(dashboard)/skills/page.tsx:172](../../frontend/src/app/[locale]/(dashboard)/skills/page.tsx#L172) | CatalogLoading | catalog slots and breakpoints | `kind="document"` |
-| [frontend/src/app/[locale]/(dashboard)/skills/page.tsx:365](../../frontend/src/app/[locale]/(dashboard)/skills/page.tsx#L365) | SkillEditorLoadingDialog | editor geometry | `name={skills.find((skill) => skill.id === selectedSkill)?.name} canEdit={skills.find((skill) => skill.id === selectedSkill)?.can_edit} onClose={skillView.close}` |
+| [frontend/src/app/[locale]/(dashboard)/skills/page.tsx:166](../../frontend/src/app/[locale]/(dashboard)/skills/page.tsx#L166) | CatalogLoading | catalog slots and breakpoints | `kind="document"` |
 | [frontend/src/app/[locale]/(dashboard)/tables/[id]/page.tsx:263](../../frontend/src/app/[locale]/(dashboard)/tables/[id]/page.tsx#L263) | LoadingState | unknown layout, reserved loader | `variant="pending"` |
 | [frontend/src/app/[locale]/(dashboard)/tables/page.tsx:155](../../frontend/src/app/[locale]/(dashboard)/tables/page.tsx#L155) | CatalogLoading | catalog slots and breakpoints | `kind="resource"` |
-| [frontend/src/app/[locale]/(dashboard)/vault/page.tsx:73](../../frontend/src/app/[locale]/(dashboard)/vault/page.tsx#L73) | Skeleton | local placeholder; check parent layout | `className="h-8 w-8 shrink-0 rounded-lg"` |
-| [frontend/src/app/[locale]/(dashboard)/vault/page.tsx:75](../../frontend/src/app/[locale]/(dashboard)/vault/page.tsx#L75) | Skeleton | local placeholder; check parent layout | `className="h-4 w-40"` |
-| [frontend/src/app/[locale]/(dashboard)/vault/page.tsx:76](../../frontend/src/app/[locale]/(dashboard)/vault/page.tsx#L76) | Skeleton | local placeholder; check parent layout | `className="h-3 w-72 max-w-full"` |
 | [frontend/src/app/[locale]/(dashboard)/work/page.tsx:77](../../frontend/src/app/[locale]/(dashboard)/work/page.tsx#L77) | LoadingState | collection | `variant="skeleton-list" rows={3}` |
 | [frontend/src/app/[locale]/(dashboard)/workflows/[id]/form-preview/page.tsx:30](../../frontend/src/app/[locale]/(dashboard)/workflows/[id]/form-preview/page.tsx#L30) | LoadingState | unknown layout, reserved loader | `variant="pending" className="mx-auto w-full max-w-xl"` |
 | [frontend/src/app/[locale]/(dashboard)/workflows/[id]/page.tsx:163](../../frontend/src/app/[locale]/(dashboard)/workflows/[id]/page.tsx#L163) | Skeleton | local placeholder; check parent layout | `className="h-8 w-64"` |
@@ -242,24 +238,25 @@ Static inventory of every JSX skeleton/loading component and inline pulsing plac
 | [frontend/src/components/evals/pass-rate-chart.tsx:21](../../frontend/src/components/evals/pass-rate-chart.tsx#L21) | div | local placeholder; check parent layout | `className="bg-muted h-full w-full animate-pulse rounded-md"` |
 | [frontend/src/components/evals/suites/eval-suites-card.tsx:51](../../frontend/src/components/evals/suites/eval-suites-card.tsx#L51) | LoadingState | collection | `variant="skeleton-list" rows={2}` |
 | [frontend/src/components/evals/suites/suite-results-sheet.tsx:73](../../frontend/src/components/evals/suites/suite-results-sheet.tsx#L73) | LoadingState | table | `variant="skeleton-table" columns={1} rows={4} className="m-5"` |
-| [frontend/src/components/files/editor-loading.tsx:36](../../frontend/src/components/files/editor-loading.tsx#L36) | Skeleton | local placeholder; check parent layout | `className="touch:min-h-11 h-8 w-28 rounded-lg"` |
-| [frontend/src/components/files/editor-loading.tsx:37](../../frontend/src/components/files/editor-loading.tsx#L37) | Skeleton | local placeholder; check parent layout | `className="touch:min-h-11 h-8 w-20 rounded-lg"` |
-| [frontend/src/components/files/editor-loading.tsx:49](../../frontend/src/components/files/editor-loading.tsx#L49) | Skeleton | local placeholder; check parent layout | `className="touch:min-h-11 h-10 w-full rounded-md"` |
-| [frontend/src/components/files/editor-loading.tsx:63](../../frontend/src/components/files/editor-loading.tsx#L63) | Skeleton | local placeholder; check parent layout | `className="touch:min-h-11 h-10 w-full rounded-md"` |
-| [frontend/src/components/files/editor-loading.tsx:80](../../frontend/src/components/files/editor-loading.tsx#L80) | Skeleton | local placeholder; check parent layout | `key={key} className="touch:min-h-11 h-8 rounded-md"` |
-| [frontend/src/components/files/editor-loading.tsx:85](../../frontend/src/components/files/editor-loading.tsx#L85) | Skeleton | local placeholder; check parent layout | `className="h-8 w-full rounded-md"` |
-| [frontend/src/components/files/editor-loading.tsx:89](../../frontend/src/components/files/editor-loading.tsx#L89) | FileEditorLoading | editor geometry | `` |
-| [frontend/src/components/files/editor-loading.tsx:93](../../frontend/src/components/files/editor-loading.tsx#L93) | Skeleton | local placeholder; check parent layout | `className="inline-flex rounded-lg"` |
-| [frontend/src/components/files/editor-loading.tsx:100](../../frontend/src/components/files/editor-loading.tsx#L100) | Skeleton | local placeholder; check parent layout | `className="inline-flex rounded-lg"` |
-| [frontend/src/components/files/editor-loading.tsx:108](../../frontend/src/components/files/editor-loading.tsx#L108) | Skeleton | local placeholder; check parent layout | `className="inline-flex rounded-lg"` |
-| [frontend/src/components/files/editor-loading.tsx:115](../../frontend/src/components/files/editor-loading.tsx#L115) | Skeleton | local placeholder; check parent layout | `className="inline-flex rounded-lg"` |
-| [frontend/src/components/files/editor-loading.tsx:123](../../frontend/src/components/files/editor-loading.tsx#L123) | Skeleton | local placeholder; check parent layout | `className="inline-flex rounded-lg"` |
-| [frontend/src/components/files/editor-loading.tsx:143](../../frontend/src/components/files/editor-loading.tsx#L143) | Skeleton | local placeholder; check parent layout | `className="h-4 w-28"` |
-| [frontend/src/components/files/editor-loading.tsx:144](../../frontend/src/components/files/editor-loading.tsx#L144) | Skeleton | local placeholder; check parent layout | `className="touch:min-h-11 ml-auto h-9 w-24 rounded-md"` |
-| [frontend/src/components/files/editor-loading.tsx:145](../../frontend/src/components/files/editor-loading.tsx#L145) | Skeleton | local placeholder; check parent layout | `className="touch:min-h-11 h-9 w-9 rounded-md"` |
-| [frontend/src/components/files/editor-loading.tsx:155](../../frontend/src/components/files/editor-loading.tsx#L155) | Skeleton | local placeholder; check parent layout | `className="h-4 w-3/5"` |
-| [frontend/src/components/files/editor-loading.tsx:156](../../frontend/src/components/files/editor-loading.tsx#L156) | Skeleton | local placeholder; check parent layout | `className="h-4 w-4/5"` |
-| [frontend/src/components/files/editor-loading.tsx:157](../../frontend/src/components/files/editor-loading.tsx#L157) | Skeleton | local placeholder; check parent layout | `className="h-4 w-2/3"` |
+| [frontend/src/components/files/editor-loading.tsx:38](../../frontend/src/components/files/editor-loading.tsx#L38) | Skeleton | local placeholder; check parent layout | `className="touch:min-h-11 h-8 w-28 rounded-lg"` |
+| [frontend/src/components/files/editor-loading.tsx:39](../../frontend/src/components/files/editor-loading.tsx#L39) | Skeleton | local placeholder; check parent layout | `className="touch:min-h-11 h-8 w-20 rounded-lg"` |
+| [frontend/src/components/files/editor-loading.tsx:51](../../frontend/src/components/files/editor-loading.tsx#L51) | Skeleton | local placeholder; check parent layout | `className="touch:min-h-11 h-10 w-full rounded-md"` |
+| [frontend/src/components/files/editor-loading.tsx:65](../../frontend/src/components/files/editor-loading.tsx#L65) | Skeleton | local placeholder; check parent layout | `className="touch:min-h-11 h-10 w-full rounded-md"` |
+| [frontend/src/components/files/editor-loading.tsx:82](../../frontend/src/components/files/editor-loading.tsx#L82) | Skeleton | local placeholder; check parent layout | `key={key} className="touch:min-h-11 h-8 rounded-md"` |
+| [frontend/src/components/files/editor-loading.tsx:87](../../frontend/src/components/files/editor-loading.tsx#L87) | Skeleton | local placeholder; check parent layout | `className="h-8 w-full rounded-md"` |
+| [frontend/src/components/files/editor-loading.tsx:91](../../frontend/src/components/files/editor-loading.tsx#L91) | FileEditorLoading | editor geometry | `` |
+| [frontend/src/components/files/editor-loading.tsx:95](../../frontend/src/components/files/editor-loading.tsx#L95) | Skeleton | local placeholder; check parent layout | `className="inline-flex rounded-lg"` |
+| [frontend/src/components/files/editor-loading.tsx:102](../../frontend/src/components/files/editor-loading.tsx#L102) | Skeleton | local placeholder; check parent layout | `className="inline-flex rounded-lg"` |
+| [frontend/src/components/files/editor-loading.tsx:110](../../frontend/src/components/files/editor-loading.tsx#L110) | Skeleton | local placeholder; check parent layout | `className="inline-flex rounded-lg"` |
+| [frontend/src/components/files/editor-loading.tsx:118](../../frontend/src/components/files/editor-loading.tsx#L118) | Skeleton | local placeholder; check parent layout | `className="inline-flex rounded-lg"` |
+| [frontend/src/components/files/editor-loading.tsx:125](../../frontend/src/components/files/editor-loading.tsx#L125) | Skeleton | local placeholder; check parent layout | `className="inline-flex rounded-lg"` |
+| [frontend/src/components/files/editor-loading.tsx:133](../../frontend/src/components/files/editor-loading.tsx#L133) | Skeleton | local placeholder; check parent layout | `className="inline-flex rounded-lg"` |
+| [frontend/src/components/files/editor-loading.tsx:153](../../frontend/src/components/files/editor-loading.tsx#L153) | Skeleton | local placeholder; check parent layout | `className="h-4 w-28"` |
+| [frontend/src/components/files/editor-loading.tsx:154](../../frontend/src/components/files/editor-loading.tsx#L154) | Skeleton | local placeholder; check parent layout | `className="touch:min-h-11 ml-auto h-9 w-24 rounded-md"` |
+| [frontend/src/components/files/editor-loading.tsx:155](../../frontend/src/components/files/editor-loading.tsx#L155) | Skeleton | local placeholder; check parent layout | `className="touch:min-h-11 h-9 w-9 rounded-md"` |
+| [frontend/src/components/files/editor-loading.tsx:165](../../frontend/src/components/files/editor-loading.tsx#L165) | Skeleton | local placeholder; check parent layout | `className="h-4 w-3/5"` |
+| [frontend/src/components/files/editor-loading.tsx:166](../../frontend/src/components/files/editor-loading.tsx#L166) | Skeleton | local placeholder; check parent layout | `className="h-4 w-4/5"` |
+| [frontend/src/components/files/editor-loading.tsx:167](../../frontend/src/components/files/editor-loading.tsx#L167) | Skeleton | local placeholder; check parent layout | `className="h-4 w-2/3"` |
 | [frontend/src/components/files/file-content.tsx:46](../../frontend/src/components/files/file-content.tsx#L46) | Skeleton | local placeholder; check parent layout | `className="h-24 w-full"` |
 | [frontend/src/components/files/file-content.tsx:69](../../frontend/src/components/files/file-content.tsx#L69) | Skeleton | local placeholder; check parent layout | `className="h-64 w-full"` |
 | [frontend/src/components/groups/add-to-group-dialog.tsx:137](../../frontend/src/components/groups/add-to-group-dialog.tsx#L137) | LoadingState | unknown layout, reserved loader | `variant="pending"` |
@@ -436,15 +433,13 @@ Static inventory of every JSX skeleton/loading component and inline pulsing plac
 | [frontend/src/components/skill-improvement/skill-start.tsx:65](../../frontend/src/components/skill-improvement/skill-start.tsx#L65) | LoadingState | unknown layout, reserved loader | `variant="pending"` |
 | [frontend/src/components/skill-improvement/skill-start.tsx:82](../../frontend/src/components/skill-improvement/skill-start.tsx#L82) | LoadingState | unknown layout, reserved loader | `variant="pending"` |
 | [frontend/src/components/skills/check-plan.tsx:77](../../frontend/src/components/skills/check-plan.tsx#L77) | div | local placeholder; check parent layout | `className="bg-primary h-full animate-pulse transition-[width] duration-500 motion-reduce:animate-none" style={{ width: ${Math.max(4, (done / agents.length) * 100)}% }}` |
-| [frontend/src/components/skills/edit-skill-dialog.tsx:212](../../frontend/src/components/skills/edit-skill-dialog.tsx#L212) | EditorLoading | editor geometry | `kind="skill" canEdit={skill.can_edit === true} files={false}` |
+| [frontend/src/components/skills/edit-skill-dialog.tsx:199](../../frontend/src/components/skills/edit-skill-dialog.tsx#L199) | EditorLoading | editor geometry | `kind="skill" canEdit={skill.can_edit === true} files={false} fullView={onOpenFull !== undefined}` |
 | [frontend/src/components/skills/improve-sessions.tsx:74](../../frontend/src/components/skills/improve-sessions.tsx#L74) | Skeleton | local placeholder; check parent layout | `className="m-4 h-16"` |
 | [frontend/src/components/skills/skill-check-dialog.tsx:178](../../frontend/src/components/skills/skill-check-dialog.tsx#L178) | Skeleton | local placeholder; check parent layout | `className="h-24 w-full"` |
 | [frontend/src/components/skills/skill-checks.tsx:54](../../frontend/src/components/skills/skill-checks.tsx#L54) | Skeleton | local placeholder; check parent layout | `className="m-4 h-16"` |
 | [frontend/src/components/skills/skill-content.tsx:34](../../frontend/src/components/skills/skill-content.tsx#L34) | Skeleton | local placeholder; check parent layout | `className="h-40 w-full"` |
-| [frontend/src/components/skills/skill-detail-dialog.tsx:43](../../frontend/src/components/skills/skill-detail-dialog.tsx#L43) | SkillEditorLoadingDialog | editor geometry | `name={skill?.name ?? name} canEdit={skill?.can_edit ?? canEdit} onClose={onClose}` |
+| [frontend/src/components/skills/skill-detail-dialog.tsx:45](../../frontend/src/components/skills/skill-detail-dialog.tsx#L45) | EditorLoading | editor geometry | `kind="skill" canEdit={skill?.can_edit ?? canEdit} fullView` |
 | [frontend/src/components/skills/skill-details.tsx:86](../../frontend/src/components/skills/skill-details.tsx#L86) | LoadingState | unknown layout, reserved loader | `variant="pending"` |
-| [frontend/src/components/skills/skill-editor-loading-dialog.tsx:40](../../frontend/src/components/skills/skill-editor-loading-dialog.tsx#L40) | Skeleton | local placeholder; check parent layout | `className="touch:min-h-11 h-8 w-8 shrink-0 rounded-md sm:w-32" aria-hidden` |
-| [frontend/src/components/skills/skill-editor-loading-dialog.tsx:44](../../frontend/src/components/skills/skill-editor-loading-dialog.tsx#L44) | EditorLoading | editor geometry | `kind="skill" canEdit={canEdit}` |
 | [frontend/src/components/skills/skill-gallery-dialog.tsx:100](../../frontend/src/components/skills/skill-gallery-dialog.tsx#L100) | LoadingState | collection | `variant="skeleton-tiles"` |
 | [frontend/src/components/skills/skill-gallery-dialog.tsx:250](../../frontend/src/components/skills/skill-gallery-dialog.tsx#L250) | Skeleton | local placeholder; check parent layout | `className="h-24 w-full"` |
 | [frontend/src/components/skills/skill-history.tsx:105](../../frontend/src/components/skills/skill-history.tsx#L105) | Skeleton | local placeholder; check parent layout | `className="m-4 h-32"` |

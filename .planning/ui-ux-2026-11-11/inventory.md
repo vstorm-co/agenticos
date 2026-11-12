@@ -1,6 +1,6 @@
 # Console UI/UX inventory — 2026-11-11
 
-101 page routes; 1252 component modules in 58 families.
+101 page routes; 1251 component modules in 58 families.
 
 Generated from local TypeScript imports and re-exports. Layout dependencies include shared providers and barrel exports, so reachability is deliberately broader than actual rendering. Runtime status belongs in the audit report; source mapping does not mean a screen was tested. Dynamic imports require runtime verification.
 
@@ -95,12 +95,12 @@ Generated from local TypeScript imports and re-exports. Layout dependencies incl
 | `/settings/sign-ins` | 148 | `frontend/src/app/[locale]/(dashboard)/settings/sign-ins/page.tsx` |
 | `/settings/slash-commands` | 147 | `frontend/src/app/[locale]/(dashboard)/settings/slash-commands/page.tsx` |
 | `/shared/[token]` | 161 | `frontend/src/app/[locale]/shared/[token]/page.tsx` |
-| `/skills` | 175 | `frontend/src/app/[locale]/(dashboard)/skills/page.tsx` |
-| `/skills/[id]` | 199 | `frontend/src/app/[locale]/(dashboard)/skills/[id]/page.tsx` |
+| `/skills` | 178 | `frontend/src/app/[locale]/(dashboard)/skills/page.tsx` |
+| `/skills/[id]` | 200 | `frontend/src/app/[locale]/(dashboard)/skills/[id]/page.tsx` |
 | `/skills/[id]/improve/[session]` | 191 | `frontend/src/app/[locale]/(dashboard)/skills/[id]/improve/[session]/page.tsx` |
 | `/tables` | 175 | `frontend/src/app/[locale]/(dashboard)/tables/page.tsx` |
 | `/tables/[id]` | 200 | `frontend/src/app/[locale]/(dashboard)/tables/[id]/page.tsx` |
-| `/vault` | 162 | `frontend/src/app/[locale]/(dashboard)/vault/page.tsx` |
+| `/vault` | 161 | `frontend/src/app/[locale]/(dashboard)/vault/page.tsx` |
 | `/work` | 158 | `frontend/src/app/[locale]/(dashboard)/work/page.tsx` |
 | `/workflows` | 161 | `frontend/src/app/[locale]/(dashboard)/workflows/page.tsx` |
 | `/workflows/[id]` | 278 | `frontend/src/app/[locale]/(dashboard)/workflows/[id]/page.tsx` |
@@ -168,7 +168,7 @@ Generated from local TypeScript imports and re-exports. Layout dependencies incl
 | theme | 5 |
 | triggers | 34 |
 | ui | 62 |
-| vault | 9 |
+| vault | 8 |
 | voice | 12 |
 | watches | 4 |
 | workflows | 98 |

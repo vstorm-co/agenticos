@@ -28,6 +28,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 - **Failed chat turns remain visibly failed.** A safe failure notice stays outside folded work and survives transcript reloads; partial answers remain separate from platform errors. Provider content-filter refusals get an explicit explanation without exposing raw provider payloads or unknown historical errors.
 - **Favicons for ordinary web links.** Unknown HTTP(S) sites use their own favicon even without an MCP connection, with a globe if unavailable. Inert transcript views make no remote icon requests, and a missing icon on one site does not suppress another site's icon.
+- Unify Vault keys and personal/organization connected accounts in one table,
+  preserving per-entry authority and removing separate empty cards/count strips.
+- Restore wheel scrolling in resource-sharing member/group pickers inside modals,
+  bound the list to the available viewport and correct project access descriptions.
+- Keep the Skill editor frame mounted across skeleton, metadata and module loading
+  to avoid a second opening animation; place full view beside Share in its footer.
+
 
 - Match skill/context editor loading to the real dialog and pane geometry on
   desktop and phones. Keep dataset detail chrome and load Cases through its real

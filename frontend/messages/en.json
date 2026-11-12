@@ -5219,7 +5219,7 @@
       },
       "vault-keys": {
         "title": "What's stored",
-        "body": "Every credential in this organization, listed by name and kind. An agent references a key by its name; the value itself is shown to no one once it's saved."
+        "body": "Keys and connected accounts share this table. Check each entry's access and actions; stored key values and OAuth tokens stay hidden. Use Connect account in the header to add your own account or an organization account you may manage."
       },
       "vault-new": {
         "title": "The vault",
@@ -8081,14 +8081,9 @@
     "vault": {
       "accessTo": "Access to {name}",
       "addKey": "Add key",
-      "addKey2": "Add key",
-      "addOneBecomesSelectable": "Add one and it becomes selectable wherever it is needed - a model provider in the Builder, a search service in a capability.",
-      "keys": "Keys",
-      "noKeysYet": "No keys yet",
       "pageDescription": "Every key this organization has stored. Encrypted, bound to this organization, and never readable again - a key can be replaced, not revealed.",
       "storedCount": "{count, plural, =1 {1 key stored} other {# keys stored}}",
       "vault": "Vault",
-      "vault2": "Vault",
       "whoCanBindKey": "Who can bind this key to an agent, and who can rotate or delete it. A key nobody can reach is a capability nobody can configure.",
       "connectedAccounts": {
         "personalTitle": "Your connected accounts",
@@ -8096,16 +8091,20 @@
         "count": "{count, plural, one {# account} other {# accounts}}",
         "connect": "Connect Google account",
         "noneYet": "No accounts connected yet",
-        "personalDetail": "An agent whose virtual terminal reads each person's own accounts mounts these when you talk to it.",
-        "organizationDetail": "An agent's virtual terminal can read one of these for everybody who talks to it.",
         "needsReconnect": "Its sign-in stopped working. Connect it again.",
         "scopes": "{count, plural, one {# permission granted} other {# permissions granted}}",
         "reconnect": "Reconnect",
         "disconnect": "Disconnect {email}",
         "disconnectTitle": "Disconnect {email}?",
         "disconnectDetail": "Agents that read this account lose its folders on their next run. The grant is deleted from the vault.",
-        "disconnectConfirm": "Disconnect"
-      }
+        "disconnectConfirm": "Disconnect",
+        "reconnectNamed": "Reconnect {email}"
+      },
+      "connectAccount": "Connect account",
+      "personalAccount": "Your account",
+      "organizationAccount": "Organization account",
+      "emptyTitle": "No credentials yet",
+      "emptyDetail": "Add a key or connect an account to use it with your agents."
     },
     "workspaces": {
       "failedLoadWorkspaces": "Failed to load workspaces",
@@ -8929,11 +8928,11 @@
     "share": "Share",
     "sharingUpdated": "Sharing updated",
     "visibilityOrg": "Everyone in the organization",
-    "visibilityOrgReaches": "Everyone in the organization who can view {resource, select, agent {agents} skill {skills} collection {collections} artifact {apps} dataset {datasets} context {context files} mcp_connection {MCP servers} other {secrets}} at all.",
+    "visibilityOrgReaches": "Everyone in the organization who can view {resource, select, agent {agents} skill {skills} collection {collections} artifact {apps} dataset {datasets} context {context files} mcp_connection {MCP servers} project {projects} other {secrets}} at all.",
     "visibilityPrivate": "Only people with access",
-    "visibilityPrivateReaches": "Only the people listed above. Nobody else finds this {resource, select, agent {agent} skill {skill} collection {collection} artifact {app} dataset {dataset} context {context file} mcp_connection {MCP server} other {secret}} in their list - and if it has no owner yet, it becomes yours.",
+    "visibilityPrivateReaches": "Only the people listed above. Nobody else finds this {resource, select, agent {agent} skill {skill} collection {collection} artifact {app} dataset {dataset} context {context file} mcp_connection {MCP server} project {project} other {secret}} in their list - and if it has no owner yet, it becomes yours.",
     "visibilityTeam": "Team (no longer offered)",
-    "visibilityTeamReaches": "Anyone whose role reaches team {resource, select, agent {agents} skill {skills} collection {collections} artifact {apps} dataset {datasets} context {context files} mcp_connection {MCP servers} other {secrets}}. This organization has no teams - pick one of the two above.",
+    "visibilityTeamReaches": "Anyone whose role reaches team {resource, select, agent {agents} skill {skills} collection {collections} artifact {apps} dataset {datasets} context {context files} mcp_connection {MCP servers} project {projects} other {secrets}}. This organization has no teams - pick one of the two above.",
     "visibilityUpdated": "Visibility updated",
     "groupsHeading": "Groups",
     "membersHeading": "Members",
@@ -9764,7 +9763,9 @@
       "noneInVault": "No {provider} keys in the vault yet. Add one in the vault, then choose it here.",
       "notShared": "{name} is already in the vault, but must be shared with the whole organization before it can be used here. Change its access in the Vault.",
       "chatGPTSignIn": "{name} is a ChatGPT sign-in for model access through a ChatGPT subscription. Voice features require an OpenAI API key; this sign-in cannot be used here."
-    }
+    },
+    "notRecorded": "Not recorded",
+    "googleAccount": "Google account"
   },
   "context": {
     "created": "Created {name}",
