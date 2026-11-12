@@ -221,6 +221,7 @@ export async function signInAs(
   browser: Browser,
   email: string,
   password: string,
+  organizationId?: string,
 ): Promise<BrowserContext> {
   const context = await browser.newContext();
   try {
@@ -230,6 +231,22 @@ export async function signInAs(
     await page.getByLabel("Password").fill(password);
     await page.getByRole("button", { name: "Login" }).click();
     await expect(page).toHaveURL(/\/chat(\?.*)?$/);
+    if (organizationId) {
+      const organizations = await rowsAt(context.request, "/api/orgs");
+      expect(
+        organizations.some((organization) => organization.id === organizationId),
+        "the signed-in account does not belong to the fixture's organization",
+      ).toBe(true);
+      // Select a UI preference, not authority: membership comes from the API.
+      await page.evaluate((id) => {
+        localStorage.setItem(
+          "org-storage",
+          JSON.stringify({ state: { activeOrgId: id }, version: 0 }),
+        );
+      }, organizationId);
+      await page.reload();
+      await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
+    }
     await page.close();
     return context;
   } catch (error) {
