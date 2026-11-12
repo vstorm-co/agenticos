@@ -1045,7 +1045,7 @@ is written out in full - and is cut at about 1,500 characters with a note that t
 in AgenticOS, so one question costs a few segments, not a dozen. SMS cannot stream, edit a
 message or press a button, so an approval or a question arrives as numbered lines and is
 answered by texting the number. A lone number that names a choice
-of a prompt sent to that number is the answer. Prompts waiting at once never share numbers - the second carries on where the first stopped, so 3 and 4 follow 1 and 2 - and deciding one leaves the other open. A prompt stays open for a day, so a multi-select takes several numbers; any other text is an ordinary message.
+of a prompt sent to that number is the answer. Prompts waiting at once never share numbers - the second carries on where the first stopped, so 3 and 4 follow 1 and 2 - and deciding one leaves the other open. A prompt stays open for a day, so a multi-select takes several numbers; any other text is an ordinary message. Numbers run to 999 and then start again at 1, skipping any still open and any handed out in the last week, so a reply to an old text cannot decide a newer request unless it is more than a week late.
 
 Incoming MMS files, including messages with no text, use the ordinary channel
 attachment pipeline after identity and access checks. Up to ten files are read;
