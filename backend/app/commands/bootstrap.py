@@ -18,7 +18,6 @@ import click
 
 from app.agents.spec import AgentSpec
 from app.commands import command, info, success, warning
-from app.core.config import settings
 from app.core.exceptions import AppException
 from app.core.permissions import AuthContext, OrgRoleName
 from app.core.secret_kinds import ApiKeySecret
@@ -31,6 +30,7 @@ from app.repositories import (
     member_repo,
     organization_repo,
 )
+from app.schemas.organization import OrganizationCreate
 from app.schemas.user import UserCreate
 from app.services import agent_templates, mcp_audit
 from app.services.agent_registry import AgentRegistryService, slugify
@@ -171,7 +171,8 @@ async def _resolve_organization(db, owner_id: uuid.UUID, name: str, *, new_owner
     Otherwise it is an organization the owner already owns under that name, or
     the one a session without an organization named lands in - the deployment's
     default - provided the account owns it and it is not personal. Failing
-    both, it gets a new one.
+    both, it gets a new one, made the way the console makes one: a unique
+    slug, the default budget, and the bundled skills and system agents.
     """
     if new_owner:
         personal = await organization_repo.get_personal_for_user(db, owner_id)
@@ -193,16 +194,7 @@ async def _resolve_organization(db, owner_id: uuid.UUID, name: str, *, new_owner
             info(f"Using organization {landing.name}")
             return landing
 
-    org = await organization_repo.create(
-        db,
-        name=name,
-        slug=slugify(name),
-        created_by_user_id=owner_id,
-        monthly_budget_usd=settings.DEFAULT_ORG_MONTHLY_BUDGET_USD,
-    )
-    await member_repo.create(
-        db, organization_id=org.id, user_id=owner_id, role=OrgRoleName.OWNER.value
-    )
+    org = await OrganizationService(db).create(OrganizationCreate(name=name), owner_id)
     success(f"Created organization {name}")
     return org
 
