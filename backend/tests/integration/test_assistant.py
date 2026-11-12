@@ -789,6 +789,7 @@ async def test_a_publish_refusal_leaves_it_waiting_rather_than_failing_the_look(
     assert agent.current_version_id is None
 
 
+@pytest.mark.security
 async def test_a_publish_refusal_is_one_line_naming_what_it_waits_for(
     db: AsyncSession, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
