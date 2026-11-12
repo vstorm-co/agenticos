@@ -2,9 +2,10 @@
 
 import { useTranslations } from "next-intl";
 import { AppWindow } from "lucide-react";
-import { useSyncExternalStore, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
 import { useDesktopState } from "@/hooks/use-desktop";
+import { useHydrated } from "@/hooks/use-hydrated";
 import { useShell } from "@/hooks/use-shell";
 import type { DesktopState } from "@/lib/desktop/commands";
 import { isDesktopShell } from "@/lib/desktop/shell";
@@ -36,23 +37,44 @@ export function DesktopOnly({ children }: { children: (state: DesktopState) => R
   return data ? <>{children(data)}</> : null;
 }
 
-const subscribeHydration = () => () => {};
-const clientReady = () => true;
-const serverReady = () => false;
+/**
+ * Where this page is: not known before hydration, then the app or a browser.
+ *
+ * The shell announces itself only to the client, so deciding on the server's
+ * answer would flash the browser screen inside the app.
+ */
+function useWhere(): "unknown" | "app" | "browser" {
+  const shell = useShell();
+  const hydrated = useHydrated();
+  if (!hydrated) return "unknown";
+  return isDesktopShell(shell) ? "app" : "browser";
+}
 
 /**
  * A window of the desktop app's own - blobby, quick ask - as a page.
  *
  * In a browser it is one screen saying where it opens, rather than an empty
- * page or controls that cannot reach the app. Nothing is drawn before
- * hydration: the shell announces itself only to the client, so deciding on the
- * server's answer would flash the browser screen inside the app.
+ * page or controls that cannot reach the app.
  */
 export function DesktopPage({ children }: { children: ReactNode }) {
-  const shell = useShell();
-  const hydrated = useSyncExternalStore(subscribeHydration, clientReady, serverReady);
-  if (!hydrated) return null;
-  return isDesktopShell(shell) ? <>{children}</> : <OnlyInTheAppScreen />;
+  const where = useWhere();
+  if (where === "unknown") return null;
+  return where === "app" ? <>{children}</> : <OnlyInTheAppScreen />;
+}
+
+/**
+ * A settings tab whose every section belongs to the desktop app.
+ *
+ * In a browser it is one card rather than one per section. Inside the app it
+ * gates nothing else: each section reads the app's state, or reports it could
+ * not, on its own - so a readiness panel still shows when the state is unreadable.
+ */
+export function DesktopTab({ children }: { children: ReactNode }) {
+  const t = useTranslations("desktop.settings");
+  const where = useWhere();
+  if (where === "unknown") return null;
+  if (where === "app") return <>{children}</>;
+  return <OnlyInTheApp title={t("onlyInApp")} hint={t("onlyInAppHint")} />;
 }
 
 /** The whole-page form of the browser screen, for a page that is all the app's. */

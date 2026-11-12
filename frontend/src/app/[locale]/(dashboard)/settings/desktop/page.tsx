@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 
-import { DesktopOnly } from "@/components/desktop/desktop-only";
+import { DesktopTab } from "@/components/desktop/desktop-only";
 import { ReadinessPanel } from "@/components/desktop/readiness-panel";
 import { DesktopNotificationSettings } from "@/components/desktop/notification-settings";
 import { DeviceSettings } from "@/components/desktop/device-settings";
@@ -12,8 +12,8 @@ import { SectionHeading } from "@/components/ui";
 
 /**
  * A desktop app tab: shown in the tab row only inside the app (`settings-tabs.ts`).
- * One `DesktopOnly` for the page, so a browser that followed a link here reads
- * one card saying where these settings live rather than one per section.
+ * A browser that followed a link here reads one card saying where these
+ * settings live rather than one per section.
  */
 export default function DesktopAppPage() {
   const t = useTranslations("desktop.settings.window");
@@ -21,17 +21,13 @@ export default function DesktopAppPage() {
   return (
     <div className="space-y-6">
       <SectionHeading title={t("heading")} description={t("headingHint")} />
-      <DesktopOnly>
-        {() => (
-          <>
-            <ReadinessPanel />
-            <DesktopNotificationSettings />
-            <DeviceSettings />
-            <WindowSettings />
-            <PinnedSettings />
-          </>
-        )}
-      </DesktopOnly>
+      <DesktopTab>
+        <ReadinessPanel />
+        <DesktopNotificationSettings />
+        <DeviceSettings />
+        <WindowSettings />
+        <PinnedSettings />
+      </DesktopTab>
     </div>
   );
 }

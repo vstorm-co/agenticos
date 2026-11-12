@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DesktopOnly, DesktopPage, DesktopSetting } from "./desktop-only";
+import { DesktopOnly, DesktopPage, DesktopSetting, DesktopTab } from "./desktop-only";
 import { DESKTOP_STATE, MAC_MAIN } from "./fixtures";
 
 const env = vi.hoisted(() => ({
@@ -66,6 +66,27 @@ describe("DesktopPage", () => {
 
   it("draws nothing before hydration, so the app never flashes the browser screen", () => {
     expect(renderToString(<DesktopPage>{<p>quick ask</p>}</DesktopPage>)).toBe("");
+  });
+});
+
+describe("DesktopTab", () => {
+  it("is its sections inside the app, whatever the app's state", () => {
+    env.query = { data: undefined, error: new Error("malformed") };
+    render(<DesktopTab>{<p>sections</p>}</DesktopTab>);
+    expect(screen.getByText("sections")).toBeInTheDocument();
+  });
+
+  it("is one card in a browser", () => {
+    env.shell = null;
+    render(<DesktopTab>{<p>sections</p>}</DesktopTab>);
+    expect(screen.getAllByText("These settings belong to the AgenticOS desktop app.")).toHaveLength(
+      1,
+    );
+    expect(screen.queryByText("sections")).toBeNull();
+  });
+
+  it("draws nothing before hydration", () => {
+    expect(renderToString(<DesktopTab>{<p>sections</p>}</DesktopTab>)).toBe("");
   });
 });
 

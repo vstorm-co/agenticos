@@ -5,10 +5,13 @@ import { DESKTOP_STATE, MAC_MAIN } from "@/components/desktop/fixtures";
 
 import DesktopAppPage from "./page";
 
-const env = vi.hoisted(() => ({ shell: null as unknown }));
+const env = vi.hoisted(() => ({ shell: null as unknown, stateError: null as Error | null }));
 vi.mock("@/hooks/use-shell", () => ({ useShell: () => env.shell }));
 vi.mock("@/hooks/use-desktop", () => ({
-  useDesktopState: () => ({ data: DESKTOP_STATE, error: null }),
+  useDesktopState: () =>
+    env.stateError
+      ? { data: undefined, error: env.stateError }
+      : { data: DESKTOP_STATE, error: null },
 }));
 vi.mock("@/components/desktop/readiness-panel", () => ({
   ReadinessPanel: () => <p>readiness</p>,
@@ -24,6 +27,7 @@ const SECTIONS = ["readiness", "notifications", "device", "window", "pinned"];
 
 beforeEach(() => {
   env.shell = null;
+  env.stateError = null;
 });
 
 it("says once, in a browser, that these settings belong to the desktop app", () => {
@@ -38,4 +42,12 @@ it("shows every section inside the app", () => {
   env.shell = MAC_MAIN;
   render(<DesktopAppPage />);
   for (const section of SECTIONS) expect(screen.getByText(section)).toBeInTheDocument();
+});
+
+it("still shows readiness and notifications inside the app when its state cannot be read", () => {
+  env.shell = MAC_MAIN;
+  env.stateError = new Error("malformed");
+  render(<DesktopAppPage />);
+  expect(screen.getByText("readiness")).toBeInTheDocument();
+  expect(screen.getByText("notifications")).toBeInTheDocument();
 });

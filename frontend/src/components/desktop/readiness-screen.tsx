@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useSyncExternalStore, useTransition } from "react";
+import { useEffect, useTransition } from "react";
 import { ArrowRight, LoaderCircle } from "lucide-react";
 import { BrandMark } from "@/components/branding/brand-mark";
 import { useMutation } from "@tanstack/react-query";
@@ -10,14 +10,11 @@ import { useDesktopPreferencesStore } from "@/stores/desktop-preferences-store";
 import { finishOnboarding } from "@/lib/desktop/commands";
 import { reportShellFailure } from "@/lib/desktop/shell";
 import { useRouter } from "@/lib/locale-navigation";
+import { useHydrated } from "@/hooks/use-hydrated";
 import { useShell } from "@/hooks/use-shell";
 import { isDesktopShell } from "@/lib/desktop/shell";
 import { OnlyInTheAppScreen } from "./desktop-only";
 import { ReadinessPanel } from "./readiness-panel";
-
-const subscribeHydration = () => () => {};
-const clientReady = () => true;
-const serverReady = () => false;
 
 /** The connection wizard's destination, also available later from the native menu. */
 export function ReadinessScreen({
@@ -28,7 +25,7 @@ export function ReadinessScreen({
   connection: boolean;
 }) {
   const shell = useShell();
-  const hydrated = useSyncExternalStore(subscribeHydration, clientReady, serverReady);
+  const hydrated = useHydrated();
   if (!hydrated)
     return (
       <main className="desktop-setup-screen">
