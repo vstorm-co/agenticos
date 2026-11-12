@@ -12039,7 +12039,13 @@
       "nothingSharedHint": "Share something with the group from its Sharing panel, or add several at once from the group's page."
     },
     "addToGroupAll": "Select all",
-    "addToGroupNone": "Clear"
+    "addToGroupNone": "Clear",
+    "searchGroups": "Search departments…",
+    "noMatches": "No departments match",
+    "searchHint": "Try a department name or a word from its description.",
+    "clearSearch": "Clear search",
+    "formDescription": "Choose a name and icon. Add a short description so people know what belongs here.",
+    "budgetOptions": "Budget limit"
   },
   "directory": {
     "navLabel": "Directory",

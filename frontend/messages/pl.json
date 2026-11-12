@@ -12244,7 +12244,13 @@
       "nothingSharedHint": "Udostępnij coś grupie z panelu Udostępnianie albo dodaj kilka rzeczy naraz ze strony grupy."
     },
     "addToGroupAll": "Zaznacz wszystkie",
-    "addToGroupNone": "Wyczyść"
+    "addToGroupNone": "Wyczyść",
+    "searchGroups": "Szukaj działów…",
+    "noMatches": "Brak pasujących działów",
+    "searchHint": "Spróbuj nazwy działu lub słowa z jego opisu.",
+    "clearSearch": "Wyczyść wyszukiwanie",
+    "formDescription": "Wybierz nazwę i ikonę. Dodaj krótki opis, aby było jasne, czym zajmuje się dział.",
+    "budgetOptions": "Limit budżetu"
   },
   "directory": {
     "navLabel": "Katalog",

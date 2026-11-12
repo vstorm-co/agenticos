@@ -33,6 +33,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Department cards keep descriptions and member counts visible on phones. Shared
+  resources lead the detail page; compact setup, membership and sharing forms
+  keep actions reachable, block conflicting writes and retain refused drafts.
+  Failed group reads and deletions offer retry without losing the current view.
+
 - Routine names wrap on phones, unmatched searches offer a reset action and
   list failures can retry both data sources. Schedule and event editing keep
   action footers visible in short windows. Routine and watch forms freeze

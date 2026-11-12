@@ -10969,7 +10969,13 @@
       "nothingSharedHint": "Grubun Paylaşım panelinden bir öğe paylaşın veya grup sayfasından aynı anda birkaç öğe ekleyin."
     },
     "addToGroupAll": "Tümünü seç",
-    "addToGroupNone": "Seçimi temizle"
+    "addToGroupNone": "Seçimi temizle",
+    "searchGroups": "Bölüm ara…",
+    "noMatches": "Eşleşen bölüm yok",
+    "searchHint": "Bölüm adı veya açıklamasındaki bir sözcükle arayın.",
+    "clearSearch": "Aramayı temizle",
+    "formDescription": "Bir ad ve simge seçin. Bölümün amacını anlatan kısa bir açıklama ekleyin.",
+    "budgetOptions": "Bütçe sınırı"
   },
   "legal": {
     "acceptAll": "Tümünü kabul et",

@@ -11711,7 +11711,13 @@
       "nothingSharedHint": "Teilen Sie etwas über das Freigabe-Panel mit der Gruppe oder fügen Sie auf der Seite der Gruppe mehreres auf einmal hinzu."
     },
     "addToGroupAll": "Alle auswählen",
-    "addToGroupNone": "Leeren"
+    "addToGroupNone": "Leeren",
+    "searchGroups": "Abteilungen suchen…",
+    "noMatches": "Keine passenden Abteilungen",
+    "searchHint": "Suchen Sie nach einem Abteilungsnamen oder einem Wort aus der Beschreibung.",
+    "clearSearch": "Suche löschen",
+    "formDescription": "Wählen Sie einen Namen und ein Symbol. Eine kurze Beschreibung erklärt, was zu dieser Abteilung gehört.",
+    "budgetOptions": "Budgetgrenze"
   },
   "directory": {
     "navLabel": "Verzeichnis",

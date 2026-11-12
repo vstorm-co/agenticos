@@ -594,3 +594,51 @@ separate evidence.
 | Editing during save, 320×568 | [PNG](comparisons/routine-edit-phone-before.png) | [PNG](comparisons/routine-edit-phone-after.png) |
 | Editing during save, 1440×1000 | [PNG](comparisons/routine-edit-desktop-before.png) | [PNG](comparisons/routine-edit-desktop-after.png) |
 | Creating during save, 320×568 | [PNG](comparisons/routine-create-phone-before.png) | [PNG](comparisons/routine-create-phone-after.png) |
+
+
+## Department browsing and setup — 2026-11-12
+
+The department catalog uses responsive cards with full names, descriptions and
+member counts that remain visible on phones. Search matches names and descriptions,
+with a clear/reset empty state. Both group catalogs offer retry on read failures.
+The detail page distinguishes a failed read from a missing group, places shared
+resources before usage panels and gives resource categories readable headings,
+counts and wrapping names. Secondary actions fold on phones.
+
+Setup combines a live icon preview with a 44px icon grid and a collapsed optional
+budget. A scrolling body keeps the action footer visible even at 320×568. Named
+fieldsets lock fields during writes. Membership rows wrap identity separately from
+actions; a complete membership shows a short notice. Failed adds retain the chosen
+person until success. Sharing keeps names readable and stacks the grant selector
+and submit action at full width on phones; all read/use/edit levels remain available. Pending
+member and share changes block dismissal and competing controls. Failed group
+deletion retains the confirmation for retry instead of closing it.
+
+43 targeted tests across four files pass. Two Chromium journeys pass at desktop
+1440×1000 and touch phone 320×740 (editing also at 320×568). Each creates a group,
+sets identity and budget, searches it, adds a member and lead, shares a private
+context file at read level, edits metadata, reloads persisted data and deletes
+the group. Held 403 responses verify locked fields/dismissal and retained choices
+through retries for creation, membership, sharing and deletion. The phone journey
+measures grant-selector and submit-button widths to catch a narrow, right-aligned
+footer. Fixtures are
+removed in each journey. TypeScript and focused ESLint pass. Strict MkDocs builds
+all four locales; translation, paragraph and generated-guide checks pass. Full
+CI and the complete cross-browser suite remain separate evidence.
+
+Seven before/after pairs are actual browser captures at equal viewport sizes.
+The baseline temporarily uses the previous committed UI, then restores the exact
+working source. Four demo groups, two context files and one published demo agent
+are removed after capture. No new model run or external integration is triggered;
+the usage panels include the seeded members' historical runs. Existing users,
+profiles and unrelated resources are retained.
+
+| Evidence | Before | After |
+| --- | --- | --- |
+| Department catalog, desktop 1440×1000 | [PNG](comparisons/departments-list-desktop-before.png) | [PNG](comparisons/departments-list-desktop-after.png) |
+| Department catalog, phone 390×844 | [PNG](comparisons/departments-list-phone-before.png) | [PNG](comparisons/departments-list-phone-after.png) |
+| Department resources, desktop 1440×1000 | [PNG](comparisons/department-detail-desktop-before.png) | [PNG](comparisons/department-detail-desktop-after.png) |
+| Department resources, phone 390×844 | [PNG](comparisons/department-detail-phone-before.png) | [PNG](comparisons/department-detail-phone-after.png) |
+| Department setup, touch phone 320×740 | [PNG](comparisons/department-create-phone-before.png) | [PNG](comparisons/department-create-phone-after.png) |
+| Group members, touch phone 320×740 | [PNG](comparisons/department-members-phone-before.png) | [PNG](comparisons/department-members-phone-after.png) |
+| Sharing resources, touch phone 320×740 | [PNG](comparisons/department-resources-phone-before.png) | [PNG](comparisons/department-resources-phone-after.png) |
