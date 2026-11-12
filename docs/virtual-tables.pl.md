@@ -1,5 +1,5 @@
 ---
-source_sha: "539603f9eb62"
+source_sha: "4711c09b41db"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -832,4 +832,4 @@ Notatki zadania są dokumentami rich text w Markdown, z edytorem i podglądem ja
 
 Nie można usunąć agenta, dopóki zarządzane zadanie zależy od jego zaplanowanego wykonania. Najpierw przepisz, ukończ lub anuluj te zadania; usunięcie agenta nie może po cichu porzucać ich wykonania.
 
-Przywrócenie zarchiwizowanej zarządzanej tablicy zadań ponownie kolejkuje zaplanowane przypomnienia dla osób, także te, których termin minął podczas archiwizacji. Dostarczenie nadal sprawdza aktualny dostęp pierwotnego autora i odbiorcy; przywrócenie tablicy nie upoważnia do nowej pracy agenta.
+Przywrócenie zarchiwizowanej zarządzanej tablicy zadań ponownie kolejkuje zaplanowane przypomnienia dla osób, także te, których termin minął podczas archiwizacji. Dostarczenie nadal sprawdza aktualny dostęp pierwotnego autora i odbiorcy; przywrócenie tablicy nie upoważnia do nowej pracy agenta. Zarchiwizowana tablica nie przyjmuje też zapisów od swoich zadań: sprawa rozstrzygnięta w tym czasie w Inbox zostawia zadanie bez zmian, a przywrócenie tablicy przenosi je wtedy do stanu zrobione lub anulowane. Ponowne otwarcie sprawy, której zadanie leży na zarchiwizowanej tablicy, jest odrzucane kodem `TABLE_ARCHIVED`.

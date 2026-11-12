@@ -1,5 +1,5 @@
 ---
-source_sha: "539603f9eb62"
+source_sha: "4711c09b41db"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -840,4 +840,4 @@ Las notas de tareas son documentos Markdown con el mismo editor rich text y vist
 
 No se puede eliminar un agent mientras una tarea gestionada dependa de su ejecución programada. Reasigna, completa o cancela primero esas tareas; eliminar el agent no debe descartar su trabajo silenciosamente.
 
-Restaurar un tablero administrado archivado vuelve a poner en cola sus recordatorios planificados para personas, incluidos los que vencieron durante el archivo. La entrega sigue comprobando el acceso actual del creador original y del destinatario; restaurar el tablero no autoriza nuevo trabajo del agente.
+Restaurar un tablero administrado archivado vuelve a poner en cola sus recordatorios planificados para personas, incluidos los que vencieron durante el archivo. La entrega sigue comprobando el acceso actual del creador original y del destinatario; restaurar el tablero no autoriza nuevo trabajo del agente. Un tablero archivado tampoco acepta escrituras de sus tareas: un caso resuelto en Inbox mientras tanto deja su tarea como estaba, y al restaurar el tablero la tarea pasa entonces a hecha o cancelada. Reabrir un caso cuya tarea está en un tablero archivado se rechaza con `TABLE_ARCHIVED`.

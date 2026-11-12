@@ -1,5 +1,5 @@
 ---
-source_sha: "539603f9eb62"
+source_sha: "4711c09b41db"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -887,4 +887,4 @@ Aufgabennotizen sind Markdown-Dokumente mit demselben Rich-Text-Editor und derse
 
 Ein Agent kann nicht gelöscht werden, solange eine verwaltete Aufgabe von seiner geplanten Ausführung abhängt. Weise diese Aufgaben zuerst neu zu, schließe sie ab oder brich sie ab; das Löschen darf ihre Ausführung nicht stillschweigend verwerfen.
 
-Beim Wiederherstellen einer archivierten verwalteten Aufgabentafel werden geplante Erinnerungen für Personen erneut eingereiht, auch wenn ihr Termin während der Archivierung verstrichen ist. Die Zustellung prüft weiterhin den aktuellen Zugriff des ursprünglichen Erstellers und Empfängers; die Wiederherstellung autorisiert keine neue Agentenarbeit.
+Beim Wiederherstellen einer archivierten verwalteten Aufgabentafel werden geplante Erinnerungen für Personen erneut eingereiht, auch wenn ihr Termin während der Archivierung verstrichen ist. Die Zustellung prüft weiterhin den aktuellen Zugriff des ursprünglichen Erstellers und Empfängers; die Wiederherstellung autorisiert keine neue Agentenarbeit. Auch die eigenen Aufgaben schreiben nicht in eine archivierte Tafel: Ein Fall, der in der Zwischenzeit in der Inbox erledigt wird, lässt seine Aufgabe unverändert, und erst die Wiederherstellung der Tafel setzt sie auf erledigt oder abgebrochen. Einen Fall wieder zu öffnen, dessen Aufgabe auf einer archivierten Tafel liegt, wird mit `TABLE_ARCHIVED` abgelehnt.

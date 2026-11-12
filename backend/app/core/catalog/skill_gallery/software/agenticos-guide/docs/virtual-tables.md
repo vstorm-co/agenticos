@@ -835,4 +835,4 @@ same rich-text editor and preview as other document cells.
 
 An agent cannot be deleted while a managed task still depends on its scheduled execution. Reassign, complete or cancel those tasks first; deleting an agent must not silently discard its task work.
 
-Restoring an archived managed task board requeues its planned human reminders, including reminders whose time passed while the board was archived. Delivery still rechecks the original creator and recipient’s current access; restoring a board does not authorize new agent work.
+Restoring an archived managed task board requeues its planned human reminders, including reminders whose time passed while the board was archived. Delivery still rechecks the original creator and recipient’s current access; restoring a board does not authorize new agent work. An archived board takes no writes from its tasks either: a case settled in the Inbox meanwhile leaves its task as it was, and restoring the board moves the task to done or cancelled then. Reopening a case whose task's board is archived is refused with `TABLE_ARCHIVED`.

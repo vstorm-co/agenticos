@@ -1695,3 +1695,66 @@ async def test_a_member_who_sees_a_board_default_view_is_refused_it_not_told_it_
         )
     with pytest.raises(AuthorizationError):
         await views.delete_view(other_ctx, board.table_id, table.default_view_id)
+
+
+async def test_a_case_settled_while_its_board_is_archived_moves_the_task_once_it_returns(
+    db: AsyncSession,
+) -> None:
+    from app.db.models.virtual_table import VirtualTableRecord
+    from app.services.outcome import OutcomeService
+
+    data = await world(db)
+    service = TaskService(db)
+    owner = data.contexts[0]
+    settled, still_open = [
+        await service.create(
+            owner, TaskCreate(title=title, start_at=datetime.now(UTC) - timedelta(minutes=1))
+        )
+        for title in ("Send the approved draft", "Call the supplier")
+    ]
+    for task in (settled, still_open):
+        await TaskExecution(db).wake(
+            WakeTask(organization_id=data.org.id, task_id=task.id, revision=task.revision)
+        )
+    case = (await service.get(owner, settled.id)).outcome_id
+    tables = VirtualTableService(db)
+    await tables.archive_table(owner, settled.table_id)
+    record = await db.get(VirtualTableRecord, settled.id)
+    assert record is not None
+    revision = record.revision
+
+    await OutcomeService(db).settle(owner, case, "resolve", via="inbox")
+
+    await db.refresh(record)
+    assert record.revision == revision
+
+    await tables.unarchive_table(owner, settled.table_id)
+
+    assert (await service.get(owner, settled.id)).status == "done"
+    assert (await service.get(owner, still_open.id)).status == "waiting_for_user"
+
+
+async def test_reopening_a_case_whose_task_board_is_archived_is_refused(db: AsyncSession) -> None:
+    from app.db.models.suggestion import Suggestion
+    from app.services.outcome import OutcomeService
+    from app.services.suggestions import SuggestionService
+    from app.services.virtual_tables.exceptions import TableArchivedError
+
+    data = await world(db)
+    service = TaskService(db)
+    owner = data.contexts[0]
+    task = await service.create(
+        owner,
+        TaskCreate(title="Check the draft", start_at=datetime.now(UTC) - timedelta(minutes=1)),
+    )
+    await TaskExecution(db).wake(
+        WakeTask(organization_id=data.org.id, task_id=task.id, revision=task.revision)
+    )
+    task = await service.get(owner, task.id)
+    await OutcomeService(db).settle(owner, task.outcome_id, "mute", via="inbox")
+    finding = await db.scalar(select(Suggestion).where(Suggestion.outcome_id == task.outcome_id))
+    assert finding is not None
+    await VirtualTableService(db).archive_table(owner, task.table_id)
+
+    with pytest.raises(TableArchivedError):
+        await SuggestionService(db).restore(owner, finding.id)
