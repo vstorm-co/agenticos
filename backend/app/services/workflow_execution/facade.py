@@ -722,7 +722,9 @@ class WorkflowExecutionService:
         dispatch row and queued job, every pending approval request, the agent
         run each parked step waits on, and every live step, which becomes
         `cancelled`. A step whose attempt is executing at that moment finishes
-        on its own; its result is recorded and nothing follows from it.
+        on its own; its result is recorded and nothing follows from it. Every
+        unfinished run it called, and every run those called, is cancelled the
+        same way (`cleanup.stop_called_runs`).
 
         Raises:
             WorkflowRunNotFoundError: No such run, or this caller may not see
@@ -774,6 +776,7 @@ class WorkflowExecutionService:
         )
         await events.append(self.db, run=run, kind=events.EventKind.RUN_CANCELLED)
         await delivery.deliver_result(self.db, run=run)
+        await cleanup.stop_called_runs(self.db, run=run, now=ended_at)
         return _read(run, can_cancel=True)
 
     async def edit_reply_expectation(

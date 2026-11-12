@@ -1,5 +1,5 @@
 ---
-source_sha: "a586ae2275e1"
+source_sha: "4d205a52251b"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -1013,7 +1013,7 @@ Zatwierdzający czyta `title` kroku i powiązane z nim `details` w zakładce
 `approvers` wskazuje, kto może zdecydować, i ci ludzie dostają powiadomienie w
 aplikacji; gdy lista jest pusta, może każdy z `approvals:decide`. Po
 `timeout_hours` prośba wygasa, a krok wychodzi przez `rejected` z
-`decision: "expired"`. Anulowanie runa anuluje jego prośby. Każdy przebieg kroku
+`decision: "expired"`. Anulowanie runa anuluje jego prośby, tak samo jak anulowanie workflowu, który ten run wywołał. Każdy przebieg kroku
 pyta raz, więc ponowienie ani iteracja pętli nigdy nie pytają dwa razy o to samo.
 
 Wskazani zatwierdzający muszą być aktywnymi członkami z `approvals:decide`. Publikacja to sprawdza, a krok sprawdza ponownie przed wysłaniem prośby; utrata tego uprawnienia kończy krok kodem `APPROVER_UNAVAILABLE` zamiast zostawiać prośbę, której nikt nie może rozstrzygnąć.

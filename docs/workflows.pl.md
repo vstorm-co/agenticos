@@ -1,5 +1,5 @@
 ---
-source_sha: "aa54fb9dafe5"
+source_sha: "b7366acd6c90"
 ---
 
 # Workflows { #workflows }
@@ -1243,11 +1243,17 @@ Wywołany workflow dziedziczy pozostały budżet przebiegu nadrzędnego i wcześ
 termin zakończenia. Jego koszt powiększa koszt nadrzędny; `own_cost` podaje wyłącznie
 bezpośrednie opłaty danego przebiegu, aby sumowanie rekordów nie liczyło ich podwójnie.
 Przy skończonym budżecie opcja oczekiwania na zakończenie musi pozostać włączona.
-Anulowanie przebiegu nadrzędnego lub odebranie mu dostępu zatrzymuje podproces przed
-kolejnym krokiem; rozpoczęte żądanie zewnętrzne może się zakończyć. Ponowienie wywołania
-korzysta z udanych kroków pierwotnej, zamrożonej wersji podprocesu. Jeśli podproces
-nadal działa, trzeba go najpierw zakończyć lub zatrzymać. Pliki wynikowe są jawnie
-importowane do przebiegu nadrzędnego, a wznowienie oczekiwania ponownie sprawdza dostęp.
+
+Anulowanie przebiegu nadrzędnego albo wyczerpanie jego budżetu anuluje każdy
+niezakończony podproces, który wywołał, i każdy wywołany przez nie, razem z ich prośbami
+o zatwierdzenie i pytaniami. Podproces, którego krok właśnie się wykonuje, zatrzymuje
+się przed kolejnym krokiem, tak samo jak podproces, którego przebieg nadrzędny stracił
+dostęp; rozpoczęte żądanie zewnętrzne może się zakończyć.
+
+Ponowienie wywołania korzysta z udanych kroków pierwotnej, zamrożonej wersji podprocesu.
+Jeśli podproces nadal działa, trzeba go najpierw zakończyć lub zatrzymać. Pliki wynikowe
+są jawnie importowane do przebiegu nadrzędnego, a wznowienie oczekiwania ponownie
+sprawdza dostęp.
 
 Wykres dzienny i statystyki kroków przebiegu nadrzędnego także obejmują opłaty podprocesu.
 

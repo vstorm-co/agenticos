@@ -615,6 +615,7 @@ def repo():
     mocked.list_live_node_runs.return_value = []
     # No other step is live, so a run reads as running, unless a test says so.
     mocked.list_live_node_states.return_value = []
+    mocked.list_live_called_run_ids.return_value = []
     mocked.list_node_runs_at.return_value = []
     mocked.count_node_runs.return_value = 0
     mocked.get_latest_attempts.return_value = {}

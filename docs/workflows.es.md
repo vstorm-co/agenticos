@@ -1,5 +1,5 @@
 ---
-source_sha: "aa54fb9dafe5"
+source_sha: "b7366acd6c90"
 ---
 
 # Workflows { #workflows }
@@ -1288,8 +1288,14 @@ niveles, se rechaza.
 Los workflows llamados heredan el presupuesto restante del llamador y el plazo más
 cercano. Su gasto cuenta en el total del llamador; `own_cost` muestra solo los cargos
 directos para evitar duplicarlos al sumar registros. Con un presupuesto limitado debe
-mantenerse la espera hasta finalizar. Cancelar el llamador o revocar su acceso detiene
-al hijo antes del siguiente paso; una solicitud externa en curso puede terminar.
+mantenerse la espera hasta finalizar.
+
+Cancelar el llamador, o que agote su presupuesto, cancela cada hijo sin terminar que
+llamó y cada uno que estos llamaron, con sus solicitudes de aprobación y preguntas. Un
+hijo cuyo paso se está ejecutando en ese momento se detiene antes del siguiente paso,
+igual que uno cuyo llamador perdió el acceso; una solicitud externa en curso puede
+terminar.
+
 Reintentar una llamada reutiliza los pasos exitosos del hijo original con su versión
 fijada. Si ese hijo sigue activo, debe terminar o detenerse primero. Los archivos de
 salida se importan explícitamente al llamador y el acceso se comprueba al reanudar.

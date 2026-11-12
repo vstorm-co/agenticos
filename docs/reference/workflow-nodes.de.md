@@ -1,5 +1,5 @@
 ---
-source_sha: "a586ae2275e1"
+source_sha: "4d205a52251b"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -1056,7 +1056,7 @@ Tab **Approvals** unter Activity oder über `GET /api/v1/workflow-approvals`.
 `approvers` nennt, wer entscheiden darf, und diese Personen werden in der App
 benachrichtigt; leer darf jeder mit `approvals:decide`. Nach `timeout_hours`
 läuft die Anfrage ab, und der Schritt geht über `rejected` mit
-`decision: "expired"` weiter. Einen Run abzubrechen bricht seine Anfragen ab.
+`decision: "expired"` weiter. Einen Run abzubrechen bricht seine Anfragen ab, ebenso der Abbruch eines Workflows, der diesen Run aufgerufen hat.
 Jeder Lauf des Schritts fragt einmal, sodass eine Wiederholung oder eine
 Schleifeniteration nie zweimal nach demselben fragt.
 
