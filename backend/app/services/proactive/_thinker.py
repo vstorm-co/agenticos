@@ -49,6 +49,7 @@ from app.agents.failures import run_failure_summary
 from app.agents.manifest import RecordingModel, RunRecorder, as_payload, fit
 from app.core.exceptions import AppException
 from app.core.permissions import AuthContext
+from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent as AgentRow
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.organization import Organization
@@ -57,9 +58,12 @@ from app.db.session import get_worker_db_context
 from app.repositories import (
     agent_repo,
     agent_run_repo,
+    audit_log_repo,
     organization_repo,
+    personal_data_repo,
     run_manifest_repo,
     system_agent_repo,
+    user_repo,
 )
 from app.services.model_profile import ModelProfileService
 from app.services.run_heartbeat import run_heartbeat
@@ -434,6 +438,27 @@ class ProactiveThinker:
         await self._record(run, recorder, transcript)
         await self.db.commit()
 
+    async def _erased_during(self, run: AgentRun) -> bool:
+        """Whether the person this run read about was erased while its model answered.
+
+        The run is committed before the provider call, so an erasure can finish in
+        between and find no manifest to trim. Asked under the erasure's own lock,
+        which it holds until it commits, so the answer cannot change before this
+        transaction writes the manifest.
+        """
+        if run.user_id is None:
+            return False
+        await hold_subject(self.db, LockScope.PERSONAL_DATA_PER_USER, run.user_id)
+        if not await user_repo.existing_ids(self.db, [run.user_id]):
+            return True
+        return run.started_at is not None and await audit_log_repo.memory_erased_since(
+            self.db,
+            organization_id=run.organization_id,
+            user_id=run.user_id,
+            agent_id=run.agent_id,
+            since=run.started_at,
+        )
+
     async def _record(
         self, run: AgentRun, recorder: RunRecorder, transcript: list[ModelMessage] | None
     ) -> None:
@@ -453,6 +478,8 @@ class ProactiveThinker:
                     else ModelMessagesTypeAdapter.dump_python([recorder.last_response], mode="json")
                 )
             payload, truncated = fit(payload)
+            if await self._erased_during(run):
+                payload, truncated = personal_data_repo.forgotten_payload(payload), True
             async with self.db.begin_nested():
                 await run_manifest_repo.record(
                     self.db,

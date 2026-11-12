@@ -803,6 +803,11 @@ _SPEC_PARTS = frozenset({"instructions", "system_prompts", "tools", "settings", 
 cost, never the messages, reviews or code that carried what was asked."""
 
 
+def forgotten_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """What a manifest keeps once the person it was about is erased."""
+    return {key: value for key, value in payload.items() if key in _SPEC_PARTS}
+
+
 def judge_runs_of(score: CaseScore) -> set[UUID]:
     """The runs a judge made to grade one score."""
     return {
@@ -825,9 +830,7 @@ async def forget_runs(db: AsyncSession, run_ids: Iterable[UUID]) -> None:
         return
     manifests = await db.execute(select(RunManifest).where(RunManifest.run_id.in_(wanted)))
     for manifest in manifests.scalars():
-        manifest.payload = {
-            key: value for key, value in manifest.payload.items() if key in _SPEC_PARTS
-        }
+        manifest.payload = forgotten_payload(manifest.payload)
         manifest.truncated = True
     await db.execute(
         update(InterceptedToolCall).where(InterceptedToolCall.run_id.in_(wanted)).values(args={})

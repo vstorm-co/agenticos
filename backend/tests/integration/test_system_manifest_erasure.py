@@ -10,6 +10,7 @@ import uuid
 from datetime import UTC, datetime
 
 import pytest
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent import Agent
@@ -124,3 +125,47 @@ async def test_deleting_the_account_trims_its_system_manifests_everywhere(
         assert "messages" not in payload and "transcript" not in payload
         assert SECRET not in str(payload)
     assert "messages" in await _payload(db, colleagues)
+
+
+@pytest.mark.parametrize("erased", ["forgotten", "account gone", "nothing", "nobody"])
+async def test_a_manifest_written_after_an_erasure_mid_call_keeps_only_the_spec(
+    db: AsyncSession, erased: str
+) -> None:
+    from datetime import timedelta
+
+    from app.agents.manifest import RunRecorder
+    from app.services.proactive._thinker import ProactiveThinker
+
+    person, colleague = await _user(db), await _user(db)
+    org, agent = await _org(db, colleague, person)
+    run = AgentRun(
+        organization_id=org.id,
+        agent_id=agent.id,
+        user_id=None if erased == "nobody" else person.id,
+        surface="proactive",
+        system_role=MEMORY_MAINTENANCE,
+        started_at=datetime.now(UTC) - timedelta(hours=1),
+    )
+    db.add(run)
+    await db.flush()
+    if erased == "forgotten":
+        ctx = await member_context(db, organization_id=org.id, user_id=person.id)
+        assert ctx is not None
+        await MemoryService(db).forget_person(ctx, person.id)
+    elif erased == "account gone":
+        await db.execute(delete(User).where(User.id == person.id))
+    recorder = RunRecorder(
+        instructions="Extract durable facts.",
+        messages=[{"kind": "request", "parts": [{"content": SECRET}]}],
+    )
+
+    await ProactiveThinker(db)._record(run, recorder, None)
+
+    manifest = await db.scalar(select(RunManifest).where(RunManifest.run_id == run.id))
+    assert manifest is not None
+    if erased in {"nothing", "nobody"}:
+        assert SECRET in str(manifest.payload)
+    else:
+        assert "messages" not in manifest.payload and "transcript" not in manifest.payload
+        assert SECRET not in str(manifest.payload)
+        assert manifest.truncated
