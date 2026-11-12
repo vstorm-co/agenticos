@@ -16,6 +16,8 @@ export interface Crumb {
 
 interface PageHeaderProps {
   title: ReactNode;
+  /** A resource mark or picker beside the heading, outside its accessible name. */
+  icon?: ReactNode;
   description?: ReactNode;
   /** Live summaries remain visible; explanatory introductions live in contextual help. */
   descriptionMode?: "help" | "summary";
@@ -36,6 +38,7 @@ interface PageHeaderProps {
  */
 export function PageHeader({
   title,
+  icon,
   description,
   descriptionMode = "help",
   breadcrumbs,
@@ -104,6 +107,7 @@ export function PageHeader({
       <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2 sm:gap-x-6 sm:gap-y-3">
         <div className="min-w-0 flex-1 basis-auto">
           <div className="flex min-h-9 items-center gap-2 sm:gap-3">
+            {icon}
             <h1 className="text-foreground min-w-0 text-lg leading-tight font-semibold tracking-tight text-balance sm:text-xl md:text-2xl">
               {title}
             </h1>

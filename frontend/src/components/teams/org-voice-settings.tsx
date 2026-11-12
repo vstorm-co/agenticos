@@ -26,6 +26,7 @@ import {
 } from "@/components/ui";
 import { FormField } from "@/components/ui/form-field";
 import { useOrganizations, usePermissions } from "@/hooks";
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useChanged } from "@/hooks/use-changed";
 import { useSpeechToTextProviders } from "@/hooks/use-model-providers";
 import type { SpeechToTextProvider } from "@/hooks/use-model-providers";
@@ -134,11 +135,11 @@ function useVoiceDraft(org: Organization) {
     setLengthInvalid(false);
   };
 
-  const save = async () => {
+  const save = async (): Promise<boolean> => {
     const seconds = secondsOf(draft);
     if (seconds === null) {
       setLengthInvalid(true);
-      return;
+      return false;
     }
     const settings: VoiceSettingsUpdate = {
       speech_to_text_language: draft.language,
@@ -161,14 +162,26 @@ function useVoiceDraft(org: Organization) {
     try {
       await setVoiceSettings(org.id, settings);
       toast.success(t("voice.saved"));
+      return true;
     } catch (error) {
       const problem = submitFailure(error, { fields: FIELDS }, tErrors);
       setFailure(problem);
       if (problem.toast) toast.error(problem.toast);
+      return false;
     } finally {
       setSaving(false);
     }
   };
+
+  useUnsavedChanges(`org-voice:${org.id}`, {
+    dirty: JSON.stringify(draft) !== JSON.stringify(stored),
+    save,
+    discard: () => {
+      setDraft(stored);
+      setFailure(NO_FAILURE);
+      setLengthInvalid(false);
+    },
+  });
 
   return {
     draft,

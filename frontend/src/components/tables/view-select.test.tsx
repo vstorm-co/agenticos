@@ -77,6 +77,33 @@ async function openCreate(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe("ViewSelect", () => {
+  it("offers phone management actions without expanding the picker row", async () => {
+    const user = userEvent.setup();
+    const { onSetVisibility } = renderSelect({ activeViewId: "v1" });
+    await user.click(screen.getByRole("button", { name: "Views" }));
+    await user.click(
+      screen.getByRole("menuitem", { name: "Share with everyone who can open the table" }),
+    );
+    expect(onSetVisibility).toHaveBeenCalledWith("v1", "shared");
+  });
+
+  it("keeps another member's sharing choice out of the phone menu", async () => {
+    const user = userEvent.setup();
+    renderSelect({ views: [view({ owner_user_id: "other" })], activeViewId: "v1" });
+    await user.click(screen.getByRole("button", { name: "Views" }));
+    expect(screen.getByRole("menuitem", { name: "Rename" })).toBeVisible();
+    expect(screen.queryByRole("menuitem", { name: /Share with everyone/ })).toBeNull();
+  });
+
+  it("offers no phone management menu on a read-only view", () => {
+    renderSelect({
+      views: [view({ can_manage: false, can_delete: false })],
+      activeViewId: "v1",
+      canCreate: false,
+    });
+    expect(screen.queryByRole("button", { name: "Views" })).toBeNull();
+  });
+
   it("lets the owner share their view, and make it private again", async () => {
     const user = userEvent.setup();
     const { onSetVisibility } = renderSelect({ activeViewId: "v1" });

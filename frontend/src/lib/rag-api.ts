@@ -50,8 +50,11 @@ export interface RAGSearchResponse {
   results: RAGSearchResult[];
 }
 
-export async function searchDocuments(request: RAGSearchRequest): Promise<RAGSearchResponse> {
-  return apiClient.post<RAGSearchResponse>("/rag/search", request);
+export async function searchDocuments(
+  request: RAGSearchRequest,
+  signal?: AbortSignal,
+): Promise<RAGSearchResponse> {
+  return apiClient.post<RAGSearchResponse>("/rag/search", request, { signal });
 }
 
 /**

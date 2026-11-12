@@ -34,6 +34,34 @@ describe("EditDatasetDialog", () => {
     useUnsavedChangesStore.setState({ sources: {}, prompt: null, saving: false });
   });
 
+  it("locks pending fields and close actions until the owner restores editing", async () => {
+    const onOpenChange = vi.fn();
+    const mutateAsync = vi.fn();
+    const view = render(
+      <EditDatasetDialog
+        dataset={DATASET}
+        onOpenChange={onOpenChange}
+        update={{ mutateAsync, isPending: true }}
+      />,
+    );
+    expect(screen.getByLabelText(/^Name/)).toBeDisabled();
+    expect(screen.getByLabelText("Description")).toBeDisabled();
+    expect(screen.getByRole("spinbutton")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+    await userEvent.keyboard("{Escape}");
+    expect(onOpenChange).not.toHaveBeenCalled();
+    view.rerender(
+      <EditDatasetDialog
+        dataset={DATASET}
+        onOpenChange={onOpenChange}
+        update={{ mutateAsync, isPending: false }}
+      />,
+    );
+    expect(screen.getByLabelText(/^Name/)).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Close" })).toBeEnabled();
+  });
+
   it("closes at once unchanged, and asks first with a change, saving from the question", async () => {
     const { onOpenChange, mutateAsync } = mount();
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));

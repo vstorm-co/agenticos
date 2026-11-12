@@ -10,6 +10,8 @@ import { ShareResourceButton } from "@/components/sharing/share-resource-button"
 import { FilePane, FileTree, NewFileForm, UploadButton } from "@/components/skills/skill-files";
 import { CategoryInput } from "@/components/skills/category-input";
 import { buildTree } from "@/lib/file-tree";
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
+import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import { cn } from "@/lib/utils";
 import { useSkill } from "@/hooks";
 import type { SkillEdit } from "@/hooks/use-skills";
@@ -33,7 +35,7 @@ interface SkillWorkbenchProps {
    * category - shared with main - stay read-only.
    */
   fork?: boolean;
-  onSave: (edit: SkillEdit) => void;
+  onSave: (edit: SkillEdit) => Promise<boolean | void>;
   /** A file was written: each such write is a new version the next save builds on. */
   onFilesWritten: () => void;
   onCancel: () => void;
@@ -94,6 +96,29 @@ export function SkillWorkbench({
     description !== skill.description ||
     content !== skill.content ||
     editedCategory !== skill.category;
+
+  const save = async (): Promise<boolean> => {
+    try {
+      return (await onSave({ description, content, category: editedCategory })) !== false;
+    } catch {
+      // The mutation owns error feedback; keep the unsaved fields available.
+      return false;
+    }
+  };
+  useUnsavedChanges(`skill-editor:${skill.id}`, {
+    dirty: canEdit && changed,
+    save: description.trim() ? save : undefined,
+    discard: () => {
+      setDescription(skill.description);
+      setContent(skill.content);
+      setCategory(skill.category ?? "");
+    },
+  });
+  const leaveResource = (proceed: () => void) => {
+    useUnsavedChangesStore
+      .getState()
+      .leave(proceed, openId === null ? [] : [`skill-resource:${skill.id}:${openId}`]);
+  };
 
   const upload = async (picked: File[]) => {
     if (picked.length === 0) return;
@@ -182,11 +207,13 @@ export function SkillWorkbench({
                 variant="outline"
                 size="sm"
                 className="px-2"
-                onClick={() => {
-                  setAdding(true);
-                  setOpenId(null);
-                  setFilesOpen(false);
-                }}
+                onClick={() =>
+                  leaveResource(() => {
+                    setAdding(true);
+                    setOpenId(null);
+                    setFilesOpen(false);
+                  })
+                }
               >
                 <FilePlus className="h-3.5 w-3.5" />
                 {t("new2")}
@@ -202,11 +229,13 @@ export function SkillWorkbench({
           <div className="bg-background min-h-0 flex-1 overflow-auto rounded-xl border p-1 max-md:max-h-36">
             <button
               type="button"
-              onClick={() => {
-                setOpenId(null);
-                setAdding(false);
-                setFilesOpen(false);
-              }}
+              onClick={() =>
+                leaveResource(() => {
+                  setOpenId(null);
+                  setAdding(false);
+                  setFilesOpen(false);
+                })
+              }
               aria-current={openId === null && !adding}
               className={cn(
                 "flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-left transition-colors",
@@ -220,9 +249,12 @@ export function SkillWorkbench({
               nodes={tree}
               openId={openId}
               onOpen={(id) => {
-                setOpenId(id);
-                setAdding(false);
-                setFilesOpen(false);
+                if (id === openId) return;
+                leaveResource(() => {
+                  setOpenId(id);
+                  setAdding(false);
+                  setFilesOpen(false);
+                });
               }}
             />
           </div>
@@ -248,15 +280,18 @@ export function SkillWorkbench({
               resource={selected}
               canEdit={canEdit && !fork}
               busy={saveResource.isPending}
-              onSave={(body) =>
-                saveResource.mutate(
-                  { id: selected.id, content: body },
-                  { onSuccess: onFilesWritten },
-                )
-              }
+              onSave={async (body) => {
+                await saveResource.mutateAsync({ id: selected.id, content: body });
+                onFilesWritten();
+              }}
               onDelete={async () => {
-                await removeResource.mutateAsync(selected.id).then(onFilesWritten, () => null);
-                setOpenId(null);
+                try {
+                  await removeResource.mutateAsync(selected.id);
+                  onFilesWritten();
+                  setOpenId(null);
+                } catch {
+                  // The mutation reports the refusal; leave the open file and draft intact.
+                }
               }}
             />
           ) : (
@@ -306,7 +341,7 @@ export function SkillWorkbench({
         </Button>
         {canEdit && (
           <Button
-            onClick={() => onSave({ description, content, category: editedCategory })}
+            onClick={() => leaveResource(() => void save())}
             loading={isSaving}
             disabled={!changed || !description.trim()}
           >

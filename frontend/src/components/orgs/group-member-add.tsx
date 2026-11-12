@@ -20,7 +20,7 @@ interface GroupMemberAddProps {
   /** Organization members not already in the group - the only ones the server accepts. */
   candidates: OrganizationMember[];
   pending: boolean;
-  onAdd: (userId: string) => void;
+  onAdd: (userId: string, onAdded: () => void) => void;
 }
 
 /** The row that adds one more of the organization's members to a group by hand. */
@@ -29,13 +29,16 @@ export function GroupMemberAdd({ candidates, pending, onAdd }: GroupMemberAddPro
   const [userId, setUserId] = useState("");
   const empty = candidates.length === 0;
 
+  if (empty)
+    return <p className="text-muted-foreground border-t pt-4 text-sm">{t("everyoneIsIn")}</p>;
+
   return (
-    <div className="flex flex-wrap items-end gap-3 border-t pt-4">
-      <div className="min-w-56 flex-1 space-y-2">
+    <div className="grid items-end gap-3 border-t pt-4 sm:grid-cols-[minmax(0,1fr)_auto]">
+      <div className="min-w-0 space-y-2">
         <Label htmlFor="group-add-member">{t("addMember")}</Label>
-        <Select value={userId} onValueChange={setUserId} disabled={empty}>
+        <Select value={userId} onValueChange={setUserId} disabled={pending}>
           <SelectTrigger id="group-add-member">
-            <SelectValue placeholder={empty ? t("everyoneIsIn") : t("chooseMember")} />
+            <SelectValue placeholder={t("chooseMember")} />
           </SelectTrigger>
           <SelectContent>
             {candidates.map((member) => (
@@ -59,8 +62,7 @@ export function GroupMemberAdd({ candidates, pending, onAdd }: GroupMemberAddPro
       </div>
       <Button
         onClick={() => {
-          onAdd(userId);
-          setUserId("");
+          if (!pending) onAdd(userId, () => setUserId(""));
         }}
         disabled={userId === "" || pending}
       >

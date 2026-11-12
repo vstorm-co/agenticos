@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Bot, FileText, GitBranch, History } from "lucide-react";
+import { Bot, FileText, History } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { DeleteSkillDialog } from "@/components/skills/delete-skill-dialog";
@@ -24,7 +24,6 @@ import { SkillChecks } from "@/components/skills/skill-checks";
 import { SkillPageHeader, type Merges } from "@/components/skills/skill-page-header";
 import { SkillTestQuestions } from "@/components/skills/skill-test-questions";
 import { SkillUsageCard } from "@/components/skills/skill-usage";
-import { VersionTree } from "@/components/skills/version-tree";
 import { ErrorState, LoadingState } from "@/components/states";
 import { ResourceUnavailable } from "@/components/states/resource-unavailable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
@@ -38,11 +37,11 @@ import { Perm } from "@/types/permissions";
 import type { SkillAgentUsage, SkillFork } from "@/types/skill-versions";
 
 /** The tabs `?tab=` may open, in the order they are drawn. */
-const TABS = ["agents", "content", "history", "tree"];
+const TABS = ["agents", "content", "history"];
 
 /**
  * One skill: the agents that use it and the version each is served, every version
- * it has had, and the tree of its main line and forks.
+ * it has had, and its main line and forks.
  *
  * What the page shows - everyone, one state or one fork - is `?show=`, and a fork
  * chosen there is also the line History lists and Edit saves to.
@@ -84,7 +83,7 @@ export function SkillDetails({
   const failed = error ?? lines.error ?? mainVersions.error;
   if (failed) return <ErrorState description={getErrorMessage(failed, tErrors)} />;
   if (skill === undefined || lines.isLoading || mainVersions.isLoading) {
-    return <LoadingState variant="skeleton-panel" rows={3} />;
+    return <LoadingState variant="pending" />;
   }
   const { forks } = lines;
 
@@ -155,10 +154,6 @@ export function SkillDetails({
             <History className="mr-1.5 size-4 shrink-0" aria-hidden />
             {t("tabs.history")}
           </TabsTrigger>
-          <TabsTrigger value="tree" data-tour="skill-tree-tab">
-            <GitBranch className="mr-1.5 size-4 shrink-0" aria-hidden />
-            {t("tabs.tree")}
-          </TabsTrigger>
         </TabsList>
         <TabsContent value="agents" className="space-y-4">
           <SkillAgents
@@ -212,15 +207,6 @@ export function SkillDetails({
               onEdit={editChecked}
             />
           )}
-        </TabsContent>
-        <TabsContent value="tree">
-          <VersionTree
-            skillId={id}
-            mainLatest={skill.version}
-            forks={forks}
-            agents={agents.agents?.items ?? []}
-            error={agents.error}
-          />
         </TabsContent>
       </Tabs>
       {editing && (

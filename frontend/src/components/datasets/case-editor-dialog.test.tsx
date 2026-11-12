@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -80,6 +80,34 @@ describe("CaseEditorDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useUnsavedChangesStore.setState({ sources: {}, prompt: null, saving: false });
+  });
+
+  it("freezes a pending case and restores editing after refusal", async () => {
+    let rejectWrite: (error: Error) => void = () => {
+      throw new Error("Not started");
+    };
+    const onSave = vi.fn(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectWrite = reject;
+        }),
+    );
+    const onOpenChange = mount(onSave);
+    await userEvent.type(input(), "How long?");
+    await userEvent.type(answer(), "30 days");
+    await userEvent.click(save());
+    expect(input()).toBeDisabled();
+    expect(answer()).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Edit as JSON" })).toBeDisabled();
+    await userEvent.keyboard("{Escape}");
+    expect(onOpenChange).not.toHaveBeenCalled();
+    await act(async () => rejectWrite(new Error("Controlled case refusal")));
+    await waitFor(() => expect(input()).toBeEnabled());
+    expect(input()).toHaveValue("How long?");
+    expect(answer()).toHaveValue("30 days");
+    expect(screen.getByRole("button", { name: "Edit as JSON" })).toBeEnabled();
   });
 
   it("saves what was written and closes", async () => {

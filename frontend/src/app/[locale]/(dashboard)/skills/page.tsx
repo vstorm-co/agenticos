@@ -2,8 +2,7 @@
 
 import { FILTER_CONTROL } from "@/components/ui/control-styles";
 
-import { useState } from "react";
-import dynamic from "next/dynamic";
+import { lazy, Suspense, useState } from "react";
 import type { ReactNode } from "react";
 import { BookOpen, ChevronDown, Library, ListFilter, Lock, Plus } from "lucide-react";
 
@@ -12,9 +11,11 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { ProposedChanges } from "@/components/skills/proposed-changes";
 import { CreateSkillDialog } from "@/components/skills/create-skill-dialog";
 import { SkillGalleryDialog } from "@/components/skills/skill-gallery-dialog";
+import { SkillEditorLoadingDialog } from "@/components/skills/skill-editor-loading-dialog";
 import { SkillCard } from "@/components/skills/skill-card";
 import { categoryLabel } from "@/components/skills/category-input";
-import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { CatalogLoading } from "@/components/states/catalog-loading";
+import { EmptyState, ErrorState } from "@/components/states";
 import {
   Button,
   DropdownMenu,
@@ -74,8 +75,10 @@ function Chip({
   );
 }
 
-const SkillDetailDialog = dynamic(() =>
-  import("@/components/skills/skill-detail-dialog").then((module) => module.SkillDetailDialog),
+const SkillDetailDialog = lazy(() =>
+  import("@/components/skills/skill-detail-dialog").then((module) => ({
+    default: module.SkillDetailDialog,
+  })),
 );
 
 export default function SkillsPage() {
@@ -166,7 +169,7 @@ export default function SkillsPage() {
       <div className="flex flex-1 flex-col space-y-4">
         {header}
         <ListCard fill namedByPage title={t("skills")} counted={null}>
-          <LoadingState variant="skeleton-cards" rows={3} />
+          <CatalogLoading kind="document" />
         </ListCard>
       </div>
     );
@@ -356,7 +359,24 @@ export default function SkillsPage() {
         </div>
       </ListCard>
 
-      {selectedSkill !== null && <SkillDetailDialog id={selectedSkill} onClose={skillView.close} />}
+      {selectedSkill !== null && (
+        <Suspense
+          fallback={
+            <SkillEditorLoadingDialog
+              name={skills.find((skill) => skill.id === selectedSkill)?.name}
+              canEdit={skills.find((skill) => skill.id === selectedSkill)?.can_edit}
+              onClose={skillView.close}
+            />
+          }
+        >
+          <SkillDetailDialog
+            id={selectedSkill}
+            name={skills.find((skill) => skill.id === selectedSkill)?.name}
+            canEdit={skills.find((skill) => skill.id === selectedSkill)?.can_edit}
+            onClose={skillView.close}
+          />
+        </Suspense>
+      )}
       <CreateSkillDialog open={createOpen} onOpenChange={setCreateOpen} />
       <SkillGalleryDialog open={galleryOpen} onOpenChange={setGalleryOpen} />
     </div>

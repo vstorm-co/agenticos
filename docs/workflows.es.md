@@ -1,8 +1,10 @@
 ---
-source_sha: "d4ebadc86d2b"
+source_sha: "e23a2fdc098e"
 ---
 
 # Workflows { #workflows }
+
+Elige el icono del workflow junto a su nombre en el editor. El catálogo muestra la misma ficha neutra. La selección se conserva al recargar; **Usar icono predeterminado** la restablece. Solo cambia metadatos de presentación, no la revisión del borrador ni el grafo publicado.
 
 Un **workflow** encadena pasos en una automatización que llevan a cabo tus agents:
 leer una [tabla](virtual-tables.md), llamar a un agent, ramificar según el
@@ -117,6 +119,8 @@ Un paso de agent puede llamar a `ask_user_question` para pausarse con **Esperand
 Los agentes llamados desde flujos pueden usar sus herramientas de AgenticOS MCP tanto en el worker en segundo plano como en el chat web.
 
 ## El lienzo y cómo añadir pasos { #the-canvas-and-the-palette }
+
+Tras **Test draft**, el lienzo muestra el estado del run y el número de pasos completados. **Open run** abre sus detalles. En pantallas estrechas, la barra de estado se distribuye en varias líneas dentro del lienzo para mantener accesibles el enlace y el botón de cierre.
 
 El editor mantiene visibles **Runs**, **Test draft** y **Publish**. **More** contiene **Versions** y el cambio entre edición y lectura. **Canvas options** reúne minimapa, estilo de conexión y atajos. Un paso sin conexión entrante omite el panel Input vacío y deja más espacio a los parámetros; **Expected output fields** despliega el esquema de salida. **Review setup before testing** muestra la configuración pendiente.
 

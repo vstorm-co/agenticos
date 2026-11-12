@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { Upload } from "lucide-react";
@@ -101,6 +101,14 @@ export function ImportCsvDialog({
   // A file imported again: a row whose external id the table holds updates that
   // record rather than being refused as taken. Meaningful only with that column.
   const [updateExisting, setUpdateExisting] = useState(false);
+  const mappingErrorId = useId();
+  const assigned = new Set<string>();
+  const duplicates = new Set<string>();
+  for (const target of mapping) {
+    if (target === SKIP) continue;
+    if (assigned.has(target)) duplicates.add(target);
+    assigned.add(target);
+  }
   const byExternalId = mapping.includes(EXTERNAL_ID);
 
   const close = (next: boolean) => {
@@ -143,6 +151,7 @@ export function ImportCsvDialog({
   };
 
   const run = async (rows: string[][]) => {
+    if (duplicates.size > 0) return;
     const failures: Failure[] = [];
     const ready: { line: number; record: RecordCreate }[] = [];
     // Batches cannot see each other's rows, so a repeated id is caught across the file here.
@@ -259,7 +268,14 @@ export function ImportCsvDialog({
                         setMapping(mapping.map((target, index) => (index === at ? next : target)))
                       }
                     >
-                      <SelectTrigger className="w-full sm:w-48" aria-label={t("mapTo", { header })}>
+                      <SelectTrigger
+                        className="w-full sm:w-48"
+                        aria-label={t("mapTo", { header })}
+                        aria-invalid={duplicates.has(mapping[at] ?? SKIP)}
+                        aria-describedby={
+                          duplicates.has(mapping[at] ?? SKIP) ? mappingErrorId : undefined
+                        }
+                      >
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -276,6 +292,12 @@ export function ImportCsvDialog({
                 ))}
               </div>
             </div>
+          )}
+
+          {step.name === "map" && duplicates.size > 0 && (
+            <p id={mappingErrorId} role="alert" className="text-destructive-ink text-sm">
+              {t("duplicateMapping")}
+            </p>
           )}
 
           {step.name === "map" && byExternalId && (
@@ -341,7 +363,7 @@ export function ImportCsvDialog({
                 {t("back")}
               </Button>
               <Button
-                disabled={mapping.every((target) => target === SKIP)}
+                disabled={duplicates.size > 0 || mapping.every((target) => target === SKIP)}
                 onClick={() => void run(step.rows)}
               >
                 {t("import", { count: step.rows.length })}

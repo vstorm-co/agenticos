@@ -1,5 +1,7 @@
 "use client";
 
+import { ExternalLink } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
@@ -9,6 +11,7 @@ import { categorySuggestions } from "@/components/skills/category-input";
 import { SaveConfirmDialog } from "@/components/skills/save-confirm-dialog";
 import { SkillCheckDialog } from "@/components/skills/skill-check-dialog";
 import { SkillWorkbench } from "@/components/skills/skill-workbench";
+import { EditorLoading } from "@/components/files/editor-loading";
 import { ErrorState } from "@/components/states";
 import {
   Dialog,
@@ -16,9 +19,9 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  Skeleton,
 } from "@/components/ui";
 import { useSkill, useSkills } from "@/hooks";
+import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import { useSkillVersion, useSkillVersionWrites } from "@/hooks/use-skill-versions";
 import type { SkillEdit } from "@/hooks/use-skills";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
@@ -46,6 +49,7 @@ export function EditSkillDialog({
   draft,
   onClose,
   onDelete,
+  onOpenFull,
 }: {
   skill: Skill;
   fork: SkillFork | null;
@@ -62,6 +66,7 @@ export function EditSkillDialog({
   draft?: { description: string; content: string; baseVersionId: string };
   onClose: () => void;
   onDelete: () => void;
+  onOpenFull?: () => void;
 }) {
   const t = useTranslations("skills.page.edit");
   const tSkills = useTranslations("skills");
@@ -119,14 +124,14 @@ export function EditSkillDialog({
     setRefusal(null);
     if (textChanged(change) && !confirmed) {
       setPending(change);
-      return;
+      return false;
     }
     setPending(null);
     try {
       if (textChanged(change)) {
         if (baseId === null) {
           setRefusal(t("noBase"));
-          return;
+          return false;
         }
         await edit.mutateAsync({
           forkId: fork?.id ?? null,
@@ -144,22 +149,51 @@ export function EditSkillDialog({
             : t("savedFork", { name: fork.name, number: next }),
       );
       onClose();
+      return true;
     } catch (failure) {
       setRefusal(
         failure instanceof ApiError && failure.status === 409
           ? t("lineMoved")
           : getErrorMessage(failure, tErrors),
       );
+      return false;
     }
   }
 
+  const leaveEditor = (proceed: () => void) => {
+    if (edit.isPending || save.isPending) return;
+    const store = useUnsavedChangesStore.getState();
+    const sources = [
+      ...Object.keys(store.sources).filter((key) => key.startsWith(`skill-resource:${skill.id}:`)),
+      `skill-editor:${skill.id}`,
+    ];
+    store.leave(proceed, sources);
+  };
+
+  const closeEditor = () => leaveEditor(onClose);
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
+    <Dialog open onOpenChange={(open) => !open && closeEditor()}>
       <DialogContent className={cn(DIALOG_FILL, DIALOG_CANVAS, "max-md:overflow-y-auto")}>
         <DialogHeader>
-          <DialogTitle className="font-mono">
-            {fork === null ? skill.name : t("forkTitle", { skill: skill.name, name: fork.name })}
-          </DialogTitle>
+          <div className="flex min-w-0 items-center justify-between gap-3 pr-8">
+            <DialogTitle className="min-w-0 font-mono [overflow-wrap:anywhere]">
+              {fork === null ? skill.name : t("forkTitle", { skill: skill.name, name: fork.name })}
+            </DialogTitle>
+            {onOpenFull && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                aria-label={tSkills("page.openFullView")}
+                className="shrink-0 px-2 sm:px-3"
+                disabled={edit.isPending || save.isPending}
+                onClick={() => leaveEditor(onOpenFull)}
+              >
+                <ExternalLink className="size-4" aria-hidden />
+                <span className="hidden sm:inline">{tSkills("page.openFullView")}</span>
+              </Button>
+            )}
+          </div>
           <DialogDescription>
             {fork === null ? t("nameHowModelRefers") : t("forkFiles")}
           </DialogDescription>
@@ -175,7 +209,7 @@ export function EditSkillDialog({
             cta={{ label: t("retryFork"), onClick: () => void forkText.refetch() }}
           />
         ) : fork !== null && forkText.version === undefined ? (
-          <Skeleton className="min-h-[22rem] w-full" />
+          <EditorLoading kind="skill" canEdit={skill.can_edit === true} files={false} />
         ) : (
           <SkillWorkbench
             key={`${skill.id}:${opened}`}
@@ -191,9 +225,9 @@ export function EditSkillDialog({
                 ? t("warnMain", { number: next, count: followers })
                 : t("warnFork", { number: next, name: fork.name, count: followers })
             }
-            onSave={(change) => void handleSave(change)}
+            onSave={(change) => handleSave(change)}
             onFilesWritten={followFiles}
-            onCancel={onClose}
+            onCancel={closeEditor}
             onDelete={fork === null ? onDelete : undefined}
           />
         )}

@@ -51,7 +51,8 @@
     "details": "Szczegóły",
     "resourceActions": "Więcej działań dla {name}",
     "workspaceExpand": "Pełny ekran",
-    "workspaceCollapse": "Opuść pełny ekran"
+    "workspaceCollapse": "Opuść pełny ekran",
+    "copyFailed": "Nie udało się skopiować"
   },
   "navigation": {
     "dashboard": "Panel",
@@ -3202,7 +3203,6 @@
       "agentActivity": "Aktywność agentów",
       "allConversationsKnowledgeBase": "Wszystkie rozmowy, zawartość baz wiedzy, klucze API i dane osobowe zostaną trwale usunięte. Aktywne subskrypcje zostaną anulowane.",
       "alwaysSent": "Zawsze wysyłane",
-      "avatar": "Awatar",
       "avatarTooLargeMaximum2": "Awatar jest za duży. Maksymalnie 2 MB.",
       "avatarUpdated": "Awatar zaktualizowany",
       "cancel": "Anuluj",
@@ -3247,7 +3247,7 @@
       "noMarketingEmail": "Bez e-maili marketingowych.",
       "notOptional": "Nieopcjonalne -",
       "notificationPreferences": "Ustawienia powiadomień",
-      "notificationPreferencesDescription": "Wybierz zdarzenia dla poszczególnych kanałów. Selektor czatu zmienia dodatkową kolumnę poniżej; prywatne miejsce trzeba też włączyć powyżej. Nieustawiony przełącznik zdarzenia jest domyślnie włączony.",
+      "notificationPreferencesDescription": "Wybierz zdarzenia dla każdego kanału. Prywatne czaty wymagają też miejsca dostarczania w sekcji Powiadomienia w prywatnych czatach. Zdarzenia są włączone, dopóki ich nie wyłączysz.",
       "nothingChanged": "Nic się nie zmieniło",
       "nothingHereChargesYou": "Nic tutaj Cię nie obciąża, więc nie ma odnowień, nieudanych płatności ani ostrzeżeń o kredytach.",
       "optionalApprovals": "Prośby o zatwierdzenie",
@@ -3282,7 +3282,6 @@
       "revokesEveryActiveSession": "To unieważnia każdą aktywną sesję i wylogowuje Cię także z tego urządzenia.",
       "saveChanges": "Zapisz zmiany",
       "saving2": "Zapisywanie…",
-      "saving3": "Zapisywanie…",
       "selfDeleteNotEnabled": "Samodzielne usuwanie konta nie jest włączone. Skontaktuj się z pomocą.",
       "selfHostedDeploymentThere": "To wdrożenie self-hosted. Nie ma newslettera ani listy subskrybentów.",
       "sentInvitation": "Zaproszenie do organizacji",
@@ -3405,7 +3404,12 @@
       "smsChannel": "SMS",
       "chatChannelPreferences": "Preferencje kanału czatu",
       "imessageChannel": "iMessage",
-      "discordChannel": "Discord"
+      "discordChannel": "Discord",
+      "notificationSearch": "Szukaj powiadomień…",
+      "notificationNoMatches": "Brak pasujących powiadomień",
+      "notificationSearchHint": "Spróbuj nazwy zdarzenia lub słowa z jego opisu.",
+      "notificationClearSearch": "Wyczyść wyszukiwanie",
+      "notificationEventCount": "{count, plural, one {# zdarzenie} few {# zdarzenia} many {# zdarzeń} other {# zdarzenia}}"
     },
     "tables": {
       "title": "Tabele",
@@ -7505,10 +7509,6 @@
         "title": "Każda wersja i droga powrotu",
         "body": "Zobacz, co zmieniła każda wersja, kto ją zrobił i skąd się wzięła. Przywróć sprowadza wcześniejszą jako najnowszą."
       },
-      "skill-tree": {
-        "title": "Main i jego forki",
-        "body": "Main biegnie od lewej do najnowszej wersji, każdy fork odchodzi na własnym torze od wersji, z której wystartował, a każdy agent siedzi w polu wersji, której używa. Porównaj stawia dowolne wersje obok siebie."
-      },
       "skill-improve": {
         "title": "Popraw skill",
         "body": "Otwiera sesję krok po kroku dla widocznej linii: main albo wybranego forka. Nic się nie zmienia, dopóki nie zaakceptujesz wyniku."
@@ -7782,7 +7782,7 @@
     "manageConnectionsOn": "Zarządzaj {count, plural, one {1 połączeniem} few {# połączeniami} many {# połączeniami} other {# połączenia}} do {name}",
     "name": "Nazwa",
     "prefixPlaceholder": "wiki",
-    "nameMustBeLowercase": "Nazwa może zawierać małe litery, cyfry i myślniki (maks. 32 znaki).",
+    "nameMustBeLowercase": "Wpisz nazwę zawierającą litery lub cyfry, która po formatowaniu ma najwyżej 32 znaki.",
     "namePrefixesToolNames": "Małe litery, cyfry i myślniki. Nazwa poprzedza nazwy narzędzi serwera, więc musi być unikalna {scope, select, organization {wśród serwerów organizacji} other {wśród Twoich serwerów}}.",
     "needsAuthorization": "Wymaga autoryzacji",
     "noToolMatches": "Żadne narzędzie nie pasuje.",
@@ -7927,7 +7927,7 @@
     "folderMadeByNaming": "Folder powstaje przez nazwanie pliku w środku - nie ma tu nic innego do utworzenia.",
     "groupsListingNeverReaches": "Grupuje listę. Nigdy nie dociera do modelu.",
     "hide": "Ukryj",
-    "howModelRefersSkill": "Tak model odwołuje się do tego skilla: małe litery, cyfry i myślniki, na przykład refund-policy. Później nie da się tego zmienić.",
+    "howModelRefersSkill": "Tak model odwołuje się do tego skilla. Wielkie litery, spacje i interpunkcję formatujemy automatycznie, np. Refund Policy zmieni się w refund-policy. Zapisanej nazwy nie można zmienić.",
     "howRefundsTheirExceptions": "Jak obsługiwane są zwroty i ich wyjątki.",
     "markdownLoadedOnlyAfter": "Markdown. Wczytywany dopiero wtedy, gdy opis przekona model, żeby po niego sięgnął, więc długość nic nie kosztuje, dopóki nie jest potrzebna.",
     "markdownYouCanFill": "Markdown. Możesz uzupełnić to później - jest wczytywany dopiero wtedy, gdy opis przekona model, żeby po niego sięgnął.",
@@ -7994,7 +7994,6 @@
       "tabs": {
         "agents": "Agenci",
         "history": "Historia",
-        "tree": "Drzewo wersji",
         "content": "Treść"
       },
       "agentCount": "{count, plural, =0 {Brak agentów} one {# agent} few {# agentów} many {# agentów} other {# agenta}}",
@@ -8129,41 +8128,8 @@
         }
       },
       "tree": {
-        "title": "Drzewo wersji",
-        "summary": "{versions, plural, one {# wersja na main} few {# wersje na main} many {# wersji na main} other {# wersji na main}}{forks, plural, =0 {} one { · # fork} few { · # forki} many { · # forków} other { · # forka}}",
-        "folded": "{count, plural, one {# wersja} few {# wersje} many {# wersji} other {# wersji}} (v{from}–v{to})",
         "number": "v{number}",
-        "latest": "najnowsza",
-        "fork": "Fork „{name}”",
-        "forkFacts": "{changes, plural, =0 {jeszcze bez zmian} one {# zmiana} few {# zmiany} many {# zmian} other {# zmiany}}{behind, plural, =0 {} one { · 1 wersja za mainem} few { · # wersje za mainem} many { · # wersji za mainem} other { · # wersji za mainem}}",
-        "forkNumber": "{name} v{number}",
-        "noVersionYet": "Jeszcze bez własnej wersji",
-        "compare": "Porównaj {version}",
-        "compareShort": "Porównaj",
-        "comparing": "W porównaniu"
-      },
-      "compare": {
-        "title": "Porównanie",
-        "count": "{count, plural, one {# wersja} few {# wersje} many {# wersji} other {# wersji}}",
-        "clear": "Wyczyść",
-        "pickAnother": "Wybierz na diagramie kolejną wersję, żeby postawić ją obok tej.",
-        "remove": "Usuń {version} z porównania",
-        "loading": "Wczytywanie wersji…",
-        "description": "Opis",
-        "instructions": "Instrukcje",
-        "files": "Pliki",
-        "noFiles": "Brak plików.",
-        "unreadable": "Nie udało się wczytać tej wersji.",
-        "retry": "Spróbuj ponownie",
-        "reference": "Wzorzec",
-        "setReference": "Ustaw jako wzorzec",
-        "onlyDifferences": "Tylko różnice",
-        "sameAsReference": "tak samo jak wzorzec",
-        "file": {
-          "added": "dodany",
-          "removed": "usunięty",
-          "changed": "zmieniony"
-        }
+        "forkNumber": "{name} v{number}"
       },
       "edit": {
         "saved": "Zapisano jako v{number}.",
@@ -8271,7 +8237,11 @@
         "hidden": "Ten skill ma pytania testowe w datasecie, którego nie możesz otworzyć."
       },
       "content": {
-        "title": "Co teraz serwuje"
+        "title": "Co teraz serwuje",
+        "description": "Opis",
+        "instructions": "Instrukcje",
+        "files": "Pliki",
+        "noFiles": "Brak plików."
       },
       "more": "Więcej akcji",
       "checks": {
@@ -8369,23 +8339,27 @@
     "delete2": "Usuń",
     "disableAnyYouDon": "Wyłącz te, których nie chcesz widzieć w palecie.",
     "edit": "Edytuj",
-    "edit2": "Edytuj",
     "enabled": "Włączone",
     "failedDelete3": "Nie udało się usunąć",
     "failedSaveCommand": "Nie udało się zapisać polecenia",
     "failedToggle": "Nie udało się przełączyć",
     "failedToggle2": "Nie udało się przełączyć",
     "local": "lokalne",
-    "lowercaseLettersDigitsHyphens": "Małe litery, cyfry, myślniki. Maks. 32 znaki.",
+    "lowercaseLettersDigitsHyphens": "Wielkie litery, spacje i interpunkcję formatujemy automatycznie, np. Daily Review zmieni się w daily-review. Maks. 32 znaki.",
     "modelAdded": "Dodano {label}",
     "modelRemoved": "Model usunięty",
     "modelUpdated": "Zaktualizowano {label}",
     "modelInUse": "{label} jest nadal używany przez: {names}{hidden, plural, =0 {} one { oraz jednego agenta, którego nie widzisz} few { oraz # agentów, których nie widzisz} many { oraz # agentów, których nie widzisz} other { oraz # agenta, których nie widzisz}}. Najpierw przenieś ich na inny model albo zmień klucz tego modelu zamiast go usuwać. {archived, plural, =0 {} one {Jeden z nich jest zarchiwizowany: usuń go albo przywróć i przenieś.} few {# z nich są zarchiwizowane: usuń je albo przywróć i przenieś.} many {# z nich jest zarchiwizowanych: usuń je albo przywróć i przenieś.} other {# z nich jest zarchiwizowanych: usuń je albo przywróć i przenieś.}}",
     "modelInUseHidden": "{label} jest nadal używany przez {count, plural, one {jednego agenta, którego nie widzisz. Poproś administratora, aby najpierw przeniósł go} few {# agentów, których nie widzisz. Poproś administratora, aby najpierw przeniósł ich} many {# agentów, których nie widzisz. Poproś administratora, aby najpierw przeniósł ich} other {# agenta, których nie widzisz. Poproś administratora, aby najpierw przeniósł ich}} na inny model.",
     "name": "Nazwa",
-    "nameMustBeLowercase": "Nazwa może zawierać małe litery, cyfry i myślniki (maks. 32 znaki).",
+    "nameMustBeLowercase": "Wpisz nazwę zawierającą litery lub cyfry, która po formatowaniu ma najwyżej 32 znaki.",
     "newCommand": "Nowe polecenie",
     "newCustomCommand": "Nowe własne polecenie",
+    "toggleCommand": "Włącz /{name}",
+    "commandCreated": "Utworzono /{name}.",
+    "commandUpdated": "Zaktualizowano /{name}.",
+    "commandDeleted": "Usunięto /{name}.",
+    "confirmDeleteCommand": "Usuniesz komendę i zapisany prompt. Istniejące rozmowy zostaną zachowane.",
     "noCustomCommandsYet": "Nie ma jeszcze własnych poleceń",
     "prompt": "Prompt",
     "promptCannotBeEmpty": "Prompt nie może być pusty.",
@@ -8943,7 +8917,9 @@
     "resultReport": "Po każdym zakończonym wykonaniu",
     "resultInbox": "Tylko gdy coś wymaga uwagi",
     "resultReportHint": "Po każdym wykonaniu przekaż raport do wybranej rozmowy.",
-    "resultInboxHint": "Utwórz jedną sprawę w Inbox i rozmowę na element źródłowy. Umieść tam zamówioną wersję roboczą; sprawdzenia bez zmian pozostają ciche. Wysyłka nadal wymaga odpowiednich uprawnień i zgody."
+    "resultInboxHint": "Utwórz jedną sprawę w Inbox i rozmowę na element źródłowy. Umieść tam zamówioną wersję roboczą; sprawdzenia bez zmian pozostają ciche. Wysyłka nadal wymaga odpowiednich uprawnień i zgody.",
+    "clearSearch": "Wyczyść wyszukiwanie",
+    "noRoutineMatchesHint": "Spróbuj nazwy agenta, tytułu rutyny lub słów z jej wiadomości."
   },
   "portals": {
     "mailboxInterval": {
@@ -9125,9 +9101,8 @@
     "connectionSDefaultIs": "Domyślny z połączenia - {alias}",
     "considerOnlyMostLikely": "Rozważaj tylko najbardziej prawdopodobne tokeny składające się na tę część masy prawdopodobieństwa. Ustaw to albo temperaturę, nie oba.",
     "contextCount": "{count, plural, =1 {1 plik kontekstu} few {# pliki kontekstu} many {# plików kontekstu} other {# pliku kontekstu}}",
-    "contextFilesDetail": "Stały kontekst, który czyta ten agent - słowniczek lub polityka wstrzyknięta do jego promptu, albo pliki, które czyta na żądanie.",
     "contextFilesHeading": "Pliki kontekstu",
-    "contextInjectOnlyNoTools": "Każdy plik powiązany tutaj jest wstrzykiwany do promptu, więc narzędzia odczytu (list_context, read_context) nie są dołączane - agent ma już tekst i nie ma czego czytać na żądanie. Ustaw plik jako połączony (linked), aby dać mu te narzędzia.",
+    "contextInjectOnlyNoTools": "Wstrzykiwany kontekst trafia do promptu. Narzędzia odczytu kontekstu pojawiają się, gdy co najmniej jeden włączony plik jest połączony.",
     "contextLoadingHint": "Wstrzyknięty plik jest dodawany do każdego runu; połączony plik agent czyta tylko wtedy, gdy uzna go za istotny. <link>Zarządzaj kontekstem</link>",
     "contextOffButBound": "Kontekst jest wyłączony, więc żaden z tych plików nie dociera do modelu - nawet te wstrzykiwane, bo wstrzykiwanie odbywa się tutaj. Pozostają w spec i nadal są sprawdzane przy publikacji; włącz go powyżej albo odznacz.",
     "contextPlacement": "Kontekst dla tego umiejscowienia",
@@ -10037,7 +10012,8 @@
     "pipelineModelPlaceholder": "Wybierz model",
     "pipelineNoMatches": "Brak pasujących modeli",
     "alreadyHasIt": "Używa",
-    "inDraftOf": "{more, plural, =0 {W wersji roboczej: {names}, jeszcze nieopublikowane} other {W wersji roboczej: {names} i jeszcze #, jeszcze nieopublikowane}}"
+    "inDraftOf": "{more, plural, =0 {W wersji roboczej: {names}, jeszcze nieopublikowane} other {W wersji roboczej: {names} i jeszcze #, jeszcze nieopublikowane}}",
+    "useDefaultModel": "Użyj domyślnego modelu"
   },
   "steps": {
     "skills-gallery": {
@@ -10715,7 +10691,7 @@
   },
   "apiUsage": {
     "title": "Korzystanie z API",
-    "why": "Wszystko, co może klucz API, przez zwykłe HTTP: uruchamianie agentów, odczyt runów i ich kosztów, uzupełnianie i przeszukiwanie baz wiedzy, zarządzanie członkami. Utwórz klucz poniżej i wywołuj adres bazowy.",
+    "why": "Użyj klucza API, aby uruchamiać agentów, czytać runy, przeszukiwać bazy wiedzy i zarządzać zasobami przez HTTP. Skopiuj adres bazowy i wyślij klucz jako bearer token.",
     "baseUrl": "Adres bazowy",
     "auth": "Wyślij klucz w nagłówku <code>Authorization: Bearer aos_…</code>.",
     "reference": "Dokumentacja API: wszystkie endpointy",
@@ -12208,7 +12184,11 @@
       "blockedLink": "Strona nie ma publicznego linku. Najpierw go włącz."
     },
     "lightTheme": "Użyj jasnego motywu aplikacji",
-    "darkTheme": "Użyj ciemnego motywu aplikacji"
+    "darkTheme": "Użyj ciemnego motywu aplikacji",
+    "linkSettings": "Ustawienia linku",
+    "passwordProtected": "Chroniony hasłem",
+    "expiresOn": "Wygasa {date}",
+    "embedSiteCount": "{count, plural, one {# witryna osadzająca} few {# witryny osadzające} many {# witryn osadzających} other {# witryny osadzającej}}"
   },
   "tables": {
     "cells": {
@@ -12457,6 +12437,7 @@
       "mapTo": "Dokąd trafia {header}",
       "skip": "Nie importuj",
       "externalId": "Identyfikator zewnętrzny",
+      "duplicateMapping": "Przypisz każdą kolumnę tabeli tylko raz. Wybierz inną kolumnę lub pomiń import tego pola.",
       "updateExisting": "Aktualizuj rekordy, które już tu są",
       "updateExistingHint": "Wiersz, którego zewnętrzne id tabela już ma, zmienia wskazane komórki tego rekordu zamiast zostać odrzucony.",
       "back": "Wstecz",
@@ -12801,7 +12782,13 @@
       "nothingSharedHint": "Udostępnij coś grupie z panelu Udostępnianie albo dodaj kilka rzeczy naraz ze strony grupy."
     },
     "addToGroupAll": "Zaznacz wszystkie",
-    "addToGroupNone": "Wyczyść"
+    "addToGroupNone": "Wyczyść",
+    "searchGroups": "Szukaj działów…",
+    "noMatches": "Brak pasujących działów",
+    "searchHint": "Spróbuj nazwy działu lub słowa z jego opisu.",
+    "clearSearch": "Wyczyść wyszukiwanie",
+    "formDescription": "Wybierz nazwę i ikonę. Dodaj krótki opis, aby było jasne, czym zajmuje się dział.",
+    "budgetOptions": "Limit budżetu"
   },
   "directory": {
     "navLabel": "Katalog",
@@ -12883,7 +12870,17 @@
     "couldNotLoad": "Nie udało się wczytać kluczy API",
     "emptyTitle": "Nie masz jeszcze kluczy API",
     "emptyWhy": "Utwórz klucz, żeby wywoływać API ze skryptu, Postmana albo Claude Code.",
-    "personalConsentWhy": "Osobista zgoda nie należy do gotowych zestawów. Aby ten klucz lub aplikacja mogły zatwierdzać rutyny i obserwacje korzystające z Twoich osobistych połączeń i danych, wybierz personal:consent w zestawie Własny."
+    "personalConsentWhy": "Osobista zgoda nie należy do gotowych zestawów. Aby ten klucz lub aplikacja mogły zatwierdzać rutyny i obserwacje korzystające z Twoich osobistych połączeń i danych, wybierz personal:consent w zestawie Własny.",
+    "search": "Szukaj kluczy API…",
+    "noMatches": "Brak pasujących kluczy API",
+    "searchHint": "Spróbuj nazwy klucza, prefiksu lub adresu e-mail autora.",
+    "clearSearch": "Wyczyść wyszukiwanie",
+    "keyCount": "{count, plural, one {# klucz} few {# klucze} many {# kluczy} other {# klucza}}",
+    "permissionSearch": "Znajdź uprawnienie",
+    "permissionPlaceholder": "Szukaj uprawnień…",
+    "noPermissions": "Żadne uprawnienia nie pasują do wyszukiwania.",
+    "permissionDetails": "{count, plural, one {Zobacz # uprawnienie} few {Zobacz # uprawnienia} many {Zobacz # uprawnień} other {Zobacz # uprawnienia}}",
+    "couldNotLoadScopes": "Nie udało się wczytać dostępnych uprawnień"
   },
   "mcpOauth": {
     "title": "{client} chce działać w twoim imieniu",
@@ -16506,7 +16503,8 @@
     "teams": "Microsoft Teams",
     "sms": "SMS",
     "imessage": "iMessage",
-    "discord": "Discord"
+    "discord": "Discord",
+    "platformOptions": "Platformy czatu"
   },
   "routineHealth": {
     "label": "Wstrzymaj po kolejnych błędach",
@@ -17409,5 +17407,19 @@
         "to_main": "Przeniesienie na main"
       }
     }
+  },
+  "resourceAppearance": {
+    "title": "Ikona",
+    "change": "Zmień ikonę",
+    "table": "Tabela",
+    "workflow": "Workflow",
+    "reset": "Użyj domyślnej ikony"
+  },
+  "improvementSetup": {
+    "noFeedback": "Brak opinii do analizy",
+    "openChat": "Otwórz czat",
+    "contextTitle": "Ulepsz kontekst",
+    "contextBody": "Asystent korzysta z opinii o rozmowach, w których agenci używali tego pliku kontekstu. Sprawdź każdą propozycję przed jej zastosowaniem.",
+    "costs": "Koszty i limity"
   }
 }
