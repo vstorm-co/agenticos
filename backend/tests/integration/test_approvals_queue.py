@@ -19,7 +19,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.permissions import AuthContext, OrgRoleName
@@ -1022,3 +1022,149 @@ class TestWhatAQueueReaderMaySeeOfAFact:
         assert hidden.content_hidden and hidden.context == {"audience": "organization"}
         assert not shown.content_hidden
         assert shown.context is not None and "claim" in shown.context
+
+
+class TestARememberedChoiceOnRunsAsTheyAreWritten:
+    """Runs made by `create_run`, as every surface makes them, not by hand.
+
+    A run built straight from the model leaves `test_spec` out, which reads back
+    as SQL NULL; `create_run` passes it, and the remembered choice has to hold on
+    the rows production writes.
+    """
+
+    async def _web_run(self, db: AsyncSession, org, user, version_id, agent_id) -> AgentRun:
+        from app.db.models.conversation import Conversation
+
+        chat = Conversation(id=uuid.uuid4(), organization_id=org.id, user_id=user.id)
+        db.add(chat)
+        await db.flush()
+        return await agent_run_repo.create_run(
+            db,
+            organization_id=org.id,
+            agent_id=agent_id,
+            agent_version_id=version_id,
+            user_id=user.id,
+            conversation_id=chat.id,
+            surface=RunSurface.WEB.value,
+            model_label=None,
+            started_at=_NOW,
+        )
+
+    async def _world(self, db: AsyncSession):
+        from app.db.models.agent import AgentVersion
+
+        org, user = await _org(db)
+        org.chat_may_waive_approvals = True
+        agent = await _agent(db, org)
+        version = AgentVersion(
+            id=uuid.uuid4(), organization_id=org.id, agent_id=agent.id, version=1, spec={}
+        )
+        db.add(version)
+        await db.flush()
+        ctx = AuthContext(user_id=user.id, organization_id=org.id, role="owner")
+        return org, user, agent, version, ctx
+
+    async def test_a_run_nobody_is_testing_stores_no_test_spec(self, db: AsyncSession) -> None:
+        org, user, agent, version, _ = await self._world(db)
+        run = await self._web_run(db, org, user, version.id, agent.id)
+
+        stored = await db.scalar(
+            select(AgentRun.id).where(AgentRun.id == run.id, AgentRun.test_spec.is_(None))
+        )
+
+        assert stored == run.id
+
+    async def test_always_allow_answers_the_same_tool_in_a_new_chat(self, db: AsyncSession) -> None:
+        org, user, agent, version, ctx = await self._world(db)
+        first = await self._web_run(db, org, user, version.id, agent.id)
+        approval = await _approval(db, org, first)
+        service = ApprovalService(db)
+        with patch("app.services.approvals.spawn_after_commit") as spawn:
+            spawn.side_effect = lambda _, coroutine, **kwargs: coroutine.close()
+            await service.decide(ctx, approval.id, approved=True, remember_scope="agent")
+
+        later = await self._web_run(db, org, user, version.id, agent.id)
+
+        assert (
+            await service.remembered_consent(ctx, later.id, tool_name="send_email", account=None)
+            == user.id
+        )
+
+    async def test_a_choice_made_on_a_run_stored_before_the_fix_still_holds(
+        self, db: AsyncSession
+    ) -> None:
+        """Runs written before `test_spec` stored SQL NULL hold JSON `null` instead."""
+        org, user, agent, version, ctx = await self._world(db)
+        first = await self._web_run(db, org, user, version.id, agent.id)
+        await db.execute(
+            text("UPDATE agent_runs SET test_spec = 'null'::jsonb WHERE id = :id"), {"id": first.id}
+        )
+        approval = await _approval(db, org, first)
+        service = ApprovalService(db)
+        with patch("app.services.approvals.spawn_after_commit") as spawn:
+            spawn.side_effect = lambda _, coroutine, **kwargs: coroutine.close()
+            await service.decide(ctx, approval.id, approved=True, remember_scope="agent")
+
+        later = await self._web_run(db, org, user, version.id, agent.id)
+
+        assert (
+            await service.remembered_consent(ctx, later.id, tool_name="send_email", account=None)
+            == user.id
+        )
+
+    async def test_a_remembered_choice_still_never_shares_a_fact(self, db: AsyncSession) -> None:
+        """With remembering working, `share_memory` still waits for a person."""
+        from app.agents.approval import ApprovalPending, ApprovalRequest
+        from app.services.agent_runner import ApprovalChannel
+
+        org, user, agent, version, ctx = await self._world(db)
+        first = await self._web_run(db, org, user, version.id, agent.id)
+        await _approval(
+            db,
+            org,
+            first,
+            tool_id="share_memory",
+            capability_tool_id="share_memory",
+            status=ApprovalStatus.APPROVED.value,
+            decided_by_user_id=user.id,
+            decided_at=datetime.now(UTC),
+            remember_scope="agent",
+        )
+        later = await self._web_run(db, org, user, version.id, agent.id)
+        service = ApprovalService(db)
+
+        async def tool_consent(request: ApprovalRequest) -> uuid.UUID | None:
+            return await service.remembered_consent(
+                ctx, later.id, tool_name=request.tool_name, account=request.account
+            )
+
+        assert (
+            await tool_consent(
+                ApprovalRequest(
+                    capability_id="memory_files",
+                    tool_name="share_memory",
+                    tool_call_id="c",
+                    tool_args={},
+                )
+            )
+            == user.id
+        )
+        channel = ApprovalChannel(
+            organization_id=org.id,
+            agent_id=agent.id,
+            run_id=later.id,
+            tool_consent=tool_consent,
+            standing_consent_by=None,
+        )
+
+        decision = await channel(
+            ApprovalRequest(
+                capability_id="memory_files",
+                tool_name="share_memory",
+                tool_call_id="call-1",
+                tool_args={"claim_id": str(uuid.uuid4()), "to": "organization"},
+                always_asks=True,
+            )
+        )
+
+        assert isinstance(decision, ApprovalPending)

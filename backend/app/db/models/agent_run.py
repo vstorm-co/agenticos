@@ -328,8 +328,11 @@ class AgentRun(Base, TimestampMixin):
     # The unpublished draft a test ran, frozen as it was when the run started.
     # Null for every run of a published version, which `agent_version_id` names;
     # a test of the draft has no version, and a run parked on an approval has to
-    # continue on exactly what it was running.
-    test_spec: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    # continue on exactly what it was running. Rows written before `none_as_null`
+    # hold JSON `null` instead of SQL NULL, so a filter on "no test" accepts both.
+    test_spec: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
 
     # Only a completed run that reached workspace attachment setup closes their window.
     earlier_attachments_checked: Mapped[bool] = mapped_column(
