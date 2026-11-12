@@ -1,5 +1,5 @@
 ---
-source_sha: "e6b780414766"
+source_sha: "48a83476e90c"
 ---
 
 # Governance { #governance }
@@ -77,6 +77,8 @@ Las ejecuciones de rutinas conservan las cuentas MCP y los alias de herramientas
 Una rutina pausada sin este estado de admisión no puede continuar llamadas MCP de cuentas gestionadas. Inicia una ejecución nueva tras revisar su acceso. No cambian los valores del agente interactivo ni las políticas explícitas de aprobación; las excepciones de aprobación por cuenta siguen siendo independientes de esta comprobación del origen.
 
 La política de versiones permite seguir la versión publicada predeterminada o fijar una versión inmutable. Una publicación no cambia la versión fijada. Elimina la fijación para volver a seguir la predeterminada. Un entorno con nombre y una versión fijada se excluyen mutuamente; siguen vigentes los permisos, presupuestos y aprobaciones actuales.
+
+Una versión fijada - la de una rutina, un entorno, un paso de workflow, un delegado o un run aparcado - conserva sus instrucciones, herramientas y modelo, pero sus aprobaciones de herramientas vienen de la versión publicada actual del agent: le aplica un control añadido después, y también uno retirado. Si la versión actual exige aprobar una herramienta que la versión fijada entrega al proveedor del modelo, la versión fijada se rechaza hasta que se vuelva a publicar.
 
 El formulario de la rutina permite definir o quitar su fecha de fin. La fecha usa la zona horaria del dispositivo indicada junto al campo, independientemente de la zona del cron, y se envía a la API como un instante con desplazamiento UTC. Editar otro campo conserva el fin existente.
 
@@ -1605,7 +1607,7 @@ La tarjeta de aprobación también ofrece permitir esta herramienta en este chat
 
 Las elecciones se guardan en el servidor. **Chat controls → Preferences → Remembered tool approvals → Ask again** revoca una elección sin borrar la aprobación original. Antes de cada aprobación automática se vuelven a comprobar la pertenencia, el permiso de aprobación y la política de la organización. El modo de preguntar por todo tiene prioridad sobre las elecciones guardadas. Cada aprobación automática sigue registrando quién consintió y los argumentos reales de la llamada.
 
-La cola de aprobaciones es de la organización, pero algunas llamadas citan lo que lee la persona de su run: el hecho que compartiría `share_memory`. Esa cita solo la ve quien puede ver el run: la persona para la que corrió, o un miembro que lee todos los runs y puede ver el agent. Los demás ven la herramienta, la audiencia y un aviso de que el contenido está oculto.
+La cola de aprobaciones es de la organización, pero algunas llamadas citan lo que lee la persona de su run: el hecho que compartiría `share_memory`. Esa cita solo la ve quien puede ver el run: la persona para la que corrió, o un miembro que lee todos los runs y puede ver el agent. Los demás ven la herramienta, la audiencia y un aviso de que el contenido está oculto. Una llamada que pregunta siempre solo la aprueba quien puede leer lo que cita: cualquier otra persona puede rechazarla, y su aprobación se rechaza.
 
 La regla de arriba es la del agent, decidida al publicar y por herramienta, y ese es
 el sitio correcto para ella: es una afirmación sobre lo que el agent _es_. Lo que no

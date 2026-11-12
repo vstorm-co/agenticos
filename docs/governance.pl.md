@@ -1,5 +1,5 @@
 ---
-source_sha: "e6b780414766"
+source_sha: "48a83476e90c"
 ---
 
 # Governance { #governance }
@@ -78,6 +78,8 @@ Uruchomienia rutyn zachowują konta MCP i aliasy narzędzi dopuszczone dla daneg
 Wstrzymana rutyna bez tego zapisu dopuszczenia nie może kontynuować wywołań MCP zarządzanych kont. Po przeglądzie dostępu rozpocznij nowy run. Domyślne zachowanie agenta interaktywnego i jawne polityki zatwierdzania nie zmieniają się; wyjątki zatwierdzania dla konkretnych kont pozostają osobnym mechanizmem względem kontroli źródła.
 
 Wybór wersji pozwala śledzić domyślną opublikowaną wersję albo przypiąć jedną niezmienną wersję. Publikacja nie przesuwa pinu. Usuń go, aby ponownie śledzić wersję domyślną. Nazwane środowisko i pin wersji wzajemnie się wykluczają; nadal obowiązują bieżące uprawnienia, budżety i zatwierdzenia.
+
+Przypięta wersja - rutyny, środowiska, kroku workflow, delegata albo zaparkowanego runu - zachowuje instrukcje, toole i model, ale zatwierdzenia tooli pochodzą z bieżącej opublikowanej wersji agenta: obowiązuje ją bramka dodana później, a także zdjęcie bramki. Jeśli bieżąca wersja wymaga zatwierdzenia toola, który przypięta wersja przekazuje dostawcy modelu, przypięta wersja jest odrzucana do ponownej publikacji.
 
 Formularz rutyny pozwala ustawić lub usunąć datę zakończenia. Data używa pokazanej przy polu strefy urządzenia, niezależnie od strefy harmonogramu cron, i trafia do API jako timestamp z offsetem. Edycja innego pola zachowuje dotychczasowy koniec bez zmian.
 
@@ -1600,7 +1602,7 @@ Karta akceptacji oferuje również **Zezwalaj na ten tool w tej rozmowie** i **Z
 
 Wybory są zapisywane na serwerze. **Chat controls → Preferences → Zapamiętane akceptacje tooli → Pytaj ponownie** cofa zgodę bez usuwania historii pierwotnej akceptacji. Przed każdym automatycznym zatwierdzeniem ponownie sprawdzane są członkostwo, uprawnienie do akceptacji i polityka organizacji. Tryb pytania o wszystko ma pierwszeństwo przed zapisanymi zgodami. Każde automatyczne zatwierdzenie nadal zapisuje osobę udzielającą zgody i rzeczywiste argumenty wywołania.
 
-Kolejka akceptacji należy do organizacji, ale niektóre wywołania cytują to, co czyta osoba z runu - fakt, który udostępniłby `share_memory`. Ten cytat widzi tylko ktoś, kto może zobaczyć run: osoba, dla której działał, albo członek, który czyta wszystkie runy i może zobaczyć agenta. Pozostali widzą tool, odbiorców i informację, że treść jest ukryta.
+Kolejka akceptacji należy do organizacji, ale niektóre wywołania cytują to, co czyta osoba z runu - fakt, który udostępniłby `share_memory`. Ten cytat widzi tylko ktoś, kto może zobaczyć run: osoba, dla której działał, albo członek, który czyta wszystkie runy i może zobaczyć agenta. Pozostali widzą tool, odbiorców i informację, że treść jest ukryta. Wywołanie, które pyta za każdym razem, zatwierdzić może tylko ktoś, kto widzi to, co cytuje: każdy inny może je odrzucić, a jego zatwierdzenie zostaje odrzucone.
 
 Reguła powyżej należy do agenta, jest rozstrzygana w czasie publikacji i per
 narzędzie, i to jest dla niej właściwe miejsce: to wypowiedź o tym, czym agent

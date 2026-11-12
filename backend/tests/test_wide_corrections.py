@@ -29,7 +29,7 @@ from app.repositories.agent_run import ApprovalRow
 from app.services.agent_runner import ApprovalChannel
 from app.services.approvals import ApprovalService
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 CORRECT = "correct_memory"
 
@@ -171,7 +171,7 @@ class TestWhatTheCheckAndTheCardRead:
         project_of, claim_for_approval = _reading(None)
         with project_of, claim_for_approval:
             assert await correction_is_wide(_deps(), {"claim_id": str(uuid.uuid4())}) is False
-            assert await describe_correction(_deps(), {"claim_id": str(uuid.uuid4())}) is None
+            assert await describe_correction(_deps(), {"claim_id": str(uuid.uuid4())}, None) is None
 
     async def test_the_card_shows_the_fact_before_and_after(self) -> None:
         project_of, claim_for_approval = _reading(MagicMock(statement="Office closes at six"))
@@ -179,9 +179,45 @@ class TestWhatTheCheckAndTheCardRead:
             described = await describe_correction(
                 _deps(),
                 {"claim_id": str(uuid.uuid4()), "statement": "Office closes at five"},
+                None,
             )
 
         assert described == {"before": "Office closes at six", "after": "Office closes at five"}
+
+    @pytest.mark.parametrize("allow_personal", [True, False])
+    async def test_the_card_reads_what_the_tool_reads(self, allow_personal: bool) -> None:
+        from app.agents.capabilities.memory_files import MemoryFilesConfig
+
+        scopes = MagicMock(return_value=[])
+        project_of, claim_for_approval = _reading(None)
+        with (
+            patch(
+                "app.agents.capabilities.memory_files._approval.readable_claim_scopes", new=scopes
+            ),
+            project_of,
+            claim_for_approval,
+        ):
+            await describe_correction(
+                _deps(),
+                {"claim_id": str(uuid.uuid4())},
+                MemoryFilesConfig(allow_personal=allow_personal),
+            )
+
+        assert scopes.call_args.kwargs["allow_personal"] is allow_personal
+
+    async def test_the_wideness_check_reads_no_personal_scope(self) -> None:
+        scopes = MagicMock(return_value=[])
+        project_of, claim_for_approval = _reading(None)
+        with (
+            patch(
+                "app.agents.capabilities.memory_files._approval.readable_claim_scopes", new=scopes
+            ),
+            project_of,
+            claim_for_approval,
+        ):
+            await correction_is_wide(_deps(), {"claim_id": str(uuid.uuid4())})
+
+        assert scopes.call_args.kwargs["allow_personal"] is False
 
 
 def _correction_row(triggered_by: uuid.UUID) -> ApprovalRow:

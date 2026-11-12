@@ -81,6 +81,7 @@ export function PendingApproval({
   const ago = approval.created_at ? timeAgo(approval.created_at, tTime, locale) : null;
   const summary = useCallLine(approval, true);
   const askedLine = useAskedLine(approval);
+  const mayApprove = !(approval.always_asks && approval.content_hidden);
 
   return (
     <li>
@@ -90,6 +91,7 @@ export function PendingApproval({
         approveLabel={t("approve")}
         rejectLabel={t("reject")}
         disabled={deciding}
+        rejectOnly={!mayApprove}
         className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-start"
       >
         <div className="flex min-w-0 flex-1 gap-3">
@@ -129,10 +131,14 @@ export function PendingApproval({
           </div>
         </div>
         <div className="flex shrink-0 gap-2 sm:flex-col">
-          <Button size="sm" disabled={deciding} onClick={() => onDecide(true)}>
-            <CheckCircle2 className="h-4 w-4" aria-hidden />
-            {t("approve")}
-          </Button>
+          {mayApprove ? (
+            <Button size="sm" disabled={deciding} onClick={() => onDecide(true)}>
+              <CheckCircle2 className="h-4 w-4" aria-hidden />
+              {t("approve")}
+            </Button>
+          ) : (
+            <p className="text-muted-foreground max-w-48 text-xs">{t("approveNeedsTheRun")}</p>
+          )}
           <Button size="sm" variant="outline" disabled={deciding} onClick={() => onDecide(false)}>
             <XCircle className="h-4 w-4" aria-hidden />
             {t("reject")}

@@ -310,6 +310,8 @@ class ApprovalService:
         refuses it while the call is live (#54).
 
         Raises:
+            AuthorizationError: If this is an approval of a call that only a person's
+                answer may let run, by somebody who may not see what it quotes.
             NotFoundError: If the approval is not in this organization.
             BadRequestError: If it was already decided. Deciding twice would
                 make the audit trail ambiguous about who authorised the action.
@@ -334,6 +336,14 @@ class ApprovalService:
                 details={"approval_id": str(approval_id)},
             )
 
+        if approved and approval.always_asks and await self.hidden_fields(ctx, approval):
+            raise AuthorizationError(
+                message=(
+                    "Only somebody who can see the run this call came from may approve it; "
+                    "you may reject it"
+                ),
+                details={"approval_id": approval_id},
+            )
         if remember_scope is not None:
             if not approved or via_call or approval.subagent_name is not None:
                 raise BadRequestError(

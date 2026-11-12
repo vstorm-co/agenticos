@@ -129,6 +129,7 @@ from app.agents.capabilities.approval import (
     ApprovalPending,
     ApprovalRejected,
     ApprovalRequest,
+    with_current_approvals,
 )
 from app.agents.capabilities.browser_use import (
     BROWSER_CAPABILITY_ID,
@@ -339,7 +340,7 @@ from app.services.agent_registry import (
     models_a_run_reaches,
 )
 from app.services.api_key import mint_for_run
-from app.services.approvals import ApprovalService
+from app.services.approvals import ApprovalService, withhold
 from app.services.attachments import (
     UPLOAD_DIR,
     AttachmentRouter,
@@ -1282,6 +1283,10 @@ class ApprovalChannel:
     rows do not exist yet while the run is going, and re-reading them would be a
     query per parked call to recover what this object already had in hand.
     """
+
+    def has_decision(self, tool_call_id: str) -> bool:
+        """Whether a resumed run carries a decision on this call that is still to be used."""
+        return tool_call_id in self.decided
 
     async def __call__(self, request: ApprovalRequest) -> ApprovalDecision:
         decision = self.decided.pop(request.tool_call_id, None)
@@ -4012,13 +4017,10 @@ class AgentRunnerService:
         if surface != RunSurface.EVAL:
             refuse_system_agent(agent, action=f"a {surface.value} run")
         system = agent.kind != AgentKind.AGENT.value
+        run_version_id = version_id if existing_run is None else existing_run.agent_version_id
         if system:
             spec = for_the_platform(spec)
-        spec = await self._with_current_budget(
-            agent,
-            spec,
-            version_id=version_id if existing_run is None else existing_run.agent_version_id,
-        )
+        spec = await self._with_current_budget(agent, spec, version_id=run_version_id)
         routine = await RoutineAuthority.capture(
             self.db, ctx, agent_id=agent.id, run=existing_run, version_id=version_id
         )
@@ -4037,6 +4039,10 @@ class AgentRunnerService:
                             ]
                         }
                     )
+        # After the routine has checked the version it reviewed: the current
+        # approvals are policy laid over that version, not part of its sources.
+        if not system:
+            spec = await self._with_current_approvals(agent, spec, version_id=run_version_id)
         spec = _with_local_capabilities(
             await self.registry.with_assistant_guidance(agent, spec),
             local,
@@ -5718,7 +5724,11 @@ class AgentRunnerService:
                 },
             )
 
-        published = AgentSpec.model_validate(version.spec)
+        # Pinned for how it behaves; who must approve its tool calls is the
+        # delegate's current published version's to say, as for the run's own agent.
+        published = await self._with_current_approvals(
+            delegate, AgentSpec.model_validate(version.spec), version_id=ref.agent_version_id
+        )
         pinned = _with_shared(published, shared)
         pinned = await self.registry.with_assistant_guidance(delegate, pinned)
         delegate_resources = await self._delegate_resources(
@@ -7171,23 +7181,35 @@ class AgentRunnerService:
         )
         state = run.paused_state or {}
         by_approval = state.get("tool_call_ids", {}) if isinstance(state, dict) else {}
-        return [
-            ParkedCall(
-                id=approval.id,
-                tool_call_id=by_approval.get(str(approval.id)),
-                tool_name=approval.tool_id,
-                subagent_name=approval.subagent_name,
-                can_remember=ApprovalService.can_remember_in_run(ctx, run)
-                and approval.subagent_name is None
-                and not approval.always_asks,
-                tool_args=approval.tool_args or {},
-                capability_tool_id=approval.capability_tool_id,
-                context=approval.context,
-                account=approval.account,
+        reader = ApprovalService(self.db)
+        parked: list[ParkedCall] = []
+        for approval in approvals:
+            if approval.status != ApprovalStatus.PENDING.value:
+                continue
+            # The same withholding the approvals queue applies: this route is
+            # reachable with the run's id by anybody who may read the queue.
+            hidden = await reader.hidden_fields(ctx, approval)
+            tool_args, context = withhold(
+                hidden, tool_args=approval.tool_args or {}, context=approval.context
             )
-            for approval in approvals
-            if approval.status == ApprovalStatus.PENDING.value
-        ]
+            parked.append(
+                ParkedCall(
+                    id=approval.id,
+                    tool_call_id=by_approval.get(str(approval.id)),
+                    tool_name=approval.tool_id,
+                    subagent_name=approval.subagent_name,
+                    can_remember=ApprovalService.can_remember_in_run(ctx, run)
+                    and approval.subagent_name is None
+                    and not approval.always_asks,
+                    tool_args=tool_args,
+                    capability_tool_id=approval.capability_tool_id,
+                    context=context,
+                    account=approval.account,
+                    content_hidden=bool(hidden),
+                    always_asks=approval.always_asks,
+                )
+            )
+        return parked
 
     @asynccontextmanager
     async def _resume_stream(
@@ -8126,6 +8148,26 @@ class AgentRunnerService:
         if budget == spec.budget:
             return spec
         return spec.model_copy(update={"budget": budget})
+
+    async def _with_current_approvals(
+        self, agent: Agent, spec: AgentSpec, *, version_id: UUID | None
+    ) -> AgentSpec:
+        """`spec` under the tool approvals of the agent's current published version.
+
+        A pinned version - a routine's, an environment's, a workflow step's, a
+        parked run's - decides how the agent behaves, not who must approve what it
+        does. A draft under test (no version) and an agent never published keep
+        their own: there is no other statement to take.
+        """
+        current = agent.current_version_id
+        if current is None or version_id is None or current == version_id:
+            return spec
+        version = await agent_repo.get_version(
+            self.db, current, organization_id=agent.organization_id
+        )
+        if version is None:
+            return spec
+        return with_current_approvals(spec, AgentSpec.model_validate(version.spec))
 
     async def _parked_spec(self, ctx: AuthContext, run: AgentRun) -> tuple[Agent, AgentSpec]:
         """The agent and the exact spec version this run was executing.

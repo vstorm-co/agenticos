@@ -180,14 +180,25 @@ def _version(agent_id: uuid.UUID, spec: AgentSpec) -> MagicMock:
 
 
 def _agent_row(
-    agent_id: uuid.UUID, *, slug: str, status: str = AgentStatus.PUBLISHED.value
+    agent_id: uuid.UUID,
+    *,
+    slug: str,
+    status: str = AgentStatus.PUBLISHED.value,
+    current_version_id: uuid.UUID | None = None,
 ) -> MagicMock:
     """A delegate's `agents` row - the one place its handle and its status live.
 
     `name` is assigned rather than passed to the constructor, where `MagicMock`
     would take it as the mock's own name and leave the attribute unset.
     """
-    row = MagicMock(id=agent_id, slug=slug, status=status, system_key=None, kind="agent")
+    row = MagicMock(
+        id=agent_id,
+        slug=slug,
+        status=status,
+        system_key=None,
+        kind="agent",
+        current_version_id=current_version_id,
+    )
     row.name = slug
     return row
 
@@ -736,6 +747,41 @@ class TestSharingACapabilityWithADelegate:
 
 
 class TestAPublishedDelegate:
+    @pytest.mark.security
+    async def test_it_waits_on_the_approvals_its_current_version_has(self):
+        """Pinned for how it behaves; a gate its author published since applies to it."""
+        from app.agents.capabilities.approval import approval_required_tools
+
+        delegate_id = uuid.uuid4()
+        pinned = _version(
+            delegate_id, AgentSpec(name="Research Bot", capabilities=[{"id": "memory_files"}])
+        )
+        current = _version(
+            delegate_id,
+            AgentSpec(
+                name="Research Bot",
+                capabilities=[
+                    {"id": "memory_files", "tool_approval": {"write_memory": "required"}}
+                ],
+            ),
+        )
+        spec = _delegating(
+            subagents=[SubagentRef(agent_id=delegate_id, agent_version_id=pinned.id)]
+        )
+
+        prepared = await _prepare(
+            spec,
+            versions={pinned.id: pinned, current.id: current},
+            agents={
+                delegate_id: _agent_row(
+                    delegate_id, slug="research-bot", current_version_id=current.id
+                )
+            },
+        )
+
+        built = prepared.built("research-bot")["spec"]
+        assert "write_memory" in approval_required_tools(built)
+
     async def test_it_is_built_with_its_own_reviewers_models(self):
         """An agent reviewed when called directly is reviewed as a delegate too:
         `_reviewers` leaves out any reviewer whose model was not resolved (#2106)."""

@@ -39,6 +39,7 @@ from app.agents.approval import (
     ApprovalPending,
     ApprovalRejected,
     ApprovalRequest,
+    has_recorded_decision,
     refusal,
 )
 from app.agents.capabilities._registry import (
@@ -46,7 +47,7 @@ from app.agents.capabilities._registry import (
     LOAD_CAPABILITY,
     READ_SKILL,
     AlwaysAsksWhen,
-    ApprovalDescriber,
+    BoundDescriber,
 )
 from app.agents.code_checkpoint import CodeApprovalPause
 from app.agents.deps import AgentDeps
@@ -104,7 +105,7 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
     always_asking_checks: Mapping[str, AlwaysAsksWhen] = field(default_factory=dict)
     # Effective tool name to the capability's describer for it, resolved from the
     # spec by `approval_describers` - a renamed tool keeps its describer.
-    describers: Mapping[str, ApprovalDescriber] = field(default_factory=dict)
+    describers: Mapping[str, BoundDescriber] = field(default_factory=dict)
     # Effective tool name to the stable id its capability declares it under, from
     # `approval_tool_ids`, so the request names the tool the way a surface words it.
     tool_ids: Mapping[str, str] = field(default_factory=dict)
@@ -140,7 +141,7 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
     async def _describe(
         ctx: RunContext[AgentDeps],
         tool_def: ToolDefinition,
-        describe: ApprovalDescriber,
+        describe: BoundDescriber,
         args: dict[str, Any],
     ) -> dict[str, str] | None:
         """The call's ids as names for the person deciding, or `None`.
@@ -225,7 +226,8 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
         capability_id = tool_def.capability_id
         always_asks = await self._always_asks(ctx, tool_def, args)
         gated = (
-            always_asks
+            has_recorded_decision(ctx.deps.request_approval, call.tool_call_id)
+            or always_asks
             or self.gates(tool_def)
             or (
                 active_code.get() == call.tool_call_id
