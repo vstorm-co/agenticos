@@ -1,5 +1,5 @@
 ---
-source_sha: "49d132bd9406"
+source_sha: "f824a1c79a78"
 ---
 
 # Conceptos { #concepts }
@@ -218,6 +218,10 @@ condiciones:
 - **También una versión nueva que no publicaste tú.** Una publicación, una
   promoción o una reversión de cualquier otra persona lo desactiva, y también una
   hecha con tu clave de API o por un administrador que te suplanta.
+- **Reanudarlo y su fecha de fin son cosa tuya.** Mientras actúa como tú, nadie más puede
+  reanudarlo, cambiar o quitar su fecha de fin, ni subir o quitar sus límites
+  de fallos y de gasto: se le rechaza hasta que desactive Run as me. Quien pueda
+  editarlo puede seguir pausándolo o endureciendo esos límites.
 - **El registro lo dice.** El run nombra el trigger que lo disparó, y cada entrada
   de auditoría que registra el disparo lleva `via_trigger` con el miembro como el
   que actuó.

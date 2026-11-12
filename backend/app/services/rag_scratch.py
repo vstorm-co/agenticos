@@ -1,10 +1,9 @@
 """The parse scratch copies under `MEDIA_DIR/_rag_tmp` (#2681).
 
-An upload, and each retry of one, writes the document's bytes here for its
-`ingest-document` job to parse: permanent storage may be somewhere the worker
-cannot reach, and this directory is shared between the API and the worker.
-Nothing else reads a copy - a retry re-reads the stored file and writes a copy
-of its own - so a copy is owed to exactly one job.
+With local storage an upload, and each retry, writes bytes here for its
+`ingest-document` job; the API and worker share this directory. Each dispatch
+owns its copy. With S3 the worker downloads into an execution-private temporary
+directory instead, so pods need no shared filesystem (see `parse_source`).
 
 That job removes it once no attempt of it is coming, a document delete removes
 its copies after the commit, and `sweep_stale` removes whatever a lost job or a
@@ -13,11 +12,15 @@ content of a deleted document, base or account remained on the media volume.
 """
 
 import logging
+import tempfile
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 from uuid import UUID
 
+import anyio
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.blocking import run_blocking
@@ -43,6 +46,28 @@ _LOOKUP_BATCH = 1000
 class ScratchSweep:
     removed: int
     kept: int
+
+
+@asynccontextmanager
+async def parse_source(filepath: Path, *, storage_path: str | None) -> AsyncGenerator[Path]:
+    """Open a worker-local copy for S3, or retain the shared local-storage path.
+
+    Each S3 execution owns its directory, including overlapping lease attempts.
+    A retry downloads again; cancellation and parser failures remove its copy.
+    Storage errors propagate to the job rather than parsing an absent API file.
+    """
+    if storage_path is None:
+        yield filepath
+        return
+
+    from app.services.file_storage import get_file_storage
+
+    data = await get_file_storage().load(storage_path)
+    with tempfile.TemporaryDirectory(prefix="agenticos-ingest-") as directory:
+        path = Path(directory) / f"document{filepath.suffix.lower()}"
+        async with await anyio.open_file(path, "wb") as file:
+            await file.write(data)
+        yield path
 
 
 def scratch_dir() -> Path:

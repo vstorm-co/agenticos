@@ -152,11 +152,21 @@ export function RunManifest({ runId }: { runId: string }) {
                 </p>
                 <ol className="space-y-0.5">
                   {run.calls.map((call, index) => (
-                    <li key={index} className="flex gap-2 font-mono text-xs">
+                    <li
+                      key={call.tool_call_id ?? index}
+                      className="flex min-w-0 items-center gap-2 font-mono text-xs"
+                    >
                       <span className={call.status === "failed" ? "text-destructive" : ""}>
                         {call.tool}
                       </span>
-                      <span className="text-muted-foreground truncate">{call.args}</span>
+                      <span className="text-muted-foreground min-w-0 flex-1 truncate">
+                        {call.args}
+                      </span>
+                      {call.status === "awaiting_approval" && (
+                        <Badge variant="outline" className="shrink-0 font-sans">
+                          {t("toolState", { status: "awaiting_approval" })}
+                        </Badge>
+                      )}
                     </li>
                   ))}
                 </ol>

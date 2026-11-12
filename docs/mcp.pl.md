@@ -1,5 +1,5 @@
 ---
-source_sha: "92644f155769"
+source_sha: "62e7ca10f103"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -224,6 +224,24 @@ operacje zmieniające stan wymagają akceptacji. Wybierz `all`, aby pytać równ
 W Builderze
 ustawienia serwera mówią to osobno dla grup: **Odczyt** i **Zmiany** działają bez
 pytania albo najpierw pytają.
+
+Każde narzędzie może też samo działać bez pytania albo najpierw pytać,
+niezależnie od swojej grupy i wskazówki „tylko do odczytu”: kliknij tarczę obok
+niego. Serwer, który nie oznacza żadnego narzędzia jako tylko do odczytu, pokazuje
+wszystkie narzędzia w jednej grupie, którą `writes` wstrzymuje w całości;
+ustawienie jego odczytów na **Bez pytania** sprawia, że działają, a zapisy nadal
+pytają. Ta sama kontrolka pozwala jednemu zapisowi działać bez pytania, bez `none`,
+które zwolniłoby wszystkie pozostałe.
+
+Spec przechowuje te ustawienia w `tool_approval` powiązania, według nazwy
+narzędzia na serwerze. Grupa, której narzędzia się różnią, pokazuje
+**Dla każdego narzędzia**, a wybór dla grupy znów ustawia wszystkie jej
+narzędzia. Narzędzie dodane później przez serwer podąża za swoją grupą.
+
+W dwóch miejscach decyduje wskazówka serwera. W komunikatorze narzędzie, którego
+serwer nie oznaczył jako tylko do odczytu, najpierw pyta, nawet gdy ma działać bez
+pytania, a obserwacja nigdy nie czyta narzędzia, przed którym jej powiązanie pyta,
+bo nikt nie może wtedy odpowiedzieć.
 
 ### Przez czyje konto mówi powiązanie { #whose-account-a-binding-speaks-through }
 
@@ -626,6 +644,17 @@ Dwa połączenia, których nazwy sprowadzają się do tego samego prefiksu, są
 deduplikowane — wygrywa pierwsze, z ostrzeżeniem nazywającym przegranego. Serwery
 zarządzane przez deployment są układane jako pierwsze, więc wygrywają
 z połączeniem użytkownika, które trafiło na tę samą nazwę.
+
+Prefiks oddziela narzędzia jednego serwera od narzędzi innego, ale nie od
+pozostałych narzędzi agenta. Połączenie o nazwie `request`, którego serwer oferuje
+`capability`, przedstawia `request_capability`, które ma już prawie każdy agent,
+a `create` z `chart` trafia na `create_chart` z capability charts.
+
+Publikacja odrzuca takie powiązanie, porównując narzędzia z ostatniego sprawdzenia połączenia
+z narzędziami capability agenta i narzędziami samej platformy. Gdy kolizja mimo to
+dociera do runa - serwer dodał narzędzie albo połączenie zmieniło nazwę - w tej
+turze pomijany jest cały serwer, a model dowiaduje się dlaczego, tak jak przy
+kolizji prefiksów. Zmień nazwę połączenia albo zawęź jego narzędzia.
 
 ### Stan, użycie i wywołania { #health-users-and-calls }
 

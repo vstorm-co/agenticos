@@ -1,5 +1,5 @@
 ---
-source_sha: "92644f155769"
+source_sha: "62e7ca10f103"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -230,6 +230,24 @@ aprobación. Usa `all` para exigir aprobación también en las lecturas.
 En el Builder, los ajustes de un servidor lo dicen por
 grupos: sus **lecturas** y las herramientas que **cambian cosas** se ejecutan sin
 preguntar o preguntan primero.
+
+Cada herramienta también puede ejecutarse sin preguntar o preguntar primero por sí
+sola, digan lo que digan su grupo y su marca de solo lectura: pulsa el escudo que
+tiene al lado. Un servidor que no marca ninguna herramienta como de solo lectura
+las muestra todas en un solo grupo, que `writes` retiene por completo; si dejas
+que sus lecturas se ejecuten sin preguntar, se ejecutan mientras sus escrituras
+preguntan. El mismo control deja que una sola escritura se ejecute sin
+preguntar, sin que `none` libere todas las demás.
+
+El spec guarda estos ajustes en el `tool_approval` de la vinculación, por el
+nombre de la herramienta en el servidor. Un grupo cuyas herramientas difieren
+muestra **Per tool**, y elegir para el grupo vuelve a ajustar todas sus
+herramientas. Una herramienta que el servidor añada más tarde sigue a su grupo.
+
+En dos casos manda la marca del servidor. En una app de chat, una herramienta que
+el servidor no marca como de solo lectura pregunta primero aunque esté ajustada
+para ejecutarse sin preguntar, y una vigilancia nunca lee una herramienta ante la
+que su vinculación pregunta, porque no hay nadie para responder.
 
 ### A través de qué cuenta habla una vinculación { #whose-account-a-binding-speaks-through }
 
@@ -648,6 +666,18 @@ Dos conexiones cuyos nombres se reducen al mismo prefijo se deduplican — gana 
 primera, con un aviso que nombra a la perdedora. Los servidores gestionados por el
 despliegue van ordenados primero, así que ganan a una conexión de usuario que dé
 la casualidad de elegir el mismo nombre.
+
+Un prefijo separa las herramientas de un servidor de las de otro, pero no de las
+demás herramientas del agent. Una conexión llamada `request` cuyo servidor ofrece
+`capability` presenta `request_capability`, que casi todo agent ya tiene, y `create`
+con `chart` cae en el `create_chart` de la capability charts.
+
+Publicar rechaza esa vinculación, comparando las herramientas que listó la última comprobación de la
+conexión con las de las capabilities del agent y las de la propia plataforma. Si una
+colisión llega aun así a un run - un servidor añadió la herramienta, o una conexión
+cambió de nombre -, el servidor entero queda fuera de ese turno y al modelo se le
+dice por qué, como en una colisión de prefijos. Cambia el nombre de la conexión o
+restringe sus herramientas.
 
 ### Estado, uso y llamadas { #health-users-and-calls }
 

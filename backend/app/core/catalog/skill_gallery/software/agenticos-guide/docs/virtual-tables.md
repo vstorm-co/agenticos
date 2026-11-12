@@ -193,7 +193,7 @@ next time the record is edited.
 
 Each column carries a read-only **`revision`**, which is `0` for a new column and for
 every column that existed before it was added. It counts the changes to what the
-column's values *mean*, so a published [page](artifacts.md#live-data) can tell that
+column's values *mean*, so a published [page](https://vstorm-co.github.io/agenticos/artifacts/#live-data) can tell that
 the column it was published against is no longer that one. It goes up by one on:
 
 - a type conversion;
@@ -462,7 +462,7 @@ presentation. An explicitly empty `visible_columns: []` hides all custom columns
 |---|---|
 | `kind` | `table`, `kanban` or `list` - a view is saved *for* one kind |
 | `visibility` | `private` (only its owner) or `shared` (anyone who can see the table) |
-| `can_manage` | Whether this caller may rename, reconfigure or reshare it |
+| `can_manage` | Whether this caller may rename or reconfigure it; only its owner reshares it |
 | `can_delete` | Whether this caller may delete it |
 
 Listing, reading and deleting resolve against the table (`tables:view`); creating
@@ -470,11 +470,17 @@ or changing one needs `tables:edit` on the table, so an owner whose edit access 
 taken away can still delete their views but no longer reshape or share them.
 
 Changing or deleting a view is narrower still: only its owner, or a caller whose
-`tables:edit` [scope](permissions.md) is `ALL` - not "anyone who can edit the
+`tables:edit` [scope](https://vstorm-co.github.io/agenticos/permissions/) is `ALL` - not "anyone who can edit the
 table" - so a shared editor cannot silently repoint another member's saved filter. Refused
 the same way every other per-resource write here is: `NOT_FOUND` (404), never a 403
 that would disclose a view's existence to a caller it refuses. `can_manage` and
 `can_delete` say which of the two this caller may do.
+
+Another member's private view is narrower again: even an `ALL`-scope caller may
+only delete it, never change it or read it back, so a `PATCH` answers `NOT_FOUND`
+as it would for a view that does not exist. And only a view's owner changes its
+`visibility`: anyone else sending a different one is refused with
+`AUTHORIZATION_ERROR` (403), since the view is already in front of them.
 
 Archiving a column is refused with `SCHEMA_DEPENDENCY`, naming the view, when a
 view the caller can both see and change filters, sorts or groups by it: one of their
@@ -490,7 +496,7 @@ of its chosen columns shows every live one. The stored config is not rewritten.
 
 ### Pages and views { #views-for-pages }
 
-A published [artifact](artifacts.md#live-data) does not read through a view. Its
+A published [artifact](https://vstorm-co.github.io/agenticos/artifacts/#live-data) does not read through a view. Its
 bindings are **page queries**: a table, filters, a sort, a limit and the fields the
 page reads, which the platform stores on the version of the page when it is published.
 A binding may start from a saved view - an agent finds one with `list_views`, which
@@ -507,7 +513,7 @@ Who may read the page's records is not decided by the view. They are read with t
 of the page's owner, once the owner has consented, and a table's access is all or nothing:
 `read` gives every row and every live column. A page query is how a table's rows reach people
 who could not open it, and the owner is asked first. See
-[Artifacts](artifacts.md#consent-the-owner-decides-who-reads-the-data).
+[Artifacts](https://vstorm-co.github.io/agenticos/artifacts/#consent-the-owner-decides-who-reads-the-data).
 
 A page query records the `revision` of every column it reaches: its fields, its filter
 and sort columns, a formula's inputs, a lookup's or rollup's link and target, and the column
@@ -544,6 +550,11 @@ values as `fields` by label and `author_id`, and for a change or a deletion `bef
 and the `changed` columns by label. **Triggers** on the table's page lists the
 workflows that start from it, pauses and resumes each, and opens its history.
 
+Pausing one there needs `tables:edit` on the table. Resuming one starts the workflow
+as its publisher again, so it also needs `workflows:edit` and `workflows:run` on that
+workflow, as the workflow's own **Active** switch does; a member who can edit the
+table but not the workflow is told the workflow was not found.
+
 A trigger starts only for records added while it is on. Switching it on - a publish,
 or resuming it - takes the table's schema lock, the one every record write waits on, so no record
 committed before that moment ever starts it, and nothing added while it was off is
@@ -573,14 +584,14 @@ starts from cannot be archived until that workflow starts another way.
 A record write, its history row, its idempotency receipt and, for a create, a
 `table.record.created` outbox row are written in one transaction and commit or roll
 back together. A failure at any step leaves none of them. Table and schema changes
-are recorded in the [audit log](governance.md); record changes are recorded in the
+are recorded in the [audit log](https://vstorm-co.github.io/agenticos/governance/); record changes are recorded in the
 per-record history, which keeps the cells each change touched.
 
 Two of these stores hold copies of what was written. A receipt holds the whole record as
 the write returned it, and history holds what changed, so a record delete removes the
 current row and leaves both behind until their retention removes them. Outbox rows hold
 ids. Treat all three as personal data if the cells are; see
-[data protection](data-protection.md#the-database) and
+[data protection](https://vstorm-co.github.io/agenticos/data-protection/#the-database) and
 [limits and retention](#limits-and-retention).
 
 The outbox row is the hand-off to whatever reacts to a new record: today, the
@@ -607,10 +618,10 @@ The aggregate ceiling is checked inside the mutation savepoint, under an organiz
 
 The refusal names the quota and its ceiling in `details` (`{"quota": "records", "limit":
 100000}`), never the content, and writes a `table.quota_refused` entry to the
-[audit log](governance.md) with the same two fields. Nothing is written by the refused
+[audit log](https://vstorm-co.github.io/agenticos/governance/) with the same two fields. Nothing is written by the refused
 request. Writes are also limited to `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` (300) per member
 and organization, in the console as much as over the API; a member over it gets a 429 with
-`Retry-After`. See [configuration](configuration.md#rate-limiting).
+`Retry-After`. See [configuration](https://vstorm-co.github.io/agenticos/configuration/#rate-limiting).
 
 **What history keeps.** A create keeps the whole record in `after`, and a delete keeps the
 whole record in `before`; the record limit bounds both. A record that predates the limit,
@@ -621,7 +632,7 @@ instead of the values, and still succeeds. An update keeps only the cells that c
 one side was empty there. Editing one cell of a large record therefore costs one cell,
 however often it is repeated.
 
-**Retention.** The daily [retention sweep](governance.md#retention) also removes table
+**Retention.** The daily [retention sweep](https://vstorm-co.github.io/agenticos/governance/#retention) also removes table
 data, hard-deleting in batches, for every organization:
 
 | What | Removed when | Setting |
@@ -640,7 +651,7 @@ each of the three classes scales with both it and the organization's own active 
 count, with headroom so a pre-existing backlog is worked down rather than merely held level
 - every member writing flat out at once never outpaces the sweep, up to a generous cap on
 how many members one organization's own pass sizes itself for. See
-[configuration](configuration.md#virtual-tables-limits-and-retention) for the numbers. A
+[configuration](https://vstorm-co.github.io/agenticos/configuration/#virtual-tables-limits-and-retention) for the numbers. A
 backlog beyond that is worked off over several passes, the same as any other class.
 
 ## Who can do what { #who-can-do-what }
@@ -651,7 +662,7 @@ backlog beyond that is worked off over several passes, the same as any other cla
 | `tables:edit` | Owner and admin edit all; a builder edits their own and shared; a member edits their own |
 | `tables:create` | Owner, admin, builder, member |
 
-`tables:view` and `tables:edit` are resource permissions, so a [grant](permissions.md)
+`tables:view` and `tables:edit` are resource permissions, so a [grant](https://vstorm-co.github.io/agenticos/permissions/)
 on one table widens a role for that table only: a viewer given `edit` on one table
 edits that table and nothing else. Sharing uses the same `/tables/{id}/sharing`
 routes as the other shared resources. Records inherit their table's access, and the schema enforces it: a record, history or
@@ -799,6 +810,14 @@ checklist stays internal to a run and does not create scheduled commitments.
 Group membership permits reading the group’s task board; writes additionally require table-edit permission or an explicit edit grant. If a reminder’s assigned reviewer loses access, the task becomes blocked and its creator receives an Inbox case to arrange a handoff. New working conversations for project tasks stay in that project. A table quota can prevent the optional task projection of a routine finding, but its working chat, Inbox case and notification are still delivered.
 
 Project task-board writes require project access and table-edit permission or an explicit table Edit grant. Removing a project, group or private owner cancels queued task work, resolves task cases and purges that scope’s managed table, records, history and media in the same transaction. Other scopes remain intact. The tasks panel falls back to an accessible private board if the selected board disappears.
+
+Changing a task board itself is narrower than working on it. Renaming the board, changing
+its columns or default view, and archiving or restoring it need `tables:edit` at the `ALL`
+scope (an owner or admin) or the leader of the board's scope: the group's lead, the
+project's owner, the person a private board belongs to. Anyone else in the board's
+audience still adds and edits tasks; the table's `can_manage` says which of the two a
+caller may do, and the console shows the board's own controls only when it is true. An
+attempt without it is refused with `AUTHORIZATION_ERROR` (403).
 
 ## Default view {#default-view}
 

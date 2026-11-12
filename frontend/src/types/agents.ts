@@ -102,6 +102,8 @@ export interface CodeModeSpec {
 
 /** Where this agent's traces go, when not to the deployment's own project. */
 export interface ObservabilitySpec {
+  organization?: string | null;
+  project?: string | null;
   /** An organization secret holding a Logfire write token - an id, never a token. */
   token_secret_id?: string | null;
   /** What the agent is called in Logfire; falls back to the agent's name. */
@@ -334,10 +336,21 @@ export interface OrgMcpServerRef {
    * without it never compares equal to the stored draft, so autosave never settles.
    */
   approval: McpApproval;
+  /** Each tool's own approval, over `approval` - see {@link McpToolApproval}. */
+  tool_approval?: McpToolApproval;
 }
 
 /** How much of an MCP server's tools wait for a person's approval (#2060). */
 export type McpApproval = "writes" | "all" | "none";
+
+/**
+ * Approval per tool, keyed by the name the server gives it (#2884): `required`
+ * asks first and `never` runs freely, whatever `approval` and the server's
+ * read-only hint say. Optional, unlike `approval`, because the API leaves it
+ * out while no tool has one, and sorts it by name - so a binding is written
+ * the same way for its draft to compare equal to the stored one.
+ */
+export type McpToolApproval = Record<string, "required" | "never">;
 
 /**
  * A service each person reaches through their own account.
@@ -354,6 +367,7 @@ export interface PersonalMcpServerRef {
   /** The administrator's ceiling; the person's own connection may narrow further. */
   allowed_tools: string[] | null;
   approval: McpApproval;
+  tool_approval?: McpToolApproval;
 }
 
 /**

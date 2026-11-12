@@ -90,6 +90,11 @@ A parked routine without this admission state cannot continue managed-account MC
 | **Department monthly**   | the department's settings | runs its members started, on any agent        | whoever holds `members:manage` and `budgets:manage` |
 | **Organization monthly** | organization settings     | every run _and_ ingestion in the organization | whoever holds `budgets:manage`                      |
 
+Each monthly cap counts a run's whole cost in the month the run started, as the
+spend reports do. A run that spans a month boundary - parked on an approval on the
+last evening and approved on the first - appears entirely in the earlier month, and
+when it resumes it is checked against that month's spend, not the new month's.
+
 A **new organization starts with the organization ceiling already set** — the
 deployment's `DEFAULT_ORG_MONTHLY_BUDGET_USD` ([configuration](configuration.md),
 $100 out of the box) — so a fresh tenant is not one runaway agent away from a
@@ -121,6 +126,11 @@ listing - the _published_ version's number, since that is the one the runner
 enforces, not whatever the draft currently promises. The dashboard's headroom
 card joins these against `GET /spend`, so a cap can be seen approaching before
 `budget_exceeded` starts appearing in run history.
+
+That published number binds every run of the agent, including a run of an older
+version: a routine, an environment or a workflow step pinned to one, or a run
+resumed on the version it was parked on. A pin decides how the agent behaves, not
+what it may spend.
 
 ### A department's cap
 
@@ -559,6 +569,12 @@ default: `proactive_model_profile_id` is required), recorded in run history as a
 run from the **proactive** surface and counted against the organization's budget
 like any other. A person can leave themselves out under **Settings → Assistant**.
 
+Every model request such a run makes - the first and any retry - is checked
+against the person's proactivity spending limit, the attributed agent's monthly
+budget and the organization's. A run that reaches one midway stops there, ends
+`budget_exceeded` and keeps what it spent. These runs count towards no
+department.
+
 The nightly look becomes due 20 hours after its own last attempt. Watches and
 memory maintenance do not move that clock. Watches still count toward the
 person's proactivity spending limit.
@@ -624,7 +640,8 @@ attached sources. **Approve current sources again** explicitly refreshes that
 approval. A newly selected primary account does not replace the approved account.
 
 Each look is an ordinary **proactive** run attributed to the actual selected
-agent and version. Its source tools must carry `readOnlyHint`. The watch preset
+agent and version. Its source tools must carry `readOnlyHint`, and a read the
+agent's MCP binding asks before is left out of the check. The watch preset
 permits only its approved account, knowledge/context, guardrails, planning and
 system reminders; web access, sandbox, executable skills, memory writes and
 delegation are unavailable. Required interactive approvals are refused at setup
@@ -1283,11 +1300,28 @@ At most four of a script's calls run at once, and the rest wait, so a script
 fanning out over hundreds of sandboxed calls cannot open them all together.
 
 Each call from a script goes through the same guardrails, budget and permission
-checks as a direct call. A tool that needs approval is never folded in: it stays
-an ordinary call, and the run stops for the person as it always does. So do questions,
-delegations and tools whose call is what the person sees (drafts, charts,
-drawings). The run view
-lists each script and every call it made.
+checks as a direct call. When a tool needs approval, the run parks on that call.
+Calls already started finish before the server saves the interpreter, completed
+results, manifest and call counter. After the decision, any worker can continue
+the script without another model request or repeating completed operations.
+Rejecting the call raises a `RuntimeError` inside the script; its handler never
+runs. Approving `run_code` itself does not approve any nested operation.
+
+The checkpoint is server-owned and bounded. A raw interpreter snapshot may be
+at most 512 kB; all code checkpoints in one run may occupy at most 1 MB of JSON.
+Atomic database reservations cap retained checkpoints at 8 MB per initiating
+user (across organizations) and 32 MB per organization, including running
+resumptions. If capacity is exhausted, the run fails without saving pending
+approvals; terminal cleanup releases its reservation.
+
+If it is damaged, the tool identity
+changed, or a harness/Monty upgrade makes it incompatible, the call fails clearly
+before executing a pending tool. It never restarts the script from source.
+
+Questions, delegations and tools whose call is what the person sees (drafts,
+charts, drawings) stay native. Sessions that ask before every tool and routine
+runs keep their native-tool policy. The run view lists each script once, with
+its calls and their approval/execution status across resumptions.
 
 ### Reporting
 
@@ -2278,7 +2312,7 @@ Worth stating, because a governance page implies otherwise:
 
 ## Automatic pause after repeated failures { #routine-health }
 
-Routines and watches pause after **three consecutive unsuccessful checks** by default. Set a limit from 1 to 20, or disable this limit, in the routine's form. Provider/runtime failures, invalid watch readings and inaccessible sources count. Waiting for approval, waiting for an offline computer and delivery failures do not count; an empty but verified successful check resets the streak. Other permission and budget stops still apply when this limit is disabled.
+Routines and watches pause after **three consecutive unsuccessful checks** by default. Set a limit from 1 to 20, or disable this limit, in the routine's form. Provider/runtime failures, invalid watch readings and inaccessible sources count. Waiting for approval, waiting for an offline computer, delivery failures and budget stops do not count: a check a budget refused waits for the next one, and neither adds to the streak nor resets it. An empty but verified successful check resets the streak. Other permission and budget stops still apply when this limit is disabled.
 
 Each activation has one durable health observation. Retries cannot increase the count, and late completions are evaluated in activation order. Automatic pause stops future activations; a model request already in flight may finish.
 

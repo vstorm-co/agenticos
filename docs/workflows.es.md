@@ -1,5 +1,5 @@
 ---
-source_sha: "296a2476dbbe"
+source_sha: "aa54fb9dafe5"
 ---
 
 # Workflows { #workflows }
@@ -358,10 +358,25 @@ en la tarjeta, y la pestaña lleva un punto en cuanto algo allí cambia.
 
 Apagar allí **Run this step**, o **Switch off** en su menú contextual, deja el paso en el
 lienzo, atenuado, y lo salta cuando una ejecución llega a él: no hace nada y entrega lo
-que le llegó. Publicar rechaza un trigger o un paso que decide el camino apagados, y un
+que le llegó. Publicar rechaza un trigger o un paso conectado que decide el camino apagados, y un
 paso que lee uno apagado, salvo que lo que le llega - por su única conexión de entrada,
 desde un paso encendido - tenga el campo leído, que entonces entrega. Los tres se guardan
 en el grafo, así que las versiones los conservan.
+
+En un paso apagado, conectado o no, no se comprueban ni las entradas ni los ajustes:
+no lee ni unas ni otros. Volver a encenderlo es un cambio que hay que publicar, y la
+publicación los comprueba entonces.
+
+Un paso apagado sin ninguna conexión queda apartado: puede estar junto al workflow o
+dentro de un bucle - un **Combine lists** con datos de prueba, por ejemplo - sin ser
+alcanzable. Un run lo ignora y no cuenta para el límite de pasos del run. Si lo
+conectas a algo, vuelve a tener que ser alcanzable. Cualquier
+paso puede quedar apartado, incluso uno que decide el camino, como **If**: sin
+conexiones no tiene entre qué elegir. Solo el trigger y el **Loop item** y el
+**Loop result** de un bucle siguen siempre encendidos.
+
+
+Un paso apagado puede conservar su política de errores y sus enlaces a archivos o tablas, aunque el recurso ya no sea accesible. No los lee; al volver a encenderlo se comprueban de nuevo. Un paso apartado aparece como **Apagado** en la pestaña de pasos del run, sin un registro de ejecución. Conéctalo a un trigger antes de usar **Test step**.
 
 ### Los datos de un paso, datos de prueba y probar un paso { #a-steps-data-pinning-and-testing-one-step }
 
@@ -853,7 +868,13 @@ la misma manera.
 
 La respuesta del run - su texto, su resultado estructurado, los pasajes en que se
 apoyó y cuántos archivos creó, con el JSON en sí bajo **Raw output** - y cada paso
-que dio, iteración a iteración, están al lado. Un run en curso se actualiza cada par de segundos, y **Cancel run** lo
+que dio, iteración a iteración, están al lado.
+
+La lista recoge los pasos que empezaron, en el orden en que empezaron. Los fallos
+siguen visibles aunque un paso fallara antes de empezar. Los demás pasos que no
+empezaron solo se ven en el lienzo; los omitidos aparecen atenuados. Al hacer clic
+en la fila de un paso de un bucle se ven su entrada y su salida en esa iteración.
+Un run en curso se actualiza cada par de segundos, y **Cancel run** lo
 detiene y retira los temporizadores que sus pasos en espera habían puesto en cola. Sus **Files** listan lo que guardaron sus pasos - una descarga, una página
 renderizada, la salida de un script -, cada uno descargable.
 
@@ -906,7 +927,9 @@ Nada más del run se toca, así que los pasos vecinos, las aprobaciones y los
 temporizadores siguen.
 
 Solo puede resolver un paso quien inició el run o un editor del workflow, y en un run
-de prueba solo un editor puede resolver un paso o reintentar el run. Por la API se
+de prueba solo un editor puede resolver un paso o reintentar el run. Un run cancelado
+solo lo reintenta quien lo inició o un editor, quienes podrían haberlo cancelado.
+Por la API se
 hace con `POST /api/v1/workflow-runs/{id}/steps/{node_run_id}/rerun` y un `choice`,
 y la decisión queda auditada. Un run cancelado o fallido no tiene paso que resolver:
 **Retry from failed step** inicia un run nuevo. Un paso que terminó después de que su
@@ -1157,11 +1180,42 @@ contains**, **Has attachments**, **Importance** y **Category**.
 
 La primera lectura de
 una carpeta empieza en el momento en que se publicó o se encendió por última vez el workflow, así que el
-correo que ya está allí no inicia nada. Nombrar un buzón compartido que el grant de Microsoft de la organización pueda abrir
+correo que ya está allí no inicia nada.
+
+Nombrar un buzón compartido que el grant de Microsoft de la organización pueda abrir
 exige el permiso para gestionar conexiones, como en los triggers de agente de Outlook;
-un workflow que ya escucha uno lo conserva en publicaciones posteriores, y cambiarlo
-exige el permiso otra vez. Si Outlook dice que la carpeta ya no se puede leer, el
+toda publicación que lo nombre lo exige, porque quien publica pasa a ser el miembro
+como el que se lee el buzón, y un mensaje que llega a un workflow cuyo publicador
+ya no lo tiene no inicia ningún run. Si Outlook dice que la carpeta ya no se puede leer, el
 workflow se apaga y el registro de auditoría dice por qué.
+
+Un administrador puede encontrar de antemano los triggers de Outlook que esto
+detiene: los que leen un buzón compartido para un publicador que no es owner, admin
+ni builder y por tanto no tiene `mcp:manage`. Cada uno necesita que lo vuelva a
+publicar alguien que lo tenga, o subir el rol de su publicador. Ejecútalo contra la
+base de datos del despliegue:
+
+```sql
+SELECT o.name AS organization,
+       w.name AS workflow,
+       u.email AS publisher,
+       m.role AS publisher_role,
+       node -> 'config' ->> 'mailbox' AS shared_mailbox
+FROM workflow_exposures AS e
+JOIN workflow_versions AS v ON v.id = e.workflow_version_id
+JOIN workflows AS w ON w.id = e.workflow_id
+JOIN organizations AS o ON o.id = e.organization_id
+JOIN users AS u ON u.id = e.execution_principal_user_id
+LEFT JOIN organization_members AS m
+  ON m.organization_id = e.organization_id AND m.user_id = e.execution_principal_user_id
+CROSS JOIN LATERAL jsonb_array_elements(v.graph -> 'nodes') AS node
+WHERE e.adapter = 'outlook'
+  AND e.is_active
+  AND (node ->> 'id')::uuid = e.node_instance_id
+  AND coalesce(node -> 'config' ->> 'mailbox', '') <> ''
+  AND NOT u.is_app_admin
+  AND coalesce(m.role, '') NOT IN ('owner', 'admin', 'builder');
+```
 
 La ejecución recibe los
 mismos campos que una de Gmail, con `labels` con las categorías del mensaje y
@@ -1209,7 +1263,8 @@ entrega un tema solo dentro de un tema de foro.
 Un paso **Send a message** añadido después de un trigger **Channel message** empieza
 como el bot del trigger, con `channel_id` y `thread_id` enlazados, cuando las
 plataformas coinciden. Los mensajes de un bot inician como mucho un workflow, y escuchar a un bot requiere
-`channels:manage`. Una nota de voz llega como su transcripción; los demás adjuntos
+`channels:manage`, comprobado de nuevo en cada mensaje: si quien lo publicó lo
+pierde, responde el propio agente del bot. Una nota de voz llega como su transcripción; los demás adjuntos
 no se entregan. Ver
 [trigger.channel_message](reference/workflow-nodes.md#trigger-channel-message).
 

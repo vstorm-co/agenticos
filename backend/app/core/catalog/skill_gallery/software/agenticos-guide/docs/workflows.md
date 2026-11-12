@@ -50,7 +50,7 @@ For Outlook, the creation form can also name a shared mailbox the connected acco
 
 The notification defaults to in-app. Its **Notify members** step can select the
 other supported notification channels, subject to each recipient's preferences
-and private-channel consent. The [awaited-reply step](reference/workflow-nodes.md#flow-await-reply)
+and private-channel consent. The [awaited-reply step](https://vstorm-co.github.io/agenticos/reference/workflow-nodes/#flow-await-reply)
 keeps matching, pause/correction, cancellation and deadline semantics.
 
 Run history fills the available page area by default, without an expansion control. The catalog fills the available page area and offers its own Full screen control. Pagination appears only when there is another page. File import has a labelled upload area that accepts a file picker or a dropped JSON file.
@@ -153,7 +153,7 @@ Workspace**, **Microsoft 365**), which is also where **Connect** and an untested
 connection are shown. The sign-in tools (`start_google_auth`, `login`,
 `verify-login`) are not offered.
 
-Picking an entry adds an [MCP call](reference/workflow-nodes.md#mcp-call) already
+Picking an entry adds an [MCP call](https://vstorm-co.github.io/agenticos/reference/workflow-nodes/#mcp-call) already
 set to that connection and tool, so stored workflows and the node's contract do not
 change. The entry never hides what it is: it carries an **MCP** badge and the
 connection's name, and the tool's own name stands on its own line under it, with the
@@ -270,7 +270,7 @@ published version, a run and a comparison show the saved size without handles.
 ## Configuring a node { #configuring-a-node }
 
 What each node does, what it is configured with and what its failures mean is in
-the [node reference](reference/workflow-nodes.md).
+the [node reference](https://vstorm-co.github.io/agenticos/reference/workflow-nodes/).
 
 A click selects a step; a double click opens it over the canvas. In a published version or **View only**, one click opens it. The header names the step and folds unfinished setup into one expandable summary. Open it to see what is missing; choosing a field takes you to its input. After a test or publish attempt, the summary opens with validation details.
 
@@ -339,10 +339,25 @@ on the card, and the tab carries a dot once anything there is changed.
 Turning off
 **Run this step** there, or **Switch off** in its right-click menu, keeps a step on
 the canvas, dimmed, and skips it when a run reaches it: it does nothing and hands on
-what came into it. Publishing refuses the trigger or a step that decides the way
+what came into it. Publishing refuses the trigger or a connected step that decides the way
 switched off, and a step that reads one that is off, unless what comes into it -
 along its one incoming connection, from a step that is on - has the field read,
 which it then hands on. All three are saved in the graph, so versions keep them.
+
+A step that is off, connected or not, is not checked for its inputs or its settings:
+it reads neither. Switching it back on is a change to publish, and publishing checks
+them then.
+
+A step that is off with no connection at all is set aside: it can sit beside the
+workflow or inside a loop - a **Combine lists** holding test data, say - without
+being reachable. A run ignores it, and it does not count towards the run's step
+limit. Connect it to anything and it must be reachable again. Any step can be set
+aside, even one that decides the way, such as **If**: with no connection it has no
+way to choose. Only the trigger and a loop's **Loop item** and **Loop result**
+always stay on.
+
+
+A switched-off step may keep its saved error policy and file or table bindings even when the resource is no longer accessible. It reads none of them; switching it back on checks them again. A step set aside appears as **Switched off** in the run's Steps tab without an execution row. Connect it to a trigger before using **Test step**.
 
 ### A step's data, test data and testing one step { #a-steps-data-pinning-and-testing-one-step }
 
@@ -397,7 +412,7 @@ step names a real thing your organization has:
 |---|---|
 | **Agent** and **Version** | An agent, by its face and description, then one of its published versions, with the live one marked and each one's date and release note. Changing the agent clears the pinned version, because a version belongs to one agent. The step's card then shows the agent's face and "name · v3" |
 | **Table** and **Columns** | A [virtual table](virtual-tables.md), then the columns the step reads — scoped to that table's current schema |
-| **Secret** | A [vault](secrets.md) secret, by reference. A step stores the secret's id, never its value |
+| **Secret** | A [vault](https://vstorm-co.github.io/agenticos/secrets/) secret, by reference. A step stores the secret's id, never its value |
 | **MCP server** and **Tool** | One of the organization's [MCP servers](mcp.md), with its service's mark, then one of the tools it listed when last tested. Choosing it needs the right to edit the workflow - by role or by a grant on it, as publishing the step does - not `mcp:manage`; only a member who manages servers can test one or add another |
 
 Each picker disambiguates same-named rows with context and marks a reference
@@ -441,7 +456,7 @@ of failing the run. **Tries** is how often the step is attempted in all, and **W
 between tries** and **First wait** set the pause between attempts. A step whose call
 is not safe to repeat, such as running an agent, says so and is never retried.
 **Time limit** cuts a call off after that many seconds. What each setting does at
-run time is in the [node reference](reference/workflow-nodes.md#error-handling).
+run time is in the [node reference](https://vstorm-co.github.io/agenticos/reference/workflow-nodes/#error-handling).
 
 A binding to a value with no declared shape - a loop's current item, a trigger's
 payload - offers a **Field inside it** box under the source, where you type the path
@@ -526,7 +541,7 @@ their loop: deleting the loop deletes its whole body, and copying it copies the 
 
 The step picker and the binding sources follow the scope you are in, and a step in a body may read
 anything that ran before the loop. What the loop does is in the
-[node reference](reference/workflow-nodes.md#loops).
+[node reference](https://vstorm-co.github.io/agenticos/reference/workflow-nodes/#loops).
 
 ### Parallel branches { #parallel-branches }
 
@@ -550,7 +565,7 @@ by name as `branches`, so later steps read `branches.<name>`; each wire has a
 **Branch name**. Publishing refuses it when an input may not run, naming it, or
 when only one input ever can. Connecting a second leg to a merge picks the setting
 the graph needs, and renaming a branch name carries the steps that read it, in one
-undo. The details are in the [node reference](reference/workflow-nodes.md#logic-if-and-logic-merge).
+undo. The details are in the [node reference](https://vstorm-co.github.io/agenticos/reference/workflow-nodes/#logic-if-and-logic-merge).
 
 Publishing also refuses a graph with two **Output** steps, or two **Respond to
 webhook** steps, that can both run in one run, and an **Error handler** that two
@@ -577,7 +592,7 @@ settles.
 How many branches run at once is set by the worker, not by the run. There is no
 per-run limit, so the branches of one run may take every workflow slot of a worker,
 `WORKER_WORKFLOW_CONCURRENCY` (five by default, see
-[Configuration](configuration.md)), and the rest queue. A run someone is waiting on
+[Configuration](https://vstorm-co.github.io/agenticos/configuration/)), and the rest queue. A run someone is waiting on
 goes ahead of one that started itself. A fan-out of many branches in one run
 therefore slows other runs on that worker; keep it as wide as the work needs.
 
@@ -659,7 +674,7 @@ nothing is published until you publish the draft again. Undo starts over from th
 restored graph. If someone changed the draft since you opened it, the restore is
 refused with the same conflict banner a save raises, rather than discarding their
 edit. Restoring needs `workflows:edit` on the workflow, and an archived workflow
-cannot be restored. Each restore is recorded in the [audit log](governance.md) as
+cannot be restored. Each restore is recorded in the [audit log](https://vstorm-co.github.io/agenticos/governance/) as
 `workflow.version_restored`.
 
 **Compare with draft** in a version's preview draws the version and the draft on
@@ -780,7 +795,7 @@ Figures are per step and per day, not per kind of message. To compare categories
 each one to its own approval step.
 
 How much an edit changed is measured once, when the person decides, by the same scorer
-as [`text.compare`](reference/workflow-nodes.md#text-compare), by character: `0` when
+as [`text.compare`](https://vstorm-co.github.io/agenticos/reference/workflow-nodes/#text-compare), by character: `0` when
 they approved the proposal unchanged on a step that can be edited, up to `1` when
 nothing of it is left. A step that cannot be edited, a rejection and an expiry have no
 such figure. An edit decided before approvals were measured has none either and is left
@@ -791,7 +806,7 @@ The same figures arrive over the API in the stats' `approvals` block. Across eve
 workflow you can see, over the dates you choose, `GET
 /api/v1/workflow-approvals/stats?from=2026-10-01&to=2026-10-31` gives the totals and the
 five workflows with the most requests, and the dashboard's [**Approval
-outcomes**](console.md#the-dashboard) card shows them.
+outcomes**](https://vstorm-co.github.io/agenticos/console/#the-dashboard) card shows them.
 
 The dashboard's **Workflows** card adds the same up across every workflow you can
 see, over the period the dashboard is set to: runs, failures, cost and the five
@@ -806,10 +821,15 @@ faded. Only a page open while the run went on moves; one opened later is still. 
 
 The run's answer - its text, its structured result, the passages it drew on and how
 many files it made, with the JSON itself under **Raw output** - and every step it
-took, iteration by iteration, sit alongside. A run still going
+took, iteration by iteration, sit alongside.
+
+The list holds the steps that started, in the order they started. Failures remain
+visible even if a step failed before starting. Other steps that never started stay
+on the canvas; skipped steps appear faded. Clicking a loop step's row shows its
+input and output in that iteration. A run still going
 refreshes itself every couple of seconds, and **Cancel run** stops it, and withdraws the timers its waiting steps had queued. Its **Files** list what its steps stored - a download, a rendered page, a script's output - each one downloadable.
 
-A run waiting on an [**Ask for approval**](reference/workflow-nodes.md#human-approval)
+A run waiting on an [**Ask for approval**](https://vstorm-co.github.io/agenticos/reference/workflow-nodes/#human-approval)
 step shows in the **Approvals** tab of Activity. When the step is set to **Let the
 approver edit** and has a proposal bound, such as a drafted reply, the approver
 changes it in an editor there, with **Restore original** and **Show changes**, and
@@ -852,7 +872,9 @@ a loop, or **Fail the run**. If the step reported a result after it was given up
 siblings, approvals and timers go on.
 
 Only the person who started the run, or an editor of the workflow, may resolve a
-step, and in a test run only an editor may resolve a step or retry the run. Over the
+step, and in a test run only an editor may resolve a step or retry the run. A cancelled run
+is retried only by the person who started it or an editor, the people who could have
+cancelled it. Over the
 API it is `POST /api/v1/workflow-runs/{id}/steps/{node_run_id}/rerun` with a `choice`, and the
 decision is audited. A run that was cancelled, or that failed, has no step to resolve:
 **Retry from failed step** starts a new run. A step that finished after its run
@@ -892,7 +914,7 @@ holds up to 25 rules, and a switch on each pauses one.
 **Who is told** is the workflow's **owner**, which a new rule starts with, the
 organization's **admins**, or **specific people** you pick; a person who has left the
 organization is skipped. Each of them gets a notification in the bell and an email, as
-their own [notification preferences](governance.md#alerts) allow, and one who can no
+their own [notification preferences](https://vstorm-co.github.io/agenticos/governance/#alerts) allow, and one who can no
 longer view the workflow no longer sees it. The notification says how many lines
 matched, and its link opens the Logs page filtered to the rule's step and outcomes. A
 rule with an outcome that the live version's step does not have is flagged in the list.
@@ -915,14 +937,14 @@ other trigger has a door of its own. A test run of the draft takes any trigger, 
 
 **Manual** is the trigger a person starts with **Test draft**; **API request** is the one a system calls, and **Trigger** shows its endpoint and a sample request. Give either its **Input fields** and a run asks for what it needs: **Test draft** and **Start a run** show a form with one box per field instead of the JSON, typed as the
 field is, and an API call whose input does not fit is refused with the fields that
-are wrong. See [core.input](reference/workflow-nodes.md#core-input).
+are wrong. See [core.input](https://vstorm-co.github.io/agenticos/reference/workflow-nodes/#core-input).
 
 For nested objects and arrays, configure an optional JSON Schema Draft 2020-12
 `input_schema` on **Manual**, **API request** or **Called by a workflow** instead
 of simple fields. The schema is saved with the published version, and every run
 must satisfy that version's contract before it starts. API and MCP callers can
 inspect the same contract before sending input. See
-[JSON Schema input contracts](reference/workflow-nodes.md#json-schema-input-contracts)
+[JSON Schema input contracts](https://vstorm-co.github.io/agenticos/reference/workflow-nodes/#json-schema-input-contracts)
 for configuration, references and validation errors. Existing simple-field inputs
 and workflows without a contract keep their behavior.
 
@@ -1029,7 +1051,7 @@ The link is the page's only credential and survives every publish of the same no
 pausing the trigger closes the page. Answers that do not fit are named on the page
 and start nothing, a hidden box catches scripts, and each form takes at most
 `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` answers a minute. See
-[trigger.form](reference/workflow-nodes.md#trigger-form).
+[trigger.form](https://vstorm-co.github.io/agenticos/reference/workflow-nodes/#trigger-form).
 
 ### From GitHub { #from-github }
 
@@ -1048,7 +1070,7 @@ the member who published the workflow, with the `event`, `action`, `repository`,
 `sender` and the whole `payload`. A redelivery answers with its first run, and
 anything else - GitHub's `ping` included - is skipped. **New secret** replaces the
 secret and registers the hook again where the account set it up. See
-[trigger.github](reference/workflow-nodes.md#trigger-github).
+[trigger.github](https://vstorm-co.github.io/agenticos/reference/workflow-nodes/#trigger-github).
 
 ### From an email { #from-an-email }
 
@@ -1078,9 +1100,9 @@ mailbox's `message_id`, and the thread the message belongs to: `thread_id`, the
 `received_at` and the `html` body. The sender writes the three header fields, so a
 reply can be threaded with them but they prove nothing about who sent it. A message
 read twice starts its run once, and one the organization had no room to run yet is read again a minute later. See
-[trigger.gmail](reference/workflow-nodes.md#trigger-gmail). To read the `html` body
+[trigger.gmail](https://vstorm-co.github.io/agenticos/reference/workflow-nodes/#trigger-gmail). To read the `html` body
 as text, links or what a CSS selector picks, bind it to
-[`html.parse`](reference/workflow-nodes.md#html-parse).
+[`html.parse`](https://vstorm-co.github.io/agenticos/reference/workflow-nodes/#html-parse).
 
 An **Outlook** trigger does the same for the organization's Microsoft 365 mailbox,
 connected through the **Outlook** portal. Microsoft Graph is read one folder at a
@@ -1092,14 +1114,42 @@ read it starts from the moment the workflow was published or last switched on, s
 mail already there starts nothing.
 
 Naming a shared mailbox the organization's Microsoft grant can open takes the permission
-to manage connections, as it does for Outlook agent triggers; a workflow already
-listening to one keeps it through later publishes, and changing it needs the permission again. If Outlook says the folder can no longer be read, the workflow is
+to manage connections, as it does for Outlook agent triggers; every publish that names one needs it, because whoever publishes becomes the member
+the mailbox is read as, and a message reaching a workflow whose publisher no longer
+holds it starts no run. If Outlook says the folder can no longer be read, the workflow is
 switched off and the audit log says why.
+
+Before upgrading to a release with this check, an administrator can find the
+Outlook triggers it will stop: those reading a shared mailbox for a publisher who is not an owner, admin or builder,
+and so lacks `mcp:manage`. Each needs a republish by someone who holds it, or its
+publisher's role raised. Run against the deployment's database:
+
+```sql
+SELECT o.name AS organization,
+       w.name AS workflow,
+       u.email AS publisher,
+       m.role AS publisher_role,
+       node -> 'config' ->> 'mailbox' AS shared_mailbox
+FROM workflow_exposures AS e
+JOIN workflow_versions AS v ON v.id = e.workflow_version_id
+JOIN workflows AS w ON w.id = e.workflow_id
+JOIN organizations AS o ON o.id = e.organization_id
+JOIN users AS u ON u.id = e.execution_principal_user_id
+LEFT JOIN organization_members AS m
+  ON m.organization_id = e.organization_id AND m.user_id = e.execution_principal_user_id
+CROSS JOIN LATERAL jsonb_array_elements(v.graph -> 'nodes') AS node
+WHERE e.adapter = 'outlook'
+  AND e.is_active
+  AND (node ->> 'id')::uuid = e.node_instance_id
+  AND coalesce(node -> 'config' ->> 'mailbox', '') <> ''
+  AND NOT u.is_app_admin
+  AND coalesce(m.role, '') NOT IN ('owner', 'admin', 'builder');
+```
 
 The run gets the same fields as a Gmail
 run, with `labels` holding the message's categories and `mailbox` the shared
 mailbox it came from. See
-[trigger.outlook](reference/workflow-nodes.md#trigger-outlook).
+[trigger.outlook](https://vstorm-co.github.io/agenticos/reference/workflow-nodes/#trigger-outlook).
 
 Both mail triggers take outside input: anyone can send the mailbox a message, so
 bind what the run does with it as you would for a webhook.
@@ -1137,9 +1187,10 @@ topic only inside a forum topic.
 
 A **Send a message** step added after a **Channel message** trigger starts as the
 trigger's bot, with `channel_id` and `thread_id` bound, when the two platforms match. A
-bot's messages start one workflow at most, and listening to a bot needs `channels:manage`.
+bot's messages start one workflow at most, and listening to a bot needs `channels:manage`, checked again
+at every message: once the publisher loses it, the bot's own agent answers instead.
 A voice note arrives as its transcript; other attachments are not handed on. See
-[trigger.channel_message](reference/workflow-nodes.md#trigger-channel-message).
+[trigger.channel_message](https://vstorm-co.github.io/agenticos/reference/workflow-nodes/#trigger-channel-message).
 
 ### When another workflow calls it { #when-another-workflow-calls-it }
 
@@ -1182,7 +1233,7 @@ unlinked channel sender, an agent event trigger's delivery) starts none.
 
 ### From an app { #from-an-app }
 
-A [published page](artifacts.md#actions) can start a workflow that its agent has bound
+A [published page](https://vstorm-co.github.io/agenticos/artifacts/#actions) can start a workflow that its agent has bound
 and that starts from **Manual** or **API request**. The page only asks. The member
 viewing it is shown a dialog with the workflow's own name and every input value, and
 the run starts only when they confirm. It is theirs: their access, their budget and
@@ -1219,7 +1270,7 @@ deciding it.
 Nothing else is exactly once. An HTTP call, an upload or a file write may be made
 again after such a stop, so a receiving system that must not see a request twice
 needs an idempotency key of its own. Each step's retry promise is listed in the
-[node reference](reference/workflow-nodes.md).
+[node reference](https://vstorm-co.github.io/agenticos/reference/workflow-nodes/).
 
 | What you see | Why | What to do |
 |---|---|---|

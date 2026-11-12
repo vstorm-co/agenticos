@@ -1,5 +1,5 @@
 ---
-source_sha: "2391388a2aed"
+source_sha: "2f74a407e5a3"
 ---
 
 # Über einen Host hinaus skalieren { #scale-beyond-one-host }
@@ -15,6 +15,9 @@ trägt ein Team von einigen Dutzend Leuten, und die meiste Langsamkeit auf einem
 kleinen Host ist CPU-Steal oder ein zu kleiner Pool, nicht eine fehlende
 Replika. Die [Lasttests](load-testing.md) führen dieselbe Last gegen jedes
 Deployment aus.
+
+Das [Kubernetes-Helm-Chart](kubernetes.md) setzt dieses Modell externer Dienste
+für API-, Worker- und Konsolen-Pods um. OpenShift bleibt unvalidiert.
 
 ## Was Zustand hält und was nicht { #what-holds-state-and-what-does-not }
 
@@ -180,6 +183,3 @@ sobald sie eintrifft, statt Frame für Frame.
 - Lese-Repliken oder eine eigene Vektordatenbank.
 - Sharding von Organisationen über Datenbanken innerhalb eines Deployments.
 - PgBouncer im Transaction-Modus oder Redis Cluster.
-- Kubernetes-Manifeste. Die Images sind dieselben, die die Compose-Dateien
-  ausführen, und jeder Dienst bringt seinen eigenen Health-Check mit, also
-  betreibt ein Cluster sie mit der Umgebung, die diese Seite beschreibt.

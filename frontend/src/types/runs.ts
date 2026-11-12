@@ -347,7 +347,12 @@ export interface ManifestReview {
 export interface ManifestCodeRun {
   tool_call_id: string;
   code: string;
-  calls: { tool: string; args: string; status: "returned" | "failed" }[];
+  calls: {
+    tool_call_id?: string;
+    tool: string;
+    args: string;
+    status: "returned" | "failed" | "awaiting_approval";
+  }[];
   /** Calls past the ones listed - a script that loops can make thousands. */
   omitted_calls?: number;
 }

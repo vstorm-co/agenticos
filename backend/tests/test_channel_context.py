@@ -225,6 +225,42 @@ def test_channel_mcp_approval_includes_organization_and_platform_connections():
     assert [ref.approval for ref in spec.mcp_servers] == ["writes", "none"]
 
 
+@pytest.mark.security
+@pytest.mark.parametrize("linked_sender", [True, False])
+def test_a_tool_s_own_run_freely_does_not_reach_a_chat_app(linked_sender):
+    """A tool's `never` is the author's word, not the server's: in a chat app a
+    tool without a read-only hint still asks. Its own `required` stays (#2884)."""
+    from uuid import uuid4
+
+    from pydantic_ai.tools import ToolDefinition
+
+    from app.agents.mcp import needs_approval
+    from app.db.models.agent_run import RunSurface
+    from app.services.agent_runner import _with_channel_service_approval
+
+    spec = AgentSpec(
+        name="A",
+        mcp_servers=[
+            {
+                "connection_id": uuid4(),
+                "approval": "writes",
+                "tool_approval": {"search": "never", "purge": "required"},
+            },
+            {"account": "personal", "catalog_key": "notion", "tool_approval": {"fetch": "never"}},
+            {"account": "platform"},
+        ],
+    )
+
+    result = _with_channel_service_approval(spec, RunSurface.SLACK, linked_sender=linked_sender)
+
+    org, personal, platform = result.mcp_servers
+    assert (org.tool_approval, personal.tool_approval) == ({"purge": "required"}, {})
+    unhinted = ToolDefinition(name="search", metadata={"annotations": None})
+    assert needs_approval(unhinted, org.approval, org.tool_approval.get("search", "default"))
+    assert platform.approval == ("writes" if linked_sender else "all")
+    assert spec.mcp_servers[0].tool_approval == {"purge": "required", "search": "never"}
+
+
 @pytest.mark.parametrize(
     "granted",
     [["send_channel_file"], ["get_channel_info", "send_channel_file"], ["get_channel_info"], []],

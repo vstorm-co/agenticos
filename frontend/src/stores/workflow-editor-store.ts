@@ -181,6 +181,11 @@ export interface WorkflowEditorState {
   /** The step whose settings are open in the editor's dialog; null when none is. */
   editingNodeId: Uuid | null;
   /**
+   * The loop iteration the open step is shown at, as `iterationOf` gives it -
+   * empty for its latest data.
+   */
+  editingIteration: number[];
+  /**
    * Whether a missing required value is said yet: only once a run or a publish
    * was tried, so a step just added is not covered in red before anything is set.
    */
@@ -197,6 +202,8 @@ export interface WorkflowEditorState {
    * test pins for the steps before it.
    */
   stepData: Record<Uuid, StepData>;
+  /** A run view's steps per loop iteration, from `iterationDataOf`, for `editingIteration`. */
+  iterationData: Record<string, StepData>;
   /** The test run whose steps feed `stepData`: the last one started, or found on opening. */
   watchedRunId: string | null;
   /** The step a step test is running for, until its run ends. */
@@ -226,8 +233,8 @@ export interface WorkflowEditorState {
   clearReveal: () => void;
   /** Select a step and ask the canvas to bring it into view - a problem pointing at it. */
   focusNode: (nodeId: Uuid) => void;
-  /** Open one step's settings, selecting it; `null` closes them. */
-  editNode: (nodeId: Uuid | null) => void;
+  /** Open one step's settings, selecting it, at a loop iteration; `null` closes them. */
+  editNode: (nodeId: Uuid | null, iteration?: number[]) => void;
   /**
    * Add an edge for a validated `@xyflow/react` connection, with any bindings it
    * implies and the configs it changes (a merge's mode and branch names), as one
@@ -273,6 +280,8 @@ export interface WorkflowEditorState {
   watchRun: (runId: string, testing?: Uuid) => void;
   /** Fold what a watched run's steps did into `stepData`. */
   mergeStepData: (data: Record<Uuid, StepData>) => void;
+  /** Replace what a run view's steps did per loop iteration. */
+  setIterationData: (data: Record<string, StepData>) => void;
   /** The watched run ended. */
   finishTesting: () => void;
   /** Pin each named step's data at once - one undoable edit. A step not in the graph is left out. */
@@ -359,10 +368,12 @@ const CLEARED = {
   selection: EMPTY_SELECTION,
   revealNodeId: null,
   editingNodeId: null,
+  editingIteration: [] as number[],
   problemsRevealed: false,
   overlay: null as CanvasOverlay,
   splitEdgeId: null as Uuid | null,
   stepData: {} as Record<Uuid, StepData>,
+  iterationData: {} as Record<string, StepData>,
   watchedRunId: null as string | null,
   testingNodeId: null as Uuid | null,
   lastStepTest: null as { nodeId: Uuid; runId: string } | null,
@@ -694,11 +705,15 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
     focusNode: (nodeId) =>
       set({ selection: { nodeIds: [nodeId], edgeIds: [] }, revealNodeId: nodeId }),
 
-    editNode: (nodeId) =>
+    editNode: (nodeId, iteration = []) =>
       set(
         nodeId === null
-          ? { editingNodeId: null }
-          : { editingNodeId: nodeId, selection: { nodeIds: [nodeId], edgeIds: [] } },
+          ? { editingNodeId: null, editingIteration: [] }
+          : {
+              editingNodeId: nodeId,
+              editingIteration: iteration,
+              selection: { nodeIds: [nodeId], edgeIds: [] },
+            },
       ),
 
     connectNodes: (connection, bindings = [], configs = {}) => {
@@ -811,6 +826,8 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
       }),
 
     mergeStepData: (data) => set({ stepData: { ...get().stepData, ...data } }),
+
+    setIterationData: (data) => set({ iterationData: data }),
 
     finishTesting: () => set({ testingNodeId: null }),
 

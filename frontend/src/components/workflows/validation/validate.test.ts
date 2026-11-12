@@ -441,6 +441,34 @@ describe("drift parity — graphs the backend refuses", () => {
     expect(codesOf(run(g))).toEqual(["unreachable-node"]);
   });
 
+  it("rule 2 — a step switched off with no edge is set aside, not unreachable", () => {
+    const parked = { ...node("parked", "test.consumer"), disabled: true };
+    const g = graph({ entry: "entry", nodes: [echo("entry"), parked] });
+    expect(codesOf(run(g))).toEqual([]);
+  });
+
+  it("rule 9 — a connected step that is off is asked for no input", () => {
+    const off = { ...node("off", "test.consumer"), disabled: true };
+    const g = graph({
+      entry: "entry",
+      nodes: [echo("entry"), off],
+      edges: [edge("e1", "entry", "out", "off", "in")],
+    });
+    expect(codesOf(run(g))).toEqual([]);
+    expect(codesOf(run({ ...g, nodes: [echo("entry"), { ...off, disabled: false }] }))).toEqual([
+      "input-not-bound",
+    ]);
+  });
+
+  it("rule 2 — a step switched off that feeds the line is still unreachable", () => {
+    const g = graph({
+      entry: "entry",
+      nodes: [echo("entry"), { ...echo("stray"), disabled: true }, echo("sink")],
+      edges: [edge("e1", "entry", "out", "sink", "in"), edge("e2", "stray", "out", "sink", "in")],
+    });
+    expect(codesOf(run(g))).toContain("unreachable-node");
+  });
+
   it("rule 3 — an edge between incompatible port shapes", () => {
     const g = graph({
       entry: "a",
@@ -956,6 +984,23 @@ describe("drift parity — graphs the backend refuses", () => {
     ]);
   });
 
+  it("a body step switched off with no edge is set aside, not unreachable", () => {
+    const g = graph({
+      entry: "entry",
+      nodes: [
+        echo("entry"),
+        node("loop", "control.foreach"),
+        { ...node("item", "loop.item"), scope_id: "loop" },
+        { ...node("x", "test.consumer_noreq"), scope_id: "loop" },
+        { ...node("parked", "test.consumer"), scope_id: "loop", disabled: true },
+      ],
+      edges: [edge("e1", "entry", "out", "loop", "in"), edge("e2", "item", "out", "x", "in")],
+    });
+    const codes = codesOf(run(g));
+    expect(codes).not.toContain("loop-body-unreachable");
+    expect(codes).not.toContain("input-not-bound");
+  });
+
   it("rule 8 — a non-control node sending through two ports", () => {
     const g = graph({
       entry: "entry",
@@ -1165,6 +1210,14 @@ describe("binding-picker helpers", () => {
 
   it("availableSourceNodes is what precedes the node, minus the node itself", () => {
     expect(availableSourceNodes(linear, CATALOG, "c")).toEqual(new Set(["a", "b"]));
+  });
+
+  it("availableSourceNodes offers no step switched off", () => {
+    const off = {
+      ...linear,
+      nodes: linear.nodes.map((n) => (n.id === "b" ? { ...n, disabled: true } : n)),
+    };
+    expect(availableSourceNodes(off, CATALOG, "c")).toEqual(new Set(["a"]));
   });
 
   it("availableSourceNodes is empty when the node has no dominator verdict", () => {
@@ -1758,3 +1811,26 @@ describe("a merge judged by run conditions", () => {
     expect(joinCodes(run(g))).toEqual([]);
   });
 });
+
+it.each(["debug.echo", "logic.split", "error.handle"])(
+  "keeps a parked %s step's saved error policy",
+  (definitionId) => {
+    const g = graph({
+      entry: "entry",
+      nodes: [
+        echo("entry"),
+        { ...node("parked", definitionId), disabled: true, policy: { on_error: "route" } },
+      ],
+    });
+    expect(
+      run(g).filter((problem) =>
+        [
+          "error-port-unwired",
+          "error-handler-default-unwired",
+          "split-routes-errors",
+          "port-name-taken",
+        ].includes(problem.code),
+      ),
+    ).toEqual([]);
+  },
+);

@@ -1,0 +1,93 @@
+# Pin a released tag, or set image.backendDigest and image.frontendDigest.
+image:
+  backend: ghcr.io/vstorm-co/agenticos-backend
+  frontend: ghcr.io/vstorm-co/agenticos-frontend
+  tag: ""
+  backendTag: ""
+  frontendTag: ""
+  backendDigest: ""
+  frontendDigest: ""
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+# Must exist before Helm starts: SECRET_KEY, API_KEY, VAULT_MASTER_KEY, POSTGRES_PASSWORD.
+# Optional credentials: REDIS_PASSWORD, FILE_STORAGE_S3_ACCESS_KEY,
+# FILE_STORAGE_S3_SECRET_KEY. Do not put credentials in values files.
+existingSecret: ""
+serviceAccountName: default
+podSecurityContext:
+  runAsNonRoot: true
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+# OpenShift: set podSecurityContext without fsGroup, and runAsUser: null on
+# all three workloads. Let restricted-v2 assign namespace UIDs and groups.
+api:
+  replicas: 1
+  runAsUser: 1000
+  resources:
+    requests: {cpu: 250m, memory: 512Mi}
+    limits: {cpu: "2", memory: 2Gi}
+worker:
+  replicas: 1
+  runAsUser: 1000
+  resources:
+    requests: {cpu: 500m, memory: 1Gi}
+    limits: {cpu: "4", memory: 4Gi}
+frontend:
+  replicas: 1
+  runAsUser: 1001
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {cpu: "1", memory: 1Gi}
+migration:
+  activeDeadlineSeconds: 600
+  resources:
+    requests: {cpu: 250m, memory: 512Mi}
+    limits: {cpu: "2", memory: 2Gi}
+public:
+  siteUrl: ""
+  apiUrl: ""
+  websocketUrl: ""
+postgres:
+  host: ""
+  port: 5432
+  database: agenticos
+  user: agenticos
+  sslMode: verify-full
+# Secret keys are mounted read-only at /etc/agenticos/trust in all backend pods.
+trust:
+  existingSecret: ""
+  postgresCaKey: postgres-ca.crt
+  # Optional combined public/private CA bundle for Python TLS (including Redis).
+  sslCaKey: ""
+# Required when exposing the chart through ingress or an external trusted proxy.
+# Select only your protected ingress controller pods, not application namespaces.
+trustedProxy:
+  enabled: false
+  namespaceLabels: {}
+  podLabels: {}
+redis:
+  host: ""
+  port: 6379
+  database: 0
+  ssl: true
+storage:
+  bucket: ""
+  region: us-east-1
+  endpoint: ""
+  pathStyle: false
+  prefix: ""
+  encryption: sse-s3
+  kmsKeyId: ""
+# Nonsecret backend settings; explicit chart-managed settings take precedence.
+extraEnv: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  siteHost: ""
+  apiHost: ""
+  tls: []

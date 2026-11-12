@@ -75,10 +75,28 @@ def _as_text(value: Any) -> str:
 
 
 def judge(expectation: EvalExpectation, output: dict[str, Any]) -> tuple[bool, str]:
-    """Whether `output` says what `expectation` asks, and what it said there."""
+    """Compare structured JSON independently of key order and whitespace.
+
+    Array order and value types remain significant. Plain-text expectations keep
+    their existing case-insensitive equality/substring semantics, including when
+    searching a JSON-rendered output. The preview remains the original output.
+    """
     value = _at(output, expectation.field)
     actual = "" if value is None else _as_text(value)
-    said, wanted = actual.strip().casefold(), expectation.value.strip().casefold()
+    compared, expected = actual, expectation.value
+    if isinstance(value, dict | list):
+        try:
+            expected_json: object = json.loads(expectation.value)
+        except json.JSONDecodeError:
+            pass
+        else:
+            compared = json.dumps(
+                value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str
+            )
+            expected = json.dumps(
+                expected_json, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+            )
+    said, wanted = compared.strip().casefold(), expected.strip().casefold()
     if expectation.kind == "equals":
         passed = said == wanted
     elif expectation.kind == "contains":

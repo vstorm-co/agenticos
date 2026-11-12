@@ -408,6 +408,42 @@ class TestPolicy:
         assert written.model_dump(mode="json")["mcp_servers"][0]["approval"] == "all"
 
     @pytest.mark.security
+    @pytest.mark.parametrize("new", [["search", "create_page"], None])
+    def test_widening_mcp_tools_drops_the_run_freely_of_each_tool_it_adds(
+        self, new: list[str] | None
+    ) -> None:
+        """The card says every write a change adds asks first, which a tool's own
+        `never` set while it was out of reach would make untrue (#2884). A tool
+        already reached keeps its own, and so does an `ask first`."""
+        spec = _spec(
+            mcp_servers=[
+                {
+                    "account": "personal",
+                    "catalog_key": "notion",
+                    "allowed_tools": ["search"],
+                    "approval": "writes",
+                    "tool_approval": {
+                        "search": "never",
+                        "create_page": "never",
+                        "archive": "never",
+                        "purge": "required",
+                    },
+                }
+            ]
+        )
+        path = "mcp_servers/personal:notion/allowed_tools"
+
+        staged = fields.stage(spec, path, "set", new)
+        assert isinstance(staged, fields.Staged)
+        written = fields.apply(spec, path, "set", staged.base, staged.new)
+
+        assert written is not None
+        expected = {"purge": "required", "search": "never"}
+        if new is not None:
+            expected["archive"] = "never"
+        assert written.mcp_servers[0].tool_approval == expected
+
+    @pytest.mark.security
     def test_narrowing_or_removing_adds_nothing_and_raises_no_approval(self):
         spec = _spec()
         path = "mcp_servers/personal:notion/allowed_tools"

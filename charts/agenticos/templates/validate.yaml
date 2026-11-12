@@ -1,0 +1,3 @@
+{{- if and .Values.ingress.enabled (not .Values.trustedProxy.enabled) }}
+{{- fail "ingress.enabled requires trustedProxy.enabled and protected proxy selectors; see docs/kubernetes.md" }}
+{{- end }}

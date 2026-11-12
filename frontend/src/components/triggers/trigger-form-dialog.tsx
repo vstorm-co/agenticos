@@ -1,5 +1,6 @@
 "use client";
 
+import { sameLocalTarget } from "@/lib/desktop/local-target-content";
 import { ZoneField, isTimeZone } from "./zone-field";
 import { RoutineDialogFrame } from "./routine-dialog-frame";
 
@@ -57,7 +58,7 @@ import { FailurePolicyField } from "@/components/triggers/failure-policy-field";
 import { NotificationChannelsField } from "@/components/triggers/notification-channels-field";
 import type { RoutineNotificationChannel } from "@/types/routines";
 import { AnswerToField } from "@/components/triggers/answer-to-field";
-import { BudgetField, parseBudget } from "@/components/triggers/budget-field";
+import { BudgetField, parseBudget, raisesBudget } from "@/components/triggers/budget-field";
 import { OverlapField } from "@/components/triggers/overlap-field";
 import { NO_TEAMS_POST, TeamsPostField } from "@/components/triggers/teams-post-field";
 import { LocalTargetField } from "@/components/triggers/local-target-field";
@@ -265,7 +266,7 @@ export function TriggerFormDialog({
   const [budget, setBudget] = useState(
     trigger?.monthly_budget_usd != null ? String(Number(trigger.monthly_budget_usd)) : "",
   );
-  const budgetLimit = parseBudget(budget);
+  const parsedBudget = parseBudget(budget);
   const [maxFailures, setMaxFailures] = useState<number | null>(
     trigger?.max_failures === undefined ? 3 : trigger.max_failures,
   );
@@ -290,7 +291,19 @@ export function TriggerFormDialog({
   );
   // A new trigger is the caller's own; an existing one is whoever made it.
   const me = useAuthStore((state) => state.user?.id ?? null);
-  const isCreator = trigger === null || trigger.created_by_user_id === me;
+  const impersonating = useAuthStore((state) => Boolean(state.user?.impersonation));
+  // An administrator acting as the creator is not the creator, as the server sees it.
+  const isCreator = trigger === null || (trigger.created_by_user_id === me && !impersonating);
+  // The server refuses anybody else resuming, moving the end of or loosening a routine
+  // that acts as its creator; tightening a limit stays theirs to do.
+  const limitsLocked = !isCreator && runsAsCreator;
+  const budgetRaised =
+    limitsLocked &&
+    raisesBudget(
+      parsedBudget,
+      trigger?.monthly_budget_usd != null ? Number(trigger.monthly_budget_usd) : null,
+    );
+  const budgetLimit = budgetRaised ? undefined : parsedBudget;
 
   const seed = trigger?.interval_seconds
     ? intervalToUnit(trigger.interval_seconds)
@@ -614,7 +627,7 @@ export function TriggerFormDialog({
         if (runsAsCreator !== trigger.runs_as_creator) patch.runs_as_creator = runsAsCreator;
         // Turning acting-as-me off clears the folder on the server; say nothing then.
         const before = trigger.local_target ?? null;
-        if (runsAsCreator && JSON.stringify(localTarget) !== JSON.stringify(before)) {
+        if (runsAsCreator && !sameLocalTarget(localTarget, before)) {
           const approved = localTarget ? (approvedLocal ?? (await approveTarget())) : null;
           if (!stillHere()) return;
           if (localTarget && !approved) return;
@@ -941,15 +954,33 @@ export function TriggerFormDialog({
                   hasConversation={hasConversation}
                 />
               )}
-              <FailurePolicyField value={maxFailures} onChange={setMaxFailures} />
+              <FailurePolicyField
+                value={maxFailures}
+                onChange={setMaxFailures}
+                highest={limitsLocked ? (trigger.max_failures ?? undefined) : undefined}
+              />
               <NotificationChannelsField
                 value={notificationChannels}
                 onChange={setNotificationChannels}
               />
 
-              <EndsAtField value={endsAt} onChange={changeEnd} invalid={invalidEnd} />
+              <EndsAtField
+                value={endsAt}
+                onChange={changeEnd}
+                invalid={invalidEnd}
+                disabled={limitsLocked}
+              />
 
-              <BudgetField value={budget} onChange={setBudget} />
+              <BudgetField
+                value={budget}
+                onChange={setBudget}
+                error={budgetRaised ? t("budgetCreatorOnly") : undefined}
+              />
+              {limitsLocked && (
+                <p className="text-muted-foreground text-xs sm:col-span-2">
+                  {t("limitsCreatorOnly")}
+                </p>
+              )}
 
               <RunAsCreatorField
                 checked={runsAsCreator}

@@ -35,6 +35,7 @@ from app.repositories import (
 )
 from app.repositories import sync_log as sync_log_repo
 from app.repositories import sync_source as sync_source_repo
+from app.services import rag_scratch
 from app.services.embedding_resolution import (
     ResolvedEmbeddings,
     embeddings_for_collection,
@@ -438,6 +439,7 @@ async def _run_ingestion(
             logger.info("Document %s was deleted before it was parsed", rag_document_id)
             return {"status": "deleted", "filename": source_path}
         organization_id = record.organization_id
+        storage_path = record.storage_path if settings.FILE_STORAGE_BACKEND == "s3" else None
         # Checked again here, not only at upload: the budget can be reached by
         # runs that finished while this file waited in the queue. Raising lets
         # the flow's handler put the refusal on the document row, where the
@@ -463,13 +465,14 @@ async def _run_ingestion(
         scope = kb.vector_scope if kb is not None else VectorScope(tenant=None)
 
     ledger = SpendLedger(organization_id=organization_id)
-    file_path = Path(filepath)
-    # An uploaded document's date: the file's own mtime, else ingestion time.
-    # The trusted tenant comes off the tracked row, never from the uploader.
-    upload_mtime = file_path.stat().st_mtime if file_path.exists() else None
-    async with _ingestion_service(
-        processor=processor, organization_id=organization_id, scope=scope
-    ) as ingester:
+    async with (
+        rag_scratch.parse_source(Path(filepath), storage_path=storage_path) as file_path,
+        _ingestion_service(
+            processor=processor, organization_id=organization_id, scope=scope
+        ) as ingester,
+    ):
+        # S3 copies have a worker-local mtime; the trusted tenant comes off the row.
+        upload_mtime = file_path.stat().st_mtime if file_path.exists() else None
         try:
             with metered_by(ledger):
                 result = await ingester.ingest_file(

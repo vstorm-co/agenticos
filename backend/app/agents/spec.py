@@ -32,6 +32,7 @@ import yaml
 from jsonschema import exceptions as jsonschema_errors
 from jsonschema import validators
 from pydantic import (
+    AfterValidator,
     BaseModel,
     ConfigDict,
     Field,
@@ -515,7 +516,8 @@ class CodeModeSpec(BaseModel):
     Off by default: it changes how the model works, from one call per turn to a
     `run_code` script that calls many, which pays off for an agent that works
     through records or fans out over an MCP server and is noise for one that calls
-    a tool now and then. A tool that needs approval is never called from a script.
+    a tool now and then. Approval-controlled calls suspend and resume the script
+    from a server-owned checkpoint without replaying completed effects.
     See `app/agents/code_mode.py`.
     """
 
@@ -945,6 +947,35 @@ answer it.
 """
 
 
+def _decided_tools(approvals: dict[str, ApprovalMode]) -> dict[str, ApprovalMode]:
+    """The tools with an approval of their own, sorted by name.
+
+    `default` is the same statement as a missing key, so it is dropped. Sorted
+    because JSONB does not keep the order keys were written in, and the Builder
+    compares the draft it edited with the one it reads back, key order included.
+    """
+    return {tool: mode for tool, mode in sorted(approvals.items()) if mode != "default"}
+
+
+McpToolApproval = Annotated[dict[str, ApprovalMode], AfterValidator(_decided_tools)]
+"""Approval per MCP tool, keyed by the name the server gives the tool (#2884).
+
+What `tool_approval` is on a capability binding, for a server's tools: the
+binding's `approval` decides every tool this does not name. A server that
+marks no tool `readOnlyHint` makes `writes` ask before every one of them, and
+this is how its reads run anyway - and how one write a server marks correctly
+runs without `none` letting every other one run too.
+"""
+
+_TOOL_APPROVAL_DESCRIPTION = (
+    "Per-tool overrides on top of `approval`, keyed by the name the server gives "
+    "the tool - the names `allowed_tools` holds. `required` asks before that tool "
+    "and `never` lets it run, whatever `approval` and the server's read-only hint "
+    "say; in a chat app a tool the server does not mark read-only asks all the "
+    "same. Left out of the stored spec while no tool has one."
+)
+
+
 class OrgMcpServerRef(BaseModel):
     """One of the organization's MCP connections, used by every run of this agent.
 
@@ -981,6 +1012,13 @@ class OrgMcpServerRef(BaseModel):
             "Which of the server's tools wait for a person to approve the call: "
             "`writes` (those the server does not mark read-only), `all`, or `none`"
         ),
+    )
+    # Absent while empty: a stored spec dumps as it was written, so the
+    # fingerprints a routine's review and an eval's baseline hold stay valid.
+    tool_approval: McpToolApproval = Field(
+        default_factory=dict,
+        exclude_if=lambda decided: not decided,
+        description=_TOOL_APPROVAL_DESCRIPTION,
     )
 
 
@@ -1049,6 +1087,11 @@ class PersonalMcpServerRef(BaseModel):
             "Which of the server's tools wait for a person to approve the call: "
             "`writes` (those the server does not mark read-only), `all`, or `none`"
         ),
+    )
+    tool_approval: McpToolApproval = Field(
+        default_factory=dict,
+        exclude_if=lambda decided: not decided,
+        description=_TOOL_APPROVAL_DESCRIPTION,
     )
 
 

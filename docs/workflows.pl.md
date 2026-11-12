@@ -1,5 +1,5 @@
 ---
-source_sha: "296a2476dbbe"
+source_sha: "aa54fb9dafe5"
 ---
 
 # Workflows { #workflows }
@@ -348,10 +348,25 @@ następny, oznaczoną na karcie, a zakładka ma kropkę, gdy cokolwiek tam zmien
 Wyłączenie tam **Run this step** albo **Switch off** w menu pod prawym przyciskiem
 zostawia krok na kanwie, przygaszony, i pomija go, gdy przebieg do niego dotrze: nic nie
 robi i przekazuje dalej to, co do niego dotarło. Publikacja odrzuca wyłączony trigger
-albo krok decydujący o drodze oraz krok czytający wyłączony krok, chyba że to, co do
+albo połączony krok decydujący o drodze oraz krok czytający wyłączony krok, chyba że to, co do
 niego dociera - jedynym połączeniem wejściowym, od kroku włączonego - ma czytane pole,
 które wtedy przekazuje dalej. Wszystkie trzy są zapisywane w grafie, więc wersje je
 zachowują.
+
+U wyłączonego kroku, połączonego czy nie, nie sprawdza się wejść ani ustawień: nie
+czyta ani jednych, ani drugich. Ponowne włączenie to zmiana do opublikowania, a
+publikacja sprawdza je wtedy.
+
+Wyłączony krok bez żadnego połączenia jest odstawiony: może stać obok workflow albo
+wewnątrz pętli - na przykład **Combine lists** z danymi testowymi - bez osiągalności.
+Przebieg go pomija i nie wlicza go do limitu kroków runu. Gdy połączysz go z
+czymkolwiek, znowu musi być osiągalny. Odstawić można każdy krok,
+także taki, który decyduje o drodze, jak **If**: bez połączeń nie ma między czym
+wybierać. Zawsze włączone zostają tylko trigger oraz **Loop item** i **Loop result**
+pętli.
+
+
+Wyłączony krok może zachować politykę błędów i powiązania z plikami lub tabelami, nawet gdy zasób nie jest już dostępny. Nie odczytuje ich; po ponownym włączeniu zostaną sprawdzone. Odstawiony krok pojawia się jako **Wyłączony** na karcie kroków przebiegu, bez rekordu wykonania. Przed użyciem **Test step** połącz go z wyzwalaczem.
 
 ### Dane kroku, dane testowe i testowanie jednego kroku { #a-steps-data-pinning-and-testing-one-step }
 
@@ -834,7 +849,11 @@ sam sposób iteracje pętli.
 Odpowiedź runa - jego tekst, wynik strukturalny, fragmenty, na których się oparł, i
 liczba utworzonych plików, z samym JSON-em pod **Raw output** - oraz każdy wykonany
 krok, iteracja po iteracji, są obok.
-Trwający run odświeża się co kilka sekund, a **Cancel run** go zatrzymuje i wycofuje liczniki, które ustawiły jego czekające kroki. Jego **Files** wymieniają to, co zapisały jego kroki - pobrany plik, wyrenderowaną stronę, wynik skryptu - każde do pobrania.
+
+Lista zawiera kroki, które się zaczęły, w kolejności startu. Błędy pozostają
+widoczne, nawet jeśli krok zawiódł przed startem. Pozostałe kroki, które się nie
+zaczęły, widać tylko na kanwie; pominięte są wyszarzone. Kliknięcie wiersza kroku
+w pętli pokazuje jego wejście i wyjście w tej iteracji. Trwający run odświeża się co kilka sekund, a **Cancel run** go zatrzymuje i wycofuje liczniki, które ustawiły jego czekające kroki. Jego **Files** wymieniają to, co zapisały jego kroki - pobrany plik, wyrenderowaną stronę, wynik skryptu - każde do pobrania.
 
 Run czekający na krok [**Ask for approval**](reference/workflow-nodes.md#human-approval)
 widać w zakładce **Zatwierdzenia (Approvals)** w Activity. Gdy krok ma ustawione **Let the approver
@@ -882,7 +901,9 @@ pętli, albo **Fail the run**. Jeśli krok zgłosił wynik po tym, jak go porzuc
 sąsiednie kroki, zatwierdzenia i timery toczą się dalej.
 
 Krok może rozstrzygnąć tylko osoba, która uruchomiła run, albo edytor workflow, a w
-runie testowym tylko edytor może rozstrzygnąć krok albo ponowić run. Przez API służy do tego `POST
+runie testowym tylko edytor może rozstrzygnąć krok albo ponowić run. Anulowany run
+ponawia tylko osoba, która go uruchomiła, albo edytor, czyli ci, którzy mogli go
+anulować. Przez API służy do tego `POST
 /api/v1/workflow-runs/{id}/steps/{node_run_id}/rerun` z polem `choice`, a decyzja
 trafia do audytu. Run anulowany albo zakończony błędem nie ma kroku do rozstrzygnięcia:
 **Retry from failed step** uruchamia nowy run. Krok, który skończył się po zatrzymaniu
@@ -1124,13 +1145,40 @@ się od chwili opublikowania lub ostatniego włączenia workflow, więc poczta, 
 uruchamia.
 
 Wskazanie skrzynki współdzielonej, którą otwiera grant Microsoft organizacji, wymaga
-uprawnienia do zarządzania połączeniami, tak jak w triggerach agentów Outlook; workflow, który
-już nasłuchuje takiej skrzynki, zachowuje ją przy kolejnych publikacjach, a jej zmiana
-znowu wymaga tego uprawnienia. Jeśli Outlook zgłosi, że folderu nie da się już czytać, workflow jest
+uprawnienia do zarządzania połączeniami, tak jak w triggerach agentów Outlook; wymaga go każda publikacja, która ją wskazuje, bo osoba publikująca staje się
+członkiem, jako który skrzynka jest czytana, a wiadomość do workflow, którego
+publikujący już go nie ma, nie uruchamia runa. Jeśli Outlook zgłosi, że folderu nie da się już czytać, workflow jest
 wyłączany, a dziennik audytu podaje powód. Run dostaje te same pola co run z Gmaila,
 przy czym `labels` zawiera kategorie wiadomości, a `mailbox` skrzynkę współdzieloną,
 z której przyszła. Zobacz
 [trigger.outlook](reference/workflow-nodes.md#trigger-outlook).
+
+Administrator może zawczasu znaleźć triggery Outlook, które to zatrzyma: te, które
+czytają skrzynkę współdzieloną dla publikującego, który nie jest ownerem, adminem
+ani builderem, więc nie ma `mcp:manage`. Każdy wymaga ponownej publikacji przez
+kogoś, kto je ma, albo podniesienia roli publikującego. Zapytanie do bazy wdrożenia:
+
+```sql
+SELECT o.name AS organization,
+       w.name AS workflow,
+       u.email AS publisher,
+       m.role AS publisher_role,
+       node -> 'config' ->> 'mailbox' AS shared_mailbox
+FROM workflow_exposures AS e
+JOIN workflow_versions AS v ON v.id = e.workflow_version_id
+JOIN workflows AS w ON w.id = e.workflow_id
+JOIN organizations AS o ON o.id = e.organization_id
+JOIN users AS u ON u.id = e.execution_principal_user_id
+LEFT JOIN organization_members AS m
+  ON m.organization_id = e.organization_id AND m.user_id = e.execution_principal_user_id
+CROSS JOIN LATERAL jsonb_array_elements(v.graph -> 'nodes') AS node
+WHERE e.adapter = 'outlook'
+  AND e.is_active
+  AND (node ->> 'id')::uuid = e.node_instance_id
+  AND coalesce(node -> 'config' ->> 'mailbox', '') <> ''
+  AND NOT u.is_app_admin
+  AND coalesce(m.role, '') NOT IN ('owner', 'admin', 'builder');
+```
 
 Oba wyzwalacze poczty przyjmują dane z zewnątrz: każdy może wysłać wiadomość do
 skrzynki, więc to, co run z nią robi, wiąż tak jak dla webhooka.
@@ -1169,8 +1217,9 @@ wyzwalacz Telegrama przekazuje temat tylko wewnątrz tematu forum.
 
 Krok **Send a message** dodany po triggerze **Channel message** startuje jako bot tego
 triggera, z powiązanymi `channel_id` i `thread_id`, gdy platformy się zgadzają.
-Wiadomości jednego bota uruchamiają najwyżej jeden workflow, a nasłuchiwanie bota
-wymaga `channels:manage`. Notatka głosowa przychodzi jako transkrypcja; inne
+Wiadomości jednego bota uruchamiają najwyżej jeden workflow, a nasłuchiwanie bota wymaga `channels:manage`,
+sprawdzanego przy każdej wiadomości: gdy publikujący je straci, odpowiada własny
+agent bota. Notatka głosowa przychodzi jako transkrypcja; inne
 załączniki nie są przekazywane. Zobacz
 [trigger.channel_message](reference/workflow-nodes.md#trigger-channel-message).
 

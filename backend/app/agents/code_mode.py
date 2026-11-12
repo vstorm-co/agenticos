@@ -9,13 +9,13 @@ dispatched through Pydantic AI to the real tool.
 
 **Every governed path still applies**, because a call from a script goes through
 the same tool hooks a direct call does: the guardrails, the budget, and the
-permission checks inside each tool. A tool that can *park* the run is the one a
-script cannot call - a script has no way to stop mid-line and resume tomorrow - so
-none is folded in: one that needs approval, a question to the person
-(`ask_user`), and a delegation (`subagents`), whose delegate may itself park.
-Each stays a tool the model calls directly, and the run stops for the person
-exactly as it does without code mode. With a session that asks before every tool,
-nothing is folded and code mode is not added at all.
+permission checks inside each tool. An approval-controlled call parks the script:
+the server saves the Monty interpreter and host-call state after draining already
+started calls. A decision resumes that state on any worker, without another
+model request or replaying completed effects. Rejection raises a controlled error
+inside the script. Questions, delegations and visible UI tools stay native.
+Sessions that ask before every tool and routine runs retain their existing
+native-tool policy.
 
 **What it did is written down.** :class:`CodeCalls` keeps each script and every
 call it made on the run's manifest, so a reviewer sees what the agent actually did
@@ -30,6 +30,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any
 
+from pydantic import JsonValue, TypeAdapter
 from pydantic_ai import RunContext
 from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.exceptions import ToolFailed
@@ -38,10 +39,11 @@ from pydantic_ai.tools import ToolDefinition
 from pydantic_ai_harness import CodeMode
 from pydantic_monty import MontyRuntimeError, MontySyntaxError, MontyTypingError
 
+from app.agents.code_checkpoint import CodeApprovalPause
 from app.agents.code_diagnostics import name_error_issues, syntax_issues, typing_issues
 from app.agents.deps import AgentDeps
+from app.agents.durable_code import DurableCodeMode, checkpoint_key, code_owner
 from app.agents.manifest import RECORDED_SCRIPTS, RunRecorder
-from app.agents.mcp import NEEDS_APPROVAL
 from app.agents.tool_errors import (
     RUN_STOP_ERRORS,
     ControlledToolError,
@@ -94,16 +96,18 @@ _script: ContextVar[_Running | None] = ContextVar("code_mode_script", default=No
 def code_mode(
     *, approval_required: frozenset[str], asking: frozenset[str], max_tool_calls: int
 ) -> CodeMode[AgentDeps]:
-    """`CodeMode` over every tool but those a person has to answer before they run."""
+    """Fold governed calls too; questions, delegations and visible UI remain native."""
 
     def foldable(_ctx: RunContext[AgentDeps], tool: ToolDefinition) -> bool:
-        if tool.name in approval_required or tool.name in asking:
+        if tool.name in asking or tool.name in _ctx.deps.code_continuations.native_tools.get(
+            code_owner(), frozenset()
+        ):
             return False
-        if tool.capability_id in PARKING_CAPABILITIES | SHOWN_CAPABILITIES:
-            return False
-        return (tool.metadata or {}).get(NEEDS_APPROVAL) is not True
+        return tool.capability_id not in PARKING_CAPABILITIES | SHOWN_CAPABILITIES
 
-    return CodeMode(tools=foldable, max_tool_calls=max_tool_calls)
+    return DurableCodeMode(
+        tools=foldable, max_tool_calls=max_tool_calls, required_tool_names=approval_required
+    )
 
 
 @dataclass
@@ -122,12 +126,17 @@ class CodeCalls(AbstractCapability[AgentDeps]):
         handler: Callable[[dict[str, Any]], Awaitable[Any]],
     ) -> Any:
         if tool_def.name == CODE_TOOL:
-            script: dict[str, Any] = {
-                "tool_call_id": call.tool_call_id,
-                "code": str(args.get("code", ""))[:CODE_CHARS],
-                "calls": [],
-                "omitted_calls": 0,
-            }
+            kept = ctx.deps.code_continuations.checkpoints.get(checkpoint_key(call.tool_call_id))
+            script: dict[str, Any] = (
+                dict(kept.manifest)
+                if kept is not None
+                else {
+                    "tool_call_id": call.tool_call_id,
+                    "code": str(args.get("code", ""))[:CODE_CHARS],
+                    "calls": [],
+                    "omitted_calls": 0,
+                }
+            )
             if len(self.recorder.code_runs) < RECORDED_SCRIPTS:
                 self.recorder.code_runs.append(script)
             token = _script.set(_Running(script, asyncio.Semaphore(CONCURRENT_CALLS)))
@@ -154,15 +163,37 @@ class CodeCalls(AbstractCapability[AgentDeps]):
         if running is None:
             return await handler(args)
         script = running.record
-        made: dict[str, Any] = {"tool": tool_def.name, "args": _preview(args), "status": "failed"}
-        if len(script["calls"]) < RECORDED_CALLS:
-            script["calls"].append(made)
-        else:
-            script["omitted_calls"] += 1
-        async with running.gate:
-            result = await handler(args)
+        made = next(
+            (entry for entry in script["calls"] if entry.get("tool_call_id") == call.tool_call_id),
+            None,
+        )
+        if made is None:
+            made = {
+                "tool_call_id": call.tool_call_id,
+                "tool": tool_def.name,
+                "args": _preview(args),
+                "status": "failed",
+            }
+            if len(script["calls"]) < RECORDED_CALLS:
+                script["calls"].append(made)
+            else:
+                script["omitted_calls"] += 1
+        made["status"] = "failed"
+        try:
+            async with running.gate:
+                result = await handler(args)
+        except CodeApprovalPause:
+            made["status"] = "awaiting_approval"
+            raise
         made["status"] = "returned"
         return result
+
+
+def current_code_record() -> dict[str, JsonValue]:
+    running = _script.get()
+    if running is None:
+        return {}
+    return TypeAdapter(dict[str, JsonValue]).validate_python(running.record)
 
 
 def _preview(args: dict[str, Any]) -> str:

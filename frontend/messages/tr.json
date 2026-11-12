@@ -1,4 +1,10 @@
 {
+  "sharedAttribution": {
+    "madeWith": "<name>AgenticOS</name> ile oluşturuldu",
+    "cta": "Kendi AgenticOS’unuzu çalıştırın",
+    "description": "Yapay zekâ çalışma alanınız. Açık kaynak.",
+    "ctaShort": "GitHub"
+  },
   "auth": {
     "agreeToTerms": "Hesap oluşturarak <terms>Kullanım Koşulları</terms> ve <privacy>Gizlilik Politikası</privacy> metinlerimizi kabul etmiş olursunuz.",
     "atLeast8Characters": "En az 8 karakter",
@@ -1011,6 +1017,7 @@
     "stepTestNotReached": "Bu adım çalışmadı: test bu adıma ulaşmadan sona erdi.",
     "stepTestStopped": "Bu adım çalışmadı: test durduruldu.",
     "stepTestHint": "Yalnızca bu adımı çalıştırır; önceki adımların son seferde aktardığı veriyi kullanır.",
+    "stepTestNotReachable": "Test etmeden önce bu adımı bir tetikleyiciye bağlayın.",
     "stepTestInsideALoop": "Döngü içindeki adım her öğe için bir kez çalışır; onun yerine döngüyü test edin.",
     "stepTestWriteTitle": "Yazan bir adım test edilsin mi?",
     "stepTestWriteDescription": "Test gerçek işlemi yapar: kayıtlar yazılır ve mesajlar gerçek bir run’da olduğu gibi gönderilir.",
@@ -1330,6 +1337,7 @@
     "validationLabelTaken": "Başka bir adımın adı zaten “{label}”.",
     "validationTriggerSwitchedOff": "Trigger kapatılamaz.",
     "validationControlSwitchedOff": "Run’ın izleyeceği yolu belirleyen bir adım kapatılamaz.",
+    "validationLoopPartSwitchedOff": "Bir döngünün öğe veya sonuç adımı kapatılamaz.",
     "validationBindingReadsSwitchedOff": "Bu değer kapalı bir adımdan okunuyor; dolayısıyla hiçbir veri alınamaz.",
     "stepName": "Adım adı",
     "stepNotes": "Not",
@@ -3772,7 +3780,8 @@
         "skipped": "Atlandı",
         "cancelled": "İptal edildi",
         "notReached": "Ulaşılmadı",
-        "starting": "Başlıyor"
+        "starting": "Başlıyor",
+        "switchedOff": "Kapalı"
       },
       "startRun": "Run başlat",
       "startRunTitle": "Run başlat",
@@ -6482,6 +6491,8 @@
     "approvalForGroup": "{group} için onay",
     "approvalRunFreely": "Serbestçe çalıştır",
     "approvalAskFirst": "Önce sor",
+    "approvalForTool": "{tool} için önce sor",
+    "approvalPerTool": "Tool bazında",
     "connectAnotherOwn": "Başka hesap bağla",
     "ownAccountMain": "Ana hesap",
     "ownAccountPrefix": "Tool'ları {prefix} ile başlar",
@@ -8443,6 +8454,10 @@
       "workflow-log-alerts": {
         "title": "Uyarıları",
         "body": "Bu log belirli bir eşiği aştığında kişilere bildirim gönderen kurallar: eşleşen satır sayısı, süre ve bildirimi alacak kişiler. Workflow’u düzenleyebilen herkes bu kuralları ekleyebilir, değiştirebilir veya silebilir."
+      },
+      "org-public-attribution": {
+        "title": "Paylaşılan sayfalarda AgenticOS",
+        "body": "Herkese açık uygulama, pano ve raporlarda yüzen bir AgenticOS rozeti ve GitHub bağlantısı; paylaşılan konuşmaların altında aynı rozeti gösterin."
       },
       "org-public-live-data": {
         "title": "Herkese açık sayfalardaki canlı veriler",
@@ -10703,6 +10718,11 @@
       "providerNoKey": "{name} (kullanılabilir key yok)",
       "notReadyNoKey": "{provider} için key seçilmedi. Bunu devralan agent’lar ve botlar aşağıdan bir key seçene kadar provider ile transkripsiyon yapamaz."
     },
+    "publicAttribution": "Paylaşılan sayfalarda AgenticOS",
+    "publicAttributionDescription": "Herkese açık uygulama, pano ve raporlarda yüzen bir AgenticOS rozeti ve GitHub bağlantısı; paylaşılan konuşmaların altında aynı rozeti gösterin.",
+    "publicAttributionHint": "Varsayılan olarak açık. Bu kuruluşun herkese açık bağlantılarında AgenticOS markalamasını gizlemek için kapatın.",
+    "publicAttributionSaved": "Paylaşılan sayfa markalaması kaydedildi",
+    "publicAttributionFailed": "Paylaşılan sayfa markalaması güncellenemedi",
     "publicLiveData": "Canlı verili herkese açık sayfalar",
     "publicLiveDataDescription": "Herkese açık sayfaların tablo verilerini hesapsız kişilere gösterip gösteremeyeceği.",
     "publicLiveDataHint": "Varsayılan olarak kapalıdır. Açıldığında sayfanın sahibi onayladıktan sonra, herkese açık bağlantı ve embed’ler tablo verilerini gösterir. Kapatmak verileri her yerde gizler, ancak onayları saklar.",

@@ -6,7 +6,7 @@ platform's answer to "you cannot write a connector for everything".
 An organization points at a server, its tools appear in the Builder, and no code
 changes on our side.
 
-Everything in the [capability catalog](reference/capabilities.md) is code we wrote
+Everything in the [capability catalog](https://vstorm-co.github.io/agenticos/reference/capabilities/) is code we wrote
 and hold to 100% coverage. Everything here is a URL somebody pasted.
 
 !!! info "The two are not alternatives"
@@ -28,7 +28,7 @@ Atlassian works alongside a streamable-HTTP one with nothing to configure.
 | --- | --- |
 | `name` | Also the tool prefix. See [Name collisions](#name-collisions) |
 | `url` | SSRF-validated before we ever request it |
-| `auth_token` | Sealed in the [vault](secrets.md), never returned by any endpoint |
+| `auth_token` | Sealed in the [vault](https://vstorm-co.github.io/agenticos/secrets/), never returned by any endpoint |
 | `allowed_tools` | An allowlist, or null for "everything the server offers". A binding narrows within it — see below |
 | `is_enabled` | Off without losing the credential |
 | `include_instructions` | Add the server's own `initialize` instructions to the agent's. Off by default - they are the server operator's text, read as the agent's own - and switched on in the connection's Edit dialog |
@@ -56,7 +56,7 @@ Atlassian works alongside a streamable-HTTP one with nothing to configure.
     An operator can let a connection reach a server on the deployment's own
     network, such as a compose service or a server on a VPN or tailnet. To do
     this, list its host in
-    [`OUTBOUND_PRIVATE_ALLOWLIST`](configuration.md#project-settings): an exact
+    [`OUTBOUND_PRIVATE_ALLOWLIST`](https://vstorm-co.github.io/agenticos/configuration/#project-settings): an exact
     host, a suffix with a leading dot such as `.corp.example` (which does not
     match `corp.example` itself), an IP address or a CIDR range such as
     `10.1.2.0/24`. The setting also covers workflow HTTP steps, connectors and A2A.
@@ -114,7 +114,7 @@ found by typing; the server is then private and shared with each of them at
 every server. Its **Who can use it** button changes that later. An agent already
 bound to it keeps working for everyone who may run the agent: the choice decides
 who may pick the server, not who is answered through it, so the Builder marks it
-under [where an agent's knowledge comes from](departments.md#where-an-agents-knowledge-comes-from).
+under [where an agent's knowledge comes from](https://vstorm-co.github.io/agenticos/departments/#where-an-agents-knowledge-comes-from).
 
 A published agent that reached different tools depending on whose session built
 it could not be reviewed or reasoned about, which is the whole reason for the
@@ -185,7 +185,7 @@ says so and points at the servers page, which is where a connection is checked.
 A binding that already names tools shows those, so what it is bound to stays
 visible and can still be narrowed.
 
-With [Tool search](reference/capabilities.md#tool-search), eligible MCP tools are
+With [Tool search](https://vstorm-co.github.io/agenticos/reference/capabilities/#tool-search), eligible MCP tools are
 hidden until the agent searches for them. Its settings let you defer MCP tools,
 capability tools or both, and keep selected server namespaces or individual tools
 visible from the first request. These exclusions change when a tool's schema is
@@ -211,6 +211,20 @@ require approval for reads as well.
 In the Builder, a server's settings say this
 per group: its **Reads** and the tools that **Change things** each run freely
 or ask first.
+
+Each tool can also run freely or ask first on its own, whatever its group and
+its read-only hint say: press the shield beside it. A server that marks no tool
+read-only lists every tool as one group, which `writes` holds in full; setting its
+reads to run freely is how they run while its writes ask. The same control lets
+one write run unasked without `none` releasing every other one.
+
+The spec keeps these in the binding's `tool_approval`, keyed by the tool's name on
+the server. A group whose tools differ reads **Per tool**, and choosing for the
+group sets all of its tools again. A tool the server adds later follows its group.
+
+Two places go by the server's hint instead. In a chat app, a tool the server does
+not mark read-only asks first even when set to run freely, and a watch never
+reads a tool its binding asks before, because nobody is there to answer.
 
 ### Whose account a binding speaks through
 
@@ -252,7 +266,7 @@ channel.
     account is connected the same run carries on with the Notion tools. Skipped,
     it carries on without them. The chat's controls also list the agent's
     personal services with their status, so a new member sees what to connect
-    before asking. See [the console page](console.md#chat).
+    before asking. See [the console page](https://vstorm-co.github.io/agenticos/console/#chat).
 
 The tool prefix of a personal binding is the catalog key, whatever each person
 called their connection, so the agent presents `notion_search` to everyone.
@@ -486,7 +500,7 @@ cannot keep enumerating repositories or registering hooks with a credential an
 administrator switched off.
 
 **Deleting a connection releases what was registered through it.** Any
-[event trigger](triggers.md) whose provider webhook was auto-registered with this
+[event trigger](https://vstorm-co.github.io/agenticos/triggers/) whose provider webhook was auto-registered with this
 account's token has that hook deregistered — best-effort, while the token still
 exists — and falls back to manual delivery. The trigger's URL and secret still
 stand, so re-pointing a provider at it by hand keeps working.
@@ -527,11 +541,11 @@ two long names stay two tools. The server is still called by its real name.
     assumed a tool was always there.
 
 That is a deliberate trade. The `/test` endpoint and `last_status` are how you find
-out, and the [audit trail](governance.md#audit) records what actually ran.
+out, and the [audit trail](https://vstorm-co.github.io/agenticos/governance/#audit) records what actually ran.
 
 ### In a test environment, and in an eval
 
-A named [environment](environments.md#test-connections) can answer an
+A named [environment](https://vstorm-co.github.io/agenticos/environments/#test-connections) can answer an
 organization binding with a test connection — a sandbox CRM in `staging`. The
 turn then reaches the test server under the production connection's name, so the
 model sees the same tools; if the test connection is gone or disabled, the
@@ -596,6 +610,17 @@ each under its label and its name.
 Two connections whose names reduce to the same prefix are deduplicated — first one
 wins, with a warning naming the loser. Deployment-managed servers are ordered first,
 so they win over a user connection that happens to pick the same name.
+
+A prefix keeps one server's tools apart from another's, but not from the agent's
+other tools. A connection called `request` whose server offers `capability`
+presents `request_capability`, which nearly every agent already has, and `create`
+with `chart` lands on the charts capability's `create_chart`.
+
+Publish refuses such a binding, comparing the tools the connection's last check listed with the agent's
+capability tools and the platform's own. Where one still reaches a run - a server
+that added the tool, a connection renamed since - the whole server is left out of
+that turn and the model is told why, as for a prefix collision. Rename the
+connection or narrow its tools.
 
 ### Health, users and calls
 
@@ -947,7 +972,7 @@ dialog asks for a client ID and secret made at the provider; when it publishes n
 OAuth metadata, a token or no credential is left as the choice.
 
 To add an entry to the list, see
-[Add a server to the MCP catalog](howto/add-mcp-server.md).
+[Add a server to the MCP catalog](https://vstorm-co.github.io/agenticos/howto/add-mcp-server/).
 
 <a id="outlook-setup"></a>
 
@@ -963,7 +988,7 @@ calendar events. Add `--org-mode` to reach shared mailboxes and Teams. Enter its
 address, ending in `/mcp`; each connection signs in as one Microsoft account. A
 host on your own network needs `OUTBOUND_PRIVATE_ALLOWLIST` or `MCP_ALLOWED_HOSTS`,
 as above. This is the entry a workflow uses to answer mail: see
-[answer mail with an approved draft](howto/answer-mail-with-approved-draft.md).
+[answer mail with an approved draft](https://vstorm-co.github.io/agenticos/howto/answer-mail-with-approved-draft/).
 
 **Microsoft Work IQ** is Microsoft's own hosted server, for asking across mail,
 meetings, chats and files in one call. It differs in what it allows:
@@ -1097,7 +1122,7 @@ Catalog services use bundled brand marks, including distinct Workspace applicati
 run with `--transport streamable-http` and `MCP_ENABLE_OAUTH21=true`, using your own
 Google OAuth client. It searches and reads Gmail, drafts and sends mail in a
 thread, and works with Calendar, Drive and Sheets. Enter its address, ending in
-`/mcp`; each connection signs in as one Google account. [Answer mail with an approved draft](howto/answer-mail-with-approved-draft.md)
+`/mcp`; each connection signs in as one Google account. [Answer mail with an approved draft](https://vstorm-co.github.io/agenticos/howto/answer-mail-with-approved-draft/)
 shows it answering mail from a workflow.
 
 Outlook is also available through third-party MCP services. The bundled registry
@@ -1289,7 +1314,7 @@ The platform MCP server explains the same app and environment distinctions as ag
   something runs unasked. Use `all` for a server you do not control, and
   narrow `allowed_tools`. See [which calls wait](#which-calls-wait-for-a-person).
 - **Cost attribution.** What a server does on its own side is not in this
-  platform's [budget](governance.md#budgets). Only the model tokens are.
+  platform's [budget](https://vstorm-co.github.io/agenticos/governance/#budgets). Only the model tokens are.
 
 ## Recap
 

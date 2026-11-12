@@ -1,5 +1,5 @@
 ---
-source_sha: "246a8fe6bac4"
+source_sha: "390d73e39402"
 ---
 
 # Governance { #governance }
@@ -97,6 +97,12 @@ Rutyna przed każdym narzędziem ponownie sprawdza twórcę, aktywne członkostw
 | **Miesięczny działu** | ustawienia działu | runy uruchomione przez jego członków, na dowolnym agencie | ten, kto ma `members:manage` i `budgets:manage` |
 | **Miesięczny organizacji** | ustawienia organizacji | każdy run _oraz_ ingestię w organizacji | ten, kto ma `budgets:manage` |
 
+Każdy miesięczny limit liczy cały koszt runu w miesiącu, w którym run się zaczął,
+tak jak raporty wydatków. Run, który przechodzi przez granicę miesiąca - zaparkowany
+na zatwierdzeniu ostatniego wieczoru i zatwierdzony pierwszego dnia - w całości
+trafia do wcześniejszego miesiąca, a po wznowieniu jest sprawdzany względem wydatków
+tamtego miesiąca, nie nowego.
+
 **Nowa organizacja startuje z już ustawionym pułapem organizacji** —
 `DEFAULT_ORG_MONTHLY_BUDGET_USD` wdrożenia ([konfiguracja](configuration.md),
 $100 zaraz po instalacji) — więc świeżego tenanta nie dzieli od niespodziewanego
@@ -129,6 +135,11 @@ na liście agentów — liczba z _opublikowanej_ wersji, bo to ją egzekwuje run
 nie to, co akurat obiecuje draft. Karta zapasu na dashboardzie zestawia je z
 `GET /spend`, więc zbliżający się limit widać, zanim w historii runów zacznie
 pojawiać się `budget_exceeded`.
+
+Ta opublikowana liczba obowiązuje każdy run agenta, także run starszej wersji:
+rutynę, środowisko albo krok workflow przypięte do niej, albo run wznowiony na
+wersji, na której został zaparkowany. Przypięcie decyduje o tym, jak agent działa,
+a nie o tym, ile może wydać.
 
 ### Limit działu { #a-departments-cap }
 
@@ -599,6 +610,12 @@ domyślnego: `proactive_model_profile_id` jest wymagany), zapisane w historii
 runów jako run z powierzchni **proactive** i liczone do budżetu organizacji jak
 każde inne. Osoba może wyłączyć to dla siebie w **Ustawienia → Asystent**.
 
+Każde żądanie do modelu w takim runie - pierwsze i każda ponowna próba - jest
+sprawdzane względem limitu wydatków na proaktywność danej osoby, miesięcznego
+budżetu przypisanego agenta i budżetu organizacji. Run, który osiągnie któryś z
+nich w trakcie, zatrzymuje się, kończy jako `budget_exceeded` i zachowuje to, co
+wydał. Takie runy nie liczą się do żadnego działu.
+
 Nocny przegląd staje się należny 20 godzin po własnej ostatniej próbie.
 Obserwacje i konserwacja pamięci nie przesuwają tego terminu. Obserwacje nadal
 wliczają się do limitu wydatków na proaktywność danej osoby.
@@ -670,7 +687,8 @@ Kolejna publikacja może zawęzić dostęp, ale nie dodaje kont, narzędzi ani �
 nie podmienia konta zatwierdzonego dla obserwacji.
 
 Każdy przegląd jest zwykłym runem **proactive**, przypisanym rzeczywistemu
-agentowi i wersji. Narzędzia źródła muszą mieć `readOnlyHint`. Obserwacja dopuszcza
+agentowi i wersji. Narzędzia źródła muszą mieć `readOnlyHint`, a odczyt, przed
+którym pyta powiązanie MCP agenta, zostaje pominięty w przeglądzie. Obserwacja dopuszcza
 zatwierdzone konto, wiedzę/kontekst, guardrails, planowanie i przypomnienia
 systemowe; nie udostępnia sieci, sandboxa, wykonywalnych skills, zapisu pamięci
 ani delegacji. Wymagane interaktywne zgody blokują konfigurację zamiast zostać
@@ -1368,12 +1386,31 @@ Naraz działają najwyżej cztery wywołania skryptu, a reszta czeka, więc skry
 rozsyłający setki wywołań w sandboksie nie otworzy ich wszystkich jednocześnie.
 
 Każde wywołanie ze skryptu przechodzi przez te same guardraile, budżet i
-sprawdzenia uprawnień co wywołanie bezpośrednie. Narzędzie wymagające
-zatwierdzenia nigdy nie trafia do skryptu: pozostaje zwykłym wywołaniem, a run
-zatrzymuje się dla człowieka jak zawsze. Tak samo pytania, delegowania i
-narzędzia, których wywołanie jest tym, co widzi osoba (wersje robocze, wykresy,
-rysunki). Widok runu wymienia każdy skrypt i każde
-wywołanie, które wykonał.
+sprawdzenia uprawnień co wywołanie bezpośrednie. Narzędzie wymagające zgody
+zatrzymuje run na tym wywołaniu. Rozpoczęte operacje kończą się, zanim serwer
+zapisze interpreter, wyniki, manifest i licznik wywołań. Po decyzji dowolny worker
+może kontynuować skrypt bez nowej tury modelu i powtarzania zakończonych operacji.
+Odrzucenie zgody podnosi `RuntimeError` wewnątrz skryptu; kod narzędzia nie działa.
+Zgoda na samo `run_code` nie zatwierdza operacji wewnątrz skryptu.
+
+Surowy stan interpretera ma limit 512 kB, a wszystkie checkpointy kodu jednego
+runu — łącznie 1 MB JSON. Atomowe rezerwacje w bazie ograniczają przechowywane
+checkpointy do 8 MB na użytkownika inicjującego (łącznie w organizacjach) i 32 MB
+na organizację, także podczas wznawiania. Po wyczerpaniu miejsca run kończy się
+błędem bez zapisu oczekujących zatwierdzeń; definitywne zakończenie zwalnia
+rezerwację.
+
+
+Zapis wznowienia należy do serwera i ma ograniczony rozmiar. Jeśli jest uszkodzony,
+tożsamość narzędzia się zmieniła lub aktualizacja harness/Monty uniemożliwia jego
+odtworzenie, wywołanie kończy się czytelnym błędem przed wykonaniem oczekującego
+narzędzia. Skrypt nigdy nie uruchamia się ponownie od początku.
+
+Pytania, delegowania i narzędzia widoczne bezpośrednio w interfejsie (wersje
+robocze, wykresy, rysunki) pozostają zwykłymi narzędziami. Sesje pytające przed
+każdym narzędziem i runy rutyn zachowują dotychczasową politykę narzędzi natywnych.
+Widok runu pokazuje każdy skrypt raz, wraz z wywołaniami i ich stanem zgody lub
+wykonania po kolejnych wznowieniach.
 
 ### Raportowanie { #reporting }
 
@@ -2413,7 +2450,7 @@ Warto to powiedzieć, bo strona o governance sugeruje coś innego:
 
 ## Automatyczne wstrzymanie po kolejnych błędach { #routine-health }
 
-Rutyny i obserwacje domyślnie wstrzymują się po **trzech kolejnych nieudanych sprawdzeniach**. W formularzu rutyny ustaw limit od 1 do 20 lub wyłącz ten limit. Liczą się błędy dostawcy i wykonania, nieprawidłowe odczyty obserwacji oraz niedostępne źródła. Oczekiwanie na zgodę, komputer offline i błędy dostarczenia nie zwiększają licznika; puste, ale poprawnie zweryfikowane sprawdzenie zeruje serię. Inne blokady uprawnień i budżetu obowiązują także po wyłączeniu tego limitu.
+Rutyny i obserwacje domyślnie wstrzymują się po **trzech kolejnych nieudanych sprawdzeniach**. W formularzu rutyny ustaw limit od 1 do 20 lub wyłącz ten limit. Liczą się błędy dostawcy i wykonania, nieprawidłowe odczyty obserwacji oraz niedostępne źródła. Oczekiwanie na zgodę, komputer offline, błędy dostarczenia i zatrzymania przez budżet nie zwiększają licznika: sprawdzenie odrzucone przez budżet czeka na następne i ani nie wydłuża serii, ani jej nie zeruje. Puste, ale poprawnie zweryfikowane sprawdzenie zeruje serię. Inne blokady uprawnień i budżetu obowiązują także po wyłączeniu tego limitu.
 
 Każda aktywacja ma jeden trwały zapis stanu. Ponowienia nie zwiększają licznika, a opóźnione zakończenia są oceniane według kolejności aktywacji. Automatyczne wstrzymanie zatrzymuje przyszłe aktywacje; trwające żądanie do modelu może się zakończyć.
 

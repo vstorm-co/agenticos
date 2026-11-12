@@ -33,6 +33,172 @@ Two things are versioned separately from this file and worth knowing about:
   pages, including Markdown, text, HTML and `.docx`. PDF pages and presentation
   slides keep their locations (#2482).
 
+## [1.66.0] - 2026-11-11
+
+### Added
+
+- **Code-mode scripts can wait for tool approval.** A gated call parks the
+  interpreter and resumes on any worker after the decision, without another
+  model turn or replaying completed operations. Started parallel calls drain
+  before the checkpoint is saved. Rejections become catchable script errors;
+  quotas, guardrails, permissions and approved arguments still apply per call.
+  The manifest keeps one script with its approval/execution status. Damaged,
+  incompatible or changed-tool checkpoints fail before a pending handler runs.
+  Questions, delegations, visible UI tools and existing session/routine policies
+  keep their native-tool behaviour (#2876).
+
+### Fixed
+
+- **Monthly budgets stay consistent across resumes and background work.** A
+  run and every continuation use the calendar month it started in. Parked
+  routine fires refuse exhausted routine budgets, while budget stops do not
+  count as routine failures. Background model requests enforce their limits,
+  pinned agent versions use the current published cap, and failed workflow AI
+  steps retain their spend (#2916, #2920, #2918, #2914, #2915, #2917, #2919).
+- **Shared task boards and delegated automation keep their authority checks.**
+  Board management and default views require the scope's leader or an
+  administrator, while task editing stays available to the audience. Private
+  views, cancelled workflow retries, trigger publication and routines acting as
+  their creator keep their corresponding ownership and permission checks
+  (#2910, #2908, #2909, #2911, #2912, #2913).
+
+- **Saved forms become clean when the server reorders JSON or fills defaults.**
+  The agent Builder, remote edit notices and dataset grading compare JSON content
+  independently of object key order. Successful saves adopt the server's
+  normalized copy while preserving edits made in flight. Unchanged routine
+  folder permissions no longer ask for approval again. Structured workflow
+  expectations and paused terminal identities use canonical JSON too (#2892).
+
+- Routine and monitor action icons now show localized labels on hover or focus,
+  including the current pause/resume action and disabled Run now (#2924).
+
+- Context cards in the same row now have equal heights and aligned footers,
+  including cards with longer descriptions or agent usage indicators.
+
+## [1.65.1] - 2026-11-11
+
+### Fixed
+
+- **The Called by a workflow trigger shows a workflow, not a telephone.** Its
+  incoming-call icon suggested the workflow starts on a phone call. It now uses
+  the workflow icon, the same as the Run a workflow step that calls it (#2886).
+
+## [1.65.0] - 2026-11-11
+
+### Added
+
+- **Approval per MCP tool.** In a server's settings in the Builder, each tool
+  can run freely or ask first on its own, whatever its group and the server's
+  `readOnlyHint` say. A server that marks no tool read-only can let its reads
+  run while its writes ask, and one write can run unasked without `none`
+  releasing every other one. The spec keeps these in a new `tool_approval` on
+  organization and personal MCP bindings, keyed by the tool's name on the
+  server; a group whose tools differ reads **Per tool**. In a chat app a tool
+  without a read-only hint still asks, a watch leaves out a read its binding
+  asks before, and a routine's standing consent can cover a tool set to run
+  freely. Stored agents dump unchanged, so reviewed routine sources and eval
+  baselines stay valid (#2884).
+
+### Fixed
+
+- **A further account on an MCP server takes the server's settings.**
+  **Add another account** bound the new account with every tool and no
+  approval, while the settings showed, and applied to every account, the first
+  account's tools and approval. Under **Changes things: Ask first**, the second
+  account's writes ran unasked (#2884).
+
+## [1.64.2] - 2026-11-11
+
+### Fixed
+
+- **Two of an agent's tools can no longer share a name.** Pydantic AI aborts a
+  turn on a duplicate tool name, and two cases got through publish: an MCP tool
+  whose prefixed name is a capability's or the platform's own (a connection
+  `request` whose server offers `capability` presents `request_capability`,
+  which nearly every agent has), and a capability tool renamed onto another
+  capability's tool or one of the platform's. Publish now refuses both, the MCP
+  case on the tools the connection's last check listed, and checks renames in
+  the agent's specialists and in what it shares with its delegates. A clash
+  that still reaches a run leaves that whole server out of the turn and tells
+  the model why, instead of aborting it (#2891).
+
+## [1.64.1] - 2026-11-11
+
+### Fixed
+
+- **A switched-off workflow step with no connections no longer blocks publishing.**
+  Publishing refused it as not reachable from the trigger and, for a step with
+  required inputs, as unbound, so a step could only be put aside by deleting it.
+  A step that is off with no connection at all is now set aside: the editor and
+  the server no longer ask it to be reachable, at the top level and inside a
+  loop, and a run finishes without it and does not count it towards its step
+  limit. Any step can be set aside, including one that decides the way, such as
+  If, which the editor now lets you switch off while it has no connection; only
+  the trigger and a loop's Loop item and Loop result always stay on. A step that
+  is off, connected or not, is no longer checked for its inputs, its settings,
+  what its settings name or its retry policy, since it reads and calls none of
+  them; switching it back on is a change to publish, checked then. Nothing may
+  read a step set aside, and a set-aside step no longer counts towards the
+  organization's queued-step admission quota.
+- **A switched-off workflow step reads as switched off.** The editor no longer
+  offers it as an input to later steps - in the binding picker, the Input pane
+  or when a step is inserted - and a run's canvas and step list show it as
+  Switched off from the start, rather than as pending until the engine passes
+  it. The wire into one down a branch the run did not take still fades.
+
+## [1.64.0] - 2026-11-11
+
+### Added
+
+- Public app and shared conversation viewers show the AgenticOS logo and a GitHub link, with a responsive floating badge and an organization setting to hide it. Enabled by default; password-protected apps show it after unlocking.
+
+## [1.63.0] - 2026-11-10
+
+### Added
+
+- Maintain a Helm chart for the API, worker and console with external pgvector
+  PostgreSQL, Redis/Valkey and S3, blocking migration hooks, restricted container
+  settings, health probes and a reproducible Kubernetes smoke test. Include an
+  OpenShift configuration candidate without claiming cluster validation (#2872).
+
+### Fixed
+
+- Download S3-backed ingestion sources in the worker instead of requiring the
+  API's local scratch directory to be shared across pods (#2872). **Existing S3
+  deployments must drain ingestion and replace workers before upgrading the API,
+  or use a maintenance window:** new API processes no longer write the shared
+  scratch files old workers expect. Local file storage keeps its shared path.
+
+## [1.62.8] - 2026-11-10
+
+### Fixed
+
+- **A workflow run's steps are listed in the order they started.** The run
+  view listed steps in the order they were recorded, so a loop's item step
+  came after the steps it started. The list now holds only the steps that
+  started, sorted by start; a step still waiting or skipped shows on the
+  canvas only. Clicking a loop step's iteration now shows that iteration's
+  input and output, not the last iteration's; an iteration with no result yet
+  shows none. A step test still pins the last iteration's data. A long step
+  list now scrolls inside its panel instead of making the canvas taller. Start
+  order preserves sub-millisecond timestamp precision (#2866).
+
+## [1.62.7] - 2026-11-10
+
+### Fixed
+
+- **Keep the Architect's bundled guide links usable.** Resolve links to included
+  pages within the skill and send other documentation links to the published
+  site. Generate the same output from an empty directory and preserve external
+  links and Markdown code examples (#2862).
+
+## [1.62.6] - 2026-11-10
+
+### Changed
+
+- Remove an unused serialized channel access-policy default and its outdated
+  SQLite comment. Active channel-bot defaults and policies are unchanged (#2869).
+
 ## [1.62.5] - 2026-11-10
 
 ### Fixed
@@ -21212,7 +21378,17 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.62.5...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.66.0...HEAD
+[1.66.0]: https://github.com/vstorm-co/agenticos/compare/v1.65.1...v1.66.0
+[1.65.1]: https://github.com/vstorm-co/agenticos/compare/v1.65.0...v1.65.1
+[1.65.0]: https://github.com/vstorm-co/agenticos/compare/v1.64.2...v1.65.0
+[1.64.2]: https://github.com/vstorm-co/agenticos/compare/v1.64.1...v1.64.2
+[1.64.1]: https://github.com/vstorm-co/agenticos/compare/v1.64.0...v1.64.1
+[1.64.0]: https://github.com/vstorm-co/agenticos/compare/v1.63.0...v1.64.0
+[1.63.0]: https://github.com/vstorm-co/agenticos/compare/v1.62.8...v1.63.0
+[1.62.8]: https://github.com/vstorm-co/agenticos/compare/v1.62.7...v1.62.8
+[1.62.7]: https://github.com/vstorm-co/agenticos/compare/v1.62.6...v1.62.7
+[1.62.6]: https://github.com/vstorm-co/agenticos/compare/v1.62.5...v1.62.6
 [1.62.5]: https://github.com/vstorm-co/agenticos/compare/v1.62.4...v1.62.5
 [1.62.4]: https://github.com/vstorm-co/agenticos/compare/v1.62.3...v1.62.4
 [1.62.3]: https://github.com/vstorm-co/agenticos/compare/v1.62.2...v1.62.3

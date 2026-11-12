@@ -1,4 +1,10 @@
 {
+  "sharedAttribution": {
+    "madeWith": "Erstellt mit <name>AgenticOS</name>",
+    "cta": "Eigenes AgenticOS betreiben",
+    "description": "Dein KI-Arbeitsplatz. Open Source.",
+    "ctaShort": "GitHub"
+  },
   "admin": {
     "actions": "Aktionen",
     "active": "Aktiv",
@@ -760,6 +766,8 @@
     "approvalForGroup": "Freigabe: {group}",
     "approvalRunFreely": "Ohne Rückfrage",
     "approvalAskFirst": "Erst fragen",
+    "approvalForTool": "Erst fragen: {tool}",
+    "approvalPerTool": "Pro Tool",
     "connectAnotherOwn": "Weiteres Konto verbinden",
     "ownAccountMain": "Haupt",
     "ownAccountPrefix": "Seine Tools beginnen mit {prefix}",
@@ -5303,6 +5311,10 @@
         "title": "Seine Warnungen",
         "body": "Regeln, die Personen informieren, wenn dieses Protokoll einen Schwellenwert überschreitet: wie viele passende Zeilen, in welcher Zeit und wer davon erfährt. Wer den Workflow bearbeiten darf, fügt sie hinzu, ändert oder löscht sie."
       },
+      "org-public-attribution": {
+        "title": "AgenticOS auf geteilten Seiten",
+        "body": "Ein dezentes schwebendes AgenticOS-Badge mit GitHub-Link auf öffentlichen Apps, Dashboards und Berichten sowie unter geteilten Unterhaltungen anzeigen."
+      },
       "org-public-live-data": {
         "title": "Live-Daten auf öffentlichen Seiten",
         "body": "Ob öffentliche Links und Einbettungen Tabellendaten Personen ohne Konto zeigen dürfen. Standardmäßig aus, und der Eigentümer jeder Seite muss seine Seite weiterhin bestätigen."
@@ -7599,7 +7611,8 @@
         "running": "Läuft",
         "waiting": "Wartet",
         "notReached": "Nicht erreicht",
-        "starting": "Startet"
+        "starting": "Startet",
+        "switchedOff": "Ausgeschaltet"
       },
       "startRun": "Run starten",
       "startRunTitle": "Run starten",
@@ -8867,6 +8880,11 @@
     "waiverFailed": "Es ließ sich nicht ändern, ob Chats Freigaben übergehen dürfen",
     "waiverForbidden": "Unterhaltungen dürfen Freigaben nicht mehr übergehen",
     "you": "(Sie)",
+    "publicAttribution": "AgenticOS auf geteilten Seiten",
+    "publicAttributionDescription": "Ein dezentes schwebendes AgenticOS-Badge mit GitHub-Link auf öffentlichen Apps, Dashboards und Berichten sowie unter geteilten Unterhaltungen anzeigen.",
+    "publicAttributionHint": "Standardmäßig aktiviert. Deaktivieren blendet die AgenticOS-Kennzeichnung auf den öffentlichen Links dieser Organisation aus.",
+    "publicAttributionSaved": "Kennzeichnung geteilter Seiten gespeichert",
+    "publicAttributionFailed": "Kennzeichnung geteilter Seiten konnte nicht gespeichert werden",
     "publicLiveData": "Öffentliche Seiten mit Live-Daten",
     "publicLiveDataDescription": "Ob öffentliche Seiten Tabellendaten Personen ohne Konto zeigen dürfen.",
     "publicLiveDataHint": "Standardmäßig aus. Ist es an, zeigen der öffentliche Link und die Einbettungen einer Seite ihre Tabellendaten, sobald der Eigentümer sie bestätigt hat. Das Ausschalten blendet die Daten überall aus, behält aber die Bestätigungen.",
@@ -9188,6 +9206,7 @@
     "runAsMeScheduleHint": "Jeder Lauf nutzt Ihr Gedächtnis und Ihre eigenen Verbindungen - Ihr Postfach, Ihren Kalender - wie Ihr eigener Chat. Er kann Notizen für Sie speichern; Ihre früheren Unterhaltungen durchsucht er nie.",
     "runAsMeEventHint": "Jeder Lauf nutzt Ihr Gedächtnis und Ihre eigenen Verbindungen wie Ihr eigener Chat. Er liest Ihre Notizen, speichert aber keine, weil der Inhalt eines Ereignisses von außen kommt; Ihre früheren Unterhaltungen durchsucht er nie.",
     "runAsCreatorOthersHint": "Jeder Lauf nutzt das Gedächtnis und die eigenen Verbindungen dieser Person. Nur sie kann das einschalten, und eine Änderung der Nachricht, der Umgebung, des Filters oder des Teams-Kanals schaltet es aus.",
+    "limitsCreatorOnly": "Solange diese Routine als die Person läuft, die sie angelegt hat, kann nur diese Person sie fortsetzen, ihr Enddatum ändern oder ihre Limits anheben. Deaktiviere zuerst „Läuft als die Person, die ihn angelegt hat“, um das zu tun.",
     "actsAsCreator": "Als Ersteller",
     "personalReachHint": "Dieser Agent nutzt Gedächtnis, Gesprächssuche oder eine persönliche Verbindung. Ein Zeitplan oder Ereignis erreicht Gedächtnis und persönliche Verbindungen nur, wenn er als die Person läuft, die ihn angelegt hat, und ihre Unterhaltungen nie.",
     "cadence": {
@@ -9445,6 +9464,7 @@
       "conversation": "Jedes Ergebnis wird in dem Chat gepostet, für den diese Routine erstellt wurde."
     },
     "budgetLabel": "Monatsbudget (USD, optional)",
+    "budgetCreatorOnly": "Nur die Person, die diese Routine angelegt hat, kann ihr Limit anheben oder entfernen, solange sie als diese Person läuft.",
     "budgetHint": "Was diese Routine pro Monat ausgeben darf. Ist es aufgebraucht, pausiert sie und startet am Ersten neu. Es verengt die Limits des Agenten und der Organisation, hebt sie nie an.",
     "budgetPlaceholder": "Kein eigenes Limit",
     "pausedBudget": "Pausiert - Budget",
@@ -10318,6 +10338,7 @@
     "validationLabelTaken": "Ein anderer Schritt heißt bereits „{label}“.",
     "validationTriggerSwitchedOff": "Der Trigger kann nicht ausgeschaltet werden.",
     "validationControlSwitchedOff": "Ein Schritt, der den Weg des Laufs entscheidet, kann nicht ausgeschaltet werden.",
+    "validationLoopPartSwitchedOff": "Der Element- oder Ergebnisschritt einer Schleife kann nicht ausgeschaltet werden.",
     "validationBindingReadsSwitchedOff": "Das liest einen ausgeschalteten Schritt und bekäme daher nichts.",
     "stepName": "Name des Schritts",
     "stepNotes": "Notiz",
@@ -10421,6 +10442,7 @@
     "stepTestNotReached": "Dieser Schritt wurde nicht ausgeführt: Der Test endete, bevor er hier ankam.",
     "stepTestStopped": "Dieser Schritt wurde nicht ausgeführt: Der Test wurde gestoppt.",
     "stepTestHint": "Nur diesen Schritt ausführen, mit dem, was die Schritte davor zuletzt weitergegeben haben",
+    "stepTestNotReachable": "Verbinden Sie diesen Schritt vor dem Testen mit einem Trigger.",
     "stepTestInsideALoop": "Ein Schritt in einer Schleife läuft einmal pro Element; testen Sie die Schleife",
     "stepTestWriteTitle": "Einen schreibenden Schritt testen?",
     "stepTestWriteDescription": "Der Test führt den Schritt wirklich aus: Datensätze werden geschrieben und Nachrichten gesendet, wie bei einem echten Lauf.",

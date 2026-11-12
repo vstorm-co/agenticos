@@ -110,6 +110,8 @@ export interface Organization {
    * take it is `approvals:decide`, which is a different question.
    */
   chat_may_waive_approvals: boolean;
+  /** Absent on older servers: public viewers show the footer by default. */
+  public_agenticos_attribution?: boolean;
   /** Whether a page's data may reach anonymous visitors of its public link or embeds. */
   public_live_data: boolean;
   /**

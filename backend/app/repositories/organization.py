@@ -346,6 +346,16 @@ async def set_chat_approval_waiver(
     return org
 
 
+async def set_public_agenticos_attribution(
+    db: AsyncSession, org: Organization, *, enabled: bool
+) -> Organization:
+    """Set the footer preference shared by this organization's public viewers."""
+    org.public_agenticos_attribution = enabled
+    await db.flush()
+    await db.refresh(org)
+    return org
+
+
 async def set_public_live_data(
     db: AsyncSession, org: Organization, *, allowed: bool
 ) -> Organization:

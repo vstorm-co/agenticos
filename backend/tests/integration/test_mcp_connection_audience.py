@@ -232,8 +232,10 @@ async def test_publishing_with_a_department_s_server_needs_its_department(
     registry = AgentRegistryService(db)
     refs = [OrgMcpServerRef(connection_id=server.id)]
 
-    assert await registry._mcp_problems(accountant, refs) == []
-    assert await registry._mcp_problems(seller, refs) == [f"MCP server not found: {server.id}"]
+    assert await registry._mcp_problems(accountant, refs, taken={}) == []
+    assert await registry._mcp_problems(seller, refs, taken={}) == [
+        f"MCP server not found: {server.id}"
+    ]
 
 
 async def test_the_builder_says_an_organization_agent_reads_finance_s_server(

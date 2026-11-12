@@ -8,8 +8,10 @@ from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import (
+    BigInteger,
     ColumnElement,
     DateTime,
+    Text,
     and_,
     case,
     func,
@@ -18,6 +20,9 @@ from sqlalchemy import (
     select,
     tuple_,
     type_coerce,
+)
+from sqlalchemy import (
+    cast as sql_cast,
 )
 from sqlalchemy import update as sql_update
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
@@ -121,6 +126,59 @@ async def create_run(
     await db.flush()
     await db.refresh(run)
     return run
+
+
+# Count the uncompressed JSONB representation, including every delegate, even
+# while a resume is running. A terminal finish clears the reservation.
+CODE_CHECKPOINT_PRINCIPAL_BYTES = 8_000_000
+CODE_CHECKPOINT_ORGANIZATION_BYTES = 32_000_000
+
+
+async def code_checkpoint_capacity(
+    db: AsyncSession, *, run: AgentRun, requested_bytes: int
+) -> bool:
+    """Reserve capacity until the caller stores its checkpoint and commits.
+
+    Principal then organization is the common lock order across all workers.
+    The caller must write the run in this transaction, before releasing locks.
+    """
+    if run.user_id is not None:
+        await db.execute(
+            select(
+                func.pg_advisory_xact_lock(
+                    func.hashtextextended(f"code-checkpoint:user:{run.user_id}", 0)
+                )
+            )
+        )
+    await db.execute(
+        select(
+            func.pg_advisory_xact_lock(
+                func.hashtextextended(f"code-checkpoint:org:{run.organization_id}", 0)
+            )
+        )
+    )
+    size = func.coalesce(
+        func.octet_length(sql_cast(AgentRun.paused_state["code_checkpoints"], Text)), 0
+    )
+    others = AgentRun.id != run.id
+    organization_bytes = await db.scalar(
+        select(func.coalesce(func.sum(size, type_=BigInteger), 0)).where(
+            others, AgentRun.organization_id == run.organization_id
+        )
+    )
+    assert organization_bytes is not None
+    if organization_bytes + requested_bytes > CODE_CHECKPOINT_ORGANIZATION_BYTES:
+        return False
+    if run.user_id is not None:
+        principal_bytes = await db.scalar(
+            select(func.coalesce(func.sum(size, type_=BigInteger), 0)).where(
+                others, AgentRun.user_id == run.user_id
+            )
+        )
+        assert principal_bytes is not None
+        if principal_bytes + requested_bytes > CODE_CHECKPOINT_PRINCIPAL_BYTES:
+            return False
+    return True
 
 
 async def finish_run(
@@ -987,26 +1045,39 @@ async def rated_answers(
 def _counts_for_a_department() -> list[ColumnElement[bool]]:
     """The runs a department's cap holds: its members' own, not a routine's.
 
-    A routine firing as its creator, and a visitor a widget's publisher stands in
-    for, name that person on the run but run under no department cap - the runner
-    gives them none - so counting them would spend a cap that never held them.
+    A routine firing as its creator, a watch or briefing working in the
+    background, and a visitor a widget's publisher stands in for name that person
+    on the run but run under no department cap - the runner gives them none - so
+    counting them would spend a cap that never held them. `routine_origin_id`
+    outlives a deleted routine, whose runs lose `trigger_id`.
     """
-    return [AgentRun.trigger_id.is_(None), AgentRun.initiated_by_publisher_fallback.is_(False)]
+    return [
+        AgentRun.trigger_id.is_(None),
+        AgentRun.routine_origin_id.is_(None),
+        AgentRun.surface != RunSurface.PROACTIVE.value,
+        AgentRun.initiated_by_publisher_fallback.is_(False),
+    ]
 
 
 async def proactive_spend_since(
-    db: AsyncSession, *, organization_id: UUID, user_id: UUID, since: datetime
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    since: datetime,
+    until: datetime | None = None,
 ) -> Decimal:
-    """What the platform spent on one person's background work here since `since` (#2301)."""
-    result = await db.execute(
-        select(func.coalesce(func.sum(AgentRun.cost_usd), 0)).where(
-            AgentRun.organization_id == organization_id,
-            AgentRun.user_id == user_id,
-            AgentRun.surface == RunSurface.PROACTIVE.value,
-            _in_proactivity_limit(),
-            AgentRun.started_at >= since,
-        )
+    """What the platform spent on one person's background work here since `since`, before optional `until` (#2301)."""
+    query = select(func.coalesce(func.sum(AgentRun.cost_usd), 0)).where(
+        AgentRun.organization_id == organization_id,
+        AgentRun.user_id == user_id,
+        AgentRun.surface == RunSurface.PROACTIVE.value,
+        _in_proactivity_limit(),
+        AgentRun.started_at >= since,
     )
+    if until is not None:
+        query = query.where(AgentRun.started_at < until)
+    result = await db.execute(query)
     return Decimal(result.scalar_one())
 
 
@@ -1021,34 +1092,46 @@ def _in_proactivity_limit() -> Any:
 
 
 async def role_spend_since(
-    db: AsyncSession, *, organization_id: UUID, role: str, since: datetime
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    role: str,
+    since: datetime,
+    until: datetime | None = None,
 ) -> Decimal:
-    """What one system role spent in this organization since `since`."""
-    result = await db.execute(
-        select(func.coalesce(func.sum(AgentRun.cost_usd), 0)).where(
-            AgentRun.organization_id == organization_id,
-            AgentRun.system_role == role,
-            AgentRun.started_at >= since,
-        )
+    """What one system role spent in this organization since `since`, before optional `until`."""
+    query = select(func.coalesce(func.sum(AgentRun.cost_usd), 0)).where(
+        AgentRun.organization_id == organization_id,
+        AgentRun.system_role == role,
+        AgentRun.started_at >= since,
     )
+    if until is not None:
+        query = query.where(AgentRun.started_at < until)
+    result = await db.execute(query)
     return Decimal(result.scalar_one())
 
 
 async def spend_by_trigger_since(
-    db: AsyncSession, *, trigger_ids: Sequence[UUID], since: datetime
+    db: AsyncSession,
+    *,
+    trigger_ids: Sequence[UUID],
+    since: datetime,
+    until: datetime | None = None,
 ) -> dict[UUID, Decimal]:
     """What the runs each of these triggers started have cost since `since`.
 
     A trigger with no run in the window is absent rather than zero, so a caller asking
     about many reads one grouped row per spender and defaults the rest itself.
+    `until`, when given, closes the window before it.
     """
     if not trigger_ids:
         return {}
-    result = await db.execute(
-        select(AgentRun.trigger_id, func.coalesce(func.sum(AgentRun.cost_usd), 0))
-        .where(AgentRun.trigger_id.in_(list(trigger_ids)), AgentRun.started_at >= since)
-        .group_by(AgentRun.trigger_id)
+    query = select(AgentRun.trigger_id, func.coalesce(func.sum(AgentRun.cost_usd), 0)).where(
+        AgentRun.trigger_id.in_(list(trigger_ids)), AgentRun.started_at >= since
     )
+    if until is not None:
+        query = query.where(AgentRun.started_at < until)
+    result = await db.execute(query.group_by(AgentRun.trigger_id))
     return {
         trigger_id: Decimal(total) for trigger_id, total in result.all() if trigger_id is not None
     }

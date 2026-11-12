@@ -1,5 +1,5 @@
 ---
-source_sha: "2391388a2aed"
+source_sha: "2f74a407e5a3"
 ---
 
 # Skalowanie poza jeden host { #scale-beyond-one-host }
@@ -15,6 +15,9 @@ obsługuje zespół liczący kilkadziesiąt osób, a większość spowolnień na
 hoście to CPU steal albo za mała pula połączeń, a nie brak repliki.
 [Zestaw testów obciążeniowych](load-testing.md) uruchamia ten sam scenariusz na
 dowolnym wdrożeniu.
+
+[Chart Helm Kubernetes](kubernetes.md) stosuje ten model usług zewnętrznych
+do podów API, workera i konsoli. OpenShift pozostaje niezweryfikowany.
 
 ## Co trzyma stan, a co nie { #what-holds-state-and-what-does-not }
 
@@ -175,6 +178,3 @@ klatka po klatce.
 - Replik do odczytu ani własnej bazy wektorowej.
 - Shardingu organizacji między bazami w jednym wdrożeniu.
 - PgBouncera w trybie transakcyjnym ani Redis Cluster.
-- Manifestów Kubernetes. Obrazy są te same, które uruchamiają pliki compose, a
-  każda usługa ma własny health check, więc klaster uruchamia je ze środowiskiem
-  opisanym na tej stronie.

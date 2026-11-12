@@ -413,7 +413,8 @@ the caller cannot see answers exactly like a run that does not exist.
 cancel it while they may still run the workflow, and anyone who may edit the
 workflow may cancel any of its runs. A Member who can run an organization-visible
 workflow can stop their own runs, not a colleague's; seeing the run without
-either right is refused with `403`.
+either right is refused with `403`. Retrying a cancelled run takes the same right,
+so a run somebody stopped is not started again by a member who could not stop it.
 
 **A run acts as the person who started it, checked again at every node.** A
 node can be dispatched days after the run began, so each dispatch requires the

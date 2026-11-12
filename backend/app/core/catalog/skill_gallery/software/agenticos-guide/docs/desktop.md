@@ -49,7 +49,7 @@ Download the package for your computer from the [GitHub release](https://github.
 
 The first launch guides you through connecting to a server or creating a local instance. Docker is needed only for a local instance; the wizard detects it and offers a download when missing. Installation does not grant screen or microphone access.
 
-[Why macOS shows this warning](howto/macos-warning.md).
+[Why macOS shows this warning](https://vstorm-co.github.io/agenticos/howto/macos-warning/).
 
 ### Desktop widgets on macOS
 
@@ -370,7 +370,7 @@ given to an agent holds for that agent (see **Whole computer**).
 
 **Only your own runs.** A chat reaches your computer only when it is your own -
 never an API key, a widget visitor or someone else's chat - and a
-[trigger](triggers.md) only when it acts as its creator, who points it at a folder
+[trigger](https://vstorm-co.github.io/agenticos/triggers/) only when it acts as its creator, who points it at a folder
 of their computer under the trigger's **Work on**.
 
 **When the computer is away.** An interactive chat run that asked for this computer and finds the app
@@ -415,7 +415,7 @@ agent. Internal attachment snapshots use file listings rather than running a she
 
 ## The screen
 
-[Computer use](reference/capabilities.md) can drive this computer's own screen. In
+[Computer use](https://vstorm-co.github.io/agenticos/reference/capabilities/) can drive this computer's own screen. In
 a chat working on this computer, its `auto` desktop - the default - is this screen;
 `local` asks for nothing else.
 

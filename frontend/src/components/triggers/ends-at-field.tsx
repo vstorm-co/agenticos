@@ -25,10 +25,12 @@ export function EndsAtField({
   value,
   onChange,
   invalid,
+  disabled = false,
 }: {
   value: string;
   onChange: (value: string) => void;
   invalid: boolean;
+  disabled?: boolean;
 }) {
   const t = useTranslations("triggers");
   return (
@@ -42,6 +44,7 @@ export function EndsAtField({
         id="trigger-ends-at"
         type="datetime-local"
         step="60"
+        disabled={disabled}
         value={value}
         aria-invalid={invalid}
         onChange={(event) => onChange(event.target.value)}

@@ -52,6 +52,7 @@ agent already resolved, and a recorder that writes one row.
 
 import asyncio
 import hashlib
+import json
 import logging
 from collections import Counter
 from collections.abc import AsyncGenerator, Awaitable, Callable, Mapping, Sequence
@@ -196,6 +197,7 @@ from app.agents.capabilities.sandbox._recording import RecordingWorkspace
 from app.agents.capabilities.skills import SKILL_BODIES_RESOURCE, SkillBody
 from app.agents.capabilities.subagents import SubagentsConfig, acting_delegate
 from app.agents.capabilities.tool_output_limits import SPILL_LOG_RESOURCE
+from app.agents.code_checkpoint import CodeCheckpoint
 from app.agents.computer_on_use import ComputerAccessCallback, RequestComputerOnUse
 from app.agents.connect_on_use import (
     ConnectionCallback,
@@ -228,6 +230,7 @@ from app.agents.routine_actions import RoutineToolCheck
 from app.agents.routine_authority import RoutineCheck, guard_for
 from app.agents.spec import (
     AgentSpec,
+    BudgetSpec,
     CapabilityBindingSpec,
     ExternalAgentRef,
     McpServerRef,
@@ -258,6 +261,7 @@ from app.agents.subagent_runtime import (
     SubagentRuntime,
 )
 from app.agents.system_agents import for_the_platform, refuse_system_agent, searches
+from app.agents.tool_names import taken_tool_names
 from app.agents.voice import VoiceOptions, handed_off, without_voice_unavailable
 from app.agents.watch_sources import WatchReadReceipt, WatchSourceTools
 from app.core.audit import current_impersonator, record_audit
@@ -303,6 +307,7 @@ from app.repositories import (
     agent_exposure_repo,
     agent_repo,
     agent_run_repo,
+    agent_trigger_repo,
     channel_prompt_repo,
     chat_file_repo,
     conversation_repo,
@@ -408,7 +413,12 @@ from app.services.skill_proposal import SkillProposalService
 from app.services.skill_workspace import SKILLS_ROOT, MaterialisedSkills, collect_changes
 from app.services.skill_workspace import materialise as materialise_skills
 from app.services.skills import SkillService
-from app.services.spend import month_start, organization_monthly_spend
+from app.services.spend import (
+    budget_window,
+    month_start,
+    organization_monthly_spend,
+    organization_spend_since,
+)
 from app.services.transcript import (
     STOPPED_TOOL_RESULT,
     RecordedToolCall,
@@ -1043,6 +1053,9 @@ class PausedRunState(BaseModel):
         default=None, ge=0, exclude_if=lambda value: value is None
     )
     tool_identities: dict[str, ToolIdentity] = Field(default_factory=dict)
+    code_checkpoints: dict[str, CodeCheckpoint] = Field(
+        default_factory=dict, exclude_if=lambda value: not value
+    )
     channel_destination: ChannelDestination | None = None
     channel_file_attempts: int = Field(default=0, ge=0, le=3)
     channel_context: str = ""
@@ -1472,6 +1485,27 @@ class _ResumePlan:
     """
 
 
+def _native_approval_tools(state: PausedRunState) -> dict[str | None, frozenset[str]]:
+    """Keep each owner's already parked native calls out of its script catalog."""
+    pending_ids: dict[str | None, set[str]] = {}
+    for approval_id, call_id in state.tool_call_ids.items():
+        pending_ids.setdefault(state.delegated_approvals.get(approval_id), set()).add(call_id)
+    native_tools: dict[str | None, frozenset[str]] = {}
+
+    def collect(owner: str | None, history: object, frames: list[DelegationFrame]) -> None:
+        native_tools[owner] = frozenset(
+            part.tool_name
+            for message in ModelMessagesTypeAdapter.validate_python(history)
+            for part in message.parts
+            if isinstance(part, ToolCallPart) and part.tool_call_id in pending_ids.get(owner, set())
+        )
+        for frame in frames:
+            collect(frame.task_id, frame.messages, frame.delegations)
+
+    collect(None, state.messages, state.delegations)
+    return native_tools
+
+
 def _resume_plan(state: PausedRunState, decided_args: Mapping[str, dict[str, Any]]) -> _ResumePlan:
     """Split a parked run's verdicts across the agents that were waiting on them.
 
@@ -1482,6 +1516,11 @@ def _resume_plan(state: PausedRunState, decided_args: Mapping[str, dict[str, Any
     remains the only thing allowed to decide whether a *gated* tool runs, which is
     why every parked call is approved here and refusals are carried separately.
     """
+    script_parents = {
+        call.tool_call_id: checkpoint.parent_tool_call_id
+        for checkpoint in state.code_checkpoints.values()
+        for call in checkpoint.calls
+    }
     by_delegation: dict[str | None, list[str]] = {}
     for approval_id, tool_call_id in state.tool_call_ids.items():
         by_delegation.setdefault(state.delegated_approvals.get(approval_id), []).append(
@@ -1496,6 +1535,9 @@ def _resume_plan(state: PausedRunState, decided_args: Mapping[str, dict[str, Any
     def level(frames: list[DelegationFrame], own: list[str]) -> DeferredToolResults:
         results = DeferredToolResults()
         for tool_call_id in own:
+            if tool_call_id in script_parents:
+                results.approvals[script_parents[tool_call_id]] = ToolApproved()
+                continue
             results.approvals[tool_call_id] = ToolApproved(
                 override_args=decided_args.get(tool_call_id)
             )
@@ -1823,6 +1865,20 @@ class PreparedRun:
                 authors_by_timestamp=self.channel_authors,
             )
         ]
+
+    def checkpointed_approvals(self) -> dict[str, str]:
+        """Do not queue an approval whose script failed to retain its place."""
+        orphaned = self.built.deps.code_continuations.orphan_approvals
+        if orphaned:
+            self.approvals.parked = {
+                key: call for key, call in self.approvals.parked.items() if call not in orphaned
+            }
+            self.approvals.requested[:] = [
+                request
+                for request in self.approvals.requested
+                if request.tool_call_id not in orphaned
+            ]
+        return self.approvals.parked
 
     async def execute(
         self,
@@ -2553,6 +2609,7 @@ def _connect_on_use(
     refs: Sequence[McpServerRef],
     user_id: UUID | None,
     request_connection: ConnectionCallback | None,
+    taken_names: Mapping[str, str],
 ) -> tuple[ConnectOnUse | None, list[UnavailableBinding]]:
     """Split the gaps into those the run offers to connect on use and those it briefs.
 
@@ -2573,7 +2630,12 @@ def _connect_on_use(
         request = ConnectionRequest(
             catalog_key=gap.catalog_key, name=personal_service_gap(gap).name, gap=gap.gap
         )
-        resolve = partial(connect_personal_toolset, personal[gap.catalog_key], user_id=user_id)
+        resolve = partial(
+            connect_personal_toolset,
+            personal[gap.catalog_key],
+            user_id=user_id,
+            taken_names=taken_names,
+        )
         pending.append(PendingService(request=request, resolve=resolve))
     if not pending:
         return None, briefed
@@ -2707,7 +2769,10 @@ def _with_channel_service_approval(
     Linked senders use web chat's read-only classification. An unlinked room
     participant needs approval for every MCP or Mirage call; no member vouched
     for releasing organization data to them. An explicit `all` still includes reads.
-    This also applies to delegates and resumed runs through the shared factory.
+    A tool's own `never` is dropped: it is the author's word, not the server's,
+    and here only the server's `readOnlyHint` lets a tool run unasked (#2884). A
+    tool's own `required` stays. This also applies to delegates and resumed runs
+    through the shared factory.
     """
     if surface not in _CHANNEL_SURFACES:
         return spec
@@ -2730,17 +2795,23 @@ def _with_channel_service_approval(
                 for binding in spec.capabilities
             ],
             "mcp_servers": [
-                ref.model_copy(
-                    update={
-                        "approval": "all"
-                        if not linked_sender or ref.approval == "all"
-                        else "writes"
-                    }
-                )
+                _held_to_channel_approval(ref, linked_sender=linked_sender)
                 for ref in spec.mcp_servers
             ],
         }
     )
+
+
+def _held_to_channel_approval(ref: McpServerRef, *, linked_sender: bool) -> McpServerRef:
+    """One MCP binding, held to what a chat app requires.
+
+    See :func:`_with_channel_service_approval` for the rule.
+    """
+    approval = "all" if not linked_sender or ref.approval == "all" else "writes"
+    if isinstance(ref, PlatformMcpServerRef):
+        return ref.model_copy(update={"approval": approval})
+    asked = {tool: mode for tool, mode in ref.tool_approval.items() if mode == "required"}
+    return ref.model_copy(update={"approval": approval, "tool_approval": asked})
 
 
 def _with_channel_tools(spec: AgentSpec, exposure: AgentExposure | None) -> AgentSpec:
@@ -3128,6 +3199,20 @@ def _dynamic_builder(
         )()
 
     return build
+
+
+class RoutineBudgetSpent(BudgetExceeded):
+    """A parked fire resumed once its routine's month is spent, refused as a skipped fire is.
+
+    A fire still running when the limit is crossed finishes; a parked one has not
+    started its continuation, so it waits for the next month like a new fire.
+    """
+
+    def __init__(self, *, limit_usd: Decimal, spent_usd: Decimal) -> None:
+        super().__init__(limit_usd=limit_usd, spent_usd=spent_usd, scope=BudgetScope.RUN)
+        self.args = (
+            f"Routine monthly budget exhausted: ${spent_usd:.4f} spent of ${limit_usd:.2f} limit",
+        )
 
 
 def _spend_already_booked(run: AgentRun) -> SpendEntry:
@@ -3555,8 +3640,9 @@ class AgentRunnerService:
 
         Args:
             source_run: A run whose frozen spec an auxiliary call uses.
-                Current access is still checked; its original instructions, budgets
-                and tracing policy cannot drift to a newly published version.
+                Current access and the current published budget still apply; its
+                original instructions and tracing policy cannot drift to a newly
+                published version.
             aside: A question asked on the side of a run still working (#2087):
                 answered from the conversation alone, with the agent's tools,
                 knowledge, servers and delegates taken away - see `_answer_only`.
@@ -3923,6 +4009,11 @@ class AgentRunnerService:
         system = agent.kind != AgentKind.AGENT.value
         if system:
             spec = for_the_platform(spec)
+        spec = await self._with_current_budget(
+            agent,
+            spec,
+            version_id=version_id if existing_run is None else existing_run.agent_version_id,
+        )
         routine = await RoutineAuthority.capture(
             self.db, ctx, agent_id=agent.id, run=existing_run, version_id=version_id
         )
@@ -4184,6 +4275,8 @@ class AgentRunnerService:
         personal_sources = admitted_mcp_sources
         if watch_sources is not None:
             personal_sources = {watch_sources.connection_id: source_identity(watch_sources)}
+        # What the spec's other tools are called, which no MCP tool may also be (#2890).
+        taken_names = taken_tool_names(spec)
         resolved = await build_toolsets_for_agent(
             self.db,
             organization_id=ctx.organization_id,
@@ -4192,6 +4285,7 @@ class AgentRunnerService:
             test_connections=test_connections.mcp,
             personal_sources=personal_sources,
             organization_sources=admitted_mcp_sources,
+            taken_names=taken_names,
             platform_credential=await self._platform_credential(
                 spec,
                 ctx,
@@ -4229,6 +4323,7 @@ class AgentRunnerService:
             refs=spec.mcp_servers,
             user_id=personal_mcp_user_id,
             request_connection=request_connection,
+            taken_names=taken_names,
         )
         context = runtime_context(
             surface.value,
@@ -4275,6 +4370,8 @@ class AgentRunnerService:
         if routine is not None:
             routine.require_project(project)
         run = existing_run
+        opened_at = datetime.now(UTC)
+        started_at = opened_at if existing_run is None else existing_run.started_at
         if run is None:
             require_admission()
             run = await agent_run_repo.create_run(
@@ -4340,7 +4437,7 @@ class AgentRunnerService:
                 if model_spec is not None
                 else None,
                 modality="voice" if voice is not None else "text",
-                started_at=datetime.now(UTC),
+                started_at=opened_at,
                 is_test=is_test,
                 test_spec=test_spec,
             )
@@ -4387,12 +4484,15 @@ class AgentRunnerService:
                 return get_worker_db_context
             return get_db_context
 
+        since, until = budget_window(started_at)
+
         async def agent_period_spend() -> Decimal:
             async with spend_session("agent")() as db:
                 return await agent_run_repo.sum_cost_since(
                     db,
                     organization_id=ctx.organization_id,
-                    since=month_start(),
+                    since=since,
+                    until=until,
                     agent_id=agent.id,
                     include_delegations=True,
                     exclude_run_id=run.id,
@@ -4400,12 +4500,15 @@ class AgentRunnerService:
 
         async def org_period_spend() -> Decimal:
             async with spend_session("organization")() as db:
-                return await organization_monthly_spend(
-                    db, ctx.organization_id, exclude_run_id=run.id
+                return await organization_spend_since(
+                    db, ctx.organization_id, since, until=until, exclude_run_id=run.id
                 )
 
         group_limits = await self._group_limits(
-            self._department_context(ctx, existing_run), exclude_run_id=run.id
+            self._department_context(ctx, existing_run),
+            exclude_run_id=run.id,
+            since=since,
+            until=until,
         )
 
         # A chat in a project works in the project's container and reads its
@@ -5697,6 +5800,7 @@ class AgentRunnerService:
             test_connections=delegation.test_connections.mcp,
             personal_sources=delegation.routine_sources,
             organization_sources=delegation.routine_sources,
+            taken_names=taken_tool_names(runnable),
             # The run's own person, as for the parent: on a resume `ctx` is the
             # approver's, and a delegate must not carry their authority either.
             platform_credential=await self._platform_credential(runnable, ctx, delegation.run),
@@ -5830,12 +5934,23 @@ class AgentRunnerService:
         """
         config = _mirage_config(spec)
         if config is not None:
-            key = hashlib.sha256(
+            legacy_key = hashlib.sha256(
                 f"{ctx.organization_id}:{person_id}:{config.model_dump_json()}".encode()
             ).hexdigest()
+            canonical = json.dumps(
+                config.model_dump(mode="json"), sort_keys=True, separators=(",", ":")
+            )
+            key = (
+                "v2:"
+                + hashlib.sha256(
+                    f"{ctx.organization_id}:{person_id}:{canonical}".encode()
+                ).hexdigest()
+            )
             service = MirageMountService(self.db)
             identity = await service.authority(ctx, config, person_id=person_id)
-            if restoring and (authorities is None or authorities.get(key) != identity):
+            if restoring and (
+                authorities is None or authorities.get(key, authorities.get(legacy_key)) != identity
+            ):
                 raise AuthorizationError(
                     message="A terminal account or credential changed while this run waited. Start a new run to review its targets."
                 )
@@ -5846,6 +5961,7 @@ class AgentRunnerService:
                 )
             if authorities is not None:
                 authorities[key] = identity
+                authorities[legacy_key] = identity
             resources[MIRAGE_MOUNTS_RESOURCE] = terminal
 
     async def _workspace_shared(
@@ -6409,6 +6525,27 @@ class AgentRunnerService:
                 status = RunStatus.FAILED
                 paused_state = None
 
+        parked = (
+            None
+            if paused_state is None
+            else self._parked_tree(prepared, paused_state, await dump_plan(prepared.plan_store))
+        )
+        if parked is not None and parked.code_checkpoints:
+            requested_bytes = len(
+                json.dumps(
+                    {
+                        key: value.model_dump(mode="json")
+                        for key, value in parked.code_checkpoints.items()
+                    }
+                ).encode()
+            )
+            if not await agent_run_repo.code_checkpoint_capacity(
+                self.db, run=prepared.run, requested_bytes=requested_bytes
+            ):
+                status = RunStatus.FAILED
+                error = "Code checkpoint storage quota exceeded; no pending tool ran."
+                parked = None
+
         # The approval rows the run parked, written here rather than while it ran:
         # parking on the channel is deferred off the shared session so two gated
         # calls in one model step cannot race two inserts (agenticos#169), and this
@@ -6420,11 +6557,6 @@ class AgentRunnerService:
         )
         await self._write_interceptions(prepared)
 
-        parked = (
-            None
-            if paused_state is None
-            else self._parked_tree(prepared, paused_state, await dump_plan(prepared.plan_store))
-        )
         ledger = prepared.built.ledger
         # This row's own requests, and an inline or invented specialist's, which
         # has no row and is built as this agent; a published delegate's go on its
@@ -6622,6 +6754,7 @@ class AgentRunnerService:
                 ],
                 "plan": plan,
                 "generated_files": sorted(prepared.built.deps.generated_files),
+                "code_checkpoints": dict(prepared.built.deps.code_continuations.checkpoints),
                 "channel_destination": prepared.channel_destination,
                 "channel_file_attempts": prepared.channel_file_budget.attempts,
                 "channel_context": prepared.channel_context,
@@ -6637,12 +6770,18 @@ class AgentRunnerService:
         are not the run's - its spend is the starter's, and the starter's caps
         hold it. Departments are a person's, not a role's, so the run's own
         person and flags are enough. `None` where no member started the run:
-        nobody's to begin with, or fired by a routine, which a fresh run tells
-        apart by its flags.
+        nobody's to begin with, fired by a routine - a deleted one's included,
+        whose `trigger_id` is cleared - or background work for a person, which
+        a fresh run tells apart by its flags.
         """
         if existing_run is None:
             return ctx
-        if existing_run.user_id is None or existing_run.trigger_id is not None:
+        if (
+            existing_run.user_id is None
+            or existing_run.trigger_id is not None
+            or existing_run.routine_origin_id is not None
+            or existing_run.surface == RunSurface.PROACTIVE.value
+        ):
             return None
         return replace(
             ctx,
@@ -6652,7 +6791,12 @@ class AgentRunnerService:
         )
 
     async def _group_limits(
-        self, ctx: AuthContext | None, *, exclude_run_id: UUID
+        self,
+        ctx: AuthContext | None,
+        *,
+        exclude_run_id: UUID,
+        since: datetime | None = None,
+        until: datetime | None = None,
     ) -> list[SpendLimit]:
         """The monthly caps of every department the person running this is in (#2072).
 
@@ -6680,7 +6824,8 @@ class AgentRunnerService:
                     return await agent_run_repo.sum_cost_since(
                         db,
                         organization_id=ctx.organization_id,
-                        since=month_start(),
+                        since=since or month_start(),
+                        until=until,
                         group_id=group_id,
                         exclude_run_id=exclude_run_id,
                     )
@@ -7345,6 +7490,8 @@ class AgentRunnerService:
         prepared.admitted_as.conversation_task_id = state.admitted_as.conversation_task_id
         prepared.built.deps.conversation_task_id = state.admitted_as.conversation_task_id
         prepared.built.deps.generated_files.update(state.generated_files)
+        prepared.built.deps.code_continuations.checkpoints.update(state.code_checkpoints)
+        prepared.built.deps.code_continuations.native_tools = _native_approval_tools(state)
         if can_ask:
             prepared.built.deps.ask_questions = park_the_question
             prepared.built.deps.parks_questions = True
@@ -7376,6 +7523,14 @@ class AgentRunnerService:
         # continue. Nothing above has touched the row, so the run is still parked
         # and still resumable, and no failure path can commit a status that was
         # never written.
+        refusal = await self._routine_budget_spent(run)
+
+        async def opened(child: AgentRun) -> None:
+            if refusal is not None:
+                raise refusal
+            if on_run_open is not None:
+                await on_run_open(child)
+
         await agent_run_repo.mark_running(self.db, run=run)
 
         try:
@@ -7391,7 +7546,7 @@ class AgentRunnerService:
                     ),
                     deferred_tool_results=plan.results,
                     on_segment=on_segment,
-                    on_run_open=on_run_open,
+                    on_run_open=opened,
                     check_model_request=check_model_request,
                     stream=frames.drive if frames is not None else None,
                 )
@@ -7923,6 +8078,48 @@ class AgentRunnerService:
         )
         return spec.model_copy(update={"observability": merged})
 
+    async def _routine_budget_spent(self, run: AgentRun) -> RoutineBudgetSpent | None:
+        """The refusal for a parked fire whose routine has spent its month, or `None`.
+
+        The month is the one the run started in, as the routine's spend is
+        counted, and this run's own spend so far is part of it.
+        """
+        if run.routine_kind != "trigger" or run.routine_origin_id is None:
+            return None
+        trigger = await agent_trigger_repo.get(
+            self.db, run.routine_origin_id, organization_id=run.organization_id
+        )
+        if trigger is None or trigger.monthly_budget_usd is None:
+            return None
+        since, until = budget_window(run.started_at)
+        spent = (
+            await agent_run_repo.spend_by_trigger_since(
+                self.db, trigger_ids=[trigger.id], since=since, until=until
+            )
+        ).get(trigger.id, Decimal(0))
+        if spent < trigger.monthly_budget_usd:
+            return None
+        return RoutineBudgetSpent(limit_usd=trigger.monthly_budget_usd, spent_usd=spent)
+
+    async def _with_current_budget(
+        self, agent: Agent, spec: AgentSpec, *, version_id: UUID | None
+    ) -> AgentSpec:
+        """`spec` held to the monthly cap of the agent's current published version.
+
+        A pinned version - a routine's, an environment's, a workflow step's, a
+        parked run's - decides how the agent behaves, not what it may spend, so a
+        limit published since binds every version that runs. An agent never
+        published keeps its own spec's cap: a draft under test has nothing else.
+        """
+        current = agent.current_version_id
+        if current is None or current == version_id:
+            return spec
+        cap = (await agent_repo.published_budget_caps(self.db, version_ids=[current])).get(current)
+        budget = None if cap is None else BudgetSpec(monthly_usd=cap)
+        if budget == spec.budget:
+            return spec
+        return spec.model_copy(update={"budget": budget})
+
     async def _parked_spec(self, ctx: AuthContext, run: AgentRun) -> tuple[Agent, AgentSpec]:
         """The agent and the exact spec version this run was executing.
 
@@ -8124,7 +8321,7 @@ class AgentRunnerService:
             settled = settled_calls_in(new_messages)
             status, output, structured, paused = _classify_output(
                 result,
-                parked=prepared.approvals.parked,
+                parked=prepared.checkpointed_approvals(),
                 history_revision=message_history.revision
                 if isinstance(message_history, ModelHistory)
                 else None,

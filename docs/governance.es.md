@@ -1,5 +1,5 @@
 ---
-source_sha: "246a8fe6bac4"
+source_sha: "390d73e39402"
 ---
 
 # Governance { #governance }
@@ -96,6 +96,11 @@ Una rutina vuelve a comprobar su creador, membresía activa, rol y permisos de e
 | **Departamento, mensual** | los ajustes del departamento | los runs que iniciaron sus miembros, en cualquier agent | quien tenga `members:manage` y `budgets:manage` |
 | **Organización, mensual** | los ajustes de la organización | cada run _y_ cada ingesta de la organización | quien tenga `budgets:manage` |
 
+Cada tope mensual cuenta el coste entero de un run en el mes en que empezó, igual que
+los informes de gasto. Un run que cruza el límite de un mes - aparcado en una
+aprobación la última tarde y aprobado el día uno - aparece entero en el mes anterior,
+y al reanudarse se compara con el gasto de ese mes, no con el del nuevo.
+
 Una **organización nueva empieza con el techo de la organización ya puesto** — el
 `DEFAULT_ORG_MONTHLY_BUDGET_USD` del deployment ([configuración](configuration.md),
 $100 de serie) —, así que un tenant recién creado no está a un agent desbocado de
@@ -127,6 +132,11 @@ de agents — el número de la versión _publicada_, ya que es la que aplica el 
 no lo que prometa el borrador en este momento. La tarjeta de margen del dashboard
 cruza estos datos con `GET /spend`, de modo que se puede ver un tope acercándose
 antes de que `budget_exceeded` empiece a aparecer en el historial de runs.
+
+Ese número publicado se aplica a todos los runs del agent, también a un run de una
+versión anterior: una rutina, un entorno o un paso de workflow fijados a ella,
+o un run reanudado en la versión en la que quedó aparcado. Fijar una versión decide
+cómo se comporta el agent, no cuánto puede gastar.
 
 ### El tope de un departamento { #a-departments-cap }
 
@@ -608,6 +618,12 @@ como un run de la superficie **proactive** y contada contra el budget de la
 organización como cualquier otra. Una persona puede excluirse en **Ajustes →
 Asistente**.
 
+Cada petición al modelo de un run así - la primera y cada reintento - se comprueba
+contra el límite de gasto en proactividad de la persona, el budget mensual del
+agent atribuido y el de la organización. Un run que alcanza uno a medio camino se
+detiene ahí, termina como `budget_exceeded` y conserva lo que gastó. Estos runs no
+cuentan para ningún departamento.
+
 La mirada nocturna vence 20 horas después de su propio último intento. Las
 vigilancias y el mantenimiento de memoria no cambian ese momento. Las
 vigilancias siguen contando para el límite personal de gasto en proactividad.
@@ -678,7 +694,8 @@ herramientas o fuentes. **Volver a aprobar las fuentes actuales** renueva
 explícitamente el permiso. Una cuenta principal nueva no sustituye la aprobada.
 
 Cada revisión es un run **proactive** normal atribuido al agente y versión reales.
-Las herramientas de origen deben tener `readOnlyHint`. Se permiten la cuenta
+Las herramientas de origen deben tener `readOnlyHint`, y una lectura ante la que
+pregunta la vinculación MCP del agent queda fuera de la revisión. Se permiten la cuenta
 aprobada, conocimiento/contexto, guardrails, planificación y recordatorios del
 sistema; no están disponibles web, sandbox, skills ejecutables, escritura de
 memoria ni delegación. Las aprobaciones interactivas obligatorias impiden la
@@ -1371,12 +1388,32 @@ un script que reparte cientos de llamadas en el sandbox no puede abrirlas todas
 juntas.
 
 Cada llamada desde un script pasa por los mismos guardrails, el mismo budget y
-las mismas comprobaciones de permisos que una llamada directa. Una herramienta
-que necesita aprobación nunca se pliega: sigue siendo una llamada normal, y el run
-se detiene para la persona como siempre. Lo mismo vale para preguntas,
-delegaciones y herramientas cuya llamada es lo que ve la persona (borradores,
-gráficos, dibujos). La vista del run lista cada script y
-cada llamada que hizo.
+las mismas comprobaciones de permisos que una llamada directa. Si una herramienta
+necesita aprobación, el run se detiene en esa llamada. Las operaciones ya iniciadas
+terminan antes de que el servidor guarde el intérprete, los resultados, el
+manifiesto y el contador de llamadas. Tras la decisión, cualquier worker puede
+continuar el script sin otro turno del modelo ni repetir operaciones terminadas.
+El rechazo lanza un `RuntimeError` dentro del script; el código de la herramienta
+no se ejecuta. Aprobar `run_code` no aprueba ninguna operación interna.
+
+El estado guardado pertenece al servidor y tiene un límite de tamaño. La captura
+bruta del intérprete admite hasta 512 kB y todos los checkpoints de código de un
+run, hasta 1 MB de JSON. Las reservas atómicas en la base de datos limitan los
+checkpoints retenidos a 8 MB por usuario iniciador (entre organizaciones) y 32 MB
+por organización, incluidas las reanudaciones en curso. Si se agota la capacidad,
+el run falla sin guardar aprobaciones pendientes; al terminar definitivamente
+libera su reserva.
+
+Si está
+dañado, cambia la identidad de la herramienta o una actualización de harness/Monty
+impide restaurarlo, la llamada falla con un error claro antes de ejecutar una
+herramienta pendiente. Nunca se reinicia el script desde su código fuente.
+
+Las preguntas, delegaciones y herramientas visibles directamente (borradores,
+gráficos, dibujos) siguen siendo nativas. Las sesiones que preguntan antes de
+cada herramienta y los runs de rutinas mantienen su política de herramientas
+nativas. La vista del run muestra cada script una sola vez, con sus llamadas y
+su estado de aprobación o ejecución a través de las reanudaciones.
 
 ### Informes { #reporting }
 
@@ -2417,7 +2454,7 @@ Vale la pena decirlo, porque una página de governance da a entender lo contrari
 
 ## Pausa automática por fallos repetidos { #routine-health }
 
-Las rutinas y observaciones se pausan por defecto tras **tres comprobaciones fallidas consecutivas**. El formulario permite elegir un límite de 1 a 20 o desactivarlo. Cuentan los fallos del proveedor o de ejecución, las lecturas inválidas y las fuentes inaccesibles. No cuentan la espera de aprobación, un ordenador desconectado ni los fallos de entrega; una comprobación vacía pero verificada como correcta reinicia la serie. Los demás bloqueos de permisos y presupuesto siguen aplicándose aunque se desactive este límite.
+Las rutinas y observaciones se pausan por defecto tras **tres comprobaciones fallidas consecutivas**. El formulario permite elegir un límite de 1 a 20 o desactivarlo. Cuentan los fallos del proveedor o de ejecución, las lecturas inválidas y las fuentes inaccesibles. No cuentan la espera de aprobación, un ordenador desconectado, los fallos de entrega ni las paradas por presupuesto: una comprobación que el presupuesto rechazó espera a la siguiente y ni alarga la serie ni la reinicia. Una comprobación vacía pero verificada como correcta reinicia la serie. Los demás bloqueos de permisos y presupuesto siguen aplicándose aunque se desactive este límite.
 
 Cada activación tiene una única observación persistente. Los reintentos no aumentan el contador y los resultados tardíos se evalúan según el orden de activación. La pausa automática detiene futuras activaciones; una solicitud al modelo ya iniciada puede terminar.
 

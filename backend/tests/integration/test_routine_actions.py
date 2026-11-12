@@ -656,6 +656,38 @@ async def test_explicit_mcp_approval_and_intersected_tool_limits_cannot_be_waive
     )
 
 
+async def test_each_mcp_tool_s_own_approval_decides_whether_consent_can_waive_it(
+    db: AsyncSession, world: World, mcp_account: McpConnection
+) -> None:
+    """A tool the agent lets run takes standing consent under `writes`, and one it
+    asks before takes none under `none` (#2884)."""
+    from app.schemas.routine_actions import RoutineMcpActionOption
+
+    async def waivable(approval: str, tool_approval: dict[str, str]) -> dict[str, bool]:
+        ref = world.spec.mcp_servers[0].model_copy(
+            update={"approval": approval, "tool_approval": tool_approval}
+        )
+        world.version.spec = world.spec.model_copy(update={"mcp_servers": [ref]}).model_dump(
+            mode="json"
+        )
+        await db.flush()
+        offered = await RoutineActionService(db).options(world.ctx, world.trigger)
+        return {
+            item.tool_id: item.waivable
+            for item in offered.items
+            if isinstance(item, RoutineMcpActionOption)
+        }
+
+    assert await waivable("writes", {"send_mail": "never"}) == {
+        "send_mail": True,
+        "delete_mail": False,
+    }
+    assert await waivable("none", {"delete_mail": "required"}) == {
+        "send_mail": True,
+        "delete_mail": False,
+    }
+
+
 @pytest.mark.parametrize("metadata", [None, [{"invalid": "provider metadata"}]])
 async def test_unavailable_account_inventory_is_visible_and_cannot_block_revocation(
     db: AsyncSession,

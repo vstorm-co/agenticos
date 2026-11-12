@@ -339,10 +339,25 @@ on the card, and the tab carries a dot once anything there is changed.
 Turning off
 **Run this step** there, or **Switch off** in its right-click menu, keeps a step on
 the canvas, dimmed, and skips it when a run reaches it: it does nothing and hands on
-what came into it. Publishing refuses the trigger or a step that decides the way
+what came into it. Publishing refuses the trigger or a connected step that decides the way
 switched off, and a step that reads one that is off, unless what comes into it -
 along its one incoming connection, from a step that is on - has the field read,
 which it then hands on. All three are saved in the graph, so versions keep them.
+
+A step that is off, connected or not, is not checked for its inputs or its settings:
+it reads neither. Switching it back on is a change to publish, and publishing checks
+them then.
+
+A step that is off with no connection at all is set aside: it can sit beside the
+workflow or inside a loop - a **Combine lists** holding test data, say - without
+being reachable. A run ignores it, and it does not count towards the run's step
+limit. Connect it to anything and it must be reachable again. Any step can be set
+aside, even one that decides the way, such as **If**: with no connection it has no
+way to choose. Only the trigger and a loop's **Loop item** and **Loop result**
+always stay on.
+
+
+A switched-off step may keep its saved error policy and file or table bindings even when the resource is no longer accessible. It reads none of them; switching it back on checks them again. A step set aside appears as **Switched off** in the run's Steps tab without an execution row. Connect it to a trigger before using **Test step**.
 
 ### A step's data, test data and testing one step { #a-steps-data-pinning-and-testing-one-step }
 
@@ -806,7 +821,12 @@ faded. Only a page open while the run went on moves; one opened later is still. 
 
 The run's answer - its text, its structured result, the passages it drew on and how
 many files it made, with the JSON itself under **Raw output** - and every step it
-took, iteration by iteration, sit alongside. A run still going
+took, iteration by iteration, sit alongside.
+
+The list holds the steps that started, in the order they started. Failures remain
+visible even if a step failed before starting. Other steps that never started stay
+on the canvas; skipped steps appear faded. Clicking a loop step's row shows its
+input and output in that iteration. A run still going
 refreshes itself every couple of seconds, and **Cancel run** stops it, and withdraws the timers its waiting steps had queued. Its **Files** list what its steps stored - a download, a rendered page, a script's output - each one downloadable.
 
 A run waiting on an [**Ask for approval**](reference/workflow-nodes.md#human-approval)
@@ -852,7 +872,9 @@ a loop, or **Fail the run**. If the step reported a result after it was given up
 siblings, approvals and timers go on.
 
 Only the person who started the run, or an editor of the workflow, may resolve a
-step, and in a test run only an editor may resolve a step or retry the run. Over the
+step, and in a test run only an editor may resolve a step or retry the run. A cancelled run
+is retried only by the person who started it or an editor, the people who could have
+cancelled it. Over the
 API it is `POST /api/v1/workflow-runs/{id}/steps/{node_run_id}/rerun` with a `choice`, and the
 decision is audited. A run that was cancelled, or that failed, has no step to resolve:
 **Retry from failed step** starts a new run. A step that finished after its run
@@ -1092,9 +1114,37 @@ read it starts from the moment the workflow was published or last switched on, s
 mail already there starts nothing.
 
 Naming a shared mailbox the organization's Microsoft grant can open takes the permission
-to manage connections, as it does for Outlook agent triggers; a workflow already
-listening to one keeps it through later publishes, and changing it needs the permission again. If Outlook says the folder can no longer be read, the workflow is
+to manage connections, as it does for Outlook agent triggers; every publish that names one needs it, because whoever publishes becomes the member
+the mailbox is read as, and a message reaching a workflow whose publisher no longer
+holds it starts no run. If Outlook says the folder can no longer be read, the workflow is
 switched off and the audit log says why.
+
+Before upgrading to a release with this check, an administrator can find the
+Outlook triggers it will stop: those reading a shared mailbox for a publisher who is not an owner, admin or builder,
+and so lacks `mcp:manage`. Each needs a republish by someone who holds it, or its
+publisher's role raised. Run against the deployment's database:
+
+```sql
+SELECT o.name AS organization,
+       w.name AS workflow,
+       u.email AS publisher,
+       m.role AS publisher_role,
+       node -> 'config' ->> 'mailbox' AS shared_mailbox
+FROM workflow_exposures AS e
+JOIN workflow_versions AS v ON v.id = e.workflow_version_id
+JOIN workflows AS w ON w.id = e.workflow_id
+JOIN organizations AS o ON o.id = e.organization_id
+JOIN users AS u ON u.id = e.execution_principal_user_id
+LEFT JOIN organization_members AS m
+  ON m.organization_id = e.organization_id AND m.user_id = e.execution_principal_user_id
+CROSS JOIN LATERAL jsonb_array_elements(v.graph -> 'nodes') AS node
+WHERE e.adapter = 'outlook'
+  AND e.is_active
+  AND (node ->> 'id')::uuid = e.node_instance_id
+  AND coalesce(node -> 'config' ->> 'mailbox', '') <> ''
+  AND NOT u.is_app_admin
+  AND coalesce(m.role, '') NOT IN ('owner', 'admin', 'builder');
+```
 
 The run gets the same fields as a Gmail
 run, with `labels` holding the message's categories and `mailbox` the shared
@@ -1137,7 +1187,8 @@ topic only inside a forum topic.
 
 A **Send a message** step added after a **Channel message** trigger starts as the
 trigger's bot, with `channel_id` and `thread_id` bound, when the two platforms match. A
-bot's messages start one workflow at most, and listening to a bot needs `channels:manage`.
+bot's messages start one workflow at most, and listening to a bot needs `channels:manage`, checked again
+at every message: once the publisher loses it, the bot's own agent answers instead.
 A voice note arrives as its transcript; other attachments are not handed on. See
 [trigger.channel_message](reference/workflow-nodes.md#trigger-channel-message).
 

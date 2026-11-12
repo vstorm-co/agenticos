@@ -1,4 +1,10 @@
 {
+  "sharedAttribution": {
+    "madeWith": "Made with <name>AgenticOS</name>",
+    "cta": "Run your own AgenticOS",
+    "description": "Your AI workspace. Open source.",
+    "ctaShort": "GitHub"
+  },
   "admin": {
     "actions": "Actions",
     "active": "Active",
@@ -760,6 +766,8 @@
     "approvalForGroup": "Approval for {group}",
     "approvalRunFreely": "Run freely",
     "approvalAskFirst": "Ask first",
+    "approvalForTool": "Ask first before {tool}",
+    "approvalPerTool": "Per tool",
     "connectAnotherOwn": "Connect another account",
     "ownAccountMain": "Main",
     "ownAccountPrefix": "Its tools start with {prefix}",
@@ -5425,6 +5433,10 @@
         "title": "Its alerts",
         "body": "Rules that tell people when this log crosses a threshold: how many matching lines, in how long, and who hears. Anyone who can edit the workflow adds, changes or deletes them."
       },
+      "org-public-attribution": {
+        "title": "AgenticOS on shared pages",
+        "body": "Show a small floating AgenticOS badge with a GitHub link on public apps, dashboards and reports, and below shared conversations."
+      },
       "org-public-live-data": {
         "title": "Live data on public pages",
         "body": "Whether public links and embeds may show table data to people without an account. It's off by default, and each page's owner still has to confirm their page."
@@ -5987,7 +5999,8 @@
         "skipped": "Skipped",
         "cancelled": "Cancelled",
         "notReached": "Not reached",
-        "starting": "Starting"
+        "starting": "Starting",
+        "switchedOff": "Switched off"
       },
       "startRun": "Start a run",
       "startRunTitle": "Start a run",
@@ -8988,6 +9001,11 @@
       "providerNoKey": "{name} (no usable key)",
       "notReadyNoKey": "No key is chosen for {provider}. Agents and bots that inherit it can't transcribe with a provider until you choose one below."
     },
+    "publicAttribution": "AgenticOS on shared pages",
+    "publicAttributionDescription": "Show a small floating AgenticOS badge with a GitHub link on public apps, dashboards and reports, and below shared conversations.",
+    "publicAttributionHint": "Enabled by default. Turn it off to hide AgenticOS branding on this organization's public links.",
+    "publicAttributionSaved": "Shared-page branding saved",
+    "publicAttributionFailed": "Could not update shared-page branding",
     "publicLiveData": "Public pages with live data",
     "publicLiveDataDescription": "Whether public pages may show table data to people without an account.",
     "publicLiveDataHint": "Off by default. When on, a page's public link and embeds show its table data once the owner confirms it. Turning it off hides the data everywhere but keeps the confirmations.",
@@ -9309,6 +9327,7 @@
     "runAsMeScheduleHint": "Each run uses your memory and your own connections - your mailbox, your calendar - as your own chat does. It can save notes for you; it never searches your past conversations.",
     "runAsMeEventHint": "Each run uses your memory and your own connections, as your own chat does. It reads your notes but never saves any, because what an event carries came from outside; it never searches your past conversations.",
     "runAsCreatorOthersHint": "Each run uses their memory and their own connections. Only they can turn this on, and changing the message, the environment, the filter or the Teams channel turns it off.",
+    "limitsCreatorOnly": "While this routine runs as the person who made it, only they can resume it, change its end date or raise its limits. Clear \"Runs as the person who made it\" first to do that.",
     "actsAsCreator": "As its creator",
     "personalReachHint": "This agent uses memory, conversation search or a personal connection. A schedule or event reaches memory and personal connections only when it runs as the person who made it, and never their conversations.",
     "cadence": {
@@ -9566,6 +9585,7 @@
       "conversation": "Each result is posted to the chat this routine was made for."
     },
     "budgetLabel": "Monthly budget (USD, optional)",
+    "budgetCreatorOnly": "Only the person who made this routine can raise or remove its limit while it runs as them.",
     "budgetHint": "What this routine may spend a month. Once spent it pauses and starts again on the first. It narrows the agent's and the organization's limits, never lifts them.",
     "budgetPlaceholder": "No limit of its own",
     "pausedBudget": "Paused - budget",
@@ -10646,6 +10666,7 @@
     "validationLabelTaken": "Another step is already called “{label}”.",
     "validationTriggerSwitchedOff": "The trigger cannot be switched off.",
     "validationControlSwitchedOff": "A step that decides which way the run goes cannot be switched off.",
+    "validationLoopPartSwitchedOff": "A loop's item or result step cannot be switched off.",
     "validationBindingReadsSwitchedOff": "This reads a step that is switched off, so it would receive nothing.",
     "stepName": "Step name",
     "stepNotes": "Note",
@@ -10749,6 +10770,7 @@
     "stepTestNotReached": "This step did not run: the test ended before reaching it.",
     "stepTestStopped": "This step did not run: the test was stopped.",
     "stepTestHint": "Run only this step, on what the steps before it handed on last time",
+    "stepTestNotReachable": "Connect this step to a trigger before testing it.",
     "stepTestInsideALoop": "A step inside a loop runs once per item; test the loop instead",
     "stepTestWriteTitle": "Test a step that writes?",
     "stepTestWriteDescription": "Testing it really does what it does: records are written and messages are sent, just as in a real run.",

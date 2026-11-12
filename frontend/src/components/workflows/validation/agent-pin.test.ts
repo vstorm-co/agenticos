@@ -22,4 +22,8 @@ describe("agent pin validation before testing", () => {
       expect(rule9RequiredInputsBound(value, resolveDefinitions(value, catalog))).toEqual([]);
     },
   );
+  it("asks no agent of a step that is switched off", () => {
+    const value = graph({ entry: "a", nodes: [{ ...node("a", "agent.run", {}), disabled: true }] });
+    expect(rule9RequiredInputsBound(value, resolveDefinitions(value, catalog))).toEqual([]);
+  });
 });
