@@ -1,5 +1,5 @@
 ---
-source_sha: "b6bf6b0f28ac"
+source_sha: "9c832ede7eda"
 ---
 
 # Konsola { #the-console }
@@ -10,7 +10,7 @@ wyjaśnia go porządnie.
 
 Gdy edytujesz ustawienia projektu, nazwę organizacji, limit wydatków, domyślne ustawienia głosu, okresy retencji danych, skill lub plik context, wyjście wymaga decyzji: zapisać, odrzucić czy zostać. Dotyczy to także przejścia do innego pliku zasobów skill. Odmowa zapisu pozostawia draft otwarty; **Save file** usuwa go dopiero po potwierdzeniu zapisu przez serwer. Tekst dopisany w trakcie zapisywania tego pliku pozostaje niezapisany.
 
-Na telefonie dokumenty bazy wiedzy i członkowie organizacji mają podpisane wiersze z widocznymi akcjami. Usunięcie członka wymaga potwierdzenia, a odmowa zachowuje otwarte okno. Formularze tworzenia KB, parsowania i dostawcy embeddingów pozostają otwarte podczas zapisu; po odmowie znów można je zamknąć. Nieudane pobranie dokumentu pokazuje błąd i pozwala ponowić próbę.
+Na telefonie dokumenty bazy wiedzy i członkowie organizacji mają podpisane wiersze z widocznymi akcjami. Usunięcie członka wymaga potwierdzenia, a odmowa zachowuje otwarte okno. Formularze tworzenia KB, parsowania i dostawcy embeddingów blokują pola i pozostają otwarte podczas zapisu; po odmowie znów można je edytować i zamknąć. Nieudane pobranie dokumentu pokazuje błąd i pozwala ponowić próbę.
 
 Zmiana pytania lub zakresu wyszukiwania wiedzy usuwa wcześniejsze wyniki i anuluje oczekujące zapytanie. Spóźniona odpowiedź nie może zastąpić wyników nowszego wyszukiwania.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "b6bf6b0f28ac"
+source_sha: "9c832ede7eda"
 ---
 
 # La consola { #the-console }
@@ -10,7 +10,7 @@ como es debido.
 
 Al editar los ajustes de un proyecto, el nombre de una organización, el límite de gasto, los valores de voz predeterminados, los periodos de retención, un skill o un archivo de contexto, antes de salir eliges guardar, descartar o quedarte. También se pregunta al cambiar desde un recurso de skill editado a otro archivo. Si se rechaza el guardado, el borrador permanece abierto; **Save file** lo descarta solo cuando el servidor confirma la escritura. El texto añadido mientras se guarda ese recurso sigue sin guardar.
 
-En el teléfono, los documentos de las bases de conocimiento y los miembros de la organización aparecen en filas etiquetadas con acciones visibles. Eliminar un miembro requiere confirmación y un rechazo mantiene el diálogo abierto. Los formularios de creación de KB, procesamiento y proveedor de embeddings permanecen abiertos mientras guardan; tras un rechazo pueden cerrarse de nuevo. Una descarga fallida muestra un error y permite reintentar.
+En el teléfono, los documentos de las bases de conocimiento y los miembros de la organización aparecen en filas etiquetadas con acciones visibles. Eliminar un miembro requiere confirmación y un rechazo mantiene el diálogo abierto. Los formularios de creación de KB, procesamiento y proveedor de embeddings bloquean los campos y permanecen abiertos mientras guardan; tras un rechazo pueden editarse y cerrarse de nuevo. Una descarga fallida muestra un error y permite reintentar.
 
 Cambiar la pregunta o el ámbito de la búsqueda de conocimiento borra los resultados anteriores y cancela la solicitud pendiente. Una respuesta tardía no puede reemplazar los resultados de una búsqueda más reciente.
 

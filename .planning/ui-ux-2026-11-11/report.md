@@ -322,7 +322,7 @@ The new touch Chromium journeys cover:
 
 The KB journey runs at 320×740 and opens the source again at 390×844. No paid model,
 real invitation email, external directory or production account is exercised.
-149 focused unit/integration tests in ten files and three browser journeys passed.
+151 focused unit/integration tests in ten files and three browser journeys passed.
 Scoped ESLint, TypeScript, translations and the strict four-language documentation
 build pass. The production import map has been refreshed.
 
@@ -333,3 +333,11 @@ build pass. The production import map has been refreshed.
 | Organization members and actions | [PNG](comparisons/org-members-mobile-before.png) | [PNG](comparisons/org-members-mobile-after.png) |
 | KB document actions | [PNG](comparisons/kb-documents-mobile-before.png) | [PNG](comparisons/kb-documents-mobile-after.png) |
 | KB settings dismissed while saving | [PNG](comparisons/kb-save-pending-mobile-before.png) | [PNG](comparisons/kb-save-pending-mobile-after.png) |
+
+
+The final pending-write check also found editable fields inside Create KB and the
+embedding-provider dialog. Both bodies now use disabled, named fieldsets until
+the request settles, preventing a later reset from erasing text typed during the
+write. Two additional regression tests cover refusal and restoration of editing.
+The interrupted dev environment was restored from its own persisted database and
+cache containers; a corrupt Next dev manifest was moved aside and regenerated.
