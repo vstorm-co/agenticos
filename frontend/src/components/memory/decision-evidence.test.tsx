@@ -59,11 +59,10 @@ const claim: MemoryClaim = {
     correction: null,
   },
 };
-function mount(data = claim) {
+const client = () => new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+function mount(data = claim, queries = client()) {
   return render(
-    <QueryClientProvider
-      client={new QueryClient({ defaultOptions: { mutations: { retry: false } } })}
-    >
+    <QueryClientProvider client={queries}>
       <DecisionEvidence claim={data} />
     </QueryClientProvider>,
   );
@@ -110,11 +109,11 @@ it("adds the case to the chosen dataset only after a human reviews the editable 
   options.action.onClick();
   expect(state.push).toHaveBeenCalledWith("/datasets/d?tab=cases");
 });
-it("cannot add before a dataset is chosen", async () => {
+it("cannot consent or add before a dataset is chosen", async () => {
   state.target = undefined;
   mount();
   await userEvent.click(screen.getByRole("button", { name: "Add as an Improve case" }));
-  await userEvent.click(screen.getByRole("checkbox"));
+  expect(screen.getByRole("checkbox")).toBeDisabled();
   expect(screen.getByRole("button", { name: "Add reviewed case" })).toBeDisabled();
 });
 it("keeps a refused add open with an error", async () => {
@@ -181,4 +180,22 @@ it("says when the datasets could not be listed and offers a retry", async () => 
   expect(screen.getByRole("alert")).toBeVisible();
   await userEvent.click(screen.getByRole("button", { name: "Retry" }));
   expect(state.refetch).toHaveBeenCalled();
+});
+it("voids consent when the dataset it was given for is replaced", async () => {
+  const queries = client();
+  const view = mount(claim, queries);
+  await userEvent.click(screen.getByRole("button", { name: "Add as an Improve case" }));
+  await userEvent.click(screen.getByRole("checkbox"));
+  await userEvent.click(screen.getByRole("checkbox"));
+  expect(screen.getByRole("button", { name: "Add reviewed case" })).toBeDisabled();
+  await userEvent.click(screen.getByRole("checkbox"));
+  expect(screen.getByRole("button", { name: "Add reviewed case" })).toBeEnabled();
+  state.target = { id: "o", name: "Other" } as Dataset;
+  view.rerender(
+    <QueryClientProvider client={queries}>
+      <DecisionEvidence claim={claim} />
+    </QueryClientProvider>,
+  );
+  expect(screen.getByRole("checkbox")).not.toBeChecked();
+  expect(screen.getByRole("button", { name: "Add reviewed case" })).toBeDisabled();
 });

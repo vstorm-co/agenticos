@@ -49,7 +49,9 @@ export function ImproveCaseDialog({
   const queryClient = useQueryClient();
   const { editable, isLoading, error, refetch, search, target, choose, remember } =
     useDatasetTarget();
-  const [confirmed, setConfirmed] = useState(false);
+  // Consent names the dataset it was given for: one resolved or chosen later voids it.
+  const [consentedTo, setConsentedTo] = useState<string | null>(null);
+  const confirmed = target !== undefined && consentedTo === target.id;
   const [input, setInput] = useState(episode.situation);
   const [reference, setReference] = useState(episode.correction ?? episode.choice);
   const add = useMutation({
@@ -94,7 +96,7 @@ export function ImproveCaseDialog({
               datasetId={target?.id ?? ""}
               onDatasetChange={(id) => {
                 choose(id);
-                setConfirmed(false);
+                setConsentedTo(null);
               }}
               search={search}
               idPrefix={formId}
@@ -108,7 +110,7 @@ export function ImproveCaseDialog({
               value={input}
               onChange={(event) => {
                 setInput(event.target.value);
-                setConfirmed(false);
+                setConsentedTo(null);
               }}
             />
           </FormField>
@@ -120,14 +122,15 @@ export function ImproveCaseDialog({
               value={reference}
               onChange={(event) => {
                 setReference(event.target.value);
-                setConfirmed(false);
+                setConsentedTo(null);
               }}
             />
           </FormField>
           <label className="flex items-center gap-2 text-sm">
             <Checkbox
               checked={confirmed}
-              onCheckedChange={(value) => setConfirmed(value === true)}
+              disabled={target === undefined}
+              onCheckedChange={(value) => setConsentedTo(value === true ? target!.id : null)}
             />
             {t("consent")}
           </label>

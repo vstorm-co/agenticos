@@ -5,7 +5,7 @@ from uuid import uuid4
 
 import pytest
 from pydantic import ValidationError
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
 from app.core.memory_keys import person_owner_key, room_owner_key
@@ -327,3 +327,38 @@ async def test_a_reviewed_case_for_an_account_being_erased_is_refused(db: AsyncS
             source_run_id=None,
             source_conversation_id=None,
         )
+
+
+async def test_the_source_of_a_reviewed_case_cannot_be_deleted_before_it_is_linked(
+    db: AsyncSession, engine: AsyncEngine
+) -> None:
+    from sqlalchemy import select
+    from sqlalchemy.exc import DBAPIError
+
+    from app.db.models.conversation import Conversation
+    from app.schemas.dataset import DatasetCaseContent
+
+    user, org, _, ctx = await seed(db)
+    chat = Conversation(organization_id=org.id, user_id=user.id, title="Delivery")
+    db.add(chat)
+    await db.flush()
+    dataset = await DatasetService(db).create(ctx, DatasetCreate(name="Decisions"))
+    # Committed, so the other session can see the row it tries to take.
+    await db.commit()
+
+    await DatasetService(db).add_reviewed_case(
+        ctx,
+        dataset.id,
+        DatasetCaseContent(input="Overdue", reference_answer="Ask"),
+        asked_by=user.id,
+        source_run_id=None,
+        source_conversation_id=chat.id,
+    )
+
+    async with AsyncSession(engine) as other:
+        with pytest.raises(DBAPIError, match="could not obtain lock"):
+            await other.execute(
+                select(Conversation.id)
+                .where(Conversation.id == chat.id)
+                .with_for_update(nowait=True)
+            )

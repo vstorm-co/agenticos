@@ -1054,28 +1054,20 @@ class DatasetService:
             raise ConcurrentChangeError(
                 message="Your account is being erased, so nothing was added to the dataset."
             )
-        run = (
-            None
-            if source_run_id is None
-            else await agent_run_repo.get_run(
-                self.db, source_run_id, organization_id=ctx.organization_id
-            )
+        run_id, conversation_id = await dataset_repo.hold_case_sources(
+            self.db,
+            organization_id=ctx.organization_id,
+            run_id=source_run_id,
+            conversation_id=source_conversation_id,
         )
-        conversation = (
-            None
-            if source_conversation_id is None
-            else await conversation_repo.get_conversation_by_id(self.db, source_conversation_id)
-        )
-        if conversation is not None and conversation.organization_id != ctx.organization_id:
-            conversation = None
         return await self._add(
             ctx,
             dataset_id,
             data,
             source=CaseSource.MANUAL,
             authorship=Authorship(asked_by=asked_by),
-            source_run_id=None if run is None else run.id,
-            source_conversation_id=None if conversation is None else conversation.id,
+            source_run_id=run_id,
+            source_conversation_id=conversation_id,
         )
 
     async def lock_for_edit(self, ctx: AuthContext, dataset_id: UUID) -> Dataset:
