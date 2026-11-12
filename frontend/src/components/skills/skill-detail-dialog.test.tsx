@@ -60,6 +60,7 @@ describe("skill editor loading", () => {
     resolve(skill);
     await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
     const editor = screen.getByRole("dialog");
+    expect(editor).toBe(loading);
     for (const token of [...DIALOG_CANVAS.split(" "), ...DIALOG_FILL.split(" ")])
       expect(editor).toHaveClass(token);
     expect(screen.getByRole("button", { name: "Save" })).toBeVisible();

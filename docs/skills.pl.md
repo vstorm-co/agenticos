@@ -1,10 +1,10 @@
 ---
-source_sha: "539189006626"
+source_sha: "65dcefce4721"
 ---
 
 # Skille { #skills }
 
-Kliknięcie skilla w katalogu otwiera modal z instrukcjami, opisem i plikami bez utraty wyszukiwania, filtrów ani strony listy. **Otwórz pełny widok** przechodzi do zakładki Treść na osobnej stronie, z dostępnymi zakładkami Agenci i Historia. Wyjście z niezapisanymi zmianami wymaga decyzji, co zachować. Gdy brakuje opinii, Improve wskazuje następny krok zamiast formularza limitu, którego nie można uruchomić.
+Kliknięcie skilla w katalogu otwiera modal z instrukcjami, opisem i plikami bez utraty wyszukiwania, filtrów ani strony listy. **Otwórz pełny widok** obok **Udostępnij** w dolnym pasku modalu otwiera zakładkę Treść na osobnej stronie, z dostępnymi zakładkami Agenci i Historia. Wyjście z niezapisanymi zmianami wymaga decyzji, co zachować. Gdy brakuje opinii, Improve wskazuje następny krok zamiast formularza limitu, którego nie można uruchomić.
 
 
 Skill to wiedza praktyczna zapisana raz i podpięta do wielu agentów: jak

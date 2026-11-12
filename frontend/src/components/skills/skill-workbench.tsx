@@ -1,7 +1,15 @@
 "use client";
 
 import { useId, useMemo, useState } from "react";
-import { AlertTriangle, BookOpen, ChevronDown, FolderOpen, FilePlus, Upload } from "lucide-react";
+import {
+  AlertTriangle,
+  BookOpen,
+  ExternalLink,
+  ChevronDown,
+  FolderOpen,
+  FilePlus,
+  Upload,
+} from "lucide-react";
 
 import { Alert, AlertDescription, Button, DialogFooter, Input, Label } from "@/components/ui";
 import { FileEditor } from "@/components/files";
@@ -40,6 +48,7 @@ interface SkillWorkbenchProps {
   onFilesWritten: () => void;
   onCancel: () => void;
   onDelete?: () => void;
+  onOpenFull?: () => void;
 }
 
 /**
@@ -70,6 +79,7 @@ export function SkillWorkbench({
   onFilesWritten,
   onCancel,
   onDelete,
+  onOpenFull,
 }: SkillWorkbenchProps) {
   const t = useTranslations("skills");
   const { addResource, saveResource, removeResource, uploadResources } = useSkill(skill.id);
@@ -322,6 +332,18 @@ export function SkillWorkbench({
             name={skill.name}
             canManage={canEdit}
           />
+          {onOpenFull && (
+            <Button
+              variant="outline"
+              aria-label={t("page.openFullView")}
+              className="max-md:size-11 max-md:p-0"
+              disabled={isSaving}
+              onClick={onOpenFull}
+            >
+              <ExternalLink className="size-4" aria-hidden />
+              <span className="max-md:sr-only">{t("page.openFullView")}</span>
+            </Button>
+          )}
           {canEdit && onDelete && (
             <ResourceActions
               name={skill.name}

@@ -1,10 +1,10 @@
 ---
-source_sha: "539189006626"
+source_sha: "65dcefce4721"
 ---
 
 # Skills { #skills }
 
-Al abrir un skill del catálogo aparece un modal con sus instrucciones, descripción y archivos sin perder la búsqueda, los filtros ni la página de la lista. **Abrir vista completa** abre la pestaña Contenido en su página propia, junto a Agents e Historial. Al salir con cambios sin guardar se pregunta qué conservar. Sin comentarios disponibles, Improve indica el siguiente paso en lugar de un formulario de gasto que no puede iniciarse.
+Al abrir un skill del catálogo aparece un modal con sus instrucciones, descripción y archivos sin perder la búsqueda, los filtros ni la página de la lista. **Abrir vista completa**, junto a **Compartir** en el pie del modal, abre la pestaña Contenido en su página propia, junto a Agents e Historial. Al salir con cambios sin guardar se pregunta qué conservar. Sin comentarios disponibles, Improve indica el siguiente paso en lugar de un formulario de gasto que no puede iniciarse.
 
 
 Un skill es saber hacer algo, escrito una vez y adjuntado a muchos agents: cómo

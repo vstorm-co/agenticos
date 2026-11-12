@@ -475,3 +475,14 @@ it("shows only one auxiliary panel and closes files after choosing a document", 
   expect(files).toHaveAttribute("aria-expanded", "false");
   expect(screen.getByLabelText("references/workflows.md source")).toHaveValue("reference");
 });
+
+it("places full view beside sharing in the bottom action group", async () => {
+  const open = vi.fn();
+  const { update } = renderWorkbench({ onOpenFull: open });
+  const button = screen.getByRole("button", { name: "Open full view" });
+  expect(button.parentElement).toHaveClass("mr-auto");
+  await userEvent.click(button);
+  expect(open).toHaveBeenCalledOnce();
+  update({ isSaving: true });
+  expect(button).toBeDisabled();
+});

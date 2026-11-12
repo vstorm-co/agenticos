@@ -1,6 +1,6 @@
 # Skills
 
-Open a skill from the catalog to edit its instructions, description and files in a modal without losing your search, filters or list page. **Open full view** opens the Content tab on its dedicated page, with Agents and History available beside it. Leaving unsaved edits asks what to keep. Improve shows a next step when no feedback is available instead of a spending form that cannot run.
+Open a skill from the catalog to edit its instructions, description and files in a modal without losing your search, filters or list page. **Open full view**, beside **Share** in the modal footer, opens the Content tab on its dedicated page, with Agents and History available beside it. Leaving unsaved edits asks what to keep. Improve shows a next step when no feedback is available instead of a spending form that cannot run.
 
 
 A skill is know-how written once and attached to many agents: how refunds are

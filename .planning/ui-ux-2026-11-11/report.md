@@ -932,3 +932,72 @@ Ready editor references: [skills desktop](comparisons/modal-ready-skills-desktop
 Catalog loading captures: [apps desktop](comparisons/loading-catalog-apps-desktop.png), [apps phone](comparisons/loading-catalog-apps-phone.png), [skills desktop](comparisons/loading-catalog-skills-desktop.png), [skills phone](comparisons/loading-catalog-skills-phone.png), [context desktop](comparisons/loading-catalog-context-desktop.png), [context phone](comparisons/loading-catalog-context-phone.png), [datasets desktop](comparisons/loading-catalog-datasets-desktop.png), [datasets phone](comparisons/loading-catalog-datasets-phone.png), [projects desktop](comparisons/loading-catalog-projects-desktop.png), [projects phone](comparisons/loading-catalog-projects-phone.png), [tables desktop](comparisons/loading-catalog-tables-desktop.png), [tables phone](comparisons/loading-catalog-tables-phone.png), [workflows desktop](comparisons/loading-catalog-workflows-desktop.png), [workflows phone](comparisons/loading-catalog-workflows-phone.png).
 
 Seven additional permission/fork/reader tests bring this batch to 271 passing tests. Focused V8 coverage for `files/editor-loading.tsx` is 100% statements, branches, functions and lines; the whole frontend coverage suite has not run locally.
+
+
+## Unified Vault, usable sharing scroll and a persistent Skill modal — 12 November 2026
+
+Vault now uses one typed table for keys, personal accounts and organization
+accounts. The separate account cards, premature empty-account states and key
+count strip are removed. Add key and owner-specific Connect account controls live
+in the page header. Existing per-key edit grants and organization account view/
+management gates remain intact; personal actions remain scoped to the member.
+Accounts keep their own reconnect/disconnect actions, with disconnect confirmation.
+Unknown account creator/usage metadata is marked unavailable rather than invented.
+Google accounts use the Google brand glyph, not the Gemini model-provider mark.
+All initial reads use the same table columns and responsive visibility as loaded
+rows, and one failed feed does not hide other available entries.
+
+The project-sharing defect reproduced with a portaled member/group picker:
+wheel delta 900 left its list at scrollTop zero. Giving the nested popover its
+own modal scroll-lock scope lets that same gesture reach 900px on desktop and
+phone contexts. Its search header stays fixed while one bounded list scrolls;
+the limit follows Radix's available collision height. At a 480px-high viewport,
+the list stays within the window and remains searchable/selectable. A separate
+35-grant fixture verifies the sharing dialog itself scrolls without moving the
+page. The shared fix applies to all resource-sharing pickers. Project visibility
+copy now says project rather than falling through to secret in all four console
+languages.
+
+Matching skeleton bounds alone did not prevent the Skill flash: the initial and
+loaded windows were different DOM nodes, repeating their entry animation and
+focus initialization. A lightweight SkillEditorFrame now stays mounted across
+metadata and lazy editor-module reads. The heavy body remains code-split; the
+frame, overlay and focus scope do not get replaced. Browser checks retain the
+same dialog node before/after the read at 1440x1000 and touch 390x844, with identical
+inner-pane bounds. Normal-motion checks register exactly one dialog entry
+animation in both sizes. Full view moves beside Share in the footer; its loading
+slot matches and its unsaved-change guard still offers Stay and Discard before
+navigating to Content. A source review of multi-return dialog components found
+intentional read/edit, check and completion switches, rather than another initial
+skeleton-to-editor root replacement.
+
+Validation: 148 focused tests pass across ten files. The unified Vault table
+meets its migrated coverage gate: 100% statements/functions/lines and 98.63%
+branches; the shared editor loading component has 100% coverage in all four
+metrics. Frontend lint, TypeScript, i18n/dependency checks, translation freshness,
+Architect-guide synchronization and strict multilingual MkDocs pass. Full CI,
+whole-frontend coverage and cross-browser suites have not run locally.
+
+The browser journeys cover mixed account scopes, a cancelled disconnect, short
+viewport picker wheel/search/selection, outer dialog scrolling, and Skill loading
+through guarded full-view navigation. Long member/grant lists and the two account
+rows are controlled read-only fixtures. The mixed Vault references limit displayed
+keys to three for composition; ordinary before/after Vault pairs use the real key
+listing. No credential, account, project, skill or resource grant is mutated.
+
+The updated graph covers 101 routes and 1251 component modules in 58 families.
+The loading census now records 477 presentation sites across 242 files (1370 TSX
+sources), after retiring the obsolete account cards and standalone Skill loader.
+
+| Evidence | Before | After |
+| --- | --- | --- |
+| vault-unified-desktop | [PNG](comparisons/vault-unified-desktop-before.png) | [PNG](comparisons/vault-unified-desktop-after.png) |
+| vault-unified-phone | [PNG](comparisons/vault-unified-phone-before.png) | [PNG](comparisons/vault-unified-phone-after.png) |
+| project-share-scroll-desktop | [PNG](comparisons/project-share-scroll-desktop-before.png) | [PNG](comparisons/project-share-scroll-desktop-after.png) |
+| project-share-scroll-phone | [PNG](comparisons/project-share-scroll-phone-before.png) | [PNG](comparisons/project-share-scroll-phone-after.png) |
+| skill-dialog-desktop | [PNG](comparisons/skill-dialog-desktop-before.png) | [PNG](comparisons/skill-dialog-desktop-after.png) |
+| skill-dialog-phone | [PNG](comparisons/skill-dialog-phone-before.png) | [PNG](comparisons/skill-dialog-phone-after.png) |
+| skill-dialog-loading-desktop | [PNG](comparisons/skill-dialog-loading-desktop-before.png) | [PNG](comparisons/skill-dialog-loading-desktop-after.png) |
+| skill-dialog-loading-phone | [PNG](comparisons/skill-dialog-loading-phone-before.png) | [PNG](comparisons/skill-dialog-loading-phone-after.png) |
+
+Mixed account references: [desktop](comparisons/vault-mixed-desktop-after.png), [phone](comparisons/vault-mixed-phone-after.png).

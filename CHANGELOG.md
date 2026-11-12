@@ -26,6 +26,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Unify Vault keys and personal/organization connected accounts in one table,
+  preserving per-entry authority and removing separate empty cards/count strips.
+- Restore wheel scrolling in resource-sharing member/group pickers inside modals,
+  bound the list to the available viewport and correct project access descriptions.
+- Keep the Skill editor frame mounted across skeleton, metadata and module loading
+  to avoid a second opening animation; place full view beside Share in its footer.
+
 - Match skill/context editor loading to the real dialog and pane geometry on
   desktop and phones. Keep dataset detail chrome and load Cases through its real
   table columns; align catalog placeholders and remove invented panel/form grids.

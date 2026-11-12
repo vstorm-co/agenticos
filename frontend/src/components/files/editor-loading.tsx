@@ -1,6 +1,6 @@
 "use client";
 
-import { MoreHorizontal, Sparkles, UserPlus } from "lucide-react";
+import { ExternalLink, MoreHorizontal, Sparkles, UserPlus } from "lucide-react";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
@@ -11,10 +11,12 @@ export function EditorLoading({
   kind,
   canEdit = true,
   files = true,
+  fullView = false,
 }: {
   kind: "skill" | "context";
   canEdit?: boolean;
   files?: boolean;
+  fullView?: boolean;
 }) {
   const { can } = usePermissions();
   const sharing = useTranslations("sharing");
@@ -96,6 +98,14 @@ export function EditorLoading({
                 <span className="max-md:sr-only">{sharing("share")}</span>
               </Button>
             </Skeleton>
+            {fullView && (
+              <Skeleton className="inline-flex rounded-lg">
+                <Button disabled variant="outline" className="invisible max-md:size-11 max-md:p-0">
+                  <ExternalLink />
+                  <span className="max-md:sr-only">{skill("page.openFullView")}</span>
+                </Button>
+              </Skeleton>
+            )}
             {!isSkill && canEdit && can(Perm.runsView) && (
               <Skeleton className="inline-flex rounded-lg">
                 <Button disabled variant="outline" className="invisible">

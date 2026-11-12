@@ -1,10 +1,10 @@
 ---
-source_sha: "539189006626"
+source_sha: "65dcefce4721"
 ---
 
 # Skills { #skills }
 
-Ein Klick auf einen Skill im Katalog öffnet Anweisungen, Beschreibung und Dateien in einem Dialog, ohne Suche, Filter oder Listenseite zu verlieren. **Vollständige Ansicht öffnen** öffnet den Tab Inhalt auf einer eigenen Seite; Agenten und Verlauf bleiben dort erreichbar. Beim Verlassen ungespeicherter Änderungen wird nachgefragt. Ohne Feedback zeigt Improve den nächsten Schritt statt eines nicht ausführbaren Kostenformulars.
+Ein Klick auf einen Skill im Katalog öffnet Anweisungen, Beschreibung und Dateien in einem Dialog, ohne Suche, Filter oder Listenseite zu verlieren. **Vollständige Ansicht öffnen**, neben **Teilen** in der Fußleiste des Dialogs, öffnet den Tab Inhalt auf einer eigenen Seite; Agenten und Verlauf bleiben dort erreichbar. Beim Verlassen ungespeicherter Änderungen wird nachgefragt. Ohne Feedback zeigt Improve den nächsten Schritt statt eines nicht ausführbaren Kostenformulars.
 
 
 Ein Skill ist Wissen, das einmal geschrieben und an viele Agents gebunden wird:
