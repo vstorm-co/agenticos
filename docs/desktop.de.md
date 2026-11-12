@@ -1,5 +1,5 @@
 ---
-source_sha: "16b6cefa3b4e"
+source_sha: "cd9dbfb49b0b"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -357,7 +357,8 @@ seinen Zugriffsmodus. **Einstellungen → Desktop-App → Dieser Computer → Di
 Computer verknüpfen** bietet dieselbe Aktion. Die App erhält eine eigene Sitzung
 für diesen Computer und speichert ihr Refresh-Token im Schlüsselbund des Systems.
 Sie hält eine ausgehende WebSocket-Verbindung zum Device-Hub des Servers
-(`/api/v1/ws/device`); auf dem Computer lauscht nichts. **Trennen** beendet die Sitzung.
+(`/api/v1/ws/device`); auf dem Computer lauscht nichts. **Trennen** beendet die Sitzung; es fragt vorher
+nach und nennt, was es löscht.
 
 **Pro Chat wählen.** In der Desktop-App bieten die Einstellungen eines Chats
 **Arbeiten auf (Work on): Cloud / Diesem Computer**. Die Wahl dieses Computers

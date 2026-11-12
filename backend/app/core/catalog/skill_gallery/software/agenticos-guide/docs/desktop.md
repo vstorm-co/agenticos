@@ -331,7 +331,8 @@ access mode in the same panel. **Settings → Desktop app → This computer → 
 this computer** offers the same linking action. The app gets its own session
 for this computer and keeps its refresh token in the system keychain. It holds one
 outbound WebSocket to the server's device hub (`/api/v1/ws/device`); nothing listens
-on the computer. **Unlink** ends that session.
+on the computer. **Unlink** ends that session; it asks first and lists what it
+clears.
 
 **Choose it per chat.** In the desktop app the chat's settings offer **Work on:
 Cloud / This computer**. Choosing this computer asks for a folder in the native

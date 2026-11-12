@@ -13259,7 +13259,18 @@
         "link": "Połącz ten komputer",
         "unlink": "Odłącz",
         "linkFailed": "Nie udało się połączyć tego komputera.",
-        "unlinkFailed": "Nie udało się odłączyć tego komputera."
+        "unlinkFailed": "Nie udało się odłączyć tego komputera.",
+        "unlinkTitle": "Odłączyć ten komputer?",
+        "unlinkBody": "Twoje agenty nie będą już mogły tu pracować, a aplikacja zapomni uprawnienia nadane na tym komputerze:",
+        "unlinkClears": {
+          "folders": "Zatwierdzone foldery",
+          "services": "Usługi lokalne",
+          "consents": "Dostęp do całego komputera i ekranu",
+          "routines": "Uprawnienia rutyn do folderów",
+          "sessions": "Zapisane sesje lokalnych agentów"
+        },
+        "unlinkCancel": "Anuluj",
+        "unlinkConfirm": "Odłącz ten komputer"
       },
       "services": {
         "title": "Lokalne modele i MCP",
