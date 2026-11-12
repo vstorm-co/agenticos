@@ -12,6 +12,7 @@ import { reportShellFailure } from "@/lib/desktop/shell";
 import { useRouter } from "@/lib/locale-navigation";
 import { useShell } from "@/hooks/use-shell";
 import { isDesktopShell } from "@/lib/desktop/shell";
+import { OnlyInTheAppScreen } from "./desktop-only";
 import { ReadinessPanel } from "./readiness-panel";
 
 const subscribeHydration = () => () => {};
@@ -40,7 +41,7 @@ export function ReadinessScreen({
   return isDesktopShell(shell) ? (
     <NativeReadinessScreen repair={repair} connection={connection} />
   ) : (
-    <ReadinessPanel repair={repair} />
+    <OnlyInTheAppScreen />
   );
 }
 function NativeReadinessScreen({

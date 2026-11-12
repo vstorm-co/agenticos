@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { AppWindow } from "lucide-react";
-import type { ReactNode } from "react";
+import { useSyncExternalStore, type ReactNode } from "react";
 
 import { useDesktopState } from "@/hooks/use-desktop";
 import { useShell } from "@/hooks/use-shell";
@@ -24,21 +24,7 @@ export function DesktopOnly({ children }: { children: (state: DesktopState) => R
   const { data, error } = useDesktopState();
 
   if (!isDesktopShell(shell)) {
-    return (
-      <div className="border-border bg-card flex flex-col items-start gap-2 rounded-xl border px-5 py-6">
-        <AppWindow className="text-muted-foreground size-5" aria-hidden />
-        <p className="text-foreground text-sm font-medium">{t("onlyInApp")}</p>
-        <p className="text-muted-foreground text-sm">{t("onlyInAppHint")}</p>
-        <a
-          href={DESKTOP_DOCS}
-          className="text-brand text-sm hover:underline"
-          target="_blank"
-          rel="noreferrer"
-        >
-          {t("aboutTheApp")}
-        </a>
-      </div>
-    );
+    return <OnlyInTheApp title={t("onlyInApp")} hint={t("onlyInAppHint")} />;
   }
   if (error) {
     return (
@@ -48,6 +34,54 @@ export function DesktopOnly({ children }: { children: (state: DesktopState) => R
     );
   }
   return data ? <>{children(data)}</> : null;
+}
+
+const subscribeHydration = () => () => {};
+const clientReady = () => true;
+const serverReady = () => false;
+
+/**
+ * A window of the desktop app's own - blobby, quick ask - as a page.
+ *
+ * In a browser it is one screen saying where it opens, rather than an empty
+ * page or controls that cannot reach the app. Nothing is drawn before
+ * hydration: the shell announces itself only to the client, so deciding on the
+ * server's answer would flash the browser screen inside the app.
+ */
+export function DesktopPage({ children }: { children: ReactNode }) {
+  const shell = useShell();
+  const hydrated = useSyncExternalStore(subscribeHydration, clientReady, serverReady);
+  if (!hydrated) return null;
+  return isDesktopShell(shell) ? <>{children}</> : <OnlyInTheAppScreen />;
+}
+
+/** The whole-page form of the browser screen, for a page that is all the app's. */
+export function OnlyInTheAppScreen() {
+  const t = useTranslations("desktop.onlyInApp");
+  return (
+    <main className="flex min-h-dvh items-center justify-center p-6">
+      <OnlyInTheApp title={t("title")} hint={t("hint")} />
+    </main>
+  );
+}
+
+function OnlyInTheApp({ title, hint }: { title: string; hint: string }) {
+  const t = useTranslations("desktop.settings");
+  return (
+    <div className="border-border bg-card flex flex-col items-start gap-2 rounded-xl border px-5 py-6">
+      <AppWindow className="text-muted-foreground size-5" aria-hidden />
+      <p className="text-foreground text-sm font-medium">{title}</p>
+      <p className="text-muted-foreground text-sm">{hint}</p>
+      <a
+        href={DESKTOP_DOCS}
+        className="text-brand text-sm hover:underline"
+        target="_blank"
+        rel="noreferrer"
+      >
+        {t("aboutTheApp")}
+      </a>
+    </div>
+  );
 }
 
 /** One labelled setting in a desktop card: what it is, what it means, and its control. */

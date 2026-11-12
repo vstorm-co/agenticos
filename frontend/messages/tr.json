@@ -11480,7 +11480,6 @@
       "questionBody": "Agent'a yanıt vermek için konuşmayı açın."
     },
     "welcome": {
-      "onlyInApp": "Bu karşılama AgenticOS desktop app'ine aittir.",
       "skip": "Şimdilik atla",
       "next": "Devam et",
       "open": "AgenticOS'u aç",
@@ -11519,7 +11518,6 @@
     "readiness": {
       "title": "App hazırlığı",
       "description": "Bu Mac'te ve bu server'daki hesabınız için hazır olanlar. Yalnızca kullanmak istediklerinizi etkinleştirin.",
-      "desktopOnly": "Kurulumu denetlemek için desktop app'i açın.",
       "refresh": "Yeniden denetle",
       "requestFailed": "Sistem izni değiştirilemedi. Sistem Ayarları'nı açıp yeniden denetleyin.",
       "askAdmin": "Yöneticiden bu kuruluş için model ayarlamasını isteyin.",
@@ -11586,6 +11584,10 @@
       "question": "{agent} · yanıt bekliyor",
       "approval": "{agent} · onay gerekiyor",
       "agent": "Agent"
+    },
+    "onlyInApp": {
+      "title": "Bu, AgenticOS masaüstü uygulamasında açılır.",
+      "hint": "Kullanmak için bilgisayarınızdaki masaüstü uygulamasını açın; tarayıcıda burada gösterilecek bir şey yok."
     }
   },
   "projects": {

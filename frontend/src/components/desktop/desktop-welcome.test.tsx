@@ -131,8 +131,6 @@ describe("DesktopWelcome", () => {
   it("says it belongs to the app in a browser", () => {
     env.shell = null;
     render(<DesktopWelcome />);
-    expect(
-      screen.getByText("This welcome belongs to the AgenticOS desktop app."),
-    ).toBeInTheDocument();
+    expect(screen.getByText("This opens in the AgenticOS desktop app.")).toBeInTheDocument();
   });
 });
