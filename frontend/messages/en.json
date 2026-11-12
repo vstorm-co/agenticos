@@ -9910,7 +9910,18 @@
         "link": "Let agents work here",
         "unlink": "Unlink",
         "linkFailed": "This computer could not be linked.",
-        "unlinkFailed": "This computer could not be unlinked."
+        "unlinkFailed": "This computer could not be unlinked.",
+        "unlinkTitle": "Unlink this computer?",
+        "unlinkBody": "Your agents can no longer work here, and the app forgets what you allowed on this computer:",
+        "unlinkClears": {
+          "folders": "Approved folders",
+          "services": "Local services",
+          "consents": "Whole-computer and screen access",
+          "routines": "Folder permissions for routines",
+          "sessions": "Saved local agent sessions"
+        },
+        "unlinkCancel": "Cancel",
+        "unlinkConfirm": "Unlink this computer"
       },
       "services": {
         "title": "Local models and MCP",

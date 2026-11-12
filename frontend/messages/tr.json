@@ -11388,7 +11388,18 @@
         "link": "Agent'ların burada çalışmasına izin ver",
         "unlink": "Bağlantıyı kes",
         "linkFailed": "Bu bilgisayar bağlanamadı.",
-        "unlinkFailed": "Bu bilgisayarın bağlantısı kesilemedi."
+        "unlinkFailed": "Bu bilgisayarın bağlantısı kesilemedi.",
+        "unlinkTitle": "Bu bilgisayarın bağlantısı kaldırılsın mı?",
+        "unlinkBody": "Agent'larınız artık burada çalışamaz ve uygulama bu bilgisayarda izin verdiklerinizi unutur:",
+        "unlinkClears": {
+          "folders": "Onaylı klasörler",
+          "services": "Yerel hizmetler",
+          "consents": "Bilgisayarın tamamına ve ekrana erişim",
+          "routines": "Rutinler için klasör izinleri",
+          "sessions": "Kayıtlı yerel agent oturumları"
+        },
+        "unlinkCancel": "İptal",
+        "unlinkConfirm": "Bu bilgisayarın bağlantısını kaldır"
       },
       "services": {
         "title": "Yerel modeller ve MCP",

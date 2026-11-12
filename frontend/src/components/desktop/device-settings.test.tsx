@@ -45,15 +45,41 @@ it("links only after the person chooses the action and waits for native consent"
   expect(screen.getByRole("button", { name: "Let agents work here" })).toBeDisabled();
   expect(screen.getByTestId("services")).toBeInTheDocument();
 });
-it("shows reconnecting and live states and disconnects the paired computer", async () => {
+it("shows reconnecting and live states", () => {
   env.status = { linked: true, connected: false };
   const view = render(<DeviceSettings />);
   expect(screen.getByText(/reconnecting/i)).toBeInTheDocument();
-  await userEvent.click(screen.getByRole("button", { name: "Unlink" }));
-  expect(env.unlink).toHaveBeenCalledOnce();
   env.status.connected = true;
   view.rerender(<DeviceSettings />);
   expect(screen.getByText("Live")).toBeInTheDocument();
+});
+it("asks before unlinking, says what it clears, and changes nothing when cancelled", async () => {
+  env.status = { linked: true, connected: true };
+  render(<DeviceSettings />);
+
+  await userEvent.click(screen.getByRole("button", { name: "Unlink" }));
+  const dialog = screen.getByRole("alertdialog");
+  expect(dialog).toHaveTextContent("Unlink this computer?");
+  for (const cleared of [
+    "Approved folders",
+    "Local services",
+    "Whole-computer and screen access",
+    "Folder permissions for routines",
+    "Saved local agent sessions",
+  ])
+    expect(dialog).toHaveTextContent(cleared);
+  expect(env.unlink).not.toHaveBeenCalled();
+
+  await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(screen.queryByRole("alertdialog")).toBeNull();
+  expect(env.unlink).not.toHaveBeenCalled();
+});
+it("unlinks once the person confirms", async () => {
+  env.status = { linked: true, connected: true };
+  render(<DeviceSettings />);
+  await userEvent.click(screen.getByRole("button", { name: "Unlink" }));
+  await userEvent.click(screen.getByRole("button", { name: "Unlink this computer" }));
+  expect(env.unlink).toHaveBeenCalledOnce();
 });
 it("offers desktop settings only in the desktop app", () => {
   env.shell = { ...MAC_MAIN, platform: "ios" };

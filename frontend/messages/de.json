@@ -9716,7 +9716,18 @@
         "link": "Agents hier arbeiten lassen",
         "unlink": "Trennen",
         "linkFailed": "Dieser Computer konnte nicht verbunden werden.",
-        "unlinkFailed": "Dieser Computer konnte nicht getrennt werden."
+        "unlinkFailed": "Dieser Computer konnte nicht getrennt werden.",
+        "unlinkTitle": "Diesen Computer trennen?",
+        "unlinkBody": "Ihre Agents können hier nicht mehr arbeiten, und die App vergisst, was Sie auf diesem Computer erlaubt haben:",
+        "unlinkClears": {
+          "folders": "Freigegebene Ordner",
+          "services": "Lokale Dienste",
+          "consents": "Zugriff auf den ganzen Computer und den Bildschirm",
+          "routines": "Ordnerberechtigungen für Routinen",
+          "sessions": "Gespeicherte Sitzungen lokaler Agents"
+        },
+        "unlinkCancel": "Abbrechen",
+        "unlinkConfirm": "Diesen Computer trennen"
       },
       "services": {
         "title": "Lokale Modelle und MCP",
