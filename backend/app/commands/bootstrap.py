@@ -266,8 +266,19 @@ async def _resolve_starter_agents(db, ctx: AuthContext, profile_id: uuid.UUID | 
     assistant = await AssistantService(db).state(ctx)
     if assistant.status == "ready":
         success(f"Installed and published the {assistant.name}")
-    else:
+    elif assistant.status == "disabled":
+        info(f"The {assistant.name} is switched off in this organization")
+    elif assistant.status == "unavailable":
+        warning(f"The {assistant.name} could not be installed - the log says why")
+    elif profile_id is None:
         info(f"The {assistant.name} is installed - it publishes once there is a model")
+    else:
+        # Not every wait is logged - a model it may not use is skipped quietly - so this
+        # points where the reason is always said rather than at a warning there may not be.
+        warning(
+            f"The {assistant.name} is installed but not published yet - "
+            "publishing it in the Builder says what it waits for"
+        )
 
     template = agent_templates.get(agent_templates.STARTER_TEMPLATE)
     if template is None:  # pragma: no cover - the template ships with the image

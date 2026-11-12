@@ -290,6 +290,39 @@ class TestStarterAgents:
         mocks["sandbox"].assert_awaited_once()
 
     @pytest.mark.anyio
+    async def test_without_a_model_it_says_the_architect_waits_for_one(self, capsys):
+        _, _, patches = self._patches(assistant_status="needs_model")
+        await self._run(patches, None)
+        assert "publishes once there is a model" in capsys.readouterr().out
+
+    @pytest.mark.anyio
+    async def test_with_a_model_an_unpublished_architect_is_not_blamed_on_the_model(self, capsys):
+        """The publish refusal is logged with its reason; the summary must not contradict it."""
+        _, _, patches = self._patches(assistant_status="needs_model")
+        await self._run(patches, uuid.uuid4())
+        out = capsys.readouterr().out
+        assert "once there is a model" not in out
+        assert "not published yet" in out
+        assert "warning above" not in out
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("status", "said"),
+        [
+            ("disabled", "switched off in this organization"),
+            ("unavailable", "could not be installed"),
+        ],
+    )
+    async def test_a_switched_off_or_failed_architect_is_reported_as_such(
+        self, capsys, status, said
+    ):
+        _, _, patches = self._patches(assistant_status=status)
+        await self._run(patches, uuid.uuid4())
+        out = capsys.readouterr().out
+        assert said in out
+        assert "not published yet" not in out
+
+    @pytest.mark.anyio
     async def test_a_second_run_does_not_install_a_second_one(self):
         """Re-running a setup script is what people do when unsure it worked."""
         _, mocks, patches = self._patches(existing=MagicMock())
