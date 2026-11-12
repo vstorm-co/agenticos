@@ -562,3 +562,11 @@ it("does not show a stale failure on a completed turn", () => {
   expect(message.runFailed).toBe(false);
   expect(message.runError).toBeUndefined();
 });
+
+for (const status of ["budget_exceeded", "guardrail_blocked", "loop_stopped"]) {
+  it(`keeps the failure notice after reloading a ${status} turn`, () => {
+    const message = conversationMessageToChatMessage(raw({ run_status: status }));
+    expect(message.runFailed).toBe(true);
+    expect(message.wasStopped).toBe(false);
+  });
+}

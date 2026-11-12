@@ -1818,3 +1818,12 @@ it("does not repeat the failure notice on an earlier continuation segment", () =
   );
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 });
+
+it("offers regeneration when a failed response contains only the failure notice", async () => {
+  const onRegenerate = vi.fn();
+  render(
+    <MessageItem message={message({ content: "", runFailed: true })} onRegenerate={onRegenerate} />,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Regenerate response" }));
+  expect(onRegenerate).toHaveBeenCalledOnce();
+});

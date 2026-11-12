@@ -182,7 +182,9 @@ export const MessageItem = memo(function MessageItem({
   // timeline part - the latter is the ask-only turn that was stopped after
   // answering a question and before any text (#502), which otherwise loses its
   // stopped indicator, timestamp and cost.
-  const hasBody = Boolean(message.content) || (!isUser && (message.parts?.length ?? 0) > 0);
+  const hasBody =
+    Boolean(message.content) ||
+    (!isUser && ((message.parts?.length ?? 0) > 0 || message.runFailed === true));
   const sources = !isUser ? extractSources(message, t) : [];
   const canShowActions = !message.isStreaming && hasBody && endsTurn;
   const hasSources = sources.length > 0 && !message.isStreaming;
