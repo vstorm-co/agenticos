@@ -1,5 +1,5 @@
 ---
-source_sha: "0f91a7626ccc"
+source_sha: "578de6846e60"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -174,8 +174,12 @@ ją z bieżącymi kolumnami:
   i z powrotem, gdy jest całkowita; data staje się datą z czasem; jeden wybór staje się
   kilkoma i z powrotem, gdy jest jeden. Każda inna zmiana jest odrzucana, podobnie jak
   taka, której któraś wartość nie przetrwa - z liczbą i przykładem, a nic nie zostaje
-  zapisane. Coś, co używa kolumny, odrzuca zmianę tak jak archiwizację. Rewizja rekordu
-  idzie dalej, więc edycja według starej wartości jest konfliktem.
+  zapisane. Coś, co używa kolumny, odrzuca zmianę tak jak archiwizację. Rekord, którego
+  wartość w nowym typie brzmi inaczej, dostaje nową rewizję, więc edycja według starej
+  wartości jest konfliktem, a jego historia zapisuje zmianę pod osobą, która ją zrobiła;
+  wartość, której zmiana nie rusza, zostawia rewizję rekordu bez zmian. Zmiana typu nie
+  uruchamia żadnego [triggera](#triggers): jedna edycja schematu nie startuje workflowu
+  dla każdego rekordu.
 - Tekst staje się kolumną `email`, `url`, `phone` lub `rating`, gdy każda wartość
   się nią czyta, a liczba staje się oceną, gdy jest liczbą całkowitą od 1 do 5. Każda
   z nich wraca do tekstu, a ocena także do liczby.
@@ -195,7 +199,7 @@ ją z bieżącymi kolumnami:
   opcjami, nie zmienia niczego: nie powstaje wersja, a zwracana jest bieżąca tabela.
   Zmiana kolejności lub etykiety jest zmianą.
 
-Rekordy nie są przepisywane. Rekord zapisany w wersji 1 pozostaje czytelny i
+Poza zmianą typu rekordy nie są przepisywane. Rekord zapisany w wersji 1 pozostaje czytelny i
 edytowalny w wersji 4; wymagana kolumna, której nigdy nie miał, dostaje wartość
 domyślną przy najbliższej edycji rekordu.
 

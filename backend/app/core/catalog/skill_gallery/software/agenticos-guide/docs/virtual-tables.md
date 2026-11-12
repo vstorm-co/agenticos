@@ -167,8 +167,11 @@ current columns:
   becomes a date and time; one choice becomes several and back when there is one.
   Any other change is refused, and so is one some value does not survive, naming
   how many and one example - nothing is written. Something that uses the column
-  refuses it as an archive does. A record's revision moves on, so an edit against
-  its old value is a conflict.
+  refuses it as an archive does. A record whose value reads differently in the new
+  type moves to a new revision, so an edit against its old value is a conflict, and its
+  history records the change under the person who made it; a value the change leaves
+  as it was keeps its record's revision. A type change fires no
+  [trigger](#triggers): one schema edit does not start a workflow per record.
 - Text becomes an `email`, `url`, `phone` or `rating` column when every value reads
   as one, and a number becomes a rating when it is a whole number from 1 to 5. Each
   of them becomes text again, and a rating a number.
@@ -187,7 +190,7 @@ current columns:
   options, changes nothing: no version is appended and the current table is returned. A
   reorder or a changed label is a change.
 
-Records are not rewritten. A record written under version 1 stays readable and
+Apart from a type change, records are not rewritten. A record written under version 1 stays readable and
 editable under version 4; a required column it never held takes its default the
 next time the record is edited.
 
