@@ -5866,12 +5866,12 @@
           "expected": "Erwartetes Ergebnis",
           "actual": "Beobachtetes Ergebnis",
           "correction": "Korrektur",
-          "export": "Improve-Fall vorbereiten",
-          "review": "Prüfe den Text vor dem Export aus dem persönlichen Gedächtnis. Importiere die JSONL-Datei in einen Improve-Datensatz, evaluiere sie und bestätige Änderungen dort ausdrücklich. Der Export veröffentlicht keine Regel.",
+          "export": "Als Improve-Fall hinzufügen",
+          "review": "Prüfe den Text, bevor er das persönliche Gedächtnis verlässt. Er wird als Fall zum gewählten Dataset hinzugefügt, wo du ihn bewerten und jede Änderung ausdrücklich annehmen kannst. Dabei wird keine Regel veröffentlicht.",
           "input": "Zu prüfende Eingabe",
           "reference": "Erwartete Antwort",
-          "consent": "Ich habe diese Felder geprüft und stimme ihrem Export als Datensatzdatei zu.",
-          "download": "Geprüften Fall herunterladen"
+          "consent": "Ich habe diese Felder geprüft und stimme zu, sie zu diesem Dataset hinzuzufügen.",
+          "add": "Geprüften Fall hinzufügen"
         }
       },
       "browser": {

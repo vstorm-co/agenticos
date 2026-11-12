@@ -1023,6 +1023,53 @@ class DatasetService:
         """Add a case written by hand, as a new version."""
         return await self._add(ctx, dataset_id, data, source=CaseSource.MANUAL)
 
+    async def add_reviewed_case(
+        self,
+        ctx: AuthContext,
+        dataset_id: UUID,
+        data: DatasetCaseContent,
+        *,
+        asked_by: UUID,
+        source_run_id: UUID | None,
+        source_conversation_id: UUID | None,
+    ) -> DatasetCaseRead:
+        """Add a case a person reviewed from their own memory, as a new version.
+
+        The person is recorded as who asked it, which is what an erasure finds the
+        case by. The run and conversation it came from are linked only while they
+        still exist in this organization.
+
+        Account deletion takes the user row before the personal-data lock and then
+        what the person owns, so both are held here before the dataset is locked:
+        the other order can deadlock against a deletion of the dataset's owner.
+
+        Raises:
+            NotFoundError: For a dataset the caller may not edit.
+            ConcurrentChangeError: The person's account was erased meanwhile.
+        """
+        await self.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
+        await user_repo.hold_key_share(self.db, [asked_by])
+        await hold_subject(self.db, LockScope.PERSONAL_DATA_PER_USER, asked_by)
+        if not await user_repo.existing_ids(self.db, [asked_by]):
+            raise ConcurrentChangeError(
+                message="Your account is being erased, so nothing was added to the dataset."
+            )
+        run_id, conversation_id = await dataset_repo.hold_case_sources(
+            self.db,
+            organization_id=ctx.organization_id,
+            run_id=source_run_id,
+            conversation_id=source_conversation_id,
+        )
+        return await self._add(
+            ctx,
+            dataset_id,
+            data,
+            source=CaseSource.MANUAL,
+            authorship=Authorship(asked_by=asked_by),
+            source_run_id=run_id,
+            source_conversation_id=conversation_id,
+        )
+
     async def lock_for_edit(self, ctx: AuthContext, dataset_id: UUID) -> Dataset:
         """The dataset, locked until the transaction ends, for a caller who may edit it.
 
