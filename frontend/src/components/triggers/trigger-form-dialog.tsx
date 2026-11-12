@@ -94,7 +94,7 @@ import type {
   TriggerUpdate,
 } from "@/types/triggers";
 import type { TriggerTemplate } from "@/types/trigger-templates";
-import { DIALOG_CONFIRM, DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_CONFIRM, DIALOG_FORM } from "@/lib/dialog-sizes";
 
 /** The backend's floor for a webhook secret; the generator comfortably clears it. */
 const MIN_SECRET = 16;
@@ -836,7 +836,7 @@ export function TriggerFormDialog({
   if (editing) {
     return (
       <Dialog open={open} onOpenChange={changeOpen}>
-        <DialogContent className={cn(DIALOG_SCROLL, DIALOG_FORM)}>
+        <DialogContent className={cn(DIALOG_COLUMN, DIALOG_FORM)} dismissible={!pending}>
           <DialogHeader>
             <DialogTitle>
               {type === "event" ? t("editTitleEvent") : t("editTitleSchedule")}
@@ -846,141 +846,147 @@ export function TriggerFormDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
-            <NameField value={name} onChange={setName} />
-            <PromptField value={prompt} onChange={setPrompt} />
+          <div className={DIALOG_BODY}>
+            <fieldset disabled={pending} className="min-w-0 space-y-4">
+              <legend className="sr-only">
+                {type === "event" ? t("editTitleEvent") : t("editTitleSchedule")}
+              </legend>
+              <NameField value={name} onChange={setName} />
+              <PromptField value={prompt} onChange={setPrompt} disabled={pending} />
 
-            {scheduleFields}
+              {scheduleFields}
 
-            {trigger.trigger_type === "event" && trigger.webhook_url && (
-              <WebhookField url={trigger.webhook_url} />
-            )}
+              {trigger.trigger_type === "event" && trigger.webhook_url && (
+                <WebhookField url={trigger.webhook_url} />
+              )}
 
-            {/* The filter is the one event field that is editable in place -
+              {/* The filter is the one event field that is editable in place -
                 narrowing "which deliveries fire" is a filter edit, not a new
                 trigger. The source and secret stay fixed (the secret rotates
                 below instead). */}
-            {trigger.trigger_type === "event" &&
-              trigger.event_source &&
-              (() => {
-                const filters = FILTER_KEYS[trigger.event_source];
-                return filters ? (
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <FormField
-                      label={tp(FILTER_COPY[filters[0]]!.labelKey)}
-                      htmlFor="edit-filter-a"
-                    >
-                      <Input
-                        id="edit-filter-a"
-                        readOnly={filters[0] === "site_url" && !can("mcp:manage")}
-                        value={filterA}
-                        onChange={(event) => setFilterA(event.target.value)}
-                        placeholder={t("filterOptional")}
-                      />
-                    </FormField>
-                    <FormField
-                      label={tp(FILTER_COPY[filters[1]]!.labelKey)}
-                      htmlFor="edit-filter-b"
-                      description={t("senderVouchedHint")}
-                    >
-                      <Input
-                        id="edit-filter-b"
-                        value={filterB}
-                        onChange={(event) => setFilterB(event.target.value)}
-                        placeholder={t("filterOptional")}
-                      />
-                    </FormField>
-                  </div>
-                ) : null;
-              })()}
+              {trigger.trigger_type === "event" &&
+                trigger.event_source &&
+                (() => {
+                  const filters = FILTER_KEYS[trigger.event_source];
+                  return filters ? (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <FormField
+                        label={tp(FILTER_COPY[filters[0]]!.labelKey)}
+                        htmlFor="edit-filter-a"
+                      >
+                        <Input
+                          id="edit-filter-a"
+                          readOnly={filters[0] === "site_url" && !can("mcp:manage")}
+                          value={filterA}
+                          onChange={(event) => setFilterA(event.target.value)}
+                          placeholder={t("filterOptional")}
+                        />
+                      </FormField>
+                      <FormField
+                        label={tp(FILTER_COPY[filters[1]]!.labelKey)}
+                        htmlFor="edit-filter-b"
+                        description={t("senderVouchedHint")}
+                      >
+                        <Input
+                          id="edit-filter-b"
+                          value={filterB}
+                          onChange={(event) => setFilterB(event.target.value)}
+                          placeholder={t("filterOptional")}
+                        />
+                      </FormField>
+                    </div>
+                  ) : null;
+                })()}
 
-            {trigger.trigger_type === "event" && trigger.event_source && (
-              <EventOptions
-                source={trigger.event_source}
-                config={extraConfig}
-                onChange={setExtraConfig}
-                canManageConnections={can("mcp:manage")}
-              />
-            )}
-            {trigger.trigger_type === "event" &&
-              trigger.can_manage &&
-              trigger.delivery_mode !== "polling" &&
-              trigger.delivery_mode !== "app_webhook" && (
-                <RotateSecretSection triggerId={trigger.id} rotate={rotateSecret} />
-              )}
-
-            <ResultModeField value={resultMode} onChange={setResultMode} />
-            <RoutineOptions invalid={invalidEnd || !versionValid || budgetLimit === undefined}>
-              {namedEnvironments.length > 0 && (
-                <EnvironmentField
-                  value={environmentId}
-                  onChange={changeEnvironment}
-                  environments={namedEnvironments}
-                  defaultEnvironment={defaultEnvironment}
+              {trigger.trigger_type === "event" && trigger.event_source && (
+                <EventOptions
+                  source={trigger.event_source}
+                  config={extraConfig}
+                  onChange={setExtraConfig}
+                  canManageConnections={can("mcp:manage")}
                 />
               )}
+              {trigger.trigger_type === "event" &&
+                trigger.can_manage &&
+                trigger.delivery_mode !== "polling" &&
+                trigger.delivery_mode !== "app_webhook" && (
+                  <RotateSecretSection triggerId={trigger.id} rotate={rotateSecret} />
+                )}
 
-              {environmentId === DEFAULT_ENV && effectiveAgentId && (
-                <VersionField
-                  key={effectiveAgentId}
-                  agentId={effectiveAgentId}
-                  value={pinnedVersion}
-                  onChange={setPinnedVersion}
-                  onValidChange={setVersionValid}
+              <ResultModeField value={resultMode} onChange={setResultMode} />
+              <RoutineOptions invalid={invalidEnd || !versionValid || budgetLimit === undefined}>
+                {namedEnvironments.length > 0 && (
+                  <EnvironmentField
+                    value={environmentId}
+                    onChange={changeEnvironment}
+                    environments={namedEnvironments}
+                    defaultEnvironment={defaultEnvironment}
+                  />
+                )}
+
+                {environmentId === DEFAULT_ENV && effectiveAgentId && (
+                  <VersionField
+                    key={effectiveAgentId}
+                    agentId={effectiveAgentId}
+                    value={pinnedVersion}
+                    onChange={setPinnedVersion}
+                    onValidChange={setVersionValid}
+                  />
+                )}
+
+                {resultMode === "report" && (
+                  <TeamsPostField value={teamsPost} onChange={setTeamsPost} />
+                )}
+
+                {resultMode === "report" && (
+                  <AnswerToField
+                    value={answerTo}
+                    onChange={setAnswerTo}
+                    hasConversation={hasConversation}
+                  />
+                )}
+                <FailurePolicyField value={maxFailures} onChange={setMaxFailures} />
+                <NotificationChannelsField
+                  value={notificationChannels}
+                  onChange={setNotificationChannels}
                 />
-              )}
 
-              {resultMode === "report" && (
-                <TeamsPostField value={teamsPost} onChange={setTeamsPost} />
-              )}
+                <EndsAtField value={endsAt} onChange={changeEnd} invalid={invalidEnd} />
 
-              {resultMode === "report" && (
-                <AnswerToField
-                  value={answerTo}
-                  onChange={setAnswerTo}
-                  hasConversation={hasConversation}
+                <BudgetField value={budget} onChange={setBudget} />
+
+                <RunAsCreatorField
+                  checked={runsAsCreator}
+                  onChange={setRunsAsCreator}
+                  type={trigger.trigger_type}
+                  isCreator={isCreator}
                 />
-              )}
-              <FailurePolicyField value={maxFailures} onChange={setMaxFailures} />
-              <NotificationChannelsField
-                value={notificationChannels}
-                onChange={setNotificationChannels}
-              />
-
-              <EndsAtField value={endsAt} onChange={changeEnd} invalid={invalidEnd} />
-
-              <BudgetField value={budget} onChange={setBudget} />
-
-              <RunAsCreatorField
-                checked={runsAsCreator}
-                onChange={setRunsAsCreator}
-                type={trigger.trigger_type}
-                isCreator={isCreator}
-              />
-              <LocalTargetField
-                value={localTarget}
-                onChange={(target) => {
-                  setLocalTarget(target);
-                  setApprovedLocal(null);
-                }}
-                visible={runsAsCreator && isCreator}
-              />
-            </RoutineOptions>
+                <LocalTargetField
+                  value={localTarget}
+                  onChange={(target) => {
+                    setLocalTarget(target);
+                    setApprovedLocal(null);
+                  }}
+                  visible={runsAsCreator && isCreator}
+                />
+              </RoutineOptions>
+            </fieldset>
           </div>
 
-          <DialogFooter className="sm:justify-between">
+          <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-between">
             <Button
               variant="secondary"
-              disabled={!trigger.is_active || runNow.isPending}
+              className="col-span-2"
+              disabled={pending || !trigger.is_active || runNow.isPending}
               onClick={() => runNow.mutate(trigger.id)}
             >
               {t("runNow")}
             </Button>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => changeOpen(false)}>
+            <div className="col-span-2 grid grid-cols-2 gap-2 sm:flex">
+              <Button variant="outline" disabled={pending} onClick={() => changeOpen(false)}>
                 {t("cancel")}
               </Button>
-              <Button onClick={submit} disabled={!canSubmit}>
+              <Button onClick={submit} disabled={!canSubmit} loading={pending}>
                 {t("save")}
               </Button>
             </div>
@@ -996,11 +1002,13 @@ export function TriggerFormDialog({
         title={type === "event" ? t("newEvent") : t("newSchedule")}
         description={t("createDescription")}
         progress={{ steps, current: step }}
+        pending={pending}
         disabled={preparedLocal !== null || pending}
         bodyKey={step}
         footer={
           <WizardNav
             backIsStep={!onFirstStep}
+            backDisabled={pending}
             backLabel={onFirstStep ? t("cancel") : t("back")}
             onBack={onFirstStep ? () => changeOpen(false) : handleBack}
             nextLabel={isLastStep ? t("create") : t("continue")}
@@ -1137,7 +1145,7 @@ export function TriggerFormDialog({
 
             {/* The step is the message's own, so the editor gets the room a
                   long prompt needs. */}
-            <PromptField value={prompt} onChange={setPrompt} rows={8} />
+            <PromptField value={prompt} onChange={setPrompt} rows={8} disabled={pending} />
           </div>
         )}
 
@@ -1166,8 +1174,10 @@ function PromptField({
   value,
   onChange,
   rows = 6,
+  disabled = false,
 }: {
   value: string;
+  disabled?: boolean;
   onChange: (value: string) => void;
   /** The wizard's message step passes more - a prompt is often long. */
   rows?: number;
@@ -1178,6 +1188,7 @@ function PromptField({
     <div className="space-y-1.5">
       <MarkdownEditor
         id="trigger-prompt"
+        disabled={disabled}
         toolbar={
           <>
             <Label htmlFor="trigger-prompt" className="flex-1">

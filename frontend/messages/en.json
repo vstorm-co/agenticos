@@ -9636,7 +9636,9 @@
     "resultReport": "After every completed run",
     "resultInbox": "Only when something needs attention",
     "resultReportHint": "Deliver a report to the chosen conversation after each run.",
-    "resultInboxHint": "Create one Inbox case and working chat per source item. Include requested drafts there; unchanged checks stay quiet. Sending still requires the appropriate permission and approval."
+    "resultInboxHint": "Create one Inbox case and working chat per source item. Include requested drafts there; unchanged checks stay quiet. Sending still requires the appropriate permission and approval.",
+    "clearSearch": "Clear search",
+    "noRoutineMatchesHint": "Try an agent name, routine title or words from its message."
   },
   "portals": {
     "mailboxInterval": {

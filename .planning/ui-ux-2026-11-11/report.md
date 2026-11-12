@@ -550,3 +550,47 @@ label assertion were explicitly removed, as were the review's demo records.
 | Availability, phone | [PNG](comparisons/availability-phone-before.png) | [PNG](comparisons/availability-phone-after.png) |
 | App sharing, desktop | [PNG](comparisons/app-share-desktop-before.png) | [PNG](comparisons/app-share-desktop-after.png) |
 | App sharing, phone | [PNG](comparisons/app-share-phone-before.png) | [PNG](comparisons/app-share-phone-after.png) |
+
+
+## Routines and monitoring forms — 2026-11-12
+
+A held refusal reproduced editable schedule fields during an update. The edit
+form also scrolled its header and Save action away. Schedule/event editing now
+uses a fixed header, scrolling body and fixed action footer. Fields, the prompt
+editor, Cancel, Close, Escape and Run now freeze during writes; a refusal unlocks
+the same draft for retry. The prompt's disabled state reaches its expanded view.
+
+The common routine frame distinguishes disabled preparation from a pending write:
+preparing local consent must not lock dismissal. Pending schedule, event, portal
+and watch writes disable Close. Watch and portal roots guard closing too. The
+wizard footer exposes `backDisabled` for non-cancellable writes; other callers
+retain cancellation. Navigation has 44px touch targets and consistent phone
+padding. The current step has a separate phone caption instead of a truncated
+label. Advanced options use a leading chevron and compact phone spacing.
+
+Long routine names wrap on phones. An unmatched search shows a centered empty
+state, guidance and reset action. Read errors offer Retry for both tasks and
+watches, preserving the combined list's completeness contract.
+
+75 focused tests in nine files pass. Two touch Chromium journeys at 320×568 verify:
+
+- A paused schedule: search/reset, held 403, blocked fields/dismissal and visible
+  Save, retry, persisted name/message after reload and confirmed UI deletion.
+- A new API event: catalog entry, source/configure/message steps, Back with
+  retained values, held refusal/retry, real creation, webhook instructions,
+  return to the list and reload. The stored row has no run; reads do not expose
+  the dummy signing secret.
+
+The screenshot fixture is another paused schedule, removed after capture. No
+routine runs manually and no webhook delivery is triggered. Portal and watch
+pending/refusal behavior is covered by focused integration tests; an external
+account was not connected. TypeScript and focused ESLint pass. Full CI remains
+separate evidence.
+
+| Evidence | Before | After |
+| --- | --- | --- |
+| Routine list, 320×740 touch | [PNG](comparisons/routines-list-phone-before.png) | [PNG](comparisons/routines-list-phone-after.png) |
+| No search matches, 320×740 touch | [PNG](comparisons/routines-empty-phone-before.png) | [PNG](comparisons/routines-empty-phone-after.png) |
+| Editing during save, 320×568 | [PNG](comparisons/routine-edit-phone-before.png) | [PNG](comparisons/routine-edit-phone-after.png) |
+| Editing during save, 1440×1000 | [PNG](comparisons/routine-edit-desktop-before.png) | [PNG](comparisons/routine-edit-desktop-after.png) |
+| Creating during save, 320×568 | [PNG](comparisons/routine-create-phone-before.png) | [PNG](comparisons/routine-create-phone-after.png) |

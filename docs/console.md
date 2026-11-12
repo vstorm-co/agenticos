@@ -194,6 +194,8 @@ snapshot you meant to keep.
 
 ## Routines and watches
 
+Routine names wrap on phones. A search with no matches offers **Clear search**; **Retry** reloads both tasks and watches after a read failure. Schedule and event editing scrolls between a fixed header and action footer. Routine writes freeze fields and dismissal until they settle; a refusal preserves the draft.
+
 Routines has two tabs. **Agent routines** runs a chosen agent on a schedule or
 event, with its configured tools; runs appear in Activity. **My watches** only
 reads your personal connected accounts and sends findings to your private Inbox.

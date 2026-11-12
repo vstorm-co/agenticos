@@ -1,5 +1,5 @@
 ---
-source_sha: "f0fdffe19a7d"
+source_sha: "63b02f93b44f"
 ---
 
 # Die Konsole { #the-console }
@@ -214,6 +214,8 @@ statt still den Snapshot zu überschreiben, den Sie behalten wollten.
     eigenen gespeicherten Anordnung stammt.
 
 ## Routinen und Beobachtungen { #routines-and-watches }
+
+Routinennamen werden auf Telefonen umgebrochen. Ohne Suchtreffer erscheint **Suche löschen**; **Erneut versuchen** lädt Aufgaben und Beobachtungen nach einem Lesefehler neu. Zeitpläne und Ereignisauslöser werden zwischen festem Kopf und Aktionsleiste bearbeitet. Schreibvorgänge sperren Felder und Schließen bis zum Abschluss; eine Ablehnung erhält den Entwurf.
 
 Routines hat zwei Tabs. **Agentenaufgaben** startet einen gewählten Agenten nach
 Zeitplan oder Ereignis mit seinen Werkzeugen; die Läufe erscheinen in Activity.

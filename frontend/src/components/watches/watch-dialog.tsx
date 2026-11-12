@@ -162,6 +162,7 @@ export function WatchDialog({
   };
 
   const save = async () => {
+    if (saving) return;
     const end = endTouched ? endInstant(endsAt) : (watch?.ends_at ?? null);
     if (
       end === undefined ||
@@ -258,7 +259,12 @@ export function WatchDialog({
     draft.title.trim() !== "" &&
     draft.instructions.trim() !== "";
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!saving) onOpenChange(next);
+      }}
+    >
       <RoutineDialogFrame
         title={watch ? t("editTitle") : t("newTitle")}
         description={t("dialogDescription")}
@@ -274,10 +280,12 @@ export function WatchDialog({
                 current: step,
               }
         }
+        pending={saving}
         disabled={saving}
         footer={
           <WizardNav
             backIsStep={!watch && step !== "configure"}
+            backDisabled={saving}
             backLabel={!watch && step !== "configure" ? tt("back") : t("cancel")}
             onBack={() => {
               if (watch || step === "configure") onOpenChange(false);

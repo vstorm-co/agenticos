@@ -33,6 +33,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Routine names wrap on phones, unmatched searches offer a reset action and
+  list failures can retry both data sources. Schedule and event editing keep
+  action footers visible in short windows. Routine and watch forms freeze
+  fields and dismissal during writes and preserve refused drafts. Wizard
+  navigation uses touch-sized controls and supports non-cancellable writes.
+
 - Context settings use compact file rows and a neutral injected-context note;
   Availability identifies bot bindings with platform logos. App sharing puts
   people and links first, with optional link settings collapsed, active

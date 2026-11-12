@@ -471,3 +471,28 @@ it.each(["instructions", "interval_minutes"])(
     ).toBeInTheDocument();
   },
 );
+
+it("keeps an edited watch open while saving and retains a refused draft", async () => {
+  let reject!: (reason: Error) => void;
+  state.update.mockImplementationOnce(
+    () =>
+      new Promise((_resolve, refuse) => {
+        reject = refuse;
+      }),
+  );
+  const onOpenChange = vi.fn();
+  render(<WatchDialog open watch={watch()} onOpenChange={onOpenChange} />);
+  await userEvent.clear(screen.getByLabelText("Name"));
+  await userEvent.type(screen.getByLabelText("Name"), "Customer reviews");
+  await userEvent.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(state.update).toHaveBeenCalled());
+  expect(screen.getByLabelText("Name")).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+  await userEvent.keyboard("{Escape}");
+  expect(onOpenChange).not.toHaveBeenCalled();
+  reject(new Error("Controlled watch refusal"));
+  await waitFor(() => expect(screen.getByLabelText("Name")).toBeEnabled());
+  expect(screen.getByLabelText("Name")).toHaveValue("Customer reviews");
+  expect(onOpenChange).not.toHaveBeenCalled();
+});

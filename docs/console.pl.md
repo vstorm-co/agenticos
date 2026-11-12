@@ -1,5 +1,5 @@
 ---
-source_sha: "f0fdffe19a7d"
+source_sha: "63b02f93b44f"
 ---
 
 # Konsola { #the-console }
@@ -204,6 +204,8 @@ migawkę, którą chciałeś zachować.
     od tego, czy układ pochodzi z domyślnego, czy z twojego zapisanego.
 
 ## Rutyny i obserwacje { #routines-and-watches }
+
+Nazwy rutyn zawijają się na telefonach. Brak wyników daje przycisk **Wyczyść wyszukiwanie**, a **Ponów** odświeża zadania i obserwacje po błędzie odczytu. Edycja harmonogramu i wyzwalacza zdarzeniowego przewija się między stałym nagłówkiem i stopką z przyciskami. Zapis blokuje pola oraz zamykanie do zakończenia żądania; odmowa zachowuje wpisane dane.
 
 Routines ma dwie zakładki. **Zadania agentów** uruchamiają wybranego agenta według
 harmonogramu lub zdarzenia, z jego narzędziami; runy widać w Activity.

@@ -9515,7 +9515,9 @@
     "resultReport": "Nach jeder abgeschlossenen Ausführung",
     "resultInbox": "Nur wenn etwas Aufmerksamkeit braucht",
     "resultReportHint": "Nach jeder Ausführung einen Bericht im gewählten Chat ablegen.",
-    "resultInboxHint": "Pro Quellelement einen Inbox-Vorgang und Arbeitschat erstellen. Angeforderte Entwürfe stehen dort; unveränderte Prüfungen bleiben still. Versand benötigt weiterhin Berechtigung und Freigabe."
+    "resultInboxHint": "Pro Quellelement einen Inbox-Vorgang und Arbeitschat erstellen. Angeforderte Entwürfe stehen dort; unveränderte Prüfungen bleiben still. Versand benötigt weiterhin Berechtigung und Freigabe.",
+    "clearSearch": "Suche löschen",
+    "noRoutineMatchesHint": "Suchen Sie nach dem Agentennamen, dem Routinentitel oder Wörtern aus ihrer Nachricht."
   },
   "portals": {
     "mailboxInterval": {

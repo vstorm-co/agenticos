@@ -1,5 +1,5 @@
 ---
-source_sha: "f0fdffe19a7d"
+source_sha: "63b02f93b44f"
 ---
 
 # La consola { #the-console }
@@ -212,6 +212,8 @@ instantánea que querías conservar.
     la de serie o de una que tú guardaste.
 
 ## Rutinas y seguimientos { #routines-and-watches }
+
+Los nombres de las rutinas se ajustan en teléfonos. Sin resultados aparece **Clear search**; **Retry** vuelve a cargar tareas y observaciones tras un error de lectura. Los horarios y disparadores se editan entre cabecera y pie de acciones fijos. La escritura bloquea campos y cierre; un rechazo conserva el borrador.
 
 Routines tiene dos pestañas. **Tareas de agentes** ejecuta un agente elegido por
 horario o evento con sus herramientas; las ejecuciones aparecen en Activity.

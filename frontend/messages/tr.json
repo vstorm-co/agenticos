@@ -10613,7 +10613,9 @@
     "resultReport": "Tamamlanan her çalışmadan sonra",
     "resultInbox": "Yalnızca dikkat gerektiğinde",
     "resultReportHint": "Her çalışmadan sonra seçilen sohbete bir rapor gönderin.",
-    "resultInboxHint": "Her kaynak öğesi için bir Inbox kaydı ve çalışma sohbeti oluşturun. İstenen taslakları buraya yazın; değişmeyen kontroller sessiz kalır. Göndermek yine yetki ve onay gerektirir."
+    "resultInboxHint": "Her kaynak öğesi için bir Inbox kaydı ve çalışma sohbeti oluşturun. İstenen taslakları buraya yazın; değişmeyen kontroller sessiz kalır. Göndermek yine yetki ve onay gerektirir.",
+    "clearSearch": "Aramayı temizle",
+    "noRoutineMatchesHint": "Agent adı, rutin başlığı veya mesajındaki sözcüklerle arayın."
   },
   "teams": {
     "acmeCom": "acme.com",
