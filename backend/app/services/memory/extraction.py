@@ -117,7 +117,7 @@ def _eligible(run: AgentRun, audience: RunAudience | None) -> bool:
         and run.parent_run_id is None
         and run.surface
         not in {RunSurface.EMBED.value, RunSurface.A2A.value, RunSurface.PROACTIVE.value}
-        and not (audience is not None and audience.shared_transcript)
+        and not (audience is not None and audience.shared_transcript and audience.room_key is None)
         and (
             run.surface == RunSurface.WEB.value
             if audience is None
@@ -170,7 +170,8 @@ async def _read_by_others(db: AsyncSession, run: AgentRun) -> bool:
     """Whether people besides the person read the run's conversation now.
 
     Asked when the job runs, not only when it was queued: a chat moved into a project
-    or shared to edit in between is no longer the person's alone.
+    or shared to edit in between is no longer the person's alone. Only a personal read
+    asks; a group chat's claims are the room's whoever else reads it.
     """
     assert run.conversation_id is not None
     conversation = await conversation_repo.get_conversation_by_id(db, run.conversation_id)
@@ -227,12 +228,11 @@ async def extract(
         db, run.agent_version_id, organization_id=organization_id
     )
     binding = _memory_binding(version.spec) if version is not None else None
-    if binding is None or (
-        (audience is None or audience.room_key is None) and not _allows_personal(binding)
-    ):
+    personal = audience is None or audience.room_key is None
+    if binding is None or (personal and not _allows_personal(binding)):
         return 0
     ctx = await member_context(db, organization_id=organization_id, user_id=run.user_id)
-    if ctx is None or await _erased_since(db, run) or await _read_by_others(db, run):
+    if ctx is None or await _erased_since(db, run) or (personal and await _read_by_others(db, run)):
         return 0
     messages = await conversation_repo.get_messages_by_run(db, run.id, limit=60, newest=True)
     turns = [f"{m.role}: {m.content.strip()}" for m in messages if m.role in ("user", "assistant")]
@@ -254,7 +254,7 @@ async def extract(
     await hold_subject(db, LockScope.PERSONAL_DATA_PER_USER, run.user_id)
     if (
         await _erased_since(db, run)
-        or await _read_by_others(db, run)
+        or (personal and await _read_by_others(db, run))
         or await member_context(db, organization_id=organization_id, user_id=run.user_id) is None
     ):
         return 0

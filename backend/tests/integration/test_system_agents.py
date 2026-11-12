@@ -625,6 +625,40 @@ async def test_channel_capture_preserves_the_admitted_audience(
     assert job.payload["audience_room_key"] == audience.room_key
 
 
+async def test_a_group_chat_shared_to_edit_still_records_the_rooms_claims(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.db.models.conversation_share import ConversationShare
+    from app.db.models.organization import OrganizationMember
+
+    user, org, agent, version, model, ctx = await _world(db)
+    await _enabled(db, org, model)
+    run, conversation = await _chat_run(
+        db, org, agent, version, user, surface=RunSurface.SLACK.value
+    )
+    await _transcript(db, conversation, run, [("user", "We decided to renew Acme in March")])
+    colleague = User(email=f"{uuid.uuid4()}@example.com", hashed_password="x")
+    db.add(colleague)
+    await db.flush()
+    db.add(OrganizationMember(organization_id=org.id, user_id=colleague.id, role="member"))
+    db.add(
+        ConversationShare(
+            conversation_id=conversation.id,
+            shared_by=user.id,
+            shared_with=colleague.id,
+            permission="edit",
+        )
+    )
+    await db.flush()
+    audience = RunAudience(user_id=user.id, room_key="room:slack:C123", shared_transcript=True)
+    _think(monkeypatch, [extraction._Extracted(statement="Acme renews in March")])
+
+    assert await extraction.queue_extraction(db, run, SPEC, audience=audience)
+    assert await extraction.extract(db, org.id, run.id, audience=audience) == 1
+    claim = await db.scalar(select(MemoryClaim).where(MemoryClaim.source_run_id == run.id))
+    assert claim is not None and claim.scope_key == "room:slack:C123"
+
+
 @pytest.mark.parametrize("case", ["wrong-person", "read-only", "failed", "key", "test", "embed"])
 async def test_capture_refusals_are_rechecked_by_the_worker(
     db: AsyncSession,
