@@ -1210,12 +1210,17 @@ already running in the chain, or more than five calls deep, is refused.
 Called workflows inherit the caller's remaining run budget and the earlier deadline.
 Their spend counts toward the caller's total; `own_cost` exposes the caller's direct
 fees for consumers aggregating run records without counting descendants twice.
-With a finite caller budget, **Wait for it to finish** must stay on. Cancelling a
-caller or revoking its access stops a child before its next dispatch; an external
-request already in flight may finish. Retrying a failed call reuses successful
-steps of its original, frozen child rather than repeating their effects. A still
-running original child must finish or be stopped first. File outputs are explicitly
-imported into the caller, and callee access is rechecked when a waiting call resumes.
+With a finite caller budget, **Wait for it to finish** must stay on.
+
+Cancelling a caller, or its running out of budget, cancels every unfinished run it
+called and every run those called, with their approval requests and questions. A called
+run whose step is executing at that moment stops before its next dispatch, as does one
+whose caller lost its access; an external request already in flight may finish.
+
+Retrying a failed call reuses successful steps of its original, frozen child rather than
+repeating their effects. A still running original child must finish or be stopped first.
+File outputs are explicitly imported into the caller, and callee access is rechecked
+when a waiting call resumes.
 
 The caller's daily chart and per-step statistics include called-run fees too.
 

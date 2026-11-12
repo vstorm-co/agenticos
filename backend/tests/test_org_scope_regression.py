@@ -51,6 +51,7 @@ from app.repositories import (
     skill_usage_repo,
     skill_version_repo,
 )
+from app.repositories import workflow_run as workflow_run_repo
 from app.services.conversation import ConversationService
 
 # (module, function name) pairs whose tenant argument must be required.
@@ -276,6 +277,8 @@ TENANT_REQUIRED = [
     (skill_version_repo, "count_versions"),
     (skill_version_repo, "count_active_forks"),
     (skill_version_repo, "forks_served_since"),
+    (workflow_run_repo, "try_lock_run"),
+    (workflow_run_repo, "list_called_run_ids"),
 ]
 
 # Deliberately unscoped, each documented at its definition.

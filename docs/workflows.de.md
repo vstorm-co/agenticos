@@ -1,5 +1,5 @@
 ---
-source_sha: "aa54fb9dafe5"
+source_sha: "b7366acd6c90"
 ---
 
 # Workflows { #workflows }
@@ -1349,12 +1349,18 @@ wird abgelehnt.
 Aufgerufene Workflows übernehmen das verbleibende Laufbudget des Aufrufers und
 die frühere Frist. Ihre Kosten zählen zum Gesamtbetrag des Aufrufers; `own_cost`
 enthält nur dessen direkte Gebühren, damit aggregierte Laufdaten nichts doppelt zählen.
-Bei begrenztem Budget muss das Warten auf den Abschluss aktiviert bleiben. Abbruch
-oder entzogene Berechtigungen des Aufrufers stoppen das Kind vor dem nächsten Schritt;
-eine laufende externe Anfrage kann noch enden. Ein erneuter Aufruf verwendet die
-erfolgreichen Schritte des ursprünglichen, eingefrorenen Kindes. Ein noch laufendes
-Kind muss zuerst enden oder gestoppt werden. Ergebnisdateien werden ausdrücklich in
-den Aufrufer importiert; beim Fortsetzen wird der Zugriff erneut geprüft.
+Bei begrenztem Budget muss das Warten auf den Abschluss aktiviert bleiben.
+
+Bricht der Aufrufer ab oder ist sein Budget erschöpft, wird jedes noch offene Kind, das
+er aufgerufen hat, und jedes von diesem aufgerufene abgebrochen, samt Freigabeanfragen
+und Fragen. Ein Kind, dessen Schritt gerade ausgeführt wird, stoppt vor dem nächsten
+Schritt, ebenso eines, dessen Aufrufer seine Berechtigungen verloren hat; eine laufende
+externe Anfrage kann noch enden.
+
+Ein erneuter Aufruf verwendet die erfolgreichen Schritte des ursprünglichen,
+eingefrorenen Kindes. Ein noch laufendes Kind muss zuerst enden oder gestoppt werden.
+Ergebnisdateien werden ausdrücklich in den Aufrufer importiert; beim Fortsetzen wird der
+Zugriff erneut geprüft.
 
 Tagesdiagramm und Schrittstatistiken des Aufrufers enthalten ebenfalls die Gebühren aufgerufener Läufe.
 
