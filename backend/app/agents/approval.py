@@ -117,6 +117,19 @@ class ApprovalPending:
     """Nobody has decided yet, so the run cannot continue."""
 
 
+def has_recorded_decision(channel: object, tool_call_id: str) -> bool:
+    """Whether the run's approval channel already holds a decision on this call.
+
+    A resumed run carries the decisions on the calls it parked, and the gate
+    consults this before its own policy, so a recorded decision is always the one
+    that applies to that call - even when the policy the run is rebuilt under no
+    longer gates the tool. Read off the channel's class, so only a channel that
+    keeps decisions answers.
+    """
+    holds = getattr(type(channel), "has_decision", None)
+    return callable(holds) and holds(channel, tool_call_id) is True
+
+
 # A union rather than one class with a status field: "granted without arguments"
 # and "rejected with arguments" are states that should not be expressible.
 ApprovalDecision = ApprovalGranted | ApprovalRejected | ApprovalPending

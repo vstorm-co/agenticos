@@ -1282,6 +1282,10 @@ class ApprovalChannel:
     query per parked call to recover what this object already had in hand.
     """
 
+    def has_decision(self, tool_call_id: str) -> bool:
+        """Whether a resumed run carries a decision on this call that is still to be used."""
+        return tool_call_id in self.decided
+
     async def __call__(self, request: ApprovalRequest) -> ApprovalDecision:
         decision = self.decided.pop(request.tool_call_id, None)
         if decision is not None:

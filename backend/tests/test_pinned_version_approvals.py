@@ -205,3 +205,68 @@ class TestWhenTheCurrentVersionIsNotConsulted:
                 )
 
         get_version.assert_not_awaited()
+
+
+class TestACallParkedBeforeTheGateWasRemoved:
+    """A resume rebuilds the agent under today's approvals; its parked calls keep their answer."""
+
+    @staticmethod
+    async def _resume(decided: dict[str, Any], call_id: str = "call-1") -> tuple[Any, AsyncMock]:
+        from pydantic_ai.messages import ToolCallPart
+        from pydantic_ai.tools import ToolDefinition
+
+        from app.agents.capabilities.approval import ApprovalGate
+        from app.agents.deps import AgentDeps
+        from app.services.agent_runner import ApprovalChannel
+
+        channel = ApprovalChannel(
+            organization_id=uuid.uuid4(),
+            agent_id=uuid.uuid4(),
+            run_id=uuid.uuid4(),
+            decided=decided,
+        )
+        ctx = MagicMock()
+        ctx.deps = AgentDeps(run_id=uuid.uuid4(), request_approval=channel)
+        tool = AsyncMock(return_value="written")
+        result = await ApprovalGate().wrap_tool_execute(
+            ctx,
+            call=ToolCallPart(tool_name="write_memory", args={}, tool_call_id=call_id),
+            tool_def=ToolDefinition(
+                name="write_memory",
+                parameters_json_schema={"type": "object", "properties": {}},
+                capability_id=MEMORY,
+            ),
+            args={"name": "notes", "content": "asked"},
+            handler=tool,
+        )
+        return result, tool
+
+    async def test_a_rejected_call_stays_rejected_after_the_gate_is_gone(self) -> None:
+        from app.agents.approval import ApprovalRejected
+
+        result, tool = await self._resume({"call-1": ApprovalRejected(note="no")})
+
+        tool.assert_not_awaited()
+        assert "was not performed" in result
+
+    async def test_an_approved_call_runs_what_was_approved(self) -> None:
+        from app.agents.approval import ApprovalGranted
+
+        approved = {"name": "notes", "content": "approved"}
+        _, tool = await self._resume({"call-1": ApprovalGranted(tool_args=approved)})
+
+        tool.assert_awaited_once_with(approved)
+
+    async def test_a_new_call_runs_under_todays_policy(self) -> None:
+        from app.agents.approval import ApprovalRejected
+
+        result, tool = await self._resume({"call-1": ApprovalRejected()}, call_id="call-2")
+
+        assert result == "written"
+        tool.assert_awaited_once()
+
+    def test_only_a_channel_that_keeps_decisions_answers(self) -> None:
+        from app.agents.approval import has_recorded_decision
+
+        assert has_recorded_decision(MagicMock(), "call-1") is False
+        assert has_recorded_decision(None, "call-1") is False
