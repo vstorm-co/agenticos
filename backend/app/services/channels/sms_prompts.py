@@ -71,6 +71,7 @@ async def reserve(bot_id: str, chat_id: str, count: int, *, platform: str = "sms
         count=count,
         highest=10**MAX_DIGITS - 1,
         quarantine=QUARANTINE_SECONDS,
+        answerable=TTL_SECONDS,
         ttl=NUMBERING_TTL_SECONDS,
     )
     if start == 0:

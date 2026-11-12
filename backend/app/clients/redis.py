@@ -26,8 +26,25 @@ _RESERVE_NUMBERS = """
 local now = tonumber(redis.call('TIME')[1])
 local count = tonumber(ARGV[1])
 local highest = tonumber(ARGV[2])
-redis.call('ZREMRANGEBYSCORE', KEYS[2], '-inf', now - tonumber(ARGV[3]))
 local pending = cjson.decode(redis.call('GET', KEYS[3]) or '{}')
+local pruned = false
+for code, _ in pairs(pending) do
+  local issued = redis.call('ZSCORE', KEYS[2], code)
+  if not issued then
+    redis.call('ZADD', KEYS[2], 'NX', now, code)
+  elseif tonumber(issued) + tonumber(ARGV[5]) < now then
+    pending[code] = nil
+    pruned = true
+  end
+end
+if pruned then
+  if next(pending) == nil then
+    redis.call('DEL', KEYS[3])
+  else
+    redis.call('SET', KEYS[3], cjson.encode(pending), 'KEEPTTL')
+  end
+end
+redis.call('ZREMRANGEBYSCORE', KEYS[2], '-inf', now - tonumber(ARGV[3]))
 local last = tonumber(redis.call('GET', KEYS[1]) or '0')
 for step = 0, highest - 1 do
   local start = (last + step) % highest + 1
@@ -226,16 +243,29 @@ class RedisClient:
         count: int,
         highest: int,
         quarantine: int,
+        answerable: int,
         ttl: int,
     ) -> int:
         """Reserve `count` consecutive numbers from 1 to `highest`, or return 0 when none are free.
 
         The block starts after the last one reserved and wraps around, skipping a number
         still named in the JSON object at `pending` or reserved within `quarantine`
-        seconds - `issued` holds when each was. Reserving nothing changes nothing.
+        seconds - `issued` holds when each was. A number in `pending` reserved over
+        `answerable` seconds ago no longer answers, so it is dropped from `pending` first;
+        one with no reservation time is stamped now and lapses in turn. Reserving nothing
+        changes nothing else.
         """
         result = await self.raw.eval(
-            _RESERVE_NUMBERS, 3, counter, issued, pending, count, highest, quarantine, ttl
+            _RESERVE_NUMBERS,
+            3,
+            counter,
+            issued,
+            pending,
+            count,
+            highest,
+            quarantine,
+            ttl,
+            answerable,
         )
         if not isinstance(result, int):
             raise TypeError("Redis returned an invalid number reservation")

@@ -1,6 +1,7 @@
 """The prompt store's atomic operations against a real Redis service, when available."""
 
 import asyncio
+import json
 from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock, PropertyMock, patch
 from uuid import uuid4
@@ -27,6 +28,7 @@ async def test_an_invalid_reservation_reply_is_refused() -> None:
                 count=1,
                 highest=999,
                 quarantine=60,
+                answerable=60,
                 ttl=60,
             )
 
@@ -140,5 +142,42 @@ async def test_numbering_wraps_past_999_and_refuses_only_when_nothing_is_free(
         with pytest.raises(ChannelNotConfigured, match="console"):
             await sms_prompts.reserve(bot, "test", 1)
         assert int(await store.raw.get(key + ":counter")) == 2
+    finally:
+        await _clear(store, key)
+
+
+async def test_an_ignored_prompt_lets_its_numbers_go_once_lapsed_and_quarantined(
+    store: RedisClient,
+) -> None:
+    bot = uuid4().hex
+    key = f"channel:sms:prompt:{bot}:test"
+    try:
+        ignored = await sms_prompts.reserve(bot, "test", 1)
+        await sms_prompts.remember(bot, "test", ["aos:old:0"], start=ignored)
+        await _age(store, key, ignored, sms_prompts.TTL_SECONDS + 60)
+        # The chat stays busy, which keeps its prompts alive, but not the lapsed one.
+        newer = await sms_prompts.reserve(bot, "test", 1)
+        await sms_prompts.remember(bot, "test", ["aos:new:0"], start=newer)
+
+        assert str(ignored) not in json.loads(await store.get(key))
+        assert await sms_prompts.answer(bot, "test", str(ignored)) is None
+
+        await _age(store, key, ignored, sms_prompts.QUARANTINE_SECONDS + 60)
+        await store.raw.set(key + ":counter", ignored - 1)
+        assert await sms_prompts.reserve(bot, "test", 1) == ignored
+    finally:
+        await _clear(store, key)
+
+
+async def test_a_prompt_from_before_numbers_were_stamped_lapses_like_any_other(
+    store: RedisClient,
+) -> None:
+    bot = uuid4().hex
+    key = f"channel:sms:prompt:{bot}:test"
+    try:
+        await store.raw.set(key, json.dumps({"7": "aos:legacy:0"}))
+        await sms_prompts.reserve(bot, "test", 1)
+        assert await store.raw.zscore(key + ":issued", "7") is not None
+        assert await sms_prompts.answer(bot, "test", "7") == "aos:legacy:0"
     finally:
         await _clear(store, key)

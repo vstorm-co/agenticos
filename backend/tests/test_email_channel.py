@@ -95,6 +95,7 @@ class _Redis:
         count: int,
         highest: int,
         quarantine: int,
+        answerable: int,
         ttl: int,
     ) -> int:
         taken = set(json.loads(self.data.get(pending, "{}"))) | self.issued
