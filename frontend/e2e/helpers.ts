@@ -477,7 +477,7 @@ export async function saveDraft(page: Page): Promise<void> {
  * names repeat the skill's.
  */
 export function skillCard(page: Page, name: string): Locator {
-  return page.getByRole("main").getByRole("link", { name: new RegExp(`^${name}\\b`) });
+  return page.getByRole("main").getByRole("button", { name: new RegExp(`^${name}\\b`) });
 }
 
 /**

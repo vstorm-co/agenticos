@@ -2587,6 +2587,31 @@ class ChatAsker:
     bot_name: str | None
 
 
+async def run_chat_askers(
+    db: AsyncSession, *, organization_id: UUID, run_ids: Collection[UUID]
+) -> dict[UUID, ChatAsker]:
+    """Unverified channel senders, distinct from a run's publisher authority."""
+    if not run_ids:
+        return {}
+    rows = await db.execute(
+        select(AgentRun.id, ChannelIdentity, ChannelBot.name)
+        .join(ChannelIdentity, ChannelIdentity.id == AgentRun.channel_identity_id)
+        .outerjoin(AgentExposure, AgentExposure.id == AgentRun.exposure_id)
+        .outerjoin(ChannelBot, ChannelBot.id == AgentExposure.channel_bot_id)
+        .where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.id.in_(run_ids),
+            AgentRun.initiated_by_publisher_fallback.is_(True),
+        )
+    )
+    return {
+        run_id: ChatAsker(
+            platform=identity.platform, name=chat_account_name(identity), bot_name=bot_name
+        )
+        for run_id, identity, bot_name in rows
+    }
+
+
 def chat_account_name(identity: ChannelIdentity) -> str:
     """How a chat account is named to a reader: display name, handle, then id."""
     if identity.platform_display_name:

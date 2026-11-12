@@ -1,5 +1,5 @@
 ---
-source_sha: "a707f5254f28"
+source_sha: "c1fbed8d938c"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -1288,17 +1288,18 @@ Verbindungsprüfungen aktualisieren erkannte Tools und den Status. Deshalb warte
 | Tool | Braucht |
 | --- | --- |
 | `whoami` | — |
-| `list_agents`, `get_agent`, `list_capabilities`, `list_models`, `search_mcp_servers` | `agents:view` |
+| `list_agents`, `get_agent`, `list_capabilities`, `get_capability`, `list_models`, `search_mcp_servers` | `agents:view` |
 | `create_agent_draft`, `update_agent_draft`, `test_agent_draft` | `agents:edit` |
 | `list_sandbox_connections`, `list_sandbox_runtimes`, `get_sandbox_policy` | `connections:view` |
 | `list_org_connections` | `mcp:manage` |
+| `list_mcp_connection_tools`, `get_mcp_connection_tool` | `mcp:manage` (Organisation); eigene persönliche Verbindungen (Schlüssel: `agents:run`) |
 | `publish_agent` | `agents:publish` auf diesem Agent |
 | `discard_agent_draft` | `agents:edit`, für Ihren eigenen, nie veröffentlichten Entwurf |
 | `run_agent` | `agents:run` |
 | `list_routines` | `agents:view` |
 | `create_routine`, `run_routine_now` | `agents:run` auf dem Agent |
 | `update_routine`, `delete_routine` | wer die Routine angelegt hat, oder `agents:edit` auf ihrem Agent |
-| `list_runs`, `get_run`, `read_conversation`, `list_conversations`, `get_spend` | `runs:view` |
+| `list_runs`, `get_run`, `read_run_transcript`, `read_run_tool_call`, `read_conversation`, `read_conversation_tool_call`, `list_conversations`, `get_spend` | `runs:view` |
 | `create_conversation` | `agents:run` |
 | `update_proactivity_settings` | `org:settings`, `budgets:manage` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |
@@ -1517,3 +1518,5 @@ Das Plattform-MCP liefert zunächst Zusammenfassungen statt aller Verträge. `li
 Nachrichtenindizes beziehen sich auf dieses gefilterte Transkript. Zurückgegeben werden begrenzte Textfenster und Tool-Metadaten statt aller Argumente und Ergebnisse. Folgen Sie `next_skip`, `next_offset` und `next_tool_skip`; setzen Sie für weitere Teile einer langen Nachricht `limit=1`. `read_run_tool_call` liest ein Fenster von `args` oder `result` eines Aufrufs und prüft die Nachrichten-ID gegen die Seite; es führt nichts aus. Nicht verfügbare Ergebnisse sind null. Privater Gesprächszugriff wird nicht erweitert.
 
 Die Namenssuche für Improve prüft alle Agentenseiten, bevor sie einen Treffer auswählt oder Mehrdeutigkeit meldet; die ersten 100 Agenten gelten nicht als vollständiger Katalog.
+
+`read_conversation` verwendet dieselben begrenzten Nachrichten- und Tool-Metadatenfenster wie die Run-Analyse, standardmäßig mit 10 Nachrichten. `read_conversation_tool_call` liest eine ausgewählte gespeicherte Nutzlast, auch bei älteren Nachrichten ohne Run-ID, über die unverändert eigentümergebundene Gesprächs-API. MCP-Clients müssen den Fensterfortsetzungen folgen, statt vollständige Tool-Ergebnisse im Transkript zu erwarten.

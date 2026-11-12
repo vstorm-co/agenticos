@@ -8,6 +8,7 @@ import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
 import type { SkillAgentUsage, SkillFork, SkillVersionSummary } from "@/types/skill-versions";
 import SkillPage from "./page";
+import { SkillDetailDialog } from "@/components/skills/skill-detail-dialog";
 
 const state = vi.hoisted(() => ({
   tab: null as string | null,
@@ -128,6 +129,13 @@ const skill = vi.hoisted(() => ({ canEdit: true, error: null as unknown }));
 
 /** What the API answers for each read the page makes. */
 async function serveOnce(path: string): Promise<unknown> {
+  if (path === "/skills/s1/versions/m12")
+    return {
+      ...version(12),
+      description: "How returns are handled.",
+      content: "# Returns",
+      resources: [],
+    };
   if (path === "/skills/s1") {
     if (skill.error) throw skill.error;
     return {
@@ -190,6 +198,33 @@ beforeEach(() => {
 });
 
 describe("SkillPage", () => {
+  it("reads a skill in a modal without rewriting catalog filters and links to its full view", async () => {
+    const before = window.location.href;
+    const onClose = vi.fn();
+    render(<SkillDetailDialog id="s1" onClose={onClose} />, { wrapper });
+    expect(await screen.findByRole("dialog", { name: "Skill details" })).toBeVisible();
+    expect(await screen.findByRole("tab", { name: "Content" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByRole("link", { name: "Open full view" })).toHaveAttribute(
+      "href",
+      "/skills/s1?tab=content",
+    );
+    await userEvent.click(screen.getByRole("tab", { name: "Version tree" }));
+    expect(screen.getByRole("tab", { name: "Version tree" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByRole("link", { name: "Open full view" })).toHaveAttribute(
+      "href",
+      "/skills/s1?tab=tree",
+    );
+    expect(window.location.href).toBe(before);
+    await userEvent.keyboard("{Escape}");
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
   it("lists each agent with the version it is served", async () => {
     await mount();
 

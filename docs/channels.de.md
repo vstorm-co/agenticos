@@ -1,5 +1,5 @@
 ---
-source_sha: "ef0c42f55044"
+source_sha: "3849e81358a8"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -2049,6 +2049,9 @@ für die Suche den Scope `users:read.email`; Teams findet sie im Verzeichnis des
 Tenants.
 
 ## Reaktionen und Bewertungen { #reactions-and-ratings }
+
+Neue Bots bestätigen Fragen mit 👀 (`eyes`) in Slack, Telegram und Mattermost oder dem nativen Tapback `emphasize` in iMessage. Antwortbewertungen sind anfangs deaktiviert. Beide Einstellungen bleiben änderbar; bestehende Bots behalten ihre gespeicherten Werte. Freigabe- und Fragekarten in Mattermost behalten die Anfrage und zeigen nach dem Entfernen der Schaltflächen die Entscheidung. Wiederholte Klicks auf beantwortete Anfragen werden ohne öffentliche Nachricht bestätigt. Eine nachträglich hinzugefügte Erwähnung startet nur für einen innerhalb der letzten 15 Minuten beobachteten und ignorierten Beitrag einen Durchlauf. Bearbeitete ältere oder bereits bearbeitete Anfragen starten keinen neuen Durchlauf; ohne gemeinsame Empfangsnachweise werden Änderungen nicht angenommen.
+
 
 Zwei Dinge, die jede Chat-Plattform hier teilt, beide in den Einstellungen des
 Bots schaltbar:

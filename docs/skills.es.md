@@ -1,8 +1,11 @@
 ---
-source_sha: "f29bcac95460"
+source_sha: "ccdac29aa383"
 ---
 
 # Skills { #skills }
+
+Al abrir un skill del catálogo aparece un modal sin perder la búsqueda, los filtros ni la página de la lista. **Abrir vista completa** abre la misma pestaña y línea seleccionada en su página propia. El árbol de versiones crece con su contenido hasta una altura limitada; una sola versión no deja un lienzo vacío enorme. Una vista previa individual ocupa el ancho disponible y muestra las instrucciones como Markdown, con acceso al código fuente. Varias versiones comparten el espacio en escritorio y se desplazan dentro de la comparación en el teléfono.
+
 
 Un skill es saber hacer algo, escrito una vez y adjuntado a muchos agents: cómo
 se gestionan los reembolsos, cuál es el estilo de la casa, qué comprobaciones

@@ -1,5 +1,5 @@
 ---
-source_sha: "a707f5254f28"
+source_sha: "c1fbed8d938c"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1269,17 +1269,18 @@ Las comprobaciones de conexión actualizan las herramientas descubiertas y el es
 | Herramienta | Necesita |
 | --- | --- |
 | `whoami` | — |
-| `list_agents`, `get_agent`, `list_capabilities`, `list_models`, `search_mcp_servers` | `agents:view` |
+| `list_agents`, `get_agent`, `list_capabilities`, `get_capability`, `list_models`, `search_mcp_servers` | `agents:view` |
 | `create_agent_draft`, `update_agent_draft`, `test_agent_draft` | `agents:edit` |
 | `list_sandbox_connections`, `list_sandbox_runtimes`, `get_sandbox_policy` | `connections:view` |
 | `list_org_connections` | `mcp:manage` |
+| `list_mcp_connection_tools`, `get_mcp_connection_tool` | `mcp:manage` (organización); conexiones personales propias (clave: `agents:run`) |
 | `publish_agent` | `agents:publish` sobre ese agent |
 | `discard_agent_draft` | `agents:edit`, sobre un borrador tuyo que nunca se publicó |
 | `run_agent` | `agents:run` |
 | `list_routines` | `agents:view` |
 | `create_routine`, `run_routine_now` | `agents:run` sobre el agent |
 | `update_routine`, `delete_routine` | quien creó la rutina, o `agents:edit` sobre su agent |
-| `list_runs`, `get_run`, `read_conversation`, `list_conversations`, `get_spend` | `runs:view` |
+| `list_runs`, `get_run`, `read_run_transcript`, `read_run_tool_call`, `read_conversation`, `read_conversation_tool_call`, `list_conversations`, `get_spend` | `runs:view` |
 | `create_conversation` | `agents:run` |
 | `update_proactivity_settings` | `org:settings`, `budgets:manage` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |
@@ -1499,3 +1500,5 @@ El MCP de la plataforma devuelve primero resúmenes, no todos los contratos. `li
 Los índices corresponden a esa transcripción filtrada. Devuelve ventanas acotadas de texto y metadatos de herramientas, sin todos los argumentos y resultados. Siga `next_skip`, `next_offset` y `next_tool_skip`; use `limit=1` para continuar un mensaje largo. `read_run_tool_call` lee una ventana de `args` o `result` de una llamada, verifica que el identificador del mensaje coincide con la página y no ejecuta nada. Un resultado no disponible es null. No concede acceso adicional a conversaciones privadas.
 
 La búsqueda por nombre para Improve revisa todas las páginas antes de elegir una coincidencia o indicar ambigüedad; los primeros 100 agentes no se consideran el catálogo completo.
+
+`read_conversation` usa las mismas ventanas acotadas de mensajes y metadatos que la inspección de ejecuciones, con 10 mensajes por defecto. `read_conversation_tool_call` lee una carga registrada concreta, también de mensajes antiguos sin identificador de ejecución, mediante la API de conversaciones propias sin ampliar permisos. Los clientes MCP deben seguir las continuaciones de las ventanas en vez de esperar todos los resultados de herramientas dentro de la transcripción.

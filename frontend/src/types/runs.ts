@@ -58,6 +58,9 @@ export interface AgentRun {
   continues_in_chat?: boolean;
   agent_version_id: string | null;
   user_id: string | null;
+  /** Publisher authority is distinct from the actual channel sender. */
+  initiated_by_publisher_fallback?: boolean | null;
+  asked_in_chat?: { platform: string; name: string; bot_name: string | null } | null;
   surface: string;
   /** The platform role that did this run when no agent's instructions ran (#2575). */
   system_role?: string | null;

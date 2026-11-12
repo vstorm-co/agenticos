@@ -1,5 +1,5 @@
 ---
-source_sha: "ef0c42f55044"
+source_sha: "3849e81358a8"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1908,6 +1908,9 @@ znajdzie, albo platforma, która odmówi, nie kosztują nic więcej. Slack potrz
 do wyszukania scope'u `users:read.email`; Teams znajduje go w spisie tenanta.
 
 ## Reakcje i oceny { #reactions-and-ratings }
+
+Nowe boty potwierdzają pytania reakcją 👀 (`eyes`) w Slacku, Telegramie i Mattermost lub natywnym tapbackiem `emphasize` w iMessage. Oceny odpowiedzi są początkowo wyłączone. Oba ustawienia można zmienić; istniejące boty zachowują zapisane wybory. Karty akceptacji i pytań w Mattermost zachowują prośbę i pokazują decyzję po usunięciu przycisków. Ponowne kliknięcia rozstrzygniętej prośby są potwierdzane bez publicznej wiadomości. Wzmianka dodana przez edycję może uruchomić turę tylko dla wiadomości zaobserwowanej i pominiętej w ostatnich 15 minutach; edycje obsłużonych lub starszych postów nie uruchamiają nowej tury, a brak współdzielonych potwierdzeń wyłącza przyjmowanie edycji.
+
 
 Dwa elementy wspólne dla każdej platformy czatu tutaj, oba przełączane w
 ustawieniach bota:

@@ -198,10 +198,17 @@ async def list_runs(
         questions={run_id: link.case_input for run_id, link in links.items()},
     )
     chains = await service.voice_chains(ctx, [run.id for run in items if run.modality == "voice"])
+    channel_runs = [
+        run.id
+        for run in items
+        if run.initiated_by_publisher_fallback and run.channel_identity_id is not None
+    ]
+    askers = await service.run_chat_askers(ctx, channel_runs) if channel_runs else {}
     return AgentRunList(
         items=[
             AgentRunRead.model_validate(run).model_copy(
                 update={
+                    "asked_in_chat": askers.get(run.id),
                     "down_rated": run.id in down_rated,
                     "eval_case": links.get(run.id),
                     "origin": origins.get(run.id),
@@ -302,8 +309,14 @@ async def get_run(
     origin = (await service.origins(ctx, [run.id])).get(run.id) if evaluated else None
     down_rated = await service.down_rated_run_ids(ctx, [run.id])
     prev_run_id, next_run_id = await service.neighbor_run_ids(ctx, run)
+    askers = (
+        await service.run_chat_askers(ctx, [run.id])
+        if run.initiated_by_publisher_fallback and run.channel_identity_id is not None
+        else {}
+    )
     return AgentRunRead.model_validate(run).model_copy(
         update={
+            "asked_in_chat": askers.get(run.id),
             "logfire_url": await service.trace_url(ctx, run),
             "down_rated": run.id in down_rated,
             "prev_run_id": prev_run_id,

@@ -1,8 +1,11 @@
 ---
-source_sha: "f29bcac95460"
+source_sha: "ccdac29aa383"
 ---
 
 # Skills { #skills }
+
+Ein Klick auf einen Skill im Katalog öffnet einen Dialog, ohne Suche, Filter oder Listenseite zu verlieren. **Vollständige Ansicht öffnen** öffnet denselben Tab und die ausgewählte Linie auf einer eigenen Seite. Der Versionsbaum wächst mit seinem Inhalt bis zu einer begrenzten Höhe; eine einzelne Version hinterlässt keine große leere Fläche. Eine einzelne Vergleichsvorschau nutzt die verfügbare Breite und zeigt Anweisungen als Markdown mit optionalem Quelltext. Mehrere Versionen teilen den Platz auf dem Desktop und lassen sich auf dem Smartphone innerhalb des Vergleichs horizontal verschieben.
+
 
 Ein Skill ist Wissen, das einmal geschrieben und an viele Agents gebunden wird:
 wie Rückerstattungen behandelt werden, was der Hausstil ist, welche Prüfungen ein

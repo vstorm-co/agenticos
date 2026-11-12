@@ -40,6 +40,14 @@ function onMain(name: string): SkillAgentUsage {
 }
 
 describe("VersionTree", () => {
+  it("fits a single version instead of reserving a large empty canvas", () => {
+    const { container } = render(
+      <VersionTree skillId="s1" mainLatest={1} forks={[]} agents={[]} error={null} />,
+    );
+    const canvas = container.querySelector<HTMLElement>("[style*='transform']")!;
+    expect(canvas.parentElement!.style.height).toBe("128px");
+  });
+
   it("folds the versions nobody uses and unfolds them on request", async () => {
     render(<VersionTree skillId="s1" mainLatest={25} forks={[]} agents={[]} error={null} />);
 

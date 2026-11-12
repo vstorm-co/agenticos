@@ -609,7 +609,7 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
         (
             "GET",
             "/conversations/00000000-0000-0000-0000-000000000001/transcript",
-            {"params": {"limit": 100, "skip": 0, "for_model": True}},
+            {"params": {"limit": 10, "skip": 0, "for_model": True}},
         ),
     ),
     (
@@ -2214,3 +2214,47 @@ class TestRunInspection:
         api.request.side_effect = ToolError("Caller lacks the required permission")
         with pytest.raises(ToolError, match="required permission"):
             await server.call_tool(tool, args)
+
+
+async def test_personal_transcript_reads_use_windows_without_changing_ownership(
+    server: FastMCP, api: MagicMock
+) -> None:
+    api.request.return_value = TestRunInspection.recording(result="abcdef")
+    page = (
+        await server.call_tool("read_conversation", {"conversation_id": str(AGENT)})
+    ).structured_content
+    assert len(json.dumps(page)) < 3000
+    assert "result" not in page["items"][0]["tool_calls"][0]
+    api.request.assert_awaited_with(
+        "GET",
+        f"/conversations/{AGENT}/transcript",
+        params={
+            "limit": 10,
+            "skip": 0,
+            "for_model": True,
+        },
+    )
+    selected = (
+        await server.call_tool(
+            "read_conversation_tool_call",
+            {
+                "conversation_id": str(AGENT),
+                "message_index": 0,
+                "message_id": str(KB),
+                "tool_call_id": "call-1",
+                "offset": 2,
+                "chars": 2,
+            },
+        )
+    ).structured_content
+    assert selected["content"] == "cd" and selected["next_offset"] == 4
+    assert selected["conversation_id"] == str(AGENT)
+    api.request.assert_awaited_with(
+        "GET",
+        f"/conversations/{AGENT}/transcript",
+        params={
+            "limit": 1,
+            "skip": 0,
+            "for_model": True,
+        },
+    )

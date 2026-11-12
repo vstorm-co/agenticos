@@ -23,6 +23,36 @@ test.use({ storageState: AUTH_STATE });
  */
 
 test.describe("Skills", () => {
+  for (const width of [390, 1440]) {
+    test(`a skill opens in a readable modal with a full-view link at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/skills");
+      await skillCard(page, SEEDED_SKILL_NAME).click();
+      const modal = page.getByRole("dialog", { name: "Skill details", exact: true });
+      await expect(modal).toBeVisible();
+      await expect(modal.getByRole("tab", { name: "Content", exact: true })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+      await expect(
+        modal.getByRole("heading", { name: SEEDED_SKILL_NAME, exact: true }),
+      ).toBeVisible();
+      const bounds = await modal.boundingBox();
+      expect(bounds).not.toBeNull();
+      expect(bounds!.x).toBeGreaterThanOrEqual(0);
+      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+      await modal.getByRole("tab", { name: "Version tree", exact: true }).click();
+      const fullView = modal.getByRole("link", { name: "Open full view", exact: true });
+      await expect(fullView).toHaveAttribute("href", /\?tab=tree$/);
+      await fullView.click();
+      await expect(page).toHaveURL(/\/skills\/[^?]+\?tab=tree$/);
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await expect(pageHeading(page, SEEDED_SKILL_NAME)).toBeVisible();
+    });
+  }
+
   test("the gallery lists the organization's skills", async ({ page }) => {
     await page.goto("/skills");
     await expect(pageHeading(page, "Skills")).toBeVisible();
@@ -122,7 +152,7 @@ test.describe("Skills", () => {
     await dialog.getByRole("button", { name: "Save" }).click();
     // A changed text asks before it goes live, naming the agents it would reach.
     await page.getByRole("button", { name: "Save now" }).click();
-    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page.getByRole("dialog", { name: "Skill details", exact: true })).toBeVisible();
 
     // Reloaded rather than read off the cache the mutation patched: a panel that
     // only looks right until the next fetch is a panel that never wrote

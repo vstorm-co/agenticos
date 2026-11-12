@@ -1,3 +1,4 @@
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 
@@ -27,6 +28,14 @@ function renderCard(props: Partial<React.ComponentProps<typeof SkillCard>> = {})
 }
 
 describe("SkillCard", () => {
+  it("opens a modal through the catalog action without navigating away", async () => {
+    const onOpen = vi.fn();
+    renderCard({ onOpen });
+    await userEvent.click(screen.getByRole("button", { name: /refund-policy/ }));
+    expect(onOpen).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("link", { name: /refund-policy/ })).toBeNull();
+  });
+
   it("shows what the model would see of the skill", () => {
     renderCard();
     expect(screen.getByText("refund-policy")).toBeInTheDocument();

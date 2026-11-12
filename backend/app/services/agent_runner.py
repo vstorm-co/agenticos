@@ -336,7 +336,7 @@ from app.repositories import (
 from app.repositories.agent_run import AgentSpendRow, RunFilters
 from app.repositories.voice_call import VoiceChain
 from app.schemas.agent import ParkedCall, ParkedQuestion
-from app.schemas.agent_run import RunOriginRead
+from app.schemas.agent_run import ChatAskerRead, RunOriginRead
 from app.schemas.user import WorkingHours
 from app.services import change_feed
 from app.services.agent_registry import (
@@ -8639,6 +8639,19 @@ class AgentRunnerService:
             generated_files=frozenset(prepared.built.deps.generated_files),
             message_id=message_id,
         )
+
+    async def run_chat_askers(
+        self, ctx: AuthContext, run_ids: Sequence[UUID]
+    ) -> dict[UUID, ChatAskerRead]:
+        """The channel account that asked, without attributing it to the publisher."""
+        if not ctx.has(Perm.RUNS_VIEW):
+            raise AuthorizationError(
+                message="Insufficient permissions", details={"required": [Perm.RUNS_VIEW.value]}
+            )
+        found = await agent_run_repo.run_chat_askers(
+            self.db, organization_id=ctx.organization_id, run_ids=run_ids
+        )
+        return {run_id: ChatAskerRead.model_validate(asker) for run_id, asker in found.items()}
 
     async def list_runs(
         self,

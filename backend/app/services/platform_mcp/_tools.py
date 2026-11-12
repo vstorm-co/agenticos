@@ -118,6 +118,81 @@ def _text_window(text: str, offset: int, chars: int) -> dict[str, JsonValue]:
     }
 
 
+def _transcript_page(
+    listing: dict[str, JsonValue],
+    *,
+    skip: int,
+    limit: int,
+    content_offset: int,
+    content_chars: int,
+    tool_skip: int,
+) -> dict[str, JsonValue]:
+    summaries: list[JsonValue] = []
+    for index, item in enumerate(_JSON_ITEMS.validate_python(listing["items"]), start=skip):
+        calls = _JSON_ITEMS.validate_python(item.get("tool_calls") or [])
+        text = item.get("content")
+        if not isinstance(text, str):
+            raise ToolError("The recorded message has no textual content")
+        summary: dict[str, JsonValue] = {
+            "id": item["id"],
+            "run_id": item.get("run_id"),
+            "message_index": index,
+            "role": item["role"],
+            "reply_to": None,
+            **_text_window(text, content_offset, content_chars),
+            "tool_call_count": len(calls),
+            "next_tool_skip": tool_skip + 20 if tool_skip + 20 < len(calls) else None,
+            "tool_calls": [
+                {
+                    key: value
+                    for key, value in call.items()
+                    if key in {"tool_call_id", "tool_name", "status", "duration_ms"}
+                }
+                for call in calls[tool_skip : tool_skip + 20]
+            ],
+        }
+        summaries.append(summary)
+    total = listing["total"]
+    return {
+        "items": summaries,
+        "total": total,
+        "next_skip": skip + limit if isinstance(total, int) and skip + limit < total else None,
+    }
+
+
+def _recorded_tool_window(
+    listing: dict[str, JsonValue],
+    *,
+    message_id: UUID,
+    tool_call_id: str,
+    field: Literal["args", "result"],
+    offset: int,
+    chars: int,
+) -> dict[str, JsonValue]:
+    items = _JSON_ITEMS.validate_python(listing["items"])
+    if not items or items[0]["id"] != str(message_id):
+        raise ToolError("Transcript page changed; refresh the transcript listing before retrying")
+    calls = _JSON_ITEMS.validate_python(items[0].get("tool_calls") or [])
+    call = next((call for call in calls if call["tool_call_id"] == tool_call_id), None)
+    if call is None:
+        raise ToolError("Tool call not found in this message")
+    value = call.get(field)
+    text = json_module.dumps(value, ensure_ascii=False) if field == "args" else value
+    if text is not None and not isinstance(text, str):
+        raise ToolError("The recorded tool result is not text")
+    return {
+        "message_id": str(message_id),
+        "tool_call_id": tool_call_id,
+        "field": field,
+        "available": value is not None,
+        **(
+            _text_window(text, offset, chars)
+            if text is not None
+            else {"content": None, "next_offset": None}
+        ),
+    }
+
+
 @dataclass(frozen=True)
 class PlatformTool:
     name: str
@@ -1396,7 +1471,9 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
 
         Read its turns with read_run_transcript, including channel runs or a
         colleague's run when the existing runs:view permission permits it.
-        read_conversation instead belongs to the asker's own chats.
+        read_conversation instead belongs to the asker's own chats. When
+        initiated_by_publisher_fallback is true, user_id names the publisher's
+        authority, not the sender. asked_in_chat names the unverified chat account.
         """
         return await api.request("GET", f"/runs/{run_id}")
 
@@ -1424,40 +1501,18 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
                 params={"limit": limit, "skip": skip, "scope": "run", "for_model": True},
             )
         )
-        items = _JSON_ITEMS.validate_python(listing["items"])
-        summaries: list[JsonValue] = []
-        for index, item in enumerate(items, start=skip):
-            calls = _JSON_ITEMS.validate_python(item.get("tool_calls") or [])
-            text = item.get("content")
-            if not isinstance(text, str):
-                raise ToolError("The recorded message has no textual content")
-            summary: dict[str, JsonValue] = {
-                "id": item["id"],
-                "message_index": index,
-                "role": item["role"],
-                **_text_window(text, content_offset, content_chars),
-                "tool_call_count": len(calls),
-                "next_tool_skip": tool_skip + 20 if tool_skip + 20 < len(calls) else None,
-                "tool_calls": [
-                    {
-                        key: value
-                        for key, value in call.items()
-                        if key in {"tool_call_id", "tool_name", "status", "duration_ms"}
-                    }
-                    for call in calls[tool_skip : tool_skip + 20]
-                ],
-            }
-            summaries.append(summary)
-        total = listing["total"]
         return _bounded_mcp_discovery(
             {
                 "run_id": str(run_id),
                 "conversation_id": listing.get("conversation_id"),
-                "items": summaries,
-                "total": total,
-                "next_skip": skip + limit
-                if isinstance(total, int) and skip + limit < total
-                else None,
+                **_transcript_page(
+                    listing,
+                    skip=skip,
+                    limit=limit,
+                    content_offset=content_offset,
+                    content_chars=content_chars,
+                    tool_skip=tool_skip,
+                ),
             }
         )
 
@@ -1484,46 +1539,93 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
                 params={"limit": 1, "skip": message_index, "scope": "run", "for_model": True},
             )
         )
-        items = _JSON_ITEMS.validate_python(listing["items"])
-        if not items or items[0]["id"] != str(message_id):
-            raise ToolError("Transcript page changed; refresh read_run_transcript before retrying")
-        calls = _JSON_ITEMS.validate_python(items[0].get("tool_calls") or [])
-        call = next((call for call in calls if call["tool_call_id"] == tool_call_id), None)
-        if call is None:
-            raise ToolError("Tool call not found in this message")
-        value = call.get(field)
-        text = json_module.dumps(value, ensure_ascii=False) if field == "args" else value
-        if text is not None and not isinstance(text, str):
-            raise ToolError("The recorded tool result is not text")
         return _bounded_mcp_discovery(
             {
                 "run_id": str(run_id),
-                "message_id": str(message_id),
-                "tool_call_id": tool_call_id,
-                "field": field,
-                "available": value is not None,
-                **(
-                    _text_window(text, offset, chars)
-                    if text is not None
-                    else {"content": None, "next_offset": None}
+                **_recorded_tool_window(
+                    listing,
+                    message_id=message_id,
+                    tool_call_id=tool_call_id,
+                    field=field,
+                    offset=offset,
+                    chars=chars,
                 ),
             }
         )
 
     async def read_conversation(
-        conversation_id: UUID, limit: int = 100, skip: int = 0
-    ) -> dict[str, Any]:
-        """One of the asker's own conversations, turn by turn. Needs `runs:view`.
+        conversation_id: UUID,
+        limit: DiscoveryLimit = 10,
+        skip: DiscoverySkip = 0,
+        content_offset: DiscoverySkip = 0,
+        content_chars: TranscriptChars = 2000,
+        tool_skip: DiscoverySkip = 0,
+    ) -> dict[str, JsonValue]:
+        """The asker's own chat, with bounded text windows and tool metadata. Needs `runs:view`.
 
-        What was asked and answered, oldest first, with the tools each turn called
-        and what they returned - for making a skill of how something was done, or
-        picking up where a conversation left off. Another member's conversation is
-        not found. Guardrail-refused turns and quoted reply excerpts are omitted.
+        Another member's conversation is not found. Refused turns and quoted reply
+        excerpts are omitted. Follow next_skip; continue a long message with
+        limit=1, its message_index as skip and next_offset as content_offset.
+        Tool metadata has 20 calls per message; follow next_tool_skip.
+        Read one payload with read_conversation_tool_call, not the whole history.
         """
-        return await api.request(
-            "GET",
-            f"/conversations/{conversation_id}/transcript",
-            params={"limit": limit, "skip": skip, "for_model": True},
+        listing = _JSON_OBJECT.validate_python(
+            await api.request(
+                "GET",
+                f"/conversations/{conversation_id}/transcript",
+                params={"limit": limit, "skip": skip, "for_model": True},
+            )
+        )
+        return _bounded_mcp_discovery(
+            {
+                "conversation_id": str(conversation_id),
+                "cost": listing.get("cost"),
+                **_transcript_page(
+                    listing,
+                    skip=skip,
+                    limit=limit,
+                    content_offset=content_offset,
+                    content_chars=content_chars,
+                    tool_skip=tool_skip,
+                ),
+            }
+        )
+
+    async def read_conversation_tool_call(
+        conversation_id: UUID,
+        message_index: DiscoverySkip,
+        message_id: UUID,
+        tool_call_id: str,
+        field: Literal["args", "result"] = "result",
+        offset: DiscoverySkip = 0,
+        chars: TranscriptChars = 4000,
+    ) -> dict[str, JsonValue]:
+        """Read a bounded window of one tool payload in the asker's own chat. Needs `runs:view`.
+
+        Select message_index, message_id and tool_call_id from read_conversation.
+        Follow next_offset; result=null means it was not recorded. Arguments are
+        JSON text. The message id must still match the filtered page. This also
+        works for old messages without a run id, without widening chat access.
+        """
+        listing = _JSON_OBJECT.validate_python(
+            await api.request(
+                "GET",
+                f"/conversations/{conversation_id}/transcript",
+                params={"limit": 1, "skip": message_index, "for_model": True},
+            )
+        )
+        return _bounded_mcp_discovery(
+            {
+                "conversation_id": str(conversation_id),
+                **_recorded_tool_window(
+                    listing,
+                    message_id=message_id,
+                    tool_call_id=tool_call_id,
+                    field=field,
+                    offset=offset,
+                    chars=chars,
+                ),
+            }
         )
 
     async def test_my_connection(connection_id: UUID) -> dict[str, Any]:
@@ -4099,6 +4201,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (read_run_transcript, False),
         (read_run_tool_call, False),
         (read_conversation, False),
+        (read_conversation_tool_call, False),
         (list_conversations, False),
         (create_conversation, True),
         (update_proactivity_settings, True),

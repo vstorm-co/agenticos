@@ -2,7 +2,15 @@
 
 import { useId } from "react";
 import Link from "next/link";
-import { GitBranch, GitMerge, MoreHorizontal, Pencil, Sparkles, Trash2 } from "lucide-react";
+import {
+  ExternalLink,
+  GitBranch,
+  GitMerge,
+  MoreHorizontal,
+  Pencil,
+  Sparkles,
+  Trash2,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -48,6 +56,8 @@ export interface Merges {
 
 export function SkillPageHeader({
   skill,
+  inDialog = false,
+  fullViewHref,
   line,
   improveHref,
   merges = null,
@@ -58,6 +68,8 @@ export function SkillPageHeader({
   onDelete = null,
 }: {
   skill: Skill;
+  inDialog?: boolean;
+  fullViewHref?: string;
   /** The fork the page is showing, by name; null for main. */
   line: string | null;
   /** Where Improve opens the wizard for that line. */
@@ -90,7 +102,9 @@ export function SkillPageHeader({
       title={<span className="font-mono">{skill.name}</span>}
       description={skill.description}
       descriptionMode="summary"
-      breadcrumbs={[{ label: t("skills"), href: ROUTES.SKILLS }, { label: skill.name }]}
+      breadcrumbs={
+        inDialog ? undefined : [{ label: t("skills"), href: ROUTES.SKILLS }, { label: skill.name }]
+      }
       badges={
         <>
           <Badge variant="outline">{t("mainVersion", { number: skill.version })}</Badge>
@@ -101,6 +115,14 @@ export function SkillPageHeader({
       }
       actions={
         <>
+          {fullViewHref && (
+            <Button variant="outline" asChild>
+              <Link href={fullViewHref}>
+                <ExternalLink className="size-4" aria-hidden />
+                {t("openFullView")}
+              </Link>
+            </Button>
+          )}
           {merger && (
             <Button variant="outline" asChild data-tour="skill-improve">
               <Link href={improveHref}>

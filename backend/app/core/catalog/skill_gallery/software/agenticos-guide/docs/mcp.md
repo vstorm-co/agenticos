@@ -1187,17 +1187,18 @@ Connection checks update discovered tools and status. `test_my_connection` there
 | Tool | Needs |
 | --- | --- |
 | `whoami` | — |
-| `list_agents`, `get_agent`, `list_capabilities`, `list_models`, `search_mcp_servers` | `agents:view` |
+| `list_agents`, `get_agent`, `list_capabilities`, `get_capability`, `list_models`, `search_mcp_servers` | `agents:view` |
 | `create_agent_draft`, `update_agent_draft`, `test_agent_draft` | `agents:edit` |
 | `list_sandbox_connections`, `list_sandbox_runtimes`, `get_sandbox_policy` | `connections:view` |
 | `list_org_connections` | `mcp:manage` |
+| `list_mcp_connection_tools`, `get_mcp_connection_tool` | `mcp:manage` (organization); own personal connections (key: `agents:run`) |
 | `publish_agent` | `agents:publish` on that agent |
 | `discard_agent_draft` | `agents:edit`, on a draft you own that was never published |
 | `run_agent` | `agents:run` |
 | `list_routines` | `agents:view` |
 | `create_routine`, `run_routine_now` | `agents:run` on the agent |
 | `update_routine`, `delete_routine` | the routine's creator, or `agents:edit` on its agent |
-| `list_runs`, `get_run`, `read_conversation`, `list_conversations`, `get_spend` | `runs:view` |
+| `list_runs`, `get_run`, `read_run_transcript`, `read_run_tool_call`, `read_conversation`, `read_conversation_tool_call`, `list_conversations`, `get_spend` | `runs:view` |
 | `create_conversation` | `agents:run` |
 | `update_proactivity_settings` | `org:settings`, `budgets:manage` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |
@@ -1404,3 +1405,5 @@ For diagnostics, `list_runs` accepts status, surface, frozen version and timezon
 Its message indexes refer to that filtered transcript. It returns bounded text windows and tool-call metadata, not every argument and result. Follow `next_skip`, `next_offset` and `next_tool_skip`; use `limit=1` to continue a long message. `read_run_tool_call` reads a bounded window of one selected call's `args` or `result`, verifies the message id still matches the indexed page, and never executes it. An unavailable recorded result is null. No additional access to private conversations is granted.
 
 Named-agent Improve lookup checks every agent page before selecting a match or reporting ambiguity, rather than assuming the first 100 agents are the complete catalog.
+
+`read_conversation` uses the same bounded message and tool-metadata windows as run inspection, with 10 messages by default. `read_conversation_tool_call` reads a selected recorded payload, including older messages without run IDs, through the unchanged owner-scoped conversation API. Existing MCP consumers must follow the window continuations instead of expecting full tool results inline.

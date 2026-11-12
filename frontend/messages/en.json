@@ -7617,6 +7617,7 @@
       "perVersionCostPerRun": "per run",
       "perVersionLatency": "p95",
       "personColumn": "Person",
+      "askedByColumn": "Asked by",
       "personFilter": "Filter by person",
       "previousRun": "Previous run",
       "problemsOnly": "Problems",
@@ -7811,7 +7812,9 @@
       "runResumedInChat": "Run resumed. Its answer is also sent to the chat it was asked in.",
       "alreadyContinuing": "This run is already continuing in its chat.",
       "skillsUsed": "Skills used:",
-      "skillVersion": "{onFork, select, yes {{name} · {fork} v{version}} other {{name} · v{version}}}"
+      "skillVersion": "{onFork, select, yes {{name} · {fork} v{version}} other {{name} · v{version}}}",
+      "unverifiedSender": "Unverified",
+      "anonymousRequester": "Anonymous participant"
     },
     "sandboxes": {
       "addConnection": "Add connection",
@@ -9343,7 +9346,9 @@
           "forked": "Made a fork",
           "discarded": "Discarded"
         }
-      }
+      },
+      "skillDetails": "Skill details",
+      "openFullView": "Open full view"
     },
     "checkOnAgents": "Check on agents",
     "checkChangeTo": "Check the change to {name} on the agents that use it",
