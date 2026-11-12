@@ -16,6 +16,10 @@ from app.db.models.workflow_exposure import (
 # The advisory-lock namespace one webhook delivery id is serialized under, apart
 # from the admission locks' own (`workflow_run._ORG_ADMISSION_LOCK_NAMESPACE`).
 _DELIVERY_LOCK_NAMESPACE = 1792
+# Signed-copy locks get their own: a delivery id is the sender's to choose, so in a shared
+# namespace one could name another request's signed copy and the two would take each
+# other's locks in opposite order.
+_SIGNED_COPY_LOCK_NAMESPACE = 1793
 
 
 async def create(db: AsyncSession, **fields: Any) -> WorkflowExposure:
@@ -190,7 +194,7 @@ async def lock_signed_copy(db: AsyncSession, *, exposure_id: UUID, signed_digest
     await db.execute(
         select(
             func.pg_advisory_xact_lock(
-                _DELIVERY_LOCK_NAMESPACE, func.hashtext(f"{exposure_id}:signed:{signed_digest}")
+                _SIGNED_COPY_LOCK_NAMESPACE, func.hashtext(f"{exposure_id}:{signed_digest}")
             )
         )
     )

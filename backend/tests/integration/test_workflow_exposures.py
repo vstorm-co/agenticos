@@ -820,6 +820,30 @@ class TestWebhookDeliveries:
         assert sorted(answer.duplicate for answer in admitted) == [False, True, True, True]
         assert len({answer.run_id for answer in admitted}) == 1
 
+    @pytest.mark.security
+    async def test_a_delivery_id_cannot_name_another_requests_signed_copy_lock(
+        self, engine, db, tenant
+    ):
+        from app.repositories import workflow_exposure as workflow_exposure_repo
+
+        owner, org, workflow = tenant
+        exposure_id, _secret = await _webhook(db, _ctx(owner, org), workflow)
+        await db.commit()
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as copying, factory() as delivering:
+            await workflow_exposure_repo.lock_signed_copy(
+                copying, exposure_id=exposure_id, signed_digest="d" * 64
+            )
+            # The sender chooses its delivery id, so it may spell out the copy's key.
+            await asyncio.wait_for(
+                workflow_exposure_repo.lock_delivery(
+                    delivering, exposure_id=exposure_id, delivery_id=f"signed:{'d' * 64}"
+                ),
+                timeout=5,
+            )
+            await delivering.rollback()
+            await copying.rollback()
+
     async def test_githubs_own_headers_are_accepted(self, db, tenant):
         owner, org, workflow = tenant
         exposure_id, secret = await _webhook(db, _ctx(owner, org), workflow)
