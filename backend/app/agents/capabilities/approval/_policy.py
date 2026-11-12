@@ -86,10 +86,10 @@ def with_current_approvals(pinned: AgentSpec, current: AgentSpec) -> AgentSpec:
     A pinned version keeps how it behaves - instructions, tools, model, every
     other setting of each binding - while who must approve its tool calls is the
     agent's current decision. Taken per capability and per MCP server, matched on
-    what identifies them; one the current version no longer has keeps the only
-    statement there is, its own.
+    what identifies them; one the current version no longer has, or has switched
+    off, keeps the only statement there is, its own.
     """
-    bindings = {binding.id: binding for binding in current.capabilities}
+    bindings = {binding.id: binding for binding in current.capabilities if binding.enabled}
     capabilities = [
         binding
         if (now := bindings.get(binding.id)) is None

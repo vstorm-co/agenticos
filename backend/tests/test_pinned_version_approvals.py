@@ -179,6 +179,14 @@ class TestWhichApprovalsCarryOver:
 
         assert merged.capabilities[0].tool_approval == {"write_memory": "required"}
 
+    def test_a_capability_the_current_version_switched_off_keeps_its_own(self) -> None:
+        pinned = _memory(tool_approval={"write_memory": "required"})
+        current = _memory(enabled=False)
+
+        merged = with_current_approvals(pinned, current)
+
+        assert "write_memory" in approval_required_tools(merged)
+
     def test_mcp_approvals_follow_the_same_server(self) -> None:
         connection, other = uuid.uuid4(), uuid.uuid4()
         pinned = AgentSpec(
