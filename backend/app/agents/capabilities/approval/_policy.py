@@ -11,7 +11,14 @@ from pydantic import BaseModel
 
 from app.agents.capabilities import ApprovalDescriber, CapabilityDef, CapabilityToolInfo
 from app.agents.capabilities import get as get_capability
-from app.agents.spec import AgentSpec, CapabilityBindingSpec
+from app.agents.spec import (
+    AgentSpec,
+    CapabilityBindingSpec,
+    McpServerRef,
+    OrgMcpServerRef,
+    PersonalMcpServerRef,
+    PlatformMcpServerRef,
+)
 from app.core.exceptions import BadRequestError
 
 
@@ -71,6 +78,48 @@ def approval_required_tools(spec: AgentSpec) -> frozenset[str]:
             if tool_needs_approval(tool=tool, binding=binding)
         )
     return frozenset(required)
+
+
+def with_current_approvals(pinned: AgentSpec, current: AgentSpec) -> AgentSpec:
+    """`pinned` with the approval settings `current` states for the same tools.
+
+    A pinned version keeps how it behaves - instructions, tools, model, every
+    other setting of each binding - while who must approve its tool calls is the
+    agent's current decision. Taken per capability and per MCP server, matched on
+    what identifies them; one the current version no longer has keeps the only
+    statement there is, its own.
+    """
+    bindings = {binding.id: binding for binding in current.capabilities}
+    capabilities = [
+        binding
+        if (now := bindings.get(binding.id)) is None
+        else binding.model_copy(
+            update={"approval": now.approval, "tool_approval": dict(now.tool_approval)}
+        )
+        for binding in pinned.capabilities
+    ]
+    servers = {_server_key(ref): ref for ref in current.mcp_servers}
+    mcp_servers = [
+        ref
+        if (now := servers.get(_server_key(ref))) is None
+        else ref.model_copy(update=_server_approvals(now))
+        for ref in pinned.mcp_servers
+    ]
+    return pinned.model_copy(update={"capabilities": capabilities, "mcp_servers": mcp_servers})
+
+
+def _server_key(ref: McpServerRef) -> tuple[str, str]:
+    if isinstance(ref, OrgMcpServerRef):
+        return ref.account, str(ref.connection_id)
+    if isinstance(ref, PersonalMcpServerRef):
+        return ref.account, ref.catalog_key
+    return ref.account, ""
+
+
+def _server_approvals(ref: McpServerRef) -> dict[str, object]:
+    if isinstance(ref, PlatformMcpServerRef):
+        return {"approval": ref.approval}
+    return {"approval": ref.approval, "tool_approval": dict(ref.tool_approval)}
 
 
 def approval_describers(spec: AgentSpec) -> dict[str, ApprovalDescriber]:

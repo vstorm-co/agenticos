@@ -23,6 +23,7 @@ from app.agents.capabilities.approval._policy import (
     refuse_ungateable_approvals,
     tool_needs_approval,
     ungateable_tool_problems,
+    with_current_approvals,
 )
 
 __all__ = [
@@ -40,4 +41,5 @@ __all__ = [
     "refuse_ungateable_approvals",
     "tool_needs_approval",
     "ungateable_tool_problems",
+    "with_current_approvals",
 ]

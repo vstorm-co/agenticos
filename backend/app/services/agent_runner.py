@@ -129,6 +129,7 @@ from app.agents.capabilities.approval import (
     ApprovalPending,
     ApprovalRejected,
     ApprovalRequest,
+    with_current_approvals,
 )
 from app.agents.capabilities.browser_use import (
     BROWSER_CAPABILITY_ID,
@@ -4007,13 +4008,11 @@ class AgentRunnerService:
         if surface != RunSurface.EVAL:
             refuse_system_agent(agent, action=f"a {surface.value} run")
         system = agent.kind != AgentKind.AGENT.value
+        run_version_id = version_id if existing_run is None else existing_run.agent_version_id
+        spec = await self._with_current_approvals(agent, spec, version_id=run_version_id)
         if system:
             spec = for_the_platform(spec)
-        spec = await self._with_current_budget(
-            agent,
-            spec,
-            version_id=version_id if existing_run is None else existing_run.agent_version_id,
-        )
+        spec = await self._with_current_budget(agent, spec, version_id=run_version_id)
         routine = await RoutineAuthority.capture(
             self.db, ctx, agent_id=agent.id, run=existing_run, version_id=version_id
         )
@@ -8119,6 +8118,26 @@ class AgentRunnerService:
         if budget == spec.budget:
             return spec
         return spec.model_copy(update={"budget": budget})
+
+    async def _with_current_approvals(
+        self, agent: Agent, spec: AgentSpec, *, version_id: UUID | None
+    ) -> AgentSpec:
+        """`spec` under the tool approvals of the agent's current published version.
+
+        A pinned version - a routine's, an environment's, a workflow step's, a
+        parked run's - decides how the agent behaves, not who must approve what it
+        does. A draft under test (no version) and an agent never published keep
+        their own: there is no other statement to take.
+        """
+        current = agent.current_version_id
+        if current is None or version_id is None or current == version_id:
+            return spec
+        version = await agent_repo.get_version(
+            self.db, current, organization_id=agent.organization_id
+        )
+        if version is None:
+            return spec
+        return with_current_approvals(spec, AgentSpec.model_validate(version.spec))
 
     async def _parked_spec(self, ctx: AuthContext, run: AgentRun) -> tuple[Agent, AgentSpec]:
         """The agent and the exact spec version this run was executing.
