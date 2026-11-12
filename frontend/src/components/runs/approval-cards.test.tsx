@@ -291,3 +291,29 @@ describe("PendingApproval - a fact somebody's run would share", () => {
     ).toBeInTheDocument();
   });
 });
+
+it("offers only Reject on a call that always asks when the reader cannot see what it quotes", async () => {
+  const onDecide = vi.fn();
+  inIntl(
+    <PendingApproval
+      approval={approval({
+        tool_id: "share_memory",
+        capability_tool_id: "share_memory",
+        tool_args: { claim_id: "c-1", to: "organization" },
+        context: { audience: "organization" },
+        content_hidden: true,
+        always_asks: true,
+      })}
+      deciding={false}
+      onDecide={onDecide}
+      onOpenRun={vi.fn()}
+    />,
+  );
+
+  expect(screen.queryByRole("button", { name: /Approve/ })).toBeNull();
+  expect(
+    screen.getByText("Only somebody who can see the run can approve this. You can reject it."),
+  ).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: /Reject/ }));
+  expect(onDecide).toHaveBeenCalledWith(false);
+});

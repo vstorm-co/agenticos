@@ -1,5 +1,5 @@
 ---
-source_sha: "e6b780414766"
+source_sha: "48a83476e90c"
 ---
 
 # Governance { #governance }
@@ -81,6 +81,8 @@ Routinenläufe behalten die für diese Ausführung zugelassenen MCP-Konten und W
 Eine angehaltene Routine ohne diesen Zulassungsstand kann MCP-Aufrufe verwalteter Konten nicht fortsetzen. Starte nach Prüfung des Zugriffs einen neuen Lauf. Die Vorgaben interaktiver Agenten und ausdrückliche Bestätigungsrichtlinien bleiben unverändert; kontospezifische Freigabeausnahmen für Routinen sind von dieser Quellenprüfung getrennt.
 
 Die Versionsauswahl folgt entweder der standardmäßig veröffentlichten Version oder legt eine unveränderliche Version fest. Eine Veröffentlichung verschiebt diese Festlegung nicht. Entfernen Sie sie, um wieder der Standardversion zu folgen. Eine benannte Umgebung und eine festgelegte Version schließen sich aus; aktuelle Zugriffsrechte, Budgets und Freigaben gelten weiterhin.
+
+Eine festgelegte Version - die einer Routine, einer Umgebung, eines Workflow-Schritts, eines Delegierten oder eines geparkten Runs - behält ihre Anweisungen, Tools und ihr Modell, aber ihre Tool-Freigaben stammen aus der aktuellen veröffentlichten Version des Agents: Eine seitdem hinzugefügte Freigabepflicht gilt für sie, ebenso eine entfernte. Verlangt die aktuelle Version eine Freigabe für ein Tool, das die festgelegte Version dem Modellanbieter überlässt, wird die festgelegte Version bis zur erneuten Veröffentlichung abgelehnt.
 
 Im Routineformular können Sie das Ende festlegen oder entfernen. Das Datum verwendet die am Feld angezeigte Gerätezeitzone, unabhängig von der Cron-Zeitzone, und wird mit UTC-Offset an die API gesendet. Änderungen anderer Felder lassen das bestehende Ende unverändert.
 
@@ -1700,7 +1702,7 @@ Die Freigabekarte bietet auch **Dieses Tool in diesem Chat erlauben** und **Dies
 
 Die Auswahl wird auf dem Server gespeichert. **Chat controls → Preferences → Gespeicherte Tool-Freigaben → Erneut fragen** widerruft eine Zustimmung, ohne die ursprüngliche Entscheidung zu löschen. Vor jeder automatischen Freigabe werden Mitgliedschaft, Freigabeberechtigung und Organisationsrichtlinie erneut geprüft. Der Modus zum Nachfragen bei jeder Aktion hat Vorrang. Jede automatische Freigabe protokolliert weiterhin die zustimmende Person und die tatsächlichen Aufrufargumente.
 
-Die Freigabe-Warteschlange gehört der Organisation, aber manche Aufrufe zitieren, was die Person ihres Runs liest - den Fakt, den `share_memory` teilen würde. Dieses Zitat sieht nur, wer den Run sehen darf: die Person, für die er lief, oder ein Mitglied, das jeden Run liest und den Agent sehen darf. Alle anderen sehen das Tool, den Leserkreis und einen Hinweis, dass der Inhalt verborgen ist.
+Die Freigabe-Warteschlange gehört der Organisation, aber manche Aufrufe zitieren, was die Person ihres Runs liest - den Fakt, den `share_memory` teilen würde. Dieses Zitat sieht nur, wer den Run sehen darf: die Person, für die er lief, oder ein Mitglied, das jeden Run liest und den Agent sehen darf. Alle anderen sehen das Tool, den Leserkreis und einen Hinweis, dass der Inhalt verborgen ist. Einen Aufruf, der jedes Mal fragt, gibt nur frei, wer lesen kann, was er zitiert: Alle anderen können ihn ablehnen, und ihre Freigabe wird abgewiesen.
 
 Die Regel oben gehört dem Agent, wird beim Veröffentlichen und je Tool
 entschieden, und das ist der richtige Ort dafür: Sie ist eine Aussage darüber, was

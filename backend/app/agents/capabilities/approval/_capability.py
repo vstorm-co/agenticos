@@ -39,13 +39,14 @@ from app.agents.approval import (
     ApprovalPending,
     ApprovalRejected,
     ApprovalRequest,
+    has_recorded_decision,
     refusal,
 )
 from app.agents.capabilities._registry import (
     FRAMEWORK_TOOL_NAMES,
     LOAD_CAPABILITY,
     READ_SKILL,
-    ApprovalDescriber,
+    BoundDescriber,
 )
 from app.agents.code_checkpoint import CodeApprovalPause
 from app.agents.deps import AgentDeps
@@ -101,7 +102,7 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
     always_asking_tool_names: frozenset[str] = frozenset()
     # Effective tool name to the capability's describer for it, resolved from the
     # spec by `approval_describers` - a renamed tool keeps its describer.
-    describers: Mapping[str, ApprovalDescriber] = field(default_factory=dict)
+    describers: Mapping[str, BoundDescriber] = field(default_factory=dict)
     # Effective tool name to the stable id its capability declares it under, from
     # `approval_tool_ids`, so the request names the tool the way a surface words it.
     tool_ids: Mapping[str, str] = field(default_factory=dict)
@@ -137,7 +138,7 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
     async def _describe(
         ctx: RunContext[AgentDeps],
         tool_def: ToolDefinition,
-        describe: ApprovalDescriber,
+        describe: BoundDescriber,
         args: dict[str, Any],
     ) -> dict[str, str] | None:
         """The call's ids as names for the person deciding, or `None`.
@@ -193,9 +194,13 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
     ) -> Any:
         """Ask before executing, and execute only what was asked about."""
         capability_id = tool_def.capability_id
-        gated = self.gates(tool_def) or (
-            active_code.get() == call.tool_call_id
-            and ctx.deps.code_continuations.requires_approval(call.tool_call_id)
+        gated = (
+            has_recorded_decision(ctx.deps.request_approval, call.tool_call_id)
+            or self.gates(tool_def)
+            or (
+                active_code.get() == call.tool_call_id
+                and ctx.deps.code_continuations.requires_approval(call.tool_call_id)
+            )
         )
         try:
             routine = (

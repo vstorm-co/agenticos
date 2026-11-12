@@ -973,6 +973,56 @@ class TestWhatAQueueReaderMaySeeOfAFact:
 
         assert not row.content_hidden
 
+    async def _decide_as(self, db: AsyncSession, org, user: User, role: str, *, approved: bool):
+        ctx = AuthContext(user_id=user.id, organization_id=org.id, role=role)
+        [row], _ = await ApprovalService(db).list_approvals(ctx)
+        with patch("app.services.approvals.spawn_after_commit") as spawn:
+            spawn.side_effect = lambda _, coroutine, **kwargs: coroutine.close()
+            return await ApprovalService(db).decide(ctx, row.id, approved=approved)
+
+    async def test_a_reader_who_cannot_see_the_fact_may_not_approve_sharing_it(self, db) -> None:
+        from app.core.exceptions import AuthorizationError
+
+        org, _, _, reader = await self._parked_share(db)
+
+        with pytest.raises(AuthorizationError, match="may approve it; you may reject it"):
+            await self._decide_as(db, org, reader, OrgRoleName.MEMBER, approved=True)
+
+    async def test_they_may_still_reject_it(self, db) -> None:
+        org, _, _, reader = await self._parked_share(db)
+
+        decided = await self._decide_as(db, org, reader, OrgRoleName.MEMBER, approved=False)
+
+        assert decided.status == ApprovalStatus.REJECTED.value
+
+    async def test_the_person_who_asked_may_approve_it(self, db) -> None:
+        org, _, asker, _ = await self._parked_share(db)
+
+        decided = await self._decide_as(db, org, asker, OrgRoleName.MEMBER, approved=True)
+
+        assert decided.status == ApprovalStatus.APPROVED.value
+
+    async def test_the_queue_says_the_call_always_asks(self, db) -> None:
+        org, owner, _, _ = await self._parked_share(db)
+
+        assert (await self._read_as(db, org, owner, OrgRoleName.OWNER)).always_asks
+
+    async def test_the_run_s_parked_calls_hide_the_fact_from_the_same_reader(self, db) -> None:
+        org, _, asker, reader = await self._parked_share(db)
+        [run] = (await db.scalars(select(AgentRun).where(AgentRun.organization_id == org.id))).all()
+        runner = AgentRunnerService(db)
+
+        [hidden] = await runner.parked_calls(
+            AuthContext(user_id=reader.id, organization_id=org.id, role=OrgRoleName.MEMBER), run
+        )
+        [shown] = await runner.parked_calls(
+            AuthContext(user_id=asker.id, organization_id=org.id, role=OrgRoleName.MEMBER), run
+        )
+
+        assert hidden.content_hidden and hidden.context == {"audience": "organization"}
+        assert not shown.content_hidden
+        assert shown.context is not None and "claim" in shown.context
+
 
 class TestARememberedChoiceOnRunsAsTheyAreWritten:
     """Runs made by `create_run`, as every surface makes them, not by hand.

@@ -60,6 +60,8 @@ An ordinary API key cannot authorize a routine to use its issuer's personal acco
 
 Use the version policy to follow the default published version or pin one immutable version. A pin does not move on publication. Clear it to follow again. A named environment and a version pin are mutually exclusive; current access, budgets and approvals still apply.
 
+A pinned version - a routine's, an environment's, a workflow step's, a delegate's, or a parked run's - keeps its instructions, tools and model, but its tool approvals come from the agent's current published version: a gate added since applies to it, and so does a gate removed. If the current version gates a tool that the pinned version hands to the model provider, the pinned version is refused until it is republished.
+
 The routine form can set or clear its end. The date uses the device time zone shown beside the field, independently of the cron schedule zone, and is sent to the API as an offset-aware instant. Editing another field leaves the existing end unchanged.
 
 A routine rechecks its creator, active membership, role and run grants before each tool, including delegates and calls released after approval. Pausing, deleting or expiring the routine, withdrawing personal consent, or changing that authority refuses subsequent tools. An effect already sent to an external service cannot be recalled by this check. Migration `0260_routine_run_origin` retains the origin when the routine is deleted; an old parked schedule whose origin was already lost is refused rather than borrowing the approver’s authority.
@@ -1500,7 +1502,7 @@ The approval card also offers **Allow this tool in this chat** and **Always allo
 
 Remembered choices are stored on the server. **Chat controls → Preferences → Remembered tool approvals → Ask again** withdraws one without erasing the original approval. Current membership, approval permission and organization policy are checked again before each remembered grant. **Ask about everything** overrides remembered choices. Each automatic grant still records who consented and the actual call arguments.
 
-The approvals queue is the organization's, but some calls quote what their run's person reads - the fact `share_memory` would share. That quote reaches only somebody who may see the run: the person it ran for, or a member who reads every run and may view the agent. Everyone else sees the tool and the audience, and a note that the content is hidden.
+The approvals queue is the organization's, but some calls quote what their run's person reads - the fact `share_memory` would share. That quote reaches only somebody who may see the run: the person it ran for, or a member who reads every run and may view the agent. Everyone else sees the tool and the audience, and a note that the content is hidden. A call that asks every time is approved only by somebody who can read what it quotes: anyone else may reject it, and an approval from them is refused.
 
 The rule above is the agent's, decided at publish time and per tool, and that is
 the right place for it: it is a statement about what the agent _is_. What it

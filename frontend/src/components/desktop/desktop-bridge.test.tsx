@@ -197,6 +197,22 @@ describe("DesktopBridge", () => {
     );
   });
 
+  it.each([
+    ["it cannot read", true],
+    ["it can read", false],
+  ])("offers no decision on a notification for an always-asking call %s", (_, hidden) => {
+    env.approvals = [];
+    const view = mount();
+    env.approvals = [approval("asks", { always_asks: true, content_hidden: hidden })];
+    view.again();
+    expect(env.notify).toHaveBeenCalledWith({
+      kind: "inbox",
+      title: "Support wants to run send_email",
+      body: "to: a@b.c",
+      path: "/runs?tab=approvals",
+    });
+  });
+
   it("watches no queue for somebody who may not decide", () => {
     env.can = false;
     env.approvals = [approval("a")];

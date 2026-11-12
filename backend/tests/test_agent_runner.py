@@ -172,6 +172,16 @@ def _no_current_cap(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
+@pytest.fixture(autouse=True)
+def _no_current_version_to_read(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No current version to take approvals from; `test_pinned_version_approvals` covers one."""
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        "app.services.agent_runner.agent_repo.get_version", AsyncMock(return_value=None)
+    )
+
+
 _THE_ASKER = uuid.uuid4()
 """The person a parked run was answering, told apart from whoever approves it."""
 
