@@ -10314,7 +10314,7 @@
       },
       "connection_id": {
         "title": "Połączenie sandbox",
-        "description": "Na którym zarejestrowanym połączeniu sandbox działać; puste bierze domyślne połączenie organizacji. Id, nigdy adres ani token - spec jest eksportowany do repozytorium git klienta, więc może zawierać tylko odnośnik. Połączenie decyduje, czy to kontener na twoim hoście, czy sandbox w chmurze Daytona."
+        "description": "Które zarejestrowane połączenie sandboxa ma obsłużyć pracę; puste wybiera domyślne połączenie organizacji. To identyfikator, nigdy adres ani token — spec trafia do repozytorium klienta i może zawierać tylko odwołanie. Połączenie wybiera kontener na własnym hoście albo sandbox u dostawcy chmurowego lub na serwerze OpenSandbox."
       },
       "session_scope": {
         "title": "Kto dzieli workspace",
@@ -10322,7 +10322,7 @@
       },
       "runtime": {
         "title": "Środowisko",
-        "description": "Które środowisko uruchamia workspace w kontenerze, z listy dopuszczonej przez usługę połączenia. Puste bierze domyślne środowisko połączenia. Alias, nigdy obraz."
+        "description": "Opcjonalne środowisko dostawcy, do 64 znaków: alias sandboxd, szablon E2B, snapshot Daytona lub obraz OpenSandbox. Puste używa wartości domyślnej połączenia; dłuższe odwołania do obrazów OpenSandbox ustaw na połączeniu."
       },
       "include_execute": {
         "title": "Pozwól na polecenia powłoki",

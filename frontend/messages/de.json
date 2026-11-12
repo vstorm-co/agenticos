@@ -13161,7 +13161,7 @@
       },
       "connection_id": {
         "title": "Sandbox-Verbindung",
-        "description": "Auf welcher registrierten Sandbox-Verbindung ausgeführt wird; leer nimmt die Standardverbindung der Organisation. Eine ID, nie eine Adresse oder ein Token - eine Spec wird in das Git-Repository eines Kunden exportiert und darf daher nur einen Verweis enthalten. Die Verbindung entscheidet, ob das ein Container auf deinem Host oder eine Sandbox in der Daytona-Cloud ist."
+        "description": "Welche registrierte Sandbox-Verbindung verwendet wird; leer wählt den Standard der Organisation. Eine ID, niemals eine Adresse oder ein Token — die Spezifikation wird in das Repository des Kunden exportiert und darf nur eine Referenz enthalten. Die Verbindung wählt einen Container auf dem eigenen Host oder eine Sandbox bei einem Cloud-Anbieter oder OpenSandbox-Server."
       },
       "session_scope": {
         "title": "Wer den Workspace teilt",
@@ -13169,7 +13169,7 @@
       },
       "runtime": {
         "title": "Laufzeitumgebung",
-        "description": "Welche Umgebung ein containerbasierter Workspace ausführt, aus der Liste, die der Dienst der Verbindung erlaubt. Leer nimmt die Standardumgebung der Verbindung. Ein Alias, nie ein Image."
+        "description": "Optionale anbieterspezifische Laufzeit, bis zu 64 Zeichen: sandboxd-Alias, E2B-Vorlage, Daytona-Snapshot oder OpenSandbox-Image. Leer verwendet den Verbindungsstandard; längere OpenSandbox-Image-Referenzen werden an der Verbindung konfiguriert."
       },
       "include_execute": {
         "title": "Shell-Befehle erlauben",

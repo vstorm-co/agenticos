@@ -5280,7 +5280,7 @@
       },
       "connection_id": {
         "title": "Sandbox bağlantısı",
-        "description": "Kullanılacak kayıtlı sandbox bağlantısı; boşsa kuruluşun varsayılanı alınır. Adres veya token değil, yalnızca bir id: spec müşterinin git repository'sine aktarılabileceğinden sadece referans taşıyabilir. Bağlantı, çalıştırdığınız host'taki container'ı mı yoksa Daytona cloud'daki sandbox'ı mı kullanacağını belirler."
+        "description": "Kullanılacak kayıtlı sandbox bağlantısı; boş bırakılırsa kuruluşun varsayılanı seçilir. Bir kimliktir, asla adres veya token değildir — belirtim müşterinin deposuna aktarılır ve yalnızca bir referans içerebilir. Bağlantı, kendi sunucunuzdaki bir konteyneri, bulut sağlayıcısındaki sandboxı veya OpenSandbox sunucusunu belirler."
       },
       "session_scope": {
         "title": "Workspace'i kimlerle paylaş",
@@ -5288,7 +5288,7 @@
       },
       "runtime": {
         "title": "Runtime",
-        "description": "Container tabanlı workspace'in hangi ortamda çalışacağı; bağlantının service'inin izin verdiği listeden seçilir. Boşsa bağlantının varsayılanı kullanılır. Image değil, alias girin."
+        "description": "En fazla 64 karakterlik isteğe bağlı sağlayıcı çalışma ortamı: sandboxd takma adı, E2B şablonu, Daytona anlık görüntüsü veya OpenSandbox imajı. Boşsa bağlantının varsayılanı kullanılır; daha uzun OpenSandbox imaj referanslarını bağlantıda yapılandırın."
       },
       "include_execute": {
         "title": "Shell komutlarına izin ver",

@@ -446,8 +446,6 @@ class TableOperations(Operations):
             InvalidSchemaError: A value does not read as its column's new type, or
                 text holds more distinct values than a choice column can have.
         """
-        if not retyped:
-            return columns
         before = {column.id: column for column in previous}
         result = list(columns)
         rewrites: list[tuple[UUID, list[tuple[UUID, CellValue]], dict[UUID, CellValue]]] = []

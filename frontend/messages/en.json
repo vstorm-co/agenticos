@@ -13475,7 +13475,7 @@
       },
       "connection_id": {
         "title": "Sandbox connection",
-        "description": "Which registered sandbox connection to run on; empty takes the organization's default. An id, never an address or a token - a spec is exported to a client's git repository, so the only thing it may carry is a reference. The connection decides whether that is a container on a host you run or a sandbox in Daytona's cloud."
+        "description": "Which registered sandbox connection to run on; empty takes the organization's default. An id, never an address or a token - a spec is exported to a client's git repository, so the only thing it may carry is a reference. The connection decides whether that is a container on a host you run or a sandbox on a cloud provider or OpenSandbox server."
       },
       "session_scope": {
         "title": "Who shares the workspace",
@@ -13483,7 +13483,7 @@
       },
       "runtime": {
         "title": "Runtime",
-        "description": "Which environment a container-backed workspace runs, named from the list the connection's service allows. Empty takes the connection's default. An alias, never an image."
+        "description": "Optional provider-specific runtime override, up to 64 characters: a sandboxd alias, E2B template, Daytona snapshot or OpenSandbox image. Empty uses the connection's default; configure longer OpenSandbox image references on the connection."
       },
       "include_execute": {
         "title": "Allow shell commands",
