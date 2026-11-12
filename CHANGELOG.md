@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.69.0] - 2026-11-12
+
 ### Added
 
 - **OpenSandbox connections.** Connect an organization’s vault API key, server URL and image to the existing workspace file and shell tools. Docker and Kubernetes servers are supported; optional Secure Access requires the Kubernetes gateway and applies to new workspaces. Explicit tests create and remove a disposable sandbox. Missing workspaces are refused without silently replacing their files; cleanup uses the durable queue. Docker lifecycle and persistence are verified; live Kubernetes remains unverified.
@@ -21463,7 +21465,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.68.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.69.0...HEAD
+[1.69.0]: https://github.com/vstorm-co/agenticos/compare/v1.68.0...v1.69.0
 [1.68.0]: https://github.com/vstorm-co/agenticos/compare/v1.67.0...v1.68.0
 [1.67.0]: https://github.com/vstorm-co/agenticos/compare/v1.66.0...v1.67.0
 [1.66.0]: https://github.com/vstorm-co/agenticos/compare/v1.65.1...v1.66.0
