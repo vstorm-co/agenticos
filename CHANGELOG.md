@@ -27,6 +27,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Bootstrap honors the requested organization and validates its name before converting a new owner’s personal organization. Setup diagnostics explain vault fallback and publish refusals; demo seeds create their missing agents.
+- Docker console deployments accept a session cookie namespace, and table record validation explains that values are keyed by column IDs.
+
 - Browser Back closes an optimistic URL overlay even when the router has not yet rendered its open state, fixing the intermittent mobile Improve dialog failure.
 
 - Tools that require a decision for every call cannot use standing consent. Private memory approval content is withheld from unauthorized readers, and sharing is decided only where its full approval card can be read.

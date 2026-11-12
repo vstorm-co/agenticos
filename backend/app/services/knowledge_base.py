@@ -168,22 +168,27 @@ class KnowledgeBaseService:
         )
         if in_group is not None:
             items = [kb for kb in items if kb.id in set(in_group)]
-        counts = await self.counts_for(items)
-        used = await agents_using(
-            self.db, ctx, field="collection_ids", resource_ids=[kb.id for kb in items]
-        )
-        groups = await groups_sharing(
-            self.db, ctx, resource_type=COLLECTION, resource_ids=[kb.id for kb in items]
-        )
-        return KnowledgeBaseList(
-            items=[
-                _with_counts(kb, counts.get(kb.id)).model_copy(
-                    update={"used_by": used[kb.id], "shared_groups": groups[kb.id]}
-                )
-                for kb in items
-            ],
-            total=len(items),
-        )
+        described = await self._with_contents(items, ctx=ctx)
+        return KnowledgeBaseList(items=described, total=len(described))
+
+    async def _with_contents(
+        self, bases: list[KnowledgeBase], *, ctx: AuthContext
+    ) -> list[KnowledgeBaseRead]:
+        """Each base with what it holds, the agents using it and the groups it is shared with.
+
+        The listing and a single base's detail both read through here, so the two
+        cannot report different counts or users for the same base.
+        """
+        counts = await self.counts_for(bases)
+        ids = [kb.id for kb in bases]
+        used = await agents_using(self.db, ctx, field="collection_ids", resource_ids=ids)
+        groups = await groups_sharing(self.db, ctx, resource_type=COLLECTION, resource_ids=ids)
+        return [
+            _with_counts(kb, counts.get(kb.id)).model_copy(
+                update={"used_by": used[kb.id], "shared_groups": groups[kb.id]}
+            )
+            for kb in bases
+        ]
 
     async def list_accessible(
         self, ctx: AuthContext, *, shared_with_me: bool = False
@@ -555,16 +560,10 @@ class KnowledgeBaseService:
         return kb
 
     async def describe(self, kb: KnowledgeBase, *, ctx: AuthContext) -> KnowledgeBaseDetailRead:
-        """Describe an authorized base with its contents, usage and effective write access."""
-        counts = await self.counts_for([kb])
-        used = await agents_using(self.db, ctx, field="collection_ids", resource_ids=[kb.id])
-        groups = await groups_sharing(self.db, ctx, resource_type=COLLECTION, resource_ids=[kb.id])
-        read = _with_counts(kb, counts.get(kb.id))
+        """Serialize an authorized row as the listing does, with the write decision used by mutations."""
+        (read,) = await self._with_contents([kb], ctx=ctx)
         return KnowledgeBaseDetailRead(
-            **read.model_dump(exclude={"used_by", "shared_groups"}),
-            used_by=used[kb.id],
-            shared_groups=groups[kb.id],
-            can_edit=await writable_kb(self.db, ctx, kb),
+            **read.model_dump(), can_edit=await writable_kb(self.db, ctx, kb)
         )
 
     async def get_for_write(self, kb_id: UUID, *, ctx: AuthContext) -> KnowledgeBase:
