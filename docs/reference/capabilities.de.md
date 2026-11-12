@@ -1,5 +1,5 @@
 ---
-source_sha: "f04913a87750"
+source_sha: "a39ce766005e"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -475,9 +475,10 @@ Agent falsch machen könnte.
   Bearbeiten geteilt ist -, gibt es keinen persönlichen Speicher. Der Agent
   zeigt dort nicht, ruft nicht ab und speichert nicht, was er über die Person
   weiß; die Claims des Projekts und der Organisation liest er weiterhin. Wer
-  einen Chat teilt, zeigt seinen Verlauf, auch Antworten aus der Zeit, als er
-  privat war; ab dem Teilen nutzen weitere Antworten kein persönliches
-  Gedächtnis.
+  einen Chat zum Bearbeiten teilt oder in ein Projekt verschiebt, zeigt seinen
+  Verlauf, auch Antworten aus der Zeit, als er privat war; ab diesem Moment
+  nutzen weitere Antworten kein persönliches Gedächtnis. Ein nur zum Lesen
+  geteilter Chat zeigt jede Antwort, auch spätere mit persönlichem Gedächtnis.
 - Bei einem Zeitplan oder einem Ereignis-Trigger gibt es ebenfalls keinen
   Speicher, obwohl der Run als Ersteller des Triggers ausgeführt wird. Der
   Ersteller leiht dem Run seine Befugnisse, nicht seine Identität, also hört

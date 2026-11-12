@@ -429,9 +429,10 @@ there is nothing for the agent to get wrong.
 - In a chat other people read - a project's, or one shared with somebody to
   edit - there is no personal store. The agent neither shows, recalls nor saves
   what it knows about the person there; it still reads the project's and the
-  organization's claims. Sharing a chat shows its history, answers written while
-  it was private included; from the moment it is shared, later answers use no
-  personal memory.
+  organization's claims. Sharing a chat to edit, or moving it into a project,
+  shows its history, answers written while it was private included; from that
+  moment, later answers use no personal memory. A chat shared only to view
+  shows every answer, later ones written with personal memory included.
 - On a schedule or an event trigger there is no store either, even though the
   run executes as the trigger's creator. The creator lends the run their
   authority, not their identity, so nobody is listening and the tools refuse.

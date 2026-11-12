@@ -1,5 +1,5 @@
 ---
-source_sha: "f04913a87750"
+source_sha: "a39ce766005e"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -454,9 +454,11 @@ wynika po stronie serwera z tego, kto usłyszy odpowiedź, a nigdy z modelu — 
 - W czacie, który czytają inni - czacie projektu albo udostępnionym komuś do
   edycji - nie ma magazynu osobistego. Agent nie pokazuje, nie przywołuje i nie
   zapisuje tam tego, co wie o osobie; nadal czyta claimy projektu i
-  organizacji. Udostępnienie czatu pokazuje jego historię, łącznie z
-  odpowiedziami napisanymi, gdy był prywatny; od chwili udostępnienia kolejne
-  odpowiedzi nie korzystają z pamięci osobistej.
+  organizacji. Udostępnienie czatu do edycji albo przeniesienie go do projektu
+  pokazuje jego historię, łącznie z odpowiedziami napisanymi, gdy był prywatny;
+  od tej chwili kolejne odpowiedzi nie korzystają z pamięci osobistej. Czat
+  udostępniony tylko do odczytu pokazuje każdą odpowiedź, także późniejsze
+  napisane z pamięcią osobistą.
 - W harmonogramie albo przy triggerze zdarzenia też nie ma magazynu, chociaż run
   wykonuje się jako twórca triggera. Twórca pożycza runowi swoje uprawnienia, a
   nie tożsamość, więc nikt nie słucha i narzędzia odmawiają. Fakt potrzebny
