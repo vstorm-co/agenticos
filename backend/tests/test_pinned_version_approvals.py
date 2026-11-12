@@ -20,7 +20,7 @@ from app.agents.spec import AgentSpec
 from app.core.permissions import AuthContext, OrgRoleName
 from app.services.agent_runner import AgentRunnerService
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 MEMORY = "memory_files"
 
