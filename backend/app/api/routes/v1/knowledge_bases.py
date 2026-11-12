@@ -47,7 +47,10 @@ from app.schemas.sync_source import (
     SyncSourceRead,
     SyncSourceUpdate,
 )
+from app.services.access import COLLECTION
 from app.services.ingestion_config import parse_override
+from app.services.knowledge_base import _with_counts
+from app.services.resource_usage import agents_using, groups_sharing
 
 router = APIRouter(dependencies=[PUBLIC])
 
@@ -105,7 +108,17 @@ async def get_knowledge_base(
     ctx: Auth,
 ) -> Any:
     """Get a Knowledge Base by ID."""
-    return await service.get(kb_id, ctx=ctx)
+    kb = await service.get(kb_id, ctx=ctx)
+    counts = await service.counts_for([kb])
+    used = await agents_using(
+        service.db, ctx, field="collection_ids", resource_ids=[kb.id]
+    )
+    groups = await groups_sharing(
+        service.db, ctx, resource_type=COLLECTION, resource_ids=[kb.id]
+    )
+    return _with_counts(kb, counts.get(kb.id)).model_copy(
+        update={"used_by": used[kb.id], "shared_groups": groups[kb.id]}
+    )
 
 
 @router.patch("/{kb_id}", response_model=KnowledgeBaseRead)
