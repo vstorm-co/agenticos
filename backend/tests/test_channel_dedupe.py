@@ -282,11 +282,27 @@ async def test_only_one_concurrent_edit_can_start_work(fake_redis: _FakeRedis) -
 
 async def test_ignored_post_tracking_is_platform_scoped_and_best_effort() -> None:
     dedupe.configure(None)
-    await dedupe.remember_unaddressed(_message(platform="mattermost"))
+    await dedupe.remember_unaddressed(_message(platform="mattermost", dedupe_claimed=True))
     redis = _FakeRedis()
     dedupe.configure(cast(RedisClient, redis))
     await dedupe.remember_unaddressed(_message())
     await dedupe.remember_unaddressed(_message(platform="mattermost", message_id=None))
     assert redis.store == {}
     dedupe.configure(cast(RedisClient, _BrokenRedis()))
-    await dedupe.remember_unaddressed(_message(platform="mattermost"))
+    await dedupe.remember_unaddressed(_message(platform="mattermost", dedupe_claimed=True))
+
+
+@pytest.mark.security
+async def test_a_fail_open_original_cannot_become_an_edit_candidate() -> None:
+    original = _message(platform="mattermost")
+    dedupe.configure(None)
+    assert await dedupe.claim_delivery(original) is True
+    assert original.dedupe_claimed is False
+    redis = _FakeRedis()
+    dedupe.configure(cast(RedisClient, redis))
+    await dedupe.remember_unaddressed(original)
+    assert redis.store == {}
+    assert (
+        await dedupe.claim_delivery(_message(platform="mattermost", raw={"event": "post_edited"}))
+        is False
+    )

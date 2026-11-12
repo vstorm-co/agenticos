@@ -69,7 +69,12 @@ def _is_edited_mention(incoming: IncomingMessage) -> bool:
 
 async def remember_unaddressed(incoming: IncomingMessage) -> None:
     """Retain a short-lived edit candidate only for an observed, ignored post."""
-    if incoming.platform != "mattermost" or incoming.message_id is None or _redis is None:
+    if (
+        incoming.platform != "mattermost"
+        or incoming.message_id is None
+        or _redis is None
+        or not incoming.dedupe_claimed
+    ):
         return
     try:
         await _redis.set(_key(incoming), "ignored", ttl=SEEN_TTL_SECONDS)
@@ -90,6 +95,7 @@ async def claim_delivery(incoming: IncomingMessage) -> bool:
     mentions are admitted only with a shared receipt for an ignored original;
     they fail closed so an edit cannot replay a previously handled action.
     """
+    incoming.dedupe_claimed = False
     if _is_edited_mention(incoming):
         # An edit may start work only for a post we observed and ignored. A
         # separate NX claim serializes edits without deleting the original's
@@ -121,10 +127,12 @@ async def claim_delivery(incoming: IncomingMessage) -> bool:
         )
         return True
     try:
-        return await _redis.set(_key(incoming), "1", ttl=SEEN_TTL_SECONDS, nx=True)
+        claimed = await _redis.set(_key(incoming), "1", ttl=SEEN_TTL_SECONDS, nx=True)
     except Exception:
         logger.warning("channel_dedupe_redis_unavailable", exc_info=True)
         return True
+    incoming.dedupe_claimed = claimed
+    return claimed
 
 
 async def release_delivery(incoming: IncomingMessage) -> None:
