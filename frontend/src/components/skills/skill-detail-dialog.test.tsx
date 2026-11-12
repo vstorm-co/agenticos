@@ -64,5 +64,6 @@ describe("skill editor loading", () => {
     for (const token of [...DIALOG_CANVAS.split(" "), ...DIALOG_FILL.split(" ")])
       expect(editor).toHaveClass(token);
     expect(screen.getByRole("button", { name: "Save" })).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Open full view" }));
   });
 });

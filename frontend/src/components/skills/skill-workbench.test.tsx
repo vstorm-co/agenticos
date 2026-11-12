@@ -246,6 +246,8 @@ describe("the skill's files", () => {
     await userEvent.click(screen.getByRole("button", { name: "workflows.md" }));
 
     expect(screen.getByRole("treeitem", { selected: true })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "workflows.md" }));
+    expect(useUnsavedChangesStore.getState().prompt).toBeNull();
     expect(screen.getByLabelText("references/workflows.md source")).toHaveValue(
       "1. Ask. 2. Escalate.",
     );
@@ -485,4 +487,27 @@ it("places full view beside sharing in the bottom action group", async () => {
   expect(open).toHaveBeenCalledOnce();
   update({ isSaving: true });
   expect(button).toBeDisabled();
+});
+
+it("retains the skill draft after a refused navigation save", async () => {
+  renderWorkbench({ onSave: vi.fn().mockRejectedValue(new Error("Refused")) });
+  await userEvent.type(description(), " Changed");
+  const proceed = vi.fn();
+  act(() => useUnsavedChangesStore.getState().leave(proceed));
+  await act(() => useUnsavedChangesStore.getState().answer("save"));
+  expect(proceed).not.toHaveBeenCalled();
+  expect(description()).toHaveValue(`${SKILL.description} Changed`);
+});
+
+it("discards all skill metadata and instructions before leaving", async () => {
+  const { onSave } = renderWorkbench();
+  await userEvent.type(description(), " Changed");
+  await userEvent.type(await content(), " Changed");
+  const proceed = vi.fn();
+  act(() => useUnsavedChangesStore.getState().leave(proceed));
+  await act(() => useUnsavedChangesStore.getState().answer("discard"));
+  expect(proceed).toHaveBeenCalledOnce();
+  expect(description()).toHaveValue(SKILL.description);
+  expect(await content()).toHaveValue(SKILL.content);
+  expect(onSave).not.toHaveBeenCalled();
 });

@@ -1,5 +1,5 @@
 ---
-source_sha: "31ca365b2796"
+source_sha: "1b6fafac402e"
 ---
 
 # La consola { #the-console }
@@ -112,7 +112,7 @@ Los agentes predeterminados terminan una solicitud puntual sin mantener abierta 
 
 El botón compacto bajo una respuesta abre Sources junto a la conversación y ocupa todo el ancho en el móvil. Files y Sources comparten el área lateral: abrir uno sustituye al otro. Las fuentes web muestran el favicon del sitio, solicitado sin Referer, o un logotipo conocido; aparece un globo si el icono no está disponible. Las fuentes de conocimiento conservan sus iconos de archivo y el visor del documento original.
 
-Los enlaces web de las respuestas usan la misma política de favicon, sin depender de conexiones MCP. Para sitios desconocidos solo se solicita `/favicon.ico` de su origen; si falta, aparece un globo. Las vistas inertes de transcripciones tampoco cargan iconos de sitios desconocidos.
+Los enlaces web de las respuestas usan la misma política de favicon, sin depender de conexiones MCP. Los iconos de sitios desconocidos pasan por el proxy del mismo origen de la consola y el servicio fijo de iconos de DuckDuckGo. Este solo recibe el nombre de host, nunca las cookies o la dirección IP del lector, la ruta ni los parámetros de URL. El proxy rechaza redirecciones, contenido no rasterizado e iconos de más de 64 KiB; el tiempo límite es de tres segundos. Si falta el icono o no está disponible, aparece un globo. Las vistas inertes de transcripciones no cargan imágenes remotas ni iconos de sitios desconocidos.
 
 Una ejecución fallida muestra el error separado de la respuesta y fuera de las herramientas plegadas, incluso después de recargar la conversación. El filtro de contenido del proveedor tiene una explicación explícita; las respuestas originales del proveedor y los errores históricos desconocidos no se copian a transcripciones compartidas. El trabajo parcial sigue disponible y no se presenta como terminado.
 

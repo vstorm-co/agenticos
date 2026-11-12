@@ -104,7 +104,7 @@ Default agents finish a one-off request without holding the answer open for an o
 
 The compact source button below an answer opens Sources beside the conversation, with a full-width panel on phones. Files and Sources share the side space: opening one replaces the other. Web sources use the site favicon, requested without a referrer, or a known service logo; a globe remains when the icon is unavailable. Knowledge-base sources retain their file marks and original-document viewer.
 
-Inline web links use the same favicon policy independently of MCP connections. Unknown sites request only their origin’s `/favicon.ico`; missing icons fall back to a globe. Inert transcript views keep remote images and unknown-site icons unloaded.
+Inline web links use the same favicon policy independently of MCP connections. Unknown-site icons pass through the console's same-origin proxy and DuckDuckGo's fixed icon service. Only the hostname is sent to that service, never the reader's cookies, IP address, URL path or query. The proxy refuses redirects, non-raster content and icons over 64 KiB, and times out after three seconds. Missing or unavailable icons fall back to a globe. Inert transcript views keep remote images and unknown-site icons unloaded.
 
 A failed chat run shows its failure separately from the assistant’s answer, outside folded tool work, including after reloading the conversation. A provider content filter is identified explicitly; raw provider responses and unknown historical error strings are not copied into shared transcripts. Partial work remains available, and failed work is not labelled as completed.
 

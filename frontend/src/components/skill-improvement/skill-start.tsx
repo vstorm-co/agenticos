@@ -87,19 +87,19 @@ export function SkillStart({
 
   async function begin() {
     if (
-      start.isPending ||
-      !quote?.affordable ||
-      quote.reason !== null ||
-      !(typed > 0) ||
-      belowEstimate
-    )
-      return;
-    setRefusal(null);
-    try {
-      const session = await start.mutateAsync(limitValue(limit));
-      router.push(`${ROUTES.SKILL_DETAIL(skillId)}/improve/${session.id}`);
-    } catch (failure) {
-      setRefusal(getErrorMessage(failure, tErrors));
+      !start.isPending &&
+      quote?.affordable &&
+      quote.reason === null &&
+      typed > 0 &&
+      !belowEstimate
+    ) {
+      setRefusal(null);
+      try {
+        const session = await start.mutateAsync(limitValue(limit));
+        router.push(`${ROUTES.SKILL_DETAIL(skillId)}/improve/${session.id}`);
+      } catch (failure) {
+        setRefusal(getErrorMessage(failure, tErrors));
+      }
     }
   }
   if (quote.reason === "no_evidence")

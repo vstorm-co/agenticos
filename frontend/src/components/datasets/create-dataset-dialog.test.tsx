@@ -57,6 +57,10 @@ describe("CreateDatasetDialog", () => {
     expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
     await userEvent.keyboard("{Escape}");
     expect(onOpenChange).not.toHaveBeenCalled();
+    const proceed = vi.fn();
+    act(() => useUnsavedChangesStore.getState().leave(proceed));
+    await act(() => useUnsavedChangesStore.getState().answer("save"));
+    expect(proceed).not.toHaveBeenCalled();
     await act(async () => rejectWrite(new Error("Controlled refusal")));
     await waitFor(() => expect(screen.getByLabelText(/^Name/)).toBeEnabled());
     expect(screen.getByLabelText(/^Name/)).toHaveValue("Mobile review");

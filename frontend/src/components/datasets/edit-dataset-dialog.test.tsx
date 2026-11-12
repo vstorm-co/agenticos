@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -155,4 +155,29 @@ describe("EditDatasetDialog", () => {
       }),
     );
   });
+});
+
+it("refuses navigation's save when the dataset write becomes pending", async () => {
+  const mutateAsync = vi.fn();
+  const close = vi.fn();
+  const view = render(
+    <EditDatasetDialog
+      dataset={DATASET}
+      onOpenChange={close}
+      update={{ mutateAsync, isPending: false }}
+    />,
+  );
+  await userEvent.type(screen.getByLabelText(/^Name/), " changed");
+  view.rerender(
+    <EditDatasetDialog
+      dataset={DATASET}
+      onOpenChange={close}
+      update={{ mutateAsync, isPending: true }}
+    />,
+  );
+  const proceed = vi.fn();
+  act(() => useUnsavedChangesStore.getState().leave(proceed));
+  await act(() => useUnsavedChangesStore.getState().answer("save"));
+  expect(mutateAsync).not.toHaveBeenCalled();
+  expect(proceed).not.toHaveBeenCalled();
 });

@@ -102,10 +102,10 @@ export function CreateProjectDialog({
       onOpenChange(false);
     },
   });
-  function changeOpen(next: boolean) {
-    if (create.isPending) return;
-    if (next) onOpenChange(true);
-    else useUnsavedChangesStore.getState().leave(() => onOpenChange(false), [source]);
+  // This dialog has no trigger: only dismissal asks to change its open state.
+  function close() {
+    if (!create.isPending)
+      useUnsavedChangesStore.getState().leave(() => onOpenChange(false), [source]);
   }
 
   async function handleCreate(): Promise<boolean> {
@@ -149,7 +149,7 @@ export function CreateProjectDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={changeOpen}>
+    <Dialog open={open} onOpenChange={close}>
       <DialogContent dismissible={!create.isPending} className={cn(DIALOG_COLUMN, DIALOG_FORM)}>
         <DialogHeader>
           <DialogTitle>{t("newProject")}</DialogTitle>
@@ -240,7 +240,7 @@ export function CreateProjectDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => changeOpen(false)} disabled={create.isPending}>
+          <Button variant="outline" onClick={close} disabled={create.isPending}>
             {t("cancel")}
           </Button>
           <Button

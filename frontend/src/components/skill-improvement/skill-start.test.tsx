@@ -157,7 +157,8 @@ describe("SkillStart", () => {
     ).toBeVisible();
     expect(screen.queryByText(/It reads/)).toBeNull();
     expect(screen.queryByRole("button", { name: "Start" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Open chat" })).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Open chat" }));
+    expect(push).toHaveBeenCalledWith("/chat");
     expect(screen.queryByLabelText(/Spending limit/)).toBeNull();
   });
 

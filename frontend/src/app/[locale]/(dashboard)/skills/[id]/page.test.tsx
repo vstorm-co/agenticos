@@ -1,6 +1,6 @@
 import { Suspense, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -575,6 +575,11 @@ describe("SkillPage's lines and writes", () => {
       await screen.findByRole("button", { name: "More actions for returns-policy" }),
     );
     await userEvent.click(screen.getByRole("menuitem", { name: /Delete/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(apiClient.delete).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "More actions for returns-policy" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: /Delete/ }));
     await userEvent.click(screen.getByRole("button", { name: "Delete" }));
     expect(apiClient.delete).toHaveBeenCalledWith("/skills/s1");
     expect(onClose).toHaveBeenCalledOnce();
@@ -738,4 +743,19 @@ describe("SkillPage's Improve", () => {
     expect(await screen.findByText("v12 · main")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Improve" })).toBeNull();
   });
+});
+
+it("switches tabs and deletes a skill from its full-page header", async () => {
+  vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+  vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+    path === "/skills/s1/agents" ? { ...AGENTS, items: [], hidden: 0 } : serveOnce(path),
+  );
+  await mount();
+  await userEvent.click(await screen.findByRole("tab", { name: "Content" }));
+  expect(screen.getByRole("tab", { name: "Content" })).toHaveAttribute("aria-selected", "true");
+  await userEvent.click(screen.getByRole("tab", { name: "Agents" }));
+  await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+  await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete" }));
+  expect(apiClient.delete).toHaveBeenCalledWith("/skills/s1");
+  expect(state.push).toHaveBeenCalledWith("/skills");
 });

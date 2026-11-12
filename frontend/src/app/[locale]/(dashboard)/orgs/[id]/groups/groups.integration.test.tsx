@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 import { Suspense, type ReactNode } from "react";
@@ -259,12 +259,12 @@ describe("the groups page", () => {
     );
   });
 
-  it("closes the form without saving on Cancel", async () => {
+  it.each(["Cancel", "Close"])("closes the form without saving on %s", async (action) => {
     serve("admin");
     await mount();
 
     await userEvent.click(await screen.findByRole("button", { name: "Edit Ops" }));
-    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await userEvent.click(screen.getByRole("button", { name: action }));
 
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(apiClient.patch).not.toHaveBeenCalled();
@@ -432,6 +432,10 @@ it("retains a refused creation draft and locks identity fields while saving", as
   await userEvent.click(dialog.getByRole("button", { name: "Create" }));
   await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
   expect(dialog.getByLabelText("Name")).toBeDisabled();
+  const form = dialog.getByLabelText("Name").closest("form");
+  if (!form) throw new Error("Missing group form");
+  fireEvent.submit(form);
+  expect(apiClient.post).toHaveBeenCalledOnce();
   expect(dialog.getByLabelText("Description")).toBeDisabled();
   for (const name of ["Handshake", "Cancel", "Close"])
     expect(dialog.getByRole("button", { name })).toBeDisabled();
@@ -460,4 +464,23 @@ it("searches department descriptions and clears an unmatched query", async () =>
   await userEvent.click(screen.getByText("Clear search", { selector: "button" }));
   expect(search).toHaveValue("");
   expect(screen.getByRole("link", { name: "Ops" })).toBeVisible();
+});
+
+it("reveals the budget field when the server refuses that hidden option", async () => {
+  serve("admin");
+  vi.mocked(apiClient.post).mockRejectedValue(
+    new ApiError(422, "Budget refused", {
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "Budget refused",
+        details: { fields: [{ field: "monthly_budget_usd", message: "Budget needs attention" }] },
+      },
+    }),
+  );
+  await mount();
+  await userEvent.click(await screen.findByRole("button", { name: "New group" }));
+  await userEvent.type(screen.getByLabelText("Name"), "Support");
+  await userEvent.click(screen.getByRole("button", { name: "Create" }));
+  expect(await screen.findByText("Budget needs attention")).toBeVisible();
+  expect(screen.getByLabelText("Monthly budget (USD)")).toHaveAttribute("aria-invalid", "true");
 });

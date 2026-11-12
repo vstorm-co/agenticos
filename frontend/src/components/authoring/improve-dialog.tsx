@@ -68,18 +68,19 @@ export function ImproveDialog({
   }, [kind, estimate, tErrors, modelId]);
 
   async function go() {
-    if (starting || quote === null || quote.reason !== null || !quote.affordable) return;
-    setStarting(true);
-    try {
-      await start({
-        kind,
-        window_days: 30,
-        helper_settings: { model_profile_id: modelId, instructions: null },
-      });
-      onOpenChange(false);
-    } catch (failure) {
-      setError(getErrorMessage(failure, tErrors));
-      setStarting(false);
+    if (!starting && quote !== null && quote.reason === null && quote.affordable) {
+      setStarting(true);
+      try {
+        await start({
+          kind,
+          window_days: 30,
+          helper_settings: { model_profile_id: modelId, instructions: null },
+        });
+        onOpenChange(false);
+      } catch (failure) {
+        setError(getErrorMessage(failure, tErrors));
+        setStarting(false);
+      }
     }
   }
 

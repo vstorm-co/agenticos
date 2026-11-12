@@ -75,12 +75,13 @@ export function CreateApiKeyDialog({
   // Opened from outside only - there is no trigger in here - so the dialog only
   // ever asks to close, and closing forgets the key it showed.
   const close = () => {
-    if (busy) return;
-    setName("");
-    choice.reset();
-    setExpiry("90");
-    setCreated(null);
-    onOpenChange(false);
+    if (!busy) {
+      setName("");
+      choice.reset();
+      setExpiry("90");
+      setCreated(null);
+      onOpenChange(false);
+    }
   };
 
   const submit = async () => {

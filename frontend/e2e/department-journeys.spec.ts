@@ -83,7 +83,7 @@ for (const device of [
           }),
         );
         await page.goto("/groups");
-        await page.getByRole("button", { name: "New group", exact: true }).click();
+        await page.getByRole("button", { name: "New group", exact: true }).first().click();
         const dialog = page.getByRole("dialog");
         await dialog.getByLabel("Name", { exact: true }).fill(name);
         await dialog

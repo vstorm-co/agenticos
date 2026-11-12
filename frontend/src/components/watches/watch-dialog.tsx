@@ -162,92 +162,97 @@ export function WatchDialog({
   };
 
   const save = async () => {
-    if (saving) return;
-    const end = endTouched ? endInstant(endsAt) : (watch?.ends_at ?? null);
-    if (
-      end === undefined ||
-      (endTouched && end !== null && new Date(end).getTime() <= Date.now())
-    ) {
-      setInvalidEnd(true);
-      return;
-    }
-    setSaving(true);
-    try {
-      if (watch) {
-        await update({
-          id: watch.id,
-          changes: {
-            ...(maxFailures !== (watch.max_failures === undefined ? 3 : watch.max_failures)
-              ? { max_failures: maxFailures }
-              : {}),
-            ...(reportMode !== (watch.report_mode ?? "changes") ? { report_mode: reportMode } : {}),
-            ...(JSON.stringify(notificationChannels) !==
-            JSON.stringify(watch.notification_channels ?? null)
+    if (!saving) {
+      const end = endTouched ? endInstant(endsAt) : (watch?.ends_at ?? null);
+      if (
+        end === undefined ||
+        (endTouched && end !== null && new Date(end).getTime() <= Date.now())
+      ) {
+        setInvalidEnd(true);
+        return;
+      }
+      setSaving(true);
+      try {
+        if (watch) {
+          await update({
+            id: watch.id,
+            changes: {
+              ...(maxFailures !== (watch.max_failures === undefined ? 3 : watch.max_failures)
+                ? { max_failures: maxFailures }
+                : {}),
+              ...(reportMode !== (watch.report_mode ?? "changes")
+                ? { report_mode: reportMode }
+                : {}),
+              ...(JSON.stringify(notificationChannels) !==
+              JSON.stringify(watch.notification_channels ?? null)
+                ? { notification_channels: notificationChannels }
+                : {}),
+              title: draft.title.trim(),
+              instructions: draft.instructions.trim(),
+              urgent: draft.urgent,
+              interval_minutes: draft.interval,
+              exclusions: draft.exclusions.split("\n"),
+              ...(draft.agentId !== watch.agent_id ? { agent_id: draft.agentId } : {}),
+              environment_id: draft.environmentId,
+              pinned_version_id: draft.pinnedVersionId,
+              ...(endTouched ? { ends_at: end } : {}),
+              ...(reviewSources ? { review_sources: true } : {}),
+            },
+          });
+        } else {
+          await create({
+            ...(maxFailures !== 3 ? { max_failures: maxFailures } : {}),
+            ...(reportMode !== "changes" ? { report_mode: reportMode } : {}),
+            ...(notificationChannels !== null
               ? { notification_channels: notificationChannels }
               : {}),
+            agent_id: draft.agentId,
+            environment_id: draft.environmentId,
+            pinned_version_id: draft.pinnedVersionId,
+            ends_at: end,
+            connection_id: draft.connectionId,
+            preset_key: draft.presetKey === CUSTOM ? null : draft.presetKey,
             title: draft.title.trim(),
             instructions: draft.instructions.trim(),
             urgent: draft.urgent,
             interval_minutes: draft.interval,
-            exclusions: draft.exclusions.split("\n"),
-            ...(draft.agentId !== watch.agent_id ? { agent_id: draft.agentId } : {}),
-            environment_id: draft.environmentId,
-            pinned_version_id: draft.pinnedVersionId,
-            ...(endTouched ? { ends_at: end } : {}),
-            ...(reviewSources ? { review_sources: true } : {}),
-          },
-        });
-      } else {
-        await create({
-          ...(maxFailures !== 3 ? { max_failures: maxFailures } : {}),
-          ...(reportMode !== "changes" ? { report_mode: reportMode } : {}),
-          ...(notificationChannels !== null ? { notification_channels: notificationChannels } : {}),
-          agent_id: draft.agentId,
-          environment_id: draft.environmentId,
-          pinned_version_id: draft.pinnedVersionId,
-          ends_at: end,
-          connection_id: draft.connectionId,
-          preset_key: draft.presetKey === CUSTOM ? null : draft.presetKey,
-          title: draft.title.trim(),
-          instructions: draft.instructions.trim(),
-          urgent: draft.urgent,
-          interval_minutes: draft.interval,
-        });
-      }
-      if (watch) {
-        toast.success(t("saved"));
-      } else {
-        // Started from an account's menu, the watch would otherwise vanish into
-        // a page the person has not seen: say where it lives and where its
-        // findings go.
-        toast.success(t("created"), {
-          description: t("createdWhere"),
-          action: onRoutines
-            ? undefined
-            : { label: t("seeIt"), onClick: () => router.push(`${ROUTES.ROUTINES}?tab=watches`) },
-        });
-      }
-      onOpenChange(false);
-    } catch (failure) {
-      const problem = submitFailure(failure, { fields: FIELDS }, tErrors);
-      setErrors(problem.fields);
-      if (!watch) {
-        if (
-          problem.fields.agent_id ||
-          problem.fields.connection_id ||
-          problem.fields.title ||
-          problem.fields.preset_key
-        ) {
-          setStep("configure");
-        } else if (problem.fields.instructions) {
-          setStep("message");
-        } else {
-          setStep("schedule");
+          });
         }
+        if (watch) {
+          toast.success(t("saved"));
+        } else {
+          // Started from an account's menu, the watch would otherwise vanish into
+          // a page the person has not seen: say where it lives and where its
+          // findings go.
+          toast.success(t("created"), {
+            description: t("createdWhere"),
+            action: onRoutines
+              ? undefined
+              : { label: t("seeIt"), onClick: () => router.push(`${ROUTES.ROUTINES}?tab=watches`) },
+          });
+        }
+        onOpenChange(false);
+      } catch (failure) {
+        const problem = submitFailure(failure, { fields: FIELDS }, tErrors);
+        setErrors(problem.fields);
+        if (!watch) {
+          if (
+            problem.fields.agent_id ||
+            problem.fields.connection_id ||
+            problem.fields.title ||
+            problem.fields.preset_key
+          ) {
+            setStep("configure");
+          } else if (problem.fields.instructions) {
+            setStep("message");
+          } else {
+            setStep("schedule");
+          }
+        }
+        if (problem.toast) toast.error(problem.toast);
+      } finally {
+        setSaving(false);
       }
-      if (problem.toast) toast.error(problem.toast);
-    } finally {
-      setSaving(false);
     }
   };
 

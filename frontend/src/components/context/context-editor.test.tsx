@@ -219,3 +219,17 @@ it("folds context details without losing the description draft", async () => {
   await userEvent.click(toggle);
   expect(screen.getByLabelText("Description")).toHaveValue("terms revised");
 });
+
+it("discards both edited fields before allowing navigation", async () => {
+  const { onSave } = mount();
+  await userEvent.clear(screen.getByLabelText("Description"));
+  await userEvent.type(screen.getByLabelText("Description"), "Changed");
+  await userEvent.type(body(), " extra");
+  const proceed = vi.fn();
+  act(() => useUnsavedChangesStore.getState().leave(proceed));
+  await act(() => useUnsavedChangesStore.getState().answer("discard"));
+  expect(proceed).toHaveBeenCalledOnce();
+  expect(body()).toHaveValue(FILE.content);
+  expect(screen.getByLabelText("Description")).toHaveValue(FILE.description);
+  expect(onSave).not.toHaveBeenCalled();
+});

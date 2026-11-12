@@ -218,7 +218,7 @@ test.describe("Dashboard", () => {
         name: "Start with something useful",
         exact: true,
       });
-      const checklist = startPanel.getByRole("status", { name: "Loading", exact: true });
+      const checklist = startPanel.getByRole("status");
       await expect(checklist).toBeVisible();
       await expect(page.getByText(/Your agents ran/)).toBeVisible();
       const briefing = page

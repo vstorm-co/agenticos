@@ -68,11 +68,12 @@ function ConsentForm({
   const choice = useScopeChoice(request.catalog);
 
   const answer = async (send: () => Promise<{ redirect_to: string }>) => {
-    if (busy) return;
-    try {
-      leave((await send()).redirect_to);
-    } catch (failure) {
-      toast.error(getErrorMessage(failure, tErrors));
+    if (!busy) {
+      try {
+        leave((await send()).redirect_to);
+      } catch (failure) {
+        toast.error(getErrorMessage(failure, tErrors));
+      }
     }
   };
 

@@ -8,14 +8,14 @@ describe("site icons", () => {
     const { container, rerender } = render(<LinkFavicon url="https://first.example/article" />);
     const first = container.querySelector("img");
     if (!first) throw new Error("missing favicon request");
-    expect(first).toHaveAttribute("src", "https://first.example/favicon.ico");
+    expect(first).toHaveAttribute("src", "/api/link-icon?host=first.example");
     fireEvent.error(first);
     expect(container.querySelector("img")).toBeNull();
     expect(container.querySelector(".lucide-globe")).toBeInTheDocument();
     rerender(<LinkFavicon url="https://second.example/path?private=value" />);
     expect(container.querySelector("img")).toHaveAttribute(
       "src",
-      "https://second.example/favicon.ico",
+      "/api/link-icon?host=second.example",
     );
   });
 

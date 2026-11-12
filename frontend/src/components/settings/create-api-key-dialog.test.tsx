@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -206,4 +206,10 @@ it("submits the name with Enter while Enter in permission search leaves the form
   expect(onCreate).toHaveBeenCalledWith(
     expect.objectContaining({ name: "Keyboard key", scopes: ["agents:view"] }),
   );
+});
+
+it("refuses a form submission without a key name", () => {
+  const { onCreate } = open();
+  fireEvent.submit(screen.getByRole("form"));
+  expect(onCreate).not.toHaveBeenCalled();
 });

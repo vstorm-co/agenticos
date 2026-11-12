@@ -73,10 +73,10 @@ export function CreateDatasetDialog({ open, onOpenChange }: CreateDatasetDialogP
       onOpenChange(false);
     },
   });
-  function changeOpen(next: boolean) {
-    if (create.isPending) return;
-    if (next) onOpenChange(true);
-    else useUnsavedChangesStore.getState().leave(() => onOpenChange(false), [source]);
+  // This dialog has no trigger: only dismissal asks to change its open state.
+  function close() {
+    if (!create.isPending)
+      useUnsavedChangesStore.getState().leave(() => onOpenChange(false), [source]);
   }
 
   async function handleCreate(): Promise<boolean> {
@@ -105,7 +105,7 @@ export function CreateDatasetDialog({ open, onOpenChange }: CreateDatasetDialogP
   }
 
   return (
-    <Dialog open={open} onOpenChange={changeOpen}>
+    <Dialog open={open} onOpenChange={close}>
       <DialogContent dismissible={!create.isPending} className={cn(DIALOG_FORM, DIALOG_COLUMN)}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
@@ -169,7 +169,7 @@ export function CreateDatasetDialog({ open, onOpenChange }: CreateDatasetDialogP
           </div>
         </div>
         <DialogFooter className="border-t">
-          <Button variant="outline" onClick={() => changeOpen(false)} disabled={create.isPending}>
+          <Button variant="outline" onClick={close} disabled={create.isPending}>
             {t("cancel")}
           </Button>
           <Button

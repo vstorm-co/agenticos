@@ -1,5 +1,5 @@
 ---
-source_sha: "31ca365b2796"
+source_sha: "1b6fafac402e"
 ---
 
 # Die Konsole { #the-console }
@@ -112,7 +112,7 @@ Standardagenten schließen einmalige Anfragen ab, ohne die Antwort durch eine op
 
 Die kompakte Quellen-Schaltfläche unter einer Antwort öffnet Sources neben dem Gespräch, auf dem Smartphone als vollbreites Panel. Files und Sources teilen sich den Seitenbereich: Das Öffnen eines Panels ersetzt das andere. Webquellen zeigen das ohne Referrer geladene Favicon oder ein bekanntes Dienstlogo; bei fehlendem Symbol bleibt der Globus. Wissensquellen behalten ihre Dateisymbole und die Originaldokumentansicht.
 
-Weblinks in Antworten verwenden dieselbe Favicon-Regel unabhängig von MCP-Verbindungen. Bei unbekannten Seiten wird nur `/favicon.ico` von ihrem Origin geladen; fehlt das Symbol, erscheint ein Globus. Inaktive Transkriptansichten laden weder entfernte Bilder noch Symbole unbekannter Seiten.
+Weblinks in Antworten verwenden dieselbe Favicon-Regel unabhängig von MCP-Verbindungen. Symbole unbekannter Seiten werden über den Proxy unter derselben Origin wie die Konsole und den festen Symboldienst von DuckDuckGo geladen. Dieser erhält nur den Hostnamen, keine Cookies oder IP-Adresse des Lesers, URL-Pfade oder Abfrageparameter. Der Proxy verweigert Weiterleitungen, nicht-rasterbasierte Inhalte und Symbole über 64 KiB; das Zeitlimit beträgt drei Sekunden. Bei fehlenden oder nicht erreichbaren Symbolen erscheint ein Globus. Inaktive Transkriptansichten laden weder entfernte Bilder noch Symbole unbekannter Seiten.
 
 Ein fehlgeschlagener Chat-Run zeigt seinen Fehler getrennt von der Antwort und außerhalb der eingeklappten Tool-Schritte, auch nach dem Neuladen. Inhaltsfilter des Anbieters erhalten eine ausdrückliche Erklärung; rohe Anbieterantworten und unbekannte historische Fehlermeldungen werden nicht in geteilte Transkripte kopiert. Teilergebnisse bleiben sichtbar, und fehlgeschlagene Arbeit erscheint nicht als abgeschlossen.
 

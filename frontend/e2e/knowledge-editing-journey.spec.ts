@@ -87,7 +87,7 @@ test("a skill resource keeps a refused edit and saves before switching files", a
     .click();
   const editor = page.getByRole("dialog", { name, exact: true });
   const bodyDraft = "Keep the review instructions with the saved checklist.";
-  await editor.getByRole("textbox", { name: "SKILL.md source", exact: true }).fill(bodyDraft);
+  await editor.getByRole("textbox", { name: "Instructions source", exact: true }).fill(bodyDraft);
   await editor.getByRole("treeitem", { name: "checklist.md", exact: true }).click();
   const input = editor.getByRole("textbox", { name: "checklist.md source", exact: true });
   const draft = "# Review\nCheck instructions.\nKeep this next step.";

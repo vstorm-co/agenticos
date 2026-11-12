@@ -202,3 +202,10 @@ it("locks a pending group share without losing its selected resources", async ()
   expect(screen.getByRole("checkbox", { name: /Customer guide/ })).toBeEnabled();
   expect(screen.getByRole("checkbox", { name: /Customer guide/ })).toBeChecked();
 });
+
+it("dismisses the member list without changing membership", async () => {
+  const onClose = vi.fn();
+  render(<GroupMembersDialog orgId="o1" group={FINANCE} canManage={false} onClose={onClose} />);
+  await userEvent.keyboard("{Escape}");
+  expect(onClose).toHaveBeenCalledOnce();
+});

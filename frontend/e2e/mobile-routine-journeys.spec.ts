@@ -13,7 +13,10 @@ test.use({
 
 async function publishedAgent(page: Page): Promise<{ id: string; name: string }> {
   const row = (await rowsAt(page.request, "/api/agents")).find(
-    (agent) => typeof agent.current_version_id === "string" && agent.can_run === true,
+    (agent) =>
+      typeof agent.current_version_id === "string" &&
+      agent.can_run === true &&
+      agent.kind === "agent",
   );
   if (!row || typeof row.id !== "string" || typeof row.name !== "string")
     throw new Error("A seeded published runnable agent is required");
@@ -64,6 +67,7 @@ test("phone schedule search, refusal, edit, reload and deletion keep the action 
           cron_expression: "0 9 * * 1",
           time_zone: "Europe/Warsaw",
           is_active: false,
+          runs_as_creator: true,
         },
       }),
     );
@@ -165,6 +169,8 @@ test("phone event wizard preserves back navigation and a refused draft before cr
     await dialog.getByRole("combobox", { name: "Agent", exact: true }).click();
     await page.getByRole("option", { name: agent.name, exact: true }).click();
     await dialog.getByLabel(/^Name/).fill(name);
+    await dialog.locator('[data-tour="routine-advanced"]').click();
+    await dialog.getByRole("checkbox", { name: /^Run as me/ }).check();
     await dialog.getByRole("button", { name: "Continue", exact: true }).click();
     await dialog
       .getByRole("textbox", { name: "Message", exact: true })

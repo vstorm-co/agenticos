@@ -243,3 +243,16 @@ it("keeps a phone card's complete identity and lets its revoke action open confi
     within(screen.getByRole("dialog")).getByRole("heading", { name: `Revoke ${name}?` }),
   ).toBeInTheDocument();
 });
+
+it("clears an unmatched API key search from the empty state", async () => {
+  useApiKeysMock.mockReturnValue(state({ keys: [key()] }));
+  render(<ApiKeysManager />);
+  await userEvent.type(screen.getByPlaceholderText("Search API keys…"), "no-match-at-all");
+  const clear = screen
+    .getAllByRole("button", { name: "Clear search" })
+    .find((button) => button.textContent === "Clear search");
+  if (!clear) throw new Error("Missing empty-state search action");
+  await userEvent.click(clear);
+  expect(screen.getByPlaceholderText("Search API keys…")).toHaveValue("");
+  expect(screen.getByRole("table")).toHaveTextContent(key().name);
+});

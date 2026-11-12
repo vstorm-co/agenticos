@@ -96,6 +96,7 @@ describe("CaseEditorDialog", () => {
     await userEvent.type(input(), "How long?");
     await userEvent.type(answer(), "30 days");
     await userEvent.click(save());
+    expect(onSave).toHaveBeenCalledOnce();
     expect(input()).toBeDisabled();
     expect(answer()).toBeDisabled();
     expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
@@ -103,6 +104,10 @@ describe("CaseEditorDialog", () => {
     expect(screen.getByRole("button", { name: "Edit as JSON" })).toBeDisabled();
     await userEvent.keyboard("{Escape}");
     expect(onOpenChange).not.toHaveBeenCalled();
+    const proceed = vi.fn();
+    act(() => useUnsavedChangesStore.getState().leave(proceed));
+    await act(() => useUnsavedChangesStore.getState().answer("save"));
+    expect(proceed).not.toHaveBeenCalled();
     await act(async () => rejectWrite(new Error("Controlled case refusal")));
     await waitFor(() => expect(input()).toBeEnabled());
     expect(input()).toHaveValue("How long?");

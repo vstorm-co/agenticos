@@ -120,7 +120,11 @@ vi.mock("@/hooks/use-projects", () => ({
 
 function wrap(node: ReactNode) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(<QueryClientProvider client={client}>{node}</QueryClientProvider>);
+  return render(node, {
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    ),
+  });
 }
 
 function aProject(overrides: Partial<Project> = {}): Project {
@@ -937,4 +941,16 @@ it("restores a Computer choice that arrives after local preference hydration", (
   );
   expect(screen.getByText("Local root: /approved")).toBeVisible();
   expect(screen.queryByRole("button", { name: "Approve folder" })).not.toBeInTheDocument();
+});
+
+it("does not submit a project twice when navigation also asks to save", async () => {
+  const view = wrap(<CreateProjectDialog open onOpenChange={vi.fn()} onCreated={vi.fn()} />);
+  await userEvent.type(screen.getByLabelText("Name"), "Pending workspace");
+  projects.create.isPending = true;
+  view.rerender(<CreateProjectDialog open onOpenChange={vi.fn()} onCreated={vi.fn()} />);
+  const proceed = vi.fn();
+  act(() => useUnsavedChangesStore.getState().leave(proceed));
+  await act(() => useUnsavedChangesStore.getState().answer("save"));
+  expect(projects.create.mutateAsync).not.toHaveBeenCalled();
+  expect(proceed).not.toHaveBeenCalled();
 });

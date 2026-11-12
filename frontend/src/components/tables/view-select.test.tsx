@@ -376,3 +376,19 @@ describe("ViewSelect", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
+
+it.each(["Save as a new view", "Rename", "Delete"])(
+  "opens %s from the phone management menu",
+  async (action) => {
+    const user = userEvent.setup();
+    const props = renderSelect({ activeViewId: "v1" });
+    await user.click(screen.getByRole("button", { name: "Views" }));
+    await user.click(screen.getByRole("menuitem", { name: action }));
+    expect(screen.getByRole("dialog")).toBeVisible();
+    if (action === "Rename") expect(screen.getByRole("textbox")).toHaveValue("Mine");
+    if (action === "Delete") {
+      await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete" }));
+      expect(props.onDelete).toHaveBeenCalledWith("v1");
+    }
+  },
+);

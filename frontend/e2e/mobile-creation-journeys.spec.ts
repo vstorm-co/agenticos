@@ -201,7 +201,7 @@ test("phone dataset creation reaches settings, versioned cases and a real CSV do
   const releases: (() => void)[] = [];
   try {
     await page.goto("/datasets");
-    await page.getByRole("button", { name: "New dataset", exact: true }).click();
+    await page.getByRole("button", { name: "New dataset", exact: true }).first().click();
     let form = page.getByRole("dialog");
     await form.getByRole("textbox", { name: /^Name/ }).fill(name);
     await form.getByRole("button", { name: "Cancel", exact: true }).click();

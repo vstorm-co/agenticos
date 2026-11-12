@@ -7,13 +7,7 @@ import { BrandIcon } from "@/components/icons/brand-icon";
 import { brandForUrl } from "@/lib/link-brands";
 import { cn } from "@/lib/utils";
 
-/**
- * A site's own mark: the bundled logo for a service the console knows, the
- * site's `favicon.ico` for the rest, and a globe where it has none.
- *
- * The favicon is asked of the site the person is linking anyway, with no
- * referrer, so it learns nothing about where the link was written.
- */
+/** Known logos stay local; unknown-site icons use the credential-free fixed-service proxy. */
 export function LinkFavicon({ url, className }: { url: string; className?: string }) {
   const [missingOrigin, setMissingOrigin] = useState<string | null>(null);
   const brand = brandForUrl(url);
@@ -32,7 +26,7 @@ export function LinkFavicon({ url, className }: { url: string; className?: strin
   return (
     // eslint-disable-next-line @next/next/no-img-element -- a remote icon of unknown size, not a page image
     <img
-      src={`${origin}/favicon.ico`}
+      src={`/api/link-icon?host=${encodeURIComponent(new URL(origin).hostname)}`}
       alt=""
       aria-hidden
       referrerPolicy="no-referrer"

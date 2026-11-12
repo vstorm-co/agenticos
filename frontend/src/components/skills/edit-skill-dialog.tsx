@@ -178,8 +178,7 @@ export function EditSkillDialogBody({
   }
 
   const leaveEditor = (proceed: () => void) => {
-    if (edit.isPending || save.isPending) return;
-    leaveSkillEditor(skill.id, proceed);
+    if (!edit.isPending && !save.isPending) leaveSkillEditor(skill.id, proceed);
   };
 
   const closeEditor = () => leaveEditor(onClose);

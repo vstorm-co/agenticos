@@ -46,23 +46,15 @@ const TABS = ["agents", "content", "history"];
  * What the page shows - everyone, one state or one fork - is `?show=`, and a fork
  * chosen there is also the line History lists and Edit saves to.
  */
-export function SkillDetails({
-  id,
-  inDialog = false,
-  onDeleted,
-}: {
-  id: string;
-  inDialog?: boolean;
-  onDeleted?: () => void;
-}) {
+export function SkillDetails({ id }: { id: string }) {
   const t = useTranslations("skills.page");
   const tc = useTranslations("common");
   const tErrors = useTranslations("errors");
   const router = useRouter();
   const { can } = usePermissions();
-  const [tabParam, setTabParam] = useViewState("tab", inDialog, "content");
+  const [tabParam, setTabParam] = useUrlState("tab");
   const tab = tabParam !== null && TABS.includes(tabParam) ? tabParam : "agents";
-  const [showParam, setShowParam] = useViewState("show", inDialog, null);
+  const [showParam, setShowParam] = useUrlState("show");
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<CheckedDraft | null>(null);
   // The editor is heavy to draw, so the button says it is opening until it is.
@@ -114,12 +106,6 @@ export function SkillDetails({
     <div className="space-y-6">
       <SkillPageHeader
         skill={skill}
-        inDialog={inDialog}
-        fullViewHref={
-          inDialog
-            ? `${ROUTES.SKILL_DETAIL(id)}?${new URLSearchParams({ tab, ...(showParam === null ? {} : { show: showParam }) })}`
-            : undefined
-        }
         line={fork?.name ?? null}
         improveHref={`${ROUTES.SKILL_DETAIL(id)}/improve/new${fork === null ? "" : `?fork=${fork.id}`}`}
         merges={mergesOf(id, fork)}
@@ -241,8 +227,7 @@ export function SkillDetails({
           onClose={() => setDeleting(false)}
           onDelete={async (removeFromAgents) => {
             await remove.mutateAsync(removeFromAgents);
-            if (onDeleted) onDeleted();
-            else router.push(ROUTES.SKILLS);
+            router.push(ROUTES.SKILLS);
           }}
         />
       )}
@@ -289,11 +274,4 @@ function mergesOf(skillId: string, fork: SkillFork | null): Merges | null {
     catchUp: fork.behind_main > 0 ? href("catch_up") : null,
     toMain: href("to_main"),
   };
-}
-
-/** Modal navigation stays local and leaves the catalog's URL and filters intact. */
-function useViewState(key: string, local: boolean, initial: string | null) {
-  const url = useUrlState(key);
-  const state = useState<string | null>(initial);
-  return local ? state : url;
 }

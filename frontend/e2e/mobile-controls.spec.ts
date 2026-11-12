@@ -102,7 +102,10 @@ test("phone catalog filters leave room for search and keep their accessible stat
     expect(response.ok(), `${path} must load its real resource`).toBe(true);
     const search = page.locator("[data-search-input]").first();
     await expect(search).toBeVisible();
-    const filters = page.getByRole("button", { name: /^Filters/ }).first();
+    const filters =
+      path === "/agents"
+        ? page.getByRole("combobox", { name: "Filter by status" })
+        : page.getByRole("button", { name: /^Filters/ }).first();
     for (const width of [320, 390]) {
       await page.setViewportSize({ width, height: 844 });
       const box = await filters.boundingBox();
@@ -116,11 +119,17 @@ test("phone catalog filters leave room for search and keep their accessible stat
           return Math.abs(field!.y - button!.y);
         })
         .toBeLessThan(0.5);
-      expect(input?.width).toBeGreaterThan(120);
+      expect(input?.width).toBeGreaterThan(path === "/agents" ? 80 : 120);
       expect(box!.x + box!.width).toBeLessThanOrEqual(width - 12);
     }
     await filters.click();
     await expect(filters).toHaveAttribute("aria-expanded", "true");
+    if (path === "/agents") {
+      await expect(page.getByRole("option", { name: "Published", exact: true })).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(filters).toHaveAttribute("aria-expanded", "false");
+      continue;
+    }
     const panelId = await filters.getAttribute("aria-controls");
     expect(panelId).toBeTruthy();
     await expect(page.locator(`[id="${panelId}"]`)).not.toHaveAttribute("hidden");

@@ -361,10 +361,10 @@ describe("WatchDialog", () => {
     expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled();
   });
 
-  it("closes on Cancel", async () => {
+  it.each(["Cancel", "Close"])("closes on %s", async (action) => {
     const onOpenChange = vi.fn();
     render(<WatchDialog agentId="a-monitor" open onOpenChange={onOpenChange} watch={watch()} />);
-    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await userEvent.click(screen.getByRole("button", { name: action }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });
