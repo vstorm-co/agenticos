@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.71.2] - 2026-11-12
+
 ### Changed
 
 - **Economical default assistants.** Newly installed AgenticOS and Architect assistants defer capability schemas as well as MCP tools, keeping questions and workspace tools immediately available. Their local BM25 search favors exact tool identities, and instructions direct named-agent lookups to the agent list rather than unrelated run logs. Existing customized agents keep their configuration.
@@ -21518,7 +21520,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.71.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.71.2...HEAD
+[1.71.2]: https://github.com/vstorm-co/agenticos/compare/v1.71.1...v1.71.2
 [1.71.1]: https://github.com/vstorm-co/agenticos/compare/v1.71.0...v1.71.1
 [1.71.0]: https://github.com/vstorm-co/agenticos/compare/v1.70.0...v1.71.0
 [1.70.0]: https://github.com/vstorm-co/agenticos/compare/v1.69.0...v1.70.0
