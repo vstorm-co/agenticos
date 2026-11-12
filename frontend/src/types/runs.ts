@@ -397,6 +397,17 @@ export interface ToolApproval {
    */
   context?: Record<string, string> | null;
   /**
+   * The call quotes its run - the fact `share_memory` would share - and the reader
+   * may not see that run, so the quoted keys were left out of `context` and
+   * `tool_args`.
+   */
+  content_hidden?: boolean;
+  /**
+   * Only a person's answer to this call could let it run. With `content_hidden`
+   * the server refuses an approval from this reader, so only Reject is offered.
+   */
+  always_asks?: boolean;
+  /**
    * Which of a service's accounts the call acts as - a labelled connection, or one of
    * several accounts on one service. Null where there is nothing to tell apart.
    */
@@ -576,6 +587,10 @@ export interface ParkedCall {
   /** The arguments' ids as names, as `ToolApproval.context` carries them. */
   context?: Record<string, string> | null;
   account?: string | null;
+  /** As `ToolApproval.content_hidden`. */
+  content_hidden?: boolean;
+  /** As `ToolApproval.always_asks`. */
+  always_asks?: boolean;
 }
 
 /** One tool call an execution of a run made, and what came back from it. */

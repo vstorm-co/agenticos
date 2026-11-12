@@ -1,5 +1,5 @@
 ---
-source_sha: "b0fd849fcc36"
+source_sha: "726aa02e9407"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -514,6 +514,8 @@ Ein automatisches Schreiben bleibt im Scope der Unterhaltung, aus der es stammt,
 und ein Gruppenchat schreibt nie ein Profil. Nur `share_memory` erweitert einen
 Claim, und nur auf Anweisung einer Person, die das darf: `projects:edit` auf dem
 Projekt oder `context:edit` für die ganze Organisation. Sie wartet immer darauf, dass eine Person genau diesen Claim und Leserkreis freigibt, gleich welche Freigabe-Einstellungen der Agent hat, damit ein vom Agent gelesener Text ihn nicht zum Teilen überreden kann.
+
+Auch **Approve everything** und ein gespeichertes **Dieses Tool für diesen Agenten immer erlauben** beantworten ihn nicht, und seine Karte bietet keines von beiden an. Die Karte zeigt den Fakt und seinen Leserkreis; in der Freigabe-Warteschlange sieht den Fakt nur, wer den Run sehen darf, aus dem er stammt.
 
 Die Kopie nennt den Claim,
 aus dem sie stammt, das Original behält seinen Leserkreis. Ein Embed, ein Run mit

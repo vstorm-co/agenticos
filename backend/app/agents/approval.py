@@ -97,6 +97,13 @@ class ApprovalRequest:
     routine_consented_by: UUID | None = None
     """A human named by the trusted routine policy for this exact action."""
 
+    always_asks: bool = False
+    """Whether only a person's answer to this call may let it run.
+
+    Set for a tool marked `always_requires_approval`. Standing consent and a
+    remembered "Always allow" are decisions made before the call existed, and
+    for such a tool the call is the decision."""
+
 
 @dataclass(frozen=True)
 class ApprovalGranted:

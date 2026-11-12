@@ -53,6 +53,7 @@ from app.schemas.agent_run import (
 )
 from app.schemas.conversation import MessageList
 from app.schemas.run_manifest import RunManifestRead
+from app.services.approvals import withhold
 from app.services.channels.handback import continues_in_chat
 
 router = APIRouter(dependencies=[PUBLIC])
@@ -658,8 +659,15 @@ async def decide_approval(
         note=data.note,
         **({"remember_scope": data.remember_scope} if data.remember_scope else {}),
     )
-    return ApprovalRead.model_validate(decided.approval).model_copy(
-        update={"continues_in_chat": decided.continues_in_chat}
+    read = ApprovalRead.model_validate(decided.approval)
+    tool_args, context = withhold(decided.hidden, tool_args=read.tool_args, context=read.context)
+    return read.model_copy(
+        update={
+            "continues_in_chat": decided.continues_in_chat,
+            "tool_args": tool_args,
+            "context": context,
+            "content_hidden": bool(decided.hidden),
+        }
     )
 
 

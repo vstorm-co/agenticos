@@ -246,3 +246,74 @@ describe("DecidedApproval - a line of the record", () => {
     expect(screen.getByText("Account: Work")).toBeInTheDocument();
   });
 });
+
+describe("PendingApproval - a fact somebody's run would share", () => {
+  const share = {
+    tool_id: "share_memory",
+    capability_tool_id: "share_memory",
+    tool_args: { claim_id: "c-1", to: "organization" },
+  };
+
+  it("leads with the fact and who would read it", () => {
+    inIntl(
+      <PendingApproval
+        approval={approval({
+          ...share,
+          context: { claim: "The Acme renewal is due in March", audience: "organization" },
+        })}
+        deciding={false}
+        onDecide={vi.fn()}
+        onOpenRun={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText("Share with the whole organization: “The Acme renewal is due in March”"),
+    ).toBeInTheDocument();
+  });
+
+  it("says why the fact is missing for a reader who may not see the run", () => {
+    inIntl(
+      <PendingApproval
+        approval={approval({
+          ...share,
+          context: { audience: "project" },
+          content_hidden: true,
+        })}
+        deciding={false}
+        onDecide={vi.fn()}
+        onOpenRun={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText("What this call would share is shown only to people who can see its run."),
+    ).toBeInTheDocument();
+  });
+});
+
+it("offers only Reject on a call that always asks when the reader cannot see what it quotes", async () => {
+  const onDecide = vi.fn();
+  inIntl(
+    <PendingApproval
+      approval={approval({
+        tool_id: "share_memory",
+        capability_tool_id: "share_memory",
+        tool_args: { claim_id: "c-1", to: "organization" },
+        context: { audience: "organization" },
+        content_hidden: true,
+        always_asks: true,
+      })}
+      deciding={false}
+      onDecide={onDecide}
+      onOpenRun={vi.fn()}
+    />,
+  );
+
+  expect(screen.queryByRole("button", { name: /Approve/ })).toBeNull();
+  expect(
+    screen.getByText("Only somebody who can see the run can approve this. You can reject it."),
+  ).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: /Reject/ }));
+  expect(onDecide).toHaveBeenCalledWith(false);
+});

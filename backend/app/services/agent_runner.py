@@ -340,7 +340,7 @@ from app.services.agent_registry import (
     models_a_run_reaches,
 )
 from app.services.api_key import mint_for_run
-from app.services.approvals import ApprovalService
+from app.services.approvals import ApprovalService, withhold
 from app.services.attachments import (
     UPLOAD_DIR,
     AttachmentRouter,
@@ -1197,6 +1197,8 @@ class ParkedApproval:
 
     routine_consented_by: UUID | None = None
     tool_consented_by: UUID | None = None
+    always_asks: bool = False
+    """Only a person's answer to this call may let it run - see `ApprovalRequest.always_asks`."""
     standing: bool = False
     """Whether this was granted by standing consent rather than parked.
 
@@ -1311,9 +1313,11 @@ class ApprovalChannel:
         # between a run somebody waived and an agent nobody ever gated. It is not
         # added to `parked`, because nothing is waiting - `paused_state` names the
         # calls a resume has to answer, and this one already ran (#925).
-        consenting = self.standing_consent_by or request.routine_consented_by
-        if consenting is None and delegate is None and self.tool_consent is not None:
-            consenting = await self.tool_consent(request)
+        consenting = None
+        if not request.always_asks:
+            consenting = self.standing_consent_by or request.routine_consented_by
+            if consenting is None and delegate is None and self.tool_consent is not None:
+                consenting = await self.tool_consent(request)
         if consenting is None:
             self.parked[str(approval_id)] = request.tool_call_id
         self.requested.append(
@@ -1325,6 +1329,7 @@ class ApprovalChannel:
                 capability_tool_id=request.capability_tool_id,
                 context=context,
                 account=request.account,
+                always_asks=request.always_asks,
                 standing=consenting is not None,
                 routine_consented_by=request.routine_consented_by,
                 tool_consented_by=consenting,
@@ -6385,6 +6390,7 @@ class AgentRunnerService:
                 capability_tool_id=parked.capability_tool_id,
                 context=parked.context,
                 account=parked.account,
+                always_asks=parked.always_asks,
                 subagent_name=parked.subagent,
                 # Null when the delegate's agent was deleted after the call was
                 # parked: the record of what it was authorised to do outlives it.
@@ -7175,22 +7181,35 @@ class AgentRunnerService:
         )
         state = run.paused_state or {}
         by_approval = state.get("tool_call_ids", {}) if isinstance(state, dict) else {}
-        return [
-            ParkedCall(
-                id=approval.id,
-                tool_call_id=by_approval.get(str(approval.id)),
-                tool_name=approval.tool_id,
-                subagent_name=approval.subagent_name,
-                can_remember=ApprovalService.can_remember_in_run(ctx, run)
-                and approval.subagent_name is None,
-                tool_args=approval.tool_args or {},
-                capability_tool_id=approval.capability_tool_id,
-                context=approval.context,
-                account=approval.account,
+        reader = ApprovalService(self.db)
+        parked: list[ParkedCall] = []
+        for approval in approvals:
+            if approval.status != ApprovalStatus.PENDING.value:
+                continue
+            # The same withholding the approvals queue applies: this route is
+            # reachable with the run's id by anybody who may read the queue.
+            hidden = await reader.hidden_fields(ctx, approval)
+            tool_args, context = withhold(
+                hidden, tool_args=approval.tool_args or {}, context=approval.context
             )
-            for approval in approvals
-            if approval.status == ApprovalStatus.PENDING.value
-        ]
+            parked.append(
+                ParkedCall(
+                    id=approval.id,
+                    tool_call_id=by_approval.get(str(approval.id)),
+                    tool_name=approval.tool_id,
+                    subagent_name=approval.subagent_name,
+                    can_remember=ApprovalService.can_remember_in_run(ctx, run)
+                    and approval.subagent_name is None
+                    and not approval.always_asks,
+                    tool_args=tool_args,
+                    capability_tool_id=approval.capability_tool_id,
+                    context=context,
+                    account=approval.account,
+                    content_hidden=bool(hidden),
+                    always_asks=approval.always_asks,
+                )
+            )
+        return parked
 
     @asynccontextmanager
     async def _resume_stream(

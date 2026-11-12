@@ -2252,6 +2252,8 @@ export function useChat(options: UseChatOptions = {}) {
               capability_tool_id: call.capability_tool_id,
               context: call.context,
               account: call.account,
+              content_hidden: call.content_hidden,
+              always_asks: call.always_asks,
             })),
             reviewConfigs: actionable.map((call) => ({
               tool_name: call.tool_name,
@@ -2445,6 +2447,8 @@ export function useChat(options: UseChatOptions = {}) {
             capability_tool_id: call.capability_tool_id,
             context: call.context,
             account: call.account,
+            content_hidden: call.content_hidden,
+            always_asks: call.always_asks,
           })),
           reviewConfigs: parkedAgain.map((call) => ({
             tool_name: call.tool_name,
