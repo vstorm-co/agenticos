@@ -342,10 +342,13 @@ async def test_a_finished_chat_is_read_once_into_claims_in_its_own_scope(
         ],
     )
 
+    before = datetime.now(UTC)
     recorded = await extraction.extract(db, org.id, run.id)
     again = await extraction.extract(db, org.id, run.id)
 
     assert (recorded, again) == (2, 0)
+    # Dated from before the transcript was read, so an erasure after it is still seen.
+    assert before <= think.await_args_list[0].kwargs["started_at"] <= datetime.now(UTC)
     prompt = think.await_args.kwargs["prompt"]
     assert "I prefer short answers" in prompt and "ignore me" not in prompt
     assert think.await_args.kwargs["feature"] == "maintenance"

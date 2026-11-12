@@ -22,6 +22,7 @@ What keeps it safe is how little it is allowed to do:
 """
 
 import logging
+from datetime import UTC, datetime
 from typing import Literal
 from uuid import UUID
 
@@ -234,6 +235,9 @@ async def extract(
     ctx = await member_context(db, organization_id=organization_id, user_id=run.user_id)
     if ctx is None or await _erased_since(db, run) or (personal and await _read_by_others(db, run)):
         return 0
+    # The maintenance run is dated from before the transcript is read, so an erasure
+    # committed after this read is one its manifest write still sees.
+    read_at = datetime.now(UTC)
     messages = await conversation_repo.get_messages_by_run(db, run.id, limit=60, newest=True)
     turns = [f"{m.role}: {m.content.strip()}" for m in messages if m.role in ("user", "assistant")]
     transcript = "\n\n".join(turns)[-MAX_TRANSCRIPT_CHARS:]
@@ -246,6 +250,7 @@ async def extract(
         output_type=_Extraction,
         instructions=_INSTRUCTIONS,
         prompt=f"Conversation:\n\n{transcript}",
+        started_at=read_at,
     )
     if found is None:
         return 0
