@@ -7590,6 +7590,7 @@
       "wantsTo": "<strong>{actor}</strong> wants to <strong>{tool}</strong>",
       "askedFor": "For {email}",
       "contentHidden": "What this call would share is shown only to people who can see its run.",
+      "approveNeedsTheRun": "Only somebody who can see the run can approve this. You can reject it.",
       "account": "Account: {account}",
       "openTheRun": "Open the run",
       "decidedByWhom": "by {email}",

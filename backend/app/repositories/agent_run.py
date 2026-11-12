@@ -2621,6 +2621,8 @@ class ApprovalRow:
     asked_in_chat: ChatAsker | None = None
     content_hidden: bool = False
     """Set by the service when this reader may not see what the call quotes."""
+    always_asks: bool = False
+    """Only a person's answer to this call could let it run, so nobody may approve it unread."""
 
 
 @dataclass(frozen=True)
@@ -2758,6 +2760,7 @@ async def list_approvals(
             decided_via=approval.decided_via,
             note=approval.note,
             created_at=approval.created_at,
+            always_asks=approval.always_asks,
             parked_in_chat=bool(parked_in_chat),
             asked_in_chat=(
                 ChatAsker(

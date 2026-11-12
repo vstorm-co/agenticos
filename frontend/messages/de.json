@@ -6862,6 +6862,7 @@
       "wantsTo": "<strong>{actor}</strong> möchte: <strong>{tool}</strong>",
       "askedFor": "Für {email}",
       "contentHidden": "Was dieser Aufruf teilen würde, sehen nur Personen, die seinen Lauf sehen können.",
+      "approveNeedsTheRun": "Freigeben kann das nur, wer den Run sehen kann. Sie können es ablehnen.",
       "account": "Konto: {account}",
       "openTheRun": "Run öffnen",
       "decidedByWhom": "von {email}",

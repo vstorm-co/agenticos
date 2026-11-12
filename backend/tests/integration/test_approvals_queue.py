@@ -972,3 +972,37 @@ class TestWhatAQueueReaderMaySeeOfAFact:
         row = await self._read_as(db, org, owner, OrgRoleName.OWNER)
 
         assert not row.content_hidden
+
+    async def _decide_as(self, db: AsyncSession, org, user: User, role: str, *, approved: bool):
+        ctx = AuthContext(user_id=user.id, organization_id=org.id, role=role)
+        [row], _ = await ApprovalService(db).list_approvals(ctx)
+        with patch("app.services.approvals.spawn_after_commit") as spawn:
+            spawn.side_effect = lambda _, coroutine, **kwargs: coroutine.close()
+            return await ApprovalService(db).decide(ctx, row.id, approved=approved)
+
+    async def test_a_reader_who_cannot_see_the_fact_may_not_approve_sharing_it(self, db) -> None:
+        from app.core.exceptions import AuthorizationError
+
+        org, _, _, reader = await self._parked_share(db)
+
+        with pytest.raises(AuthorizationError, match="may approve it; you may reject it"):
+            await self._decide_as(db, org, reader, OrgRoleName.MEMBER, approved=True)
+
+    async def test_they_may_still_reject_it(self, db) -> None:
+        org, _, _, reader = await self._parked_share(db)
+
+        decided = await self._decide_as(db, org, reader, OrgRoleName.MEMBER, approved=False)
+
+        assert decided.status == ApprovalStatus.REJECTED.value
+
+    async def test_the_person_who_asked_may_approve_it(self, db) -> None:
+        org, _, asker, _ = await self._parked_share(db)
+
+        decided = await self._decide_as(db, org, asker, OrgRoleName.MEMBER, approved=True)
+
+        assert decided.status == ApprovalStatus.APPROVED.value
+
+    async def test_the_queue_says_the_call_always_asks(self, db) -> None:
+        org, owner, _, _ = await self._parked_share(db)
+
+        assert (await self._read_as(db, org, owner, OrgRoleName.OWNER)).always_asks

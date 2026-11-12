@@ -459,6 +459,14 @@ class ApprovalRead(BaseSchema):
             "may not see that run. The audience and the tool still show"
         ),
     )
+    always_asks: bool = Field(
+        default=False,
+        description=(
+            "Whether only a person's answer to this call could let it run - `share_memory`, "
+            "or a correction of a shared fact. With `content_hidden`, the caller may "
+            "reject the call but not approve it"
+        ),
+    )
 
 
 class ApprovalList(BaseSchema):

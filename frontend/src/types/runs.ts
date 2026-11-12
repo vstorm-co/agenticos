@@ -403,6 +403,11 @@ export interface ToolApproval {
    */
   content_hidden?: boolean;
   /**
+   * Only a person's answer to this call could let it run. With `content_hidden`
+   * the server refuses an approval from this reader, so only Reject is offered.
+   */
+  always_asks?: boolean;
+  /**
    * Which of a service's accounts the call acts as - a labelled connection, or one of
    * several accounts on one service. Null where there is nothing to tell apart.
    */

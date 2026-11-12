@@ -218,6 +218,7 @@ class TestRemembering:
                 "app.services.approvals.voice_call_repo.is_live_run",
                 new=AsyncMock(return_value=False),
             ),
+            patch.object(service, "hidden_fields", new=AsyncMock(return_value=frozenset())),
             patch("app.services.approvals.agent_run_repo.decide_approval") as decided,
             pytest.raises(BadRequestError, match="asks every time"),
         ):
