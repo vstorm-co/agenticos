@@ -48,11 +48,12 @@ def memory_owner_key(audience: RunAudience, *, allow_personal: bool) -> str | No
     `allow_personal` off (the operator's compliance lever) drops the person store,
     so an agent configured that way has memory in group chats and none one to one
     - rather than a refusal that suggests an alternative leading to the same
-    refusal.
+    refusal. A chat other people read drops it too: what the agent knows about the
+    person would be written into a transcript their colleagues open.
     """
     if audience.room_key is not None:
         return audience.room_key
-    if audience.user_id is None or not allow_personal:
+    if audience.user_id is None or not allow_personal or audience.shared_transcript:
         return None
     return person_owner_key(audience.user_id)
 
@@ -106,17 +107,18 @@ def readable_claim_scopes(
     The conversation's own store; and, when the person is alone with the agent, their
     shared profile, the project the conversation belongs to and the organization.
     An anonymous run reads nothing: an organization's claims are not for a public
-    embed, and there is no person whose profile it could be.
+    embed, and there is no person whose profile it could be. A chat other people
+    read keeps the project's and the organization's claims, whether or not the agent
+    keeps personal memory, and none of the person's.
     """
     key = memory_owner_key(audience, allow_personal=allow_personal)
-    if key is None:
-        return []
-    scopes = [ClaimScope(key, agent_id)]
     if audience.room_key is not None:
         # What a room reads aloud is the room's own: a channel's members are not
         # necessarily a project's, and the organization's claims are not for it.
-        return scopes
-    scopes.append(ClaimScope(key, None))
+        return [ClaimScope(audience.room_key, agent_id)]
+    if audience.user_id is None or (not allow_personal and not audience.shared_transcript):
+        return []
+    scopes = [] if key is None else [ClaimScope(key, agent_id), ClaimScope(key, None)]
     if project_id is not None:
         scopes.append(ClaimScope(project_owner_key(project_id), None))
     scopes.append(ClaimScope(organization_owner_key(organization_id), None))

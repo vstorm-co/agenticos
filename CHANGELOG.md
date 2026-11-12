@@ -27,6 +27,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Project chats and conversations shared for editing no longer inject, recall, write or extract personal memory. Queued extraction rechecks current sharing before writing.
+
 - Knowledge base details now report the same document counts, indexing progress, agent usage and shared groups as the listing, while preserving effective write access.
 
 ## [1.66.0] - 2026-11-11

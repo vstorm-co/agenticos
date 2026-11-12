@@ -9,7 +9,7 @@ it was parked on, with the spend it had already booked.
 import asyncio
 import logging
 import uuid
-from collections.abc import AsyncGenerator, Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable, Iterator
 from contextlib import nullcontext
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -64,6 +64,7 @@ from app.agents.connect_on_use import ConnectionRequest, ConnectOnUse
 from app.agents.deps import AgentDeps
 from app.agents.isolation import InterceptedCall, RecordedCall, RunIsolation, ToolRecording
 from app.agents.loop_guard import ToolLoopStopped
+from app.agents.memory_scope import may_inject_memory, memory_owner_key
 from app.agents.spec import (
     AgentSpec,
     CapabilityBindingSpec,
@@ -85,6 +86,7 @@ from app.core.exceptions import (
     RunExecutionError,
     RunFailedError,
 )
+from app.core.memory_keys import person_owner_key
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent_environment import AgentEnvironmentConnection
 from app.db.models.agent_run import ApprovalStatus, RunStatus, RunSurface
@@ -178,6 +180,20 @@ _THE_ASKER = uuid.uuid4()
 
 def _ctx() -> AuthContext:
     return AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.OWNER)
+
+
+@pytest.fixture(autouse=True)
+def _no_conversation_shares() -> Iterator[None]:
+    """A chat is shared with nobody unless a test says otherwise.
+
+    Every admission asks, to keep the person's memory out of a chat others read,
+    and `_db()` cannot answer a query.
+    """
+    with patch(
+        "app.services.agent_runner.conversation_share_repo.get_shares_for_conversation",
+        new=AsyncMock(return_value=[]),
+    ):
+        yield
 
 
 def _db(monthly_budget_usd: Decimal | None = None):
@@ -804,6 +820,76 @@ class TestPrepare:
         assert opened.await_args.kwargs["identity"].conversation_id is None
         assert opened.await_args.kwargs["scope_override"] == "run"
         assert spec.capabilities[0].config["session_scope"] == scope
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        ("chat", "personal"),
+        [("private", True), ("view", True), ("project", False), ("edit", False)],
+    )
+    async def test_personal_memory_stays_out_of_a_chat_others_read(self, chat: str, personal: bool):
+        """A project's members, and anybody it is shared with to edit, read the
+        transcript, so the person's profile and facts must not be put into it."""
+        ctx = _ctx()
+        service = AgentRunnerService(_db())
+        agent = MagicMock(
+            id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None, kind="agent"
+        )
+        project = None
+        if chat == "project":
+            project = MagicMock(
+                id=uuid.uuid4(),
+                description=None,
+                instructions="",
+                backend="state",
+                sandbox_connection_id=None,
+                runtime=None,
+            )
+            project.name = "Launch"
+        shares = (
+            [MagicMock(shared_with=uuid.uuid4(), permission=chat)]
+            if chat in {"view", "edit"}
+            else []
+        )
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(
+                    return_value=(agent, AgentSpec(name="Writer"), agent.current_version_id)
+                ),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+            ),
+            patch(
+                "app.services.agent_runner.ProjectService.for_run",
+                new=AsyncMock(return_value=project),
+            ),
+            patch(
+                "app.services.agent_runner.conversation_share_repo.get_shares_for_conversation",
+                new=AsyncMock(return_value=shares),
+            ),
+            patch("app.services.agent_runner.build_agent") as build,
+            patch.object(service.workspaces, "open", new=AsyncMock(return_value=None)),
+        ):
+            await service.prepare(ctx, agent.id, conversation_id=uuid.uuid4())
+
+        audience = build.call_args.kwargs["audience"]
+        assert may_inject_memory(audience, allow_personal=True) is personal
+        assert (
+            memory_owner_key(audience, allow_personal=True) == person_owner_key(ctx.user_id)
+        ) is personal
 
     @pytest.mark.anyio
     @pytest.mark.parametrize("aside", [False, True])

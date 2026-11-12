@@ -502,3 +502,34 @@ async def test_a_claim_conflict_after_admission_is_reported_to_the_agent(
                 run_person=user.id,
                 conversation_id=conversation.id,
             )
+
+
+async def test_a_project_chat_recalls_the_projects_claims_and_none_of_the_persons(
+    db: AsyncSession,
+) -> None:
+    from pydantic_ai import RunContext
+    from pydantic_ai.models.test import TestModel
+    from pydantic_ai.usage import RunUsage
+
+    from app.agents.audience import RunAudience
+    from app.agents.capabilities.memory_files._toolset import MemoryToolset
+    from app.agents.deps import AgentDeps
+
+    user, org, agent, project, conversation = await _world(db)
+    personal = ClaimScope(person_owner_key(user.id), None)
+    shared = ClaimScope(project_owner_key(project.id), None)
+    assert await _remember(org, personal, "Ada is on sick leave until Friday", user)
+    assert await _remember(org, shared, "The launch slips to Friday", user, subject="launch")
+    deps = AgentDeps(
+        organization_id=org.id,
+        agent_id=agent.id,
+        conversation_id=conversation.id,
+        run_person=user.id,
+        audience=RunAudience(user_id=user.id, shared_transcript=True),
+    )
+    ctx = RunContext(deps=deps, model=TestModel(), usage=RunUsage(), retry=0, max_retries=1)
+
+    found = await MemoryToolset().recall(ctx, "Friday")
+
+    assert "The launch slips to Friday" in found
+    assert "sick leave" not in found

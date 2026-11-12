@@ -4884,6 +4884,11 @@ class AgentRunnerService:
             room_key=memory_room_key,
             via_api_key=ctx.api_key_id is not None,
         )
+        audience = replace(
+            audience,
+            shared_transcript=project is not None
+            or await self._shared_for_editing(ctx, conversation_id),
+        )
         # A workflow step runs as the workflow's principal, so only the dispatch
         # knows whether an outsider supplied the run's input. Read here rather
         # than trusted to every caller: a step parked before the flag existed
@@ -5975,12 +5980,13 @@ class AgentRunnerService:
         """
         if scope in SHARED_SCOPES:
             return True
-        if scope != "conversation" or conversation_id is None:
-            return False
-        shares = await conversation_share_repo.get_shares_for_conversation(
+        return scope == "conversation" and await self._shared_for_editing(ctx, conversation_id)
+
+    async def _shared_for_editing(self, ctx: AuthContext, conversation_id: UUID | None) -> bool:
+        """Whether somebody the conversation is shared with may write in it."""
+        return conversation_id is not None and await conversation_share_repo.has_edit_share(
             self.db, conversation_id, organization_id=ctx.organization_id
         )
-        return any(share.shared_with is not None and share.permission == "edit" for share in shares)
 
     @staticmethod
     def _delegation_recorder(

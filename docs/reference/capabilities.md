@@ -426,6 +426,13 @@ there is nothing for the agent to get wrong.
   there is no store, and the tools say so rather than saving somewhere. A run
   started with an [API key](../api.md#organization-api-keys) has none either:
   the key acts for its issuer, but whoever holds it is not that person.
+- In a chat other people read - a project's, or one shared with somebody to
+  edit - there is no personal store. The agent neither shows, recalls nor saves
+  what it knows about the person there; it still reads the project's and the
+  organization's claims. Sharing a chat to edit, or moving it into a project,
+  shows its history, answers written while it was private included; from that
+  moment, later answers use no personal memory. A chat shared only to view
+  shows every answer, later ones written with personal memory included.
 - On a schedule or an event trigger there is no store either, even though the
   run executes as the trigger's creator. The creator lends the run their
   authority, not their identity, so nobody is listening and the tools refuse.
