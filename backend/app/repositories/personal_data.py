@@ -16,6 +16,7 @@ import re
 from collections import defaultdict
 from collections.abc import Iterable
 from datetime import datetime
+from itertools import batched
 from typing import Any
 from uuid import UUID
 
@@ -855,11 +856,8 @@ async def forget_system_runs_of(db: AsyncSession, user_id: UUID, *, organization
     briefing's the person's notes and requests - the same personal data as the notes
     and claims an erasure deletes.
     """
-    await forget_runs(
-        db,
-        await db.scalars(
-            _system_runs_of(user_id).where(AgentRun.organization_id == organization_id)
-        ),
+    await _forget_in_batches(
+        db, _system_runs_of(user_id).where(AgentRun.organization_id == organization_id)
     )
 
 
@@ -869,7 +867,16 @@ async def forget_all_system_runs_of(db: AsyncSession, user_id: UUID) -> None:
     Unscoped by organization on purpose: the account is going, so nothing it was
     told in any organization may stay in a manifest.
     """
-    await forget_runs(db, await db.scalars(_system_runs_of(user_id)))
+    await _forget_in_batches(db, _system_runs_of(user_id))
+
+
+_RUN_BATCH = 1000
+"""Run ids per `forget_runs` call: one statement binds every id it is handed."""
+
+
+async def _forget_in_batches(db: AsyncSession, runs: Select[UUID]) -> None:
+    for batch in batched(await db.scalars(runs.order_by(AgentRun.id)), _RUN_BATCH, strict=False):
+        await forget_runs(db, batch)
 
 
 async def scrub_history_turns_of(

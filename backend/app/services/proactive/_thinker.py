@@ -424,6 +424,9 @@ class ProactiveThinker:
         recorder: RunRecorder,
         transcript: list[ModelMessage] | None,
     ) -> None:
+        # Before the run row is locked: account deletion holds the erasure lock while
+        # its SET NULL waits for that row, so the other order deadlocks.
+        erased = await self._erased_during(run)
         await agent_run_repo.finish_run(
             self.db,
             run=run,
@@ -435,7 +438,7 @@ class ProactiveThinker:
             ended_at=datetime.now(UTC),
             error=error,
         )
-        await self._record(run, recorder, transcript)
+        await self._record(run, recorder, transcript, erased=erased)
         await self.db.commit()
 
     async def _erased_during(self, run: AgentRun) -> bool:
@@ -460,7 +463,12 @@ class ProactiveThinker:
         )
 
     async def _record(
-        self, run: AgentRun, recorder: RunRecorder, transcript: list[ModelMessage] | None
+        self,
+        run: AgentRun,
+        recorder: RunRecorder,
+        transcript: list[ModelMessage] | None,
+        *,
+        erased: bool,
     ) -> None:
         if not recorder.requests and recorder.instructions is None:
             return
@@ -478,7 +486,7 @@ class ProactiveThinker:
                     else ModelMessagesTypeAdapter.dump_python([recorder.last_response], mode="json")
                 )
             payload, truncated = fit(payload)
-            if await self._erased_during(run):
+            if erased:
                 payload, truncated = personal_data_repo.forgotten_payload(payload), True
             async with self.db.begin_nested():
                 await run_manifest_repo.record(

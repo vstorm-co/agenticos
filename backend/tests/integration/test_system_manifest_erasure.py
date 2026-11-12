@@ -109,8 +109,12 @@ async def test_forget_me_trims_the_persons_system_manifests_in_that_organization
 
 @pytest.mark.parametrize("role", [MEMORY_MAINTENANCE, DAILY_BRIEFING])
 async def test_deleting_the_account_trims_its_system_manifests_everywhere(
-    db: AsyncSession, role: str
+    db: AsyncSession, role: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    from app.repositories import personal_data as personal_data_repo
+
+    # One run per batch, so a heavy account's runs are trimmed across several.
+    monkeypatch.setattr(personal_data_repo, "_RUN_BATCH", 1)
     person, colleague = await _user(db), await _user(db)
     org, agent = await _org(db, colleague, person)
     elsewhere, other_agent = await _org(db, colleague, person)
@@ -159,7 +163,8 @@ async def test_a_manifest_written_after_an_erasure_mid_call_keeps_only_the_spec(
         messages=[{"kind": "request", "parts": [{"content": SECRET}]}],
     )
 
-    await ProactiveThinker(db)._record(run, recorder, None)
+    thinker = ProactiveThinker(db)
+    await thinker._record(run, recorder, None, erased=await thinker._erased_during(run))
 
     manifest = await db.scalar(select(RunManifest).where(RunManifest.run_id == run.id))
     assert manifest is not None
