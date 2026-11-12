@@ -114,6 +114,8 @@ interface ToolCall {
 interface ChatMessage {
   role?: string;
   content?: unknown;
+  tool_call_id?: string;
+  tool_calls?: { id?: string; function?: { name?: string } }[];
 }
 
 /** As much of a tool declaration as deciding whether to call one needs. */
@@ -308,8 +310,8 @@ function replyFor(body: ChatRequest): string {
  *   resolved - without this a deployment where delegation was never wired up
  *   would answer a call to a tool it does not have, turning a missing feature
  *   into a model error two layers away from the cause;
- * - nothing has come back from a tool yet. The second request of a delegating
- *   turn carries the result, and answering it with the same call again is an
+ * - no business tool has answered yet. Discovery may precede delegation;
+ *   once the task has answered, calling it again would be an
  *   infinite loop rather than a fixture. It is also what makes the *delegate's*
  *   own request safe: it is sent with no delegation tool at all, so a delegate
  *   never delegates however its prompt reads.
@@ -321,9 +323,29 @@ function delegateFor(body: ChatRequest): string | null {
   return offers(body, TASK_TOOL) ? named : null;
 }
 
-/** A tool has answered in this turn, so the next reply is prose and nothing loops. */
+/** Search results reveal tools; they do not complete the requested operation. */
 function toolAnswered(body: ChatRequest): boolean {
-  return (body.messages ?? []).some((message) => message.role === "tool");
+  const discoveryIds = new Set(
+    (body.messages ?? [])
+      .flatMap((message) => message.tool_calls ?? [])
+      .filter((call) => call.function?.name === "search_tools")
+      .map((call) => call.id)
+      .filter((id): id is string => id !== undefined),
+  );
+  return (body.messages ?? []).some(
+    (message) =>
+      message.role === "tool" &&
+      (message.tool_call_id === undefined || !discoveryIds.has(message.tool_call_id)),
+  );
+}
+
+/** Discover only an explicitly requested tool, once; missing capabilities still fail. */
+function discoveryCallFor(body: ChatRequest): ToolCall | null {
+  if ((body.messages ?? []).some((message) => message.role === "tool")) return null;
+  const text = allText(body);
+  const name = DELEGATE.test(text) ? TASK_TOOL : CALL_TOOL.exec(text)?.[1];
+  if (name === undefined || offers(body, name) || !offers(body, "search_tools")) return null;
+  return { name: "search_tools", arguments: JSON.stringify({ queries: [name] }) };
 }
 
 /** The request offers this tool, so the capability behind it was bound. */
@@ -373,8 +395,8 @@ function usageFor(prompt: string, answer: string): Record<string, number> {
 /** Fixed, because a chunk id that moved would be the only unstable thing here. */
 const COMPLETION_ID = "chatcmpl-e2e-stub";
 const CREATED = 1_700_000_000;
-/** One tool call per turn, so one id is enough and a fixed one reads plainly. */
-const TOOL_CALL_ID = "call-e2e-task";
+/** Discovery and the requested action must have distinct ids in the same history. */
+const TOOL_CALL_ID_PREFIX = "call-e2e";
 
 function completion(model: string, answer: string, usage: Record<string, number>): string {
   return JSON.stringify({
@@ -423,7 +445,7 @@ function toolCallCompletion(model: string, call: ToolCall, usage: Record<string,
           content: null,
           tool_calls: [
             {
-              id: TOOL_CALL_ID,
+              id: `${TOOL_CALL_ID_PREFIX}-${call.name}`,
               type: "function",
               function: { name: call.name, arguments: call.arguments },
             },
@@ -484,7 +506,7 @@ function* toolCallChunks(model: string, call: ToolCall, usage: Record<string, nu
         tool_calls: [
           {
             index: 0,
-            id: TOOL_CALL_ID,
+            id: `${TOOL_CALL_ID_PREFIX}-${call.name}`,
             type: "function",
             function: { name: call.name, arguments: "" },
           },
@@ -546,7 +568,8 @@ const server = createServer((request, response) => {
 
     const model = body.model ?? "gpt-4.1-mini";
     const subagent = delegateFor(body);
-    const call = subagent === null ? toolCallFor(body) : delegationCall(subagent);
+    const call =
+      discoveryCallFor(body) ?? (subagent === null ? toolCallFor(body) : delegationCall(subagent));
     // Empty on a tool-calling turn, which is what a provider sends beside a tool
     // call: the agent has not said anything yet, and inventing prose for it
     // would put words in the transcript the agent never generated.
