@@ -151,3 +151,7 @@ access before posting a separate public question. A link invitation consumes the
 identity's rate limit before minting its bearer token. Console transcripts need
 both VIEW_CHANNEL and READ_MESSAGE_HISTORY. Keep signed CDN queries out of logs
 as well as request tracing.
+
+## Admission transaction
+
+`ChannelMessageRouter._route_inner` commits the admitted identity, session and conversation after access and rate-limit checks, before prompt resumption or run preparation. Platform MCP credentials are minted in an independent transaction and their provenance references the conversation. A flush alone leaves that foreign key target invisible. A failed admission commit must prevent preparation and credential minting.

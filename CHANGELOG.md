@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **First messages to channel assistants.** Commit the admitted channel conversation before creating its platform MCP credential. A newly opened thread could otherwise fail before the model call with a conversation foreign-key violation, while its next message succeeded. Admission commit failures stop preparation.
+
 ## [1.71.0] - 2026-11-12
 
 ### Changed

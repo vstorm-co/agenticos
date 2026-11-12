@@ -647,6 +647,11 @@ class ChannelMessageRouter:
             await self._send_reply(bot, incoming, exc.message)
             return
 
+        # The platform MCP credential is committed on an independent session during
+        # preparation. Its provenance references this conversation, so admission
+        # must be visible before preparation (not only before the model call).
+        await db.commit()
+
         # A run parked on a question to this person that takes a typed answer:
         # the message is that answer, not a new turn beside a run still waiting.
         if await ChannelPrompts(db).reply(
