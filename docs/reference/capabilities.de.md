@@ -1,5 +1,5 @@
 ---
-source_sha: "b0fd849fcc36"
+source_sha: "330409a8cc14"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1819,7 +1819,7 @@ Lesezugriff. Codex in einem Container hat kein `read_only`: Sein
 Nur-Lesen-Modus ist ein eigener Sandbox, der im Container des Agent nicht startet,
 und das Veröffentlichen lehnt die Kombination ab. Ob ein Mensch vor jeder Aufgabe Ja
 sagt, ist die **Freigabe durch einen Menschen** der Capability, auf **Immer fragen**
-gesetzt — wie jede Sperre ist sie aus, bis jemand sie setzt. Es gibt keinen
+gesetzt. Der Builder wählt diesen Modus für neue Bindings; bestehende behalten ihre Politik. Es gibt keinen
 Tools-Tab: Das eine Tool ist die Capability.
 
 **Benannte Sitzungen.** Jede Aufgabe nennt eine `session` - `main`, wenn sie keine nennt. Derselbe Name setzt die bisherige Arbeit dieser Sitzung in der Unterhaltung fort; ein neuer Name öffnet eine weitere, und unabhängige Sitzungen laufen nebeneinander, wenn der Agent das Tool mehrmals gleichzeitig aufruft. `fresh_session` beginnt eine Sitzung neu. Auf diesem Computer kann eine Sitzung außerdem ihren `harness` wählen - Claude Code oder Codex, mit der Anmeldung dieses Computers - und einen `folder` innerhalb des Chat-Ordners, sodass zwei Projekte oder beide Harnesses gleichzeitig arbeiten. In einer Sandbox oder einer privaten Cloud-Aufgabe ist der Harness des Bindings der einzige, da Schlüssel oder Konto zu ihm gehören.

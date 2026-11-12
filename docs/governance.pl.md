@@ -1,5 +1,5 @@
 ---
-source_sha: "390d73e39402"
+source_sha: "018f74739e6a"
 ---
 
 # Governance { #governance }
@@ -1451,9 +1451,15 @@ Karty nie ma, dopóki każdy cache trzymał.
 
 ## Zatwierdzenia { #approvals }
 
-Narzędzie, które autor agenta objął bramką, parkuje run i czeka na człowieka.
-Nic nie jest za bramką, dopóki ktoś o to nie poprosi: bramka, której nikt nie
-wybrał, parkuje runy w kanałach i rutynach, gdzie nikogo nie ma, żeby odpowiedzieć.
+Narzędzie objęte bramką parkuje run i czeka na osobę. Builder oferuje **Zawsze pytaj**
+i **Nigdy nie pytaj** dla capability; pojedyncze narzędzia mogą też dziedziczyć jej tryb.
+Nowa capability dodana w Builderze zaczyna od **Zawsze pytaj**. Istniejące bindingi,
+w tym pominięte approval i zapisane `default`, zachowują wcześniejszą politykę.
+
+Wymagane akceptacje mogą wstrzymać routines i kanały tak samo jak chat. Dla pracy bez
+nadzoru świadomie wybierz akcje dozwolone bez pytania. Obowiązkowe akceptacje i bardziej
+rygorystyczna polityka organizacji nadal obowiązują. Narzędzia wykonywane przez providera
+potrzebują lokalnej metody, aby pytać; publikacja odrzuca niewykonalną bramkę.
 
 Rozstrzyganie idzie od najbardziej szczegółowego:
 

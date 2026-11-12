@@ -1,5 +1,5 @@
 ---
-source_sha: "b0fd849fcc36"
+source_sha: "330409a8cc14"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1713,8 +1713,8 @@ czytających: żadna lista prefiksów poleceń nie robi z powłoki narzędzia ty
 odczytu, bo `git log --output=<plik>` pasuje do `git log` tak samo jak każdy odczyt. Codex w kontenerze nie ma `read_only`: jego tryb tylko do odczytu
 to jego własny sandbox, który nie startuje w kontenerze agenta, więc publikacja
 odrzuca to połączenie. To, czy człowiek mówi „tak” przed każdym zadaniem, ustawia
-**Zatwierdzenie przez człowieka** capability na **Zawsze pytaj** — jak każda bramka,
-jest wyłączona, dopóki ktoś jej nie ustawi. Nie ma zakładki Narzędzia: jedno
+**Zatwierdzenie przez człowieka** capability na **Zawsze pytaj**. Builder wybiera ten tryb dla nowych bindingów;
+istniejące zachowują swoją politykę. Nie ma zakładki Narzędzia: jedno
 narzędzie to sama capability.
 
 **Nazwane sesje.** Każde zadanie wskazuje `session` - `main`, gdy nie wskazuje żadnej. Ta sama nazwa kontynuuje wcześniejszą pracę tej sesji w rozmowie; nowa nazwa otwiera kolejną, a niezależne sesje działają równolegle, gdy agent wywołuje narzędzie kilka razy naraz. `fresh_session` zaczyna jedną sesję od nowa. Na tym komputerze sesja może też wybrać `harness` - Claude Code albo Codex, na logowaniu tego komputera - oraz `folder` wewnątrz folderu czatu, więc dwa projekty albo oba harnessy pracują jednocześnie. W sandboxie i w prywatnym zadaniu w chmurze jedynym harnessem jest ten z bindingu, bo należy do niego klucz albo konto.

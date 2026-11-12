@@ -1,5 +1,5 @@
 ---
-source_sha: "390d73e39402"
+source_sha: "018f74739e6a"
 ---
 
 # Governance { #governance }
@@ -1455,9 +1455,17 @@ La tarjeta no aparece mientras todas las cachés aguantaron.
 
 ## Aprobaciones { #approvals }
 
-Una herramienta que el autor del agent puso tras una puerta aparca el run y espera
-a una persona. Nada queda tras una puerta hasta que alguien lo pide: una puerta que
-nadie eligió aparca runs en canales y rutinas donde no hay nadie para responderla.
+Una herramienta con aprobación aparca el run y espera a una persona. El Builder ofrece
+**Preguntar siempre** y **No preguntar nunca** para una capability; las herramientas
+individuales también pueden seguir su política. Las capabilities nuevas del Builder
+empiezan con **Preguntar siempre**. Los bindings existentes, incluso sin approval o con
+`default` almacenado, conservan su política anterior.
+
+Las aprobaciones requeridas pueden detener rutinas y canales igual que un chat. Para
+trabajo desatendido, elige expresamente qué acciones pueden ejecutarse sin preguntar.
+Las aprobaciones obligatorias y las políticas más estrictas de la organización siguen
+vigentes. Las herramientas ejecutadas por el provider necesitan un método local para
+pedir aprobación; publicar rechaza una aprobación que no pueda aplicarse.
 
 La resolución va de lo más específico a lo menos:
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "b0fd849fcc36"
+source_sha: "330409a8cc14"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1753,8 +1753,8 @@ lista de prefijos de comandos hace de una shell algo de solo lectura, porque
 `git log --output=<archivo>` encaja con `git log` igual que cualquier lectura. Codex dentro de un contenedor no tiene `read_only`: su modo de solo lectura es una
 sandbox propia, que no arranca dentro del contenedor del agent, y la publicación
 rechaza la combinación. Que una persona diga sí antes de cada tarea es la
-**Aprobación humana** de la capability, puesta en **Preguntar siempre** — como toda
-compuerta, está desactivada hasta que alguien la pone. No hay pestaña de
+**Aprobación humana** de la capability, puesta en **Preguntar siempre**. El Builder elige este modo para bindings nuevos;
+los existentes conservan su política. No hay pestaña de
 herramientas: la única herramienta es la capability.
 
 **Sesiones con nombre.** Cada tarea indica una `session` - `main` cuando no indica ninguna. El mismo nombre continúa el trabajo anterior de esa sesión en la conversación; un nombre nuevo abre otra, y las sesiones independientes se ejecutan en paralelo cuando el agente llama a la herramienta varias veces a la vez. `fresh_session` reinicia una sesión. En este ordenador una sesión también puede elegir su `harness` - Claude Code o Codex, con la sesión iniciada en ese ordenador - y una `folder` dentro de la carpeta del chat, de modo que dos proyectos, o ambos harnesses, trabajan a la vez. En una sandbox o en una tarea privada en la nube el harness del binding es el único, porque la clave o la cuenta le pertenecen.

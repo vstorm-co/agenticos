@@ -1647,8 +1647,8 @@ command prefixes keeps a shell read-only, since `git log --output=<file>` matche
 `git log` as well as any read does. Codex in a container has no `read_only`: its read-only mode is a
 sandbox of its own, which cannot start inside the agent's container, and publish
 refuses the combination. Whether a person says yes before each task is the
-capability's **Human approval**, set to **Always ask** — like every gate, it is off
-until somebody sets it. There is no Tools tab: the one tool is the capability.
+capability's **Human approval**, set to **Always ask**. The Builder starts newly added bindings in this mode;
+existing bindings retain their policy. There is no Tools tab: the one tool is the capability.
 
 **Named sessions.** Each task names a `session` - `main` when it names none. The same name continues that session's earlier work in the conversation; a new name opens another, and independent local sessions run side by side when the agent calls the tool several times at once; sandbox calls in the same toolset queue to keep their workspace snapshots separate. `fresh_session` starts one session over. On this computer a session may also choose its `harness` - Claude Code or Codex, on the sign-in that computer has - and a `folder` inside the chat's folder, so two projects, or both harnesses, work at once. In a sandbox or a private cloud task the binding's harness is the only one, since its key or account belongs to it.
 

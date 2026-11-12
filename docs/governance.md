@@ -1360,9 +1360,15 @@ shrink the prompt the cache held. The card is not shown while every cache held.
 
 ## Approvals
 
-A tool the agent's author gated parks the run and waits for a person. Nothing
-is gated until somebody asks: a gate nobody chose parks runs in channels and
-routines where nobody is there to answer it.
+A gated tool parks the run and waits for a person. The Builder offers **Always ask**
+and **Never ask** for a capability; individual tools can also **Follow the capability**.
+New capabilities added in the Builder start with **Always ask**. Existing bindings,
+including omitted approval and stored `default`, keep their previous policy.
+
+Required approvals can pause routines and channels as well as chat. For unattended
+work, deliberately choose which actions may run without approval. Mandatory approvals
+and stricter organization policies still apply. Provider-executed tools need a locally
+executed method to support approval; publication refuses an unenforceable gate.
 
 Resolution is most-specific-first:
 

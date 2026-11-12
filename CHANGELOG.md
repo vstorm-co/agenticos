@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- The Builder offers two capability approval choices and starts newly added capabilities with Always ask. Existing specs retain their policies, and individual tools can still inherit or override them.
+
 ### Fixed
 
 - Knowledge base details now report the same document counts, indexing progress, agent usage and shared groups as the listing, while preserving effective write access.

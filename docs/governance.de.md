@@ -1,5 +1,5 @@
 ---
-source_sha: "390d73e39402"
+source_sha: "018f74739e6a"
 ---
 
 # Governance { #governance }
@@ -1542,10 +1542,16 @@ auch eine Komprimierung den gecachten Prompt verkleinern kann. Solange jeder Cac
 
 ## Freigaben { #approvals }
 
-Ein Tool, das der Autor des Agents hinter ein Gate gestellt hat, parkt den Run und
-wartet auf eine Person. Nichts steht hinter einem Gate, bis jemand darum bittet:
-Ein Gate, das niemand gewählt hat, parkt Runs in Kanälen und Routinen, in denen
-niemand da ist, um zu antworten.
+Ein gesperrtes Tool parkt den Run und wartet auf eine Person. Der Builder bietet
+**Immer fragen** und **Nie fragen** für eine Capability; einzelne Tools können auch
+der Capability folgen. Neue Capabilities im Builder beginnen mit **Immer fragen**.
+Bestehende Bindings, auch ohne Approval oder mit gespeichertem `default`, behalten ihre Politik.
+
+Erforderliche Freigaben können Routinen und Kanäle ebenso wie Chats anhalten. Wähle für
+unbeaufsichtigte Arbeit bewusst die Aktionen, die ohne Rückfrage laufen dürfen.
+Verbindliche Freigaben und strengere Organisationsregeln gelten weiter. Vom Provider
+ausgeführte Tools brauchen eine lokale Methode für Freigaben; eine nicht durchsetzbare
+Sperre wird beim Veröffentlichen abgelehnt.
 
 Die Auflösung geht vom Spezifischsten aus:
 
