@@ -562,6 +562,7 @@ export function QuickAsk({
     clearMessages();
     scrolledUp.current = false;
     setConversationId(null);
+    setAccessRefused(false);
     setQuestion("");
     input.current?.focus();
   };
