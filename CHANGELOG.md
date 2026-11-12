@@ -19,6 +19,35 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Upgrading
+
+Platform MCP clients must follow page and text-window continuations instead of expecting all cached schemas or recorded tool results inline. Use `get_mcp_connection_tool` and `get_capability` for selected full contracts, and the run or conversation tool-call readers for recorded payloads. New channel bots acknowledge incoming questions and leave answer ratings disabled; existing bots keep their saved settings.
+
+### Added
+
+- Focused platform MCP discovery for connection tools and capabilities, with search, pagination and explicit response budgets. Run inspection reads bounded message and tool-payload windows under existing run permissions; run history accepts diagnostic filters.
+
+### Changed
+
+- New channel bots acknowledge questions with 👀 on Slack, Telegram and Mattermost (the native emphasize tapback on iMessage), and answer ratings start disabled. Both settings remain configurable; existing bots keep their saved choices.
+
+- Platform MCP conversation reads return bounded text and tool-metadata windows. Use the selected tool-payload reader for recorded arguments and results.
+- Platform MCP connection and capability listings return summaries. Clients must follow `next_skip` and use the detail tools for configuration schemas. Skill discovery omits body excerpts and defaults to 20 items. Console REST responses are unchanged.
+
+### Fixed
+
+- Keep the caret aligned with highlighted text in scrolling Markdown editors by giving both layers the same scrollbar gutter and text rendering.
+
+- Open catalog skills in a modal again with an explicit full-view link. Size the version tree to its contents and give version previews usable space on desktop and phones.
+
+- Accept a Mattermost mention added by editing a recently observed, ignored post, while shared receipts prevent edits from replaying a previously handled request.
+
+- Present Mattermost questions and approvals as native cards with a settled status, and silently acknowledge repeated clicks on requests already answered instead of posting public duplicates.
+
+- Show the actual unverified channel sender instead of attributing an external request to the bot publisher in run history, including phone views.
+- Keep chat reports delivered before a question visible after the run resumes instead of folding them into tool history.
+- Find named agents beyond the first catalog page and reject cross-page ambiguities when reading Improve sessions.
+
 ## [1.69.0] - 2026-11-12
 
 ### Added

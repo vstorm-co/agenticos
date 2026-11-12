@@ -1857,6 +1857,9 @@ nothing else. Slack needs the
 
 ## Reactions and ratings
 
+New bots acknowledge questions with 👀 (`eyes`) on Slack, Telegram and Mattermost, or the native `emphasize` tapback on iMessage. Answer ratings start disabled. Both settings can be changed; existing bots keep their saved choices. Mattermost approval and question cards retain the request and show the final decision after their buttons are removed. Repeated clicks on an answered request are acknowledged silently. A mention added by an edit can start a turn only for a post observed and ignored within the last 15 minutes; already handled or older posts never start a new turn from an edit, and unavailable shared receipts disable edit admission.
+
+
 Two touches every chat platform here shares, both switched in the bot's
 settings:
 

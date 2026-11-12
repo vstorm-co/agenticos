@@ -3,6 +3,7 @@
 import { FILTER_CONTROL } from "@/components/ui/control-styles";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import type { ReactNode } from "react";
 import { BookOpen, ChevronDown, Library, ListFilter, Lock, Plus } from "lucide-react";
 
@@ -31,6 +32,7 @@ import {
 } from "@/components/ui";
 import { GroupFilter, NothingSharedWithGroup } from "@/components/groups/group-filter";
 import { usePermissions, useSkills, useUrlState } from "@/hooks";
+import { useUrlOverlay } from "@/hooks/use-url-state";
 import type { SkillSort } from "@/hooks/use-skills";
 import { getErrorMessage } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
@@ -72,7 +74,12 @@ function Chip({
   );
 }
 
+const SkillDetailDialog = dynamic(() =>
+  import("@/components/skills/skill-detail-dialog").then((module) => module.SkillDetailDialog),
+);
+
 export default function SkillsPage() {
+  const [selectedSkill, skillView] = useUrlOverlay("skill");
   const t = useTranslations("pages.skills");
   const tc = useTranslations("common");
   const tErrors = useTranslations("errors");
@@ -331,9 +338,9 @@ export default function SkillsPage() {
             />
           ) : (
             <>
-              <div className="rise-in grid grid-cols-1 items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <div className="rise-in grid grid-cols-1 items-stretch gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {skills.map((entry) => (
-                  <SkillCard key={entry.id} skill={entry} />
+                  <SkillCard key={entry.id} skill={entry} onOpen={() => skillView.open(entry.id)} />
                 ))}
               </div>
               <Pager
@@ -349,6 +356,7 @@ export default function SkillsPage() {
         </div>
       </ListCard>
 
+      {selectedSkill !== null && <SkillDetailDialog id={selectedSkill} onClose={skillView.close} />}
       <CreateSkillDialog open={createOpen} onOpenChange={setCreateOpen} />
       <SkillGalleryDialog open={galleryOpen} onOpenChange={setGalleryOpen} />
     </div>

@@ -12,6 +12,22 @@ from app.schemas.conversation import MessageRead
 from app.schemas.eval_run import EvalCaseLinkRead
 
 
+class ChatAskerRead(BaseSchema):
+    """The chat account that asked, for a run that ran as the binding's publisher.
+
+    Unverified: the name is what the account's owner typed on the platform.
+    """
+
+    platform: str
+    name: str = Field(
+        description="The display name, else the handle with an `@`, else the platform's user id"
+    )
+    bot_name: str | None = Field(
+        default=None,
+        description="The bot the chat reached the agent through; null once its binding is gone",
+    )
+
+
 class VoiceChainRead(BaseSchema):
     """One call as Activity shows it: every connection of it, summed (#54)."""
 
@@ -62,6 +78,14 @@ class AgentRunRead(BaseSchema):
     agent_id: UUID
     agent_version_id: UUID | None = None
     user_id: UUID | None = None
+    initiated_by_publisher_fallback: bool | None = Field(
+        default=None,
+        description="True when user_id is the publisher's authority, not the person who asked; null if unavailable",
+    )
+    asked_in_chat: ChatAskerRead | None = Field(
+        default=None,
+        description="The unverified channel account that asked when the run used publisher authority",
+    )
     surface: str
     system_role: str | None = Field(
         default=None,
@@ -342,22 +366,6 @@ class RunTranscript(BaseSchema):
     )
     items: list[RunTranscriptMessage]
     total: int
-
-
-class ChatAskerRead(BaseSchema):
-    """The chat account that asked, for a run that ran as the binding's publisher.
-
-    Unverified: the name is what the account's owner typed on the platform.
-    """
-
-    platform: str
-    name: str = Field(
-        description="The display name, else the handle with an `@`, else the platform's user id"
-    )
-    bot_name: str | None = Field(
-        default=None,
-        description="The bot the chat reached the agent through; null once its binding is gone",
-    )
 
 
 class ApprovalRead(BaseSchema):

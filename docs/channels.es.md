@@ -1,5 +1,5 @@
 ---
-source_sha: "ef0c42f55044"
+source_sha: "3849e81358a8"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1952,6 +1952,9 @@ o una plataforma que se niega, no cuesta nada más. Slack necesita el scope
 tenant.
 
 ## Reacciones y valoraciones { #reactions-and-ratings }
+
+Los bots nuevos confirman las preguntas con 👀 (`eyes`) en Slack, Telegram y Mattermost, o con el tapback nativo `emphasize` en iMessage. Las valoraciones empiezan desactivadas. Ambas opciones se pueden cambiar; los bots existentes conservan sus valores guardados. Las tarjetas de aprobación y preguntas de Mattermost conservan la solicitud y muestran la decisión tras retirar los botones. Los clics repetidos en solicitudes respondidas se confirman sin mensajes públicos. Una mención añadida al editar solo inicia un turno para un mensaje observado e ignorado durante los últimos 15 minutos. Las ediciones de mensajes antiguos o ya atendidos no inician otro turno; sin recibos compartidos no se admiten ediciones.
+
 
 Dos detalles que comparte cada plataforma de chat aquí, ambos en los ajustes del
 bot:

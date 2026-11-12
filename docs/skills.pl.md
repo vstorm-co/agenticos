@@ -1,8 +1,11 @@
 ---
-source_sha: "f29bcac95460"
+source_sha: "ccdac29aa383"
 ---
 
 # Skille { #skills }
+
+Kliknięcie skilla w katalogu otwiera modal bez utraty wyszukiwania, filtrów i strony listy. **Otwórz pełny widok** przechodzi do tej samej zakładki i wybranej linii na osobnej stronie. Drzewo wersji rośnie wraz z zawartością do ograniczonej wysokości; jedna wersja nie pozostawia dużego pustego płótna. Pojedynczy podgląd porównania korzysta z dostępnej szerokości i wyświetla instrukcje jako Markdown z możliwością podejrzenia źródła. Wiele wybranych wersji dzieli miejsce na komputerze, a na telefonie przewija się wewnątrz porównania.
+
 
 Skill to wiedza praktyczna zapisana raz i podpięta do wielu agentów: jak
 obsługuje się zwroty pieniędzy, jaki jest styl firmowy, jakie sprawdzenia musi

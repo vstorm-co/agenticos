@@ -461,3 +461,37 @@ class TestARunSaysWhereItsContinuationGoes:
 
         assert (await read("slack"))["continues_in_chat"] is True
         assert (await read("web"))["continues_in_chat"] is False
+
+
+async def test_run_listing_exposes_unlinked_asker_separately_from_publisher_authority() -> None:
+    from app.schemas.agent_run import ChatAskerRead
+
+    run = TestTheDownRatedMarkerReachesTheRow._run()
+    run.user_id = uuid4()
+    run.channel_identity_id = uuid4()
+    run.initiated_by_publisher_fallback = True
+    run.surface = "mattermost"
+    service = _service()
+    service.list_runs = AsyncMock(return_value=([run], 1))
+    service.down_rated_run_ids = AsyncMock(return_value=set())
+    service.run_chat_askers = AsyncMock(
+        return_value={run.id: ChatAskerRead(platform="mattermost", name="@participant")}
+    )
+    service.get_run = AsyncMock(return_value=run)
+    service.trace_url = AsyncMock(return_value=None)
+    service.neighbor_run_ids = AsyncMock(return_value=(None, None))
+    async with _client(service) as client:
+        response = await client.get("/api/v1/runs")
+        detail = await client.get(f"/api/v1/runs/{run.id}")
+    assert response.status_code == 200, response.text
+    [item] = response.json()["items"]
+    assert item["user_id"] == str(run.user_id)
+    assert item["initiated_by_publisher_fallback"] is True
+    assert item["asked_in_chat"] == {
+        "platform": "mattermost",
+        "name": "@participant",
+        "bot_name": None,
+    }
+    assert detail.status_code == 200, detail.text
+    assert detail.json()["asked_in_chat"] == item["asked_in_chat"]
+    assert service.run_chat_askers.await_count == 2

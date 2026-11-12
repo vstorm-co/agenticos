@@ -96,6 +96,7 @@ export function VersionCompare({
               )}
               <Column
                 skillId={skillId}
+                single={compared.length === 1}
                 item={item}
                 reference={index === 0 ? null : reference}
                 onlyDifferences={onlyDifferences}
@@ -140,6 +141,7 @@ function useComparedVersion(skillId: string, item: Compared) {
 
 function Column({
   skillId,
+  single,
   item,
   reference,
   onlyDifferences,
@@ -147,6 +149,7 @@ function Column({
   onRemove,
 }: {
   skillId: string;
+  single: boolean;
   item: Compared;
   /** The column this one is marked against; null for the reference itself. */
   reference: Compared | null;
@@ -172,7 +175,8 @@ function Column({
     <section
       aria-label={item.name}
       className={cn(
-        "flex w-96 shrink-0 flex-col gap-3 rounded-xl p-3",
+        "flex min-w-0 flex-col gap-4 rounded-xl p-4",
+        single ? "w-full" : "w-[calc(100vw-4rem)] shrink-0 sm:w-auto sm:min-w-80 sm:flex-1",
         reference === null ? "border-primary bg-primary/5 border-2" : "bg-card border",
       )}
     >
@@ -210,7 +214,12 @@ function Column({
       ) : version === undefined || (reference !== null && base === undefined) ? (
         <Skeleton className="h-40 w-full" aria-label={t("loading")} />
       ) : (
-        <Sections version={version} base={base ?? null} onlyDifferences={onlyDifferences} />
+        <Sections
+          version={version}
+          base={base ?? null}
+          onlyDifferences={onlyDifferences}
+          rendered={single}
+        />
       )}
     </section>
   );

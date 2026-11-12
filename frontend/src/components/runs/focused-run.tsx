@@ -350,14 +350,17 @@ export function FocusedRun({
               {t("openTheRunItCame")}
             </Button>
           )}
-          {run.conversation_id !== null && run.user_id !== null && run.user_id === meId && (
-            <Button variant="outline" size="sm" className="h-7 text-xs" asChild>
-              <Link href={`${ROUTES.CHAT}?id=${run.conversation_id}`}>
-                <MessageSquare className="h-3.5 w-3.5" aria-hidden />
-                {t("openTheChatBehind")}
-              </Link>
-            </Button>
-          )}
+          {run.conversation_id !== null &&
+            !run.initiated_by_publisher_fallback &&
+            run.user_id !== null &&
+            run.user_id === meId && (
+              <Button variant="outline" size="sm" className="h-7 text-xs" asChild>
+                <Link href={`${ROUTES.CHAT}?id=${run.conversation_id}`}>
+                  <MessageSquare className="h-3.5 w-3.5" aria-hidden />
+                  {t("openTheChatBehind")}
+                </Link>
+              </Button>
+            )}
           {/* The trace, where one can be read. The URL is this read's own field,
               resolved server-side because an agent may redirect its traces to a
               client's Logfire project - a link only when there is genuinely

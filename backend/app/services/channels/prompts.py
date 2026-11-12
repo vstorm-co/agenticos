@@ -64,7 +64,6 @@ REJECT = "Reject"
 SKIP = "Skip"
 DONE = "Done"
 LINK_FIRST = LINK_ACCOUNT_INSTRUCTION
-ALREADY = "That has already been answered."
 NOT_YOURS = "Only somebody who may approve tool calls can decide this one."
 NOT_ASKED = "This question was asked of somebody else."
 TYPE_IT = "Or reply here with your own answer."
@@ -326,7 +325,6 @@ class ChannelPrompts:
             )
 
         if prompt.answered_at is not None:
-            await say(ALREADY)
             return
         ctx = await linked_member(self.db, bot, press.platform, press.platform_user_id)
         if ctx is None:
@@ -472,7 +470,7 @@ class ChannelPrompts:
         The decision (or answer) and the prompt's answered mark are written before
         the run is resumed. A resume refused before it starts - a model profile or
         a key gone missing meanwhile - would otherwise commit them anyway, leave
-        the run parked and every later press answered `ALREADY`, with no way to
+        the run parked and every later press ignored, with no way to
         try again. A savepoint takes them back. Once the resume has committed its
         own work the savepoint is gone with it, and what it wrote stands.
         """

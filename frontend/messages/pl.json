@@ -2974,6 +2974,7 @@
       "perVersionCostPerRun": "na run",
       "perVersionLatency": "p95",
       "personColumn": "Osoba",
+      "askedByColumn": "Osoba pytająca",
       "personFilter": "Filtruj według osoby",
       "previousRun": "Poprzedni run",
       "problemsOnly": "Problemy",
@@ -3167,7 +3168,9 @@
       "runResumedInChat": "Run wznowiony. Odpowiedź trafi też do czatu, w którym o to poproszono.",
       "alreadyContinuing": "Ten run jest już kontynuowany w swoim czacie.",
       "skillsUsed": "Użyte skille:",
-      "skillVersion": "{onFork, select, yes {{name} · {fork} v{version}} other {{name} · v{version}}}"
+      "skillVersion": "{onFork, select, yes {{name} · {fork} v{version}} other {{name} · v{version}}}",
+      "unverifiedSender": "Niezweryfikowany",
+      "anonymousRequester": "Anonimowy uczestnik"
     },
     "sandboxes": {
       "addConnection": "Dodaj połączenie",
@@ -8291,7 +8294,9 @@
           "forked": "Zrobiono fork",
           "discarded": "Odrzucone"
         }
-      }
+      },
+      "skillDetails": "Szczegóły skilla",
+      "openFullView": "Otwórz pełny widok"
     },
     "checkOnAgents": "Sprawdź na agentach",
     "checkChangeTo": "Sprawdź zmianę w {name} na agentach, które go używają",

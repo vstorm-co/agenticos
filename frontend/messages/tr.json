@@ -704,7 +704,11 @@
     },
     "moreFiles": "{count, plural, =1 {+1 dosya} other {+# dosya}}",
     "bodyPlaceholder": "# İadeler\n\nBir müşteri parasını geri istediğinde bunu kullanın.\n\n## Adımlar\n\n1. Sipariş tarihini kontrol edin.\n2. 14 gün içinde, sormadan iade edin.\n3. Sonrasında bir kişiden onay isteyin.",
-    "whoCanUseIt": "Kimler kullanabilir?"
+    "whoCanUseIt": "Kimler kullanabilir?",
+    "page": {
+      "skillDetails": "Beceri ayrıntıları",
+      "openFullView": "Tam görünümü aç"
+    }
   },
   "workflows": {
     "conditionOps": {
@@ -4375,6 +4379,7 @@
       "perVersionCostPerRun": "run başına",
       "perVersionLatency": "p95",
       "personColumn": "Kişi",
+      "askedByColumn": "İsteyen",
       "personFilter": "Kişiye göre filtrele",
       "previousRun": "Önceki run",
       "problemsOnly": "Sorunlar",
@@ -4525,7 +4530,9 @@
       "stepApprovalEdited": "Düzenlendi",
       "surfaceProactive": "Proaktif",
       "standaloneRequest": "Model isteği",
-      "standaloneResponse": "Model yanıtı"
+      "standaloneResponse": "Model yanıtı",
+      "unverifiedSender": "Doğrulanmamış",
+      "anonymousRequester": "Anonim katılımcı"
     },
     "adminSettingsLayout": {
       "title": "Dağıtım ayarları",

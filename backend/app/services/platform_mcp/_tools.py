@@ -13,17 +13,19 @@ publish, each held for the person's approval like every write here but
 `UNGATED` (#2301).
 """
 
+import json as json_module
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from decimal import ROUND_CEILING, Decimal
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 from urllib.parse import quote
 from uuid import UUID
 
 from fastmcp.exceptions import ToolError
-from pydantic import JsonValue
+from pydantic import AwareDatetime, Field, JsonValue, TypeAdapter
 
 from app.agents.spec import CapabilityBindingSpec, McpServerRef
+from app.db.models.agent_run import RunSurface
 from app.schemas.agent import QuestionAnswers
 from app.schemas.context import ContextFileCreate, ContextFileUpdate
 from app.schemas.routine_notifications import ExternalNotificationChannel, WatchReportMode
@@ -61,8 +63,134 @@ not be able to write it unseen. `app.agents.mcp` names the same set as
 """
 
 
-_TOOL_FIELDS = frozenset({"last_tools", "allowed_tools"})
-"""A connection's tools - what `list_my_connections` leaves out unless asked."""
+_TOOL_FIELDS = frozenset({"last_tools", "allowed_tools", "used_by"})
+"""Bulk details that do not belong in connection discovery."""
+
+DiscoveryLimit = Annotated[int, Field(ge=1, le=50)]
+DiscoverySkip = Annotated[int, Field(ge=0)]
+TranscriptChars = Annotated[int, Field(ge=1, le=8000)]
+ConnectionAccount = Literal["organization", "personal"]
+_JSON_OBJECT = TypeAdapter(dict[str, JsonValue])
+_JSON_ITEMS = TypeAdapter(list[dict[str, JsonValue]])
+_MCP_DISCOVERY_BYTES = 64 * 1024
+
+
+def _discovery_page(
+    items: list[dict[str, JsonValue]], limit: int, skip: int
+) -> dict[str, JsonValue]:
+    """A bounded page with an explicit continuation, never an implied empty result."""
+    end = skip + limit
+    page: list[JsonValue] = list(items[skip:end])
+    return {
+        "items": page,
+        "total": len(items),
+        "next_skip": end if end < len(items) else None,
+    }
+
+
+def _connection_summary(item: dict[str, JsonValue]) -> dict[str, JsonValue]:
+    summary = {key: value for key, value in item.items() if key not in _TOOL_FIELDS}
+    for source, target in (("last_tools", "tool_count"), ("allowed_tools", "allowed_tool_count")):
+        value = item.get(source)
+        summary[target] = len(value) if isinstance(value, list) else None
+    return summary
+
+
+def _bounded_mcp_discovery(result: dict[str, JsonValue]) -> dict[str, JsonValue]:
+    try:
+        json_byte_size(result, limit=_MCP_DISCOVERY_BYTES)
+    except PayloadTooLarge as exc:
+        raise ToolError(
+            "Requested details exceed 64 KiB. Narrow the query, reduce limit or the "
+            "text window (content_chars/chars), or use a targeted detail tool. "
+            "No data was silently truncated."
+        ) from exc
+    return result
+
+
+def _text_window(text: str, offset: int, chars: int) -> dict[str, JsonValue]:
+    end = offset + chars
+    return {
+        "content": text[offset:end],
+        "offset": offset,
+        "total_chars": len(text),
+        "next_offset": end if end < len(text) else None,
+    }
+
+
+def _transcript_page(
+    listing: dict[str, JsonValue],
+    *,
+    skip: int,
+    limit: int,
+    content_offset: int,
+    content_chars: int,
+    tool_skip: int,
+) -> dict[str, JsonValue]:
+    summaries: list[JsonValue] = []
+    for index, item in enumerate(_JSON_ITEMS.validate_python(listing["items"]), start=skip):
+        calls = _JSON_ITEMS.validate_python(item.get("tool_calls") or [])
+        text = item.get("content")
+        if not isinstance(text, str):
+            raise ToolError("The recorded message has no textual content")
+        summary: dict[str, JsonValue] = {
+            "id": item["id"],
+            "run_id": item.get("run_id"),
+            "message_index": index,
+            "role": item["role"],
+            "reply_to": None,
+            **_text_window(text, content_offset, content_chars),
+            "tool_call_count": len(calls),
+            "next_tool_skip": tool_skip + 20 if tool_skip + 20 < len(calls) else None,
+            "tool_calls": [
+                {
+                    key: value
+                    for key, value in call.items()
+                    if key in {"tool_call_id", "tool_name", "status", "duration_ms"}
+                }
+                for call in calls[tool_skip : tool_skip + 20]
+            ],
+        }
+        summaries.append(summary)
+    total = listing["total"]
+    return {
+        "items": summaries,
+        "total": total,
+        "next_skip": skip + limit if isinstance(total, int) and skip + limit < total else None,
+    }
+
+
+def _recorded_tool_window(
+    listing: dict[str, JsonValue],
+    *,
+    message_id: UUID,
+    tool_call_id: str,
+    field: Literal["args", "result"],
+    offset: int,
+    chars: int,
+) -> dict[str, JsonValue]:
+    items = _JSON_ITEMS.validate_python(listing["items"])
+    if not items or items[0]["id"] != str(message_id):
+        raise ToolError("Transcript page changed; refresh the transcript listing before retrying")
+    calls = _JSON_ITEMS.validate_python(items[0].get("tool_calls") or [])
+    call = next((call for call in calls if call["tool_call_id"] == tool_call_id), None)
+    if call is None:
+        raise ToolError("Tool call not found in this message")
+    value = call.get(field)
+    text = json_module.dumps(value, ensure_ascii=False) if field == "args" else value
+    if text is not None and not isinstance(text, str):
+        raise ToolError("The recorded tool result is not text")
+    return {
+        "message_id": str(message_id),
+        "tool_call_id": tool_call_id,
+        "field": field,
+        "available": value is not None,
+        **(
+            _text_window(text, offset, chars)
+            if text is not None
+            else {"content": None, "next_offset": None}
+        ),
+    }
 
 
 @dataclass(frozen=True)
@@ -83,6 +211,15 @@ class PlatformTool:
     def summary(self) -> str:
         """The first line of the description - what the Builder lists beside the tool."""
         return (self.function.__doc__ or "").strip().splitlines()[0]
+
+
+@dataclass(frozen=True)
+class _NamedAgent:
+    id: UUID
+    name: str
+
+
+_NAMED_AGENTS = TypeAdapter(list[_NamedAgent])
 
 
 def _merge_capabilities(
@@ -1299,32 +1436,196 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         return await api.request("GET", "/spend", params={"days": days})
 
     async def list_runs(
-        agent_id: UUID | None = None, limit: int = 20, skip: int = 0
-    ) -> dict[str, Any]:
-        """Recent runs, newest first, with status, tokens and cost. Needs `runs:view`."""
-        params: dict[str, Any] = {"limit": limit, "skip": skip}
+        agent_id: UUID | None = None,
+        limit: int = 20,
+        skip: int = 0,
+        status: str | None = None,
+        surface: RunSurface | None = None,
+        started_from: AwareDatetime | None = None,
+        started_to: AwareDatetime | None = None,
+        agent_version_id: UUID | None = None,
+    ) -> dict[str, JsonValue]:
+        """Recent runs, newest first, with status, tokens and cost. Needs `runs:view`.
+
+        Filter failures with status (comma-separated API statuses), channel with
+        surface, frozen spec with agent_version_id, and dates with timezone-aware
+        started_from/started_to. Historical failures do not establish that the
+        currently published version still fails. Use get_run for the recorded error.
+        """
+        params: dict[str, str | int] = {"limit": limit, "skip": skip}
         if agent_id is not None:
             params["agent_id"] = str(agent_id)
-        return await api.request("GET", "/runs", params=params)
+        if status is not None:
+            params["status"] = status
+        if surface is not None:
+            params["surface"] = surface.value
+        if agent_version_id is not None:
+            params["agent_version_id"] = str(agent_version_id)
+        for key, instant in (("started_from", started_from), ("started_to", started_to)):
+            if instant is not None:
+                params[key] = instant.isoformat()
+        return _JSON_OBJECT.validate_python(await api.request("GET", "/runs", params=params))
 
     async def get_run(run_id: UUID) -> dict[str, Any]:
-        """One run: status, the error a failed one stopped on, tokens and cost. Needs `runs:view`."""
+        """One run: status, recorded error, tokens and cost. Needs `runs:view`.
+
+        Read its turns with read_run_transcript, including channel runs or a
+        colleague's run when the existing runs:view permission permits it.
+        read_conversation instead belongs to the asker's own chats. When
+        initiated_by_publisher_fallback is true, user_id names the publisher's
+        authority, not the sender. asked_in_chat names the unverified chat account.
+        """
         return await api.request("GET", f"/runs/{run_id}")
 
-    async def read_conversation(
-        conversation_id: UUID, limit: int = 100, skip: int = 0
-    ) -> dict[str, Any]:
-        """One of the asker's own conversations, turn by turn. Needs `runs:view`.
+    async def read_run_transcript(
+        run_id: UUID,
+        limit: DiscoveryLimit = 10,
+        skip: DiscoverySkip = 0,
+        content_offset: DiscoverySkip = 0,
+        content_chars: TranscriptChars = 2000,
+        tool_skip: DiscoverySkip = 0,
+    ) -> dict[str, JsonValue]:
+        """Read a run's turns in bounded windows. Needs existing `runs:view` access.
 
-        What was asked and answered, oldest first, with the tools each turn called
-        and what they returned - for making a skill of how something was done, or
-        picking up where a conversation left off. Another member's conversation is
-        not found. Guardrail-refused turns and quoted reply excerpts are omitted.
+        Works for authorized channel/colleague runs without widening access to
+        private chats. Refused turns and quoted replies are omitted. Message
+        indexes refer to this filtered transcript. For a long message, repeat
+        with its message_index as skip, limit=1 and next_offset as content_offset.
+        Tool calls are metadata only, 20 per message; follow next_tool_skip.
+        Use read_run_tool_call for a selected call's arguments or result.
         """
-        return await api.request(
-            "GET",
-            f"/conversations/{conversation_id}/transcript",
-            params={"limit": limit, "skip": skip, "for_model": True},
+        listing = _JSON_OBJECT.validate_python(
+            await api.request(
+                "GET",
+                f"/runs/{run_id}/transcript",
+                params={"limit": limit, "skip": skip, "scope": "run", "for_model": True},
+            )
+        )
+        return _bounded_mcp_discovery(
+            {
+                "run_id": str(run_id),
+                "conversation_id": listing.get("conversation_id"),
+                **_transcript_page(
+                    listing,
+                    skip=skip,
+                    limit=limit,
+                    content_offset=content_offset,
+                    content_chars=content_chars,
+                    tool_skip=tool_skip,
+                ),
+            }
+        )
+
+    async def read_run_tool_call(
+        run_id: UUID,
+        message_index: DiscoverySkip,
+        message_id: UUID,
+        tool_call_id: str,
+        field: Literal["args", "result"] = "result",
+        offset: DiscoverySkip = 0,
+        chars: TranscriptChars = 4000,
+    ) -> dict[str, JsonValue]:
+        """A bounded window of one recorded tool call. Needs existing `runs:view` access.
+
+        Select the message index, id and call id from read_run_transcript. Only
+        args or result is read, never every call's payload. Follow next_offset
+        until null; unavailable results stay null. Arguments are JSON text.
+        A changed filtered page is refused so it cannot read the wrong message.
+        """
+        listing = _JSON_OBJECT.validate_python(
+            await api.request(
+                "GET",
+                f"/runs/{run_id}/transcript",
+                params={"limit": 1, "skip": message_index, "scope": "run", "for_model": True},
+            )
+        )
+        return _bounded_mcp_discovery(
+            {
+                "run_id": str(run_id),
+                **_recorded_tool_window(
+                    listing,
+                    message_id=message_id,
+                    tool_call_id=tool_call_id,
+                    field=field,
+                    offset=offset,
+                    chars=chars,
+                ),
+            }
+        )
+
+    async def read_conversation(
+        conversation_id: UUID,
+        limit: DiscoveryLimit = 10,
+        skip: DiscoverySkip = 0,
+        content_offset: DiscoverySkip = 0,
+        content_chars: TranscriptChars = 2000,
+        tool_skip: DiscoverySkip = 0,
+    ) -> dict[str, JsonValue]:
+        """The asker's own chat, with bounded text windows and tool metadata. Needs `runs:view`.
+
+        Another member's conversation is not found. Refused turns and quoted reply
+        excerpts are omitted. Follow next_skip; continue a long message with
+        limit=1, its message_index as skip and next_offset as content_offset.
+        Tool metadata has 20 calls per message; follow next_tool_skip.
+        Read one payload with read_conversation_tool_call, not the whole history.
+        """
+        listing = _JSON_OBJECT.validate_python(
+            await api.request(
+                "GET",
+                f"/conversations/{conversation_id}/transcript",
+                params={"limit": limit, "skip": skip, "for_model": True},
+            )
+        )
+        return _bounded_mcp_discovery(
+            {
+                "conversation_id": str(conversation_id),
+                "cost": listing.get("cost"),
+                **_transcript_page(
+                    listing,
+                    skip=skip,
+                    limit=limit,
+                    content_offset=content_offset,
+                    content_chars=content_chars,
+                    tool_skip=tool_skip,
+                ),
+            }
+        )
+
+    async def read_conversation_tool_call(
+        conversation_id: UUID,
+        message_index: DiscoverySkip,
+        message_id: UUID,
+        tool_call_id: str,
+        field: Literal["args", "result"] = "result",
+        offset: DiscoverySkip = 0,
+        chars: TranscriptChars = 4000,
+    ) -> dict[str, JsonValue]:
+        """Read a bounded window of one tool payload in the asker's own chat. Needs `runs:view`.
+
+        Select message_index, message_id and tool_call_id from read_conversation.
+        Follow next_offset; result=null means it was not recorded. Arguments are
+        JSON text. The message id must still match the filtered page. This also
+        works for old messages without a run id, without widening chat access.
+        """
+        listing = _JSON_OBJECT.validate_python(
+            await api.request(
+                "GET",
+                f"/conversations/{conversation_id}/transcript",
+                params={"limit": 1, "skip": message_index, "for_model": True},
+            )
+        )
+        return _bounded_mcp_discovery(
+            {
+                "conversation_id": str(conversation_id),
+                **_recorded_tool_window(
+                    listing,
+                    message_id=message_id,
+                    tool_call_id=tool_call_id,
+                    field=field,
+                    offset=offset,
+                    chars=chars,
+                ),
+            }
         )
 
     async def test_my_connection(connection_id: UUID) -> dict[str, Any]:
@@ -1492,13 +1793,62 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             json={"collection_name": collection_name, "query": query, "limit": limit},
         )
 
-    async def list_capabilities() -> dict[str, Any]:
-        """Everything an agent can be given - each capability's id, what it does and its tools.
+    async def list_capabilities(
+        q: str | None = None, limit: DiscoveryLimit = 20, skip: DiscoverySkip = 0
+    ) -> dict[str, JsonValue]:
+        """Discover capability summaries without every configuration and tool schema.
 
-        Includes `config_schema`, defaults and requirements for configuring bindings
-        in `create_agent_draft` or `update_agent_draft`. Needs `agents:view`.
+        Needs `agents:view`. Search ids, names or descriptions and follow next_skip.
+        Before configuring a binding, read get_capability for its current schema,
+        defaults, requirements and full tool contracts.
         """
-        return await api.request("GET", "/agents/capabilities")
+        listing = _JSON_OBJECT.validate_python(await api.request("GET", "/agents/capabilities"))
+        items = _JSON_ITEMS.validate_python(listing["items"])
+        if q is not None:
+            items = [
+                item
+                for item in items
+                if q.casefold()
+                in f"{item.get('id', '')} {item.get('name', '')} {item.get('description', '')}".casefold()
+            ]
+        return _bounded_mcp_discovery(
+            _discovery_page(
+                [
+                    {
+                        key: value
+                        for key, value in item.items()
+                        if key
+                        in {
+                            "id",
+                            "name",
+                            "category",
+                            "description",
+                            "side_effecting",
+                            "read_only",
+                            "scopes",
+                            "voice",
+                            "requires_secret",
+                        }
+                    }
+                    for item in items
+                ],
+                limit,
+                skip,
+            )
+        )
+
+    async def get_capability(capability_id: str) -> dict[str, JsonValue]:
+        """One capability's full configuration schema and tool contracts. Needs `agents:view`.
+
+        Read before configuring this capability. Use returned ids and schemas;
+        do not invent configuration keys or tool names from a summary.
+        """
+        listing = _JSON_OBJECT.validate_python(await api.request("GET", "/agents/capabilities"))
+        items = _JSON_ITEMS.validate_python(listing["items"])
+        item = next((item for item in items if item["id"] == capability_id), None)
+        if item is None:
+            raise ToolError("Capability not found in this deployment's catalog")
+        return _bounded_mcp_discovery(item)
 
     async def list_models() -> dict[str, Any]:
         """The models this organization runs agents on: each one's id, label and provider.
@@ -1929,33 +2279,141 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         """
         return await api.request("GET", f"/sandbox-connections/{connection_id}/policy")
 
-    async def list_org_connections() -> dict[str, Any]:
-        """Organization MCP connections and their tools. Needs `mcp:manage`.
+    async def _connection_items(account: ConnectionAccount) -> list[dict[str, JsonValue]]:
+        path = "/mcp-connections" if account == "organization" else "/me/mcp-connections"
+        listing = _JSON_OBJECT.validate_python(await api.request("GET", path))
+        return _JSON_ITEMS.validate_python(listing["items"])
 
-        Returns the organization's listing without credentials. Use a connection's
-        id in an `account: organization` MCP binding; personal services instead
-        use `account: personal` and a catalog key from `search_mcp_servers`.
+    async def _connection(account: ConnectionAccount, connection_id: UUID) -> dict[str, JsonValue]:
+        items = await _connection_items(account)
+        for item in items:
+            if item["id"] == str(connection_id):
+                return item
+        raise ToolError("MCP connection not found in this caller's accessible connections")
+
+    async def list_org_connections(
+        q: str | None = None, limit: DiscoveryLimit = 20, skip: DiscoverySkip = 0
+    ) -> dict[str, JsonValue]:
+        """Organization MCP connection metadata, without tool schemas. Needs `mcp:manage`.
+
+        Filter by name/label and follow next_skip. tool_count is null before
+        discovery, zero only for a recorded empty catalog. Inspect selected tools
+        with list_mcp_connection_tools and get_mcp_connection_tool. Bind an id with
+        `account: organization`; personal bindings use a catalog key instead.
         """
-        return await api.request("GET", "/mcp-connections")
+        items = await _connection_items("organization")
+        if q is not None:
+            items = [
+                item
+                for item in items
+                if q.casefold() in f"{item.get('name', '')} {item.get('label') or ''}".casefold()
+            ]
+        return _bounded_mcp_discovery(
+            _discovery_page([_connection_summary(item) for item in items], limit, skip)
+        )
 
-    async def list_my_connections(include_tools: bool = False) -> dict[str, Any]:
-        """The services the person asking has connected with their own account.
+    async def list_my_connections(
+        include_tools: bool = False,
+        q: str | None = None,
+        limit: DiscoveryLimit = 20,
+        skip: DiscoverySkip = 0,
+    ) -> dict[str, JsonValue]:
+        """The asker's connected services, paged without tool schemas by default.
 
-        Read it before suggesting a connection, so you never offer what they
-        already have. Tokens are never in it. Each connection's tools are left
-        out unless `include_tools` is true - whether a service is connected
-        needs its name, not the forty tools it offers.
+        Filter by name/label and follow next_skip. Tokens are never returned.
+        Legacy include_tools is allowed only within a 64 KiB response budget;
+        prefer list_mcp_connection_tools(account="personal") for selected details.
         """
-        listing = await api.request("GET", "/me/mcp-connections")
-        if include_tools:
-            return listing
-        return {
-            **listing,
-            "items": [
-                {field: value for field, value in item.items() if field not in _TOOL_FIELDS}
-                for item in listing["items"]
-            ],
-        }
+        items = await _connection_items("personal")
+        if q is not None:
+            items = [
+                item
+                for item in items
+                if q.casefold() in f"{item.get('name', '')} {item.get('label') or ''}".casefold()
+            ]
+        return _bounded_mcp_discovery(
+            _discovery_page(
+                items if include_tools else [_connection_summary(item) for item in items],
+                limit,
+                skip,
+            )
+        )
+
+    async def list_mcp_connection_tools(
+        connection_id: UUID,
+        account: ConnectionAccount = "organization",
+        q: str | None = None,
+        limit: DiscoveryLimit = 20,
+        skip: DiscoverySkip = 0,
+    ) -> dict[str, JsonValue]:
+        """Find cached tools on one accessible MCP connection, without argument schemas.
+
+        Organization reads need `mcp:manage`; personal reads belong to the asker.
+        Search names/descriptions, then get_mcp_connection_tool for a full contract.
+        This reads the last recorded catalog, not live health. Check last_checked_at
+        and tools_cached; missing read-only declarations remain unknown.
+        """
+        connection = await _connection(account, connection_id)
+        cached = connection.get("last_tools")
+        tools = _JSON_ITEMS.validate_python(cached) if cached is not None else []
+        if q is not None:
+            tools = [
+                tool
+                for tool in tools
+                if q.casefold()
+                in f"{tool.get('name', '')} {tool.get('description', '')}".casefold()
+            ]
+        allowed = connection.get("allowed_tools")
+        page = _discovery_page(tools, limit, skip)
+        page["items"] = [
+            {
+                "name": tool["name"],
+                "description": str(tool.get("description") or "")[:500],
+                "description_truncated": len(str(tool.get("description") or "")) > 500,
+                "read_only_hint": tool.get("read_only_hint"),
+                "read_only": tool.get("read_only", False),
+                "allowed": allowed is None
+                or (isinstance(allowed, list) and tool["name"] in allowed),
+            }
+            for tool in tools[skip : skip + limit]
+        ]
+        page.update(
+            {
+                "connection_id": str(connection_id),
+                "account": account,
+                "tools_cached": cached is not None,
+                "last_checked_at": connection.get("last_checked_at"),
+            }
+        )
+        return _bounded_mcp_discovery(page)
+
+    async def get_mcp_connection_tool(
+        connection_id: UUID, tool_name: str, account: ConnectionAccount = "organization"
+    ) -> dict[str, JsonValue]:
+        """One cached MCP tool's description, input schema and declared read-only hint.
+
+        Same permissions as list_mcp_connection_tools. A null input_schema means
+        it was not retained, not that the tool has no arguments. This neither
+        executes the tool nor probes the remote server.
+        """
+        connection = await _connection(account, connection_id)
+        cached = connection.get("last_tools")
+        if cached is None:
+            raise ToolError("No cached tool catalog; test this connection in the console first")
+        tools = _JSON_ITEMS.validate_python(cached)
+        tool = next((item for item in tools if item["name"] == tool_name), None)
+        if tool is None:
+            raise ToolError("Tool not found in this connection's cached catalog")
+        allowed = connection.get("allowed_tools")
+        return _bounded_mcp_discovery(
+            {
+                "connection_id": str(connection_id),
+                "account": account,
+                "last_checked_at": connection.get("last_checked_at"),
+                "allowed": allowed is None or (isinstance(allowed, list) and tool_name in allowed),
+                "tool": tool,
+            }
+        )
 
     async def set_my_language(locale: ConsoleLocale) -> dict[str, Any]:
         """Switch the console's language for the person asking, using a supported locale from the input schema.
@@ -1983,9 +2441,44 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         }
         return await api.request("PATCH", "/users/me/agent-context", json=changes)
 
-    async def list_skills(limit: int = 50, skip: int = 0) -> dict[str, Any]:
-        """The skills this caller can see. Needs `skills:view`."""
-        return await api.request("GET", "/skills", params={"limit": limit, "skip": skip})
+    async def list_skills(
+        limit: DiscoveryLimit = 20,
+        skip: DiscoverySkip = 0,
+        q: str | None = None,
+        include_usage: bool = False,
+    ) -> dict[str, JsonValue]:
+        """Find accessible skills by name/description without loading body excerpts.
+
+        Needs `skills:view`. Read get_skill for one body. include_usage adds the
+        agents using these skills; otherwise only their counts are included.
+        Follow next_skip. The public API applies search before pagination.
+        """
+        params: dict[str, str | int] = {"limit": limit, "skip": skip}
+        if q is not None:
+            params["q"] = q
+        listing = _JSON_OBJECT.validate_python(await api.request("GET", "/skills", params=params))
+        items = _JSON_ITEMS.validate_python(listing["items"])
+        summaries: list[JsonValue] = []
+        for item in items:
+            summary = {
+                key: value
+                for key, value in item.items()
+                if key != "excerpt" and (include_usage or key not in {"used_by", "drafted_by"})
+            }
+            for key in ("used_by", "drafted_by"):
+                usage = item.get(key)
+                summary[f"{key}_count"] = len(usage) if isinstance(usage, list) else None
+            summaries.append(summary)
+        total = listing["total"]
+        return _bounded_mcp_discovery(
+            {
+                "items": summaries,
+                "total": total,
+                "next_skip": skip + limit
+                if isinstance(total, int) and skip + limit < total
+                else None,
+            }
+        )
 
     async def update_skill(skill_id: UUID, changes: SkillUpdate) -> dict[str, Any]:
         """Edit an accessible skill, retaining omitted fields. Needs `skills:edit` on it.
@@ -2143,21 +2636,32 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         found.sort(key=lambda item: item["created_at"], reverse=True)
         return {"open_sessions": found}
 
-    async def _agent_named(name: str) -> dict[str, Any]:
+    async def _agent_named(name: str) -> _NamedAgent:
         """The one agent called `name`, ignoring case, or a refusal naming the candidates."""
-        agents = (await api.request("GET", "/agents", params={"limit": 100}))["items"]
+        agents: list[_NamedAgent] = []
+        skip = 0
+        while True:
+            params = {"limit": 100, **({"skip": skip} if skip else {})}
+            listing = _JSON_OBJECT.validate_python(
+                await api.request("GET", "/agents", params=params)
+            )
+            batch = _NAMED_AGENTS.validate_python(listing["items"])
+            agents.extend(batch)
+            if len(batch) < 100:
+                break
+            skip += len(batch)
         wanted = name.strip().casefold()
-        exact = [agent for agent in agents if agent["name"].casefold() == wanted]
-        matches = exact or [agent for agent in agents if wanted in agent["name"].casefold()]
+        exact = [agent for agent in agents if agent.name.casefold() == wanted]
+        matches = exact or [agent for agent in agents if wanted in agent.name.casefold()]
         if len(matches) == 1:
             return matches[0]
         if matches:
-            return api.refuse(
+            raise ToolError(
                 f"Several agents match {name!r}: "
-                + ", ".join(f"{agent['name']} ({agent['id']})" for agent in matches)
+                + ", ".join(f"{agent.name} ({agent.id})" for agent in matches[:20])
                 + ". Ask the person which one, then call again with its agent_id."
             )
-        return api.refuse(
+        raise ToolError(
             f"No agent is named {name!r}. This is not an empty result: call list_agents, "
             "find the agent the person means, and call again with its agent_id."
         )
@@ -2201,9 +2705,9 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             return await _open_sessions()
         agent = await _agent_named(agent_name)
         return {
-            "agent_id": agent["id"],
-            "agent_name": agent["name"],
-            **await _agent_sessions(agent["id"], history=history),
+            "agent_id": str(agent.id),
+            "agent_name": agent.name,
+            **await _agent_sessions(agent.id, history=history),
         }
 
     async def _next_step_price(agent_id: UUID | str, session: dict[str, Any]) -> dict[str, Any]:
@@ -3694,7 +4198,10 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (delete_routine, True),
         (list_runs, False),
         (get_run, False),
+        (read_run_transcript, False),
+        (read_run_tool_call, False),
         (read_conversation, False),
+        (read_conversation_tool_call, False),
         (list_conversations, False),
         (create_conversation, True),
         (update_proactivity_settings, True),
@@ -3705,6 +4212,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (add_document, True),
         (search_knowledge, False),
         (list_capabilities, False),
+        (get_capability, False),
         (list_skills, False),
         (get_skill, False),
         (update_skill, True),
@@ -3754,6 +4262,8 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (list_my_connections, False),
         (test_my_connection, True),
         (list_org_connections, False),
+        (list_mcp_connection_tools, False),
+        (get_mcp_connection_tool, False),
         (list_sandbox_connections, False),
         (list_sandbox_runtimes, False),
         (get_sandbox_policy, False),

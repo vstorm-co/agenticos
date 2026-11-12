@@ -198,10 +198,17 @@ async def list_runs(
         questions={run_id: link.case_input for run_id, link in links.items()},
     )
     chains = await service.voice_chains(ctx, [run.id for run in items if run.modality == "voice"])
+    channel_runs = [
+        run.id
+        for run in items
+        if run.initiated_by_publisher_fallback and run.channel_identity_id is not None
+    ]
+    askers = await service.run_chat_askers(ctx, channel_runs) if channel_runs else {}
     return AgentRunList(
         items=[
             AgentRunRead.model_validate(run).model_copy(
                 update={
+                    "asked_in_chat": askers.get(run.id),
                     "down_rated": run.id in down_rated,
                     "eval_case": links.get(run.id),
                     "origin": origins.get(run.id),
@@ -302,8 +309,14 @@ async def get_run(
     origin = (await service.origins(ctx, [run.id])).get(run.id) if evaluated else None
     down_rated = await service.down_rated_run_ids(ctx, [run.id])
     prev_run_id, next_run_id = await service.neighbor_run_ids(ctx, run)
+    askers = (
+        await service.run_chat_askers(ctx, [run.id])
+        if run.initiated_by_publisher_fallback and run.channel_identity_id is not None
+        else {}
+    )
     return AgentRunRead.model_validate(run).model_copy(
         update={
+            "asked_in_chat": askers.get(run.id),
             "logfire_url": await service.trace_url(ctx, run),
             "down_rated": run.id in down_rated,
             "prev_run_id": prev_run_id,
@@ -331,6 +344,10 @@ async def get_run_transcript(
             "still tell which ones are this run's"
         ),
     ),
+    for_model: bool = Query(
+        False,
+        description="Omit guardrail-refused turns before pagination and quoted reply excerpts",
+    ),
 ) -> Any:
     """The turns one run produced, for a run detail view to render as steps.
 
@@ -353,14 +370,21 @@ async def get_run_transcript(
     that reads as "the run did nothing".
     """
     run, messages, total = await service.get_run_transcript(
-        ctx, run_id, skip=skip, limit=limit, whole_conversation=scope == "conversation"
+        ctx,
+        run_id,
+        skip=skip,
+        limit=limit,
+        whole_conversation=scope == "conversation",
+        for_model=for_model,
     )
     ratings = await service.transcript_ratings(ctx, [m.id for m in messages])
     return RunTranscript(
         run_id=run.id,
         conversation_id=run.conversation_id,
         items=[
-            RunTranscriptMessage.model_validate(m).model_copy(update=ratings[m.id])
+            RunTranscriptMessage.model_validate(m).model_copy(
+                update={**ratings[m.id], **({"reply_to": None} if for_model else {})}
+            )
             for m in messages
         ],
         total=total,

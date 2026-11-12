@@ -116,7 +116,8 @@ function Diagram({
       />
       <div
         ref={viewport}
-        className="h-[28rem] cursor-grab touch-none overflow-hidden rounded-lg select-none active:cursor-grabbing"
+        className="cursor-grab touch-none overflow-hidden rounded-lg select-none active:cursor-grabbing"
+        style={{ height: Math.min(448, Math.max(128, diagram.height + 2 * PAD)) }}
         {...panHandlers}
       >
         <div
