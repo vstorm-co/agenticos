@@ -1,5 +1,5 @@
 ---
-source_sha: "33487d05e802"
+source_sha: "d4ebadc86d2b"
 ---
 
 # Workflows { #workflows }
@@ -1369,7 +1369,7 @@ reintento de cada paso está en la [referencia de nodos](reference/workflow-node
 | Lo que ves | Por qué | Qué hacer |
 |---|---|---|
 | **Needs attention** | Se interrumpió un paso que pudo haber actuado, o dejó de esperar y nada lo despierta | Comprueba si su efecto ocurrió y resuelve el paso en el run con **Resolve**: ejecutarlo de nuevo, usar un resultado informado tarde, tomar su camino de error o hacer fallar el run. Cancelar el run y luego **Retry from failed step** empieza de cero |
-| `PRINCIPAL_REVOKED` | El miembro con el que actúa el run perdió el acceso o su cuenta se desactivó | Que un miembro que pueda ejecutar el workflow lo vuelva a publicar, para que su trigger se ejecute como él |
+| `PRINCIPAL_REVOKED` | El miembro con el que actúa el run perdió el acceso o su cuenta se desactivó, o se revocó la clave API que inició el run | Que un miembro que pueda ejecutar el workflow lo vuelva a publicar, para que su trigger se ejecute como él |
 | `WORKFLOW_TRIGGER_MISMATCH` | El run se pidió por una vía que no es su trigger en vivo: a mano o por la API para un workflow que empieza por un webhook, o en el chat para uno que no empieza por un mensaje del chat | Inícialo como dice su trigger, o prueba el draft, que acepta cualquier trigger |
 | `INVALID_BINDING` | Un valor no encajaba en el campo al que estaba enlazado | El error del paso nombra el campo; corrige el enlace o el valor anterior |
 | `REVISION_CONFLICT` | Alguien cambió un registro después de que el paso lo leyera | Encamina el error del paso con `error.handle` hacia una lectura nueva |

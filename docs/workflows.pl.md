@@ -1,5 +1,5 @@
 ---
-source_sha: "33487d05e802"
+source_sha: "d4ebadc86d2b"
 ---
 
 # Workflows { #workflows }
@@ -1325,7 +1325,7 @@ każdego kroku jest w [referencji węzłów](reference/workflow-nodes.md).
 | Co widzisz | Dlaczego | Co zrobić |
 |---|---|---|
 | **Wymaga uwagi** | Przerwano krok, który mógł zadziałać, albo przestał czekać i nic go nie obudzi | Sprawdź, czy jego efekt nastąpił, a potem użyj **Resolve** na kroku w runie: uruchom go ponownie, użyj wyniku zgłoszonego późno, przejdź jego ścieżką błędu albo zakończ run błędem. Anulowanie runa, a potem **Retry from failed step**, zaczyna od nowa |
-| `PRINCIPAL_REVOKED` | Członek, jako który działa run, stracił dostęp albo jego konto dezaktywowano | Niech członek, który może uruchamiać workflow, opublikuje go ponownie, żeby jego wyzwalacz działał jako on |
+| `PRINCIPAL_REVOKED` | Członek, jako który działa run, stracił dostęp albo jego konto dezaktywowano, albo klucz API, który uruchomił run, został unieważniony | Niech członek, który może uruchamiać workflow, opublikuje go ponownie, żeby jego wyzwalacz działał jako on |
 | `WORKFLOW_TRIGGER_MISMATCH` | Run zażądano drogą, którą nie jest żywy wyzwalacz: ręcznie albo przez API dla workflow startującego od webhooka, albo na czacie dla takiego, który nie startuje od wiadomości na czacie | Uruchom go tak, jak mówi jego wyzwalacz, albo przetestuj szkic, który przyjmuje dowolny wyzwalacz |
 | `INVALID_BINDING` | Wartość nie pasowała do pola, do którego ją zbindowano | Błąd kroku wskazuje pole; popraw binding albo wartość wcześniej w grafie |
 | `REVISION_CONFLICT` | Ktoś zmienił rekord po tym, jak krok go odczytał | Skieruj błąd kroku przez `error.handle` do świeżego odczytu |

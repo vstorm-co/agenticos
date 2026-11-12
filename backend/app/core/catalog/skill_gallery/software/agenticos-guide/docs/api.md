@@ -151,13 +151,16 @@ off by a routine refresh.
 
 ### Work that runs after the request { #work-that-runs-after-the-request }
 
-An organization key cannot start an [eval run](evals.md) or a request to the
-[authoring assistant](authoring.md): those routes are for people signed in, and
-a key is answered `403` on them. Work that runs later, in the background, is
-held to its starter's authority as it stands when the work starts - a role lost
-since stops it. Were a key ever let start such work, the same would hold for
-the key: its scopes as they stand then, and a key revoked, expired or deleted
-since stopping the work, with a reason on the run or the request.
+An organization key cannot start an [eval run](evals.md) or a request to the [authoring
+assistant](authoring.md): those routes are for people signed in, and a key is answered
+`403` on them. Work that runs later, in the background, is held to its starter's
+authority as it stands when the work starts - a role lost since stops it. Were a key
+ever let start such work, the same would hold for the key: its scopes as they stand
+then, and a key revoked or deleted since stopping the work, with a reason on the run or
+the request.
+
+Expiry only bounds what a key can start: work it started while valid goes on after it
+expires.
 
 ## The organization header
 
@@ -288,7 +291,7 @@ approvals as every other surface.
 What can be checked at once is checked at once: an unknown conversation or
 attachment is a `404` on the `POST`, not a failure to poll for. The key's
 authority is checked again when the run starts, so a key revoked while its run
-waited does not run it. Only the person who asked, or a key of theirs, can read
+waited does not run it; one that only expired meanwhile still does. Only the person who asked, or a key of theirs, can read
 a run request; anyone else's answers `404`. An asynchronous run gets one
 attempt - a run that failed is recorded with what it spent, and is not retried
 into spending it twice.
@@ -317,14 +320,16 @@ menu offers. A private agent you cannot see adds none.
 
 ## Running a workflow
 
-Organization API keys may start runs and read their status, graph, steps, files
-and events through `/api/v1/workflow-runs`. Start with `workflows:run`; reading also
-needs `workflows:view`, and draft tests need `workflows:edit`. The worker retains
-the key's admitted scope ceiling and rechecks the key and the issuer on every
-step, including after an approval or wait. Revocation, expiry or deletion stops
-new work with `PRINCIPAL_REVOKED`; it never promotes a continuation to the issuer's
-full role. Key-started runs have no access to the issuer's personal state. Workflow
-authoring remains session-only.
+Organization API keys may start runs and read their status, graph, steps, files and
+events through `/api/v1/workflow-runs`. Start with `workflows:run`; reading also needs
+`workflows:view`, and draft tests need `workflows:edit`. The worker retains the key's
+admitted scope ceiling and rechecks the key and the issuer on every step, including
+after an approval or wait. Revocation or deletion stops new work with
+`PRINCIPAL_REVOKED`; it never promotes a continuation to the issuer's full role.
+
+Expiry does not: an expired key starts nothing, but a run it started while valid goes
+on, so an OAuth token's hour does not cut a long wait short. Key-started runs have no
+access to the issuer's personal state. Workflow authoring remains session-only.
 
 API keys can list and read public-origin runs, including runs started by keys;
 member-started personal runs return `404`, including their graph, steps, events,
@@ -517,6 +522,8 @@ opens a test URL for the draft, returned as `url` with the `test_token` in it an
 for one call for two minutes. The call needs no signature, is answered
 `{"captured": true}` and starts no run. `GET .../webhook-test/{token}` reads back
 `state` (`listening`, `caught` or `expired`) and the `delivery` it caught.
+
+Expired internal and OAuth key rows are retained while a workflow, eval, improvement run or queued/running background job still needs them. Once that work finishes, the usual cleanup may remove them.
 
 ## Working with tables { #working-with-tables }
 

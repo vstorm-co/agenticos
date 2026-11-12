@@ -28,6 +28,7 @@ from app.core.exceptions import AuthenticationError, BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.api_key import ApiKey
 from app.db.models.audit_log import AppAdminAuditLog
+from app.db.models.background_job import BackgroundJob, JobStatus
 from app.db.models.conversation import Conversation
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
@@ -967,6 +968,37 @@ class TestWorkAKeyAskedForEarlier:
 
 
 @pytest.mark.security
+async def test_a_key_that_expired_since_stands_for_work_it_started_and_nothing_new(
+    db: AsyncSession,
+) -> None:
+    owner = await _person(db)
+    organization = await _organization(db, owner)
+    raw = await _issue(
+        db,
+        organization,
+        owner,
+        Perm.WORKFLOWS_RUN,
+        expires_at=datetime.now(UTC) + timedelta(seconds=1),
+    )
+    row = (await db.execute(select(ApiKey))).scalar_one()
+    row.expires_at = datetime.now(UTC) - timedelta(minutes=1)
+    await db.flush()
+    service = ApiKeyService(db)
+
+    ctx = await service.context_for_key(row.id, organization_id=organization.id)
+
+    assert (ctx.user_id, ctx.api_key_id) == (owner.id, row.id)
+    assert ctx.key_scopes == frozenset({Perm.WORKFLOWS_RUN})
+    with pytest.raises(AuthenticationError):
+        await service.authenticate(raw)
+    await service.revoke(
+        AuthContext(user_id=owner.id, organization_id=organization.id, role="owner"), row.id
+    )
+    with pytest.raises(AuthenticationError):
+        await service.context_for_key(row.id, organization_id=organization.id)
+
+
+@pytest.mark.security
 async def test_a_key_started_run_cannot_mint_private_chat_provenance(db: AsyncSession) -> None:
     owner = await _person(db)
     organization = await _organization(db, owner)
@@ -1018,3 +1050,38 @@ async def test_impersonation_never_mints_private_routine_authority(db: AsyncSess
         raw = await ApiKeyService(db).issue_for_run(ctx, conversation_id=conversation.id)
     assert raw is not None
     assert (await ApiKeyService(db).authenticate(raw)).context.source_conversation_id is None
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("status", ["queued", "running"])
+async def test_expiry_sweep_keeps_a_key_until_its_background_job_settles(
+    db: AsyncSession, status: JobStatus
+) -> None:
+    from app.repositories import api_key as api_key_repo
+
+    owner = await _person(db)
+    organization = await _organization(db, owner)
+    raw = await _issue(db, organization, owner, Perm.AGENTS_RUN)
+    key = (await db.execute(select(ApiKey).where(ApiKey.prefix == raw[:12]))).scalar_one()
+    key.internal = True
+    key.expires_at = datetime.now(UTC) - timedelta(minutes=1)
+    job = BackgroundJob(
+        kind="run-agent",
+        pool="agent",
+        status=status,
+        max_attempts=3,
+        organization_id=organization.id,
+        payload={"api_key_id": str(key.id)},
+    )
+    db.add(job)
+    await db.flush()
+    key_id = key.id
+    await api_key_repo.delete_expired_internal(db, user_id=owner.id, before=datetime.now(UTC))
+    assert await api_key_repo.get(db, key_id, organization_id=organization.id) is not None
+    await ApiKeyService(db).context_for_key(key_id, organization_id=organization.id)
+    with pytest.raises(AuthenticationError):
+        await ApiKeyService(db).authenticate(raw)
+    job.status = "succeeded"
+    await db.flush()
+    await api_key_repo.delete_expired_internal(db, user_id=owner.id, before=datetime.now(UTC))
+    assert await api_key_repo.get(db, key_id, organization_id=organization.id) is None
