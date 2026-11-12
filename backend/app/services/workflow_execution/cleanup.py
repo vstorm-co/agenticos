@@ -162,7 +162,9 @@ async def stop_called_runs(db: AsyncSession, *, run: WorkflowRun, now: datetime)
             db, workflow_run_ids=frontier, organization_id=run.organization_id
         )
         for run_id in frontier:
-            child = await workflow_run_repo.try_lock_run(db, run_id)
+            child = await workflow_run_repo.try_lock_run(
+                db, run_id, organization_id=run.organization_id
+            )
             if child is None or WorkflowRunStatus(child.status).is_terminal:
                 continue
             await stop_run_work(db, run=child, now=now)

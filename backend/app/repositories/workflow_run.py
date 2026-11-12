@@ -975,11 +975,13 @@ async def list_live_called_run_ids(
     return list(result.scalars().all())
 
 
-async def try_lock_run(db: AsyncSession, run_id: UUID) -> WorkflowRun | None:
+async def try_lock_run(
+    db: AsyncSession, run_id: UUID, *, organization_id: UUID
+) -> WorkflowRun | None:
     """The run, row-locked - or None when another transaction holds it right now."""
     result = await db.execute(
         select(WorkflowRun)
-        .where(WorkflowRun.id == run_id)
+        .where(WorkflowRun.id == run_id, WorkflowRun.organization_id == organization_id)
         .with_for_update(skip_locked=True)
         .execution_options(populate_existing=True)
     )

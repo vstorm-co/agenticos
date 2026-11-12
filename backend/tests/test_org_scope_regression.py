@@ -43,6 +43,7 @@ from app.repositories import (
     promotion_gate_repo,
     rag_document_repo,
 )
+from app.repositories import workflow_run as workflow_run_repo
 from app.services.conversation import ConversationService
 
 # (module, function name) pairs whose tenant argument must be required.
@@ -204,6 +205,8 @@ TENANT_REQUIRED = [
     (promotion_gate_repo, "guarded_following_latest"),
     (promotion_gate_repo, "add_override"),
     (promotion_gate_repo, "overrides_for_versions"),
+    (workflow_run_repo, "try_lock_run"),
+    (workflow_run_repo, "list_live_called_run_ids"),
 ]
 
 # Deliberately unscoped, each documented at its definition.
