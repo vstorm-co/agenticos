@@ -8,13 +8,13 @@ from app.core.config import settings
 
 def test_the_fallback_master_key_is_healthy_and_named(monkeypatch: pytest.MonkeyPatch) -> None:
     """`VAULT_MASTER_KEY` unset is sealed under `SECRET_KEY`, which config only allows in
-    local and development: a working vault, so not a failure, but said out loud."""
+    local and development: a working vault, so a warning rather than a failure."""
     monkeypatch.setattr(settings, "VAULT_MASTER_KEY", "")
     monkeypatch.setattr(settings, "VAULT_MASTER_KEYS", {})
 
     status, detail = _vault_configured()
 
-    assert status == "healthy"
+    assert status == "unconfigured"
     assert "SECRET_KEY" in detail
     assert "VAULT_MASTER_KEYS" in detail and "vault-rotate" in detail
     assert _report("vault", status, detail) is False

@@ -189,13 +189,13 @@ def _vault_configured() -> tuple[str, str]:
 
     Without `VAULT_MASTER_KEY` the vault seals under `SECRET_KEY`, which
     configuration refuses outside local and development, so the vault works
-    either way. Setting the key later is not a switch: rows sealed under the
+    either way: a warning that names the way to a dedicated key, not a failure. Setting the key later is not a switch: rows sealed under the
     fallback are read only while it stays listed, so the way there is staging
     both in `VAULT_MASTER_KEYS` and running `vault-rotate`.
     """
     if not settings.VAULT_MASTER_KEY and not settings.VAULT_MASTER_KEYS:
         return (
-            "healthy",
+            "unconfigured",
             "sealing with the SECRET_KEY fallback (local and development only) - for a "
             "dedicated key, list SECRET_KEY as version 1 and the new key as version 2 in "
             "VAULT_MASTER_KEYS, then run vault-rotate (docs/secrets.md)",
