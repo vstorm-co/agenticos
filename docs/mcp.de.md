@@ -1,5 +1,5 @@
 ---
-source_sha: "c1fbed8d938c"
+source_sha: "64b3eac00c71"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -209,6 +209,20 @@ Capability-Tools oder beide zurückstellen und ausgewählte Server-Namensräume 
 einzelne Tools ab der ersten Anfrage sichtbar halten. Diese Ausnahmen ändern,
 wann ein Tool-Schema angezeigt wird; die Allowlists von Connection und Binding
 entscheiden weiterhin, ob das Tool verfügbar ist.
+
+Neue Vorlagen für AgenticOS und Architect stellen auch Capability-Tools zurück,
+lassen Fragen und Sandbox-Tools sofort sichtbar und nutzen die lokale BM25-Suche
+mit bis zu fünf Ergebnissen. Bestehende veröffentlichte Agents behalten ihre
+Konfiguration; die neuen Standardwerte lassen sich in den Einstellungen der
+Tool-Suche übernehmen. Die Suche entfernt weder Anweisungen noch den Chatverlauf;
+die Summe der Eingabetokens umfasst sämtliche Modellanfragen.
+
+Die Verfügbarkeit der Browser-Tools folgt zusätzlich dem Zustand der Tabs:
+Öffnen, Lesen und Auflisten bleiben zum Starten oder Wiederherstellen einer Sitzung
+verfügbar. Schließen und Wechseln erfordern einen offenen Tab, Seitenaktionen einen
+aktiven Tab. Die Suche zeigt keine im aktuellen Zustand nicht verfügbare Aktion.
+Änderungen der Verfügbarkeit können das Prompt-Caching des Anbieters beeinflussen;
+weniger Tool-Schemas allein belegen daher keine niedrigeren Kosten.
 
 ### Welche Aufrufe auf eine Person warten { #which-calls-wait-for-a-person }
 

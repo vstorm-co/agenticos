@@ -1,5 +1,5 @@
 ---
-source_sha: "c1fbed8d938c"
+source_sha: "64b3eac00c71"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -203,6 +203,20 @@ narzędzia MCP, narzędzia capability lub oba rodzaje oraz pozostawiać wybrane
 przestrzenie nazw serwerów albo pojedyncze narzędzia widoczne od pierwszego żądania.
 Te wykluczenia zmieniają moment pokazania schematu narzędzia; listy dozwolonych
 narzędzi połączenia i powiązania nadal decydują, czy jest ono dostępne.
+
+Nowe szablony AgenticOS i Architect odraczają także narzędzia capability, pozostawiając
+pytania i narzędzia sandboxa widoczne od razu, oraz używają lokalnego wyszukiwania
+BM25 z maksymalnie pięcioma wynikami. Istniejące opublikowane agenty zachowują
+konfigurację; nowe wartości można przyjąć w ustawieniach wyszukiwania narzędzi.
+Wyszukiwanie nie usuwa instrukcji ani historii rozmowy, a suma tokenów wejściowych
+obejmuje wszystkie żądania do modelu.
+
+Dostępność narzędzi przeglądarki zależy dodatkowo od stanu kart: otwieranie, czytanie
+i lista kart pozostają dostępne do rozpoczęcia lub przywrócenia sesji. Zamykanie
+i przełączanie wymagają otwartej karty, a działania na stronie — aktywnej karty.
+Wyszukiwanie nie ujawnia działania niedostępnego w bieżącym stanie. Zmiany dostępności
+mogą wpływać na cache promptu u dostawcy, więc sama mniejsza liczba schematów narzędzi
+nie dowodzi niższego kosztu.
 
 ### Które wywołania czekają na człowieka { #which-calls-wait-for-a-person }
 

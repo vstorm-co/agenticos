@@ -1233,7 +1233,12 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         )
 
     async def list_agents(limit: int = 50, skip: int = 0) -> dict[str, Any]:
-        """The agents this caller can see. Needs `agents:view`."""
+        """List agents this caller can see, with names and ids. Needs `agents:view`.
+
+        Find a named agent here, then call get_agent for its matching id. Do not
+        infer agent ids from run history or fetch every agent's full spec.
+        Results are paginated metadata; use limit/skip to continue.
+        """
         return await api.request("GET", "/agents", params={"limit": limit, "skip": skip})
 
     async def get_agent(agent_id: UUID) -> dict[str, Any]:

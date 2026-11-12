@@ -1,5 +1,5 @@
 ---
-source_sha: "c1fbed8d938c"
+source_sha: "64b3eac00c71"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -207,6 +207,20 @@ y mantener visibles desde la primera petición los espacios de nombres de
 servidores o las herramientas individuales que elijas. Estas exclusiones cambian
 cuándo se muestra el esquema de una herramienta; las listas permitidas de conexión
 y vinculación siguen decidiendo si está disponible.
+
+Las nuevas plantillas de AgenticOS y Architect también difieren herramientas de
+capabilities, mantienen visibles las preguntas y las herramientas del sandbox desde
+el principio y usan búsqueda BM25 local con hasta cinco resultados. Los agents ya
+publicados conservan su configuración; puedes adoptar los nuevos valores en los
+ajustes de búsqueda de herramientas. La búsqueda no elimina las instrucciones ni
+el historial; el total de tokens de entrada suma todas las peticiones al modelo.
+
+La disponibilidad de las herramientas del navegador también sigue el estado de las
+pestañas: abrir, leer y listar siguen disponibles para iniciar o restaurar una
+sesión. Cerrar y cambiar requieren una pestaña abierta; las acciones sobre la página,
+una pestaña activa. La búsqueda no revela acciones no disponibles en el estado
+actual. Los cambios de disponibilidad pueden afectar a la caché del prompt del
+proveedor; menos esquemas de herramientas por sí solos no demuestran un menor coste.
 
 ### Qué llamadas esperan a una persona { #which-calls-wait-for-a-person }
 
