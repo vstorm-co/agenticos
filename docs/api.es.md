@@ -1,5 +1,5 @@
 ---
-source_sha: "3503412daf98"
+source_sha: "7e52c2377ec5"
 ---
 
 # La API HTTP { #the-http-api }
@@ -537,7 +537,8 @@ curl -X POST "$WEBHOOK_URL" \
 
 Responde `202` con `{"run_id": ..., "duplicate": false}` en cuanto el run queda
 admitido, sin esperar nunca al run en sí. Un id de entrega ya admitido responde
-`"duplicate": true` con el id del primer run. Una firma que no se verifica es un
+`"duplicate": true` con el id del primer run, igual que la misma solicitud firmada con
+otro id en 24 horas. Una firma que no se verifica es un
 `403`, una entrega sin id o con un cuerpo que no es un objeto JSON un `400`, y un
 webhook pausado o desconocido un `404`.
 

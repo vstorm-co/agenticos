@@ -500,7 +500,8 @@ curl -X POST "$WEBHOOK_URL" \
 
 It answers `202` with `{"run_id": ..., "duplicate": false}` as soon as the run is
 admitted, never waiting for the run itself. A delivery id already admitted answers
-`"duplicate": true` with the first run's id. A signature that does not verify is a
+`"duplicate": true` with the first run's id, and so does the same signed request under
+another id within 24 hours. A signature that does not verify is a
 `403`, a delivery with no id or with a body that is not a JSON object a `400`, and
 a paused or unknown webhook a `404`.
 

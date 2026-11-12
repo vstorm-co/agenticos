@@ -1,5 +1,5 @@
 ---
-source_sha: "aa54fb9dafe5"
+source_sha: "b3475f2e4afa"
 ---
 
 # Workflows { #workflows }
@@ -1111,6 +1111,15 @@ Header funktionieren ebenfalls. Der Trigger gibt das JSON der Zustellung als `bo
 weiter, mit ihrer `delivery_id`. Ein Retry, der eine ID wiederholt, wird mit dem
 ersten Run beantwortet und startet nichts, weil die ID zusammen mit dem Run, den sie
 zugelassen hat, in einer Transaktion gespeichert wird.
+
+Die ID gehört nicht zu dem, was der Absender signiert, daher ist dieselbe signierte Anfrage
+unter einer anderen ID innerhalb von 24 Stunden ebenfalls eine Kopie: Sie wird mit dem
+ersten Run beantwortet und startet nichts, gleich in welchem der beiden Signatur-Header sie
+steckt. Derselbe Inhalt startet nach 24 Stunden wieder einen Run. Ein Absender, der
+denselben Body absichtlich öfter sendet, macht jeden unterscheidbar, mit eigener ID oder
+Zeit im Body, oder signiert die Zeit: Mit `X-Signature-Timestamp` (Unix-Sekunden) deckt
+die Signatur `{timestamp}.{body}` ab und wird abgelehnt, wenn sie mehr als fünf Minuten
+von der Serveruhr abweicht.
 
 Ein **Schedule**-Trigger läuft in einem festen Abstand, täglich zu einer festen
 Uhrzeit oder nach einem Cron-Ausdruck, in der Zeitzone des Workflows (UTC, sofern seine **Settings** keine andere nennen)

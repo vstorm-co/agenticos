@@ -1,5 +1,5 @@
 ---
-source_sha: "aa54fb9dafe5"
+source_sha: "b3475f2e4afa"
 ---
 
 # Workflows { #workflows }
@@ -1053,6 +1053,14 @@ en `X-Delivery-Id`; las cabeceras propias de GitHub también funcionan. El trigg
 el JSON de la entrega como `body`, con su `delivery_id`. Un reintento que repite un id
 recibe como respuesta el primer run y no inicia nada, porque el id se guarda junto con
 el run que admitió, en una sola transacción.
+
+El id no forma parte de lo que firma el remitente, así que la misma solicitud firmada con
+otro id en 24 horas también es una copia: recibe como respuesta el primer run y no inicia
+nada, la lleve cualquiera de las dos cabeceras de firma. El mismo contenido enviado de
+nuevo pasadas 24 horas inicia un run. Un remitente que envía el mismo cuerpo más a menudo a
+propósito hace que cada uno sea distinto, con su propio id u hora en el cuerpo, o firma la
+hora: con `X-Signature-Timestamp` (segundos Unix) la firma cubre `{timestamp}.{body}` y se
+rechaza a más de cinco minutos del reloj del servidor.
 
 Un trigger **Schedule** se ejecuta cada cierto tiempo, a diario a una hora fija o
 según una expresión cron, en la zona horaria del workflow (UTC salvo que sus **Settings** indiquen otra)
