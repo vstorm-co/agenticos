@@ -30,7 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.audience import RunAudience
 from app.agents.memory_scope import claim_write_scope
-from app.db.locks import LockScope, hold_subject
+from app.db.locks import LockScope, hold_subject, hold_subject_shared
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.system_agent_profile import MEMORY_MAINTENANCE
 from app.repositories import (
@@ -234,6 +234,7 @@ async def extract(
     # Acquire before the final erasure check, not only when the first claim is
     # inserted: otherwise an erasure can commit while that insertion waits.
     await hold_subject(db, LockScope.PERSONAL_DATA_PER_USER, run.user_id)
+    await hold_subject_shared(db, LockScope.MEMORY_PER_AGENT, run.agent_id)
     if (
         await _erased_since(db, run)
         or await member_context(db, organization_id=organization_id, user_id=run.user_id) is None
