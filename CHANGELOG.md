@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.71.1] - 2026-11-12
+
 ### Fixed
 
 - **First messages to channel assistants.** Commit the admitted channel conversation before creating its platform MCP credential. A newly opened thread could otherwise fail before the model call with a conversation foreign-key violation, while its next message succeeded. Admission commit failures stop preparation.
@@ -21510,7 +21512,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.71.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.71.1...HEAD
+[1.71.1]: https://github.com/vstorm-co/agenticos/compare/v1.71.0...v1.71.1
 [1.71.0]: https://github.com/vstorm-co/agenticos/compare/v1.70.0...v1.71.0
 [1.70.0]: https://github.com/vstorm-co/agenticos/compare/v1.69.0...v1.70.0
 [1.69.0]: https://github.com/vstorm-co/agenticos/compare/v1.68.0...v1.69.0
