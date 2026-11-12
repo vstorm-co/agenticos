@@ -4520,7 +4520,8 @@
     "whatsNewDescription": "Änderungen in der verwendeten Version.",
     "whatsNewDone": "Verstanden",
     "monitoring": "Überwachung",
-    "backgroundWork": "Arbeit im Hintergrund"
+    "backgroundWork": "Arbeit im Hintergrund",
+    "desktopApp": "Desktop-App"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -9726,14 +9727,25 @@
       "device": {
         "title": "Dieser Computer",
         "description": "Lassen Sie Ihre eigenen Agents hier arbeiten, wenn Sie in einem Chat „Dieser Computer“ wählen - im gewählten Ordner, so weit der gewählte Modus es erlaubt. Runs anderer erreichen ihn nicht.",
-        "notLinked": "Nicht verbunden",
-        "connected": "Verbunden - Ihre Agents können hier arbeiten",
-        "reconnecting": "Verbunden - stellt Verbindung wieder her…",
+        "notLinked": "Nicht verknüpft",
+        "connected": "Verknüpft - Ihre Agents können hier arbeiten",
+        "reconnecting": "Verknüpft - Verbindung wird wiederhergestellt…",
         "live": "Live",
-        "link": "Agents hier arbeiten lassen",
+        "link": "Diesen Computer verknüpfen",
         "unlink": "Trennen",
         "linkFailed": "Dieser Computer konnte nicht verbunden werden.",
-        "unlinkFailed": "Dieser Computer konnte nicht getrennt werden."
+        "unlinkFailed": "Dieser Computer konnte nicht getrennt werden.",
+        "unlinkTitle": "Diesen Computer trennen?",
+        "unlinkBody": "Ihre Agents können hier nicht mehr arbeiten, und die App vergisst, was Sie auf diesem Computer erlaubt haben:",
+        "unlinkClears": {
+          "folders": "Freigegebene Ordner",
+          "services": "Lokale Dienste",
+          "consents": "Zugriff auf den ganzen Computer und den Bildschirm",
+          "routines": "Ordnerberechtigungen für Routinen",
+          "sessions": "Gespeicherte Sitzungen lokaler Agents"
+        },
+        "unlinkCancel": "Abbrechen",
+        "unlinkConfirm": "Diesen Computer trennen"
       },
       "services": {
         "title": "Lokale Modelle und MCP",
@@ -9778,6 +9790,18 @@
     "welcome": {
       "shortcuts": {
         "open_console": "AgenticOS öffnen"
+      },
+      "loop": {
+        "title": "Auf dem Laufenden bleiben",
+        "body": "Freigabeanfragen kommen als Benachrichtigungen. Um die meisten direkt dort zu beantworten, schalten Sie unter Einstellungen → Desktop-App die Vorschau ein.",
+        "login": "AgenticOS bei der Anmeldung öffnen",
+        "keepRunning": "Weiterlaufen, wenn das Fenster geschlossen ist",
+        "test": "Benachrichtigungen",
+        "testHint": "Ihr Computer fragt einmal, ob AgenticOS Sie benachrichtigen darf.",
+        "send": "Test senden",
+        "sent": "Gesendet",
+        "testTitle": "AgenticOS",
+        "testBody": "Hier werden Ihre Agents Sie erreichen."
       }
     },
     "quickAsk": {
@@ -9805,17 +9829,17 @@
       "tabLimit": "Bis zu acht Tabs können in einem Fenster geöffnet werden.",
       "earlierMessages": "Frühere Nachrichten laden",
       "startDictation": "Diktat starten",
-      "stopDictation": "Diktat stoppen"
+      "stopDictation": "Diktat stoppen",
+      "computerAccessInConsole": "Zugriff auf diesen Computer wird in der Konsole erteilt. Fahren Sie in der Konsole fort, um ihn zu erlauben."
     },
     "readiness": {
       "title": "App-Bereitschaft",
-      "description": "Der Zustand dieses Macs und Ihres Kontos auf diesem Server. Aktivieren Sie nur benötigte Funktionen.",
-      "desktopOnly": "Öffnen Sie die Desktop-App, um ihre Einrichtung zu prüfen.",
+      "description": "Der Zustand dieses Computers und Ihres Kontos auf diesem Server. Aktivieren Sie nur benötigte Funktionen.",
       "refresh": "Erneut prüfen",
       "requestFailed": "Die Systemberechtigung konnte nicht geändert werden. Öffnen Sie die Systemeinstellungen und prüfen Sie erneut.",
       "askAdmin": "Bitten Sie einen Administrator, ein Modell für die Organisation einzurichten.",
       "askAgentAdmin": "Bitten Sie einen Administrator, einen nutzbaren Agent zu veröffentlichen oder freizugeben.",
-      "permissionNote": "Die Prüfung erfasst weder Bildschirm noch Audio oder Zwischenablage. Berechtigungen sind optional und erfordern einen Klick. Nach Änderungen an der Bildschirmaufnahme kann macOS einen App-Neustart verlangen.",
+      "permissionNote": "Die Prüfung erfasst weder Bildschirm noch Audio oder Zwischenablage. Berechtigungen sind optional und erfordern einen Klick.",
       "screenCaptureDenied": "macOS gewährt dieser laufenden App keinen Bildschirmzugriff. Wenn AgenticOS in den Systemeinstellungen bereits aktiviert ist, beende und öffne diese Kopie der App erneut und aktualisiere den Status. Eine andere installierte Kopie kann andere Berechtigungen haben.",
       "retryScreenshot": "Screenshot erneut versuchen",
       "welcome": "Desktop-Verbindung fertig einrichten",
@@ -9824,11 +9848,10 @@
       "done": "Weiter",
       "retry": "Wiederholen",
       "enable": "Einrichten",
-      "connect": "Verbinden",
       "configure": "Konfigurieren",
       "items": {
         "account": "Angemeldetes Konto",
-        "device": "Gekoppelter Computer",
+        "device": "Verknüpfter Computer",
         "agent": "Nutzbarer Agent",
         "model": "Modell des AI Architect",
         "screen_capture": "Bildschirmaufnahme",
@@ -9846,7 +9869,10 @@
       },
       "viewAgents": "Agents ansehen",
       "finishFailed": "Die Verbindungseinrichtung konnte nicht abgeschlossen werden. Versuchen Sie es erneut.",
-      "opening": "Arbeitsbereich wird geöffnet…"
+      "opening": "Arbeitsbereich wird geöffnet…",
+      "permissionNoteMac": "Die Prüfung erfasst weder Bildschirm noch Audio oder Zwischenablage. Berechtigungen sind optional und erfordern einen Klick. Nach Änderungen an der Bildschirmaufnahme kann macOS einen App-Neustart verlangen.",
+      "screenCaptureDeniedElsewhere": "Ihr System gewährt dieser App keinen Bildschirmzugriff. Erlauben Sie ihn in den Datenschutzeinstellungen des Systems und aktualisieren Sie dann den Status.",
+      "link": "Verknüpfen"
     },
     "notificationSettings": {
       "title": "Desktop-Mitteilungen",
@@ -9861,7 +9887,7 @@
       "enable": "Systemmitteilungen einrichten",
       "test": "Testmitteilung senden",
       "testTitle": "Testbenachrichtigung",
-      "testBody": "Wenn du diese Nachricht siehst, hat macOS die Benachrichtigung zugestellt.",
+      "testBody": "Wenn Sie diese Nachricht sehen, hat Ihr System die Benachrichtigung zugestellt.",
       "failedTest": "Der Test konnte nicht gesendet werden. Prüfen Sie die Systemmitteilungen.",
       "unmuteAll": "{count, plural, one {# Gespräch wieder aktivieren} other {# Gespräche wieder aktivieren}}",
       "mute": "Mitteilungen für dieses Gespräch stummschalten",
@@ -9880,6 +9906,10 @@
     },
     "notifications": {
       "questionBody": "Öffnen Sie das Gespräch, um dem Agent zu antworten."
+    },
+    "onlyInApp": {
+      "title": "Das öffnet sich in der AgenticOS-Desktop-App.",
+      "hint": "Öffnen Sie die Desktop-App auf Ihrem Computer, um es zu nutzen; im Browser gibt es hier nichts anzuzeigen."
     }
   },
   "agentPin": {

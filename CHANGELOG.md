@@ -27,6 +27,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Desktop pages show one clear browser fallback, unlinking a computer requires confirmation, and setup text matches the operating system and notification privacy settings. Quick Ask explains refused computer access and clears that notice for a new conversation.
+
 - Bootstrap honors the requested organization and validates its name before converting a new owner’s personal organization. Setup diagnostics explain vault fallback and publish refusals; demo seeds create their missing agents.
 - Docker console deployments accept a session cookie namespace, and table record validation explains that values are keyed by column IDs.
 
