@@ -15,6 +15,7 @@ import asyncio
 import uuid
 
 import click
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec
@@ -66,6 +67,7 @@ DEFAULT_ORGANIZATION = "Acme"
     "--org",
     "org_name",
     default=None,
+    callback=lambda _ctx, _param, value: _organization_name(value),
     help=f"Organization name. Without it, the one the owner lands in, or {DEFAULT_ORGANIZATION}",
 )
 @click.option(
@@ -124,6 +126,12 @@ async def _bootstrap(
 
         org = await _resolve_organization(db, user.id, org_name, new_owner=new_owner)
         ctx = AuthContext(user_id=user.id, organization_id=org.id, role=OrgRoleName.OWNER)
+        landing = await OrganizationService(db).fallback_for(user.id)
+        if landing is not None and landing.id != org.id:
+            # A deployment's default organization comes before any other at sign-in.
+            info(
+                f"Signing in opens {landing.name}; switch to {org.name} in the organization switcher"
+            )
 
         profile_id = await _resolve_model(db, ctx, provider, api_key, model_id)
         await _resolve_starter_agents(db, ctx, profile_id)
@@ -168,28 +176,52 @@ async def _resolve_mcp_mirror(db) -> None:
         success(f"Loaded {seeded} MCP catalog checks")
 
 
+def _organization_name(value: str | None) -> str | None:
+    """`--org` as an organization name the console would accept, checked before anything runs."""
+    if value is None:
+        return None
+    try:
+        return OrganizationCreate(name=value).name
+    except ValidationError as invalid:
+        raise click.BadParameter(invalid.errors()[0]["msg"], param_hint="--org") from None
+
+
 async def _resolve_organization(
     db: AsyncSession, owner_id: uuid.UUID, name: str | None, *, new_owner: bool
 ) -> Organization:
-    """The organization the owner runs the demo in: the one called `name`, when given.
+    """The organization the owner runs the demo in.
 
-    An owner this run registered has only the personal organization sign-up
-    gave it, empty, so that one becomes `name` and stays where the operator
-    lands after signing in. A personal organization is purged with its account
-    and skipped by directory mappings, which is why it stops being personal
-    rather than only being renamed. An existing account's personal
-    organization is never converted.
+    Without `name`, it is where the owner lands after signing in - the
+    deployment's default organization, or the owner's personal one - provided
+    the account created it and owns it; failing that, an organization called
+    `DEFAULT_ORGANIZATION`.
 
-    Otherwise it is an organization the owner already owns under that name.
-    Without a name, the one a session without an organization named lands in -
-    the deployment's default - is used too, provided the account owns it and it
-    is not personal; a name the operator gave is never traded for it. Failing
-    that, it gets a new one, made the way the console makes one: a unique slug,
-    the default budget, and the bundled skills and system agents.
+    With `name`, it is an organization called that, never the landing one. An
+    owner this run registered has only the empty personal organization sign-up
+    gave it, so that one becomes `name` and stays where the operator lands. A
+    personal organization is purged with its account and skipped by directory
+    mappings, which is why it stops being personal rather than only being
+    renamed; an existing account's personal organization is never converted.
+
+    Only an organization this account created and still owns is reused. A name
+    and an ownership can both be handed to an account by somebody else, and an
+    organization reached that way is never filled with credentials on a rerun.
+    Anything else gets a new organization, made the way the console makes one:
+    a unique slug, the default budget, and the bundled skills and system agents.
     """
-    named = name is not None
-    name = OrganizationCreate(name=DEFAULT_ORGANIZATION if name is None else name).name
-    if new_owner:
+    if name is not None:
+        name = OrganizationCreate(name=name).name
+    if name is None:
+        landing = await OrganizationService(db).fallback_for(owner_id)
+        if landing is not None and landing.created_by_user_id == owner_id:
+            membership = await member_repo.get(db, organization_id=landing.id, user_id=owner_id)
+            # Bootstrap acts as an owner. A default organization the account joined
+            # as a member is not one it may fill with credentials and agents.
+            if membership is not None and membership.role == OrgRoleName.OWNER.value:
+                info(f"Using organization {landing.name}")
+                return landing
+        name = DEFAULT_ORGANIZATION
+    elif new_owner:
         personal = await organization_repo.get_personal_for_user(db, owner_id)
         if personal is not None:
             slug = await organization_repo.generate_unique_slug(db, name)
@@ -197,18 +229,9 @@ async def _resolve_organization(
             success(f"Created organization {name}")
             return org
     for owned in await organization_repo.list_owned_by(db, owner_id):
-        if owned.name == name:
+        if owned.name == name and owned.created_by_user_id == owner_id:
             info(f"Using organization {owned.name}")
             return owned
-    landing = None if named else await OrganizationService(db).fallback_for(owner_id)
-    if landing is not None and not landing.is_personal:
-        membership = await member_repo.get(db, organization_id=landing.id, user_id=owner_id)
-        # Bootstrap acts as an owner. A default organization the account joined
-        # as a member is not one it may fill with credentials and agents.
-        if membership is not None and membership.role == OrgRoleName.OWNER.value:
-            info(f"Using organization {landing.name}")
-            return landing
-
     org = await OrganizationService(db).create(OrganizationCreate(name=name), owner_id)
     success(f"Created organization {name}")
     return org

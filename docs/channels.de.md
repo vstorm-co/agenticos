@@ -1,5 +1,5 @@
 ---
-source_sha: "c59e3bf9f07c"
+source_sha: "ef0c42f55044"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1155,7 +1155,7 @@ Link wird ausgeschrieben - und bei etwa 1.500 Zeichen mit dem Hinweis gekürzt, 
 AgenticOS steht; eine Frage kostet so einige Segmente, nicht ein Dutzend. SMS kann nicht streamen,
 keine Nachricht bearbeiten und keine Schaltfläche drücken, eine Freigabe oder Frage kommt deshalb
 als nummerierte Zeilen an und wird per SMS mit der Nummer beantwortet. Eine einzelne Zahl, die eine
-Auswahl einer an diese Nummer gesendeten Frage benennt, ist die Antwort. Gleichzeitig wartende Fragen teilen nie Nummern - die zweite zählt dort weiter, wo die erste endete, auf 1 und 2 folgen also 3 und 4 - und die Entscheidung über eine lässt die andere offen. Eine Frage bleibt einen Tag offen, eine Mehrfachauswahl nimmt also mehrere Zahlen an; jeder andere Text ist eine gewöhnliche Nachricht.
+Auswahl einer an diese Nummer gesendeten Frage benennt, ist die Antwort. Gleichzeitig wartende Fragen teilen nie Nummern - die zweite zählt dort weiter, wo die erste endete, auf 1 und 2 folgen also 3 und 4 - und die Entscheidung über eine lässt die andere offen. Eine Frage bleibt einen Tag offen, eine Mehrfachauswahl nimmt also mehrere Zahlen an; jeder andere Text ist eine gewöhnliche Nachricht. Die Nummern laufen bis 999 und beginnen dann wieder bei 1, wobei noch offene und in der letzten Woche vergebene übersprungen werden, sodass eine Antwort auf eine alte Nachricht keine neuere Frage entscheiden kann, außer sie kommt über eine Woche zu spät.
 
 Eingehende MMS-Dateien, auch ohne Text, nutzen nach Identitäts- und
 Zugriffsprüfung die gemeinsame Verarbeitung von Kanalanhängen. Höchstens zehn

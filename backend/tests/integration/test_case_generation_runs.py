@@ -900,7 +900,7 @@ async def test_a_worker_reads_knowledge_through_the_process_s_vector_store(monke
     assert len(made) == 1
 
 
-@pytest.mark.parametrize("change", ["narrowed", "revoked", "expired", "deleted"])
+@pytest.mark.parametrize("change", ["narrowed", "revoked", "deleted"])
 async def test_queued_generation_retains_and_rechecks_api_key_authority(
     db, monkeypatch, change: str
 ) -> None:
@@ -941,3 +941,43 @@ async def test_queued_generation_retains_and_rechecks_api_key_authority(
     if change != "narrowed":
         assert row.error == KEY_GONE
     calls.assert_not_awaited()
+
+
+@pytest.mark.security
+async def test_queued_generation_continues_after_its_admitting_key_expires(db, monkeypatch) -> None:
+    owner, _, agent, dataset, _ = await _setup(db)
+    created = await ApiKeyService(db).create(
+        owner,
+        ApiKeyCreate(
+            name="case generation", scopes=[Perm.DATASETS_EDIT, Perm.AGENTS_VIEW, Perm.AGENTS_RUN]
+        ),
+    )
+    key = await db.get(ApiKey, created.id)
+    assert key is not None
+    ctx = replace(
+        owner, api_key_id=key.id, key_scopes=frozenset(Perm(scope) for scope in key.scopes)
+    )
+    monkeypatch.setattr(SystemAgentRunner, "require_runnable", AsyncMock())
+    monkeypatch.setattr(change_feed, "publish", AsyncMock())
+    calls = _answer(
+        monkeypatch,
+        DraftedCases(
+            cases=[
+                DraftedCase(
+                    origin="agent",
+                    input="Which returns are accepted?",
+                    reference_answer="Returns follow the published policy.",
+                )
+            ]
+        ),
+        run=await _run_row(db, owner, agent),
+    )
+    started = await _service(db).start(ctx, dataset.id, _request(agent, "agent", count=1))
+    row = await db.get(CaseGeneration, started.id)
+    assert row is not None
+    key.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+    await db.commit()
+    await _worker(db, row).run()
+    await db.refresh(row)
+    assert row.status == "ready" and row.error is None
+    calls.assert_awaited_once()

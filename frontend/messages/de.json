@@ -1936,6 +1936,7 @@
       "approveCreateRecord": "Einen Datensatz zu {table} hinzufügen",
       "approveDeleteRecord": "Einen Datensatz aus {table} löschen",
       "approveUpdateRecord": "Einen Datensatz in {table} ändern",
+      "approveCorrectMemory": "„{before}“ zu „{after}“ korrigieren",
       "approveShareMemory": "Mit {audience, select, organization {der ganzen Organisation} other {dem Projekt}} teilen: „{claim}“",
       "approveUpsertRecord": "Einen Datensatz in {table} anlegen oder aktualisieren",
       "recordsChecking": "Sucht nach einem Datensatz",
@@ -6992,7 +6993,7 @@
       "toolState": "{status, select, completed {Fertig} error {Fehlgeschlagen} running {Läuft} pending {Läuft} unfinished {Nicht beendet} awaiting_approval {Wartet auf Freigabe} awaiting_answer {Wartet auf Antwort} other {Unbekannt}}",
       "wantsTo": "<strong>{actor}</strong> möchte: <strong>{tool}</strong>",
       "askedFor": "Für {email}",
-      "contentHidden": "Was dieser Aufruf teilen würde, sehen nur Personen, die seinen Lauf sehen können.",
+      "contentHidden": "Was dieser Aufruf aus seinem Run zitiert, sehen nur Personen, die diesen Run sehen können.",
       "approveNeedsTheRun": "Freigeben kann das nur, wer den Run sehen kann. Sie können es ablehnen.",
       "account": "Konto: {account}",
       "openTheRun": "Run öffnen",
@@ -8544,6 +8545,18 @@
       "kindE2b": "E2B-Cloud",
       "e2bKeyHint": "Ein API-Schlüssel aus Ihrem E2B-Dashboard. Sandboxes laufen auf diesem Konto und werden darüber abgerechnet.",
       "e2bTemplateWhat": "Ein E2B-Vorlagenname; leer nimmt die Standardvorlage von E2B. Für die Computersteuerung desktop verwenden.",
+      "kindOpenSandbox": "OpenSandbox",
+      "secretNameOpenSandbox": "OpenSandbox-API-Schlüssel",
+      "openSandboxAddressHint": "Die vom Backend erreichbare API. Anfragen verwenden den authentifizierten Server-Proxy.",
+      "openSandboxKeyHint": "Der Tresor-API-Schlüssel dieses Servers verwaltet alle seine Sandboxes. Isoliere Server und Netzwerk für die vorgesehenen Organisationen.",
+      "openSandboxImage": "Sandbox-Image",
+      "openSandboxImageHint": "Ein OCI-Image mit POSIX-Shell und Dateitools, z. B. python:3.12-slim.",
+      "openSandboxSecureAccess": "Secure Access (Kubernetes)",
+      "openSandboxSecureAccessHint": "Benötigt das OpenSandbox-Kubernetes-Gateway; Docker unterstützt dies nicht. Nur neue Arbeitsbereiche: vorhandene behalten ihren Modus bis zum ausdrücklichen Zurücksetzen.",
+      "openSandboxTestHint": "Startet eine temporäre Sandbox, prüft ihre Shell und entfernt sie. Kann das Image herunterladen und Serverressourcen belegen.",
+      "openSandboxTest": "Server und Image testen",
+      "openSandboxTesting": "Server und Image werden getestet…",
+      "openSandboxTestSuccess": "Server, Schlüssel und Image haben den Arbeitsbereichstest bestanden.",
       "secretNameE2b": "E2B-API-Schlüssel"
     },
     "daytonaSnapshotImageWhat": "Ein Daytona-Snapshot oder -Image. Was es erlaubt, ist dort eine Kontoeinstellung, es gibt also keine Liste zur Auswahl.",
@@ -9710,6 +9723,25 @@
     "option": "Farbe {n}"
   },
   "triggers": {
+    "attemptsTitle": "Vor dem Agentenstart",
+    "attemptsHint": "Diese Versuche haben keinen Agentenlauf gestartet und keine Modellkosten verursacht.",
+    "attemptsError": "Versuche vor dem Agentenstart konnten nicht gelesen werden.",
+    "attemptsRetry": "Verlauf erneut laden",
+    "attemptCount": "{count, plural, one {# Versuch} other {# Versuche}}",
+    "attemptStatus": {
+      "blocked": "Blockiert",
+      "failed": "Fehlgeschlagen"
+    },
+    "attemptStage": {
+      "source_review": "Quellenprüfung",
+      "preparation": "Agentenvorbereitung"
+    },
+    "attemptReason": {
+      "platform_identity_required": "Aktivieren Sie Als Ersteller handeln oder entfernen Sie die integrierte Plattform-MCP-Bindung aus dem Agenten und seinen Delegaten.",
+      "source_review_required": "Prüfen Sie die Quellen der Routine und nicht verfügbare Verbindungen vor einem erneuten Versuch.",
+      "agent_unavailable": "Prüfen Sie die veröffentlichte Version, Konfiguration und Zugriffsrechte des Agenten, bevor Sie die Routine wieder aktivieren.",
+      "preparation_failed": "Die Vorbereitung ist vor dem Erstellen eines Agentenlaufs fehlgeschlagen. Bitten Sie einen Betreiber, die Worker-Protokolle zu diesem Zeitpunkt zu prüfen."
+    },
     "runAsMe": "Als ich ausführen",
     "runAsCreator": "Läuft als die Person, die ihn angelegt hat",
     "runAsMeScheduleHint": "Jeder Lauf nutzt Ihr Gedächtnis und Ihre eigenen Verbindungen - Ihr Postfach, Ihren Kalender - wie Ihr eigener Chat. Er kann Notizen für Sie speichern; Ihre früheren Unterhaltungen durchsucht er nie.",
@@ -10335,7 +10367,7 @@
       "earlierMessages": "Frühere Nachrichten laden",
       "startDictation": "Diktat starten",
       "stopDictation": "Diktat stoppen",
-      "computerAccessInConsole": "Zugriff auf diesen Computer wird in der Konsole erteilt. Fahren Sie in der Konsole fort, um ihn zu erlauben."
+      "computerAccessInConsole": "Quick Ask hat diese Anfrage nach Zugriff auf diesen Computer abgelehnt. Um ihn zu erlauben, fragen Sie in der Konsole erneut."
     },
     "readiness": {
       "title": "App-Bereitschaft",
@@ -11924,6 +11956,7 @@
       "more": "Und {count} weitere.",
       "close": "Schließen",
       "cellProblem": "{column}: {problem}",
+      "repeatedExternalId": "Wiederholt die External ID aus Zeile {line}",
       "problem": {
         "number": "keine Zahl",
         "integer": "keine ganze Zahl",
@@ -13128,7 +13161,7 @@
       },
       "connection_id": {
         "title": "Sandbox-Verbindung",
-        "description": "Auf welcher registrierten Sandbox-Verbindung ausgeführt wird; leer nimmt die Standardverbindung der Organisation. Eine ID, nie eine Adresse oder ein Token - eine Spec wird in das Git-Repository eines Kunden exportiert und darf daher nur einen Verweis enthalten. Die Verbindung entscheidet, ob das ein Container auf deinem Host oder eine Sandbox in der Daytona-Cloud ist."
+        "description": "Welche registrierte Sandbox-Verbindung verwendet wird; leer wählt den Standard der Organisation. Eine ID, niemals eine Adresse oder ein Token — die Spezifikation wird in das Repository des Kunden exportiert und darf nur eine Referenz enthalten. Die Verbindung wählt einen Container auf dem eigenen Host oder eine Sandbox bei einem Cloud-Anbieter oder OpenSandbox-Server."
       },
       "session_scope": {
         "title": "Wer den Workspace teilt",
@@ -13136,7 +13169,7 @@
       },
       "runtime": {
         "title": "Laufzeitumgebung",
-        "description": "Welche Umgebung ein containerbasierter Workspace ausführt, aus der Liste, die der Dienst der Verbindung erlaubt. Leer nimmt die Standardumgebung der Verbindung. Ein Alias, nie ein Image."
+        "description": "Optionale anbieterspezifische Laufzeit, bis zu 64 Zeichen: sandboxd-Alias, E2B-Vorlage, Daytona-Snapshot oder OpenSandbox-Image. Leer verwendet den Verbindungsstandard; längere OpenSandbox-Image-Referenzen werden an der Verbindung konfiguriert."
       },
       "include_execute": {
         "title": "Shell-Befehle erlauben",

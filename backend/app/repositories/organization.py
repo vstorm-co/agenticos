@@ -185,10 +185,15 @@ async def generate_unique_slug(db: AsyncSession, base: str) -> str:
     if not await slug_exists(db, candidate):
         return candidate
     for i in range(2, 100):
-        suffixed = f"{candidate}-{i}"
+        suffixed = _with_suffix(candidate, f"-{i}")
         if not await slug_exists(db, suffixed):
             return suffixed
-    return f"{candidate}-{uuid.uuid4().hex[:6]}"
+    return _with_suffix(candidate, f"-{uuid.uuid4().hex[:6]}")
+
+
+def _with_suffix(slug: str, suffix: str) -> str:
+    """`slug` with `suffix`, cut first so the whole fits the column's 64 characters."""
+    return slug[: 64 - len(suffix)].rstrip("-") + suffix
 
 
 async def create(

@@ -378,17 +378,26 @@ class ApiKeyService:
         `authenticate` makes - minus the secret, which it never had - rather
         than trusting the one the request was answered under.
 
+        One check differs: a key that has merely expired still stands for work it
+        started while it was valid. Expiry bounds what a key can start; the work
+        then belongs to its issuer, so an OAuth token's hour or a run credential's
+        two hours do not cut a long run short. Revoking the key, or its OAuth
+        grant, stops the work, as does its issuer leaving.
+
         Raises:
-            AuthenticationError: The key is gone, revoked or expired, or its
-                issuer is no longer an active member of its organization.
+            AuthenticationError: The key is gone or revoked, or its issuer is no
+                longer an active member of its organization.
         """
         key = await api_key_repo.get(self.db, api_key_id, organization_id=organization_id)
         if key is None:
             raise AuthenticationError(message=_REFUSED)
-        return (await self._caller(key, datetime.now(UTC))).context
+        return (await self._caller(key, datetime.now(UTC), started_earlier=True)).context
 
-    async def _caller(self, key: ApiKey, now: datetime) -> KeyCaller:
-        if _status(key, now) != "active":
+    async def _caller(
+        self, key: ApiKey, now: datetime, *, started_earlier: bool = False
+    ) -> KeyCaller:
+        status = _status(key, now)
+        if status == "revoked" or (status == "expired" and not started_earlier):
             raise AuthenticationError(message=_REFUSED, details={"prefix": key.prefix})
         membership = await member_repo.get_active(
             self.db, organization_id=key.organization_id, user_id=key.user_id
@@ -417,10 +426,7 @@ class ApiKeyService:
 
 
 #: What a job's row says when the API key it was started with no longer stands.
-KEY_GONE = (
-    "The API key that started this was revoked, has expired, or no longer exists, "
-    "so it was stopped."
-)
+KEY_GONE = "The API key that started this was revoked or no longer exists, so it was stopped."
 
 
 async def job_context(
@@ -444,9 +450,9 @@ async def job_context(
         The context, or `None` when the starter is no longer an active member.
 
     Raises:
-        AuthenticationError: Started with a key that is now revoked, expired,
-            gone or in another organization, with :data:`KEY_GONE` as the
-            message the job's row shows.
+        AuthenticationError: Started with a key that is now revoked, gone or in
+            another organization, with :data:`KEY_GONE` as the message the job's
+            row shows. A key that has only expired still stands for the job.
     """
     if api_key_id is not None:
         try:

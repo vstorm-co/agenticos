@@ -89,7 +89,9 @@ dependencies = [
     # freeze the detectors and the model registry they read. Every agent also
     # wraps RepairToolArguments, whose json-repair dependency is selected by
     # its capability extra in the 0.64 release.
-    "pydantic-ai-harness[e2b,repair-tool-arguments]>=0.66.0",
+    "pydantic-ai-harness[e2b,opensandbox,repair-tool-arguments]>=0.66.0",
+    # The provider adapter uses SDK 1.2 retry and transport configuration explicitly.
+    "opensandbox>=1.2.0,<2",
     "websockets>=17.4",
     # Required, not optional: hybrid retrieval fuses BM25 with the vector search
     # and a deployment cannot choose otherwise. It is also the only reason

@@ -148,6 +148,7 @@ describe("bulk records", () => {
 
     await createRecords("t1", [{ values: {} }]);
     await createRecords("t1", [{ values: {} }], true);
+    await createRecords("t1", [{ values: {} }], true, "2026-11-12T09:00:00Z");
 
     expect(apiClient.post).toHaveBeenNthCalledWith(1, "/tables/t1/records/batch", {
       records: [{ values: {} }],
@@ -156,6 +157,11 @@ describe("bulk records", () => {
     expect(apiClient.post).toHaveBeenNthCalledWith(2, "/tables/t1/records/batch", {
       records: [{ values: {} }],
       update_existing: true,
+    });
+    expect(apiClient.post).toHaveBeenNthCalledWith(3, "/tables/t1/records/batch", {
+      records: [{ values: {} }],
+      update_existing: true,
+      as_of: "2026-11-12T09:00:00Z",
     });
   });
 

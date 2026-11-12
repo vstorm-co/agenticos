@@ -623,6 +623,7 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     captionKey: "memoryCorrecting",
     displayNameKey: "correctMemory",
     staysClosed: true,
+    approvalSummary: { key: "approveCorrectMemory", needs: ["before", "after"] },
   },
   share_memory: {
     kind: "write",

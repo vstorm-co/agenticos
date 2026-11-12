@@ -999,6 +999,7 @@
       "approveCreateRecord": "Dodaj rekord do tabeli {table}",
       "approveDeleteRecord": "Usuń rekord z tabeli {table}",
       "approveUpdateRecord": "Zmień rekord w tabeli {table}",
+      "approveCorrectMemory": "Popraw „{before}” na „{after}”",
       "approveShareMemory": "Udostępnij {audience, select, organization {całej organizacji} other {projektowi}}: „{claim}”",
       "approveUpsertRecord": "Utwórz albo zaktualizuj rekord w tabeli {table}",
       "recordsChecking": "Sprawdzam, czy rekord istnieje",
@@ -3075,7 +3076,7 @@
       "toolState": "{status, select, completed {Gotowe} error {Błąd} running {W toku} pending {W toku} unfinished {Nie dokończone} awaiting_approval {Czeka na zatwierdzenie} awaiting_answer {Czeka na odpowiedź} other {Nieznany}}",
       "wantsTo": "<strong>{actor}</strong> chce: <strong>{tool}</strong>",
       "askedFor": "Dla {email}",
-      "contentHidden": "Treść tego wywołania widzą tylko osoby, które mogą zobaczyć jego run.",
+      "contentHidden": "To, co to wywołanie cytuje ze swojego runu, widzą tylko osoby, które mogą zobaczyć ten run.",
       "approveNeedsTheRun": "Zatwierdzić to może tylko osoba, która widzi run. Możesz to odrzucić.",
       "account": "Konto: {account}",
       "openTheRun": "Otwórz run",
@@ -6082,6 +6083,18 @@
       "kindE2b": "Chmura E2B",
       "e2bKeyHint": "Klucz API z panelu E2B. Piaskownice działają na tym koncie i są na nie rozliczane.",
       "e2bTemplateWhat": "Nazwa szablonu E2B; puste oznacza domyślny szablon E2B. Dla obsługi komputera użyj desktop.",
+      "kindOpenSandbox": "OpenSandbox",
+      "secretNameOpenSandbox": "Klucz API OpenSandbox",
+      "openSandboxAddressHint": "Adres serwera API dostępny z backendu. Żądania korzystają z uwierzytelnionego proxy serwera.",
+      "openSandboxKeyHint": "Klucz API tego serwera z sejfu kontroluje wszystkie jego sandboxy. Odizoluj serwer i sieć dla odpowiednich organizacji.",
+      "openSandboxImage": "Obraz sandboxa",
+      "openSandboxImageHint": "Obraz OCI z powłoką POSIX i narzędziami plików, np. python:3.12-slim.",
+      "openSandboxSecureAccess": "Secure Access (Kubernetes)",
+      "openSandboxSecureAccessHint": "Wymaga bramy OpenSandbox Kubernetes; Docker nie obsługuje tej opcji. Tylko nowe przestrzenie: istniejące zachowują tryb do jawnego resetu.",
+      "openSandboxTestHint": "Uruchamia tymczasowy sandbox, sprawdza powłokę i usuwa go. Może pobrać obraz i zużyć zasoby serwera.",
+      "openSandboxTest": "Testuj serwer i obraz",
+      "openSandboxTesting": "Testowanie serwera i obrazu…",
+      "openSandboxTestSuccess": "Serwer, klucz i obraz przeszły test przestrzeni roboczej.",
       "secretNameE2b": "Klucz API E2B"
     },
     "daytonaSnapshotImageWhat": "Snapshot albo obraz Daytona. To, na co pozwala, jest ustawieniem konta po ich stronie, więc nie ma listy do zaproponowania.",
@@ -8575,6 +8588,25 @@
     "option": "Kolor {n}"
   },
   "triggers": {
+    "attemptsTitle": "Przed uruchomieniem agenta",
+    "attemptsHint": "Te próby nie rozpoczęły runu agenta ani nie naliczyły kosztów modelu.",
+    "attemptsError": "Nie udało się odczytać prób przed startem agenta.",
+    "attemptsRetry": "Ponów odczyt historii",
+    "attemptCount": "{count, plural, one {# próba} few {# próby} many {# prób} other {# próby}}",
+    "attemptStatus": {
+      "blocked": "Zablokowana",
+      "failed": "Nieudana"
+    },
+    "attemptStage": {
+      "source_review": "Sprawdzanie źródeł",
+      "preparation": "Przygotowanie agenta"
+    },
+    "attemptReason": {
+      "platform_identity_required": "Włącz Działaj jako twórca albo usuń powiązanie wbudowanego platformowego MCP z agenta i jego delegatów.",
+      "source_review_required": "Przejrzyj źródła procedury i sprawdź niedostępne połączenia przed kolejną próbą.",
+      "agent_unavailable": "Sprawdź opublikowaną wersję, konfigurację i uprawnienia agenta, zanim ponownie włączysz procedurę.",
+      "preparation_failed": "Przygotowanie nie powiodło się przed utworzeniem runu agenta. Poproś operatora o sprawdzenie logów workera z tego czasu."
+    },
     "runAsMe": "Uruchamiaj jako ja",
     "runAsCreator": "Działa jako osoba, która go utworzyła",
     "runAsMeScheduleHint": "Każde uruchomienie korzysta z twojej pamięci i twoich własnych połączeń - skrzynki, kalendarza - jak twój czat. Może zapisywać dla ciebie notatki; nigdy nie przeszukuje twoich rozmów.",
@@ -10282,7 +10314,7 @@
       },
       "connection_id": {
         "title": "Połączenie sandbox",
-        "description": "Na którym zarejestrowanym połączeniu sandbox działać; puste bierze domyślne połączenie organizacji. Id, nigdy adres ani token - spec jest eksportowany do repozytorium git klienta, więc może zawierać tylko odnośnik. Połączenie decyduje, czy to kontener na twoim hoście, czy sandbox w chmurze Daytona."
+        "description": "Które zarejestrowane połączenie sandboxa ma obsłużyć pracę; puste wybiera domyślne połączenie organizacji. To identyfikator, nigdy adres ani token — spec trafia do repozytorium klienta i może zawierać tylko odwołanie. Połączenie wybiera kontener na własnym hoście albo sandbox u dostawcy chmurowego lub na serwerze OpenSandbox."
       },
       "session_scope": {
         "title": "Kto dzieli workspace",
@@ -10290,7 +10322,7 @@
       },
       "runtime": {
         "title": "Środowisko",
-        "description": "Które środowisko uruchamia workspace w kontenerze, z listy dopuszczonej przez usługę połączenia. Puste bierze domyślne środowisko połączenia. Alias, nigdy obraz."
+        "description": "Opcjonalne środowisko dostawcy, do 64 znaków: alias sandboxd, szablon E2B, snapshot Daytona lub obraz OpenSandbox. Puste używa wartości domyślnej połączenia; dłuższe odwołania do obrazów OpenSandbox ustaw na połączeniu."
       },
       "include_execute": {
         "title": "Pozwól na polecenia powłoki",
@@ -12427,6 +12459,7 @@
       "more": "I jeszcze {count}.",
       "close": "Zamknij",
       "cellProblem": "{column}: {problem}",
+      "repeatedExternalId": "Powtarza external id z wiersza {line}",
       "problem": {
         "number": "to nie liczba",
         "integer": "to nie liczba całkowita",
@@ -13874,7 +13907,7 @@
       "earlierMessages": "Wczytaj wcześniejsze wiadomości",
       "startDictation": "Zacznij dyktowanie",
       "stopDictation": "Zatrzymaj dyktowanie",
-      "computerAccessInConsole": "Dostęp do tego komputera przyznaje się w konsoli. Kontynuuj w konsoli, aby na niego zezwolić."
+      "computerAccessInConsole": "Quick Ask odrzucił tę prośbę o dostęp do tego komputera. Aby na niego zezwolić, poproś ponownie w konsoli."
     },
     "notifications": {
       "approvalTitle": "{agent} chce uruchomić {tool}",

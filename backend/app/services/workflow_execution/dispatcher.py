@@ -266,6 +266,10 @@ class HandlerOutcome:
     webhook_response: dict[str, Any] | None = None
 
 
+_STOPS_CALLED_RUNS = frozenset({WorkflowRunStatus.CANCELLED, WorkflowRunStatus.BUDGET_EXCEEDED})
+"""How a caller ends that ends what it called: a failure leaves a called run to finish."""
+
+
 async def claim(
     db: AsyncSession, *, node_run_id: UUID, lease_seconds: float | None = None
 ) -> DispatchOutbox | None:
@@ -401,8 +405,7 @@ async def _principal_context(db: AsyncSession, run: WorkflowRun) -> AuthContext:
         if (
             parent is None
             or parent.id in visited
-            or parent.status
-            in {WorkflowRunStatus.CANCELLED.value, WorkflowRunStatus.BUDGET_EXCEEDED.value}
+            or WorkflowRunStatus(parent.status) in _STOPS_CALLED_RUNS
         ):
             raise WorkflowParentStoppedError(run_id=run.id)
         ancestor_workflow = await workflow_repo.get(
@@ -1246,6 +1249,8 @@ async def _end_run(
         db, run=run, kind=event, node_run_id=node_run.id, payload={"code": error.code}
     )
     await delivery.deliver_result(db, run=run)
+    if run_status in _STOPS_CALLED_RUNS:
+        await cleanup.stop_called_runs(db, run=run, now=now)
     if run_status is WorkflowRunStatus.FAILED:
         await failure.start_error_workflow(
             db, run=run, step_id=node_run.node_instance_id, error=error

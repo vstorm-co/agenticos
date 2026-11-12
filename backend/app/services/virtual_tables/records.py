@@ -22,6 +22,7 @@ import re
 from collections.abc import AsyncGenerator, Awaitable, Callable, Mapping, Sequence
 from contextlib import aclosing
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
@@ -94,6 +95,7 @@ from app.services.virtual_tables.receipts import DeleteOutcome, WriteOutcome, ru
 from app.services.virtual_tables.record_sources import source_for
 from app.services.virtual_tables.types import (
     COLUMN_TYPES,
+    COMPUTED_TYPES,
     OPTION_TYPES,
     SEARCHED_TYPES,
     CellProblem,
@@ -150,6 +152,14 @@ class _Unchanged(Exception):
 
     def __init__(self, record: RecordRead) -> None:
         super().__init__("The update changes nothing")
+        self.record = record
+
+
+class _ChangedSince(Exception):
+    """A batch row would overwrite a record changed after its import began."""
+
+    def __init__(self, record: VirtualTableRecord) -> None:
+        super().__init__("The record changed after the import began")
         self.record = record
 
 
@@ -222,10 +232,10 @@ def _merge(
 
 
 def _labels(columns: list[ColumnDef]) -> dict[str, list[ColumnDef]]:
-    """The live columns by case-folded label."""
+    """The columns a write can name, by case-folded label: live and not computed."""
     labels: dict[str, list[ColumnDef]] = {}
     for column in columns:
-        if not column.archived:
+        if not column.archived and column.type not in COMPUTED_TYPES:
             labels.setdefault(column.label.casefold(), []).append(column)
     return labels
 
@@ -826,6 +836,11 @@ class RecordOperations(Operations):
         record created emits `table.record.created`, so a table trigger starts for it as
         for any other.
 
+        A row repeating an external id named earlier in the batch is refused as
+        `INVALID_RECORD`, so which of the two lands never depends on their order. An
+        `update_existing` row leaves a record changed or created after `as_of` - when the
+        import began - as it is, and reports it as `REVISION_CONFLICT`.
+
         Raises:
             NotFoundError: The table is out of reach.
             TableArchivedError: The table is archived.
@@ -833,13 +848,51 @@ class RecordOperations(Operations):
         table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, share=True)
         self._ensure_live(table)
         await quotas.lock_storage(self.db, ctx)
+        now = await virtual_table_repo.database_time(self.db)
+        if data.as_of is not None and data.as_of > now:
+            raise InvalidQueryError("as_of", "The import timestamp cannot be in the future")
+        as_of = data.as_of or now
+        named: dict[str, int] = {}
         created = updated = 0
         failed: list[RecordBatchFailure] = []
         for index, record in enumerate(data.records):
+            if record.external_id is not None:
+                earlier = named.setdefault(record.external_id, index)
+                if earlier != index:
+                    failed.append(
+                        _failure(
+                            index,
+                            InvalidRecordError(
+                                [
+                                    (
+                                        f"records.{index}.external_id",
+                                        f"Repeats the external id of record {earlier} "
+                                        "in this batch",
+                                    )
+                                ]
+                            ),
+                        )
+                    )
+                    continue
             try:
                 async with self.db.begin_nested():
-                    made = await self._create_one(ctx, table, record, update=data.update_existing)
+                    made = await self._create_one(
+                        ctx, table, record, update=data.update_existing, as_of=as_of
+                    )
                     await quotas.enforce_storage(self.db, ctx, table)
+            except _ChangedSince as changed:
+                failed.append(
+                    RecordBatchFailure(
+                        index=index,
+                        code=RevisionConflictError.code,
+                        message="The record was changed after this import began, so it was "
+                        "left as it is.",
+                        details={
+                            "record_id": changed.record.id,
+                            "current_revision": changed.record.revision,
+                        },
+                    )
+                )
             except _Unchanged:
                 # Already holds what the row says: nothing written, nothing to report.
                 continue
@@ -858,15 +911,55 @@ class RecordOperations(Operations):
                     created += 1
                 else:
                     updated += 1
-        return RecordBatchResult(created=created, updated=updated, failed=failed)
+        return RecordBatchResult(created=created, updated=updated, failed=failed, as_of=as_of)
+
+    async def write_batch(
+        self,
+        ctx: AuthContext,
+        table_id: UUID,
+        data: RecordBatchCreate,
+        *,
+        operation_key: str | None = None,
+    ) -> tuple[RecordBatchResult, bool]:
+        """`create_records` once per `operation_key`, and whether this call replayed it.
+
+        A batch sent again under its key answers what the first one did and writes
+        nothing; the same key with another batch is `IDEMPOTENCY_KEY_REUSED`. A batch
+        whose rows and stored outcome would take the organization past its table
+        storage writes nothing and is refused with `QUOTA_EXCEEDED`.
+        """
+        operation_key = _operation_key(operation_key)
+        table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT)
+        async with self.db.begin_nested():
+            result, replayed = await run_once(
+                self.db,
+                ctx,
+                operation="record.batch",
+                operation_key=operation_key,
+                payload={"table_id": table_id, **data.model_dump(mode="json")},
+                outcome_type=RecordBatchResult,
+                action=lambda: self.create_records(ctx, table_id, data),
+            )
+            # The stored outcome counts toward storage too, and a batch whose rows all
+            # failed wrote nothing else that was checked.
+            if not replayed:
+                await quotas.enforce_storage(self.db, ctx, table)
+        return result, replayed
 
     async def _create_one(
-        self, ctx: AuthContext, table: VirtualTable, data: RecordCreate, *, update: bool
+        self,
+        ctx: AuthContext,
+        table: VirtualTable,
+        data: RecordCreate,
+        *,
+        update: bool,
+        as_of: datetime,
     ) -> bool:
         """Create the record - or, with `update`, change the one holding its external id.
 
         Returns whether it was created. An update that changes nothing raises
-        `_Unchanged`, as a single one does.
+        `_Unchanged`, as a single one does, and one of a record changed or created
+        after `as_of` raises `_ChangedSince`.
         """
         if data.external_id is not None:
             # As in `create_record`: an id that exists is answered as taken, not as a quota.
@@ -875,6 +968,8 @@ class RecordOperations(Operations):
             if existing is not None and not update:
                 raise self._already_exists(data.external_id)
             if existing is not None:
+                if (existing.updated_at or existing.created_at) > as_of:
+                    raise _ChangedSince(existing)
                 await self._apply(ctx, table, existing, data.values, existing.revision)
                 return False
         if await self._insert(ctx, table, data.external_id, data.values) is None:

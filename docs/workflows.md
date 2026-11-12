@@ -989,6 +989,16 @@ headers work as well. The trigger hands on the delivery's JSON as `body`, with i
 `delivery_id`. A retry that repeats an id is answered with the first run and starts
 nothing, because the id is recorded with the run it admitted, in one transaction.
 
+The id is not part of what the sender signs, so the same signed request under another id
+within 24 hours is a copy too: it is answered with the first run and starts nothing,
+whichever of the two signature headers carries it. Identical content sent again after 24
+hours starts a run. A sender that sends the same body more often on purpose makes each one
+differ, with its own id or time in the body, or signs the time: with
+`X-Signature-Timestamp` (Unix seconds) the signature covers `{timestamp}.{body}` and is
+refused more than five minutes from the server's clock.
+
+Deliveries admitted before signed digests were recorded retain delivery-ID deduplication. Their signed copies under a different ID cannot be recognized from those older rows; signature-based copy detection starts with deliveries recorded by the new version.
+
 A **Schedule** trigger runs every so often, daily at a set time or on a cron
 expression, in the workflow's timezone (UTC unless its **Settings** name another)
 and at most once a minute. It fires at its tick, not at the next minute's sweep
@@ -1210,12 +1220,17 @@ already running in the chain, or more than five calls deep, is refused.
 Called workflows inherit the caller's remaining run budget and the earlier deadline.
 Their spend counts toward the caller's total; `own_cost` exposes the caller's direct
 fees for consumers aggregating run records without counting descendants twice.
-With a finite caller budget, **Wait for it to finish** must stay on. Cancelling a
-caller or revoking its access stops a child before its next dispatch; an external
-request already in flight may finish. Retrying a failed call reuses successful
-steps of its original, frozen child rather than repeating their effects. A still
-running original child must finish or be stopped first. File outputs are explicitly
-imported into the caller, and callee access is rechecked when a waiting call resumes.
+With a finite caller budget, **Wait for it to finish** must stay on.
+
+Cancelling a caller, or its running out of budget, cancels every unfinished run it
+called and every run those called, with their approval requests and questions. A called
+run whose step is executing at that moment stops before its next dispatch, as does one
+whose caller lost its access; an external request already in flight may finish.
+
+Retrying a failed call reuses successful steps of its original, frozen child rather than
+repeating their effects. A still running original child must finish or be stopped first.
+File outputs are explicitly imported into the caller, and callee access is rechecked
+when a waiting call resumes.
 
 The caller's daily chart and per-step statistics include called-run fees too.
 
@@ -1275,7 +1290,7 @@ needs an idempotency key of its own. Each step's retry promise is listed in the
 | What you see | Why | What to do |
 |---|---|---|
 | **Needs attention** | A step that may have acted was interrupted, or stopped waiting with nothing to wake it | Check whether its effect happened, then **Resolve** the step on the run: run it again, use a result it reported late, take its error route or fail the run. Cancelling the run, then **Retry from failed step**, starts over |
-| `PRINCIPAL_REVOKED` | The member the run acts as lost access, or their account was deactivated | Have a member who may run the workflow publish it again, so its trigger runs as them |
+| `PRINCIPAL_REVOKED` | The member the run acts as lost access, or their account was deactivated, or the API key that started the run was revoked | Have a member who may run the workflow publish it again, so its trigger runs as them |
 | `WORKFLOW_TRIGGER_MISMATCH` | The run was asked for through a door its live trigger is not: by hand or the API for a workflow that starts from a webhook, or in the chat for one that does not start from a chat message | Start it the way its trigger says, or test the draft, which takes any trigger |
 | `INVALID_BINDING` | A value did not fit the field it was bound to | The step's error names the field; fix the binding or the value upstream |
 | `REVISION_CONFLICT` | Someone changed a record after the step read it | Route the step's error to a fresh read with `error.handle` |

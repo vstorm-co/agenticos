@@ -19,6 +19,30 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **OpenSandbox connections.** Connect an organization’s vault API key, server URL and image to the existing workspace file and shell tools. Docker and Kubernetes servers are supported; optional Secure Access requires the Kubernetes gateway and applies to new workspaces. Explicit tests create and remove a disposable sandbox. Missing workspaces are refused without silently replacing their files; cleanup uses the durable queue. Docker lifecycle and persistence are verified; live Kubernetes remains unverified.
+- **Routine attempt history.** Blocked and failed activations remain visible with safely redacted reasons even when no agent run could be created, including when a notification cannot be delivered.
+
+### Fixed
+
+- Routines with the built-in platform MCP server, including published delegates, require an explicit creator identity. Source review explains incompatible configuration before a run is admitted.
+- Corrections of organization and project memory always wait for a person, including under remembered approvals or Approve everything. Approval cards show the before and after; agent corrections retain provenance and a statement-free audit event.
+- Cancelling a workflow or stopping it at its budget limit withdraws questions and approvals in called runs, including live descendants behind a terminal intermediate run.
+- Signed webhook copies with different delivery IDs return the original run within 24 hours. Earlier delivery rows lack signed digests, so their original-ID protection remains but a new-ID copy cannot match them until a delivery is recorded by this version.
+- CSV batch imports preserve later edits, reject repeated external IDs and replay keyed batches without duplicate writes. Column type conversions record changed cells and provenance, preserve unchanged revisions and enforce storage quotas atomically.
+- Numbered SMS, email and iMessage confirmations expire per request and avoid reusing recently issued numbers, including in busy conversations.
+- Started work survives API-key expiry while honoring revocation, membership and scope limits; cleanup retains credentials needed by unfinished runs and background jobs. Expired keys still cannot start new requests.
+- Settling tasks leaves archived boards unchanged; restoring a board catches up settled tasks. Task writes use consistent board-before-record locking.
+- Bootstrap preserves personal landing organizations, refuses unsafe organization reuse and validates names before changes. Long organization slugs leave room for uniqueness suffixes.
+- Desktop readiness waits for a linked computer to reconnect instead of offering to replace its session. Quick Ask explains how to retry refused computer access.
+- Table write hints no longer recommend computed columns that cannot be written.
+
+### Upgrading
+
+- Migrations `0316_trigger_attempts.py`, `0317_opensandbox_connections.py`, `0318_wide_memory_approvals.py`, `0319_webhook_signed_digest.py` and `0320_record_batch_receipts.py` form one chain after the deployed skill/approval merge. They add attempt history, OpenSandbox settings, pending shared-correction protection, webhook digests and batch receipt support. Downgrading removes the new attempt history and batch receipts; remove OpenSandbox connections and long image names before downgrading its settings.
+
+
 ## [1.68.0] - 2026-11-12
 
 ### Upgrading

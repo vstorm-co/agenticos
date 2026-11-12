@@ -17,11 +17,12 @@ import {
   SheetTitle,
 } from "@/components/ui";
 import { useRuns } from "@/hooks";
+import { useTriggerAttempts } from "@/hooks/use-triggers";
 import { ROUTES } from "@/lib/constants";
 import { qk } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import type { AgentRun } from "@/types/runs";
-import type { Trigger } from "@/types/triggers";
+import type { Trigger, TriggerAttemptList } from "@/types/triggers";
 
 const POLL_WHILE_WAITING_MS = 3000;
 /** What one page of fires holds. The server's own ceiling for a run listing. */
@@ -54,6 +55,90 @@ export function TriggerRunsView({
   trigger: Trigger;
   pendingSince: number | null;
 }) {
+  const t = useTranslations("triggers");
+  const locale = useLocale();
+  const [page, setPage] = useState(0);
+  const [lastPendingSince, setLastPendingSince] = useState(pendingSince);
+  if (lastPendingSince !== pendingSince) {
+    setLastPendingSince(pendingSince);
+    if (pendingSince !== null) setPage(0);
+  }
+  const query = useTriggerAttempts(trigger, page, pendingSince !== null);
+  const attempts = query.data;
+  const settled =
+    pendingSince !== null &&
+    attempts?.items.some((attempt) => Date.parse(attempt.occurred_at) >= pendingSince);
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      {query.error ? (
+        <ErrorState
+          title={t("attemptsError")}
+          className="m-5"
+          cta={{ label: t("attemptsRetry"), onClick: () => void query.refetch() }}
+        />
+      ) : attempts && attempts.total > 0 ? (
+        <AttemptHistory attempts={attempts} page={page} onPage={setPage} locale={locale} />
+      ) : null}
+      <div className="min-h-0 flex-1">
+        <RunHistory trigger={trigger} pendingSince={settled ? null : pendingSince} />
+      </div>
+    </div>
+  );
+}
+
+function AttemptHistory({
+  attempts,
+  page,
+  onPage,
+  locale,
+}: {
+  attempts: TriggerAttemptList;
+  page: number;
+  onPage: (page: number) => void;
+  locale: string;
+}) {
+  const t = useTranslations("triggers");
+  return (
+    <section className="border-border max-h-64 shrink-0 overflow-y-auto border-b px-5 py-3">
+      <h3 className="text-sm font-medium">{t("attemptsTitle")}</h3>
+      <p className="text-muted-foreground mt-1 text-xs">{t("attemptsHint")}</p>
+      <ul className="mt-2 space-y-3" aria-live="polite" aria-relevant="additions">
+        {attempts.items.map((attempt) => (
+          <li key={attempt.id} className="flex items-start gap-2 text-sm">
+            <XCircle className="text-destructive mt-0.5 size-4 shrink-0" aria-hidden />
+            <div className="min-w-0">
+              <p>
+                {t(`attemptStatus.${attempt.status}`)} ·{" "}
+                <time dateTime={attempt.occurred_at}>
+                  {new Date(attempt.occurred_at).toLocaleString(locale, {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  })}
+                </time>
+              </p>
+              <p className="text-muted-foreground text-xs">{t(`attemptStage.${attempt.stage}`)}</p>
+              <p className="mt-1 text-xs break-words">{t(`attemptReason.${attempt.reason}`)}</p>
+            </div>
+          </li>
+        ))}
+      </ul>
+      {attempts.total > 10 && (
+        <div role="group" aria-label={t("attemptsTitle")} className="mt-2">
+          <Pager
+            page={page}
+            pageCount={Math.ceil(attempts.total / 10)}
+            matched={attempts.total}
+            total={attempts.total}
+            onPage={onPage}
+            counted={t("attemptCount", { count: attempts.total })}
+          />
+        </div>
+      )}
+    </section>
+  );
+}
+
+function RunHistory({ trigger, pendingSince }: { trigger: Trigger; pendingSince: number | null }) {
   const t = useTranslations("triggers");
   const [page, setPage] = useState(0);
   const conversationId = trigger.conversation_id;

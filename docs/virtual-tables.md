@@ -167,8 +167,11 @@ current columns:
   becomes a date and time; one choice becomes several and back when there is one.
   Any other change is refused, and so is one some value does not survive, naming
   how many and one example - nothing is written. Something that uses the column
-  refuses it as an archive does. A record's revision moves on, so an edit against
-  its old value is a conflict.
+  refuses it as an archive does. A record whose value reads differently in the new
+  type moves to a new revision, so an edit against its old value is a conflict, and its
+  history records the change under the person who made it; a value the change leaves
+  as it was keeps its record's revision. A type change fires no
+  [trigger](#triggers): one schema edit does not start a workflow per record.
 - Text becomes an `email`, `url`, `phone` or `rating` column when every value reads
   as one, and a number becomes a rating when it is a whole number from 1 to 5. Each
   of them becomes text again, and a rating a number.
@@ -187,7 +190,7 @@ current columns:
   options, changes nothing: no version is appended and the current table is returned. A
   reorder or a changed label is a change.
 
-Records are not rewritten. A record written under version 1 stays readable and
+Apart from a type change, records are not rewritten. A record written under version 1 stays readable and
 editable under version 4; a required column it never held takes its default the
 next time the record is edited.
 
@@ -364,6 +367,12 @@ bring the table up to date: a row whose external id the table holds changes that
 record's cells it names, rather than being refused as taken (`update_existing` on the
 batch), and the import counts what it added and what it updated.
 
+A record someone changed after the import began is left as it is and listed as
+`REVISION_CONFLICT`: the first batch answers `as_of`, the time it began by the server's
+clock, and the rest send it back. A row repeating an external id the file already named
+is listed rather than sent, and the batch refuses one repeating an id it already holds
+with `INVALID_RECORD`.
+
 **New table** starts with a **Name** column. Name the table and add its columns first; description and visibility are under **More options**, with private visibility as the default. It can start from a file instead: **Start
 from a CSV file** turns
 the header into columns and gives each the narrowest type all its values read as -
@@ -380,8 +389,8 @@ retry with the same key and the same body returns the first answer, with
 `Idempotent-Replayed: true`, and writes nothing, even if the record has changed
 since. The same key with a different body is refused with `IDEMPOTENCY_KEY_REUSED`.
 
-The header marks a replayed create, update or upsert. A replayed delete answers 204 as the
-first one did and is not marked.
+The header marks a replayed create, update, upsert or batch. A replayed delete answers 204
+as the first one did and is not marked.
 
 A key belongs to the caller and to the kind of write, so two callers can use the
 same string and one caller can use it for a create and an upsert. Only successes are
@@ -835,4 +844,4 @@ same rich-text editor and preview as other document cells.
 
 An agent cannot be deleted while a managed task still depends on its scheduled execution. Reassign, complete or cancel those tasks first; deleting an agent must not silently discard its task work.
 
-Restoring an archived managed task board requeues its planned human reminders, including reminders whose time passed while the board was archived. Delivery still rechecks the original creator and recipient’s current access; restoring a board does not authorize new agent work.
+Restoring an archived managed task board requeues its planned human reminders, including reminders whose time passed while the board was archived. Delivery still rechecks the original creator and recipient’s current access; restoring a board does not authorize new agent work. An archived board takes no writes from its tasks either: a case settled in the Inbox meanwhile leaves its task as it was, and restoring the board moves the task to done or cancelled then. Reopening a case whose task's board is archived is refused with `TABLE_ARCHIVED`.

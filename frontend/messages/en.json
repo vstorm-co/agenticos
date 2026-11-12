@@ -1936,6 +1936,7 @@
       "approveCreateRecord": "Add a record to {table}",
       "approveDeleteRecord": "Delete a record from {table}",
       "approveUpdateRecord": "Change a record in {table}",
+      "approveCorrectMemory": "Correct “{before}” to “{after}”",
       "approveShareMemory": "Share with {audience, select, organization {the whole organization} other {the project}}: “{claim}”",
       "approveUpsertRecord": "Create or update a record in {table}",
       "recordsChecking": "Checking for a record",
@@ -7719,7 +7720,7 @@
       "toolState": "{status, select, completed {Done} error {Failed} running {Running} pending {Running} unfinished {Did not finish} awaiting_approval {Waiting for approval} awaiting_answer {Waiting for an answer} other {Unknown}}",
       "wantsTo": "<strong>{actor}</strong> wants to <strong>{tool}</strong>",
       "askedFor": "For {email}",
-      "contentHidden": "What this call would share is shown only to people who can see its run.",
+      "contentHidden": "What this call quotes from its run is shown only to people who can see that run.",
       "approveNeedsTheRun": "Only somebody who can see the run can approve this. You can reject it.",
       "account": "Account: {account}",
       "openTheRun": "Open the run",
@@ -8665,6 +8666,18 @@
       "kindE2b": "E2B cloud",
       "e2bKeyHint": "An API key from your E2B dashboard. Sandboxes run, and are billed, on that account.",
       "e2bTemplateWhat": "An E2B template name; empty takes E2B's default. Use desktop for computer use.",
+      "kindOpenSandbox": "OpenSandbox",
+      "secretNameOpenSandbox": "OpenSandbox API key",
+      "openSandboxAddressHint": "The API server reachable from the backend. Requests use its authenticated server proxy.",
+      "openSandboxKeyHint": "This server’s vault API key controls all its sandboxes. Isolate the server and network for the intended organizations.",
+      "openSandboxImage": "Sandbox image",
+      "openSandboxImageHint": "An OCI image with a POSIX shell and file tools, for example python:3.12-slim.",
+      "openSandboxSecureAccess": "Secure Access (Kubernetes)",
+      "openSandboxSecureAccessHint": "Requires the OpenSandbox Kubernetes gateway; Docker does not support it. New workspaces only: existing ones retain their mode until explicitly reset.",
+      "openSandboxTestHint": "Starts one temporary sandbox, checks its shell and removes it. May pull the image and use server capacity.",
+      "openSandboxTest": "Test server and image",
+      "openSandboxTesting": "Testing server and image…",
+      "openSandboxTestSuccess": "The server, key and image passed the workspace check.",
       "secretNameE2b": "E2B API key"
     },
     "daytonaSnapshotImageWhat": "A Daytona snapshot or image. What it allows is an account setting on their side, so there is no list to offer.",
@@ -9830,6 +9843,25 @@
     "option": "Colour {n}"
   },
   "triggers": {
+    "attemptsTitle": "Before the agent started",
+    "attemptsHint": "These attempts did not start an agent run or incur model charges.",
+    "attemptsError": "Could not read attempts before run creation.",
+    "attemptsRetry": "Retry history",
+    "attemptCount": "{count, plural, one {# attempt} other {# attempts}}",
+    "attemptStatus": {
+      "blocked": "Blocked",
+      "failed": "Failed"
+    },
+    "attemptStage": {
+      "source_review": "Source review",
+      "preparation": "Preparing the agent"
+    },
+    "attemptReason": {
+      "platform_identity_required": "Enable Act as creator or remove the built-in platform MCP binding from the agent and its delegates.",
+      "source_review_required": "Review the routine’s sources and check unavailable connections before trying again.",
+      "agent_unavailable": "Review the agent’s published version, configuration and access before enabling this routine again.",
+      "preparation_failed": "Preparation failed before an agent run was created. Ask an operator to inspect the worker logs for this time."
+    },
     "runAsMe": "Run as me",
     "runAsCreator": "Runs as the person who made it",
     "runAsMeScheduleHint": "Each run uses your memory and your own connections - your mailbox, your calendar - as your own chat does. It can save notes for you; it never searches your past conversations.",
@@ -10525,7 +10557,7 @@
       "earlierMessages": "Load earlier messages",
       "startDictation": "Start dictation",
       "stopDictation": "Stop dictation",
-      "computerAccessInConsole": "Access to this computer is granted in the console. Continue in the console to allow it."
+      "computerAccessInConsole": "Quick Ask declined this request for access to this computer. To allow it, ask again in the console."
     },
     "notifications": {
       "approvalTitle": "{agent} wants to run {tool}",
@@ -12238,6 +12270,7 @@
       "more": "And {count} more.",
       "close": "Close",
       "cellProblem": "{column}: {problem}",
+      "repeatedExternalId": "Repeats the external id on line {line}",
       "problem": {
         "number": "not a number",
         "integer": "not a whole number",
@@ -13442,7 +13475,7 @@
       },
       "connection_id": {
         "title": "Sandbox connection",
-        "description": "Which registered sandbox connection to run on; empty takes the organization's default. An id, never an address or a token - a spec is exported to a client's git repository, so the only thing it may carry is a reference. The connection decides whether that is a container on a host you run or a sandbox in Daytona's cloud."
+        "description": "Which registered sandbox connection to run on; empty takes the organization's default. An id, never an address or a token - a spec is exported to a client's git repository, so the only thing it may carry is a reference. The connection decides whether that is a container on a host you run or a sandbox on a cloud provider or OpenSandbox server."
       },
       "session_scope": {
         "title": "Who shares the workspace",
@@ -13450,7 +13483,7 @@
       },
       "runtime": {
         "title": "Runtime",
-        "description": "Which environment a container-backed workspace runs, named from the list the connection's service allows. Empty takes the connection's default. An alias, never an image."
+        "description": "Optional provider-specific runtime override, up to 64 characters: a sandboxd alias, E2B template, Daytona snapshot or OpenSandbox image. Empty uses the connection's default; configure longer OpenSandbox image references on the connection."
       },
       "include_execute": {
         "title": "Allow shell commands",

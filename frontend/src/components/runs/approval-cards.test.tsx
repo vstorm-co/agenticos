@@ -287,7 +287,9 @@ describe("PendingApproval - a fact somebody's run would share", () => {
     );
 
     expect(
-      screen.getByText("What this call would share is shown only to people who can see its run."),
+      screen.getByText(
+        "What this call quotes from its run is shown only to people who can see that run.",
+      ),
     ).toBeInTheDocument();
   });
 });
@@ -316,4 +318,24 @@ it("offers only Reject on a call that always asks when the reader cannot see wha
   ).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: /Reject/ }));
   expect(onDecide).toHaveBeenCalledWith(false);
+});
+
+it("words a correction by the fact before and after it", () => {
+  inIntl(
+    <PendingApproval
+      approval={approval({
+        tool_id: "correct_memory",
+        capability_tool_id: "correct_memory",
+        tool_args: { claim_id: "c-1", statement: "Office closes at five" },
+        context: { before: "Office closes at six", after: "Office closes at five" },
+      })}
+      deciding={false}
+      onDecide={vi.fn()}
+      onOpenRun={vi.fn()}
+    />,
+  );
+
+  expect(
+    screen.getByText("Correct “Office closes at six” to “Office closes at five”"),
+  ).toBeInTheDocument();
 });

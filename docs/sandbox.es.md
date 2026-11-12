@@ -1,5 +1,5 @@
 ---
-source_sha: "4ff4f68268d0"
+source_sha: "5605d024cb81"
 ---
 
 # La sandbox { #the-sandbox }
@@ -776,6 +776,16 @@ sandboxes de cada organización corren, y se facturan, en su propia cuenta. Una
 sandbox se pausa al final de su hora en lugar de terminarse, para que un workspace
 de alcance más largo conserve sus archivos, y el barrido de destrucción la termina
 como a una de Daytona.
+
+**Una conexión OpenSandbox.** Selecciona `opensandbox` en **Ajustes → Sandboxes → Conexiones**, introduce la URL del servidor accesible desde el backend, elige su clave API en la bóveda y una imagen como `python:3.12-slim`. La imagen requiere una shell POSIX y herramientas básicas de archivos. El servidor se opera por separado; se admiten Docker y Kubernetes. Consulta la [configuración del servidor OpenSandbox](https://open-sandbox.ai/getting-started/configuration). Usa server/execd `release-1.2.0` o versiones posteriores compatibles; execd requiere al menos 1.1.1 para la salida de comandos. AgenticOS usa SDK 1.2 sin reintentos de comandos ni creación.
+
+**Probar servidor e imagen** crea un sandbox temporal, comprueba la shell y lo elimina. Esta prueba explícita puede descargar la imagen y consumir capacidad; abrir el formulario no crea nada. Publica un agente con la capacidad sandbox existente en esta conexión. Conserva las herramientas de archivos y shell y los ámbitos compartidos. La imagen predeterminada de la conexión admite 512 caracteres; la sustitución opcional de runtime del agente mantiene el límite de 64.
+
+**Secure Access** es opcional y requiere el gateway ingress de OpenSandbox en Kubernetes. Docker rechaza este modo. Solo afecta a espacios nuevos; cambiarlo nunca recrea archivos existentes. Restablece o mueve el espacio explícitamente para cambiar de modo. AgenticOS siempre utiliza el proxy autenticado del servidor API. Protege el acceso a endpoints, no el aislamiento de procesos ni el tráfico saliente. La clave API controla todos los sandboxes del servidor: conexiones AgenticOS separadas no crean claves de servidor distintas ni aislamiento de ejecución entre organizaciones. El operador debe aislar servidor, socket Docker, cargas y redes; usa servidores separados cuando compartirlos quede fuera del límite de confianza. Mantén la API privada o tras TLS autenticado y no publiques endpoints de sandboxes.
+
+Un turno posterior se conecta al espacio guardado. Si falta o no está disponible, se rechaza y se conserva su referencia en vez de crear archivos vacíos silenciosamente. Restablécelo explícitamente tras recuperar los archivos necesarios. Terminar el turno cierra clientes HTTP; el espacio permanece según su ámbito. La cola duradera de eliminación existente hace la limpieza. Conserva conexión y clave hasta completar las eliminaciones pendientes. AgenticOS no enumera todos los sandboxes del servidor; los paneles de sesiones y límites específicos de sandboxd no describen este proveedor.
+
+Se validaron ciclo de vida Docker, persistencia de archivos, reconexión, rechazo de espacios ausentes y limpieza en server/execd 1.2.0. Secure Access de Kubernetes no se validó en un clúster real. Se rechaza revertir `0317_opensandbox_connections.py` mientras existan conexiones OpenSandbox o nombres de runtime de más de 64 caracteres.
 
 **El ordenador propio de la persona.** En la
 [app de escritorio](desktop.md#work-on-this-computer) un chat puede trabajar en una

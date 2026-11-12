@@ -982,7 +982,7 @@ Activity or over `GET /api/v1/workflow-approvals`. `approvers` names who may
 decide, and they are notified in the app; left empty, anyone holding
 `approvals:decide` may. Past `timeout_hours` the request expires and the step
 leaves by `rejected` with `decision: "expired"`. Cancelling the run cancels what
-it asked. Each run of the step asks once, so a retry or a loop iteration never
+it asked, and so does cancelling a workflow that called the run. Each run of the step asks once, so a retry or a loop iteration never
 asks twice for the same thing.
 
 Named approvers must be active members holding `approvals:decide`. Publishing checks this, and the step checks again before asking; a person who lost that permission fails the step with `APPROVER_UNAVAILABLE` rather than leaving an undecidable request.

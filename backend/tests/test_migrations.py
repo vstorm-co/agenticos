@@ -469,6 +469,7 @@ class TestMigrations:
         "0303_merge_workflow_onboarding",
         "0312_skill_check_reasons",
         "0314_tool_approval_always_asks",
+        "0306_shared_page_attribution",
     ],
 )
 def test_improvement_merge_upgrades_either_existing_history(starting_revision: str) -> None:
@@ -1816,15 +1817,19 @@ def test_shared_attribution_defaults_and_opt_out_survive_upgrade() -> None:
         engine.dispose()
 
 
-def test_a_share_memory_call_still_waiting_is_marked_as_always_asking() -> None:
-    """A call parked before the column existed never expires, so it is marked on the way in."""
+def test_a_call_still_waiting_that_always_asks_is_marked() -> None:
+    """A call parked before the column existed never expires, so one that always asks is marked."""
     for action, revision in (("upgrade", "head"), ("downgrade", "0306_shared_page_attribution")):
         result = _alembic(action, revision)
         assert result.returncode == 0, result.stderr
+    wide_claim, own_claim = uuid4(), uuid4()
     rows = {
-        "waiting share": ("share_memory", "pending"),
-        "decided share": ("share_memory", "approved"),
-        "waiting email": ("send_email", "pending"),
+        "waiting share": ("share_memory", "pending", {}),
+        "decided share": ("share_memory", "approved", {}),
+        "waiting email": ("send_email", "pending", {}),
+        "waiting wide correction": ("correct_memory", "pending", {"claim_id": str(wide_claim)}),
+        "waiting own correction": ("correct_memory", "pending", {"claim_id": str(own_claim)}),
+        "waiting nonsense correction": ("correct_memory", "pending", {"claim_id": "not-an-id"}),
     }
     ids = {name: str(uuid4()) for name in rows}
     org, agent, run = uuid4(), uuid4(), uuid4()
@@ -1834,12 +1839,26 @@ def test_a_share_memory_call_still_waiting_is_marked_as_always_asking() -> None:
             # Replica mode skips the foreign-key triggers, so no organization,
             # agent or run has to exist for the approvals to name.
             connection.execute(text("SET LOCAL session_replication_role = replica"))
-            for name, (tool, status) in rows.items():
+            for claim_id, scope_key in (
+                (wide_claim, f"org:{org}"),
+                (own_claim, f"person:{uuid4()}"),
+            ):
+                connection.execute(
+                    text(
+                        "INSERT INTO memory_claims (id, organization_id, scope_key, statement, "
+                        "kind, origin, status) "
+                        "VALUES (:id, :org, :scope, 'Office closes at six', 'fact', 'person', "
+                        "'current')"
+                    ),
+                    {"id": claim_id, "org": org, "scope": scope_key},
+                )
+            for name, (tool, status, args) in rows.items():
                 connection.execute(
                     text(
                         "INSERT INTO tool_approvals (id, organization_id, run_id, agent_id, "
-                        "tool_id, capability_tool_id, status) "
-                        "VALUES (:id, :org, :run, :agent, :tool, :tool, :status)"
+                        "tool_id, capability_tool_id, status, tool_args) "
+                        "VALUES (:id, :org, :run, :agent, :tool, :tool, :status, "
+                        "CAST(:args AS jsonb))"
                     ),
                     {
                         "id": ids[name],
@@ -1848,6 +1867,7 @@ def test_a_share_memory_call_still_waiting_is_marked_as_always_asking() -> None:
                         "agent": agent,
                         "tool": tool,
                         "status": status,
+                        "args": json.dumps(args),
                     },
                 )
         result = _alembic("upgrade", "head")
@@ -1860,11 +1880,103 @@ def test_a_share_memory_call_still_waiting_is_marked_as_always_asking() -> None:
                 ).scalar_one()
                 for name in rows
             }
-        assert marked == {"waiting share": True, "decided share": False, "waiting email": False}
+        assert marked == {
+            "waiting share": True,
+            "decided share": False,
+            "waiting email": False,
+            "waiting wide correction": True,
+            "waiting own correction": False,
+            "waiting nonsense correction": False,
+        }
     finally:
         with engine.begin() as connection:
             connection.execute(
                 text("DELETE FROM tool_approvals WHERE id::text = ANY(:ids)"),
                 {"ids": list(ids.values())},
             )
+            connection.execute(
+                text("DELETE FROM memory_claims WHERE id::text = ANY(:ids)"),
+                {"ids": [str(wide_claim), str(own_claim)]},
+            )
+        engine.dispose()
+
+
+def test_opensandbox_upgrade_and_guarded_downgrade_preserve_connection_settings() -> None:
+    """Images widen without changing old connections, and rollback never drops live settings."""
+    prior = _alembic("upgrade", "0316_trigger_attempts")
+    assert prior.returncode == 0, prior.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    owner, organization, legacy, remote = (uuid4() for _ in range(4))
+    image = "registry.example/" + "a" * 150 + ":latest"
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO users (id, email, is_active, is_app_admin) VALUES (:id, :email, true, false)"
+                ),
+                {"id": owner, "email": f"{owner}@example.com"},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO organizations (id, name, slug, is_personal, created_by_user_id) VALUES (:id, 'Sandbox migration', :slug, false, :owner)"
+                ),
+                {"id": organization, "slug": f"sandbox-{organization}", "owner": owner},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO sandbox_connections (id, organization_id, name, kind, default_runtime, is_default, is_active) VALUES (:id, :org, 'Legacy sandbox', 'docker', 'python', false, true)"
+                ),
+                {"id": legacy, "org": organization},
+            )
+        upgraded = _alembic("upgrade", "0317_opensandbox_connections")
+        assert upgraded.returncode == 0, upgraded.stderr
+        with engine.begin() as connection:
+            assert (
+                connection.execute(
+                    text("SELECT secure_access FROM sandbox_connections WHERE id=:id"),
+                    {"id": legacy},
+                ).scalar_one()
+                is False
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO sandbox_connections (id, organization_id, name, kind, base_url, default_runtime, secure_access, is_default, is_active) VALUES (:id, :org, 'OpenSandbox', 'opensandbox', 'https://sandbox.example', :image, true, false, true)"
+                ),
+                {"id": remote, "org": organization, "image": image},
+            )
+        refused = _alembic("downgrade", "0316_trigger_attempts")
+        assert refused.returncode != 0 and "Remove OpenSandbox connections" in refused.stderr
+        with engine.begin() as connection:
+            assert connection.execute(
+                text("SELECT default_runtime, secure_access FROM sandbox_connections WHERE id=:id"),
+                {"id": remote},
+            ).one() == (image, True)
+            connection.execute(text("DELETE FROM sandbox_connections WHERE id=:id"), {"id": remote})
+            connection.execute(
+                text("UPDATE sandbox_connections SET default_runtime=:image WHERE id=:id"),
+                {"id": legacy, "image": image},
+            )
+        refused_long = _alembic("downgrade", "0316_trigger_attempts")
+        assert refused_long.returncode != 0 and "64 characters" in refused_long.stderr
+        with engine.begin() as connection:
+            connection.execute(
+                text("UPDATE sandbox_connections SET default_runtime='python' WHERE id=:id"),
+                {"id": legacy},
+            )
+        downgraded = _alembic("downgrade", "0316_trigger_attempts")
+        assert downgraded.returncode == 0, downgraded.stderr
+        with engine.connect() as connection:
+            assert (
+                connection.execute(
+                    text(
+                        "SELECT character_maximum_length FROM information_schema.columns WHERE table_name='sandbox_connections' AND column_name='default_runtime'"
+                    )
+                ).scalar_one()
+                == 64
+            )
+        restored = _alembic("upgrade", "head")
+        assert restored.returncode == 0, restored.stderr
+        drift = _alembic("check")
+        assert drift.returncode == 0, drift.stderr
+    finally:
         engine.dispose()

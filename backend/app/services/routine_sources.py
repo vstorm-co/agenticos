@@ -10,7 +10,7 @@ from pydantic import TypeAdapter, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.mcp import McpSourceIdentity, tool_prefix
-from app.agents.spec import AgentSpec, OrgMcpServerRef, PersonalMcpServerRef
+from app.agents.spec import AgentSpec, OrgMcpServerRef, PersonalMcpServerRef, PlatformMcpServerRef
 from app.core.audit import current_impersonator, record_audit
 from app.core.exceptions import AuthorizationError, ConflictError
 from app.core.permissions import AuthContext
@@ -108,6 +108,14 @@ def source_scope(trigger: AgentTrigger) -> str:
 class RoutineSourcesRequired(AuthorizationError):
     message = "Review this routine's sources before running it again"
     code = "ROUTINE_SOURCES_REVIEW_REQUIRED"
+
+
+class PlatformRoutineIdentityRequired(RoutineSourcesRequired):
+    message = (
+        "The AgenticOS platform MCP server requires Act as creator. Enable it or remove "
+        "the platform binding from this agent and its delegates."
+    )
+    code = "ROUTINE_PLATFORM_IDENTITY_REQUIRED"
 
 
 def read_policy(value: object) -> RoutineSourcePolicy:
@@ -235,6 +243,7 @@ class RoutineSourceSnapshot:
     accounts: list[str]
     unavailable: list[str]
     resources: list[str]
+    requires_creator_identity: bool = False
 
     def token(self) -> str:
         content = self.policy.model_dump(mode="json", exclude={"id", "reviewed_at"})
@@ -276,6 +285,7 @@ class RoutineSourceService:
         root_sources: set[UUID] = set()
         names: set[str] = set()
         unavailable: set[str] = set()
+        requires_creator_identity = False
         specs = [spec]
         seen: set[UUID] = set()
         resources: set[str] = set()
@@ -414,6 +424,12 @@ class RoutineSourceService:
         if len(external_sources) > 100:
             raise RoutineSourcesRequired(message="A routine can review at most 100 remote agents")
         for ref in (ref for current in specs for ref in current.mcp_servers):
+            if isinstance(ref, PlatformMcpServerRef):
+                resources.add("AgenticOS platform MCP")
+                if not trigger.runs_as_creator:
+                    requires_creator_identity = True
+                    unavailable.add(PlatformRoutineIdentityRequired.message)
+                continue
             if isinstance(ref, OrgMcpServerRef):
                 connection = await mcp_connection_repo.get_org_scoped_by_id(
                     self.db,
@@ -516,14 +532,24 @@ class RoutineSourceService:
             accounts=sorted(names),
             unavailable=sorted(unavailable),
             resources=sorted(resources),
+            requires_creator_identity=requires_creator_identity,
         )
 
     async def initial(self, ctx: AuthContext, trigger: AgentTrigger) -> RoutineSourcePolicy:
         """Creating the responsibility freezes its configured sources, never new grants."""
         review = await self._review(ctx, trigger)
-        if review.unavailable:
-            raise RoutineSourcesRequired(details={"unavailable_sources": review.unavailable})
+        self._require_available(review)
         return review.policy
+
+    @staticmethod
+    def _require_available(review: RoutineSourceSnapshot) -> None:
+        if review.unavailable:
+            refusal = (
+                PlatformRoutineIdentityRequired
+                if review.requires_creator_identity
+                else RoutineSourcesRequired
+            )
+            raise refusal(details={"unavailable_sources": review.unavailable})
 
     async def snapshot(self, ctx: AuthContext, trigger: AgentTrigger) -> RoutineSourceSnapshot:
         """A single metadata snapshot for a console-owned preset confirmation."""
@@ -596,9 +622,8 @@ class RoutineSourceService:
         ):
             raise RoutineSourcesRequired()
         review = await self._review(ctx, trigger)
+        self._require_available(review)
         excluded = {"id", "reviewed_at", "version_id"}
-        if review.unavailable or policy.model_dump(exclude=excluded) != review.policy.model_dump(
-            exclude=excluded
-        ):
+        if policy.model_dump(exclude=excluded) != review.policy.model_dump(exclude=excluded):
             raise RoutineSourcesRequired()
         return policy

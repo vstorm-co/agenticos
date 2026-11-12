@@ -4478,7 +4478,7 @@
       "toolState": "{status, select, completed {Tamamlandı} error {Başarısız} running {Çalışıyor} pending {Çalışıyor} unfinished {Tamamlanmadı} awaiting_approval {Onay bekliyor} awaiting_answer {Yanıt bekliyor} other {Bilinmiyor}}",
       "wantsTo": "<strong>{actor}</strong>, <strong>{tool}</strong> aracını kullanmak istiyor",
       "askedFor": "{email} için",
-      "contentHidden": "Bu çağrının paylaşacağı içeriği yalnızca run’ını görebilenler görür.",
+      "contentHidden": "Bu çağrının run’ından alıntıladığı içeriği yalnızca o run’ı görebilenler görür.",
       "approveNeedsTheRun": "Bunu yalnızca run’ı görebilen biri onaylayabilir. Reddedebilirsiniz.",
       "account": "Hesap: {account}",
       "openTheRun": "Runı aç",
@@ -4748,6 +4748,18 @@
       "kindE2b": "E2B cloud",
       "e2bKeyHint": "E2B dashboard'unuzdaki bir API key. Sandbox'lar bu hesapta çalışır ve ücretlendirilir.",
       "e2bTemplateWhat": "Bir E2B template adı; boş bırakırsanız E2B varsayılanı kullanılır. Bilgisayar kullanımı için desktop seçin.",
+      "kindOpenSandbox": "OpenSandbox",
+      "secretNameOpenSandbox": "OpenSandbox API anahtarı",
+      "openSandboxAddressHint": "Arka uçtan erişilebilen API sunucusu. İstekler kimliği doğrulanmış sunucu vekilini kullanır.",
+      "openSandboxKeyHint": "Bu sunucunun kasadaki API anahtarı tüm sandbox’larını yönetir. Sunucuyu ve ağı hedef kuruluşlar için yalıtın.",
+      "openSandboxImage": "Sandbox imajı",
+      "openSandboxImageHint": "POSIX kabuğu ve dosya araçları içeren OCI imajı; örneğin python:3.12-slim.",
+      "openSandboxSecureAccess": "Secure Access (Kubernetes)",
+      "openSandboxSecureAccessHint": "OpenSandbox Kubernetes ağ geçidi gerektirir; Docker desteklemez. Yalnızca yeni çalışma alanları: mevcut alanlar açıkça sıfırlanana kadar modunu korur.",
+      "openSandboxTestHint": "Geçici sandbox başlatır, kabuğunu denetler ve kaldırır. İmaj indirebilir ve sunucu kapasitesi kullanabilir.",
+      "openSandboxTest": "Sunucuyu ve imajı test et",
+      "openSandboxTesting": "Sunucu ve imaj test ediliyor…",
+      "openSandboxTestSuccess": "Sunucu, anahtar ve imaj çalışma alanı testini geçti.",
       "secretNameE2b": "E2B API key"
     },
     "daytonaSnapshotImageWhat": "Bir Daytona snapshot'ı veya image'ı. İzin verdiği şey karşı taraftaki hesap ayarlarına bağlıdır; bu nedenle sunulacak bir liste yoktur.",
@@ -5268,7 +5280,7 @@
       },
       "connection_id": {
         "title": "Sandbox bağlantısı",
-        "description": "Kullanılacak kayıtlı sandbox bağlantısı; boşsa kuruluşun varsayılanı alınır. Adres veya token değil, yalnızca bir id: spec müşterinin git repository'sine aktarılabileceğinden sadece referans taşıyabilir. Bağlantı, çalıştırdığınız host'taki container'ı mı yoksa Daytona cloud'daki sandbox'ı mı kullanacağını belirler."
+        "description": "Kullanılacak kayıtlı sandbox bağlantısı; boş bırakılırsa kuruluşun varsayılanı seçilir. Bir kimliktir, asla adres veya token değildir — belirtim müşterinin deposuna aktarılır ve yalnızca bir referans içerebilir. Bağlantı, kendi sunucunuzdaki bir konteyneri, bulut sağlayıcısındaki sandboxı veya OpenSandbox sunucusunu belirler."
       },
       "session_scope": {
         "title": "Workspace'i kimlerle paylaş",
@@ -5276,7 +5288,7 @@
       },
       "runtime": {
         "title": "Runtime",
-        "description": "Container tabanlı workspace'in hangi ortamda çalışacağı; bağlantının service'inin izin verdiği listeden seçilir. Boşsa bağlantının varsayılanı kullanılır. Image değil, alias girin."
+        "description": "En fazla 64 karakterlik isteğe bağlı sağlayıcı çalışma ortamı: sandboxd takma adı, E2B şablonu, Daytona anlık görüntüsü veya OpenSandbox imajı. Boşsa bağlantının varsayılanı kullanılır; daha uzun OpenSandbox imaj referanslarını bağlantıda yapılandırın."
       },
       "include_execute": {
         "title": "Shell komutlarına izin ver",
@@ -9248,6 +9260,7 @@
       "approveCreateRecord": "{table} tablosuna kayıt ekle",
       "approveDeleteRecord": "{table} tablosundan kayıt sil",
       "approveUpdateRecord": "{table} tablosundaki kaydı değiştir",
+      "approveCorrectMemory": "“{before}” ifadesini “{after}” olarak düzelt",
       "approveShareMemory": "{audience, select, organization {Tüm kuruluşla} other {Projeyle}} paylaş: “{claim}”",
       "approveUpsertRecord": "{table} tablosunda kayıt oluştur veya güncelle",
       "recordsChecking": "Kayıt aranıyor",
@@ -10369,6 +10382,25 @@
     "useIntegration": "Bu entegrasyonu kullan"
   },
   "triggers": {
+    "attemptsTitle": "Aracı başlamadan önce",
+    "attemptsHint": "Bu denemeler bir aracı çalıştırması başlatmadı ve model ücreti oluşturmadı.",
+    "attemptsError": "Aracı başlamadan önceki denemeler okunamadı.",
+    "attemptsRetry": "Geçmişi yeniden yükle",
+    "attemptCount": "{count, plural, one {# deneme} other {# deneme}}",
+    "attemptStatus": {
+      "blocked": "Engellendi",
+      "failed": "Başarısız"
+    },
+    "attemptStage": {
+      "source_review": "Kaynak incelemesi",
+      "preparation": "Aracı hazırlanıyor"
+    },
+    "attemptReason": {
+      "platform_identity_required": "Oluşturan olarak davran seçeneğini açın veya yerleşik platform MCP bağlantısını aracıdan ve delegelerinden kaldırın.",
+      "source_review_required": "Yeniden denemeden önce rutinin kaynaklarını ve kullanılamayan bağlantıları inceleyin.",
+      "agent_unavailable": "Rutini yeniden etkinleştirmeden önce aracının yayımlanmış sürümünü, yapılandırmasını ve erişimini kontrol edin.",
+      "preparation_failed": "Bir aracı çalıştırması oluşturulmadan önce hazırlık başarısız oldu. Operatörden bu zamana ait çalışan günlüklerini incelemesini isteyin."
+    },
     "runAsMe": "Run’ı benim adıma çalıştır",
     "runAsCreator": "Run’ı oluşturan kişi adına çalıştır",
     "runAsMeScheduleHint": "Her run sizin belleğinizi ve kendi bağlantılarınızı (posta kutunuz, takviminiz gibi) kendi sohbetinizdeki gibi kullanır. Sizin için not kaydedebilir; geçmiş konuşmalarınızı asla aramaz.",
@@ -11513,7 +11545,7 @@
       "earlierMessages": "Önceki mesajları yükle",
       "startDictation": "Dikteyi başlat",
       "stopDictation": "Dikteyi durdur",
-      "computerAccessInConsole": "Bu bilgisayara erişim konsolda verilir. İzin vermek için konsolda devam edin."
+      "computerAccessInConsole": "Quick Ask, bu bilgisayara erişim isteğini reddetti. İzin vermek için konsolda yeniden isteyin."
     },
     "notifications": {
       "approvalTitle": "{agent}, {tool} çalıştırmak istiyor",

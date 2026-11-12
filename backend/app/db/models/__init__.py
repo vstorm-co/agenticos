@@ -51,7 +51,7 @@ from app.db.models.sandbox_connection import SandboxConnection
 from app.db.models.sandbox_operation import SandboxOperation
 from app.db.models.agent_exposure import AgentExposure, ExposureSurface
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, RunSurface, ToolApproval
-from app.db.models.agent_trigger import AgentTrigger, ScheduleKind
+from app.db.models.agent_trigger import AgentTrigger, ScheduleKind, TriggerAttempt
 from app.db.models.run_manifest import RunManifest
 from app.db.models.intercepted_tool_call import (
     InterceptedToolCall,
@@ -308,6 +308,7 @@ __all__ = [
     "AgentExposure",
     "ExposureSurface",
     "AgentTrigger",
+    "TriggerAttempt",
     "ScheduleKind",
     "AgentRun",
     "RunManifest",

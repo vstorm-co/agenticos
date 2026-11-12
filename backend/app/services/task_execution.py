@@ -11,7 +11,7 @@ from app.core.exceptions import AuthorizationError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.agent_trigger import AgentTrigger
-from app.db.models.outcome import Outcome
+from app.db.models.outcome import Outcome, OutcomeStatus
 from app.db.models.task_board import TaskBoard, TaskLink
 from app.db.models.virtual_table import VirtualTableRecord
 from app.repositories import agent_trigger_repo
@@ -26,6 +26,7 @@ from app.services.task_columns import from_cells
 from app.worker.jobs import FIRE_TRIGGER, WAKE_TASK, WakeTask
 
 _TERMINAL = {"done", "cancelled"}
+_SETTLED = {OutcomeStatus.RESOLVED.value, OutcomeStatus.MUTED.value}
 
 
 class TaskExecution:
@@ -33,7 +34,12 @@ class TaskExecution:
         self.db = db
 
     async def restored_table(self, table_id: UUID, organization_id: UUID) -> None:
-        """Rearm planned human reminders consumed while their board was archived."""
+        """Catch a restored board up with the authoritative state of its linked cases.
+
+        A case settled while the board was archived could not move its task, so the
+        task takes that outcome now. Planned human reminders consumed meanwhile are
+        rearmed.
+        """
         from app.repositories import background_job as job_repo
 
         board = await task_repo.for_table(self.db, table_id, organization_id)
@@ -44,6 +50,12 @@ class TaskExecution:
             if record is None:
                 continue
             fields = from_cells(board, record.values)
+            if link.outcome_id is not None and fields.status not in _TERMINAL:
+                case = await task_repo.case(self.db, link.outcome_id, organization_id)
+                # Settlement can be stamped before an archive wins the board lock.
+                if case is not None and case.status in _SETTLED:
+                    await self.settled(case)
+                    continue
             if fields.next_actor != "user" or fields.status != "planned" or fields.start_at is None:
                 continue
             await job_repo.cancel_queued_for_payload(
@@ -296,9 +308,7 @@ class TaskExecution:
     async def wake(self, payload: WakeTask) -> None:
         from app.services.task_access import board_allows
 
-        record = await task_repo.record(
-            self.db, payload.task_id, payload.organization_id, lock=True
-        )
+        record = await self._locked_record(payload.task_id, payload.organization_id)
         if record is None:
             return
         link = await task_repo.link(self.db, record.id)
@@ -390,7 +400,7 @@ class TaskExecution:
         link = await task_repo.for_trigger(self.db, trigger.id)
         if link is None:
             return False
-        record = await task_repo.record(self.db, link.record_id, ctx.organization_id, lock=True)
+        record = await self._locked_record(link.record_id, ctx.organization_id)
         if record is None:
             return False
         board = await task_repo.for_table(self.db, record.table_id, ctx.organization_id)
@@ -408,7 +418,7 @@ class TaskExecution:
         link = await task_repo.for_trigger(self.db, trigger.id)
         if link is None:
             return
-        record = await task_repo.record(self.db, link.record_id, trigger.organization_id, lock=True)
+        record = await self._locked_record(link.record_id, trigger.organization_id)
         if record is None:
             return
         board = await task_repo.for_table(self.db, record.table_id, trigger.organization_id)
@@ -431,7 +441,7 @@ class TaskExecution:
         trigger.is_active = False
         if link is None or link.creator_user_id is None:
             return
-        record = await task_repo.record(self.db, link.record_id, trigger.organization_id, lock=True)
+        record = await self._locked_record(link.record_id, trigger.organization_id)
         if record is None:
             return
         board = await task_repo.for_table(self.db, record.table_id, trigger.organization_id)
@@ -500,7 +510,7 @@ class TaskExecution:
         link = await task_repo.for_outcome(self.db, outcome.id)
         if link is None:
             return
-        record = await task_repo.record(self.db, link.record_id, outcome.organization_id, lock=True)
+        record = await self._locked_record(link.record_id, outcome.organization_id)
         if record is None:
             return
         board = await task_repo.for_table(self.db, record.table_id, outcome.organization_id)
@@ -559,7 +569,7 @@ class TaskExecution:
                     message="This task was deleted or handed off. Open its current task table instead."
                 )
             return
-        record = await task_repo.record(self.db, link.record_id, outcome.organization_id, lock=True)
+        record = await self._locked_record(link.record_id, outcome.organization_id)
         board = (
             await task_repo.for_table(self.db, record.table_id, outcome.organization_id)
             if record
@@ -571,8 +581,31 @@ class TaskExecution:
             or not await board_allows(self.db, ctx, board, Perm.TABLES_EDIT)
         ):
             raise ConflictError(message="This task is no longer available in your scope")
+        if not await self._live_table(board):
+            from app.services.virtual_tables.exceptions import TableArchivedError
+
+            raise TableArchivedError(table_id=board.table_id)
         await self._stop(link, outcome.organization_id)
         await self._project(board, record, "waiting_for_user", actor=ctx.user_id)
+
+    async def _locked_record(
+        self, record_id: UUID, organization_id: UUID
+    ) -> VirtualTableRecord | None:
+        """The task's record, row-locked once its board's table is locked FOR SHARE.
+
+        Table before record, the order every record write takes and the one restoring
+        a board needs: it holds the table and then locks each task, so a task moved
+        while holding its record first and waiting on the table would deadlock with it.
+        """
+        from app.repositories import virtual_table_repo
+
+        found = await task_repo.record(self.db, record_id, organization_id)
+        if found is None:
+            return None
+        await virtual_table_repo.get_table(
+            self.db, found.table_id, organization_id=organization_id, for_share=True
+        )
+        return await task_repo.record(self.db, record_id, organization_id, lock=True)
 
     async def _project(
         self,
@@ -582,8 +615,20 @@ class TaskExecution:
         *,
         actor: UUID | None,
     ) -> None:
-        from app.repositories import virtual_table_repo
+        """Move the task to `status` - unless its board is archived, which takes no writes.
 
+        Settling a case is not refused for that: the decision stands, and
+        `restored_table` brings the task up to date if the board comes back.
+        """
+        from app.repositories import virtual_table_repo
+        from app.services.virtual_tables.record_sources import SYSTEM_SOURCE, person_source
+
+        table = await virtual_table_repo.get_table(
+            self.db, board.table_id, organization_id=board.organization_id, for_share=True
+        )
+        if table is None or table.archived_at is not None:
+            return
+        source = SYSTEM_SOURCE if actor is None else await person_source(self.db, actor)
         before = dict(record.values)
         values = {
             **before,
@@ -596,6 +641,7 @@ class TaskExecution:
             values=values,
             schema_version=record.schema_version,
             updated_by=actor,
+            source=source.stored(),
         )
         await virtual_table_repo.add_history(
             self.db,

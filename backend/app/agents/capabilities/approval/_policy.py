@@ -13,6 +13,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from app.agents.capabilities import (
+    AlwaysAsksWhen,
     ApprovalDescriber,
     BoundDescriber,
     CapabilityDef,
@@ -97,6 +98,19 @@ def always_asking_tools(spec: AgentSpec) -> frozenset[str]:
         for tool in get_capability(binding.id).effective_tools(binding.tool_overrides)
         if tool.always_requires_approval
     )
+
+
+def always_asking_checks(spec: AgentSpec) -> dict[str, AlwaysAsksWhen]:
+    """Each tool whose calls decide for themselves whether they always ask, by effective name."""
+    checks: dict[str, AlwaysAsksWhen] = {}
+    for binding in spec.capabilities:
+        if not binding.enabled:
+            continue
+        definition = get_capability(binding.id)
+        for tool in definition.effective_tools(binding.tool_overrides):
+            if (check := definition.always_asks_when.get(tool.id)) is not None:
+                checks[tool.name] = check
+    return checks
 
 
 def private_approval_fields(capability_tool_id: str | None) -> frozenset[str]:

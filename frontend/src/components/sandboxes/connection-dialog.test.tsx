@@ -729,3 +729,79 @@ describe("ConnectionDialog", () => {
     });
   });
 });
+
+describe("OpenSandbox connections", () => {
+  it("keeps a server, vault key, image and Secure Access when saved", async () => {
+    const { onSubmit } = mount(
+      connection({
+        kind: "opensandbox",
+        base_url: "https://sandbox.example",
+        default_runtime: "python:3.12-slim",
+        secure_access: true,
+      }),
+    );
+    expect(screen.getByLabelText("Sandbox image")).toHaveValue("python:3.12-slim");
+    expect(screen.getByRole("switch", { name: "Secure Access (Kubernetes)" })).toBeChecked();
+    expect(state.probe).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "opensandbox",
+        base_url: "https://sandbox.example",
+        secret_id: "s-1",
+        default_runtime: "python:3.12-slim",
+        secure_access: true,
+      }),
+    );
+  });
+
+  it("saves a changed Secure Access choice instead of retaining the stored value", async () => {
+    const { onSubmit } = mount(
+      connection({ kind: "opensandbox", default_runtime: "python:3.12-slim", secure_access: true }),
+    );
+    await userEvent.click(screen.getByRole("switch", { name: "Secure Access (Kubernetes)" }));
+    expect(screen.getByRole("switch", { name: "Secure Access (Kubernetes)" })).not.toBeChecked();
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ secure_access: false }));
+  });
+
+  it("requires an image and its own vault key", async () => {
+    mount(connection({ kind: "opensandbox", default_runtime: null, secret_id: null }));
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    await userEvent.type(screen.getByLabelText("Sandbox image"), "python:3.12-slim");
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    await userEvent.click(screen.getByLabelText("Credential"));
+    await userEvent.click(screen.getByRole("option", { name: /Sandbox token/ }));
+    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+  });
+
+  it("tests explicitly and invalidates success after the image changes", async () => {
+    mount(
+      connection({
+        kind: "opensandbox",
+        base_url: "https://sandbox.example",
+        default_runtime: "python:3.12-slim",
+      }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Test server and image" }));
+    expect(state.probe).toHaveBeenCalledWith("https://sandbox.example", "s-1", {
+      kind: "opensandbox",
+      image: "python:3.12-slim",
+      secureAccess: false,
+    });
+    expect(await screen.findByRole("status")).toHaveTextContent("passed the workspace check");
+    await userEvent.type(screen.getByLabelText("Sandbox image"), "-changed");
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("does not automatically create a probe sandbox at the deployment's known address", async () => {
+    state.local = {
+      url: "http://sandboxd:8080",
+      token_available: true,
+      registered_connection_id: null,
+    };
+    mount(connection({ kind: "opensandbox", default_runtime: "python:3.12-slim" }));
+    await new Promise((resolve) => setTimeout(resolve, 650));
+    expect(state.probe).not.toHaveBeenCalled();
+  });
+});
