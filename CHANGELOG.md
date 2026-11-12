@@ -21,6 +21,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- The first chat message keeps its composer mounted when the server names the
+  new conversation, instead of briefly replacing it with an access-check notice.
+  Dashboard table rows now carry the table mark used by the catalog.
+
 - Profile identity and context forms keep their drafts after refused writes,
   block overlapping changes and support keyboard submission. Portrait controls,
   native colour choices and working hours fit phones. Notification events are

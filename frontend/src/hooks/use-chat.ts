@@ -194,6 +194,7 @@ export function useChat(options: UseChatOptions = {}) {
   const selectionApi = useAgentSelectionStore.useApi();
   const scoped = useInChatScope();
   const {
+    adoptCreatedConversation,
     setCurrentConversationId,
     setCurrentCost,
     currentConversationId: currentConversationIdFromStore,
@@ -865,7 +866,11 @@ export function useChat(options: UseChatOptions = {}) {
           useWorkOnStore.getState().adopt(conversation_id);
           createdConversationIdRef.current = conversation_id;
           attachedRef.current = conversation_id;
-          setCurrentConversationId(conversation_id);
+          if (conversationApi.getState().currentConversationId === null) {
+            adoptCreatedConversation(conversation_id);
+          } else {
+            setCurrentConversationId(conversation_id);
+          }
           // Reflect the new ID in the URL so the page is refreshable + shareable.
           if (!scoped) setUrlParam("id", conversation_id);
           const { updateMessagesWhere } = chatApi.getState();
@@ -1605,6 +1610,7 @@ export function useChat(options: UseChatOptions = {}) {
       updateToolCallPart,
       abandonOpenCalls,
       offerParkedQuestion,
+      adoptCreatedConversation,
       setCurrentConversationId,
       setCurrentMessageId,
       onConversationCreated,

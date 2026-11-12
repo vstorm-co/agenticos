@@ -755,3 +755,31 @@ byte for byte after baseline capture. The source map now covers 99 routes,
 | Searchable event preferences, phone 320×740 | [PNG](comparisons/notification-preferences-phone-before.png) | [PNG](comparisons/notification-preferences-phone-after.png) |
 | Private chat destinations, desktop 1440×1000 | [PNG](comparisons/notification-routes-desktop-before.png) | [PNG](comparisons/notification-routes-desktop-after.png) |
 | Private chat destinations, phone 320×740 | [PNG](comparisons/notification-routes-phone-before.png) | [PNG](comparisons/notification-routes-phone-after.png) |
+
+
+## First-message composer and dashboard table marks — 2026-11-12
+
+Dashboard table rows reuse the catalog's product mark in a muted tile. Each row
+keeps its accessible name, full link target and a minimum 44px height. The SVG is
+decorative. Desktop and phone captures use the same existing demo records.
+
+The first chat turn used to gain an ID before the refreshed list held its row.
+The access lookup then replaced the composer with Checking conversation access.
+The socket now adopts a newly created conversation and its creation fact in one
+store update. Selecting another thread or resetting the tenant/session clears
+that fact. An existing thread is never adopted as newly created; shared/view-only
+and unknown-thread access checks still apply. A regression fails on the previous
+implementation with the visible checking notice, and passes after the change.
+
+Six focused files cover the chat hook, container, scoped stores, session reset
+and table widget. Chromium desktop/phone checks use a controlled socket creation
+frame and a held metadata read: the same editor node remains attached and visible.
+These isolate the transition without creating a real conversation or model run.
+The baseline captures show the original access notice under the same conditions.
+
+| Evidence | Before | After |
+| --- | --- | --- |
+| Dashboard tables, desktop | [PNG](comparisons/table-widget-desktop-before.png) | [PNG](comparisons/table-widget-desktop-after.png) |
+| Dashboard tables, phone | [PNG](comparisons/table-widget-phone-before.png) | [PNG](comparisons/table-widget-phone-after.png) |
+| First-message composer, desktop | [PNG](comparisons/composer-flash-desktop-before.png) | [PNG](comparisons/composer-flash-desktop-after.png) |
+| First-message composer, phone | [PNG](comparisons/composer-flash-phone-before.png) | [PNG](comparisons/composer-flash-phone-after.png) |
