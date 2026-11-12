@@ -4013,7 +4013,6 @@ class AgentRunnerService:
             refuse_system_agent(agent, action=f"a {surface.value} run")
         system = agent.kind != AgentKind.AGENT.value
         run_version_id = version_id if existing_run is None else existing_run.agent_version_id
-        spec = await self._with_current_approvals(agent, spec, version_id=run_version_id)
         if system:
             spec = for_the_platform(spec)
         spec = await self._with_current_budget(agent, spec, version_id=run_version_id)
@@ -4035,6 +4034,10 @@ class AgentRunnerService:
                             ]
                         }
                     )
+        # After the routine has checked the version it reviewed: the current
+        # approvals are policy laid over that version, not part of its sources.
+        if not system:
+            spec = await self._with_current_approvals(agent, spec, version_id=run_version_id)
         spec = _with_local_capabilities(
             await self.registry.with_assistant_guidance(agent, spec),
             local,

@@ -49,7 +49,9 @@ def _db() -> MagicMock:
 
 
 class TestWhatAPinnedRunIsBuiltWith:
-    async def _built_spec(self, pinned: AgentSpec, current: AgentSpec | None) -> AgentSpec:
+    async def _built_spec(
+        self, pinned: AgentSpec, current: AgentSpec | None, *, routine: Any = None
+    ) -> AgentSpec:
         ctx = AuthContext(
             user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.OWNER
         )
@@ -96,6 +98,10 @@ class TestWhatAPinnedRunIsBuiltWith:
                 "app.services.agent_runner.agent_run_repo.create_run",
                 new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
             ),
+            patch(
+                "app.services.agent_runner.RoutineAuthority.capture",
+                new=AsyncMock(return_value=routine),
+            ),
             patch("app.services.agent_runner.build_agent") as build,
         ):
             await service.prepare(ctx, agent.id)
@@ -117,6 +123,25 @@ class TestWhatAPinnedRunIsBuiltWith:
         built = await self._built_spec(UNGATED, None)
 
         assert "write_memory" not in approval_required_tools(built)
+
+    async def test_a_routine_checks_the_version_it_reviewed_not_the_overlay(self) -> None:
+        """A trigger's source fingerprint is of the pinned version; approvals are laid on after."""
+
+        class _Checked(Exception):
+            pass
+
+        checked: list[AgentSpec] = []
+
+        def require_spec(spec: AgentSpec) -> None:
+            checked.append(spec)
+            raise _Checked
+
+        routine = MagicMock(routine_kind="trigger", require_spec=require_spec)
+
+        with pytest.raises(_Checked):
+            await self._built_spec(UNGATED, GATED, routine=routine)
+
+        assert "write_memory" not in approval_required_tools(checked[0])
 
 
 class TestWhichApprovalsCarryOver:
