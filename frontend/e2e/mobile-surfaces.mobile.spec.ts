@@ -198,7 +198,7 @@ for (const platform of ["ios", "android"] as const) {
       await expectContained(page);
     });
 
-    test("keeps phone catalog filters compact and preserves their selection", async ({ page }) => {
+    test("keeps the phone status filter visible and preserves its selection", async ({ page }) => {
       for (const width of [320, 390]) {
         await page.setViewportSize({ width, height: 844 });
         await page.goto("/agents");
@@ -207,18 +207,11 @@ for (const platform of ["ios", "android"] as const) {
         await expect(
           page.getByRole("heading", { name: "AgenticOS", exact: true, level: 3 }),
         ).toBeVisible();
-        const toggle = page.getByRole("button", { name: /^Filters/ });
-        await expectTouchTarget(toggle);
         const status = page.getByRole("combobox", { name: "Filter by status" });
-        await expect(status).toBeHidden();
-        await toggle.tap();
-        await expect(status).toBeVisible();
+        await expectTouchTarget(status);
         await status.tap();
         await page.getByRole("option", { name: "Published", exact: true }).tap();
-        await toggle.tap();
-        await expect(status).toBeHidden();
-        await expect(toggle).toHaveText("Filters 1");
-        await toggle.tap();
+        await expect(status).toBeVisible();
         await expect(status).toContainText("Published");
         const title = page.getByRole("heading", { level: 3 }).first();
         await expect(title).toBeVisible();
