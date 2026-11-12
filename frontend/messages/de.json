@@ -9832,7 +9832,7 @@
       "earlierMessages": "Frühere Nachrichten laden",
       "startDictation": "Diktat starten",
       "stopDictation": "Diktat stoppen",
-      "computerAccessInConsole": "Zugriff auf diesen Computer wird in der Konsole erteilt. Fahren Sie in der Konsole fort, um ihn zu erlauben."
+      "computerAccessInConsole": "Quick Ask hat diese Anfrage nach Zugriff auf diesen Computer abgelehnt. Um ihn zu erlauben, fragen Sie in der Konsole erneut."
     },
     "readiness": {
       "title": "App-Bereitschaft",

@@ -922,7 +922,7 @@ it("drops the refusal notice when the person starts a new conversation", async (
   env.chat.pendingComputerAccess = { reason: "Read local files" };
   const view = render(<QuickAsk />);
   const notice =
-    "Access to this computer is granted in the console. Continue in the console to allow it.";
+    "Quick Ask declined this request for access to this computer. To allow it, ask again in the console.";
   expect(screen.getByText(notice)).toBeInTheDocument();
   env.chat.pendingComputerAccess = null;
   view.rerender(<QuickAsk />);
@@ -939,7 +939,7 @@ it("declines computer access instead of waiting on a dialog outside Quick Ask, a
   await waitFor(() => expect(env.chat.sendComputerAccessResponse).toHaveBeenCalledWith(false));
   expect(
     screen.getByText(
-      "Access to this computer is granted in the console. Continue in the console to allow it.",
+      "Quick Ask declined this request for access to this computer. To allow it, ask again in the console.",
     ),
   ).toBeInTheDocument();
 });

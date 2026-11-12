@@ -10003,7 +10003,7 @@
       "earlierMessages": "Load earlier messages",
       "startDictation": "Start dictation",
       "stopDictation": "Stop dictation",
-      "computerAccessInConsole": "Access to this computer is granted in the console. Continue in the console to allow it."
+      "computerAccessInConsole": "Quick Ask declined this request for access to this computer. To allow it, ask again in the console."
     },
     "notifications": {
       "approvalTitle": "{agent} wants to run {tool}",

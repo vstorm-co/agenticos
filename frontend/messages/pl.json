@@ -13352,7 +13352,7 @@
       "earlierMessages": "Wczytaj wcześniejsze wiadomości",
       "startDictation": "Zacznij dyktowanie",
       "stopDictation": "Zatrzymaj dyktowanie",
-      "computerAccessInConsole": "Dostęp do tego komputera przyznaje się w konsoli. Kontynuuj w konsoli, aby na niego zezwolić."
+      "computerAccessInConsole": "Quick Ask odrzucił tę prośbę o dostęp do tego komputera. Aby na niego zezwolić, poproś ponownie w konsoli."
     },
     "notifications": {
       "approvalTitle": "{agent} chce uruchomić {tool}",
