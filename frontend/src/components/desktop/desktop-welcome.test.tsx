@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_DESKTOP_NOTIFICATIONS } from "@/stores/desktop-preferences-store";
 
+import en from "../../../messages/en.json";
+
 import { DesktopWelcome } from "./desktop-welcome";
 import { DESKTOP_STATE, MAC_MAIN } from "./fixtures";
 
@@ -93,9 +95,11 @@ describe("DesktopWelcome", () => {
     await next();
     expect(screen.getByRole("heading", { name: "Stay in the loop" })).toBeInTheDocument();
     expect(screen.queryByText(/answer without opening/i)).toBeNull();
+    // The switch the text names is the one Settings shows, and it hides previews by default.
+    expect(en.desktop.notificationSettings.hide_previews).toBe("Hide private content");
     expect(
       screen.getByText(
-        "Approval requests arrive as notifications. To answer most of them there, turn on previews in Settings → Desktop app.",
+        "Approval requests arrive as notifications. To answer most of them there, turn off “Hide private content” in Settings → Desktop app.",
       ),
     ).toBeInTheDocument();
   });

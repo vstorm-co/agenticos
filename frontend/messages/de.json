@@ -9761,11 +9761,19 @@
     },
     "welcome": {
       "shortcuts": {
-        "open_console": "AgenticOS öffnen"
+        "open_console": "AgenticOS öffnen",
+        "title": "Tastenkürzel, die überall funktionieren",
+        "body": "Sie funktionieren in jeder Anwendung, die gerade im Vordergrund ist.",
+        "quick_ask": "Einen beliebigen Agent fragen",
+        "screenshot_chat": "Screenshot in einen neuen Chat",
+        "off": "Aus",
+        "change": "Ändern Sie sie unter Einstellungen, Tastenkürzel.",
+        "dictate": "Halten, um eine Frage zu diktieren",
+        "voice_call": "Ihren Agent anrufen"
       },
       "loop": {
         "title": "Auf dem Laufenden bleiben",
-        "body": "Freigabeanfragen kommen als Benachrichtigungen. Um die meisten direkt dort zu beantworten, schalten Sie unter Einstellungen → Desktop-App die Vorschau ein.",
+        "body": "Freigabeanfragen kommen als Benachrichtigungen. Um die meisten direkt dort zu beantworten, schalten Sie unter Einstellungen → Desktop-App „Private Inhalte ausblenden“ aus.",
         "login": "AgenticOS bei der Anmeldung öffnen",
         "keepRunning": "Weiterlaufen, wenn das Fenster geschlossen ist",
         "test": "Benachrichtigungen",
@@ -9774,6 +9782,18 @@
         "sent": "Gesendet",
         "testTitle": "AgenticOS",
         "testBody": "Hier werden Ihre Agents Sie erreichen."
+      },
+      "onlyInApp": "Dieses Willkommen gehört zur AgenticOS-Desktop-App.",
+      "skip": "Vorerst überspringen",
+      "next": "Weiter",
+      "open": "AgenticOS öffnen",
+      "blobby": {
+        "title": "Das ist blobby",
+        "body": "Es sitzt auf Ihrem Desktop und sagt Ihnen, wenn ein Agent Sie braucht. Wählen Sie, wer es ist; später können Sie einen Ihrer Agents daraus machen."
+      },
+      "done": {
+        "title": "Alles bereit",
+        "body": "Alles hier finden Sie in den Einstellungen, wenn Sie es ändern möchten."
       }
     },
     "quickAsk": {
