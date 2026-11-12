@@ -1,5 +1,5 @@
 ---
-source_sha: "3503412daf98"
+source_sha: "1a61467b040f"
 ---
 
 # La API HTTP { #the-http-api }
@@ -167,15 +167,17 @@ por una renovación rutinaria.
 
 ### Trabajo que se ejecuta después de la petición { #work-that-runs-after-the-request }
 
-Una clave de la organización no puede iniciar un [eval run](evals.md) ni una
-petición al [asistente de autoría](authoring.md): esas rutas son para personas
-con sesión iniciada, y a una clave se le responde `403` en ellas. El trabajo que
-se ejecuta más tarde, en segundo plano, se ciñe a la autoridad de quien lo
-inició tal como está cuando el trabajo empieza - un rol perdido desde entonces
-lo detiene. Si alguna vez se dejara a una clave iniciar ese trabajo, lo mismo
-valdría para ella: sus permisos tal como estén entonces, y una clave revocada,
-caducada o eliminada desde entonces detendría el trabajo, con un motivo en el
+Una clave de la organización no puede iniciar un [eval run](evals.md) ni una petición al
+[asistente de autoría](authoring.md): esas rutas son para personas con sesión iniciada,
+y a una clave se le responde `403` en ellas. El trabajo que se ejecuta más tarde, en
+segundo plano, se ciñe a la autoridad de quien lo inició tal como está cuando el trabajo
+empieza - un rol perdido desde entonces lo detiene. Si alguna vez se dejara a una clave
+iniciar ese trabajo, lo mismo valdría para ella: sus permisos tal como estén entonces, y
+una clave revocada o eliminada desde entonces detendría el trabajo, con un motivo en el
 run o en la petición.
+
+La caducidad solo limita lo que una clave puede iniciar: el trabajo que inició siendo
+válida sigue después de que caduque.
 
 ## La cabecera de organización { #the-organization-header }
 
@@ -312,7 +314,8 @@ superficie.
 Lo que se puede comprobar al momento se comprueba al momento: una conversación
 o un adjunto desconocidos son un `404` en el `POST`, no un fallo que haya que
 esperar. Los permisos de la clave se vuelven a comprobar cuando el run arranca,
-así que una clave revocada mientras su run esperaba no lo ejecuta. Solo quien lo
+así que una clave revocada mientras su run esperaba no lo ejecuta; una que solo
+caducó entretanto, sí. Solo quien lo
 pidió, o una clave suya, puede leer una petición de run; la de otro responde
 `404`. Un run asíncrono tiene un intento: un run que falla queda registrado con
 lo que gastó y no se reintenta para no gastarlo dos veces.
@@ -345,14 +348,17 @@ no puedes ver no aporta ninguna.
 
 ## Ejecutar un workflow { #running-a-workflow }
 
-Las claves de API de la organización pueden iniciar runs y leer su estado, grafo,
-pasos, archivos y eventos en `/api/v1/workflow-runs`. Iniciar requiere `workflows:run`,
-leer también `workflows:view`, y probar un borrador `workflows:edit`. El worker conserva
-el límite de permisos admitido y comprueba la clave y el emisor antes de cada paso,
-incluso tras una aprobación o espera. Revocar, caducar o eliminar la clave detiene
-trabajo nuevo con `PRINCIPAL_REVOKED`; reanudar nunca otorga el rol completo del emisor.
-Los runs iniciados con clave no acceden al estado personal del emisor. Editar un
-workflow sigue requiriendo una sesión.
+Las claves de API de la organización pueden iniciar runs y leer su estado, grafo, pasos,
+archivos y eventos en `/api/v1/workflow-runs`. Iniciar requiere `workflows:run`, leer
+también `workflows:view`, y probar un borrador `workflows:edit`. El worker conserva el
+límite de permisos admitido y comprueba la clave y el emisor antes de cada paso, incluso
+tras una aprobación o espera. Revocar o eliminar la clave detiene trabajo nuevo con
+`PRINCIPAL_REVOKED`; reanudar nunca otorga el rol completo del emisor.
+
+La caducidad no: una clave caducada no inicia nada, pero un run que inició siendo válida
+sigue, así que la hora de un token OAuth no corta una espera larga. Los runs iniciados
+con clave no acceden al estado personal del emisor. Editar un workflow sigue requiriendo
+una sesión.
 
 Las claves API pueden consultar ejecuciones de origen público, incluidas las
 iniciadas con claves. Las ejecuciones personales iniciadas por miembros devuelven

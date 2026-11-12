@@ -967,6 +967,37 @@ class TestWorkAKeyAskedForEarlier:
 
 
 @pytest.mark.security
+async def test_a_key_that_expired_since_stands_for_work_it_started_and_nothing_new(
+    db: AsyncSession,
+) -> None:
+    owner = await _person(db)
+    organization = await _organization(db, owner)
+    raw = await _issue(
+        db,
+        organization,
+        owner,
+        Perm.WORKFLOWS_RUN,
+        expires_at=datetime.now(UTC) + timedelta(seconds=1),
+    )
+    row = (await db.execute(select(ApiKey))).scalar_one()
+    row.expires_at = datetime.now(UTC) - timedelta(minutes=1)
+    await db.flush()
+    service = ApiKeyService(db)
+
+    ctx = await service.context_for_key(row.id, organization_id=organization.id)
+
+    assert (ctx.user_id, ctx.api_key_id) == (owner.id, row.id)
+    assert ctx.key_scopes == frozenset({Perm.WORKFLOWS_RUN})
+    with pytest.raises(AuthenticationError):
+        await service.authenticate(raw)
+    await service.revoke(
+        AuthContext(user_id=owner.id, organization_id=organization.id, role="owner"), row.id
+    )
+    with pytest.raises(AuthenticationError):
+        await service.context_for_key(row.id, organization_id=organization.id)
+
+
+@pytest.mark.security
 async def test_a_key_started_run_cannot_mint_private_chat_provenance(db: AsyncSession) -> None:
     owner = await _person(db)
     organization = await _organization(db, owner)

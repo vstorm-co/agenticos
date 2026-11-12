@@ -4,12 +4,15 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import delete, select
+from sqlalchemy import ColumnElement, delete, exists, or_, select
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.api_key import ApiKey
+from app.db.models.eval_run import EvalRun, EvalRunStatus
+from app.db.models.improvement import UNSETTLED_STATUSES, ImprovementRun
 from app.db.models.user import User
+from app.db.models.workflow_run import WorkflowRun, WorkflowRunStatus
 
 
 async def create(
@@ -102,18 +105,53 @@ async def touch(db: AsyncSession, key_id: UUID, *, at: datetime, stale_before: d
     )
 
 
+def _backs_unfinished_run() -> ColumnElement[bool]:
+    """A key an unfinished workflow, eval or improvement run rebuilds its authority from.
+
+    Such a run goes on after the key lapses, so the row has to outlive it: a run
+    whose key row is gone stops, as one whose key was revoked does.
+    """
+    workflow_ended = [status.value for status in WorkflowRunStatus if status.is_terminal]
+    return or_(
+        exists().where(
+            WorkflowRun.execution_api_key_id == ApiKey.id,
+            WorkflowRun.status.not_in(workflow_ended),
+        ),
+        exists().where(
+            EvalRun.created_by_api_key_id == ApiKey.id,
+            EvalRun.status.in_([EvalRunStatus.QUEUED.value, EvalRunStatus.RUNNING.value]),
+        ),
+        exists().where(
+            or_(
+                ImprovementRun.created_by_api_key_id == ApiKey.id,
+                ImprovementRun.actor_api_key_id == ApiKey.id,
+            ),
+            ImprovementRun.status.in_([status.value for status in UNSETTLED_STATUSES]),
+        ),
+    )
+
+
 async def delete_expired_for_grant(db: AsyncSession, *, grant_id: UUID, before: datetime) -> None:
-    """Drop one OAuth grant's lapsed access tokens - one is issued per refresh."""
+    """Drop one OAuth grant's lapsed access tokens - one is issued per refresh -
+    except one an unfinished run still acts with."""
     await db.execute(
-        delete(ApiKey).where(ApiKey.oauth_grant_id == grant_id, ApiKey.expires_at < before)
+        delete(ApiKey).where(
+            ApiKey.oauth_grant_id == grant_id,
+            ApiKey.expires_at < before,
+            ~_backs_unfinished_run(),
+        )
     )
 
 
 async def delete_expired_internal(db: AsyncSession, *, user_id: UUID, before: datetime) -> None:
-    """Drop one person's lapsed internal credentials - one is minted per run."""
+    """Drop one person's lapsed internal credentials - one is minted per run - except
+    one an unfinished run still acts with."""
     await db.execute(
         delete(ApiKey).where(
-            ApiKey.user_id == user_id, ApiKey.internal.is_(True), ApiKey.expires_at < before
+            ApiKey.user_id == user_id,
+            ApiKey.internal.is_(True),
+            ApiKey.expires_at < before,
+            ~_backs_unfinished_run(),
         )
     )
 

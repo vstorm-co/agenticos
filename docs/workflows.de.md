@@ -1,5 +1,5 @@
 ---
-source_sha: "aa54fb9dafe5"
+source_sha: "fe93e28791f2"
 ---
 
 # Workflows { #workflows }
@@ -1419,7 +1419,7 @@ Idempotenzschlüssel. Das Wiederholungsversprechen jedes Schritts steht in der
 | Was Sie sehen | Warum | Was tun |
 |---|---|---|
 | **Braucht Aufmerksamkeit** | Ein Schritt, der gewirkt haben kann, wurde unterbrochen oder hat aufgehört zu warten, und nichts weckt ihn | Prüfen Sie, ob seine Wirkung eingetreten ist, und klären Sie den Schritt dann im Run mit **Resolve**: erneut ausführen, ein spät gemeldetes Ergebnis verwenden, seinen Fehlerpfad nehmen oder den Run fehlschlagen lassen. Den Run abzubrechen und dann **Retry from failed step** zu wählen, beginnt von vorn |
-| `PRINCIPAL_REVOKED` | Das Mitglied, als das der Run handelt, hat den Zugriff verloren oder sein Konto wurde deaktiviert | Ein Mitglied, das den Workflow ausführen darf, veröffentlicht ihn erneut, damit sein Trigger als es läuft |
+| `PRINCIPAL_REVOKED` | Das Mitglied, als das der Run handelt, hat den Zugriff verloren oder sein Konto wurde deaktiviert, oder der API-Schlüssel, der den Run gestartet hat, wurde widerrufen | Ein Mitglied, das den Workflow ausführen darf, veröffentlicht ihn erneut, damit sein Trigger als es läuft |
 | `WORKFLOW_TRIGGER_MISMATCH` | Der Run wurde über einen Weg angefordert, der nicht sein Live-Trigger ist: von Hand oder per API für einen Workflow, der mit einem Webhook startet, oder im Chat für einen, der nicht mit einer Chatnachricht startet | Starten Sie ihn so, wie sein Trigger es sagt, oder testen Sie den Draft, der jeden Trigger nimmt |
 | `INVALID_BINDING` | Ein Wert passte nicht zu dem Feld, an das er gebunden war | Der Fehler des Schritts nennt das Feld; korrigieren Sie die Bindung oder den Wert davor |
 | `REVISION_CONFLICT` | Jemand hat einen Datensatz geändert, nachdem der Schritt ihn gelesen hat | Leiten Sie den Fehler des Schritts mit `error.handle` zu einem frischen Lesen um |
