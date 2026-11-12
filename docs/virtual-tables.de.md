@@ -1,5 +1,5 @@
 ---
-source_sha: "539603f9eb62"
+source_sha: "0f91a7626ccc"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -408,6 +408,13 @@ hat, ändert die genannten Zellen dieses Datensatzes, statt als vergeben abgeleh
 werden (`update_existing` im Batch), und der Import zählt, was er hinzugefügt und was er
 aktualisiert hat.
 
+Einen Datensatz, den jemand nach Beginn des Imports geändert hat, lässt er unverändert
+und führt ihn als `REVISION_CONFLICT` auf: Der erste Batch antwortet mit `as_of`, dem
+Beginn nach der Serveruhr, und die übrigen senden es zurück. Eine Zeile, die eine
+externe ID wiederholt, die die Datei schon genannt hat, wird aufgeführt statt gesendet,
+und der Batch lehnt eine Zeile, die eine ID wiederholt, die er schon enthält, mit
+`INVALID_RECORD` ab.
+
 **New table** beginnt mit einer Spalte **Name**. Geben Sie zuerst den Tabellennamen und die Spalten an; Beschreibung und Sichtbarkeit stehen unter **More options**, standardmäßig privat. Stattdessen kann sie mit einer Datei
 beginnen: **Start from a CSV file** macht aus der Kopfzeile Spalten und gibt jeder den engsten Typ, als den
 sich alle ihre Werte lesen lassen - Ganzzahl, Zahl, Ja/Nein, Datum, Datum und
@@ -425,7 +432,7 @@ erste Antwort mit `Idempotent-Replayed: true` und schreibt nichts, selbst wenn s
 Datensatz inzwischen geändert hat. Derselbe Schlüssel mit einem anderen Body wird mit
 `IDEMPOTENCY_KEY_REUSED` abgelehnt.
 
-Der Header kennzeichnet ein wiederholtes Create, Update oder Upsert. Ein wiederholtes
+Der Header kennzeichnet ein wiederholtes Create, Update, Upsert oder einen wiederholten Batch. Ein wiederholtes
 Delete antwortet wie beim ersten Mal mit 204 und wird nicht gekennzeichnet.
 
 Ein Schlüssel gehört dem Aufrufer und der Art des Schreibzugriffs, sodass zwei Aufrufer

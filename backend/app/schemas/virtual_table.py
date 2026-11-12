@@ -22,6 +22,7 @@ from uuid import UUID
 
 from pydantic import (
     AfterValidator,
+    AwareDatetime,
     BaseModel,
     ConfigDict,
     Field,
@@ -362,6 +363,12 @@ class RecordBatchCreate(_Request):
         description="Update a record whose external id the table already holds with the "
         "values given, rather than refusing it as taken - importing a file again.",
     )
+    as_of: AwareDatetime | None = Field(
+        default=None,
+        description="When the import began: the `as_of` its first batch answered. An "
+        "`update_existing` row leaves a record changed after it as it is and reports it as "
+        "`REVISION_CONFLICT`. Omitted, the batch begins an import of its own.",
+    )
 
 
 class RecordBatchFailure(_Schema):
@@ -377,6 +384,10 @@ class RecordBatchResult(_Schema):
         default=0, description="How many existing records an `update_existing` batch changed"
     )
     failed: list[RecordBatchFailure] = Field(description="Each record that was not, and why")
+    as_of: datetime = Field(
+        description="When the import began, by the server's clock: send it as `as_of` with "
+        "the rest of the import's batches"
+    )
 
 
 class RecordUpdate(_Request):

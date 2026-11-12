@@ -1,5 +1,5 @@
 ---
-source_sha: "539603f9eb62"
+source_sha: "0f91a7626ccc"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -379,10 +379,17 @@ en el tipo de su columna hace fallar su fila antes de enviar nada. El resto va d
 enumera los rechazados con sus códigos, y la consola enumera cada fila fallida con su
 línea. Cada registro añadido inicia los disparadores de la tabla, como cualquier otro.
 
-Con **External id** asignado, **Update records already here** vuelve a importar un archivo
-para poner la tabla al día: una fila cuyo id externo ya tiene la tabla cambia las celdas
-que nombra de ese registro, en lugar de rechazarse como ocupada (`update_existing` en el
-lote), y la importación cuenta lo que añadió y lo que actualizó.
+Con **External id** asignado, **Update records already here** vuelve a importar un
+archivo para poner la tabla al día: una fila cuyo id externo ya tiene la tabla cambia
+las celdas que nombra de ese registro, en lugar de rechazarse como ocupada
+(`update_existing` en el lote), y la importación cuenta lo que añadió y lo que
+actualizó.
+
+Un registro que alguien cambió después de empezar la importación se deja como estaba y
+se lista como `REVISION_CONFLICT`: el primer lote responde `as_of`, el momento en que
+empezó según el reloj del servidor, y los demás lo devuelven. Una fila que repite un id
+externo que el archivo ya nombró se lista en lugar de enviarse, y el lote rechaza con
+`INVALID_RECORD` una fila que repite un id que ya contiene.
 
 **New table** empieza con una columna **Name**. Primero indica el nombre y las columnas; la descripción y la visibilidad están en **More options**, con visibilidad privada por defecto. En su lugar puede empezar desde un
 archivo: **Start from a CSV file** convierte la cabecera en columnas y da a cada una el tipo más estrecho
@@ -400,7 +407,7 @@ respuesta, con `Idempotent-Replayed: true`, y no escribe nada, aunque el registr
 cambiado entretanto. La misma clave con un cuerpo distinto se rechaza con
 `IDEMPOTENCY_KEY_REUSED`.
 
-La cabecera marca un create, update o upsert repetido. Un borrado repetido responde 204
+La cabecera marca un create, update, upsert o lote repetido. Un borrado repetido responde 204
 como la primera vez y no se marca.
 
 Una clave pertenece al llamante y al tipo de escritura, así que dos llamantes pueden usar

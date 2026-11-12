@@ -145,14 +145,27 @@ export function ImportCsvDialog({
   const run = async (rows: string[][]) => {
     const failures: Failure[] = [];
     const ready: { line: number; record: RecordCreate }[] = [];
+    // Batches cannot see each other's rows, so a repeated id is caught across the file here.
+    const firstLine = new Map<string, number>();
     rows.forEach((row, index) => {
       const line = index + 2;
       const read = toRecord(row);
-      if ("reason" in read) failures.push({ line, reason: read.reason });
-      else ready.push({ line, record: read.record });
+      if ("reason" in read) {
+        failures.push({ line, reason: read.reason });
+        return;
+      }
+      const id = read.record.external_id;
+      const earlier = id ? firstLine.get(id) : undefined;
+      if (earlier !== undefined) {
+        failures.push({ line, reason: t("repeatedExternalId", { line: earlier }) });
+        return;
+      }
+      if (id) firstLine.set(id, line);
+      ready.push({ line, record: read.record });
     });
     let created = 0;
     let updated = 0;
+    let asOf: string | undefined;
     setStep({ name: "importing", done: 0, total: ready.length });
     for (let start = 0; start < ready.length; start += BATCH) {
       const batch = ready.slice(start, start + BATCH);
@@ -161,7 +174,9 @@ export function ImportCsvDialog({
           tableId,
           batch.map((entry) => entry.record),
           updateExisting && byExternalId,
+          asOf,
         );
+        asOf ??= result.as_of;
         created += result.created;
         updated += result.updated ?? 0;
         for (const failure of result.failed) {

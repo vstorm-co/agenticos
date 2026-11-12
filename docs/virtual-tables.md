@@ -364,6 +364,12 @@ bring the table up to date: a row whose external id the table holds changes that
 record's cells it names, rather than being refused as taken (`update_existing` on the
 batch), and the import counts what it added and what it updated.
 
+A record someone changed after the import began is left as it is and listed as
+`REVISION_CONFLICT`: the first batch answers `as_of`, the time it began by the server's
+clock, and the rest send it back. A row repeating an external id the file already named
+is listed rather than sent, and the batch refuses one repeating an id it already holds
+with `INVALID_RECORD`.
+
 **New table** starts with a **Name** column. Name the table and add its columns first; description and visibility are under **More options**, with private visibility as the default. It can start from a file instead: **Start
 from a CSV file** turns
 the header into columns and gives each the narrowest type all its values read as -
@@ -380,8 +386,8 @@ retry with the same key and the same body returns the first answer, with
 `Idempotent-Replayed: true`, and writes nothing, even if the record has changed
 since. The same key with a different body is refused with `IDEMPOTENCY_KEY_REUSED`.
 
-The header marks a replayed create, update or upsert. A replayed delete answers 204 as the
-first one did and is not marked.
+The header marks a replayed create, update, upsert or batch. A replayed delete answers 204
+as the first one did and is not marked.
 
 A key belongs to the caller and to the kind of write, so two callers can use the
 same string and one caller can use it for a create and an upsert. Only successes are

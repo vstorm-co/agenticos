@@ -304,6 +304,8 @@ export interface RecordBatchResult {
   /** How many existing records an `update_existing` batch changed. */
   updated?: number;
   failed: RecordBatchFailure[];
+  /** When the import began, by the server's clock: sent back with its later batches. */
+  as_of: string;
 }
 
 export interface RecordExportQuery extends RecordCountQuery {

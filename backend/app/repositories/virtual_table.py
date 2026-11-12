@@ -424,6 +424,11 @@ _REWRITE_BATCH = 1_000
 """Records rewritten per statement: one round trip each, not one per record."""
 
 
+async def database_time(db: AsyncSession) -> datetime:
+    """The database's clock now - the one a record's `created_at` and `updated_at` read."""
+    return (await db.execute(select(func.clock_timestamp()))).scalar_one()
+
+
 async def rewrite_column(
     db: AsyncSession,
     *,

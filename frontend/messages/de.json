@@ -11925,6 +11925,7 @@
       "more": "Und {count} weitere.",
       "close": "Schließen",
       "cellProblem": "{column}: {problem}",
+      "repeatedExternalId": "Wiederholt die External ID aus Zeile {line}",
       "problem": {
         "number": "keine Zahl",
         "integer": "keine ganze Zahl",
