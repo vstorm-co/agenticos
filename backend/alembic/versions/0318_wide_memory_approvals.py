@@ -7,7 +7,7 @@ malformed model-supplied claim ids match nothing rather than failing the cast.
 from alembic import op
 
 revision: str = "0318_wide_memory_approvals"
-down_revision: str = "0315_merge_skills_approvals"
+down_revision: str = "0317_opensandbox_connections"
 branch_labels: None = None
 depends_on: None = None
 

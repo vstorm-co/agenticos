@@ -6083,6 +6083,18 @@
       "kindE2b": "Chmura E2B",
       "e2bKeyHint": "Klucz API z panelu E2B. Piaskownice działają na tym koncie i są na nie rozliczane.",
       "e2bTemplateWhat": "Nazwa szablonu E2B; puste oznacza domyślny szablon E2B. Dla obsługi komputera użyj desktop.",
+      "kindOpenSandbox": "OpenSandbox",
+      "secretNameOpenSandbox": "Klucz API OpenSandbox",
+      "openSandboxAddressHint": "Adres serwera API dostępny z backendu. Żądania korzystają z uwierzytelnionego proxy serwera.",
+      "openSandboxKeyHint": "Klucz API tego serwera z sejfu kontroluje wszystkie jego sandboxy. Odizoluj serwer i sieć dla odpowiednich organizacji.",
+      "openSandboxImage": "Obraz sandboxa",
+      "openSandboxImageHint": "Obraz OCI z powłoką POSIX i narzędziami plików, np. python:3.12-slim.",
+      "openSandboxSecureAccess": "Secure Access (Kubernetes)",
+      "openSandboxSecureAccessHint": "Wymaga bramy OpenSandbox Kubernetes; Docker nie obsługuje tej opcji. Tylko nowe przestrzenie: istniejące zachowują tryb do jawnego resetu.",
+      "openSandboxTestHint": "Uruchamia tymczasowy sandbox, sprawdza powłokę i usuwa go. Może pobrać obraz i zużyć zasoby serwera.",
+      "openSandboxTest": "Testuj serwer i obraz",
+      "openSandboxTesting": "Testowanie serwera i obrazu…",
+      "openSandboxTestSuccess": "Serwer, klucz i obraz przeszły test przestrzeni roboczej.",
       "secretNameE2b": "Klucz API E2B"
     },
     "daytonaSnapshotImageWhat": "Snapshot albo obraz Daytona. To, na co pozwala, jest ustawieniem konta po ich stronie, więc nie ma listy do zaproponowania.",
@@ -8576,6 +8588,25 @@
     "option": "Kolor {n}"
   },
   "triggers": {
+    "attemptsTitle": "Przed uruchomieniem agenta",
+    "attemptsHint": "Te próby nie rozpoczęły runu agenta ani nie naliczyły kosztów modelu.",
+    "attemptsError": "Nie udało się odczytać prób przed startem agenta.",
+    "attemptsRetry": "Ponów odczyt historii",
+    "attemptCount": "{count, plural, one {# próba} few {# próby} many {# prób} other {# próby}}",
+    "attemptStatus": {
+      "blocked": "Zablokowana",
+      "failed": "Nieudana"
+    },
+    "attemptStage": {
+      "source_review": "Sprawdzanie źródeł",
+      "preparation": "Przygotowanie agenta"
+    },
+    "attemptReason": {
+      "platform_identity_required": "Włącz Działaj jako twórca albo usuń powiązanie wbudowanego platformowego MCP z agenta i jego delegatów.",
+      "source_review_required": "Przejrzyj źródła procedury i sprawdź niedostępne połączenia przed kolejną próbą.",
+      "agent_unavailable": "Sprawdź opublikowaną wersję, konfigurację i uprawnienia agenta, zanim ponownie włączysz procedurę.",
+      "preparation_failed": "Przygotowanie nie powiodło się przed utworzeniem runu agenta. Poproś operatora o sprawdzenie logów workera z tego czasu."
+    },
     "runAsMe": "Uruchamiaj jako ja",
     "runAsCreator": "Działa jako osoba, która go utworzyła",
     "runAsMeScheduleHint": "Każde uruchomienie korzysta z twojej pamięci i twoich własnych połączeń - skrzynki, kalendarza - jak twój czat. Może zapisywać dla ciebie notatki; nigdy nie przeszukuje twoich rozmów.",

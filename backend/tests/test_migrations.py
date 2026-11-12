@@ -469,6 +469,7 @@ class TestMigrations:
         "0303_merge_workflow_onboarding",
         "0312_skill_check_reasons",
         "0314_tool_approval_always_asks",
+        "0306_shared_page_attribution",
     ],
 )
 def test_improvement_merge_upgrades_either_existing_history(starting_revision: str) -> None:
@@ -1897,4 +1898,85 @@ def test_a_call_still_waiting_that_always_asks_is_marked() -> None:
                 text("DELETE FROM memory_claims WHERE id::text = ANY(:ids)"),
                 {"ids": [str(wide_claim), str(own_claim)]},
             )
+        engine.dispose()
+
+
+def test_opensandbox_upgrade_and_guarded_downgrade_preserve_connection_settings() -> None:
+    """Images widen without changing old connections, and rollback never drops live settings."""
+    prior = _alembic("upgrade", "0316_trigger_attempts")
+    assert prior.returncode == 0, prior.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    owner, organization, legacy, remote = (uuid4() for _ in range(4))
+    image = "registry.example/" + "a" * 150 + ":latest"
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO users (id, email, is_active, is_app_admin) VALUES (:id, :email, true, false)"
+                ),
+                {"id": owner, "email": f"{owner}@example.com"},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO organizations (id, name, slug, is_personal, created_by_user_id) VALUES (:id, 'Sandbox migration', :slug, false, :owner)"
+                ),
+                {"id": organization, "slug": f"sandbox-{organization}", "owner": owner},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO sandbox_connections (id, organization_id, name, kind, default_runtime, is_default, is_active) VALUES (:id, :org, 'Legacy sandbox', 'docker', 'python', false, true)"
+                ),
+                {"id": legacy, "org": organization},
+            )
+        upgraded = _alembic("upgrade", "0317_opensandbox_connections")
+        assert upgraded.returncode == 0, upgraded.stderr
+        with engine.begin() as connection:
+            assert (
+                connection.execute(
+                    text("SELECT secure_access FROM sandbox_connections WHERE id=:id"),
+                    {"id": legacy},
+                ).scalar_one()
+                is False
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO sandbox_connections (id, organization_id, name, kind, base_url, default_runtime, secure_access, is_default, is_active) VALUES (:id, :org, 'OpenSandbox', 'opensandbox', 'https://sandbox.example', :image, true, false, true)"
+                ),
+                {"id": remote, "org": organization, "image": image},
+            )
+        refused = _alembic("downgrade", "0316_trigger_attempts")
+        assert refused.returncode != 0 and "Remove OpenSandbox connections" in refused.stderr
+        with engine.begin() as connection:
+            assert connection.execute(
+                text("SELECT default_runtime, secure_access FROM sandbox_connections WHERE id=:id"),
+                {"id": remote},
+            ).one() == (image, True)
+            connection.execute(text("DELETE FROM sandbox_connections WHERE id=:id"), {"id": remote})
+            connection.execute(
+                text("UPDATE sandbox_connections SET default_runtime=:image WHERE id=:id"),
+                {"id": legacy, "image": image},
+            )
+        refused_long = _alembic("downgrade", "0316_trigger_attempts")
+        assert refused_long.returncode != 0 and "64 characters" in refused_long.stderr
+        with engine.begin() as connection:
+            connection.execute(
+                text("UPDATE sandbox_connections SET default_runtime='python' WHERE id=:id"),
+                {"id": legacy},
+            )
+        downgraded = _alembic("downgrade", "0316_trigger_attempts")
+        assert downgraded.returncode == 0, downgraded.stderr
+        with engine.connect() as connection:
+            assert (
+                connection.execute(
+                    text(
+                        "SELECT character_maximum_length FROM information_schema.columns WHERE table_name='sandbox_connections' AND column_name='default_runtime'"
+                    )
+                ).scalar_one()
+                == 64
+            )
+        restored = _alembic("upgrade", "head")
+        assert restored.returncode == 0, restored.stderr
+        drift = _alembic("check")
+        assert drift.returncode == 0, drift.stderr
+    finally:
         engine.dispose()

@@ -268,6 +268,8 @@ export const qk = {
     targets: (agentId: string) => ["exposures", agentId, "targets"] as const,
   },
   triggers: {
+    attempts: (agentId: string, triggerId: string, page: number) =>
+      ["triggers", agentId, "attempts", triggerId, page] as const,
     sources: (agentId: string, triggerId: string) =>
       ["triggers", agentId, "sources", triggerId] as const,
     actionConsents: (agentId: string, triggerId: string) =>

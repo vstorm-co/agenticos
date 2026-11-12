@@ -8666,6 +8666,18 @@
       "kindE2b": "E2B cloud",
       "e2bKeyHint": "An API key from your E2B dashboard. Sandboxes run, and are billed, on that account.",
       "e2bTemplateWhat": "An E2B template name; empty takes E2B's default. Use desktop for computer use.",
+      "kindOpenSandbox": "OpenSandbox",
+      "secretNameOpenSandbox": "OpenSandbox API key",
+      "openSandboxAddressHint": "The API server reachable from the backend. Requests use its authenticated server proxy.",
+      "openSandboxKeyHint": "This server’s vault API key controls all its sandboxes. Isolate the server and network for the intended organizations.",
+      "openSandboxImage": "Sandbox image",
+      "openSandboxImageHint": "An OCI image with a POSIX shell and file tools, for example python:3.12-slim.",
+      "openSandboxSecureAccess": "Secure Access (Kubernetes)",
+      "openSandboxSecureAccessHint": "Requires the OpenSandbox Kubernetes gateway; Docker does not support it. New workspaces only: existing ones retain their mode until explicitly reset.",
+      "openSandboxTestHint": "Starts one temporary sandbox, checks its shell and removes it. May pull the image and use server capacity.",
+      "openSandboxTest": "Test server and image",
+      "openSandboxTesting": "Testing server and image…",
+      "openSandboxTestSuccess": "The server, key and image passed the workspace check.",
       "secretNameE2b": "E2B API key"
     },
     "daytonaSnapshotImageWhat": "A Daytona snapshot or image. What it allows is an account setting on their side, so there is no list to offer.",
@@ -9831,6 +9843,25 @@
     "option": "Colour {n}"
   },
   "triggers": {
+    "attemptsTitle": "Before the agent started",
+    "attemptsHint": "These attempts did not start an agent run or incur model charges.",
+    "attemptsError": "Could not read attempts before run creation.",
+    "attemptsRetry": "Retry history",
+    "attemptCount": "{count, plural, one {# attempt} other {# attempts}}",
+    "attemptStatus": {
+      "blocked": "Blocked",
+      "failed": "Failed"
+    },
+    "attemptStage": {
+      "source_review": "Source review",
+      "preparation": "Preparing the agent"
+    },
+    "attemptReason": {
+      "platform_identity_required": "Enable Act as creator or remove the built-in platform MCP binding from the agent and its delegates.",
+      "source_review_required": "Review the routine’s sources and check unavailable connections before trying again.",
+      "agent_unavailable": "Review the agent’s published version, configuration and access before enabling this routine again.",
+      "preparation_failed": "Preparation failed before an agent run was created. Ask an operator to inspect the worker logs for this time."
+    },
     "runAsMe": "Run as me",
     "runAsCreator": "Runs as the person who made it",
     "runAsMeScheduleHint": "Each run uses your memory and your own connections - your mailbox, your calendar - as your own chat does. It can save notes for you; it never searches your past conversations.",

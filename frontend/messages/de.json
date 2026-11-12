@@ -8545,6 +8545,18 @@
       "kindE2b": "E2B-Cloud",
       "e2bKeyHint": "Ein API-Schlüssel aus Ihrem E2B-Dashboard. Sandboxes laufen auf diesem Konto und werden darüber abgerechnet.",
       "e2bTemplateWhat": "Ein E2B-Vorlagenname; leer nimmt die Standardvorlage von E2B. Für die Computersteuerung desktop verwenden.",
+      "kindOpenSandbox": "OpenSandbox",
+      "secretNameOpenSandbox": "OpenSandbox-API-Schlüssel",
+      "openSandboxAddressHint": "Die vom Backend erreichbare API. Anfragen verwenden den authentifizierten Server-Proxy.",
+      "openSandboxKeyHint": "Der Tresor-API-Schlüssel dieses Servers verwaltet alle seine Sandboxes. Isoliere Server und Netzwerk für die vorgesehenen Organisationen.",
+      "openSandboxImage": "Sandbox-Image",
+      "openSandboxImageHint": "Ein OCI-Image mit POSIX-Shell und Dateitools, z. B. python:3.12-slim.",
+      "openSandboxSecureAccess": "Secure Access (Kubernetes)",
+      "openSandboxSecureAccessHint": "Benötigt das OpenSandbox-Kubernetes-Gateway; Docker unterstützt dies nicht. Nur neue Arbeitsbereiche: vorhandene behalten ihren Modus bis zum ausdrücklichen Zurücksetzen.",
+      "openSandboxTestHint": "Startet eine temporäre Sandbox, prüft ihre Shell und entfernt sie. Kann das Image herunterladen und Serverressourcen belegen.",
+      "openSandboxTest": "Server und Image testen",
+      "openSandboxTesting": "Server und Image werden getestet…",
+      "openSandboxTestSuccess": "Server, Schlüssel und Image haben den Arbeitsbereichstest bestanden.",
       "secretNameE2b": "E2B-API-Schlüssel"
     },
     "daytonaSnapshotImageWhat": "Ein Daytona-Snapshot oder -Image. Was es erlaubt, ist dort eine Kontoeinstellung, es gibt also keine Liste zur Auswahl.",
@@ -9711,6 +9723,25 @@
     "option": "Farbe {n}"
   },
   "triggers": {
+    "attemptsTitle": "Vor dem Agentenstart",
+    "attemptsHint": "Diese Versuche haben keinen Agentenlauf gestartet und keine Modellkosten verursacht.",
+    "attemptsError": "Versuche vor dem Agentenstart konnten nicht gelesen werden.",
+    "attemptsRetry": "Verlauf erneut laden",
+    "attemptCount": "{count, plural, one {# Versuch} other {# Versuche}}",
+    "attemptStatus": {
+      "blocked": "Blockiert",
+      "failed": "Fehlgeschlagen"
+    },
+    "attemptStage": {
+      "source_review": "Quellenprüfung",
+      "preparation": "Agentenvorbereitung"
+    },
+    "attemptReason": {
+      "platform_identity_required": "Aktivieren Sie Als Ersteller handeln oder entfernen Sie die integrierte Plattform-MCP-Bindung aus dem Agenten und seinen Delegaten.",
+      "source_review_required": "Prüfen Sie die Quellen der Routine und nicht verfügbare Verbindungen vor einem erneuten Versuch.",
+      "agent_unavailable": "Prüfen Sie die veröffentlichte Version, Konfiguration und Zugriffsrechte des Agenten, bevor Sie die Routine wieder aktivieren.",
+      "preparation_failed": "Die Vorbereitung ist vor dem Erstellen eines Agentenlaufs fehlgeschlagen. Bitten Sie einen Betreiber, die Worker-Protokolle zu diesem Zeitpunkt zu prüfen."
+    },
     "runAsMe": "Als ich ausführen",
     "runAsCreator": "Läuft als die Person, die ihn angelegt hat",
     "runAsMeScheduleHint": "Jeder Lauf nutzt Ihr Gedächtnis und Ihre eigenen Verbindungen - Ihr Postfach, Ihren Kalender - wie Ihr eigener Chat. Er kann Notizen für Sie speichern; Ihre früheren Unterhaltungen durchsucht er nie.",
