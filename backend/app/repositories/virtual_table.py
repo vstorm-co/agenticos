@@ -1043,10 +1043,6 @@ async def add_outbox(
     return row
 
 
-_RECEIPT_PURGE_BATCH = 1000
-"""Receipts removed per statement when a table is purged, so one purge stays bounded."""
-
-
 async def delete_receipts_for_table(
     db: AsyncSession, *, organization_id: UUID, table_id: UUID
 ) -> None:
@@ -1057,27 +1053,21 @@ async def delete_receipts_for_table(
     `record.table_id`, a table creation at `id`. A record deletion's receipt holds
     only the record id, so it carries no values and cannot be matched. An expired
     receipt still holds its values until the retention sweep reaches it, so age is
-    no reason to keep one; the delete goes in batches instead.
+    no reason to keep one.
     """
     table = str(table_id)
-    names_the_table = and_(
-        VirtualTableReceipt.organization_id == organization_id,
-        or_(
-            VirtualTableReceipt.outcome["record"]["table_id"].astext == table,
-            and_(
-                VirtualTableReceipt.operation == "table.create",
-                VirtualTableReceipt.outcome["id"].astext == table,
+    await db.execute(
+        delete(VirtualTableReceipt).where(
+            VirtualTableReceipt.organization_id == organization_id,
+            or_(
+                VirtualTableReceipt.outcome["record"]["table_id"].astext == table,
+                and_(
+                    VirtualTableReceipt.operation == "table.create",
+                    VirtualTableReceipt.outcome["id"].astext == table,
+                ),
             ),
-        ),
-    )
-    while True:
-        batch = select(VirtualTableReceipt.id).where(names_the_table).limit(_RECEIPT_PURGE_BATCH)
-        deleted = await db.execute(
-            delete(VirtualTableReceipt).where(VirtualTableReceipt.id.in_(batch))
         )
-        # A DML statement returns a `CursorResult`, which has `rowcount`.
-        if (deleted.rowcount or 0) < _RECEIPT_PURGE_BATCH:  # ty: ignore[unresolved-attribute]
-            return
+    )
 
 
 async def delete_expired_receipt(
