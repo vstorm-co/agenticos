@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Upgrading
+
+Platform MCP clients must follow page and text-window continuations instead of expecting all cached schemas or recorded tool results inline. Use `get_mcp_connection_tool` and `get_capability` for selected full contracts, and the run or conversation tool-call readers for recorded payloads. New channel bots acknowledge incoming questions and leave answer ratings disabled; existing bots keep their saved settings.
+
 ### Added
 
 - Focused platform MCP discovery for connection tools and capabilities, with search, pagination and explicit response budgets. Run inspection reads bounded message and tool-payload windows under existing run permissions; run history accepts diagnostic filters.

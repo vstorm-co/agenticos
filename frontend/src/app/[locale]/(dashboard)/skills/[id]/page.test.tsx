@@ -8,6 +8,7 @@ import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
 import type { SkillAgentUsage, SkillFork, SkillVersionSummary } from "@/types/skill-versions";
 import SkillPage from "./page";
+import type { CheckedDraft } from "@/components/skills/skill-check-dialog";
 import { SkillDetailDialog } from "@/components/skills/skill-detail-dialog";
 
 const state = vi.hoisted(() => ({
@@ -15,6 +16,19 @@ const state = vi.hoisted(() => ({
   show: null as string | null,
   push: vi.fn(),
   runsView: true,
+  checkedDraft: null as CheckedDraft | null,
+}));
+vi.mock("@/components/skills/check-running", () => ({
+  CheckRunning: ({ onEdit }: { onEdit: (draft: CheckedDraft) => void }) =>
+    state.checkedDraft === null ? null : (
+      <button
+        onClick={() => {
+          if (state.checkedDraft) onEdit(state.checkedDraft);
+        }}
+      >
+        Edit checked text
+      </button>
+    ),
 }));
 vi.mock("@/hooks/use-permissions", () => ({
   usePermissions: () => ({
@@ -190,6 +204,7 @@ async function mount() {
 beforeEach(() => {
   vi.clearAllMocks();
   state.runsView = true;
+  state.checkedDraft = null;
   state.tab = null;
   state.show = null;
   skill.canEdit = true;
@@ -198,6 +213,37 @@ beforeEach(() => {
 });
 
 describe("SkillPage", () => {
+  it.each([
+    ["main", "f1"],
+    ["fork:f1", null],
+    ["fork:f1", "f1"],
+  ] as const)("opens a checked draft on its own line from %s to %s", async (shown, target) => {
+    state.show = shown;
+    state.checkedDraft = {
+      description: "Checked description.",
+      content: "Checked instructions.",
+      baseVersionId: target === null ? "m12" : "r2",
+      forkId: target,
+    };
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path === "/skills/s1/versions/r2"
+        ? { id: "r2", description: "Fork", content: "Fork body", resources: [] }
+        : serveOnce(path),
+    );
+    await mount();
+    await userEvent.click(await screen.findByRole("button", { name: "Edit checked text" }));
+    expect(await screen.findByLabelText("Description", { exact: true })).toHaveValue(
+      "Checked description.",
+    );
+    expect(screen.getByLabelText(/Instructions source/)).toHaveValue("Checked instructions.");
+    expect(
+      screen.getByRole("button", {
+        name: target === null ? "Edit" : "Edit fork “Returns”",
+        hidden: true,
+      }),
+    ).toBeInTheDocument();
+  });
+
   it("reads a skill in a modal without rewriting catalog filters and links to its full view", async () => {
     const before = window.location.href;
     const onClose = vi.fn();
@@ -438,6 +484,8 @@ describe("SkillPage's lines and writes", () => {
       "Return the agents of “Returns” to main",
     );
     expect(screen.queryByRole("link", { name: /up with main/ })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("offers no return of a fork whose agents the reader may not change", async () => {
@@ -523,6 +571,20 @@ describe("SkillPage's lines and writes", () => {
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("closes the catalog modal after deleting its skill without navigating away", async () => {
+    vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path === "/skills/s1/agents" ? { ...AGENTS, items: [], hidden: 0 } : serveOnce(path),
+    );
+    const onClose = vi.fn();
+    render(<SkillDetailDialog id="s1" onClose={onClose} />, { wrapper });
+    await userEvent.click(await screen.findByRole("button", { name: "Delete" }));
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(apiClient.delete).toHaveBeenCalledWith("/skills/s1");
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(state.push).not.toHaveBeenCalled();
   });
 
   it("deletes a skill nobody uses from the editor and returns to the list", async () => {
@@ -614,6 +676,8 @@ describe("SkillPage's lines and writes", () => {
     await act(async () => listAgents());
     await userEvent.click(await screen.findByRole("button", { name: "New fork" }));
     expect(screen.getByRole("checkbox", { name: /^Support/ })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("offers no new fork when the agents cannot be read, and says why", async () => {
