@@ -5,16 +5,17 @@ import { useTranslations } from "next-intl";
 import { Bell, Keyboard, Sparkles } from "lucide-react";
 
 import { CastPicker, Face } from "@/components/desktop/blobby-pickers";
-import { DesktopSetting } from "@/components/desktop/desktop-only";
+import { DesktopSetting, OnlyInTheAppScreen } from "@/components/desktop/desktop-only";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/use-auth";
 import { useDesktopState, useSetBlobby, useSetWindowPreferences } from "@/hooks/use-desktop";
+import { useHydrated } from "@/hooks/use-hydrated";
 import { useShell } from "@/hooks/use-shell";
 import { describeAccelerator } from "@/lib/desktop/accelerator";
 import { faceOf } from "@/lib/desktop/blobby-cast";
 import { finishOnboarding, notify, type DesktopState } from "@/lib/desktop/commands";
-import { reportShellFailure } from "@/lib/desktop/shell";
+import { isDesktopShell, reportShellFailure } from "@/lib/desktop/shell";
 import { useRouter } from "@/lib/locale-navigation";
 import { cn } from "@/lib/utils";
 
@@ -178,6 +179,7 @@ export function DesktopWelcome() {
   const t = useTranslations("desktop.welcome");
   const router = useRouter();
   const shell = useShell();
+  const hydrated = useHydrated();
   const { isAuthenticated, isLoading } = useAuth();
   const { data } = useDesktopState();
   const [step, setStep] = useState<Step>("blobby");
@@ -194,13 +196,8 @@ export function DesktopWelcome() {
       .finally(() => router.replace("/onboarding"));
   };
 
-  if (!shell) {
-    return (
-      <main className="flex min-h-dvh items-center justify-center p-6">
-        <p className="text-muted-foreground text-sm">{t("onlyInApp")}</p>
-      </main>
-    );
-  }
+  if (!hydrated) return null;
+  if (!isDesktopShell(shell)) return <OnlyInTheAppScreen />;
   if (!data || !isAuthenticated) return null;
 
   return (

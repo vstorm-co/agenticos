@@ -1,4 +1,5 @@
 import { act, render, screen } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -128,11 +129,13 @@ describe("DesktopWelcome", () => {
     expect(env.replace).toHaveBeenCalledWith("/login?returnTo=%2Fdesktop%2Fwelcome");
   });
 
+  it("draws nothing before hydration, so the app never flashes the browser screen", () => {
+    expect(renderToString(<DesktopWelcome />)).toBe("");
+  });
+
   it("says it belongs to the app in a browser", () => {
     env.shell = null;
     render(<DesktopWelcome />);
-    expect(
-      screen.getByText("This welcome belongs to the AgenticOS desktop app."),
-    ).toBeInTheDocument();
+    expect(screen.getByText("This opens in the AgenticOS desktop app.")).toBeInTheDocument();
   });
 });
