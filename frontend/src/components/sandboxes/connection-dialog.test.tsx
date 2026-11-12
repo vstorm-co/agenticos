@@ -755,6 +755,16 @@ describe("OpenSandbox connections", () => {
     );
   });
 
+  it("saves a changed Secure Access choice instead of retaining the stored value", async () => {
+    const { onSubmit } = mount(
+      connection({ kind: "opensandbox", default_runtime: "python:3.12-slim", secure_access: true }),
+    );
+    await userEvent.click(screen.getByRole("switch", { name: "Secure Access (Kubernetes)" }));
+    expect(screen.getByRole("switch", { name: "Secure Access (Kubernetes)" })).not.toBeChecked();
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ secure_access: false }));
+  });
+
   it("requires an image and its own vault key", async () => {
     mount(connection({ kind: "opensandbox", default_runtime: null, secret_id: null }));
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
