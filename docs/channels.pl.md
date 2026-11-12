@@ -1,5 +1,5 @@
 ---
-source_sha: "c59e3bf9f07c"
+source_sha: "ef0c42f55044"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1080,7 +1080,7 @@ Odpowiedź to zwykły tekst — znaczniki markdown są usuwane, a link wypisany 
 ucinana przy około 1500 znaków z informacją, że reszta jest w AgenticOS, więc jedno pytanie
 kosztuje kilka segmentów, nie kilkanaście. SMS nie umie strumieniować, edytować wiadomości ani
 przycisków, więc zatwierdzenie lub pytanie przychodzi jako ponumerowane linie, a odpowiada się
-SMS-em z numerem. Sam numer wskazujący wybór w którymś z pytań wysłanych na ten numer jest odpowiedzią. Pytania czekające jednocześnie nigdy nie dzielą numerów - drugie kontynuuje tam, gdzie skończyło się pierwsze, więc po 1 i 2 przychodzą 3 i 4 - a rozstrzygnięcie jednego zostawia drugie otwarte. Pytanie zostaje otwarte przez dobę, więc wielokrotny wybór przyjmuje kilka numerów; każdy inny tekst to zwykła wiadomość.
+SMS-em z numerem. Sam numer wskazujący wybór w którymś z pytań wysłanych na ten numer jest odpowiedzią. Pytania czekające jednocześnie nigdy nie dzielą numerów - drugie kontynuuje tam, gdzie skończyło się pierwsze, więc po 1 i 2 przychodzą 3 i 4 - a rozstrzygnięcie jednego zostawia drugie otwarte. Pytanie zostaje otwarte przez dobę, więc wielokrotny wybór przyjmuje kilka numerów; każdy inny tekst to zwykła wiadomość. Numery idą do 999, a potem znów od 1, z pominięciem wciąż otwartych i wydanych w ostatnim tygodniu, więc odpowiedź na stary SMS nie rozstrzygnie nowszego pytania, chyba że przyjdzie ponad tydzień później.
 
 Przychodzące pliki MMS, także bez tekstu, przechodzą przez zwykły mechanizm
 załączników kanałowych po weryfikacji tożsamości i dostępu. Odczytywanych jest

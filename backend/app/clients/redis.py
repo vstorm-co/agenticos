@@ -22,10 +22,63 @@ _DELETE_IF_EQUAL = (
     "return redis.call('del', KEYS[1]) else return 0 end"
 )
 
-_RESERVE_RANGE = """
-local last = math.max(tonumber(redis.call('get', KEYS[1]) or '0'), tonumber(ARGV[1]))
-redis.call('set', KEYS[1], last + tonumber(ARGV[2]), 'EX', ARGV[3])
-return last + 1
+_RESERVE_NUMBERS = """
+local now = tonumber(redis.call('TIME')[1])
+local count = tonumber(ARGV[1])
+local highest = tonumber(ARGV[2])
+local pending = cjson.decode(redis.call('GET', KEYS[3]) or '{}')
+local pruned = false
+for code, _ in pairs(pending) do
+  local issued = redis.call('ZSCORE', KEYS[2], code)
+  if not issued then
+    redis.call('ZADD', KEYS[2], 'NX', now, code)
+  elseif tonumber(issued) + tonumber(ARGV[5]) < now then
+    pending[code] = nil
+    pruned = true
+  end
+end
+if pruned then
+  if next(pending) == nil then
+    redis.call('DEL', KEYS[3])
+  else
+    redis.call('SET', KEYS[3], cjson.encode(pending), 'KEEPTTL')
+  end
+end
+redis.call('ZREMRANGEBYSCORE', KEYS[2], '-inf', now - tonumber(ARGV[3]))
+local last = tonumber(redis.call('GET', KEYS[1]) or '0')
+for step = 0, highest - 1 do
+  local start = (last + step) % highest + 1
+  if start + count - 1 <= highest then
+    local free = true
+    for n = start, start + count - 1 do
+      if pending[tostring(n)] or redis.call('ZSCORE', KEYS[2], n) then
+        free = false
+        break
+      end
+    end
+    if free then
+      for n = start, start + count - 1 do
+        redis.call('ZADD', KEYS[2], now, n)
+      end
+      redis.call('SET', KEYS[1], start + count - 1, 'EX', ARGV[4])
+      redis.call('EXPIRE', KEYS[2], ARGV[4])
+      return start
+    end
+  end
+end
+return 0
+"""
+
+_NUMBERED_ANSWER = """
+local value = cjson.decode(redis.call('GET', KEYS[1]) or '{}')[ARGV[1]]
+if not value then
+  return false
+end
+local issued = redis.call('ZSCORE', KEYS[2], ARGV[1])
+if issued and tonumber(issued) + tonumber(ARGV[2]) < tonumber(redis.call('TIME')[1]) then
+  return false
+end
+return value
 """
 
 _PRUNE_BOUNDED_VALUES = """
@@ -181,12 +234,52 @@ class RedisClient:
             raise RuntimeError("Redis client not connected")
         return bool(await self.client.expire(key, ttl))
 
-    async def reserve_range(self, key: str, *, minimum: int, count: int, ttl: int) -> int:
-        """Reserve consecutive numbers atomically, retaining failed-delivery gaps until expiry."""
-        result = await self.raw.eval(_RESERVE_RANGE, 1, key, minimum, count, ttl)
+    async def reserve_numbers(
+        self,
+        counter: str,
+        *,
+        issued: str,
+        pending: str,
+        count: int,
+        highest: int,
+        quarantine: int,
+        answerable: int,
+        ttl: int,
+    ) -> int:
+        """Reserve `count` consecutive numbers from 1 to `highest`, or return 0 when none are free.
+
+        The block starts after the last one reserved and wraps around, skipping a number
+        still named in the JSON object at `pending` or reserved within `quarantine`
+        seconds - `issued` holds when each was. A number in `pending` reserved over
+        `answerable` seconds ago no longer answers, so it is dropped from `pending` first;
+        one with no reservation time is stamped now and lapses in turn. Reserving nothing
+        changes nothing else.
+        """
+        result = await self.raw.eval(
+            _RESERVE_NUMBERS,
+            3,
+            counter,
+            issued,
+            pending,
+            count,
+            highest,
+            quarantine,
+            ttl,
+            answerable,
+        )
         if not isinstance(result, int):
             raise TypeError("Redis returned an invalid number reservation")
         return result
+
+    async def numbered_answer(
+        self, mapping: str, *, issued: str, number: str, ttl: int
+    ) -> str | None:
+        """What `number` names in the JSON object at `mapping`, unless it was reserved over
+        `ttl` seconds ago, by the Redis clock `reserve_numbers` stamps it with."""
+        result = await self.raw.eval(_NUMBERED_ANSWER, 2, mapping, issued, number, ttl)
+        if result is None:
+            return None
+        return result.decode() if isinstance(result, bytes) else str(result)
 
     async def cache_bounded_values(
         self, key: str, *, values: dict[str, str], capacity: int, ttl: int, max_items: int
