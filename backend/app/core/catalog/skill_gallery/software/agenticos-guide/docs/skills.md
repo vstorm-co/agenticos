@@ -1,5 +1,8 @@
 # Skills
 
+Open a skill from the catalog to read it in a modal without losing your search, filters or page. **Open full view** opens the same tab and selected line on its dedicated page. The version tree grows with its contents up to a bounded canvas height; a single version leaves no large empty canvas. A single comparison preview uses the available width and renders instructions as Markdown, with source available on request. Multiple selected versions share the space on desktop and scroll within their comparison on a phone.
+
+
 A skill is know-how written once and attached to many agents: how refunds are
 handled, what the house style is, which checks a report must pass before it goes
 out.
