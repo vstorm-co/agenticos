@@ -453,7 +453,7 @@ class MemoryService:
         claims = await memory_claim.delete_for_scope(
             self.db, organization_id=ctx.organization_id, scope_key=owner_key
         )
-        await personal_data_repo.forget_maintenance_runs_of(
+        await personal_data_repo.forget_system_runs_of(
             self.db, user_id, organization_id=ctx.organization_id
         )
         await record_audit(
