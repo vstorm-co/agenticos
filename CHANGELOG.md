@@ -19,7 +19,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- **Economical default assistants.** Newly installed AgenticOS and Architect assistants defer capability schemas as well as MCP tools, keeping questions and workspace tools immediately available. Their local BM25 search favors exact tool identities, and instructions direct named-agent lookups to the agent list rather than unrelated run logs. Existing customized agents keep their configuration.
+- **Browser actions follow tab state.** Browser opening and session restoration stay discoverable from the start; switching and closing appear when tabs exist, and page actions appear with an active tab. Tool renames and approval metadata are preserved.
+
 ## [1.71.1] - 2026-11-12
+
 
 ### Fixed
 

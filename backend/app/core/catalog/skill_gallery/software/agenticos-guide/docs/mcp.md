@@ -191,6 +191,18 @@ capability tools or both, and keep selected server namespaces or individual tool
 visible from the first request. These exclusions change when a tool's schema is
 shown; the connection and binding allowlists still decide whether it is available.
 
+New AgenticOS and Architect templates also defer capability tools, keeping questions
+and sandbox tools visible immediately, and use local BM25 search with up to five
+results. Existing published agents keep their configuration; update their Tool
+search settings to adopt these defaults. Tool search does not remove instructions
+or conversation history, and input-token totals add together every model request.
+
+Browser availability additionally follows live tab state: opening, reading and
+listing tabs remain available for starting or restoring a session. Closing or
+switching needs an open tab; page actions need an active tab. Search cannot reveal
+an action that is unavailable in the current state. Availability changes can affect
+provider prompt caching, so fewer tool schemas alone do not establish lower cost.
+
 ### Which calls wait for a person
 
 Every binding has an `approval` policy for its server's tools. The default,
