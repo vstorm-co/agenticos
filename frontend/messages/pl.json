@@ -11905,6 +11905,7 @@
       "more": "I jeszcze {count}.",
       "close": "Zamknij",
       "cellProblem": "{column}: {problem}",
+      "repeatedExternalId": "Powtarza external id z wiersza {line}",
       "problem": {
         "number": "to nie liczba",
         "integer": "to nie liczba całkowita",

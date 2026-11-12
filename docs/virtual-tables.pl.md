@@ -1,5 +1,5 @@
 ---
-source_sha: "539603f9eb62"
+source_sha: "0f91a7626ccc"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -377,9 +377,15 @@ nieudany wiersz z numerem linii. Każdy dodany rekord uruchamia wyzwalacze tabel
 każdy inny.
 
 Gdy zmapowane jest **External id**, **Update records already here** importuje plik
-ponownie, żeby zaktualizować tabelę: wiersz, którego zewnętrzne id tabela już ma, zmienia
-wskazane komórki tego rekordu zamiast zostać odrzucony jako zajęty (`update_existing` w
-partii), a import podaje, ile dodał i ile zaktualizował.
+ponownie, żeby zaktualizować tabelę: wiersz, którego zewnętrzne id tabela już ma,
+zmienia wskazane komórki tego rekordu zamiast zostać odrzucony jako zajęty
+(`update_existing` w partii), a import podaje, ile dodał i ile zaktualizował.
+
+Rekord, który ktoś zmienił po rozpoczęciu importu, zostaje bez zmian i trafia na listę
+jako `REVISION_CONFLICT`: pierwsza partia odpowiada `as_of`, czyli chwilą rozpoczęcia
+według zegara serwera, a kolejne go odsyłają. Wiersz powtarzający zewnętrzne id, które
+plik już podał, trafia na listę zamiast zostać wysłany, a partia odrzuca wiersz
+powtarzający id, które już zawiera, kodem `INVALID_RECORD`.
 
 **New table** zaczyna się od kolumny **Name**. Najpierw podaj nazwę tabeli i jej kolumny; opis oraz widoczność są pod **More options**, z domyślną widocznością prywatną. Zamiast tego może zacząć się od pliku:
 **Start from a CSV file** zamienia nagłówek na kolumny i daje każdej najwęższy typ, w którym dają się odczytać
@@ -397,7 +403,7 @@ Ponowienie z tym samym kluczem i tą samą treścią zwraca pierwszą odpowiedź
 międzyczasie. Ten sam klucz z inną treścią jest odrzucany kodem
 `IDEMPOTENCY_KEY_REUSED`.
 
-Nagłówek oznacza powtórzone create, update lub upsert. Powtórzone usunięcie odpowiada 204
+Nagłówek oznacza powtórzone create, update, upsert lub partię. Powtórzone usunięcie odpowiada 204
 jak za pierwszym razem i nie jest oznaczane.
 
 Klucz należy do wywołującego i do rodzaju zapisu, więc dwóch wywołujących może użyć

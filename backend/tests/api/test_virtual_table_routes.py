@@ -60,6 +60,9 @@ async def _export(*_args: Any) -> RecordExport:
     return RecordExport(filename="Orders.csv", lines=lines())
 
 
+_AS_OF = datetime(2026, 11, 12, 9, 0, tzinfo=UTC)
+
+
 def _record(revision: int = 1) -> RecordRead:
     return RecordRead(
         id=_RECORD,
@@ -98,7 +101,9 @@ def service() -> MagicMock:
         list_schema_versions=AsyncMock(return_value={"items": []}),
         list_records=AsyncMock(return_value=RecordList(items=[], skip=0, limit=50, has_more=False)),
         count_records=AsyncMock(return_value=RecordCount(count=3, capped=False)),
-        create_records=AsyncMock(return_value=RecordBatchResult(created=1, failed=[])),
+        write_batch=AsyncMock(
+            return_value=(RecordBatchResult(created=1, failed=[], as_of=_AS_OF), False)
+        ),
         export_records=AsyncMock(side_effect=_export),
         record_exists=AsyncMock(return_value=True),
         get_record=AsyncMock(return_value=_record()),
@@ -289,9 +294,32 @@ async def test_a_batch_hands_the_service_at_most_two_hundred_records(client, ser
         too_many = await http.post(_records("/batch"), json={"records": [{"values": {}}] * 201})
 
     assert written.status_code == 200
-    assert written.json() == {"created": 1, "updated": 0, "failed": []}
+    assert written.json() == {
+        "created": 1,
+        "updated": 0,
+        "failed": [],
+        "as_of": _AS_OF.isoformat().replace("+00:00", "Z"),
+    }
+    assert "idempotent-replayed" not in written.headers
     assert (empty.status_code, too_many.status_code) == (422, 422)
-    assert len(service.create_records.await_args.args[2].records) == 1
+    assert len(service.write_batch.await_args.args[2].records) == 1
+    assert service.write_batch.await_args.kwargs["operation_key"] is None
+
+
+async def test_a_batch_sent_again_under_its_key_says_it_was_replayed(client, service):
+    service.write_batch.return_value = (
+        RecordBatchResult(created=1, failed=[], as_of=_AS_OF),
+        True,
+    )
+    async with client() as http:
+        replayed = await http.post(
+            _records("/batch"),
+            json={"records": [{"values": {}}]},
+            headers={"Idempotency-Key": "import-1"},
+        )
+
+    assert replayed.headers["idempotent-replayed"] == "true"
+    assert service.write_batch.await_args.kwargs["operation_key"] == "import-1"
 
 
 async def test_an_export_answers_a_csv_file_named_after_its_table(client, service):

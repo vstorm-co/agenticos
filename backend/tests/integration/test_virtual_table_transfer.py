@@ -17,8 +17,10 @@ from app.schemas.virtual_table import (
     RecordCreate,
     RecordExportQuery,
     RecordFilter,
+    RecordQuery,
     RecordRead,
     RecordSort,
+    RecordUpdate,
     SchemaUpdate,
     TableCreate,
     TableUpdate,
@@ -76,7 +78,8 @@ async def test_a_batch_writes_every_record_that_fits_and_names_each_that_does_no
     assert [(failure.index, failure.code) for failure in result.failed] == [
         (1, "INVALID_RECORD"),
         (2, "ALREADY_EXISTS"),
-        (4, "ALREADY_EXISTS"),
+        # Repeating an id the batch already named, not one the table held before it.
+        (4, "INVALID_RECORD"),
     ]
     events = await db.scalar(
         select(func.count())
@@ -118,6 +121,99 @@ async def test_a_batch_imported_again_updates_the_records_it_names_by_external_i
     # Only the cells the row names change; the rest stay as they were.
     assert acme.values == {customer: "Acme", quantity: 5}
     assert acme.revision == 2
+
+
+async def test_a_batch_refuses_a_row_repeating_an_external_id_it_already_named(db):
+    service, ctx, table = await _setup(db)
+    customer = cid(table, "Customer")
+
+    result = await service.create_records(
+        ctx,
+        table.id,
+        RecordBatchCreate(
+            records=[
+                RecordCreate(external_id="acme", values={customer: "Acme"}),
+                RecordCreate(external_id="acme", values={customer: "Acme Ltd"}),
+            ]
+        ),
+    )
+
+    assert result.created == 1
+    (refused,) = result.failed
+    assert (refused.index, refused.code) == (1, "INVALID_RECORD")
+    assert refused.details is not None
+    assert refused.details["fields"][0]["field"] == "records.1.external_id"
+
+
+async def test_an_import_leaves_a_record_changed_since_it_began_and_reports_it(db):
+    service, ctx, table = await _setup(db)
+    customer, quantity = cid(table, "Customer"), cid(table, "Quantity")
+    acme = await service.create_record(
+        ctx, table.id, RecordCreate(external_id="acme", values={customer: "Acme", quantity: 1})
+    )
+    await db.commit()
+    first = await service.create_records(
+        ctx,
+        table.id,
+        RecordBatchCreate(
+            update_existing=True,
+            records=[RecordCreate(external_id="globex", values={customer: "Globex"})],
+        ),
+    )
+    await db.commit()
+    # Someone edits the record while the import is still sending its batches.
+    await service.update_record(
+        ctx,
+        table.id,
+        acme.record.id,
+        RecordUpdate(expected_revision=acme.record.revision, values={quantity: 7}),
+    )
+    await db.commit()
+
+    later = await service.create_records(
+        ctx,
+        table.id,
+        RecordBatchCreate(
+            update_existing=True,
+            as_of=first.as_of,
+            records=[RecordCreate(external_id="acme", values={quantity: 2})],
+        ),
+    )
+
+    assert later.as_of == first.as_of
+    assert later.updated == 0
+    (conflict,) = later.failed
+    assert (conflict.index, conflict.code) == (0, "REVISION_CONFLICT")
+    assert conflict.details == {"record_id": acme.record.id, "current_revision": 2}
+    kept = await service.get_record(ctx, table.id, acme.record.id)
+    assert kept.values[quantity] == 7
+
+
+async def test_a_batch_sent_again_under_its_key_writes_nothing_more(db):
+    from app.services.virtual_tables.exceptions import IdempotencyKeyReuseError
+
+    service, ctx, table = await _setup(db)
+    customer = cid(table, "Customer")
+    batch = RecordBatchCreate(records=[RecordCreate(values={customer: "Acme"})])
+
+    first, first_replayed = await service.write_batch(
+        ctx, table.id, batch, operation_key="import-1"
+    )
+    again, again_replayed = await service.write_batch(
+        ctx, table.id, batch, operation_key="import-1"
+    )
+
+    assert (first_replayed, again_replayed) == (False, True)
+    assert again == first
+    listed = await service.list_records(ctx, table.id, RecordQuery())
+    assert len(listed.items) == 1
+    with pytest.raises(IdempotencyKeyReuseError):
+        await service.write_batch(
+            ctx,
+            table.id,
+            RecordBatchCreate(records=[RecordCreate(values={customer: "Globex"})]),
+            operation_key="import-1",
+        )
 
 
 async def test_a_batch_lists_in_the_order_it_was_written(db):

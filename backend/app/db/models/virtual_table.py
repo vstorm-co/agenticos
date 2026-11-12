@@ -306,7 +306,7 @@ class VirtualTableReceipt(Base):
         Index("virtual_table_receipts_org_created_idx", "organization_id", "created_at"),
         CheckConstraint(
             "operation IN ('record.create', 'record.update', 'record.delete', 'record.upsert', "
-            "'table.create')",
+            "'record.batch', 'table.create')",
             name="operation",
         ),
     )
