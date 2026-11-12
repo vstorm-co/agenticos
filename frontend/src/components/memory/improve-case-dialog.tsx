@@ -44,9 +44,11 @@ export function ImproveCaseDialog({
   const t = useTranslations("pages.memory.claims.episode");
   const td = useTranslations("datasets");
   const errors = useTranslations("errors");
+  const tc = useTranslations("common");
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { editable, isLoading, search, target, choose, remember } = useDatasetTarget();
+  const { editable, isLoading, error, refetch, search, target, choose, remember } =
+    useDatasetTarget();
   const [confirmed, setConfirmed] = useState(false);
   const [input, setInput] = useState(episode.situation);
   const [reference, setReference] = useState(episode.correction ?? episode.choice);
@@ -78,14 +80,26 @@ export function ImproveCaseDialog({
           <DialogDescription>{t("review")}</DialogDescription>
         </DialogHeader>
         <div className={cn(DIALOG_BODY, "space-y-5")}>
-          <DatasetTargetFields
-            editable={editable}
-            isLoading={isLoading}
-            datasetId={target?.id ?? ""}
-            onDatasetChange={choose}
-            search={search}
-            idPrefix={formId}
-          />
+          {error ? (
+            <div role="alert" className="space-y-2 text-sm">
+              <p className="text-destructive-ink">{getErrorMessage(error, errors)}</p>
+              <Button variant="outline" size="sm" onClick={() => void refetch()}>
+                {tc("retry")}
+              </Button>
+            </div>
+          ) : (
+            <DatasetTargetFields
+              editable={editable}
+              isLoading={isLoading}
+              datasetId={target?.id ?? ""}
+              onDatasetChange={(id) => {
+                choose(id);
+                setConfirmed(false);
+              }}
+              search={search}
+              idPrefix={formId}
+            />
+          )}
           <FormField htmlFor={`${formId}-input`} label={t("input")}>
             <Textarea
               id={`${formId}-input`}

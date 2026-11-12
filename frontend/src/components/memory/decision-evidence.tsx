@@ -3,14 +3,13 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
-import { usePermissions } from "@/hooks/use-permissions";
+import { useCanAddToDataset } from "@/components/datasets/use-dataset-target";
 import type { MemoryClaim } from "@/lib/memory-api";
-import { Perm } from "@/types/permissions";
 import { ImproveCaseDialog } from "./improve-case-dialog";
 
 export function DecisionEvidence({ claim }: { claim: MemoryClaim }) {
   const t = useTranslations("pages.memory.claims.episode");
-  const { can } = usePermissions();
+  const canAdd = useCanAddToDataset();
   const [open, setOpen] = useState(false);
   const episode = claim.episode;
   if (!episode) return null;
@@ -37,7 +36,7 @@ export function DecisionEvidence({ claim }: { claim: MemoryClaim }) {
           ) : null,
         )}
       </dl>
-      {(claim.status === "current" || claim.status === "disputed") && can(Perm.datasetsEdit) ? (
+      {(claim.status === "current" || claim.status === "disputed") && canAdd ? (
         <Button variant="outline" size="sm" className="mt-6" onClick={() => setOpen(true)}>
           {t("export")}
         </Button>

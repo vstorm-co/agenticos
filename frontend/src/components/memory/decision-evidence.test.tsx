@@ -8,7 +8,9 @@ import type { Dataset } from "@/types/datasets";
 import { DecisionEvidence } from "./decision-evidence";
 
 const state = vi.hoisted(() => ({
-  granted: ["datasets:edit"] as string[],
+  canAdd: true,
+  error: null as Error | null,
+  refetch: vi.fn(),
   target: undefined as unknown,
   editable: [] as unknown[],
   push: vi.fn(),
@@ -16,13 +18,13 @@ const state = vi.hoisted(() => ({
   choose: vi.fn(),
 }));
 vi.mock("@/lib/memory-api", () => ({ reviewDecisionCase: vi.fn() }));
-vi.mock("@/hooks/use-permissions", () => ({
-  usePermissions: () => ({ can: (perm: string) => state.granted.includes(perm) }),
-}));
 vi.mock("@/components/datasets/use-dataset-target", () => ({
+  useCanAddToDataset: () => state.canAdd,
   useDatasetTarget: () => ({
     editable: state.editable,
     isLoading: false,
+    error: state.error,
+    refetch: state.refetch,
     search: null,
     target: state.target,
     choose: state.choose,
@@ -69,7 +71,10 @@ function mount(data = claim) {
 beforeEach(() => {
   vi.mocked(reviewDecisionCase).mockReset();
   vi.mocked(toast.success).mockReset();
-  state.granted = ["datasets:edit"];
+  state.canAdd = true;
+  state.error = null;
+  state.refetch.mockReset();
+  state.choose.mockReset();
   state.target = decisions;
   state.editable = [decisions];
   state.push.mockReset();
@@ -121,8 +126,8 @@ it("keeps a refused add open with an error", async () => {
   expect(await screen.findByRole("alert")).toBeVisible();
   expect(screen.getByRole("dialog")).toBeVisible();
 });
-it("offers nothing to somebody who may not edit a dataset", () => {
-  state.granted = [];
+it("offers nothing to somebody who may add to no dataset", () => {
+  state.canAdd = false;
   mount();
   expect(screen.queryByRole("button")).not.toBeInTheDocument();
 });
@@ -155,4 +160,25 @@ it("starts from the correction and stays open while the case is being added", as
   await userEvent.click(screen.getByRole("button", { name: "Add reviewed case" }));
   await userEvent.keyboard("{Escape}");
   expect(screen.getByRole("dialog")).toBeVisible();
+});
+it("asks for consent again once another dataset is chosen", async () => {
+  const other = { id: "o", name: "Other" } as Dataset;
+  state.editable = [decisions, other];
+  mount();
+  await userEvent.click(screen.getByRole("button", { name: "Add as an Improve case" }));
+  await userEvent.click(screen.getByRole("checkbox"));
+  await userEvent.click(screen.getByRole("combobox"));
+  await userEvent.click(await screen.findByRole("option", { name: "Other" }));
+  expect(state.choose).toHaveBeenCalledWith("o");
+  expect(screen.getByRole("checkbox")).not.toBeChecked();
+  expect(screen.getByRole("button", { name: "Add reviewed case" })).toBeDisabled();
+});
+it("says when the datasets could not be listed and offers a retry", async () => {
+  state.error = new Error("Listing failed");
+  state.target = undefined;
+  mount();
+  await userEvent.click(screen.getByRole("button", { name: "Add as an Improve case" }));
+  expect(screen.getByRole("alert")).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(state.refetch).toHaveBeenCalled();
 });

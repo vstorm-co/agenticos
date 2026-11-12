@@ -309,3 +309,21 @@ async def test_an_improve_case_links_no_source_that_is_gone_or_in_another_organi
         None,
         None,
     )
+
+
+async def test_a_reviewed_case_for_an_account_being_erased_is_refused(db: AsyncSession) -> None:
+    from app.core.exceptions import ConcurrentChangeError
+    from app.schemas.dataset import DatasetCaseContent
+
+    _, _, _, ctx = await seed(db)
+    dataset = await DatasetService(db).create(ctx, DatasetCreate(name="Decisions"))
+
+    with pytest.raises(ConcurrentChangeError):
+        await DatasetService(db).add_reviewed_case(
+            ctx,
+            dataset.id,
+            DatasetCaseContent(input="Overdue", reference_answer="Ask"),
+            asked_by=uuid4(),
+            source_run_id=None,
+            source_conversation_id=None,
+        )

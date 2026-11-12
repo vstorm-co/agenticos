@@ -1039,10 +1039,21 @@ class DatasetService:
         case by. The run and conversation it came from are linked only while they
         still exist in this organization.
 
+        Account deletion takes the user row before the personal-data lock and then
+        what the person owns, so both are held here before the dataset is locked:
+        the other order can deadlock against a deletion of the dataset's owner.
+
         Raises:
             NotFoundError: For a dataset the caller may not edit.
+            ConcurrentChangeError: The person's account was erased meanwhile.
         """
         await self.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
+        await user_repo.hold_key_share(self.db, [asked_by])
+        await hold_subject(self.db, LockScope.PERSONAL_DATA_PER_USER, asked_by)
+        if not await user_repo.existing_ids(self.db, [asked_by]):
+            raise ConcurrentChangeError(
+                message="Your account is being erased, so nothing was added to the dataset."
+            )
         run = (
             None
             if source_run_id is None
