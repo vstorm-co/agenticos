@@ -2820,17 +2820,13 @@ def _answer_only(spec: AgentSpec) -> AgentSpec:
 def _with_channel_service_approval(
     spec: AgentSpec, surface: RunSurface, *, linked_sender: bool = False
 ) -> AgentSpec:
-    """Require approval for channel writes, preserving an operator's stricter policy.
+    """Keep linked members' authored policy; hold every unlinked MCP call.
 
-    Linked senders use web chat's read-only classification. An unlinked room
-    participant needs approval for every MCP or Mirage call; no member vouched
-    for releasing organization data to them. An explicit `all` still includes reads.
-    A tool's own `never` is dropped: it is the author's word, not the server's,
-    and here only the server's `readOnlyHint` lets a tool run unasked (#2884). A
-    tool's own `required` stays. This also applies to delegates and resumed runs
-    through the shared factory.
+    A linked channel sender uses the same approval settings as web chat.
+    Unlinked participants still need approval for all MCP and Mirage calls.
+    The factory applies this to delegates and resumed runs as well.
     """
-    if surface not in _CHANNEL_SURFACES:
+    if surface not in _CHANNEL_SURFACES or linked_sender:
         return spec
     return spec.model_copy(
         update={
@@ -2846,24 +2842,21 @@ def _with_channel_service_approval(
                         },
                     }
                 )
-                if not linked_sender and binding.id == MIRAGE_CAPABILITY_ID
+                if binding.id == MIRAGE_CAPABILITY_ID
                 else binding
                 for binding in spec.capabilities
             ],
-            "mcp_servers": [
-                _held_to_channel_approval(ref, linked_sender=linked_sender)
-                for ref in spec.mcp_servers
-            ],
+            "mcp_servers": [_held_to_channel_approval(ref) for ref in spec.mcp_servers],
         }
     )
 
 
-def _held_to_channel_approval(ref: McpServerRef, *, linked_sender: bool) -> McpServerRef:
+def _held_to_channel_approval(ref: McpServerRef) -> McpServerRef:
     """One MCP binding, held to what a chat app requires.
 
     See :func:`_with_channel_service_approval` for the rule.
     """
-    approval = "all" if not linked_sender or ref.approval == "all" else "writes"
+    approval = "all"
     if isinstance(ref, PlatformMcpServerRef):
         return ref.model_copy(update={"approval": approval})
     asked = {tool: mode for tool, mode in ref.tool_approval.items() if mode == "required"}

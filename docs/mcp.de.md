@@ -1,5 +1,5 @@
 ---
-source_sha: "08cb5e1cecff"
+source_sha: "ba0360b18a65"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -358,6 +358,8 @@ dieses Kontos: Chat, Activity und Dashboard zeigen ihn neben der Aktion, eine
 Slack- oder Telegram-Nachricht fragt „to _send in Gmail_ as _Work_“, und die
 Freigabe-E-Mail nennt ihn nach dem Tool. Ein einzelnes Konto ohne Label hat
 nichts zu unterscheiden, also kommt nichts hinzu.
+
+Der Werkzeugdialog zeigt **nur lesen** bei ausdrücklichem `readOnlyHint: true`, **kann Daten ändern** bei ausdrücklichem false und **nicht angegeben**, wenn die Deklaration fehlt oder ein älterer Test sie nicht gespeichert hat. Die Richtlinie `writes` behandelt fehlende Metadaten vorsichtig; sie beweisen keinen Schreibzugriff. Teste ältere Verbindungen erneut, um die Angaben zu aktualisieren. Diese Klassifizierung ist unabhängig vom Vertrauen in Serverangaben bei isolierten Evals.
 
 ## Authentifizierung { #authentication }
 

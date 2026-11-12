@@ -174,6 +174,8 @@ class McpToolInfo:
     name: str
     description: str
     input_schema: dict[str, Any] | None = None
+    read_only_hint: bool | None = None
+    """The explicit server annotation; None means it made no declaration."""
     read_only: bool = False
     """Whether the server marks the tool `readOnlyHint` - the same signal the
     `writes` approval policy trusts, so the console shows which tools a binding
@@ -338,6 +340,7 @@ async def probe_mcp_server(
                 else None
             ),
             read_only=bool(t.annotations and t.annotations.read_only_hint is True),
+            read_only_hint=t.annotations.read_only_hint if t.annotations else None,
         )
         for t in result.tools
     ]
