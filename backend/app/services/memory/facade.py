@@ -35,7 +35,13 @@ from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent
 from app.db.models.memory import AgentMemoryFile
 from app.db.models.memory_claim import MemoryClaim
-from app.repositories import agent_repo, memory_claim, memory_repo, organization_repo
+from app.repositories import (
+    agent_repo,
+    memory_claim,
+    memory_repo,
+    organization_repo,
+    personal_data_repo,
+)
 from app.schemas.decision_episode import DecisionEpisode, ImproveCaseReview, ImproveDecisionCase
 from app.schemas.memory import (
     MemoryClaimCorrect,
@@ -446,6 +452,9 @@ class MemoryService:
         )
         claims = await memory_claim.delete_for_scope(
             self.db, organization_id=ctx.organization_id, scope_key=owner_key
+        )
+        await personal_data_repo.forget_system_runs_of(
+            self.db, user_id, organization_id=ctx.organization_id
         )
         await record_audit(
             self.db,
