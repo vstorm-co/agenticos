@@ -337,12 +337,15 @@ class TableOperations(Operations):
                 "before restoring this one.",
                 details={"name": table.name},
             ) from None
+        archived_at = table.archived_at
         table = await virtual_table_repo.update_table(
             self.db, table=table, update_data={"archived_at": None}
         )
         from app.services.task_execution import TaskExecution
 
-        await TaskExecution(self.db).restored_table(table.id, ctx.organization_id)
+        await TaskExecution(self.db).restored_table(
+            table.id, ctx.organization_id, archived_at=archived_at
+        )
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
