@@ -23,6 +23,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Upgrading
 
+- **Linked channel senders now honor existing Run freely settings.** If a deployment relied on the channel’s additional confirmation for writes or unannotated MCP tools, set those bindings or tools to Ask first before upgrading. Sender identity, access checks and the platform MCP minimum policy remain enforced.
+
+### Fixed
+
+- Linked channel senders now keep the agent’s MCP approval policy, including per-tool Run freely, just as in web chat. Unlinked senders still need approval. The tool picker distinguishes explicit read-only and possible-write declarations from missing annotations.
+- Channel metadata follows tool results in provider requests, so repeated approval resumptions and parallel tool results no longer violate Anthropic’s tool-result ordering.
+
+### Upgrading
+
 - The skill-usage backfill scans existing tool-call history while holding the agent-runs schema lock. Plan an upgrade window for a large deployment. `0315_merge_skills_and_approval_visibility.py` joins skill versioning with `0314_tool_approval_always_asks.py`; both changes are applied.
 - **Skills are versioned, and an agent's spec says which version it uses.**
   Agent specs move to version 15: each bound skill names the line it follows

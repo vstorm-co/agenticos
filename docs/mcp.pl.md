@@ -1,5 +1,5 @@
 ---
-source_sha: "08cb5e1cecff"
+source_sha: "ba0360b18a65"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -344,6 +344,8 @@ konta: czat, Activity i dashboard pokazują ją obok akcji, wiadomość w Slacku
 Telegramie pyta o zgodę „to _send in Gmail_ as _Work_”, a e-mail z prośbą o
 zatwierdzenie podaje ją po nazwie narzędzia. Jedno konto bez etykiety nie ma od
 czego się odróżniać, więc nic nie jest dodawane.
+
+Okno narzędzi połączenia pokazuje **tylko odczyt** dla jawnego `readOnlyHint: true`, **może zmieniać dane** dla jawnego false oraz **brak deklaracji**, gdy deklaracji nie ma lub starszy test jej nie zapisał. Polityka `writes` traktuje brak metadanych ostrożnie; nie dowodzi on zapisu. Ponownie przetestuj starsze połączenie, aby odświeżyć deklaracje. Klasyfikacja jest niezależna od zaufania do deklaracji serwera w izolowanych ewaluacjach.
 
 ## Uwierzytelnianie { #authentication }
 

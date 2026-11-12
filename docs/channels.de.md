@@ -1,5 +1,5 @@
 ---
-source_sha: "026fa67fb1f0"
+source_sha: "bebefe48d593"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -2487,7 +2487,7 @@ Oberfläche, damit Unterschiede zwischen Konsole und Mattermost sichtbar bleiben
     Teams benötigt das aktualisierte App-Paket im Zielteam oder Chat und die Zustimmung des Besitzers zu `ChannelMessage.Read.Group` und `ChatMessage.Read.Chat`. Das Paket fordert sie nur bei eingeschaltetem Schalter an. Telegram verwendet die Text-Aliase `@all`, `@here`, `@channel` und `@everyone`; diese benachrichtigen nicht die Gruppe. Der Bot muss Gruppennachrichten erhalten; prüfen Sie den Datenschutzmodus in BotFather. Eigene Erwähnungen, Befehle und Antworten werden anhand der tatsächlichen Telegram-Bot-Identität geprüft. Discord zählt `@everyone` und `@here` nur, wenn der Absender sie verwenden darf, also wenn Discord den Raum tatsächlich benachrichtigt.
 
 - **Auch der angeforderte Workspace-Dateiversand benötigt eine Genehmigung.** Die Freigabe von `send_channel_file` stellt das Tool bereit; das Posten der Datei wartet weiterhin auf eine ausdrückliche Bestätigung.
-- **MCP-Lesezugriffe verknüpfter Absender folgen der Genehmigungsrichtlinie der Bindung; Schreibzugriffe benötigen weiterhin eine Genehmigung.** Reine Lesewerkzeuge fragen nicht allein deshalb nach, weil der Lauf in einer Chat-App stattfindet. Werkzeuge ohne `readOnlyHint: true` fragen weiterhin, auch eines, das im Builder für sich ohne Rückfrage laufen darf; eine ausdrückliche `all`-Richtlinie umfasst auch Lesezugriffe. Dies gilt für persönliche, Organisations- und Plattformverbindungen, Delegierte und fortgesetzte Aufrufe. Persönliche Verbindungen gehören weiterhin dem aktuellen Absender, niemals dem Herausgeber oder anderen Teilnehmern.
+- **Verknüpfte Absender verwenden dieselben MCP-Genehmigungseinstellungen wie im Webchat.** Die Richtlinie der Bindung und die Einstellung jedes Werkzeugs gelten, einschließlich Run freely ohne Nur-Lesen-Deklaration. Erforderliche Genehmigungen fragen weiterhin nach. Plattformverbindungen behalten ihre plattformweite Mindestrichtlinie. Dies gilt für persönliche und Organisationsverbindungen, Delegierte und fortgesetzte Aufrufe. Persönliche Verbindungen gehören dem aktuellen Absender; eine Kontoverknüpfung erteilt keine zusätzlichen Rechte. Nicht verknüpfte Teilnehmer müssen weiterhin jeden MCP-Aufruf genehmigen. Kanalmetadaten werden nach den Werkzeugergebnissen gesendet, auch nach wiederholten Genehmigungen.
 
 Kanalnachrichten speichern nur den Text des Absenders. Autorenbezeichnungen werden unmittelbar vor der Modellanfrage aus Kanalidentitäten aufgelöst, außerhalb der Systemanweisungen. Konsole, Kopieren, Anheften und Kurzbefehle erhalten den reinen Text. Gespeicherte Verläufe und pausierte Runs behalten opake Identitätsreferenzen; Manifeste lassen die eingefügten Kanalreferenzteile aus. Die Kontolöschung entfernt dessen Kanalidentitäten, sodass spätere Anfragen die Plattformbezeichnungen der Person nicht mehr auflösen können. Geteilte Nachrichtentexte bleiben erhalten.
 

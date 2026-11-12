@@ -1,5 +1,5 @@
 ---
-source_sha: "08cb5e1cecff"
+source_sha: "ba0360b18a65"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -355,6 +355,8 @@ nombre de esa cuenta: el chat, Activity y el dashboard lo muestran junto a la
 acción, un mensaje de Slack o Telegram pregunta «to _send in Gmail_ as _Work_», y
 el correo de aprobación lo indica tras la herramienta. Una sola cuenta sin
 etiqueta no tiene de qué distinguirse, así que no se añade nada.
+
+El diálogo de herramientas muestra **solo lectura** para `readOnlyHint: true` explícito, **puede cambiar datos** para false explícito y **sin declaración** si falta la anotación o una prueba anterior no la guardó. La política `writes` trata la ausencia de metadatos con cautela; no demuestra que la herramienta escriba. Vuelve a probar conexiones antiguas para actualizar sus declaraciones. Esta clasificación es independiente de confiar en las anotaciones durante evaluaciones aisladas.
 
 ## Autenticación { #authentication }
 

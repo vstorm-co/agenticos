@@ -327,6 +327,8 @@ a Slack or Telegram message asks "to _send in Gmail_ as _Work_", and the
 approval email lists it after the tool. A single unlabelled account has nothing
 to tell apart, so nothing is added.
 
+The connection’s Tools dialog shows **read-only** only for an explicit `readOnlyHint: true`, **may change data** for an explicit false, and **not declared** when the annotation was absent or an older probe did not record it. Missing metadata is treated conservatively by the `writes` policy; it does not prove the tool writes. Re-test an older connection to refresh its declarations. This classification is separate from whether isolated evals trust the server’s hints.
+
 ## Authentication
 
 Three modes, which is the only thing that really varies between servers.

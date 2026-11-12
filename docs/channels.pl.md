@@ -1,5 +1,5 @@
 ---
-source_sha: "026fa67fb1f0"
+source_sha: "bebefe48d593"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -2317,7 +2317,7 @@ więc różnica między konsolą a Mattermost pozostaje widoczna.
     Teams wymaga instalacji lub aktualizacji nowego pakietu aplikacji w danym zespole albo czacie i zgody właściciela na `ChannelMessage.Read.Group` oraz `ChatMessage.Read.Chat`. Pakiet prosi o nie tylko po włączeniu przełącznika. Telegram używa tekstowych aliasów `@all`, `@here`, `@channel` i `@everyone`; nie powiadamiają one grupy. Bot musi otrzymywać wiadomości grupy, więc sprawdź tryb prywatności w BotFather. Wzmianki, komendy i odpowiedzi są porównywane z rzeczywistą tożsamością bota Telegrama. Discord liczy `@everyone` i `@here` tylko wtedy, gdy nadawca ma prawo ich użyć, czyli gdy Discord rzeczywiście powiadamia kanał.
 
 - **Wysyłka pliku z workspace na żądanie również wymaga zatwierdzenia.** Nadanie `send_channel_file` udostępnia narzędzie; przesłanie bajtów do rozmowy nadal czeka na wyraźne potwierdzenie.
-- **Odczyty MCP powiązanego nadawcy podlegają polityce powiązania; zapisy nadal wymagają zatwierdzenia.** Narzędzie tylko do odczytu nie pyta o zgodę wyłącznie dlatego, że run działa w komunikatorze. Narzędzie bez `readOnlyHint: true` nadal pyta, także takie, które Builder pozwala uruchamiać bez pytania, a jawna polityka `all` obejmuje też odczyty. Dotyczy to połączeń osobistych, organizacyjnych i platformowych, delegatów oraz wznowień. Połączenia osobiste należą do bieżącego nadawcy, nigdy wydawcy ani innego uczestnika.
+- **Powiązani nadawcy korzystają z tych samych ustawień akceptacji MCP co w chacie internetowym.** Obowiązuje polityka powiązania i ustawienie każdego narzędzia, także Run freely bez deklaracji tylko do odczytu. Wymagane akceptacje nadal pytają. Połączenia platformy zachowują minimalną politykę platformową. Dotyczy to połączeń osobistych i organizacyjnych, delegatów i wznowień. Połączenie osobiste należy do bieżącego nadawcy; powiązanie konta nie przyznaje dodatkowych uprawnień. Niepowiązani uczestnicy nadal zatwierdzają każde wywołanie MCP. Metadane kanału są wysyłane po wynikach narzędzi, także przy kolejnych wznowieniach po akceptacji.
 
 Wiadomości kanałowe zapisują wyłącznie tekst nadawcy. Etykiety autora są odczytywane z tożsamości kanałowych tuż przed wysłaniem zapytania do modelu, poza instrukcjami systemowymi. Konsola oraz kopiowanie, przypinanie i skróty otrzymują samą treść. Zapisana historia i wstrzymane runy przechowują niejawne odwołania do tożsamości, a manifesty pomijają dopisane części kontekstu kanałowego. Usunięcie konta usuwa jego tożsamości, więc kolejne zapytania nie odczytają etykiet tej osoby; treść wspólnych wiadomości zostaje.
 
