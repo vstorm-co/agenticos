@@ -47,11 +47,14 @@ sandbox-token:
 
 # Where the sandbox service keeps each session's files, mounted at the same path
 # on the host. Created here, world-writable like `/tmp` itself, because a missing
-# bind source is created by the Docker daemon as root:root 755 on Linux - and the
+# bind source is created by the Docker daemon as root:root 755 on Linux, under
+# Docker Desktop's WSL integration as much as with a native engine - and the
 # service, running as uid 10001, then cannot write it, so every sandbox fails to
-# start while the service still reports healthy. Docker Desktop shares the path
-# through its VM and was never affected. An existing directory is only checked:
-# changing the owner of one Docker created takes root.
+# start while the service still reports healthy. An existing directory is only
+# checked: changing the owner of one Docker created takes root. Under WSL, do not
+# delete it while a container mounts it either: Docker Desktop keeps a mount of
+# the old directory, and the next container fails "no such file or directory"
+# until every container using it is stopped or Docker Desktop restarts.
 SANDBOX_WORKSPACE_ROOT ?= /tmp/agenticos-sandbox-workspaces
 
 sandbox-workspace:

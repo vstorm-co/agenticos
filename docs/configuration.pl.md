@@ -1,5 +1,5 @@
 ---
-source_sha: "91788a9f15fe"
+source_sha: "5681630af6ae"
 ---
 
 # Konfiguracja { #configuration }
@@ -1175,7 +1175,7 @@ wewnątrz kontenera usługi zostaje odrzucona z `mounts denied`.
 
 |  | Domyślnie |  |
 | --- | --- | --- |
-| Lokalny dev | `/tmp/agenticos-sandbox-workspaces` | `make dev` tworzy go przed startem stacka z prawem zapisu dla wszystkich. Docker na Linuksie tworzy brakujący katalog jako root, do którego uid 10001 nie może pisać, i wtedy każdy sandbox kończy się `SANDBOX_START_FAILED`; `make dev` zgłasza taki katalog razem z poleceniem `sudo chown 10001`, które to naprawia |
+| Lokalny dev | `/tmp/agenticos-sandbox-workspaces` | `make dev` tworzy go przed startem stacka z prawem zapisu dla wszystkich. Docker na Linuksie, także Docker Desktop pod WSL, tworzy brakujący katalog jako root, do którego uid 10001 nie może pisać, i wtedy każdy sandbox kończy się `SANDBOX_START_FAILED`; `make dev` zgłasza taki katalog razem z poleceniem `sudo chown 10001`, które to naprawia |
 | Pliki na serwerze | `/var/lib/agenticos/sandbox-workspaces` | Musi istnieć i być zapisywalna dla uid 10001 — `sudo mkdir -p <path> && sudo chown 10001:10001 <path>`, raz. Nie `install -d -o 10001`: `install` rozwiązuje właściciela przez bazę passwd i odrzuca uid, którego nie ma żadne konto. Powinna leżeć na pamięci, którą ktoś backupuje |
 
 Reboot zamiata `/tmp` i to jedyny powód, żeby nie kierować tam prawdziwego

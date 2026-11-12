@@ -21,7 +21,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
-- Report why the sandbox host could not start a workflow script's sandbox, as `SANDBOX_START_FAILED` with the service's own reason, instead of saying the host could not be reached. `make dev` now creates the sandbox workspace directory before Docker can create it as root, which on Linux left every sandbox unable to start; an existing directory the service cannot write is reported with the command that fixes it.
+- Report why the sandbox host could not start a workflow script's sandbox, as `SANDBOX_START_FAILED` with the service's own reason, instead of saying the host could not be reached. `make dev` now creates the sandbox workspace directory before Docker can create it as root, which on Linux and under Docker Desktop's WSL integration left every sandbox unable to start; an existing directory the service cannot write is reported with the command that fixes it.
 
 ## [1.70.0] - 2026-11-12
 
