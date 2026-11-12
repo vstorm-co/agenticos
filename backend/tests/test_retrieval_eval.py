@@ -628,16 +628,14 @@ class TestEvaluate:
         assert [r.hit for r in results] == [True, False]
         assert [r.answer_correct for r in results] == [True, False]
 
-    async def test_the_report_names_what_was_missed(self):
-        questions = dataset.Dataset(version=1, items=(_item(),))
-
-        async def retrieve(item: object) -> list[object]:
-            return [_chunk("about/dify.md")]
-
-        async def answer(item: object, retrieved: list[object]) -> str:
-            return "The documentation does not state it."
-
-        results = await scoring.evaluate(questions, retrieve, answer)
+    def test_the_report_names_what_was_missed(self) -> None:
+        results = [
+            scoring.ItemResult(
+                item=_item(),
+                retrieved=(_chunk("about/dify.md"),),
+                answer="The documentation does not state it.",
+            )
+        ]
         report = scoring.render_markdown("top_k=5, query_analysis_mode=off", results)
         exported = scoring.as_json("label", 5, "off", results)
 
@@ -648,13 +646,8 @@ class TestEvaluate:
         assert exported["items"][0]["answer_correct"] is False
         assert exported["items"][0]["queries"] is None
 
-    async def test_the_export_carries_each_item_s_planned_queries(self):
-        questions = dataset.Dataset(version=1, items=(_item(),))
-
-        async def retrieve(item: object) -> list[object]:
-            return [_chunk("directory.md")]
-
-        results = await scoring.evaluate(questions, retrieve)
+    def test_the_export_carries_each_item_s_planned_queries(self) -> None:
+        results = [scoring.ItemResult(item=_item(), retrieved=(_chunk("directory.md"),))]
         exported = scoring.as_json(
             "label", 5, "hyde", results, queries={"saml": ["A passage about SAML."]}
         )
