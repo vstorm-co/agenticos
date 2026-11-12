@@ -41,6 +41,7 @@ from sqlalchemy import (
     LargeBinary,
     String,
     UniqueConstraint,
+    func,
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -168,6 +169,12 @@ class VirtualTableRecord(Base, TimestampMixin):
     schema_version: Mapped[int] = mapped_column(Integer, nullable=False)
     values: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    # When the write ran, not when its transaction began, as `created_at` is written: a
+    # batch import compares it with the time it began, and an edit that waited on a lock
+    # until after that moment must read as later.
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), onupdate=func.clock_timestamp(), nullable=True
+    )
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )

@@ -889,19 +889,27 @@ class RecordOperations(Operations):
         """`create_records` once per `operation_key`, and whether this call replayed it.
 
         A batch sent again under its key answers what the first one did and writes
-        nothing; the same key with another batch is `IDEMPOTENCY_KEY_REUSED`.
+        nothing; the same key with another batch is `IDEMPOTENCY_KEY_REUSED`. A batch
+        whose rows and stored outcome would take the organization past its table
+        storage writes nothing and is refused with `QUOTA_EXCEEDED`.
         """
         operation_key = _operation_key(operation_key)
-        await self._load_table(ctx, table_id, Perm.TABLES_EDIT)
-        return await run_once(
-            self.db,
-            ctx,
-            operation="record.batch",
-            operation_key=operation_key,
-            payload={"table_id": table_id, **data.model_dump(mode="json")},
-            outcome_type=RecordBatchResult,
-            action=lambda: self.create_records(ctx, table_id, data),
-        )
+        table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT)
+        async with self.db.begin_nested():
+            result, replayed = await run_once(
+                self.db,
+                ctx,
+                operation="record.batch",
+                operation_key=operation_key,
+                payload={"table_id": table_id, **data.model_dump(mode="json")},
+                outcome_type=RecordBatchResult,
+                action=lambda: self.create_records(ctx, table_id, data),
+            )
+            # The stored outcome counts toward storage too, and a batch whose rows all
+            # failed wrote nothing else that was checked.
+            if not replayed:
+                await quotas.enforce_storage(self.db, ctx, table)
+        return result, replayed
 
     async def _create_one(
         self,

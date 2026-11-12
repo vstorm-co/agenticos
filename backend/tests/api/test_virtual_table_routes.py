@@ -306,6 +306,17 @@ async def test_a_batch_hands_the_service_at_most_two_hundred_records(client, ser
     assert service.write_batch.await_args.kwargs["operation_key"] is None
 
 
+async def test_a_batch_naming_a_time_without_a_zone_is_refused(client, service):
+    async with client() as http:
+        naive = await http.post(
+            _records("/batch"),
+            json={"records": [{"values": {}}], "as_of": "2026-11-12T09:00:00"},
+        )
+
+    assert naive.status_code == 422
+    service.write_batch.assert_not_awaited()
+
+
 async def test_a_batch_sent_again_under_its_key_says_it_was_replayed(client, service):
     service.write_batch.return_value = (
         RecordBatchResult(created=1, failed=[], as_of=_AS_OF),

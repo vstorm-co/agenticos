@@ -216,6 +216,73 @@ async def test_a_batch_sent_again_under_its_key_writes_nothing_more(db):
         )
 
 
+async def test_an_edit_that_waited_until_after_the_import_began_is_not_overwritten(engine):
+    """An edit is stamped when it is written, not when its transaction began: one that
+    started before the import and landed after it began must still read as later."""
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as db:
+        service, ctx, table = await _setup(db)
+        quantity = cid(table, "Quantity")
+        acme = await service.create_record(
+            ctx, table.id, RecordCreate(external_id="acme", values={quantity: 1})
+        )
+        await db.commit()
+
+    async with factory() as editing, factory() as importing:
+        await editing.execute(select(1))
+        first = await VirtualTableService(importing).create_records(
+            ctx,
+            table.id,
+            RecordBatchCreate(update_existing=True, records=[RecordCreate(values={})]),
+        )
+        await importing.commit()
+        await VirtualTableService(editing).update_record(
+            ctx,
+            table.id,
+            acme.record.id,
+            RecordUpdate(expected_revision=acme.record.revision, values={quantity: 7}),
+        )
+        await editing.commit()
+
+        later = await VirtualTableService(importing).create_records(
+            ctx,
+            table.id,
+            RecordBatchCreate(
+                update_existing=True,
+                as_of=first.as_of,
+                records=[RecordCreate(external_id="acme", values={quantity: 2})],
+            ),
+        )
+        await importing.commit()
+
+    assert [(failure.index, failure.code) for failure in later.failed] == [(0, "REVISION_CONFLICT")]
+
+
+@pytest.mark.security
+async def test_a_keyed_batch_whose_outcome_passes_the_storage_limit_writes_nothing(db, monkeypatch):
+    from app.core.config import settings
+    from app.db.models.virtual_table import VirtualTableReceipt
+    from app.repositories import virtual_table_repo
+    from app.services.virtual_tables.exceptions import QuotaExceededError
+
+    service, ctx, table = await _setup(db)
+    # The refusal audits in its own transaction, which waits on the audit chain this one holds.
+    await db.commit()
+    used = await virtual_table_repo.storage_bytes(db, organization_id=ctx.organization_id)
+    monkeypatch.setattr(settings, "TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION", used)
+    quantity = cid(table, "Quantity")
+    refused_rows = RecordBatchCreate(
+        records=[RecordCreate(values={quantity: "not a number"}) for _ in range(5)]
+    )
+
+    with pytest.raises(QuotaExceededError):
+        await service.write_batch(ctx, table.id, refused_rows, operation_key="flood-1")
+
+    assert await db.scalar(select(func.count()).select_from(VirtualTableReceipt)) == 0
+
+
 async def test_a_batch_lists_in_the_order_it_was_written(db):
     """One transaction wrote them all: `now()` gave every record one `created_at`
     and the id tiebreak shuffled an imported file."""

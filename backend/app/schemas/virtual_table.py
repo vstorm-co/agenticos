@@ -22,6 +22,7 @@ from uuid import UUID
 
 from pydantic import (
     AfterValidator,
+    AwareDatetime,
     BaseModel,
     ConfigDict,
     Field,
@@ -362,7 +363,7 @@ class RecordBatchCreate(_Request):
         description="Update a record whose external id the table already holds with the "
         "values given, rather than refusing it as taken - importing a file again.",
     )
-    as_of: datetime | None = Field(
+    as_of: AwareDatetime | None = Field(
         default=None,
         description="When the import began: the `as_of` its first batch answered. An "
         "`update_existing` row leaves a record changed after it as it is and reports it as "
