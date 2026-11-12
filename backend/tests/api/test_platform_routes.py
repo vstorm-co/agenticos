@@ -1383,6 +1383,8 @@ class TestReadingWhatARunIsParkedOn:
                 "account": None,
                 "can_remember": False,
                 "subagent_name": None,
+                "content_hidden": False,
+                "always_asks": False,
             },
             {
                 "id": str(shared_id),
@@ -1395,6 +1397,8 @@ class TestReadingWhatARunIsParkedOn:
                 "account": None,
                 "can_remember": False,
                 "subagent_name": None,
+                "content_hidden": False,
+                "always_asks": False,
             },
         ]
 

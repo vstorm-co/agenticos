@@ -2472,6 +2472,7 @@ async def create_approval(
     subagent_name: str | None = None,
     subagent_agent_id: UUID | None = None,
     standing_consent_by: UUID | None = None,
+    always_asks: bool = False,
 ) -> ToolApproval:
     """Write one approval row: pending, or already approved by standing consent.
 
@@ -2493,6 +2494,7 @@ async def create_approval(
         account=account,
         subagent_name=subagent_name,
         subagent_agent_id=subagent_agent_id,
+        always_asks=always_asks,
         status=ApprovalStatus.APPROVED.value if standing else ApprovalStatus.PENDING.value,
         decided_by_user_id=standing_consent_by,
         decided_at=datetime.now(UTC) if standing else None,
@@ -2617,6 +2619,10 @@ class ApprovalRow:
     continues_in_chat: bool = False
     """Set by the service, which knows who is asking."""
     asked_in_chat: ChatAsker | None = None
+    content_hidden: bool = False
+    """Set by the service when this reader may not see what the call quotes."""
+    always_asks: bool = False
+    """Only a person's answer to this call could let it run, so nobody may approve it unread."""
 
 
 @dataclass(frozen=True)
@@ -2754,6 +2760,7 @@ async def list_approvals(
             decided_via=approval.decided_via,
             note=approval.note,
             created_at=approval.created_at,
+            always_asks=approval.always_asks,
             parked_in_chat=bool(parked_in_chat),
             asked_in_chat=(
                 ChatAsker(
@@ -3177,6 +3184,7 @@ async def remembered_tool_approval(
             ToolApproval.tool_id == tool_name,
             ToolApproval.account.is_not_distinct_from(account),
             ToolApproval.subagent_name.is_(None),
+            ToolApproval.always_asks.is_(False),
             ToolApproval.status == ApprovalStatus.APPROVED.value,
             ToolApproval.decided_via == ApprovalDecidedVia.CLICK.value,
             ToolApproval.decided_by_user_id == user_id,

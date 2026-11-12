@@ -1,5 +1,5 @@
 ---
-source_sha: "0b7c110d5775"
+source_sha: "7dcd344b79b9"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -513,6 +513,8 @@ Una escritura automática se queda en el scope de la conversación de la que vin
 un chat de grupo nunca escribe un perfil. Solo `share_memory` amplía un claim, y
 solo por orden de una persona que pueda: `projects:edit` en el proyecto, o
 `context:edit` para toda la organización. Siempre espera a que una persona apruebe exactamente ese claim y esa audiencia, sean cuales sean los ajustes de aprobación del agent, así que un texto leído por el agent no puede convencerlo de compartir.
+
+Tampoco lo responden **Approve everything** ni un **Permitir siempre** recordado, y su tarjeta no ofrece ninguna de las dos opciones. La tarjeta muestra el hecho y su audiencia; en la cola de aprobaciones el hecho solo lo ve quien puede ver el run del que viene.
 
 La copia nombra el claim del que viene y
 el original conserva su audiencia. Un embed, un run con clave de API y un run

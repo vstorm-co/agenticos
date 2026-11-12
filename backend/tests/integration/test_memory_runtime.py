@@ -533,3 +533,38 @@ async def test_a_project_chat_recalls_the_projects_claims_and_none_of_the_person
 
     assert "The launch slips to Friday" in found
     assert "sick leave" not in found
+
+
+async def test_an_approval_card_reads_only_a_live_claim_the_run_may_read(db: AsyncSession) -> None:
+    user, org, agent, *_ = await _world(db)
+    mine = ClaimScope(person_owner_key(user.id), agent.id)
+    theirs = ClaimScope(person_owner_key(uuid.uuid4()), agent.id)
+    saved = await _remember(org, mine, "The Acme renewal is due in March", user, subject="acme")
+    foreign = await _remember(org, theirs, "Acme is leaving", user, subject="acme")
+    assert saved is not None and foreign is not None
+
+    read = await runtime.claim_for_approval(
+        organization_id=org.id, claim_id=saved[0].id, scopes=[mine]
+    )
+    assert read is not None and read.statement == "The Acme renewal is due in March"
+    assert (
+        await runtime.claim_for_approval(
+            organization_id=org.id, claim_id=foreign[0].id, scopes=[mine]
+        )
+        is None
+    )
+
+    await runtime.correct(
+        organization_id=org.id,
+        claim_id=saved[0].id,
+        scopes=[mine],
+        statement="The Acme renewal is due in April",
+        author_user_id=user.id,
+        effective_from=None,
+    )
+    assert (
+        await runtime.claim_for_approval(
+            organization_id=org.id, claim_id=saved[0].id, scopes=[mine]
+        )
+        is None
+    )

@@ -1624,3 +1624,57 @@ def test_shared_attribution_defaults_and_opt_out_survive_upgrade() -> None:
         assert check.returncode == 0, check.stderr
     finally:
         engine.dispose()
+
+
+def test_a_share_memory_call_still_waiting_is_marked_as_always_asking() -> None:
+    """A call parked before the column existed never expires, so it is marked on the way in."""
+    for action, revision in (("upgrade", "head"), ("downgrade", "0306_shared_page_attribution")):
+        result = _alembic(action, revision)
+        assert result.returncode == 0, result.stderr
+    rows = {
+        "waiting share": ("share_memory", "pending"),
+        "decided share": ("share_memory", "approved"),
+        "waiting email": ("send_email", "pending"),
+    }
+    ids = {name: str(uuid4()) for name in rows}
+    org, agent, run = uuid4(), uuid4(), uuid4()
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    try:
+        with engine.begin() as connection:
+            # Replica mode skips the foreign-key triggers, so no organization,
+            # agent or run has to exist for the approvals to name.
+            connection.execute(text("SET LOCAL session_replication_role = replica"))
+            for name, (tool, status) in rows.items():
+                connection.execute(
+                    text(
+                        "INSERT INTO tool_approvals (id, organization_id, run_id, agent_id, "
+                        "tool_id, capability_tool_id, status) "
+                        "VALUES (:id, :org, :run, :agent, :tool, :tool, :status)"
+                    ),
+                    {
+                        "id": ids[name],
+                        "org": org,
+                        "run": run,
+                        "agent": agent,
+                        "tool": tool,
+                        "status": status,
+                    },
+                )
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+        with engine.connect() as connection:
+            marked = {
+                name: connection.execute(
+                    text("SELECT always_asks FROM tool_approvals WHERE id = :id"),
+                    {"id": ids[name]},
+                ).scalar_one()
+                for name in rows
+            }
+        assert marked == {"waiting share": True, "decided share": False, "waiting email": False}
+    finally:
+        with engine.begin() as connection:
+            connection.execute(
+                text("DELETE FROM tool_approvals WHERE id::text = ANY(:ids)"),
+                {"ids": list(ids.values())},
+            )
+        engine.dispose()

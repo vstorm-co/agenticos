@@ -16,10 +16,13 @@ import type { ToolApproval } from "@/types/runs";
 /**
  * What the call will do in names, resolved when it was parked as the person the
  * run acts for; else, for a call still waiting, the one telling argument, as a
- * call nobody described always read. A decided row keeps its arguments folded.
+ * call nobody described always read. A decided row keeps its arguments folded. A
+ * reader who may not see the run is told why the content is missing.
  */
 function useCallLine(approval: ToolApproval, withArguments: boolean): string | null {
+  const t = useTranslations("pages.runs");
   const tTools = useTranslations("chat.tools");
+  if (approval.content_hidden) return t("contentHidden");
   return (
     approvalSummary(approval.capability_tool_id, approval.context, tTools) ??
     (withArguments ? callSummary(approval.tool_args) : null)
@@ -78,6 +81,7 @@ export function PendingApproval({
   const ago = approval.created_at ? timeAgo(approval.created_at, tTime, locale) : null;
   const summary = useCallLine(approval, true);
   const askedLine = useAskedLine(approval);
+  const mayApprove = !(approval.always_asks && approval.content_hidden);
 
   return (
     <li>
@@ -87,6 +91,7 @@ export function PendingApproval({
         approveLabel={t("approve")}
         rejectLabel={t("reject")}
         disabled={deciding}
+        rejectOnly={!mayApprove}
         className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-start"
       >
         <div className="flex min-w-0 flex-1 gap-3">
@@ -126,10 +131,14 @@ export function PendingApproval({
           </div>
         </div>
         <div className="flex shrink-0 gap-2 sm:flex-col">
-          <Button size="sm" disabled={deciding} onClick={() => onDecide(true)}>
-            <CheckCircle2 className="h-4 w-4" aria-hidden />
-            {t("approve")}
-          </Button>
+          {mayApprove ? (
+            <Button size="sm" disabled={deciding} onClick={() => onDecide(true)}>
+              <CheckCircle2 className="h-4 w-4" aria-hidden />
+              {t("approve")}
+            </Button>
+          ) : (
+            <p className="text-muted-foreground max-w-48 text-xs">{t("approveNeedsTheRun")}</p>
+          )}
           <Button size="sm" variant="outline" disabled={deciding} onClick={() => onDecide(false)}>
             <XCircle className="h-4 w-4" aria-hidden />
             {t("reject")}

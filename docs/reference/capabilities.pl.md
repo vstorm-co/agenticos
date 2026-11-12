@@ -1,5 +1,5 @@
 ---
-source_sha: "0b7c110d5775"
+source_sha: "7dcd344b79b9"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -499,6 +499,8 @@ Zapis automatyczny zostaje w zakresie rozmowy, z której pochodzi, a czat grupow
 nigdy nie zapisuje profilu. Tylko `share_memory` poszerza claim, i to tylko na
 polecenie osoby, która może: `projects:edit` w projekcie albo `context:edit` dla
 całej organizacji. Zawsze czeka, aż osoba zatwierdzi dokładnie ten claim i odbiorców, niezależnie od ustawień zatwierdzeń agenta, więc tekst przeczytany przez agenta nie może go skłonić do udostępnienia.
+
+Nie odpowiada na nie też **Approve everything** ani zapamiętane **Zawsze zezwalaj na ten tool dla tego agenta**, a jego karta nie oferuje żadnej z tych opcji. Karta pokazuje fakt i jego odbiorców; w kolejce akceptacji fakt widzi tylko ktoś, kto może zobaczyć run, z którego pochodzi.
 
 Kopia wskazuje claim, z którego powstała, a oryginał zachowuje
 swoich odbiorców. Embed, run z kluczem API i run z harmonogramu nie czytają
