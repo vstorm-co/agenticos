@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.71.0] - 2026-11-12
+
 ### Changed
 
 - **Workflow step search is grouped.** Searching the step picker lists matching categories first, then built-in steps, then actions from connected apps, each under its own heading. A matching category opens like it does when browsing.
@@ -21504,7 +21506,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.70.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.71.0...HEAD
+[1.71.0]: https://github.com/vstorm-co/agenticos/compare/v1.70.0...v1.71.0
 [1.70.0]: https://github.com/vstorm-co/agenticos/compare/v1.69.0...v1.70.0
 [1.69.0]: https://github.com/vstorm-co/agenticos/compare/v1.68.0...v1.69.0
 [1.68.0]: https://github.com/vstorm-co/agenticos/compare/v1.67.0...v1.68.0
