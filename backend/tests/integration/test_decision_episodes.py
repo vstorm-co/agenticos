@@ -1,18 +1,21 @@
 """Decision evidence stays scoped, append-only and explicitly reviewed for Improve."""
 
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
 from pydantic import ValidationError
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
 from app.core.memory_keys import person_owner_key, room_owner_key
 from app.core.permissions import AuthContext
 from app.db.models.agent import Agent
 from app.repositories.memory_claim import ClaimScope
+from app.schemas.dataset import DatasetCreate
 from app.schemas.decision_episode import DecisionEpisode, ImproveCaseReview
 from app.schemas.memory import MemoryClaimCorrect
+from app.services.dataset import DatasetService
 from app.services.memory import MemoryService, claims
 from tests.integration.workflow_run_support import seed_member
 
@@ -76,14 +79,20 @@ async def test_episode_retries_are_idempotent_but_outcomes_and_corrections_keep_
         await service.improve_case(
             ctx,
             first.claim.id,
-            ImproveCaseReview(confirmed=True, input="Reviewed task", reference_answer="Escalate"),
+            ImproveCaseReview(
+                confirmed=True,
+                dataset_id=uuid4(),
+                input="Reviewed task",
+                reference_answer="Escalate",
+            ),
         )
 
 
-async def test_improve_exports_only_human_reviewed_case_fields_and_refuses_foreign_claims(
+async def test_improve_adds_only_human_reviewed_case_fields_and_refuses_foreign_claims(
     db: AsyncSession,
 ):
     user, org, agent, ctx = await seed(db)
+    dataset = await DatasetService(db).create(ctx, DatasetCreate(name="Decisions"))
     result = await claims.remember(
         db,
         organization_id=org.id,
@@ -93,14 +102,20 @@ async def test_improve_exports_only_human_reviewed_case_fields_and_refuses_forei
         episode=episode(),
     )
     review = ImproveCaseReview(
-        confirmed=True, input="Reviewed problem", reference_answer="Reviewed expected action"
+        confirmed=True,
+        dataset_id=dataset.id,
+        input="Reviewed problem",
+        reference_answer="Reviewed expected action",
     )
     service = MemoryService(db)
     case = await service.improve_case(ctx, result.claim.id, review)
     assert case.input == review.input and case.reference_answer == review.reference_answer
-    # #2172 dataset_files.COLUMNS and DatasetCaseContent accept this flat JSONL subset.
-    assert set(case.model_dump()) == {"input", "reference_answer", "tags", "note"}
+    assert case.tags == ["decision-episode"]
     assert episode().situation not in case.model_dump_json()
+    with pytest.raises(NotFoundError):
+        await service.improve_case(
+            ctx, result.claim.id, review.model_copy(update={"dataset_id": uuid4()})
+        )
     other, other_org = await seed_member(db)
     with pytest.raises(NotFoundError):
         await service.improve_case(
@@ -194,3 +209,156 @@ async def test_personal_claim_export_counts_non_episode_text_before_loading(db: 
     )
     await db.flush()
     assert await decision_episode_export_size(db, user.id) >= 12000
+
+
+async def test_an_improve_case_is_anonymised_when_its_person_is_erased(db: AsyncSession) -> None:
+    from app.db.models.agent_run import AgentRun
+    from app.db.models.conversation import Conversation
+    from app.db.models.dataset import DatasetCase
+    from app.services.personal_data import ANONYMISED_CASE_INPUT, PersonalDataService
+
+    user, org, agent, ctx = await seed(db)
+    curator, _ = await seed_member(db)
+    from app.db.models.organization import OrganizationMember
+
+    db.add(OrganizationMember(organization_id=org.id, user_id=curator.id, role="owner"))
+    chat = Conversation(organization_id=org.id, user_id=user.id, title="Delivery")
+    db.add(chat)
+    await db.flush()
+    run = AgentRun(
+        organization_id=org.id,
+        agent_id=agent.id,
+        user_id=user.id,
+        conversation_id=chat.id,
+        started_at=datetime.now(UTC),
+    )
+    db.add(run)
+    await db.flush()
+    curator_ctx = AuthContext(user_id=curator.id, organization_id=org.id, role="owner")
+    dataset = await DatasetService(db).create(curator_ctx, DatasetCreate(name="Decisions"))
+    result = await claims.remember(
+        db,
+        organization_id=org.id,
+        scope=ClaimScope(person_owner_key(user.id), agent.id),
+        statement="Ask the owner",
+        kind="decision",
+        conversation_id=chat.id,
+        run_id=run.id,
+        episode=episode(),
+    )
+    added = await MemoryService(db).improve_case(
+        ctx,
+        result.claim.id,
+        ImproveCaseReview(
+            confirmed=True,
+            dataset_id=dataset.id,
+            input="Ada's delivery from Acme is overdue",
+            reference_answer="Ask the owner",
+        ),
+    )
+    case = await db.get(DatasetCase, added.id)
+    assert case is not None
+    assert (case.asked_by_user_id, case.source_run_id, case.source_conversation_id) == (
+        user.id,
+        run.id,
+        chat.id,
+    )
+
+    await PersonalDataService(db).purge(user.id)
+
+    await db.refresh(case)
+    assert case.input == ANONYMISED_CASE_INPUT
+    assert case.anonymised_at is not None
+
+
+async def test_an_improve_case_links_no_source_that_is_gone_or_in_another_organization(
+    db: AsyncSession,
+) -> None:
+    from app.db.models.conversation import Conversation
+    from app.db.models.dataset import DatasetCase
+
+    user, org, agent, ctx = await seed(db)
+    other, other_org = await seed_member(db)
+    elsewhere = Conversation(organization_id=other_org.id, user_id=other.id, title="Theirs")
+    db.add(elsewhere)
+    await db.flush()
+    dataset = await DatasetService(db).create(ctx, DatasetCreate(name="Decisions"))
+    result = await claims.remember(
+        db,
+        organization_id=org.id,
+        scope=ClaimScope(person_owner_key(user.id), agent.id),
+        statement="Ask the owner",
+        kind="decision",
+        conversation_id=elsewhere.id,
+        run_id=uuid4(),
+        episode=episode(),
+    )
+
+    added = await MemoryService(db).improve_case(
+        ctx,
+        result.claim.id,
+        ImproveCaseReview(
+            confirmed=True, dataset_id=dataset.id, input="Overdue", reference_answer="Ask"
+        ),
+    )
+
+    case = await db.get(DatasetCase, added.id)
+    assert case is not None
+    assert (case.asked_by_user_id, case.source_run_id, case.source_conversation_id) == (
+        user.id,
+        None,
+        None,
+    )
+
+
+async def test_a_reviewed_case_for_an_account_being_erased_is_refused(db: AsyncSession) -> None:
+    from app.core.exceptions import ConcurrentChangeError
+    from app.schemas.dataset import DatasetCaseContent
+
+    _, _, _, ctx = await seed(db)
+    dataset = await DatasetService(db).create(ctx, DatasetCreate(name="Decisions"))
+
+    with pytest.raises(ConcurrentChangeError):
+        await DatasetService(db).add_reviewed_case(
+            ctx,
+            dataset.id,
+            DatasetCaseContent(input="Overdue", reference_answer="Ask"),
+            asked_by=uuid4(),
+            source_run_id=None,
+            source_conversation_id=None,
+        )
+
+
+async def test_the_source_of_a_reviewed_case_cannot_be_deleted_before_it_is_linked(
+    db: AsyncSession, engine: AsyncEngine
+) -> None:
+    from sqlalchemy import select
+    from sqlalchemy.exc import DBAPIError
+
+    from app.db.models.conversation import Conversation
+    from app.schemas.dataset import DatasetCaseContent
+
+    user, org, _, ctx = await seed(db)
+    chat = Conversation(organization_id=org.id, user_id=user.id, title="Delivery")
+    db.add(chat)
+    await db.flush()
+    dataset = await DatasetService(db).create(ctx, DatasetCreate(name="Decisions"))
+    # Committed, so the other session can see the row it tries to take.
+    await db.commit()
+
+    await DatasetService(db).add_reviewed_case(
+        ctx,
+        dataset.id,
+        DatasetCaseContent(input="Overdue", reference_answer="Ask"),
+        asked_by=user.id,
+        source_run_id=None,
+        source_conversation_id=chat.id,
+    )
+
+    async with AsyncSession(engine) as other:
+        with pytest.raises(DBAPIError, match="could not obtain lock"):
+            await other.execute(
+                select(Conversation.id)
+                .where(Conversation.id == chat.id)
+                .with_for_update(nowait=True)
+            )

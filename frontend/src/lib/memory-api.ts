@@ -8,6 +8,7 @@
  * Owner is not the party a subject-access request reaches (#1594).
  */
 
+import type { DatasetCase } from "@/types/datasets";
 import { apiClient } from "./api-client";
 
 export interface MemoryNote {
@@ -77,20 +78,15 @@ export interface DecisionEpisode {
   correction: string | null;
 }
 
-export interface ImproveDecisionCase {
-  input: string;
-  reference_answer: string;
-  tags: string[];
-  note: string;
-}
-
 export async function reviewDecisionCase(
   id: string,
+  datasetId: string,
   input: string,
   referenceAnswer: string,
-): Promise<ImproveDecisionCase> {
-  return apiClient.post<ImproveDecisionCase>(`${ROOT}/claims/mine/${id}/improve-case`, {
+): Promise<DatasetCase> {
+  return apiClient.post<DatasetCase>(`${ROOT}/claims/mine/${id}/improve-case`, {
     confirmed: true,
+    dataset_id: datasetId,
     input,
     reference_answer: referenceAnswer,
   });
