@@ -2551,7 +2551,8 @@
     "details": "Details",
     "resourceActions": "More actions for {name}",
     "workspaceExpand": "Full screen",
-    "workspaceCollapse": "Exit full screen"
+    "workspaceCollapse": "Exit full screen",
+    "copyFailed": "Copy failed"
   },
   "dashboard": {
     "actions": {
@@ -12127,7 +12128,17 @@
     "couldNotLoad": "Could not load your API keys",
     "emptyTitle": "No API keys yet",
     "emptyWhy": "Create one to call the API from a script, Postman or Claude Code.",
-    "personalConsentWhy": "Personal consent is excluded from presets. To let this key or app approve routines and watches that use your personal connections and data, select personal:consent under Custom."
+    "personalConsentWhy": "Personal consent is excluded from presets. To let this key or app approve routines and watches that use your personal connections and data, select personal:consent under Custom.",
+    "search": "Search API keys…",
+    "noMatches": "No matching API keys",
+    "searchHint": "Try a key name, prefix or the email of its issuer.",
+    "clearSearch": "Clear search",
+    "keyCount": "{count, plural, =1 {1 key} other {# keys}}",
+    "permissionSearch": "Find a permission",
+    "permissionPlaceholder": "Search permissions…",
+    "noPermissions": "No permissions match this search.",
+    "permissionDetails": "{count, plural, =1 {View 1 permission} other {View # permissions}}",
+    "couldNotLoadScopes": "Could not load available permissions"
   },
   "mcpOauth": {
     "title": "{client} wants to act as you",
@@ -13314,7 +13325,7 @@
   },
   "apiUsage": {
     "title": "Use the API",
-    "why": "Everything an API key can do, over plain HTTP: run agents, read runs and what they cost, fill and search knowledge bases, manage members. Create a key below, then call the base URL.",
+    "why": "Use an API key to run agents, read runs, search knowledge bases and manage resources over HTTP. Copy the base URL and send the key as a bearer token.",
     "baseUrl": "Base URL",
     "auth": "Send the key in the <code>Authorization: Bearer aos_…</code> header.",
     "reference": "API reference: every endpoint",

@@ -12430,6 +12430,7 @@
     {
       "path": "frontend/src/components/settings/api-keys-manager.tsx",
       "imports": [
+        2171,
         1204,
         1239,
         1375,
@@ -12556,7 +12557,9 @@
     },
     {
       "path": "frontend/src/components/settings/copy-code.tsx",
-      "imports": []
+      "imports": [
+        1621
+      ]
     },
     {
       "path": "frontend/src/components/settings/create-api-key-dialog.tsx",
@@ -13882,6 +13885,7 @@
     {
       "path": "frontend/src/components/triggers/secret-reveal-field.tsx",
       "imports": [
+        1621,
         1375
       ]
     },
@@ -20580,6 +20584,14 @@
         2134,
         2161
       ]
+    },
+    {
+      "path": "frontend/src/components/settings/api-key-card.tsx",
+      "imports": [
+        1375,
+        2021,
+        2124
+      ]
     }
   ],
   "routes": [
@@ -22686,7 +22698,8 @@
         1214,
         1215,
         1216,
-        1217
+        1217,
+        2171
       ]
     },
     {

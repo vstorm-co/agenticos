@@ -642,3 +642,60 @@ profiles and unrelated resources are retained.
 | Department setup, touch phone 320×740 | [PNG](comparisons/department-create-phone-before.png) | [PNG](comparisons/department-create-phone-after.png) |
 | Group members, touch phone 320×740 | [PNG](comparisons/department-members-phone-before.png) | [PNG](comparisons/department-members-phone-after.png) |
 | Sharing resources, touch phone 320×740 | [PNG](comparisons/department-resources-phone-before.png) | [PNG](comparisons/department-resources-phone-after.png) |
+
+
+## API key setup and credential lifecycle — 2026-11-12
+
+The API settings page puts credentials before the connection guide. Active keys
+appear first. Desktop rows wrap long names; phone cards retain the full name,
+status, scope count, issuer (where authorized), expiry and last use. Search
+matches names, prefixes and issuers, with pagination and unmatched-search reset.
+
+Creation submits by keyboard as well as by its action button; Enter in the
+permission filter does not issue a credential. It has a scrolling body and fixed
+footer, compact preset permission details
+and a searchable Custom picker. Touch checkbox labels are at least 44px high.
+Filtering does not clear selections or widen scopes. Pending creation blocks
+fields, selects, checkboxes and dismissal; refusal retains the exact draft. Close
+clears both local reveal state and mutation result. A failed scope-catalog read
+offers Retry instead of silently removing creation. Refused revocation remains
+open for retry without an unhandled mutation rejection.
+
+The shared picker also serves MCP OAuth consent, whose organization and scope
+controls now freeze during approval or denial. A focused component test checks
+that state and retained choices; no external MCP client was authorized. Secret
+and code copy controls use the existing clipboard hook, report denied copies
+and allow retry without discarding the value or claiming success.
+
+31 focused tests in seven files pass. The pending/refusal regression fails on the
+previous create dialog with an enabled Name field, then passes after restoration.
+Two Chromium journeys at 1440×1000 and touch 320×568 pass: copy the displayed API
+base URL, create with searched Custom permissions and expiry, hold a 403 and
+retry, copy the actual one-time value to the browser clipboard, and use it for a
+real allowed agent read and a denied knowledge read. Cancelled revocation leaves
+it active; refused revocation retains the dialog; retry makes subsequent bearer
+reads return 401. Re-entry clears the creation form and reload preserves Revoked.
+The create action stays within the short viewport and the page does not overflow.
+
+TypeScript, focused ESLint and i18n checks pass. Strict MkDocs builds all four
+locales; translations, paragraphs and the generated Architect guide are current.
+Full CI, coverage and cross-browser results remain separate evidence. The local
+frontend now advertises the API and WebSocket on its actual port, 8100, through
+runtime environment variables; no deployment defaults are changed.
+
+Six equal-viewport pairs use three real demo records, including a revoked key.
+They show no complete credentials. The previous committed UI is captured with
+the same records and runtime, then the working files are restored byte for byte.
+Flow credentials are revoked in test cleanup. The demo credentials are revoked
+and only this pass's known fixture IDs are deleted from the local database after
+capture, since the product intentionally retains revoked history. No paid model
+call or external integration is triggered.
+
+| Evidence | Before | After |
+| --- | --- | --- |
+| API key settings, desktop 1440×1000 | [PNG](comparisons/api-keys-desktop-before.png) | [PNG](comparisons/api-keys-desktop-after.png) |
+| API key settings, touch phone 320×740 | [PNG](comparisons/api-keys-phone-before.png) | [PNG](comparisons/api-keys-phone-after.png) |
+| Create key, desktop 1440×1000 | [PNG](comparisons/api-key-create-desktop-before.png) | [PNG](comparisons/api-key-create-desktop-after.png) |
+| Create key, touch phone 320×740 | [PNG](comparisons/api-key-create-phone-before.png) | [PNG](comparisons/api-key-create-phone-after.png) |
+| Custom permissions, desktop 1440×1000 | [PNG](comparisons/api-key-custom-desktop-before.png) | [PNG](comparisons/api-key-custom-desktop-after.png) |
+| Custom permissions, touch phone 320×740 | [PNG](comparisons/api-key-custom-phone-before.png) | [PNG](comparisons/api-key-custom-phone-after.png) |

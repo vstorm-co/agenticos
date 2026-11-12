@@ -1,6 +1,6 @@
 # Console UI/UX inventory — 2026-11-11
 
-99 page routes; 1192 component modules in 57 families.
+99 page routes; 1193 component modules in 57 families.
 
 Generated from local TypeScript imports and re-exports. Layout dependencies include shared providers and barrel exports, so reachability is deliberately broader than actual rendering. Runtime status belongs in the audit report; source mapping does not mean a screen was tested. Dynamic imports require runtime verification.
 
@@ -81,7 +81,7 @@ Generated from local TypeScript imports and re-exports. Layout dependencies incl
 | `/sandboxes` | 154 | `frontend/src/app/[locale]/(dashboard)/sandboxes/page.tsx` |
 | `/settings` | 0 | `frontend/src/app/[locale]/(dashboard)/settings/page.tsx` |
 | `/settings/account` | 146 | `frontend/src/app/[locale]/(dashboard)/settings/account/page.tsx` |
-| `/settings/api-keys` | 151 | `frontend/src/app/[locale]/(dashboard)/settings/api-keys/page.tsx` |
+| `/settings/api-keys` | 152 | `frontend/src/app/[locale]/(dashboard)/settings/api-keys/page.tsx` |
 | `/settings/api-keys/reference` | 150 | `frontend/src/app/[locale]/(dashboard)/settings/api-keys/reference/page.tsx` |
 | `/settings/assistant` | 148 | `frontend/src/app/[locale]/(dashboard)/settings/assistant/page.tsx` |
 | `/settings/blobby` | 148 | `frontend/src/app/[locale]/(dashboard)/settings/blobby/page.tsx` |
@@ -154,7 +154,7 @@ Generated from local TypeScript imports and re-exports. Layout dependencies incl
 | remote-agents | 2 |
 | runs | 24 |
 | sandboxes | 21 |
-| settings | 27 |
+| settings | 28 |
 | shared | 1 |
 | sharing | 10 |
 | skills | 7 |

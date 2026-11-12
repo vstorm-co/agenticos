@@ -1,5 +1,5 @@
 ---
-source_sha: "3503412daf98"
+source_sha: "91a04766b6e6"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -56,6 +56,18 @@ Eintrag, der während einer mit einem Schlüssel authentifizierten Anfrage
 geschrieben wird, trägt `via_api_key` in seinen Details. Ein Schlüssel kann ein
 Ablaufdatum haben, und sein Widerruf (`DELETE /api/v1/api-keys/{id}`) wirkt ab
 seiner nächsten Anfrage.
+
+In der Konsole stehen die Schlüssel vor der Verbindungsanleitung, aktive zuerst.
+Suche nach Name, Präfix oder Aussteller; auf dem Smartphone zeigen Karten auch
+Ablauf und letzte Nutzung. Unter **Schlüssel erstellen** kannst du die
+Berechtigungsdetails einer Vorlage öffnen oder unter **Benutzerdefiniert**
+einzelne Berechtigungen suchen. Die Suche behält deine Auswahl.
+Enter im Namensfeld erstellt den Schlüssel; Enter in der Berechtigungssuche sendet nichts ab.
+
+Während der Erstellung sind Eingaben und Schließen gesperrt. Bei einer Ablehnung
+bleibt der Entwurf erhalten. Kopiere den Schlüssel vor dem Schließen; bei einem
+Zwischenablagefehler bleibt der Wert für einen neuen Versuch verfügbar. Schließen
+leert den Erstellungszustand. Bei einem abgelehnten Widerruf bleibt die Bestätigung offen.
 
 **Ein Schlüssel ist nicht die Person, die ihn ausgestellt hat.** Ein Run, den er
 startet, gehört der ausstellenden Person, läuft über ihr Budget und ihr Audit,

@@ -51,7 +51,8 @@
     "details": "Szczegóły",
     "resourceActions": "Więcej działań dla {name}",
     "workspaceExpand": "Pełny ekran",
-    "workspaceCollapse": "Opuść pełny ekran"
+    "workspaceCollapse": "Opuść pełny ekran",
+    "copyFailed": "Nie udało się skopiować"
   },
   "navigation": {
     "dashboard": "Panel",
@@ -10159,7 +10160,7 @@
   },
   "apiUsage": {
     "title": "Korzystanie z API",
-    "why": "Wszystko, co może klucz API, przez zwykłe HTTP: uruchamianie agentów, odczyt runów i ich kosztów, uzupełnianie i przeszukiwanie baz wiedzy, zarządzanie członkami. Utwórz klucz poniżej i wywołuj adres bazowy.",
+    "why": "Użyj klucza API, aby uruchamiać agentów, czytać runy, przeszukiwać bazy wiedzy i zarządzać zasobami przez HTTP. Skopiuj adres bazowy i wyślij klucz jako bearer token.",
     "baseUrl": "Adres bazowy",
     "auth": "Wyślij klucz w nagłówku <code>Authorization: Bearer aos_…</code>.",
     "reference": "Dokumentacja API: wszystkie endpointy",
@@ -12332,7 +12333,17 @@
     "couldNotLoad": "Nie udało się wczytać kluczy API",
     "emptyTitle": "Nie masz jeszcze kluczy API",
     "emptyWhy": "Utwórz klucz, żeby wywoływać API ze skryptu, Postmana albo Claude Code.",
-    "personalConsentWhy": "Osobista zgoda nie należy do gotowych zestawów. Aby ten klucz lub aplikacja mogły zatwierdzać rutyny i obserwacje korzystające z Twoich osobistych połączeń i danych, wybierz personal:consent w zestawie Własny."
+    "personalConsentWhy": "Osobista zgoda nie należy do gotowych zestawów. Aby ten klucz lub aplikacja mogły zatwierdzać rutyny i obserwacje korzystające z Twoich osobistych połączeń i danych, wybierz personal:consent w zestawie Własny.",
+    "search": "Szukaj kluczy API…",
+    "noMatches": "Brak pasujących kluczy API",
+    "searchHint": "Spróbuj nazwy klucza, prefiksu lub adresu e-mail autora.",
+    "clearSearch": "Wyczyść wyszukiwanie",
+    "keyCount": "{count, plural, one {# klucz} few {# klucze} many {# kluczy} other {# klucza}}",
+    "permissionSearch": "Znajdź uprawnienie",
+    "permissionPlaceholder": "Szukaj uprawnień…",
+    "noPermissions": "Żadne uprawnienia nie pasują do wyszukiwania.",
+    "permissionDetails": "{count, plural, one {Zobacz # uprawnienie} few {Zobacz # uprawnienia} many {Zobacz # uprawnień} other {Zobacz # uprawnienia}}",
+    "couldNotLoadScopes": "Nie udało się wczytać dostępnych uprawnień"
   },
   "mcpOauth": {
     "title": "{client} chce działać w twoim imieniu",

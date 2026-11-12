@@ -1,5 +1,5 @@
 ---
-source_sha: "3503412daf98"
+source_sha: "91a04766b6e6"
 ---
 
 # API HTTP { #the-http-api }
@@ -51,6 +51,17 @@ nazywa klucz, który zadziałał: każdy wpis zapisany w trakcie żądania
 uwierzytelnionego kluczem niesie w szczegółach `via_api_key`. Klucz może mieć datę
 wygaśnięcia, a jego unieważnienie (`DELETE /api/v1/api-keys/{id}`) działa od
 następnego żądania.
+
+W konsoli klucze są przed instrukcją połączenia, a aktywne pojawiają się pierwsze.
+Szukaj po nazwie, prefiksie lub autorze; na telefonie karty pokazują wygaśnięcie
+oraz ostatnie użycie. W **Utwórz klucz** rozwiń szczegóły uprawnień presetu albo
+wybierz **Własne**, żeby wyszukać pojedyncze uprawnienia. Wyszukiwanie nie usuwa zaznaczeń.
+Enter w polu nazwy tworzy klucz; Enter w wyszukiwarce uprawnień nie wysyła formularza.
+
+Podczas tworzenia klucza pola i zamknięcie okna są zablokowane. Odmowa zachowuje
+formularz do ponowienia. Po utworzeniu skopiuj klucz przed zamknięciem; odmowa
+schowka zostawia wartość dostępną do kolejnej próby. Zamknięcie czyści stan
+tworzenia. Odmowa unieważnienia zostawia otwarte potwierdzenie do ponowienia.
 
 **Klucz nie jest osobą, która go wystawiła.** Run, który uruchamia, należy do
 wystawcy, jest liczony w jego budżecie i audycie, ale nie sięga do niczego

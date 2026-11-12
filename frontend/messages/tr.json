@@ -162,7 +162,8 @@
     "details": "Ayrıntılar",
     "resourceActions": "{name} için diğer işlemler",
     "workspaceExpand": "Tam ekran",
-    "workspaceCollapse": "Tam ekrandan çık"
+    "workspaceCollapse": "Tam ekrandan çık",
+    "copyFailed": "Kopyalanamadı"
   },
   "navigation": {
     "dashboard": "Kontrol paneli",
@@ -10074,7 +10075,17 @@
     "couldNotLoad": "API anahtarlarınız yüklenemedi",
     "emptyTitle": "Henüz API anahtarı yok",
     "emptyWhy": "Bir betikten, Postman’den veya Claude Code’dan API’yi çağırmak için anahtar oluşturun.",
-    "personalConsentWhy": "Kişisel onay hazır izin kümelerine dahil değildir. Bu anahtarın veya uygulamanın kişisel bağlantılarınızı ve verilerinizi kullanan rutinleri ve izlemeleri onaylamasına izin vermek için Özel altında personal:consent seçeneğini işaretleyin."
+    "personalConsentWhy": "Kişisel onay hazır izin kümelerine dahil değildir. Bu anahtarın veya uygulamanın kişisel bağlantılarınızı ve verilerinizi kullanan rutinleri ve izlemeleri onaylamasına izin vermek için Özel altında personal:consent seçeneğini işaretleyin.",
+    "search": "API anahtarlarında ara…",
+    "noMatches": "Eşleşen API anahtarı yok",
+    "searchHint": "Anahtar adını, öneki veya oluşturan kişinin e-posta adresini deneyin.",
+    "clearSearch": "Aramayı temizle",
+    "keyCount": "{count, plural, =1 {1 anahtar} other {# anahtar}}",
+    "permissionSearch": "İzin bul",
+    "permissionPlaceholder": "İzinlerde ara…",
+    "noPermissions": "Bu aramayla eşleşen izin yok.",
+    "permissionDetails": "{count, plural, =1 {1 izni görüntüle} other {# izni görüntüle}}",
+    "couldNotLoadScopes": "Kullanılabilir izinler yüklenemedi"
   },
   "kb": {
     "addIntegration": "Entegrasyon ekle",
@@ -12695,7 +12706,7 @@
   },
   "apiUsage": {
     "title": "API’yi kullanın",
-    "why": "API key’in HTTP üzerinden yapabildiği her şey: agent çalıştırmak, run’ları ve maliyetlerini okumak, bilgi tabanlarını doldurup aramak, üyeleri yönetmek. Aşağıdan key oluşturup temel URL’yi çağırın.",
+    "why": "API anahtarıyla HTTP üzerinden agent çalıştırın, run bilgilerini okuyun, bilgi tabanlarında arayın ve kaynakları yönetin. Temel URL’yi kopyalayın ve anahtarı bearer token olarak gönderin.",
     "baseUrl": "Temel URL",
     "auth": "Key’i <code>Authorization: Bearer aos_…</code> header’ında gönderin.",
     "reference": "API başvurusu: tüm endpoint’ler",

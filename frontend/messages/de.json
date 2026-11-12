@@ -2551,7 +2551,8 @@
     "details": "Details",
     "resourceActions": "Weitere Aktionen für {name}",
     "workspaceExpand": "Vollbild",
-    "workspaceCollapse": "Vollbild verlassen"
+    "workspaceCollapse": "Vollbild verlassen",
+    "copyFailed": "Kopieren fehlgeschlagen"
   },
   "dashboard": {
     "actions": {
@@ -11799,7 +11800,17 @@
     "couldNotLoad": "Ihre API-Schlüssel konnten nicht geladen werden",
     "emptyTitle": "Noch keine API-Schlüssel",
     "emptyWhy": "Erstellen Sie einen, um die API aus einem Skript, Postman oder Claude Code aufzurufen.",
-    "personalConsentWhy": "Persönliche Zustimmung ist nicht in den Voreinstellungen enthalten. Damit dieser Schlüssel oder diese App Routinen und Watches mit Ihren persönlichen Verbindungen und Daten genehmigen darf, wählen Sie personal:consent unter Benutzerdefiniert."
+    "personalConsentWhy": "Persönliche Zustimmung ist nicht in den Voreinstellungen enthalten. Damit dieser Schlüssel oder diese App Routinen und Watches mit Ihren persönlichen Verbindungen und Daten genehmigen darf, wählen Sie personal:consent unter Benutzerdefiniert.",
+    "search": "API-Schlüssel suchen…",
+    "noMatches": "Keine passenden API-Schlüssel",
+    "searchHint": "Suche nach Schlüsselname, Präfix oder E-Mail-Adresse des Ausstellers.",
+    "clearSearch": "Suche zurücksetzen",
+    "keyCount": "{count, plural, =1 {1 Schlüssel} other {# Schlüssel}}",
+    "permissionSearch": "Berechtigung finden",
+    "permissionPlaceholder": "Berechtigungen suchen…",
+    "noPermissions": "Keine Berechtigungen passen zu dieser Suche.",
+    "permissionDetails": "{count, plural, =1 {1 Berechtigung anzeigen} other {# Berechtigungen anzeigen}}",
+    "couldNotLoadScopes": "Verfügbare Berechtigungen konnten nicht geladen werden"
   },
   "mcpOauth": {
     "title": "{client} möchte in Ihrem Namen handeln",
@@ -12986,7 +12997,7 @@
   },
   "apiUsage": {
     "title": "Die API verwenden",
-    "why": "Alles, was ein API-Schlüssel kann, über einfaches HTTP: Agents ausführen, Runs und ihre Kosten lesen, Wissensdatenbanken füllen und durchsuchen, Mitglieder verwalten. Erstellen Sie unten einen Schlüssel und rufen Sie die Basis-URL auf.",
+    "why": "Mit einem API-Schlüssel kannst du Agenten starten, Runs lesen, Wissensdatenbanken durchsuchen und Ressourcen über HTTP verwalten. Kopiere die Basis-URL und sende den Schlüssel als Bearer-Token.",
     "baseUrl": "Basis-URL",
     "auth": "Senden Sie den Schlüssel im Header <code>Authorization: Bearer aos_…</code>.",
     "reference": "API-Referenz: jeder Endpunkt",

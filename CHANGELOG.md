@@ -33,6 +33,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- API key settings put active credentials first and retain names, expiry and
+  usage details on phones. Keys and custom permissions are searchable. Creation supports keyboard submission,
+  locks fields and dismissal during writes, preserves refused drafts and clears
+  one-time state on close. Permission-catalog and revocation failures offer
+  retry. Clipboard refusals are reported without losing the copyable value;
+  MCP consent also freezes organization and scope choices during an answer.
+
 - Department cards keep descriptions and member counts visible on phones. Shared
   resources lead the detail page; compact setup, membership and sharing forms
   keep actions reachable, block conflicting writes and retain refused drafts.
