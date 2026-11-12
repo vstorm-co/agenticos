@@ -45,7 +45,7 @@ from app.agents.capabilities._registry import (
     FRAMEWORK_TOOL_NAMES,
     LOAD_CAPABILITY,
     READ_SKILL,
-    ApprovalDescriber,
+    BoundDescriber,
 )
 from app.agents.code_checkpoint import CodeApprovalPause
 from app.agents.deps import AgentDeps
@@ -101,7 +101,7 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
     always_asking_tool_names: frozenset[str] = frozenset()
     # Effective tool name to the capability's describer for it, resolved from the
     # spec by `approval_describers` - a renamed tool keeps its describer.
-    describers: Mapping[str, ApprovalDescriber] = field(default_factory=dict)
+    describers: Mapping[str, BoundDescriber] = field(default_factory=dict)
     # Effective tool name to the stable id its capability declares it under, from
     # `approval_tool_ids`, so the request names the tool the way a surface words it.
     tool_ids: Mapping[str, str] = field(default_factory=dict)
@@ -137,7 +137,7 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
     async def _describe(
         ctx: RunContext[AgentDeps],
         tool_def: ToolDefinition,
-        describe: ApprovalDescriber,
+        describe: BoundDescriber,
         args: dict[str, Any],
     ) -> dict[str, str] | None:
         """The call's ids as names for the person deciding, or `None`.

@@ -258,10 +258,13 @@ class CapabilityToolInfo(BaseModel):
         return data
 
 
-type ApprovalDescriber = Callable[[AgentDeps, Mapping[str, Any]], Awaitable[dict[str, str] | None]]
+type ApprovalDescriber = Callable[
+    [AgentDeps, Mapping[str, Any], BaseModel | None], Awaitable[dict[str, str] | None]
+]
 """How one tool describes a parked call of its own to the person deciding it.
 
-Given the run's deps and the call's validated arguments, it answers the ids in
+Given the run's deps, the call's validated arguments and the binding's validated
+config - so it reads no more than the tool itself would - it answers the ids in
 them as names - `{"table": "Support"}` - which the approval card and the queue
 put into a sentence above the raw arguments. An `update_record` card that says
 only `table_id: 6f1c…` asks a person to approve something they cannot read.
@@ -276,6 +279,9 @@ Declared per capability on :func:`register`, keyed by tool id, rather than on
 :class:`CapabilityToolInfo`: that model is served in the catalog, and a callable
 is not something a catalog can carry.
 """
+
+type BoundDescriber = Callable[[AgentDeps, Mapping[str, Any]], Awaitable[dict[str, str] | None]]
+"""An :data:`ApprovalDescriber` with its binding's config already given, as the gate calls it."""
 
 
 class ProviderExecuted(BaseModel):

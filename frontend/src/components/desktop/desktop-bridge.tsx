@@ -122,11 +122,10 @@ function Bridge({ shell }: { shell: ShellInfo }) {
         tool: approval.tool_id,
       });
       const body = argumentsPreview(approval.tool_args);
-      // The server refuses this reader's approval, and a notification's buttons
-      // cannot offer Reject alone, so it only leads to the queue.
-      const unreadable = approval.always_asks && approval.content_hidden;
+      // A call that always asks is decided on the card that shows what it does;
+      // a notification carries only its arguments, so it only leads there.
       sendNotice(
-        unreadable
+        approval.always_asks
           ? { kind: "inbox", title, body, path: APPROVALS_PATH }
           : {
               kind: "approval",

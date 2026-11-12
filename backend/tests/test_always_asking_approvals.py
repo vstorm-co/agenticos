@@ -401,7 +401,7 @@ class TestDescriber:
             ),
         ):
             described = await describe_share(
-                self._deps(), {"claim_id": str(uuid.uuid4()), "to": "organization"}
+                self._deps(), {"claim_id": str(uuid.uuid4()), "to": "organization"}, None
             )
 
         assert described == {"claim": "Anna owns invoices", "audience": "organization"}
@@ -415,11 +415,63 @@ class TestDescriber:
             ),
         ):
             described = await describe_share(
-                self._deps(), {"claim_id": str(uuid.uuid4()), "to": "project"}
+                self._deps(), {"claim_id": str(uuid.uuid4()), "to": "project"}, None
             )
 
         assert described is None
 
     async def test_nothing_is_described_without_an_agent_or_an_id(self) -> None:
-        assert await describe_share(AgentDeps(), {"claim_id": str(uuid.uuid4())}) is None
-        assert await describe_share(self._deps(), {"claim_id": "not-an-id"}) is None
+        assert await describe_share(AgentDeps(), {"claim_id": str(uuid.uuid4())}, None) is None
+        assert await describe_share(self._deps(), {"claim_id": "not-an-id"}, None) is None
+
+
+class TestTheDescriberReadsWhatTheToolReads:
+    @pytest.mark.parametrize("allow_personal", [True, False])
+    async def test_it_reads_personal_memory_only_where_the_binding_keeps_it(
+        self, allow_personal: bool
+    ) -> None:
+        from app.agents.capabilities.memory_files import MemoryFilesConfig
+
+        scopes = MagicMock(return_value=[])
+        with (
+            patch(
+                "app.agents.capabilities.memory_files._approval.readable_claim_scopes", new=scopes
+            ),
+            patch("app.services.memory._runtime.project_of", new=AsyncMock(return_value=None)),
+            patch(
+                "app.services.memory._runtime.claim_for_approval",
+                new=AsyncMock(return_value=None),
+            ),
+        ):
+            await describe_share(
+                AgentDeps(organization_id=uuid.uuid4(), agent_id=uuid.uuid4()),
+                {"claim_id": str(uuid.uuid4())},
+                MemoryFilesConfig(allow_personal=allow_personal),
+            )
+
+        assert scopes.call_args.kwargs["allow_personal"] is allow_personal
+
+    async def test_a_spec_hands_each_describer_its_bindings_config(self) -> None:
+        from app.agents.capabilities.approval import approval_describers
+
+        spec = AgentSpec(
+            name="Private",
+            capabilities=[{"id": "memory_files", "config": {"allow_personal": False}}],
+        )
+        describe = approval_describers(spec)["share_memory"]
+        with (
+            patch(
+                "app.agents.capabilities.memory_files._approval.readable_claim_scopes",
+                new=MagicMock(return_value=[]),
+            ) as scopes,
+            patch("app.services.memory._runtime.project_of", new=AsyncMock(return_value=None)),
+            patch(
+                "app.services.memory._runtime.claim_for_approval", new=AsyncMock(return_value=None)
+            ),
+        ):
+            await describe(
+                AgentDeps(organization_id=uuid.uuid4(), agent_id=uuid.uuid4()),
+                {"claim_id": str(uuid.uuid4())},
+            )
+
+        assert scopes.call_args.kwargs["allow_personal"] is False

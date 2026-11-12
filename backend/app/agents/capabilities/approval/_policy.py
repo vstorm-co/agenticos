@@ -7,15 +7,20 @@ the rule here means a surface never re-derives it from the registry and the spec
 and gets a different answer.
 """
 
+from collections.abc import Mapping
+from typing import Any
+
 from pydantic import BaseModel
 
 from app.agents.capabilities import (
     ApprovalDescriber,
+    BoundDescriber,
     CapabilityDef,
     CapabilityToolInfo,
     all_capabilities,
 )
 from app.agents.capabilities import get as get_capability
+from app.agents.deps import AgentDeps
 from app.agents.spec import AgentSpec, CapabilityBindingSpec
 from app.core.exceptions import BadRequestError
 
@@ -112,24 +117,33 @@ def private_approval_fields(capability_tool_id: str | None) -> frozenset[str]:
     )
 
 
-def approval_describers(spec: AgentSpec) -> dict[str, ApprovalDescriber]:
+def approval_describers(spec: AgentSpec) -> dict[str, BoundDescriber]:
     """The describer for every tool in a spec that has one, by the name the model calls.
 
     Keyed like :func:`approval_required_tools` and for the same reason: the gate
     sees the effective name, while a capability declares its describer against the
-    stable id - so a renamed `update_record` is still described.
+    stable id - so a renamed `update_record` is still described. Each is handed its
+    own binding's config.
     """
-    describers: dict[str, ApprovalDescriber] = {}
+    describers: dict[str, BoundDescriber] = {}
     for binding in spec.capabilities:
         if not binding.enabled:
             continue
         definition = get_capability(binding.id)
         if not definition.describers:
             continue
+        config = definition.validate_config(binding.config)
         for tool in definition.effective_tools(binding.tool_overrides):
             if (describe := definition.describers.get(tool.id)) is not None:
-                describers[tool.name] = describe
+                describers[tool.name] = _bound(describe, config)
     return describers
+
+
+def _bound(describe: ApprovalDescriber, config: BaseModel | None) -> BoundDescriber:
+    async def bound(deps: AgentDeps, args: Mapping[str, Any]) -> dict[str, str] | None:
+        return await describe(deps, args, config)
+
+    return bound
 
 
 def approval_tool_ids(spec: AgentSpec) -> dict[str, str]:

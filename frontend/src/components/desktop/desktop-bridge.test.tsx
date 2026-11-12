@@ -197,10 +197,13 @@ describe("DesktopBridge", () => {
     );
   });
 
-  it("offers no decision on a notification for a call this person may not approve", () => {
+  it.each([
+    ["it cannot read", true],
+    ["it can read", false],
+  ])("offers no decision on a notification for an always-asking call %s", (_, hidden) => {
     env.approvals = [];
     const view = mount();
-    env.approvals = [approval("hidden", { always_asks: true, content_hidden: true })];
+    env.approvals = [approval("asks", { always_asks: true, content_hidden: hidden })];
     view.again();
     expect(env.notify).toHaveBeenCalledWith({
       kind: "inbox",
