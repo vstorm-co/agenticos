@@ -1,5 +1,5 @@
 ---
-source_sha: "a39ce766005e"
+source_sha: "64df2ad4b5d2"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -3660,7 +3660,7 @@ Eine Entscheidung kann strukturierte Belege enthalten: Situation, Wahl, Alternat
 
 Unter **Einstellungen → Gedächtnis** liest du Belege und erfasst mit der Korrektur ein beobachtetes Ergebnis. Eine Korrektur fügt einen neuen Eintrag hinzu; die bisherige Episode und ihre Herkunft bleiben im Verlauf. Die deterministische Konsolidierung macht aus Episoden keine allgemeinen Regeln. Löschung entfernt ihre Inhalte zusammen mit den Einträgen; der persönliche Datenexport enthält sie.
 
-**Improve-Fall vorbereiten** öffnet eine bearbeitbare Eingabe und erwartete Antwort. Prüfe den Text, entferne private Angaben und bestätige ausdrücklich den Download eines JSONL-Datensatzes. Die Felder `input`, `reference_answer`, `tags` und `note` entsprechen dem Importer in [Improve PR #2172](https://github.com/vstorm-co/agenticos/pull/2172). Importiere die Datei nach Installation dieser Funktion in einen Improve-Datensatz, evaluiere sie und akzeptiere/veröffentliche Änderungen dort. Dieser Export erstellt keinen Datensatz, startet keinen Optimierer und veröffentlicht keine Anweisungen automatisch.
+**Als Improve-Fall hinzufügen** öffnet eine bearbeitbare Eingabe und erwartete Antwort und fragt, zu welchem Dataset sie hinzugefügt werden; angeboten wird es einem Mitglied, das Datasets bearbeiten darf. Prüfe den Text, entferne, was privat bleiben muss, und stimme dem Hinzufügen ausdrücklich zu. Der Fall erhält das Tag `decision-episode`, hält dich als die Person fest, die gefragt hat, und verknüpft Run und Conversation, aus denen die Episode stammt, solange sie existieren. Wenn du gelöscht wirst, wird er deshalb anonymisiert wie jeder Fall aus deinen Conversations. Bewerte ihn und nimm Änderungen in Improve an oder veröffentliche sie dort. Das Hinzufügen startet keinen Optimierer und veröffentlicht keine Anweisungen automatisch.
 
 Die Auswahl des lokalen Zugriffs gehört zum gewählten Agenten, nicht zu einer globalen Vorgabe für andere Agenten. Das Widerrufen eines Ordners entfernt auch gespeicherte Auswahlen und Coding-Zustimmungen für seine Unterordner. Ältere Desktop-Apps behalten den Zugriff auf den ganzen Computer nur für ein Gespräch; ein Update ermöglicht die Wiederverwendung für weitere Gespräche desselben Agenten.
 

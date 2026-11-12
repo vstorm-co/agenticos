@@ -87,6 +87,7 @@ TENANT_REQUIRED = [
     (intercepted_tool_call_repo, "add_many"),
     (intercepted_tool_call_repo, "list_for_run"),
     (dataset_repo, "get"),
+    (dataset_repo, "hold_case_sources"),
     (dataset_repo, "get_by_name"),
     (dataset_repo, "lock_revision"),
     (message_rating_repo, "get_down_rating_notes_for_messages"),
