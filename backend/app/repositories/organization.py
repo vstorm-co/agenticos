@@ -231,6 +231,16 @@ async def update(
     return org
 
 
+async def make_shared(db: AsyncSession, org: Organization, *, name: str, slug: str) -> Organization:
+    """Turn a personal organization into an ordinary one called `name`."""
+    org.name = name
+    org.slug = slug
+    org.is_personal = False
+    await db.flush()
+    await db.refresh(org)
+    return org
+
+
 async def set_proactive_limit(
     db: AsyncSession, org: Organization, *, limit_usd: Decimal
 ) -> Organization:

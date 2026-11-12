@@ -95,7 +95,8 @@ async def _bootstrap(
         user_service = UserService(db)
 
         user = await user_service.get_by_email(email)
-        if user is None:
+        new_owner = user is None
+        if new_owner:
             user = await user_service.register(
                 UserCreate(email=email, password=password, full_name="Owner")
             )
@@ -111,7 +112,7 @@ async def _bootstrap(
             await db.flush()
             success(f"Granted platform admin to {email}")
 
-        org = await _resolve_organization(db, user.id, org_name)
+        org = await _resolve_organization(db, user.id, org_name, new_owner=new_owner)
         ctx = AuthContext(user_id=user.id, organization_id=org.id, role=OrgRoleName.OWNER)
 
         profile_id = await _resolve_model(db, ctx, provider, api_key, model_id)
@@ -157,17 +158,34 @@ async def _resolve_mcp_mirror(db) -> None:
         success(f"Loaded {seeded} MCP catalog checks")
 
 
-async def _resolve_organization(db, owner_id: uuid.UUID, name: str):
-    """The owner's organization, created if this is a fresh install.
+async def _resolve_organization(db, owner_id: uuid.UUID, name: str, *, new_owner: bool):
+    """The organization called `name` that the owner runs the demo in.
 
-    Whichever one a session without an organization named lands in - the
-    deployment's default, the owner's personal one, or their only one - so the
-    demo is where a new operator will actually land after signing in, provided
-    the account owns it. Otherwise, and on a deployment with personal
-    organizations off, it gets one of its own.
+    An owner this run registered has only the personal organization sign-up
+    gave it, empty, so that one becomes `name` and stays where the operator
+    lands after signing in. A personal organization is purged with its account
+    and skipped by directory mappings, which is why it stops being personal
+    rather than only being renamed. An existing account's personal
+    organization is never converted.
+
+    Otherwise it is an organization the owner already owns under that name, or
+    the one a session without an organization named lands in - the deployment's
+    default - provided the account owns it and it is not personal. Failing
+    both, it gets a new one.
     """
+    if new_owner:
+        personal = await organization_repo.get_personal_for_user(db, owner_id)
+        if personal is not None:
+            slug = await organization_repo.generate_unique_slug(db, name)
+            org = await organization_repo.make_shared(db, personal, name=name, slug=slug)
+            success(f"Created organization {name}")
+            return org
+    for owned in await organization_repo.list_owned_by(db, owner_id):
+        if owned.name == name:
+            info(f"Using organization {owned.name}")
+            return owned
     landing = await OrganizationService(db).fallback_for(owner_id)
-    if landing is not None:
+    if landing is not None and not landing.is_personal:
         membership = await member_repo.get(db, organization_id=landing.id, user_id=owner_id)
         # Bootstrap acts as an owner. A default organization the account joined
         # as a member is not one it may fill with credentials and agents.

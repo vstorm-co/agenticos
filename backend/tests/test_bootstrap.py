@@ -46,10 +46,17 @@ class TestProviderDefaults:
 
 
 class TestOrganization:
+    @pytest.fixture(autouse=True)
+    def _owns_nothing_by_that_name(self):
+        with patch(
+            "app.commands.bootstrap.organization_repo.list_owned_by", new=AsyncMock(return_value=[])
+        ):
+            yield
+
     @pytest.mark.anyio
     async def test_the_organization_the_owner_lands_in_is_reused(self):
         """It is where a new operator lands after signing in."""
-        existing = MagicMock(name="Personal")
+        existing = MagicMock(is_personal=False)
         with (
             patch(
                 "app.commands.bootstrap.OrganizationService.fallback_for",
@@ -60,14 +67,17 @@ class TestOrganization:
                 new=AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER.value)),
             ),
         ):
-            assert await _resolve_organization(MagicMock(), uuid.uuid4(), "Acme") is existing
+            assert (
+                await _resolve_organization(MagicMock(), uuid.uuid4(), "Acme", new_owner=False)
+                is existing
+            )
 
     @pytest.mark.anyio
     @pytest.mark.security
     async def test_a_default_organization_it_only_belongs_to_is_not_taken_over(self):
         """Bootstrap acts as an owner; an account that joined the default organization
         as a member gets an organization of its own instead (#2156)."""
-        joined = MagicMock(id=uuid.uuid4())
+        joined = MagicMock(id=uuid.uuid4(), is_personal=False)
         created = MagicMock(id=uuid.uuid4())
         with (
             patch(
@@ -84,7 +94,10 @@ class TestOrganization:
             ),
             patch("app.commands.bootstrap.member_repo.create", new=AsyncMock()),
         ):
-            assert await _resolve_organization(MagicMock(), uuid.uuid4(), "Acme") is created
+            assert (
+                await _resolve_organization(MagicMock(), uuid.uuid4(), "Acme", new_owner=False)
+                is created
+            )
 
     @pytest.mark.anyio
     async def test_a_fresh_install_gets_an_organization_and_an_owner(self):
@@ -100,7 +113,7 @@ class TestOrganization:
             ) as create_org,
             patch("app.commands.bootstrap.member_repo.create", new=AsyncMock()) as add_member,
         ):
-            result = await _resolve_organization(MagicMock(), uuid.uuid4(), "Acme")
+            result = await _resolve_organization(MagicMock(), uuid.uuid4(), "Acme", new_owner=False)
 
         assert result is created
         assert add_member.call_args.kwargs["role"] == OrgRoleName.OWNER.value

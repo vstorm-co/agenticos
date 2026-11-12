@@ -1,5 +1,5 @@
 ---
-source_sha: "aa26227d35e6"
+source_sha: "0ab3a41c82b7"
 ---
 
 # Comandos { #commands }
@@ -328,6 +328,8 @@ uv run agenticos cmd <command-name> [options]
 
 ```bash
 # An organization, an owner, a model profile and a published agent. Idempotent.
+# --org names the organization the owner signs in to. An account that already
+# exists gets a new one by that name; its personal organization is left alone.
 uv run agenticos cmd bootstrap \
     --email owner@example.com --password secret \
     --org "Acme" --provider anthropic --api-key sk-ant-...
