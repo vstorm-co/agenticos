@@ -1,5 +1,5 @@
 ---
-source_sha: "ec1de885016c"
+source_sha: "f42ada39df6d"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -161,6 +161,14 @@ una fórmula no se puede archivar. Guardar el esquema comprueba la fórmula y di
 qué le pasa. Un valor que no puede calcular - una división por cero, texto en una
 suma, una celda vacía - deja vacía la celda de ese registro. Una fórmula se
 calcula al leer el registro y nunca se guarda, escribe, filtra ni ordena.
+
+Los decimales se escriben con punto, `{Price} * 1.23`, en cualquier idioma: una
+coma separa los argumentos de una función, así que `{Price} * 1,23` se rechaza con
+esa indicación en lugar de leerse como número. El rechazo da un motivo estable en
+`details.formula.reason`, como `decimal_comma` o `not_a_column`, que la consola usa
+para decirlo en el idioma de quien lee. La consola muestra los números, también el
+resultado de una fórmula, con el separador decimal de quien lee - `12,177` en
+polaco - y no agrupa un número de cuatro cifras.
 
 ## Cambiar un esquema { #changing-a-schema }
 

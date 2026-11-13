@@ -12507,9 +12507,25 @@
     },
     "formula": {
       "label": "Formuła",
-      "placeholder": "'{Price}' * '{Quantity}'",
+      "placeholder": "'{Cena}' * '{Ilość}'",
       "columns": "Kolumny do użycia",
-      "hint": "Kolumnę podaj w nawiasach klamrowych. Działa + - * / %, = <> < > and, or, not oraz IF, ROUND, ABS, MIN, MAX, CONCAT, LEN, UPPER, LOWER, DAYS, TODAY."
+      "hint": "Kolumnę podaj w nawiasach klamrowych. Działa + - * / %, = <> < > and, or, not oraz IF, ROUND, ABS, MIN, MAX, CONCAT, LEN, UPPER, LOWER, DAYS, TODAY. Ułamki dziesiętne zapisuj z kropką, np. 1.23.",
+      "problem": {
+        "syntax": "Formuła jest zapisana niepoprawnie.",
+        "too_deep": "Formuła jest zagnieżdżona zbyt głęboko.",
+        "constant": "Formuła zawiera tylko liczby, tekst oraz true lub false.",
+        "unknown_name": "{name} nic tu nie znaczy: kolumnę podaj w nawiasach klamrowych, jak '{'{name}'}'.",
+        "arithmetic": "Formuła liczy tylko za pomocą + - * / i %.",
+        "operator": "Formuła nie używa tego operatora.",
+        "comparison": "Formuła porównuje tylko za pomocą = <> < <= > >=.",
+        "function": "Formuła wywołuje tylko te funkcje: {functions}.",
+        "decimal_comma": "Ułamki dziesiętne zapisuj z kropką, np. 1.23. Przecinek oddziela argumenty funkcji.",
+        "unsupported": "Formuła nie może tego zawierać.",
+        "empty": "Kolumna z formułą potrzebuje formuły.",
+        "too_long": "Formuła może mieć najwyżej {limit} znaków.",
+        "not_a_column": "'{'{label}'}' nie jest aktywną kolumną tej tabeli.",
+        "not_a_value": "'{'{label}'}' to {type, select, link {kolumna z powiązaniem} other {kolumna z formułą}}: formuła czyta kolumny z wartościami."
+      }
     },
     "markdown": {
       "library": "Szablony dokumentów",
