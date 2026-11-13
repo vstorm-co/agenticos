@@ -2,7 +2,15 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { DEBUG_ECHO, echo, graph } from "@/components/workflows/validation/fixtures";
+import {
+  DEBUG_ECHO,
+  echo,
+  edge,
+  graph,
+  makeDefinition,
+  node,
+  port,
+} from "@/components/workflows/validation/fixtures";
 import { ApiError } from "@/lib/api-error";
 import type {
   NodeDefinition,
@@ -109,6 +117,42 @@ describe("PublishDialog", () => {
       expect(publish).toHaveBeenCalledWith({ note: "Ship it", expected_revision: 2 }),
     );
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("lists what is worth a look without stopping the publish, and opens the step", async () => {
+    const approval = makeDefinition({
+      id: "human.approval",
+      name: "Ask for approval",
+      kind: "control",
+      exclusive_branches: true,
+      ports: [
+        port("in", "input", null),
+        { ...port("approved", "output", null), label: "Approved" },
+        { ...port("rejected", "output", null), label: "Rejected" },
+      ],
+    });
+    seed(
+      graph({
+        entry: "a",
+        nodes: [echo("a"), node("ok", "human.approval"), echo("b")],
+        edges: [edge("e1", "a", "out", "ok", "in"), edge("e2", "ok", "approved", "b", "in")],
+      }),
+      1,
+    );
+    render(
+      <PublishDialog workflow={WORKFLOW} catalog={[DEBUG_ECHO, approval]} publish={vi.fn()} />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /Publish/ }));
+
+    expect(screen.getByText("Worth a look - these do not stop publishing:")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Publish version" })).toBeEnabled();
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: "Ask for approval: The Rejected outcome leads nowhere, so the run ends here when it is chosen. If that is intended, ignore this.",
+      }),
+    );
+    expect(useWorkflowEditorStore.getState().selection.nodeIds).toEqual(["ok"]);
   });
 
   it("names the trigger it switches on, and shows a new webhook's secret once", async () => {

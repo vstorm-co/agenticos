@@ -30,15 +30,21 @@ export interface CanvasInteraction {
   completeConnect: (source: ConnectEndpoint, target: ConnectEndpoint) => void;
   /** The node catalog a node's "+" offers the next step from. */
   catalog: NodeDefinition[];
-  /** Add `definition` after `nodeId`'s `portId`, wired to it. */
+  /**
+   * Add `definition` after `nodeId`'s `portId`, wired to it - into the connection
+   * `beforeEdgeId` names when given, so it runs before the step that connection led to.
+   */
   insertAfter: (
     nodeId: string,
     portId: string,
     definition: NodeDefinition,
     config?: Record<string, unknown>,
+    beforeEdgeId?: string,
   ) => void;
   /** Each node's problems that stop publishing, as sentences - a node with none is absent. */
   problemTexts: ReadonlyMap<string, readonly string[]>;
+  /** Each node's warnings - worth a look, never a reason to refuse - as sentences. */
+  warningTexts?: ReadonlyMap<string, readonly string[]>;
   /** When two versions are compared: how each step differs - one the same is absent. */
   changes?: ReadonlyMap<string, StepChange>;
 }
