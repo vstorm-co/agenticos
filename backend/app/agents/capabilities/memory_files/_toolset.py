@@ -458,9 +458,14 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
                 statement=statement,
                 author_user_id=UUID(str(audience.user_id)),
                 effective_from=start,
+                run_id=deps.run_id,
+                conversation_id=deps.conversation_id,
+                agent_id=deps.agent_id,
             )
         except ShareRefused as refused:
             return f"Not corrected: {refused}"
+        except memory_store.ErasedDuringRun:
+            return _ERASED
         if fixed is None:
             return "No such claim here to correct."
         return f"Corrected (claim {fixed.id}); the earlier version is kept in its history."

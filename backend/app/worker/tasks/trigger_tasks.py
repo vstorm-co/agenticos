@@ -19,6 +19,7 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from app.db.session import get_worker_db_context
+from app.schemas.agent_trigger import TriggerFireResult
 from app.worker.jobs import DeliverRoutineAnswer, FireTrigger
 
 if TYPE_CHECKING:  # pragma: no cover - imported for typing only
@@ -265,7 +266,7 @@ def _polled_source(portal_key: str | None) -> str | None:
     return None if portal is None else portal.event_source
 
 
-async def fire_trigger(fire: FireTrigger) -> None:
+async def fire_trigger(fire: FireTrigger) -> TriggerFireResult:
     """One fired run: run the agent this trigger fires, as its creator.
 
     Reached from every door - the scheduled check with no `event_context`, an
@@ -282,7 +283,7 @@ async def fire_trigger(fire: FireTrigger) -> None:
     from app.services.agent_trigger import AgentTriggerService
 
     async with get_worker_db_context() as db:
-        await AgentTriggerService(db).fire_job(fire)
+        return await AgentTriggerService(db).fire_job(fire)
 
 
 async def deliver_routine_answer(payload: DeliverRoutineAnswer) -> None:

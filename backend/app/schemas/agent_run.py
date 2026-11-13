@@ -12,6 +12,22 @@ from app.schemas.conversation import MessageRead
 from app.schemas.eval_run import EvalCaseLinkRead
 
 
+class ChatAskerRead(BaseSchema):
+    """The chat account that asked, for a run that ran as the binding's publisher.
+
+    Unverified: the name is what the account's owner typed on the platform.
+    """
+
+    platform: str
+    name: str = Field(
+        description="The display name, else the handle with an `@`, else the platform's user id"
+    )
+    bot_name: str | None = Field(
+        default=None,
+        description="The bot the chat reached the agent through; null once its binding is gone",
+    )
+
+
 class VoiceChainRead(BaseSchema):
     """One call as Activity shows it: every connection of it, summed (#54)."""
 
@@ -43,6 +59,18 @@ class RunOriginRead(BaseSchema):
     dataset_id: UUID | None = Field(default=None, description="The dataset it wrote cases for")
 
 
+class RunSkillUseRead(BaseSchema):
+    """A skill a run opened or read, at the version it was served."""
+
+    skill_id: UUID
+    name: str
+    version: int | None = Field(
+        default=None, description="The version's number on its line; null where none is known"
+    )
+    fork: str | None = Field(default=None, description="The fork that version is on; null on main")
+    loaded: bool = Field(description="The run opened it, rather than only reading one of its files")
+
+
 class AgentRunRead(BaseSchema):
     """One execution, as run history lists it."""
 
@@ -50,6 +78,14 @@ class AgentRunRead(BaseSchema):
     agent_id: UUID
     agent_version_id: UUID | None = None
     user_id: UUID | None = None
+    initiated_by_publisher_fallback: bool | None = Field(
+        default=None,
+        description="True when user_id is the publisher's authority, not the person who asked; null if unavailable",
+    )
+    asked_in_chat: ChatAskerRead | None = Field(
+        default=None,
+        description="The unverified channel account that asked when the run used publisher authority",
+    )
     surface: str
     system_role: str | None = Field(
         default=None,
@@ -156,6 +192,13 @@ class AgentRunRead(BaseSchema):
             "The eval run and case this run answered - or graded, on the judge's "
             "single-run read - when the caller may see the dataset; such a run keeps "
             "no conversation, and its answer and grade are read on the eval run"
+        ),
+    )
+    skills_used: list[RunSkillUseRead] = Field(
+        default_factory=list,
+        description=(
+            "The skills the run opened or read, among those the caller may see. Sent on "
+            "the single-run read only"
         ),
     )
     origin: RunOriginRead | None = Field(
@@ -325,22 +368,6 @@ class RunTranscript(BaseSchema):
     total: int
 
 
-class ChatAskerRead(BaseSchema):
-    """The chat account that asked, for a run that ran as the binding's publisher.
-
-    Unverified: the name is what the account's owner typed on the platform.
-    """
-
-    platform: str
-    name: str = Field(
-        description="The display name, else the handle with an `@`, else the platform's user id"
-    )
-    bot_name: str | None = Field(
-        default=None,
-        description="The bot the chat reached the agent through; null once its binding is gone",
-    )
-
-
 class ApprovalRead(BaseSchema):
     """A parked tool call awaiting a decision."""
 
@@ -449,6 +476,22 @@ class ApprovalRead(BaseSchema):
             "Whether the run is parked on a chat platform with its chat recorded and "
             "the caller is a person, so that its continuation is posted to that chat "
             "and a client should not resume it itself. Never true for an API key"
+        ),
+    )
+    content_hidden: bool = Field(
+        default=False,
+        description=(
+            "Whether what the call quotes from its run - the fact `share_memory` would "
+            "share, say - was left out of `tool_args` and `context`, because the caller "
+            "may not see that run. The audience and the tool still show"
+        ),
+    )
+    always_asks: bool = Field(
+        default=False,
+        description=(
+            "Whether only a person's answer to this call could let it run - `share_memory`, "
+            "or a correction of a shared fact. With `content_hidden`, the caller may "
+            "reject the call but not approve it"
         ),
     )
 

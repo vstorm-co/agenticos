@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
-import { beforeEach, expect, it, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
+import { beforeEach, expect, it, vi } from "vitest";
 import { caseScore } from "@/test-utils/scores";
 import { evalRun } from "@/test-utils/eval-runs";
 import { evalSuite, suiteResult, suiteSummary } from "@/test-utils/eval-suites";
@@ -120,4 +120,12 @@ it("distinguishes a completed unpaired run from a run that did not finish", asyn
     screen.getByText("The run did not complete. Open its check for the reason."),
   ).toBeInTheDocument();
   expect(screen.queryByText("Refreshing the result…")).not.toBeInTheDocument();
+});
+it("says where an answer came from in its card, the table's source column saying it closed", async () => {
+  render(<ReviewQueueRow score={{ ...score, human_passed: null }} busy={false} linksRuns />);
+  expect(screen.queryByText("Eval run")).toBeNull();
+
+  await userEvent.click(screen.getByRole("button", { name: score.question }));
+
+  expect(screen.getAllByText("Eval run")).toHaveLength(1);
 });

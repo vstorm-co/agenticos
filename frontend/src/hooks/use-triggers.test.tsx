@@ -3,7 +3,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useTriggers } from "./use-triggers";
+import { useTriggerAttempts, useTriggers } from "./use-triggers";
 import { apiClient } from "@/lib/api-client";
 import type { Trigger } from "@/types/triggers";
 
@@ -196,4 +196,18 @@ describe("useTriggers", () => {
     expect(toast.error).toHaveBeenCalledTimes(6);
     expect(toast.error).toHaveBeenCalledWith("You cannot run this agent");
   });
+});
+
+it.each([
+  { active: true, pending: false },
+  { active: false, pending: false },
+  { active: true, pending: true },
+])("reads bounded history while active=$active pending=$pending", async ({ active, pending }) => {
+  vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+  const { result } = renderHook(
+    () => useTriggerAttempts(trigger({ is_active: active }), 2, pending),
+    { wrapper },
+  );
+  await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  expect(apiClient.get).toHaveBeenCalledWith("/agents/a1/triggers/t1/attempts?skip=20&limit=10");
 });

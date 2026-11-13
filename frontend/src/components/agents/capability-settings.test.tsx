@@ -245,6 +245,22 @@ describe("CapabilitySettings", () => {
     expect(screen.getByText(/Choose Always ask if a person should see/)).toBeInTheDocument();
   });
 
+  it("shows legacy default as Never ask without rewriting it and offers only two capability choices", async () => {
+    const onChange = vi.fn();
+    render(
+      <CapabilitySettings
+        catalog={[KNOWLEDGE]}
+        selected={[binding("knowledge")]}
+        onChange={onChange}
+      />,
+    );
+    expect(screen.getByLabelText("Human approval")).toHaveTextContent("Never ask");
+    expect(onChange).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByLabelText("Human approval"));
+    expect(screen.getAllByRole("option")).toHaveLength(2);
+    expect(screen.queryByRole("option", { name: "Follow the capability" })).not.toBeInTheDocument();
+  });
+
   it("records the approval mode that was chosen", async () => {
     const onChange = vi.fn();
     render(

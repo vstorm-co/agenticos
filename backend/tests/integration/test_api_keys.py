@@ -28,6 +28,7 @@ from app.core.exceptions import AuthenticationError, BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.api_key import ApiKey
 from app.db.models.audit_log import AppAdminAuditLog
+from app.db.models.background_job import BackgroundJob, JobStatus
 from app.db.models.conversation import Conversation
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
@@ -967,6 +968,37 @@ class TestWorkAKeyAskedForEarlier:
 
 
 @pytest.mark.security
+async def test_a_key_that_expired_since_stands_for_work_it_started_and_nothing_new(
+    db: AsyncSession,
+) -> None:
+    owner = await _person(db)
+    organization = await _organization(db, owner)
+    raw = await _issue(
+        db,
+        organization,
+        owner,
+        Perm.WORKFLOWS_RUN,
+        expires_at=datetime.now(UTC) + timedelta(seconds=1),
+    )
+    row = (await db.execute(select(ApiKey))).scalar_one()
+    row.expires_at = datetime.now(UTC) - timedelta(minutes=1)
+    await db.flush()
+    service = ApiKeyService(db)
+
+    ctx = await service.context_for_key(row.id, organization_id=organization.id)
+
+    assert (ctx.user_id, ctx.api_key_id) == (owner.id, row.id)
+    assert ctx.key_scopes == frozenset({Perm.WORKFLOWS_RUN})
+    with pytest.raises(AuthenticationError):
+        await service.authenticate(raw)
+    await service.revoke(
+        AuthContext(user_id=owner.id, organization_id=organization.id, role="owner"), row.id
+    )
+    with pytest.raises(AuthenticationError):
+        await service.context_for_key(row.id, organization_id=organization.id)
+
+
+@pytest.mark.security
 async def test_a_key_started_run_cannot_mint_private_chat_provenance(db: AsyncSession) -> None:
     owner = await _person(db)
     organization = await _organization(db, owner)
@@ -1018,3 +1050,137 @@ async def test_impersonation_never_mints_private_routine_authority(db: AsyncSess
         raw = await ApiKeyService(db).issue_for_run(ctx, conversation_id=conversation.id)
     assert raw is not None
     assert (await ApiKeyService(db).authenticate(raw)).context.source_conversation_id is None
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("status", ["queued", "running"])
+async def test_expiry_sweep_keeps_a_key_until_its_background_job_settles(
+    db: AsyncSession, status: JobStatus
+) -> None:
+    from app.repositories import api_key as api_key_repo
+
+    owner = await _person(db)
+    organization = await _organization(db, owner)
+    raw = await _issue(db, organization, owner, Perm.AGENTS_RUN)
+    key = (await db.execute(select(ApiKey).where(ApiKey.prefix == raw[:12]))).scalar_one()
+    key.internal = True
+    key.expires_at = datetime.now(UTC) - timedelta(minutes=1)
+    job = BackgroundJob(
+        kind="run-agent",
+        pool="agent",
+        status=status,
+        max_attempts=3,
+        organization_id=organization.id,
+        payload={"api_key_id": str(key.id)},
+    )
+    db.add(job)
+    await db.flush()
+    key_id = key.id
+    await api_key_repo.delete_expired_internal(db, user_id=owner.id, before=datetime.now(UTC))
+    assert await api_key_repo.get(db, key_id, organization_id=organization.id) is not None
+    await ApiKeyService(db).context_for_key(key_id, organization_id=organization.id)
+    with pytest.raises(AuthenticationError):
+        await ApiKeyService(db).authenticate(raw)
+    job.status = "succeeded"
+    await db.flush()
+    await api_key_repo.delete_expired_internal(db, user_id=owner.id, before=datetime.now(UTC))
+    assert await api_key_repo.get(db, key_id, organization_id=organization.id) is None
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "operation", ["authoring", "skill_check", "skill_improvement", "skill_actor", "case_generation"]
+)
+async def test_expiry_sweep_retains_credentials_stored_on_unfinished_domain_rows(
+    db: AsyncSession, operation: str
+) -> None:
+    from decimal import Decimal
+
+    from app.db.models.authoring import AuthoringRequest
+    from app.db.models.case_generation import CaseGeneration
+    from app.db.models.skill_check import SkillCheck
+    from app.db.models.skill_improvement import SkillImprovementRun
+    from app.repositories import api_key as api_key_repo
+    from app.schemas.dataset import DatasetCreate
+    from app.services.dataset import DatasetService
+    from app.services.skills import SkillService
+
+    owner = await _person(db)
+    organization = await _organization(db, owner)
+    ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role="owner")
+    skill = await SkillService(db).create(
+        ctx, name="refunds", description="Refunds", content="Refund policy"
+    )
+    assert skill.latest_version_id is not None
+    raw = await _issue(db, organization, owner, Perm.AGENTS_RUN)
+    key = (await db.execute(select(ApiKey).where(ApiKey.prefix == raw[:12]))).scalar_one()
+    key.internal = True
+    key.expires_at = datetime.now(UTC) - timedelta(minutes=1)
+    row: AuthoringRequest | SkillCheck | SkillImprovementRun | CaseGeneration
+    if operation == "authoring":
+        row = AuthoringRequest(
+            organization_id=organization.id,
+            kind="improve",
+            target="skill",
+            skill_id=skill.id,
+            created_by_user_id=owner.id,
+            created_by_api_key_id=key.id,
+            status="queued",
+            estimate_usd=Decimal(0),
+            window_days=7,
+        )
+        terminal = "completed"
+    elif operation == "skill_check":
+        row = SkillCheck(
+            organization_id=organization.id,
+            skill_id=skill.id,
+            base_version_id=skill.latest_version_id,
+            candidate_description="Updated",
+            candidate_content="Updated policy",
+            candidate_hash="a" * 64,
+            description_changed=True,
+            mode="quick",
+            source="manual",
+            status="running",
+            expected_usd=Decimal(0),
+            at_most_usd=Decimal(1),
+            created_by_user_id=owner.id,
+            created_by_api_key_id=key.id,
+        )
+        terminal = "done"
+    elif operation in {"skill_improvement", "skill_actor"}:
+        row = SkillImprovementRun(
+            organization_id=organization.id,
+            skill_id=skill.id,
+            base_version_id=skill.latest_version_id,
+            created_by_user_id=owner.id,
+            created_by_api_key_id=key.id if operation == "skill_improvement" else None,
+            actor_user_id=owner.id if operation == "skill_actor" else None,
+            actor_api_key_id=key.id if operation == "skill_actor" else None,
+            status="queued",
+            window_days=7,
+            estimate_usd=Decimal(0),
+            budget_usd=Decimal(1),
+        )
+        terminal = "rejected"
+    else:
+        dataset = await DatasetService(db).create(ctx, DatasetCreate(name="retention"))
+        row = CaseGeneration(
+            organization_id=organization.id,
+            dataset_id=dataset.id,
+            requested_by_user_id=owner.id,
+            created_by_api_key_id=key.id,
+            sources=[],
+            requested_count=1,
+            status="running",
+        )
+        terminal = "ready"
+    db.add(row)
+    await db.flush()
+    key_id = key.id
+    await api_key_repo.delete_expired_internal(db, user_id=owner.id, before=datetime.now(UTC))
+    assert await api_key_repo.get(db, key_id, organization_id=organization.id) is not None
+    row.status = terminal
+    await db.flush()
+    await api_key_repo.delete_expired_internal(db, user_id=owner.id, before=datetime.now(UTC))
+    assert await api_key_repo.get(db, key_id, organization_id=organization.id) is None

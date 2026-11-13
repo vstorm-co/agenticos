@@ -1,5 +1,5 @@
 ---
-source_sha: "aa26227d35e6"
+source_sha: "810bed82ae73"
 ---
 
 # Polecenia { #commands }
@@ -38,6 +38,7 @@ Uruchamiaj je z katalogu głównego projektu.
 | `make desktop-check` | `bun test` nad petem, następnie rustfmt, clippy z ostrzeżeniami traktowanymi jak błędy i testy Rusta powłoki. Nie ma tego w `lint` ani w `check`, bo CI nie ma jeszcze toolchaina Rusta |
 | `make audit` | Audytuje zablokowany zestaw zależności pod kątem znanych podatności. Wymaga sieci — jedno żądanie na każdą zablokowaną dystrybucję — więc jego ostatnia linia mówi, w którym z czterech stanów się skończyło, zamiast zostawiać czerwony przebieg niejednoznacznym. Patrz niżej |
 | `make sandbox-token` | Generuje własny `SANDBOXD_TOKEN` usługi sandboksa do `backend/.env`, raz. `make dev` uruchamia to za ciebie; nigdy nie generuje go ponownie, bo nowy token osierocia każdy workspace, który usługa trzyma. Formularz połączenia proponuje zapisanie tej samej wartości w vaulcie, więc nie trzeba jej nigdzie wklejać |
+| `make seed-skills-lab` | Buduje organizację Skills lab na działającym stacku, do przeklikania ulepszania skilla: jeden skill, `returns-policy`, wspólny dla kilku agentów, ich pytania testowe i ocenione rozmowy. Rozmawia ze stackiem przez HTTP, więc tworzy tylko to, czego brakuje, a kolejne uruchomienie zachowuje to, co ludzie zmienili. Login właściciela i klucz dostawcy biorą się z `SKILLS_LAB_EMAIL`, `SKILLS_LAB_PASSWORD` i `SKILLS_LAB_OPENROUTER_KEY`; `SKILLS_LAB_URL` wskazuje stack. `PROBE=v1`, `broad`, `narrow` albo `gift` mierzy jedno brzmienie skilla w osobnej organizacji, a `DROP_PROBES=1` usuwa te organizacje |
 | `make clean` | Usuwa pliki cache (__pycache__, .pytest_cache itp.) |
 
 ### Przed pull requestem { #before-a-pull-request }
@@ -321,6 +322,10 @@ uv run agenticos cmd <command-name> [options]
 
 ```bash
 # An organization, an owner, a model profile and a published agent. Idempotent.
+# --org names the organization bootstrap sets up. An account that already
+# exists gets one by that name, even if it runs another; its personal
+# organization is left alone. Without --org, it is the one the owner lands in.
+# A deployment's default organization still opens first at sign-in.
 uv run agenticos cmd bootstrap \
     --email owner@example.com --password secret \
     --org "Acme" --provider anthropic --api-key sk-ant-...

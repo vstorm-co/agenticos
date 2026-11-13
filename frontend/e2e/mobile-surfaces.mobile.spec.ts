@@ -400,7 +400,8 @@ for (const platform of ["ios", "android"] as const) {
         await expect(card).toBeVisible();
         const add = card.getByRole("button", { name: "Add to an agent", exact: true });
         await expectTouchTarget(add);
-        const content = await card.locator(":scope > button").boundingBox();
+        // A skill's card is a link to its page; a context file's opens it in place.
+        const content = await card.locator(":scope > a, :scope > button").first().boundingBox();
         const action = await add.boundingBox();
         if (!content || !action) throw new Error("Expected the resource card's bounds");
         expect(action.y).toBeGreaterThanOrEqual(content.y + content.height);

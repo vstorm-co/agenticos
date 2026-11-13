@@ -177,6 +177,7 @@ class AgentEnvironmentService:
             )
         version = await self.version_of(ctx, agent, data.version_id or agent.current_version_id)
         await self.agents.refuse_borrowed_sign_ins(ctx, version)
+        await self.agents.refuse_archived_forks(ctx, version)
         if data.logfire_token_secret_id is not None:
             await self._check_logfire_secret(ctx, data.logfire_token_secret_id)
         connections = await self._checked_connections(ctx, data.connections)
@@ -310,6 +311,7 @@ class AgentEnvironmentService:
                 version = newest
         if version is not None:
             await self.agents.refuse_borrowed_sign_ins(ctx, version)
+            await self.agents.refuse_archived_forks(ctx, version)
 
         gate = PromotionGateService(self.db)
         if data.guard_suite_ids is not None:

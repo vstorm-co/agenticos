@@ -53,6 +53,8 @@ async def _skill(session: _Session) -> Any:
         resources={},
         conversation_id=None,
         base_version=1,
+        base_version_id=None,
+        fork_id=None,
     )
 
 

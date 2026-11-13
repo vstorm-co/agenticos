@@ -1,6 +1,6 @@
 """Workflow exposures and their webhook deliveries (#1792)."""
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -16,6 +16,10 @@ from app.db.models.workflow_exposure import (
 # The advisory-lock namespace one webhook delivery id is serialized under, apart
 # from the admission locks' own (`workflow_run._ORG_ADMISSION_LOCK_NAMESPACE`).
 _DELIVERY_LOCK_NAMESPACE = 1792
+# Signed-copy locks get their own: a delivery id is the sender's to choose, so in a shared
+# namespace one could name another request's signed copy and the two would take each
+# other's locks in opposite order.
+_SIGNED_COPY_LOCK_NAMESPACE = 1793
 
 
 async def create(db: AsyncSession, **fields: Any) -> WorkflowExposure:
@@ -181,6 +185,38 @@ async def lock_delivery(db: AsyncSession, *, exposure_id: UUID, delivery_id: str
     )
 
 
+async def lock_signed_copy(db: AsyncSession, *, exposure_id: UUID, signed_digest: str) -> None:
+    """Serialize every delivery of one signed request, whatever id each names.
+
+    Taken after `lock_delivery`, in that order everywhere, so two copies under
+    different ids answer one run between them rather than both admitting one.
+    """
+    await db.execute(
+        select(
+            func.pg_advisory_xact_lock(
+                _SIGNED_COPY_LOCK_NAMESPACE, func.hashtext(f"{exposure_id}:{signed_digest}")
+            )
+        )
+    )
+
+
+async def get_signed_copy(
+    db: AsyncSession, *, exposure_id: UUID, signed_digest: str, within: timedelta
+) -> WorkflowWebhookDelivery | None:
+    """The delivery of the same signed request admitted within `within`, by the database's clock."""
+    result = await db.execute(
+        select(WorkflowWebhookDelivery)
+        .where(
+            WorkflowWebhookDelivery.exposure_id == exposure_id,
+            WorkflowWebhookDelivery.signed_digest == signed_digest,
+            WorkflowWebhookDelivery.created_at > func.now() - within,
+        )
+        .order_by(WorkflowWebhookDelivery.created_at)
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
 async def get_delivery(
     db: AsyncSession, *, exposure_id: UUID, delivery_id: str
 ) -> WorkflowWebhookDelivery | None:
@@ -200,12 +236,14 @@ async def create_delivery(
     exposure_id: UUID,
     delivery_id: str,
     workflow_run_id: UUID,
+    signed_digest: str | None = None,
 ) -> WorkflowWebhookDelivery:
     delivery = WorkflowWebhookDelivery(
         organization_id=organization_id,
         exposure_id=exposure_id,
         delivery_id=delivery_id,
         workflow_run_id=workflow_run_id,
+        signed_digest=signed_digest,
     )
     db.add(delivery)
     await db.flush()

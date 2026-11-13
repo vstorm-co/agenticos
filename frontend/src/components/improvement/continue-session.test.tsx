@@ -166,6 +166,17 @@ it("keeps paid restarts with their original requester", () => {
   expect(screen.queryByRole("button", { name: "Discard" })).not.toBeInTheDocument();
   expect(screen.getByText(/original account and credentials/)).toBeInTheDocument();
 });
+it("holds a skill's Try again it cannot start without naming a requester", () => {
+  render(
+    <ContinueSession
+      session={{ ...SESSION, skill_id: "k1", can_restart: false }}
+      onStarted={vi.fn()}
+    />,
+  );
+  expect(screen.getByRole("button", { name: "Improve again" })).toBeDisabled();
+  expect(screen.queryByText(/original account and credentials/)).not.toBeInTheDocument();
+  expect(screen.getByText(/No further paid attempt/)).toBeInTheDocument();
+});
 it("shows an explicit stopped state at the round limit", () => {
   render(<ContinueSession session={{ ...SESSION, max_iterations: 1 }} onStarted={vi.fn()} />);
   expect(screen.getByRole("button", { name: "Improve again" })).toBeDisabled();

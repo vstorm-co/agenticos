@@ -79,6 +79,10 @@ export interface ProposalCheckRecord {
   } | null;
   measurement?: ImprovementMeasurement | null;
   evidence_run_ids?: string[];
+  /** The check of a skill change on every agent that this run is one stage of. */
+  skill_check_id?: string | null;
+  /** Of the run's excluded cases, those a sampled check simply did not ask. */
+  not_asked?: number;
   kind: "agent" | "skill" | "context";
   base_version: number | null;
   on_draft: boolean;
@@ -157,6 +161,8 @@ export interface EvalRunArm {
   spec_hash: string;
   /** The skills this side served a proposed body for instead of the stored one. */
   skill_ids?: string[];
+  /** The stored version of each skill this side was served, once per skill. */
+  skill_versions?: { skill_id: string; number: number; fork_name: string | null }[];
   /** The context files this side served a proposed body for instead of the stored one. */
   context_ids?: string[];
   summary: ArmSummary;
@@ -349,7 +355,7 @@ export interface EvalComparison {
   overall: Overall | null;
   p_value: number | null;
   invalid_reason: string | null;
-  invalid_reason_code?: "knowledge_not_retrieved" | null;
+  invalid_reason_code?: "knowledge_not_retrieved" | "too_few_held_out" | null;
   regressions_confirmed: number;
   regressions_unconfirmed: number;
   fixed_confirmed: number;

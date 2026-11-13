@@ -1,5 +1,5 @@
 ---
-source_sha: "539603f9eb62"
+source_sha: "ec1de885016c"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -184,8 +184,12 @@ Der Service gleicht sie mit den aktuellen Spalten ab:
   wird zu Datum und Uhrzeit; eine Auswahl wird zu mehreren und zurück, wenn es eine
   ist. Jede andere Änderung wird abgelehnt, ebenso eine, die ein Wert nicht übersteht -
   mit Anzahl und Beispiel, und nichts wird geschrieben. Was die Spalte verwendet, lehnt
-  sie wie eine Archivierung ab. Die Revision eines Datensatzes rückt weiter, sodass
-  eine Bearbeitung gegen den alten Wert ein Konflikt ist.
+  sie wie eine Archivierung ab. Ein Datensatz, dessen Wert sich im neuen Typ anders
+  liest, erhält eine neue Revision, sodass eine Bearbeitung gegen den alten Wert ein
+  Konflikt ist, und sein Verlauf hält die Änderung unter der Person fest, die sie
+  vorgenommen hat; ein Wert, den die Änderung nicht berührt, lässt die Revision seines
+  Datensatzes unverändert. Eine Typänderung löst keinen [Trigger](#triggers) aus: Eine
+  Schemaänderung startet nicht für jeden Datensatz einen Workflow.
 - Text wird zu einer `email`-, `url`-, `phone`- oder `rating`-Spalte, wenn jeder Wert
   sich so liest, und eine Zahl wird zu einer Bewertung, wenn sie eine ganze Zahl von 1
   bis 5 ist. Jede davon wird wieder zu Text, eine Bewertung auch zu einer Zahl.
@@ -208,7 +212,7 @@ Der Service gleicht sie mit den aktuellen Spalten ab:
   angehängt, und die aktuelle Tabelle wird zurückgegeben. Eine neue Reihenfolge oder eine
   geänderte Bezeichnung ist eine Änderung.
 
-Datensätze werden nicht umgeschrieben. Ein unter Version 1 geschriebener Datensatz
+Außer bei einer Typänderung werden Datensätze nicht umgeschrieben. Ein unter Version 1 geschriebener Datensatz
 bleibt unter Version 4 lesbar und bearbeitbar; eine Pflichtspalte, die er nie hatte,
 erhält beim nächsten Bearbeiten des Datensatzes ihren Standardwert.
 
@@ -408,6 +412,13 @@ hat, ändert die genannten Zellen dieses Datensatzes, statt als vergeben abgeleh
 werden (`update_existing` im Batch), und der Import zählt, was er hinzugefügt und was er
 aktualisiert hat.
 
+Einen Datensatz, den jemand nach Beginn des Imports geändert hat, lässt er unverändert
+und führt ihn als `REVISION_CONFLICT` auf: Der erste Batch antwortet mit `as_of`, dem
+Beginn nach der Serveruhr, und die übrigen senden es zurück. Eine Zeile, die eine
+externe ID wiederholt, die die Datei schon genannt hat, wird aufgeführt statt gesendet,
+und der Batch lehnt eine Zeile, die eine ID wiederholt, die er schon enthält, mit
+`INVALID_RECORD` ab.
+
 **New table** beginnt mit einer Spalte **Name**. Geben Sie zuerst den Tabellennamen und die Spalten an; Beschreibung und Sichtbarkeit stehen unter **More options**, standardmäßig privat. Stattdessen kann sie mit einer Datei
 beginnen: **Start from a CSV file** macht aus der Kopfzeile Spalten und gibt jeder den engsten Typ, als den
 sich alle ihre Werte lesen lassen - Ganzzahl, Zahl, Ja/Nein, Datum, Datum und
@@ -425,7 +436,7 @@ erste Antwort mit `Idempotent-Replayed: true` und schreibt nichts, selbst wenn s
 Datensatz inzwischen geändert hat. Derselbe Schlüssel mit einem anderen Body wird mit
 `IDEMPOTENCY_KEY_REUSED` abgelehnt.
 
-Der Header kennzeichnet ein wiederholtes Create, Update oder Upsert. Ein wiederholtes
+Der Header kennzeichnet ein wiederholtes Create, Update, Upsert oder einen wiederholten Batch. Ein wiederholtes
 Delete antwortet wie beim ersten Mal mit 204 und wird nicht gekennzeichnet.
 
 Ein Schlüssel gehört dem Aufrufer und der Art des Schreibzugriffs, sodass zwei Aufrufer
@@ -887,4 +898,4 @@ Aufgabennotizen sind Markdown-Dokumente mit demselben Rich-Text-Editor und derse
 
 Ein Agent kann nicht gelöscht werden, solange eine verwaltete Aufgabe von seiner geplanten Ausführung abhängt. Weise diese Aufgaben zuerst neu zu, schließe sie ab oder brich sie ab; das Löschen darf ihre Ausführung nicht stillschweigend verwerfen.
 
-Beim Wiederherstellen einer archivierten verwalteten Aufgabentafel werden geplante Erinnerungen für Personen erneut eingereiht, auch wenn ihr Termin während der Archivierung verstrichen ist. Die Zustellung prüft weiterhin den aktuellen Zugriff des ursprünglichen Erstellers und Empfängers; die Wiederherstellung autorisiert keine neue Agentenarbeit.
+Beim Wiederherstellen einer archivierten verwalteten Aufgabentafel werden geplante Erinnerungen für Personen erneut eingereiht, auch wenn ihr Termin während der Archivierung verstrichen ist. Die Zustellung prüft weiterhin den aktuellen Zugriff des ursprünglichen Erstellers und Empfängers; die Wiederherstellung autorisiert keine neue Agentenarbeit. Auch die eigenen Aufgaben schreiben nicht in eine archivierte Tafel: Ein Fall, der in der Zwischenzeit in der Inbox erledigt wird, lässt seine Aufgabe unverändert, und erst die Wiederherstellung der Tafel setzt sie auf erledigt oder abgebrochen. Einen Fall wieder zu öffnen, dessen Aufgabe auf einer archivierten Tafel liegt, wird mit `TABLE_ARCHIVED` abgelehnt.

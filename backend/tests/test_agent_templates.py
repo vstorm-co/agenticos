@@ -420,7 +420,12 @@ def test_shipped_agents_have_async_work_and_bounded_search_defaults() -> None:
             "conversation_search",
             "subagents",
         } <= bindings.keys()
-        assert bindings["tool_search"]["config"] == {"strategy": "local_bm25", "max_results": 5}
+        assert bindings["tool_search"]["config"] == {
+            "strategy": "local_bm25",
+            "max_results": 5,
+            "defer_capabilities": True,
+            "exclude_capabilities": ["ask_user", "sandbox"],
+        }
         assert bindings["conversation_search"]["config"]["max_results"] == 5
         config = bindings["subagents"]["config"]
         assert config["allow_dynamic"] and config["mode"] == "auto"

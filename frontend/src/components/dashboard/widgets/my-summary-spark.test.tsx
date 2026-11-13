@@ -16,6 +16,10 @@ vi.mock("@/components/ui", async (importOriginal) => ({
     return null;
   },
 }));
+vi.mock("@/hooks/use-waiting-on-me", async (original) => ({
+  ...(await original<typeof import("@/hooks/use-waiting-on-me")>()),
+  useWaitingOnMe: () => ({ review: 0, suites: 0, suggestions: 0, settled: true }),
+}));
 vi.mock("@/hooks", () => ({
   useUsageStats: () => ({
     usage: { total_runs: 0, by_status: [], cost: { period_usd: "0" } } as unknown as UsageStats,

@@ -415,6 +415,22 @@ class JudgePin(BaseSchema):
     prompt_version: int | None = None
 
 
+class SkillCheckAnswer(BaseSchema):
+    """The skill check an answer was given in, and which side of it."""
+
+    skill_id: UUID
+    check_id: UUID
+    arm: Literal["proposed", "current"] = Field(
+        description="`proposed`: the change the check measures; `current`: the skill as "
+        "the line serves it"
+    )
+    version: int | None = Field(
+        description="The skill version that side read: the line's for `current`; for "
+        "`proposed`, the main version a pinned agent's update would move to, null for a "
+        "change not yet saved as a version"
+    )
+
+
 class CaseScoreRead(BaseSchema):
     """One run's answer scored against one case.
 
@@ -432,7 +448,8 @@ class CaseScoreRead(BaseSchema):
     `agent_id`, `agent_version_id` and `run_model` are the scored run's;
     `agent_name` and `agent_version` are filled where scores are listed.
     `eval_run_id` is the eval run that scored it, null for a score asked for
-    by hand. `judge_model` is the name of the model the judge graded on, while
+    by hand. `skill_check` names the skill check whose stage gave the answer,
+    and with which side of the skill, null for any other answer. `judge_model` is the name of the model the judge graded on, while
     that model exists; beside `run_model` it says when a judge graded the model
     it runs on.
 
@@ -475,6 +492,12 @@ class CaseScoreRead(BaseSchema):
     answer_hidden: bool = False
     case_masked: bool = False
     eval_run_id: UUID | None = None
+    skill_check: SkillCheckAnswer | None = None
+    eval_attempt: int | None = Field(
+        default=None,
+        description="For an eval run's answer, which attempt gave it: 0 for the case's first "
+        "answer, 1 and up for a re-ask that confirmed a change; null for any other answer",
+    )
     results: list[ScorerResult]
     judge: JudgePin | None = None
     passed: bool | None = None

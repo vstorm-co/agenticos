@@ -191,6 +191,18 @@ capability tools or both, and keep selected server namespaces or individual tool
 visible from the first request. These exclusions change when a tool's schema is
 shown; the connection and binding allowlists still decide whether it is available.
 
+New AgenticOS and Architect templates also defer capability tools, keeping questions
+and sandbox tools visible immediately, and use local BM25 search with up to five
+results. Existing published agents keep their configuration; update their Tool
+search settings to adopt these defaults. Tool search does not remove instructions
+or conversation history, and input-token totals add together every model request.
+
+Browser availability additionally follows live tab state: opening, reading and
+listing tabs remain available for starting or restoring a session. Closing or
+switching needs an open tab; page actions need an active tab. Search cannot reveal
+an action that is unavailable in the current state. Availability changes can affect
+provider prompt caching, so fewer tool schemas alone do not establish lower cost.
+
 ### Which calls wait for a person
 
 Every binding has an `approval` policy for its server's tools. The default,
@@ -326,6 +338,8 @@ account's name: the chat, Activity and the dashboard show it beside the action,
 a Slack or Telegram message asks "to _send in Gmail_ as _Work_", and the
 approval email lists it after the tool. A single unlabelled account has nothing
 to tell apart, so nothing is added.
+
+The connection’s Tools dialog shows **read-only** only for an explicit `readOnlyHint: true`, **may change data** for an explicit false, and **not declared** when the annotation was absent or an older probe did not record it. Missing metadata is treated conservatively by the `writes` policy; it does not prove the tool writes. Re-test an older connection to refresh its declarations. This classification is separate from whether isolated evals trust the server’s hints.
 
 ## Authentication
 
@@ -1185,17 +1199,18 @@ Connection checks update discovered tools and status. `test_my_connection` there
 | Tool | Needs |
 | --- | --- |
 | `whoami` | — |
-| `list_agents`, `get_agent`, `list_capabilities`, `list_models`, `search_mcp_servers` | `agents:view` |
+| `list_agents`, `get_agent`, `list_capabilities`, `get_capability`, `list_models`, `search_mcp_servers` | `agents:view` |
 | `create_agent_draft`, `update_agent_draft`, `test_agent_draft` | `agents:edit` |
 | `list_sandbox_connections`, `list_sandbox_runtimes`, `get_sandbox_policy` | `connections:view` |
 | `list_org_connections` | `mcp:manage` |
+| `list_mcp_connection_tools`, `get_mcp_connection_tool` | `mcp:manage` (organization); own personal connections (key: `agents:run`) |
 | `publish_agent` | `agents:publish` on that agent |
 | `discard_agent_draft` | `agents:edit`, on a draft you own that was never published |
 | `run_agent` | `agents:run` |
 | `list_routines` | `agents:view` |
 | `create_routine`, `run_routine_now` | `agents:run` on the agent |
 | `update_routine`, `delete_routine` | the routine's creator, or `agents:edit` on its agent |
-| `list_runs`, `get_run`, `read_conversation`, `list_conversations`, `get_spend` | `runs:view` |
+| `list_runs`, `get_run`, `read_run_transcript`, `read_run_tool_call`, `read_conversation`, `read_conversation_tool_call`, `list_conversations`, `get_spend` | `runs:view` |
 | `create_conversation` | `agents:run` |
 | `update_proactivity_settings` | `org:settings`, `budgets:manage` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |
@@ -1203,8 +1218,14 @@ Connection checks update discovered tools and status. `test_my_connection` there
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
 | `create_skill` | `skills:edit` |
-| `get_skill` | `skills:view` |
+| `get_skill`, `list_skill_versions`, `get_skill_version` | `skills:view`; agents the caller cannot see are only counted |
 | `update_skill`, `add_skill_resource` | `skills:edit` |
+| `list_skill_improvements`, `get_skill_improvement` | `skills:view` and `runs:view` |
+| `estimate_skill_improvement`, `start_skill_improvement`, `estimate_next_skill_improvement_step`, `run_next_skill_improvement_step`, `retry_skill_improvement_step`, `accept_skill_improvement`, `end_skill_improvement` | edit access to the skill and `runs:view`; pinning the worse agents also `agents:publish` on each |
+| `change_skill_version` | edit access to the agent; going live also `agents:publish` |
+| `list_skills_behind_main` | `skills:view` |
+| `estimate_skill_update_check`, `start_skill_update_check`, `estimate_skill_catch_up`, `start_skill_catch_up` | edit access to the skill and `runs:view`; an update check also access to the agent |
+| `return_skill_fork_to_main` | edit access to each agent; going live also `agents:publish` |
 | `list_context_files`, `get_context_file` | `context:view` |
 | `create_context_file`, `update_context_file` | `context:edit` |
 | `list_projects` | `projects:view` |
@@ -1382,3 +1403,19 @@ Migration `0293_connected_account_sources.py` leaves unverifiable older personal
 Mirage approval pauses pin account identities and credential generations. Changing either while a run waits requires a new run and approval. Routine source reviews bind the same generations, and terminal writes and commands require routine effect consent even when per-mount write approvals are disabled.
 
 Removing a member permanently revokes their personal grants issued through this organization; inviting them back requires new consent.
+
+## Bounded discovery and run inspection { #bounded-discovery }
+
+Platform MCP discovery returns summaries before full contracts. `list_org_connections` and `list_my_connections` accept `q`, `limit` (1–50, default 20) and `skip`; follow `next_skip` until null. They omit cached tool schemas and agent-usage arrays. `tool_count: null` means no catalog was recorded, while zero means a recorded empty catalog. A null `allowed_tool_count` means the connection has no tool allowlist. `list_my_connections(include_tools=true)` remains available for small responses but refuses payloads over 64 KiB.
+
+Use `list_mcp_connection_tools(connection_id, account, q, limit, skip)` to find tools on one accessible connection. It returns names, bounded description excerpts, allowlist status and the server's explicit `read_only_hint`. Null means the server did not declare one; it does not prove a write. `get_mcp_connection_tool` returns one full cached contract, including its input schema. A null schema was not retained; it does not mean no arguments. Both calls read the last recorded catalog without executing tools or probing the server; check `last_checked_at` and `tools_cached`. Organization reads require `mcp:manage`; personal reads are restricted to the caller's own connections.
+
+`list_capabilities(q, limit, skip)` returns summaries; call `get_capability(capability_id)` before configuring one to read its schema, defaults and tool contracts. `list_skills` defaults to 20 items, forwards `q` to the API and omits body excerpts. `get_skill` reads the body; `include_usage=true` adds the agents using a skill. These discovery responses have a 64 KiB budget and refuse excess explicitly, with guidance to narrow the request. They do not silently discard required schema fields. Existing MCP clients reading configuration directly from listings must switch to these detail tools and follow pagination. The console's REST responses are unchanged.
+
+For diagnostics, `list_runs` accepts status, surface, frozen version and timezone-aware date filters. Historical failures alone do not establish that the current version fails. `read_conversation` remains limited to the asker's own chats. Use `read_run_transcript` for an authorized run, including a colleague's or channel run, under the existing `runs:view` policy. It omits guardrail-refused turns before pagination and excludes quoted replies.
+
+Its message indexes refer to that filtered transcript. It returns bounded text windows and tool-call metadata, not every argument and result. Follow `next_skip`, `next_offset` and `next_tool_skip`; use `limit=1` to continue a long message. `read_run_tool_call` reads a bounded window of one selected call's `args` or `result`, verifies the message id still matches the indexed page, and never executes it. An unavailable recorded result is null. No additional access to private conversations is granted.
+
+Named-agent Improve lookup checks every agent page before selecting a match or reporting ambiguity, rather than assuming the first 100 agents are the complete catalog.
+
+`read_conversation` uses the same bounded message and tool-metadata windows as run inspection, with 10 messages by default. `read_conversation_tool_call` reads a selected recorded payload, including older messages without run IDs, through the unchanged owner-scoped conversation API. Existing MCP consumers must follow the window continuations instead of expecting full tool results inline.

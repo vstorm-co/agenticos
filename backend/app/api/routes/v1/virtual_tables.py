@@ -379,15 +379,28 @@ async def create_record(
     dependencies=[Depends(limit_table_write)],
 )
 async def create_records(
-    table_id: UUID, data: RecordBatchCreate, service: VirtualTableSvc, ctx: Auth
+    table_id: UUID,
+    data: RecordBatchCreate,
+    response: Response,
+    service: VirtualTableSvc,
+    ctx: Auth,
+    idempotency_key: IdempotencyKey = None,
 ) -> Any:
     """Create up to 200 records, each on its own - what a CSV import sends.
 
     A record that is refused is listed in `failed` with the code a single create
     would answer (`INVALID_RECORD`, `ALREADY_EXISTS`, `QUOTA_EXCEEDED`...), and the
-    others are written. The whole batch counts once against the write rate limit.
+    others are written. A row repeating an external id the batch already named is
+    `INVALID_RECORD`. With `update_existing`, a record changed after `as_of` is left
+    as it is and listed as `REVISION_CONFLICT`; the first batch of an import omits
+    `as_of` and sends the one it is answered with on the rest. The whole batch counts
+    once against the write rate limit, and with an `Idempotency-Key` a batch sent
+    again answers what it did the first time.
     """
-    return await service.create_records(ctx, table_id, data)
+    result, replayed = await service.write_batch(ctx, table_id, data, operation_key=idempotency_key)
+    if replayed:
+        response.headers["Idempotent-Replayed"] = "true"
+    return result
 
 
 @router.post(

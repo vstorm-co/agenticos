@@ -529,6 +529,10 @@ export interface ActionRequest {
   context?: Record<string, string> | null;
   /** Which of a service's accounts the call acts as, where its binding names one. */
   account?: string | null;
+  /** What the call quotes from its run was left out, because this person may not see the run. */
+  content_hidden?: boolean;
+  /** Only a person's answer could let the call run; with `content_hidden`, only Reject is offered. */
+  always_asks?: boolean;
 }
 
 export interface ReviewConfig {

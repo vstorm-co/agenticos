@@ -246,9 +246,10 @@ function finishedLabel(
   args: Record<string, unknown> | undefined,
   t: Translate,
 ): string {
+  // The id a skill is loaded by is its name, which the skill's page and its links use as written.
   if (name === "read_skill" || name === "load_capability") {
     const skill = text((args ?? {}).id);
-    if (skill !== null) return titleWords(skill);
+    if (skill !== null) return skill;
   }
   return toolDisplayName(name, t);
 }

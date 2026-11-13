@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { AnswerStyleFields, DEFAULT_ANSWER_STYLE } from "./answer-style-fields";
+import { AnswerStyleFields, DEFAULT_ANSWER_STYLE, defaultAnswerStyle } from "./answer-style-fields";
 import { EditChannelDialog } from "./edit-channel-dialog";
 import { SlackTransport } from "./slack-transport";
 import type { AnswerStyle, ChannelBot, ChannelPlatform } from "@/types/channels";
@@ -42,9 +42,29 @@ function Harness({
 }
 
 describe("how a bot answers (#2084)", () => {
+  it.each([
+    ["mattermost", "eyes"],
+    ["slack", "eyes"],
+    ["telegram", "eyes"],
+    ["imessage", "emphasize"],
+    ["discord", null],
+    ["teams", null],
+    ["email", null],
+  ] as const)(
+    "defaults %s to a supported acknowledgement without ratings",
+    (platform, reaction) => {
+      expect(defaultAnswerStyle(platform)).toEqual({
+        ack_reaction: reaction,
+        stream_answers: true,
+        step_display: "timeline",
+        rate_answers: false,
+      });
+    },
+  );
+
   it("takes a reaction from the list and turns the thumbs and the stream off", async () => {
     const onChange = vi.fn();
-    render(<Harness platform="slack" onChange={onChange} />);
+    render(<Harness platform="slack" onChange={onChange} initial={{ rate_answers: true }} />);
 
     await userEvent.click(screen.getByRole("combobox", { name: "React to a question with" }));
     await userEvent.click(await screen.findByRole("option", { name: /eyes/ }));

@@ -84,7 +84,7 @@ function IdeaSkill({
     return (
       <p className="text-sm">
         {t("created")}{" "}
-        <Link className="underline" href={`${ROUTES.SKILLS}/${item.skill_id}`}>
+        <Link className="underline" href={ROUTES.SKILL_DETAIL(item.skill_id)}>
           {t("openSkill")}
         </Link>
       </p>
@@ -115,6 +115,14 @@ function Proposed({ item }: { item: RejectedChange }) {
             {t("about", { line: change.edit })}
           </p>
         )}
+      </div>
+    );
+  }
+  if (item.kind === "skill_problem") {
+    return (
+      <div className="text-muted-foreground space-y-1 text-xs">
+        <p className="font-mono break-words">{change.skill}</p>
+        <p>{change.problem}</p>
       </div>
     );
   }

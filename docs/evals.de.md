@@ -1,5 +1,5 @@
 ---
-source_sha: "b01337524a1f"
+source_sha: "e0f27fa2e9f9"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -47,8 +47,8 @@ ausgewählt; Umgebung, Aufzeichnungen und Wiederholungen liegen unter
 **Erweitert** (Advanced). Die Kosten werden berechnet, sobald die Felder
 feststehen, und sagen, was die Antworten bewertet und was die Budgets des
 Agents und der Organisation danach behalten; der Run startet erst über den
-Button, der den Betrag nennt. **Entwurf weicht von vN ab**
-(Draft differs from vN) auf der Seite des Agents - vN ist die zuletzt
+Button, der den Betrag nennt. **Entwurf weicht von Agent-Version vN ab**
+(Draft differs from agent vN) auf der Seite des Agents - vN ist die zuletzt
 veröffentlichte Version, und wenn die Wächter der Produktion sie auf einer
 älteren halten, sagt ein zweites Badge, auf welcher, etwa „Produktion auf v1
 (wartet auf Evals)“ - trägt einen Button **Entwurf testen** (Test draft), der

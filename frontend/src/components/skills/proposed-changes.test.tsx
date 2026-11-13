@@ -17,10 +17,14 @@ vi.mock("@/hooks/use-permissions", () => ({
   usePermissions: () => ({ can: () => state.runsView }),
 }));
 
-vi.mock("@/components/authoring/skill-check-button", () => ({
-  SkillCheckButton: ({ proposalId }: { proposalId: string }) => (
-    <button>{`check ${proposalId}`}</button>
-  ),
+vi.mock("./skill-check-dialog", () => ({
+  SkillCheckDialog: ({
+    change,
+    forkId,
+  }: {
+    change: { proposalId: string };
+    forkId: string | null;
+  }) => <p>{`checking ${change.proposalId} on ${forkId ?? "main"}`}</p>,
 }));
 
 vi.mock("@/hooks", () => ({
@@ -52,6 +56,7 @@ function change(overrides: Partial<SkillChangeRecord> = {}): SkillChangeRecord {
     revision: 1,
     reaches: [],
     reaches_hidden: 0,
+    fork_id: null,
     ...overrides,
   };
 }
@@ -100,6 +105,29 @@ describe("ProposedChanges", () => {
     expect(screen.getByText("Edit")).toBeVisible();
     expect(screen.getByText("New skill")).toBeVisible();
     expect(screen.getByText(/2 changes are waiting/)).toBeVisible();
+  });
+
+  it("says an edit reaches its agents through a check, and a new skill reaches nobody", () => {
+    const reached = {
+      id: "a-1",
+      name: "Refund desk",
+      environments: ["production"],
+      runs_now: [],
+      runs_now_count: 0,
+      at_promotion: [],
+      at_promotion_count: 0,
+    };
+    state.changes = [
+      change({ reaches: [reached] }),
+      change({ id: "p-2", skill_id: null, name: "new-one" }),
+    ];
+    render(<ProposedChanges canEdit />);
+
+    expect(
+      screen.getByText("Goes live for Refund desk (production) once a check on them lets it."),
+    ).toBeVisible();
+    expect(screen.queryByText(/Goes live now/)).toBeNull();
+    expect(screen.getByText(/No published agent reads it yet/)).toBeVisible();
   });
 
   it("counts one change in the singular", () => {
@@ -177,11 +205,17 @@ describe("ProposedChanges", () => {
       }),
     ];
     render(<ProposedChanges canEdit />);
-    expect(screen.getByRole("button", { name: "check p-1" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /Show what changed in refunds/ }));
     expect(screen.getByText("Readers corrected the window.")).toBeInTheDocument();
     expect(screen.getByText("Answers say 30 days.")).toBeInTheDocument();
     expect(screen.getByText("It is 30 days")).toBeInTheDocument();
+  });
+
+  it("shows a rationale that came without evidence", async () => {
+    state.changes = [change({ rationale: "Shorter is clearer." })];
+    render(<ProposedChanges canEdit />);
+    await userEvent.click(screen.getByRole("button", { name: /Show what changed in refunds/ }));
+    expect(screen.getByText("Shorter is clearer.")).toBeInTheDocument();
   });
 
   it("says an assistant's change cited nothing it could check", async () => {
@@ -191,15 +225,15 @@ describe("ProposedChanges", () => {
     expect(screen.getByText("No evidence that could be checked.")).toBeInTheDocument();
   });
 
-  it("offers no check and no evidence for a change an agent's workspace wrote", async () => {
+  it("shows no evidence for a change an agent's workspace wrote", async () => {
     state.changes = [change({ base_version: 4, authoring_request_id: null })];
     render(<ProposedChanges canEdit />);
-    expect(screen.queryByRole("button", { name: /check/ })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: /Show what changed in refunds/ }));
     expect(screen.queryByText("No evidence that could be checked.")).toBeNull();
   });
 
-  it("accepts and refuses through their own actions", async () => {
+  it("applies a new skill at once, and refuses a change through its own action", async () => {
+    state.changes = [change({ skill_id: null })];
     render(<ProposedChanges canEdit />);
 
     await userEvent.click(screen.getByRole("button", { name: /Apply the change to refunds/ }));
@@ -207,6 +241,19 @@ describe("ProposedChanges", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /Discard the change to refunds/ }));
     expect(state.discard).toHaveBeenCalledWith(expect.objectContaining({ id: "p-1", revision: 1 }));
+  });
+
+  it("sends a change to a skill agents use through a check on them, on its line", async () => {
+    // Applying it goes live for every agent that follows the line, so it is
+    // checked there first; there is no Apply that skips the check.
+    state.changes = [change({ fork_id: "fork-1" })];
+    render(<ProposedChanges canEdit />);
+
+    expect(screen.queryByRole("button", { name: /Apply the change to refunds/ })).toBeNull();
+    await userEvent.click(
+      screen.getByRole("button", { name: /Check the change to refunds on the agents/ }),
+    );
+    expect(screen.getByText("checking p-1 on fork-1")).toBeInTheDocument();
   });
 });
 

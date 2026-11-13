@@ -1,5 +1,5 @@
 ---
-source_sha: "62e7ca10f103"
+source_sha: "64b3eac00c71"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -208,6 +208,20 @@ servidores o las herramientas individuales que elijas. Estas exclusiones cambian
 cuándo se muestra el esquema de una herramienta; las listas permitidas de conexión
 y vinculación siguen decidiendo si está disponible.
 
+Las nuevas plantillas de AgenticOS y Architect también difieren herramientas de
+capabilities, mantienen visibles las preguntas y las herramientas del sandbox desde
+el principio y usan búsqueda BM25 local con hasta cinco resultados. Los agents ya
+publicados conservan su configuración; puedes adoptar los nuevos valores en los
+ajustes de búsqueda de herramientas. La búsqueda no elimina las instrucciones ni
+el historial; el total de tokens de entrada suma todas las peticiones al modelo.
+
+La disponibilidad de las herramientas del navegador también sigue el estado de las
+pestañas: abrir, leer y listar siguen disponibles para iniciar o restaurar una
+sesión. Cerrar y cambiar requieren una pestaña abierta; las acciones sobre la página,
+una pestaña activa. La búsqueda no revela acciones no disponibles en el estado
+actual. Los cambios de disponibilidad pueden afectar a la caché del prompt del
+proveedor; menos esquemas de herramientas por sí solos no demuestran un menor coste.
+
 ### Qué llamadas esperan a una persona { #which-calls-wait-for-a-person }
 
 Cada vinculación tiene una política `approval` para las herramientas de su
@@ -355,6 +369,8 @@ nombre de esa cuenta: el chat, Activity y el dashboard lo muestran junto a la
 acción, un mensaje de Slack o Telegram pregunta «to _send in Gmail_ as _Work_», y
 el correo de aprobación lo indica tras la herramienta. Una sola cuenta sin
 etiqueta no tiene de qué distinguirse, así que no se añade nada.
+
+El diálogo de herramientas muestra **solo lectura** para `readOnlyHint: true` explícito, **puede cambiar datos** para false explícito y **sin declaración** si falta la anotación o una prueba anterior no la guardó. La política `writes` trata la ausencia de metadatos con cautela; no demuestra que la herramienta escriba. Vuelve a probar conexiones antiguas para actualizar sus declaraciones. Esta clasificación es independiente de confiar en las anotaciones durante evaluaciones aisladas.
 
 ## Autenticación { #authentication }
 
@@ -1267,17 +1283,18 @@ Las comprobaciones de conexión actualizan las herramientas descubiertas y el es
 | Herramienta | Necesita |
 | --- | --- |
 | `whoami` | — |
-| `list_agents`, `get_agent`, `list_capabilities`, `list_models`, `search_mcp_servers` | `agents:view` |
+| `list_agents`, `get_agent`, `list_capabilities`, `get_capability`, `list_models`, `search_mcp_servers` | `agents:view` |
 | `create_agent_draft`, `update_agent_draft`, `test_agent_draft` | `agents:edit` |
 | `list_sandbox_connections`, `list_sandbox_runtimes`, `get_sandbox_policy` | `connections:view` |
 | `list_org_connections` | `mcp:manage` |
+| `list_mcp_connection_tools`, `get_mcp_connection_tool` | `mcp:manage` (organización); conexiones personales propias (clave: `agents:run`) |
 | `publish_agent` | `agents:publish` sobre ese agent |
 | `discard_agent_draft` | `agents:edit`, sobre un borrador tuyo que nunca se publicó |
 | `run_agent` | `agents:run` |
 | `list_routines` | `agents:view` |
 | `create_routine`, `run_routine_now` | `agents:run` sobre el agent |
 | `update_routine`, `delete_routine` | quien creó la rutina, o `agents:edit` sobre su agent |
-| `list_runs`, `get_run`, `read_conversation`, `list_conversations`, `get_spend` | `runs:view` |
+| `list_runs`, `get_run`, `read_run_transcript`, `read_run_tool_call`, `read_conversation`, `read_conversation_tool_call`, `list_conversations`, `get_spend` | `runs:view` |
 | `create_conversation` | `agents:run` |
 | `update_proactivity_settings` | `org:settings`, `budgets:manage` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |
@@ -1285,8 +1302,14 @@ Las comprobaciones de conexión actualizan las herramientas descubiertas y el es
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
 | `create_skill` | `skills:edit` |
-| `get_skill` | `skills:view` |
+| `get_skill`, `list_skill_versions`, `get_skill_version` | `skills:view`; los agents que quien llama no puede ver solo se cuentan |
 | `update_skill`, `add_skill_resource` | `skills:edit` |
+| `list_skill_improvements`, `get_skill_improvement` | `skills:view` y `runs:view` |
+| `estimate_skill_improvement`, `start_skill_improvement`, `estimate_next_skill_improvement_step`, `run_next_skill_improvement_step`, `retry_skill_improvement_step`, `accept_skill_improvement`, `end_skill_improvement` | acceso de edición al skill y `runs:view`; fijar los agents que empeoraron también `agents:publish` en cada uno |
+| `change_skill_version` | acceso de edición al agent; publicar en vivo también `agents:publish` |
+| `list_skills_behind_main` | `skills:view` |
+| `estimate_skill_update_check`, `start_skill_update_check`, `estimate_skill_catch_up`, `start_skill_catch_up` | acceso de edición al skill y `runs:view`; una comprobación de actualización también acceso al agent |
+| `return_skill_fork_to_main` | acceso de edición a cada agent; publicar en vivo también `agents:publish` |
 | `list_context_files`, `get_context_file` | `context:view` |
 | `create_context_file`, `update_context_file` | `context:edit` |
 | `list_projects` | `projects:view` |
@@ -1477,3 +1500,19 @@ La migración `0293_connected_account_sources.py` exige renovar el consentimient
 Las pausas de aprobación de Mirage fijan identidades de cuentas y generaciones de secretos. Cambiarlas durante la espera requiere una ejecución nueva con aprobación. Las revisiones de fuentes de rutinas fijan las mismas generaciones; escrituras y comandos del terminal requieren consentimiento para efectos de la rutina incluso con las aprobaciones de escritura del montaje desactivadas.
 
 Eliminar a un miembro revoca permanentemente sus autorizaciones personales emitidas mediante esta organización; volver a invitarlo requiere un nuevo consentimiento.
+
+## Descubrimiento acotado e inspección de ejecuciones { #bounded-discovery }
+
+El MCP de la plataforma devuelve primero resúmenes, no todos los contratos. `list_org_connections` y `list_my_connections` aceptan `q`, `limit` (1–50, 20 por defecto) y `skip`; siga `next_skip` hasta null. Omiten esquemas guardados de herramientas y listas de agentes. `tool_count: null` indica que no hay catálogo guardado; cero indica un catálogo guardado vacío. `allowed_tool_count: null` significa que no hay lista de herramientas permitidas. `list_my_connections(include_tools=true)` sigue disponible para respuestas pequeñas, pero rechaza cargas superiores a 64 KiB.
+
+`list_mcp_connection_tools(connection_id, account, q, limit, skip)` busca herramientas de una conexión accesible. Devuelve nombres, extractos acotados de descripciones, estado de la lista permitida y el `read_only_hint` declarado por el servidor. Null significa que no hay declaración, no demuestra una escritura. `get_mcp_connection_tool` lee un contrato guardado completo con su esquema de entrada. Un esquema null no se conservó; no significa que no existan argumentos. Ambas llamadas leen el último catálogo guardado sin ejecutar herramientas ni probar el servidor; revise `last_checked_at` y `tools_cached`. La lectura de la organización requiere `mcp:manage`; la personal se limita a las conexiones propias.
+
+`list_capabilities(q, limit, skip)` devuelve resúmenes; consulte `get_capability(capability_id)` antes de configurar para obtener esquema, valores predeterminados y contratos. `list_skills` devuelve 20 elementos por defecto, pasa `q` a la API y omite extractos del contenido. `get_skill` lee el contenido; `include_usage=true` añade los agentes que usan la habilidad. Estas respuestas tienen un presupuesto de 64 KiB y rechazan explícitamente el exceso, indicando que hay que acotar la solicitud. No recortan campos obligatorios del esquema de forma silenciosa. Los clientes MCP existentes deben usar las herramientas de detalle para leer configuraciones y seguir la paginación. Las respuestas REST de la consola no cambian.
+
+`list_runs` permite filtrar por estado, canal, versión congelada y fechas con zona horaria. Los errores históricos no prueban un fallo de la versión actual. `read_conversation` sigue limitado a chats propios. `read_run_transcript` lee ejecuciones autorizadas, incluidas las de colegas o canales, según la política existente de `runs:view`. Omite los turnos rechazados por guardrails antes de paginar y excluye citas de respuestas.
+
+Los índices corresponden a esa transcripción filtrada. Devuelve ventanas acotadas de texto y metadatos de herramientas, sin todos los argumentos y resultados. Siga `next_skip`, `next_offset` y `next_tool_skip`; use `limit=1` para continuar un mensaje largo. `read_run_tool_call` lee una ventana de `args` o `result` de una llamada, verifica que el identificador del mensaje coincide con la página y no ejecuta nada. Un resultado no disponible es null. No concede acceso adicional a conversaciones privadas.
+
+La búsqueda por nombre para Improve revisa todas las páginas antes de elegir una coincidencia o indicar ambigüedad; los primeros 100 agentes no se consideran el catálogo completo.
+
+`read_conversation` usa las mismas ventanas acotadas de mensajes y metadatos que la inspección de ejecuciones, con 10 mensajes por defecto. `read_conversation_tool_call` lee una carga registrada concreta, también de mensajes antiguos sin identificador de ejecución, mediante la API de conversaciones propias sin ampliar permisos. Los clientes MCP deben seguir las continuaciones de las ventanas en vez de esperar todos los resultados de herramientas dentro de la transcripción.

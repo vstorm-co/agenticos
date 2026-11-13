@@ -10,6 +10,7 @@ import {
   useImprovements,
   useImprovementsAwaiting,
   useImprovementEvidence,
+  useImprovementSkills,
 } from "./use-improvements";
 vi.mock("@/lib/api-client", () => ({ apiClient: { get: vi.fn(), post: vi.fn(), put: vi.fn() } }));
 let client: QueryClient;
@@ -120,6 +121,18 @@ it("separates the free preview from pinned session evidence", async () => {
   );
 });
 
+it("asks a skill's session for no agent evidence", async () => {
+  vi.mocked(apiClient.get).mockClear();
+  const view = renderHook(
+    () => useImprovementEvidence({ skillId: "k1" }, { sessionId: "s1", live: false }),
+    { wrapper },
+  );
+
+  expect(view.result.current.evidence).toBeUndefined();
+  expect(view.result.current.isLoading).toBe(false);
+  expect(apiClient.get).not.toHaveBeenCalled();
+});
+
 it("binds selected checks to their choices, complete price and candidate hash", async () => {
   vi.mocked(apiClient.get).mockResolvedValue({ id: "s1", status: "ready" });
   const quote = { suggestions: 1, total_usd: "0.04", affordable: true, candidate_hash: "hash" };
@@ -165,6 +178,23 @@ it("requires the continuation quote and confirms discarding explicitly", async (
   await result.current.discard.mutateAsync();
   expect(apiClient.post).toHaveBeenLastCalledWith("/agents/a1/improvements/s1/discard", {
     confirmed: true,
+  });
+  // A catch-up prices and starts its check with whether main alone is checked too.
+  await result.current.estimateContinuation.mutateAsync({
+    budget: "1",
+    body: { main_alone: false },
+  });
+  expect(apiClient.post).toHaveBeenLastCalledWith("/agents/a1/improvements/s1/continue/estimate", {
+    main_alone: false,
+    budget_usd: "1",
+  });
+  await result.current.continueSession.mutateAsync({ ...quote, body: { main_alone: false } });
+  expect(apiClient.post).toHaveBeenLastCalledWith("/agents/a1/improvements/s1/continue", {
+    main_alone: false,
+    confirmed: true,
+    budget_usd: "1",
+    estimate_usd: "0.04",
+    candidate_hash: "hash",
   });
 });
 
@@ -212,4 +242,28 @@ it("chooses and rewords the changes a check is to measure", async () => {
   expect(apiClient.put).toHaveBeenCalledWith("/agents/a1/improvements/s1/changes/h1", {
     edited_text: null,
   });
+});
+
+it("reaches a skill's session under the skill, and refreshes the skill after a step", async () => {
+  vi.mocked(apiClient.get).mockResolvedValue({ id: "s1", status: "ready", skill_id: "k1" });
+  vi.mocked(apiClient.put).mockResolvedValue({ id: "s1" });
+  const subject = { skillId: "k1" };
+  const { result } = renderHook(() => useImprovement(subject, "s1"), { wrapper });
+  await waitFor(() => expect(result.current.session?.id).toBe("s1"));
+  expect(apiClient.get).toHaveBeenCalledWith("/skills/k1/improvements/s1");
+  const invalidation = vi.spyOn(client, "invalidateQueries");
+
+  await result.current.selectChanges.mutateAsync(["h1"]);
+
+  expect(apiClient.put).toHaveBeenCalledWith("/skills/k1/improvements/s1/selection", {
+    hunk_ids: ["h1"],
+  });
+  expect(invalidation).toHaveBeenCalledWith({ queryKey: ["skills"] });
+});
+
+it("reads what a session found in the agent's skills", async () => {
+  vi.mocked(apiClient.get).mockResolvedValue({ items: [] });
+  const { result } = renderHook(() => useImprovementSkills("a1", "s1"), { wrapper });
+  await waitFor(() => expect(result.current.skills).toEqual({ items: [] }));
+  expect(apiClient.get).toHaveBeenCalledWith("/agents/a1/improvements/s1/skills");
 });

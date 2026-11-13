@@ -85,6 +85,7 @@ from app.db.models.routine_device_wait import RoutineDeviceWait
 from app.db.models.routine_health import RoutineHealthObservation
 from app.db.models.run_manifest import RunManifest
 from app.db.models.session import Session
+from app.db.models.skill_improvement import SkillImprovementRun
 from app.db.models.skill_proposal import SkillProposal
 from app.db.models.suggestion import Suggestion
 from app.db.models.system_agent_profile import SYSTEM_ROLES
@@ -1078,6 +1079,10 @@ def _without_theirs(
     ]
 
 
+REPORT_EVIDENCE = ("findings", "skill_problems", "problems")
+"""The lists in a request's report whose items quote runs under `evidence`."""
+
+
 async def purge_evidence_of(
     db: AsyncSession, user_id: UUID, *, comments: dict[UUID, list[str]]
 ) -> int:
@@ -1089,9 +1094,12 @@ async def purge_evidence_of(
     quotes is from their conversation. From a run they only rated, only what
     repeats their comment goes - the rest is somebody else's question.
 
-    Kept on change proposals' hunks, skill and context proposals, and the
-    findings of a verify request's report. Unscoped by organization, as every
-    erasure is.
+    Kept on change proposals' hunks, skill and context proposals, and in a
+    request's report: a verify's findings, an improve's skill problems and the
+    problems a skill session's analysis grouped. A skill session's seed - what an
+    agent's Improve handed over - holds quotes without the run each came from,
+    so a seed citing a run of theirs loses all its quotes. Unscoped by
+    organization, as every erasure is.
 
     Returns:
         How many quotes were removed.
@@ -1108,17 +1116,34 @@ async def purge_evidence_of(
             row.evidence = kept
     requests = await db.execute(
         select(AuthoringRequest).where(
-            _cites(AuthoringRequest.report, "$.findings[*].evidence[*].run_id", reached)
+            or_(
+                *(
+                    _cites(AuthoringRequest.report, f"$.{key}[*].evidence[*].run_id", reached)
+                    for key in REPORT_EVIDENCE
+                )
+            )
         )
     )
     for request in requests.scalars().all():
         assert request.report is not None
-        findings = []
-        for finding in request.report.get("findings", []):
-            kept = _without_theirs(finding.get("evidence", []), theirs, said)
-            removed += len(finding.get("evidence", [])) - len(kept)
-            findings.append({**finding, "evidence": kept})
-        request.report = {**request.report, "findings": findings}
+        report = dict(request.report)
+        for key in REPORT_EVIDENCE:
+            if key not in report:
+                continue
+            items = []
+            for item in report[key]:
+                kept = _without_theirs(item.get("evidence", []), theirs, said)
+                removed += len(item.get("evidence", [])) - len(kept)
+                items.append({**item, "evidence": kept})
+            report[key] = items
+        request.report = report
+    seeded = await db.execute(
+        select(SkillImprovementRun).where(_cites(SkillImprovementRun.seed, "$.run_ids[*]", reached))
+    )
+    for session in seeded.scalars().all():
+        assert session.seed is not None
+        removed += len(session.seed.get("quotes", []))
+        session.seed = {**session.seed, "quotes": []}
     await db.flush()
     return removed
 

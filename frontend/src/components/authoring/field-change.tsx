@@ -44,8 +44,14 @@ function named(value: FieldValue, names: Record<string, string>): string {
   return JSON.stringify(value);
 }
 
-/** The field a change is to, in words: "Temperature", "Capability Apps", "MCP tools of CRM". */
+/**
+ * The field a change is to, in words: "Temperature", "Capability Apps", "MCP tools of CRM",
+ * or "Skill instructions" for a change to a skill. A path it does not know is a change,
+ * never an approval it is not.
+ */
 export function fieldLabel(hunk: Hunk, t: Translate): string {
+  if (hunk.kind === "skill_body") return t("skillBody");
+  if (hunk.kind === "skill_description") return t("skillDescription");
   const path = hunk.path ?? "";
   const names = hunk.names;
   const [root = "", key = "", leaf = "", name = ""] = path.split("/");
@@ -64,7 +70,8 @@ export function fieldLabel(hunk: Hunk, t: Translate): string {
   if (leaf === "inline") return t("specialist", { name });
   if (leaf === "config") return t("capabilityConfig", { name: key });
   if (leaf === "approval") return t("approval", { name: key });
-  return t("toolApproval", { name });
+  if (leaf === "tool_approval") return t("toolApproval", { name });
+  return t("other");
 }
 
 function shown(value: FieldValue, names: Record<string, string>, t: Translate): string {

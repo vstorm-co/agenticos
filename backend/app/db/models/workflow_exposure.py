@@ -245,6 +245,9 @@ class WorkflowWebhookDelivery(Base):
     # Historical identity survives content retention; the exposure and tenant
     # remain the owners that delete the delivery tombstone.
     workflow_run_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    # SHA-256 of the signature the delivery carried, so the same signed request under
+    # another id is answered as a copy. Null on deliveries admitted before it was kept.
+    signed_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -252,5 +255,12 @@ class WorkflowWebhookDelivery(Base):
     __table_args__ = (
         UniqueConstraint(
             "exposure_id", "delivery_id", name="uq_workflow_webhook_delivery_exposure_delivery"
+        ),
+        Index(
+            "ix_workflow_webhook_delivery_signed_digest",
+            "exposure_id",
+            "signed_digest",
+            "created_at",
+            postgresql_where="signed_digest IS NOT NULL",
         ),
     )

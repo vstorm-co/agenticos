@@ -200,6 +200,8 @@ handlers and CLI commands open `get_db_context()`, and worker tasks
 they commit on a clean exit of their own `async with` and start their deferred
 work in the same place — which has nothing to do with a response.
 
+Channel admission also commits before run preparation: `ChannelMessageRouter._route_inner` saves the admitted identity, session and conversation after access and rate-limit checks. Platform MCP credentials use an independent transaction and reference that conversation; a flush alone is not visible there. If admission cannot commit, preparation does not start.
+
 ### The run path's two commits
 
 One path deliberately commits earlier than "on the way out": **an agent run.**

@@ -8,7 +8,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.spec import AgentSpec, SubagentRef
+from app.agents.spec import AgentSpec, PlatformMcpServerRef, SubagentRef
 from app.core.exceptions import AuthorizationError, ConflictError
 from app.core.permissions import AuthContext
 from app.db.models.agent import Agent, AgentVersion
@@ -1091,3 +1091,70 @@ async def test_source_review_bounds_provider_inventory_without_connecting(db, mo
     else:
         reviewed = await RoutineSourceService(db)._review(ctx, trigger)
         assert bool(reviewed.unavailable) is (source != "disabled_phone")
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("runs_as_creator", [False, True])
+@pytest.mark.parametrize("delegated", [False, True])
+async def test_platform_mcp_requires_an_explicit_creator_identity(
+    db: AsyncSession, runs_as_creator: bool, delegated: bool
+) -> None:
+    ctx, trigger, spec, _ = await world(db)
+    version = await db.get(AgentVersion, trigger.pinned_version_id)
+    assert version is not None
+    platform_spec = spec.model_copy(
+        update={"mcp_servers": [PlatformMcpServerRef(account="platform")]}
+    )
+    if delegated:
+        child = Agent(
+            organization_id=ctx.organization_id,
+            owner_user_id=ctx.user_id,
+            name="Platform delegate",
+            slug=f"platform-{uuid4()}",
+            status="published",
+        )
+        db.add(child)
+        await db.flush()
+        child_version = AgentVersion(
+            agent_id=child.id,
+            organization_id=ctx.organization_id,
+            version=1,
+            spec=platform_spec.model_dump(mode="json"),
+        )
+        db.add(child_version)
+        await db.flush()
+        child.current_version_id = child_version.id
+        version.spec = spec.model_copy(
+            update={
+                "subagents": [SubagentRef(agent_id=child.id, agent_version_id=child_version.id)]
+            }
+        ).model_dump(mode="json")
+    else:
+        version.spec = platform_spec.model_dump(mode="json")
+    trigger.runs_as_creator = runs_as_creator
+    await db.flush()
+    service = RoutineSourceService(db)
+    if runs_as_creator:
+        policy = await service.initial(ctx, trigger)
+        trigger.approved_sources = policy.model_dump(mode="json")
+        assert (await service.options(ctx, trigger)).current
+        assert (await service.require_current(ctx, trigger, expected_id=policy.id)).id == policy.id
+    else:
+        options = await service.options(ctx, trigger)
+        assert not options.current
+        assert any("Act as creator" in source for source in options.unavailable_sources)
+        with pytest.raises(RoutineSourcesRequired) as refused:
+            await service.initial(ctx, trigger)
+        assert refused.value.details == {"unavailable_sources": options.unavailable_sources}
+        with pytest.raises(ConflictError):
+            await service.replace(
+                ctx, trigger, RoutineSourceConsent(review_token=options.review_token)
+            )
+        assert not trigger.runs_as_creator
+        # An old policy could have been saved before this compatibility check.
+        snapshot = await service.snapshot(ctx, trigger)
+        trigger.approved_sources = snapshot.policy.model_dump(mode="json")
+        await db.flush()
+        with pytest.raises(RoutineSourcesRequired) as existing:
+            await service.require_current(ctx, trigger, expected_id=snapshot.policy.id)
+        assert existing.value.code == "ROUTINE_PLATFORM_IDENTITY_REQUIRED"

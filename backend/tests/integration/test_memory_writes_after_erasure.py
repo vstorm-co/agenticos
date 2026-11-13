@@ -311,3 +311,68 @@ async def test_clearing_an_agents_memory_holds_off_writes_to_it(
     await MemoryService(db).clear_agent(ctx, agent.id)
 
     assert not await _agent_lock_free_elsewhere(engine, agent)
+
+
+async def _claim_id(db: AsyncSession, scope_key: str) -> uuid.UUID:
+    return (
+        await db.scalars(
+            select(MemoryClaim.id).where(
+                MemoryClaim.scope_key == scope_key, MemoryClaim.status == "current"
+            )
+        )
+    ).one()
+
+
+async def test_a_correction_after_its_agent_was_cleared_changes_nothing_and_says_why(
+    db: AsyncSession,
+) -> None:
+    user, org, agent, run = await _world(db)
+    ctx = await member_context(db, organization_id=org.id, user_id=user.id)
+    assert ctx is not None
+    await MemoryService(db).clear_agent(ctx, agent.id)
+    # A claim recorded after the clear, by a run that began after it, is the one an
+    # older run must not supersede with what it read before.
+    later = AgentRun(
+        organization_id=org.id,
+        agent_id=agent.id,
+        user_id=user.id,
+        started_at=datetime.now(UTC) + timedelta(minutes=1),
+    )
+    db.add(later)
+    await db.flush()
+    tools = MemoryToolset()
+    assert (await tools.remember(_ctx(user, org, agent, later), "Prefers tea")).startswith(
+        "Recorded"
+    )
+    claim_id = await _claim_id(db, person_owner_key(user.id))
+
+    said = await tools.correct_memory(_ctx(user, org, agent, run), str(claim_id), "Coffee")
+
+    assert "erased after this conversation began" in said
+    assert await _claim_id(db, person_owner_key(user.id)) == claim_id
+    assert await _claims(db, person_owner_key(user.id)) == 1
+
+
+async def test_a_correction_holds_off_clearing_its_agents_memory(
+    db: AsyncSession, engine: AsyncEngine
+) -> None:
+    from app.repositories.memory_claim import ClaimScope
+    from app.services.memory import _claims as claims
+
+    user, org, agent, run = await _world(db)
+    await claims.remember(
+        db,
+        organization_id=org.id,
+        scope=ClaimScope(person_owner_key(user.id), agent.id),
+        statement="Prefers tea",
+        author_user_id=user.id,
+    )
+    claim_id = await _claim_id(db, person_owner_key(user.id))
+    assert await _agent_lock_free_elsewhere(engine, agent)
+
+    said = await MemoryToolset().correct_memory(
+        _ctx(user, org, agent, run), str(claim_id), "Prefers coffee"
+    )
+
+    assert said.startswith("Corrected")
+    assert not await _agent_lock_free_elsewhere(engine, agent)

@@ -1,5 +1,5 @@
 ---
-source_sha: "a586ae2275e1"
+source_sha: "4d205a52251b"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -1028,7 +1028,7 @@ Activity o por `GET /api/v1/workflow-approvals`. `approvers` nombra quién puede
 decidir, y esas personas reciben un aviso en la aplicación; vacío, puede
 cualquiera con `approvals:decide`. Pasado `timeout_hours` la solicitud caduca y el
 paso sale por `rejected` con `decision: "expired"`. Cancelar el run cancela lo que
-pidió. Cada ejecución del paso pregunta una vez, así que un reintento o una
+pidió, y también cancelar un workflow que llamó a ese run. Cada ejecución del paso pregunta una vez, así que un reintento o una
 iteración de un bucle nunca preguntan dos veces lo mismo.
 
 Los aprobadores nombrados deben ser miembros activos con `approvals:decide`. Se comprueba al publicar y de nuevo antes de pedir la aprobación. Si han perdido ese permiso, el paso falla con `APPROVER_UNAVAILABLE` en lugar de dejar una solicitud que nadie puede resolver.

@@ -8,6 +8,7 @@ import pytest
 
 from app.core.permissions import AuthContext, Perm
 from app.db.models.task_board import TaskBoard, TaskLink
+from app.repositories import virtual_table_repo
 from app.services import task_access as access
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
@@ -91,6 +92,7 @@ async def test_start_refuses_work_that_disappears_after_dispatch(
         ),
     )
     monkeypatch.setattr(access.task_repo, "for_table", AsyncMock(return_value=None))
+    monkeypatch.setattr(virtual_table_repo, "get_table", AsyncMock(return_value=None))
     db = MagicMock()
     assert not await TaskExecution(db).started(ctx, AgentTrigger(id=uuid4()))
     db.flush.assert_not_called()
@@ -117,6 +119,7 @@ async def test_unavailable_task_does_not_recreate_deleted_records(
         ),
     )
     monkeypatch.setattr(access.task_repo, "for_table", AsyncMock(return_value=None))
+    monkeypatch.setattr(virtual_table_repo, "get_table", AsyncMock(return_value=None))
     db = MagicMock()
     await TaskExecution(db).unavailable(AgentTrigger(id=uuid4(), organization_id=uuid4()))
     db.flush.assert_not_called()

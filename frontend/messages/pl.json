@@ -999,6 +999,8 @@
       "approveCreateRecord": "Dodaj rekord do tabeli {table}",
       "approveDeleteRecord": "Usuń rekord z tabeli {table}",
       "approveUpdateRecord": "Zmień rekord w tabeli {table}",
+      "approveCorrectMemory": "Popraw „{before}” na „{after}”",
+      "approveShareMemory": "Udostępnij {audience, select, organization {całej organizacji} other {projektowi}}: „{claim}”",
       "approveUpsertRecord": "Utwórz albo zaktualizuj rekord w tabeli {table}",
       "recordsChecking": "Sprawdzam, czy rekord istnieje",
       "recordsCreating": "Dodaję rekord",
@@ -1525,6 +1527,7 @@
     "approvalRememberOptions": "Więcej opcji akceptacji",
     "approvalRememberChat": "Zezwalaj na ten tool w tej rozmowie",
     "approvalRememberAgent": "Zawsze zezwalaj na ten tool dla tego agenta",
+    "approvalNeedsTheRun": "Zatwierdzić to może tylko osoba, która widzi run. Możesz to odrzucić.",
     "approvalRememberedTitle": "Zapamiętane akceptacje tooli",
     "approvalRememberedEmpty": "Brak zapamiętanych akceptacji.",
     "approvalRememberForget": "Pytaj ponownie",
@@ -2971,6 +2974,7 @@
       "perVersionCostPerRun": "na run",
       "perVersionLatency": "p95",
       "personColumn": "Osoba",
+      "askedByColumn": "Osoba pytająca",
       "personFilter": "Filtruj według osoby",
       "previousRun": "Poprzedni run",
       "problemsOnly": "Problemy",
@@ -3073,6 +3077,8 @@
       "toolState": "{status, select, completed {Gotowe} error {Błąd} running {W toku} pending {W toku} unfinished {Nie dokończone} awaiting_approval {Czeka na zatwierdzenie} awaiting_answer {Czeka na odpowiedź} other {Nieznany}}",
       "wantsTo": "<strong>{actor}</strong> chce: <strong>{tool}</strong>",
       "askedFor": "Dla {email}",
+      "contentHidden": "To, co to wywołanie cytuje ze swojego runu, widzą tylko osoby, które mogą zobaczyć ten run.",
+      "approveNeedsTheRun": "Zatwierdzić to może tylko osoba, która widzi run. Możesz to odrzucić.",
       "account": "Konto: {account}",
       "openTheRun": "Otwórz run",
       "decidedByWhom": "przez {email}",
@@ -3132,19 +3138,19 @@
       "sourceFilter": "Filtruj według pochodzenia",
       "anySource": "Dowolne pochodzenie",
       "sourceConversations": "Rozmowy",
-      "sourceEvaluation": "Improve i ewaluacje",
+      "sourceEvaluation": "Poprawianie i ewaluacje",
       "sourceSystem": "Agenci systemowi",
       "source": {
         "kind": {
           "eval": "Ewaluacja",
           "grader": "Oceniający",
-          "improve": "Improve",
+          "improve": "Poprawianie",
           "knowledge_gaps": "Luki w wiedzy",
           "test_questions": "Pytania testowe"
         },
         "open": {
           "openEvalRun": "Otwórz ewaluację",
-          "openSession": "Otwórz sesję Improve",
+          "openSession": "Otwórz sesję poprawiania",
           "openAgent": "Otwórz agenta",
           "openTopic": "Otwórz temat",
           "openGaps": "Otwórz luki w wiedzy",
@@ -3160,7 +3166,11 @@
       "decisionApprovedInChat": "Zatwierdzono. Gdy nic innego nie czeka, agent kontynuuje w czacie, w którym o to poproszono.",
       "decisionRejectedInChat": "Odrzucono. Gdy nic innego nie czeka, agent odpowie w czacie, w którym o to poproszono.",
       "runResumedInChat": "Run wznowiony. Odpowiedź trafi też do czatu, w którym o to poproszono.",
-      "alreadyContinuing": "Ten run jest już kontynuowany w swoim czacie."
+      "alreadyContinuing": "Ten run jest już kontynuowany w swoim czacie.",
+      "skillsUsed": "Użyte skille:",
+      "skillVersion": "{onFork, select, yes {{name} · {fork} v{version}} other {{name} · v{version}}}",
+      "unverifiedSender": "Niezweryfikowany",
+      "anonymousRequester": "Anonimowy uczestnik"
     },
     "sandboxes": {
       "addConnection": "Dodaj połączenie",
@@ -4252,7 +4262,6 @@
       "loading": "Sprawdzanie wersji…"
     },
     "skills": {
-      "agentsBoundSkillWill": "Agenci związani z tym skillem będą od następnego runu działać bez niego. Tego nie da się cofnąć.",
       "allCategories": "Wszystkie kategorie",
       "askAdministratorAccessSkills": "Poproś administratora o dostęp do skilli.",
       "categoryCount": "{count, plural, one {1 kategoria} few {# kategorie} many {# kategorii} other {# kategorii}}",
@@ -4568,9 +4577,26 @@
     "useIntegration": "Użyj tej integracji"
   },
   "dashboard": {
-    "title": "Panel",
-    "whatThisShows": "Co pokazuje {title}",
-    "seeAll": "Zobacz wszystko",
+    "actions": {
+      "newChat": "Nowy czat"
+    },
+    "activeSessions": "Aktywne sesje",
+    "allOtherSessionsRevoked": "Wszystkie pozostałe sesje unieważnione",
+    "breadcrumb": "Ścieżka nawigacji",
+    "cancel": "Anuluj",
+    "couldnTLoadYour": "Nie udało się wczytać Twoich sesji",
+    "current": "Bieżąca",
+    "devicesCurrentlySignedYour": "Urządzenia obecnie zalogowane na Twoje konto.",
+    "errors": {
+      "title": "Nie udało się załadować",
+      "description": "Żądanie nie powiodło się. Reszta strony działa - każda karta zawodzi osobno.",
+      "retry": "Ponów"
+    },
+    "everyDeviceSignedYour": "Każde urządzenie zalogowane na Twoje konto zostanie wylogowane - poza tym jednym.",
+    "failedRevokeSession": "Nie udało się unieważnić sesji",
+    "failedRevokeSessions": "Nie udało się unieważnić sesji",
+    "lastActive": "Ostatnia aktywność {when}",
+    "noSessionDataAvailable": "Brak danych o sesjach.",
     "period": {
       "label": "Okres",
       "1d": "Dzisiaj",
@@ -4581,10 +4607,11 @@
       "lm": "Poprzedni miesiąc",
       "custom": "Własny zakres"
     },
-    "sectionsFilter": {
-      "label": "Sekcje",
-      "all": "Wszystkie sekcje"
-    },
+    "revokeAll": "Unieważnij wszystkie",
+    "revokeAllOtherSessions": "Unieważnić wszystkie pozostałe sesje?",
+    "revokeAllOthers": "Unieważnij pozostałe",
+    "revokeSession": "Unieważnij sesję",
+    "revokeSession2": "Unieważnij sesję",
     "sections": {
       "deployment": "Instalacja",
       "attention": "Wymaga uwagi",
@@ -4593,17 +4620,18 @@
       "workspace": "Twoja przestrzeń",
       "sandboxes": "Gdzie agenci uruchamiają kod"
     },
-    "actions": {
-      "newChat": "Nowy czat"
+    "sectionsFilter": {
+      "label": "Sekcje",
+      "all": "Wszystkie sekcje"
     },
+    "seeAll": "Zobacz wszystko",
+    "sessionRevoked": "Sesja unieważniona",
     "states": {
       "loading": "Ładowanie"
     },
-    "errors": {
-      "title": "Nie udało się załadować",
-      "description": "Żądanie nie powiodło się. Reszta strony działa - każda karta zawodzi osobno.",
-      "retry": "Ponów"
-    },
+    "title": "Panel",
+    "whatThisShows": "Co pokazuje {title}",
+    "unknownDevice": "Nieznane urządzenie",
     "widgets": {
       "summary": {
         "title": "Ten okres w skrócie",
@@ -5197,7 +5225,6 @@
         "finished": "Ukończone",
         "finishedOf": "z {total} runów",
         "waiting": "Czeka na Ciebie",
-        "review": "Przejrzyj",
         "nothingWaiting": "Nic nie czeka",
         "spent": "Wydane",
         "spentLabel": "wydano {amount}"
@@ -5336,7 +5363,7 @@
           "title": "Nic nie wymaga uwagi",
           "description": "W tym okresie żadna opublikowana wersja nie dostała odpowiedzi ocenionej w dół ani nieudanego runu, a każda suita przeszła."
         },
-        "improve": "Ulepsz"
+        "improve": "Popraw"
       },
       "authoring-suggestions": {
         "title": "Oczekujące sugestie",
@@ -5353,18 +5380,33 @@
       },
       "improvements-waiting": {
         "title": "Poprawki czekające na Ciebie",
-        "description": "Sesje poprawy zatrzymane na Twój następny krok albo decyzję.",
+        "description": "Sesje poprawiania, sprawdzenia skilli i proponowane zmiany skilli czekające na Twój następny krok albo decyzję.",
         "empty": {
           "title": "Nic nie czeka",
-          "description": "Poprawa zatrzymuje się tu, gdy przeczyta, co poszło nie tak, gdy napisze zmiany i gdy jej wynik jest gotowy."
+          "description": "Poprawa zatrzymuje się tu, gdy przeczyta, co poszło nie tak, gdy napisze zmiany i gdy jej wynik jest gotowy. Są tu też przypięci agenci i forki, które main wyprzedził."
         },
         "open": "Otwórz",
         "what": {
           "understand": "Zobacz, co poszło nie tak",
           "changes": "Przejrzyj zmiany",
           "result": "Przejrzyj wynik",
-          "blocked": "Zablokowane: zakończ i zacznij nową"
-        }
+          "blocked": "Zablokowane: zakończ i zacznij nową",
+          "check": {
+            "running": "Trwa sprawdzanie na {count, plural, one {1 agencie} few {# agentach} many {# agentach} other {# agenta}}",
+            "done": "Sprawdzenie skończone: zdecyduj, co zrobić ze zmianą"
+          },
+          "proposal": "Zaproponowane przez agenta · {count, plural, =0 {nie trafia jeszcze do żadnego agenta} one {trafia do 1 agenta} few {trafia do # agentów} many {trafia do # agentów} other {trafia do # agenta}}"
+        },
+        "skill": "{name} · {kind, select, main {main} other {fork „{line}”}}",
+        "partial": "{failed, select, skills {Nie udało się odczytać sesji skilli.} behind {Nie udało się odczytać, co zostało za mainem.} checks {Nie udało się odczytać sprawdzeń skilli.} proposals {Nie udało się odczytać proponowanych zmian skilli.} other {Nie udało się odczytać sesji agentów.}}",
+        "catchUp": "Dogoń",
+        "behindName": "{name} · {kind, select, fork {fork „{line}”} other {przypięty w {line}{specialist, select, yes { przez {via}} other {}}}}",
+        "behind": {
+          "pinned": "Na v{version} · {count, plural, one {# zmiana za mainem} few {# zmiany za mainem} many {# zmian za mainem} other {# zmiany za mainem}}",
+          "fork": "Od v{version} · {agents, plural, one {# agent} few {# agenty} many {# agentów} other {# agenta}} · {count, plural, one {# zmiana za mainem} few {# zmiany za mainem} many {# zmian za mainem} other {# zmiany za mainem}}"
+        },
+        "review": "Przejrzyj",
+        "proposal": "{kind, select, new {Nowy skill {name}} other {Zmiana skilla {name}}}"
       },
       "phone-calls": {
         "title": "Połączenia telefoniczne",
@@ -5379,25 +5421,6 @@
         "description": "Twoje delegowane zadania i ich wyniki"
       }
     },
-    "activeSessions": "Aktywne sesje",
-    "allOtherSessionsRevoked": "Wszystkie pozostałe sesje unieważnione",
-    "breadcrumb": "Ścieżka nawigacji",
-    "cancel": "Anuluj",
-    "couldnTLoadYour": "Nie udało się wczytać Twoich sesji",
-    "current": "Bieżąca",
-    "devicesCurrentlySignedYour": "Urządzenia obecnie zalogowane na Twoje konto.",
-    "everyDeviceSignedYour": "Każde urządzenie zalogowane na Twoje konto zostanie wylogowane - poza tym jednym.",
-    "failedRevokeSession": "Nie udało się unieważnić sesji",
-    "failedRevokeSessions": "Nie udało się unieważnić sesji",
-    "lastActive": "Ostatnia aktywność {when}",
-    "noSessionDataAvailable": "Brak danych o sesjach.",
-    "revokeAll": "Unieważnij wszystkie",
-    "revokeAllOtherSessions": "Unieważnić wszystkie pozostałe sesje?",
-    "revokeAllOthers": "Unieważnij pozostałe",
-    "revokeSession": "Unieważnij sesję",
-    "revokeSession2": "Unieważnij sesję",
-    "sessionRevoked": "Sesja unieważniona",
-    "unknownDevice": "Nieznane urządzenie",
     "edit": {
       "customize": "Dostosuj",
       "subtitle": "Ułóż swój dashboard - przeciągaj karty, aby zmieniać ich kolejność między sekcjami, zmieniaj im rozmiar, koloruj i zwijaj sekcje albo dodaj kolejne.",
@@ -6063,6 +6086,18 @@
       "kindE2b": "Chmura E2B",
       "e2bKeyHint": "Klucz API z panelu E2B. Piaskownice działają na tym koncie i są na nie rozliczane.",
       "e2bTemplateWhat": "Nazwa szablonu E2B; puste oznacza domyślny szablon E2B. Dla obsługi komputera użyj desktop.",
+      "kindOpenSandbox": "OpenSandbox",
+      "secretNameOpenSandbox": "Klucz API OpenSandbox",
+      "openSandboxAddressHint": "Adres serwera API dostępny z backendu. Żądania korzystają z uwierzytelnionego proxy serwera.",
+      "openSandboxKeyHint": "Klucz API tego serwera z sejfu kontroluje wszystkie jego sandboxy. Odizoluj serwer i sieć dla odpowiednich organizacji.",
+      "openSandboxImage": "Obraz sandboxa",
+      "openSandboxImageHint": "Obraz OCI z powłoką POSIX i narzędziami plików, np. python:3.12-slim.",
+      "openSandboxSecureAccess": "Secure Access (Kubernetes)",
+      "openSandboxSecureAccessHint": "Wymaga bramy OpenSandbox Kubernetes; Docker nie obsługuje tej opcji. Tylko nowe przestrzenie: istniejące zachowują tryb do jawnego resetu.",
+      "openSandboxTestHint": "Uruchamia tymczasowy sandbox, sprawdza powłokę i usuwa go. Może pobrać obraz i zużyć zasoby serwera.",
+      "openSandboxTest": "Testuj serwer i obraz",
+      "openSandboxTesting": "Testowanie serwera i obrazu…",
+      "openSandboxTestSuccess": "Serwer, klucz i obraz przeszły test przestrzeni roboczej.",
       "secretNameE2b": "Klucz API E2B"
     },
     "daytonaSnapshotImageWhat": "Snapshot albo obraz Daytona. To, na co pozwala, jest ustawieniem konta po ich stronie, więc nie ma listy do zaproponowania.",
@@ -6302,6 +6337,14 @@
       "create-project-tracker": {
         "title": "Skonfigurować opiekuna projektu?",
         "body": "Przejrzyj opublikowanego agenta, którego możesz edytować, i jego konta. Następnie jawnie opublikuj prywatnego opiekuna z tabelą zadań i cyklicznymi sprawdzeniami."
+      },
+      "first-skill-improvement": {
+        "title": "Popraw ten skill",
+        "body": "Zobacz, na kim zmiana zostanie sprawdzona i ile to kosztuje, zanim cokolwiek ruszy. Nic w skillu się nie zmienia, dopóki tego nie zaakceptujesz."
+      },
+      "skill-improvement-session": {
+        "title": "Przejdź przez tę sesję",
+        "body": "Zobacz kroki, wynik każdego agenta i co możesz zrobić ze zmianą."
       }
     },
     "steps": {
@@ -6328,6 +6371,14 @@
       "agent-history": {
         "title": "Każda wersja zachowana",
         "body": "Każda publikacja zamraża specyfikację jako wersję, którą możesz wypromować do środowiska, cofnąć się do niej albo odczytać względem niej historię uruchomień."
+      },
+      "agent-improvement-history": {
+        "title": "Każde usprawnienie zapisane",
+        "body": "Każda sesja poprawiania tego agenta: co zmierzyła, co postanowiono i ile kosztowała. Zakończona otwiera się tylko do odczytu."
+      },
+      "agent-test-connections": {
+        "title": "Połączenia testowe",
+        "body": "Nazwane środowisko może zastąpić serwery MCP i klucze z vault agenta testowymi - sandboxowym CRM, testową skrzynką. Tam działają ewaluacje, a narzędzie, które zapisuje i nie ma połączenia testowego, jest wstrzymywane i zapisywane zamiast uruchamiane."
       },
       "agent-instructions": {
         "title": "Instrukcje to zachowanie",
@@ -6673,10 +6724,6 @@
         "title": "Znajdź serwer",
         "body": "Przeszukaj katalog albo zawęź go po kategorii i po tym, czy jest już podłączony."
       },
-      "organization-switcher": {
-        "title": "Wybierz swoją organizację",
-        "body": "Ta nazwa wskazuje organizację, w której pracujesz. Otwórz menu, aby zmienić organizację, zarządzać organizacjami lub utworzyć nową. Agenty, wiedza i aktywność zmieniają się wraz z wyborem."
-      },
       "notification-bell": {
         "title": "Bądź na bieżąco",
         "body": "Nieudany run, prośba o zatwierdzenie czekająca na Ciebie, budżet bliski wyczerpania, wiadomość od administratora aplikacji - wszystko trafia tutaj, z osobnym przełącznikiem w aplikacji i mailem dla rodzajów, które można wyłączyć w Ustawieniach."
@@ -6824,6 +6871,143 @@
       "artifacts-list": {
         "title": "Opublikowane strony",
         "body": "Raporty i dashboardy opublikowane przez Twoje agenty. Otwórz jeden, żeby go zobaczyć, wybierz wcześniejszą wersję, udostępnij go współpracownikom albo nadaj mu link publiczny."
+      },
+      "datasets-new": {
+        "title": "Zbieraj przypadki testowe",
+        "body": "Dataset zawiera pytania, na których testujesz agenta. Utwórz go tutaj, a potem dodawaj przypadki ręcznie, z pliku, z odpowiedzi ocenionej w czacie łapką w górę albo w dół, albo z tury w Aktywności."
+      },
+      "runs-score-against-case": {
+        "title": "Oceń ten run",
+        "body": "Z tego menu ocenisz odpowiedź tego runa według przypadku z datasetu: jego sprawdzeń, oczekiwanych wywołań narzędzi i, jeśli skonfigurowano, sędziego. Przypadek z tym samym pytaniem wybiera się sam; wynik zostaje w datasecie."
+      },
+      "datasets-list": {
+        "title": "Twoje datasety",
+        "body": "Każda zmiana przypadków tworzy nową wersję, więc run ewaluacji zawsze wskazuje pytania, które się nie zmieniają."
+      },
+      "datasets-add-case": {
+        "title": "Napisz przypadek",
+        "body": "Przypadek to pytanie, na które odpowiada agent, i opis dobrej odpowiedzi. Każdy dodany przypadek tworzy nową wersję datasetu."
+      },
+      "datasets-generate": {
+        "title": "Wygeneruj przypadki",
+        "body": "Generator przygotowuje przypadki z czterech źródeł: instrukcji i narzędzi agenta, jego bazy wiedzy, prawdziwych czatów (tylko produkcyjnych, nigdy z runów ewaluacji) i red teamingu. Szacowany koszt widzisz, zanim cokolwiek zostanie wydane."
+      },
+      "datasets-proposals": {
+        "title": "Zdecyduj o propozycjach",
+        "body": "Tu czekają przygotowane przypadki. Zaakceptuj je bez zmian, najpierw edytuj albo odrzuć. Jedno Zaakceptuj to jedna nowa wersja."
+      },
+      "flow-dataset-create": {
+        "title": "Utwórz dataset",
+        "body": "Wybierz „Nowy dataset” - otworzy się formularz, który wypełnimy razem."
+      },
+      "flow-dataset-field-name": {
+        "title": "Nazwij go",
+        "body": "Napisz, co testuje, np. pytania o zwroty. Potem wybierz Dalej."
+      },
+      "flow-dataset-field-create": {
+        "title": "Utwórz go",
+        "body": "Wybierz Utwórz. Pójdziemy dalej, gdy tylko zostanie zapisany."
+      },
+      "kb-gaps": {
+        "title": "Na co nie znalazła odpowiedzi",
+        "body": "Pytania, dla których agenci przeszukali tę kolekcję i nie znaleźli nic trafnego, pogrupowane w tematy. Otwórz temat, żeby napisać brakującą treść albo dokończyć szkic modelu, i dodaj ją do tej bazy wiedzy - albo odrzuć temat, który jej nie wymaga."
+      },
+      "kb-gaps-check": {
+        "title": "Sprawdź też odpowiedzi",
+        "body": "Wyszukiwanie może coś znaleźć, a agent i tak nie wiedzieć. Przy włączonym asystencie AI model czyta ostatnie odpowiedzi i komentarze do ocen negatywnych w poszukiwaniu pytań, na które ta baza wiedzy nie umiała odpowiedzieć."
+      },
+      "agent-gaps": {
+        "title": "Czego szukał",
+        "body": "Pytania, dla których ten agent przeszukał bazę wiedzy i nic nie znalazł. Każde prowadzi do runu, z którego pochodzi."
+      },
+      "flow-dataset-open": {
+        "title": "Otwórz swój dataset",
+        "body": "To pierwsza karta - ostatnio zmieniona. Otwórz ją, żeby dodać pierwszy przypadek."
+      },
+      "flow-dataset-add-case": {
+        "title": "Dodaj pierwszy przypadek",
+        "body": "Wybierz Dodaj przypadek. Przypadek to jedno pytanie i opis tego, jak wygląda dobra odpowiedź."
+      },
+      "flow-dataset-case-question": {
+        "title": "Na co odpowiada agent",
+        "body": "Wpisz wiadomość, na którą agent ma odpowiedzieć, tak jak napisałby ją użytkownik."
+      },
+      "flow-dataset-case-answers": {
+        "title": "Co zawiera poprawna odpowiedź",
+        "body": "Wpisz odpowiedź wzorcową lub najważniejsze fakty. Zamiast niej możesz określić oczekiwane narzędzia lub reguły sprawdzania."
+      },
+      "flow-dataset-case-tools": {
+        "title": "Narzędzia, które powinien wywołać",
+        "body": "Wypisz narzędzia, które agent musi wywołać, z argumentami, które muszą się zgadzać. Wybierz sposób dopasowania: w dowolnej kolejności, w tej kolejności z innymi pomiędzy albo dokładnie te i żadnych innych."
+      },
+      "flow-dataset-case-checks": {
+        "title": "Reguły dotyczące odpowiedzi",
+        "body": "Sprawdzenie to reguła, według której oceniana jest odpowiedź, np. że wspomina 30 dni. Każde podaje swój typ i parametry tej reguły."
+      },
+      "flow-dataset-case-labels": {
+        "title": "Tagi i notatka",
+        "body": "Tagi grupują wyniki, np. billing albo refusal. Notatka mówi, po co jest przypadek - co poszło źle albo czego pilnuje."
+      },
+      "flow-dataset-case-save": {
+        "title": "Zapisz przypadek",
+        "body": "Przypadek musi mówić, z czym porównuje się odpowiedź: odpowiedź wzorcowa, kontrprzykład, wywołanie narzędzia albo sprawdzenie. Dopóki nie ma żadnego, Zapisz przypadek jest nieaktywne i mówi, czego brakuje."
+      },
+      "flow-dataset-sources": {
+        "title": "Skąd biorą się kolejne przypadki",
+        "body": "Pisz je tutaj albo importuj plik CSV lub JSONL z tego menu. W czacie oceń odpowiedź łapką w górę albo w dół i dodaj ją - łapka w górę zachowuje ją jako wzorcową, łapka w dół jako kontrprzykład. W Aktywności dodaj dowolną turę agenta z runa."
+      },
+      "flow-dataset-generate": {
+        "title": "Albo zleć je generatorowi",
+        "body": "Wybierz agenta i źródła - samego agenta, jego bazę wiedzy, prawdziwe czaty albo red teaming - a generator przygotuje przypadki do przeglądu. Nic nie trafia do datasetu, dopóki tego nie zaakceptujesz."
+      },
+      "agent-evals": {
+        "title": "Ewaluacje",
+        "body": "Uruchom agenta na datasecie, żeby zobaczyć, które przypadki zalicza, ile to kosztuje i czy zmiana poprawiła go, czy pogorszyła względem poprzedniej wersji."
+      },
+      "agent-test-draft": {
+        "title": "Przetestuj wersję roboczą",
+        "body": "Zanim opublikujesz, uruchom wersję roboczą na datasecie razem z wersją produkcyjną. Werdykt powie, czy zmiana poprawiła agenta, czy go pogorszyła."
+      },
+      "eval-verdict": {
+        "title": "Werdykt",
+        "body": "Która strona wypadła lepiej, o ile potwierdzonych przypadków i odsetek zaliczonych przed i po. Stąd zobaczysz, co się zmieniło między wersjami, otworzysz zepsute przypadki albo opublikujesz."
+      },
+      "flow-test-draft": {
+        "title": "Przetestuj wersję roboczą",
+        "body": "Ta wersja robocza różni się od wersji produkcyjnej. Przetestuj ją na datasecie, zanim opublikujesz.",
+        "absent": "Wersja robocza jest taka sama jak wersja produkcyjna, więc na razie nie ma czego testować. Zmień coś w Budowie, a potem ją przetestuj - albo zakończ tutaj."
+      },
+      "flow-test-target": {
+        "title": "Co testujesz",
+        "body": "Wersja robocza w porównaniu z wersją produkcyjną jest już wybrana: obie odpowiadają teraz na te same przypadki, więc każda zmiana wynika z wersji roboczej."
+      },
+      "flow-test-run": {
+        "title": "Uruchom za podaną kwotę",
+        "body": "Koszt liczy się na bieżąco i mówi, ile zostanie w budżetach. Nic się nie uruchomi, zanim tego nie klikniesz."
+      },
+      "flow-test-verdict": {
+        "title": "Przeczytaj werdykt",
+        "body": "Gdy obie strony skończą, tu zobaczysz, czy wersja robocza wypadła lepiej, czy gorzej i o ile potwierdzonych przypadków. Stąd otworzysz zepsute przypadki, zobaczysz, co się zmieniło, albo opublikujesz."
+      },
+      "flow-dataset-next": {
+        "title": "Dalej: ocenianie, potem ewaluacja",
+        "body": "W Ustawieniach wybierz sposób oceniania odpowiedzi. Następnie uruchom agenta na tym datasecie i sprawdź odpowiedzi w Wynikach."
+      },
+      "dataset-grading": {
+        "title": "Jak oceniane są przypadki",
+        "body": "Wybierz reguły, które każda odpowiedź musi spełnić, oraz oczekiwane wywołania narzędzi. Zmiany oceniania zapisz razem przyciskiem na dole."
+      },
+      "dataset-review": {
+        "title": "Przegląd",
+        "body": "Tutaj są wszystkie ocenione odpowiedzi, również już przejrzane. Filtruj według rezultatu, agenta lub tagu, a potem otwórz odpowiedź, sprawdź dowody i zapisz decyzję."
+      },
+      "agents-system": {
+        "title": "Agenci systemowi",
+        "body": "Agenci, których platforma uruchamia sama, pogrupowani według zadań: sędziowie oceniający odpowiedzi w ewaluacjach, generator przypadków, autor i klasyfikator luk oraz asystent autorski. Otwórz jednego, żeby zmienić instrukcje, model lub budżet; dataset wybiera sędziego na karcie Grading, a New agent dodaje kolejnego sędziego."
+      },
+      "dataset-judge": {
+        "title": "Sędzia",
+        "body": "Wyszukaj zapisany model albo dodaj nowy, jeśli masz uprawnienia. Ustaw kryteria i porównanie z odpowiedzią wzorcową. Starsze wyniki zachowują konfigurację oceniania z chwili ich utworzenia."
       },
       "settings-api-keys": {
         "title": "Twoje klucze API",
@@ -7029,183 +7213,6 @@
         "title": "Potwierdź dane publiczne ponownie",
         "body": "Dane pokazywane przez stronę się zmieniły, więc jej publiczny link nie pokazuje żadnych, dopóki nie zostaną potwierdzone ponownie. Potwierdź dane pokazuje, co link by udostępnił i komu."
       },
-      "routines-watches": {
-        "title": "Co obserwuje twoje konta",
-        "body": "Obserwacje czytają twoje własne połączone konta według harmonogramu - przeglądy czekające na ciebie, przypisane ci issues - i wrzucają to, co nowe, do twojego inboksu. Każdy wiersz mówi, kiedy ostatnio sprawdzała i ile z tego, co znalazła, wciąż czeka."
-      },
-      "agent-starters": {
-        "title": "Pierwsze wiadomości",
-        "body": "To, co czat proponuje komuś, kto otwiera tego agenta, zanim cokolwiek napisze. Nowa osoba dowiaduje się z nich, do czego jest agent, bardziej niż z opisu, więc niech każda będzie prawdziwym pytaniem, na które agent dobrze odpowiada."
-      },
-      "inbox-filters": {
-        "title": "Co przyszło do ciebie samo",
-        "body": "Znaleziska twoich obserwacji i nocne sugestie, pilne najpierw. Filtruj po źródle albo otwórz Załatwione, żeby przywrócić coś, co odrzuciłeś."
-      },
-      "org-governance": {
-        "title": "Budżet i zgody",
-        "body": "Ustaw limit wydatków organizacji i zarządzaj zwolnieniami z akceptacji. Dostępne opcje zależą od Twoich uprawnień."
-      },
-      "org-proactivity-model": {
-        "title": "Wybierz model proaktywności",
-        "body": "Wybierz dostawcę, model i klucz z Vault, a potem dodaj profil modelu. Utworzenie profilu zapisuje go od razu; Save stosuje go do nocnych sugestii i obserwacji MCP. Te zadania korzystają z tego modelu niezależnie od agenta startowego AgenticOS widocznego w Aktywności."
-      },
-      "org-proactivity": {
-        "title": "Proaktywność",
-        "body": "Skonfiguruj nocne sugestie, obserwowanie połączeń i proaktywne powitania w czacie. Tutaj wybierzesz model, harmonogram i budżet na osobę."
-      },
-      "project-file-location": {
-        "title": "Twój komputer czy wspólne pliki",
-        "body": "Ten komputer pokazuje zatwierdzony lokalny folder. Wspólne pliki projektu to wgrane kopie dla osób z dostępem do projektu. Te miejsca nie synchronizują się automatycznie."
-      },
-      "workflow-step-view": {
-        "title": "Skup się na jednym panelu",
-        "body": "Na telefonie wybierz ustawienia kroku, wejście albo wynik, aby przeznaczyć dostępne miejsce na jeden panel. Przełączanie zachowuje szkic."
-      },
-      "agent-improvement-history": {
-        "title": "Każde usprawnienie zapisane",
-        "body": "Każda sesja Improve tego agenta: co zmierzyła, co postanowiono i ile kosztowała. Zakończona otwiera się tylko do odczytu."
-      },
-      "agent-test-connections": {
-        "title": "Połączenia testowe",
-        "body": "Nazwane środowisko może zastąpić serwery MCP i klucze z vault agenta testowymi - sandboxowym CRM, testową skrzynką. Tam działają ewaluacje, a narzędzie, które zapisuje i nie ma połączenia testowego, jest wstrzymywane i zapisywane zamiast uruchamiane."
-      },
-      "datasets-new": {
-        "title": "Zbieraj przypadki testowe",
-        "body": "Dataset zawiera pytania, na których testujesz agenta. Utwórz go tutaj, a potem dodawaj przypadki ręcznie, z pliku, z odpowiedzi ocenionej w czacie łapką w górę albo w dół, albo z tury w Aktywności."
-      },
-      "runs-score-against-case": {
-        "title": "Oceń ten run",
-        "body": "Z tego menu ocenisz odpowiedź tego runa według przypadku z datasetu: jego sprawdzeń, oczekiwanych wywołań narzędzi i, jeśli skonfigurowano, sędziego. Przypadek z tym samym pytaniem wybiera się sam; wynik zostaje w datasecie."
-      },
-      "datasets-list": {
-        "title": "Twoje datasety",
-        "body": "Każda zmiana przypadków tworzy nową wersję, więc run ewaluacji zawsze wskazuje pytania, które się nie zmieniają."
-      },
-      "datasets-add-case": {
-        "title": "Napisz przypadek",
-        "body": "Przypadek to pytanie, na które odpowiada agent, i opis dobrej odpowiedzi. Każdy dodany przypadek tworzy nową wersję datasetu."
-      },
-      "datasets-generate": {
-        "title": "Wygeneruj przypadki",
-        "body": "Generator przygotowuje przypadki z czterech źródeł: instrukcji i narzędzi agenta, jego bazy wiedzy, prawdziwych czatów (tylko produkcyjnych, nigdy z runów ewaluacji) i red teamingu. Szacowany koszt widzisz, zanim cokolwiek zostanie wydane."
-      },
-      "datasets-proposals": {
-        "title": "Zdecyduj o propozycjach",
-        "body": "Tu czekają przygotowane przypadki. Zaakceptuj je bez zmian, najpierw edytuj albo odrzuć. Jedno Zaakceptuj to jedna nowa wersja."
-      },
-      "flow-dataset-create": {
-        "title": "Utwórz dataset",
-        "body": "Wybierz „Nowy dataset” - otworzy się formularz, który wypełnimy razem."
-      },
-      "flow-dataset-field-name": {
-        "title": "Nazwij go",
-        "body": "Napisz, co testuje, np. pytania o zwroty. Potem wybierz Dalej."
-      },
-      "flow-dataset-field-create": {
-        "title": "Utwórz go",
-        "body": "Wybierz Utwórz. Pójdziemy dalej, gdy tylko zostanie zapisany."
-      },
-      "kb-gaps": {
-        "title": "Na co nie znalazła odpowiedzi",
-        "body": "Pytania, dla których agenci przeszukali tę kolekcję i nie znaleźli nic trafnego, pogrupowane w tematy. Otwórz temat, żeby napisać brakującą treść albo dokończyć szkic modelu, i dodaj ją do tej bazy wiedzy - albo odrzuć temat, który jej nie wymaga."
-      },
-      "kb-gaps-check": {
-        "title": "Sprawdź też odpowiedzi",
-        "body": "Wyszukiwanie może coś znaleźć, a agent i tak nie wiedzieć. Przy włączonym asystencie AI model czyta ostatnie odpowiedzi i komentarze do ocen negatywnych w poszukiwaniu pytań, na które ta baza wiedzy nie umiała odpowiedzieć."
-      },
-      "agent-gaps": {
-        "title": "Czego szukał",
-        "body": "Pytania, dla których ten agent przeszukał bazę wiedzy i nic nie znalazł. Każde prowadzi do runu, z którego pochodzi."
-      },
-      "flow-dataset-open": {
-        "title": "Otwórz swój dataset",
-        "body": "To pierwsza karta - ostatnio zmieniona. Otwórz ją, żeby dodać pierwszy przypadek."
-      },
-      "flow-dataset-add-case": {
-        "title": "Dodaj pierwszy przypadek",
-        "body": "Wybierz Dodaj przypadek. Przypadek to jedno pytanie i opis tego, jak wygląda dobra odpowiedź."
-      },
-      "flow-dataset-case-question": {
-        "title": "Na co odpowiada agent",
-        "body": "Wpisz wiadomość, na którą agent ma odpowiedzieć, tak jak napisałby ją użytkownik."
-      },
-      "flow-dataset-case-answers": {
-        "title": "Co zawiera poprawna odpowiedź",
-        "body": "Wpisz odpowiedź wzorcową lub najważniejsze fakty. Zamiast niej możesz określić oczekiwane narzędzia lub reguły sprawdzania."
-      },
-      "flow-dataset-case-tools": {
-        "title": "Narzędzia, które powinien wywołać",
-        "body": "Wypisz narzędzia, które agent musi wywołać, z argumentami, które muszą się zgadzać. Wybierz sposób dopasowania: w dowolnej kolejności, w tej kolejności z innymi pomiędzy albo dokładnie te i żadnych innych."
-      },
-      "flow-dataset-case-checks": {
-        "title": "Reguły dotyczące odpowiedzi",
-        "body": "Sprawdzenie to reguła, według której oceniana jest odpowiedź, np. że wspomina 30 dni. Każde podaje swój typ i parametry tej reguły."
-      },
-      "flow-dataset-case-labels": {
-        "title": "Tagi i notatka",
-        "body": "Tagi grupują wyniki, np. billing albo refusal. Notatka mówi, po co jest przypadek - co poszło źle albo czego pilnuje."
-      },
-      "flow-dataset-case-save": {
-        "title": "Zapisz przypadek",
-        "body": "Przypadek musi mówić, z czym porównuje się odpowiedź: odpowiedź wzorcowa, kontrprzykład, wywołanie narzędzia albo sprawdzenie. Dopóki nie ma żadnego, Zapisz przypadek jest nieaktywne i mówi, czego brakuje."
-      },
-      "flow-dataset-sources": {
-        "title": "Skąd biorą się kolejne przypadki",
-        "body": "Pisz je tutaj albo importuj plik CSV lub JSONL z tego menu. W czacie oceń odpowiedź łapką w górę albo w dół i dodaj ją - łapka w górę zachowuje ją jako wzorcową, łapka w dół jako kontrprzykład. W Aktywności dodaj dowolną turę agenta z runa."
-      },
-      "flow-dataset-generate": {
-        "title": "Albo zleć je generatorowi",
-        "body": "Wybierz agenta i źródła - samego agenta, jego bazę wiedzy, prawdziwe czaty albo red teaming - a generator przygotuje przypadki do przeglądu. Nic nie trafia do datasetu, dopóki tego nie zaakceptujesz."
-      },
-      "agent-evals": {
-        "title": "Ewaluacje",
-        "body": "Uruchom agenta na datasecie, żeby zobaczyć, które przypadki zalicza, ile to kosztuje i czy zmiana poprawiła go, czy pogorszyła względem poprzedniej wersji."
-      },
-      "agent-test-draft": {
-        "title": "Przetestuj wersję roboczą",
-        "body": "Zanim opublikujesz, uruchom wersję roboczą na datasecie razem z wersją produkcyjną. Werdykt powie, czy zmiana poprawiła agenta, czy go pogorszyła."
-      },
-      "eval-verdict": {
-        "title": "Werdykt",
-        "body": "Która strona wypadła lepiej, o ile potwierdzonych przypadków i odsetek zaliczonych przed i po. Stąd zobaczysz, co się zmieniło między wersjami, otworzysz zepsute przypadki albo opublikujesz."
-      },
-      "flow-test-draft": {
-        "title": "Przetestuj wersję roboczą",
-        "body": "Ta wersja robocza różni się od wersji produkcyjnej. Przetestuj ją na datasecie, zanim opublikujesz.",
-        "absent": "Wersja robocza jest taka sama jak wersja produkcyjna, więc na razie nie ma czego testować. Zmień coś w Budowie, a potem ją przetestuj - albo zakończ tutaj."
-      },
-      "flow-test-target": {
-        "title": "Co testujesz",
-        "body": "Wersja robocza w porównaniu z wersją produkcyjną jest już wybrana: obie odpowiadają teraz na te same przypadki, więc każda zmiana wynika z wersji roboczej."
-      },
-      "flow-test-run": {
-        "title": "Uruchom za podaną kwotę",
-        "body": "Koszt liczy się na bieżąco i mówi, ile zostanie w budżetach. Nic się nie uruchomi, zanim tego nie klikniesz."
-      },
-      "flow-test-verdict": {
-        "title": "Przeczytaj werdykt",
-        "body": "Gdy obie strony skończą, tu zobaczysz, czy wersja robocza wypadła lepiej, czy gorzej i o ile potwierdzonych przypadków. Stąd otworzysz zepsute przypadki, zobaczysz, co się zmieniło, albo opublikujesz."
-      },
-      "flow-dataset-next": {
-        "title": "Dalej: ocenianie, potem ewaluacja",
-        "body": "W Ustawieniach wybierz sposób oceniania odpowiedzi. Następnie uruchom agenta na tym datasecie i sprawdź odpowiedzi w Wynikach."
-      },
-      "dataset-grading": {
-        "title": "Jak oceniane są przypadki",
-        "body": "Wybierz reguły, które każda odpowiedź musi spełnić, oraz oczekiwane wywołania narzędzi. Zmiany oceniania zapisz razem przyciskiem na dole."
-      },
-      "dataset-review": {
-        "title": "Przegląd",
-        "body": "Tutaj są wszystkie ocenione odpowiedzi, również już przejrzane. Filtruj według rezultatu, agenta lub tagu, a potem otwórz odpowiedź, sprawdź dowody i zapisz decyzję."
-      },
-      "agents-system": {
-        "title": "Agenci systemowi",
-        "body": "Agenci, których platforma uruchamia sama, pogrupowani według zadań: sędziowie oceniający odpowiedzi w ewaluacjach, generator przypadków, autor i klasyfikator luk oraz asystent autorski. Otwórz jednego, żeby zmienić instrukcje, model lub budżet; dataset wybiera sędziego na karcie Grading, a New agent dodaje kolejnego sędziego."
-      },
-      "dataset-judge": {
-        "title": "Sędzia",
-        "body": "Wyszukaj zapisany model albo dodaj nowy, jeśli masz uprawnienia. Ustaw kryteria i porównanie z odpowiedzią wzorcową. Starsze wyniki zachowują konfigurację oceniania z chwili ich utworzenia."
-      },
       "agent-eval-suites": {
         "title": "Suity",
         "body": "Sprawdzaj agenta na datasecie bez pamiętania o tym: co noc, przy każdej publikacji albo promocji, albo po zmianie skilla, bazy wiedzy lub pliku kontekstu, z których korzysta. Dostaniesz wiadomość, gdy jakiś przypadek przestanie przechodzić."
@@ -7221,6 +7228,18 @@
       "evals-all": {
         "title": "Wszystkie runy ewaluacji",
         "body": "Runy każdego agenta, którego możesz zobaczyć, od najnowszego. Każdy otwiera się na werdykcie; zakładka Ewaluacje agenta zawiera te same runy tylko dla niego."
+      },
+      "routines-watches": {
+        "title": "Co obserwuje twoje konta",
+        "body": "Obserwacje czytają twoje własne połączone konta według harmonogramu - przeglądy czekające na ciebie, przypisane ci issues - i wrzucają to, co nowe, do twojego inboksu. Każdy wiersz mówi, kiedy ostatnio sprawdzała i ile z tego, co znalazła, wciąż czeka."
+      },
+      "agent-starters": {
+        "title": "Pierwsze wiadomości",
+        "body": "To, co czat proponuje komuś, kto otwiera tego agenta, zanim cokolwiek napisze. Nowa osoba dowiaduje się z nich, do czego jest agent, bardziej niż z opisu, więc niech każda będzie prawdziwym pytaniem, na które agent dobrze odpowiada."
+      },
+      "inbox-filters": {
+        "title": "Co przyszło do ciebie samo",
+        "body": "Znaleziska twoich obserwacji i nocne sugestie, pilne najpierw. Filtruj po źródle albo otwórz Załatwione, żeby przywrócić coś, co odrzuciłeś."
       },
       "improvement-test-set": {
         "title": "Czas i koszt",
@@ -7301,6 +7320,26 @@
       "agent-system-knowledge": {
         "title": "Baza wiedzy",
         "body": "Włącz przeszukiwanie baz wiedzy, które platforma przekazuje każdemu runowi - ocenianego agenta, luki albo tych, z których powstają przypadki - i ogranicz, ile płatnych kroków może ono zająć."
+      },
+      "org-governance": {
+        "title": "Budżet i zgody",
+        "body": "Ustaw limit wydatków organizacji i zarządzaj zwolnieniami z akceptacji. Dostępne opcje zależą od Twoich uprawnień."
+      },
+      "org-proactivity-model": {
+        "title": "Wybierz model proaktywności",
+        "body": "Wybierz dostawcę, model i klucz z Vault, a potem dodaj profil modelu. Utworzenie profilu zapisuje go od razu; Save stosuje go do nocnych sugestii i obserwacji MCP. Te zadania korzystają z tego modelu niezależnie od agenta startowego AgenticOS widocznego w Aktywności."
+      },
+      "org-proactivity": {
+        "title": "Proaktywność",
+        "body": "Skonfiguruj nocne sugestie, obserwowanie połączeń i proaktywne powitania w czacie. Tutaj wybierzesz model, harmonogram i budżet na osobę."
+      },
+      "project-file-location": {
+        "title": "Twój komputer czy wspólne pliki",
+        "body": "Ten komputer pokazuje zatwierdzony lokalny folder. Wspólne pliki projektu to wgrane kopie dla osób z dostępem do projektu. Te miejsca nie synchronizują się automatycznie."
+      },
+      "workflow-step-view": {
+        "title": "Skup się na jednym panelu",
+        "body": "Na telefonie wybierz ustawienia kroku, wejście albo wynik, aby przeznaczyć dostępne miejsce na jeden panel. Przełączanie zachowuje szkic."
       },
       "improvement-check": {
         "title": "Sprawdzenie",
@@ -7445,6 +7484,114 @@
       "chat-coding-accounts": {
         "title": "Twoje konta coding",
         "body": "Podłącz Codex lub Claude Code bez wychodzenia z chatu. To Twoje prywatne konta do zadań w chmurze; lokalne narzędzia desktopowe mają osobne logowanie."
+      },
+      "skill-agents": {
+        "title": "Kto używa tego skilla",
+        "body": "Każdy agent, który używa skilla, z wersją, którą dostaje: main podąża za każdą nową wersją, przypięty zostaje na starszej, a fork ma własne zmiany."
+      },
+      "skill-lines": {
+        "title": "Jedna linia naraz",
+        "body": "Pokaż agentów na main, przypiętych albo jeden fork. Wybór forka kieruje na niego też Historię i Edycję."
+      },
+      "skill-change-version": {
+        "title": "Przenieś agenta na inną wersję",
+        "body": "Publikuje nową wersję agenta tylko z tą zmianą. Wersja, która nie była sprawdzona na agencie, najpierw prosi o potwierdzenie."
+      },
+      "skill-edit": {
+        "title": "Edycja tworzy nową wersję",
+        "body": "Zapis niczego nie nadpisuje. Dodaje wersję do widocznej linii i dostają ją tylko agenci podążający za tą linią."
+      },
+      "skill-history": {
+        "title": "Każda wersja i droga powrotu",
+        "body": "Zobacz, co zmieniła każda wersja, kto ją zrobił i skąd się wzięła. Przywróć sprowadza wcześniejszą jako najnowszą."
+      },
+      "skill-tree": {
+        "title": "Main i jego forki",
+        "body": "Main biegnie od lewej do najnowszej wersji, każdy fork odchodzi na własnym torze od wersji, z której wystartował, a każdy agent siedzi w polu wersji, której używa. Porównaj stawia dowolne wersje obok siebie."
+      },
+      "skill-improve": {
+        "title": "Popraw skill",
+        "body": "Otwiera sesję krok po kroku dla widocznej linii: main albo wybranego forka. Nic się nie zmienia, dopóki nie zaakceptujesz wyniku."
+      },
+      "skill-improvement-start": {
+        "title": "Na kim jest sprawdzany",
+        "body": "Każdy agent linii jest wymieniony, zanim cokolwiek zostanie wydane, ci, których nie da się sprawdzić, z powodem, a cena przychodzi z limitem, który ustawiasz."
+      },
+      "skill-improvement-steps": {
+        "title": "Tych samych pięć kroków",
+        "body": "Zrozumienie, Zmiany, Sprawdzenie, Wynik i Akceptacja, jak w poprawianiu agenta. Sesja zatrzymuje się dla Ciebie po Zrozumieniu, po Zmianach i przy wyniku."
+      },
+      "skill-improvement-agents": {
+        "title": "Wynik dla każdego agenta",
+        "body": "Każdy agent linii wypada lepiej, bez zmian, w granicach szumu, gorzej albo nie wiadomo, najgorsi na górze, z tym, co naprawił i zepsuł, i linkiem do runu."
+      },
+      "skill-improvement-accept": {
+        "title": "Co możesz z tym zrobić",
+        "body": "Zastosuj, gdy nikt nie wypadł gorzej. Gdy ktoś wypadł: zostaw go na jego wersji, zrób fork dla agentów, którym pomogło, popraw dalej albo odrzuć."
+      },
+      "skill-improvement-test-set": {
+        "title": "Własne pytania skilla",
+        "body": "Agenci bez pytań testowych wychodzą jako nie wiadomo. Własne pytania skilla, zapisane z odpowiedzi, w których był wczytany, pozwolą ich sprawdzić następnym razem."
+      },
+      "improvement-skill-handoffs": {
+        "title": "Należy do skilla",
+        "body": "Problemy, które pomocnik znalazł w jednym ze skilli agenta. Skill jest współdzielony, więc poprawia się go osobno i sprawdza na każdym agencie, który go czyta."
+      },
+      "skill-new-fork": {
+        "title": "Fork dla agentów, którzy się różnią",
+        "body": "Nowy fork zaczyna własną linię od najnowszej wersji main. Agenci przeniesieni na niego czytają jego zmiany, a agenci na main ich nie widzą."
+      },
+      "skill-usage": {
+        "title": "Jak często jest używany",
+        "body": "Jak często każdy agent otwierał skill w ostatnich 30 dniach i jakie pliki z niego czytał. Runy ewaluacji i panelu testowego się nie liczą."
+      },
+      "skill-catch-up": {
+        "title": "Dogoń main w forku",
+        "body": "Scala z forkiem to, co main zmienił od startu forka. Agenci forka sprawdzają scalenie, zanim cokolwiek się zmieni."
+      },
+      "skill-merge-start": {
+        "title": "Scal fork z main",
+        "body": "Pokazuje, ile fragmentów zmieniły obie strony i ile kosztują propozycje ich tekstów. Sprawdzenie jest wyceniane później, na kroku Changes."
+      },
+      "skill-merge-changes": {
+        "title": "Rozstrzygnij scalenie",
+        "body": "Każdy fragment mówi, z której strony pochodzi. Konflikt pokazuje obie strony i scalony tekst; przepisz go, jeśli jest zły."
+      },
+      "flow-skill-improvement-start": {
+        "title": "Na kim jest sprawdzany",
+        "body": "Każdy agent linii jest wymieniony, zanim cokolwiek zostanie wydane, ci, których nie da się sprawdzić, z powodem, a cena przychodzi z limitem, który ustawiasz."
+      },
+      "flow-skill-merge-start": {
+        "title": "Scal fork z main",
+        "body": "Pokazuje, ile fragmentów zmieniły obie strony i ile kosztują propozycje ich tekstów. Sprawdzenie jest wyceniane później, na kroku Changes."
+      },
+      "flow-skill-improvement-steps": {
+        "title": "Tych samych pięć kroków",
+        "body": "Zrozumienie, Zmiany, Sprawdzenie, Wynik i Akceptacja, jak w poprawianiu agenta. Sesja zatrzymuje się dla Ciebie po Zrozumieniu, po Zmianach i przy wyniku."
+      },
+      "flow-skill-merge-changes": {
+        "title": "Rozstrzygnij scalenie",
+        "body": "Każdy fragment mówi, z której strony pochodzi. Konflikt pokazuje obie strony i scalony tekst; przepisz go, jeśli jest zły."
+      },
+      "flow-skill-improvement-agents": {
+        "title": "Wynik dla każdego agenta",
+        "body": "Każdy agent linii wypada lepiej, bez zmian, w granicach szumu, gorzej albo nie wiadomo, najgorsi na górze, z tym, co naprawił i zepsuł, i linkiem do runu."
+      },
+      "flow-skill-improvement-accept": {
+        "title": "Co możesz z tym zrobić",
+        "body": "Zastosuj, gdy nikt nie wypadł gorzej. Gdy ktoś wypadł: zostaw go na jego wersji, zrób fork dla agentów, którym pomogło, popraw dalej albo odrzuć."
+      },
+      "skill-test-questions": {
+        "title": "Pytania testowe",
+        "body": "Pytania, które dostaje każdy agent używający skilla, gdy sprawdzana jest jego zmiana. Zacznij je tutaj od ostatnich odpowiedzi albo od pustego zestawu, a popraw w datasecie."
+      },
+      "skill-content": {
+        "title": "Co zawiera",
+        "body": "Opis, instrukcje i pliki, które pokazana linia serwuje teraz, do przeczytania bez otwierania edytora."
+      },
+      "organization-switcher": {
+        "title": "Wybierz swoją organizację",
+        "body": "Ta nazwa wskazuje organizację, w której pracujesz. Otwórz menu, aby zmienić organizację, zarządzać organizacjami lub utworzyć nową. Agenty, wiedza i aktywność zmieniają się wraz z wyborem."
       },
       "workflow-run-questions": {
         "title": "Odpowiedz agentowi",
@@ -7722,8 +7869,9 @@
     "whichToolsExposed": "Które narzędzia udostępnia to połączenie. Wybranie wszystkich sprawia, że narzędzia dodane później przez serwer pozostają włączone automatycznie.{scope, select, organization { Dotyczy to każdego agenta związanego z tym serwerem - wybór narzędzi osobno dla agenta jeszcze nie istnieje.} other {}}",
     "authFilter": "Logowanie",
     "anyAuth": "Dowolne logowanie",
-    "toolReadsOnly": "czyta",
-    "toolWrites": "zapisuje",
+    "toolReadsOnly": "tylko odczyt",
+    "toolWrites": "może zmieniać dane",
+    "toolUnspecified": "brak deklaracji",
     "moreOptions": "Więcej opcji",
     "configureNamed": "Skonfiguruj {name} przed połączeniem",
     "configure": "Konfiguruj",
@@ -7801,8 +7949,7 @@
     "review": "Przejrzyj",
     "save": "Zapisz",
     "saveFile": "Zapisz plik",
-    "savedAgentsCurrent": "Zapisano. Każdy agent używający tego skilla jest teraz aktualny.",
-    "savingReachesEveryAgent": "Zapis dosięga każdego związanego z tym skillem agenta przy jego następnym runie. Nie ma wersji roboczej ani kroku publikacji.",
+    "savedAgentsCurrent": "Zapisano.",
     "showWhatChangedIn": "Pokaż, co zmieniło się w {name}",
     "sizeUploadsWhenCreated": "{size} · zostanie przesłany przy tworzeniu skilla",
     "support": "support",
@@ -7828,12 +7975,389 @@
         "public-sector": "Sektor publiczny i utilities",
         "legal": "Prawo i doradztwo",
         "manufacturing": "Produkcja i logistyka"
-      }
+      },
+      "preview": "Podgląd",
+      "hidePreview": "Ukryj podgląd",
+      "files": "{count, plural, one {Zawiera 1 plik: {names}} few {Zawiera # pliki: {names}} many {Zawiera # plików: {names}} other {Zawiera # pliku: {names}}}"
     },
     "moreFiles": "{count, plural, one {+1 plik} few {+# pliki} many {+# plików} other {+# pliku}}",
     "bodyPlaceholder": "# Zwroty\n\nUżyj tego, gdy klient prosi o zwrot pieniędzy.\n\n## Kroki\n\n1. Sprawdź datę zamówienia.\n2. W ciągu 14 dni zwróć bez pytania.\n3. Później poproś człowieka o zatwierdzenie.",
     "whoCanUseIt": "Kto może z tego korzystać",
-    "expectedEffect": "Oczekiwany efekt:"
+    "expectedEffect": "Oczekiwany efekt:",
+    "page": {
+      "skills": "Skille",
+      "mainVersion": "v{number} na main",
+      "forkCount": "{count, plural, one {# fork} few {# forki} many {# forków} other {# forka}}",
+      "editSkill": "Edytuj",
+      "editFork": "Edytuj fork „{name}”",
+      "open": "Otwórz",
+      "tabs": {
+        "agents": "Agenci",
+        "history": "Historia",
+        "tree": "Drzewo wersji",
+        "content": "Treść"
+      },
+      "agentCount": "{count, plural, =0 {Brak agentów} one {# agent} few {# agentów} many {# agentów} other {# agenta}}",
+      "state": {
+        "main": "v{number} · main",
+        "pinned": "v{number} · przypięty{behind, plural, =0 {} one { · 1 wersja za mainem} few { · # wersje za mainem} many { · # wersji za mainem} other { · # wersji za mainem}}",
+        "fork": "Fork „{name}” · od v{base}{changes, plural, =0 { · jeszcze bez zmian} one { · # zmiana} few { · # zmiany} many { · # zmian} other { · # zmiany}}{behind, plural, =0 {} one { · 1 wersja za mainem} few { · # wersje za mainem} many { · # wersji za mainem} other { · # wersji za mainem}}"
+      },
+      "show": {
+        "label": "Których agentów pokazać",
+        "all": "Wszyscy ({count})",
+        "main": "Main ({count})",
+        "pinned": "Przypięci ({count})",
+        "fork": "Fork „{name}” ({count})",
+        "draft": "Tylko w drafcie ({count})"
+      },
+      "agentsTable": {
+        "agent": "Agent",
+        "version": "Wersja",
+        "actions": "Akcje",
+        "viaSpecialist": "Przez specjalistę {name}",
+        "empty": "Żaden agent nie używa jeszcze tego skilla.",
+        "hidden": "{count, plural, one {Jeszcze # agent, którego nie widzisz, używa tego skilla.} few {Jeszcze # agentów, których nie widzisz, używa tego skilla.} many {Jeszcze # agentów, których nie widzisz, używa tego skilla.} other {Jeszcze # agenta, którego nie widzisz, używa tego skilla.}}",
+        "draftOnly": "Tylko w drafcie",
+        "environment": "{name}: {binding}",
+        "draftDiffers": "Jego draft używa innej wersji.",
+        "emptyFork": "Żaden agent nie używa jeszcze forka „{name}”. Przenieś na niego agenta przez Zmień wersję.",
+        "emptyShown": "Brak agentów w tym widoku.",
+        "checked": "Sprawdzony na tej wersji {when}: {state}",
+        "notChecked": "Nie wiadomo: ta wersja trafiła do niego bez sprawdzenia",
+        "notCheckedYet": "Jeszcze nie sprawdzany"
+      },
+      "changeVersion": {
+        "button": "Zmień wersję",
+        "for": "Zmień wersję skilla dla {name}",
+        "title": "Zmień wersję {skill} dla {name}",
+        "now": "Teraz: {binding}",
+        "legend": "Wersja do użycia",
+        "followMain": "Main, najnowsza: podąża za każdą nową wersją",
+        "pin": "Przypnij wersję main: zostaje na niej, gdy main idzie dalej",
+        "pinVersion": "Wersja do przypięcia",
+        "versionOption": "v{number}",
+        "fork": "Fork „{name}”, najnowsza",
+        "unchecked": "{version} nie była sprawdzona na agencie {name}. Jego odpowiedzi mogą się zmienić.",
+        "understood": "Rozumiem, zmień mimo to",
+        "publishes": "To publikuje nową wersję {name} tylko z tą zmianą. Niedokończone zmiany w jego drafcie zostają w drafcie.",
+        "cancel": "Anuluj",
+        "submit": "Zmień i opublikuj",
+        "published": "Opublikowano. {count, plural, =0 {{name} ma nową wersję.} other {Nowa wersja {name} działa teraz w {environments}.}}",
+        "savedInDraft": "Zapisano w drafcie {name}. Opublikuj go w Builderze.",
+        "openBuilder": "Otwórz Builder",
+        "savesToDraft": "Możesz edytować {name}, ale nie możesz go publikować, więc ta zmiana trafi do jego draftu. Opublikuje ją w Builderze ktoś, kto ma takie prawo.",
+        "submitDraft": "Zapisz w drafcie",
+        "versionWhen": "v{number} · {when}",
+        "forkVersion": "{name} v{number}",
+        "pinDetail": "{source} · {who} · {when}",
+        "leavesMain": "{name} zostaje na tej wersji i przestaje dostawać nowe wersje main.",
+        "leavesMainFork": "{name} przestaje dostawać nowe wersje main.{behind, plural, =0 {} one { Fork „{fork}” jest 1 wersję za mainem, więc nie ma tej zmiany.} few { Fork „{fork}” jest # wersje za mainem, więc nie ma ich zmian.} many { Fork „{fork}” jest # wersji za mainem, więc nie ma ich zmian.} other { Fork „{fork}” jest # wersji za mainem, więc nie ma ich zmian.}}",
+        "checkedOn": "{version} sprawdzono na agencie {name} {when}: {state}.",
+        "checksUnseen": "Nie widzisz, czy {version} sprawdzono na agencie {name}. Jego odpowiedzi mogą się zmienić.",
+        "answeredBefore": "{name} odpowiadał już z {version}.",
+        "checkFirst": "Najpierw sprawdź",
+        "staysPinned": "Sprawdzenie wykazało, że {version} pogorszyła agenta {name}, więc zostaje on przypięty.",
+        "environmentName": "„{name}”"
+      },
+      "history": {
+        "title": "Historia: {line}",
+        "versionCount": "{count, plural, one {# wersja} few {# wersje} many {# wersji} other {# wersji}}",
+        "main": "main",
+        "fork": "fork „{name}”",
+        "lines": "Linia do pokazania",
+        "showChanges": "Pokaż zmiany",
+        "hideChanges": "Ukryj zmiany",
+        "restore": "Przywróć",
+        "restoreVersion": "Przywróć {version}",
+        "restoreTitle": "Przywrócić {version}?",
+        "restoreMain": "{version} wraca jako najnowsza wersja na main. Agenci podążający za mainem dostaną ją od razu; przypięci agenci i forki zostają przy swojej wersji.",
+        "restoreFork": "{version} wraca jako najnowsza wersja forka „{name}”. Agenci forka dostaną ją od razu.",
+        "restored": "{version} wróciła jako {made}.",
+        "restoredFrom": "Przywrócona z {version}",
+        "source": {
+          "backfill": "Stan z początku wersjonowania",
+          "created": "Utworzona",
+          "edit": "Edycja",
+          "resources": "Zmiana plików",
+          "library": "Z biblioteki",
+          "workspace": "Zapisana przez agenta",
+          "improve": "Poprawianie",
+          "restore": "Przywrócona",
+          "catch_up": "Nadrobiono main",
+          "from_fork": "Przeniesiono z forka"
+        },
+        "madeBy": "{who} · {when}{agents, plural, =0 {} one { · używa # agent} few { · używa # agentów} many { · używa # agentów} other { · używa # agenta}}",
+        "unknownAuthor": "Nieznany",
+        "loadingChanges": "Wczytywanie zmian",
+        "description": "Opis",
+        "body": "Instrukcje",
+        "bodyUnchanged": "Instrukcje się nie zmieniły.",
+        "files": "Pliki",
+        "file": {
+          "added": "dodany",
+          "removed": "usunięty",
+          "changed": "zmieniony"
+        },
+        "versionLabel": "{fork, select, yes {{name} v{number}} other {v{number}}}",
+        "forkEmpty": "Fork nie ma jeszcze własnej wersji: czyta v{number} z main. Edytuj forka, żeby wprowadzić pierwszą zmianę.",
+        "forkStarts": "Tu zaczyna się fork „{name}”",
+        "fromSession": "Z sesji poprawiania",
+        "sessions": {
+          "title": "Sesje poprawiania",
+          "count": "{count, plural, =0 {Jeszcze żadnej} one {# sesja} few {# sesje} many {# sesji} other {# sesji}}",
+          "none": "Nikt jeszcze nie poprawiał tej linii.",
+          "unknownStarter": "Ktoś",
+          "meta": "{who} · {when} · {line} · wydano {cost}",
+          "continue": "Kontynuuj",
+          "open": "Otwórz",
+          "appliedAs": "Zastosowana jako {version}",
+          "result": {
+            "open": "Otwarta",
+            "applied": "Zastosowana",
+            "forked": "Utworzono fork",
+            "discarded": "Odrzucona",
+            "caught_up": "Nadrobiono main",
+            "returned_to_main": "Przeniesiono do main",
+            "expired": "Wygasła",
+            "failed": "Nie powiodła się",
+            "cancelled": "Zakończona",
+            "stopped": "Zatrzymana bez zmiany"
+          },
+          "countMore": "Najnowsze {count}",
+          "more": "Pokaż starsze sesje"
+        }
+      },
+      "tree": {
+        "title": "Drzewo wersji",
+        "summary": "{versions, plural, one {# wersja na main} few {# wersje na main} many {# wersji na main} other {# wersji na main}}{forks, plural, =0 {} one { · # fork} few { · # forki} many { · # forków} other { · # forka}}",
+        "folded": "{count, plural, one {# wersja} few {# wersje} many {# wersji} other {# wersji}} (v{from}–v{to})",
+        "number": "v{number}",
+        "latest": "najnowsza",
+        "fork": "Fork „{name}”",
+        "forkFacts": "{changes, plural, =0 {jeszcze bez zmian} one {# zmiana} few {# zmiany} many {# zmian} other {# zmiany}}{behind, plural, =0 {} one { · 1 wersja za mainem} few { · # wersje za mainem} many { · # wersji za mainem} other { · # wersji za mainem}}",
+        "forkNumber": "{name} v{number}",
+        "noVersionYet": "Jeszcze bez własnej wersji",
+        "compare": "Porównaj {version}",
+        "compareShort": "Porównaj",
+        "comparing": "W porównaniu"
+      },
+      "compare": {
+        "title": "Porównanie",
+        "count": "{count, plural, one {# wersja} few {# wersje} many {# wersji} other {# wersji}}",
+        "clear": "Wyczyść",
+        "pickAnother": "Wybierz na diagramie kolejną wersję, żeby postawić ją obok tej.",
+        "remove": "Usuń {version} z porównania",
+        "loading": "Wczytywanie wersji…",
+        "description": "Opis",
+        "instructions": "Instrukcje",
+        "files": "Pliki",
+        "noFiles": "Brak plików.",
+        "unreadable": "Nie udało się wczytać tej wersji.",
+        "retry": "Spróbuj ponownie",
+        "reference": "Wzorzec",
+        "setReference": "Ustaw jako wzorzec",
+        "onlyDifferences": "Tylko różnice",
+        "sameAsReference": "tak samo jak wzorzec",
+        "file": {
+          "added": "dodany",
+          "removed": "usunięty",
+          "changed": "zmieniony"
+        }
+      },
+      "edit": {
+        "saved": "Zapisano jako v{number}.",
+        "forkTitle": "{skill} · fork „{name}”",
+        "nameHowModelRefers": "Pod tą nazwą model odwołuje się do skilla.",
+        "warnMain": "Zapis tworzy v{number} na main. {count, plural, =0 {Żaden agent jeszcze nie podąża za mainem.} one {# agent podążający za mainem dostanie ją od razu.} few {# agenci podążający za mainem dostaną ją od razu.} many {# agentów podążających za mainem dostanie ją od razu.} other {# agenta podążającego za mainem dostanie ją od razu.}} Przypięci agenci i forki zostają przy swojej wersji.",
+        "warnFork": "Zapis tworzy v{number} forka „{name}”. {count, plural, =0 {Żaden agent jeszcze nie używa forka.} one {Jego # agent dostanie ją od razu.} few {Jego # agentów dostanie ją od razu.} many {Jego # agentów dostanie ją od razu.} other {Jego # agenta dostanie ją od razu.}}",
+        "lineMoved": "Ktoś zapisał nowszą wersję, odkąd to otworzyłeś. Twój tekst nadal tu jest: skopiuj go, zamknij i otwórz najnowszą wersję, żeby go tam wprowadzić.",
+        "forkFiles": "Do forka należą tylko opis i instrukcje. Jego pliki pochodzą z wersji main, od której wystartował, a pliki edytuje się na main.",
+        "noBase": "Ten skill nie ma jeszcze zapisanej wersji, na której można zapisać zmianę. Odśwież stronę i spróbuj ponownie.",
+        "retryFork": "Wczytaj fork ponownie",
+        "savedFork": "Zapisano jako {name} v{number}.",
+        "version": "v{number}",
+        "forkVersion": "{name} v{number}",
+        "confirm": {
+          "title": "Zapisać {version}?",
+          "nobody": "Żaden agent nie podąża jeszcze za tą linią, więc odpowiedzi żadnego agenta się nie zmienią.",
+          "reaches": "{count, plural, one {Trafi do 1 agenta przy jego następnym runie} few {Trafi do # agentów przy ich następnym runie} many {Trafi do # agentów przy ich następnym runie} other {Trafi do # agenta przy ich następnym runie}}{named, select, yes {, wśród nich: {names}} other {}}.",
+          "checkHint": "Zapis teraz nie sprawdza zmiany na nich. Opcja „Najpierw sprawdź na agentach” uruchamia pytania każdego agenta z nowym tekstem i stosuje go na podstawie wyniku.",
+          "back": "Wróć do edycji",
+          "check": "Najpierw sprawdź na agentach",
+          "save": "Zapisz teraz"
+        }
+      },
+      "improve": "Popraw",
+      "improveFork": "Popraw fork „{name}”",
+      "newFork": {
+        "button": "Nowy fork",
+        "title": "Nowy fork skilla {name}",
+        "description": "Fork to linia wersji z własnymi zmianami, dla agentów, którzy ich potrzebują. Startuje od v{number}, najnowszej wersji main, i czyta się tak samo, dopóki ktoś go nie edytuje.",
+        "name": "Nazwa",
+        "agents": "Agenci do przeniesienia na fork (opcjonalnie)",
+        "agentsHint": "Każdy przeniesiony agent dostaje nową opublikowaną wersję, która czyta fork, albo zmiana czeka w jego drafcie, jeśli nie możesz go publikować.",
+        "noAgents": "Stąd nie da się przenieść żadnego agenta. Przenieś agentów później przez Zmień wersję.",
+        "agentNow": "{name} · teraz {binding}",
+        "cancel": "Anuluj",
+        "create": "Utwórz fork",
+        "created": "Utworzono fork „{name}”.{moved, plural, =0 {} one { Przeniesiono na niego 1 agenta.} few { Przeniesiono na niego # agentów.} many { Przeniesiono na niego # agentów.} other { Przeniesiono na niego # agenta.}}",
+        "moveFailed": "Nie przeniesiono agenta {name} na fork: {reason}",
+        "changesContent": "{count, plural, one {{names} czyta teraz inną wersję i na forku dostanie} other {{names} czytają teraz inne wersje i na forku dostaną}} treść v{number}, której na {count, plural, one {nim} other {nich}} nie sprawdzono. Przenieś mimo to.",
+        "mainMoved": "Od otwarcia tego okna main ma nowszą wersję, v{number}. Fork zacznie od niej: naciśnij Utwórz fork jeszcze raz."
+      },
+      "deleteSkill": {
+        "title": "Usunąć {name}?",
+        "description": "Razem z nim znikną jego wersje i forki. Żaden agent go teraz nie używa. Jego pytania testowe, jeśli je ma, zostaną w Datasets jako zwykły dataset.",
+        "used": "Agenci używają tego skilla. Zostanie usunięty dopiero, gdy żaden go nie ma: tutaj, od razu ze wszystkich, albo po kolei w Builderze.",
+        "usedBy": "{named, select, yes {{count, plural, one {Używa go 1 agent} few {Używają go # agenci} many {Używa go # agentów} other {Używa go # agenta}}: {names}{hidden, plural, =0 {.} one {, i 1, którego nie widzisz.} few {, i #, których nie widzisz.} many {, i #, których nie widzisz.} other {, i #, którego nie widzisz.}}} other {{hidden, plural, one {Używa go 1 agent, którego nie widzisz.} few {Używają go # agenci, których nie widzisz.} many {Używa go # agentów, których nie widzisz.} other {Używa go # agenta, którego nie widzisz.}}}}",
+        "cancel": "Anuluj",
+        "delete": "Usuń",
+        "checking": "Sprawdzamy, którzy agenci go używają…",
+        "unread": "Nie udało się odczytać, którzy agenci go używają. Skilla używanego przez agenta i tak nie da się usunąć.",
+        "removeAndDelete": "{count, plural, one {Odepnij od # agenta i usuń} other {Odepnij od # agentów i usuń}}",
+        "removeBody": "{count, plural, one {Skill zostanie usunięty ze szkicu tego agenta. Jeśli używa go opublikowana wersja, zostanie opublikowana nowa wersja bez niego. Potem skill zostanie usunięty razem z wersjami i forkami; jego pytania testowe, jeśli je ma, zostaną w Datasets jako zwykły dataset. Tego nie da się cofnąć.} other {Skill zostanie usunięty ze szkiców tych # agentów. Tam, gdzie używa go opublikowana wersja, zostanie opublikowana nowa wersja bez niego. Potem skill zostanie usunięty razem z wersjami i forkami; jego pytania testowe, jeśli je ma, zostaną w Datasets jako zwykły dataset. Tego nie da się cofnąć.}}",
+        "removeConfirm": "Odepnij i usuń",
+        "back": "Wstecz",
+        "locked": "{count, plural, one {Nie możesz zmieniać agenta {names}, więc nie da się go tu odpiąć. Poproś właściciela albo odepnij go w Builderze.} other {Nie możesz zmieniać agentów {names}, więc nie da się go tu odpiąć. Poproś ich właścicieli albo odepnij go w Builderze.}}",
+        "hiddenBlocks": "Części z nich nie widzisz, więc nie da się go tu odpiąć od wszystkich. Poproś admina o usunięcie.",
+        "button": "Usuń",
+        "agentsChanged": "W trakcie odpinania jakiś agent zaczął używać skilla, więc nic się nie zmieniło. Spróbuj ponownie.",
+        "waiting": "{name} nadal go serwuje w {environments}, {count, plural, one {które czeka} other {które czekają}} na promocję. Najpierw wypromuj tam wersję bez skilla.",
+        "unpublishable": "Najnowszy spec agenta {name} nie publikuje się bez skilla, więc nic się nie zmieniło. <link>Popraw go w Builderze</link> i spróbuj ponownie."
+      },
+      "usage": {
+        "title": "Użycie w ostatnich {days} dniach",
+        "loads": "{count, plural, =0 {Nie otwierany} one {Otwarty raz} few {Otwarty # razy} many {Otwarty # razy} other {Otwarty # razy}}",
+        "none": "Żaden agent nie otworzył tego skilla w ostatnich {days} dniach. Runy ewaluacji i panelu testowego się nie liczą.",
+        "hidden": "{count, plural, one {1 agent, którego nie widzisz,} few {# agentów, których nie widzisz,} many {# agentów, których nie widzisz,} other {# agenta, którego nie widzisz,}} {count, plural, one {otworzył} other {otworzyło}} go {loads, plural, one {raz} few {# razy} many {# razy} other {# razy}}.",
+        "chart": "Wczytania dziennie, jedna linia na agenta",
+        "table": {
+          "agent": "Agent",
+          "loads": "Wczytania",
+          "files": "Odczytane pliki",
+          "last": "Ostatnio",
+          "label": "Użycie według agenta"
+        },
+        "never": "Jeszcze nie",
+        "probable": "Prawdopodobnie: nazwał jego folder w {count, plural, one {1 runie} few {# runach} many {# runach} other {# runach}}",
+        "pick": "Agenci na wykresie",
+        "pickNone": "Wybierz agenta powyżej, żeby narysować jego linię.",
+        "noLoads": "Wybrani agenci nie wczytali skilla w ostatnich 30 dniach."
+      },
+      "catchUp": "Dogoń main w forku „{name}”",
+      "toMain": "Przenieś „{name}” do main",
+      "nothingToMerge": "Najpierw wprowadź zmianę w forku; na razie nie ma czego scalać.",
+      "returnFork": {
+        "button": "Przenieś „{name}” z powrotem do main",
+        "title": "Przenieś agentów „{name}” z powrotem do main",
+        "body": "{count, plural, =0 {Nikt nie czyta tego forka, więc zostanie zarchiwizowany.} one {# agent czytający ten fork przejdzie na najnowszą wersję main, opublikowany tam, gdzie możesz publikować, a w szkicu w pozostałych przypadkach. Fork zostanie zarchiwizowany, gdy nikt go już nie czyta.} few {# agenty czytające ten fork przejdą na najnowszą wersję main, każdy opublikowany tam, gdzie możesz publikować, a w szkicu w pozostałych przypadkach. Fork zostanie zarchiwizowany, gdy nikt go już nie czyta.} many {# agentów czytających ten fork przejdzie na najnowszą wersję main, każdy opublikowany tam, gdzie możesz publikować, a w szkicu w pozostałych przypadkach. Fork zostanie zarchiwizowany, gdy nikt go już nie czyta.} other {# agenta czytającego ten fork przejdzie na najnowszą wersję main. Fork zostanie zarchiwizowany, gdy nikt go już nie czyta.}}",
+        "confirm": "Przenieś do main",
+        "done": "Gotowe"
+      },
+      "checkRunning": {
+        "running": "Sprawdzanie trwa: sprawdzono {done} z {total} agentów.",
+        "finished": "Sprawdzanie na {total, plural, one {# agencie} other {# agentach}} się skończyło i czeka na twoją decyzję.",
+        "show": "Pokaż",
+        "unreadable": "Nie udało się odczytać, czy sprawdzanie tej linii nadal trwa lub czeka na ciebie: {reason}"
+      },
+      "testQuestions": {
+        "title": "Pytania testowe",
+        "count": "{count, plural, =0 {Jeszcze brak} one {1 pytanie} few {# pytania} many {# pytań} other {# pytania}}",
+        "body": "Każdy agent używający tego skilla dostaje te pytania przy sprawdzaniu zmiany skilla, obok własnych pytań testowych.",
+        "open": "Otwórz {name}",
+        "none": "Ten skill nie ma jeszcze pytań testowych. Agenta bez własnych pytań testowych nie da się sprawdzić, gdy skill się zmienia.",
+        "askEditor": "Może je dodać osoba, która edytuje ten skill i tworzy datasety.",
+        "hidden": "Ten skill ma pytania testowe w datasecie, którego nie możesz otworzyć."
+      },
+      "content": {
+        "title": "Co teraz serwuje"
+      },
+      "more": "Więcej akcji",
+      "checks": {
+        "title": "Sprawdzenia",
+        "count": "{count, plural, one {1 sprawdzenie} few {# sprawdzenia} many {# sprawdzeń} other {# sprawdzenia}}",
+        "none": "Żadnej zmiany tej linii jeszcze nie sprawdzano.",
+        "over": "Na v{version} · {agents, plural, one {1 agent} few {# agentów} many {# agentów} other {# agenta}}",
+        "details": "Szczegóły",
+        "verdict": {
+          "passed": "Lepiej, nikt gorzej",
+          "needs_ack": "Części agentów nie sprawdzono",
+          "blocked": "Któryś agent gorzej",
+          "no_better": "Nikt lepiej"
+        },
+        "status": {
+          "running": "W toku",
+          "done": "Czeka na decyzję",
+          "cancelled": "Zatrzymane",
+          "applied": "Zastosowane",
+          "forked": "Zrobiono fork",
+          "discarded": "Odrzucone"
+        }
+      },
+      "skillDetails": "Szczegóły skilla",
+      "openFullView": "Otwórz pełny widok"
+    },
+    "checkOnAgents": "Sprawdź na agentach",
+    "checkChangeTo": "Sprawdź zmianę w {name} na agentach, które go używają",
+    "check": {
+      "title": "Sprawdź tę zmianę na każdym agencie, który używa skilla",
+      "description": "Każdy agent odpowiada na swoje pytania ze skillem w obecnej wersji i z tą zmianą. Nic się nie zmienia, dopóki nie zdecydujesz.",
+      "price": "Najpewniej {expected}, najwyżej {most}. Część każdego agenta idzie z jego budżetu.",
+      "start": "Uruchom sprawdzenie",
+      "running": "Trwa sprawdzanie, to zajmie kilka minut. Możesz to zamknąć: sprawdzanie trwa dalej, a <page>strona skilla</page> pokazuje je jako „Sprawdzanie trwa”, dopóki o nim nie zdecydujesz.",
+      "asked": "{count, plural, one {Zadano 1 pytanie} few {Zadano # pytania} many {Zadano # pytań} other {Zadano # pytania}}",
+      "skillSetOnly": "Sprawdzono tylko na pytaniach skilla: żadne pytanie tego agenta nie otworzyło skilla.",
+      "hidden": "{count, plural, one {Tego skilla używa jeszcze 1 agent, którego nie widzisz.} few {Tego skilla używa jeszcze # agentów, których nie widzisz.} many {Tego skilla używa jeszcze # agentów, których nie widzisz.} other {Tego skilla używa jeszcze # agenta, którego nie widzisz.}}",
+      "noisy": "Część wyników mieści się w szumie: sprawdzenie zobaczyło różnicę, której nie mogło potwierdzić.",
+      "forkLine": "Ta zmiana dotyczy forka, którego nie da się przypiąć ani znowu sforkować. Popraw ją dalej albo odrzuć.",
+      "acknowledge": "Rozumiem, że części agentów nie dało się sprawdzić.",
+      "discard": "Odrzuć",
+      "apply": "Zastosuj",
+      "applyAndPin": "Zastosuj i zostaw gorszych agentów na ich wersji",
+      "reason": {
+        "no_questions": "Nie sprawdzono: nie ma pytań do zadania.",
+        "no_access": "Nie sprawdzono: nie możesz uruchomić tego agenta.",
+        "no_budget": "Nie sprawdzono: jego budżet nie pokryje sprawdzenia.",
+        "no_published_version": "Nie sprawdzono: nie ma opublikowanej wersji.",
+        "inconclusive": "Nie sprawdzono: nie udało się ocenić każdej odpowiedzi.",
+        "failed": "Nie sprawdzono: jego run się nie powiódł.",
+        "other": "Nie sprawdzono: sprawdzenie nie mogło go zmierzyć.",
+        "unscorable": "Nie sprawdzono: nic nie oceni jego pytań. Ustaw ocenianie w ich datasecie.",
+        "all_evidence": "Nie sprawdzono: każde pytanie pochodzi z rozmów, z których ta zmiana się uczyła.",
+        "cancelled": "Nie sprawdzono: sprawdzenie zatrzymano przed końcem.",
+        "own_not_asked": "Nie sprawdzono: jego własnych pytań nie zadano, gdy pytania skilla pokazały, że jest gorzej."
+      },
+      "verdict": {
+        "passed": "Żaden agent nie jest gorszy, a co najmniej jeden jest lepszy.",
+        "needs_ack": "Żaden sprawdzony agent nie jest gorszy, ale części nie dało się sprawdzić.",
+        "blocked": "Któryś agent jest gorszy. Nadal możesz zastosować zmianę i zostawić go na wersji, której używa teraz.",
+        "no_better": "Żaden agent nie jest lepszy, więc nie ma czego zastosować.",
+        "noReaders": "Żaden agent nie czyta tej linii, więc nie było kogo sprawdzić."
+      },
+      "unaffordable": "Budżet organizacji na ten miesiąc nie pokryje tego sprawdzenia.",
+      "cancel": "Zatrzymaj sprawdzenie",
+      "inSession": "To sprawdzenie należy do sesji poprawiania, więc decyzja zapada w niej.",
+      "openSession": "Otwórz sesję",
+      "progress": "Sprawdzono {done} z {total} agentów",
+      "progressLabel": "Sprawdzeni agenci",
+      "updateChecked": "Sprawdzone. Wróć, aby zdecydować, czy przenieść agenta.",
+      "backToChange": "Wróć do zmiany wersji",
+      "updateDecidedElsewhere": "Ten check sprawdzał przeniesienie jednego agenta na main. Zdecyduj o nim w Change version tego agenta.",
+      "backToEditing": "Wróć do edycji",
+      "improveFurther": "Popraw dalej",
+      "discardConfirm": {
+        "title": "Odrzucić tę zmianę?",
+        "description": "Zmiana nie zostanie zastosowana i o tym sprawdzeniu nie da się już zdecydować. To, co znalazło, zostaje w sprawdzeniach skilla."
+      },
+      "nobody": "Żadnego z tych agentów nie da się sprawdzić, więc sprawdzenie niczego by nie zmierzyło. Dodaj pytania testowe, żeby mogło, albo przejdź dalej bez sprawdzenia i potwierdź, że nikogo nie sprawdzono.",
+      "startUnchecked": "Dalej bez sprawdzenia",
+      "noReaders": "Żaden agent nie czyta tej linii, więc nie ma kogo sprawdzić. Dalej zmiana od razu zostanie zastosowana."
+    },
+    "savedMainVersion": "Zapisano jako nową wersję main. Agenci na main czytają ją od następnego uruchomienia; przypięci agenci i forki zostają przy swoich.",
+    "instructions": "Instrukcje",
+    "architect": "Architekt",
+    "architectHint": "Zainstalowany dla Architekta AI, który go czyta. Zmiana tego skilla zmienia sposób pracy Architekta."
   },
   "settings": {
     "builtCommands": "Wbudowane polecenia",
@@ -8069,6 +8593,25 @@
     "option": "Kolor {n}"
   },
   "triggers": {
+    "attemptsTitle": "Przed uruchomieniem agenta",
+    "attemptsHint": "Te próby nie rozpoczęły runu agenta ani nie naliczyły kosztów modelu.",
+    "attemptsError": "Nie udało się odczytać prób przed startem agenta.",
+    "attemptsRetry": "Ponów odczyt historii",
+    "attemptCount": "{count, plural, one {# próba} few {# próby} many {# prób} other {# próby}}",
+    "attemptStatus": {
+      "blocked": "Zablokowana",
+      "failed": "Nieudana"
+    },
+    "attemptStage": {
+      "source_review": "Sprawdzanie źródeł",
+      "preparation": "Przygotowanie agenta"
+    },
+    "attemptReason": {
+      "platform_identity_required": "Włącz Działaj jako twórca albo usuń powiązanie wbudowanego platformowego MCP z agenta i jego delegatów.",
+      "source_review_required": "Przejrzyj źródła procedury i sprawdź niedostępne połączenia przed kolejną próbą.",
+      "agent_unavailable": "Sprawdź opublikowaną wersję, konfigurację i uprawnienia agenta, zanim ponownie włączysz procedurę.",
+      "preparation_failed": "Przygotowanie nie powiodło się przed utworzeniem runu agenta. Poproś operatora o sprawdzenie logów workera z tego czasu."
+    },
     "runAsMe": "Uruchamiaj jako ja",
     "runAsCreator": "Działa jako osoba, która go utworzyła",
     "runAsMeScheduleHint": "Każde uruchomienie korzysta z twojej pamięci i twoich własnych połączeń - skrzynki, kalendarza - jak twój czat. Może zapisywać dla ciebie notatki; nigdy nie przeszukuje twoich rozmów.",
@@ -8368,7 +8911,21 @@
       "empty": "Ta wersja nie ma działań, dla których można tu udzielić zgody.",
       "required": "Agent wymaga zatwierdzenia",
       "revokeAll": "Cofnij wszystkie",
-      "save": "Zapisz zgody"
+      "save": "Zapisz zgody",
+      "search": "Szukaj akcji",
+      "selectAll": "Zaznacz wszystkie dozwolone akcje",
+      "bulkScope": "Zaznaczanie grupowe obejmuje całą grupę lub listę, także akcje ukryte przez wyszukiwanie. Obowiązkowe akceptacje pozostają wymagane.",
+      "selectGroup": "Zaznacz dozwolone akcje w {name}",
+      "noMatches": "Brak akcji pasujących do wyszukiwania.",
+      "reselectPrevious": "Zaznacz ponownie wcześniej sprawdzone akcje",
+      "selected": "{count, plural, one {Zaznaczono # akcję} few {Zaznaczono # akcje} many {Zaznaczono # akcji} other {Zaznaczono # akcji}} · limit {limit}",
+      "tooMany": "Zaznaczono {count} akcji; limit to {limit}. Odznacz akcje przed zapisaniem.",
+      "changed": {
+        "version": "Zmieniła się opublikowana wersja agenta. Sprawdź ponownie jej akcje.",
+        "intent": "Zmieniła się praca lub miejsce docelowe routine. Sprawdź ponownie akcje.",
+        "instructions": "Zmieniły się instrukcje skill, context lub projektu. Sprawdź ponownie akcje.",
+        "actions": "Niektóre poprzednio wybrane akcje są niedostępne, wymagają akceptacji lub mają inną autoryzację konta. Nie zostaną zaznaczone ponownie."
+      }
     },
     "sourceConsents": {
       "title": "Zatwierdzone źródła",
@@ -8498,12 +9055,11 @@
     "anyoneThoseSites": "Każdy na tych witrynach",
     "approval": "Zatwierdzenie",
     "approvalAlways": "Zawsze pytaj",
-    "approvalFollow": "Zgodnie z capability",
     "approvalHintDefaultReadOnly": "Działa bez zatwierdzenia, ponieważ ta capability tylko czyta.",
     "approvalHintDefaultSideEffecting": "Działa bez zatwierdzania, choć ta capability zmienia coś poza agentem. Wybierz Zawsze pytaj, jeśli człowiek ma najpierw zobaczyć każde wywołanie.",
     "approvalHintNeverReadOnly": "Bez zatwierdzenia, co ta capability i tak by zrobiła.",
     "approvalHintNeverSideEffecting": "Agent działa bez nadzoru. Tylko dla akcji, które Twoja organizacja uznała za bezpieczne.",
-    "approvalHintRequired": "Osoba zatwierdza każde wywołanie, zanim zostanie uruchomione.",
+    "approvalHintRequired": "Osoba zatwierdza każde wywołanie przed uruchomieniem. Routines i kanały też mogą czekać na akceptację. Narzędzia wykonywane przez providera wymagają lokalnej metody, aby pytać; publikacja to sprawdza. Obowiązkowe akceptacje nadal działają po wybraniu opcji Nigdy nie pytaj.",
     "approvalNever": "Nigdy nie pytaj",
     "approvalParksTheRun": "Narzędzie, które prosi o zatwierdzenie, wstrzymuje run, dopóki ktoś nie odpowie w tym panelu, więc na platformie czatowej wątek w tym czasie stoi - co wygląda, jakby bot był zepsuty. Dla agenta, do którego ludzie docierają z kanału, działającym ustawieniem jest shell bez bramki, wewnątrz kontenera bez sieci.",
     "archive": "Archiwizuj",
@@ -8622,7 +9178,7 @@
     "disabled": "wyłączone",
     "documentCount": "{count, plural, =1 {1 dokument} few {# dokumenty} many {# dokumentów} other {# dokumentu}}",
     "draft": "Wersja robocza",
-    "draftDiffersFromPublished": "Wersja robocza różni się od v{version}",
+    "draftDiffersFromPublished": "Wersja robocza różni się od wersji agenta v{version}",
     "draftDiffersHint": "Wersja robocza jest zapisana i różni się od v{version}, najnowszej opublikowanej wersji. Publikacja zrobi z niej nową wersję.",
     "duplicate": "Duplikuj",
     "editSurface": "Edytuj {name}",
@@ -8980,7 +9536,7 @@
     "unchangedLines": "{count, plural, =1 {1 niezmieniony wiersz} few {# niezmienione wiersze} many {# niezmienionych wierszy} other {# niezmienionego wiersza}}",
     "unknownAuthor": "nieznany autor",
     "unnamedSpecialist": "Specjalista bez nazwy",
-    "upToDateWithPublished": "Aktualny z v{version}",
+    "upToDateWithPublished": "Aktualny z wersją agenta v{version}",
     "updateToLatest": "Zaktualizuj do najnowszej",
     "urlSafeHint": "Hostowanej stronie można przekazać zmienną tylko przez jej własny URL, a URL to coś, co wpisuje odwiedzający. Oznacz tylko to, co może bezpiecznie ustawić.",
     "usageEveryNMessages": "Koszt: {count, plural, =1 {co wiadomość} few {co # wiadomości} many {co # wiadomości} other {co # wiadomości}}",
@@ -9132,6 +9688,7 @@
     "menuArchiveHint": "Znika z wyborów; historia zostaje",
     "menuRestoreHint": "Wraca do wyborów, jak był",
     "menuDeleteHint": "Na zawsze, z każdą wersją",
+    "channelRunFreelyHint": "Powiązani nadawcy na kanałach korzystają z tych ustawień z pełną historią pokoju, także wiadomościami innych osób. Run freely pozwala wykonywać wywołania bez kolejnego potwierdzenia; wybieraj je dla zaufanych narzędzi i pokoi.",
     "serverTools": "Narzędzia",
     "loadTools": "Wczytaj narzędzia",
     "toolsAfterConnecting": "Narzędzia pojawią się po połączeniu konta {name}.",
@@ -9478,7 +10035,9 @@
     "starterTitlePlaceholder": "Krótki tytuł (opcjonalny)",
     "starterMessageLabel": "Wiadomość widoczna pod tytułem i wysyłana po kliknięciu",
     "pipelineModelPlaceholder": "Wybierz model",
-    "pipelineNoMatches": "Brak pasujących modeli"
+    "pipelineNoMatches": "Brak pasujących modeli",
+    "alreadyHasIt": "Używa",
+    "inDraftOf": "{more, plural, =0 {W wersji roboczej: {names}, jeszcze nieopublikowane} other {W wersji roboczej: {names} i jeszcze #, jeszcze nieopublikowane}}"
   },
   "steps": {
     "skills-gallery": {
@@ -9760,7 +10319,7 @@
       },
       "connection_id": {
         "title": "Połączenie sandbox",
-        "description": "Na którym zarejestrowanym połączeniu sandbox działać; puste bierze domyślne połączenie organizacji. Id, nigdy adres ani token - spec jest eksportowany do repozytorium git klienta, więc może zawierać tylko odnośnik. Połączenie decyduje, czy to kontener na twoim hoście, czy sandbox w chmurze Daytona."
+        "description": "Które zarejestrowane połączenie sandboxa ma obsłużyć pracę; puste wybiera domyślne połączenie organizacji. To identyfikator, nigdy adres ani token — spec trafia do repozytorium klienta i może zawierać tylko odwołanie. Połączenie wybiera kontener na własnym hoście albo sandbox u dostawcy chmurowego lub na serwerze OpenSandbox."
       },
       "session_scope": {
         "title": "Kto dzieli workspace",
@@ -9768,7 +10327,7 @@
       },
       "runtime": {
         "title": "Środowisko",
-        "description": "Które środowisko uruchamia workspace w kontenerze, z listy dopuszczonej przez usługę połączenia. Puste bierze domyślne środowisko połączenia. Alias, nigdy obraz."
+        "description": "Opcjonalne środowisko dostawcy, do 64 znaków: alias sandboxd, szablon E2B, snapshot Daytona lub obraz OpenSandbox. Puste używa wartości domyślnej połączenia; dłuższe odwołania do obrazów OpenSandbox ustaw na połączeniu."
       },
       "include_execute": {
         "title": "Pozwól na polecenia powłoki",
@@ -10847,6 +11406,11 @@
       "gmail": "Wyzwalacz poczty i akcje Gmail",
       "outlook": "Wyzwalacz poczty i akcje Outlook"
     },
+    "pickerFound": {
+      "groups": "Kategorie",
+      "steps": "Kroki wbudowane",
+      "actions": "Akcje aplikacji"
+    },
     "pickerSection": {
       "start": "Start",
       "ai": "AI",
@@ -11905,6 +12469,7 @@
       "more": "I jeszcze {count}.",
       "close": "Zamknij",
       "cellProblem": "{column}: {problem}",
+      "repeatedExternalId": "Powtarza external id z wiersza {line}",
       "problem": {
         "number": "to nie liczba",
         "integer": "to nie liczba całkowita",
@@ -13253,13 +13818,24 @@
         "title": "Ten komputer",
         "description": "Pozwól swoim agentom pracować tutaj, gdy w czacie wybierzesz „Ten komputer” - w wybranym folderze i w trybie, który wybierzesz. Runy innych osób tu nie trafiają.",
         "notLinked": "Niepołączony",
-        "connected": "Połączony - Twoje agenty mogą tu pracować",
-        "reconnecting": "Połączony - łączenie ponownie…",
+        "connected": "Połączony i aktywny - Twoje agenty mogą tu pracować",
+        "reconnecting": "Połączony - przywracanie łączności…",
         "live": "Na żywo",
-        "link": "Pozwól agentom tu pracować",
+        "link": "Połącz ten komputer",
         "unlink": "Odłącz",
         "linkFailed": "Nie udało się połączyć tego komputera.",
-        "unlinkFailed": "Nie udało się odłączyć tego komputera."
+        "unlinkFailed": "Nie udało się odłączyć tego komputera.",
+        "unlinkTitle": "Odłączyć ten komputer?",
+        "unlinkBody": "Twoje agenty nie będą już mogły tu pracować, a aplikacja zapomni uprawnienia nadane na tym komputerze:",
+        "unlinkClears": {
+          "folders": "Zatwierdzone foldery",
+          "services": "Usługi lokalne",
+          "consents": "Dostęp do całego komputera i ekranu",
+          "routines": "Uprawnienia rutyn do folderów",
+          "sessions": "Zapisane sesje lokalnych agentów"
+        },
+        "unlinkCancel": "Anuluj",
+        "unlinkConfirm": "Odłącz ten komputer"
       },
       "services": {
         "title": "Lokalne modele i MCP",
@@ -13340,7 +13916,8 @@
       "tabLimit": "W jednym oknie możesz otworzyć do ośmiu zakładek.",
       "earlierMessages": "Wczytaj wcześniejsze wiadomości",
       "startDictation": "Zacznij dyktowanie",
-      "stopDictation": "Zatrzymaj dyktowanie"
+      "stopDictation": "Zatrzymaj dyktowanie",
+      "computerAccessInConsole": "Quick Ask odrzucił tę prośbę o dostęp do tego komputera. Aby na niego zezwolić, poproś ponownie w konsoli."
     },
     "notifications": {
       "approvalTitle": "{agent} chce uruchomić {tool}",
@@ -13351,7 +13928,6 @@
       "questionBody": "Otwórz rozmowę, aby odpowiedzieć agentowi."
     },
     "welcome": {
-      "onlyInApp": "To powitanie należy do aplikacji desktopowej AgenticOS.",
       "skip": "Pomiń na razie",
       "next": "Dalej",
       "open": "Otwórz AgenticOS",
@@ -13372,7 +13948,7 @@
       },
       "loop": {
         "title": "Bądź na bieżąco",
-        "body": "Akceptacje przychodzą jako powiadomienia, na które odpowiesz bez otwierania czegokolwiek.",
+        "body": "Prośby o akceptację przychodzą jako powiadomienia. Aby odpowiadać na większość z nich bezpośrednio, włącz podglądy w Ustawienia → Aplikacja desktopowa.",
         "login": "Otwieraj AgenticOS przy logowaniu",
         "keepRunning": "Działaj po zamknięciu okna",
         "test": "Powiadomienia",
@@ -13389,13 +13965,12 @@
     },
     "readiness": {
       "title": "Gotowość aplikacji",
-      "description": "Stan tego Maca oraz Twojego konta na tym serwerze. Włącz tylko to, z czego chcesz korzystać.",
-      "desktopOnly": "Otwórz aplikację desktopową, aby sprawdzić jej konfigurację.",
+      "description": "Stan tego komputera oraz Twojego konta na tym serwerze. Włącz tylko to, z czego chcesz korzystać.",
       "refresh": "Sprawdź ponownie",
       "requestFailed": "Nie udało się zmienić uprawnienia systemowego. Otwórz Ustawienia systemowe i sprawdź ponownie.",
       "askAdmin": "Poproś administratora o skonfigurowanie modelu dla organizacji.",
       "askAgentAdmin": "Poproś administratora o opublikowanie lub udostępnienie agenta, z którego możesz korzystać.",
-      "permissionNote": "Sprawdzenie nie przechwytuje ekranu, dźwięku ani schowka. Uprawnienia są opcjonalne i wymagają kliknięcia. Po zmianie Nagrywania ekranu macOS może wymagać restartu aplikacji.",
+      "permissionNote": "Sprawdzenie nie przechwytuje ekranu, dźwięku ani schowka. Uprawnienia są opcjonalne i wymagają kliknięcia.",
       "screenCaptureDenied": "macOS nie udostępnia ekranu tej uruchomionej aplikacji. Jeśli AgenticOS jest już włączony w ustawieniach systemowych, zamknij i otwórz ponownie tę kopię aplikacji, a następnie odśwież status. Inna zainstalowana kopia może mieć inne uprawnienia.",
       "retryScreenshot": "Spróbuj ponownie zrobić zrzut",
       "welcome": "Dokończ łączenie tej aplikacji",
@@ -13404,11 +13979,10 @@
       "done": "Kontynuuj",
       "retry": "Ponów",
       "enable": "Skonfiguruj",
-      "connect": "Połącz",
       "configure": "Skonfiguruj",
       "items": {
         "account": "Zalogowane konto",
-        "device": "Sparowany komputer",
+        "device": "Połączony komputer",
         "agent": "Dostępny agent",
         "model": "Model Architekta AI",
         "screen_capture": "Nagrywanie ekranu",
@@ -13426,7 +14000,10 @@
       },
       "viewAgents": "Zobacz agentów",
       "finishFailed": "Nie udało się zakończyć konfiguracji połączenia. Spróbuj ponownie.",
-      "opening": "Otwieranie przestrzeni roboczej…"
+      "opening": "Otwieranie przestrzeni roboczej…",
+      "permissionNoteMac": "Sprawdzenie nie przechwytuje ekranu, dźwięku ani schowka. Uprawnienia są opcjonalne i wymagają kliknięcia. Po zmianie Nagrywania ekranu macOS może wymagać restartu aplikacji.",
+      "screenCaptureDeniedElsewhere": "System nie udostępnia ekranu tej aplikacji. Zezwól na to w ustawieniach prywatności systemu, a następnie odśwież status.",
+      "link": "Połącz"
     },
     "notificationSettings": {
       "title": "Powiadomienia desktopowe",
@@ -13441,7 +14018,7 @@
       "enable": "Skonfiguruj powiadomienia systemowe",
       "test": "Wyślij powiadomienie testowe",
       "testTitle": "Test powiadomień",
-      "testBody": "Jeśli widzisz tę wiadomość, macOS dostarczył powiadomienie.",
+      "testBody": "Jeśli widzisz tę wiadomość, system dostarczył powiadomienie.",
       "failedTest": "Nie udało się wysłać testu. Sprawdź systemowe ustawienia powiadomień.",
       "unmuteAll": "{count, plural, one {Włącz powiadomienia dla # rozmowy} few {Włącz powiadomienia dla # rozmów} many {Włącz powiadomienia dla # rozmów} other {Włącz powiadomienia dla # rozmowy}}",
       "mute": "Wycisz powiadomienia tej rozmowy",
@@ -13457,6 +14034,10 @@
       "question": "{agent} · potrzebuje odpowiedzi",
       "approval": "{agent} · wymaga zgody",
       "agent": "Agent"
+    },
+    "onlyInApp": {
+      "title": "To otwiera się w aplikacji desktopowej AgenticOS.",
+      "hint": "Otwórz aplikację desktopową na swoim komputerze, żeby z tego skorzystać; w przeglądarce nie ma tu nic do pokazania."
     }
   },
   "mobile": {
@@ -13729,7 +14310,6 @@
       "suggestReferenceAction": "Porównuj z wzorcem",
       "judgeChanged": "Wyniki ocenione przez poprzedniego sędziego albo model nie będą porównywalne z ocenianymi od teraz.",
       "cancel": "Anuluj",
-      "groupByHand": "Oceniane ręcznie",
       "groupEvalRun": "Run ewaluacji · {when}",
       "agentGone": "Agent, którego już nie ma",
       "agentVersion": "{name} · v{version}",
@@ -13827,7 +14407,12 @@
       "criterionHelp": "Opisz jedną rzecz, którą odpowiedź musi zawierać. Podaj oczekiwany fakt lub jasny warunek zaliczenia.",
       "scaleHelp": "Najwyższa ocena każdego kryterium, od 2 do 10.",
       "passHelp": "Minimalna ocena wymagana do zaliczenia kryterium.",
-      "groupEvalSource": "Run ewaluacji"
+      "origin": {
+        "check": "Sprawdzenie skilla · {arm, select, proposed {{known, select, yes {proponowana v{version}} other {proponowany tekst}}} other {{known, select, yes {obecna v{version}} other {obecny tekst}}}}",
+        "eval": "Run ewaluacji",
+        "hand": "Oceniono ręcznie",
+        "rerun": "{source} · powtórka {attempt}"
+      }
     },
     "title": "Datasety",
     "pageDescription": "Pytania, na których testujesz agentów. Każda zmiana przypadków w datasecie tworzy nową wersję, więc dwa runy ewaluacji na jednej wersji widziały te same pytania.",
@@ -14209,7 +14794,8 @@
       "date": "Data",
       "source": "Źródło",
       "version": "v{number}"
-    }
+    },
+    "skillTestSet": "Pytania testowe skilla"
   },
   "knowledgeGaps": {
     "tab": "Luki w wiedzy",
@@ -14353,6 +14939,10 @@
     "versionPlus": "v{version} + {count, plural, one {# sugestia} few {# sugestie} many {# sugestii} other {# sugestii}}",
     "proposedSkill": "v{version} + proponowany skill",
     "proposedContext": "v{version} + proponowany plik kontekstu",
+    "skillCurrent": "{agent} · obecny skill",
+    "skillCurrentVersion": "{agent} · obecny skill (v{version})",
+    "skillCurrentFork": "{agent} · obecny skill (fork „{fork}” v{version})",
+    "skillProposed": "{agent} · proponowany skill",
     "version": "v{version}",
     "status": {
       "queued": "W kolejce",
@@ -14549,7 +15139,9 @@
       "passRate": "Zaliczone {from} → {to}, każdy przypadek tak, jak wypadła większość jego prób{undecided, plural, =0 {} other { · # z {cases} nierozstrzygniętych}}",
       "firstPassRate": "Same pierwsze odpowiedzi: {from} → {to}",
       "unsteady": "Uruchom run ponownie albo przetestuj na stabilniejszym modelu: model, który za każdym razem odpowiada inaczej, nie potwierdzi żadnej zmiany.",
-      "undecidedWhy": "Nierozstrzygnięty, dopóki każdy przypadek nie ma werdyktu: {ungraded, plural, =0 {} one {# nie ma czym go ocenić} few {# nie mają czym ich ocenić} many {# nie ma czym ich ocenić} other {# nie ma czym ich ocenić}}{both, select, true {, a } other {}}{incomplete, plural, =0 {} one {# nie dało się rozstrzygnąć - zawiódł provider albo scorer, albo próby wyszły na remis} few {# nie dało się rozstrzygnąć - zawiódł provider albo scorer, albo próby wyszły na remis} many {# nie dało się rozstrzygnąć - zawiódł provider albo scorer, albo próby wyszły na remis} other {# nie dało się rozstrzygnąć - zawiódł provider albo scorer, albo próby wyszły na remis}}."
+      "undecidedWhy": "Nierozstrzygnięty, dopóki każdy przypadek nie ma werdyktu: {ungraded, plural, =0 {} one {# nie ma czym go ocenić} few {# nie mają czym ich ocenić} many {# nie ma czym ich ocenić} other {# nie ma czym ich ocenić}}{both, select, true {, a } other {}}{incomplete, plural, =0 {} one {# nie dało się rozstrzygnąć - zawiódł provider albo scorer, albo próby wyszły na remis} few {# nie dało się rozstrzygnąć - zawiódł provider albo scorer, albo próby wyszły na remis} many {# nie dało się rozstrzygnąć - zawiódł provider albo scorer, albo próby wyszły na remis} other {# nie dało się rozstrzygnąć - zawiódł provider albo scorer, albo próby wyszły na remis}}.",
+      "tooFew": "{candidate} i {baseline} nie da się jeszcze porównać: oceniono za mało pytań kontrolnych, żeby zmierzyć zmianę.",
+      "tooFewInStage": "Ten etap ma za mało pytań kontrolnych, żeby ocenić go osobno. Sprawdzenie ocenia agenta na wszystkich jego etapach razem."
     },
     "live": {
       "answering": "Gotowe {done} z {total} pierwszych odpowiedzi. Przypadki, których wynik się zmieni, zostaną potem powtórzone, żeby to potwierdzić.",
@@ -14600,7 +15192,8 @@
       "against": "{candidate} vs {baseline}",
       "agent": "{agent} · {title}",
       "rate": "{model} {rate}{undecided, plural, =0 {} one { · # nierozstrzygnięty} few { · # nierozstrzygnięte} many { · # nierozstrzygniętych} other { · # nierozstrzygniętego}}",
-      "firstRate": "Same pierwsze odpowiedzi: {rate}"
+      "firstRate": "Same pierwsze odpowiedzi: {rate}",
+      "checkStage": "Etap sprawdzenia skilla · {title}"
     },
     "dataset": {
       "counted": "{runs, plural, =0 {Jeszcze żadnego runa} one {# run · 1 agent} few {# runy · {agents, plural, one {# agent} few {# agenty} many {# agentów} other {# agenta}}} many {# runów · {agents, plural, one {# agent} few {# agenty} many {# agentów} other {# agenta}}} other {# runu · {agents, plural, one {# agent} few {# agenty} many {# agentów} other {# agenta}}}}",
@@ -14866,7 +15459,18 @@
       "title": "Konfiguracja wymaga poprawy",
       "body": "Każdy przypadek zatrzymał się z tym samym błędem. Te wyniki nie mierzą jakości odpowiedzi. Popraw konfigurację i uruchom ewaluację ponownie.",
       "attempts": "{count, plural, one {# próba przypadku} few {# próby przypadków} many {# prób przypadków} other {# próby przypadku}}"
-    }
+    },
+    "checkStage": {
+      "title": "Etap sprawdzenia skilla {skill} na agencie {agent}. <check>Otwórz sprawdzenie</check>",
+      "aSkill": "(skill)",
+      "proposed": "Proponowany tekst",
+      "current": "Obecny tekst",
+      "currentVersion": "Obecna v{version}",
+      "currentFork": "Obecna „{fork}” v{version}",
+      "pooled": "Ten run jest jednym etapem sprawdzenia. Sprawdzenie ocenia każdego agenta na pytaniach kontrolnych ze wszystkich jego etapów razem, więc sam ten etap może powiedzieć mniej niż sprawdzenie."
+    },
+    "notAsked": "{count, plural, one {1 pytanie tego datasetu nie trafiło do próbki tego etapu, więc go nie zadano.} few {# pytania tego datasetu nie trafiły do próbki tego etapu, więc ich nie zadano.} many {# pytań tego datasetu nie trafiło do próbki tego etapu, więc ich nie zadano.} other {# pytania tego datasetu nie trafiło do próbki tego etapu, więc ich nie zadano.}}",
+    "runMetaStage": "{date} · wydano {cost}"
   },
   "authoring": {
     "strip": {
@@ -14942,7 +15546,10 @@
         "context": "plik kontekstu „{name}”",
         "mcpTools": "{count, plural, =0 {wszystkie narzędzia {server}} one {narzędzie {tools} z {server}} other {narzędzia {tools} z {server}}}, z pytaniem o zgodę tam, gdzie zapisują",
         "keeps": "Jeśli serwer o nic nie pytał, przyjęcie sprawia, że każde jego narzędzie zapisujące pyta o zgodę - nie tylko dodane. Cofnięcie przywraca narzędzia i zostawia pytanie o zgodę."
-      }
+      },
+      "skillBody": "Instrukcje skilla",
+      "skillDescription": "Opis skilla",
+      "other": "Inna zmiana"
     },
     "evidence": {
       "none": "Brak dowodów, które dałoby się sprawdzić.",
@@ -15021,9 +15628,6 @@
       "askAdmin": "Poproś administratora o włączenie."
     },
     "skill": {
-      "improve": "Ulepsz z asystentem",
-      "working": "Czytam runy…",
-      "aiOff": "Wsparcie AI jest wyłączone w tej organizacji",
       "check": "Sprawdź w ewaluacji"
     },
     "context": {
@@ -15069,7 +15673,8 @@
         "tool_override": "Narzędzie",
         "spec_field": "Ustawienie",
         "finding": "Ustalenie",
-        "create_skill": "Nowy skill"
+        "create_skill": "Nowy skill",
+        "skill_problem": "Problem skilla"
       },
       "reason": {
         "unanchored": "Fragmentu, który zmienia, nie ma w instrukcjach",
@@ -15089,7 +15694,11 @@
         "unsupported": "Mówi, że edycja ma poparcie, ale bez dowodu, który dałoby się sprawdzić",
         "edit_not_in_diff": "Linii, którą wskazuje, nie ma w edycji",
         "superseded": "Późniejsza prośba zdążyła już zastąpić sugestie",
-        "insufficient_evidence": "Prosiły o to mniej niż trzy różne odpowiedzi, więc nie dodano go automatycznie."
+        "insufficient_evidence": "Prosiły o to mniej niż trzy różne odpowiedzi, więc nie dodano go automatycznie.",
+        "copies_skill": "Kopiuje jeden ze skilli agenta, który agent i tak już czyta",
+        "duplicates_skill": "Agent ma już skill o tej nazwie lub treści",
+        "unknown_skill": "Agent nie ma takiego skilla",
+        "skill_not_used": "Żadna z cytowanych odpowiedzi nie użyła tej wersji skilla"
       },
       "about": "Dotyczy: {line}",
       "decide": "{count, plural, one {1 pomysł czeka na Twoją decyzję} few {# pomysły czekają na Twoją decyzję} many {# pomysłów czeka na Twoją decyzję} other {# pomysłu czeka na Twoją decyzję}}",
@@ -15117,7 +15726,8 @@
       "runsNow": "Uruchamia teraz: {suites}.",
       "atPromotion": "{suites} {named, select, yes {{count, plural, one {sprawdzi} other {sprawdzą}}} other {{count, plural, one {sprawdzi} few {sprawdzą} many {sprawdzi} other {sprawdzi}}}} to przy następnej promocji.",
       "suites": "{count, plural, one {# suita ewaluacji} few {# suity ewaluacji} many {# suit ewaluacji} other {# suity ewaluacji}}",
-      "nowhere": "Żaden opublikowany agent jeszcze go nie czyta, więc zastosowanie nie zmieni dziś żadnych odpowiedzi."
+      "nowhere": "Żaden opublikowany agent jeszcze go nie czyta, więc zastosowanie nie zmieni dziś żadnych odpowiedzi.",
+      "afterCheck": "Wejdzie dla: {agents}, gdy pozwoli na to sprawdzenie na nich."
     },
     "result": {
       "open": "Zobacz wynik",
@@ -15509,7 +16119,8 @@
       "running": "W trakcie",
       "needs_you": "Wymaga decyzji",
       "skipped": "Pominięto",
-      "pending": "Jeszcze nie rozpoczęto"
+      "pending": "Jeszcze nie rozpoczęto",
+      "ended": "Zakończono bez zmian"
     },
     "paidRestartOwner": "Płatną pracę może wznowić tylko autor sesji, korzystając z pierwotnego konta i poświadczeń. Inni redaktorzy mogą przejrzeć wyniki lub uruchomić własną sesję.",
     "improveAgain": "Popraw ponownie",
@@ -15696,7 +16307,7 @@
     },
     "history": {
       "title": "Historia usprawnień",
-      "description": "Każda sesja Improve: co zmierzyła, co postanowiono i ile kosztowała.",
+      "description": "Każda sesja poprawiania: co zmierzyła, co postanowiono i ile kosztowała.",
       "empty": "Nie było jeszcze żadnych sesji usprawniania.",
       "notMeasured": "Nic nie zmierzono",
       "publishedVersion": "Opublikowano jako wersję {version}",
@@ -15747,7 +16358,8 @@
       "hintSingle": "W razie potrzeby popraw brzmienie. Następny krok jest wyceniany, zanim go naciśniesz.",
       "saveWordingFirst": "Najpierw zapisz albo odrzuć nowe brzmienie.",
       "unmeasurable": "Tej próby nie da się przetestować: po pominięciu pytań, z których pochodzą jej przykłady, potrzeba jeszcze {count, plural, one {# odłożonego pytania} few {# odłożonych pytań} many {# odłożonych pytań} other {# odłożonego pytania}}. Ta sesja zachowuje pytania, z którymi wystartowała, więc dodanie nowych jej nie pomoże: zakończ sesję, dodaj pytania i zacznij nową.",
-      "likely": "Najpewniej ok. {cost}: wyższa kwota dotyczy tylko sytuacji, gdy odpowiedzi trzeba zadać ponownie."
+      "likely": "Najpewniej ok. {cost}: wyższa kwota dotyczy tylko sytuacji, gdy odpowiedzi trzeba zadać ponownie.",
+      "lineMoved": "Linia skilla dostała w międzyczasie nowszą wersję, więc krok wyceniono na niej ponownie: do {cost}. Naciśnij jeszcze raz, aby przejść dalej."
     },
     "waitingFor": {
       "understand": "Czeka na Ciebie: zobacz, co poszło nie tak",
@@ -15816,7 +16428,25 @@
     "startDatasetHint": "Wybierz przypadki, na których sprawdzimy odpowiedzi agenta.",
     "analysisEstimate": "Szacowany koszt analizy",
     "startCostHint": "Najpierw analiza. Każda kolejna próba ma osobną wycenę, około {cost}, w ramach limitu sesji.",
-    "comparisonInvalid": "Tych wyników nie można porównać. Sprawdź poszczególne odpowiedzi bez uznawania różnic za poprawę lub regresję."
+    "comparisonInvalid": "Tych wyników nie można porównać. Sprawdź poszczególne odpowiedzi bez uznawania różnic za poprawę lub regresję.",
+    "skills": {
+      "title": "Należy do skilla",
+      "intro": "Skilla używają też inni agenci, więc tu go nie zmieniamy. Popraw sam skill: zmiana zostanie sprawdzona na każdym agencie, który go czyta.",
+      "mainLine": "Main · {count, plural, one {1 agent} few {# agenty} many {# agentów} other {# agenta}}",
+      "forkLine": "Fork „{fork}” · {count, plural, one {1 agent} few {# agenty} many {# agentów} other {# agenta}}",
+      "hidden": "{count, plural, one {Tego skilla używa jeszcze 1 agent, którego nie widzisz.} few {Tego skilla używa jeszcze # agentów, których nie widzisz.} many {Tego skilla używa jeszcze # agentów, których nie widzisz.} other {Tego skilla używa jeszcze # agenta, których nie widzisz.}}",
+      "improve": "Popraw {name}",
+      "improveFork": "Popraw {name}, fork „{fork}”",
+      "askEditor": "Poproś osobę, która może edytować {name}, o poprawienie go.",
+      "behind": "Ten agent jest {count, plural, one {1 wersję} few {# wersje} many {# wersji} other {# wersji}} za mainem.",
+      "updatePinned": "Zaktualizuj do v{version}",
+      "catchUp": "Dogoń main w forku"
+    },
+    "usedSkill": "Użył skilla {name}",
+    "evidenceOnly": {
+      "body": "Każde pytanie tego datasetu pochodzi z rozmów, z których ta zmiana się uczyła, więc żadne nie może jej sprawdzić.",
+      "addQuestions": "Dodaj pytania z innych rozmów"
+    }
   },
   "unsaved": {
     "title": "Masz niezapisane zmiany",
@@ -16501,6 +17131,283 @@
       },
       "guideName": "AgenticOS",
       "advancedAccess": "Domeny e-mail, role początkowe i limity kont ↗"
+    }
+  },
+  "skillImprovement": {
+    "title": "Popraw {name}",
+    "skills": "Skille",
+    "heading": "Popraw",
+    "permission": "Poprawianie skilla wymaga prawa do jego edycji i do odczytu runów.",
+    "openSkill": "Otwórz skill",
+    "line": "Linia: {line}",
+    "checkWaiting": "Sprawdzenie na agentach linii jeszcze się nie zaczęło.",
+    "checkTitle": "Sprawdzanie każdego agenta",
+    "resultTitle": "Jak wypadł każdy agent",
+    "toAccept": "Zdecyduj, co dalej",
+    "acceptClosed": "Ta sesja jest zamknięta. Jej wynik zostaje tu do wglądu.",
+    "agents": {
+      "hidden": "{count, plural, =0 {} one {Sprawdzono jeszcze # agenta, którego nie widzisz.} few {Sprawdzono jeszcze # agentów, których nie widzisz.} many {Sprawdzono jeszcze # agentów, których nie widzisz.} other {Sprawdzono jeszcze # agenta, którego nie widzisz.}}{unknown, plural, =0 {} one { # z nich nie dało się sprawdzić.} few { # z nich nie dało się sprawdzić.} many { # z nich nie dało się sprawdzić.} other { # z nich nie dało się sprawdzić.}}",
+      "viaSpecialist": "Przez specjalistę {name}",
+      "state": {
+        "queued": "Czeka",
+        "running": "Sprawdzanie",
+        "better": "Lepiej",
+        "no_change": "Bez zmian",
+        "within_noise": "W granicach szumu",
+        "worse": "Gorzej",
+        "unknown": "Nie wiadomo"
+      },
+      "fixedBroken": "{fixed, plural, one {Naprawia # pytanie} few {Naprawia # pytania} many {Naprawia # pytań} other {Naprawia # pytania}}, {broken, plural, one {psuje #} few {psuje #} many {psuje #} other {psuje #}}.",
+      "fixedBrokenUnconfirmed": "Przy pierwszej próbie {fixed, plural, one {# pytanie wyglądało na naprawione} few {# pytania wyglądały na naprawione} many {# pytań wyglądało na naprawione} other {# pytania wyglądało na naprawione}}, a {broken, plural, one {# na zepsute} few {# na zepsute} many {# na zepsute} other {# na zepsute}}, ale ponowne zapytania tego nie potwierdziły, więc agent liczy się jako bez zmian.",
+      "unknown": {
+        "no_questions": "Nie sprawdzono: nie ma pytań testowych tam, gdzie wczytał skill, a skill nie ma własnych.",
+        "no_access": "Nie sprawdzono: nie możesz uruchamiać tego agenta.",
+        "no_budget": "Nie sprawdzono: jego budget jest wyczerpany.",
+        "no_published_version": "Nie sprawdzono: nie ma opublikowanej wersji.",
+        "failed": "Nie sprawdzono: sprawdzenie się nie powiodło.",
+        "inconclusive": "Nie sprawdzono: run nie ocenił wszystkich odpowiedzi. Sprawdź ponownie.",
+        "other": "Nie sprawdzono: sprawdzenie nie mogło go zmierzyć.",
+        "unscorable": "Nie sprawdzono: nic nie oceni jego pytań - brak sprawdzeń, oczekiwanych wywołań narzędzi i sędziego.",
+        "all_evidence": "Nie sprawdzono: każde pytanie pochodzi z rozmów, z których zmiana się uczyła.",
+        "cancelled": "Nie sprawdzono: sprawdzenie zatrzymano, zanim jego runy się skończyły.",
+        "own_not_asked": "Nie sprawdzono: jego własnych pytań nie zadano, a teraz to one o nim decydują."
+      },
+      "skillSetOnly": "Sprawdzony tylko na pytaniach skilla: nie miał własnych tam, gdzie wczytał skill.",
+      "stage": {
+        "skill_set": "Run na pytaniach skilla",
+        "dataset_sample": "{named, select, yes {Run na próbce {name}} other {Run na próbce pytań agenta}}",
+        "dataset": "{named, select, yes {Run na {name}} other {Run na pytaniach agenta}}"
+      },
+      "summary": {
+        "worse": "Gorzej: {count}",
+        "unknown": "Nieznane: {count}",
+        "same": "Bez zmian: {count}",
+        "better": "Lepiej: {count}",
+        "pending": "W trakcie: {count}",
+        "filter": "Pokaż tylko"
+      },
+      "seen": "Obejrzany",
+      "details": "Szczegóły: {name}",
+      "stageCounts": "lepiej: {better} · bez zmian: {same} · gorzej: {worse} · nieznane: {unknown}",
+      "stageCountsFirst": "Przy pierwszej próbie: lepiej: {better} · bez zmian: {same} · gorzej: {worse} · nieznane: {unknown}",
+      "stageLoading": "Wczytywanie wyników…",
+      "stageUnread": "Nie udało się wczytać wyników.",
+      "openAgent": "Otwórz {name}",
+      "left": "Do obejrzenia: {left} z {total}",
+      "nothingLeft": "Nie ma nic gorszego ani nieznanego do obejrzenia",
+      "onlyUnseen": "Tylko nieobejrzane",
+      "search": "Znajdź agenta",
+      "noMatch": "Żaden agent nie pasuje.",
+      "group": {
+        "worse": "Gorzej ({count})",
+        "unknown": "Nieznane ({count})",
+        "pending": "W trakcie ({count})",
+        "same": "Bez zmian ({count})",
+        "better": "Lepiej ({count})"
+      },
+      "brokeOnSkill": "{broke} z {total} zepsuło się na własnych pytaniach skilla, wspólnych dla wszystkich agentów.",
+      "ownNotAsked": "Jego własnych pytań nie zadano: pytania skilla już pokazały, że jest gorzej."
+    },
+    "testSet": {
+      "has": "{count, plural, one {Skill ma # pytanie testowe} few {Skill ma # pytania testowe} many {Skill ma # pytań testowych} other {Skill ma # pytania testowego}}",
+      "add": "Dodaj pytania testowe",
+      "addHint": "Powstają z odpowiedzi, w których agenci wczytali skill, a gdy takich jeszcze nie ma, zestaw jest pusty - resztę dodajesz na jego stronie. Wtedy da się sprawdzić agenta bez własnych pytań.",
+      "grading": "Ustaw ocenianie w {name}"
+    },
+    "accept": {
+      "title": "Akceptacja",
+      "verdict": {
+        "passed": "Żaden agent nie wypadł gorzej, a przynajmniej jeden lepiej.",
+        "blocked": "Przynajmniej jeden agent wypadł gorzej. Zmianę można zastosować tylko, zostawiając tych agentów na ich wersji, zapisać jako fork albo dalej ją poprawiać.",
+        "no_better": "Żaden agent nie wypadł lepiej, więc nie ma czego zastosować.",
+        "needs_ack": "Żaden agent nie wypadł gorzej, a przynajmniej jeden lepiej, ale części agentów nie dało się sprawdzić."
+      },
+      "warning": {
+        "within_noise": "U części agentów zmiana mieści się w szumie testu: różnica może być przypadkiem."
+      },
+      "forkLineOnly": "Na forku agentów, którzy wypadli gorzej, nie da się przypiąć ani zrobić dla nich kolejnego forka: popraw zmianę dalej albo ją odrzuć.",
+      "acknowledge": "{count, plural, one {Wiem, że # agenta nie dało się sprawdzić{named, select, yes { ({names})} other {}}, a i tak dostanie zmianę.} few {Wiem, że # agentów nie dało się sprawdzić{named, select, yes { ({names})} other {}}, a i tak dostaną zmianę.} many {Wiem, że # agentów nie dało się sprawdzić{named, select, yes { ({names})} other {}}, a i tak dostaną zmianę.} other {Wiem, że # agenta nie dało się sprawdzić{named, select, yes { ({names})} other {}}, a i tak dostaną zmianę.}}",
+      "apply": "Zastosuj jako następną wersję: {line}",
+      "applyAndPin": "Zastosuj i zostaw {names} na obecnej wersji",
+      "forkName": "Nazwa nowego forka",
+      "fork": {
+        "open": "Zapisz jako fork…",
+        "title": "Zapisz tę zmianę jako fork",
+        "description": "Main zostaje bez zmian. Wybrani agenci przechodzą na fork; bez wybranych fork czeka, aż ktoś na niego przejdzie.",
+        "agents": "Agenci, którzy przejdą na fork",
+        "stays": "Nie możesz go zmienić: zostaje na swojej wersji",
+        "defaultName": "Próba {attempt}",
+        "throughSpecialist": "{count, plural, =1 {1 agent czyta skill przez specjalistę i przenosi się go w jego Builderze.} few {# agentów czyta skill przez specjalistę i przenosi się ich w ich Builderze.} many {# agentów czyta skill przez specjalistę i przenosi się ich w ich Builderze.} other {# agenta czyta skill przez specjalistę i przenosi się ich w ich Builderze.}}",
+        "hidden": "{count, plural, =1 {1 agent, którego nie widzisz, zostaje tam, gdzie jest.} few {# agentów, których nie widzisz, zostaje tam, gdzie są.} many {# agentów, których nie widzisz, zostaje tam, gdzie są.} other {# agenta, których nie widzisz, zostaje tam, gdzie są.}}",
+        "submit": "{count, plural, =0 {Zrób fork bez przenoszenia agentów} =1 {Zrób fork i przenieś 1 agenta} few {Zrób fork i przenieś # agentów} many {Zrób fork i przenieś # agentów} other {Zrób fork i przenieś # agenta}}"
+      },
+      "catchUpVerdict": {
+        "passed": "Żaden agent nie wypadł gorzej ze scaleniem, a co najmniej jeden wypadł lepiej.",
+        "no_better": "Żaden agent nie wypadł gorzej ze scaleniem.",
+        "blocked": "Co najmniej jeden agent wypadł gorzej ze scaleniem, więc nie zostanie przyjęte. Odrzuć je albo dogoń main później.",
+        "needs_ack": "Żaden agent nie wypadł gorzej ze scaleniem, ale części agentów nie dało się sprawdzić."
+      },
+      "catchUp": "Zrób ze scalenia następną wersję: {line}",
+      "returnToMain": "Zamiast tego przenieś agentów {line} do main"
+    },
+    "start": {
+      "title": "Zacznij poprawianie",
+      "openSession": "Ta linia ma już otwartą sesję.",
+      "continue": "Kontynuuj ją",
+      "hidden": "{count, plural, one {Tej linii używa jeszcze # agent, którego nie widzisz.} few {Tej linii używa jeszcze # agentów, których nie widzisz.} many {Tej linii używa jeszcze # agentów, których nie widzisz.} other {Tej linii używa jeszcze # agenta, którego nie widzisz.}}",
+      "price": "Do {cost} (szacunek) do pierwszej propozycji; każda kolejna próba około {perRound}, maksymalnie {rounds, plural, one {# próba} few {# próby} many {# prób} other {# próby}}. Limit {limit} obejmuje całą sesję.",
+      "limit": "Limit wydatków na całą sesję (USD)",
+      "limitHint": "Wypełniony na pierwszą propozycję i każdą próbę, jaką sesja może zrobić. Obniż go, żeby skończyć wcześniej; sesja zatrzymuje się przed krokiem, który by go przekroczył.",
+      "belowEstimate": "Limit jest niższy niż koszt sesji do pierwszej propozycji, {cost}. Podnieś go co najmniej do tej kwoty.",
+      "unaffordable": "Budget organizacji tego nie pokrywa.",
+      "start": "Zacznij",
+      "reads": "{runs, plural, one {Czyta # odpowiedź, która wczytała tę linię i została oceniona negatywnie albo się nie udała.} few {Czyta # odpowiedzi, które wczytały tę linię i zostały ocenione negatywnie albo się nie udały.} many {Czyta # odpowiedzi, które wczytały tę linię i zostały ocenione negatywnie albo się nie udały.} other {Czyta # odpowiedzi, które wczytały tę linię i zostały ocenione negatywnie albo się nie udały.}} {agents, plural, one {Linia służy # agentowi.} few {Linia służy # agentom.} many {Linia służy # agentom.} other {Linia służy # agenta.}}",
+      "usageUnknown": "{count, plural, one {# odpowiedź jest sprzed zapisywania wczytań skilli i nie jest czytana.} few {# odpowiedzi są sprzed zapisywania wczytań skilli i nie są czytane.} many {# odpowiedzi jest sprzed zapisywania wczytań skilli i nie są czytane.} other {# odpowiedzi jest sprzed zapisywania wczytań skilli i nie są czytane.}}",
+      "checkNamedLater": "Zanim zmiany zostaną sprawdzone, każdy agent, na którym ruszą, jest wymieniony, a ci, na których nie mogą, z powodem.",
+      "noEvidence": "Żadna odpowiedź, która wczytała tę linię, nie została jeszcze oceniona negatywnie ani się nie udała, więc nie ma się z czego uczyć. Oceń negatywnie odpowiedź w czacie, w której agent użył tego skilla, i zacznij ponownie."
+    },
+    "understand": {
+      "title": "Zrozumienie",
+      "loading": "Czytanie, co poszło nie tak…",
+      "summary": "{count, plural, =0 {Nie znaleziono problemu ze skillem} one {# problem ze skillem} few {# problemy ze skillem} many {# problemów ze skillem} other {# problemu ze skillem}}{elsewhere, plural, =0 {} other {, # odpowiedzi z problemem gdzie indziej}}{fine, plural, =0 {} other {, # w porządku}}.",
+      "usageUnknown": "{count, plural, one {# odpowiedź jest sprzed zapisywania wczytań skilli i nie jest liczona.} few {# odpowiedzi są sprzed zapisywania wczytań skilli i nie są liczone.} many {# odpowiedzi jest sprzed zapisywania wczytań skilli i nie są liczone.} other {# odpowiedzi jest sprzed zapisywania wczytań skilli i nie są liczone.}}",
+      "agent": "{name} ({runs})",
+      "occursIn": "W {runs, plural, one {# odpowiedzi} few {# odpowiedziach} many {# odpowiedziach} other {# odpowiedzi}}, u: {agents}{hidden, plural, =0 {} one { i # agenta, którego nie widzisz} few { i # agentów, których nie widzisz} many { i # agentów, których nie widzisz} other { i # agenta, którego nie widzisz}}.",
+      "hiddenExamples": "{count, plural, one {+# ukryty przykład} few {+# ukryte przykłady} many {+# ukrytych przykładów} other {+# ukrytego przykładu}}"
+    },
+    "checkEstimate": {
+      "agents": "{count, plural, =0 {Żadnego agenta tej linii nie da się sprawdzić.} one {Sprawdzimy ją na # agencie: {names}.} few {Sprawdzimy ją na # agentach: {names}.} many {Sprawdzimy ją na # agentach: {names}.} other {Sprawdzimy ją na # agenta: {names}.}}",
+      "unchecked": "{name} nie da się sprawdzić: {reason, select, no_questions {nie ma pytań testowych tam, gdzie wczytał skill} no_access {nie możesz go uruchamiać} no_budget {jego budget jest wyczerpany} no_published_version {nie ma opublikowanej wersji} inconclusive {run nie ocenił wszystkich odpowiedzi} other {sprawdzenie się nie powiodło}}.",
+      "hidden": "{count, plural, one {Tej linii używa jeszcze # agent, którego nie widzisz.} few {Tej linii używa jeszcze # agentów, których nie widzisz.} many {Tej linii używa jeszcze # agentów, których nie widzisz.} other {Tej linii używa jeszcze # agenta, którego nie widzisz.}}",
+      "thorough": "Opis się zmienił, a on decyduje, kiedy agenci otwierają skill, więc zadawane są też własne pytania każdego agenta."
+    },
+    "checkAgain": {
+      "why": "Linia albo jej agenci zmienili się od sprawdzenia tego wyniku, więc może już nie być aktualny. Przed decyzją sprawdź te same zmiany jeszcze raz na linii w obecnym stanie.",
+      "pricing": "Wyceniamy sprawdzenie…",
+      "priceMoved": "Cena zmieniła się: teraz do {cost}. Naciśnij jeszcze raz, aby sprawdzić.",
+      "overLimit": "Sprawdzenie kosztuje więcej, niż zostało w limicie sesji. Podnieś limit dla tego sprawdzenia, aby przejść dalej.",
+      "go": "Sprawdź ponownie · do {cost}",
+      "goUnpriced": "Sprawdź ponownie",
+      "raise": "Użyj tego limitu"
+    },
+    "staleChanges": "Linia dostała nowszą wersję, odkąd te zmiany powstały. Następny krok sprawdzi je na najnowszej wersji.",
+    "mergeHint": {
+      "catch_up": "Sprawdź scalony skill na agentach forka, zanim stanie się następną wersją forka.",
+      "to_main": "Sprawdź scalony skill na agentach main, zanim stanie się następną wersją main."
+    },
+    "settleFirst": "{count, plural, one {Najpierw rozstrzygnij # otwarty fragment.} few {Najpierw rozstrzygnij # otwarte fragmenty.} many {Najpierw rozstrzygnij # otwartych fragmentów.} other {Najpierw rozstrzygnij # otwartego fragmentu.}}",
+    "mergeWorking": "Asystent pisze wspólny tekst dla każdego konfliktu.",
+    "merge": {
+      "sides": {
+        "catch_up": "Bierze main v{main} do „{line}” v{fork}. Oba zaczęły się od main v{base}.",
+        "to_main": "Bierze v{fork} forka do main v{main}. Fork zaczął się od main v{base}."
+      },
+      "unresolved": "{count, plural, one {# fragment czeka na Ciebie. Sprawdzenie zacznie się, gdy go rozstrzygniesz.} few {# fragmenty czekają na Ciebie. Sprawdzenie zacznie się, gdy je rozstrzygniesz.} many {# fragmentów czeka na Ciebie. Sprawdzenie zacznie się, gdy je rozstrzygniesz.} other {# fragmentu czeka na Ciebie. Sprawdzenie zacznie się, gdy je rozstrzygniesz.}}",
+      "leftForYou": "{count, plural, one {Asystent nie napisał tekstu dla # konfliktu, więc zostaje dla Ciebie.} few {Asystent nie napisał tekstu dla # konfliktów, więc zostają dla Ciebie.} many {Asystent nie napisał tekstu dla # konfliktów, więc zostają dla Ciebie.} other {Asystent nie napisał tekstu dla # konfliktu, więc zostaje dla Ciebie.}}",
+      "settledAll": "{conflicts, plural, =0 {Nic się nie gryzie: każdy fragment bierze stronę, która go zmieniła.} one {Konflikt jest rozstrzygnięty. Przeczytaj go, zanim sprawdzisz scalenie.} few {Wszystkie # konflikty są rozstrzygnięte. Przeczytaj je, zanim sprawdzisz scalenie.} many {Wszystkie # konfliktów jest rozstrzygniętych. Przeczytaj je, zanim sprawdzisz scalenie.} other {Wszystkie # konfliktu są rozstrzygnięte. Przeczytaj je, zanim sprawdzisz scalenie.}}",
+      "descriptionSame": "Opis jest taki sam po obu stronach.",
+      "description": "Opis",
+      "part": "Fragment {number}",
+      "unchangedLines": "{count, plural, one {# linia bez zmian po obu stronach} few {# linie bez zmian po obu stronach} many {# linii bez zmian po obu stronach} other {# linii bez zmian po obu stronach}}",
+      "files": "Pliki",
+      "state": {
+        "same": "Bez zmian",
+        "fork": "Z forka",
+        "main": "Z main",
+        "both": "Ta sama zmiana po obu stronach",
+        "conflict": "Konflikt"
+      },
+      "settled": {
+        "open": "Czeka na Ciebie",
+        "proposed": "Tekst asystenta",
+        "edited": "Twój tekst"
+      },
+      "forkSide": "Fork",
+      "mainSide": "Main",
+      "resultSide": "Scalone",
+      "resultOf": "Scalony tekst: {label}",
+      "save": "Zapisz",
+      "unsettled": "Jeszcze nierozstrzygnięte.",
+      "fileOpen": "Obie strony go zmieniły. Zostaw jedną stronę.",
+      "kept": {
+        "fork": "Zostaje wersja forka",
+        "forkDropped": "Usunięty, jak w forku",
+        "main": "Zostaje wersja main",
+        "mainDropped": "Usunięty, jak w main"
+      },
+      "take": {
+        "fork": "Zostaw wersję forka",
+        "forkDropped": "Usuń, jak fork",
+        "main": "Zostaw wersję main",
+        "mainDropped": "Usuń, jak main"
+      }
+    },
+    "mainAlone": {
+      "title": "Sama main",
+      "choice": "Sprawdź też samą najnowszą wersję main na agentach forka",
+      "choicePriced": "Sprawdź też samą najnowszą wersję main na agentach forka (+{cost})",
+      "choiceWhy": "Tylko to sprawdzenie może pokazać, że fork nie jest już potrzebny. Bez niego wynik nie zaproponuje powrotu agentów forka do main.",
+      "none": {
+        "off": "Sama main nie była sprawdzana, więc powrót agentów forka do main nie jest proponowany.",
+        "same": "Scalenie jest najnowszą wersją main, więc sprawdzono je raz.",
+        "checked": "Sama main jest sprawdzana."
+      },
+      "acknowledge": "{count, plural, one {Wiem, że samej main nie dało się sprawdzić na # agencie{named, select, yes { ({names})} other {}}, i mimo to wraca on do main.} few {Wiem, że samej main nie dało się sprawdzić na # agentach{named, select, yes { ({names})} other {}}, i mimo to wracają one do main.} many {Wiem, że samej main nie dało się sprawdzić na # agentach{named, select, yes { ({names})} other {}}, i mimo to wracają one do main.} other {Wiem, że samej main nie dało się sprawdzić na # agenta{named, select, yes { ({names})} other {}}, i mimo to wraca do main.}}"
+    },
+    "mergeStart": {
+      "openSession": "Ta linia ma już otwartą sesję.",
+      "continue": "Kontynuuj ją",
+      "title": {
+        "catch_up": "Dogoń main w forku „{fork}”",
+        "to_main": "Przenieś „{fork}” do main"
+      },
+      "what": {
+        "catch_up": "Zmiany z main od wersji, na której opiera się fork, zostaną scalone z forkiem, a fork zachowa swoje. Potem agenci forka sprawdzą wynik.",
+        "to_main": "Zmiany forka zostaną scalone z main v{version}, a main zachowa swoje. Potem agenci main sprawdzą wynik."
+      },
+      "conflicts": "{count, plural, =0 {Nic się nie gryzie: każdy fragment bierze stronę, która go zmieniła.} one {# fragment zmieniono po obu stronach. Asystent zaproponuje dla niego tekst, a Ty możesz go zmienić.} few {# fragmenty zmieniono po obu stronach. Asystent zaproponuje tekst dla każdego, a Ty możesz je zmienić.} many {# fragmentów zmieniono po obu stronach. Asystent zaproponuje tekst dla każdego, a Ty możesz je zmienić.} other {# fragmentu zmieniono po obu stronach. Asystent zaproponuje tekst dla każdego, a Ty możesz je zmienić.}}",
+      "agents": "{count, plural, =0 {Żaden agent, którego widzisz, nie czyta tej linii.} one {# agent sprawdzi wynik.} few {# agenty sprawdzą wynik.} many {# agentów sprawdzi wynik.} other {# agenta sprawdzi wynik.}}",
+      "hidden": "{count, plural, one {Tej linii używa jeszcze # agent, którego nie widzisz.} few {Tej linii używają jeszcze # agenty, których nie widzisz.} many {Tej linii używa jeszcze # agentów, których nie widzisz.} other {Tej linii używa jeszcze # agenta, którego nie widzisz.}}",
+      "price": "Propozycje tekstów dla konfliktów kosztują około {cost}. Sprawdzenie zostanie wycenione na kroku Changes.",
+      "limit": "Limit wydatków na sesję (USD)",
+      "limitHint": "Możesz go podnieść na kroku Changes, gdy sprawdzenie będzie wycenione.",
+      "unaffordable": "Budżet organizacji tego nie pokrywa.",
+      "start": {
+        "catch_up": "Zacznij doganianie",
+        "to_main": "Zacznij przenoszenie"
+      }
+    },
+    "mergeReading": "Odczytywanie scalenia…",
+    "mergeAgain": {
+      "moved": "Fork albo main ma nowszą wersję niż ta, którą odczytało to scalenie, więc nie jest sprawdzane ponownie.",
+      "start": "Odrzuć to scalenie i zacznij od nowa"
+    },
+    "returned": {
+      "title": "Co zrobił powrót do main",
+      "live": "Przeniesieni na main i opublikowani: {names}.",
+      "drafts": "Przeniesieni na main w szkicu, który czeka na publikację: {names}.",
+      "refused": "{name} zostaje na forku: {reason}",
+      "hidden": "{count, plural, one {# agent, którego nie widzisz, został bez zmian.} few {# agenty, których nie widzisz, zostały bez zmian.} many {# agentów, których nie widzisz, zostało bez zmian.} other {# agenta, którego nie widzisz, zostało bez zmian.}}",
+      "archived": "Nikt już nie czyta forka, więc został zarchiwizowany.",
+      "remaining": "{count, plural, =0 {Fork został bez zmian.} one {# agent nadal czyta fork, więc nie został zarchiwizowany.} few {# agenty nadal czytają fork, więc nie został zarchiwizowany.} many {# agentów nadal czyta fork, więc nie został zarchiwizowany.} other {# agenta nadal czyta fork, więc nie został zarchiwizowany.}}"
+    },
+    "forked": {
+      "title": "Co zrobiło utworzenie forka",
+      "made": "Zmiana jest teraz forkiem „{name}”.",
+      "live": "Przeniesione i opublikowane: {names}.",
+      "drafts": "{count, plural, one {Przeniesiony w drafcie, który czeka na publikację: {names}.} other {Przeniesione w draftach, które czekają na publikację: {names}.}}",
+      "nobody": "Żaden agent nie został przeniesiony; przenieś agentów ze strony skilla."
+    },
+    "understandWorking": "Czytamy odpowiedzi, które wczytały ten skill i zostały ocenione negatywnie albo się nie udały, oraz to, na co w skillu wskazują…",
+    "mergeTitle": {
+      "named": {
+        "catch_up": "Doganianie main w forku {fork}",
+        "to_main": "Przeniesienie forka {fork} na main"
+      },
+      "plain": {
+        "catch_up": "Doganianie main",
+        "to_main": "Przeniesienie na main"
+      }
     }
   }
 }

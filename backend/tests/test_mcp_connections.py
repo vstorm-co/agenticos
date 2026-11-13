@@ -942,7 +942,11 @@ class TestProbeSuccess:
         # is a write, the same reading the approval policy gives it.
         assert tools == [
             McpToolInfo(
-                name="search", description="Search issues", input_schema=schema, read_only=True
+                name="search",
+                description="Search issues",
+                input_schema=schema,
+                read_only=True,
+                read_only_hint=True,
             ),
             McpToolInfo(name="create_issue", description="", input_schema=None),
         ]
@@ -970,10 +974,10 @@ class TestProbeSuccess:
 
         tools = await probe_mcp_server("https://example.com/mcp")
 
-        assert [(tool.name, tool.read_only) for tool in tools] == [
-            ("find", True),
-            ("purge", False),
-            ("create", False),
+        assert [(tool.name, tool.read_only, tool.read_only_hint) for tool in tools] == [
+            ("find", True, True),
+            ("purge", False, False),
+            ("create", False, None),
         ]
 
 

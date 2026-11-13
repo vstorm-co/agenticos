@@ -1,5 +1,5 @@
 ---
-source_sha: "2f74a407e5a3"
+source_sha: "f5b9c5b37782"
 ---
 
 # Skalowanie poza jeden host { #scale-beyond-one-host }
@@ -51,6 +51,11 @@ potrzebują osobnych baz (`POSTGRES_DB`), a na jednym Redisie osobnych numerów
 też jest jeden na wdrożenie. Agent przechodzi między nimi jako specyfikacja:
 wyeksportuj ją jako YAML w jednym (`GET /agents/{id}/spec.yaml`) i zaimportuj do
 agenta w drugim.
+
+Dwa wdrożenia pod jedną nazwą hosta, na różnych portach, dzielą też ciasteczka
+konsoli, bo przeglądarka rozróżnia je po hoście, a nie po porcie: zalogowanie do
+jednego wylogowuje z drugiego. Daj każdemu własną nazwę hosta albo ustaw w każdej
+konsoli [`SESSION_COOKIE_NAMESPACE`](configuration.md#docker-production).
 
 ## Zewnętrzny Postgres { #an-external-postgres }
 

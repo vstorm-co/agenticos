@@ -126,6 +126,27 @@ describe("stepping to a neighbour", () => {
     ).toBeInTheDocument();
   });
 
+  it("names the skills the run used, each at its version and linked to the skill", () => {
+    serve({
+      run: run({
+        skills_used: [
+          { skill_id: "k1", name: "returns", version: 2, fork: null, loaded: true },
+          { skill_id: "k2", name: "prints", version: 1, fork: "Shop", loaded: true },
+          { skill_id: "k3", name: "legacy", version: null, fork: null, loaded: false },
+        ],
+      }),
+    });
+    renderRun();
+
+    expect(screen.getByText("Skills used:")).toBeVisible();
+    expect(screen.getByRole("link", { name: "returns · v2" })).toHaveAttribute(
+      "href",
+      "/skills/k1",
+    );
+    expect(screen.getByRole("link", { name: "prints · Shop v1" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "legacy" })).toBeVisible();
+  });
+
   it("says nothing about repairs for a run that needed none", () => {
     serve({ run: run() });
     renderRun();

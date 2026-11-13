@@ -3,6 +3,7 @@
 import { FILTER_CONTROL } from "@/components/ui/control-styles";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import type { ReactNode } from "react";
 import { BookOpen, ChevronDown, Library, ListFilter, Lock, Plus } from "lucide-react";
 
@@ -12,18 +13,10 @@ import { ProposedChanges } from "@/components/skills/proposed-changes";
 import { CreateSkillDialog } from "@/components/skills/create-skill-dialog";
 import { SkillGalleryDialog } from "@/components/skills/skill-gallery-dialog";
 import { SkillCard } from "@/components/skills/skill-card";
-import { SkillWorkbench } from "@/components/skills/skill-workbench";
-import { categoryLabel, categorySuggestions } from "@/components/skills/category-input";
-import { Skeleton } from "@/components/ui/skeleton";
+import { categoryLabel } from "@/components/skills/category-input";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import {
   Button,
-  ConfirmDialog,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
@@ -38,14 +31,13 @@ import {
   useDebounced,
 } from "@/components/ui";
 import { GroupFilter, NothingSharedWithGroup } from "@/components/groups/group-filter";
-import { usePermissions, useSkill, useSkills, useUrlState } from "@/hooks";
-import type { SkillEdit, SkillSort } from "@/hooks/use-skills";
+import { usePermissions, useSkills, useUrlState } from "@/hooks";
+import { useUrlOverlay } from "@/hooks/use-url-state";
+import type { SkillSort } from "@/hooks/use-skills";
 import { getErrorMessage } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
-import type { SkillSummary } from "@/types/providers";
 import { useTranslations } from "next-intl";
-import { DIALOG_CANVAS, DIALOG_FILL } from "@/lib/dialog-sizes";
 
 /**
  * One pressed-or-not control, used for the sort.
@@ -82,7 +74,12 @@ function Chip({
   );
 }
 
+const SkillDetailDialog = dynamic(() =>
+  import("@/components/skills/skill-detail-dialog").then((module) => module.SkillDetailDialog),
+);
+
 export default function SkillsPage() {
+  const [selectedSkill, skillView] = useUrlOverlay("skill");
   const t = useTranslations("pages.skills");
   const tc = useTranslations("common");
   const tErrors = useTranslations("errors");
@@ -95,20 +92,15 @@ export default function SkillsPage() {
   const search = useDebounced(query);
   // In the address, so a group's skills are a link somebody can send.
   const [groupId, setGroupId] = useUrlState("group");
-  const { skills, total, categories, suggestedCategories, isLoading, error, refetch, remove } =
-    useSkills({
-      search,
-      categories: selectedCategories,
-      sort,
-      skip: page * PAGE_SIZE,
-      limit: PAGE_SIZE,
-      groupId,
-    });
+  const { skills, total, categories, isLoading, error, refetch } = useSkills({
+    search,
+    categories: selectedCategories,
+    sort,
+    skip: page * PAGE_SIZE,
+    limit: PAGE_SIZE,
+    groupId,
+  });
   const { can, isLoading: isLoadingPermissions } = usePermissions();
-
-  const [selected, setSelected] = useState<SkillSummary | null>(null);
-  const [pendingDelete, setPendingDelete] = useState<SkillSummary | null>(null);
-  const { skill, save } = useSkill(selected?.id ?? null);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
@@ -124,11 +116,6 @@ export default function SkillsPage() {
       picked.includes(entry) ? picked.filter((one) => one !== entry) : [...picked, entry],
     );
     setPage(0);
-  }
-
-  async function handleSave(edit: SkillEdit) {
-    await save.mutateAsync(edit);
-    setSelected(null);
   }
 
   const isBusy = isLoading || isLoadingPermissions;
@@ -351,9 +338,9 @@ export default function SkillsPage() {
             />
           ) : (
             <>
-              <div className="rise-in grid grid-cols-1 items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <div className="rise-in grid grid-cols-1 items-stretch gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {skills.map((entry) => (
-                  <SkillCard key={entry.id} skill={entry} onOpen={() => setSelected(entry)} />
+                  <SkillCard key={entry.id} skill={entry} onOpen={() => skillView.open(entry.id)} />
                 ))}
               </div>
               <Pager
@@ -369,74 +356,9 @@ export default function SkillsPage() {
         </div>
       </ListCard>
 
-      <Dialog
-        open={selected !== null}
-        onOpenChange={(open) => {
-          if (!open) setSelected(null);
-        }}
-      >
-        {selected !== null && (
-          <DialogContent className={cn(DIALOG_FILL, DIALOG_CANVAS, "max-md:overflow-y-auto")}>
-            <DialogHeader>
-              <DialogTitle className="font-mono">{selected.name}</DialogTitle>
-              <DialogDescription className="max-md:sr-only">
-                {t("nameHowModelRefers")}
-              </DialogDescription>
-            </DialogHeader>
-            {skill === undefined ? (
-              <div
-                className="flex min-h-0 flex-1 flex-col gap-3 max-md:flex-none"
-                role="status"
-                aria-label={tc("loading")}
-              >
-                <div className="flex flex-wrap gap-4 rounded-md border p-3" aria-hidden>
-                  <Skeleton className="h-20 min-w-0 flex-1 basis-72" />
-                  <Skeleton className="h-20 w-56" />
-                  <Skeleton className="h-20 w-12" />
-                </div>
-                <div
-                  className="grid min-h-0 flex-1 gap-3 max-md:flex-none md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]"
-                  aria-hidden
-                >
-                  <Skeleton className="min-h-24 w-full max-md:h-48" />
-                  <Skeleton className="min-h-[22rem] w-full" />
-                </div>
-              </div>
-            ) : (
-              <SkillWorkbench
-                categorySuggestions={categorySuggestions(categories, suggestedCategories)}
-                key={skill.id}
-                skill={skill}
-                canEdit={selected.can_edit === true}
-                isSaving={save.isPending}
-                onSave={handleSave}
-                onCancel={() => setSelected(null)}
-                onDelete={() => setPendingDelete(selected)}
-              />
-            )}
-          </DialogContent>
-        )}
-      </Dialog>
-
+      {selectedSkill !== null && <SkillDetailDialog id={selectedSkill} onClose={skillView.close} />}
       <CreateSkillDialog open={createOpen} onOpenChange={setCreateOpen} />
       <SkillGalleryDialog open={galleryOpen} onOpenChange={setGalleryOpen} />
-
-      {pendingDelete !== null && (
-        <ConfirmDialog
-          open
-          onOpenChange={() => setPendingDelete(null)}
-          title={tc("deleteNamedConfirm", { name: pendingDelete.name })}
-          description={t("agentsBoundSkillWill")}
-          confirmLabel={t("delete")}
-          destructive
-          loading={remove.isPending}
-          onConfirm={async () => {
-            await remove.mutateAsync(pendingDelete.id);
-            if (selected?.id === pendingDelete.id) setSelected(null);
-            setPendingDelete(null);
-          }}
-        />
-      )}
     </div>
   );
 }

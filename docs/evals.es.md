@@ -1,5 +1,5 @@
 ---
-source_sha: "b01337524a1f"
+source_sha: "e0f27fa2e9f9"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -45,7 +45,7 @@ que hay - ya está elegido; el entorno, las grabaciones y las repeticiones está
 en **Advanced**. El coste se calcula a medida que se asientan los campos y dice
 qué califica las respuestas y lo que conservan después los budgets del agent y
 de la organización; el run solo empieza desde el botón que indica el importe.
-**Draft differs from vN** en la página del agent - vN es la última versión
+**Draft differs from agent vN** en la página del agent - vN es la última versión
 publicada, y cuando las guardianas de producción la retienen en una anterior, una
 segunda insignia dice en cuál, como "production on v1 (waiting for evals)" -
 lleva un botón **Test draft** que abre el mismo diálogo. El diálogo de

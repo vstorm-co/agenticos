@@ -11,11 +11,10 @@ import { Badge } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import { reasonKeyOf } from "@/lib/scoring";
 import type { DatasetCaseContent } from "@/types/datasets";
-import type { ScorerStatus } from "@/types/scoring";
 import type { CallOutcome, EvalAttempt, EvalRunArm } from "@/types/eval-runs";
 import { CheckSummary } from "./check-summary";
 import { percent, seconds, usd } from "./format";
-import { sideName } from "./names";
+import { sideName, type SideCheck } from "./names";
 import { SCORER_TONE, VerdictBadge, VerdictIcon, type VerdictTone } from "./verdict-badge";
 
 const CALL_TONE: Record<CallOutcome, "secondary" | "warning" | "outline"> = {
@@ -24,8 +23,6 @@ const CALL_TONE: Record<CallOutcome, "secondary" | "warning" | "outline"> = {
   blocked: "warning",
   divergent: "warning",
 };
-
-const SCORER_ORDER: Record<ScorerStatus, number> = { fail: 0, error: 1, skipped: 2, pass: 3 };
 
 function outcomeTone(outcome: boolean | null): VerdictTone {
   if (outcome === null) return "undecided";
@@ -97,38 +94,36 @@ function Attempt({ attempt }: { attempt: EvalAttempt }) {
         )}
         {attempt.score && (
           <ul className="divide-border divide-y rounded-md border text-sm">
-            {[...attempt.score.results]
-              .sort((a, b) => SCORER_ORDER[a.status] - SCORER_ORDER[b.status])
-              .map((result, index) => {
-                const tone = SCORER_TONE[result.status];
-                return (
-                  <li key={index}>
-                    <details className="group">
-                      <summary className="hover:bg-muted/40 flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 py-2">
-                        <VerdictIcon tone={tone} />
-                        <span className="text-foreground min-w-0 flex-1 font-semibold">
-                          {result.name}
+            {attempt.score.results.map((result, index) => {
+              const tone = SCORER_TONE[result.status];
+              return (
+                <li key={index}>
+                  <details className="group">
+                    <summary className="hover:bg-muted/40 flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 py-2">
+                      <VerdictIcon tone={tone} />
+                      <span className="text-foreground min-w-0 flex-1 font-semibold">
+                        {result.name}
+                      </span>
+                      <VerdictBadge tone={tone}>{t(`scorer.${result.status}`)}</VerdictBadge>
+                      {result.score !== null && (
+                        <span className="text-muted-foreground tabular-nums">
+                          {percent(result.score, locale)}
                         </span>
-                        <VerdictBadge tone={tone}>{t(`scorer.${result.status}`)}</VerdictBadge>
-                        {result.score !== null && (
-                          <span className="text-muted-foreground tabular-nums">
-                            {percent(result.score, locale)}
-                          </span>
-                        )}
-                        <ChevronRight
-                          className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90"
-                          aria-hidden
-                        />
-                      </summary>
-                      <div className="text-muted-foreground space-y-1 px-3 pb-3 text-xs">
-                        <p className="whitespace-pre-wrap">{result.reason}</p>
-                        {result.rule && <p>{tScoring("rule", { rule: result.rule })}</p>}
-                        <KnowledgeFindings findings={result.knowledge} />
-                      </div>
-                    </details>
-                  </li>
-                );
-              })}
+                      )}
+                      <ChevronRight
+                        className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90"
+                        aria-hidden
+                      />
+                    </summary>
+                    <div className="text-muted-foreground space-y-1 px-3 pb-3 text-xs">
+                      <p className="whitespace-pre-wrap">{result.reason}</p>
+                      {result.rule && <p>{tScoring("rule", { rule: result.rule })}</p>}
+                      <KnowledgeFindings findings={result.knowledge} />
+                    </div>
+                  </details>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
@@ -210,12 +205,15 @@ function Expectation({
 export function CaseDetail({
   attempts,
   arms,
+  check,
   expectation,
   datasetId,
   caseId,
 }: {
   attempts: EvalAttempt[];
   arms: EvalRunArm[];
+  /** The proposal the run checks, which names its sides. */
+  check?: SideCheck | null;
   expectation: DatasetCaseContent | null;
   datasetId: string;
   caseId: string;
@@ -242,7 +240,7 @@ export function CaseDetail({
           return (
             <div key={arm.id} className="space-y-2">
               <p className="text-sm font-semibold">
-                {t("sideModel", { name: sideName(arm, t), model: arm.model_label })}
+                {t("sideModel", { name: sideName(arm, t, check), model: arm.model_label })}
               </p>
               {own.map((attempt) => (
                 <Attempt key={attempt.id} attempt={attempt} />

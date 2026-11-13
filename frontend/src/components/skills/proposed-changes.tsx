@@ -3,9 +3,6 @@
 import { useState } from "react";
 import { Check, ChevronDown, GitPullRequest, X } from "lucide-react";
 
-import { usePermissions } from "@/hooks/use-permissions";
-import { Perm } from "@/types/permissions";
-
 import {
   Badge,
   Button,
@@ -17,10 +14,12 @@ import {
 } from "@/components/ui";
 import { EvidenceList, RationaleText } from "@/components/authoring/evidence-list";
 import { GoesLive } from "@/components/authoring/goes-live";
-import { SkillCheckButton } from "@/components/authoring/skill-check-button";
 import { useSkillChanges } from "@/hooks";
+import { usePermissions } from "@/hooks/use-permissions";
+import { Perm } from "@/types/permissions";
 import { ROUTES } from "@/lib/constants";
 import type { SkillChangeRecord } from "@/lib/skill-changes-api";
+import { SkillCheckDialog } from "./skill-check-dialog";
 import { useTranslations } from "next-intl";
 
 interface ProposedChangesProps {
@@ -98,7 +97,10 @@ interface ChangeRowProps {
 function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
   const t = useTranslations("skills");
   const [open, setOpen] = useState(false);
+  const [checking, setChecking] = useState(false);
   const resources = Object.keys(change.resources);
+  // A change to a skill agents already use goes live only through a check on them.
+  const skillId = change.skill_id;
 
   return (
     <div className="space-y-3 px-5 py-4">
@@ -115,7 +117,11 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
           <p className="text-muted-foreground text-xs">
             {change.description || t("noDescriptionWorthAdding")}
           </p>
-          <GoesLive reaches={change.reaches} hidden={change.reaches_hidden} />
+          <GoesLive
+            reaches={change.reaches}
+            hidden={change.reaches_hidden}
+            afterCheck={change.skill_id !== null}
+          />
           {change.conversation_id !== null && (
             <a
               className="text-muted-foreground text-xs underline"
@@ -126,9 +132,6 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
           )}
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          {change.skill_id !== null && change.authoring_request_id != null && (
-            <SkillCheckButton skillId={change.skill_id} proposalId={change.id} />
-          )}
           <Button
             variant="ghost"
             size="sm"
@@ -149,16 +152,39 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
             <X className="h-4 w-4" aria-hidden />
             {t("discard")}
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={disabled}
-            onClick={onApply}
-            aria-label={t("applyChangeTo", { name: change.name })}
-          >
-            <Check className="h-4 w-4" aria-hidden />
-            {t("apply")}
-          </Button>
+          {skillId === null ? (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={disabled}
+              onClick={onApply}
+              aria-label={t("applyChangeTo", { name: change.name })}
+            >
+              <Check className="h-4 w-4" aria-hidden />
+              {t("apply")}
+            </Button>
+          ) : (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={disabled}
+                onClick={() => setChecking(true)}
+                aria-label={t("checkChangeTo", { name: change.name })}
+              >
+                <Check className="h-4 w-4" aria-hidden />
+                {t("checkOnAgents")}
+              </Button>
+              {checking && (
+                <SkillCheckDialog
+                  skillId={skillId}
+                  change={{ proposalId: change.id }}
+                  forkId={change.fork_id}
+                  onOpenChange={setChecking}
+                />
+              )}
+            </>
+          )}
         </div>
       </div>
 
