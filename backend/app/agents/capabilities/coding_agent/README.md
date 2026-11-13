@@ -142,6 +142,10 @@ Manual queue retry is disabled: retrying from the conversation creates a new cla
 without resetting an old attempt's fence.
 A copied report without its original conversation file origin does not offer undo.
 
+The private snapshot and revert indexes disable checkout conversions from `.gitattributes`.
+Line endings, working-tree encodings and expanded identifiers are captured and restored
+as bytes, independently of the repository's Git settings.
+
 ### Harness research behind the design
 
 - [OpenCode snapshots](https://opencode.ai/docs/snapshots) record before/after

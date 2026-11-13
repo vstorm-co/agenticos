@@ -969,3 +969,32 @@ async def test_manual_queue_retry_cannot_reuse_a_retired_attempt_fence(
             uuid4(), actor_user_id=uuid4()
         )
     requeue.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    ("attributes", "before", "after"),
+    [
+        ("*.txt text eol=lf\n", b"before\r\n", b"after\r\n"),
+        ("*.txt text eol=crlf\n", b"before\n", b"after\n"),
+        (
+            "*.txt working-tree-encoding=UTF-16LE\n",
+            "before\n".encode("utf-16le"),
+            "after\n".encode("utf-16le"),
+        ),
+        ("*.txt ident\n", b"$Id: before $\nbefore\n", b"$Id: after $\nafter\n"),
+    ],
+)
+async def test_attributes_cannot_transform_task_snapshot_or_restored_bytes(
+    root: Path, attributes: str, before: bytes, after: bytes
+) -> None:
+    (root / ".gitattributes").write_text(attributes)
+    (root / "one.txt").write_bytes(before)
+    # Keep every text file valid for the encoding case.
+    (root / "two.txt").unlink()
+    changes = await captured(root, lambda path: (path / "one.txt").write_bytes(after))
+    await revert(Workspace(LocalWorkspaceBackend(root)), changes.files, changes.revert_patch)
+    assert (root / "one.txt").read_bytes() == before
+    await revert(
+        Workspace(LocalWorkspaceBackend(root)), changes.files, changes.revert_patch, reconcile=True
+    )
+    assert (root / "one.txt").read_bytes() == before

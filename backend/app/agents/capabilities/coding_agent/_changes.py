@@ -93,7 +93,7 @@ _PRUNED = " -o ".join(
 _SETUP = (
     f"command -v git > /dev/null 2>&1 || exit {NO_GIT}; "
     f'export GIT_DIR="${STORE_ENV}/git" GIT_INDEX_FILE="${STORE_ENV}/index" '
-    'GIT_WORK_TREE="$PWD" GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null '
+    'GIT_WORK_TREE="$PWD" GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_ATTR_NOSYSTEM=1 '
     "GIT_OPTIONAL_LOCKS=0 "
     # Defence in depth, not a closed channel: the store is the task's user's to
     # write, so its config can still name a clean filter or an include. These
@@ -117,7 +117,13 @@ _SNAPSHOT = (
     "&& git write-tree"
 )
 
-BEGIN = f'{_SETUP}set -e; umask 077; rm -rf "${STORE_ENV}"; mkdir -p "${STORE_ENV}"; git init -q; {_SNAPSHOT}'
+# The private info file outranks workspace attributes: these are byte snapshots,
+# not Git checkouts subject to clean filters, encodings or newline conversion.
+BEGIN = (
+    f'{_SETUP}set -e; umask 077; rm -rf "${STORE_ENV}"; mkdir -p "${STORE_ENV}"; git init -q; '
+    f"printf '%s\\n' '* -text -filter -ident -working-tree-encoding' > \"${STORE_ENV}/git/info/attributes\"; "
+    f"{_SNAPSHOT}"
+)
 """Make the task's store and snapshot the workspace into it; prints the tree."""
 
 _DIFF = (

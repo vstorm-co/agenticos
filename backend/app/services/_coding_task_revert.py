@@ -93,6 +93,7 @@ with tempfile.TemporaryDirectory(prefix="agenticos-revert-") as store:
     env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
     env.update(GIT_DIR=store + "/git", GIT_INDEX_FILE=store + "/index", GIT_WORK_TREE=root,
                GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull, GIT_OPTIONAL_LOCKS="0",
+               GIT_ATTR_NOSYSTEM="1",
                GIT_CONFIG_COUNT="4", GIT_CONFIG_KEY_0="core.fsmonitor", GIT_CONFIG_VALUE_0="false",
                GIT_CONFIG_KEY_1="core.hooksPath", GIT_CONFIG_VALUE_1=os.devnull,
                GIT_CONFIG_KEY_2="core.autocrlf", GIT_CONFIG_VALUE_2="false",
@@ -105,6 +106,9 @@ with tempfile.TemporaryDirectory(prefix="agenticos-revert-") as store:
 
     if git("init", "-q").returncode:
         answer("unavailable")
+    # Restore bytes, without applying the workspace's Git checkout conversions.
+    with open(env["GIT_DIR"] + "/info/attributes", "w", encoding="ascii") as attributes:
+        attributes.write("* -text -filter -ident -working-tree-encoding\n")
     if git("read-tree", "--empty").returncode:
         answer("unavailable")
     conflicts, index, states = [], [], {}
