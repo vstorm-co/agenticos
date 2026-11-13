@@ -16,8 +16,8 @@ rows. Downgrade restores the immediate check and the ordering sensitivity.
 
 from alembic import op
 
-revision: str = "0313_defer_run_conversation_fk"
-down_revision: str = "0306_shared_page_attribution"
+revision: str = "0321_defer_run_conversation_fk"
+down_revision: str = "0320_record_batch_receipts"
 branch_labels: None = None
 depends_on: None = None
 
