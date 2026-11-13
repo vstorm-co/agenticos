@@ -1,5 +1,5 @@
 ---
-source_sha: "9c018612d58f"
+source_sha: "3a38ebcc160f"
 ---
 
 # Workflows { #workflows }
@@ -305,7 +305,9 @@ Version, ein Run und ein Vergleich zeigen die gespeicherte Größe ohne Anfasser
 ## Einen Knoten konfigurieren { #configuring-a-node }
 
 Was jeder Knoten tut, womit er konfiguriert wird und was seine Fehler bedeuten, steht
-in der [Knotenreferenz](reference/workflow-nodes.md).
+in der [Knotenreferenz](reference/workflow-nodes.md). Die Konsole benennt jeden Schritt, seine
+Ports und Einstellungen in der Sprache der lesenden Person; die Referenz, die API und ein
+exportierter Workflow behalten die englischen Namen.
 
 Ein Klick wählt einen Schritt aus, ein Doppelklick öffnet ihn über der Zeichenfläche. In einer veröffentlichten Version oder **View only** genügt ein Klick. Der Kopf zeigt den Namen und eine aufklappbare Zusammenfassung der fehlenden Einrichtung. Klappen Sie sie auf, um die Angaben zu prüfen; ein Feldname führt direkt zur Eingabe. Nach einem Test- oder Veröffentlichungsversuch öffnen sich die Validierungsdetails automatisch.
 

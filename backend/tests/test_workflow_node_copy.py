@@ -54,6 +54,9 @@ def _fields(schema: dict[str, Any], *, nested: bool) -> dict[str, dict[str, str]
         for name, prop in (target.get("properties") or {}).items():
             at = [*path, name]
             copy = {key: prop[src] for src, key in _COPY_KEYS if src in prop}
+            # A code field's example is code: the same in every language, so not copy.
+            if "x-code" in prop:
+                copy.pop("placeholder", None)
             if copy:
                 found["__".join(at)] = copy
             if not nested:

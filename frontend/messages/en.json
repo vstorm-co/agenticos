@@ -18060,6 +18060,2014 @@
       "true": "True",
       "unsure": "Unsure",
       "yes": "Yes"
+    },
+    "field": {
+      "agent_run": {
+        "config": {
+          "agent": {
+            "description": "An agent from the catalog, and the published version this step runs."
+          },
+          "inline": {
+            "description": "An agent configured in this step - model, instructions, capabilities, knowledge and MCP servers - versioned with the workflow."
+          },
+          "max_cost_usd": {
+            "title": "Max cost (USD)",
+            "description": "The most one execution of this step may spend on model requests, in USD. Empty leaves only the agent's, the workflow's and the organization's limits."
+          },
+          "structured_output_schema": {
+            "title": "Structured Output Schema",
+            "description": "The JSON Schema of an object the agent answers with, in place of its own answer format. Empty keeps the agent's."
+          }
+        },
+        "input": {
+          "prompt": {
+            "title": "Prompt"
+          },
+          "sources": {
+            "title": "Sources"
+          },
+          "attachments": {
+            "title": "Attachments",
+            "description": "Images from the run's files, shown to the agent as pictures."
+          }
+        }
+      },
+      "ai_classify": {
+        "config": {
+          "model_profile_id": {
+            "title": "Model",
+            "description": "One of the organization's models."
+          },
+          "temperature": {
+            "title": "Temperature",
+            "description": "Answer variation. Leave unset for models that do not support temperature."
+          },
+          "effort": {
+            "title": "Reasoning effort",
+            "description": "How hard the model reasons. Empty keeps the provider's default."
+          },
+          "max_cost_usd": {
+            "title": "Max cost (USD)",
+            "description": "The most one execution of this step may spend. Empty leaves the workflow's and the organization's limits."
+          },
+          "categories": {
+            "title": "Categories"
+          },
+          "instructions": {
+            "title": "Instructions",
+            "description": "Anything else the model should weigh, such as which category wins a tie."
+          },
+          "min_confidence": {
+            "title": "Minimum confidence",
+            "description": "Below this the step leaves by its unsure port instead of by the category. Empty, it always leaves by the category."
+          }
+        },
+        "input": {
+          "text": {
+            "title": "Text"
+          }
+        }
+      },
+      "ai_extract": {
+        "config": {
+          "model_profile_id": {
+            "title": "Model",
+            "description": "One of the organization's models."
+          },
+          "temperature": {
+            "title": "Temperature",
+            "description": "Answer variation. Leave unset for models that do not support temperature."
+          },
+          "effort": {
+            "title": "Reasoning effort",
+            "description": "How hard the model reasons. Empty keeps the provider's default."
+          },
+          "max_cost_usd": {
+            "title": "Max cost (USD)",
+            "description": "The most one execution of this step may spend. Empty leaves the workflow's and the organization's limits."
+          },
+          "output_schema": {
+            "title": "Fields to extract",
+            "description": "The JSON Schema of the object to extract."
+          },
+          "instructions": {
+            "title": "Instructions",
+            "description": "Anything else the model should know, such as a date format."
+          }
+        },
+        "input": {
+          "text": {
+            "title": "Text"
+          }
+        }
+      },
+      "ai_prompt": {
+        "config": {
+          "model_profile_id": {
+            "title": "Model",
+            "description": "One of the organization's models."
+          },
+          "temperature": {
+            "title": "Temperature",
+            "description": "Answer variation. Leave unset for models that do not support temperature."
+          },
+          "effort": {
+            "title": "Reasoning effort",
+            "description": "How hard the model reasons. Empty keeps the provider's default."
+          },
+          "max_cost_usd": {
+            "title": "Max cost (USD)",
+            "description": "The most one execution of this step may spend. Empty leaves the workflow's and the organization's limits."
+          },
+          "instructions": {
+            "title": "Instructions",
+            "description": "What the model is told to do with every prompt - its role and rules."
+          },
+          "structured_output_schema": {
+            "title": "Structured Output Schema",
+            "description": "The JSON Schema of an object to answer with. Empty answers in text."
+          }
+        },
+        "input": {
+          "prompt": {
+            "title": "Prompt"
+          }
+        }
+      },
+      "ai_rewrite": {
+        "config": {
+          "model_profile_id": {
+            "title": "Model",
+            "description": "One of the organization's models."
+          },
+          "temperature": {
+            "title": "Temperature",
+            "description": "Answer variation. Leave unset for models that do not support temperature."
+          },
+          "effort": {
+            "title": "Reasoning effort",
+            "description": "How hard the model reasons. Empty keeps the provider's default."
+          },
+          "max_cost_usd": {
+            "title": "Max cost (USD)",
+            "description": "The most one execution of this step may spend. Empty leaves the workflow's and the organization's limits."
+          },
+          "task": {
+            "title": "Task",
+            "description": "What to do with the text."
+          },
+          "language": {
+            "title": "Language",
+            "description": "The language to answer in - required to translate, optional otherwise."
+          },
+          "length": {
+            "title": "Length",
+            "description": "How long a summary should be."
+          },
+          "style": {
+            "title": "Style",
+            "description": "How it should read, such as 'formal' or 'for a customer'."
+          }
+        },
+        "input": {
+          "text": {
+            "title": "Text"
+          }
+        }
+      },
+      "code_javascript_sandbox": {
+        "config": {
+          "code": {
+            "title": "Code",
+            "description": "The body of an async function: read the bound values as `args`, input files from the `inputs` folder, write files to `outputs`, and `return` the answer."
+          },
+          "timeout_seconds": {
+            "title": "Time limit (seconds)"
+          },
+          "connection_id": {
+            "title": "Sandbox host",
+            "description": "The sandbox host to run on. The organization's default when empty."
+          },
+          "runtime": {
+            "title": "Runtime",
+            "description": "The host's runtime to run in, one with Node. The connection's default when empty."
+          }
+        },
+        "input": {
+          "args": {
+            "title": "Args"
+          },
+          "files": {
+            "title": "Files"
+          }
+        }
+      },
+      "code_python_sandbox": {
+        "config": {
+          "code": {
+            "title": "Code",
+            "description": "Read the bound values as `args`, input files from the `inputs` folder, and write files to `outputs`. Set `result` to the answer."
+          },
+          "timeout_seconds": {
+            "title": "Time limit (seconds)"
+          },
+          "connection_id": {
+            "title": "Sandbox host",
+            "description": "The sandbox host to run on. The organization's default when empty."
+          },
+          "runtime": {
+            "title": "Runtime",
+            "description": "The host's runtime to run in. The connection's default when empty."
+          }
+        },
+        "input": {
+          "args": {
+            "title": "Args"
+          },
+          "files": {
+            "title": "Files"
+          }
+        }
+      },
+      "code_python_simple": {
+        "config": {
+          "code": {
+            "title": "Code",
+            "description": "Read the bound values as `args`; the last expression is the result."
+          },
+          "timeout_seconds": {
+            "title": "Timeout Seconds"
+          },
+          "max_memory_mb": {
+            "title": "Max Memory Mb"
+          }
+        },
+        "input": {
+          "args": {
+            "title": "Args"
+          }
+        }
+      },
+      "control_foreach": {
+        "config": {
+          "item_error_policy": {
+            "title": "When an item fails",
+            "description": "Stop fails the loop at the first item that fails. Collect records the error in that item's place and carries on with the rest."
+          }
+        },
+        "input": {
+          "items": {
+            "title": "Items"
+          }
+        }
+      },
+      "convert_csv_to_json": {
+        "config": {
+          "max_bytes": {
+            "title": "Max Bytes",
+            "description": "Maximum bytes of the input file and encoded output"
+          }
+        },
+        "input": {
+          "file__kind": {
+            "title": "Kind"
+          },
+          "file__file_id": {
+            "title": "File Id"
+          },
+          "file__content_type": {
+            "title": "Content Type"
+          },
+          "file__byte_size": {
+            "title": "Byte Size"
+          }
+        }
+      },
+      "convert_json_to_csv": {
+        "config": {
+          "max_bytes": {
+            "title": "Max Bytes",
+            "description": "Maximum bytes of the input file and encoded output"
+          }
+        },
+        "input": {
+          "file__kind": {
+            "title": "Kind"
+          },
+          "file__file_id": {
+            "title": "File Id"
+          },
+          "file__content_type": {
+            "title": "Content Type"
+          },
+          "file__byte_size": {
+            "title": "Byte Size"
+          }
+        }
+      },
+      "convert_pdf_to_png": {
+        "config": {
+          "pages": {
+            "title": "Pages",
+            "description": "Which pages to render, counting from 1."
+          },
+          "dpi": {
+            "title": "Dpi"
+          },
+          "max_bytes": {
+            "title": "Max Bytes"
+          }
+        },
+        "input": {
+          "file__kind": {
+            "title": "Kind"
+          },
+          "file__file_id": {
+            "title": "File Id"
+          },
+          "file__content_type": {
+            "title": "Content Type"
+          },
+          "file__byte_size": {
+            "title": "Byte Size"
+          }
+        }
+      },
+      "convert_text_to_file": {
+        "config": {
+          "filename": {
+            "title": "Filename"
+          }
+        },
+        "input": {
+          "text": {
+            "title": "Text"
+          }
+        }
+      },
+      "core_input": {
+        "config": {
+          "fields": {
+            "title": "Fields"
+          },
+          "input_schema": {
+            "description": "JSON Schema Draft 2020-12 contract for JSON object input; references must be local to this document"
+          }
+        }
+      },
+      "core_output": {
+        "input": {
+          "text": {
+            "title": "Text"
+          },
+          "sources": {
+            "title": "Sources"
+          },
+          "artifacts": {
+            "title": "Artifacts"
+          },
+          "structured": {
+            "title": "Structured"
+          }
+        }
+      },
+      "data_combine": {
+        "config": {
+          "mode": {
+            "title": "Mode"
+          },
+          "key": {
+            "title": "Key",
+            "description": "The field both lists' objects are matched by, for by_key"
+          }
+        },
+        "input": {
+          "first": {
+            "title": "First"
+          },
+          "second": {
+            "title": "Second"
+          }
+        }
+      },
+      "data_filter": {
+        "config": {
+          "condition": {
+            "title": "Condition",
+            "description": "A JMESPath expression over each item, such as item.score > `50`"
+          }
+        },
+        "input": {
+          "items": {
+            "title": "Items"
+          }
+        }
+      },
+      "data_map": {
+        "config": {
+          "mappings": {
+            "title": "Mappings"
+          }
+        },
+        "input": {
+          "source": {
+            "title": "Source"
+          }
+        }
+      },
+      "debug_echo": {
+        "config": {
+          "message": {
+            "title": "Message"
+          }
+        },
+        "input": {
+          "message": {
+            "title": "Message"
+          }
+        }
+      },
+      "debug_relay": {
+        "input": {
+          "echoed": {
+            "title": "Echoed"
+          },
+          "received_at": {
+            "title": "Received At"
+          }
+        }
+      },
+      "decide_choose": {
+        "config": {
+          "question": {
+            "title": "Question",
+            "description": "What is decided about the text, asked the way a person would ask it"
+          },
+          "secret_id": {
+            "title": "TypeSafe key",
+            "description": "A TypeSafe API key from the vault"
+          },
+          "model": {
+            "title": "Model",
+            "description": "Which Jev answers: the moving release, the preview, or a pinned version"
+          },
+          "min_confidence": {
+            "title": "Min Confidence",
+            "description": "Below this the step goes down its unsure port instead of acting on the answer"
+          },
+          "options": {
+            "title": "Options"
+          }
+        },
+        "input": {
+          "text": {
+            "title": "Text"
+          }
+        }
+      },
+      "decide_score": {
+        "config": {
+          "question": {
+            "title": "Question",
+            "description": "What is decided about the text, asked the way a person would ask it"
+          },
+          "secret_id": {
+            "title": "TypeSafe key",
+            "description": "A TypeSafe API key from the vault"
+          },
+          "model": {
+            "title": "Model",
+            "description": "Which Jev answers: the moving release, the preview, or a pinned version"
+          },
+          "min_confidence": {
+            "title": "Min Confidence",
+            "description": "Below this the step goes down its unsure port instead of acting on the answer"
+          },
+          "levels": {
+            "title": "Levels",
+            "description": "What each level means, from 0 upwards - 'not urgent', 'urgent', ..."
+          }
+        },
+        "input": {
+          "text": {
+            "title": "Text"
+          }
+        }
+      },
+      "decide_yes_no": {
+        "config": {
+          "question": {
+            "title": "Question",
+            "description": "What is decided about the text, asked the way a person would ask it"
+          },
+          "secret_id": {
+            "title": "TypeSafe key",
+            "description": "A TypeSafe API key from the vault"
+          },
+          "model": {
+            "title": "Model",
+            "description": "Which Jev answers: the moving release, the preview, or a pinned version"
+          },
+          "min_confidence": {
+            "title": "Min Confidence",
+            "description": "Below this the step goes down its unsure port instead of acting on the answer"
+          }
+        },
+        "input": {
+          "text": {
+            "title": "Text"
+          }
+        }
+      },
+      "email_send": {
+        "config": {
+          "smtp_secret_id": {
+            "title": "SMTP account",
+            "description": "Choose a vault SMTP account, or leave empty to use the platform sender."
+          },
+          "reply_to": {
+            "title": "Reply to",
+            "description": "Where a reply goes. The sender's default reply address when empty."
+          }
+        },
+        "input": {
+          "to": {
+            "title": "To",
+            "description": "Up to ten addresses. Each gets its own copy."
+          },
+          "subject": {
+            "title": "Subject"
+          },
+          "body": {
+            "title": "Body",
+            "description": "Plain text."
+          }
+        }
+      },
+      "error_handle": {
+        "config": {
+          "branches": {
+            "title": "Branches"
+          }
+        }
+      },
+      "error_raise": {
+        "config": {
+          "code": {
+            "title": "Code",
+            "description": "An upper-case code an error.handle branch can match, like ORDER_REJECTED."
+          },
+          "message": {
+            "title": "Message"
+          },
+          "details": {
+            "title": "Details"
+          },
+          "retryable": {
+            "title": "Retryable",
+            "description": "Whether the step's retry policy may try again."
+          }
+        }
+      },
+      "file_read": {
+        "config": {
+          "parse_as": {
+            "title": "Parse As"
+          },
+          "max_bytes": {
+            "title": "Max Bytes"
+          }
+        },
+        "input": {
+          "file__kind": {
+            "title": "Kind"
+          },
+          "file__file_id": {
+            "title": "File Id"
+          },
+          "file__content_type": {
+            "title": "Content Type"
+          },
+          "file__byte_size": {
+            "title": "Byte Size"
+          }
+        }
+      },
+      "file_write": {
+        "config": {
+          "format": {
+            "title": "Format"
+          },
+          "filename": {
+            "title": "Filename",
+            "description": "What to call the file. `output` with the format's extension, such as `output.csv`, when left empty."
+          }
+        },
+        "input": {
+          "text": {
+            "title": "Text"
+          },
+          "json_value": {
+            "title": "Json Value"
+          },
+          "rows": {
+            "title": "Rows"
+          }
+        }
+      },
+      "flow_await_reply": {
+        "config": {
+          "provider": {
+            "title": "Mailbox provider"
+          },
+          "connection_id": {
+            "title": "Connected organization mailbox"
+          },
+          "mailbox": {
+            "title": "Shared Outlook mailbox"
+          },
+          "poll_seconds": {
+            "title": "Check every (seconds)"
+          }
+        },
+        "input": {
+          "thread_id": {
+            "title": "Thread Id"
+          },
+          "expected_sender": {
+            "title": "Expected Sender"
+          },
+          "not_before": {
+            "title": "Not Before"
+          },
+          "deadline": {
+            "title": "Deadline"
+          },
+          "anchor_message_id": {
+            "title": "Anchor Message Id"
+          }
+        }
+      },
+      "flow_wait": {
+        "config": {
+          "seconds": {
+            "title": "Wait for (seconds)",
+            "description": "How long after the step is reached to go on; at most thirty days. Waiting for a call, the longest to wait for it"
+          },
+          "until_called": {
+            "title": "Wait for a call to the run's resume link",
+            "description": "Go on when the address a Resume link step gives is called, handing on what it was sent"
+          }
+        },
+        "input": {
+          "until": {
+            "title": "Until"
+          }
+        }
+      },
+      "html_parse": {
+        "config": {
+          "selector": {
+            "title": "CSS selector",
+            "description": "The elements to pick, as in a stylesheet - for example `table.prices td` or `a.download`. Empty picks nothing."
+          },
+          "max_matches": {
+            "title": "Most matches",
+            "description": "How many picked elements it hands on"
+          },
+          "base_url": {
+            "title": "Base address",
+            "description": "Relative links are resolved against it. It is never fetched."
+          },
+          "max_chars": {
+            "title": "Most characters of text",
+            "description": "The readable text is cut at this length"
+          }
+        },
+        "input": {
+          "html": {
+            "title": "Html",
+            "description": "The HTML, at most 2,000,000 characters"
+          },
+          "file": {
+            "description": "A file holding the HTML, at most 5,000,000 bytes"
+          },
+          "file__kind": {
+            "title": "Kind"
+          },
+          "file__file_id": {
+            "title": "File Id"
+          },
+          "file__content_type": {
+            "title": "Content Type"
+          },
+          "file__byte_size": {
+            "title": "Byte Size"
+          }
+        }
+      },
+      "http_download": {
+        "config": {
+          "url": {
+            "title": "Url",
+            "description": "An http or https URL. May be bound from an earlier step."
+          },
+          "headers": {
+            "title": "Headers"
+          },
+          "auth__kind": {
+            "title": "Kind"
+          },
+          "auth__secret_id": {
+            "title": "Secret Id",
+            "description": "An HTTP credential from the vault, bound to the origins it may be sent to."
+          },
+          "auth__header_name": {
+            "title": "Header Name",
+            "description": "For `header`: the header the token is sent in, e.g. X-Api-Key."
+          },
+          "auth__header_prefix": {
+            "title": "Header Prefix",
+            "description": "Optional scheme for a custom header, e.g. Token, sent before the key as in Authorization: Token abc123."
+          },
+          "auth__query_name": {
+            "title": "Query Name",
+            "description": "For `query`: the URL parameter the token is sent in, e.g. api_key."
+          },
+          "timeout_seconds": {
+            "title": "Timeout Seconds"
+          },
+          "max_bytes": {
+            "title": "Max Bytes",
+            "description": "Refuse a file larger than this, however the server describes it."
+          },
+          "expected_content_types": {
+            "title": "Expected Content Types",
+            "description": "Accept only these media types, as the file's own bytes show them - `application/pdf`, `image/png`. Empty accepts any."
+          },
+          "filename": {
+            "title": "Filename",
+            "description": "What to call the stored file. Taken from the URL when left empty."
+          }
+        }
+      },
+      "http_request": {
+        "config": {
+          "method": {
+            "title": "Method"
+          },
+          "url": {
+            "title": "Url",
+            "description": "An http or https URL. May be bound from an earlier step."
+          },
+          "headers": {
+            "title": "Headers"
+          },
+          "auth__kind": {
+            "title": "Kind"
+          },
+          "auth__secret_id": {
+            "title": "Secret Id",
+            "description": "An HTTP credential from the vault, bound to the origins it may be sent to."
+          },
+          "auth__header_name": {
+            "title": "Header Name",
+            "description": "For `header`: the header the token is sent in, e.g. X-Api-Key."
+          },
+          "auth__header_prefix": {
+            "title": "Header Prefix",
+            "description": "Optional scheme for a custom header, e.g. Token, sent before the key as in Authorization: Token abc123."
+          },
+          "auth__query_name": {
+            "title": "Query Name",
+            "description": "For `query`: the URL parameter the token is sent in, e.g. api_key."
+          },
+          "timeout_seconds": {
+            "title": "Timeout Seconds"
+          },
+          "max_response_bytes": {
+            "title": "Max Response Bytes"
+          },
+          "idempotency_key_header": {
+            "title": "Idempotency Key Header",
+            "description": "Send this step's stable operation key in this header (e.g. Idempotency-Key), so a retry the far side recognises is safe."
+          },
+          "on_error_status": {
+            "title": "On Error Status",
+            "description": "Whether a non-2xx status fails the step or is returned as its output."
+          },
+          "pagination__mode": {
+            "title": "Mode"
+          },
+          "pagination__items_path": {
+            "title": "Items Path",
+            "description": "Where each page's items are, for example data or results."
+          },
+          "pagination__next_path": {
+            "title": "Next Path",
+            "description": "For next_url and cursor: where the next page's URL or cursor is, for example links.next or meta.next_cursor."
+          },
+          "pagination__param": {
+            "title": "Param",
+            "description": "For cursor and page: the query parameter that carries it."
+          },
+          "pagination__first_page": {
+            "title": "First Page"
+          },
+          "pagination__max_pages": {
+            "title": "Max Pages",
+            "description": "The most pages fetched."
+          }
+        },
+        "input": {
+          "body": {
+            "title": "Body"
+          }
+        }
+      },
+      "http_upload": {
+        "config": {
+          "method": {
+            "title": "Method"
+          },
+          "url": {
+            "title": "Url",
+            "description": "An http or https URL. May be bound from an earlier step."
+          },
+          "headers": {
+            "title": "Headers"
+          },
+          "auth__kind": {
+            "title": "Kind"
+          },
+          "auth__secret_id": {
+            "title": "Secret Id",
+            "description": "An HTTP credential from the vault, bound to the origins it may be sent to."
+          },
+          "auth__header_name": {
+            "title": "Header Name",
+            "description": "For `header`: the header the token is sent in, e.g. X-Api-Key."
+          },
+          "auth__header_prefix": {
+            "title": "Header Prefix",
+            "description": "Optional scheme for a custom header, e.g. Token, sent before the key as in Authorization: Token abc123."
+          },
+          "auth__query_name": {
+            "title": "Query Name",
+            "description": "For `query`: the URL parameter the token is sent in, e.g. api_key."
+          },
+          "timeout_seconds": {
+            "title": "Timeout Seconds"
+          },
+          "max_response_bytes": {
+            "title": "Max Response Bytes"
+          },
+          "idempotency_key_header": {
+            "title": "Idempotency Key Header",
+            "description": "Send this step's stable operation key in this header (e.g. Idempotency-Key), so a retry the far side recognises is safe."
+          }
+        },
+        "input": {
+          "file__kind": {
+            "title": "Kind"
+          },
+          "file__file_id": {
+            "title": "File Id"
+          },
+          "file__content_type": {
+            "title": "Content Type"
+          },
+          "file__byte_size": {
+            "title": "Byte Size"
+          }
+        }
+      },
+      "human_approval": {
+        "config": {
+          "title": {
+            "title": "Title",
+            "description": "The question the approver answers, such as Send the refund?"
+          },
+          "approvers": {
+            "title": "Approvers",
+            "description": "Who may decide. Anyone who decides approvals when empty."
+          },
+          "timeout_hours": {
+            "title": "Time limit (hours)",
+            "description": "How long the run waits before the request expires. For ever when empty."
+          },
+          "editable": {
+            "title": "Let the approver edit",
+            "description": "Show the bound proposal in an editor; the version the approver approves leaves as final."
+          },
+          "proposal_label": {
+            "title": "Proposal label",
+            "description": "What the proposal is called, such as Reply. Proposal when empty."
+          },
+          "proposal_format": {
+            "title": "Proposal format",
+            "description": "Whether the proposal is plain text or Markdown."
+          },
+          "choices": {
+            "title": "Ways to approve",
+            "description": "Offer these instead of a plain Approve: one button and one output port each, in this order, and the step has no approved port. Empty, the step approves or rejects."
+          }
+        },
+        "input": {
+          "details": {
+            "title": "Details"
+          },
+          "proposal": {
+            "title": "Proposal",
+            "description": "The text the approver reviews, and edits when the step is editable."
+          }
+        }
+      },
+      "image_transform": {
+        "config": {
+          "crop__left": {
+            "title": "Left"
+          },
+          "crop__top": {
+            "title": "Top"
+          },
+          "crop__width": {
+            "title": "Width"
+          },
+          "crop__height": {
+            "title": "Height"
+          },
+          "resize__width": {
+            "title": "Width"
+          },
+          "resize__height": {
+            "title": "Height"
+          },
+          "resize__mode": {
+            "title": "Mode"
+          },
+          "rotate_degrees": {
+            "title": "Rotate Degrees",
+            "description": "Clockwise"
+          },
+          "output_format": {
+            "title": "Output Format"
+          },
+          "quality": {
+            "title": "Quality",
+            "description": "For JPEG and WebP"
+          },
+          "max_bytes": {
+            "title": "Max Bytes"
+          }
+        },
+        "input": {
+          "file__kind": {
+            "title": "Kind"
+          },
+          "file__file_id": {
+            "title": "File Id"
+          },
+          "file__content_type": {
+            "title": "Content Type"
+          },
+          "file__byte_size": {
+            "title": "Byte Size"
+          }
+        }
+      },
+      "knowledge_add": {
+        "config": {
+          "collection_ids": {
+            "title": "Collection Ids",
+            "description": "The knowledge collections to add the document to."
+          }
+        },
+        "input": {
+          "title": {
+            "title": "Title",
+            "description": "The document's name. Required with a text; a file keeps its own name without it."
+          },
+          "text": {
+            "title": "Text"
+          },
+          "file__kind": {
+            "title": "Kind"
+          },
+          "file__file_id": {
+            "title": "File Id"
+          },
+          "file__content_type": {
+            "title": "Content Type"
+          },
+          "file__byte_size": {
+            "title": "Byte Size"
+          }
+        }
+      },
+      "knowledge_search": {
+        "config": {
+          "collection_ids": {
+            "title": "Collection Ids",
+            "description": "The knowledge collections to search."
+          },
+          "top_k": {
+            "title": "Top K",
+            "description": "The most passages to return."
+          }
+        },
+        "input": {
+          "query": {
+            "title": "Query"
+          }
+        }
+      },
+      "logic_if": {
+        "config": {
+          "condition": {
+            "title": "Condition",
+            "description": "A JMESPath expression over the input, read for truthiness - for example value.status == 'approved'."
+          }
+        },
+        "input": {
+          "value": {
+            "title": "Value"
+          }
+        }
+      },
+      "logic_merge": {
+        "config": {
+          "wait_for": {
+            "title": "Wait For",
+            "description": "`one`: the branch that ran, passed on as `value`. `all`: every branch, passed on by name as `branches`"
+          },
+          "branch_keys": {
+            "title": "Branch Keys",
+            "description": "A name for each incoming branch. A branch with none is called after the step it leaves, or after the Split's branch"
+          }
+        }
+      },
+      "logic_split": {
+        "config": {
+          "branches": {
+            "title": "Branches",
+            "description": "The branches, each a named output port; at least two, each with its own name"
+          }
+        }
+      },
+      "logic_switch": {
+        "config": {
+          "rules": {
+            "title": "Rules"
+          }
+        },
+        "input": {
+          "value": {
+            "title": "Value"
+          }
+        }
+      },
+      "loop_yield": {
+        "input": {
+          "value": {
+            "title": "Value"
+          }
+        }
+      },
+      "mattermost_channels_find": {
+        "config": {
+          "bot_id": {
+            "title": "Mattermost bot",
+            "description": "Which of the organization's Mattermost bots this step acts as"
+          },
+          "limit": {
+            "title": "Channels to list",
+            "description": "At most this many"
+          }
+        },
+        "input": {
+          "query": {
+            "title": "Name contains",
+            "description": "Part of a channel's name"
+          },
+          "channel_id": {
+            "title": "A channel the bot is in",
+            "description": "On Mattermost, the team to search is read from it"
+          }
+        }
+      },
+      "mattermost_members_list": {
+        "config": {
+          "bot_id": {
+            "title": "Mattermost bot",
+            "description": "Which of the organization's Mattermost bots this step acts as"
+          },
+          "limit": {
+            "title": "People to list",
+            "description": "At most this many"
+          }
+        },
+        "input": {
+          "channel_id": {
+            "title": "Channel"
+          }
+        }
+      },
+      "mattermost_message_send": {
+        "config": {
+          "bot_id": {
+            "title": "Mattermost bot",
+            "description": "Which of the organization's Mattermost bots this step acts as"
+          }
+        },
+        "input": {
+          "channel_id": {
+            "title": "Channel",
+            "description": "The platform's channel id"
+          },
+          "text": {
+            "title": "Message"
+          },
+          "thread_id": {
+            "title": "Thread",
+            "description": "The thread to answer in: a Slack thread's timestamp, a Mattermost root post's id, a Telegram forum topic"
+          }
+        }
+      },
+      "mattermost_messages_read": {
+        "config": {
+          "bot_id": {
+            "title": "Mattermost bot",
+            "description": "Which of the organization's Mattermost bots this step acts as"
+          },
+          "limit": {
+            "title": "Messages to read",
+            "description": "At most this many"
+          }
+        },
+        "input": {
+          "channel_id": {
+            "title": "Channel"
+          },
+          "thread_id": {
+            "title": "Thread",
+            "description": "Read this thread instead"
+          }
+        }
+      },
+      "mcp_call": {
+        "config": {
+          "connection_id": {
+            "title": "Server",
+            "description": "One of the organization's MCP servers."
+          },
+          "tool": {
+            "title": "Tool",
+            "description": "The tool to call, as the server names it."
+          },
+          "idempotency_key_argument": {
+            "title": "Idempotency key argument",
+            "description": "Send this step's stable operation key as this tool argument, when the tool declares it, so a retry the server recognises is safe."
+          },
+          "approval": {
+            "title": "Ask for approval",
+            "description": "Before a tool the server does not mark read-only, before every call, or never."
+          },
+          "approvers": {
+            "title": "Approvers",
+            "description": "Who may approve the call. Anyone who decides approvals when empty."
+          },
+          "timeout_seconds": {
+            "title": "Timeout Seconds",
+            "description": "How long the tool may take to answer."
+          },
+          "on_tool_error": {
+            "title": "When the tool answers with an error",
+            "description": "Whether an error the tool answers with fails the step or is its output."
+          }
+        },
+        "input": {
+          "arguments": {
+            "title": "Arguments",
+            "description": "An object matching the tool's own input schema."
+          }
+        }
+      },
+      "notification_send": {
+        "config": {
+          "recipients": {
+            "title": "Recipients",
+            "description": "Members of the organization to notify."
+          },
+          "subject": {
+            "title": "Subject",
+            "description": "The notification's headline."
+          },
+          "channels": {
+            "title": "Channels",
+            "description": "Where it may reach them. Each person's preferences and explicit private-channel opt-in still apply; a workflow cannot select a chat destination for them."
+          }
+        },
+        "input": {
+          "message": {
+            "title": "Message"
+          }
+        }
+      },
+      "slack_channels_find": {
+        "config": {
+          "bot_id": {
+            "title": "Slack bot",
+            "description": "Which of the organization's Slack bots this step acts as"
+          },
+          "limit": {
+            "title": "Channels to list",
+            "description": "At most this many"
+          }
+        },
+        "input": {
+          "query": {
+            "title": "Name contains",
+            "description": "Part of a channel's name"
+          },
+          "channel_id": {
+            "title": "A channel the bot is in",
+            "description": "On Mattermost, the team to search is read from it"
+          }
+        }
+      },
+      "slack_members_list": {
+        "config": {
+          "bot_id": {
+            "title": "Slack bot",
+            "description": "Which of the organization's Slack bots this step acts as"
+          },
+          "limit": {
+            "title": "People to list",
+            "description": "At most this many"
+          }
+        },
+        "input": {
+          "channel_id": {
+            "title": "Channel"
+          }
+        }
+      },
+      "slack_message_send": {
+        "config": {
+          "bot_id": {
+            "title": "Slack bot",
+            "description": "Which of the organization's Slack bots this step acts as"
+          }
+        },
+        "input": {
+          "channel_id": {
+            "title": "Channel",
+            "description": "The platform's channel id"
+          },
+          "text": {
+            "title": "Message"
+          },
+          "thread_id": {
+            "title": "Thread",
+            "description": "The thread to answer in: a Slack thread's timestamp, a Mattermost root post's id, a Telegram forum topic"
+          }
+        }
+      },
+      "slack_messages_read": {
+        "config": {
+          "bot_id": {
+            "title": "Slack bot",
+            "description": "Which of the organization's Slack bots this step acts as"
+          },
+          "limit": {
+            "title": "Messages to read",
+            "description": "At most this many"
+          }
+        },
+        "input": {
+          "channel_id": {
+            "title": "Channel"
+          },
+          "thread_id": {
+            "title": "Thread",
+            "description": "Read this thread instead"
+          }
+        }
+      },
+      "table_create": {
+        "config": {
+          "name": {
+            "title": "Name"
+          },
+          "description": {
+            "title": "Description"
+          },
+          "columns": {
+            "title": "Columns"
+          },
+          "visibility": {
+            "title": "Visibility"
+          }
+        }
+      },
+      "table_describe": {
+        "config": {
+          "table": {
+            "description": "The table this step works on, pinned when the workflow is published."
+          },
+          "table__kind": {
+            "title": "Kind"
+          },
+          "table__table_id": {
+            "title": "Table Id"
+          },
+          "table__column_ids": {
+            "title": "Column Ids"
+          },
+          "table__schema_version": {
+            "title": "Schema Version"
+          }
+        }
+      },
+      "table_exists": {
+        "input": {
+          "name": {
+            "title": "Name"
+          }
+        }
+      },
+      "table_list": {
+        "config": {
+          "limit": {
+            "title": "Limit",
+            "description": "The most tables to list"
+          }
+        },
+        "input": {
+          "search": {
+            "title": "Search"
+          }
+        }
+      },
+      "table_record_create": {
+        "config": {
+          "table": {
+            "description": "The table this step works on, pinned when the workflow is published."
+          },
+          "table__kind": {
+            "title": "Kind"
+          },
+          "table__table_id": {
+            "title": "Table Id"
+          },
+          "table__column_ids": {
+            "title": "Column Ids"
+          },
+          "table__schema_version": {
+            "title": "Schema Version"
+          }
+        },
+        "input": {
+          "values": {
+            "title": "Values",
+            "description": "Cell values keyed by column id or label"
+          },
+          "external_id": {
+            "title": "External Id"
+          }
+        }
+      },
+      "table_record_delete": {
+        "config": {
+          "table": {
+            "description": "The table this step works on, pinned when the workflow is published."
+          },
+          "table__kind": {
+            "title": "Kind"
+          },
+          "table__table_id": {
+            "title": "Table Id"
+          },
+          "table__column_ids": {
+            "title": "Column Ids"
+          },
+          "table__schema_version": {
+            "title": "Schema Version"
+          }
+        },
+        "input": {
+          "record_id": {
+            "title": "Record Id"
+          },
+          "expected_revision": {
+            "title": "Expected Revision"
+          }
+        }
+      },
+      "table_record_exists": {
+        "config": {
+          "table": {
+            "description": "The table this step works on, pinned when the workflow is published."
+          },
+          "table__kind": {
+            "title": "Kind"
+          },
+          "table__table_id": {
+            "title": "Table Id"
+          },
+          "table__column_ids": {
+            "title": "Column Ids"
+          },
+          "table__schema_version": {
+            "title": "Schema Version"
+          },
+          "filters": {
+            "title": "Filters"
+          }
+        }
+      },
+      "table_record_get": {
+        "config": {
+          "table": {
+            "description": "The table this step works on, pinned when the workflow is published."
+          },
+          "table__kind": {
+            "title": "Kind"
+          },
+          "table__table_id": {
+            "title": "Table Id"
+          },
+          "table__column_ids": {
+            "title": "Column Ids"
+          },
+          "table__schema_version": {
+            "title": "Schema Version"
+          }
+        },
+        "input": {
+          "record_id": {
+            "title": "Record Id"
+          },
+          "external_id": {
+            "title": "External Id"
+          }
+        }
+      },
+      "table_record_query": {
+        "config": {
+          "table": {
+            "description": "The table this step works on, pinned when the workflow is published."
+          },
+          "table__kind": {
+            "title": "Kind"
+          },
+          "table__table_id": {
+            "title": "Table Id"
+          },
+          "table__column_ids": {
+            "title": "Column Ids"
+          },
+          "table__schema_version": {
+            "title": "Schema Version"
+          },
+          "filters": {
+            "title": "Filters"
+          },
+          "sort__by": {
+            "title": "By",
+            "description": "`created_at`, `updated_at` or a column id. Ties always break on the record id."
+          },
+          "sort__direction": {
+            "title": "Direction"
+          },
+          "limit": {
+            "title": "Limit"
+          },
+          "skip": {
+            "title": "Skip"
+          }
+        }
+      },
+      "table_record_update": {
+        "config": {
+          "table": {
+            "description": "The table this step works on, pinned when the workflow is published."
+          },
+          "table__kind": {
+            "title": "Kind"
+          },
+          "table__table_id": {
+            "title": "Table Id"
+          },
+          "table__column_ids": {
+            "title": "Column Ids"
+          },
+          "table__schema_version": {
+            "title": "Schema Version"
+          }
+        },
+        "input": {
+          "record_id": {
+            "title": "Record Id"
+          },
+          "values": {
+            "title": "Values",
+            "description": "Only the cells to change, by column id or label"
+          },
+          "expected_revision": {
+            "title": "Expected Revision"
+          }
+        }
+      },
+      "table_record_upsert": {
+        "config": {
+          "table": {
+            "description": "The table this step works on, pinned when the workflow is published."
+          },
+          "table__kind": {
+            "title": "Kind"
+          },
+          "table__table_id": {
+            "title": "Table Id"
+          },
+          "table__column_ids": {
+            "title": "Column Ids"
+          },
+          "table__schema_version": {
+            "title": "Schema Version"
+          }
+        },
+        "input": {
+          "external_id": {
+            "title": "External Id"
+          },
+          "values": {
+            "title": "Values",
+            "description": "Cell values keyed by column id or label"
+          }
+        }
+      },
+      "telegram_members_list": {
+        "config": {
+          "bot_id": {
+            "title": "Telegram bot",
+            "description": "Which of the organization's Telegram bots this step acts as"
+          },
+          "limit": {
+            "title": "People to list",
+            "description": "At most this many"
+          }
+        },
+        "input": {
+          "channel_id": {
+            "title": "Channel"
+          }
+        }
+      },
+      "telegram_message_send": {
+        "config": {
+          "bot_id": {
+            "title": "Telegram bot",
+            "description": "Which of the organization's Telegram bots this step acts as"
+          }
+        },
+        "input": {
+          "channel_id": {
+            "title": "Channel",
+            "description": "The platform's channel id"
+          },
+          "text": {
+            "title": "Message"
+          },
+          "thread_id": {
+            "title": "Thread",
+            "description": "The thread to answer in: a Slack thread's timestamp, a Mattermost root post's id, a Telegram forum topic"
+          }
+        }
+      },
+      "text_compare": {
+        "config": {
+          "method": {
+            "title": "Method",
+            "description": "What is counted: characters, words in common, or unchanged lines"
+          },
+          "ignore_case": {
+            "title": "Ignore Case",
+            "description": "Treat capitals and lower case as equal"
+          },
+          "ignore_whitespace": {
+            "title": "Ignore Whitespace",
+            "description": "Collapse spacing within a line, trim each line and drop blank lines; line breaks still count"
+          },
+          "ignore_punctuation": {
+            "title": "Ignore Punctuation",
+            "description": "Leave punctuation out"
+          },
+          "strip_quoted": {
+            "title": "Leave out quoted mail and signatures",
+            "description": "Drop quoted reply lines, the attribution and anything after a signature"
+          }
+        },
+        "input": {
+          "a": {
+            "title": "A",
+            "description": "The first text, such as the original"
+          },
+          "b": {
+            "title": "B",
+            "description": "The second text, such as the edit"
+          }
+        }
+      },
+      "text_extract": {
+        "config": {
+          "max_bytes": {
+            "title": "Max Bytes"
+          },
+          "max_chars": {
+            "title": "Max Chars"
+          }
+        },
+        "input": {
+          "file__kind": {
+            "title": "Kind"
+          },
+          "file__file_id": {
+            "title": "File Id"
+          },
+          "file__content_type": {
+            "title": "Content Type"
+          },
+          "file__byte_size": {
+            "title": "Byte Size"
+          }
+        }
+      },
+      "transform_aggregate": {
+        "config": {
+          "fields": {
+            "title": "Fields"
+          }
+        },
+        "input": {
+          "items": {
+            "title": "Items"
+          }
+        }
+      },
+      "transform_crypto": {
+        "config": {
+          "operation": {
+            "title": "Operation"
+          },
+          "length": {
+            "title": "Length",
+            "description": "Bytes of randomness, for random_hex"
+          }
+        },
+        "input": {
+          "text": {
+            "title": "Text"
+          }
+        }
+      },
+      "transform_date_time": {
+        "config": {
+          "operation": {
+            "title": "Operation"
+          },
+          "amount": {
+            "title": "Amount"
+          },
+          "unit": {
+            "title": "Unit"
+          },
+          "format": {
+            "title": "Format",
+            "description": "How to write it out, such as %d.%m.%Y"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "description": "An IANA timezone, such as Europe/Warsaw. Empty: the workflow's own"
+          }
+        },
+        "input": {
+          "value": {
+            "title": "Value"
+          }
+        }
+      },
+      "transform_edit_fields": {
+        "config": {
+          "set": {
+            "title": "Set"
+          },
+          "remove": {
+            "title": "Remove"
+          },
+          "only_set": {
+            "title": "Only Set",
+            "description": "Keep only the fields set here, dropping every other"
+          }
+        },
+        "input": {
+          "items": {
+            "title": "Items"
+          }
+        }
+      },
+      "transform_limit": {
+        "config": {
+          "count": {
+            "title": "Count",
+            "description": "How many items to keep"
+          },
+          "from_end": {
+            "title": "From End",
+            "description": "Keep the last items instead of the first"
+          }
+        },
+        "input": {
+          "items": {
+            "title": "Items"
+          }
+        }
+      },
+      "transform_remove_duplicates": {
+        "config": {
+          "fields": {
+            "title": "Fields",
+            "description": "The fields two items must share to be duplicates; the whole item when empty"
+          }
+        },
+        "input": {
+          "items": {
+            "title": "Items"
+          }
+        }
+      },
+      "transform_sort": {
+        "config": {
+          "by": {
+            "title": "By"
+          }
+        },
+        "input": {
+          "items": {
+            "title": "Items"
+          }
+        }
+      },
+      "transform_split_out": {
+        "config": {
+          "field": {
+            "title": "Field"
+          },
+          "keep_other_fields": {
+            "title": "Keep Other Fields",
+            "description": "Copy the item's other fields onto each new item"
+          }
+        },
+        "input": {
+          "items": {
+            "title": "Items"
+          }
+        }
+      },
+      "transform_summarize": {
+        "config": {
+          "group_by": {
+            "title": "Group By"
+          },
+          "summaries": {
+            "title": "Summaries"
+          }
+        },
+        "input": {
+          "items": {
+            "title": "Items"
+          }
+        }
+      },
+      "trigger_channel_message": {
+        "config": {
+          "bot_id": {
+            "title": "Bot",
+            "description": "Which of the organization's Slack, Mattermost or Telegram bots starts the workflow"
+          },
+          "chat_types": {
+            "title": "Where",
+            "description": "Direct messages, channels and groups, or both"
+          },
+          "text_contains": {
+            "title": "Only when the message contains",
+            "description": "A word or phrase, ignoring case; every message when empty"
+          }
+        }
+      },
+      "trigger_form": {
+        "config": {
+          "fields": {
+            "title": "Fields"
+          },
+          "input_schema": {
+            "title": "Input Schema"
+          },
+          "title": {
+            "title": "Title",
+            "description": "The page's heading"
+          },
+          "description": {
+            "title": "Description",
+            "description": "Shown under the title: what the form is for"
+          },
+          "submit_label": {
+            "title": "Submit Label",
+            "description": "The button's words"
+          },
+          "success_message": {
+            "title": "Success Message",
+            "description": "What the page says once the answers are in"
+          },
+          "appearance__accent": {
+            "title": "Accent"
+          },
+          "appearance__width": {
+            "title": "Width"
+          },
+          "appearance__layout": {
+            "title": "Layout"
+          }
+        }
+      },
+      "trigger_github": {
+        "config": {
+          "repository": {
+            "title": "Repository",
+            "description": "The repository, as owner/name"
+          },
+          "events": {
+            "title": "Starts on",
+            "description": "The GitHub events that start it"
+          },
+          "actions": {
+            "title": "Only these actions",
+            "description": "Such as opened or closed; any action when empty. A push has none"
+          },
+          "register_with_account": {
+            "title": "Set up the webhook for me",
+            "description": "Register it on the repository through the organization's connected GitHub account, when one is connected with permission to manage webhooks"
+          }
+        }
+      },
+      "trigger_gmail": {
+        "config": {
+          "subject_contains": {
+            "title": "Subject contains",
+            "description": "A word or phrase in the subject, ignoring case"
+          },
+          "sender_contains": {
+            "title": "Sender contains",
+            "description": "Matched against the sender's address only, never the display name, ignoring case: @acme.com is that domain exactly (not its subdomains), a full address is that address, other text is part of the address. Needs mail the sender domain authenticated"
+          },
+          "label": {
+            "title": "Label",
+            "description": "One of the mailbox's labels, exactly, such as INBOX or IMPORTANT. Mail labelled SENT, DRAFT, SPAM or TRASH is skipped unless this names that label"
+          }
+        }
+      },
+      "trigger_manual": {
+        "config": {
+          "fields": {
+            "title": "Fields"
+          },
+          "input_schema": {
+            "description": "JSON Schema Draft 2020-12 contract for JSON object input; references must be local to this document"
+          }
+        }
+      },
+      "trigger_outlook": {
+        "config": {
+          "folder": {
+            "title": "Folder",
+            "description": "A well-known folder (inbox, archive, junkemail) or the display name of a top-level folder, which is where a mail rule files the mail to read"
+          },
+          "mailbox": {
+            "title": "Shared mailbox",
+            "description": "A shared mailbox the connected account can read; empty for its own. Naming one takes the permission to manage connections"
+          },
+          "subject_contains": {
+            "title": "Subject contains",
+            "description": "A word or phrase in the subject, ignoring case"
+          },
+          "sender_contains": {
+            "title": "Sender contains",
+            "description": "Matched against the sender's address only, never the display name, ignoring case: @acme.com is that domain exactly (not its subdomains), a full address is that address, other text is part of the address. Needs mail the sender domain authenticated"
+          },
+          "has_attachments": {
+            "title": "Has attachments",
+            "description": "Only mail with (or without) attachments"
+          },
+          "importance": {
+            "title": "Importance",
+            "description": "The importance the sender set"
+          },
+          "category": {
+            "title": "Category",
+            "description": "One of the message's Outlook categories, ignoring case"
+          }
+        }
+      },
+      "trigger_schedule": {
+        "config": {
+          "schedule_kind": {
+            "title": "Schedule Kind"
+          },
+          "interval_seconds": {
+            "title": "Interval Seconds",
+            "description": "Seconds between runs, at least a minute"
+          },
+          "cron_expression": {
+            "title": "Cron Expression",
+            "description": "Five fields, in the workflow's timezone (UTC unless its settings name another), such as 0 9 * * 1-5"
+          },
+          "input": {
+            "title": "Input",
+            "description": "What every run starts with, as JSON"
+          }
+        }
+      },
+      "trigger_table_record": {
+        "config": {
+          "table": {
+            "description": "The table, and the columns whose change starts it - any column's when none are chosen."
+          },
+          "table__kind": {
+            "title": "Kind"
+          },
+          "table__table_id": {
+            "title": "Table Id"
+          },
+          "table__column_ids": {
+            "title": "Column Ids"
+          },
+          "table__schema_version": {
+            "title": "Schema Version"
+          },
+          "events": {
+            "title": "Starts when a record is",
+            "description": "Added, changed or deleted. A change starts it only when one of the table's chosen columns changed, when columns are chosen."
+          },
+          "filters": {
+            "title": "Filters",
+            "description": "Every one must hold on the record - as it was added or changed to, or as it was before it was deleted"
+          }
+        }
+      },
+      "trigger_workflow_call": {
+        "config": {
+          "fields": {
+            "title": "Fields"
+          },
+          "input_schema": {
+            "description": "JSON Schema Draft 2020-12 contract for JSON object input; references must be local to this document"
+          }
+        }
+      },
+      "webhook_respond": {
+        "config": {
+          "status_code": {
+            "title": "Status Code",
+            "description": "The HTTP status, 200 to 599."
+          },
+          "headers": {
+            "title": "Headers"
+          }
+        },
+        "input": {
+          "body": {
+            "title": "Body"
+          }
+        }
+      },
+      "workflow_run": {
+        "config": {
+          "workflow_id": {
+            "title": "Workflow",
+            "description": "A published workflow that starts from Called by a workflow"
+          },
+          "wait": {
+            "title": "Wait for it to finish",
+            "description": "Hand on what it answers. Off, the step goes on as soon as it starts"
+          }
+        },
+        "input": {
+          "input": {
+            "title": "Input"
+          }
+        }
+      }
     }
   }
 }

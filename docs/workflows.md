@@ -277,7 +277,9 @@ published version, a run and a comparison show the saved size without handles.
 ## Configuring a node { #configuring-a-node }
 
 What each node does, what it is configured with and what its failures mean is in
-the [node reference](reference/workflow-nodes.md).
+the [node reference](reference/workflow-nodes.md). The console names each step, its ports and
+its settings in the reader's language; the reference, the API and an exported workflow keep
+the English names.
 
 A click selects a step; a double click opens it over the canvas. In a published version or **View only**, one click opens it. The header names the step and folds unfinished setup into one expandable summary. Open it to see what is missing; choosing a field takes you to its input. After a test or publish attempt, the summary opens with validation details.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "9c018612d58f"
+source_sha: "3a38ebcc160f"
 ---
 
 # Workflows { #workflows }
@@ -294,7 +294,9 @@ comparación muestran el tamaño guardado sin controles.
 ## Configurar un nodo { #configuring-a-node }
 
 Qué hace cada nodo, con qué se configura y qué significan sus fallos está en la
-[referencia de nodos](reference/workflow-nodes.md).
+[referencia de nodos](reference/workflow-nodes.md). La consola nombra cada paso, sus puertos y
+sus ajustes en el idioma de quien lee; la referencia, la API y un workflow exportado conservan
+los nombres en inglés.
 
 Un clic selecciona un paso y un doble clic lo abre sobre el lienzo. En una versión publicada o **View only** basta un clic. La cabecera muestra el nombre y un resumen desplegable de la configuración pendiente. Ábrelo para ver qué falta; elegir un campo lleva a su entrada. Después de intentar probar o publicar, los detalles de validación se abren automáticamente.
 
