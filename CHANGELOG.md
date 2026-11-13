@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.72.0] - 2026-11-13
+
 ### Added
 
 - Choose and reset persistent table and workflow icons from their detail headers,
@@ -21650,7 +21652,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.71.2...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.72.0...HEAD
+[1.72.0]: https://github.com/vstorm-co/agenticos/compare/v1.71.2...v1.72.0
 [1.71.2]: https://github.com/vstorm-co/agenticos/compare/v1.71.1...v1.71.2
 [1.71.1]: https://github.com/vstorm-co/agenticos/compare/v1.71.0...v1.71.1
 [1.71.0]: https://github.com/vstorm-co/agenticos/compare/v1.70.0...v1.71.0
