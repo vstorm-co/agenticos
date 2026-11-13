@@ -69,7 +69,7 @@ def _graph() -> WorkflowGraph:
     return WorkflowGraph(entry_node_id=entry.id, nodes=(entry,))
 
 
-def _workflow(**overrides: object):
+def _workflow(**overrides: object) -> MagicMock:
     workflow = MagicMock()
     workflow.id = uuid.uuid4()
     workflow.organization_id = _ORGANIZATION_ID
@@ -79,6 +79,7 @@ def _workflow(**overrides: object):
     workflow.slug = "import-orders"
     workflow.name = "Import orders"
     workflow.description = None
+    workflow.icon = None
     workflow.draft_revision = 0
     workflow.draft_graph = _graph().model_dump(mode="json")
     workflow.current_version_id = None

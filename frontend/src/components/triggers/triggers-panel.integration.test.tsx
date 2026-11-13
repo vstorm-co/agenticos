@@ -633,7 +633,7 @@ describe("TriggersPanel", () => {
 
     await user.click(await screen.findByRole("button", { name: "Edit" }));
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByText("Edit schedule")).toBeVisible();
+    expect(within(dialog).getByRole("heading", { name: "Edit schedule" })).toBeVisible();
     expect(within(dialog).queryByText("Edit trigger")).toBeNull();
   });
 

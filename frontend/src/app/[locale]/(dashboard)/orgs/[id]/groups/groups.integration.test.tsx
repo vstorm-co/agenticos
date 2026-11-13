@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { toast } from "sonner";
 import { Suspense, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -258,12 +259,12 @@ describe("the groups page", () => {
     );
   });
 
-  it("closes the form without saving on Cancel", async () => {
+  it.each(["Cancel", "Close"])("closes the form without saving on %s", async (action) => {
     serve("admin");
     await mount();
 
     await userEvent.click(await screen.findByRole("button", { name: "Edit Ops" }));
-    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await userEvent.click(screen.getByRole("button", { name: action }));
 
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(apiClient.patch).not.toHaveBeenCalled();
@@ -283,7 +284,7 @@ describe("the groups page", () => {
     await waitFor(() => expect(screen.queryByText("Delete Finance?")).toBeNull());
   });
 
-  it("closes the confirmation when the delete is refused, the refusal toasted", async () => {
+  it("keeps a refused deletion available for retry, with a toast", async () => {
     serve("admin");
     vi.mocked(apiClient.delete).mockRejectedValue(new ApiError(403, "Not allowed"));
     await mount();
@@ -291,6 +292,10 @@ describe("the groups page", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Remove Ops" }));
     await userEvent.click(screen.getByRole("button", { name: "Delete" }));
 
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(screen.getByText("Delete Ops?")).toBeVisible();
+    vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
     await waitFor(() => expect(screen.queryByText("Delete Ops?")).toBeNull());
   });
 
@@ -303,16 +308,16 @@ describe("the groups page", () => {
     const dialog = await screen.findByRole("dialog");
 
     // Ann was placed by the directory sync, Eve by the Discord role sync, Bob by hand.
-    const ann = (await within(dialog).findByText("Ann")).closest("div.rounded-md");
+    const ann = await within(dialog).findByRole("group", { name: "Ann" });
     expect(ann).not.toBeNull();
     expect(within(ann as HTMLElement).getByText("Directory")).toBeInTheDocument();
-    const eve = within(dialog).getByText("Eve").closest("div.rounded-md");
+    const eve = within(dialog).getByRole("group", { name: "Eve" });
     expect(eve).not.toBeNull();
     expect(within(eve as HTMLElement).getByText("Discord")).toBeInTheDocument();
     expect(
       within(eve as HTMLElement).getByText(/removes them when they lose the Discord role/),
     ).toBeInTheDocument();
-    const bob = within(dialog).getByText("bob@acme.test").closest("div.rounded-md");
+    const bob = within(dialog).getByRole("group", { name: "bob@acme.test" });
     expect(within(bob as HTMLElement).queryByText("Discord")).toBeNull();
 
     // Only organization members not already in the group are offered.
@@ -353,10 +358,8 @@ describe("the groups page", () => {
     const dialog = await screen.findByRole("dialog");
 
     await within(dialog).findByText("Ann");
-    expect(within(dialog).getByLabelText("Add a member")).toHaveTextContent(
-      "Everyone is already in this group",
-    );
-    expect(within(dialog).getByLabelText("Add a member")).toBeDisabled();
+    expect(within(dialog).getByText("Everyone is already in this group")).toBeVisible();
+    expect(within(dialog).queryByRole("combobox")).toBeNull();
   });
 
   it("says why a group's members could not be read", async () => {
@@ -406,4 +409,78 @@ describe("the groups page", () => {
     expect(await screen.findByText("Bad gateway")).toBeInTheDocument();
     expect(screen.queryByText("No groups yet")).toBeNull();
   });
+});
+
+it("retains a refused creation draft and locks identity fields while saving", async () => {
+  serve("admin");
+  let refuse!: (error: Error) => void;
+  vi.mocked(apiClient.post).mockImplementationOnce(
+    () =>
+      new Promise((_resolve, reject) => {
+        refuse = reject;
+      }),
+  );
+  await mount();
+  await userEvent.click(await screen.findByRole("button", { name: "New group" }));
+  const dialog = within(screen.getByRole("dialog"));
+  await userEvent.type(dialog.getByLabelText("Name"), "Customer support");
+  await userEvent.type(
+    dialog.getByLabelText("Description"),
+    "Questions, handovers and support guidance.",
+  );
+  await userEvent.click(dialog.getByRole("button", { name: "Handshake" }));
+  await userEvent.click(dialog.getByRole("button", { name: "Create" }));
+  await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+  expect(dialog.getByLabelText("Name")).toBeDisabled();
+  const form = dialog.getByLabelText("Name").closest("form");
+  if (!form) throw new Error("Missing group form");
+  fireEvent.submit(form);
+  expect(apiClient.post).toHaveBeenCalledOnce();
+  expect(dialog.getByLabelText("Description")).toBeDisabled();
+  for (const name of ["Handshake", "Cancel", "Close"])
+    expect(dialog.getByRole("button", { name })).toBeDisabled();
+  await userEvent.keyboard("{Escape}");
+  expect(screen.getByRole("dialog")).toBeVisible();
+  refuse(new ApiError(403, "Not allowed"));
+  await waitFor(() => expect(dialog.getByLabelText("Name")).toBeEnabled());
+  expect(dialog.getByLabelText("Name")).toHaveValue("Customer support");
+  expect(dialog.getByRole("button", { name: "Handshake" })).toHaveAttribute("aria-pressed", "true");
+  vi.mocked(apiClient.post).mockResolvedValue(FINANCE);
+  await userEvent.click(dialog.getByRole("button", { name: "Create" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+});
+
+it("searches department descriptions and clears an unmatched query", async () => {
+  serve("viewer");
+  await mount();
+  await screen.findByText("Finance");
+  const search = screen.getByPlaceholderText("Search departments…");
+  await userEvent.type(search, "approves spend");
+  expect(screen.getByRole("link", { name: "Finance" })).toBeVisible();
+  expect(screen.queryByRole("link", { name: "Ops" })).toBeNull();
+  await userEvent.clear(search);
+  await userEvent.type(search, "nothing-matches");
+  expect(screen.getByText("No departments match")).toBeVisible();
+  await userEvent.click(screen.getByText("Clear search", { selector: "button" }));
+  expect(search).toHaveValue("");
+  expect(screen.getByRole("link", { name: "Ops" })).toBeVisible();
+});
+
+it("reveals the budget field when the server refuses that hidden option", async () => {
+  serve("admin");
+  vi.mocked(apiClient.post).mockRejectedValue(
+    new ApiError(422, "Budget refused", {
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "Budget refused",
+        details: { fields: [{ field: "monthly_budget_usd", message: "Budget needs attention" }] },
+      },
+    }),
+  );
+  await mount();
+  await userEvent.click(await screen.findByRole("button", { name: "New group" }));
+  await userEvent.type(screen.getByLabelText("Name"), "Support");
+  await userEvent.click(screen.getByRole("button", { name: "Create" }));
+  expect(await screen.findByText("Budget needs attention")).toBeVisible();
+  expect(screen.getByLabelText("Monthly budget (USD)")).toHaveAttribute("aria-invalid", "true");
 });

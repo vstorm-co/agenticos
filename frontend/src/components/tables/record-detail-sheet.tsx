@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { AlertTriangle, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -18,7 +18,9 @@ import { useDeferredDelete } from "@/hooks/use-deferred-delete";
 import { isRecordGone, isRevisionConflict, useRecordMutation } from "@/hooks/use-record-mutation";
 import { getErrorMessage } from "@/lib/api-error";
 import { useTableViewStore } from "@/stores";
+import type { RecordConflict } from "@/stores/table-view-store";
 import { RecordCellEditor } from "./record-cell-editor";
+import { RecordConflictNow } from "./record-conflict-now";
 import type { CellValue, ColumnDef, RecordRead } from "@/types/tables";
 import { recordCellText } from "@/lib/format-cell-value";
 import { WorkspaceFullscreenButton } from "@/components/ui/workspace-fullscreen-button";
@@ -63,7 +65,7 @@ export function RecordDetailSheet({
   const tErrors = useTranslations("errors");
   const locale = useLocale();
   const boolLabel = (value: boolean) => (value ? tCells("true") : tCells("false"));
-  const { commit, fetchRecord } = useRecordMutation(tableId);
+  const { commit, fetchRecord, readForComparison } = useRecordMutation(tableId);
   const deleteLater = useDeferredDelete(tableId);
   const [expanded, setExpanded] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -131,6 +133,42 @@ export function RecordDetailSheet({
     }
   }
 
+  const recordId = record?.id;
+  const recordConflicts = recordId ? conflicts[recordId] : undefined;
+  const [known, setKnown] = useState<{
+    conflicts: Record<string, RecordConflict>;
+    record: RecordRead;
+  } | null>(null);
+  // Reading comparison values must not advance the editors' revision or replace
+  // another field's unsubmitted buffer. Only an explicit reload updates the caller.
+  const readAgain = useEffectEvent(
+    (id: string, pending: Record<string, RecordConflict>, active: () => boolean) => {
+      void readForComparison(id).then(
+        (fresh) => {
+          if (active()) setKnown({ conflicts: pending, record: fresh });
+        },
+        (error: unknown) => {
+          if (!active()) return;
+          toast.error(getErrorMessage(error, tErrors));
+          if (isRecordGone(error)) {
+            for (const fieldId of Object.keys(pending)) clearConflict(id, fieldId);
+            onOpenChange(false);
+          }
+        },
+      );
+    },
+  );
+  useEffect(() => {
+    if (!open || !recordId || !recordConflicts || !Object.keys(recordConflicts).some(Boolean))
+      return;
+    let active = true;
+    void readAgain(recordId, recordConflicts, () => active);
+    return () => {
+      active = false;
+    };
+  }, [open, recordId, recordConflicts]);
+  const comparison = known?.conflicts === recordConflicts ? known?.record : undefined;
+
   /**
    * "Reload and reapply": fetch the record's current state and retry the same
    * edit against its fresh revision. The conflict is cleared only once the
@@ -165,7 +203,9 @@ export function RecordDetailSheet({
 
   // Named by what its first column holds - "Northwind" - the way a row is read.
   const first = columns.find((column) => !column.archived);
-  const heading = record && first ? recordCellText(first, record, boolLabel, locale) : "";
+  const headingRecord = comparison ?? record;
+  const heading =
+    headingRecord && first ? recordCellText(first, headingRecord, boolLabel, locale) : "";
   const detailColumns = columns
     .filter((column) => !column.archived)
     .toSorted((a, b) => Number(a.type === "rich_text") - Number(b.type === "rich_text"));
@@ -237,6 +277,9 @@ export function RecordDetailSheet({
                           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
                           <span>{t("conflict")}</span>
                         </div>
+                        {comparison !== undefined && (
+                          <RecordConflictNow column={column} record={comparison} />
+                        )}
                         <div className="flex gap-2">
                           <Button
                             type="button"

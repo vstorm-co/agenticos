@@ -146,5 +146,12 @@ export function useRecordMutation(tableId: string) {
     [queryClient, tableId],
   );
 
-  return { create, update, remove, commit, fetchRecord, invalidate };
+  // Comparison reads belong to one conflict generation. Sharing an in-flight
+  // query could attach a new refusal to the previous refusal's older snapshot.
+  const readForComparison = useCallback(
+    (recordId: string) => getRecord(tableId, recordId),
+    [tableId],
+  );
+
+  return { create, update, remove, commit, fetchRecord, readForComparison, invalidate };
 }

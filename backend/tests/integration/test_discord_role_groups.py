@@ -769,6 +769,21 @@ class TestMappings:
                     self._ctx(org, owner), bot.id, self._create(finance)
                 )
 
+        checked, resume = asyncio.Event(), asyncio.Event()
+        found = discord.server
+
+        async def after_validation(token: str, guild_id: str) -> Server | None:
+            result = await found(token, guild_id)
+            checked.set()
+            await resume.wait()
+            return result
+
+        discord.server = after_validation
+        creating = asyncio.create_task(create())
+        # The create must have validated both parents before either is deleted.
+        # A timed sleep could instead let the delete commit before that read on CI.
+        async with asyncio.timeout(15):
+            await checked.wait()
         # The bot's connection has nothing behind it to close here.
         with patch("app.services.channel_bot.close_inbound_stream", AsyncMock()):
             async with factory() as deleting:
@@ -778,7 +793,7 @@ class TestMappings:
                     await ChannelBotService(deleting, organization_id=org.id).delete(
                         bot.id, self._ctx(org, owner)
                     )
-                creating = asyncio.create_task(create())
+                resume.set()
                 done, _ = await asyncio.wait({creating}, timeout=0.2)
                 assert not done
                 await deleting.commit()

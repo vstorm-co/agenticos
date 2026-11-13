@@ -10,6 +10,8 @@ import DatasetPage from "./page";
 
 const state = vi.hoisted(() => ({
   total: 0,
+  metadataLoading: false,
+  casesLoading: false,
   datasetError: null as unknown,
   cases: [] as unknown[],
   skips: [] as number[],
@@ -37,16 +39,18 @@ vi.mock("next/navigation", async (original) => ({
 }));
 vi.mock("@/hooks/use-datasets", () => ({
   useDataset: () => ({
-    dataset: datasetFixture({
-      id: "d1",
-      name: "refunds",
-      description: null,
-      latest_version: 3,
-      case_count: 1,
-      can_edit: state.canEdit,
-      pending_proposals: 0,
-      scoring: DEFAULT_SCORING,
-    }),
+    dataset: state.metadataLoading
+      ? undefined
+      : datasetFixture({
+          id: "d1",
+          name: "refunds",
+          description: null,
+          latest_version: 3,
+          case_count: 1,
+          can_edit: state.canEdit,
+          pending_proposals: 0,
+          scoring: DEFAULT_SCORING,
+        }),
     error: state.datasetError,
     update: { mutateAsync: vi.fn(), isPending: false },
     remove: { mutateAsync: state.remove, isPending: false },
@@ -58,7 +62,7 @@ vi.mock("@/hooks/use-datasets", () => ({
     return {
       cases: state.cases,
       total: state.total,
-      isLoading: false,
+      isLoading: state.casesLoading,
       error: null,
       add: { mutateAsync: vi.fn() },
       update: { mutateAsync: vi.fn() },
@@ -136,6 +140,8 @@ async function mount() {
 describe("the dataset page", () => {
   beforeEach(() => {
     state.datasetError = null;
+    state.metadataLoading = false;
+    state.casesLoading = false;
     state.runsView = true;
     state.total = 0;
     state.cases = [];
@@ -148,6 +154,30 @@ describe("the dataset page", () => {
     state.linkedError = null;
     state.push.mockReset();
     state.remove.mockReset();
+  });
+
+  it("reserves the dataset header, tabs and cases surface before metadata resolves", async () => {
+    state.metadataLoading = true;
+    const refresh = await mount();
+    expect(screen.getByRole("status")).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByText("Cases", { selector: "button" })).toBeInTheDocument();
+    expect(screen.getByText("Results", { selector: "button" })).toBeInTheDocument();
+    expect(screen.getByText("Settings", { selector: "button" })).toBeInTheDocument();
+    state.metadataLoading = false;
+    await refresh();
+    expect(screen.getByRole("heading", { name: "refunds" })).toBeVisible();
+  });
+
+  it("uses the case table while case rows load instead of a card grid", async () => {
+    state.casesLoading = true;
+    const refresh = await mount();
+    expect(screen.getByRole("table")).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("columnheader", { name: "Question" })).toBeVisible();
+    state.casesLoading = false;
+    state.cases = [CASE];
+    state.total = 1;
+    await refresh();
+    expect(screen.getByRole("table")).not.toHaveAttribute("aria-busy");
   });
 
   it("keeps both creation buttons mounted and disabled while reading a pinned version", async () => {

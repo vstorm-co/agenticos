@@ -7,6 +7,7 @@ import {
   SEEDED_SKILL_NAME,
   pageHeading,
   skillCard,
+  submitDialog,
 } from "./helpers";
 
 test.use({ storageState: AUTH_STATE });
@@ -30,12 +31,10 @@ test.describe("Skills", () => {
       await page.setViewportSize({ width, height: 900 });
       await page.goto("/skills");
       await skillCard(page, SEEDED_SKILL_NAME).click();
-      const modal = page.getByRole("dialog", { name: "Skill details", exact: true });
+      const modal = page.getByRole("dialog", { name: SEEDED_SKILL_NAME, exact: true });
       await expect(modal).toBeVisible();
-      await expect(modal.getByRole("tab", { name: "Content", exact: true })).toHaveAttribute(
-        "aria-selected",
-        "true",
-      );
+      await expect(modal.getByLabel(/Instructions source/)).toHaveValue(SEEDED_SKILL_CONTENT);
+      await expect(modal.getByRole("tab", { name: "Version tree", exact: true })).toHaveCount(0);
       await expect(
         modal.getByRole("heading", { name: SEEDED_SKILL_NAME, exact: true }),
       ).toBeVisible();
@@ -43,11 +42,9 @@ test.describe("Skills", () => {
       expect(bounds).not.toBeNull();
       expect(bounds!.x).toBeGreaterThanOrEqual(0);
       expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
-      await modal.getByRole("tab", { name: "Version tree", exact: true }).click();
-      const fullView = modal.getByRole("link", { name: "Open full view", exact: true });
-      await expect(fullView).toHaveAttribute("href", /\?tab=tree$/);
+      const fullView = modal.getByRole("button", { name: "Open full view", exact: true });
       await fullView.click();
-      await expect(page).toHaveURL(/\/skills\/[^?]+\?tab=tree$/);
+      await expect(page).toHaveURL(/\/skills\/[^?]+\?tab=content$/);
       await expect(page.getByRole("dialog")).toHaveCount(0);
       await expect(pageHeading(page, SEEDED_SKILL_NAME)).toBeVisible();
     });
@@ -78,8 +75,6 @@ test.describe("Skills", () => {
     await page.goto("/skills");
     await expect(pageHeading(page, "Skills")).toBeVisible();
     await skillCard(page, SEEDED_SKILL_NAME).click();
-    await expect(pageHeading(page, SEEDED_SKILL_NAME)).toBeVisible();
-    await page.getByRole("button", { name: "Edit", exact: true }).click();
 
     const dialog = page.getByRole("dialog");
     // Description and content are the two halves of a skill: the description is
@@ -99,7 +94,6 @@ test.describe("Skills", () => {
     await page.goto("/skills");
     await expect(pageHeading(page, "Skills")).toBeVisible();
     await skillCard(page, SEEDED_SKILL_NAME).click();
-    await page.getByRole("button", { name: "Edit", exact: true }).click();
 
     const dialog = page.getByRole("dialog");
     // The editor loads the full skill after the dialog opens; wait for it before
@@ -139,12 +133,14 @@ test.describe("Skills", () => {
     const dialog = page.getByRole("dialog");
     await dialog.getByLabel("Name").fill(name);
     await dialog.getByLabel("Description", { exact: true }).fill("Written by the E2E suite.");
-    await dialog.getByRole("button", { name: "Create" }).click();
+    await submitDialog(page, {
+      dialog,
+      submit: dialog.getByRole("button", { name: "Create" }),
+      path: "/api/skills",
+    });
     await expect(skillCard(page, name)).toBeVisible();
 
     await skillCard(page, name).click();
-    const edit = page.getByRole("button", { name: "Edit", exact: true });
-    await edit.click();
     await expect(dialog.getByLabel("Description", { exact: true })).toHaveValue(
       "Written by the E2E suite.",
     );
@@ -152,13 +148,13 @@ test.describe("Skills", () => {
     await dialog.getByRole("button", { name: "Save" }).click();
     // A changed text asks before it goes live, naming the agents it would reach.
     await page.getByRole("button", { name: "Save now" }).click();
-    await expect(page.getByRole("dialog", { name: "Skill details", exact: true })).toBeVisible();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
 
     // Reloaded rather than read off the cache the mutation patched: a panel that
     // only looks right until the next fetch is a panel that never wrote
     // anything.
     await page.reload();
-    await edit.click();
+    await skillCard(page, name).click();
     await expect(dialog.getByLabel("Description", { exact: true })).toHaveValue(edited);
 
     await dialog.getByRole("button", { name: `More actions for ${name}`, exact: true }).click();

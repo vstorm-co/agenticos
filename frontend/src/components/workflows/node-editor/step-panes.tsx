@@ -41,6 +41,7 @@ import {
 import type { NodeDefinition, NodeInstance, WorkflowGraph } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
+import { ApprovalVerdict } from "./approval-verdict";
 import { DataView, DeclaredOutput } from "./data-view";
 import { StepTestRun } from "./step-test-run";
 import { WebhookListener } from "./webhook-listener";
@@ -421,6 +422,9 @@ export function OutputPane({
             >
               {t("stepReviewSetup")}
             </Button>
+          )}
+          {readOnly && data?.approval !== undefined && (
+            <ApprovalVerdict approval={data.approval} output={data.output} />
           )}
           {shown === null ? (
             failed == null && (

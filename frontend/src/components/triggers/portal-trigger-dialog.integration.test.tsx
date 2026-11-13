@@ -427,3 +427,36 @@ describe("PortalTriggerDialog", () => {
     expect(screen.queryByLabelText("Signing secret")).toBeNull();
   });
 });
+
+it("blocks closing and stepping back while a portal write is pending", async () => {
+  serve([{ id: "acme/repo", label: "acme/repo" }]);
+  let reject!: (reason: Error) => void;
+  vi.mocked(apiClient.post).mockImplementationOnce(
+    () =>
+      new Promise((_resolve, refuse) => {
+        reject = refuse;
+      }),
+  );
+  const onOpenChange = vi.fn();
+  render(
+    <PortalTriggerDialog portal={GITHUB} connectionId="o1" open onOpenChange={onOpenChange} />,
+    { wrapper },
+  );
+  const dialog = within(await screen.findByRole("dialog"));
+  await userEvent.click(dialog.getByRole("button", { name: /New issue opened/ }));
+  await userEvent.click(await dialog.findByRole("combobox", { name: "Repository" }));
+  await userEvent.click(await screen.findByRole("option", { name: "acme/repo" }));
+  await userEvent.click(dialog.getByRole("button", { name: "Continue" }));
+  await userEvent.type(dialog.getByLabelText("Message"), "Triage it");
+  await userEvent.click(dialog.getByRole("button", { name: "Create" }));
+  await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+  expect(dialog.getByLabelText("Message")).toBeDisabled();
+  expect(dialog.getByRole("button", { name: "Close" })).toBeDisabled();
+  expect(dialog.getByRole("button", { name: "Back" })).toBeDisabled();
+  await userEvent.keyboard("{Escape}");
+  expect(onOpenChange).not.toHaveBeenCalled();
+  reject(new Error("Controlled portal refusal"));
+  await waitFor(() => expect(dialog.getByLabelText("Message")).toBeEnabled());
+  expect(dialog.getByLabelText("Message")).toHaveValue("Triage it");
+  expect(onOpenChange).not.toHaveBeenCalled();
+});

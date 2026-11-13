@@ -67,6 +67,10 @@ class WorkflowLogEntryRead(BaseSchema):
     run_id: UUID
     node_instance_id: UUID
     step_label: str
+    step_definition_id: str | None = Field(
+        default=None,
+        description="Definition id for a default step name; null for custom labels or an unavailable saved graph",
+    )
     outcome: str
     status: str
     message: str

@@ -66,7 +66,7 @@ function seed(graph: WorkflowGraph) {
   store.getState().seedGraph(graph);
 }
 
-function renderOutput(definition: NodeDefinition = STEP, catalog = [STEP]) {
+function renderOutput(definition: NodeDefinition = STEP, catalog = [STEP], readOnly = false) {
   const graph = store.getState().graph as WorkflowGraph;
   const shown = graph.nodes.find((candidate) => candidate.id === "b") as NodeInstance;
   return render(
@@ -76,6 +76,7 @@ function renderOutput(definition: NodeDefinition = STEP, catalog = [STEP]) {
       graph={graph}
       node={shown}
       definition={definition}
+      readOnly={readOnly}
     />,
   );
 }
@@ -285,6 +286,36 @@ describe("OutputPane", () => {
 
     expect(screen.getByRole("cell", { name: "first" })).toBeTruthy();
     expect(screen.queryByRole("cell", { name: "second" })).toBeNull();
+  });
+
+  it("says who decided an approval step above its output, on a run's view only", () => {
+    seed(line());
+    const approval = {
+      status: "approved" as const,
+      decided_at: "2026-11-13T10:28:00Z",
+      decided_by_name: "Ola Nowak",
+    };
+    store.getState().mergeStepData({ b: { ...KNOWN, approval } });
+    const run = renderOutput(STEP, [STEP], true);
+    expect(screen.getByTestId("approval-verdict")).toHaveTextContent(/^Approved by Ola Nowak · /);
+    run.unmount();
+
+    renderOutput();
+    expect(screen.queryByTestId("approval-verdict")).toBeNull();
+  });
+
+  it("says a request was cancelled with its run, though the step handed nothing on", () => {
+    seed(line());
+    store.getState().mergeStepData({
+      b: {
+        output: null,
+        error: null,
+        runId: "r",
+        approval: { status: "cancelled", decided_at: null, decided_by_name: null },
+      },
+    });
+    renderOutput(STEP, [STEP], true);
+    expect(screen.getByTestId("approval-verdict")).toHaveTextContent("Cancelled with its run");
   });
 
   it("shows a table step's records in its table's column order", () => {

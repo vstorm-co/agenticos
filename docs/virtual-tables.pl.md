@@ -1,8 +1,10 @@
 ---
-source_sha: "f42ada39df6d"
+source_sha: "ce7283b48fa2"
 ---
 
 # Virtual Tables { #virtual-tables }
+
+Ikonę tabeli wybierasz obok jej nazwy w szczegółach. Karta katalogu i wiersz dashboardu używają tego samego symbolu. **Użyj domyślnej ikony** resetuje wybór; kolumny, rekordy i wersje schematu pozostają bez zmian. Kontrolka respektuje prawo zarządzania tabelą, także ograniczenia tablic zadań.
 
 **Virtual table** to typowana tabela rekordów, którą organizacja trzyma dla swoich
 agentów, [workflow](workflows.md) i integracji: zamówienia do uzgodnienia, pliki do przetworzenia,
@@ -337,7 +339,9 @@ nic nie zostaje zapisane, dopóki nie ma wszystkich wymaganych wartości.
 
 Każda edycja to jeden `PATCH` względem rewizji widocznej na ekranie, więc edycja, która
 przegrywa z nowszą zmianą, zostaje odrzucona, a nie zapisana na niej. Rekord otwiera się
-wtedy z odrzuconą wartością zachowaną obok **Reload and reapply**. Zaznaczenie wierszy
+wtedy z odrzuconą wartością zachowaną obok **Reload and reapply** i zostaje odczytany
+ponownie: pole mówi, co zawiera teraz, kto ostatnio zmienił rekord i kiedy, a tytuł
+panelu się odświeża. Zaznaczenie wierszy
 udostępnia **Delete** dla wszystkich naraz, każdy względem własnej rewizji: rekord,
 który ktoś w międzyczasie zmienił, zostaje, a konsola mówi, ile takich było. Panel
 rekordu usuwa pojedynczy rekord w ten sam sposób.
@@ -361,7 +365,11 @@ W **Columns** przełącznik **Required** sprawia, że kolumna wymaga wartości, 
 zarchiwizowana kolumna trafia do **Archived columns**, skąd **Restore** przywraca ją
 razem z jej wartościami.
 
+Odczyt porównania zachowuje niezapisane edycje innych pól i ich pierwotną rewizję. Kolejny konflikt odczytuje nowe porównanie; odpowiedź dla zamkniętego rekordu nie zamknie innego rekordu. Długie wartości mają skrócony podgląd.
+
 ### Import i eksport { #import-and-export }
+
+Podczas importu CSV przypisz każdą kolumnę tabeli, także **External id**, tylko raz. Powtórzone przypisania są oznaczone i blokują import do czasu wybrania innej kolumny docelowej lub pominięcia jednej z kolumn pliku.
 
 Eksport odczytuje najwyżej 4 MiB rozwiniętego JSON rekordów na stronę (albo jeden
 rekord), maksymalnie 500 rekordów naraz. Organizacja może przesyłać jeden eksport
@@ -485,6 +493,8 @@ column**.
 Właściciel widoku przełącza go między **Private** a **Shared** przyciskiem obok
 **Rename**. Ktoś, kto zarządza widokiem innego członka, na przykład administrator, nie
 dostaje tego przełącznika: o udostępnieniu czyichś filtrów decyduje ich autor.
+
+Na telefonie menu **Views** zapisanego widoku zawiera zapis nowego widoku, zmianę nazwy, udostępnianie i usuwanie, zgodnie z tymi samymi uprawnieniami co kontrolki na komputerze.
 
 `GET/POST /tables/{id}/views` oraz `GET/PATCH/DELETE /tables/{id}/views/{view_id}`
 listują, tworzą, czytają, aktualizują i usuwają je. Lista jest stronicowana przez
@@ -841,12 +851,12 @@ bez tego kończy się odmową `AUTHORIZATION_ERROR` (403).
 
 ## Domyślny widok {#default-view}
 
-Edytor tabeli może wybrać **Ustaw jako domyślny** na pasku narzędzi. Bieżący układ, filtry i grupowanie zapisują się jako współdzielony widok. Otwiera się on przy wejściu bez jawnych parametrów `view` lub `viewId`. Nowe tabele zadań zaczynają od Kanbana. Domyślny widok musi należeć do tej tabeli i być współdzielony; przed ustawieniem go jako prywatny trzeba wybrać inny domyślny widok. Usunięcie przywraca zwykły układ tabeli. API używa `PATCH /tables/{id}` z `default_view_id`; null usuwa wybór.
+Edytor tabeli może wybrać **Ustaw jako domyślny** w **Ustawieniach widoku**. Bieżący układ, filtry i grupowanie zapisują się jako współdzielony widok. Otwiera się on przy wejściu bez jawnych parametrów `view` lub `viewId`. Nowe tabele zadań zaczynają od Kanbana. Domyślny widok musi należeć do tej tabeli i być współdzielony; przed ustawieniem go jako prywatny trzeba wybrać inny domyślny widok. Usunięcie przywraca zwykły układ tabeli. API używa `PATCH /tables/{id}` z `default_view_id`; null usuwa wybór.
 
 Notatki zadania są dokumentami rich text w Markdown, z edytorem i podglądem jak inne komórki dokumentowe. Osobne relacje **Osoba** i **Agent** mogą zachować człowieka odpowiedzialnego za zadanie i wykonującego je agenta. **Następny krok** wskazuje osobę albo agenta; po przygotowaniu wyniku wraca do osoby. Pracę agenta uruchamia odpowiedzialna osoba na własnym koncie. Przekazując zadanie, wybierz najpierw osobę jako następny krok i pozwól odbiorcy rozpocząć pracę na swoim koncie.
 
 
-**Group by** zapisuje się automatycznie, gdy edytor wybierze kolumnę. Zmiana aktualizuje zapisany widok Kanban, którym może zarządzać; bez takiego widoku tworzy i wybiera widok prywatny. Odmowa zapisu zachowuje poprzednie grupowanie. Czytelnik może zmienić grupowanie tymczasowo. **Set as default** na pasku narzędzi zapisuje bieżący format dla wszystkich; zwykłe tabele otwierają się jako Table, dopóki edytor nie wybierze innego widoku domyślnego.
+**Group by** zapisuje się automatycznie, gdy edytor wybierze kolumnę. Zmiana aktualizuje zapisany widok Kanban, którym może zarządzać; bez takiego widoku tworzy i wybiera widok prywatny. Odmowa zapisu zachowuje poprzednie grupowanie. Czytelnik może zmienić grupowanie tymczasowo. **Set as default** w **View settings** zapisuje bieżący format dla wszystkich; zwykłe tabele otwierają się jako Table, dopóki edytor nie wybierze innego widoku domyślnego.
 
 Nie można usunąć agenta, dopóki zarządzane zadanie zależy od jego zaplanowanego wykonania. Najpierw przepisz, ukończ lub anuluj te zadania; usunięcie agenta nie może po cichu porzucać ich wykonania.
 

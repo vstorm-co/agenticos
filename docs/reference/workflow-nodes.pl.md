@@ -1,5 +1,5 @@
 ---
-source_sha: "4d205a52251b"
+source_sha: "a9b67bff9ee7"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -434,6 +434,8 @@ pusty daje 0. Paleta rysuje krok z ikoną różnic, wśród kroków danych.
 ::: app.workflows.nodes.text_compare._handler.TextCompareOutput
 
 ## html.parse { #html-parse }
+
+Od wersji 1.72.0 selektory dokumentu i zbieranie linków pomijają nieaktywną zawartość `<template>`. Wybranie samego elementu `template` nadal zwraca jego HTML i tekst. Soup Sieve 4 dostosowuje też selektory stanu formularzy do zachowania przeglądarek; przy aktualizacji sprawdź workflowy zależne od poprzednich reguł dopasowania. Dopasowanie korzysta z pamięci podręcznej; limity czasu i pamięci procesu czytnika pozostają w mocy.
 
 **Parse HTML** zamienia HTML na jego tekst, linki i elementy wybrane selektorem CSS.
 Służy do HTML-a, który spotyka przepływ: treści maila, body z `http.request`,
@@ -1400,6 +1402,7 @@ wybierz runtime bez sieci.
 | Zadanie przekroczyło `timeout_seconds` | `PYTHON_SANDBOX_TIMEOUT`, sesja wyczyszczona |
 | Brak używalnego połączenia `sandboxd` | `SANDBOX_UNAVAILABLE` |
 | Zapisał więcej niż 20 plików albo 100 MB albo wypisał więcej niż 10 MB | `PYTHON_OUTPUT_TOO_LARGE`, zmierzone w sandboksie, zanim cokolwiek zostanie pobrane, a sesja wyczyszczona |
+| Host odpowiedział, ale nie uruchomił sandboxa - nie może pisać do katalogu workspace albo obraz się nie zbudował | `SANDBOX_START_FAILED` z bezpieczną diagnozą; surowa odpowiedź pozostaje w logach hosta, ponawiane |
 | Nie udało się połączyć z hostem | `SANDBOX_UNREACHABLE`, ponawiane |
 
 ::: app.workflows.nodes.code_python_simple._handler.PythonSimpleConfig

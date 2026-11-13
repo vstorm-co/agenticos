@@ -99,6 +99,7 @@ describe("UnsavedChangesGuard", () => {
     await userEvent.click(screen.getByRole("link", { name: "Agents" }));
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(screen.getByRole("button", { name: "Saving…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
     // Escape while saving leaves the question where it is.
     await userEvent.keyboard("{Escape}");
     expect(asked()).toBeInTheDocument();

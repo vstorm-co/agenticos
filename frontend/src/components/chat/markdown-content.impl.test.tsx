@@ -478,3 +478,26 @@ it("renders direct video links in documents without autoplay and leaves chat lin
     "https://cdn.example.com/demo.mp4",
   );
 });
+
+it("shows an unknown site's own favicon without any MCP connection", () => {
+  const { container } = markdown("Read [the article](https://independent.example/post).");
+  const icon = container.querySelector("img");
+  expect(icon).toHaveAttribute("src", "/api/link-icon?host=independent.example");
+  expect(icon).toHaveAttribute("referrerpolicy", "no-referrer");
+  expect(icon).toHaveAttribute("alt", "");
+  expect(screen.getByRole("link", { name: "the article" })).toHaveAttribute(
+    "rel",
+    "noopener noreferrer",
+  );
+});
+
+it("does not fetch unknown-site favicons in an inert shared transcript", () => {
+  const { container } = render(
+    <MarkdownContent content="[the article](https://independent.example/post)" inertImages />,
+  );
+  expect(container.querySelector("img")).toBeNull();
+  expect(screen.getByRole("link", { name: "the article" })).toHaveAttribute(
+    "href",
+    "https://independent.example/post",
+  );
+});

@@ -133,3 +133,13 @@ describe("useNotificationPreferences", () => {
     expect(cancelSpy).toHaveBeenCalledWith({ queryKey: qk.notifications.preferences() });
   });
 });
+
+it("retries a failed read and restores the stored notification choices", async () => {
+  vi.mocked(api.listNotificationPreferences).mockRejectedValueOnce(new Error("Unavailable"));
+  const { result } = renderHook(() => useNotificationPreferences(), { wrapper });
+  await waitFor(() => expect(result.current.error).toBe("Unavailable"));
+  vi.mocked(api.listNotificationPreferences).mockResolvedValue([preference({ enabled: false })]);
+  act(() => result.current.retry());
+  await waitFor(() => expect(result.current.error).toBeNull());
+  expect(result.current.isEnabled("run_completed", "in_app")).toBe(false);
+});
