@@ -159,7 +159,13 @@ test("case editing keeps fields and save reachable on narrow and short screens",
           { message: `${tab} fills the page at ${width}px before expanding` },
         )
         .toBeLessThanOrEqual(1);
-      await page.getByRole("button", { name: "Full screen", exact: true }).click();
+      const expand = page.getByRole("button", { name: "Full screen", exact: true });
+      if (width >= 768) {
+        await expect(expand).toBeHidden();
+        await fitsPage(page);
+        continue;
+      }
+      await expand.click();
       const workspace = page.getByRole("dialog", { name, exact: true });
       await expect(workspace).toBeVisible();
       const bounds = await workspace.boundingBox();

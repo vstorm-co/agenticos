@@ -1,12 +1,36 @@
 ---
-source_sha: "90338e3a8738"
+source_sha: "1b6fafac402e"
 ---
 
 # Konsola { #the-console }
 
+Osobisty dashboard odczytuje onboarding i Briefing razem przed pokazaniem pierwszego wiersza. Jedno zarezerwowane miejsce ładowania zapobiega zmianom układu placeholderów; pozostałe widżety ładują się niezależnie. Błędy odczytu zachowują możliwość ponowienia. Rozszerzanie obszaru roboczego jest dostępne na telefonach; przejście na desktop przywraca nawigację i zachowuje niezapisane pola.
+
+Ustawienia kontekstu pokazują zwarte wiersze plików z wyborem sposobu użycia przez agenta. Długie opisy nie rozciągają sąsiednich pozycji, a wyłącznie wstrzykiwany kontekst ma neutralną informację. Dostępność pokazuje logo platformy obok nazwy bota. Udostępnianie aplikacji zaczyna się od adresu i osób z dostępem; wygaśnięcie, przypięcie wersji, osadzanie i hasło są zwinięte w Ustawieniach linku. Aktywne ograniczenia pozostają widoczne jako etykiety, a zwinięcie opcji zachowuje edycję.
+
+Na telefonach rejestracja kanału używa zwartego wyboru platformy. Anulowanie nowego kanału, nowego klucza w sejfie lub rotacji klucza czyści wpisane poświadczenia. Formularze kanałów i sejfu blokują edycję oraz zamykanie podczas zapisu; odmowa zachowuje wartości do poprawienia i ponowienia. Edycja kanału i rotacja klucza utrzymują przyciski w widocznej stopce także na niskim ekranie.
+
+Na telefonach nowy plik kontekstu pokazuje edytor treści przed opcjonalnymi szczegółami. Szczegóły pokazują rzeczywisty dostęp także po zwinięciu; rozwiń je, aby zmienić opis lub dostęp. Błąd opisu automatycznie rozwija tę sekcję, aby można go było poprawić.
+
+Formularze nowego projektu, pliku kontekstu i datasetu pytają przed porzuceniem danych. Zostań zachowuje wersję roboczą, a Odrzuć ją zeruje. Podczas tworzenia pola, Anuluj, Zamknij i Escape są zablokowane do zakończenia zapisu. Odmowa przywraca edycję i zachowuje wartości. Źródło pliku kontekstu jest w tym czasie tylko do odczytu.
+
+Przy wielu upuszczonych plikach kontekstu zamknięcie oferuje tylko Zostań lub Odrzuć; użyj Utwórz, aby przetwarzać je po kolei. Ustawienia datasetu i formularze przypadków także blokują pola i zamykanie podczas zapisu, w tym przełącznik formularz/JSON. Zapis pozostaje dostępny w krótkich oknach telefonu.
+
+Rozpoczęcie logowania MCP zachowuje otwarty formularz do uzyskania adresu zgody. Odmowa zachowuje wpisane dane do poprawienia i ponowienia próby.
+
+Edycja własnych komend slash pyta przed porzuceniem formularza. Zapis blokuje pola i zamykanie do zakończenia żądania; odmowa zachowuje dane. Na telefonach akcje komendy mają osobny wiersz i pola dotykowe. Przełącznik w trakcie zapisu blokuje sprzeczne akcje, a usuwanie wymaga potwierdzenia. Formularze połączeń MCP również blokują pola i zamykanie podczas zapisu.
+
 Konsola to aplikacja webowa, przez którą konfiguruje się wszystko inne opisane na
 tej stronie. Ta strona jest mapą: do czego służy każdy obszar i która strona
 wyjaśnia go porządnie.
+
+Gdy edytujesz ustawienia projektu, nazwę organizacji, limit wydatków, domyślne ustawienia głosu, okresy retencji danych, skill lub plik context, wyjście wymaga decyzji: zapisać, odrzucić czy zostać. Dotyczy to także przejścia do innego pliku zasobów skill. Odmowa zapisu pozostawia draft otwarty; **Save file** usuwa go dopiero po potwierdzeniu zapisu przez serwer. Tekst dopisany w trakcie zapisywania tego pliku pozostaje niezapisany.
+
+Na telefonie dokumenty bazy wiedzy i członkowie organizacji mają podpisane wiersze z widocznymi akcjami. Usunięcie członka wymaga potwierdzenia, a odmowa zachowuje otwarte okno. Formularze tworzenia KB, parsowania i dostawcy embeddingów blokują pola i pozostają otwarte podczas zapisu; po odmowie znów można je edytować i zamknąć. Nieudane pobranie dokumentu pokazuje błąd i pozwala ponowić próbę.
+
+Zmiana pytania lub zakresu wyszukiwania wiedzy usuwa wcześniejsze wyniki i anuluje oczekujące zapytanie. Spóźniona odpowiedź nie może zastąpić wyników nowszego wyszukiwania.
+
+Publiczny czat pozwala pisać podczas łączenia, ale włącza Send dopiero po otwarciu bieżącego WebSocket. Nowa rozmowa czeka na własne połączenie; przedwczesne kliknięcie nie gubi pierwszego pytania.
 
 Jeśli szukasz jednego ekranu, najszybszą drogą jest **"?"** w nagłówku strony —
 odtwarza on przewodnik po tej stronie, a strona, w której nagłówku nie ma "?",
@@ -85,6 +109,10 @@ Na telefonach wysłane wiadomości zatrzymują się poniżej pływających przyc
 Domyślni agenci kończą jednorazowe zadanie bez przedłużania odpowiedzi pytaniem o opcjonalną automatyzację. Pytania służą decyzjom potrzebnym do bieżącego zadania albo automatyzacji, o którą użytkownik prosi lub którą akceptuje. Opcjonalne karty konfiguracji pozostają propozycjami, które nie blokują zakończenia.
 
 Kompaktowy przycisk źródeł pod odpowiedzią otwiera Sources obok rozmowy, a na telefonie panel na całą szerokość. Files i Sources dzielą boczny obszar: otwarcie jednego zastępuje drugi. Źródła internetowe używają favicon witryny pobieranej bez nagłówka Referer lub znanego logo usługi; globus pozostaje, gdy ikona jest niedostępna. Źródła z bazy wiedzy zachowują ikony plików i podgląd oryginalnego dokumentu.
+
+Linki internetowe w odpowiedzi korzystają z tych samych favicon niezależnie od połączeń MCP. Ikony nieznanych stron przechodzą przez proxy konsoli i stały serwis ikon DuckDuckGo. Serwis otrzymuje tylko nazwę hosta, bez cookies i adresu IP czytelnika, ścieżki ani parametrów URL. Proxy odrzuca przekierowania, obrazy inne niż rastrowe i ikony ponad 64 KiB; limit czasu wynosi trzy sekundy. Brak lub niedostępność ikony zastępuje globus. Widoki transkrypcji z wyłączonym ładowaniem obrazów nie pobierają też ikon nieznanych stron.
+
+Nieudany run pokazuje błąd oddzielnie od odpowiedzi agenta, poza zwijanymi narzędziami, także po odświeżeniu rozmowy. Filtr treści dostawcy ma osobne wyjaśnienie; surowe odpowiedzi dostawcy i nieznane historyczne komunikaty błędów nie są kopiowane do udostępnianych transkrypcji. Częściowe wyniki pozostają dostępne, a nieudana praca nie jest oznaczana jako ukończona.
 
 ## Dashboard { #the-dashboard }
 
@@ -187,6 +215,8 @@ migawkę, którą chciałeś zachować.
     od tego, czy układ pochodzi z domyślnego, czy z twojego zapisanego.
 
 ## Rutyny i obserwacje { #routines-and-watches }
+
+Nazwy rutyn zawijają się na telefonach. Brak wyników daje przycisk **Wyczyść wyszukiwanie**, a **Ponów** odświeża zadania i obserwacje po błędzie odczytu. Edycja harmonogramu i wyzwalacza zdarzeniowego przewija się między stałym nagłówkiem i stopką z przyciskami. Zapis blokuje pola oraz zamykanie do zakończenia żądania; odmowa zachowuje wpisane dane.
 
 Routines ma dwie zakładki. **Zadania agentów** uruchamiają wybranego agenta według
 harmonogramu lub zdarzenia, z jego narzędziami; runy widać w Activity.
@@ -959,6 +989,18 @@ pracujesz i twoją strefę czasową. Każdy agent czyta je na początku runu, wi
 nigdy nie powtarzasz ich w czacie; „w każdy poniedziałek o 9” to twoja 9. Strefa
 czasowa jest brana z przeglądarki przy pierwszym logowaniu, dopóki nie wybierzesz
 własnej.
+
+Ustawienia profilu łączą avatar, nazwę i e-mail w jednym formularzu, z kolorami
+zastępczymi pod rozwinięciem. Zapis jest pod polami, a Enter wysyła formularz
+nazwy lub roli. Podczas zapisu profilu pola danych i kontekstu są zablokowane;
+odmowa zachowuje formularz. Dni pracy mają większe pola dotyku, a godziny
+początku i końca są osobnymi polami także na telefonie.
+
+**Ustawienia → Powiadomienia** wyszukują nazwy i opisy zdarzeń, po sześć na
+stronie. Selektor czatu zmienia dodatkowy kanał bez zmiany pozostałych preferencji.
+Połączone miejsca powiadomień w prywatnych czatach są pierwsze; pozostałe platformy
+są pod rozwinięciem. Błędy odczytu preferencji, miejsc lub połączonych kont mają
+przycisk ponowienia zamiast pozornych wartości domyślnych lub pustej listy kont.
 
 ## Następny krok { #the-next-step }
 

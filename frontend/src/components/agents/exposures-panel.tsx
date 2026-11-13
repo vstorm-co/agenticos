@@ -20,6 +20,7 @@ import {
 import { useAgentEnvironments, useChannelBots, useExposures, usePermissions } from "@/hooks";
 import { AddChannelDialog } from "@/components/channels/add-channel-dialog";
 import { ExposureChannelTiles, SURFACE_LABEL } from "@/components/agents/exposure-channel-tiles";
+import { ChannelPlatformIcon } from "@/components/channels/channel-platform-icon";
 import { ExposurePrompt } from "@/components/agents/exposure-prompt";
 import { ExposureCostReporting } from "@/components/agents/exposure-cost-reporting";
 import { ExposureTools } from "@/components/agents/exposure-tools";
@@ -87,7 +88,7 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
   // binding serves it and a picker would offer one option.
   const namedEnvironments = environments.filter((environment) => !environment.is_default);
 
-  if (isLoading) return <LoadingState variant="skeleton-panel" rows={2} />;
+  if (isLoading) return <LoadingState variant="pending" />;
 
   return (
     <Card>
@@ -101,14 +102,23 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
       <CardContent className="space-y-3">
         {exposures.map((exposure) => (
           <div key={exposure.id} className="space-y-3 rounded-md border p-3">
-            <div className="flex items-center gap-3">
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm">
-                  {SURFACE_LABEL[exposure.surface]} - {exposure.channel_bot_name}
-                </p>
-                {!exposure.is_active && (
-                  <p className="text-muted-foreground text-xs">{t("pausedHandleAnswersNothing")}</p>
-                )}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex min-w-40 flex-1 items-center gap-3">
+                <ChannelPlatformIcon
+                  platform={exposure.surface}
+                  className="h-10 w-10 [&_svg]:h-5 [&_svg]:w-5"
+                />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium [overflow-wrap:anywhere]">
+                    {exposure.channel_bot_name}
+                  </p>
+                  <p className="text-muted-foreground text-xs">{SURFACE_LABEL[exposure.surface]}</p>
+                  {!exposure.is_active && (
+                    <p className="text-muted-foreground text-xs">
+                      {t("pausedHandleAnswersNothing")}
+                    </p>
+                  )}
+                </div>
               </div>
               {namedEnvironments.length > 0 && (
                 <Select

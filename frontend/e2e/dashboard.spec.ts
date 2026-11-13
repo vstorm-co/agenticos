@@ -185,7 +185,7 @@ test.describe("Dashboard", () => {
     }
   });
 
-  test("keeps the opening in place while checklist data arrives late", async ({ page }) => {
+  test("waits for the complete opening while preserving the dashboard header", async ({ page }) => {
     for (const width of [1440, 390]) {
       let release: (() => void) | undefined;
       const pending = new Promise<void>((resolve) => {
@@ -218,27 +218,41 @@ test.describe("Dashboard", () => {
         name: "Start with something useful",
         exact: true,
       });
-      const checklist = startPanel.getByRole("status", { name: "Loading", exact: true });
-      await expect(checklist).toBeVisible();
+      const opening = page.getByRole("main").locator('[role="status"][aria-busy="true"]');
+      await expect(opening).toHaveCount(1);
+      await expect(opening).toBeVisible();
+      await expect(startPanel).toHaveCount(0);
+      await expect(page.getByRole("heading", { name: "Briefing", exact: true })).toHaveCount(0);
       await expect(page.getByText(/Your agents ran/)).toBeVisible();
       const briefing = page
         .locator(".dash-widget")
         .filter({ has: page.getByRole("heading", { name: "Briefing", exact: true }) });
       const period = page.getByRole("heading", { name: "Your period", exact: true });
-      const beforeBriefing = await briefing.boundingBox();
-      const beforePeriod = await period.boundingBox();
+      const heading = page.getByRole("heading", { level: 1 });
+      const beforeHeading = await heading.boundingBox();
       release?.();
-      await expect(checklist).toHaveCount(0);
+      await expect(opening).toHaveCount(0);
       await expect(
         startPanel.getByRole("link", { name: "Get started", exact: true }),
       ).toHaveAttribute("href", "/onboarding");
+      const afterHeading = await heading.boundingBox();
       const afterBriefing = await briefing.boundingBox();
+      const checklist = await startPanel.boundingBox();
       const afterPeriod = await period.boundingBox();
-      if (!beforeBriefing || !afterBriefing || !beforePeriod || !afterPeriod)
+      if (!beforeHeading || !afterHeading || !afterBriefing || !checklist || !afterPeriod)
         throw new Error("Opening did not render");
-      expect(Math.abs(afterBriefing.x - beforeBriefing.x)).toBeLessThanOrEqual(1);
-      expect(Math.abs(afterBriefing.width - beforeBriefing.width)).toBeLessThanOrEqual(1);
-      expect(Math.abs(afterPeriod.y - beforePeriod.y)).toBeLessThanOrEqual(1);
+      expect(Math.abs(afterHeading.y - beforeHeading.y)).toBeLessThanOrEqual(1);
+      expect(Math.abs(afterHeading.width - beforeHeading.width)).toBeLessThanOrEqual(1);
+      if (width >= 1024) {
+        expect(afterBriefing.x).toBeGreaterThanOrEqual(checklist.x + checklist.width);
+        expect(Math.abs(afterBriefing.y - checklist.y)).toBeLessThanOrEqual(1);
+      } else {
+        expect(afterBriefing.y).toBeGreaterThanOrEqual(checklist.y + checklist.height);
+      }
+      expect(afterPeriod.y).toBeGreaterThanOrEqual(afterBriefing.y + afterBriefing.height);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+        width,
+      );
       await page.unroute(startState);
     }
   });

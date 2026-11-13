@@ -46,13 +46,7 @@ import type {
 } from "@/types/secrets";
 import type { StorableSecretKind } from "@/types/secrets";
 import { useTranslations } from "next-intl";
-import {
-  DIALOG_BODY,
-  DIALOG_COLUMN,
-  DIALOG_CONFIRM,
-  DIALOG_FORM,
-  DIALOG_SCROLL_GUTTER,
-} from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_CONFIRM, DIALOG_FORM } from "@/lib/dialog-sizes";
 
 /** What the backend accepts, so an over-long value is refused before it is sent. */
 const MAX_NAME = 128;
@@ -186,6 +180,7 @@ export function AddSecretDialog({
     setVisibility(null);
     setName(null);
     setDescription("");
+    setKind("api_key");
     setValue({});
     setCallbackUrl("");
     setErrors({});
@@ -219,8 +214,14 @@ export function AddSecretDialog({
     setErrors({});
   }
 
+  function changeOpen(next: boolean) {
+    if (pending) return;
+    if (!next) reset();
+    onOpenChange(next);
+  }
+
   async function submit() {
-    if (info === null) return;
+    if (pending || info === null) return;
     try {
       if (signsIn) {
         await chatgpt.create.mutateAsync({
@@ -259,19 +260,13 @@ export function AddSecretDialog({
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (!next) reset();
-        onOpenChange(next);
-      }}
-    >
+    <Dialog open={open} onOpenChange={changeOpen}>
       {/* One column that scrolls as a whole, in the order somebody fills it:
           what it is for, which service, the key itself, what to call it and
           who may use it - the note folded away. The cards with a subtitle each,
           the paired selects and a scroll box inside the dialog read as a form
           about the form. */}
-      <DialogContent className={cn(DIALOG_FORM, DIALOG_COLUMN)}>
+      <DialogContent className={cn(DIALOG_FORM, DIALOG_COLUMN)} dismissible={!pending}>
         <DialogHeader>
           <DialogTitle>
             {t(fixedKind === "smtp_account" ? "addSmtpAccount" : "addSecret")}
@@ -279,208 +274,211 @@ export function AddSecretDialog({
           <DialogDescription>{t("encryptedBoundOrganizationAgent")}</DialogDescription>
         </DialogHeader>
 
-        <div className={cn(DIALOG_BODY, "space-y-5")}>
-          {/* A caption over a group of buttons, not a `Label`: a label names
+        <div className={DIALOG_BODY}>
+          <fieldset disabled={pending} className="min-w-0 space-y-5">
+            <legend className="sr-only">{t("addSecret")}</legend>
+            {/* A caption over a group of buttons, not a `Label`: a label names
               one control, and this one names five. */}
-          {fixedKind === undefined && (
-            <div className="space-y-2">
-              <p id="secret-purpose-family" className="text-sm leading-none font-medium">
-                {t("what")}
-              </p>
-              {/* A tile per kind of key, each wearing the marks of the services it
+            {fixedKind === undefined && (
+              <div className="space-y-2">
+                <p id="secret-purpose-family" className="text-sm leading-none font-medium">
+                  {t("what")}
+                </p>
+                {/* A tile per kind of key, each wearing the marks of the services it
                 covers - "Model provider" says less at a glance than the OpenAI,
                 Anthropic and Gemini marks do. Taken from the catalog, so a new
                 service shows up here without a change to this file. */}
-              <div
-                role="group"
-                aria-labelledby="secret-purpose-family"
-                className="grid grid-cols-2 gap-2 sm:grid-cols-3"
-              >
-                {PURPOSE_GROUPS.map((group) => (
-                  <button
-                    key={group.id}
-                    type="button"
-                    onClick={() => chooseCategory(group.id)}
-                    aria-pressed={category === group.id}
-                    title={t(`${group.words}Hint`)}
-                    className={cn(
-                      "flex flex-col items-start gap-2 rounded-xl border p-3 text-left text-sm font-medium transition-colors",
-                      category === group.id
-                        ? "border-foreground bg-accent text-foreground"
-                        : "border-input text-muted-foreground hover:text-foreground hover:bg-accent/60",
-                    )}
-                  >
-                    <span className="text-foreground flex h-5 items-center gap-1.5" aria-hidden>
-                      {group.id === "other" ? (
-                        <KeyRound className="h-4 w-4" />
-                      ) : (
-                        purposes
-                          .filter((entry) => entry.category === group.id)
-                          .slice(0, 3)
-                          .map((entry) => (
-                            <ProviderIcon
-                              key={entry.id}
-                              provider={entry.id}
-                              brand={entry.icon}
-                              className="h-4 w-4"
-                            />
-                          ))
+                <div
+                  role="group"
+                  aria-labelledby="secret-purpose-family"
+                  className="grid grid-cols-2 gap-2 sm:grid-cols-3"
+                >
+                  {PURPOSE_GROUPS.map((group) => (
+                    <button
+                      key={group.id}
+                      type="button"
+                      onClick={() => chooseCategory(group.id)}
+                      aria-pressed={category === group.id}
+                      title={t(`${group.words}Hint`)}
+                      className={cn(
+                        "flex flex-col items-start gap-2 rounded-xl border p-3 text-left text-sm font-medium transition-colors",
+                        category === group.id
+                          ? "border-foreground bg-accent text-foreground"
+                          : "border-input text-muted-foreground hover:text-foreground hover:bg-accent/60",
                       )}
-                    </span>
-                    {t(group.words)}
-                  </button>
-                ))}
+                    >
+                      <span className="text-foreground flex h-5 items-center gap-1.5" aria-hidden>
+                        {group.id === "other" ? (
+                          <KeyRound className="h-4 w-4" />
+                        ) : (
+                          purposes
+                            .filter((entry) => entry.category === group.id)
+                            .slice(0, 3)
+                            .map((entry) => (
+                              <ProviderIcon
+                                key={entry.id}
+                                provider={entry.id}
+                                brand={entry.icon}
+                                className="h-4 w-4"
+                              />
+                            ))
+                        )}
+                      </span>
+                      {t(group.words)}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {fixedKind === undefined && (
-            <div className="space-y-2">
-              <Label htmlFor="secret-purpose">
-                {category === "other" ? t("service") : t("whichOne")}
-              </Label>
-              {/* The entry that is in force, fallback included - the raw choice
+            {fixedKind === undefined && (
+              <div className="space-y-2">
+                <Label htmlFor="secret-purpose">
+                  {category === "other" ? t("service") : t("whichOne")}
+                </Label>
+                {/* The entry that is in force, fallback included - the raw choice
                   is empty until somebody picks, and a trigger bound to it read as
                   blank while the hint under it already named the first service. */}
-              <Select value={chosen?.id ?? ""} onValueChange={choosePurpose}>
-                <SelectTrigger id="secret-purpose">
+                <Select value={chosen?.id ?? ""} onValueChange={choosePurpose}>
+                  <SelectTrigger id="secret-purpose">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-80">
+                    {inCategory.map((entry) => (
+                      <SelectItem key={entry.id} value={entry.id} textValue={entry.label}>
+                        {/* The mark, where there is one. A vault is scanned rather
+                          than read, and a logo is what the eye lands on. */}
+                        <ProviderRow provider={entry.id} name={entry.label} brand={entry.icon} />
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-muted-foreground text-xs">
+                  {chosen?.description ?? t("namingServiceWhatLets")}
+                  {chosen?.help_url && (
+                    <>
+                      {" "}
+                      <a
+                        href={chosen.help_url}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        className="underline underline-offset-4"
+                      >
+                        {t("whereDoIGet2")}
+                      </a>
+                    </>
+                  )}
+                </p>
+              </div>
+            )}
+
+            {info && signsIn && (
+              <ChatGPTSignInSteps
+                callbackUrl={callbackUrl}
+                onCallbackUrlChange={setCallbackUrl}
+                error={errors.callback_url}
+                disabled={pending}
+                idPrefix="secret"
+              />
+            )}
+            {info && !signsIn && (
+              <SecretFields
+                info={info}
+                value={value}
+                onChange={setValue}
+                disabled={pending}
+                idPrefix="secret"
+                errors={errors}
+              />
+            )}
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField
+                label={t("name")}
+                htmlFor="secret-name"
+                error={errors.name}
+                // Full width unless the Kind select is beside it: a lone half-width
+                // input with empty space to its right reads as a field that failed
+                // to render its neighbour.
+                className={asksKind ? undefined : "sm:col-span-2"}
+              >
+                <Input
+                  value={shownName}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder={t("zendeskApiToken")}
+                  maxLength={MAX_NAME}
+                />
+              </FormField>
+
+              {/* Only for `custom`: every named service declares the shape it
+                takes, and asking twice is asking somebody to disagree with the
+                server. */}
+              {asksKind && (
+                <div className="space-y-2">
+                  <Label htmlFor="secret-kind">{t("kind")}</Label>
+                  <Select value={kind} onValueChange={chooseKind}>
+                    <SelectTrigger id="secret-kind">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {/* Not a shape a custom secret can take: a ChatGPT
+                        sign-in is stored by signing in, under its provider. */}
+                      {kinds
+                        .filter((entry) => entry.kind !== "openai_codex")
+                        .map((entry) => (
+                          <SelectItem key={entry.kind} value={entry.kind}>
+                            {entry.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="secret-visibility">{t("whoCanUse")}</Label>
+              <Select
+                value={visibility}
+                onValueChange={(next) => setVisibility(next as SecretVisibility)}
+              >
+                <SelectTrigger id="secret-visibility">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="max-h-80">
-                  {inCategory.map((entry) => (
-                    <SelectItem key={entry.id} value={entry.id} textValue={entry.label}>
-                      {/* The mark, where there is one. A vault is scanned rather
-                          than read, and a logo is what the eye lands on. */}
-                      <ProviderRow provider={entry.id} name={entry.label} brand={entry.icon} />
-                    </SelectItem>
-                  ))}
+                <SelectContent>
+                  <SelectItem value="org">{t("everyoneOrganization")}</SelectItem>
+                  <SelectItem value="private">{t("onlyMe")}</SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-muted-foreground text-xs">
-                {chosen?.description ?? t("namingServiceWhatLets")}
-                {chosen?.help_url && (
-                  <>
-                    {" "}
-                    <a
-                      href={chosen.help_url}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      className="underline underline-offset-4"
-                    >
-                      {t("whereDoIGet2")}
-                    </a>
-                  </>
-                )}
+                {visibility === "org" ? t("sharedAccountAnyoneHere") : t("yoursAloneYouCan")}{" "}
+                {t("eitherWayAgentRunsWithIt")}
               </p>
             </div>
-          )}
 
-          {info && signsIn && (
-            <ChatGPTSignInSteps
-              callbackUrl={callbackUrl}
-              onCallbackUrlChange={setCallbackUrl}
-              error={errors.callback_url}
-              disabled={pending}
-              idPrefix="secret"
-            />
-          )}
-          {info && !signsIn && (
-            <SecretFields
-              info={info}
-              value={value}
-              onChange={setValue}
-              disabled={isPending}
-              idPrefix="secret"
-              errors={errors}
-            />
-          )}
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <FormField
-              label={t("name")}
-              htmlFor="secret-name"
-              error={errors.name}
-              // Full width unless the Kind select is beside it: a lone half-width
-              // input with empty space to its right reads as a field that failed
-              // to render its neighbour.
-              className={asksKind ? undefined : "sm:col-span-2"}
-            >
-              <Input
-                value={shownName}
-                onChange={(event) => setName(event.target.value)}
-                placeholder={t("zendeskApiToken")}
-                maxLength={MAX_NAME}
-              />
-            </FormField>
-
-            {/* Only for `custom`: every named service declares the shape it
-                takes, and asking twice is asking somebody to disagree with the
-                server. */}
-            {asksKind && (
-              <div className="space-y-2">
-                <Label htmlFor="secret-kind">{t("kind")}</Label>
-                <Select value={kind} onValueChange={chooseKind}>
-                  <SelectTrigger id="secret-kind">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {/* Not a shape a custom secret can take: a ChatGPT
-                        sign-in is stored by signing in, under its provider. */}
-                    {kinds
-                      .filter((entry) => entry.kind !== "openai_codex")
-                      .map((entry) => (
-                        <SelectItem key={entry.kind} value={entry.kind}>
-                          {entry.name}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="secret-visibility">{t("whoCanUse")}</Label>
-            <Select
-              value={visibility}
-              onValueChange={(next) => setVisibility(next as SecretVisibility)}
-            >
-              <SelectTrigger id="secret-visibility">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="org">{t("everyoneOrganization")}</SelectItem>
-                <SelectItem value="private">{t("onlyMe")}</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-muted-foreground text-xs">
-              {visibility === "org" ? t("sharedAccountAnyoneHere") : t("yoursAloneYouCan")}{" "}
-              {t("eitherWayAgentRunsWithIt")}
-            </p>
-          </div>
-
-          <MoreOptions label={t("moreOptions")}>
-            <FormField
-              label={t("noteOptional")}
-              htmlFor="secret-description"
-              error={errors.description}
-              description={t("shownNextPickerWhich")}
-            >
-              <Textarea
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                rows={2}
-                maxLength={MAX_DESCRIPTION}
-              />
-            </FormField>
-          </MoreOptions>
+            <MoreOptions label={t("moreOptions")}>
+              <FormField
+                label={t("noteOptional")}
+                htmlFor="secret-description"
+                error={errors.description}
+                description={t("shownNextPickerWhich")}
+              >
+                <Textarea
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  rows={2}
+                  maxLength={MAX_DESCRIPTION}
+                />
+              </FormField>
+            </MoreOptions>
+          </fieldset>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" disabled={pending} onClick={() => changeOpen(false)}>
             {t("cancel2")}
           </Button>
-          <Button onClick={submit} disabled={!complete || pending}>
+          <Button onClick={submit} loading={pending} disabled={!complete}>
             {t(fixedKind === "smtp_account" ? "storeSmtpAccount" : "storeSecret")}
           </Button>
         </DialogFooter>
@@ -539,8 +537,14 @@ export function RotateSecretDialog({
     setErrors({});
   }
 
+  function changeOpen(next: boolean) {
+    if (pending) return;
+    if (!next) clear();
+    onOpenChange(next);
+  }
+
   async function submit() {
-    if (secret === null || info === null) return;
+    if (pending || secret === null || info === null) return;
     try {
       if (reconnects) {
         await chatgpt.reconnect.mutateAsync({ id: secret.id, callback_url: callbackUrl.trim() });
@@ -558,14 +562,8 @@ export function RotateSecretDialog({
   }
 
   return (
-    <Dialog
-      open={secret !== null}
-      onOpenChange={(next) => {
-        if (!next) clear();
-        onOpenChange(next);
-      }}
-    >
-      <DialogContent className={DIALOG_CONFIRM}>
+    <Dialog open={secret !== null} onOpenChange={changeOpen}>
+      <DialogContent className={cn(DIALOG_CONFIRM, DIALOG_COLUMN)} dismissible={!pending}>
         <DialogHeader>
           <DialogTitle>
             {t(reconnects ? "chatgptReconnectNamed" : "rotateNamed", { name: secret?.name ?? "" })}
@@ -576,37 +574,40 @@ export function RotateSecretDialog({
         </DialogHeader>
 
         {secret && info && (
-          <div className={cn("max-h-[60vh] space-y-4 overflow-y-auto pl-1", DIALOG_SCROLL_GUTTER)}>
-            <p className="text-muted-foreground text-xs">
-              {t("nameCurrentlyEnds", { name: info.name })}{" "}
-              <span className="font-mono">····{secret.hint}</span>
-            </p>
-            {reconnects ? (
-              <ChatGPTSignInSteps
-                callbackUrl={callbackUrl}
-                onCallbackUrlChange={setCallbackUrl}
-                error={errors.callback_url}
-                disabled={pending}
-                idPrefix="rotate"
-              />
-            ) : (
-              <SecretFields
-                info={info}
-                value={value}
-                onChange={setValue}
-                disabled={isPending}
-                idPrefix="rotate"
-                errors={errors}
-              />
-            )}
+          <div className={DIALOG_BODY}>
+            <fieldset disabled={pending} className="min-w-0 space-y-4">
+              <legend className="sr-only">{t("rotate")}</legend>
+              <p className="text-muted-foreground text-xs">
+                {t("nameCurrentlyEnds", { name: info.name })}{" "}
+                <span className="font-mono">····{secret.hint}</span>
+              </p>
+              {reconnects ? (
+                <ChatGPTSignInSteps
+                  callbackUrl={callbackUrl}
+                  onCallbackUrlChange={setCallbackUrl}
+                  error={errors.callback_url}
+                  disabled={pending}
+                  idPrefix="rotate"
+                />
+              ) : (
+                <SecretFields
+                  info={info}
+                  value={value}
+                  onChange={setValue}
+                  disabled={pending}
+                  idPrefix="rotate"
+                  errors={errors}
+                />
+              )}
+            </fieldset>
           </div>
         )}
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" disabled={pending} onClick={() => changeOpen(false)}>
             {t("cancel3")}
           </Button>
-          <Button onClick={submit} disabled={!complete || pending}>
+          <Button onClick={submit} loading={pending} disabled={!complete}>
             {reconnects ? t("chatgptReconnect") : t("rotate")}
           </Button>
         </DialogFooter>

@@ -6,6 +6,10 @@
     in this platform passes through `app/core/vault.py`. Adding a second way to
     hold a credential at rest is the defect two migrations removed.
 
+## In the console
+
+Vault lists keys, your connected accounts and organization accounts in one table. **Add key** stores a credential; **Connect account** lets you choose your own account or, with permission, an organization account. Each row keeps its own access and actions: key sharing/rotation, or account reconnection/disconnection. OAuth tokens stay hidden, and disconnecting an account asks for confirmation.
+
 ## Envelope encryption
 
 Each secret is sealed with its own random data key. That data key is sealed with a

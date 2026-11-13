@@ -17,11 +17,10 @@ it("renders nothing after configuration is complete", () => {
   expect(container).toBeEmptyDOMElement();
 });
 it("lets a tab describe its marker without adding a second tab stop", () => {
-  render(<SetupIndicator hints={["memoryModel"]} focusable={false} />);
-  expect(screen.getByRole("button", { name: /Memory maintenance/ })).toHaveAttribute(
-    "tabindex",
-    "-1",
-  );
+  const { container } = render(<SetupIndicator hints={["memoryModel"]} focusable={false} />);
+  expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  expect(container.firstElementChild).toHaveAttribute("aria-hidden", "true");
+  expect(container.querySelector(".bg-amber-500")).not.toBeNull();
 });
 
 it("opens its explanation on tap without requiring hover", async () => {

@@ -67,11 +67,10 @@ describe("LoadingState", () => {
     expect(screen.getAllByRole("columnheader")).toHaveLength(5);
   });
 
-  it("renders a panel as one card with inner rows", () => {
-    const { container } = render(<LoadingState variant="skeleton-panel" rows={3} />);
-
-    expect(screen.getByRole("status").className).toContain("rounded-xl");
-    expect(container.querySelectorAll(".rounded-md.border")).toHaveLength(3);
+  it("reserves space without inventing fields before an unknown layout resolves", () => {
+    const { container } = render(<LoadingState variant="pending" />);
+    expect(screen.getByRole("status")).toHaveAttribute("aria-busy", "true");
+    expect(container.querySelector("table, input, .rounded-xl.border")).toBeNull();
   });
 
   it("renders one tile per stat", () => {

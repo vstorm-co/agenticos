@@ -364,7 +364,7 @@ describe("TriggerPanel", () => {
 
   it("waits for the exposure, and shows nothing when the version has none", () => {
     hook.isLoading = true;
-    const { container, rerender } = render(
+    const { rerender } = render(
       <TriggerPanel
         workflow={workflow("trigger.webhook")}
         draft={null}
@@ -372,7 +372,7 @@ describe("TriggerPanel", () => {
         canEdit
       />,
     );
-    expect(container.querySelector("[data-slot='skeleton'], .animate-pulse")).not.toBeNull();
+    expect(screen.getByRole("status")).toHaveAttribute("aria-busy", "true");
     hook.isLoading = false;
     rerender(
       <TriggerPanel

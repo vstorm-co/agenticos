@@ -23,7 +23,7 @@ export function StartChecklist({ orgId, className }: { orgId: string; className?
     return (
       <section aria-label={t("offerTitle")} className={frame}>
         <h2 className="font-semibold">{t("offerTitle")}</h2>
-        <LoadingState variant="skeleton-panel" rows={2} />
+        <LoadingState variant="pending" />
       </section>
     );
   if (state.error)

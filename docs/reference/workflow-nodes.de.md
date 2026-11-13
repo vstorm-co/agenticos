@@ -1,5 +1,5 @@
 ---
-source_sha: "4d205a52251b"
+source_sha: "5a1c3230cf70"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -455,6 +455,8 @@ Palette zeigt den Schritt mit einem Diff-Symbol bei den Datenschritten.
 ::: app.workflows.nodes.text_compare._handler.TextCompareOutput
 
 ## html.parse { #html-parse }
+
+Seit Version 1.72.0 schließen Dokumentselektoren und die Linkextraktion inaktive Inhalte von `<template>` aus. Die Auswahl des Elements `template` selbst liefert weiterhin dessen HTML und Text. Soup Sieve 4 gleicht Formularzustandsselektoren an das Browserverhalten an; prüfen Sie beim Upgrade Workflows, die von den bisherigen Auswahlregeln abhängen. Die Selektorauswertung nutzt einen Cache; Zeit- und Speicherlimits des Leseprozesses bleiben bestehen.
 
 **Parse HTML** liest HTML als Text, als Links und als die Elemente, die ein
 CSS-Selektor auswählt. Es ist für das HTML gedacht, dem ein Ablauf begegnet: ein

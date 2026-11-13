@@ -13,7 +13,7 @@ import { qk } from "@/lib/query-keys";
 import { useAuthStore, useOrgStore } from "@/stores";
 
 /** Readiness is live; a saved preference can never substitute for access or a real result. */
-export function useStart() {
+export function useStart(enabled = true) {
   const user = useAuthStore((s) => s.user?.id);
   const org = useOrgStore((s) => s.activeOrgId);
   const client = useQueryClient();
@@ -21,15 +21,17 @@ export function useStart() {
   const state = useQuery({
     queryKey: key,
     queryFn: readOnboarding,
-    enabled: !!user && !!org,
+    enabled: enabled && !!user && !!org,
     staleTime: 10_000,
+    // Mounting the prefetched checklist must keep an error available for Retry.
+    retryOnMount: false,
     refetchOnWindowFocus: "always",
   });
   const snoozedUntil = state.data?.snoozed_until;
   const serverTime = state.data?.server_time;
   const { refetch, dataUpdatedAt } = state;
   useEffect(() => {
-    if (!snoozedUntil) return;
+    if (!enabled || !snoozedUntil) return;
     // Measure against the response clock; local clock skew must not cause a retry loop.
     const remaining = Date.parse(snoozedUntil) - (serverTime ? Date.parse(serverTime) : Date.now());
     const timer = window.setTimeout(
@@ -37,7 +39,7 @@ export function useStart() {
       Math.min(86_400_000, Math.max(60_000, remaining)),
     );
     return () => window.clearTimeout(timer);
-  }, [snoozedUntil, serverTime, refetch, dataUpdatedAt]);
+  }, [enabled, snoozedUntil, serverTime, refetch, dataUpdatedAt]);
   const save = useMutation({
     mutationKey: [...key, "save"],
     mutationFn: async (data: StartUpdate) => ({ key, data: await saveOnboarding(data) }),
