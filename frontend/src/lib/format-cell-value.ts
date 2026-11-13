@@ -52,7 +52,7 @@ export function formatCellValue(
       return typeof value === "boolean" ? boolLabel(value) : scalarText(value, locale);
     case "lookup":
       return Array.isArray(value)
-        ? value.map((item) => scalarText(item, locale)).join(", ")
+        ? value.map((item) => scalarText(item, locale)).join(listSeparator(locale))
         : scalarText(value, locale);
     case "link":
       // Ids name nothing to a reader; `recordCellText` names them from the record.
@@ -72,15 +72,30 @@ export function formatCellValue(
   }
 }
 
+const numberFormats = new Map<string, Intl.NumberFormat>();
+
+/** One formatter per locale: a grid formats thousands of cells on every render. */
+function numberFormat(locale: string): Intl.NumberFormat {
+  let format = numberFormats.get(locale);
+  if (format === undefined) {
+    format = new Intl.NumberFormat(locale, { maximumFractionDigits: 10, useGrouping: "min2" });
+    numberFormats.set(locale, format);
+  }
+  return format;
+}
+
 /**
  * A value as text, a number written the way `locale` writes one. Every digit the
  * service kept is shown, and a four-digit number - a year, a code - is not grouped.
  */
 function scalarText(value: unknown, locale: string | undefined): string {
   if (typeof value !== "number" || locale === undefined) return String(value);
-  return new Intl.NumberFormat(locale, { maximumFractionDigits: 10, useGrouping: "min2" }).format(
-    value,
-  );
+  return numberFormat(locale).format(value);
+}
+
+/** What joins a lookup's values: "; " where a comma is the decimal separator, so 12,5; 3,7. */
+function listSeparator(locale: string | undefined): string {
+  return locale !== undefined && numberFormat(locale).format(0.5).includes(",") ? "; " : ", ";
 }
 
 /** A stored date or date-time as `locale` writes it, or null when it is not one. */

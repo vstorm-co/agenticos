@@ -154,7 +154,10 @@ describe("a number in the viewer's locale", () => {
     expect(formatCellValue(column({ type: "formula" }), "9.9", boolLabel, "pl")).toBe("9.9");
     expect(
       formatCellValue(column({ type: "lookup" }), ["Atlas", 1.5] as never, boolLabel, "pl"),
-    ).toBe("Atlas, 1,5");
+    ).toBe("Atlas; 1,5");
+    expect(formatCellValue(column({ type: "lookup" }), [12.5, 3.7] as never, boolLabel, "en")).toBe(
+      "12.5, 3.7",
+    );
     expect(formatCellValue(column({ type: "lookup" }), 2.5 as never, boolLabel, "pl")).toBe("2,5");
     expect(formatCellValue(column({ type: "text" }), "1.5", boolLabel, "pl")).toBe("1.5");
   });
