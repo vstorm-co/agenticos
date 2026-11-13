@@ -31,17 +31,17 @@ _CLUSTER = """
 CREATE FUNCTION agenticos_memory_cluster() RETURNS text
 LANGUAGE plpgsql VOLATILE AS $$
 DECLARE
-    cluster text := current_setting('agenticos.memory_cluster', true);
+    cluster text := nullif(current_setting('agenticos.memory_cluster', true), '');
 BEGIN
     IF cluster IS NULL THEN
         BEGIN
-            cluster := coalesce((pg_control_system()).system_identifier::text, '');
+            cluster := coalesce((pg_control_system()).system_identifier::text, '-');
         EXCEPTION WHEN others THEN
-            cluster := '';
+            cluster := '-';
         END;
         PERFORM set_config('agenticos.memory_cluster', cluster, false);
     END IF;
-    RETURN nullif(cluster, '');
+    RETURN nullif(cluster, '-');
 END
 $$
 """

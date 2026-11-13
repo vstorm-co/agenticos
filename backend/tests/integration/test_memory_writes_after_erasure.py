@@ -480,7 +480,7 @@ async def test_without_the_clusters_identifier_time_alone_decides(db: AsyncSessi
 
     # What the identifier's lookup leaves for the connection where the database
     # refuses it, as a managed service may.
-    await db.execute(text("SELECT set_config('agenticos.memory_cluster', '', false)"))
+    await db.execute(text("SELECT set_config('agenticos.memory_cluster', '-', false)"))
     user, org, agent, run = await _world(db)
     await db.refresh(run)
     assert run.memory_snapshot is None
@@ -495,5 +495,46 @@ async def test_without_the_clusters_identifier_time_alone_decides(db: AsyncSessi
         )
     )
     assert entry is not None and audit_log_repo.ERASURE_TRANSACTION not in entry
+    said = await MemoryToolset().remember(_ctx(user, org, agent, run), "Prefers short answers")
+    assert "erased after this conversation began" in said
+
+
+async def test_a_database_that_refuses_the_cluster_identifier_still_admits_runs(
+    db: AsyncSession,
+) -> None:
+    from sqlalchemy import text
+
+    from app.repositories import audit_log_repo
+
+    user, org, agent, _ = await _world(db)
+    # PL/pgSQL keeps an expression it has already run for the rest of the transaction,
+    # permission checked, so the refusal has to meet its first call in a new one.
+    await db.commit()
+    # A role that may not read the control data, as on a managed service; all of
+    # it is rolled back with the test's transaction.
+    role = f"no_control_{uuid.uuid4().hex[:8]}"
+    await db.execute(text("REVOKE EXECUTE ON FUNCTION pg_control_system() FROM PUBLIC"))
+    await db.execute(text(f"CREATE ROLE {role}"))
+    await db.execute(text(f"GRANT ALL ON ALL TABLES IN SCHEMA public TO {role}"))
+    # Forgets what this connection looked up, so the next call asks again.
+    await db.execute(text("SELECT set_config('agenticos.memory_cluster', '', false)"))
+    await db.execute(text(f"SET LOCAL ROLE {role}"))
+
+    assert await audit_log_repo.current_snapshot(db) is None
+    looked_up = await db.scalar(text("SELECT current_setting('agenticos.memory_cluster')"))
+    assert looked_up == "-"
+    run = AgentRun(
+        organization_id=org.id,
+        agent_id=agent.id,
+        user_id=user.id,
+        started_at=datetime.now(UTC) - timedelta(hours=1),
+    )
+    db.add(run)
+    await db.flush()
+    await db.refresh(run)
+    assert run.memory_snapshot is None
+
+    await db.execute(text("RESET ROLE"))
+    await _forget(db, user, org)
     said = await MemoryToolset().remember(_ctx(user, org, agent, run), "Prefers short answers")
     assert "erased after this conversation began" in said
