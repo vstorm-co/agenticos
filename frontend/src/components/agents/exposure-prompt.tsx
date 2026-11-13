@@ -48,7 +48,7 @@ export function ExposurePrompt({
   function insert(name: string) {
     const field = box.current;
     const at = field ? field.selectionStart : draft.length;
-    setDraft(`${draft.slice(0, at)}{${name}}${draft.slice(at)}`);
+    setDraft(`${draft.slice(0, at)}{{${name}}}${draft.slice(at)}`);
     field?.focus();
   }
 
@@ -80,7 +80,7 @@ export function ExposurePrompt({
               title={variable.description}
               onClick={() => insert(variable.name)}
             >
-              {`{${variable.name}}`}
+              {`{{${variable.name}}}`}
             </Button>
           ))}
         </div>

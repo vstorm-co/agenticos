@@ -426,10 +426,19 @@ class TestResolvingACollectionName:
         rows.accessible = [handbook, notes]
 
         assert await service.readable_sync_log_scope(_ctx(), "handbook") == SyncLogScope(
-            collections=["handbook"], sync_source_ids=[]
+            collections=["handbook"],
+            sync_source_ids=[],
+            organization_id=HOME_ORG,
+            knowledge_base_ids=(handbook.id,),
         )
         assert await service.readable_sync_log_scope(_ctx(), None) == SyncLogScope(
-            collections=["handbook", "notes"], sync_source_ids=[]
+            collections=["handbook", "notes"],
+            sync_source_ids=[],
+            organization_id=HOME_ORG,
+            knowledge_base_ids=(
+                handbook.id,
+                notes.id,
+            ),
         )
         with pytest.raises(NotFoundError):
             await service.readable_sync_log_scope(_ctx(), "someone_elses")
@@ -451,7 +460,12 @@ class TestResolvingACollectionName:
         scope = await service.readable_sync_log_scope(member, "handbook")
 
         # `apps` feeds the app base, but it is another organization's (#2745).
-        assert scope == SyncLogScope(collections=["handbook"], sync_source_ids=[])
+        assert scope == SyncLogScope(
+            collections=["handbook"],
+            sync_source_ids=[],
+            organization_id=HOME_ORG,
+            knowledge_base_ids=(app_kb.id,),
+        )
 
     @pytest.mark.security
     async def test_a_run_listing_through_an_app_base_takes_only_the_callers_sources(
@@ -468,10 +482,16 @@ class TestResolvingACollectionName:
         admin = _ctx(role=OrgRoleName.MEMBER.value, app_admin=True)
 
         assert await service.readable_sync_log_scope(member, "handbook") == SyncLogScope(
-            collections=["handbook"], sync_source_ids=[ours.id]
+            collections=["handbook"],
+            sync_source_ids=[ours.id],
+            organization_id=HOME_ORG,
+            knowledge_base_ids=(app_kb.id,),
         )
         assert await service.readable_sync_log_scope(admin, "handbook") == SyncLogScope(
-            collections=["handbook"], sync_source_ids=[ours.id, theirs.id]
+            collections=["handbook"],
+            sync_source_ids=[ours.id, theirs.id],
+            organization_id=HOME_ORG,
+            knowledge_base_ids=(app_kb.id,),
         )
 
     async def test_a_document_listing_carries_each_collection_s_knowledge_base(
@@ -908,7 +928,7 @@ class TestResolvingASyncSourceInAKnowledgeBase:
         with pytest.raises(NotFoundError):
             await service.kb_sync_source(_ctx(), theirs, str(apps.id))
 
-        assert refusal.value.message == "Sync source not found in this knowledge base"
+        assert refusal.value.message == "Sync source not found"
         assert (await service.kb_sync_source(their_member, theirs, str(tenants.id))).id == (
             tenants.id
         )
@@ -965,7 +985,7 @@ class TestResolvingASyncSourceInAKnowledgeBase:
         with pytest.raises(NotFoundError) as refusal:
             await service.kb_sync_source(member, app_kb, str(foreign.id))
 
-        assert refusal.value.message == "Sync source not found in this knowledge base"
+        assert refusal.value.message == "Sync source not found"
         admin = _ctx(role=OrgRoleName.MEMBER.value, app_admin=True)
         assert (await service.kb_sync_source(admin, app_kb, str(foreign.id))).id == foreign.id
 
@@ -1098,7 +1118,7 @@ class TestResolvingASyncSourceToChange:
         with pytest.raises(NotFoundError):
             await service.writable_sync_source(_ctx(app_admin=True), str(source.id))
 
-    async def test_a_source_feeding_no_base_takes_only_the_organization(
+    async def test_a_source_feeding_no_base_requires_connections_management(
         self, service: CollectionAccessService, rows: Rows
     ) -> None:
         """An unassigned template, or a name no base holds, has no base to ask."""
@@ -1108,8 +1128,10 @@ class TestResolvingASyncSourceToChange:
         rows.sources = [template, orphan]
         member = _ctx(role=OrgRoleName.MEMBER.value)
 
-        assert (await service.writable_sync_source(member, str(template.id))).id == template.id
-        assert (await service.writable_sync_source(member, str(orphan.id))).id == orphan.id
+        for source in (template, orphan):
+            with pytest.raises(NotFoundError):
+                await service.writable_sync_source(member, str(source.id))
+            assert (await service.writable_sync_source(_ctx(), str(source.id))).id == source.id
 
 
 class TestPointingASyncSourceAtACollectionByName:
@@ -1354,6 +1376,8 @@ class TestResolvingASyncRun:
     ) -> None:
         log = self._log("handbook")
         rows.collections = [_kb("handbook")]
+        log.organization_id = HOME_ORG
+        log.knowledge_base_id = rows.collections[0].id
         rows.logs = [log]
 
         assert (await service.sync_log(_ctx(), str(log.id))).id == log.id
@@ -1396,14 +1420,54 @@ class TestResolvingASyncRun:
         assert (await service.sync_log(_ctx(), str(our_run.id))).id == our_run.id
         with pytest.raises(NotFoundError):
             await service.sync_log(_ctx(), str(app_run.id))
-        assert (await service.sync_log(_ctx(app_admin=True), str(app_run.id))).id == app_run.id
+        with pytest.raises(NotFoundError):
+            await service.sync_log(_ctx(app_admin=True), str(app_run.id))
 
     async def test_a_run_whose_source_is_gone_is_decided_by_its_collection(
         self, service: CollectionAccessService, rows: Rows
     ) -> None:
         log = self._log("handbook")
-        log.sync_source_id = uuid.uuid4()
+        log.sync_source_id = None
         rows.collections = [_kb("handbook")]
+        log.organization_id = HOME_ORG
+        log.knowledge_base_id = rows.collections[0].id
         rows.logs = [log]
 
         assert (await service.sync_log(_ctx(), str(log.id))).id == log.id
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("action", ["delete", "trigger"])
+async def test_org_integration_mutations_do_not_bypass_personal_base_access(
+    service: CollectionAccessService, rows: Rows, mock_redis: MagicMock, action: str
+) -> None:
+    from httpx import ASGITransport, AsyncClient
+
+    from app.api import deps
+    from app.main import app
+
+    ctx = _ctx(role=OrgRoleName.BUILDER.value)
+    assert ctx.has(Perm.CONNECTIONS_MANAGE)
+    base = _kb("private-source", scope=KBScope.PERSONAL, owner_user_id=STRANGER)
+    source = _source(organization_id=HOME_ORG, collection_name=base.collection_name)
+    rows.collections, rows.sources = [base], [source]
+    operations = MagicMock(delete_source=AsyncMock(), trigger_sync=AsyncMock())
+    previous = dict(app.dependency_overrides)
+    app.dependency_overrides[deps.get_auth_context] = lambda: ctx
+    app.dependency_overrides[deps.get_redis] = lambda: mock_redis
+    app.dependency_overrides[deps.get_collection_access_service] = lambda: service
+    app.dependency_overrides[deps.get_sync_source_service] = lambda: operations
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            path = f"/api/v1/org/integrations/{source.id}"
+            response = (
+                await client.delete(path)
+                if action == "delete"
+                else await client.post(path + "/trigger")
+            )
+            assert response.status_code == 404
+        operations.delete_source.assert_not_awaited()
+        operations.trigger_sync.assert_not_awaited()
+    finally:
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(previous)

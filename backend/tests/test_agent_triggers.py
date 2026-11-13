@@ -178,6 +178,8 @@ def _trigger(**overrides: object) -> MagicMock:
         "ends_at": None,
         "monthly_budget_usd": None,
         "consecutive_failures": 0,
+        "setup_required": False,
+        "setup_issues": [],
     }
     defaults.update(overrides)
     return MagicMock(**defaults)
@@ -5349,3 +5351,59 @@ async def test_inbox_mode_only_delivers_relevant_cases_to_the_owner(findings):
 async def test_invalid_or_null_routine_result_policy_is_refused(mode):
     with pytest.raises(PydanticValidationError):
         TriggerUpdate.model_validate({"result_mode": mode})
+
+
+@pytest.mark.parametrize("reason", ["sources", "platform_identity"])
+async def test_unavailable_sources_save_a_paused_routine_without_losing_its_schedule(reason):
+    from app.services.routine_sources import PlatformRoutineIdentityRequired, RoutineSourcesRequired
+
+    agent = _agent()
+    service = _service(agent)
+    refusal = RoutineSourcesRequired if reason == "sources" else PlatformRoutineIdentityRequired
+    service.sources.initial.side_effect = refusal(details={"unavailable_sources": ["notion"]})
+    trigger = _trigger(agent_id=agent.id)
+    service._run_log = AsyncMock()
+    with (
+        patch(
+            "app.services.agent_trigger.agent_trigger_repo.create", AsyncMock(return_value=trigger)
+        ),
+        patch("app.services.agent_trigger.record_audit", AsyncMock()),
+    ):
+        result = await service.create(_ctx(), agent.id, _interval(interval_seconds=900))
+    assert result is trigger and trigger.is_active is False
+    assert trigger.approved_sources == {
+        "pending_review": True,
+        "unavailable_sources": ["notion"],
+        "reason": refusal.code,
+    }
+    assert trigger.next_fire_at is not None and trigger.prompt == "summarise the day"
+
+
+@pytest.mark.security
+async def test_a_pending_source_setup_cannot_be_activated_before_review():
+    from app.services.routine_sources import RoutineSourcesRequired
+
+    agent = _agent()
+    service = _service(agent)
+    trigger = _trigger(agent_id=agent.id, setup_required=True, setup_issues=["notion"])
+    with (
+        patch("app.services.agent_trigger.agent_trigger_repo.get", AsyncMock(return_value=trigger)),
+        pytest.raises(RoutineSourcesRequired, match="schedule and prompt are saved"),
+    ):
+        await service.update(_ctx(), agent.id, trigger.id, TriggerUpdate(is_active=True))
+
+
+def test_pending_source_metadata_is_safe_and_readable_without_a_migration():
+    from app.db.models.agent_trigger import AgentTrigger
+
+    trigger = AgentTrigger(
+        approved_sources={
+            "pending_review": True,
+            "unavailable_sources": ["Notion", {"unsafe": "ignored"}],
+        }
+    )
+    assert trigger.setup_required and trigger.setup_issues == ["Notion"]
+    trigger.approved_sources = {"id": str(uuid.uuid4())}
+    assert not trigger.setup_required and trigger.setup_issues == []
+    trigger.approved_sources = {"pending_review": True, "unavailable_sources": "malformed"}
+    assert trigger.setup_issues == []

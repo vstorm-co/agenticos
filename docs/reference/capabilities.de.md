@@ -1,5 +1,5 @@
 ---
-source_sha: "68958b7ea0a1"
+source_sha: "097cf838acab"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -160,7 +160,7 @@ Der Code-Modus erhält diese Stopps über die Sandbox-Grenze hinweg.
 | `compaction` | Lange Gespräche | utility | keine, mit Absicht | — | — | ohne Wirkung |
 | `media` | Bilder auslagern | utility | keine, mit Absicht | — | — | ohne Wirkung |
 | `tool_output_limits` | Grenzen für Tool-Ergebnisse | utility | `read_tool_result` | — | — | unverändert |
-| `artifacts` | Apps | utility | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact`, `share_artifact` | — | — | unverändert |
+| `artifacts` | Apps | utility | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact`, `export_artifact`, `share_artifact` | — | — | unverändert |
 | `channel_tools` | Infos zum Chat-Kanal | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file` | — | — | nicht verfügbar |
 | `phone_calls` | [Telefonanrufe](../voice.md#telephone-calls) | channels | `get_phone_contact_policy`, `call_me`, `list_phone_transfer_contacts`, `transfer_phone_call`, `end_phone_call` | `endpoint_id` | — | — |
 | `ask_user` | Rückfragen | utility | `ask_user_question` | — | — | auf dem Bildschirm |
@@ -2032,6 +2032,8 @@ Kachelpfad des Deployments. Siehe [Visuals](../artifacts.md#visuals).
 
 ## Apps { #artifacts }
 
+`export_artifact` speichert die aktuell veröffentlichte Version als echte PDF-Datei im Workspace. Der isolierte Renderer unterstützt A4-Berichte und 16:9-Browserpräsentationen, behält die Zugriffs- und Zielgruppenprüfung der Vorschau bei und verweigert nicht verfügbare gebundene Daten. Renderer und Extra `browser` müssen konfiguriert sein. Dateien erhalten eindeutige Namen und sind auf 50 Seiten und 20 MB begrenzt. Siehe [Designressourcen](../skills.de.md#design-resources).
+
 `publish_artifact` — _veröffentlicht eine fertige Seite — einen Bericht, ein
 kleines Dashboard, eine Zusammenfassung — unter einem stabilen Link._
 `read_artifact` — _liest die aktuelle Version einer Seite, die dieser Agent
@@ -3260,6 +3262,8 @@ geschwärzter Prompt erreicht das Modell bereinigt, aber die Unterhaltung speich
 Nachricht so, wie die Person sie eingegeben hat, einschließlich personenbezogener
 Daten. Wer die Unterhaltung lesen kann, kann auch diese Nachricht lesen.
 
+Das für Menschen sichtbare Transkript bleibt das ursprüngliche Auditprotokoll. Eine separate bereinigte Kopie einschließlich Anhangsbeschreibung wird für Modellhistorie und Zitate gespeichert. Spätere Züge behalten diese Kopie auch nach Deaktivierung der Eingabeschwärzung. Ältere Historie wird vor der Kontextverwaltung geprüft; blockierte Züge verwenden weiterhin den Ablehnungsmarker.
+
 **Die Eingabekante prüft einen Anhang, bevor er geschrieben wird.** Eine angehängte
 Datei erreicht den Prompt als ihr Name, ihr Pfad und ihre ersten 20 Zeilen
 (höchstens 2.000 Zeichen), und die Eingabekante liest sie zusammen mit der Nachricht
@@ -3674,3 +3678,17 @@ Die Auswahl des lokalen Zugriffs gehört zum gewählten Agenten, nicht zu einer 
 Die Korrektur `[session:api] Verwende die EU-Zahlen` erreicht die Sitzung `api`. Bei einer aktiven Sitzung erreichen sie auch Korrekturen ohne Adresse; bei mehreren bleiben diese beim übergeordneten Agenten, damit keine andere Aufgabe geändert wird. Der übergeordnete Agent protokolliert die Korrektur einmal, wenn er fortfährt.
 
 Sandbox-Coding-Aufgaben desselben Toolsets laufen nacheinander, damit sich ihre Dateischnappschüsse nicht überschneiden; unabhängige lokale Sitzungen laufen weiterhin parallel.
+
+
+## Verbundene Chat-Apps (`channel_actions`) { #connected-chat-apps-channel_actions }
+
+Ausdrückliche Bot-Freigaben zum Finden von Kanälen, Durchsuchen von Nachrichten und Senden angeforderter Berichte aus jedem Lauf.
+
+| Werkzeug | Aktion |
+| --- | --- |
+| `list_chat_connections` | Bot-IDs, Freigaben und aktuelles Ziel |
+| `find_chat_channels` | Metadaten beigetretener Kanäle mit Seiten |
+| `read_chat_messages` | Begrenzter, gefilterter Nachrichtenverlauf |
+| `send_chat_message` | Angeforderte Nachricht oder Bericht als Beitrag oder Thread-Antwort |
+
+Jede Operation prüft erneut Organisationsmitgliedschaft, Agentenzugriff, aktive Bindung und Bot sowie anschließend Kanalmitgliedschaft und Thread-Zugehörigkeit. Sie tritt keinen Kanälen bei und verwendet keine Bots anderer Agenten. Suche und Verlauf liefern begrenzte Seiten mit Cursorn; eine leere Trefferseite ist nicht das Ende, solange ein Cursor besteht. Anbieterfehler sind Ablehnungen, keine leeren Ergebnisse. Senden folgt den Freigaberegeln; unbestätigte Sendungen müssen vor einem erneuten Versuch am Ziel geprüft werden. Andere Plattformen behalten ihre Gesprächswerkzeuge; kanalübergreifende Aktionen werden nur bei überprüfbarer Mitgliedschaft angeboten.

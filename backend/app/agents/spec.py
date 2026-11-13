@@ -583,6 +583,11 @@ class AlertSpec(BaseModel):
         description="Members to mail when `to` includes `chosen`; ignored otherwise",
     )
 
+    group_ids: list[UUID] = Field(
+        default_factory=list,
+        description="Organization groups to notify when `to` includes `chosen`; this grants no approval authority.",
+    )
+
     @model_validator(mode="after")
     def _audience_and_list_must_agree(self) -> AlertSpec:
         """Refuse the two shapes that silently mail nobody, or nobody extra.
@@ -592,10 +597,12 @@ class AlertSpec(BaseModel):
         without `chosen` are ids nothing reads. Neither is worth a warning in a
         log that no author of a spec will ever see.
         """
-        if AlertAudience.CHOSEN in self.to and not self.user_ids:
-            raise ValueError("`chosen` needs at least one member in `user_ids`")
-        if self.user_ids and AlertAudience.CHOSEN not in self.to:
-            raise ValueError("`user_ids` is only read when `to` includes `chosen`")
+        if AlertAudience.CHOSEN in self.to and not (self.user_ids or self.group_ids):
+            raise ValueError(
+                "`chosen` needs at least one member in `user_ids` or group in `group_ids`"
+            )
+        if (self.user_ids or self.group_ids) and AlertAudience.CHOSEN not in self.to:
+            raise ValueError("`user_ids` and `group_ids` are only read when `to` includes `chosen`")
         if self.enabled and not self.to:
             raise ValueError("An enabled alert needs at least one audience in `to`")
         return self

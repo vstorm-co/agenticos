@@ -264,6 +264,7 @@ async def _post_if_admitted(
         )
     segment = RunSegment(
         output=said.output,
+        channel_destination=destination,
         run=run,
         tool_calls=list(said.tool_calls),
         settled={},

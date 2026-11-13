@@ -54,7 +54,7 @@ from app.services.channels.base import (
 )
 from app.services.channels.formatting import LINK_ACCOUNT_INSTRUCTION, PICTURE_DELIVERY_UNCONFIRMED
 from app.services.channels.live_reply import with_preview_links
-from app.services.channels.mentions import drawn_picture
+from app.services.channels.mentions import drawn_picture, reaction_only_target
 from app.services.channels.next_steps import offer_after_resume
 from app.services.transcript import RecordedToolCall
 
@@ -430,6 +430,24 @@ class ChannelPrompts:
             notices=notices,
             generated_files=segment.generated_files,
         )
+        destination = segment.channel_destination
+        if (
+            segment.run.status == RunStatus.COMPLETED.value
+            and destination is not None
+            and destination.bot_id == bot.id
+            and destination.platform_chat_id == platform_chat_id
+            and picture is None
+            and not notices
+            and not segment.generated_files
+            and reaction_only_target(
+                segment.tool_calls,
+                bot_id=str(bot.id),
+                platform_chat_id=platform_chat_id,
+                message_id=destination.message_id,
+            )
+            and not await with_preview_links("", segment.run.id)
+        ):
+            return
         adapter = get_adapter(platform)
         token = unseal_bot_token(bot)
         message = OutgoingMessage(

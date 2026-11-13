@@ -1,5 +1,5 @@
 ---
-source_sha: "41a17f94320d"
+source_sha: "e1a252bf0cf3"
 title: "Personenbezogene Daten aus den Prompts und Antworten eines Agents heraushalten"
 description: "Konfigurieren Sie die Guardrails-Capability so, dass sie E-Mail-Adressen, Telefonnummern, Kartennummern und Geheimnisse schwärzt, und vergleichen Sie dann, was das Modell tatsächlich erhielt, mit dem, was der Besucher sah."
 ---
@@ -58,6 +58,8 @@ I need to send a wire transfer today, can you help?
 | Dieselbe Nachricht zur Überweisung ohne gesetztes Schlüsselwort | Läuft normal; blockiert wird das Schlüsselwort, nicht das Thema |
 
 Bei der zweiten Zeile der Tabelle lohnt es sich zu verweilen: Die Telefonnummer ist national, also wird sie nur erkannt, weil `US` in **phone_regions** steht. Entfernen Sie `US`, und sie erreicht das Modell genau so, wie sie eingegeben wurde. Die vierte Zeile ist die andere: Eine Person, die Activity liest, um zu sehen, "was passiert ist", sieht die echte Eingabe des Besuchers, weil die Guardrail umschreibt, was das *Modell* liest, nie den gespeicherten Konversationszug.
+
+Das für Menschen sichtbare Transkript bleibt das ursprüngliche Auditprotokoll. Eine separate bereinigte Kopie einschließlich Anhangsbeschreibung wird für Modellhistorie und Zitate gespeichert. Spätere Züge behalten diese Kopie auch nach Deaktivierung der Eingabeschwärzung. Ältere Historie wird vor der Kontextverwaltung geprüft; blockierte Züge verwenden weiterhin den Ablehnungsmarker.
 
 !!! example "Festgehalten auf v0.0.504, 25. September 2026, vor dem Schwärzen von Telefonnummern"
 

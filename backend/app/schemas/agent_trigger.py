@@ -806,6 +806,8 @@ class TriggerRead(BaseSchema, TimestampSchema):
     # The trigger's own title, or null to fall back to the agent's name.
     name: str | None = None
     created_by_user_id: UUID | None = None
+    setup_required: bool = False
+    setup_issues: list[str] = Field(default_factory=list)
     is_active: bool
     environment_id: UUID | None = None
     pinned_version_id: UUID | None = Field(

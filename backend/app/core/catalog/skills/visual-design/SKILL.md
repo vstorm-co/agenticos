@@ -1,32 +1,31 @@
 ---
 name: visual-design
-description: "Design a clear interactive explanation, comparison, calculator or spatial view. Use for visual composition and quality judgment; exact rendering APIs come from the active tool."
+description: "Explain, compare or explore through clear diagrams, interactive models, charts, maps and original graphics. Use for meaningful controls, spatial composition and visual verification; use Apps for a reusable published tool or report."
 category: design
 ---
 
-# Make the result useful before making it elaborate
+# Make a relationship visible
 
-Choose the medium for the person's question: prose for a direct answer, a table for exact comparisons, a chart for a quantitative pattern, and an interactive visual when changing a control teaches something. A reusable App or deck needs an audience and purpose beyond this chat.
+Start with what the person should understand or discover. A precise comparison may be a table or chart; a process may be a diagram; a changing relationship may need a control and an explanatory model. Use 3D when depth, viewpoint or physical structure carries meaning. A decorative animation is not evidence. Choose raster imagery for photographic or painterly subjects through the available image-generation tool; use SVG/Canvas for controllable geometry and exact labels.
 
-Lead with the conclusion or the decision. Build a visible hierarchy, use restrained color, readable type and consistent spacing, and fit both phone and desktop. Label units, source evidence and uncertainty. Keep controls relevant and make their consequences visible. Prefer one clear idea per view or slide over a dense dashboard.
+Build around the subject rather than one repeated dashboard layout. Establish a reading path, one main visual relationship and a clear contrast between primary and secondary information. Use supplied branding when present. Keep typography readable, labels near their objects and color consistent in meaning. A diagram needs correct connections before ornament; a chart needs honest scales, units and sources before effects.
 
-Use the active tool description as the authority for input format, supported libraries, runtime limitations and publication. Do not infer another environment or copy unsupported API parameters from an example. Reuse the available templates when they fit, adapting content and composition to the task.
+For exploration, provide a useful initial state, a small set of labelled controls and visible consequences. Show the assumption or formula driving a simulated result. Make reset predictable and support keyboard input. For procedural art, retain a reproducible seed; distinguish a visual pattern from measured data. Motion should explain change, provide pause when it continues and respect reduced motion.
 
-The optional resource `references/design-recipes.md` contains detailed design examples and template guidance; read the section needed for the chosen medium rather than loading every recipe. Current tool contracts win over older implementation examples.
+Current tool contracts define the accepted format, image admission, library paths and available helpers. The Visuals frame has no arbitrary network: use admitted images and locally served assets, not remote fonts, a CDN or a guessed fetch endpoint. Keep Apps and Visuals helper versions separate. Edit a small region of an existing visual when that suffices instead of retransmitting the whole document.
 
-For an interactive explanation, choose a control whose change reveals a relationship. Preserve a useful initial state, label the changed quantities and make reset predictable. A spatial scene needs a meaningful camera, depth and labels; decoration alone does not justify 3D.
+Read the relevant reference or example only:
 
-Render and inspect the result. Check readability, overflow, contrast, interactions, sources and the intended audience's access. Repair concrete defects before presenting it. Link the real artifact and describe what the person can try; do not call an unrendered draft verified.
+- `references/audience-and-style.md`: varied styles for school, play and work, with honest static/interactive delivery across chat and channels.
+- `references/visual-composition.md`: medium selection, chart/diagram encoding, composition and asset guidance.
+- `references/interaction-and-verification.md`: parameter design, accessibility, deterministic behavior and rendered checks.
+- `references/maps-and-3d.md`: composed spatial scenes, readable geography, camera/lighting, themes and real render checks.
+- `templates/route-atlas.html`: a local, responsive route map with a visible stop list and purposeful palette.
+- `references/design-recipes.md`: existing chart, map, 3D and explainer helpers.
+- `templates/comparison-lab.html`: a transparent scenario comparison with controls, units and an explanatory chart.
+- `templates/generative-field.html`: seeded original Canvas art with meaningful parameters, pause and reset.
+- `templates/explainer.html`, `templates/calculator.html`, `templates/scene.html`, `templates/architecture.svg`: established starting points.
 
+For maps, use the bundled d3, topojson, world-atlas and `AOWorldMap.draw` country-outline kit by default, including pins and city-to-city itineraries. Use Leaflet and `AOMap.itinerary` only when the operator has enabled map tiles and street detail matters. Keep a country-outline fallback. A line between stops is not a road route; do not invent travel times or distances.
 
-## Maps that render without setup
-
-Use `AOWorldMap.draw` with the bundled country outlines by default, for itineraries
-and city-to-city routes as well as country data. Load d3, topojson, world-atlas and
-the worldmap kit from `lib/`; set `focus` to the relevant countries. These are local
-libraries, so the map needs neither a tile server nor an external network request.
-
-Use Leaflet and `AOMap.itinerary` only when the administrator has enabled map tiles
-(`agenticos.map` is configured) and street detail is useful. If those tiles fail,
-render the SVG country map with the same pins and routes. A line between stops is
-not a road route: do not invent directions, distances or travel times.
+Render through the real drawing surface and try the interaction at phone and desktop widths. Verify geometry, legibility, focus, reset, limits and error states. A local HTML screenshot alone does not verify publication or data access. Share the actual result, its assumptions and any remaining limitation.

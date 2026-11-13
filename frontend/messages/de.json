@@ -1090,7 +1090,26 @@
     "pipelineNoMatches": "Keine passenden Modelle",
     "alreadyHasIt": "Verwendet ihn",
     "inDraftOf": "{more, plural, =0 {Im Entwurf von {names}, noch nicht veröffentlicht} other {In den Entwürfen von {names} und # weiteren, noch nicht veröffentlicht}}",
-    "useDefaultModel": "Standardmodell verwenden"
+    "useDefaultModel": "Standardmodell verwenden",
+    "channelToolScope": {
+      "conversation": "Aktuelle Unterhaltung",
+      "conversationHint": "Verfügbar beim Antworten in diesem Kanal. Diese Werkzeuge betreffen nur die aktuelle Unterhaltung.",
+      "connection": "Aus jedem Lauf",
+      "connectionHint": "Verfügbar im Webchat, in Unterhaltungen verknüpfter Benutzer und in Routinen. Jede aktivierte Aktion erreicht alle Kanäle, denen dieser Bot beigetreten ist. Senden folgt den Freigaberegeln."
+    },
+    "channelToolDetails": "Werkzeugdetails",
+    "channelActionNames": {
+      "find_chat_channels": "Kanäle finden",
+      "read_chat_messages": "Nachrichtenverlauf durchsuchen",
+      "send_chat_message": "Nachrichten und Berichte senden",
+      "get_channel_info": "Diesen Kanal beschreiben",
+      "list_channel_members": "Kanalmitglieder auflisten",
+      "search_channels": "Kanalnamen finden",
+      "read_channel_history": "Diese Unterhaltung lesen",
+      "send_channel_file": "Hier eine Datei senden",
+      "react_to_chat_message": "Mit Emoji reagieren"
+    },
+    "groupsNotifyOnly": "Aktuelle Gruppenmitglieder werden benachrichtigt. Dies erteilt oder beschränkt keine Genehmigungsrechte."
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -1957,7 +1976,13 @@
       "tablesCreating": "Erstellt eine Tabelle",
       "tablesDescribing": "Liest die Spalten einer Tabelle",
       "tablesListing": "Prüft, welche Tabellen es nutzen kann",
-      "viewsListing": "Listet die gespeicherten Ansichten einer Tabelle auf"
+      "viewsListing": "Listet die gespeicherten Ansichten einer Tabelle auf",
+      "sendingChannelMessage": "Nachricht an den Kanal senden",
+      "sendChannelMessage": "Kanalnachricht senden",
+      "listingChatConnections": "Chat-Verbindungen auflisten",
+      "chatConnections": "Chat-Verbindungen",
+      "reactingToMessage": "Auf eine Nachricht reagieren",
+      "messageReactions": "Nachrichtenreaktionen"
     },
     "turnWasStopped": "gestoppt",
     "unfavourite": "Aus den Favoriten entfernen",
@@ -4126,7 +4151,8 @@
       "description": "Quick Ask, Sprache und lokale Werkzeuge per Tastenkürzel.",
       "download": "Desktop-App herunterladen",
       "dismiss": "In 14 Tagen erinnern"
-    }
+    },
+    "signInAgain": "Erneut anmelden"
   },
   "legal": {
     "acceptAll": "Alle akzeptieren",
@@ -10047,7 +10073,6 @@
     "endsAtLabel": "Endet am (Gerätezeit)",
     "endsAtHint": "Leer lassen, um bis zum Stoppen fortzufahren. Diese Zeit verwendet {zone}, unabhängig von der Zeitzone des Zeitplans.",
     "endsAtInvalid": "Wählen Sie einen gültigen Zeitpunkt in der Zukunft oder leeren Sie das Feld, um das Ende zu entfernen.",
-    "deliveryUnavailable": "Letzte Antwort im Chat nicht verfügbar",
     "actionConsents": {
       "checkConnections": "Prüfe diese Verbindungen, um ihre Aktionen zu prüfen: {names}.",
       "personalAccount": "{name} · dein Konto",
@@ -10082,7 +10107,8 @@
       "current": "Die geprüften Quellen sind aktuell.",
       "changed": "Prüfen Sie diese Quellen vor dem nächsten Lauf.",
       "unavailable": "Prüfen oder verbinden Sie zuerst diese Quellen: {names}",
-      "accept": "Diese Quellen genehmigen"
+      "accept": "Diese Quellen genehmigen",
+      "inspectAgent": "Verbindungen des Agenten prüfen"
     },
     "advancedOptions": "Erweiterte Optionen",
     "advancedOptionsHint": "Standard: aktuelle veröffentlichte Version, Fehlerschutz und deine Benachrichtigungseinstellungen.",
@@ -10093,7 +10119,10 @@
     "resultReportHint": "Nach jeder Ausführung einen Bericht im gewählten Chat ablegen.",
     "resultInboxHint": "Pro Quellelement einen Inbox-Vorgang und Arbeitschat erstellen. Angeforderte Entwürfe stehen dort; unveränderte Prüfungen bleiben still. Versand benötigt weiterhin Berechtigung und Freigabe.",
     "clearSearch": "Suche löschen",
-    "noRoutineMatchesHint": "Suchen Sie nach dem Agentennamen, dem Routinentitel oder Wörtern aus ihrer Nachricht."
+    "noRoutineMatchesHint": "Suchen Sie nach dem Agentennamen, dem Routinentitel oder Wörtern aus ihrer Nachricht.",
+    "setupRequired": "Einrichtung erforderlich",
+    "setupRequiredHint": "Gespeichert und pausiert. Quellen reparieren, Zugriff prüfen und die Routine anschließend aktivieren.",
+    "setupOwnerRequired": "Gespeichert und pausiert. Der Ersteller muss die Quellen reparieren und prüfen."
   },
   "portals": {
     "mailboxInterval": {
@@ -11454,6 +11483,7 @@
     "latestVersionHint": "Folgt der nächsten Veröffentlichung",
     "currentTag": "Aktuell",
     "publicUpdated": "Aktualisiert {when}",
+    "backToConversation": "Zurück zum Gespräch",
     "backToArtifacts": "Zurück zu den Apps",
     "viewerControls": "App-Steuerung",
     "share": "Teilen",
@@ -12911,6 +12941,14 @@
       "example3": "Eine Tabelle aus Ihrer Datenbank lesen und zusammenfassen",
       "needs": "Die Zugangsdaten der Dienste im Vault oder ein verbundenes Google-Konto. Ein Deployment installiert das Terminal mit dem Extra mirage, und ein Operator erlaubt die Hosts jedes Servers, den Sie eintragen.",
       "never": "Schreibt nie in einen nur lesbar eingebundenen Ordner und fragt vor jedem Schreiben eine Person, wo Sie das festgelegt haben."
+    },
+    "channel_actions": {
+      "name": "Verbundene Chat-Apps",
+      "does": "Findet Kanäle, durchsucht Nachrichten und sendet angeforderte Berichte über ausdrücklich freigegebene Bots.",
+      "example1": "Einen Bericht aus dem Webchat an das Team senden",
+      "example2": "Ein wöchentliches Update in einem vereinbarten Thread planen",
+      "needs": "Eine aktive Bot-Bindung, ausgewählte Aktionen und Mitgliedschaft im Zielkanal. Routinen erfordern eine Quellen- und Aktionsprüfung.",
+      "never": "Tritt keinem Kanal bei, verwendet keine Bots anderer Agenten und wiederholt keine unbestätigten Sendungen."
     }
   },
   "capabilityCategories": {
@@ -13544,6 +13582,12 @@
       "hidden_paths": {
         "title": "Verborgene Pfade",
         "description": "Pfade, die der Agent gar nicht sieht, z. B. /drive/HR/."
+      }
+    },
+    "channel_actions": {
+      "tools": {
+        "title": "Erlaubte Chat-Aktionen",
+        "description": "Ausdrücklich auf den verbundenen Bots dieses Agenten freigegebene Aktionen."
       }
     }
   },
@@ -17377,5 +17421,11 @@
     "contextTitle": "Kontext verbessern",
     "contextBody": "Der Assistent nutzt Feedback aus Gesprächen, in denen Agenten diese Kontextdatei verwendet haben. Prüfen Sie jeden Vorschlag, bevor Sie ihn übernehmen.",
     "costs": "Kosten und Limits"
+  },
+  "approvalGroups": {
+    "groups": "Gruppen",
+    "error": "Gruppen konnten nicht geladen werden. Die Auswahl bleibt erhalten.",
+    "loading": "Gruppen werden geladen…",
+    "empty": "Keine Gruppen in dieser Organisation."
   }
 }

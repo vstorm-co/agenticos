@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Three cities, one conversation</title>
+<link rel="stylesheet" href="lib/agenticos-2.css">
+<style>
+:root{--atlas-bg:#f7f5ee;--atlas-land:#d8dfd8;--atlas-water:#e8eff0;--atlas-ink:#213a3d;--atlas-muted:#52696b;--atlas-accent:#b14629;--atlas-line:#c5d2ce}
+@media(prefers-color-scheme:dark){:root{--atlas-bg:#17272a;--atlas-land:#355151;--atlas-water:#20363b;--atlas-ink:#ecf1e9;--atlas-muted:#b1c7c6;--atlas-accent:#f1ad71;--atlas-line:#426164}}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;color:var(--atlas-ink);background:transparent}.atlas{border:1px solid var(--atlas-line);border-radius:18px;overflow:hidden;background:var(--atlas-bg)}header{padding:22px 24px 8px}header p{margin:0 0 7px;color:var(--atlas-muted);font-size:12px;letter-spacing:.12em;text-transform:uppercase}h1{font:500 clamp(24px,4vw,36px)/1.13 Georgia,serif;margin:0 0 12px}nav{display:flex;gap:8px;flex-wrap:wrap;padding:4px 24px 18px}button{font:inherit;font-size:13px;color:inherit;background:transparent;border:1px solid var(--atlas-line);border-radius:999px;padding:9px 14px;cursor:pointer}button[aria-pressed=true]{background:var(--atlas-ink);color:var(--atlas-bg)}:focus-visible{outline:3px solid var(--atlas-accent);outline-offset:3px}.body{display:grid;grid-template-columns:minmax(0,1fr) 220px}.geography{min-width:0;padding:12px;background:var(--atlas-water)}#map.aow{--aow-fg:var(--atlas-ink);--aow-muted:var(--atlas-muted);--aow-line:var(--atlas-line);--aow-fill:var(--atlas-land);--aow-card:var(--atlas-water);--aow-ink:var(--atlas-accent);--aow-on-ink:var(--atlas-bg)}aside{padding:8px 20px}ol{padding:0;list-style:none;counter-reset:stop}li{counter-increment:stop;padding:14px 0;border-bottom:1px solid var(--atlas-line)}li::before{content:"0" counter(stop);font:12px ui-monospace,monospace;color:var(--atlas-accent)}h2{font-size:16px;margin:4px 0}li p{font-size:12px;color:var(--atlas-muted);margin:0;line-height:1.5}footer{padding:15px 24px;font-size:12px;line-height:1.6;color:var(--atlas-muted)}#status:empty{display:none}@media(max-width:650px){.body{grid-template-columns:1fr}ol{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}aside{padding:0 16px}header{padding:18px 16px 8px}nav{padding:0 16px 15px}footer{padding:12px 16px}h2{font-size:14px}}
+</style>
+<script src="lib/d3-7.9.0.min.js"></script><script src="lib/topojson-client-3.1.0.min.js"></script><script src="lib/world-atlas-2.0.2-110m.js"></script><script src="lib/agenticos-worldmap-1.js"></script>
+</head>
+<body>
+<main class="atlas">
+<header><p>Illustrated field notes · example itinerary</p><h1>Three cities,<br>one conversation.</h1></header>
+<nav aria-label="Map extent"><button type="button" data-view="world" aria-pressed="true">Across the Atlantic</button><button type="button" data-view="europe" aria-pressed="false">European detail</button></nav>
+<div class="body"><section class="geography" aria-label="Illustrated itinerary map"><div id="map"></div><p id="status" role="status"></p></section><aside aria-label="Stops"><ol><li><h2>Warsaw</h2><p>52.23° N, 21.01° E<br>Start · workshop</p></li><li><h2>Berlin</h2><p>52.52° N, 13.40° E<br>Stop · design review</p></li><li><h2>New York</h2><p>40.71° N, 74.00° W<br>Finish · presentation</p></li></ol></aside></div>
+<footer>Illustrative great-circle connections, not road routes or measured travel times. Geography: Natural Earth through the bundled world-atlas. The route and meetings are demonstration data.</footer>
+</main>
+<script type="module">
+const mapElement=document.getElementById('map');
+const stops=[{name:'Warsaw',lat:52.23,lng:21.01},{name:'Berlin',lat:52.52,lng:13.40},{name:'New York',lat:40.71,lng:-74}];
+let view='world',lastWidth=0;
+function draw(){
+ try{
+  const european=view==='europe';
+  const result=AOWorldMap.draw(mapElement,{projection:'natural-earth',highlight:['Poland','Germany','USA'],pins:european?stops.slice(0,2):stops,routes:european?[{from:'Warsaw',to:'Berlin'}]:[{from:'Warsaw',to:'Berlin'},{from:'Berlin',to:'New York'}],focus:european?['Poland','Germany']:[]});
+  document.getElementById('status').textContent=result.unmatched.length?'Unmatched locations: '+result.unmatched.join(', '):'';
+ }catch(error){document.getElementById('status').textContent='The map could not load. The verified stop coordinates remain available in the list.';console.error(error)}
+}
+for(const button of document.querySelectorAll('[data-view]'))button.addEventListener('click',()=>{view=button.dataset.view;for(const other of document.querySelectorAll('[data-view]'))other.setAttribute('aria-pressed',String(other===button));draw()});
+new ResizeObserver(entries=>{const width=Math.round(entries[0].contentRect.width);if(width!==lastWidth&&width>0){lastWidth=width;draw()}}).observe(mapElement);
+</script>
+</body></html>

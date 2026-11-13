@@ -4,7 +4,14 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { MessagePart, ToolCall } from "@/types";
 
-import { TurnParts, browseCalls, type PartRun } from "./turn-parts";
+import { TurnParts, browseCalls, chartCalls, type PartRun } from "./turn-parts";
+
+vi.mock("./chart-message", () => ({
+  parseChartResult: (value: unknown) =>
+    typeof value === "string" && value === "chart-result" ? { title: "Quarterly revenue" } : null,
+  ChartMessage: ({ spec }: { spec: { title: string } }) =>
+    createElement("figure", null, spec.title),
+}));
 
 vi.mock("./tool-call-card", () => ({
   ToolCallCard: ({ toolCall }: { toolCall: ToolCall }) =>
@@ -218,4 +225,60 @@ it("keeps renamed browser calls in the browse summary and excludes external coll
   expect(
     browseCalls([{ kind: "tools", parts: [alias, external], isLast: true }]).map((call) => call.id),
   ).toEqual(["renamed"]);
+});
+
+it("preserves the expanded timeline DOM while parking, resuming and completing a tool", () => {
+  const part = tool("report", "create_routine");
+  const draw = (status: ToolCall["status"], streaming: boolean) =>
+    createElement(TurnParts, {
+      parts: [{ ...part, toolCall: { ...part.toolCall!, status } }],
+      isStreaming: streaming,
+      isUser: false,
+      mcpServers: [],
+    });
+  const { rerender } = render(draw("running", true));
+  const step = screen.getByText("create_routine");
+  const region = screen.getByRole("region");
+  rerender(draw("awaiting_approval", false));
+  expect(screen.getByText("create_routine")).toBe(step);
+  expect(screen.getByRole("region")).toBe(region);
+  rerender(draw("running", true));
+  expect(screen.getByText("create_routine")).toBe(step);
+  rerender(draw("completed", false));
+  expect(screen.queryByText("create_routine")).toBeNull();
+  expect(screen.queryByRole("region")).toBeNull();
+});
+
+it("keeps finished charts visible outside the collapsed work timeline", () => {
+  const chart = tool("chart", "create_chart");
+  chart.toolCall = { ...chart.toolCall!, result: "chart-result" };
+  render(
+    createElement(TurnParts, {
+      parts: [chart, { id: "answer", type: "text", content: "The revenue increased." }],
+      isStreaming: false,
+      isUser: false,
+      mcpServers: [],
+    }),
+  );
+  expect(screen.getByRole("figure")).toHaveTextContent("Quarterly revenue");
+  expect(screen.getByText("The revenue increased.")).toBeVisible();
+  expect(screen.queryByRole("region")).toBeNull();
+});
+
+it("uses stable chart identity and excludes pending, failed and external calls", () => {
+  const renamed = tool("renamed-chart", "revenue_plot");
+  renamed.toolCall = { ...renamed.toolCall!, tool_id: "create_chart" };
+  const external = tool("external", "create_chart");
+  external.toolCall = { ...external.toolCall!, presentation_kind: "generic" };
+  const pending = tool("pending", "create_chart");
+  pending.toolCall = { ...pending.toolCall!, status: "running" };
+  expect(
+    chartCalls([
+      {
+        kind: "tools",
+        parts: [renamed, external, pending, { id: "empty", type: "tool" }],
+        isLast: true,
+      },
+    ]).map((c) => c.id),
+  ).toEqual(["renamed-chart"]);
 });

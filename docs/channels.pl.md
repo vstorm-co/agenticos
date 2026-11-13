@@ -1,5 +1,5 @@
 ---
-source_sha: "1b576c3b17a9"
+source_sha: "ff6a84a39b57"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -2938,7 +2938,7 @@ pięciu i dlatego takiego przełącznika nie ma: publikacja odrzuca spec niosąc
 `channel_tools`, a run składa powiązanie z wiersza, który wpuścił wiadomość, tak
 samo jak dopisuje prompt tego powiązania.
 
-Domyślnie nie jest przyznawane nic. Czego platforma nie potrafi odpowiedzieć,
+Nowe powiązania mają włączone wszystkie obsługiwane narzędzia. Istniejące zachowują zapisany wybór; niepotrzebne narzędzia można wyłączyć. Czego platforma nie potrafi odpowiedzieć,
 tego się nie oferuje: Telegram nie daje botowi żadnego katalogu czatów do
 przeszukania ani żadnego sposobu na czytanie wiadomości, których do niego nie
 wysłano, a `getChatAdministrators` to całość tego, co może wylistować — więc lista
@@ -3066,3 +3066,31 @@ Mattermost używa indeksu wyszukiwania do znalezienia tekstu lub okresu w kanale
 Miejscem docelowym pozostaje bieżący kanał lub wątek. Kursora nie można przenieść do innej rozmowy ani zmienić jego filtrów. Nadal obowiązują uprawnienia i akceptacje historii. Starsze wiadomości są materiałem źródłowym, a nie nowymi instrukcjami; zdarzenia systemowe nie uruchamiają płatnych runów.
 
 Działania przeglądarki i komputera mogą pokazywać link do uwierzytelnionego podglądu podczas pracy. Końcowa odpowiedź i odpowiedź po wznowieniu zachowują dostępne linki, także po zmianie nazwy narzędzia. Otwarcie wymaga logowania i dotychczasowych uprawnień do runu oraz podglądu; link nie udostępnia osobistego pulpitu całemu kanałowi. Dostępność zależy od usługi podglądu i jej retencji, bez obietnicy trwałego nagrania.
+
+
+## Działania w podłączonych komunikatorach { #connected-messaging-actions }
+
+Checkboxy w sekcji **Co agent może robić** przyznają prawdziwe narzędzia. Narzędzia rozmowy dotyczą wyłącznie bieżącego kanału i wątku; instrukcje powiązania są osobnym tekstem dla tej powierzchni. Grupa **Z dowolnego uruchomienia** przyznaje `find_chat_channels`, `read_chat_messages` i `send_chat_message` na wybranym bocie Mattermost lub Slack. W nowych powiązaniach te akcje i obsługiwane narzędzia rozmowy są włączone; istniejące ustawienia pozostają bez zmian. Włączona akcja obejmuje wszystkie kanały, do których dołączył bot, także przy pracy w chacie, innej rozmowie powiązanego użytkownika lub rutynie. `list_chat_connections` podaje dostępne boty i zweryfikowane bieżące miejsce rozmowy.
+
+Przy każdej operacji usługa ponownie sprawdza członkostwo w organizacji, dostęp do agenta, aktywne powiązanie i bota, a następnie członkostwo bota w kanale i przynależność wątku. Nie dołącza do kanałów ani nie pożycza botów innych agentów. Wyszukiwanie i historia zwracają ograniczone strony; puste dopasowanie nie kończy przeglądania, jeśli istnieje kursor. Błąd dostawcy jest odmową, nie pustym wynikiem. Wysyłanie podlega zasadom akceptacji; niepotwierdzoną wysyłkę trzeba sprawdzić przed ponowieniem. Pozostałe platformy zachowują dotychczasowe narzędzia rozmowy; akcje między kanałami są dostępne tylko tam, gdzie adapter weryfikuje członkostwo.
+
+Przed utworzeniem cyklicznego raportu ustal strefę czasową, harmonogram i miejsce dostarczenia, w tym użycie tego samego wątku lub nowego wpisu. Wpisz zweryfikowane identyfikatory bota, kanału i wątku oraz pełne zadanie do promptu rutyny, z końcowym dostarczeniem przez `send_chat_message`; kopia w konsoli trafia do dziennika rutyny. Sprawdź źródła i ewentualną stałą zgodę na akcję w Rutynach. Brak źródła zapisuje rutynę wstrzymaną z informacją o konfiguracji; nie można jej uruchomić ani włączyć przed naprawą i przeglądem źródeł. Napraw istniejącą rutynę, zamiast tworzyć kolejne pod innymi agentami.
+
+Długie zadania strumieniują tekst i rzeczywiste etapy narzędzi. W komunikatorach tekstowych bieżący etap pozostaje widoczny także po zdaniu postępu; ograniczone aktualizacje pokazują upływ czasu i zakończone kroki, bez wymyślonego procentu. Końcowa odpowiedź zastępuje stan tymczasowy. Platformy z natywnym strumieniem zachowują własną oś czasu.
+
+### Reakcje wybierane przez agenta { #agent-chosen-reactions }
+
+Nowe podpięcia botów włączają wszystkie narzędzia obsługiwane przez daną platformę, w tym **React with emoji**, gdy jest dostępne. Istniejące podpięcia zachowują zapisane wybory. Reakcja może stanowić całą odpowiedź lub towarzyszyć tekstowi. Po udanej odpowiedzi wyłącznie reakcją tymczasowa wiadomość postępu jest usuwana tam, gdzie platforma na to pozwala. Błąd lub częściowy sukces nie kończy odpowiedzi jako udanej reakcji.
+
+| Platforma | Natywne reakcje przez to połączenie | Limit i zakres |
+| --- | --- | --- |
+| Mattermost, Slack | Tak | Do ośmiu różnych standardowych nazw emoji; zweryfikowana dostępna wiadomość |
+| Discord | Tak | Do ośmiu różnych standardowych nazw emoji; bieżąca dopuszczona wiadomość |
+| Telegram | Tak | Jedna reakcja; bieżąca dopuszczona wiadomość; Telegram może ograniczać dostępne emoji |
+| iMessage | Tapbacki BlueBubbles | Jeden obsługiwany tapback na bieżącej dopuszczonej wiadomości; wymagane Private API |
+| Microsoft Teams | Nie z obecnym poświadczeniem Bot Connector | Reakcje Graph wymagają delegowanych uprawnień użytkownika; uprawnienia aplikacji nie są obsługiwane |
+| Twilio SMS, email | Brak natywnego protokołu reakcji w tych adapterach | Emoji można wysłać jako zwykły tekst |
+
+Instalacja Slacka potrzebuje `reactions:read` i `reactions:write`; po zmianie manifestu zainstaluj aplikację ponownie. Narzędzie zgłasza rzeczywisty wynik zamiast zastępować nieobsługiwany wybór. Lista połączeń podaje limit reakcji i zakres odbiorcy dla każdej platformy. Ograniczenie do bieżącej wiadomości w Telegramie, Discordzie i iMessage zapobiega zgadywaniu odbiorcy lub użyciu identyfikatora innej wiadomości.
+
+Email, iMessage i Twilio MMS udostępniają też jawne wysyłanie plików z workspace w bieżącej rozmowie. MMS podlega ustawieniom mediów wdrożenia i limitom załączników Twilio. Wygenerowane wykresy wysyłane emailem są załącznikami graficznymi.

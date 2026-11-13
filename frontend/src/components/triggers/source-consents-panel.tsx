@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { ROUTES } from "@/lib/constants";
 import { useTranslations } from "next-intl";
 import { useRoutineSources } from "@/hooks/use-routine-sources";
 import { Button, Spinner } from "@/components/ui";
@@ -30,9 +32,17 @@ export function SourceConsentsPanel({ trigger }: { trigger: Trigger }) {
               ))}
             </ul>
             {data.unavailable_sources.length > 0 && (
-              <p role="status" className="text-sm">
-                {t("unavailable", { names: data.unavailable_sources.join(", ") })}
-              </p>
+              <div className="space-y-2">
+                <p role="status" className="text-sm">
+                  {t("unavailable", { names: data.unavailable_sources.join(", ") })}
+                </p>
+                <Link
+                  className="text-sm underline underline-offset-4"
+                  href={`${ROUTES.AGENT_DETAIL(trigger.agent_id)}?highlight=agent-mcp`}
+                >
+                  {t("inspectAgent")}
+                </Link>
+              </div>
             )}
             <Button
               variant="outline"

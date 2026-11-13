@@ -417,10 +417,7 @@ describe("useApprovals", () => {
     await waitFor(() => expect(apiClient.post).toHaveBeenCalledWith("/runs/run-9/resume"));
   });
 
-  it("does not resume while another call on the same run is still parked", async () => {
-    // Resuming with a decision outstanding is a refusal the backend would make;
-    // more importantly the run is not ready - the second call still needs its
-    // answer, and the queue is where it gets one.
+  it("checks the server even when the cached queue still includes a pending row", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({
       items: [{ id: "ap2", run_id: "run-9", status: "pending" }],
       total: 1,
@@ -428,11 +425,8 @@ describe("useApprovals", () => {
     vi.mocked(apiClient.post).mockResolvedValue({ status: "approved", run_id: "run-9" });
     const { result } = renderHook(() => useApprovals(), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-
     await result.current.decide.mutateAsync({ id: "ap1", approved: true });
-
-    expect(apiClient.post).toHaveBeenCalledTimes(1);
-    expect(apiClient.post).not.toHaveBeenCalledWith("/runs/run-9/resume");
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalledWith("/runs/run-9/resume"));
   });
 
   it("swallows only the still-parked refusal when the cached page misled it", async () => {

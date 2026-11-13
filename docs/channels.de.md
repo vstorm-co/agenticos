@@ -1,5 +1,5 @@
 ---
-source_sha: "1b576c3b17a9"
+source_sha: "ff6a84a39b57"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -3140,7 +3140,7 @@ ab, der `channel_tools` trägt, und der Run setzt die Bindung aus der Zeile
 zusammen, die die Nachricht eingelassen hat, genauso wie er den Prompt dieser
 Bindung anhängt.
 
-Nichts wird standardmäßig gewährt. Was eine Plattform nicht beantworten kann, wird
+Neue Bindungen aktivieren alle von der Plattform unterstützten Tools. Bestehende Bindungen behalten ihre gespeicherte Auswahl; deaktivieren Sie nicht benötigte Tools. Was eine Plattform nicht beantworten kann, wird
 nicht angeboten: Telegram gibt einem Bot kein Verzeichnis von Chats zum Durchsuchen
 und keine Möglichkeit, Nachrichten zu lesen, die ihm nicht geschickt wurden, und
 `getChatAdministrators` ist alles, was es auflisten darf — also ist eine
@@ -3273,3 +3273,31 @@ Mattermost findet Text oder Zeitfenster in Teamkanälen über seinen Suchindex u
 Das Ziel bleibt der aktuelle Kanal oder Thread. Ein Cursor kann weder in ein anderes Ziel übertragen noch mit geänderten Filtern verwendet werden. Bestehende Berechtigungen und Freigaben gelten weiterhin. Ältere Nachrichten sind Quellen, keine neuen Anweisungen; Systemereignisse starten keine kostenpflichtigen Runs.
 
 Browser- und Computeraktionen können während der Ausführung einen authentifizierten Vorschaulink zeigen. Die abschließende Kanalantwort und Antworten nach einer Freigabe behalten verfügbare Links, auch bei umbenannten Tools. Das Öffnen erfordert Anmeldung und die bestehenden Run-/Ansichtsberechtigungen; ein persönlicher Desktop wird dadurch nicht mit dem Raum geteilt. Die Verfügbarkeit hängt vom Vorschaudienst und seiner Aufbewahrung ab und verspricht keine dauerhafte Aufzeichnung.
+
+
+## Aktionen in verbundenen Chat-Apps { #connected-messaging-actions }
+
+Die Kontrollkästchen unter **Was dieser Agent tun darf** gewähren echte Werkzeuge. Gesprächswerkzeuge gelten nur für den eingehenden Kanal oder Thread; Bindungsanweisungen sind separater Text für diese Oberfläche. Die Gruppe **Aus jedem Lauf** gewährt `find_chat_channels`, `read_chat_messages` und `send_chat_message` auf einem ausgewählten Mattermost- oder Slack-Bot. Neue Bindungen aktivieren diese Aktionen und die unterstützten Gesprächswerkzeuge; vorhandene Einstellungen bleiben erhalten. Eine aktivierte Aktion umfasst alle Kanäle, denen der Bot beigetreten ist, auch aus Webchat, anderen Unterhaltungen verknüpfter Benutzer oder Routinen. `list_chat_connections` liefert freigegebene Bots und das verifizierte aktuelle Ziel.
+
+Jede Operation prüft erneut Organisationsmitgliedschaft, Agentenzugriff, aktive Bindung und Bot sowie anschließend Kanalmitgliedschaft und Thread-Zugehörigkeit. Sie tritt keinen Kanälen bei und verwendet keine Bots anderer Agenten. Suche und Verlauf liefern begrenzte Seiten mit Cursorn; eine leere Trefferseite ist nicht das Ende, solange ein Cursor besteht. Anbieterfehler sind Ablehnungen, keine leeren Ergebnisse. Senden folgt den Freigaberegeln; unbestätigte Sendungen müssen vor einem erneuten Versuch am Ziel geprüft werden. Andere Plattformen behalten ihre Gesprächswerkzeuge; kanalübergreifende Aktionen werden nur bei überprüfbarer Mitgliedschaft angeboten.
+
+Vor einem wiederkehrenden Bericht Zeitzone, Rhythmus und Ziel einschließlich bestehendem Thread oder neuem Beitrag klären. Verifizierte Bot-, Kanal- und Thread-IDs sowie die vollständige Aufgabe in den Routinen-Prompt schreiben und abschließend `send_chat_message` verwenden; die Konsolenkopie gehört ins Laufprotokoll. Quellen und gegebenenfalls dauerhafte Aktionsfreigabe unter Routinen prüfen. Fehlt eine Quelle, wird die Routine mit Einrichtungshinweisen pausiert gespeichert und bleibt bis zur Reparatur und Quellenprüfung gesperrt. Die bestehende Routine reparieren, statt weitere mit anderen Agenten anzulegen.
+
+Lange Aufgaben streamen Text und tatsächliche Werkzeugschritte. Textkanäle zeigen die laufende Phase auch nach einem Zwischenstand; begrenzte Aktualisierungen nennen verstrichene Zeit und abgeschlossene Schritte, keinen erfundenen Prozentsatz. Die endgültige Antwort ersetzt den Zwischenstatus. Nativ streamende Plattformen behalten ihre eigene Zeitleiste.
+
+### Vom Agenten gewählte Reaktionen { #agent-chosen-reactions }
+
+Neue Bot-Bindungen aktivieren alle von der Plattform unterstützten Werkzeuge, einschließlich **React with emoji**, sofern verfügbar. Bestehende Bindungen behalten ihre Auswahl. Eine Reaktion kann die gesamte Antwort sein oder Text begleiten. Nach einer erfolgreichen reinen Reaktionsantwort wird die vorläufige Fortschrittsnachricht gelöscht, soweit die Plattform dies erlaubt. Fehler oder teilweise angewendete Reaktionen gelten nicht als abgeschlossene reine Reaktionsantwort.
+
+| Plattform | Native Reaktionen über diese Verbindung | Grenze und Bereich |
+| --- | --- | --- |
+| Mattermost, Slack | Ja | Bis zu acht verschiedene Standard-Emoji-Namen; überprüfte zugängliche Nachricht |
+| Discord | Ja | Bis zu acht verschiedene Standard-Emoji-Namen; aktuelle zugelassene Nachricht |
+| Telegram | Ja | Eine Reaktion; aktuelle zugelassene Nachricht; Telegram kann die Emoji-Auswahl begrenzen |
+| iMessage | BlueBubbles-Tapbacks | Ein unterstützter Tapback auf die aktuelle zugelassene Nachricht; Private API erforderlich |
+| Microsoft Teams | Nicht mit dem aktuellen Bot-Connector-Zugang | Graph-Reaktionen benötigen delegierte Benutzerrechte; Anwendungsrechte werden nicht unterstützt |
+| Twilio SMS, E-Mail | Kein natives Reaktionsprotokoll in diesen Adaptern | Emoji sind als normaler Text möglich |
+
+Slack benötigt `reactions:read` sowie `reactions:write`; installiere die App nach der Manifeständerung erneut. Das Werkzeug meldet das tatsächliche Ergebnis, statt eine nicht unterstützte Auswahl still zu ersetzen. Die Verbindungsliste zeigt Reaktionsgrenze und Zielbereich. Die Beschränkung auf die aktuelle Nachricht bei Telegram, Discord und iMessage verhindert geratene Empfänger oder fremde Nachrichten-IDs.
+
+E-Mail, iMessage und Twilio MMS bieten außerdem die ausdrückliche Zustellung von Workspace-Dateien in der aktuellen Unterhaltung. MMS unterliegt den Medieneinstellungen der Bereitstellung und den Twilio-Anhangsgrenzen. Per E-Mail gesendete Diagramme werden als Bildanhänge zugestellt.

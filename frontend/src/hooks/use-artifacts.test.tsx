@@ -10,6 +10,7 @@ import {
   useArtifactDisclosure,
   useArtifacts,
   useArtifactView,
+  useArtifactThumbnail,
   usePublicArtifactUnlock,
   usePublicDataDisclosure,
 } from "./use-artifacts";
@@ -656,5 +657,71 @@ describe("settle", () => {
     await act(() => result.current.artifact.restoreVersion.mutateAsync("v2"));
     await waitFor(() => expect(calls("/view")).toBeGreaterThan(views));
     await waitFor(() => expect(calls("/data")).toBeGreaterThan(dataLoads));
+  });
+});
+
+describe("cached static App previews", () => {
+  beforeEach(() => vi.clearAllMocks());
+  function cachedWrapper() {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return function Cached({ children }: { children: ReactNode }) {
+      return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    };
+  }
+
+  it("keeps an in-flight render across opening an App and returning", async () => {
+    let complete!: (value: { version_id: string; state: string; image: string }) => void;
+    vi.mocked(apiClient.get).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+    );
+    const wrap = cachedWrapper();
+    const first = renderHook(() => useArtifactThumbnail("a", "v1", true), { wrapper: wrap });
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(1));
+    first.unmount();
+    const second = renderHook(() => useArtifactThumbnail("a", "v1", true), { wrapper: wrap });
+    await act(async () =>
+      complete({ version_id: "v1", state: "ready", image: "data:image/jpeg;base64,aA==" }),
+    );
+    await waitFor(() => expect(second.result.current.isSuccess).toBe(true));
+    expect(apiClient.get).toHaveBeenCalledTimes(1);
+    second.unmount();
+    const third = renderHook(() => useArtifactThumbnail("a", "v1", true), { wrapper: wrap });
+    expect(third.result.current.data?.version_id).toBe("v1");
+    expect(apiClient.get).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not restart a failed preview on every Back navigation", async () => {
+    vi.mocked(apiClient.get).mockRejectedValue(new Error("Unavailable version"));
+    const wrap = cachedWrapper();
+    const first = renderHook(() => useArtifactThumbnail("a", "v1", true), { wrapper: wrap });
+    await waitFor(() => expect(first.result.current.isError).toBe(true));
+    first.unmount();
+    const again = renderHook(({ seen }) => useArtifactThumbnail("a", "v1", seen), {
+      initialProps: { seen: false },
+      wrapper: wrap,
+    });
+    again.rerender({ seen: true });
+    expect(apiClient.get).toHaveBeenCalledTimes(1);
+    expect(again.result.current.isError).toBe(true);
+  });
+
+  it("fetches a fresh image when a new version is published", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      version_id: "v1",
+      state: "ready",
+      image: "data:image/jpeg;base64,aA==",
+    });
+    const { result, rerender } = renderHook(
+      ({ version }) => useArtifactThumbnail("a", version, true),
+      { initialProps: { version: "v1" }, wrapper: cachedWrapper() },
+    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    rerender({ version: "v2" });
+    await waitFor(() =>
+      expect(apiClient.get).toHaveBeenCalledWith("/apps/a/thumbnail?version_id=v2"),
+    );
   });
 });

@@ -232,12 +232,17 @@ class TestTheCleanup:
         assert result == {"unlinked": 2, "dropped": 2, "restamped": 0, "purged": 0}
         engine.dispose.assert_awaited_once()
 
-    async def test_a_failed_drop_leaves_the_reservation_for_a_retry(self) -> None:
+    @pytest.mark.parametrize(
+        "failure", [SQLAlchemyError("blip"), RuntimeError("invalid legacy table")]
+    )
+    async def test_a_failed_drop_leaves_the_reservation_for_a_retry(
+        self, failure: Exception
+    ) -> None:
         """The name stays reserved when the drop fails: the table may still hold data,
         so freeing the name would let a claim adopt it. A retry drops and releases it
         (#1362)."""
         _storage, store, _engine, release, patches = _patch_cleanup()
-        store.delete_collection = AsyncMock(side_effect=SQLAlchemyError("blip"))
+        store.delete_collection = AsyncMock(side_effect=failure)
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
             result = await cleanup_external_state([], ["docs"])
 

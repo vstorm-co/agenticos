@@ -57,6 +57,7 @@ const REGISTERED = [
   "ask_user",
   "browser_use",
   "channel_tools",
+  "channel_actions",
   "charts",
   "clock",
   "code_execution",

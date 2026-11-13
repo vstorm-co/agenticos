@@ -214,7 +214,7 @@ def build_channel_toolset(
         before: AwareDatetime | None = None,
         cursor: str | None = None,
     ) -> str:
-        """Read the most recent messages in this channel, newest last.
+        """Read recent messages or filtered history pages in this channel or thread.
 
         Use it when the question refers to something said earlier that is not in
         this conversation - "what did we decide yesterday", "summarise the thread

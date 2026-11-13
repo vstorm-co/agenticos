@@ -33,18 +33,19 @@ import random
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 import httpx
 import logfire
 from websockets.asyncio.client import connect
 from websockets.exceptions import ConnectionClosed
 
-from app.agents.capabilities.channel_tools import ChannelPost
+from app.agents.capabilities.channel_tools import ChannelDirectoryUnsupported, ChannelPost
 from app.core.background import spawn
 from app.services.channels import connection_state
 from app.services.channels.base import (
     CHANNEL_COMMANDS,
+    REACTION_EMOJI,
     ChannelAdapter,
     FeedbackComment,
     IncomingAttachment,
@@ -402,6 +403,36 @@ class DiscordAdapter(ChannelAdapter):
                 reference=reference,
                 files=files if last and files else None,
             )
+
+    async def react_to_message(
+        self,
+        bot_token: str,
+        channel_id: str,
+        message_id: str,
+        emoji: str,
+        *,
+        api_base_url: str | None,
+    ) -> None:
+        symbol = REACTION_EMOJI.get(emoji)
+        if symbol is None:
+            raise ChannelDirectoryUnsupported("Choose a supported standard Discord emoji name")
+        if not channel_id.isdecimal() or not message_id.isdecimal():
+            raise ChannelDirectoryUnsupported("Use verified Discord channel and message IDs")
+        response = await self._call(
+            "PUT",
+            f"/channels/{channel_id}/messages/{message_id}/reactions/{quote(symbol, safe='')}/@me",
+            bot_token,
+        )
+        response.raise_for_status()
+
+    async def delete_reply(
+        self, bot_token: str, platform_chat_id: str, handle: str, *, api_base_url: str | None
+    ) -> None:
+        channel_id, _ = await self._destination(bot_token, platform_chat_id)
+        response = await self._call(
+            "DELETE", f"/channels/{channel_id}/messages/{handle}", bot_token
+        )
+        response.raise_for_status()
 
     async def begin_reply(self, bot_token: str, msg: OutgoingMessage) -> str | None:
         """Post the message the answer will be written into, and return its id."""

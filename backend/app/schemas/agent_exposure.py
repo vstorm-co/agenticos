@@ -24,6 +24,7 @@ class ExposureTool(BaseSchema):
     id: str
     name: str
     description: str
+    scope: Literal["conversation", "connection"] = "conversation"
 
 
 class ExposureVariable(BaseSchema):

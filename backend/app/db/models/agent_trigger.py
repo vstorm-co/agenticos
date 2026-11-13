@@ -245,6 +245,17 @@ class AgentTrigger(Base, TimestampMixin):
     local_target: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     approved_sources: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
 
+    @property
+    def setup_required(self) -> bool:
+        """A saved schedule whose source review has not been admitted."""
+        return (self.approved_sources or {}).get("pending_review") is True
+
+    @property
+    def setup_issues(self) -> list[str]:
+        """Safe source labels from initial setup, not provider error bodies."""
+        value = (self.approved_sources or {}).get("unavailable_sources", [])
+        return [item for item in value if isinstance(item, str)] if isinstance(value, list) else []
+
     action_consents: Mapped[list[dict[str, object]]] = mapped_column(
         JSONB, nullable=False, default=list, server_default="[]"
     )

@@ -58,6 +58,7 @@ from app.services.channels.base import (
     IncomingAttachment,
     IncomingMessage,
     IncomingPress,
+    OutgoingAttachment,
     OutgoingMessage,
     PromptMessage,
 )
@@ -152,7 +153,10 @@ class EmailAdapter(ChannelAdapter):
             raise ChannelNotConfigured(
                 "This deployment's EMAIL_PROVIDER delivers nothing, so the bot cannot answer."
             )
-        if not msg.text.strip() and not msg.attachments:
+        files = list(msg.attachments)
+        if msg.image_png is not None:
+            files.insert(0, OutgoingAttachment(msg.image_filename, msg.image_png, "image/png"))
+        if not msg.text.strip() and not files:
             return
         thread = await email_state.thread_of(sender.lower(), msg.platform_chat_id.lower())
         headers: dict[str, str] = {}
@@ -171,7 +175,7 @@ class EmailAdapter(ChannelAdapter):
                     EmailAttachment(
                         filename=item.filename, content=item.content, mime_type=item.mime_type
                     )
-                    for item in msg.attachments
+                    for item in files
                 ],
             )
         )

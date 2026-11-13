@@ -50,7 +50,7 @@ class ChannelToolsConfig(BaseModel):
         default_factory=list,
         description=(
             "Which channel lookups this binding allows, by tool id. Empty means "
-            "none, which is what a binding starts as."
+            "none. New bindings grant all platform-supported tools; existing choices stay unchanged."
         ),
     )
     default_limit: int = Field(

@@ -1029,6 +1029,7 @@ async def test_a_completed_channel_continuation_defers_buttons_after_posting_its
 
     segment = SimpleNamespace(
         output="Sent.",
+        channel_destination=None,
         tool_calls=[],
         settled={},
         generated_files=frozenset(),
@@ -1142,3 +1143,57 @@ class TestDelivering:
 
         assert merged.tool_calls == [replace(c1, result="ok"), later]
         assert untouched.tool_calls == [later]
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "case", ["only", "text", "partial", "wrong_message", "legacy", "preview", "file"]
+)
+async def test_a_resumed_reaction_only_answer_suppresses_only_its_confirmed_original_target(
+    monkeypatch, case
+):
+    import app.services.channels.prompts as module
+    from app.agents.capabilities.channel_actions._contract import ReactionReceipt
+    from app.agents.capabilities.channel_tools._directory import ChannelDestination
+    from app.services.transcript import RecordedToolCall
+
+    bot = _bot()
+    receipt = ReactionReceipt(
+        bot_id=bot.id,
+        channel_id="C1",
+        message_id="other" if case == "wrong_message" else "original",
+        applied=["heart"],
+        failed=["tada"] if case == "partial" else [],
+        reaction_only=case != "text",
+    )
+    segment = RunSegment(
+        output="",
+        run=MagicMock(id=RUN, conversation_id=None, status="completed"),
+        tool_calls=[
+            RecordedToolCall(
+                tool_call_id="react",
+                tool_name="react_to_chat_message",
+                args={},
+                result=receipt.model_dump_json(),
+            )
+        ],
+        settled={},
+        channel_destination=ChannelDestination(
+            bot_id=bot.id,
+            platform_chat_id="C1:1.0",
+            private_chat=False,
+            message_id=None if case == "legacy" else "original",
+        ),
+        generated_files=frozenset({"report.pdf"}) if case == "file" else frozenset(),
+    )
+    adapter = MagicMock(send_message=AsyncMock())
+    monkeypatch.setattr(module, "get_adapter", lambda platform: adapter)
+    monkeypatch.setattr(module, "unseal_bot_token", lambda row: "private-token")
+    monkeypatch.setattr(module, "drawn_picture", AsyncMock(return_value=None))
+    monkeypatch.setattr(
+        module,
+        "with_preview_links",
+        AsyncMock(return_value="Preview link" if case == "preview" else ""),
+    )
+    await ChannelPrompts(AsyncMock())._send_segment(bot, "slack", "C1:1.0", segment)
+    assert adapter.send_message.await_count == (0 if case == "only" else 1)

@@ -42,7 +42,7 @@ import httpx
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
-from pydantic import BaseModel
+from pydantic import BaseModel, TypeAdapter
 
 from app.agents.capabilities.channel_tools import (
     ChannelDetails,
@@ -51,7 +51,11 @@ from app.agents.capabilities.channel_tools import (
     ChannelPost,
     ChannelSummary,
 )
-from app.agents.capabilities.channel_tools._directory import HistoryPage, HistoryQuery
+from app.agents.capabilities.channel_tools._directory import (
+    ChannelListPage,
+    HistoryPage,
+    HistoryQuery,
+)
 from app.core.security import encode_untrusted
 from app.db.session import get_db_context
 from app.services.channels import connection_state
@@ -94,6 +98,31 @@ class _HistoryChannel(BaseModel):
     name: str
     team_id: str = ""
 
+
+class _ReactionBot(BaseModel):
+    id: str
+
+
+class _JoinedChannel(BaseModel):
+    id: str
+    name: str
+    display_name: str = ""
+    purpose: str = ""
+    type: str
+    delete_at: int = 0
+
+
+class _ChannelMembership(BaseModel):
+    channel_id: str
+
+
+class _ChannelThreadRoot(BaseModel):
+    id: str
+    channel_id: str
+    root_id: str = ""
+
+
+_JOINED_CHANNELS = TypeAdapter(list[_JoinedChannel])
 
 logger = logging.getLogger(__name__)
 
@@ -473,6 +502,45 @@ class MattermostAdapter(ChannelAdapter):
             )
         response.raise_for_status()
 
+    async def react_to_message(
+        self,
+        bot_token: str,
+        channel_id: str,
+        message_id: str,
+        emoji: str,
+        *,
+        api_base_url: str | None,
+    ) -> None:
+        base = self._server(api_base_url)
+        headers = self._headers(bot_token)
+        async with self._client() as client:
+            target = await client.get(f"{base}/api/v4/posts/{message_id}", headers=headers)
+            target.raise_for_status()
+            post = _ChannelThreadRoot.model_validate_json(target.content)
+            if post.id != message_id or post.channel_id != channel_id:
+                raise ChannelDirectoryUnsupported(
+                    "The selected message does not belong to this channel"
+                )
+            own = await client.get(f"{base}/api/v4/users/me", headers=headers)
+            own.raise_for_status()
+            identity = _ReactionBot.model_validate_json(own.content)
+            response = await client.post(
+                f"{base}/api/v4/reactions",
+                headers=headers,
+                json={"user_id": identity.id, "post_id": message_id, "emoji_name": emoji},
+            )
+            response.raise_for_status()
+
+    async def delete_reply(
+        self, bot_token: str, platform_chat_id: str, handle: str, *, api_base_url: str | None
+    ) -> None:
+        async with self._client() as client:
+            response = await client.delete(
+                f"{self._server(api_base_url)}/api/v4/posts/{handle}",
+                headers=self._headers(bot_token),
+            )
+            response.raise_for_status()
+
     async def acknowledge_message(
         self, bot_token: str, incoming: IncomingMessage, reaction: str
     ) -> None:
@@ -742,6 +810,77 @@ class MattermostAdapter(ChannelAdapter):
             part for part in (user.get("first_name"), user.get("last_name")) if part
         ).strip()
         return user.get("nickname") or full or None
+
+    async def joined_channels(
+        self,
+        bot_token: str,
+        *,
+        api_base_url: str | None,
+        query: str,
+        limit: int,
+        cursor: str | None,
+    ) -> ChannelListPage:
+        # This native endpoint has no pagination (Mattermost 6.1+). Page the
+        # sorted metadata locally; only one bounded page reaches the model.
+        if cursor is not None and (not cursor.isdecimal() or len(cursor) > 8):
+            raise ChannelDirectoryUnsupported("Use the channel-list cursor returned by this bot")
+        async with self._client() as client:
+            response = await client.get(
+                f"{self._server(api_base_url)}/api/v4/users/me/channels",
+                headers=self._headers(bot_token),
+            )
+            response.raise_for_status()
+        needle = query.casefold()
+        rows = sorted(
+            (
+                row
+                for row in _JOINED_CHANNELS.validate_json(response.content)
+                if row.type in {"O", "P"}
+                and not row.delete_at
+                and (
+                    needle in row.display_name.casefold()
+                    or needle in row.name.casefold()
+                    or needle in row.purpose.casefold()
+                )
+            ),
+            key=lambda row: row.id,
+        )
+        start = int(cursor or "0")
+        found = tuple(
+            ChannelSummary(
+                channel_id=row.id,
+                name=row.display_name or row.name,
+                purpose=row.purpose or None,
+                is_private=row.type == "P",
+            )
+            for row in rows[start : start + limit]
+        )
+        return ChannelListPage(found, str(start + limit) if start + limit < len(rows) else None)
+
+    async def require_joined_channel(
+        self, bot_token: str, channel_id: str, *, api_base_url: str | None
+    ) -> None:
+        async with self._client() as client:
+            response = await client.get(
+                f"{self._server(api_base_url)}/api/v4/channels/{channel_id}/members/me",
+                headers=self._headers(bot_token),
+            )
+            response.raise_for_status()
+            if _ChannelMembership.model_validate_json(response.content).channel_id != channel_id:
+                raise ChannelDirectoryUnsupported("The bot is not a member of this channel")
+
+    async def require_channel_thread(
+        self, bot_token: str, channel_id: str, thread_id: str, *, api_base_url: str | None
+    ) -> None:
+        async with self._client() as client:
+            response = await client.get(
+                f"{self._server(api_base_url)}/api/v4/posts/{thread_id}",
+                headers=self._headers(bot_token),
+            )
+            response.raise_for_status()
+            post = _ChannelThreadRoot.model_validate_json(response.content)
+            if post.channel_id != channel_id or post.id != thread_id or post.root_id:
+                raise ChannelDirectoryUnsupported("Choose a root message in the selected channel")
 
     async def channel_details(
         self, bot_token: str, channel_id: str, *, api_base_url: str | None

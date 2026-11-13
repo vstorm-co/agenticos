@@ -126,6 +126,12 @@ class TestCreate:
             await service.create(_ctx(), uuid.uuid4(), ExposureCreate(channel_bot_id=bot.id))
 
         assert exposures.create.call_args.kwargs["surface"] == ExposureSurface.TELEGRAM.value
+        assert set(exposures.create.call_args.kwargs["tools"]) == {
+            "react_to_chat_message",
+            "get_channel_info",
+            "list_channel_members",
+            "send_channel_file",
+        }
 
     async def test_a_binding_can_name_the_environment_it_serves(self):
         """A dev bot bound to dev - the environment travels into the row."""
@@ -780,11 +786,18 @@ class TestWhatTheAgentMayLookUpHere:
             telegram, mattermost = await service.list_for_agent(_ctx(), uuid.uuid4())
 
         assert [tool.id for tool in telegram.available_tools] == [
+            "react_to_chat_message",
             "get_channel_info",
             "list_channel_members",
             "send_channel_file",
         ]
-        assert len(mattermost.available_tools) == 5
+        assert len(mattermost.available_tools) == 9
+        assert {tool.id for tool in mattermost.available_tools if tool.scope == "connection"} == {
+            "find_chat_channels",
+            "read_chat_messages",
+            "send_chat_message",
+            "react_to_chat_message",
+        }
         assert mattermost.tools == ["get_channel_info"]
 
     async def test_the_form_reads_the_registry_s_own_words(self):
@@ -800,9 +813,12 @@ class TestWhatTheAgentMayLookUpHere:
             (slack,) = await service.list_for_agent(_ctx(), uuid.uuid4())
 
         contracts = (await tool_contracts())["channel_tools"]
+        contracts.update((await tool_contracts())["channel_actions"])
         real = {
             tool.id: _prose(contracts[tool.id].description)
-            for tool in get_capability("channel_tools").tools
+            for capability in ("channel_tools", "channel_actions")
+            for tool in get_capability(capability).tools
+            if tool.id != "list_chat_connections"
         }
         assert {tool.id: tool.description for tool in slack.available_tools} == real
 
@@ -839,7 +855,12 @@ class TestWhatTheAgentMayLookUpHere:
 
             (slack,) = await service.list_for_agent(_ctx(), uuid.uuid4())
 
-        declared = {tool.id: tool.description for tool in get_capability("channel_tools").tools}
+        declared = {
+            tool.id: tool.description
+            for capability in ("channel_tools", "channel_actions")
+            for tool in get_capability(capability).tools
+            if tool.id != "list_chat_connections"
+        }
         assert {tool.id: tool.description for tool in slack.available_tools} == declared
 
 

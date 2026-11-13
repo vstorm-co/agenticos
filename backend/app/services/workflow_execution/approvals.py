@@ -45,6 +45,7 @@ from app.schemas.workflow_approval import (
 )
 from app.services import text_similarity
 from app.services.workflow_execution import dispatch_queue
+from app.services.workflow_execution.approval_audience import group_approvers
 
 logger = logging.getLogger(__name__)
 
@@ -60,9 +61,12 @@ def _normalised(text: str) -> str:
     return "\n".join(line.rstrip() for line in lines).strip()
 
 
-def _read(approval: WorkflowApproval, workflow_name: str) -> WorkflowApprovalRead:
+def _read(
+    approval: WorkflowApproval, workflow_name: str, *, can_decide: bool = False
+) -> WorkflowApprovalRead:
     return WorkflowApprovalRead(
         id=approval.id,
+        can_decide=can_decide,
         workflow_id=approval.workflow_id,
         workflow_name=workflow_name,
         workflow_run_id=approval.workflow_run_id,
@@ -70,6 +74,7 @@ def _read(approval: WorkflowApproval, workflow_name: str) -> WorkflowApprovalRea
         title=approval.title,
         details=approval.details,
         approver_user_ids=[UUID(str(user_id)) for user_id in approval.approver_user_ids],
+        approver_group_ids=[UUID(group_id) for group_id in approval.approver_group_ids or []],
         status=WorkflowApprovalStatus(approval.status),
         expires_at=approval.expires_at,
         decided_by_user_id=approval.decided_by_user_id,
@@ -122,7 +127,20 @@ class WorkflowApprovalService:
             created_to=created_to,
             oldest_first=oldest_first,
         )
-        return WorkflowApprovalList(items=[_read(row, name) for row, name in rows], total=total)
+        items = [_read(row, name, can_decide=await self._eligible(ctx, row)) for row, name in rows]
+        return WorkflowApprovalList(items=items, total=total)
+
+    async def _eligible(self, ctx: AuthContext, approval: WorkflowApproval) -> bool:
+        approvers = {str(user_id) for user_id in approval.approver_user_ids}
+        groups = [UUID(group_id) for group_id in approval.approver_group_ids or []]
+        if groups:
+            approvers.update(
+                str(user_id)
+                for user_id in await group_approvers(
+                    self.db, organization_id=ctx.organization_id, group_ids=groups
+                )
+            )
+        return not (approval.approver_user_ids or groups) or str(ctx.subject_id) in approvers
 
     async def decide(
         self,
@@ -162,8 +180,7 @@ class WorkflowApprovalService:
             raise NotFoundError(
                 message="Approval not found", details={"approval_id": str(approval_id)}
             )
-        approvers = {str(user_id) for user_id in approval.approver_user_ids}
-        if approvers and str(ctx.subject_id) not in approvers:
+        if not await self._eligible(ctx, approval):
             raise AuthorizationError(
                 message="Only the people this step names may decide it",
                 details={"approval_id": str(approval_id)},

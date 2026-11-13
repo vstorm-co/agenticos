@@ -85,6 +85,9 @@ PLATFORM_TOOLS: dict[str, tuple[str, ...]] = {
     # privileged Server Members intent, so no roster, details or channel search yet
     # (#2079).
     "discord": ("send_channel_file", "read_channel_history"),
+    "imessage": ("send_channel_file",),
+    "email": ("send_channel_file",),
+    "sms": ("send_channel_file",),
 }
 """What each platform can actually answer, as the Builder offers it.
 
@@ -128,6 +131,7 @@ class BoundChannelDirectory:
     api_base_url: str | None = None
     bot_id: UUID | None = None
     private_chat: bool = False
+    message_id: str | None = None
     thread_id: str | None = None
     """The thread this run is answering in, where the platform has threads.
 
@@ -144,6 +148,7 @@ class BoundChannelDirectory:
             bot_id=self.bot_id,
             platform_chat_id=self.channel_id + (":" + self.thread_id if self.thread_id else ""),
             private_chat=self.private_chat,
+            message_id=self.message_id,
         )
 
     async def send_file(self, *, filename: str, content: bytes, mime_type: str) -> str:
@@ -283,5 +288,6 @@ async def restore_directory(
         channel_id=channel_id,
         thread_id=thread_id or None,
         private_chat=destination.private_chat,
+        message_id=destination.message_id,
         api_base_url=bot.api_base_url,
     )

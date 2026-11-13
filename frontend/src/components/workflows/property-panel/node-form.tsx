@@ -21,6 +21,7 @@ import { CurlImport } from "@/components/workflows/property-panel/curl-import";
 import type { CodeLanguage } from "@/lib/workflows/code-editing";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 import { SchemaForm } from "@/components/agents/schema-form";
+import { GroupPicker } from "@/components/orgs/group-picker";
 import { MemberPicker } from "@/components/orgs/member-picker";
 import {
   AgentVersionPicker,
@@ -350,6 +351,9 @@ function ResourcePin({
   disabled?: boolean;
   onChange: (value: unknown) => void;
 }) {
+  if (kind === "group") {
+    return <GroupPicker selected={idList(value)} onChange={onChange} disabled={disabled} />;
+  }
   if (kind === "agent") {
     const ref = record(value);
     const current: AgentVersionRef = {

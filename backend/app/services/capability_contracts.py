@@ -102,6 +102,7 @@ _DOCUMENTATION_STUB: dict[str, Any] = {
     # read back is the shape of the tools, never a result - the directory answers
     # nothing and the delegate is never delegated to.
     CHANNEL_DIRECTORY_RESOURCE: SimpleNamespace(),
+    "channel_actions": SimpleNamespace(),
     SUBAGENT_RUNTIME_RESOURCE: SubagentRuntime(
         subagents=(
             ResolvedSubagent(
@@ -131,6 +132,7 @@ _DOCUMENTATION_CONFIGS: dict[str, dict[str, Any]] = {
     "phone_calls": {"endpoint_id": str(UUID(int=0))},
     "mirage": {"mounts": [{"path": "/scratch/", "backend": "ram"}]},
     "channel_tools": {"tools": sorted(get("channel_tools").tool_ids)},
+    "channel_actions": {"tools": sorted(get("channel_actions").tool_ids)},
     # Granted no table, it builds only to create one; that is the widest list.
     # Granted no workflow, it builds nothing; one id the prober never starts.
     "workflows": {"workflow_ids": [str(UUID(int=0))]},

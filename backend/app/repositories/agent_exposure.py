@@ -195,6 +195,7 @@ async def create(
     environment_id: UUID | None = None,
     session_scope: str | None = None,
     prompt: str | None = None,
+    tools: list[str] | None = None,
 ) -> AgentExposure:
     exposure = AgentExposure(
         organization_id=organization_id,
@@ -205,6 +206,7 @@ async def create(
         environment_id=environment_id,
         session_scope=session_scope,
         prompt=prompt,
+        tools=list(tools) if tools is not None else [],
     )
     db.add(exposure)
     await db.flush()

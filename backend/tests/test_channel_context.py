@@ -481,3 +481,14 @@ def test_unlinked_channels_gate_all_mirage_tools_even_with_author_overrides(
         tools if not linked and surface != "web" else frozenset()
     )
     assert spec.model_dump() == original
+
+
+async def test_double_braces_and_legacy_placeholders_resolve_once_without_stray_braces():
+    bound = directory()
+    result = await resolve(
+        "{{channel_name}} | {channel_name} | {{channel_members}} | {{unknown}} | {{{channel_name}}}",
+        bound,
+    )
+    assert result.startswith("Support | Support | Ada, Bob | {{unknown}} | {{{channel_name}}}")
+    bound.details.assert_awaited_once()
+    bound.members.assert_awaited_once()

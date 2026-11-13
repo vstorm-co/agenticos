@@ -1,5 +1,5 @@
 ---
-source_sha: "1b576c3b17a9"
+source_sha: "ff6a84a39b57"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -2971,7 +2971,7 @@ eso no existe tal interruptor: publicar rechaza un spec que lleve `channel_tools
 el run ensambla la vinculación a partir de la fila que admitió el mensaje, igual que
 añade el prompt de esa vinculación.
 
-No se concede nada por defecto. Lo que una plataforma no puede responder no se ofrece:
+Las nuevas vinculaciones activan todas las herramientas compatibles con su plataforma. Las existentes conservan su selección; desactive las herramientas que el agente no deba usar. Lo que una plataforma no puede responder no se ofrece:
 Telegram no le da a un bot ningún directorio de chats que buscar ni forma de leer
 mensajes que no se le enviaron, y `getChatAdministrators` es todo lo que puede listar
 — así que una lista de miembros de Telegram es una lista de administradores y lo dice.
@@ -3102,3 +3102,31 @@ Mattermost localiza texto o periodos en canales de equipo mediante su índice y 
 El destino sigue siendo el canal o hilo actual. El cursor no puede trasladarse a otro destino ni reutilizarse con filtros distintos. Se mantienen los permisos y aprobaciones existentes. Los mensajes anteriores son fuentes, no instrucciones nuevas; los eventos del sistema no inician ejecuciones de pago.
 
 Las acciones de navegador y ordenador pueden mostrar un enlace autenticado durante la ejecución. La respuesta final y las respuestas reanudadas tras aprobación conservan los enlaces disponibles, incluso con herramientas renombradas. Abrirlos requiere iniciar sesión y los permisos existentes de ejecución y vista; no comparte un escritorio personal con todo el canal. Su disponibilidad depende del servicio de vista y su retención, sin prometer una grabación permanente.
+
+
+## Acciones en aplicaciones de chat conectadas { #connected-messaging-actions }
+
+Las casillas de **Lo que este agente puede hacer** conceden herramientas reales. Las herramientas de conversación solo usan el canal o hilo entrante; las instrucciones de vinculación son texto separado para esa superficie. El grupo **Desde cualquier ejecución** concede `find_chat_channels`, `read_chat_messages` y `send_chat_message` en un bot de Mattermost o Slack. Las nuevas vinculaciones activan estas acciones y las herramientas de conversación compatibles; las selecciones existentes se conservan. Una acción activa abarca todos los canales a los que pertenece el bot, también desde el chat web, otras conversaciones de usuarios vinculados y rutinas. `list_chat_connections` muestra bots autorizados y el destino actual verificado.
+
+Cada operación vuelve a comprobar la pertenencia a la organización, acceso al agente, vinculación y bot activos, además de pertenencia al canal y correspondencia del hilo. No se une a canales ni utiliza bots de otros agentes. La búsqueda y el historial devuelven páginas limitadas con cursores; una página sin coincidencias no es el final si hay cursor. Los fallos del proveedor son rechazos, no resultados vacíos. Los envíos siguen la política de aprobación; una entrega no confirmada debe comprobarse antes de reintentarse. Las demás plataformas conservan sus herramientas de conversación; las acciones entre canales solo se ofrecen donde el adaptador verifica la pertenencia.
+
+Antes de crear un informe recurrente, acuerda zona horaria, frecuencia y destino, incluido usar el hilo actual o una publicación nueva. Escribe los identificadores verificados del bot, canal e hilo y la tarea completa en el prompt de la rutina, terminando con `send_chat_message`; la copia de la consola queda en el registro. Revisa fuentes y consentimiento permanente de acciones en Rutinas. Una fuente ausente guarda la rutina pausada con indicaciones de configuración; no podrá ejecutarse ni activarse hasta reparar y revisar las fuentes. Repara la rutina existente en lugar de crear más con otros agentes.
+
+Las tareas largas transmiten texto y etapas reales de herramientas. En canales de texto la etapa actual sigue visible tras una frase de avance; las actualizaciones limitadas muestran tiempo transcurrido y pasos terminados, sin porcentajes inventados. La respuesta final sustituye el estado temporal. Las plataformas con transmisión nativa conservan su propia cronología.
+
+### Reacciones elegidas por el agente { #agent-chosen-reactions }
+
+Las nuevas vinculaciones de bots activan todas las herramientas compatibles con su plataforma, incluida **React with emoji** cuando está disponible. Las vinculaciones existentes conservan su selección. Una reacción puede ser toda la respuesta o acompañar al texto. Una respuesta solo con reacciones confirmadas elimina el mensaje temporal de progreso cuando la plataforma permite borrarlo. Un fallo o una aplicación parcial no cuentan como una respuesta solo con reacciones completada.
+
+| Plataforma | Reacciones nativas mediante esta conexión | Límite y alcance |
+| --- | --- | --- |
+| Mattermost, Slack | Sí | Hasta ocho nombres de emoji estándar distintos; mensaje accesible verificado |
+| Discord | Sí | Hasta ocho nombres de emoji estándar distintos; mensaje actual admitido |
+| Telegram | Sí | Una reacción; mensaje actual admitido; Telegram puede limitar los emoji disponibles |
+| iMessage | Tapbacks de BlueBubbles | Un tapback compatible en el mensaje actual admitido; requiere Private API |
+| Microsoft Teams | No con la credencial actual de Bot Connector | Las reacciones de Graph requieren permisos delegados de usuario; no admiten permisos de aplicación |
+| Twilio SMS, correo electrónico | Sin protocolo nativo de reacciones en estos adaptadores | Se pueden enviar emoji como texto normal |
+
+Slack necesita `reactions:read` además de `reactions:write`; reinstala la aplicación tras actualizar el manifiesto. La herramienta informa del resultado real en vez de sustituir una selección incompatible sin avisar. La lista de conexiones indica el límite de reacciones y el alcance del destino. La restricción al mensaje actual en Telegram, Discord e iMessage impide adivinar destinatarios o reutilizar identificadores de otros mensajes.
+
+El correo electrónico, iMessage y Twilio MMS también ofrecen envío explícito de archivos del workspace en la conversación actual. MMS depende de la configuración multimedia del despliegue y de los límites de adjuntos de Twilio. Los gráficos enviados por correo se convierten en adjuntos de imagen.

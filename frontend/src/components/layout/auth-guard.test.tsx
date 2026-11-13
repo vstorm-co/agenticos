@@ -174,3 +174,14 @@ describe("the dashboard guard, refusing", () => {
     expect(screen.queryByText(/could not be prepared/i)).not.toBeInTheDocument();
   });
 });
+
+it("offers a deliberate sign-in path after a temporary session failure and preserves the destination", async () => {
+  window.history.replaceState(null, "", "/chat?id=conversation#answer");
+  vi.mocked(apiClient.get).mockRejectedValueOnce(new ApiError(503, "Unavailable"));
+  renderGuard();
+  await userEvent.click(await screen.findByRole("button", { name: "Sign in again" }));
+  expect(replace).toHaveBeenCalledWith(
+    `${ROUTES.LOGIN}?returnTo=${encodeURIComponent("/chat?id=conversation#answer")}`,
+  );
+  expect(apiClient.post).not.toHaveBeenCalled();
+});

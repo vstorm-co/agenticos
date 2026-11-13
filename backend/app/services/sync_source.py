@@ -1,7 +1,9 @@
 # ruff: noqa: I001
 """Sync source service - org-scoped integration management."""
 
+import asyncio
 import hashlib
+from dataclasses import dataclass
 import json
 from datetime import UTC, datetime
 from uuid import UUID
@@ -11,7 +13,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.updates import writable
 from app.core.audit import record_audit
-from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AuthorizationError,
+    BadRequestError,
+    ConcurrentChangeError,
+    NotFoundError,
+)
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.base import Base
@@ -22,6 +29,7 @@ from app.services.access import SECRET, resolve_access
 from app.services.background_jobs import enqueue
 from app.services.rag.connectors import CONNECTOR_REGISTRY
 from app.repositories import background_job as background_job_repo
+from app.repositories import knowledge_base as knowledge_base_repo
 from app.repositories import organization_secret_repo
 from app.repositories import sync_log as sync_log_repo
 from app.repositories import sync_source as sync_source_repo
@@ -95,7 +103,14 @@ async def _refuse_an_invalid_config(config: dict, connector_type: str) -> None:
     connector_cls = CONNECTOR_REGISTRY.get(connector_type)
     if connector_cls is None:  # pragma: no cover - a stored row names a live connector
         return
-    refusal = await connector_cls().validate_config(config)
+    connector = connector_cls()
+    try:
+        async with asyncio.timeout(5):
+            refusal = await connector.validate_config(config)
+    except TimeoutError as exc:
+        raise refused_field("config", "Connector address validation timed out. Try again.") from exc
+    finally:
+        await connector.aclose()
     if refusal is None:
         return
     sentence = f"Invalid connector config: {refusal.message}"
@@ -135,6 +150,17 @@ def _raw_config(source: SyncSource) -> dict:
     if c:
         return json.loads(c)
     return {}
+
+
+@dataclass(frozen=True)
+class PreparedSourceUpdate:
+    """Network validation performed before taking the source's mutation locks."""
+
+    source_id: UUID
+    revision: datetime | None
+    fingerprint: str
+    data: SyncSourceUpdate
+    secret_hint: str | None
 
 
 class SyncSourceService:
@@ -258,6 +284,10 @@ class SyncSourceService:
             BadRequestError: unknown connector, invalid config, or a collection
                 name that cannot safely become an identifier.
         """
+        if data.collection_name is None and not ctx.has(Perm.CONNECTIONS_MANAGE):
+            raise AuthorizationError(
+                message="Creating an unassigned connection template requires Manage connections"
+            )
         if data.connector_type not in CONNECTOR_REGISTRY:
             raise BadRequestError(
                 message=f"Unknown connector type: {data.connector_type}",
@@ -429,23 +459,16 @@ class SyncSourceService:
         await self._record(source, "created", ctx=ctx, extra={"cloned_from": source_id})
         return self._to_read(source)
 
-    async def update_source(
-        self, source_id: str, data: SyncSourceUpdate, *, ctx: AuthContext
-    ) -> SyncSourceRead:
-        """Update an existing sync source.
-
-        No `••••••` round-trip any more: the config holds no credential, so a
-        patch has nothing to send back masked and nothing to skip on the way in
-        (#937). Changing the credential means changing `secret_id`, which is
-        checked the same way creation checks it.
-
-        Raises:
-            NotFoundError: If sync source does not exist.
-            BadRequestError: The config carries a credential, the connector
-                refuses it, or the credential named is not this organization's or
-                not the kind the connector needs.
-        """
-        existing = await self.get_source(source_id)
+    async def _checked_update(
+        self, existing: SyncSource, data: SyncSourceUpdate, ctx: AuthContext
+    ) -> tuple[SyncSourceUpdate, str | None]:
+        if (
+            existing.collection_name is None
+            or ("collection_name" in data.model_fields_set and data.collection_name is None)
+        ) and not ctx.has(Perm.CONNECTIONS_MANAGE):
+            raise AuthorizationError(
+                message="Managing unassigned connection templates requires Manage connections"
+            )
         updates = writable(data, over=SyncSource)
         hint: str | None = None
 
@@ -472,6 +495,65 @@ class SyncSourceService:
             # the caller who sent it.
             await _refuse_an_invalid_config(merged, existing.connector_type)
             updates["config"] = merged
+
+        return data.model_copy(update=updates), hint
+
+    async def prepare_update(
+        self, source_id: str, data: SyncSourceUpdate, *, ctx: AuthContext
+    ) -> PreparedSourceUpdate:
+        """Validate without mutation locks; the eventual write checks this snapshot."""
+        source = await self.get_source(source_id)
+        if source.organization_id != ctx.organization_id:
+            raise NotFoundError(message="Sync source not found", details={"source_id": source_id})
+        revision = source.updated_at
+        fingerprint = sync_fingerprint(
+            _raw_config(source),
+            collection_name=source.collection_name or "",
+            sync_mode=source.sync_mode,
+        )
+        checked, hint = await self._checked_update(source, data, ctx)
+        return PreparedSourceUpdate(source.id, revision, fingerprint, checked, hint)
+
+    async def update_source(
+        self,
+        source_id: str,
+        data: SyncSourceUpdate,
+        *,
+        ctx: AuthContext,
+        prepared: PreparedSourceUpdate | None = None,
+    ) -> SyncSourceRead:
+        """Update an existing sync source.
+
+        No `••••••` round-trip any more: the config holds no credential, so a
+        patch has nothing to send back masked and nothing to skip on the way in
+        (#937). Changing the credential means changing `secret_id`, which is
+        checked the same way creation checks it.
+
+        Raises:
+            NotFoundError: If sync source does not exist.
+            BadRequestError: The config carries a credential, the connector
+                refuses it, or the credential named is not this organization's or
+                not the kind the connector needs.
+        """
+        existing = await self.get_source(source_id)
+        if prepared is None:
+            checked, hint = await self._checked_update(existing, data, ctx)
+        else:
+            fingerprint = sync_fingerprint(
+                _raw_config(existing),
+                collection_name=existing.collection_name or "",
+                sync_mode=existing.sync_mode,
+            )
+            if (
+                existing.id != prepared.source_id
+                or existing.updated_at != prepared.revision
+                or fingerprint != prepared.fingerprint
+            ):
+                raise ConcurrentChangeError(
+                    message="This source changed during validation. Reload it and try again."
+                )
+            checked, hint = prepared.data, prepared.secret_hint
+        updates = writable(checked, over=SyncSource)
 
         previous_collection = existing.collection_name
         source = await sync_source_repo.update(self.db, UUID(source_id), **updates)
@@ -505,12 +587,18 @@ class SyncSourceService:
         Nobody asked for a scheduled run, so it names no requester; its outcome's
         notification falls back to the organization's admins.
         """
+        candidates = await knowledge_base_repo.list_by_collection_name(
+            self.db, source.collection_name or ""
+        )
+        target = knowledge_base_repo.choose_for_collection(candidates, source.organization_id)
         return await sync_log_repo.create(
             self.db,
             source=source.connector_type,
             collection_name=collection_name,
             mode=source.sync_mode,
             sync_source_id=source.id,
+            organization_id=source.organization_id,
+            knowledge_base_id=None if target is None else target.id,
             triggered_by_user_id=None,
         )
 
@@ -555,12 +643,18 @@ class SyncSourceService:
         # still queued adds no second sync - nor a log that no job would finish.
         key = sync_source_key(source.id)
         savepoint = await self.db.begin_nested()
+        candidates = await knowledge_base_repo.list_by_collection_name(
+            self.db, source.collection_name or ""
+        )
+        target = knowledge_base_repo.choose_for_collection(candidates, source.organization_id)
         sync_log = await sync_log_repo.create(
             self.db,
             source=source.connector_type,
             collection_name=source.collection_name,
             mode=source.sync_mode,
             sync_source_id=source.id,
+            organization_id=source.organization_id,
+            knowledge_base_id=None if target is None else target.id,
             triggered_by_user_id=user_id,
         )
         payload = SyncConnectorSource(source_id=source.id, sync_log_id=sync_log.id)

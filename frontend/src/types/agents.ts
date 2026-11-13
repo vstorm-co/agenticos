@@ -205,6 +205,7 @@ export interface AlertSpec {
   enabled: boolean;
   to: AlertAudience[];
   user_ids: string[];
+  group_ids?: string[];
 }
 
 /**

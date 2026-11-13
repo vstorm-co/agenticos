@@ -5288,6 +5288,29 @@ describe("useChat - coming back to a turn still being written", () => {
     expect(useChatStore.getState().messages.filter((m) => m.role === "user")).toHaveLength(1);
   });
 
+  it("replaces the previous socket's unsaved bubble when attachment replays the same turn", () => {
+    renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    storedQuestion();
+    act(() =>
+      useChatStore.getState().addMessage({
+        id: "abandoned-socket",
+        role: "assistant",
+        content: "Checking the page.",
+        timestamp: new Date(),
+        conversationId: "c-1",
+        isTemporaryId: true,
+        isStreaming: true,
+      }),
+    );
+    receive("turn_attached", { conversation_id: "c-1" });
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "Checking the page." });
+    const answers = useChatStore.getState().messages.filter((m) => m.role === "assistant");
+    expect(answers).toHaveLength(1);
+    expect(answers[0]?.content).toBe("Checking the page.");
+    expect(answers[0]?.id).not.toBe("abandoned-socket");
+  });
+
   it("asks to follow the conversation's turn once its transcript is here", () => {
     renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
     expect(sent).not.toHaveBeenCalled();

@@ -16,6 +16,7 @@ import {
   Switch,
 } from "@/components/ui";
 import { MemberIdentity, displayName } from "@/components/orgs/member-identity";
+import { GroupPicker } from "@/components/orgs/group-picker";
 import { MemberPicker } from "@/components/orgs/member-picker";
 import type { IdentifiedMember } from "@/components/orgs/member-identity";
 import { useMembers } from "@/hooks";
@@ -174,6 +175,7 @@ function AlertRow({
       // spec carrying ids without it - so dropping the audience drops the list
       // rather than leaving one the save would reject.
       user_ids: to.includes("chosen") ? alert.user_ids : [],
+      group_ids: to.includes("chosen") ? (alert.group_ids ?? []) : [],
     });
   };
 
@@ -190,7 +192,7 @@ function AlertRow({
   const problem =
     alert.enabled && alert.to.length === 0
       ? t("nobodySetHearAdd")
-      : alert.to.includes("chosen") && alert.user_ids.length === 0
+      : alert.to.includes("chosen") && alert.user_ids.length === 0 && !alert.group_ids?.length
         ? "“Specific people” is chosen and nobody is named, so this would mail nobody."
         : null;
 
@@ -315,6 +317,17 @@ function AlertRow({
                 )}
               </div>
             ))}
+
+          {alert.to.includes("chosen") && (
+            <div className="mt-3 space-y-2">
+              <GroupPicker
+                selected={alert.group_ids ?? []}
+                onChange={(group_ids) => onChange({ ...alert, group_ids })}
+                disabled={disabled}
+              />
+              <p className="text-muted-foreground text-xs">{t("groupsNotifyOnly")}</p>
+            </div>
+          )}
 
           {problem && (
             // A span rather than a `Badge`: that component renders a `div`, and a

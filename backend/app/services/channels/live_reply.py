@@ -46,6 +46,8 @@ from app.services.channels.base import AnswerStep, NativeAnswer, StepSource
 
 logger = logging.getLogger(__name__)
 
+PROGRESS_INTERVAL = 20.0
+
 EDIT_INTERVAL = 1.0
 """Seconds between edits of the message being written.
 
@@ -156,6 +158,10 @@ class LiveReply:
         self._now = now
         self._text = ""
         self._status = WORKING
+        self._began = now()
+        self._active_steps: dict[str, str] = {}
+        self._completed_steps: set[str] = set()
+        self._elapsed_note = ""
         self._sent: str | None = None
         self._pushed_at = 0.0
 
@@ -167,10 +173,23 @@ class LiveReply:
     def _shown(self) -> str:
         """What the message should read right now.
 
-        Text as soon as there is any: a status line under an answer that has
-        started arriving is noise, and the answer is what somebody is reading.
+        A real tool still running remains visible after a progress sentence.
+        Final delivery replaces this temporary status with the authoritative answer.
         """
-        return self._text or self._status
+        status = self._status + self._elapsed_note
+        if self._text:
+            return self._text + ("\n\n" + status if self._active_steps else "")
+        return status
+
+    async def pulse(self) -> None:
+        """A bounded liveness update; elapsed time never implies percentage complete."""
+        elapsed = int(self._now() - self._began)
+        if elapsed < PROGRESS_INTERVAL:
+            return
+        self._elapsed_note = (
+            f" · {elapsed // 60}m {elapsed % 60}s · {len(self._completed_steps)} steps finished"
+        )
+        await self._flush()
 
     async def add(self, delta: str) -> None:
         """Take a fragment of the answer, and push if it is time."""
@@ -196,7 +215,15 @@ class LiveReply:
         """
         if step.status == "in_progress":
             links = "".join(f"\n{source.title}: {source.url}" for source in step.sources)
-            await self.working_on(step.title + links)
+            self._active_steps[step.id] = step.title + links
+        else:
+            self._active_steps.pop(step.id, None)
+            self._completed_steps.add(step.id)
+        if self._active_steps:
+            self._status = next(reversed(self._active_steps.values()))
+        else:
+            self._status = "Preparing the answer…"
+        await self._flush()
 
     async def _maybe_push(self) -> None:
         if self._now() - self._pushed_at >= EDIT_INTERVAL:
@@ -412,6 +439,8 @@ def channel_stream(reply: AnswerSink) -> RunStream:
             deps.browser_events = preview
         try:
             async with anyio.create_task_group() as followed:
+                if isinstance(reply, LiveReply):
+                    followed.start_soon(pulse)
                 try:
                     await walk(agent_run, followed, None if run_id is None else str(run_id))
                 finally:
@@ -419,6 +448,12 @@ def channel_stream(reply: AnswerSink) -> RunStream:
         finally:
             if isinstance(deps, AgentDeps):
                 deps.browser_events = original
+
+    async def pulse() -> None:
+        if isinstance(reply, LiveReply):
+            while True:
+                await anyio.sleep(PROGRESS_INTERVAL)
+                await reply.pulse()
 
     async def follow(
         run_id: str,

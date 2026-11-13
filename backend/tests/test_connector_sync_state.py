@@ -166,6 +166,7 @@ async def _sync(
     store: _Store | None = None,
     ingest_status: IngestionStatus = IngestionStatus.DONE,
     claimants: set[uuid.UUID] | None = None,
+    queued_target: uuid.UUID | None = KB_ID,
 ) -> _Run:
     source = MagicMock(
         id=SOURCE_ID,
@@ -247,8 +248,20 @@ async def _sync(
         patch.object(rag_tasks, "get_worker_db_context", new=_db),
         patch.object(rag_tasks, "_exclusive_source_run", new=_lock),
         patch.object(rag_tasks, "_record_embedding_spend", new=AsyncMock()),
+        patch.object(
+            rag_tasks, "NotificationService", return_value=MagicMock(sync_failed=AsyncMock())
+        ),
         patch.object(rag_tasks, "assert_organization_within_budget", new=AsyncMock()),
         patch.object(rag_tasks, "SyncSourceService", return_value=sources),
+        patch.object(
+            rag_tasks.sync_log_repo,
+            "get_by_id",
+            AsyncMock(
+                return_value=MagicMock(
+                    collection_name="docs", organization_id=ORG_ID, knowledge_base_id=queued_target
+                )
+            ),
+        ),
         patch.object(
             rag_tasks,
             "_knowledge_base_for",
@@ -273,7 +286,7 @@ async def _sync(
     ):
         config_service.return_value.build_processor = AsyncMock(return_value=MagicMock())
         config_service.return_value.resolved_image_model = AsyncMock(return_value=None)
-        run.answer = await rag_tasks._run_source_sync(str(SOURCE_ID), sync_log_id="log-1")
+        run.answer = await rag_tasks._run_source_sync(str(SOURCE_ID), sync_log_id=str(SOURCE_ID))
     return run
 
 
@@ -478,3 +491,13 @@ class TestWhatADeadRunLeftIsSettledFirst:
 
         assert connector.listed == 1
         assert run.answer["ingested"] == 1
+
+
+@pytest.mark.security
+async def test_a_replaced_same_named_target_is_not_ingested():
+    connector = _Connector(files=["a.md"])
+    run = await _sync(connector, queued_target=uuid.uuid4())
+    assert run.answer["status"] == "error"
+    assert "target changed" in run.answer["message"]
+    assert connector.listed == 0
+    run.ingest.assert_not_awaited()

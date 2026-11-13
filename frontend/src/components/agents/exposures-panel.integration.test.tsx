@@ -394,8 +394,8 @@ describe("ExposuresPanel", () => {
     await mount();
 
     expect(await screen.findByText("What this agent may do on Slack")).toBeInTheDocument();
-    expect(screen.getByLabelText("Describe it.")).toBeChecked();
-    expect(screen.getByLabelText("Read it.")).not.toBeChecked();
+    expect(screen.getByLabelText("Describe this channel")).toBeChecked();
+    expect(screen.getByLabelText("Read this conversation")).not.toBeChecked();
   });
 
   it("sends the whole grant, not the box that moved", async () => {
@@ -415,7 +415,7 @@ describe("ExposuresPanel", () => {
     );
     await mount();
 
-    await userEvent.click(await screen.findByLabelText("Read it."));
+    await userEvent.click(await screen.findByLabelText("Read this conversation"));
 
     expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/exposures/e1`, {
       tools: ["get_channel_info", "read_channel_history"],
@@ -437,7 +437,7 @@ describe("ExposuresPanel", () => {
     );
     await mount();
 
-    await userEvent.click(await screen.findByLabelText("Read it."));
+    await userEvent.click(await screen.findByLabelText("Read this conversation"));
 
     expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/exposures/e1`, {
       tools: ["get_channel_info"],

@@ -119,6 +119,7 @@ from app.repositories import (
     skill_version_repo,
     user_repo,
 )
+from app.repositories import group as group_repo
 from app.repositories import workflow as workflow_repo
 from app.schemas.agent import (
     MAX_CATEGORIES,
@@ -1748,17 +1749,24 @@ class AgentRegistryService:
         # it was seeded would otherwise be bound, reported as installed, and then
         # refused at publish as a skill that does not exist - the check publish
         # makes, made here first.
-        return [
-            row
-            for name in wanted
-            if (
-                row := await skill_repo.get_by_name(
-                    self.db, name, organization_id=ctx.organization_id
+        skills: list[Skill] = []
+        keys_by_name = {name: key for key, name in bundled.items()}
+        for name in wanted:
+            row = await skill_repo.get_by_name(self.db, name, organization_id=ctx.organization_id)
+            if row is None or not await resolve_access(
+                self.db, ctx, row, Perm.SKILLS_VIEW, resource_type=SKILL
+            ):
+                continue
+            entry = skill_library.get(keys_by_name[name]) if name in keys_by_name else None
+            if entry is not None and not await SkillService(self.db).trusted_template_copy(
+                row, entry
+            ):
+                raise BadRequestError(
+                    message="A skill has the same name as a bundled skill but no trusted installation receipt. An administrator must review or refresh it before using this template.",
+                    details={"skill_id": str(row.id)},
                 )
-            )
-            is not None
-            and await resolve_access(self.db, ctx, row, Perm.SKILLS_VIEW, resource_type=SKILL)
-        ]
+            skills.append(row)
+        return skills
 
     async def _from_the_starter(self, ctx: AuthContext, spec: AgentSpec) -> AgentSpec:
         """A new agent made what the starter agent is, for the console's New agent (#2301).
@@ -2213,6 +2221,21 @@ class AgentRegistryService:
         """
         await skill_repo.hold(self.db, bound_skill_ids(spec), organization_id=ctx.organization_id)
         problems = _SpecProblems()
+        for kind in ("budget", "approvals", "usage"):
+            alert = getattr(spec.notifications, kind)
+            if not alert.group_ids:
+                continue
+            names = await group_repo.get_names(
+                self.db, organization_id=ctx.organization_id, group_ids=alert.group_ids
+            )
+            for index, group_id in enumerate(alert.group_ids):
+                if group_id not in names:
+                    problems.merge(
+                        _SpecProblems.at(
+                            f"notifications.{kind}.group_ids.{index}",
+                            "This group is not in the organization",
+                        )
+                    )
 
         for binding in spec.capabilities:
             problems.merge(await self._binding_problems(ctx, binding))

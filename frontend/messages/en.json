@@ -1090,7 +1090,26 @@
     "pipelineNoMatches": "No matching models",
     "alreadyHasIt": "Uses it",
     "inDraftOf": "{more, plural, =0 {In the draft of {names}, not published yet} other {In the drafts of {names} and # more, not published yet}}",
-    "useDefaultModel": "Use default model"
+    "useDefaultModel": "Use default model",
+    "channelToolScope": {
+      "conversation": "Current conversation",
+      "conversationHint": "Available while answering in this channel. These tools use only the current conversation.",
+      "connection": "From any run",
+      "connectionHint": "Available in web chat, linked channel conversations and routines. Each enabled action can reach every channel this bot has joined. Sending follows the approval policy."
+    },
+    "channelToolDetails": "Tool details",
+    "channelActionNames": {
+      "find_chat_channels": "Find channels",
+      "read_chat_messages": "Search message history",
+      "send_chat_message": "Send messages and reports",
+      "get_channel_info": "Describe this channel",
+      "list_channel_members": "List channel members",
+      "search_channels": "Find channel names",
+      "read_channel_history": "Read this conversation",
+      "send_channel_file": "Send a file here",
+      "react_to_chat_message": "React with emoji"
+    },
+    "groupsNotifyOnly": "Recipients are notified using current group membership. This does not grant or restrict approval authority."
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -1957,7 +1976,13 @@
       "tablesCreating": "Creating a table",
       "tablesDescribing": "Reading a table's columns",
       "tablesListing": "Checking which tables it can use",
-      "viewsListing": "Listing a table's saved views"
+      "viewsListing": "Listing a table's saved views",
+      "sendingChannelMessage": "Sending a message to the channel",
+      "sendChannelMessage": "Send channel message",
+      "listingChatConnections": "Listing messaging connections",
+      "chatConnections": "Messaging connections",
+      "reactingToMessage": "Reacting to a message",
+      "messageReactions": "Message reactions"
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -4126,7 +4151,8 @@
       "description": "Quick Ask, voice and your local tools, one shortcut away.",
       "download": "Get the desktop app",
       "dismiss": "Remind me in 14 days"
-    }
+    },
+    "signInAgain": "Sign in again"
   },
   "legal": {
     "acceptAll": "Accept all",
@@ -10167,7 +10193,6 @@
     "endsAtLabel": "Ends at (device time)",
     "endsAtHint": "Leave blank to run until stopped. This time uses {zone}, independently of the schedule zone.",
     "endsAtInvalid": "Choose a valid future time, or clear the field to remove the end.",
-    "deliveryUnavailable": "Last answer unavailable in chat",
     "actionConsents": {
       "checkConnections": "Check these connections to review their actions: {names}.",
       "personalAccount": "{name} · your account",
@@ -10202,7 +10227,8 @@
       "current": "The reviewed sources are current.",
       "changed": "Review these sources before the next run.",
       "unavailable": "Reconnect or inspect these sources first: {names}",
-      "accept": "Approve these sources"
+      "accept": "Approve these sources",
+      "inspectAgent": "Inspect the agent’s connections"
     },
     "advancedOptions": "Advanced options",
     "advancedOptionsHint": "Defaults: current published version, standard failure protection and your notification preferences.",
@@ -10213,7 +10239,10 @@
     "resultReportHint": "Deliver a report to the chosen conversation after each run.",
     "resultInboxHint": "Create one Inbox case and working chat per source item. Include requested drafts there; unchanged checks stay quiet. Sending still requires the appropriate permission and approval.",
     "clearSearch": "Clear search",
-    "noRoutineMatchesHint": "Try an agent name, routine title or words from its message."
+    "noRoutineMatchesHint": "Try an agent name, routine title or words from its message.",
+    "setupRequired": "Setup required",
+    "setupRequiredHint": "Saved and paused. Repair the sources, review access, then enable this routine.",
+    "setupOwnerRequired": "Saved and paused. Its creator must repair and review the sources."
   },
   "portals": {
     "mailboxInterval": {
@@ -11768,6 +11797,7 @@
     "latestVersionHint": "Follows the next publication",
     "currentTag": "Current",
     "publicUpdated": "Updated {when}",
+    "backToConversation": "Back to conversation",
     "backToArtifacts": "Back to apps",
     "viewerControls": "App controls",
     "share": "Share",
@@ -13225,6 +13255,14 @@
       "example3": "Read a table from your database and summarise it",
       "needs": "The services' credentials in the vault, or a connected Google account. A deployment installs the terminal with the mirage extra, and an operator allows the hosts of any server you type.",
       "never": "Never writes to a folder you mounted read-only, and asks a person before each write where you said so."
+    },
+    "channel_actions": {
+      "name": "Connected chat apps",
+      "does": "Find channels, search their messages and send requested reports using bots explicitly granted to this agent.",
+      "example1": "Send a report to the team channel from web chat",
+      "example2": "Schedule a weekly update to an agreed thread",
+      "needs": "An active bot binding, selected actions and membership in each destination. Routines require source and action review.",
+      "never": "Never joins a channel, borrows another agent’s bot or silently retries an uncertain send."
     }
   },
   "capabilityCategories": {
@@ -13858,6 +13896,12 @@
       "hidden_paths": {
         "title": "Hidden paths",
         "description": "Paths the agent cannot see at all, e.g. /drive/HR/."
+      }
+    },
+    "channel_actions": {
+      "tools": {
+        "title": "Allowed messaging actions",
+        "description": "Actions explicitly granted on the agent's connected bots."
       }
     }
   },
@@ -17691,5 +17735,11 @@
     "contextTitle": "Improve context",
     "contextBody": "The assistant uses feedback from conversations where agents used this context file. Review every suggestion before applying it.",
     "costs": "Costs and limits"
+  },
+  "approvalGroups": {
+    "groups": "Groups",
+    "error": "Groups could not be loaded. Existing selections are kept.",
+    "loading": "Loading groups…",
+    "empty": "No groups in this organization."
   }
 }

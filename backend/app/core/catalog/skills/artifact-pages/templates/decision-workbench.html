@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Choose a rollout you can defend</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --paper: light-dark(#faf8f3, #191b20);
+        --ink: light-dark(#252b32, #e9eced);
+        --muted: light-dark(#535f69, #acb7bf);
+        --line: light-dark(#c9cfce, #46505b);
+        --accent: light-dark(#176654, #81d5bb);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font:
+          17px/1.55 system-ui,
+          sans-serif;
+      }
+      main {
+        max-width: 1120px;
+        margin: auto;
+        padding: clamp(20px, 5vw, 64px);
+      }
+      h1 {
+        font:
+          clamp(36px, 6vw, 72px)/1.04 Georgia,
+          serif;
+        max-width: 18ch;
+        margin: 16px 0 24px;
+      }
+      h2 {
+        font-size: 24px;
+        line-height: 1.2;
+      }
+      p {
+        max-width: 70ch;
+      }
+      .eyebrow {
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--accent);
+      }
+      .muted,
+      small {
+        color: var(--muted);
+      }
+      button,
+      input,
+      select {
+        font: inherit;
+      }
+      button,
+      select,
+      input:not([type="range"]) {
+        min-height: 44px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 8px 12px;
+        background: var(--paper);
+        color: var(--ink);
+      }
+      button {
+        cursor: pointer;
+      }
+      button:hover {
+        border-color: var(--accent);
+      }
+      :focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 3px;
+      }
+      label {
+        display: block;
+        font-size: 14px;
+        font-weight: 600;
+        margin-top: 16px;
+      }
+      input[type="range"] {
+        width: 100%;
+        min-height: 44px;
+        accent-color: var(--accent);
+      }
+      .split {
+        display: grid;
+        grid-template-columns: minmax(220px, 1fr) minmax(0, 2fr);
+        gap: 40px;
+      }
+      .rule {
+        border-top: 1px solid var(--line);
+        padding-top: 24px;
+        margin-top: 32px;
+      }
+      svg,
+      canvas {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 14px;
+      }
+      th,
+      td {
+        text-align: left;
+        border-bottom: 1px solid var(--line);
+        padding: 12px 8px;
+      }
+      output {
+        font-variant-numeric: tabular-nums;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      .error {
+        color: light-dark(#a32e29, #ffaaa5);
+      }
+      @media (max-width: 640px) {
+        .split {
+          grid-template-columns: 1fr;
+          gap: 20px;
+        }
+        h1 {
+          font-size: 40px;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          scroll-behavior: auto !important;
+        }
+      }
+      @media print {
+        button,
+        input,
+        select,
+        .controls {
+          display: none;
+        }
+        body {
+          background: white;
+          color: black;
+        }
+        main {
+          padding: 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="eyebrow">Decision workbench · Illustrative scores</p>
+        <h1>Choose a rollout you can defend.</h1>
+        <p>
+          Change the importance of safety, speed and reach. Compare the weighted
+          results, then inspect the tradeoff. These are example judgments, not
+          measured forecasts.
+        </p>
+      </header>
+      <div class="split rule">
+        <section class="controls" aria-labelledby="weights">
+          <h2 id="weights">What matters most?</h2>
+          <label for="safety">Safety weight</label
+          ><input
+            id="safety"
+            type="number"
+            min="0"
+            max="100"
+            value="50"
+          /><label for="speed">Speed weight</label
+          ><input id="speed" type="number" min="0" max="100" value="30" /><label
+            for="reach"
+            >Reach weight</label
+          ><input id="reach" type="number" min="0" max="100" value="20" />
+          <p id="error" class="error" role="status"></p>
+          <button type="button" id="reset">Reset weights</button>
+        </section>
+        <section aria-labelledby="ranking">
+          <h2 id="ranking">Ranked options</h2>
+          <p id="formula" class="muted">
+            Score = weighted sum of criterion scores ÷ total weight. Each
+            criterion is scored from 0 to 5.
+          </p>
+          <div id="results">
+            <table>
+              <caption>
+                Ranking under the current weights
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Option</th>
+                  <th scope="col">Score / 5</th>
+                  <th scope="col">Inspect</th>
+                </tr>
+              </thead>
+              <tbody id="rows"></tbody>
+            </table>
+            <article class="rule" id="detail" aria-live="polite"></article>
+          </div>
+        </section>
+      </div>
+    </main>
+    <script>
+      const options = [
+        {
+          name: "Pilot",
+          scores: [5, 4, 1],
+          detail:
+            "Two teams, quick feedback and a small exposure. Lowest reach until the pilot is evaluated.",
+        },
+        {
+          name: "Regional",
+          scores: [3, 3, 3],
+          detail:
+            "Balanced exposure and reach. Coordination across teams still needs a named owner.",
+        },
+        {
+          name: "Organization-wide",
+          scores: [1, 1, 5],
+          detail:
+            "Largest reach, with the largest operational exposure and longest preparation.",
+        },
+      ];
+      const ids = ["safety", "speed", "reach"];
+      const fields = ids.map((id) => document.getElementById(id));
+      let selected = "Pilot";
+      function render() {
+        const weights = fields.map((field) => field.valueAsNumber);
+        const valid =
+          weights.every(
+            (value) => Number.isFinite(value) && value >= 0 && value <= 100,
+          ) && weights.reduce((a, b) => a + b, 0) > 0;
+        document.getElementById("error").textContent = valid
+          ? ""
+          : "Enter weights from 0 to 100, with at least one greater than zero.";
+        fields.forEach((field) =>
+          field.setAttribute("aria-describedby", "error"),
+        );
+        document.getElementById("results").hidden = !valid;
+        if (!valid) return;
+        const total = weights.reduce((a, b) => a + b, 0);
+        const ranked = options
+          .map((option) => ({
+            ...option,
+            value:
+              option.scores.reduce(
+                (sum, score, index) => sum + score * weights[index],
+                0,
+              ) / total,
+          }))
+          .sort((a, b) => b.value - a.value);
+        const rows = document.getElementById("rows");
+        rows.replaceChildren();
+        for (const option of ranked) {
+          const row = document.createElement("tr");
+          const name = document.createElement("th");
+          name.scope = "row";
+          name.textContent = option.name;
+          const score = document.createElement("td");
+          score.textContent = option.value.toFixed(2);
+          const action = document.createElement("td");
+          const button = document.createElement("button");
+          button.type = "button";
+          button.dataset.option = option.name;
+          button.textContent =
+            selected === option.name ? "Selected" : "Inspect";
+          button.setAttribute("aria-label", `Inspect ${option.name}`);
+          button.addEventListener("click", () => {
+            selected = option.name;
+            inspectSelection();
+          });
+          action.append(button);
+          row.append(name, score, action);
+          rows.append(row);
+        }
+        inspectSelection();
+      }
+      function inspectSelection() {
+        for (const button of document.querySelectorAll("[data-option]")) {
+          button.textContent = button.dataset.option === selected ? "Selected" : "Inspect";
+          button.setAttribute("aria-pressed", String(button.dataset.option === selected));
+        }
+        const option = options.find((option) => option.name === selected);
+        const detail = document.getElementById("detail");
+        detail.replaceChildren();
+        const heading = document.createElement("h3");
+        heading.textContent = option.name;
+        const description = document.createElement("p");
+        description.textContent = option.detail;
+        const scores = document.createElement("p");
+        scores.className = "muted";
+        scores.textContent = `Safety ${option.scores[0]}/5 · Speed ${option.scores[1]}/5 · Reach ${option.scores[2]}/5`;
+        detail.append(heading, description, scores);
+      }
+
+      for (const field of fields) field.addEventListener("input", render);
+      document.getElementById("reset").addEventListener("click", () => {
+        fields.forEach(
+          (field, index) => (field.value = String([50, 30, 20][index])),
+        );
+        selected = "Pilot";
+        render();
+      });
+      render();
+    </script>
+  </body>
+</html>

@@ -358,6 +358,37 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     opensOnSight: true,
   },
 
+  list_chat_connections: {
+    kind: "list",
+    render: "generic",
+    captionKey: "listingChatConnections",
+    displayNameKey: "chatConnections",
+  },
+  find_chat_channels: {
+    kind: "search",
+    render: "generic",
+    captionKey: "lookingForChannel",
+    displayNameKey: "channelSearch",
+  },
+  read_chat_messages: {
+    kind: "read",
+    render: "generic",
+    captionKey: "readingChannel",
+    displayNameKey: "channelHistory",
+  },
+  react_to_chat_message: {
+    kind: "write",
+    render: "generic",
+    captionKey: "reactingToMessage",
+    displayNameKey: "messageReactions",
+  },
+  send_chat_message: {
+    kind: "write",
+    render: "generic",
+    captionKey: "sendingChannelMessage",
+    displayNameKey: "sendChannelMessage",
+  },
+
   // channel_tools - only ever called on a Slack, Telegram or Mattermost run, so these
   // steps are read back in the run timeline rather than watched live in the dashboard.
   get_channel_info: {

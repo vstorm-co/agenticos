@@ -53,6 +53,7 @@ class ChannelDestination(BaseModel):
     bot_id: UUID
     platform_chat_id: str
     private_chat: bool
+    message_id: str | None = None
 
 
 class ChannelDirectoryUnsupported(Exception):
@@ -91,6 +92,14 @@ class ChannelSummary:
     name: str
     purpose: str | None = None
     is_private: bool | None = None
+
+
+@dataclass(frozen=True)
+class ChannelListPage:
+    """A page of joined-channel metadata, never message contents."""
+
+    channels: tuple[ChannelSummary, ...]
+    cursor: str | None = None
 
 
 @dataclass(frozen=True)

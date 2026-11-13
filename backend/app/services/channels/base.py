@@ -13,7 +13,11 @@ from app.agents.capabilities.channel_tools import (
     ChannelPost,
     ChannelSummary,
 )
-from app.agents.capabilities.channel_tools._directory import HistoryPage, HistoryQuery
+from app.agents.capabilities.channel_tools._directory import (
+    ChannelListPage,
+    HistoryPage,
+    HistoryQuery,
+)
 from app.core.memory_keys import room_owner_key
 from app.services.channels import connection_state
 from app.services.channels.exceptions import ChannelNotConfigured
@@ -82,6 +86,30 @@ DEFAULT_USAGE_REPORTING: dict[str, Any] = {
     "mode": "near_limit",
     "near_limit_percent": 80,
     "every_n": 10,
+}
+
+
+REACTION_EMOJI: dict[str, str] = {
+    "thumbsup": "👍",
+    "+1": "👍",
+    "thumbsdown": "👎",
+    "-1": "👎",
+    "heart": "❤",
+    "laughing": "😆",
+    "joy": "😂",
+    "smile": "😄",
+    "tada": "🎉",
+    "fire": "🔥",
+    "eyes": "👀",
+    "thinking_face": "🤔",
+    "clap": "👏",
+    "100": "💯",
+    "pray": "🙏",
+    "ok_hand": "👌",
+    "rocket": "🚀",
+    "writing_hand": "✍",
+    "zap": "⚡",
+    "hourglass": "⏳",
 }
 
 
@@ -582,6 +610,24 @@ class ChannelAdapter(ABC):
     ) -> None:
         """Ask what was wrong with an answer somebody just rated down, in a form."""
 
+    async def react_to_message(
+        self,
+        bot_token: str,
+        channel_id: str,
+        message_id: str,
+        emoji: str,
+        *,
+        api_base_url: str | None,
+    ) -> None:
+        """Apply one real reaction after verifying the target is in the selected channel."""
+        raise ChannelDirectoryUnsupported("This platform does not support agent-chosen reactions")
+
+    async def delete_reply(
+        self, bot_token: str, platform_chat_id: str, handle: str, *, api_base_url: str | None
+    ) -> None:
+        """Remove this bot's temporary progress post after a reaction-only answer."""
+        raise ChannelDirectoryUnsupported("This platform cannot remove a temporary reply")
+
     async def acknowledge_message(  # noqa: B027 - a no-op where the platform has no reactions
         self, bot_token: str, incoming: IncomingMessage, reaction: str
     ) -> None:
@@ -672,6 +718,39 @@ class ChannelAdapter(ABC):
     # `api_base_url` is here for the same reason it is on `OutgoingMessage`:
     # Mattermost is self-hosted, so there is no address to assume. Slack and
     # Telegram ignore it.
+
+    async def joined_channels(
+        self,
+        bot_token: str,
+        *,
+        api_base_url: str | None,
+        query: str,
+        limit: int,
+        cursor: str | None,
+    ) -> ChannelListPage:
+        """List only joined destinations; unsupported platforms must say so."""
+        raise ChannelDirectoryUnsupported("This platform cannot enumerate a bot's joined channels")
+
+    async def require_joined_channel(
+        self,
+        bot_token: str,
+        channel_id: str,
+        *,
+        api_base_url: str | None,
+    ) -> None:
+        """Verify current bot membership before an explicit cross-channel operation."""
+        raise ChannelDirectoryUnsupported("This platform cannot verify cross-channel access")
+
+    async def require_channel_thread(
+        self,
+        bot_token: str,
+        channel_id: str,
+        thread_id: str,
+        *,
+        api_base_url: str | None,
+    ) -> None:
+        """Verify a selected root belongs to the selected channel."""
+        raise ChannelDirectoryUnsupported("This platform cannot verify the selected thread")
 
     async def channel_details(
         self, bot_token: str, channel_id: str, *, api_base_url: str | None

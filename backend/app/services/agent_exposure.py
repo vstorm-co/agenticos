@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities import CapabilityToolInfo
 from app.agents.capabilities import get as get_capability
+from app.agents.capabilities.channel_actions._contract import CAPABILITY_ID, platform_actions
 from app.agents.capabilities.channel_tools import CHANNEL_TOOLS_CAPABILITY_ID
 from app.agents.system_agents import refuse_system_agent
 from app.core.audit import record_audit
@@ -121,7 +122,18 @@ async def _lookups_for(surface: ExposureSurface) -> list[ExposureTool]:
     """
     contracts = (await tool_contracts()).get(CHANNEL_TOOLS_CAPABILITY_ID, {})
     available = PLATFORM_TOOLS.get(surface.value, ())
-    return [
+    actions = (await tool_contracts()).get(CAPABILITY_ID, {})
+    extra = [
+        ExposureTool(
+            id=tool.id,
+            name=tool.name,
+            description=_description_for(tool, actions),
+            scope="connection",
+        )
+        for tool in get_capability(CAPABILITY_ID).tools
+        if tool.id in platform_actions(surface.value) and tool.id != "list_chat_connections"
+    ]
+    return extra + [
         ExposureTool(id=tool.id, name=tool.name, description=_description_for(tool, contracts))
         for tool in get_capability(CHANNEL_TOOLS_CAPABILITY_ID).tools
         if tool.id in available
@@ -335,6 +347,7 @@ class AgentExposureService:
             surface=surface.value,
             channel_bot_id=bot.id,
             created_by_user_id=ctx.user_id,
+            tools=[tool.id for tool in await _lookups_for(surface)],
             environment_id=data.environment_id,
             prompt=None,
             session_scope=data.session_scope,

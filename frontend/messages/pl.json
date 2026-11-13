@@ -1021,7 +1021,13 @@
       "tablesCreating": "Tworzę tabelę",
       "tablesDescribing": "Czytam kolumny tabeli",
       "tablesListing": "Sprawdzam, których tabel może używać",
-      "viewsListing": "Przeglądam zapisane widoki tabeli"
+      "viewsListing": "Przeglądam zapisane widoki tabeli",
+      "sendingChannelMessage": "Wysyłanie wiadomości na kanał",
+      "sendChannelMessage": "Wyślij wiadomość na kanał",
+      "listingChatConnections": "Sprawdzanie połączeń komunikatorów",
+      "chatConnections": "Połączenia komunikatorów",
+      "reactingToMessage": "Dodawanie reakcji do wiadomości",
+      "messageReactions": "Reakcje na wiadomości"
     },
     "turnWasStopped": "zatrzymano",
     "unfavourite": "Usuń z ulubionych",
@@ -5822,7 +5828,8 @@
       "description": "Quick Ask, głos i lokalne narzędzia — pod jednym skrótem.",
       "download": "Pobierz aplikację",
       "dismiss": "Przypomnij za 14 dni"
-    }
+    },
+    "signInAgain": "Zaloguj się ponownie"
   },
   "teams": {
     "organizationLabel": "Organizacja",
@@ -8916,7 +8923,6 @@
     "endsAtLabel": "Koniec (czas urządzenia)",
     "endsAtHint": "Pozostaw puste, aby działać do zatrzymania. Ta data używa strefy {zone}, niezależnie od strefy harmonogramu.",
     "endsAtInvalid": "Wybierz prawidłową przyszłą datę albo wyczyść pole, aby usunąć koniec.",
-    "deliveryUnavailable": "Ostatni wynik niedostępny w czacie",
     "actionConsents": {
       "checkConnections": "Sprawdź te połączenia, aby przejrzeć ich działania: {names}.",
       "personalAccount": "{name} · Twoje konto",
@@ -8951,7 +8957,8 @@
       "current": "Zatwierdzone źródła są aktualne.",
       "changed": "Przejrzyj te źródła przed kolejnym uruchomieniem.",
       "unavailable": "Najpierw sprawdź lub ponownie połącz źródła: {names}",
-      "accept": "Zatwierdź te źródła"
+      "accept": "Zatwierdź te źródła",
+      "inspectAgent": "Sprawdź połączenia agenta"
     },
     "advancedOptions": "Opcje zaawansowane",
     "advancedOptionsHint": "Domyślnie: bieżąca opublikowana wersja, ochrona przed błędami i Twoje preferencje powiadomień.",
@@ -8962,7 +8969,10 @@
     "resultReportHint": "Po każdym wykonaniu przekaż raport do wybranej rozmowy.",
     "resultInboxHint": "Utwórz jedną sprawę w Inbox i rozmowę na element źródłowy. Umieść tam zamówioną wersję roboczą; sprawdzenia bez zmian pozostają ciche. Wysyłka nadal wymaga odpowiednich uprawnień i zgody.",
     "clearSearch": "Wyczyść wyszukiwanie",
-    "noRoutineMatchesHint": "Spróbuj nazwy agenta, tytułu rutyny lub słów z jej wiadomości."
+    "noRoutineMatchesHint": "Spróbuj nazwy agenta, tytułu rutyny lub słów z jej wiadomości.",
+    "setupRequired": "Wymaga konfiguracji",
+    "setupRequiredHint": "Zapisano i wstrzymano. Napraw źródła, sprawdź dostęp, a następnie włącz rutynę.",
+    "setupOwnerRequired": "Zapisana i wstrzymana. Jej twórca musi naprawić i sprawdzić źródła."
   },
   "portals": {
     "mailboxInterval": {
@@ -10056,7 +10066,26 @@
     "pipelineNoMatches": "Brak pasujących modeli",
     "alreadyHasIt": "Używa",
     "inDraftOf": "{more, plural, =0 {W wersji roboczej: {names}, jeszcze nieopublikowane} other {W wersji roboczej: {names} i jeszcze #, jeszcze nieopublikowane}}",
-    "useDefaultModel": "Użyj domyślnego modelu"
+    "useDefaultModel": "Użyj domyślnego modelu",
+    "channelToolScope": {
+      "conversation": "Bieżąca rozmowa",
+      "conversationHint": "Dostępne podczas odpowiadania na tym kanale. Te narzędzia dotyczą bieżącej rozmowy.",
+      "connection": "Z dowolnego uruchomienia",
+      "connectionHint": "Dostępne w chacie, rozmowach powiązanych użytkowników i rutynach. Włączona akcja obejmuje wszystkie kanały, do których dołączył bot. Wysyłanie podlega zasadom akceptacji."
+    },
+    "channelToolDetails": "Szczegóły narzędzia",
+    "channelActionNames": {
+      "find_chat_channels": "Znajdowanie kanałów",
+      "read_chat_messages": "Przeszukiwanie historii wiadomości",
+      "send_chat_message": "Wysyłanie wiadomości i raportów",
+      "get_channel_info": "Informacje o tym kanale",
+      "list_channel_members": "Uczestnicy kanału",
+      "search_channels": "Znajdowanie nazw kanałów",
+      "read_channel_history": "Odczyt bieżącej rozmowy",
+      "send_channel_file": "Wysyłanie pliku tutaj",
+      "react_to_chat_message": "Odpowiadaj reakcjami emoji"
+    },
+    "groupsNotifyOnly": "Powiadomienia otrzymają aktualni członkowie grup. Ten wybór nie przyznaje ani nie ogranicza prawa do akceptacji."
   },
   "steps": {
     "skills-gallery": {
@@ -10671,6 +10700,12 @@
       "hidden_paths": {
         "title": "Ukryte ścieżki",
         "description": "Ścieżki, których agent w ogóle nie widzi, np. /drive/HR/."
+      }
+    },
+    "channel_actions": {
+      "tools": {
+        "title": "Dozwolone działania w komunikatorach",
+        "description": "Akcje jawnie przyznane na botach podłączonych do agenta."
       }
     }
   },
@@ -11957,6 +11992,7 @@
     "latestVersionHint": "Podąża za kolejną publikacją",
     "currentTag": "Bieżąca",
     "publicUpdated": "Zaktualizowano {when}",
+    "backToConversation": "Wróć do rozmowy",
     "backToArtifacts": "Wróć do aplikacji",
     "viewerControls": "Opcje aplikacji",
     "share": "Udostępnij",
@@ -13414,6 +13450,14 @@
       "example3": "Odczytaj tabelę z bazy danych i ją podsumuj",
       "needs": "Dane dostępowe usług w vaulcie albo połączone konto Google. Wdrożenie instaluje terminal z extra mirage, a operator zezwala na hosty serwerów, które wpiszesz.",
       "never": "Nigdy nie pisze w folderze zamontowanym tylko do odczytu i pyta osobę przed każdym zapisem tam, gdzie tak ustawisz."
+    },
+    "channel_actions": {
+      "name": "Podłączone komunikatory",
+      "does": "Znajduje kanały, przeszukuje wiadomości i wysyła zamówione raporty przez boty jawnie udostępnione temu agentowi.",
+      "example1": "Wyślij raport z chatu na kanał zespołu",
+      "example2": "Zaplanuj cotygodniową aktualizację w ustalonym wątku",
+      "needs": "Aktywne powiązanie bota, wybrane akcje i członkostwo w miejscu docelowym. Rutyny wymagają przeglądu źródeł i akcji.",
+      "never": "Nie dołącza do kanałów, nie pożycza botów innych agentów i nie ponawia niepewnych wysyłek."
     }
   },
   "capabilityCategories": {
@@ -17464,5 +17508,11 @@
     "contextTitle": "Ulepsz kontekst",
     "contextBody": "Asystent korzysta z opinii o rozmowach, w których agenci używali tego pliku kontekstu. Sprawdź każdą propozycję przed jej zastosowaniem.",
     "costs": "Koszty i limity"
+  },
+  "approvalGroups": {
+    "groups": "Grupy",
+    "error": "Nie udało się wczytać grup. Zachowano obecny wybór.",
+    "loading": "Wczytywanie grup…",
+    "empty": "Brak grup w tej organizacji."
   }
 }

@@ -22,14 +22,20 @@ from urllib.parse import urlparse
 
 import httpx
 from pydantic import JsonValue
+from slack_sdk.errors import SlackApiError
 
 from app.agents.capabilities.channel_tools import (
     ChannelDetails,
+    ChannelDirectoryUnsupported,
     ChannelMember,
     ChannelPost,
     ChannelSummary,
 )
-from app.agents.capabilities.channel_tools._directory import HistoryPage, HistoryQuery
+from app.agents.capabilities.channel_tools._directory import (
+    ChannelListPage,
+    HistoryPage,
+    HistoryQuery,
+)
 from app.core.security import encode_untrusted
 from app.db.session import get_db_context
 from app.services.channels import connection_state
@@ -238,6 +244,36 @@ class SlackAdapter(ChannelAdapter):
         await self._web(bot_token).views_open(
             trigger_id=press.trigger_id, view=feedback_comment_view(run_id)
         )
+
+    async def react_to_message(
+        self,
+        bot_token: str,
+        channel_id: str,
+        message_id: str,
+        emoji: str,
+        *,
+        api_base_url: str | None,
+    ) -> None:
+        # reactions.get verifies that this timestamp belongs to the selected
+        # channel, including replies, without guessing a thread root.
+        client = self._web(bot_token)
+        found = await client.reactions_get(channel=channel_id, timestamp=message_id)
+        message = found.get("message") or {}
+        if found.get("channel") != channel_id or message.get("ts") != message_id:
+            raise ChannelDirectoryUnsupported(
+                "The selected message does not belong to this channel"
+            )
+        try:
+            await client.reactions_add(channel=channel_id, timestamp=message_id, name=emoji)
+        except SlackApiError as error:
+            if error.response.get("error") != "already_reacted":
+                raise
+
+    async def delete_reply(
+        self, bot_token: str, platform_chat_id: str, handle: str, *, api_base_url: str | None
+    ) -> None:
+        channel, _ = split_thread(platform_chat_id)
+        await self._web(bot_token).chat_delete(channel=channel, ts=handle)
 
     async def acknowledge_message(
         self, bot_token: str, incoming: IncomingMessage, reaction: str
@@ -448,6 +484,65 @@ class SlackAdapter(ChannelAdapter):
             return datetime.fromtimestamp(float(ts), UTC)
         except TypeError, ValueError:
             return None
+
+    async def joined_channels(
+        self,
+        bot_token: str,
+        *,
+        api_base_url: str | None,
+        query: str,
+        limit: int,
+        cursor: str | None,
+    ) -> ChannelListPage:
+        response = await self._web(bot_token).users_conversations(
+            types="public_channel,private_channel",
+            exclude_archived=True,
+            limit=limit,
+            cursor=cursor,
+        )
+        needle = query.casefold()
+        channels = tuple(
+            ChannelSummary(
+                channel_id=str(row["id"]),
+                name=str(row.get("name") or row["id"]),
+                purpose=str((row.get("purpose") or {}).get("value") or "") or None,
+                is_private=bool(row.get("is_private")),
+            )
+            for row in response.get("channels") or []
+            if needle in str(row.get("name", "")).casefold()
+            or needle in str((row.get("purpose") or {}).get("value", "")).casefold()
+        )
+        return ChannelListPage(
+            channels, (response.get("response_metadata") or {}).get("next_cursor") or None
+        )
+
+    async def require_joined_channel(
+        self, bot_token: str, channel_id: str, *, api_base_url: str | None
+    ) -> None:
+        response = await self._web(bot_token).conversations_info(channel=channel_id)
+        channel = response.get("channel") or {}
+        if (
+            channel.get("id") != channel_id
+            or not channel.get("is_member")
+            or channel.get("is_archived")
+        ):
+            raise ChannelDirectoryUnsupported(
+                "The bot must be a current member of the selected channel"
+            )
+
+    async def require_channel_thread(
+        self, bot_token: str, channel_id: str, thread_id: str, *, api_base_url: str | None
+    ) -> None:
+        response = await self._web(bot_token).conversations_replies(
+            channel=channel_id, ts=thread_id, limit=1
+        )
+        posts = response.get("messages") or []
+        if (
+            not posts
+            or posts[0].get("ts") != thread_id
+            or posts[0].get("thread_ts", thread_id) != thread_id
+        ):
+            raise ChannelDirectoryUnsupported("Choose a root message in the selected channel")
 
     async def channel_details(
         self, bot_token: str, channel_id: str, *, api_base_url: str | None

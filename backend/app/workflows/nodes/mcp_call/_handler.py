@@ -48,6 +48,7 @@ from app.repositories import workflow_approval as approval_repo
 from app.services.mcp_connection import McpConnectionService, resolve_auth_headers
 from app.services.notification_center import NotificationCenterService
 from app.services.workflow_execution import context
+from app.services.workflow_execution.approval_audience import check_groups, group_approvers
 from app.workflows.contracts.definition import RetryGuarantee
 from app.workflows.contracts.results import (
     Completed,
@@ -114,6 +115,14 @@ class McpCallConfig(BaseModel):
         title="Approvers",
         description="Who may approve the call. Anyone who decides approvals when empty.",
     )
+    approver_groups: tuple[UUID, ...] = Field(
+        default=(),
+        max_length=100,
+        json_schema_extra={"x-resource": "group"},
+        title="Approver groups",
+        description="Any current member with approval permission may decide. Empty or deleted groups do not grant access.",
+    )
+
     timeout_seconds: int = Field(
         default=60, ge=1, le=300, description="How long the tool may take to answer."
     )
@@ -231,6 +240,11 @@ async def _approver_problems(
             problems.append(
                 (f"approvers.{index}", "This person cannot decide approvals in the organization")
             )
+    problems.extend(
+        await check_groups(
+            db, organization_id=ctx.organization_id, group_ids=config.approver_groups
+        )
+    )
     return problems
 
 
@@ -403,11 +417,15 @@ async def _ask(
         title=title,
         details=json.dumps(arguments or {}, indent=2, default=str)[:4000],
         approver_user_ids=list(config.approvers),
+        approver_group_ids=list(config.approver_groups),
         expires_at=None,
     )
-    if config.approvers:
+    recipients = set(config.approvers) | await group_approvers(
+        db, organization_id=current.organization_id, group_ids=list(config.approver_groups)
+    )
+    if recipients:
         await NotificationCenterService(db).write(
-            recipients=list(dict.fromkeys(config.approvers)),
+            recipients=list(recipients),
             event_type=NotificationEventType.WORKFLOW_NOTIFICATION,
             occurrence_id="workflow-approval:"
             + hashlib.sha256(current.idempotency_key.encode()).hexdigest(),

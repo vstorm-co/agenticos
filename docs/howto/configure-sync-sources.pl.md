@@ -1,5 +1,5 @@
 ---
-source_sha: "68bc85353023"
+source_sha: "da255c277e13"
 ---
 
 # Konfiguracja źródeł synchronizacji { #configure-sync-sources }
@@ -614,28 +614,11 @@ Wypisanie listy wymaga `collections:view`, a wszystko, co zmienia źródło, wym
 mówią, do których źródeł sięga każda z tych operacji. Zobacz
 [kto może sięgnąć do kolekcji](../file-processing.md#who-may-reach-a-collection).
 
-`GET /api/v1/rag/sync/sources` wypisuje wszystkie źródła Twojej organizacji, także
-nieprzypisane, tylko z `connections:manage`, tak jak `/org/integrations`. Bez
-niego lista ma tylko źródła, które zasilają bazę, którą możesz czytać, a
-`collection_name` musi wskazywać kolekcję, którą możesz czytać, inaczej odpowiedź
-to 404. Jeśli bez tego uprawnienia tworzysz lub odłączasz nieprzypisane źródło,
-zachowaj jego identyfikator z odpowiedzi, bo żadna lista Ci go nie pokaże. Lista
-istniejących integracji, którą kreator bazy wiedzy proponuje do ponownego użycia,
-też wymaga `connections:manage`. Zobacz [Uprawnienia](../permissions.md).
+`GET /api/v1/rag/sync/sources` wypisuje wszystkie źródła, w tym nieprzypisane szablony, tylko z `connections:manage`. W przeciwnym razie pokazuje źródła zasilające dostępne do odczytu bazy. Tworzenie, odłączanie, edycja, usuwanie i klonowanie nieprzypisanego szablonu wymaga **Manage connections**. Źródła przypisane wymagają edycji swojej bazy, również przez `/org/integrations`; uprawnienie organizacyjne tej strony nie omija dostępu do bazy. Klonowanie osobno sprawdza źródło i cel.
 
-Aby zaktualizować, usunąć lub uruchomić źródło przez
-`/api/v1/rag/sync/sources/{id}`, musisz też mieć prawo zapisu do bazy, którą to
-źródło zasila. Dotyczy to też `PATCH`, który ustawia `collection_name` na `null`.
-Nieprzypisane źródło wymaga tylko Twojej organizacji. `/org/integrations`
-zarządza źródłami na poziomie organizacji i zamiast tego wymaga
-`connections:manage`.
+Edycja źródła weryfikuje adresy zdalne przed założeniem blokad zapisu. Zapis pod blokadą sprawdza zweryfikowaną rewizję i odrzuca nieaktualne zmiany. Synchronizacja z kolejki ponownie sprawdza pierwotny cel przed ingestion. Usuwanie kont i organizacji używa tych samych zasad własności i blokad co usuwanie bazy; ingestion z CLI również zapisuje pochodzenie i respektuje te blokady.
 
-Historia synchronizacji i log uruchomień źródła pokazują uruchomienia źródeł
-Twojej organizacji, także przez bazę o zasięgu aplikacji, którą czyta każda
-organizacja. Administrator platformy widzi też źródła innych organizacji w
-bazach, które czyta. Uruchomienie bez źródła, na przykład synchronizacja lokalna
-albo uruchomienie, którego źródło usunięto, jest wypisywane po nazwie kolekcji
-każdemu, kto tę kolekcję czyta.
+Historia synchronizacji zachowuje organizację inicjującą i docelową bazę po usunięciu źródła. Uruchomienie bez źródła jest widoczne tylko przy potwierdzonej własności i dostępie do tej bazy. Stare logi bez źródła i potwierdzonego właściciela są ukryte; wspólna nazwa kolekcji nie przypisuje ich organizacji.
 
 ### CRUD źródeł synchronizacji { #sync-sources-crud }
 

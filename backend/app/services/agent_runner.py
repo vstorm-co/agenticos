@@ -418,6 +418,7 @@ from app.services.sandbox_workspace import (
     WorkspaceFlushFailure,
     project_sandbox,
 )
+from app.services.screened_replay import screen_history, screened_copy
 from app.services.skill_proposal import SkillProposalService
 from app.services.skill_workspace import SKILLS_ROOT, MaterialisedSkills, collect_changes
 from app.services.skill_workspace import materialise as materialise_skills
@@ -2882,7 +2883,10 @@ def _with_channel_tools(spec: AgentSpec, exposure: AgentExposure | None) -> Agen
     this run; `model_copy` leaves the stored spec alone, and publishing refuses
     a stored spec that tries to carry this capability itself.
     """
-    granted = [] if exposure is None else list(exposure.tools or [])
+    from app.agents.capabilities import get as get_capability
+
+    inbound = get_capability(CHANNEL_TOOLS_CAPABILITY_ID).tool_ids
+    granted = [] if exposure is None else [tool for tool in exposure.tools or [] if tool in inbound]
     if not granted:
         return spec
     binding = CapabilityBindingSpec(
@@ -3353,6 +3357,7 @@ class RunSegment:
     structured: dict[str, Any] | None = None
     delegations: tuple[RecordedDelegation, ...] = ()
     """Published delegates settled in this segment, independent of the parent pause."""
+    channel_destination: ChannelDestination | None = None
     generated_files: frozenset[str] = frozenset()
     """Leaf names actually stored by this run, never inferred from tool result text."""
     message_id: UUID | None = None
@@ -4237,6 +4242,33 @@ class AgentRunnerService:
         # here" are worse than none, because the model keeps trying.
         if channel_directory is not None:
             resources[CHANNEL_DIRECTORY_RESOURCE] = channel_directory
+        from app.services.channel_actions import ChannelActionService, with_actions
+
+        if (
+            models_ctx.user_id is not None
+            and not models_ctx.subject_is_publisher_fallback
+            and isolation is None
+            and not public_origin
+            and voice is None
+            and surface != RunSurface.EVAL
+            and watch_sources is None
+        ):
+            channel_actions = ChannelActionService(
+                models_ctx,
+                agent.id,
+                destination=None if channel_directory is None else channel_directory.destination,
+            )
+            reviewed_channels = (
+                None
+                if routine is None
+                else (
+                    {} if routine.source_policy is None else routine.source_policy.channel_sources
+                )
+            )
+            granted_actions = await channel_actions.tools(self.db, reviewed=reviewed_channels)
+            spec = with_actions(spec, granted_actions)
+            if granted_actions:
+                resources["channel_actions"] = channel_actions
         # Resolved here for the reason the browser's step model is: the vault and
         # the session are here, and the factory has neither. Handed to it apart
         # from `resources`, which every capability reads and a log line may carry:
@@ -8416,6 +8448,11 @@ class AgentRunnerService:
         # The opening commit: the row is visible mid-run and no connection is
         # held across the model call - the docstring carries the whole of it
         # (#12, #3).
+        input_edge = input_screen_for(prepared.spec)
+        model_content = (
+            None if said is None else screened_copy(said, attachment_context, input_edge)
+        )
+        message_history = screen_history(message_history, input_edge)
         prepared.model_context_check = model_context_check(
             prepared.run.conversation_id, message_history, check_model_request
         )
@@ -8552,6 +8589,7 @@ class AgentRunnerService:
                 message_id = await self.transcript.record(
                     prepared.run,
                     prompt=said,
+                    model_content=model_content,
                     answer=output,
                     attachments=attachments,
                     # Replayed after the prompt on every later turn, where the input
@@ -8616,6 +8654,7 @@ class AgentRunnerService:
                     await on_segment(
                         RunSegment(
                             output=output or error or "",
+                            channel_destination=prepared.channel_destination,
                             run=prepared.run,
                             tool_calls=called,
                             settled=settled,
@@ -8633,6 +8672,7 @@ class AgentRunnerService:
 
         return RunSegment(
             output=output,
+            channel_destination=prepared.channel_destination,
             run=prepared.run,
             tool_calls=called,
             settled=settled,

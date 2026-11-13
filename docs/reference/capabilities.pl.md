@@ -1,5 +1,5 @@
 ---
-source_sha: "68958b7ea0a1"
+source_sha: "097cf838acab"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -157,7 +157,7 @@ zatrzymania po przejściu przez granicę sandboxa.
 | `compaction` | Długie rozmowy | użytkowe | brak, celowo | — | — | bez efektu |
 | `media` | Odciążenie z obrazów | użytkowe | brak, celowo | — | — | bez efektu |
 | `tool_output_limits` | Limity wyników narzędzi | użytkowe | `read_tool_result` | — | — | bez zmian |
-| `artifacts` | Aplikacje | użytkowe | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact`, `share_artifact` | — | — | bez zmian |
+| `artifacts` | Aplikacje | użytkowe | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact`, `export_artifact`, `share_artifact` | — | — | bez zmian |
 | `channel_tools` | Informacje o kanale czatu | kanały | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file` | — | — | niedostępna |
 | `phone_calls` | [Połączenia telefoniczne](../voice.md#telephone-calls) | channels | `get_phone_contact_policy`, `call_me`, `list_phone_transfer_contacts`, `transfer_phone_call`, `end_phone_call` | `endpoint_id` | — | — |
 | `ask_user` | Pytania do użytkownika | narzędzia | `ask_user_question` | — | — | na ekranie |
@@ -1911,6 +1911,8 @@ Zobacz [Wizualizacje](../artifacts.md#visuals).
 
 ## Aplikacje { #artifacts }
 
+`export_artifact` zapisuje bieżącą opublikowaną wersję jako prawdziwy PDF w workspace. Korzysta z izolowanego renderera, obsługuje raporty A4 i prezentacje przeglądarkowe 16:9, zachowuje kontrolę dostępu oraz odbiorców podglądu i odmawia przy niedostępnych danych powiązanych. Wymaga skonfigurowanego renderera i dodatku `browser`. Pliki mają unikalne nazwy oraz limit 50 stron i 20 MB. Zobacz [materiały projektowe](../skills.pl.md#design-resources).
+
 `publish_artifact` — _Opublikuj gotową stronę — raport, mały dashboard,
 podsumowanie — pod stałym linkiem._
 `read_artifact` — _Przeczytaj bieżącą wersję strony opublikowanej przez tego
@@ -3036,6 +3038,8 @@ dociera do modelu wyczyszczony, ale rozmowa przechowuje wiadomość tak, jak wpi
 osoba, łącznie z danymi osobowymi. Każdy, kto może czytać rozmowę, może przeczytać tę
 wiadomość.
 
+Transkrypt dla człowieka pozostaje oryginalnym zapisem audytowym. Osobna kopia po redakcji, wraz z briefingiem załącznika, jest zapisywana do odtwarzania przez model i cytowania. Kolejne tury zachowują tę kopię nawet po późniejszym wyłączeniu redakcji wejścia. Starsza historia jest sprawdzana przed zarządzaniem kontekstem runu; zablokowane tury nadal używają znacznika odmowy.
+
 **Krawędź wejścia sprawdza załącznik, zanim zostanie zapisany.** Załączony plik
 trafia do promptu jako nazwa, ścieżka i pierwsze 20 linii (najwyżej 2000 znaków), a
 krawędź wejścia czyta je razem z wiadomością osoby. Agent z workspace'em ma ten
@@ -3421,3 +3425,17 @@ Wybór lokalnego dostępu należy do wybranego agenta, a nie do globalnego ustaw
 Korekta `[session:api] Użyj danych z UE` trafia do sesji `api`. Przy jednej aktywnej sesji trafiają do niej także korekty bez adresu; przy wielu pozostają u agenta nadrzędnego, aby nie zmieniać innego zadania. Agent nadrzędny zapisuje korektę raz po wznowieniu pracy.
 
 Zadania coding w sandboxie w tym samym zestawie narzędzi wykonują się kolejno, aby ich migawki plików się nie nakładały; niezależne sesje lokalne nadal działają równolegle.
+
+
+## Podłączone komunikatory (`channel_actions`) { #connected-chat-apps-channel_actions }
+
+Jawne uprawnienia bota do znajdowania kanałów, wyszukiwania wiadomości i dostarczania raportów z dowolnego uruchomienia.
+
+| Narzędzie | Działanie |
+| --- | --- |
+| `list_chat_connections` | Identyfikatory botów, uprawnienia i bieżące miejsce rozmowy |
+| `find_chat_channels` | Metadane kanałów bota i stronicowanie |
+| `read_chat_messages` | Ograniczona historia z filtrami |
+| `send_chat_message` | Wiadomość lub raport w nowym wpisie albo istniejącym wątku |
+
+Przy każdej operacji usługa ponownie sprawdza członkostwo w organizacji, dostęp do agenta, aktywne powiązanie i bota, a następnie członkostwo bota w kanale i przynależność wątku. Nie dołącza do kanałów ani nie pożycza botów innych agentów. Wyszukiwanie i historia zwracają ograniczone strony; puste dopasowanie nie kończy przeglądania, jeśli istnieje kursor. Błąd dostawcy jest odmową, nie pustym wynikiem. Wysyłanie podlega zasadom akceptacji; niepotwierdzoną wysyłkę trzeba sprawdzić przed ponowieniem. Pozostałe platformy zachowują dotychczasowe narzędzia rozmowy; akcje między kanałami są dostępne tylko tam, gdzie adapter weryfikuje członkostwo.

@@ -8,10 +8,11 @@ interface ErrorStateProps {
   title?: string;
   description?: string;
   cta?: { label: string; onClick: () => void };
+  secondaryCta?: { label: string; onClick: () => void };
   className?: string;
 }
 
-export function ErrorState({ title, description, cta, className }: ErrorStateProps) {
+export function ErrorState({ title, description, cta, secondaryCta, className }: ErrorStateProps) {
   const t = useTranslations("ui");
   return (
     <div
@@ -30,10 +31,19 @@ export function ErrorState({ title, description, cta, className }: ErrorStatePro
       <p className="text-muted-foreground mt-1.5 max-w-sm text-sm">
         {description ?? t("checkConnection")}
       </p>
-      {cta && (
-        <Button variant="outline" type="button" onClick={cta.onClick} className="mt-5">
-          {cta.label}
-        </Button>
+      {(cta || secondaryCta) && (
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+          {cta && (
+            <Button variant="outline" type="button" onClick={cta.onClick}>
+              {cta.label}
+            </Button>
+          )}
+          {secondaryCta && (
+            <Button variant="default" type="button" onClick={secondaryCta.onClick}>
+              {secondaryCta.label}
+            </Button>
+          )}
+        </div>
       )}
     </div>
   );

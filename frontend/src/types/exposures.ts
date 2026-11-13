@@ -92,6 +92,7 @@ export interface ExposureVariable {
 
 /** One channel lookup, as the binding's form offers it. */
 export interface ExposureTool {
+  scope?: "conversation" | "connection";
   id: string;
   name: string;
   description: string;
