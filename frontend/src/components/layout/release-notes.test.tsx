@@ -114,4 +114,6 @@ it("opens nothing for a member when the release only had operator notes", async 
   render(<ReleaseNotes />);
   await ready();
   expect(screen.queryByRole("dialog")).toBeNull();
+  // Handled, so the notes are not asked for again for this release.
+  expect(useReleaseNotesStore.getState().acknowledged.alice).toBe(version);
 });

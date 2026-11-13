@@ -57,9 +57,9 @@ export interface CurrentReleaseResponse {
 }
 
 /** Headings whose sections speak to whoever runs the deployment, not to the people using it. */
-const OPERATOR_HEADING = /^(#{2,6})\s+(upgrading|notes for operators)\s*$/i;
+const OPERATOR_HEADING = /^(#{1,6})\s+(upgrading|notes for operators)\s*$/i;
 const HEADING = /^(#{1,6})\s/;
-const FENCE = /^\s*(```|~~~)/;
+const FENCE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
 
 /**
  * A release's notes without its operator sections - `Upgrading` and `Notes for
@@ -70,14 +70,24 @@ export function memberReleaseNotes(body: string): string {
   const kept: string[] = [];
   let skipping: number | null = null;
   // A `#` comment in a shell block is not a heading, and an upgrade section is
-  // where shell steps go.
-  let fenced = false;
+  // where shell steps go. A block ends only at a fence of its own character, at
+  // least as long and with nothing after it, as Markdown closes one.
+  let fence: string | null = null;
   for (const line of body.split("\n")) {
-    const heading = fenced ? null : HEADING.exec(line);
+    const heading = fence ? null : HEADING.exec(line);
     if (heading && skipping !== null && heading[1]!.length <= skipping) skipping = null;
-    const operator = fenced ? null : OPERATOR_HEADING.exec(line);
+    const operator = fence ? null : OPERATOR_HEADING.exec(line);
     if (skipping === null && operator) skipping = operator[1]!.length;
-    if (FENCE.test(line)) fenced = !fenced;
+    const marker = FENCE.exec(line);
+    if (marker && fence === null) fence = marker[1]!;
+    else if (
+      marker &&
+      fence !== null &&
+      marker[1]![0] === fence[0] &&
+      marker[1]!.length >= fence.length &&
+      !marker[2]!.trim()
+    )
+      fence = null;
     if (skipping === null) kept.push(line);
   }
   return kept.join("\n").trim();

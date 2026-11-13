@@ -78,3 +78,24 @@ it("reads a shell comment in an operator's code block as code, not as the sectio
   ].join("\n");
   expect(memberReleaseNotes(body)).toBe("### Fixed\n\n- A fix.");
 });
+
+it("keeps a block open past the other fence character and a shorter run of its own", () => {
+  const body = [
+    "### Fixed",
+    "",
+    "````markdown",
+    "```",
+    "~~~",
+    "### Upgrading",
+    "````",
+    "",
+    "- A fix.",
+  ].join("\n");
+  expect(memberReleaseNotes(body)).toBe(body);
+});
+
+it("cuts an operator section at the top level too", () => {
+  expect(memberReleaseNotes("# Upgrading\n\nMigrate first.\n\n# Added\n\nNew page.")).toBe(
+    "# Added\n\nNew page.",
+  );
+});

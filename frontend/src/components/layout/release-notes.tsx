@@ -35,6 +35,12 @@ function AccountReleaseNotes({ userId }: { userId: string }) {
   // Upgrade steps and migration notes are for whoever runs the deployment; a
   // release that holds only those has nothing to tell anyone else.
   const notes = release ? (operator ? release.body : memberReleaseNotes(release.body)) : "";
+  // Nothing to tell this reader about the release: it is handled, so the notes
+  // are not asked for again on every return to the window.
+  const nothingForReader = release !== undefined && release !== null && !notes;
+  useEffect(() => {
+    if (unseen && nothingForReader) acknowledge(userId, version);
+  }, [unseen, nothingForReader, acknowledge, userId]);
   useEffect(() => {
     if (!unseen || !notes || open) return;
     const tryOpen = () => {
