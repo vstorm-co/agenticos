@@ -20,7 +20,7 @@ import pytest
 from app.core.exceptions import ExportTooLargeError, ValidationError
 from app.core.permissions import AuthContext, Scope
 from app.repositories import agent_run_repo
-from app.repositories.agent_run import ApprovalFilters, ChatAsker, RunFilters
+from app.repositories.agent_run import ApprovalFilters, ApprovalRow, ChatAsker, RunFilters
 from app.services import run_export
 from app.services.run_export import MAX_EXPORT_ROWS, RunExportService
 
@@ -321,6 +321,7 @@ class TestApprovalsExport:
             "agent_name": "Clerk",
             "tool_id": "send_email",
             "tool_args": {"to": "a@b.co"},
+            "capability_tool_id": None,
             "subagent_name": None,
             "subagent_agent_id": None,
             "status": "pending",
@@ -374,6 +375,36 @@ class TestApprovalsExport:
         assert rows[1][header.index("triggered_by_user_id")] == ""
         assert rows[1][header.index("triggered_by_email")] == ""
         assert rows[2][16:] == ["", "", ""]
+
+    @pytest.mark.security
+    async def test_a_reader_who_may_not_see_the_run_exports_no_corrected_fact(self, monkeypatch):
+        service = _service(monkeypatch)
+        correction = ApprovalRow(
+            **{
+                **vars(self._approval()),
+                "tool_id": "correct_memory",
+                "capability_tool_id": "correct_memory",
+                "tool_args": {"claim_id": "c-1", "statement": "Office closes at five"},
+                "context": None,
+                "account": None,
+                "decided_via": "click",
+            }
+        )
+        monkeypatch.setattr(
+            agent_run_repo, "list_approvals", AsyncMock(return_value=([correction], 1))
+        )
+        reader = _ctx(Scope.OWN)
+        reader.user_id = uuid4()
+        reader.api_key_id = None
+
+        result = await service.export_approvals(
+            reader,
+            filters=ApprovalFilters(created_from=_WINDOW[0], created_to=_WINDOW[1]),
+            oldest_first=True,
+        )
+
+        rows = _parsed(result.content)
+        assert rows[1][rows[0].index("tool_args")] == '{"claim_id": "c-1"}'
 
     async def test_the_record_exports_with_its_resolved_emails(self, monkeypatch):
         service = _service(monkeypatch)

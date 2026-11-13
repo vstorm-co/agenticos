@@ -20,6 +20,7 @@ interface ConnectionsTableProps {
 function kindLabel(kind: string, t: (key: string) => string): string {
   if (kind === "daytona") return t("daytonaCloud");
   if (kind === "e2b") return t("e2bCloud");
+  if (kind === "opensandbox") return "OpenSandbox";
   return t("containerService");
 }
 
@@ -30,7 +31,7 @@ function kindLabel(kind: string, t: (key: string) => string): string {
  * misconfiguration rather than as the answer.
  */
 function addressLabel(connection: SandboxConnectionRecord): string {
-  if (connection.kind !== "docker") return "their API";
+  if (connection.kind === "daytona" || connection.kind === "e2b") return "their API";
   return connection.base_url ?? "—";
 }
 
@@ -66,7 +67,7 @@ export function ConnectionsTable({
         sortValue: (connection) => connection.name,
         cell: (connection) => (
           <div className="flex min-w-0 items-center gap-2">
-            {connection.kind !== "docker" ? (
+            {connection.kind === "daytona" || connection.kind === "e2b" ? (
               <Cloud className="text-muted-foreground h-4 w-4 shrink-0" aria-hidden />
             ) : (
               <Box className="text-muted-foreground h-4 w-4 shrink-0" aria-hidden />

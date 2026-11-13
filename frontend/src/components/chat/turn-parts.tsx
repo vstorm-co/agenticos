@@ -531,8 +531,9 @@ export function draftCalls(runs: PartRun[]): ToolCall[] {
 
 /**
  * Keep the live timeline chronological. Only a settled turn separates its final
- * text from the complete work history; prose length and reasoning markup never
- * decide whether something was a progress update.
+ * text from the work history. Text delivered before asking the person a question
+ * is also output, even when more work follows on resume. Prose length and
+ * reasoning markup never decide whether something was a progress update.
  */
 export function foldWork(
   runs: PartRun[],
@@ -541,6 +542,23 @@ export function foldWork(
 ): { folded: PartRun[]; shown: PartRun[]; steps: number } | null {
   const hasWork = runs.some((run) => run.kind === "tools" || run.part.type === "thinking");
   if (!hasWork) return null;
+  const delivered = new Set<PartRun>();
+  if (!active) {
+    for (let index = 0; index < runs.length; index += 1) {
+      const run = runs[index]!;
+      const question =
+        run.kind === "other"
+          ? run.part.type === "ask_user"
+          : run.parts[0]?.toolCall !== undefined &&
+            toolLookupName(run.parts[0].toolCall) === "ask_user_question";
+      if (!question) continue;
+      for (let previous = index - 1; previous >= 0; previous -= 1) {
+        const candidate = runs[previous]!;
+        if (candidate.kind !== "other" || candidate.part.type !== "text") break;
+        delivered.add(candidate);
+      }
+    }
+  }
   let answer = runs.length;
   if (!active && !stopped) {
     while (answer > 0) {
@@ -549,10 +567,10 @@ export function foldWork(
       answer -= 1;
     }
   }
-  const folded = runs.slice(0, answer);
+  const folded = runs.slice(0, answer).filter((run) => !delivered.has(run));
   return {
     folded,
-    shown: runs.slice(answer),
+    shown: runs.filter((run, index) => index >= answer || delivered.has(run)),
     steps: folded.reduce((sum, run) => sum + (run.kind === "tools" ? run.parts.length : 0), 0),
   };
 }

@@ -1,5 +1,5 @@
 ---
-source_sha: "91072bbd4d91"
+source_sha: "67ab9ca1836d"
 ---
 
 # Configuración { #configuration }
@@ -1589,6 +1589,7 @@ parado, y para eso basta un minuto.
 | `DOMAIN` | `example.com` | Dominio de producción (para Traefik) |
 | `ACME_EMAIL` | `admin@example.com` | Correo de Let's Encrypt para los certificados SSL |
 | `REDIS_PASSWORD` | `change-me-in-production` | Contraseña de Redis para producción |
+| `SESSION_COOKIE_NAMESPACE` | (vacío) | Lo lee el contenedor de la consola. Minúsculas, dígitos y guiones, como máximo 48: las cookies de sesión pasan a llamarse `agenticos_<namespace>_access_token` y `agenticos_<namespace>_refresh_token`. Pon uno distinto en cada despliegue que comparta nombre de host con otro en un puerto diferente: el navegador distingue las cookies por host, no por puerto, así que de lo contrario iniciar sesión en uno cierra la sesión en el otro. Cambiarlo cierra una vez la sesión de todos en la consola. La lectura de respaldo de la cookie en el WebSocket de la API solo conoce el nombre sin prefijo; la consola autentica sus sockets con el propio token, así que no le afecta |
 
 ## Lista de comprobación para producción { #production-checklist }
 

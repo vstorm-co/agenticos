@@ -19,6 +19,7 @@ export const qk = {
     detail: (agentId: string, runId: string) => ["improvements", agentId, runId] as const,
     changes: (agentId: string, runId: string) =>
       ["improvements", agentId, runId, "changes"] as const,
+    skills: (agentId: string, runId: string) => ["improvements", agentId, runId, "skills"] as const,
     attemptChanges: (agentId: string, runId: string, attempt: number) =>
       ["improvements", agentId, runId, "changes", attempt] as const,
   },
@@ -267,6 +268,8 @@ export const qk = {
     targets: (agentId: string) => ["exposures", agentId, "targets"] as const,
   },
   triggers: {
+    attempts: (agentId: string, triggerId: string, page: number) =>
+      ["triggers", agentId, "attempts", triggerId, page] as const,
     sources: (agentId: string, triggerId: string) =>
       ["triggers", agentId, "sources", triggerId] as const,
     actionConsents: (agentId: string, triggerId: string) =>
@@ -474,8 +477,28 @@ export const qk = {
     }) => ["skills", "list", query] as const,
     detail: (id: string) => ["skills", id] as const,
     gallery: () => ["skills", "gallery"] as const,
+    galleryPreview: (key: string) => ["skills", "gallery", "preview", key] as const,
     resource: (skillId: string, resourceId: string) =>
       ["skills", skillId, "resources", resourceId] as const,
+    versions: (skillId: string, forkId: string | null, skip: number) =>
+      ["skills", skillId, "versions", forkId ?? "main", skip] as const,
+    version: (skillId: string, versionId: string) =>
+      ["skills", skillId, "version", versionId] as const,
+    forks: (skillId: string) => ["skills", skillId, "forks"] as const,
+    agents: (skillId: string) => ["skills", skillId, "agents"] as const,
+    improvements: (skillId: string, forkId: string | null) =>
+      ["skills", skillId, "improvements", forkId ?? "main"] as const,
+    improvementHistory: (skillId: string, forkId: string | null) =>
+      ["skills", skillId, "improvements", forkId ?? "main", "history"] as const,
+    problems: (skillId: string, sessionId: string) =>
+      ["skills", skillId, "problems", sessionId] as const,
+    awaiting: () => ["skills", "improvements-awaiting"] as const,
+    behindMain: () => ["skills", "behind-main"] as const,
+    /** `at` is where the session stands, so a merge the model filled is read again. */
+    merge: (skillId: string, sessionId: string, at: string) =>
+      ["skills", skillId, "merge", sessionId, at] as const,
+    testSet: (skillId: string) => ["skills", skillId, "test-set"] as const,
+    usage: (skillId: string, days: number) => ["skills", skillId, "usage", days] as const,
   },
   mcpOauth: {
     request: (orgId: string, requestId: string) =>
@@ -813,6 +836,14 @@ export const qk = {
     // holds the same file's text - they are two different bodies.
     bytes: (id: string, path: string) => ["sandbox-workspaces", "bytes", id, path] as const,
     file: (id: string, path: string) => ["sandbox-workspaces", "file", id, path] as const,
+  },
+  skillChecks: {
+    all: () => ["skill-checks"] as const,
+    skill: (skillId: string) => ["skill-checks", skillId] as const,
+    detail: (skillId: string, checkId: string) => ["skill-checks", skillId, checkId] as const,
+    line: (skillId: string, forkId: string | null, page = 0) =>
+      ["skill-checks", skillId, "line", forkId ?? "main", page] as const,
+    awaiting: () => ["skill-checks", "awaiting"] as const,
   },
   skillChanges: {
     all: () => ["skill-changes"] as const,

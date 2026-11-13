@@ -1,5 +1,5 @@
 ---
-source_sha: "9c37b08af0c5"
+source_sha: "1e63060a548e"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -510,7 +510,10 @@ widzi.
 Każda ocena zachowuje model, identyfikator opublikowanego pomocnika, hash kryteriów, wersję zadania i hash instrukcji. Model i instrukcje datasetu można zmieniać; ocen z różnych konfiguracji nie traktuje się jako bezpośrednio porównywalnych.
 
 ### Przegląd { #review }
+
 Przegląd pokazuje wszystkie ocenione odpowiedzi w jednej tabeli z pytaniem, agentem, wynikiem, modelem, datą i źródłem. Wybrana odpowiedź otwiera dowody, ocenę i decyzję w panelu bocznym. Zapis zachowuje otwarty panel oraz pozycję wiersza; decyzję można wycofać lub cofnąć. Zmiana maski prywatności z serwera zamyka panel i usuwa niezapisaną notatkę.
+
+Źródło mówi, skąd pochodzi każda odpowiedź: z runu ewaluacji, z oceny ręcznej albo z jednej strony sprawdzenia skilla (proponowany tekst albo obecna wersja), i która to powtórka, więc jedno pytanie zadane kilka razy to kilka rozróżnialnych wierszy; odpowiedzi ze sprawdzenia skilla mają nagłówek sprawdzenia.
 
 Wynik czeka w **kolejce przeglądu**, gdy ktoś go tam wyśle albo zrobi to run
 ewaluacji. Po ponownym uruchomieniu tego, co się zmieniło, run ewaluacji wysyła

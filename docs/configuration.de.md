@@ -1,5 +1,5 @@
 ---
-source_sha: "91072bbd4d91"
+source_sha: "67ab9ca1836d"
 ---
 
 # Konfiguration { #configuration }
@@ -1661,6 +1661,7 @@ und dafür reicht eine Minute.
 | `DOMAIN` | `example.com` | Produktionsdomain (für Traefik) |
 | `ACME_EMAIL` | `admin@example.com` | Let's-Encrypt-Adresse für SSL-Zertifikate |
 | `REDIS_PASSWORD` | `change-me-in-production` | Redis-Passwort für die Produktion |
+| `SESSION_COOKIE_NAMESPACE` | (leer) | Wird vom Container der Konsole gelesen. Kleinbuchstaben, Ziffern und Bindestriche, höchstens 48: Die Sitzungs-Cookies heißen dann `agenticos_<namespace>_access_token` und `agenticos_<namespace>_refresh_token`. Setzen Sie für jedes Deployment, das sich mit einem anderen auf einem anderen Port einen Hostnamen teilt, einen eigenen Wert - ein Browser unterscheidet Cookies nach Host, nicht nach Port, sonst meldet die Anmeldung an einem Sie vom anderen ab. Eine Änderung meldet alle einmal von der Konsole ab. Der Cookie-Fallback des WebSockets der API liest nur den Namen ohne Präfix; die Konsole authentifiziert ihre Sockets mit dem Token selbst und ist davon nicht betroffen |
 
 ## Checkliste für die Produktion { #production-checklist }
 

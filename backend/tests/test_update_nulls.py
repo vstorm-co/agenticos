@@ -62,6 +62,7 @@ from app.db.models.project import Project
 from app.db.models.sandbox_connection import SandboxConnection
 from app.db.models.session import Session
 from app.db.models.skill import Skill, SkillResource
+from app.db.models.skill_version import SkillFork
 from app.db.models.sync_source import SyncSource
 from app.db.models.system_agent_profile import SystemAgentProfile
 from app.db.models.table_view import TableView
@@ -118,6 +119,7 @@ from app.schemas.scoring import DatasetScoringUpdate, JudgeScorerUpdate
 from app.schemas.secret import SecretUpdate
 from app.schemas.session import SessionAppUpdate
 from app.schemas.skill import SkillResourceUpdate, SkillUpdate
+from app.schemas.skill_version import SkillForkUpdate
 from app.schemas.sync_source import SyncSourceUpdate
 from app.schemas.system_agent import SystemAgentUpdate
 from app.schemas.table_view import TableViewUpdate
@@ -201,6 +203,7 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     SecretUpdate: OrganizationSecret,
     # The caller's own session row, labelled with the app it runs in (#2305).
     SessionAppUpdate: Session,
+    SkillForkUpdate: SkillFork,
     SkillResourceUpdate: SkillResource,
     SkillUpdate: Skill,
     SyncSourceUpdate: SyncSource,

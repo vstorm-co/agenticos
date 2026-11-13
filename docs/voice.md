@@ -172,6 +172,9 @@ answers with what it did, and the call's model says that aloud.
 - **Approvals are the call's.** A gated tool the text model calls, or one of its
   subagents calls, shows the same approval card as one the call makes. A
   visitor's call carries no gated tool here either.
+- **A call that always asks is decided in text.** A tool such as `share_memory`
+  waits for somebody reading exactly what it would change, which a voice card
+  cannot show. The call refuses it and the agent suggests asking in text chat.
 - **One hand-off at a time.** Each continues from what the last one did in that
   call, so "now send that file" works after "write it up".
 - **A failure is said, not hidden.** A hand-off that runs out of budget or

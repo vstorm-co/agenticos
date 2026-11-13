@@ -76,7 +76,19 @@ class ProposalCheckRecord(BaseSchema):
     on_draft: bool = False
     suggestions: int = Field(ge=1)
     improvement_run_id: UUID | None = None
+    skill_check_id: UUID | None = Field(
+        default=None,
+        description="The check of a skill change on every agent this run is one stage of",
+    )
     evidence_run_ids: list[UUID] = Field(default_factory=list)
+    not_asked: int = Field(
+        default=0,
+        ge=0,
+        description=(
+            "Of the run's excluded cases, the ones left out because the check asked a sample "
+            "of the dataset, not because they came from the change's evidence"
+        ),
+    )
     attempt_holdout: list[UUID] | None = Field(
         default=None,
         description="An improvement attempt's own draw of measured questions; the dataset's "
@@ -253,6 +265,14 @@ class EvalUngradedCaseRead(BaseSchema):
     input: str
 
 
+class ArmSkillVersionRead(BaseSchema):
+    """A stored skill version one side of a run was served."""
+
+    skill_id: UUID
+    number: int
+    fork_name: str | None = Field(description="The fork the version belongs to; null on main")
+
+
 class EvalRunArmRead(BaseSchema):
     id: UUID
     role: ArmRole
@@ -271,6 +291,14 @@ class EvalRunArmRead(BaseSchema):
     context_ids: list[UUID] = Field(
         default_factory=list,
         description="The context files this side served a proposed body for instead of the stored one",
+    )
+    skill_versions: list[ArmSkillVersionRead] = Field(
+        default_factory=list,
+        description=(
+            "The stored version of each skill this side was served, once per skill. A "
+            "skill check's baseline names the version its candidate's proposal is weighed "
+            "against"
+        ),
     )
     summary: ArmSummaryRead
     by_tag: dict[str, ArmSummaryRead]
@@ -586,13 +614,20 @@ class EvalComparisonRead(BaseSchema):
     overall: OverallLiteral | None
     p_value: float | None
     invalid_reason: str | None
-    invalid_reason_code: Literal["knowledge_not_retrieved"] | None = None
+    invalid_reason_code: Literal["knowledge_not_retrieved", "too_few_held_out"] | None = None
     regressions_confirmed: int
     regressions_unconfirmed: int
     fixed_confirmed: int
     fixed_unconfirmed: int
     compared: int
     not_compared: int
+    gradable_holdout: int | None = Field(
+        default=None,
+        description=(
+            "How many held-out questions a measured run could grade, the count its minimum "
+            "is read against; null for a run that keeps no questions aside"
+        ),
+    )
     changed: int = Field(
         default=0,
         description=(

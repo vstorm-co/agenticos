@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -155,6 +155,41 @@ describe("useUrlOverlay", () => {
     expect(go).toHaveBeenCalledTimes(1);
     expect(go).toHaveBeenCalledWith(-1);
     go.mockRestore();
+  });
+
+  it("closes on Back even when the router never rendered the opened parameter", async () => {
+    const { rerender } = render(<Overlay />);
+    await userEvent.click(screen.getByRole("button", { name: "open c1" }));
+    expect(screen.getByRole("status")).toHaveTextContent("c1");
+    // The browser has traversed before Next's transition ever exposed ?case=c1.
+    act(() => {
+      window.history.replaceState({}, "", "/datasets/d1");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    rerender(<Overlay />);
+    expect(screen.getByRole("status")).toHaveTextContent("nothing");
+  });
+
+  it("uses the traversed entry while the router still describes the previous one", async () => {
+    const { rerender } = render(<Overlay />);
+    await userEvent.click(screen.getByRole("button", { name: "open c1" }));
+    params.set("case", "c1");
+    rerender(<Overlay />);
+    act(() => {
+      window.history.replaceState({}, "", "/datasets/d1");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    expect(screen.getByRole("status")).toHaveTextContent("nothing");
+    params.delete("case");
+    rerender(<Overlay />);
+    act(() => {
+      window.history.replaceState({ __urlOverlay: "case" }, "", "/datasets/d1?case=c1");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    expect(screen.getByRole("status")).toHaveTextContent("c1");
+    params.set("case", "c1");
+    rerender(<Overlay />);
+    expect(screen.getByRole("status")).toHaveTextContent("c1");
   });
 
   it("goes back past the unsaved-changes guard's copy of the step", async () => {

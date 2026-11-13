@@ -64,7 +64,7 @@ from app.services.sandbox_runtimes import CATALOG
 
 logger = logging.getLogger(__name__)
 
-CONNECTION_KINDS = ("docker", "daytona", "e2b")
+CONNECTION_KINDS = ("docker", "daytona", "e2b", "opensandbox")
 
 LOCAL_SERVICE_URLS = ("http://sandboxd:8080", "http://localhost:8080")
 """Where this project's own compose file puts a sandbox service.
@@ -129,6 +129,7 @@ def to_read(row: SandboxConnection) -> SandboxConnectionRead:
         base_url=row.base_url,
         secret_id=row.secret_id,
         default_runtime=row.default_runtime,
+        secure_access=row.secure_access,
         is_default=row.is_default,
         is_active=row.is_active,
         created_at=row.created_at,
@@ -179,7 +180,12 @@ class SandboxConnectionService:
         """
         await self._refuse_duplicate_name(ctx, data.name)
         _provides.pop(ctx.organization_id, None)
-        self._check_shape(kind=data.kind, base_url=data.base_url)
+        self._check_shape(
+            kind=data.kind,
+            base_url=data.base_url,
+            default_runtime=data.default_runtime,
+            secure_access=data.secure_access,
+        )
 
         first = not await sandbox_connection_repo.list_for_organization(
             self.db, organization_id=ctx.organization_id
@@ -192,6 +198,7 @@ class SandboxConnectionService:
             base_url=data.base_url,
             secret_id=data.secret_id,
             default_runtime=data.default_runtime,
+            secure_access=data.secure_access,
             # The first connection an organization registers is its default,
             # because the alternative is a form that succeeds and an agent that
             # then cannot find a workspace.
@@ -237,6 +244,8 @@ class SandboxConnectionService:
         self._check_shape(
             kind=changes.get("kind", row.kind),
             base_url=changes.get("base_url", row.base_url),
+            default_runtime=changes.get("default_runtime", row.default_runtime),
+            secure_access=changes.get("secure_access", row.secure_access),
         )
 
         promoting = changes.get("is_default") is True
@@ -563,7 +572,30 @@ class SandboxConnectionService:
             BadRequestError: If the address does not answer, the credential is
                 missing, is not an API key, or is refused.
         """
+        self._check_shape(
+            kind=data.kind,
+            base_url=data.base_url,
+            default_runtime=data.default_runtime,
+            secure_access=data.secure_access,
+        )
         token = await self._probe_token(ctx, data)
+        if data.kind == "opensandbox":
+            from pydantic_ai.workspaces import WorkspaceError
+
+            from app.agents.capabilities.sandbox._opensandbox import OpenSandboxWorkspace
+
+            assert data.default_runtime is not None
+            workspace = OpenSandboxWorkspace(
+                server_url=data.base_url,
+                api_key=SecretStr(token),
+                image=data.default_runtime,
+                secure_access=data.secure_access,
+            )
+            try:
+                await workspace.probe()
+            except WorkspaceError as exc:
+                raise refused_field("base_url", str(exc)) from None
+            return SandboxPolicyRead(kind="opensandbox", default_runtime=data.default_runtime)
         payload = await self._get_json(
             base_url=data.base_url,
             token=token,
@@ -596,7 +628,7 @@ class SandboxConnectionService:
         """
         if data.secret_id is None:
             local = data.base_url.rstrip("/") in LOCAL_SERVICE_URLS
-            if local and settings.SANDBOXD_TOKEN:
+            if data.kind == "docker" and local and settings.SANDBOXD_TOKEN:
                 return settings.SANDBOXD_TOKEN
             raise refused_field(
                 "secret_id", "Pick the key this service was started with before testing it"
@@ -621,7 +653,13 @@ class SandboxConnectionService:
             )
 
     @staticmethod
-    def _check_shape(*, kind: str, base_url: str | None) -> None:
+    def _check_shape(
+        *,
+        kind: str,
+        base_url: str | None,
+        default_runtime: str | None = None,
+        secure_access: bool = False,
+    ) -> None:
         """Refuse a connection whose shape cannot work, while a form is open.
 
         Both of these otherwise surface on an agent's first tool call, where the
@@ -633,10 +671,31 @@ class SandboxConnectionService:
                 message=f"Unknown sandbox kind: {kind}",
                 details={"kind": kind, "expected": list(CONNECTION_KINDS)},
             )
-        if kind == "docker" and not base_url:
+        if kind in {"docker", "opensandbox"} and not base_url:
             raise refused_field(
                 "base_url",
                 "A container connection needs the address its sandbox service answers on",
+            )
+
+        if secure_access and kind != "opensandbox":
+            raise refused_field(
+                "secure_access", "Secure Access is supported only by OpenSandbox connections"
+            )
+        if kind == "opensandbox":
+            if (
+                not default_runtime
+                or not default_runtime.strip()
+                or any(character.isspace() for character in default_runtime)
+                or "://" in default_runtime
+            ):
+                raise refused_field(
+                    "default_runtime",
+                    "An OpenSandbox connection needs a container image reference without spaces or a URL scheme",
+                )
+        elif default_runtime is not None and len(default_runtime) > 64:
+            raise refused_field(
+                "default_runtime",
+                "This provider's runtime or template name is limited to 64 characters",
             )
 
     async def resolve(self, ctx: AuthContext, connection_id: UUID | None) -> ResolvedConnection:

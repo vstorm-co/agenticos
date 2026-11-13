@@ -1,5 +1,5 @@
 ---
-source_sha: "64df2ad4b5d2"
+source_sha: "815f7831bf7e"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -44,7 +44,9 @@ desactiva lo que el agente no deba hacer.
 
 Acabe con las capabilities que acabe, cada run recibe en sus instrucciones, bajo
 **Your setup**, cuáles tiene y cuáles no - así describe solo lo que puede hacer y
-dice qué habría que activar para el resto.
+dice qué habría que activar para el resto. A un agent con skills se le dice al
+final, bajo **Your skills**, que abra con `read_skill` el skill en el que cae
+una pregunta; pedir un skill con la tarjeta recibe eso como respuesta.
 
 Cuando una petición necesita una que el agent no tiene, muestra en el chat una
 tarjeta con ella y su motivo. Quien puede editar el agent la activa desde la
@@ -514,9 +516,13 @@ un chat de grupo nunca escribe un perfil. Solo `share_memory` amplía un claim, 
 solo por orden de una persona que pueda: `projects:edit` en el proyecto, o
 `context:edit` para toda la organización. Siempre espera a que una persona apruebe exactamente ese claim y esa audiencia, sean cuales sean los ajustes de aprobación del agent, así que un texto leído por el agent no puede convencerlo de compartir.
 
+Tampoco lo responden **Approve everything** ni un **Permitir siempre** recordado, y su tarjeta no ofrece ninguna de las dos opciones. La tarjeta muestra el hecho y su audiencia; en la cola de aprobaciones el hecho solo lo ve quien puede ver el run del que viene.
+
 La copia nombra el claim del que viene y
 el original conserva su audiencia. Un embed, un run con clave de API y un run
 programado no leen nada; un chat de grupo lee solo sus propios claims. Corregir un claim que lee todo el proyecto o la organización exige el mismo permiso que compartir hacia allí: leerlo no es autoridad para reescribirlo.
+
+Una corrección así mediante `correct_memory` además espera a una persona cada vez, sea cual sea el modo de aprobación, y su tarjeta muestra el hecho antes y después; corregir un claim propio de una persona no espera. Una corrección que registra la herramienta es un claim del agent, nombra el run y la conversación de los que viene, y el registro de auditoría recibe una entrada `memory.claim.corrected`. Una corrección hecha en **Settings → Memory** es de la propia persona.
 
 - **Una corrección conserva lo que corrige.** «Desde el lunes Piotr se encarga de
   las facturas» cierra el claim anterior en esa fecha y añade el nuevo; que Anna
@@ -1761,8 +1767,8 @@ lista de prefijos de comandos hace de una shell algo de solo lectura, porque
 `git log --output=<archivo>` encaja con `git log` igual que cualquier lectura. Codex dentro de un contenedor no tiene `read_only`: su modo de solo lectura es una
 sandbox propia, que no arranca dentro del contenedor del agent, y la publicación
 rechaza la combinación. Que una persona diga sí antes de cada tarea es la
-**Aprobación humana** de la capability, puesta en **Preguntar siempre** — como toda
-compuerta, está desactivada hasta que alguien la pone. No hay pestaña de
+**Aprobación humana** de la capability, puesta en **Preguntar siempre**. El Builder elige este modo para bindings nuevos;
+los existentes conservan su política. No hay pestaña de
 herramientas: la única herramienta es la capability.
 
 **Sesiones con nombre.** Cada tarea indica una `session` - `main` cuando no indica ninguna. El mismo nombre continúa el trabajo anterior de esa sesión en la conversación; un nombre nuevo abre otra, y las sesiones independientes se ejecutan en paralelo cuando el agente llama a la herramienta varias veces a la vez. `fresh_session` reinicia una sesión. En este ordenador una sesión también puede elegir su `harness` - Claude Code o Codex, con la sesión iniciada en ese ordenador - y una `folder` dentro de la carpeta del chat, de modo que dos proyectos, o ambos harnesses, trabajan a la vez. En una sandbox o en una tarea privada en la nube el harness del binding es el único, porque la clave o la cuenta le pertenecen.

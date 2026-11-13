@@ -1,5 +1,5 @@
 ---
-source_sha: "48d2de1960ff"
+source_sha: "12c6776e073b"
 ---
 
 # Każdy ekran w konsoli { #every-screen-in-the-console }
@@ -72,7 +72,7 @@ Builder, zakładka po zakładce.
 
 ### Build { #build }
 
-Instrukcje, model i endpoint. Zachowanie mieszka tutaj, a nie w kodzie, w Markdownie, z którego model czyta strukturę - a nagłówek niesie `published` obok `Draft differs from v40`, i o to właśnie chodzi: edytowanie nie wydaje.
+Instrukcje, model i endpoint. Zachowanie mieszka tutaj, a nie w kodzie, w Markdownie, z którego model czyta strukturę - a nagłówek niesie `published` obok `Draft differs from agent v40`, i o to właśnie chodzi: edytowanie nie wydaje.
 
 ![Build](assets/screens/light/agent-builder.webp?v=20261102-industrial#only-light)
 ![Build](assets/screens/dark/agent-builder.webp?v=20261102-industrial#only-dark)

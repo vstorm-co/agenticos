@@ -31,7 +31,7 @@ from app.core.exceptions import (
 )
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent_run import RunStatus, RunSurface
-from app.schemas.agent_trigger import TriggerCreate, TriggerRead, TriggerUpdate
+from app.schemas.agent_trigger import TriggerAttemptRead, TriggerCreate, TriggerRead, TriggerUpdate
 from app.services.agent_trigger import (
     AgentTriggerService,
     EventFireDecision,
@@ -76,6 +76,17 @@ def _agent(*, agent_id: uuid.UUID | None = None, name: str = "Nightly") -> Magic
 def _service(agent: MagicMock | None = None) -> AgentTriggerService:
     service = AgentTriggerService(MagicMock())
     service.db.flush = AsyncMock()
+    service.db.scalar = AsyncMock(return_value=None)
+    service._record_attempt = AsyncMock(
+        return_value=TriggerAttemptRead(
+            id=uuid.uuid4(),
+            activation_id=uuid.uuid4(),
+            status="blocked",
+            stage="source_review",
+            reason="source_review_required",
+            occurred_at=datetime.now(UTC),
+        )
+    )
     # `record_audit` reads the chain head and takes the per-org lock, both via
     # `execute`; the mock must await and answer the head read with an empty chain.
     service.db.execute = AsyncMock()
@@ -1418,9 +1429,11 @@ class TestFiring:
         assert trigger.is_active is False
         assert audit.call_args.kwargs["details"]["reason"] == "agent_not_runnable"
         # The run preparation flushed is rolled back rather than left `running`, and
-        # the owner reads the refusal itself.
+        # the owner gets a repair direction without raw preparation errors.
         service.db.rollback.assert_awaited()
-        assert notices.return_value.routine_blocked.await_args.kwargs["detail"] == "not runnable"
+        detail = notices.return_value.routine_blocked.await_args.kwargs["detail"]
+        assert "published version" in detail and "routine settings" in detail
+        assert "not runnable" not in detail
 
     async def test_a_fired_run_runs_as_the_creator_and_is_stamped_schedule(self):
         agent = _agent()

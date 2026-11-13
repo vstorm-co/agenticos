@@ -187,6 +187,22 @@ def gallery() -> tuple[GalleryIndustry, ...]:
     return tuple(industries)
 
 
+def architect_names() -> frozenset[str]:
+    """The names of the skills the AI Architect's template binds, bundled or from the gallery.
+
+    Installing it copies them into the organization as ordinary rows, so a listing tells
+    them apart by name, as it does the bundled ones.
+    """
+    from app.services import agent_templates
+
+    template = agent_templates.get(agent_templates.ARCHITECT_KEY)
+    if template is None:  # pragma: no cover - the template ships with the image
+        return frozenset()
+    return frozenset(
+        entry.name for key in template.skills if (entry := get(key) or gallery_get(key)) is not None
+    )
+
+
 def gallery_get(key: str) -> LibrarySkill | None:
     """One gallery skill by its `<industry>/<folder>` key."""
     return next(

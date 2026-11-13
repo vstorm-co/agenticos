@@ -931,6 +931,9 @@ def get_stats_service(db: DBSession) -> StatsService:
 StatsSvc = Annotated[StatsService, Depends(get_stats_service)]
 
 from app.services.skill_proposal import SkillProposalService
+from app.services.skill_agents import SkillAgentService
+from app.services.skill_catch_up import SkillCatchUpService
+from app.services.skill_versions import SkillVersionService
 from app.services.skills import SkillService
 
 
@@ -940,6 +943,30 @@ def get_skill_service(db: DBSession) -> SkillService:
 
 
 SkillSvc = Annotated[SkillService, Depends(get_skill_service)]
+
+
+def get_skill_version_service(db: DBSession) -> SkillVersionService:
+    """Create SkillVersionService instance with database session."""
+    return SkillVersionService(db)
+
+
+SkillVersionSvc = Annotated[SkillVersionService, Depends(get_skill_version_service)]
+
+
+def get_skill_agent_service(db: DBSession) -> SkillAgentService:
+    """Create SkillAgentService instance with database session."""
+    return SkillAgentService(db)
+
+
+SkillAgentSvc = Annotated[SkillAgentService, Depends(get_skill_agent_service)]
+
+
+def get_skill_catch_up_service(db: DBSession) -> SkillCatchUpService:
+    """Create SkillCatchUpService instance with database session."""
+    return SkillCatchUpService(db)
+
+
+SkillCatchUpSvc = Annotated[SkillCatchUpService, Depends(get_skill_catch_up_service)]
 
 from app.services.context import ContextService
 
@@ -1163,6 +1190,15 @@ def get_skill_proposal_service(db: DBSession) -> SkillProposalService:
 
 
 SkillProposalSvc = Annotated[SkillProposalService, Depends(get_skill_proposal_service)]
+
+from app.services.skill_check import SkillCheckService
+
+
+def get_skill_check_service(db: DBSession) -> SkillCheckService:
+    return SkillCheckService(db)
+
+
+SkillCheckSvc = Annotated[SkillCheckService, Depends(get_skill_check_service)]
 
 from app.services.context_proposal import ContextProposalService
 
@@ -2362,6 +2398,16 @@ def get_improvement_service(db: DBSession) -> ImprovementPipelineService:
 
 
 ImprovementSvc = Annotated[ImprovementPipelineService, Depends(get_improvement_service)]
+
+
+from app.services.skill_improvement import SkillImprovementService
+
+
+def get_skill_improvement_service(db: DBSession) -> SkillImprovementService:
+    return SkillImprovementService(db)
+
+
+SkillImprovementSvc = Annotated[SkillImprovementService, Depends(get_skill_improvement_service)]
 
 
 from app.services.project_workspace_transfer import ProjectWorkspaceTransferService

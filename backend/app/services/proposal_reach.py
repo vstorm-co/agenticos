@@ -50,17 +50,23 @@ async def reach(
     organization_id: UUID,
     kind: DependencyKind,
     resource_ids: Sequence[UUID],
+    fork_id: UUID | None = None,
 ) -> dict[UUID, list[Reach]]:
-    """For each file or skill, the agents whose served version reads it - archived ones aside."""
+    """For each file or skill, the agents whose served version reads it - archived ones aside.
+
+    For a skill, the agents on the line that changes: main's newest version when
+    `fork_id` is None, that fork's otherwise. An agent pinned to a version is reached
+    by neither.
+    """
     # Imported here: the eval suites reach the agent runner, which records skill proposals.
-    from app.services.eval_suite import EvalSuiteService, binds
+    from app.services.eval_suite import EvalSuiteService, reaches
 
     served = await agent_environment_repo.served(db, organization_id=organization_id)
     hit: dict[UUID, dict[UUID, list[AgentEnvironment]]] = defaultdict(lambda: defaultdict(list))
     for environment, version in served:
         spec = AgentSpec.model_validate(version.spec)
         for resource_id in resource_ids:
-            if binds(spec, kind, resource_id):
+            if reaches(spec, kind, resource_id, fork_id):
                 hit[resource_id][environment.agent_id].append(environment)
     agents = await agent_repo.get_many(
         db, sorted({agent for by in hit.values() for agent in by}), organization_id=organization_id
@@ -80,13 +86,13 @@ async def reach(
         if hit
         else []
     )
-    reaches: dict[UUID, list[Reach]] = {}
+    by_resource: dict[UUID, list[Reach]] = {}
     for resource_id in resource_ids:
         running: dict[UUID, list[UUID]] = defaultdict(list)
         for suite, spec in watchers if resource_id in hit else []:
-            if binds(spec, kind, resource_id):
+            if reaches(spec, kind, resource_id, fork_id):
                 running[suite.agent_id].append(suite.id)
-        reaches[resource_id] = [
+        by_resource[resource_id] = [
             Reach(
                 agents[agent_id],
                 found,
@@ -103,7 +109,7 @@ async def reach(
             for agent_id, found in hit[resource_id].items()
             if agent_id in agents and agents[agent_id].status != AgentStatus.ARCHIVED.value
         ]
-    return reaches
+    return by_resource
 
 
 async def reached(

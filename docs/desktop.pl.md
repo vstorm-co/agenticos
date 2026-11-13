@@ -1,5 +1,5 @@
 ---
-source_sha: "2277b0624af5"
+source_sha: "cd9dbfb49b0b"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -337,10 +337,11 @@ edycja, uruchamianie - sięgają tego folderu przez aplikację.
 **Połącz komputer raz.** W ustawieniach czatu wybierz **Pracuj na → Ten komputer**,
 aby połączyć go bezpośrednio. Potwierdź w natywnym oknie, a potem wybierz folder i
 tryb dostępu w tym samym panelu. **Ustawienia → Aplikacja desktopowa → Ten komputer
-→ Pozwól agentom tu pracować** oferuje tę samą akcję łączenia. Aplikacja dostaje
+→ Połącz ten komputer** oferuje tę samą akcję łączenia. Aplikacja dostaje
 własną sesję dla tego komputera i przechowuje jej refresh token w systemowym pęku
 kluczy. Trzyma jedno wychodzące połączenie WebSocket do device huba serwera
-(`/api/v1/ws/device`); nic nie nasłuchuje na komputerze. **Rozłącz** kończy tę sesję.
+(`/api/v1/ws/device`); nic nie nasłuchuje na komputerze. **Rozłącz** kończy tę sesję; najpierw pyta i
+wymienia, co usunie.
 
 **Wybierz to dla czatu.** W aplikacji desktopowej ustawienia czatu oferują
 **Pracuj na (Work on): Chmura / Ten komputer**. Wybranie tego komputera prosi o

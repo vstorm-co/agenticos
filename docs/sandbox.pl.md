@@ -1,5 +1,5 @@
 ---
-source_sha: "4ff4f68268d0"
+source_sha: "5605d024cb81"
 ---
 
 # Sandbox { #the-sandbox }
@@ -756,6 +756,16 @@ Każde utworzenie, podłączenie i zniszczenie odbywa się tym kluczem, nigdy
 działają i są rozliczane na jej własnym koncie. Sandbox jest na koniec swojej
 godziny wstrzymywany, a nie zabijany, więc workspace o dłuższym zakresie zachowuje
 pliki, a sweep niszczenia kończy go tak jak sandbox Daytona.
+
+**Połączenie OpenSandbox.** Wybierz `opensandbox` w **Ustawienia → Sandboksy → Połączenia**, wpisz adres serwera dostępny z backendu, wybierz jego klucz API z sejfu i podaj obraz, np. `python:3.12-slim`. Obraz wymaga powłoki POSIX i podstawowych narzędzi plików. Serwer jest utrzymywany osobno; obsługiwane są wdrożenia Docker i Kubernetes. Zobacz [konfigurację serwera OpenSandbox](https://open-sandbox.ai/getting-started/configuration). Użyj server/execd `release-1.2.0` lub późniejszej zgodnej wersji; execd musi mieć co najmniej 1.1.1 dla wyników poleceń. AgenticOS używa SDK 1.2 bez ponawiania poleceń i tworzenia.
+
+Przycisk **Testuj serwer i obraz** tworzy tymczasowy sandbox, sprawdza powłokę i usuwa go. Jawny test może pobrać obraz i zużyć zasoby; otwarcie formularza niczego nie tworzy. Opublikuj agenta z dotychczasową zdolnością sandboxa na tym połączeniu; narzędzia plików, powłoki i zakresy współdzielenia działają jak wcześniej. Domyślny obraz połączenia może mieć 512 znaków; opcjonalne nadpisanie runtime agenta nadal ma limit 64.
+
+Opcjonalny **Secure Access** wymaga bramy ingress OpenSandbox na Kubernetes. Docker odrzuca ten tryb. Ustawienie dotyczy nowych przestrzeni; jego zmiana nie odtwarza istniejących plików. Zresetuj lub przenieś przestrzeń jawnie, aby zmienić tryb. AgenticOS zawsze używa uwierzytelnionego proxy serwera API. Chroni to dostęp do endpointów, nie izolację procesów ani ruch wychodzący. Klucz API kontroluje wszystkie sandboxy tego serwera: osobne połączenia AgenticOS nie zapewniają odrębnych kluczy serwera ani izolacji wykonania organizacji. Operator izoluje serwer, socket Dockera, obciążenia i sieci; zastosuj osobne serwery, gdy wspólny serwer wykracza poza granicę zaufania. API powinno być w sieci prywatnej lub za uwierzytelnionym TLS; nie udostępniaj endpointów sandboxów publicznie.
+
+Kolejna tura łączy się z zapisaną przestrzenią. Brak lub niedostępność powoduje odmowę; identyfikator pozostaje, zamiast cichego tworzenia pustych plików. Reset wykonuj jawnie po odzyskaniu potrzebnych plików. Zamknięcie tury zwalnia klientów HTTP, a przestrzeń żyje zgodnie ze swoim zakresem; jawne sprzątanie korzysta z trwałej kolejki usuwania. Zachowaj połączenie i klucz do zakończenia oczekujących usunięć. AgenticOS nie wylicza wszystkich sandboxów serwera; panele sesji i limitów sandboxd nie opisują tego dostawcy.
+
+Walidacja objęła cykl życia na Dockerze, trwałość plików, ponowne połączenie, odmowę brakującej przestrzeni i sprzątanie na server/execd 1.2.0. Secure Access na Kubernetes nie przetestowano na rzeczywistym klastrze. Cofnięcie migracji `0317_opensandbox_connections.py` jest odrzucane, dopóki istnieją połączenia OpenSandbox lub nazwy runtime dłuższe niż 64 znaki.
 
 **Własny komputer osoby.** W [aplikacji desktopowej](desktop.md#work-on-this-computer)
 czat może pracować w folderze na komputerze, na którym działa. Narzędzia sięgają

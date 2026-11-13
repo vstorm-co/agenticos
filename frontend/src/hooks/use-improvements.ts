@@ -4,6 +4,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import type { Hunk } from "@/types/authoring";
 import type { EvalRun } from "@/types/eval-runs";
+import {
+  improvementsRoot as root,
+  subjectKey as keyOf,
+  type ImprovementSubject,
+} from "@/lib/improvement-subject";
 import { qk } from "@/lib/query-keys";
 import type {
   AttributionEstimate,
@@ -11,6 +16,7 @@ import type {
   KnowledgeCheckEstimate,
   KnowledgeCheckTarget,
   Improvement,
+  ImprovementSkills,
   ImprovementAwaiting,
   ImprovementEstimate,
   ImprovementEvidence,
@@ -70,10 +76,10 @@ export function useImprovements(agentId: string, { enabled = true } = {}) {
 }
 
 /** The changes of a session's current attempt, or of the round it chose once one was measured. */
-export function useImprovementChanges(agentId: string, runId: string) {
+export function useImprovementChanges(subject: ImprovementSubject, runId: string) {
   const query = useQuery({
-    queryKey: qk.improvements.changes(agentId, runId),
-    queryFn: () => apiClient.get<Hunk[]>(`/agents/${agentId}/improvements/${runId}/changes`),
+    queryKey: qk.improvements.changes(keyOf(subject), runId),
+    queryFn: () => apiClient.get<Hunk[]>(`${root(subject)}/${runId}/changes`),
   });
   return {
     changes: query.data ?? [],
@@ -85,25 +91,33 @@ export function useImprovementChanges(agentId: string, runId: string) {
 
 /** Every change one attempt proposed, tested or not. */
 export function useAttemptChanges(
-  agentId: string,
+  subject: ImprovementSubject,
   runId: string,
   attempt: number,
   { enabled = true } = {},
 ) {
   const query = useQuery({
-    queryKey: qk.improvements.attemptChanges(agentId, runId, attempt),
-    queryFn: () =>
-      apiClient.get<Hunk[]>(`/agents/${agentId}/improvements/${runId}/changes?attempt=${attempt}`),
+    queryKey: qk.improvements.attemptChanges(keyOf(subject), runId, attempt),
+    queryFn: () => apiClient.get<Hunk[]>(`${root(subject)}/${runId}/changes?attempt=${attempt}`),
     enabled,
   });
   return { changes: query.data ?? [], isLoading: query.isLoading, error: query.error };
 }
 
-export function useImprovement(agentId: string, runId: string) {
+/**
+ * What the next step is priced and started with: the limit, and whatever else the
+ * session's kind asks of it - a catch-up's check of main alone.
+ */
+export interface ContinuationRequest {
+  budget: string;
+  body?: Record<string, unknown>;
+}
+
+export function useImprovement(subject: ImprovementSubject, runId: string) {
   const queryClient = useQueryClient();
-  const base = `/agents/${agentId}/improvements/${runId}`;
+  const base = `${root(subject)}/${runId}`;
   const query = useQuery({
-    queryKey: qk.improvements.detail(agentId, runId),
+    queryKey: qk.improvements.detail(keyOf(subject), runId),
     queryFn: () => apiClient.get<Improvement>(base),
     refetchInterval: (current) =>
       current.state.data &&
@@ -114,7 +128,9 @@ export function useImprovement(agentId: string, runId: string) {
   const refresh = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: qk.improvements.all() }),
-      queryClient.invalidateQueries({ queryKey: qk.authoring.agent(agentId) }),
+      queryClient.invalidateQueries({
+        queryKey: typeof subject === "string" ? qk.authoring.agent(subject) : qk.skills.all(),
+      }),
       queryClient.invalidateQueries({ queryKey: qk.evalRuns.all() }),
     ]);
   };
@@ -178,12 +194,22 @@ export function useImprovement(agentId: string, runId: string) {
     onSuccess: refresh,
   });
   const estimateContinuation = useMutation({
-    mutationFn: (budget: string) =>
-      apiClient.post<ContinuationEstimate>(`${base}/continue/estimate`, { budget_usd: budget }),
+    mutationFn: (request: string | ContinuationRequest) => {
+      const { budget, body } = typeof request === "string" ? { budget: request } : request;
+      return apiClient.post<ContinuationEstimate>(`${base}/continue/estimate`, {
+        ...body,
+        budget_usd: budget,
+      });
+    },
   });
   const continueSession = useMutation({
-    mutationFn: ({ note, ...quote }: ContinuationEstimate & { note?: string }) =>
+    mutationFn: ({
+      note,
+      body,
+      ...quote
+    }: ContinuationEstimate & { note?: string; body?: Record<string, unknown> }) =>
       apiClient.post<Improvement>(`${base}/continue`, {
+        ...body,
         confirmed: true,
         budget_usd: quote.budget_usd,
         estimate_usd: quote.total_usd,
@@ -243,8 +269,18 @@ export function useImprovement(agentId: string, runId: string) {
   };
 }
 
+/** The agent's skills as the session found them: problems to hand over, versions to move. */
+export function useImprovementSkills(agentId: string, sessionId: string) {
+  const query = useQuery({
+    queryKey: qk.improvements.skills(agentId, sessionId),
+    queryFn: () =>
+      apiClient.get<ImprovementSkills>(`/agents/${agentId}/improvements/${sessionId}/skills`),
+  });
+  return { skills: query.data, error: query.error };
+}
+
 export function useImprovementEvidence(
-  agentId: string,
+  subject: ImprovementSubject,
   {
     sessionId = null,
     datasetId = null,
@@ -252,15 +288,16 @@ export function useImprovementEvidence(
   }: { sessionId?: string | null; datasetId?: string | null; live?: boolean } = {},
 ) {
   const query = useQuery({
-    queryKey: qk.improvements.evidence(agentId, sessionId, datasetId),
+    queryKey: qk.improvements.evidence(keyOf(subject), sessionId, datasetId),
     queryFn: () =>
       apiClient.get<ImprovementEvidence>(
-        sessionId
-          ? `/agents/${agentId}/improvements/${sessionId}/evidence`
-          : `/agents/${agentId}/improvements/preview`,
+        sessionId ? `${root(subject)}/${sessionId}/evidence` : `${root(subject)}/preview`,
         { params: !sessionId && datasetId ? { dataset_id: datasetId } : {} },
       ),
     refetchInterval: live ? IMPROVEMENT_FALLBACK_MS : false,
+    // A skill's session answers `/evidence` with its problems, which `useSkillProblems`
+    // reads; it has no agent evidence for the shared steps to show.
+    enabled: typeof subject === "string",
   });
   return {
     evidence: query.data,

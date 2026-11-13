@@ -8,6 +8,7 @@ import { usePermissions } from "./use-permissions";
 import { useTenantId } from "./use-organizations";
 import { useAuthStore } from "@/stores";
 import { desktopScope } from "@/stores/desktop-preferences-store";
+import type { DeviceStatus } from "@/lib/desktop/commands";
 import { SYSTEM_PERMISSIONS, type SystemPermission } from "@/lib/desktop/readiness";
 import { Perm } from "@/types/permissions";
 
@@ -17,6 +18,20 @@ export interface SetupItem {
   key: SetupKey;
   state: SetupState;
   href?: string;
+}
+
+/**
+ * Where linking this computer stands.
+ *
+ * A linked computer whose socket dropped is reconnecting on its own, so it reads
+ * as checking rather than missing: linking again would replace its session and
+ * clear the access granted for it.
+ */
+export function deviceSetupState(device: { data?: DeviceStatus; error: unknown }): SetupState {
+  if (device.error) return "error";
+  if (!device.data) return "checking";
+  if (!device.data.linked) return "missing";
+  return device.data.connected ? "ready" : "checking";
 }
 
 /** Shared live facts for first connection, existing accounts and contextual repairs. */
@@ -38,16 +53,7 @@ export function useDesktopSetup() {
       state: auth.isLoading ? "checking" : auth.isAuthenticated ? "ready" : "missing",
       href: "/login",
     },
-    {
-      key: "device",
-      state: device.error
-        ? "error"
-        : !device.data
-          ? "checking"
-          : device.data.linked && device.data.connected
-            ? "ready"
-            : "missing",
-    },
+    { key: "device", state: deviceSetupState(device) },
     {
       key: "agent",
       state: !auth.isAuthenticated

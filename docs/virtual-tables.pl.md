@@ -1,5 +1,5 @@
 ---
-source_sha: "539603f9eb62"
+source_sha: "ec1de885016c"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -174,8 +174,12 @@ ją z bieżącymi kolumnami:
   i z powrotem, gdy jest całkowita; data staje się datą z czasem; jeden wybór staje się
   kilkoma i z powrotem, gdy jest jeden. Każda inna zmiana jest odrzucana, podobnie jak
   taka, której któraś wartość nie przetrwa - z liczbą i przykładem, a nic nie zostaje
-  zapisane. Coś, co używa kolumny, odrzuca zmianę tak jak archiwizację. Rewizja rekordu
-  idzie dalej, więc edycja według starej wartości jest konfliktem.
+  zapisane. Coś, co używa kolumny, odrzuca zmianę tak jak archiwizację. Rekord, którego
+  wartość w nowym typie brzmi inaczej, dostaje nową rewizję, więc edycja według starej
+  wartości jest konfliktem, a jego historia zapisuje zmianę pod osobą, która ją zrobiła;
+  wartość, której zmiana nie rusza, zostawia rewizję rekordu bez zmian. Zmiana typu nie
+  uruchamia żadnego [triggera](#triggers): jedna edycja schematu nie startuje workflowu
+  dla każdego rekordu.
 - Tekst staje się kolumną `email`, `url`, `phone` lub `rating`, gdy każda wartość
   się nią czyta, a liczba staje się oceną, gdy jest liczbą całkowitą od 1 do 5. Każda
   z nich wraca do tekstu, a ocena także do liczby.
@@ -195,7 +199,7 @@ ją z bieżącymi kolumnami:
   opcjami, nie zmienia niczego: nie powstaje wersja, a zwracana jest bieżąca tabela.
   Zmiana kolejności lub etykiety jest zmianą.
 
-Rekordy nie są przepisywane. Rekord zapisany w wersji 1 pozostaje czytelny i
+Poza zmianą typu rekordy nie są przepisywane. Rekord zapisany w wersji 1 pozostaje czytelny i
 edytowalny w wersji 4; wymagana kolumna, której nigdy nie miał, dostaje wartość
 domyślną przy najbliższej edycji rekordu.
 
@@ -377,9 +381,15 @@ nieudany wiersz z numerem linii. Każdy dodany rekord uruchamia wyzwalacze tabel
 każdy inny.
 
 Gdy zmapowane jest **External id**, **Update records already here** importuje plik
-ponownie, żeby zaktualizować tabelę: wiersz, którego zewnętrzne id tabela już ma, zmienia
-wskazane komórki tego rekordu zamiast zostać odrzucony jako zajęty (`update_existing` w
-partii), a import podaje, ile dodał i ile zaktualizował.
+ponownie, żeby zaktualizować tabelę: wiersz, którego zewnętrzne id tabela już ma,
+zmienia wskazane komórki tego rekordu zamiast zostać odrzucony jako zajęty
+(`update_existing` w partii), a import podaje, ile dodał i ile zaktualizował.
+
+Rekord, który ktoś zmienił po rozpoczęciu importu, zostaje bez zmian i trafia na listę
+jako `REVISION_CONFLICT`: pierwsza partia odpowiada `as_of`, czyli chwilą rozpoczęcia
+według zegara serwera, a kolejne go odsyłają. Wiersz powtarzający zewnętrzne id, które
+plik już podał, trafia na listę zamiast zostać wysłany, a partia odrzuca wiersz
+powtarzający id, które już zawiera, kodem `INVALID_RECORD`.
 
 **New table** zaczyna się od kolumny **Name**. Najpierw podaj nazwę tabeli i jej kolumny; opis oraz widoczność są pod **More options**, z domyślną widocznością prywatną. Zamiast tego może zacząć się od pliku:
 **Start from a CSV file** zamienia nagłówek na kolumny i daje każdej najwęższy typ, w którym dają się odczytać
@@ -397,7 +407,7 @@ Ponowienie z tym samym kluczem i tą samą treścią zwraca pierwszą odpowiedź
 międzyczasie. Ten sam klucz z inną treścią jest odrzucany kodem
 `IDEMPOTENCY_KEY_REUSED`.
 
-Nagłówek oznacza powtórzone create, update lub upsert. Powtórzone usunięcie odpowiada 204
+Nagłówek oznacza powtórzone create, update, upsert lub partię. Powtórzone usunięcie odpowiada 204
 jak za pierwszym razem i nie jest oznaczane.
 
 Klucz należy do wywołującego i do rodzaju zapisu, więc dwóch wywołujących może użyć
@@ -832,4 +842,4 @@ Notatki zadania są dokumentami rich text w Markdown, z edytorem i podglądem ja
 
 Nie można usunąć agenta, dopóki zarządzane zadanie zależy od jego zaplanowanego wykonania. Najpierw przepisz, ukończ lub anuluj te zadania; usunięcie agenta nie może po cichu porzucać ich wykonania.
 
-Przywrócenie zarchiwizowanej zarządzanej tablicy zadań ponownie kolejkuje zaplanowane przypomnienia dla osób, także te, których termin minął podczas archiwizacji. Dostarczenie nadal sprawdza aktualny dostęp pierwotnego autora i odbiorcy; przywrócenie tablicy nie upoważnia do nowej pracy agenta.
+Przywrócenie zarchiwizowanej zarządzanej tablicy zadań ponownie kolejkuje zaplanowane przypomnienia dla osób, także te, których termin minął podczas archiwizacji. Dostarczenie nadal sprawdza aktualny dostęp pierwotnego autora i odbiorcy; przywrócenie tablicy nie upoważnia do nowej pracy agenta. Zarchiwizowana tablica nie przyjmuje też zapisów od swoich zadań: sprawa rozstrzygnięta w tym czasie w Inbox zostawia zadanie bez zmian, a przywrócenie tablicy przenosi je wtedy do stanu zrobione lub anulowane. Ponowne otwarcie sprawy, której zadanie leży na zarchiwizowanej tablicy, jest odrzucane kodem `TABLE_ARCHIVED`.

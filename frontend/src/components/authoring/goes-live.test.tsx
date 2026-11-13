@@ -44,6 +44,15 @@ describe("GoesLive", () => {
     expect(screen.getByText("Nightly checks it at the next promotion.")).toBeVisible();
   });
 
+  it("says a change that goes through a check goes live only once the check lets it", () => {
+    render(<GoesLive reaches={[agent()]} hidden={0} afterCheck />);
+
+    expect(
+      screen.getByText("Goes live for Refund desk (production) once a check on them lets it."),
+    ).toBeVisible();
+    expect(screen.queryByText(/Goes live now/)).toBeNull();
+  });
+
   it("counts the suites a reader may not name, and says nothing of runs that will not happen", () => {
     const { rerender } = render(
       <GoesLive reaches={[agent({ runs_now_count: 2, at_promotion_count: 3 })]} hidden={0} />,

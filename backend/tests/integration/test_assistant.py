@@ -1,5 +1,6 @@
 """The AI Architect, installed for every organization on first look (#2063)."""
 
+import logging
 import uuid
 
 import pytest
@@ -28,8 +29,10 @@ def _no_sandbox(monkeypatch: pytest.MonkeyPatch) -> None:
     depends on a `sandboxd` that happens to answer on the machine running it."""
     from unittest.mock import AsyncMock
 
+    from app.core.config import settings
     from app.services.sandbox_connection import SandboxConnectionService
 
+    monkeypatch.setattr(settings, "SANDBOXD_TOKEN", "")
     monkeypatch.setattr(
         SandboxConnectionService, "ensure_local_connection", AsyncMock(return_value=None)
     )
@@ -786,3 +789,62 @@ async def test_a_publish_refusal_leaves_it_waiting_rather_than_failing_the_look(
     assert state.status == "needs_model"
     agent = (await db.execute(select(Agent).where(Agent.id == state.agent_id))).scalar_one()
     assert agent.current_version_id is None
+
+
+async def test_a_publish_refusal_is_one_line_naming_what_it_waits_for(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Every console open and every bootstrap retries it, so a traceback per look is noise
+    that hides the one thing an operator needs: what the draft is waiting for."""
+    from unittest.mock import AsyncMock
+
+    organization, owner = await _organization(db)
+    ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role="owner")
+    await _model(db, organization)
+    monkeypatch.setattr(
+        AgentRegistryService,
+        "publish",
+        AsyncMock(
+            side_effect=BadRequestError(
+                message="This agent cannot be published yet",
+                details={
+                    "problems": [
+                        "This organization has registered no sandbox connection",
+                        {"field": "model_profile_id"},
+                    ]
+                },
+            )
+        ),
+    )
+
+    with caplog.at_level(logging.WARNING, logger="app.services.assistant"):
+        await AssistantService(db).state(ctx)
+
+    records = [r for r in caplog.records if r.name == "app.services.assistant"]
+    assert records
+    assert all(r.levelno == logging.WARNING and r.exc_info is None for r in records)
+    assert all("no sandbox connection" in r.getMessage() for r in records)
+
+
+async def test_an_unexpected_install_failure_keeps_its_traceback(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    from unittest.mock import AsyncMock
+
+    from app.services.shipped_agents import ShippedAgentService
+
+    organization, owner = await _organization(db)
+    ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role="owner")
+    await AssistantService(db).state(ctx)
+    monkeypatch.setattr(
+        ShippedAgentService,
+        "refresh",
+        AsyncMock(side_effect=NotFoundError(message="The shipped agent template is missing")),
+    )
+
+    with caplog.at_level(logging.WARNING, logger="app.services.assistant"):
+        await AssistantService(db).state(ctx)
+
+    failures = [r for r in caplog.records if r.levelno == logging.ERROR]
+    assert failures
+    assert all(r.exc_info is not None for r in failures)

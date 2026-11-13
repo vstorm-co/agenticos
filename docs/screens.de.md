@@ -1,5 +1,5 @@
 ---
-source_sha: "48d2de1960ff"
+source_sha: "12c6776e073b"
 ---
 
 # Jeder Bildschirm der Konsole { #every-screen-in-the-console }
@@ -72,7 +72,7 @@ Der Builder, Tab für Tab.
 
 ### Build { #build }
 
-Instruktionen, Modell und Endpunkt. Das Verhalten wohnt hier statt im Code, in Markdown, das das Modell als Struktur liest - und der Kopfbereich trägt `published` neben `Draft differs from v40`, was der ganze Punkt ist: Bearbeiten geht nicht live.
+Instruktionen, Modell und Endpunkt. Das Verhalten wohnt hier statt im Code, in Markdown, das das Modell als Struktur liest - und der Kopfbereich trägt `published` neben `Draft differs from agent v40`, was der ganze Punkt ist: Bearbeiten geht nicht live.
 
 ![Build](assets/screens/light/agent-builder.webp?v=20261102-industrial#only-light)
 ![Build](assets/screens/dark/agent-builder.webp?v=20261102-industrial#only-dark)

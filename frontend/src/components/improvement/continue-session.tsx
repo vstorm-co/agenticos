@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { Button, ConfirmDialog, Input, Label, Textarea } from "@/components/ui";
 import { limitText, limitValue, usd } from "@/components/evals/format";
 import { useImprovement } from "@/hooks/use-improvements";
+import { mayContinue, subjectOf } from "@/lib/improvement-subject";
 import { getErrorMessage } from "@/lib/api-error";
 import type { ContinuationEstimate, Improvement } from "@/types/improvement";
 
@@ -44,8 +45,8 @@ export function continuation(session: Improvement) {
       session.stop_reason ?? "",
     ) &&
     !session.try_again_blocked;
-  const own = session.can_restart !== false;
-  const canContinue = own && (resume || next);
+  const own = mayContinue(session);
+  const canContinue = own && session.can_restart !== false && (resume || next);
   const primary = last?.verdict === "regression" || resume;
   return { resume, canContinue, own, primary };
 }
@@ -72,7 +73,7 @@ export function ContinueSession({
   const t = useTranslations("improvement");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
-  const actions = useImprovement(session.agent_id, session.id);
+  const actions = useImprovement(subjectOf(session), session.id);
   const [open, setOpen] = useState(false);
   const [discarding, setDiscarding] = useState(false);
   const [budget, setBudget] = useState(() => limitText(session.budget_usd, locale));

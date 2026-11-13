@@ -134,6 +134,14 @@ class Dataset(Base, TimestampMixin):
         nullable=True,
         index=True,
     )
+    # The skill whose own test questions these are: one set per skill, asked of every
+    # agent that follows it when a change to the skill is checked.
+    skill_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("skills.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     # Kept in step with the newest version under the minting row lock, so a listing
     # needs no aggregate; 0 means no case was ever added.
     latest_version: Mapped[int] = mapped_column(
@@ -155,6 +163,13 @@ class Dataset(Base, TimestampMixin):
             "improvement_holdout_share BETWEEN 0 AND 1", name="ck_dataset_improvement_holdout_share"
         ),
         UniqueConstraint("organization_id", "name", name="uq_dataset_org_name"),
+        Index(
+            "uq_datasets_skill",
+            "organization_id",
+            "skill_id",
+            unique=True,
+            postgresql_where=text("skill_id IS NOT NULL"),
+        ),
         CheckConstraint("visibility IN ('private', 'team', 'org')", name="ck_dataset_visibility"),
         CheckConstraint("latest_version >= 0", name="ck_dataset_latest_version"),
         CheckConstraint("case_count >= 0", name="ck_dataset_case_count"),

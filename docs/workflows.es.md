@@ -1,5 +1,5 @@
 ---
-source_sha: "aa54fb9dafe5"
+source_sha: "d4ebadc86d2b"
 ---
 
 # Workflows { #workflows }
@@ -1054,6 +1054,16 @@ el JSON de la entrega como `body`, con su `delivery_id`. Un reintento que repite
 recibe como respuesta el primer run y no inicia nada, porque el id se guarda junto con
 el run que admitió, en una sola transacción.
 
+El id no forma parte de lo que firma el remitente, así que la misma solicitud firmada con
+otro id en 24 horas también es una copia: recibe como respuesta el primer run y no inicia
+nada, la lleve cualquiera de las dos cabeceras de firma. El mismo contenido enviado de
+nuevo pasadas 24 horas inicia un run. Un remitente que envía el mismo cuerpo más a menudo a
+propósito hace que cada uno sea distinto, con su propio id u hora en el cuerpo, o firma la
+hora: con `X-Signature-Timestamp` (segundos Unix) la firma cubre `{timestamp}.{body}` y se
+rechaza a más de cinco minutos del reloj del servidor.
+
+Las entregas admitidas antes de guardar resúmenes de firmas conservan la deduplicación por ID de entrega. Esas filas antiguas no permiten reconocer copias firmadas con otro ID; la detección por firma empieza con las entregas guardadas por la nueva versión.
+
 Un trigger **Schedule** se ejecuta cada cierto tiempo, a diario a una hora fija o
 según una expresión cron, en la zona horaria del workflow (UTC salvo que sus **Settings** indiquen otra)
 y como mucho una vez por minuto, en su tic y no en el siguiente barrido después de él. Su **Input** es
@@ -1288,8 +1298,14 @@ niveles, se rechaza.
 Los workflows llamados heredan el presupuesto restante del llamador y el plazo más
 cercano. Su gasto cuenta en el total del llamador; `own_cost` muestra solo los cargos
 directos para evitar duplicarlos al sumar registros. Con un presupuesto limitado debe
-mantenerse la espera hasta finalizar. Cancelar el llamador o revocar su acceso detiene
-al hijo antes del siguiente paso; una solicitud externa en curso puede terminar.
+mantenerse la espera hasta finalizar.
+
+Cancelar el llamador, o que agote su presupuesto, cancela cada hijo sin terminar que
+llamó y cada uno que estos llamaron, con sus solicitudes de aprobación y preguntas. Un
+hijo cuyo paso se está ejecutando en ese momento se detiene antes del siguiente paso,
+igual que uno cuyo llamador perdió el acceso; una solicitud externa en curso puede
+terminar.
+
 Reintentar una llamada reutiliza los pasos exitosos del hijo original con su versión
 fijada. Si ese hijo sigue activo, debe terminar o detenerse primero. Los archivos de
 salida se importan explícitamente al llamador y el acceso se comprueba al reanudar.
@@ -1353,7 +1369,7 @@ reintento de cada paso está en la [referencia de nodos](reference/workflow-node
 | Lo que ves | Por qué | Qué hacer |
 |---|---|---|
 | **Needs attention** | Se interrumpió un paso que pudo haber actuado, o dejó de esperar y nada lo despierta | Comprueba si su efecto ocurrió y resuelve el paso en el run con **Resolve**: ejecutarlo de nuevo, usar un resultado informado tarde, tomar su camino de error o hacer fallar el run. Cancelar el run y luego **Retry from failed step** empieza de cero |
-| `PRINCIPAL_REVOKED` | El miembro con el que actúa el run perdió el acceso o su cuenta se desactivó | Que un miembro que pueda ejecutar el workflow lo vuelva a publicar, para que su trigger se ejecute como él |
+| `PRINCIPAL_REVOKED` | El miembro con el que actúa el run perdió el acceso o su cuenta se desactivó, o se revocó la clave API que inició el run | Que un miembro que pueda ejecutar el workflow lo vuelva a publicar, para que su trigger se ejecute como él |
 | `WORKFLOW_TRIGGER_MISMATCH` | El run se pidió por una vía que no es su trigger en vivo: a mano o por la API para un workflow que empieza por un webhook, o en el chat para uno que no empieza por un mensaje del chat | Inícialo como dice su trigger, o prueba el draft, que acepta cualquier trigger |
 | `INVALID_BINDING` | Un valor no encajaba en el campo al que estaba enlazado | El error del paso nombra el campo; corrige el enlace o el valor anterior |
 | `REVISION_CONFLICT` | Alguien cambió un registro después de que el paso lo leyera | Encamina el error del paso con `error.handle` hacia una lectura nueva |

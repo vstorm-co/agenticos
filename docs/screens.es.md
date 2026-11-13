@@ -1,5 +1,5 @@
 ---
-source_sha: "48d2de1960ff"
+source_sha: "12c6776e073b"
 ---
 
 # Todas las pantallas de la consola { #every-screen-in-the-console }
@@ -72,7 +72,7 @@ El Builder, pestaña por pestaña.
 
 ### Build { #build }
 
-Instrucciones, modelo y endpoint. El comportamiento vive aquí en lugar de en el código, en Markdown que el modelo lee como estructura — y la cabecera lleva `published` junto a `Draft differs from v40`, que es justo el objetivo: editar no despliega.
+Instrucciones, modelo y endpoint. El comportamiento vive aquí en lugar de en el código, en Markdown que el modelo lee como estructura — y la cabecera lleva `published` junto a `Draft differs from agent v40`, que es justo el objetivo: editar no despliega.
 
 ![Build](assets/screens/light/agent-builder.webp?v=20261102-industrial#only-light)
 ![Build](assets/screens/dark/agent-builder.webp?v=20261102-industrial#only-dark)

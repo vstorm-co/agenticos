@@ -327,11 +327,12 @@ and shell tools - list, read, write, edit, run - reach that folder through the a
 
 **Link the computer once.** In the chat settings, choose **Work on → This computer**
 to link it directly. Confirm in the native dialog, then choose a folder and its
-access mode in the same panel. **Settings → Desktop app → This computer → Let
-agents work here** offers the same linking action. The app gets its own session
+access mode in the same panel. **Settings → Desktop app → This computer → Link
+this computer** offers the same linking action. The app gets its own session
 for this computer and keeps its refresh token in the system keychain. It holds one
 outbound WebSocket to the server's device hub (`/api/v1/ws/device`); nothing listens
-on the computer. **Unlink** ends that session.
+on the computer. **Unlink** ends that session; it asks first and lists what it
+clears.
 
 **Choose it per chat.** In the desktop app the chat's settings offer **Work on:
 Cloud / This computer**. Choosing this computer asks for a folder in the native

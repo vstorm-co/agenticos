@@ -38,7 +38,7 @@ export function IdeaCard({
         {item.skill_id ? (
           <p>
             {t("created")}{" "}
-            <Link className="underline" href={`${ROUTES.SKILLS}/${item.skill_id}`}>
+            <Link className="underline" href={ROUTES.SKILL_DETAIL(item.skill_id)}>
               {t("openSkill")}
             </Link>
           </p>

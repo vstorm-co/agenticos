@@ -1,5 +1,5 @@
 ---
-source_sha: "2277b0624af5"
+source_sha: "cd9dbfb49b0b"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -353,11 +353,12 @@ bearbeiten, ausführen - erreichen diesen Ordner über die App.
 **Den Computer einmal verknüpfen.** Wählen Sie in den Chat-Einstellungen
 **Arbeiten auf → Dieser Computer**, um ihn direkt zu verknüpfen. Bestätigen Sie im
 nativen Dialog und wählen Sie anschließend im selben Bereich einen Ordner und
-seinen Zugriffsmodus. **Einstellungen → Desktop-App → Dieser Computer → Agents
-hier arbeiten lassen** bietet dieselbe Aktion. Die App erhält eine eigene Sitzung
+seinen Zugriffsmodus. **Einstellungen → Desktop-App → Dieser Computer → Diesen
+Computer verknüpfen** bietet dieselbe Aktion. Die App erhält eine eigene Sitzung
 für diesen Computer und speichert ihr Refresh-Token im Schlüsselbund des Systems.
 Sie hält eine ausgehende WebSocket-Verbindung zum Device-Hub des Servers
-(`/api/v1/ws/device`); auf dem Computer lauscht nichts. **Trennen** beendet die Sitzung.
+(`/api/v1/ws/device`); auf dem Computer lauscht nichts. **Trennen** beendet die Sitzung; es fragt vorher
+nach und nennt, was es löscht.
 
 **Pro Chat wählen.** In der Desktop-App bieten die Einstellungen eines Chats
 **Arbeiten auf (Work on): Cloud / Diesem Computer**. Die Wahl dieses Computers

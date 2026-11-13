@@ -8,6 +8,7 @@ import {
   DASHBOARD_GREETING,
   FAKE_KEY_LABEL,
   gotoRoleMatrix,
+  json,
   openAgent,
   pageHeading,
   pageStatus,
@@ -35,7 +36,7 @@ test.use({ storageState: AUTH_STATE });
 const DASHBOARD_PAGES: {
   path: string;
   heading: string | RegExp;
-  proof: (page: Page) => Locator;
+  proof: (page: Page) => Locator | Promise<Locator>;
 }[] = [
   {
     // The seeded agent's name inside the "Your agents" card: the card frame
@@ -79,7 +80,12 @@ const DASHBOARD_PAGES: {
   {
     path: "/orgs",
     heading: "Organizations",
-    proof: (page) => page.getByRole("heading", { level: 2, name: "Personal" }),
+    proof: async (page) => {
+      const organizations = await json<{ items: { name: string }[] }>(page.request, "/api/orgs");
+      const organization = organizations.items[0];
+      expect(organization, "bootstrap created no organization").toBeDefined();
+      return page.getByRole("heading", { level: 2, name: organization!.name, exact: true });
+    },
   },
   {
     path: "/vault",
@@ -103,7 +109,7 @@ test.describe("Dashboard navigation", () => {
       // nothing.
       await expect(page.getByRole("main")).toBeVisible();
 
-      await expect(proof(page), `${path} rendered its shell but not its data`).toBeVisible();
+      await expect(await proof(page), `${path} rendered its shell but not its data`).toBeVisible();
     });
   }
 

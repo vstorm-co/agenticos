@@ -52,6 +52,8 @@ describe("routine action consent", () => {
     state.data.review_token = "review-1";
     state.data.items = initialActions.map((item) => ({ ...item, consented: false }));
     state.data.unavailable_sources = [];
+    state.data.max_actions = 1000;
+    state.data.review_changes = [];
   });
   it("submits only explicitly selected action identities and preserves required gates", async () => {
     render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
@@ -162,4 +164,101 @@ describe("routine action consent", () => {
     await userEvent.click(screen.getByRole("button", { name: "Revoke all" }));
     expect(state.save).toHaveBeenCalledWith([], expect.any(Object));
   });
+});
+
+beforeEach(() => {
+  state.save.mockReset();
+  state.error = null;
+  state.data.can_waive = true;
+  state.data.review_token = "review-1";
+  state.data.items = initialActions.map((item) => ({ ...item, consented: false }));
+  state.data.max_actions = 1000;
+  state.data.review_changes = [];
+  state.data.unavailable_sources = [];
+});
+
+it("bulk selects a large inventory with individual exclusions and keeps mandatory approvals", async () => {
+  state.data.items = Array.from({ length: 101 }, (_, index) => ({
+    capability_id: "sandbox",
+    tool_id: `action_${index}`,
+    name: `Action ${index}`,
+    consented: false,
+    waivable: index !== 100,
+  }));
+  state.data.max_actions = 1000;
+  render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
+  await userEvent.click(screen.getByRole("checkbox", { name: "Select all eligible actions" }));
+  expect(screen.getByRole("checkbox", { name: "Action 100" })).not.toBeChecked();
+  await userEvent.click(screen.getByRole("checkbox", { name: "Action 4" }));
+  expect(
+    screen.getByRole("checkbox", { name: "Select all eligible actions" }),
+  ).toBePartiallyChecked();
+  await userEvent.click(screen.getByRole("button", { name: "Save consent" }));
+  const [keys] = state.save.mock.calls.at(-1) ?? [];
+  expect(keys).toHaveLength(99);
+  expect(keys).not.toContainEqual({ capability_id: "sandbox", tool_id: "action_4" });
+  expect(keys).not.toContainEqual({ capability_id: "sandbox", tool_id: "action_100" });
+});
+
+it("searches actions while bulk scope stays explicit and can clear a whole group", async () => {
+  state.data.items = initialActions.map((item) => ({ ...item, consented: false }));
+  state.data.max_actions = 1000;
+  render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
+  await userEvent.type(screen.getByRole("searchbox", { name: "Search actions" }), "execute");
+  expect(screen.queryByRole("checkbox", { name: "publish" })).not.toBeInTheDocument();
+  await userEvent.click(
+    screen.getByRole("checkbox", { name: "Select eligible actions in sandbox" }),
+  );
+  expect(screen.getByRole("checkbox", { name: "execute" })).toBeChecked();
+  await userEvent.click(
+    screen.getByRole("checkbox", { name: "Select eligible actions in sandbox" }),
+  );
+  expect(screen.getByRole("checkbox", { name: "execute" })).not.toBeChecked();
+  await userEvent.type(screen.getByRole("searchbox"), "missing");
+  expect(screen.getByText("No actions match your search.")).toBeVisible();
+});
+
+it("offers prior choices only through an explicit new review and never selects new actions", async () => {
+  state.data.items = [
+    { ...initialActions[0]!, consented: false, previously_consented: true },
+    { ...initialActions[1]!, consented: false, waivable: true },
+  ];
+  state.data.review_changes = ["version"];
+  render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
+  expect(
+    screen.getByText("The published agent version changed. Review its actions again."),
+  ).toBeVisible();
+  expect(screen.getByRole("checkbox", { name: "execute" })).not.toBeChecked();
+  await userEvent.click(
+    screen.getByRole("button", { name: "Reselect previously reviewed actions" }),
+  );
+  expect(screen.getByRole("checkbox", { name: "execute" })).toBeChecked();
+  expect(screen.getByRole("checkbox", { name: "publish" })).not.toBeChecked();
+});
+
+it("refuses an oversized selection visibly without dropping its items", async () => {
+  state.data.items = Array.from({ length: 101 }, (_, index) => ({
+    capability_id: "sandbox",
+    tool_id: `action_${index}`,
+    name: `Action ${index}`,
+    consented: false,
+    waivable: true,
+  }));
+  state.data.max_actions = 100;
+  render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
+  await userEvent.click(screen.getByRole("checkbox", { name: "Select all eligible actions" }));
+  expect(screen.getByRole("alert")).toHaveTextContent("101 actions selected; the limit is 100");
+  expect(screen.getByRole("button", { name: "Save consent" })).toBeDisabled();
+  await userEvent.click(screen.getByRole("checkbox", { name: "Action 100" }));
+  expect(screen.getByRole("button", { name: "Save consent" })).toBeEnabled();
+});
+
+it("selects and clears a group from the keyboard", async () => {
+  render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
+  const group = screen.getByRole("checkbox", { name: "Select eligible actions in sandbox" });
+  group.focus();
+  await userEvent.keyboard(" ");
+  expect(screen.getByRole("checkbox", { name: "execute" })).toBeChecked();
+  await userEvent.keyboard(" ");
+  expect(screen.getByRole("checkbox", { name: "execute" })).not.toBeChecked();
 });

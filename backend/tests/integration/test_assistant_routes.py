@@ -364,3 +364,30 @@ async def test_the_architect_s_improve_writes_wait_for_a_card_and_its_reads_do_n
             "estimate_next_improvement_step",
         )
     )
+
+
+@pytest.mark.security
+async def test_the_architect_s_skill_writes_wait_for_a_card_and_its_reads_do_not(
+    db: AsyncSession, served: None
+) -> None:
+    from app.agents.mcp import NEEDS_APPROVAL
+    from app.agents.spec import PlatformMcpServerRef
+    from app.services.mcp_connection import build_toolsets_for_agent
+    from app.services.platform_mcp import platform_tool_catalog
+
+    key, organization = await _owner_key(db, Perm.SKILLS_VIEW, Perm.SKILLS_EDIT)
+    resolved = await build_toolsets_for_agent(
+        db,
+        organization_id=organization.id,
+        refs=[PlatformMcpServerRef(account="platform", approval="writes")],
+        platform_credential=key,
+    )
+    [toolset] = resolved.toolsets
+    tools = await toolset.get_tools(_run_context())
+
+    def held(name: str) -> bool:
+        return tools[f"agenticos_{name}"].tool_def.metadata[NEEDS_APPROVAL]
+
+    skill_tools = [tool for tool in platform_tool_catalog() if "skill" in tool.name]
+    assert skill_tools
+    assert all(held(tool.name) is tool.writes for tool in skill_tools)

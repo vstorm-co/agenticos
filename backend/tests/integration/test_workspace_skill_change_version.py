@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ConcurrentChangeError
 from app.core.permissions import AuthContext
+from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill
 from app.schemas.resource_usage import ProposalDecision
 from app.schemas.skill import SkillUpdate
@@ -21,17 +22,13 @@ pytestmark = pytest.mark.anyio
 
 
 async def _skill(db: AsyncSession, ctx: AuthContext) -> Skill:
-    skill = Skill(
-        organization_id=ctx.organization_id,
-        owner_user_id=ctx.user_id,
-        visibility="org",
+    return await SkillService(db).create(
+        ctx,
         name="refunds",
         description="How refunds work.",
         content="Ask for the order id.",
+        visibility=Visibility.ORG,
     )
-    db.add(skill)
-    await db.flush()
-    return skill
 
 
 def _change(skill: Skill, content: str) -> SkillChange:
@@ -39,6 +36,7 @@ def _change(skill: Skill, content: str) -> SkillChange:
         name=skill.name,
         skill_id=skill.id,
         base_version=skill.version,
+        base_version_id=skill.latest_version_id,
         description=skill.description,
         content=content,
         resources={},
@@ -58,7 +56,9 @@ async def test_a_change_written_before_a_persons_edit_is_refused_and_the_edit_ke
     await SkillService(db).update(ctx, skill.id, SkillUpdate(content="Ask for the invoice."))
 
     with pytest.raises(ConcurrentChangeError, match="changed since"):
-        await service.apply(ctx, proposal.id, ProposalDecision(revision=proposal.revision))
+        await service.apply(
+            ctx, proposal.id, ProposalDecision(revision=proposal.revision), checked=True
+        )
     await db.refresh(skill)
     assert skill.content == "Ask for the invoice."
     assert skill.version == 2
@@ -84,7 +84,10 @@ async def test_a_later_run_rewriting_the_proposal_takes_the_version_it_was_given
 
     assert rewritten.id == first.id
     assert rewritten.base_version == 2
-    applied = await service.apply(ctx, rewritten.id, ProposalDecision(revision=rewritten.revision))
+    assert rewritten.base_version_id == skill.latest_version_id
+    applied = await service.apply(
+        ctx, rewritten.id, ProposalDecision(revision=rewritten.revision), checked=True
+    )
     assert applied.status == "applied"
     await db.refresh(skill)
     assert skill.content == "Ask for the invoice, then the receipt."
