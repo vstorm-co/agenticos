@@ -115,21 +115,23 @@ vi.mock("@/components/ui/entity-avatar", () => ({
 }));
 vi.mock("./start-language", () => ({ StartLanguage: () => null }));
 vi.mock("./start-deployment", () => ({
-  StartDeployment: ({ onContinue }: { onContinue?: () => void }) => {
+  StartDeployment: ({ onContinue, onBack }: { onContinue?: () => void; onBack?: () => void }) => {
     env.deployment();
     if (onContinue) env.profileCallbacks.set("deployment", onContinue);
     return (
       <>
         <input aria-label="Deployment name" defaultValue="AgenticOS" />
+        <button onClick={onBack}>Back</button>
         <button onClick={onContinue}>Save and continue</button>
       </>
     );
   },
 }));
 vi.mock("./start-budget", () => ({
-  StartBudget: ({ onContinue }: { onContinue: () => void }) => (
+  StartBudget: ({ onContinue, onBack }: { onContinue: () => void; onBack?: () => void }) => (
     <div>
       <h3>Workspace spending cap</h3>
+      <button onClick={onBack}>Back</button>
       <button onClick={onContinue}>Keep current settings</button>
     </div>
   ),
@@ -234,7 +236,7 @@ it("creates a company and guides identity, profile and context before team invit
   await userEvent.click(screen.getByRole("button", { name: "Create" }));
   expect(env.create).toHaveBeenCalledWith({ name: "Northwind Labs" });
   expect(env.change).toHaveBeenCalledWith("company");
-  expect(screen.getByRole("heading", { name: "Give your workspace an identity" })).toBeVisible();
+  expect(screen.getByRole("heading", { name: "Give your organization an identity" })).toBeVisible();
   await completePersonalization();
   expect(screen.getByRole("heading", { name: "Invite your team" })).toBeVisible();
   await userEvent.click(screen.getByRole("button", { name: "Invite by email" }));
@@ -247,7 +249,7 @@ it("can start without any existing workspace", async () => {
   render(<StartAdministration appAdmin />);
   await userEvent.type(screen.getByRole("textbox", { name: "Organization name" }), "Northwind");
   await userEvent.click(screen.getByRole("button", { name: "Create" }));
-  expect(screen.getByRole("heading", { name: "Give your workspace an identity" })).toBeVisible();
+  expect(screen.getByRole("heading", { name: "Give your organization an identity" })).toBeVisible();
 });
 it("keeps a failed creation on the same decision without advancing", async () => {
   env.create.mockRejectedValue(new Error("Cannot create workspace"));
@@ -263,7 +265,7 @@ it("offers existing organizations before another creation form", async () => {
   env.activeId = "company";
   render(<StartAdministration appAdmin />);
   expect(screen.queryByRole("textbox", { name: "Organization name" })).not.toBeInTheDocument();
-  await userEvent.click(screen.getByRole("button", { name: "Create a new workspace instead" }));
+  await userEvent.click(screen.getByRole("button", { name: "Create a new organization instead" }));
   expect(screen.getByRole("textbox", { name: "Organization name" })).toBeVisible();
   expect(env.create).not.toHaveBeenCalled();
 });
@@ -280,6 +282,19 @@ it("preserves an edited deployment form when going back and forward", async () =
   await userEvent.click(screen.getByRole("button", { name: "Back" }));
   await userEvent.click(screen.getByRole("button", { name: "Continue setup" }));
   expect(screen.getByRole("textbox", { name: "Deployment name" })).toHaveValue("Our installation");
+});
+it("shows one Back on a step asked as questions, which leaves it from the first question", async () => {
+  env.orgs = [org("company")];
+  env.activeId = "company";
+  render(<StartAdministration appAdmin />);
+  await selectCompany();
+  await completePersonalization();
+  await userEvent.click(screen.getByRole("button", { name: "Continue setup" }));
+  await screen.findByRole("textbox", { name: "Deployment name" });
+
+  expect(screen.getAllByRole("button", { name: "Back" })).toHaveLength(1);
+  await userEvent.click(screen.getByRole("button", { name: "Back" }));
+  expect(screen.getByRole("heading", { name: "Invite your team" })).toBeVisible();
 });
 it("skips deployment administration for an organization administrator", async () => {
   env.orgs = [org("company")];
@@ -324,11 +339,11 @@ it("does not offer invitations without member management permission", async () =
 });
 it("updates the preview while naming a workspace without creating anything", async () => {
   render(<StartAdministration appAdmin />);
-  const preview = within(screen.getByRole("complementary", { name: "Workspace preview" }));
+  const preview = within(screen.getByRole("complementary", { name: "Organization preview" }));
   await userEvent.type(screen.getByRole("textbox", { name: "Organization name" }), "Acme Studio");
   expect(preview.getByText("Acme Studio")).toBeVisible();
   await userEvent.clear(screen.getByRole("textbox", { name: "Organization name" }));
-  expect(preview.getByText("Your workspace")).toBeVisible();
+  expect(preview.getByText("Your organization")).toBeVisible();
   expect(env.create).not.toHaveBeenCalled();
 });
 it("offers a retry when the guided team permission check fails", async () => {
@@ -368,7 +383,7 @@ it("does not advance after a late profile save when the person has gone back", a
   if (!late) throw new Error("Missing identity continuation");
   await userEvent.click(screen.getByRole("button", { name: "Back" }));
   act(() => late());
-  expect(screen.getByRole("heading", { name: "Give your workspace an identity" })).toBeVisible();
+  expect(screen.getByRole("heading", { name: "Give your organization an identity" })).toBeVisible();
 });
 it("returns to workspace choice after an external active-organization switch", async () => {
   env.orgs = [org("personal", true), org("company")];
