@@ -1,5 +1,5 @@
 ---
-source_sha: "67ab9ca1836d"
+source_sha: "ddd8aae069e6"
 ---
 
 # Configuración { #configuration }
@@ -1199,7 +1199,7 @@ dentro del contenedor del servicio, se rechaza con `mounts denied`.
 
 |  | Por defecto |  |
 | --- | --- | --- |
-| Desarrollo local | `/tmp/agenticos-sandbox-workspaces` | Docker Desktop la comparte y cualquiera puede escribir en ella, así que un portátil no necesita preparación |
+| Desarrollo local | `/tmp/agenticos-sandbox-workspaces` | `make dev` lo crea con escritura para todos antes de arrancar el stack. Docker en Linux, también Docker Desktop bajo WSL, crea uno que falte como root, en el que el uid 10001 no puede escribir, y entonces cada sandbox falla con `SANDBOX_START_FAILED`; `make dev` informa de ese directorio junto con el `sudo chown 10001` + `sudo chmod u+wx` que lo arregla |
 | Los archivos del servidor | `/var/lib/agenticos/sandbox-workspaces` | Tiene que existir y ser escribible por el uid 10001 — `sudo mkdir -p <path> && sudo chown 10001:10001 <path>`, una vez. No `install -d -o 10001`: `install` resuelve el propietario a través de la base de datos de passwd y rechaza un uid que no tiene cuenta. Va en almacenamiento del que alguien haga copia de seguridad |
 
 Un reinicio barre `/tmp`, que es la única razón para no apuntar ahí un despliegue de

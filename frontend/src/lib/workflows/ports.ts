@@ -160,7 +160,12 @@ export function instancePorts(instance: NodeInstance, definition: NodeDefinition
       const other = ports.find((port) => port.id === "other");
       ports = [
         ...ports,
-        { id: "unsure", label: "Unsure", kind: "output", schema: other?.schema ?? null },
+        {
+          id: "unsure",
+          label: definition.standardPortLabels?.unsure ?? "Unsure",
+          kind: "output",
+          schema: other?.schema ?? null,
+        },
       ];
     }
   }
@@ -188,7 +193,12 @@ export function instancePorts(instance: NodeInstance, definition: NodeDefinition
   if (routesErrors(instance) && !ports.some((port) => port.id === ERROR_PORT)) {
     ports = [
       ...ports,
-      { id: ERROR_PORT, label: "Error", kind: "output", schema: WORKFLOW_ERROR_SCHEMA },
+      {
+        id: ERROR_PORT,
+        label: definition.standardPortLabels?.error ?? "Error",
+        kind: "output",
+        schema: WORKFLOW_ERROR_SCHEMA,
+      },
     ];
   }
   return ports;

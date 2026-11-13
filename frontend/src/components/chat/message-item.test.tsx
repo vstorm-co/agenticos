@@ -750,7 +750,7 @@ describe("citations", () => {
 
     // Two passages of one file are one source.
     const footer = screen.getByRole("button", { name: /2 sources/ });
-    expect(footer.querySelector("img")).toHaveAttribute("src", "https://a.example/favicon.ico");
+    expect(footer.querySelector("img")).toHaveAttribute("src", "/api/link-icon?host=a.example");
     expect(footer.querySelectorAll("svg")).toHaveLength(2);
   });
 
@@ -1789,4 +1789,41 @@ it("defers a newly received setup card until its answer has been revealed", () =
     />,
   );
   expect(screen.queryByTestId("model-setup")).not.toBeInTheDocument();
+});
+
+it("keeps a failed run's cause visible outside folded tool work", () => {
+  render(
+    <MessageItem
+      message={message({
+        content: "",
+        runFailed: true,
+        runError: "The model provider blocked this response with its content filter.",
+        parts: [{ id: "thinking-failure", type: "thinking", content: "Working" }],
+      })}
+    />,
+  );
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "The model provider blocked this response with its content filter.",
+  );
+});
+
+it("shows a generic failure notice without inventing an answer", () => {
+  render(<MessageItem message={message({ content: "", runFailed: true })} />);
+  expect(screen.getByRole("alert")).toHaveTextContent("No final answer was produced.");
+});
+
+it("does not repeat the failure notice on an earlier continuation segment", () => {
+  render(
+    <MessageItem endsTurn={false} message={message({ runFailed: true, runError: "filtered" })} />,
+  );
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+
+it("offers regeneration when a failed response contains only the failure notice", async () => {
+  const onRegenerate = vi.fn();
+  render(
+    <MessageItem message={message({ content: "", runFailed: true })} onRegenerate={onRegenerate} />,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Regenerate response" }));
+  expect(onRegenerate).toHaveBeenCalledOnce();
 });

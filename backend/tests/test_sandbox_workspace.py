@@ -18,6 +18,7 @@ from collections.abc import AsyncGenerator, Mapping, Sequence
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
@@ -57,6 +58,7 @@ from app.agents.capabilities.tool_output_limits import OVERFLOW_PREFIX, Workspac
 from app.agents.spec import AgentSpec
 from app.core import background
 from app.core.exceptions import (
+    AlreadyExistsError,
     BadRequestError,
     ExportTooLargeError,
     ExternalServiceError,
@@ -79,6 +81,17 @@ from app.services.sandbox_workspace import (
 from tests.workspaces import document_workspace
 
 pytestmark = pytest.mark.anyio
+
+
+@pytest.fixture(autouse=True)
+def conversation_writers(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
+    from app.services import workspace_turn_guard
+
+    running, pending = AsyncMock(return_value=False), AsyncMock(return_value=False)
+    monkeypatch.setattr(workspace_turn_guard, "try_hold_subject", AsyncMock(return_value=True))
+    monkeypatch.setattr(workspace_turn_guard.run_repo, "has_running_in_conversation", running)
+    monkeypatch.setattr(workspace_turn_guard.change_repo, "has_pending_revert", pending)
+    return SimpleNamespace(running=running, pending=pending)
 
 
 @pytest.fixture(autouse=True)
@@ -2955,8 +2968,188 @@ def _a_row_is_created(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
     return created
 
 
+class TestRecordedTaskWorkspace:
+    async def test_reading_undo_permissions_never_opens_a_provider_client(
+        self, recorded: SimpleNamespace, sandboxes: _Sandboxes
+    ) -> None:
+        rows = await recorded.service.recorded_for_task(
+            recorded.ctx, conversation_id=recorded.conversation.id, ref=recorded.ref
+        )
+        assert rows == [(recorded.row, recorded.row.connection_id)]
+        assert sandboxes.made == sandboxes.attached == []
+
+    @pytest.fixture
+    def recorded(
+        self, monkeypatch: pytest.MonkeyPatch, mock_db_session: AsyncMock
+    ) -> SimpleNamespace:
+        from app.services import project_workspace_guard
+        from app.services.agent_registry import AgentRegistryService
+        from app.services.conversation import ConversationService
+
+        ctx = _ctx()
+        conversation_id = uuid4()
+        connection = _resolved()
+        _serve(monkeypatch, connection)
+        row = _row(
+            organization_id=ctx.organization_id,
+            backend="service",
+            connection_id=connection.row.id,
+            conversation_id=conversation_id,
+            session_id="original",
+            project_id=None,
+        )
+        conversation = SimpleNamespace(id=conversation_id, project_id=None)
+        reader = AsyncMock(return_value=conversation)
+        monkeypatch.setattr(ConversationService, "get_conversation", reader)
+        registry = AsyncMock()
+        monkeypatch.setattr(AgentRegistryService, "get", registry)
+        rows = AsyncMock(return_value=[row])
+        monkeypatch.setattr(workspace_repo, "for_session", rows)
+        current = AsyncMock(return_value=row)
+        monkeypatch.setattr(workspace_repo, "get_for_project", current)
+        project = AsyncMock(return_value=SimpleNamespace(id=uuid4()))
+        monkeypatch.setattr(project_workspace_guard, "project_for_workspace", project)
+        return SimpleNamespace(
+            ctx=ctx,
+            conversation=conversation,
+            row=row,
+            rows=rows,
+            current=current,
+            reader=reader,
+            registry=registry,
+            project=project,
+            ref=WorkspaceRef(provider=f"sandboxd:{connection.row.id}", id="original"),
+            service=SandboxWorkspaceService(mock_db_session),
+        )
+
+    async def test_it_attaches_the_original_session_after_the_conversation_write_check(
+        self, recorded: SimpleNamespace, sandboxes: _Sandboxes
+    ) -> None:
+        async with recorded.service.open_recorded(
+            recorded.ctx, conversation_id=recorded.conversation.id, ref=recorded.ref
+        ) as workspace:
+            assert workspace.ref == recorded.ref
+        assert sandboxes.attached == [recorded.ref]
+        assert recorded.reader.await_args.kwargs["for_write"] is True
+        assert recorded.reader.await_args.kwargs["turn"] is True
+        assert recorded.rows.await_args.kwargs["organization_id"] == recorded.ctx.organization_id
+        assert sandboxes.commands == []
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        "reason",
+        [
+            "no-connection",
+            "state",
+            "other-conversation",
+            "other-user",
+            "no-agent",
+            "run-scope",
+            "provider",
+            "other-project",
+            "moved-project",
+            "missing-project-workspace",
+        ],
+    )
+    async def test_unavailable_or_unwritable_workspaces_never_attach(
+        self, recorded: SimpleNamespace, sandboxes: _Sandboxes, reason: str
+    ) -> None:
+        row = recorded.row
+        if reason == "no-connection":
+            row.connection_id = None
+        elif reason == "state":
+            row.backend = "state"
+        elif reason == "other-conversation":
+            row.conversation_id = uuid4()
+        elif reason == "other-user":
+            row.scope, row.owner_ref = "user", "someone-else"
+        elif reason == "no-agent":
+            row.scope, row.agent_id = "agent", None
+        elif reason == "run-scope":
+            row.scope = "run"
+        elif reason == "provider":
+            recorded.ref = WorkspaceRef(provider="sandboxd:another-host", id="original")
+        else:
+            row.project_id = uuid4()
+            if reason != "other-project":
+                recorded.conversation.project_id = row.project_id
+                recorded.project.return_value.id = row.project_id
+                recorded.current.return_value = (
+                    None if reason == "missing-project-workspace" else SimpleNamespace(id=uuid4())
+                )
+        with pytest.raises(NotFoundError):
+            async with recorded.service.open_recorded(
+                recorded.ctx, conversation_id=recorded.conversation.id, ref=recorded.ref
+            ):
+                pytest.fail("unavailable workspace attached")
+        assert sandboxes.attached == []
+
+    @pytest.mark.parametrize("scope", ["user", "agent", "channel", "project"])
+    @pytest.mark.security
+    async def test_shared_scopes_cannot_prove_which_task_owned_the_snapshot(
+        self, recorded: SimpleNamespace, sandboxes: _Sandboxes, scope: str
+    ) -> None:
+        recorded.row.scope = scope
+        if scope == "user":
+            recorded.row.owner_ref = str(recorded.ctx.user_id)
+        if scope == "project":
+            recorded.row.project_id = uuid4()
+            recorded.conversation.project_id = recorded.row.project_id
+            recorded.project.return_value.id = recorded.row.project_id
+        with pytest.raises(NotFoundError):
+            async with recorded.service.open_recorded(
+                recorded.ctx, conversation_id=recorded.conversation.id, ref=recorded.ref
+            ):
+                pytest.fail("shared snapshot must remain read-only")
+        assert sandboxes.attached == []
+
+    @pytest.mark.security
+    async def test_a_revoked_conversation_write_is_refused_before_finding_a_container(
+        self, recorded: SimpleNamespace, sandboxes: _Sandboxes
+    ) -> None:
+        recorded.reader.side_effect = NotFoundError(message="Conversation not found", details={})
+        with pytest.raises(NotFoundError):
+            async with recorded.service.open_recorded(
+                recorded.ctx, conversation_id=recorded.conversation.id, ref=recorded.ref
+            ):
+                pytest.fail("read-only conversation attached")
+        recorded.rows.assert_not_awaited()
+        assert sandboxes.attached == []
+
+    async def test_an_owned_opensandbox_transport_is_closed_without_destroying_its_session(
+        self, recorded: SimpleNamespace, sandboxes: _Sandboxes, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        closed = AsyncMock()
+        async with recorded.service.open_recorded(
+            recorded.ctx, conversation_id=recorded.conversation.id, ref=recorded.ref
+        ) as workspace:
+            backend = workspace.backend
+            monkeypatch.setattr(sandbox_workspace, "OrgOpenSandboxBackend", type(backend))
+            monkeypatch.setattr(backend, "aclose", closed, raising=False)
+        closed.assert_awaited_once()
+        assert sandboxes.destroyed == []
+
+
 class TestContainerBackedWorkspaces:
     """The paths that talk to something outside this process."""
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("writer", ["running", "pending"])
+    async def test_a_workspace_with_an_active_writer_or_unknown_undo_does_not_open_another_provider(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        mock_db_session: AsyncMock,
+        sandboxes: _Sandboxes,
+        conversation_writers: SimpleNamespace,
+        writer: str,
+    ) -> None:
+        getattr(conversation_writers, writer).return_value = True
+        _serve(monkeypatch, _resolved())
+        with pytest.raises(AlreadyExistsError):
+            await SandboxWorkspaceService(mock_db_session).open(
+                _spec(backend="service"), ctx=_ctx(), identity=_identity()
+            )
+        assert sandboxes.made == sandboxes.attached == []
 
     async def test_a_container_workspace_is_the_session_named_by_its_scope(
         self, monkeypatch, mock_db_session, sandboxes

@@ -23,6 +23,7 @@ import { ErrorState, LoadingState } from "@/components/states";
 import { Button, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
 import { useUrlState } from "@/hooks";
 import { useProject } from "@/hooks/use-projects";
+import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 
@@ -120,7 +121,12 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
 
       <Tabs
         value={tab}
-        onValueChange={(value) => setTabParam(value === "files" ? null : value)}
+        onValueChange={(value) => {
+          if (value === tab) return;
+          useUnsavedChangesStore
+            .getState()
+            .leave(() => setTabParam(value === "files" ? null : value), [`project-settings:${id}`]);
+        }}
         className="flex min-h-0 flex-1 flex-col"
       >
         <TabsList data-tour="project-tabs" className="shrink-0">

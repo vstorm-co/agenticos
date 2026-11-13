@@ -56,7 +56,21 @@ describe("search and parsed documents", () => {
   it("sends a search as a body, because a query is not a path", async () => {
     await rag.searchDocuments({ query: "refunds", limit: 5 });
 
-    expect(apiClient.post).toHaveBeenCalledWith("/rag/search", { query: "refunds", limit: 5 });
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/rag/search",
+      { query: "refunds", limit: 5 },
+      { signal: undefined },
+    );
+  });
+
+  it("forwards cancellation to the search transport", async () => {
+    const controller = new AbortController();
+    await rag.searchDocuments({ query: "policy" }, controller.signal);
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/rag/search",
+      { query: "policy" },
+      { signal: controller.signal },
+    );
   });
 
   it("reads what a parser made of one document", async () => {

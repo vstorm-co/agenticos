@@ -551,3 +551,10 @@ describe("parseSubject", () => {
     expect(() => parseSubject(value)).toThrow(`Unknown grant subject: ${value}`);
   });
 });
+
+it("describes project access as a project rather than a secret", () => {
+  sharing = { ...SHARING, resource_type: "project", resource_id: "p1" };
+  render(<SharingPanel resourceType="project" resourceId="p1" canManage />);
+  expect(screen.getByText(/Nobody else finds this project/)).toBeInTheDocument();
+  expect(screen.queryByText(/finds this secret/)).toBeNull();
+});

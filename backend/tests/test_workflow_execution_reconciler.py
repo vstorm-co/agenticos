@@ -50,6 +50,7 @@ def repo():
     # This attempt is the node's first failure unless a test says otherwise.
     mocked.count_failed_attempts.return_value = 1
     mocked.list_live_node_states.return_value = []
+    mocked.database_time.return_value = datetime.now(UTC)
     with (
         patch(
             "app.services.workflow_execution.approval_wake.agent_run_repo.list_approvals_for_run",

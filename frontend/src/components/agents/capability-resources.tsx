@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Info } from "lucide-react";
 
 import { CollectionPicker } from "@/components/agents/collection-picker";
 import { ContextGallery, type ContextChoice } from "@/components/agents/context-gallery";
@@ -114,9 +114,9 @@ export function CapabilityResources({
   if (capabilityId === CONTEXT_ID) {
     return (
       <ResourceGroup
-        detail={t("contextFilesDetail")}
         note={sharedOnly}
         warning={contextWarning(t, enabled, resources, fileSettings)}
+        informational={enabled}
       >
         <ContextGallery
           onCreate={resources.onCreateContext}
@@ -271,9 +271,11 @@ function ResourceGroup({
   detail,
   note = null,
   warning,
+  informational = false,
   children,
 }: {
-  detail: string;
+  detail?: string;
+  informational?: boolean;
   /** A second line under `detail`, for what narrows the picker below it. */
   note?: string | null;
   warning: string | null;
@@ -282,12 +284,22 @@ function ResourceGroup({
   return (
     <section className="space-y-3">
       {warning !== null && (
-        <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+        <div
+          className={
+            informational
+              ? "bg-muted/50 text-muted-foreground flex items-start gap-2 rounded-lg px-3 py-2.5"
+              : "flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5"
+          }
+        >
+          {informational ? (
+            <Info className="mt-0.5 h-4 w-4 shrink-0" />
+          ) : (
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+          )}
           <p className="text-xs">{warning}</p>
         </div>
       )}
-      <p className="text-muted-foreground text-xs">{detail}</p>
+      {detail && <p className="text-muted-foreground text-xs">{detail}</p>}
       {note !== null && <p className="text-muted-foreground text-xs">{note}</p>}
       {children}
     </section>

@@ -1,12 +1,36 @@
 ---
-source_sha: "90338e3a8738"
+source_sha: "1d738a8f00d6"
 ---
 
 # Konsola { #the-console }
 
+Osobisty dashboard odczytuje onboarding i Briefing razem przed pokazaniem pierwszego wiersza. Jedno zarezerwowane miejsce ładowania zapobiega zmianom układu placeholderów; pozostałe widżety ładują się niezależnie. Błędy odczytu zachowują możliwość ponowienia. Rozszerzanie obszaru roboczego jest dostępne na telefonach; przejście na desktop przywraca nawigację i zachowuje niezapisane pola.
+
+Ustawienia kontekstu pokazują zwarte wiersze plików z wyborem sposobu użycia przez agenta. Długie opisy nie rozciągają sąsiednich pozycji, a wyłącznie wstrzykiwany kontekst ma neutralną informację. Dostępność pokazuje logo platformy obok nazwy bota. Udostępnianie aplikacji zaczyna się od adresu i osób z dostępem; wygaśnięcie, przypięcie wersji, osadzanie i hasło są zwinięte w Ustawieniach linku. Aktywne ograniczenia pozostają widoczne jako etykiety, a zwinięcie opcji zachowuje edycję.
+
+Na telefonach rejestracja kanału używa zwartego wyboru platformy. Anulowanie nowego kanału, nowego klucza w sejfie lub rotacji klucza czyści wpisane poświadczenia. Formularze kanałów i sejfu blokują edycję oraz zamykanie podczas zapisu; odmowa zachowuje wartości do poprawienia i ponowienia. Edycja kanału i rotacja klucza utrzymują przyciski w widocznej stopce także na niskim ekranie.
+
+Na telefonach nowy plik kontekstu pokazuje edytor treści przed opcjonalnymi szczegółami. Szczegóły pokazują rzeczywisty dostęp także po zwinięciu; rozwiń je, aby zmienić opis lub dostęp. Błąd opisu automatycznie rozwija tę sekcję, aby można go było poprawić.
+
+Formularze nowego projektu, pliku kontekstu i datasetu pytają przed porzuceniem danych. Zostań zachowuje wersję roboczą, a Odrzuć ją zeruje. Podczas tworzenia pola, Anuluj, Zamknij i Escape są zablokowane do zakończenia zapisu. Odmowa przywraca edycję i zachowuje wartości. Źródło pliku kontekstu jest w tym czasie tylko do odczytu.
+
+Przy wielu upuszczonych plikach kontekstu zamknięcie oferuje tylko Zostań lub Odrzuć; użyj Utwórz, aby przetwarzać je po kolei. Ustawienia datasetu i formularze przypadków także blokują pola i zamykanie podczas zapisu, w tym przełącznik formularz/JSON. Zapis pozostaje dostępny w krótkich oknach telefonu.
+
+Rozpoczęcie logowania MCP zachowuje otwarty formularz do uzyskania adresu zgody. Odmowa zachowuje wpisane dane do poprawienia i ponowienia próby.
+
+Edycja własnych komend slash pyta przed porzuceniem formularza. Zapis blokuje pola i zamykanie do zakończenia żądania; odmowa zachowuje dane. Na telefonach akcje komendy mają osobny wiersz i pola dotykowe. Przełącznik w trakcie zapisu blokuje sprzeczne akcje, a usuwanie wymaga potwierdzenia. Formularze połączeń MCP również blokują pola i zamykanie podczas zapisu.
+
 Konsola to aplikacja webowa, przez którą konfiguruje się wszystko inne opisane na
 tej stronie. Ta strona jest mapą: do czego służy każdy obszar i która strona
 wyjaśnia go porządnie.
+
+Gdy edytujesz ustawienia projektu, nazwę organizacji, limit wydatków, domyślne ustawienia głosu, okresy retencji danych, skill lub plik context, wyjście wymaga decyzji: zapisać, odrzucić czy zostać. Dotyczy to także przejścia do innego pliku zasobów skill. Odmowa zapisu pozostawia draft otwarty; **Save file** usuwa go dopiero po potwierdzeniu zapisu przez serwer. Tekst dopisany w trakcie zapisywania tego pliku pozostaje niezapisany.
+
+Na telefonie dokumenty bazy wiedzy i członkowie organizacji mają podpisane wiersze z widocznymi akcjami. Usunięcie członka wymaga potwierdzenia, a odmowa zachowuje otwarte okno. Formularze tworzenia KB, parsowania i dostawcy embeddingów blokują pola i pozostają otwarte podczas zapisu; po odmowie znów można je edytować i zamknąć. Nieudane pobranie dokumentu pokazuje błąd i pozwala ponowić próbę.
+
+Zmiana pytania lub zakresu wyszukiwania wiedzy usuwa wcześniejsze wyniki i anuluje oczekujące zapytanie. Spóźniona odpowiedź nie może zastąpić wyników nowszego wyszukiwania.
+
+Publiczny czat pozwala pisać podczas łączenia, ale włącza Send dopiero po otwarciu bieżącego WebSocket. Nowa rozmowa czeka na własne połączenie; przedwczesne kliknięcie nie gubi pierwszego pytania.
 
 Jeśli szukasz jednego ekranu, najszybszą drogą jest **"?"** w nagłówku strony —
 odtwarza on przewodnik po tej stronie, a strona, w której nagłówku nie ma "?",
@@ -46,7 +70,7 @@ Na telefonie modale zachowują 12 px marginesu z każdej strony. Zwarte nagłów
 
 Na telefonie główne akcje strony pozostają widoczne, a drugorzędne polecenia rozwija przycisk **Więcej akcji strony**. Filtry Inbox i format tabeli wybiera się selectem. Ustawienia z wieloma sekcjami mają menu wyboru sekcji; klienta MCP wybiera się z listy. Plik projektu lub workspace otwiera czytnik na pełnym ekranie, a strzałka wstecz wraca do folderów. Edytor kroku workflow pokazuje jeden wybrany panel: ustawienia, wejście albo wynik. Przełączanie zachowuje edycję; desktop nadal pokazuje panele obok siebie.
 
-Pola Markdown i edytory plików również mają przycisk powiększania, który zachowuje bieżący szkic. Opis i kategorię skilla można rozwinąć nad edytorem. Pole wiadomości na czacie zajmuje mniej miejsca i ogranicza wysokość długiego szkicu do dostępnej wysokości ekranu. Otwarcie nawigacji ustawia focus na panelu, a Tab nadal przechodzi do jego kontrolek. Canvas workflow ma na telefonie pływający przycisk pełnego ekranu i mniejszą minimapę.
+Pola Markdown i edytory plików również mają przycisk powiększania, który zachowuje bieżący szkic. Opis i kategorię skilla można rozwinąć nad edytorem. Pole wiadomości na czacie zajmuje mniej miejsca i ogranicza wysokość długiego szkicu do dostępnej wysokości ekranu. Otwarcie nawigacji ustawia focus na panelu, a Tab nadal przechodzi do jego kontrolek. Na telefonie canvas workflow ma pływający przycisk pełnego ekranu, otwiera się z całym przepływem w widoku i startuje z ukrytą minimapą.
 
 Każde jawne kliknięcie **New chat** ponownie ustawia fokus w edytorze, także przy pustym szkicu; nadanie rozmowie identyfikatora podczas pisania nie żąda ponownego fokusu.
 
@@ -85,6 +109,10 @@ Na telefonach wysłane wiadomości zatrzymują się poniżej pływających przyc
 Domyślni agenci kończą jednorazowe zadanie bez przedłużania odpowiedzi pytaniem o opcjonalną automatyzację. Pytania służą decyzjom potrzebnym do bieżącego zadania albo automatyzacji, o którą użytkownik prosi lub którą akceptuje. Opcjonalne karty konfiguracji pozostają propozycjami, które nie blokują zakończenia.
 
 Kompaktowy przycisk źródeł pod odpowiedzią otwiera Sources obok rozmowy, a na telefonie panel na całą szerokość. Files i Sources dzielą boczny obszar: otwarcie jednego zastępuje drugi. Źródła internetowe używają favicon witryny pobieranej bez nagłówka Referer lub znanego logo usługi; globus pozostaje, gdy ikona jest niedostępna. Źródła z bazy wiedzy zachowują ikony plików i podgląd oryginalnego dokumentu.
+
+Linki internetowe w odpowiedzi korzystają z tych samych favicon niezależnie od połączeń MCP. Ikony nieznanych stron przechodzą przez proxy konsoli i stały serwis ikon DuckDuckGo. Serwis otrzymuje tylko nazwę hosta, bez cookies i adresu IP czytelnika, ścieżki ani parametrów URL. Proxy odrzuca przekierowania, obrazy inne niż rastrowe i ikony ponad 64 KiB; limit czasu wynosi trzy sekundy. Brak lub niedostępność ikony zastępuje globus. Widoki transkrypcji z wyłączonym ładowaniem obrazów nie pobierają też ikon nieznanych stron.
+
+Nieudany run pokazuje błąd oddzielnie od odpowiedzi agenta, poza zwijanymi narzędziami, także po odświeżeniu rozmowy. Filtr treści dostawcy ma osobne wyjaśnienie; surowe odpowiedzi dostawcy i nieznane historyczne komunikaty błędów nie są kopiowane do udostępnianych transkrypcji. Częściowe wyniki pozostają dostępne, a nieudana praca nie jest oznaczana jako ukończona.
 
 ## Dashboard { #the-dashboard }
 
@@ -187,6 +215,8 @@ migawkę, którą chciałeś zachować.
     od tego, czy układ pochodzi z domyślnego, czy z twojego zapisanego.
 
 ## Rutyny i obserwacje { #routines-and-watches }
+
+Nazwy rutyn zawijają się na telefonach. Brak wyników daje przycisk **Wyczyść wyszukiwanie**, a **Ponów** odświeża zadania i obserwacje po błędzie odczytu. Edycja harmonogramu i wyzwalacza zdarzeniowego przewija się między stałym nagłówkiem i stopką z przyciskami. Zapis blokuje pola oraz zamykanie do zakończenia żądania; odmowa zachowuje wpisane dane.
 
 Routines ma dwie zakładki. **Zadania agentów** uruchamiają wybranego agenta według
 harmonogramu lub zdarzenia, z jego narzędziami; runy widać w Activity.
@@ -497,7 +527,13 @@ z pytaniem, co potrafi, i jedną z ustawieniem rutyny.
 
 Listy rozmów zachowują głównego agenta i pokazują też Claude Code lub Codex, gdy zapisane raporty zadań potwierdzają ich pracę w danym wątku. Sidebar, czaty projektu, dashboard i historia Quick Ask korzystają z tych samych ikon i etykiet. Każdy coding harness pojawia się raz, pozostaje po odświeżeniu i nie zależy od bieżących ustawień czatu. Sam wybór harnessu bez jego uruchomienia nie dopisuje go do historii.
 
-Panel Files grupuje pliki według folderów, rozróżniając identyczne nazwy w różnych katalogach. Podgląd HTML wczytuje lokalne arkusze stylów i ich zagnieżdżone zasoby przez ten sam mechanizm dostępu co stronę. Podgląd i Źródło pozostają oddzielne, a skrypty są wyłączone. Jeśli arkusza nie można odczytać, podgląd wskazuje, który plik zawiódł. Pliki zmienione w turze mają skróty pod odpowiedzią, na podstawie ścieżek zgłoszonych przez pomyślne narzędzia zapisu/edycji lub coding harness. Skróty otwierają bieżące pliki workspace, a nie wersjonowaną kopię.
+Panel Files grupuje pliki według folderów, rozróżniając identyczne nazwy w różnych katalogach. Podgląd HTML wczytuje lokalne arkusze stylów i ich zagnieżdżone zasoby przez ten sam mechanizm dostępu co stronę. Podgląd i Źródło pozostają oddzielne, a skrypty są wyłączone. Jeśli arkusza nie można odczytać, podgląd wskazuje, który plik zawiódł.
+
+Pliki zmienione w turze mają skróty pod odpowiedzią. Zadania programistyczne korzystają z zapisanego zestawu zmian, w tym edycji przez shell; zadanie bez niego używa raportu harnessu. Panel zadania oferuje **Cofnij to zadanie**, gdy możesz edytować jego pierwotny workspace, a snapshot jest kompletny. Skróty otwierają bieżące pliki workspace, a nie wersjonowaną kopię.
+
+Cofnięcie działa jako trwałe zadanie w izolowanym workspace rozmowy. Snapshoty współdzielonych zakresów pozostają tylko do odczytu. Panel pokazuje postęp; nieznany wynik rezerwuje workspace, dopóki Ponów cofnięcie nie sprawdzi jego plików.
+
+Snapshoty do cofania mają limit 2 MiB na plik i 16 MiB łącznie dla danych przed zmianą i po niej; większe zmiany można przeglądać bez cofania. Weryfikacja ogranicza też odczyty starszych snapshotów. Przyjmowanych jest sześć żądań na osobę i dwadzieścia na organizację na minutę, z lokalnym limitem podczas awarii Redis. W organizacji działa najwyżej jedno zadanie cofania naraz.
 
 Podczas pracy agenta komunikaty o postępie i następujące po nich wywołania narzędzi pojawiają się w kolejności nadejścia w jednej rozwiniętej osi czasu. Zakończenie uruchomienia zwija historię pod jednym „Worked for…” lub „Thought for…”, pozostawiając pod spodem tylko finalną odpowiedź. Rozwinięcie historii przywraca tę samą kolejność wiadomości i grup narzędzi. Rozumowanie ma osobne, opcjonalne rozwinięcie; jego nagłówki nie tworzą etapów procesu. Pytania i zatwierdzenia zachowują stan oczekiwania do rozwiązania, także przy delegacji. Aktywne karty zatwierdzania i wyniki wizualne pozostają poza zakończoną historią.
 
@@ -960,6 +996,18 @@ nigdy nie powtarzasz ich w czacie; „w każdy poniedziałek o 9” to twoja 9. 
 czasowa jest brana z przeglądarki przy pierwszym logowaniu, dopóki nie wybierzesz
 własnej.
 
+Ustawienia profilu łączą avatar, nazwę i e-mail w jednym formularzu, z kolorami
+zastępczymi pod rozwinięciem. Zapis jest pod polami, a Enter wysyła formularz
+nazwy lub roli. Podczas zapisu profilu pola danych i kontekstu są zablokowane;
+odmowa zachowuje formularz. Dni pracy mają większe pola dotyku, a godziny
+początku i końca są osobnymi polami także na telefonie.
+
+**Ustawienia → Powiadomienia** wyszukują nazwy i opisy zdarzeń, po sześć na
+stronie. Selektor czatu zmienia dodatkowy kanał bez zmiany pozostałych preferencji.
+Połączone miejsca powiadomień w prywatnych czatach są pierwsze; pozostałe platformy
+są pod rozwinięciem. Błędy odczytu preferencji, miejsc lub połączonych kont mają
+przycisk ponowienia zamiast pozornych wartości domyślnych lub pustej listy kont.
+
 ## Następny krok { #the-next-step }
 
 Strona pusta dlatego, że nic jeszcze nie istnieje, proponuje, jak zrobić pierwszą
@@ -999,7 +1047,7 @@ Stopka panelu bocznego pokazuje wersję kompilacji konsoli obok wyszukiwania i p
 
 Nowsze stabilne wydanie AgenticOS podświetla ten numer i dodaje zieloną kropkę. Kliknięcie pokazuje uruchomioną i dostępną wersję oraz odnośnik do oficjalnego wydania. Sprawdzenie w tle odbywa się przy otwarciu konsoli, co 30 minut podczas pracy oraz po odzyskaniu fokusu lub połączenia, jeśli dane są nieaktualne. Serwer współdzieli wyniki publicznych sprawdzeń przez pięć minut i nie wysyła do GitHuba danych konta, organizacji ani wdrożenia. Awaria sieci pozostawia numer uruchomionej wersji bez stwierdzenia, że jest najnowsza. Powiadomienie nie przeładowuje strony ani nie instaluje aktualizacji automatycznie.
 
-Po zalogowaniu **Co nowego** pokazuje publiczne informacje o zainstalowanej wersji z GitHub Releases, raz dla konta na tym urządzeniu. Okno czeka na zamknięcie onboardingu. Zamknięcie oznacza wersję jako przeczytaną; brak opisu lub błąd pobierania nie przerywa sesji. Funkcje nowszej, niezainstalowanej wersji są dostępne tylko z informacji o aktualizacji.
+Po zalogowaniu **Co nowego** pokazuje publiczne informacje o zainstalowanej wersji z GitHub Releases, raz dla konta na tym urządzeniu. Okno czeka na zamknięcie onboardingu. Zamknięcie oznacza wersję jako przeczytaną; brak opisu lub błąd pobierania nie przerywa sesji. Funkcje nowszej, niezainstalowanej wersji są dostępne tylko z informacji o aktualizacji. Sekcje **Upgrading** i **Notes for operators**, z migracjami i krokami aktualizacji, widzą tylko administratorzy wdrożenia; wydanie, które nie zawiera nic poza nimi, nie otwiera okna nikomu innemu.
 
 Chat controls zapamiętuje model, tryb zatwierdzania i lokalne narzędzia dla konta i organizacji między chatami. Ustawienia plików projektu mają pierwszeństwo. Zgoda na cały komputer dotyczy jednej rozmowy albo jednego agenta, gdy ten agent pracuje na Twoim komputerze. Pomijanie zatwierdzeń wymaga bieżących uprawnień i zgody organizacji. Agent setting (lub Cloud dla plików) jest nieaktywne, jeśli opublikowany agent nie ma tej funkcji; lokalna opcja nie włącza się sama. Kliknięcie wybranej lokalnej opcji wyłącza ją.
 

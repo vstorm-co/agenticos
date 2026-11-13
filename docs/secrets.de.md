@@ -1,5 +1,5 @@
 ---
-source_sha: "c5e5aa3e7df5"
+source_sha: "f0b3009ed75d"
 ---
 
 # Secrets und der Vault { #secrets-and-the-vault }
@@ -11,6 +11,10 @@ source_sha: "c5e5aa3e7df5"
     `app/core/vault.py`. Einen zweiten Weg hinzuzufügen, Zugangsdaten im
     Ruhezustand zu halten, ist genau der Defekt, den zwei Migrationen entfernt
     haben.
+
+## In der Konsole { #in-the-console }
+
+Vault zeigt Schlüssel, deine verbundenen Konten und Organisationskonten in einer Tabelle. **Schlüssel hinzufügen** speichert Zugangsdaten; **Konto verbinden** lässt dich dein eigenes Konto oder mit entsprechender Berechtigung ein Organisationskonto auswählen. Jede Zeile behält ihre eigenen Zugriffsrechte und Aktionen: Schlüssel teilen oder rotieren beziehungsweise Konten erneut verbinden oder trennen. OAuth-Tokens bleiben verborgen; das Trennen eines Kontos erfordert eine Bestätigung.
 
 ## Envelope-Verschlüsselung { #envelope-encryption }
 

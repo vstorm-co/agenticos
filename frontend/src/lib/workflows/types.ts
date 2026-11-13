@@ -1,3 +1,4 @@
+import type { ResourceIconName } from "@/types/resource-icons";
 /**
  * TypeScript mirror of the backend workflow + node-catalog contracts (#1786).
  *
@@ -57,6 +58,8 @@ export interface NodeDefinition {
   input_schema: JsonSchema | null;
   output_schema: JsonSchema | null;
   ports: Port[];
+  /** Localized labels for standard ports synthesized from instance configuration. */
+  standardPortLabels?: { error: string; unsure: string };
   effect_kind: "pure" | "read" | "write";
   retry_guarantee: "none" | "idempotent" | "at_least_once";
   scopes: string[];
@@ -301,6 +304,7 @@ export type WorkflowStatus = "draft" | "published" | "archived";
 
 /** A workflow as the list shows it. Mirrors `WorkflowRead`. */
 export interface WorkflowRead {
+  icon?: ResourceIconName | null;
   id: Uuid;
   slug: string;
   name: string;
@@ -636,6 +640,15 @@ export interface ReplyExpectationEdit extends ReplyExpectationInput {
   review_mailbox: boolean;
 }
 
+/** How an approval step's request was settled. Mirrors `WorkflowStepDecision`. */
+export interface WorkflowStepDecision {
+  status: "pending" | "approved" | "rejected" | "expired" | "cancelled";
+  /** When a person decided it; null while pending, and when it expired or was cancelled. */
+  decided_at: string | null;
+  /** The decider's name or email; null when nobody decided or their account is gone. */
+  decided_by_name: string | null;
+}
+
 /** One step of a run, in one loop iteration. Mirrors `WorkflowNodeRunRead`. */
 export interface WorkflowNodeRunRead {
   reply_expectation?: ReplyExpectation | null;
@@ -655,6 +668,8 @@ export interface WorkflowNodeRunRead {
   late_output: Record<string, unknown> | null;
   started_at: string | null;
   ended_at: string | null;
+  /** The decision an approval step asked for; null for every other step. */
+  approval?: WorkflowStepDecision | null;
 }
 
 /** Questions the reading caller may answer for one suspended agent step. */
@@ -681,6 +696,8 @@ export interface WorkflowLogEntry {
   node_instance_id: Uuid;
   /** The step's name as it was when the line was written. */
   step_label: string;
+  /** The definition to translate; null for a custom label or an unavailable saved graph. */
+  step_definition_id?: string | null;
   /** The port the step left by, or `error`. */
   outcome: string;
   status: string;
@@ -894,6 +911,7 @@ export interface WorkflowApprovalList {
 
 /** Rename a workflow, describe it or tag it. An absent field is kept. Mirrors `WorkflowUpdate`. */
 export interface WorkflowUpdate {
+  icon?: ResourceIconName | null;
   name?: string;
   description?: string | null;
   tags?: string[];

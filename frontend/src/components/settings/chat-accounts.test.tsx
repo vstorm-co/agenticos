@@ -152,6 +152,19 @@ describe("connected chat accounts", () => {
     vi.mocked(listLinkedAccounts).mockRejectedValue(new Error("offline"));
     render(<ChatAccounts />);
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(await screen.findByText("offline")).toBeVisible();
+    expect(screen.queryByText(/Message one of your organization/)).not.toBeInTheDocument();
   });
+});
+
+it("retries a failed read without inventing an empty account list", async () => {
+  vi.mocked(listLinkedAccounts)
+    .mockRejectedValueOnce(new Error("offline"))
+    .mockResolvedValueOnce([account()]);
+  render(<ChatAccounts />);
+  expect(await screen.findByText("offline")).toBeVisible();
+  expect(screen.queryByText(/Message one of your organization/)).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(await screen.findByText("Kacper")).toBeVisible();
+  expect(listLinkedAccounts).toHaveBeenCalledTimes(2);
 });

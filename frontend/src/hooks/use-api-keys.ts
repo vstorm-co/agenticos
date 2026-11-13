@@ -60,6 +60,8 @@ export function useApiKeys({ canCreate }: { canCreate: boolean }) {
     error: list.error,
     refetch: list.refetch,
     catalog: scopes.data ?? null,
+    catalogError: scopes.error,
+    retryCatalog: scopes.refetch,
     create,
     revoke,
   };
