@@ -70,3 +70,43 @@ export function ProblemBadge({
     </TooltipProvider>
   );
 }
+
+/**
+ * A step's amber sign for what is worth a look but may be meant - nothing that
+ * stops a test or a publish. Hovering it says what; a click opens the step.
+ */
+export function WarningBadge({
+  warnings,
+  onOpen,
+}: {
+  warnings: readonly string[];
+  onOpen: () => void;
+}) {
+  const t = useTranslations("workflows");
+  return (
+    <TooltipProvider delayDuration={150}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-label={t("warningBadge", { count: warnings.length })}
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpen();
+            }}
+            className="text-warning focus-visible:ring-ring rounded outline-none focus-visible:ring-2"
+          >
+            <AlertTriangle aria-hidden="true" className="size-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-xs py-2">
+          <ul className="space-y-1">
+            {warnings.map((warning, index) => (
+              <li key={index}>{warning}</li>
+            ))}
+          </ul>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}

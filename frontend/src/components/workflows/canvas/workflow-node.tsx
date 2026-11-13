@@ -39,8 +39,8 @@ import { AgentTile, InlineAgentTile, ResourceLine, resourcePin } from "./node-re
 import { type NodeRunState, useNodeRunState } from "./run-overlay";
 import { RunPill } from "./run-pill";
 import { isErrorPort, type WorkflowFlowNode } from "./graph-adapter";
-import { ProblemBadge } from "./problem-badge";
-import { QuickAdd } from "./quick-add";
+import { ProblemBadge, WarningBadge } from "./problem-badge";
+import { QuickAdd, type QuickAddNext } from "./quick-add";
 import { QuickLogControl } from "./quick-log";
 import {
   cardHeight,
@@ -316,6 +316,7 @@ function WorkflowCard({
     catalog,
     insertAfter,
     problemTexts,
+    warningTexts,
     changes,
   } = useCanvasInteraction();
   const problemsRevealed = useWorkflowEditorStore((state) => state.problemsRevealed);
@@ -398,6 +399,7 @@ function WorkflowCard({
   const runView = runState !== null;
   const crashed = runState?.state === "failed" || runState?.state === "attention";
   const problems = runView ? [] : (problemTexts.get(instance.id) ?? []);
+  const warnings = runView ? [] : (warningTexts?.get(instance.id) ?? []);
   const change = changes?.get(instance.id) ?? null;
   // The ports a quick log writes for, null when the step has none.
   const logged =
@@ -437,11 +439,21 @@ function WorkflowCard({
 
   // The "+" beside an output adds the next step there. Shown whenever nothing
   // leaves the port yet - the natural next move - and on hover otherwise.
-  const usedPorts = new Set(
-    (graph?.edges ?? [])
-      .filter((edge) => edge.source_node_id === instance.id)
-      .map((edge) => edge.source_port),
-  );
+  const nextByPort = new Map<string, QuickAddNext[]>();
+  for (const edge of graph?.edges ?? []) {
+    if (edge.source_node_id !== instance.id) continue;
+    const target = graph?.nodes.find((item) => item.id === edge.target_node_id);
+    const targetName = nodeDisplayName(
+      catalog.find((item) => item.id === target?.definition_id)?.name ?? edge.target_node_id,
+      edge.target_node_id,
+      false,
+      target?.label,
+    );
+    nextByPort.set(edge.source_port, [
+      ...(nextByPort.get(edge.source_port) ?? []),
+      { edgeId: edge.id, name: targetName },
+    ]);
+  }
   // `beyondStrip`: placed against the card itself, so past a docked quick-log strip.
   const quickAdd = (port: Port, beyondStrip = false) =>
     !readOnly &&
@@ -456,8 +468,10 @@ function WorkflowCard({
           catalog={catalog}
           nodeName={name}
           portLabel={port.label}
-          prominent={!usedPorts.has(port.id)}
-          onPick={(next, config) => insertAfter(instance.id, port.id, next, config)}
+          next={nextByPort.get(port.id) ?? []}
+          onPick={(next, config, beforeEdgeId) =>
+            insertAfter(instance.id, port.id, next, config, beforeEdgeId)
+          }
         />
       </span>
     );
@@ -669,6 +683,9 @@ function WorkflowCard({
                   problems={problems}
                   onOpen={() => editNode(instance.id)}
                 />
+              )}
+              {warnings.length > 0 && (
+                <WarningBadge warnings={warnings} onOpen={() => editNode(instance.id)} />
               )}
               {!labelledOutputs &&
                 outputs.map((port) => <span key={port.id}>{connectButton(port)}</span>)}

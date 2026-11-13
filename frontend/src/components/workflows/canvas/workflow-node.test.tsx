@@ -784,6 +784,96 @@ describe("a node card's +", () => {
     ]);
   });
 
+  it("puts the step into an output's connection, before the step it led to", async () => {
+    seed([instance("i", "logic.if"), instance("m", "data.map", { layout: { x: 320, y: 0 } })], {
+      edges: [
+        {
+          id: "e1",
+          source_node_id: "i",
+          source_port: "true",
+          target_node_id: "m",
+          target_port: "in",
+        },
+      ],
+    });
+    const { container } = render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
+
+    await userEvent.click(
+      container.querySelector(
+        'button[aria-label="Add a step or a branch after If (true)"]',
+      ) as HTMLElement,
+    );
+    expect(screen.getByRole("radio", { name: "Insert before Map" })).toBeChecked();
+    await userEvent.type(screen.getByPlaceholderText("Search steps"), "HTTP");
+    await userEvent.click(await screen.findByText("HTTP"));
+
+    const graph = store.getState().graph;
+    const added = graph?.nodes.find((node) => node.definition_id === "http.request");
+    expect(graph?.edges).toHaveLength(2);
+    expect(graph?.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          source_node_id: "i",
+          source_port: "true",
+          target_node_id: added?.id,
+        }),
+        expect.objectContaining({ source_node_id: added?.id, target_node_id: "m" }),
+      ]),
+    );
+  });
+
+  it("adds a parallel branch beside what follows when asked to", async () => {
+    seed([instance("i", "logic.if"), instance("m", "data.map", { layout: { x: 320, y: 0 } })], {
+      edges: [
+        {
+          id: "e1",
+          source_node_id: "i",
+          source_port: "true",
+          target_node_id: "m",
+          target_port: "in",
+        },
+      ],
+    });
+    const { container } = render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
+
+    await userEvent.click(
+      container.querySelector(
+        'button[aria-label="Add a step or a branch after If (true)"]',
+      ) as HTMLElement,
+    );
+    await userEvent.click(screen.getByRole("radio", { name: "Add a parallel branch" }));
+    await userEvent.type(screen.getByPlaceholderText("Search steps"), "HTTP");
+    await userEvent.click(await screen.findByText("HTTP"));
+
+    const graph = store.getState().graph;
+    const added = graph?.nodes.find((node) => node.definition_id === "http.request");
+    expect(graph?.edges).toEqual([
+      expect.objectContaining({ id: "e1", target_node_id: "m" }),
+      expect.objectContaining({
+        source_node_id: "i",
+        source_port: "true",
+        target_node_id: added?.id,
+      }),
+    ]);
+  });
+
+  it("marks a deciding step none of whose outcomes leads on, but not on a read-only canvas", () => {
+    const deciding = CATALOG.map((definition) =>
+      definition.id === "logic.if" ? { ...definition, exclusive_branches: true } : definition,
+    );
+    seed([instance("i", "logic.if")]);
+    const editing = render(<WorkflowCanvas workflow={WORKFLOW} catalog={deciding} />);
+    expect(
+      editing.container.querySelector(
+        '[data-node-id="i"] button[aria-label="1 thing worth a look"]',
+      ),
+    ).toBeTruthy();
+    editing.unmount();
+
+    const readOnly = render(<WorkflowCanvas workflow={WORKFLOW} catalog={deciding} readOnly />);
+    expect(readOnly.container.querySelector('button[aria-label$="worth a look"]')).toBeNull();
+  });
+
   it("sits beside a single output too, and is not offered on a read-only canvas", () => {
     seed([instance("m", "data.map")]);
     const first = render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
