@@ -1,5 +1,5 @@
 ---
-source_sha: "3126dfadd4f6"
+source_sha: "b3880c2b1db9"
 ---
 
 # Workflows { #workflows }
@@ -955,7 +955,7 @@ el orden en que se escribieron. Una clave de API de la organización con `workfl
 también las lee, para las ejecuciones de origen público: consulta [Leer el log de un
 workflow](api.md#reading-a-workflows-log).
 
-Las nuevas líneas de Quick Log muestran los nombres predeterminados de los pasos en el idioma del lector, también en el dashboard. Las etiquetas propias y las líneas sin origen del nombre registrado conservan su texto guardado.
+Las nuevas líneas de Quick Log muestran los nombres predeterminados de los pasos en el idioma del lector, también en el dashboard. El grafo guardado del run identifica los nombres predeterminados, también en las líneas antiguas. Las etiquetas propias y las líneas cuyo grafo guardado ya no identifica el paso conservan su texto guardado.
 
 ### Alertas { #log-alerts }
 

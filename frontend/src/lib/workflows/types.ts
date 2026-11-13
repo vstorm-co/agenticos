@@ -683,7 +683,7 @@ export interface WorkflowLogEntry {
   node_instance_id: Uuid;
   /** The step's name as it was when the line was written. */
   step_label: string;
-  /** The definition to translate; null for a custom label or a legacy line. */
+  /** The definition to translate; null for a custom label or an unavailable saved graph. */
   step_definition_id?: string | null;
   /** The port the step left by, or `error`. */
   outcome: string;

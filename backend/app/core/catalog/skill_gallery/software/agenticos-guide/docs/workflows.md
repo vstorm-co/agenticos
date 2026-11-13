@@ -897,7 +897,7 @@ that wrote it. In the run view, each step's own lines sit under it, in the order
 were written. An organization API key with `workflows:view` reads them too, for
 public-origin runs: see [Reading a workflow's log](api.md#reading-a-workflows-log).
 
-New Quick Log lines show default step names in the reader's language, including on the dashboard. Custom labels and lines written before label origins were recorded keep their stored words.
+New Quick Log lines show default step names in the reader's language, including on the dashboard. The saved run graph identifies default names, including in older lines. Custom labels and lines whose saved graph no longer identifies the step keep their stored words.
 
 ### Alerts { #log-alerts }
 

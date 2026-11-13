@@ -1,5 +1,5 @@
 ---
-source_sha: "3126dfadd4f6"
+source_sha: "b3880c2b1db9"
 ---
 
 # Workflows { #workflows }
@@ -927,7 +927,7 @@ go zapisał. W widoku przebiegu wiersze każdego kroku są pod nim, w kolejnośc
 Klucz API organizacji z `workflows:view` też je odczytuje, dla runów o publicznym
 pochodzeniu: zob. [Odczyt logu workflow](api.md#reading-a-workflows-log).
 
-Nowe wiersze Quick Log pokazują domyślne nazwy kroków w języku czytelnika, także na dashboardzie. Własne etykiety i wiersze zapisane przed rejestrowaniem pochodzenia nazwy zachowują zapisany tekst.
+Nowe wiersze Quick Log pokazują domyślne nazwy kroków w języku czytelnika, także na dashboardzie. Zapisany graf runu identyfikuje nazwy domyślne, także w starszych wierszach. Własne etykiety i wiersze, których zapisany graf nie identyfikuje już kroku, zachowują zapisany tekst.
 
 ### Alerty { #log-alerts }
 

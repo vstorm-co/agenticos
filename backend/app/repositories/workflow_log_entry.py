@@ -39,7 +39,6 @@ async def create(
     message: str,
     is_test: bool,
     is_pinned: bool,
-    step_definition_id: str | None = None,
 ) -> WorkflowLogEntry:
     row = WorkflowLogEntry(
         organization_id=organization_id,
@@ -47,7 +46,6 @@ async def create(
         run_id=run_id,
         node_instance_id=node_instance_id,
         step_label=step_label,
-        step_definition_id=step_definition_id,
         outcome=outcome,
         status=status,
         message=message,

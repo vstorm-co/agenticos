@@ -1,5 +1,5 @@
 ---
-source_sha: "3126dfadd4f6"
+source_sha: "b3880c2b1db9"
 ---
 
 # Workflows { #workflows }
@@ -1009,7 +1009,7 @@ Reihenfolge des Schreibens. Ein Organisations-API-Schlüssel mit `workflows:view
 sie ebenfalls, für Läufe öffentlichen Ursprungs: siehe [Das Log eines Workflows
 lesen](api.md#reading-a-workflows-log).
 
-Neue Quick-Log-Zeilen zeigen Standardnamen der Schritte in der Sprache des Lesers, auch im Dashboard. Eigene Bezeichnungen und Zeilen ohne gespeicherte Namensherkunft behalten ihren gespeicherten Text.
+Neue Quick-Log-Zeilen zeigen Standardnamen der Schritte in der Sprache des Lesers, auch im Dashboard. Der gespeicherte Run-Graph identifiziert Standardnamen, auch in älteren Zeilen. Eigene Bezeichnungen und Zeilen, deren gespeicherter Graph den Schritt nicht mehr identifiziert, behalten ihren gespeicherten Text.
 
 ### Alerts { #log-alerts }
 

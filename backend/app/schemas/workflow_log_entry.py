@@ -69,7 +69,7 @@ class WorkflowLogEntryRead(BaseSchema):
     step_label: str
     step_definition_id: str | None = Field(
         default=None,
-        description="Definition id for a default step name; null for custom or legacy labels",
+        description="Definition id for a default step name; null for custom labels or an unavailable saved graph",
     )
     outcome: str
     status: str
