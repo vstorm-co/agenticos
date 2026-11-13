@@ -1616,6 +1616,7 @@
       "sortTitleAsc": "Title A–Z",
       "sortTitleDesc": "Title Z–A",
       "apiBadge": "API",
+      "forkOf": "Fork of {title}",
       "hideApi": "Hide conversations opened over the API",
       "filters": "Filter and sort",
       "show": "Show",

@@ -491,7 +491,7 @@
     "download": "Pobierz",
     "dropFilesAttach": "Upuść pliki, aby załączyć",
     "edit": "Edytuj",
-    "editMeans": "Edit pozwala zmienić nazwę, zarchiwizować i usunąć tę konwersację oraz dopisywać do niej tury.",
+    "editMeans": "„Edytuj” pozwala zmienić nazwę, zarchiwizować i usunąć tę rozmowę oraz dopisywać do niej tury.",
     "empty": {
       "commandPalette": "paleta komend",
       "capabilitiesPrompt": "Co możesz tu dla mnie zrobić? Pokaż na przykładzie z mojej pracy.",
@@ -679,6 +679,7 @@
       "sortTitleAsc": "Tytuł A–Z",
       "sortTitleDesc": "Tytuł Z–A",
       "apiBadge": "API",
+      "forkOf": "Rozgałęzienie rozmowy {title}",
       "hideApi": "Ukryj rozmowy otwarte przez API",
       "filters": "Filtruj i sortuj",
       "show": "Pokaż",
@@ -1044,7 +1045,7 @@
       "empty": "Kontekst, koszt i budżety pojawią się tutaj po pierwszej odpowiedzi agenta."
     },
     "view": "Podgląd",
-    "viewMeans": "View pozwala tylko czytać tę konwersację.",
+    "viewMeans": "„Podgląd” pozwala tylko czytać tę rozmowę.",
     "web": "Web",
     "whatWentWrong": "Co poszło nie tak?",
     "reply": {
