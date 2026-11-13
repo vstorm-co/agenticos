@@ -22,9 +22,12 @@ const TabsList = React.forwardRef<
       if (!active) return;
       const bounds = list.getBoundingClientRect();
       const tab = active.getBoundingClientRect();
-      // Move only the strip: scrollIntoView can also displace the whole page.
-      if (tab.left < bounds.left) list.scrollLeft += tab.left - bounds.left;
-      else if (tab.right > bounds.right) list.scrollLeft += tab.right - bounds.right;
+      const style = getComputedStyle(list);
+      const left = bounds.left + (parseFloat(style.scrollPaddingLeft) || 0);
+      const right = bounds.right - (parseFloat(style.scrollPaddingRight) || 0);
+      // Keep selected labels outside the edge fades, moving only the strip.
+      if (tab.left < left) list.scrollLeft += tab.left - left;
+      else if (tab.right > right) list.scrollLeft += tab.right - right;
     };
     reveal();
     const selection = new MutationObserver(reveal);

@@ -1,3 +1,4 @@
+import type { ResourceIconName } from "@/types/resource-icons";
 /**
  * TypeScript mirror of the backend workflow + node-catalog contracts (#1786).
  *
@@ -301,6 +302,7 @@ export type WorkflowStatus = "draft" | "published" | "archived";
 
 /** A workflow as the list shows it. Mirrors `WorkflowRead`. */
 export interface WorkflowRead {
+  icon?: ResourceIconName | null;
   id: Uuid;
   slug: string;
   name: string;
@@ -894,6 +896,7 @@ export interface WorkflowApprovalList {
 
 /** Rename a workflow, describe it or tag it. An absent field is kept. Mirrors `WorkflowUpdate`. */
 export interface WorkflowUpdate {
+  icon?: ResourceIconName | null;
   name?: string;
   description?: string | null;
   tags?: string[];

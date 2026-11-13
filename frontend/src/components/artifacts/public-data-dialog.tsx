@@ -123,7 +123,7 @@ export function PublicDataDialog({
           <DialogDescription>{t("confirmWhy")}</DialogDescription>
         </DialogHeader>
         {disclosure.isLoading ? (
-          <LoadingState variant="skeleton-panel" rows={4} />
+          <LoadingState variant="pending" />
         ) : shown === undefined ? (
           <ErrorState title={t("disclosureFailed")} />
         ) : (

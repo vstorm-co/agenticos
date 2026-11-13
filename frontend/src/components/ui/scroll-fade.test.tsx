@@ -39,6 +39,47 @@ describe("useScrollFade", () => {
     expect(strip).not.toHaveAttribute("data-more");
   });
 
+  it("marks both directions in the middle and only earlier content at the end", () => {
+    render(<Strip />);
+    const strip = screen.getByTestId("strip");
+    measure(strip, { scroll: 100, width: 300, content: 500 });
+    fireEvent.scroll(strip);
+    expect(strip).toHaveAttribute("data-more-start");
+    expect(strip).toHaveAttribute("data-more");
+    measure(strip, { scroll: 200, width: 300, content: 500 });
+    fireEvent.scroll(strip);
+    expect(strip).toHaveAttribute("data-more-start");
+    expect(strip).not.toHaveAttribute("data-more");
+    measure(strip, { scroll: 0, width: 300, content: 300 });
+    fireEvent.scroll(strip);
+    expect(strip).not.toHaveAttribute("data-more-start");
+    expect(strip).not.toHaveAttribute("data-more");
+  });
+
+  it("notices tabs arriving in a strip whose viewport did not resize", async () => {
+    function Dynamic({ items }: { items: number }) {
+      const ref = useRef<HTMLDivElement>(null);
+      useScrollFade(ref);
+      return (
+        <div ref={ref} data-testid="dynamic">
+          {Array.from({ length: items }, (_, n) => (
+            <button key={n}>{n}</button>
+          ))}
+        </div>
+      );
+    }
+    const { rerender } = render(<Dynamic items={1} />);
+    const strip = screen.getByTestId("dynamic");
+    measure(strip, { scroll: 0, width: 300, content: 500 });
+    rerender(<Dynamic items={2} />);
+    await act(async () => {});
+    expect(strip).toHaveAttribute("data-more");
+    measure(strip, { scroll: 0, width: 300, content: 250 });
+    rerender(<Dynamic items={1} />);
+    await act(async () => {});
+    expect(strip).not.toHaveAttribute("data-more");
+  });
+
   it("leaves a strip that fits unmarked", () => {
     render(<Strip />);
 

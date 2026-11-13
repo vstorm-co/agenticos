@@ -150,11 +150,16 @@ describe("SkillStart", () => {
     });
     mount();
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "No answer that loaded this line was rated down or failed yet, so there is nothing to learn from. Rate down an answer in chat where an agent used this skill, then start again.",
-    );
+    expect(
+      await screen.findByText(
+        "No answer that loaded this line was rated down or failed yet, so there is nothing to learn from. Rate down an answer in chat where an agent used this skill, then start again.",
+      ),
+    ).toBeVisible();
     expect(screen.queryByText(/It reads/)).toBeNull();
-    expect(screen.getByRole("button", { name: "Start" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Start" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Open chat" }));
+    expect(push).toHaveBeenCalledWith("/chat");
+    expect(screen.queryByLabelText(/Spending limit/)).toBeNull();
   });
 
   it("holds the start while the limit is below the first proposal's estimate, and says so", async () => {

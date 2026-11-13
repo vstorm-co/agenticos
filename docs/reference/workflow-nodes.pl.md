@@ -1,5 +1,5 @@
 ---
-source_sha: "4d205a52251b"
+source_sha: "5a1c3230cf70"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -434,6 +434,8 @@ pusty daje 0. Paleta rysuje krok z ikoną różnic, wśród kroków danych.
 ::: app.workflows.nodes.text_compare._handler.TextCompareOutput
 
 ## html.parse { #html-parse }
+
+Od wersji 1.72.0 selektory dokumentu i zbieranie linków pomijają nieaktywną zawartość `<template>`. Wybranie samego elementu `template` nadal zwraca jego HTML i tekst. Soup Sieve 4 dostosowuje też selektory stanu formularzy do zachowania przeglądarek; przy aktualizacji sprawdź workflowy zależne od poprzednich reguł dopasowania. Dopasowanie korzysta z pamięci podręcznej; limity czasu i pamięci procesu czytnika pozostają w mocy.
 
 **Parse HTML** zamienia HTML na jego tekst, linki i elementy wybrane selektorem CSS.
 Służy do HTML-a, który spotyka przepływ: treści maila, body z `http.request`,

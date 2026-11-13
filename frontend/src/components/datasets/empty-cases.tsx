@@ -15,9 +15,7 @@ import { useTranslations } from "next-intl";
 
 import { Button, ListCardEmpty } from "@/components/ui";
 import { DatasetIcon } from "./dataset-chip";
-import { cn } from "@/lib/utils";
 import { ImportCasesDialog } from "./import-cases-dialog";
-import type { DatasetTone } from "./dataset-chip";
 import { ROUTES } from "@/lib/constants";
 import { useDatasetFiles } from "./use-dataset-files";
 
@@ -47,19 +45,18 @@ export function EmptyCases({ datasetId, onAddCase, onImport, onGenerate }: Empty
     );
   }
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6 sm:py-10">
+    <div className="mx-auto w-full max-w-2xl px-4 py-6 sm:px-6 sm:py-8">
       <div className="mb-6 space-y-2 text-center">
         <h3 className="text-lg font-semibold tracking-tight">{t("journey.emptyTitle")}</h3>
         <p className="text-muted-foreground mx-auto max-w-xl text-sm leading-relaxed">
           {t("journey.emptyBody")}
         </p>
       </div>
-      <div className={cn("grid gap-3 sm:grid-cols-2", onGenerate && "lg:grid-cols-3")}>
+      <div className="grid gap-2">
         <CreationOption
           title={t("addCase")}
           hint={t("journey.writeHint")}
           icon={FilePenLine}
-          tone="blue"
           onClick={onAddCase}
           tour="datasets-add-case"
         />
@@ -67,7 +64,6 @@ export function EmptyCases({ datasetId, onAddCase, onImport, onGenerate }: Empty
           title={t("import")}
           hint={t("journey.importHint")}
           icon={Upload}
-          tone="green"
           onClick={() => setImporting(true)}
         />
         {onGenerate && (
@@ -75,7 +71,6 @@ export function EmptyCases({ datasetId, onAddCase, onImport, onGenerate }: Empty
             title={t("generateCases")}
             hint={t("journey.generateHint")}
             icon={Sparkles}
-            tone="purple"
             onClick={onGenerate}
             tour="datasets-generate-action"
           />
@@ -112,14 +107,12 @@ function CreationOption({
   title,
   hint,
   icon: Icon,
-  tone,
   onClick,
   tour,
 }: {
   title: string;
   hint: string;
   icon: LucideIcon;
-  tone: DatasetTone;
   onClick: () => void;
   tour?: string;
 }) {
@@ -129,10 +122,10 @@ function CreationOption({
       aria-label={title}
       onClick={onClick}
       data-tour={tour}
-      className="group hover:border-foreground/25 hover:bg-accent/30 focus-visible:ring-ring flex flex-col gap-4 rounded-xl border p-5 text-left transition-colors focus-visible:ring-2"
+      className="group hover:border-foreground/25 hover:bg-accent/30 focus-visible:ring-ring flex items-center gap-3 rounded-xl border p-4 text-left transition-colors focus-visible:ring-2"
     >
-      <DatasetIcon tone={tone} icon={Icon} className="size-10 rounded-xl" />
-      <span className="space-y-1.5">
+      <DatasetIcon tone="gray" icon={Icon} className="size-10 rounded-xl" />
+      <span className="min-w-0 flex-1 space-y-1.5">
         <span className="flex items-center justify-between gap-2 text-sm font-semibold">
           {title}
           <ArrowRight

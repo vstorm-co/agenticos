@@ -444,6 +444,10 @@ class MessageRead(MessageBase, TimestampSchema):
             "half-written answer that reads exactly like a complete one."
         ),
     )
+    run_error: str | None = Field(
+        default=None,
+        description="The safe failure explanation for a failed run, never a raw provider exception",
+    )
     run_started_at: datetime | None = Field(
         default=None, description="The parent run start shared by transcript and sidebar timers"
     )

@@ -162,7 +162,8 @@
     "details": "Ayrıntılar",
     "resourceActions": "{name} için diğer işlemler",
     "workspaceExpand": "Tam ekran",
-    "workspaceCollapse": "Tam ekrandan çık"
+    "workspaceCollapse": "Tam ekrandan çık",
+    "copyFailed": "Kopyalanamadı"
   },
   "navigation": {
     "dashboard": "Kontrol paneli",
@@ -594,11 +595,11 @@
     "share": "Paylaş",
     "sharingUpdated": "Paylaşım güncellendi",
     "visibilityOrg": "Kuruluştaki herkes",
-    "visibilityOrgReaches": "{resource, select, agent {agentları} skill {skill'leri} collection {koleksiyonları} artifact {uygulamaları} dataset {datasetler} context {bağlam dosyalarını} mcp_connection {MCP sunucularını} other {gizli bilgileri}} görüntüleyebilen kuruluştaki herkes.",
+    "visibilityOrgReaches": "{resource, select, agent {agentları} skill {skill'leri} collection {koleksiyonları} artifact {uygulamaları} dataset {datasetler} context {bağlam dosyalarını} mcp_connection {MCP sunucularını} project {projeler} other {gizli bilgileri}} görüntüleyebilen kuruluştaki herkes.",
     "visibilityPrivate": "Yalnızca erişimi olan kişiler",
-    "visibilityPrivateReaches": "Yalnızca yukarıda listelenen kişiler. Başka hiç kimse listesinde bu {resource, select, agent {Agent'ı} skill {skill'i} collection {koleksiyonu} artifact {uygulamayı} dataset {datasetler} context {bağlam dosyasını} mcp_connection {MCP sunucusunu} other {gizli bilgiyi}} göremez - henüz sahibi yoksa sahibi siz olursunuz.",
+    "visibilityPrivateReaches": "Yalnızca yukarıda listelenen kişiler. Başka hiç kimse listesinde bu {resource, select, agent {Agent'ı} skill {skill'i} collection {koleksiyonu} artifact {uygulamayı} dataset {datasetler} context {bağlam dosyasını} mcp_connection {MCP sunucusunu} project {proje} other {gizli bilgiyi}} göremez - henüz sahibi yoksa sahibi siz olursunuz.",
     "visibilityTeam": "Ekip (artık sunulmuyor)",
-    "visibilityTeamReaches": "Rolü ekip {resource, select, agent {agentlarına} skill {skill'lerine} collection {koleksiyonlarına} artifact {uygulamalarına} dataset {datasetler} context {bağlam dosyalarına} mcp_connection {MCP sunucularına} other {gizli bilgilere}} erişim sağlayan herkes. Bu kuruluşta ekip yok - yukarıdaki iki seçenekten birini seçin.",
+    "visibilityTeamReaches": "Rolü ekip {resource, select, agent {agentlarına} skill {skill'lerine} collection {koleksiyonlarına} artifact {uygulamalarına} dataset {datasetler} context {bağlam dosyalarına} mcp_connection {MCP sunucularına} project {projeler} other {gizli bilgilere}} erişim sağlayan herkes. Bu kuruluşta ekip yok - yukarıdaki iki seçenekten birini seçin.",
     "visibilityUpdated": "Görünürlük güncellendi",
     "groupsHeading": "Gruplar",
     "membersHeading": "Üyeler",
@@ -651,7 +652,7 @@
     "folderMadeByNaming": "Klasör oluşturmak için içindeki dosyaya klasör yolunu verin; ayrıca oluşturulacak başka bir şey yok.",
     "groupsListingNeverReaches": "Listeyi gruplandırır. Modele iletilmez.",
     "hide": "Gizle",
-    "howModelRefersSkill": "Modelin bu skill'den nasıl söz edeceği: refund-policy gibi küçük harfler, rakamlar ve tireler kullanın. Daha sonra değiştirilemez.",
+    "howModelRefersSkill": "Model bu skill’e bu adla başvurur. Büyük harfler, boşluklar ve noktalama otomatik biçimlendirilir; örneğin Refund Policy, refund-policy olur. Kaydedilen ad değiştirilemez.",
     "howRefundsTheirExceptions": "İadelerin ve istisnalarının nasıl ele alınacağı.",
     "markdownLoadedOnlyAfter": "Markdown. Yalnızca açıklama modeli yüklemeye ikna ettikten sonra yüklenir; bu nedenle gerekene kadar uzunluğu maliyet oluşturmaz.",
     "markdownYouCanFill": "Markdown. Bunu daha sonra doldurabilirsiniz; yalnızca açıklama modeli ikna ettikten sonra yüklenir.",
@@ -707,7 +708,13 @@
     "whoCanUseIt": "Kimler kullanabilir?",
     "page": {
       "skillDetails": "Beceri ayrıntıları",
-      "openFullView": "Tam görünümü aç"
+      "openFullView": "Tam görünümü aç",
+      "content": {
+        "description": "Açıklama",
+        "instructions": "Talimatlar",
+        "files": "Dosyalar",
+        "noFiles": "Dosya yok."
+      }
     }
   },
   "workflows": {
@@ -2276,7 +2283,11 @@
       "blockedLink": "Sayfanın herkese açık bağlantısı yok. Önce bağlantı oluşturun."
     },
     "lightTheme": "Açık uygulama temasını kullan",
-    "darkTheme": "Koyu uygulama temasını kullan"
+    "darkTheme": "Koyu uygulama temasını kullan",
+    "linkSettings": "Bağlantı ayarları",
+    "passwordProtected": "Parola korumalı",
+    "expiresOn": "Bitiş: {date}",
+    "embedSiteCount": "{count, plural, one {# yerleştirme sitesi} other {# yerleştirme sitesi}}"
   },
   "mcpOauth": {
     "title": "{client} sizin adınıza işlem yapmak istiyor",
@@ -3373,7 +3384,6 @@
       "agentActivity": "Agent etkinliği",
       "allConversationsKnowledgeBase": "Tüm konuşmalar, bilgi tabanı içerikleri, API anahtarları ve kişisel veriler kalıcı olarak silinir. Etkin abonelikler iptal edilir.",
       "alwaysSent": "Her zaman gönderilir",
-      "avatar": "Avatar",
       "avatarTooLargeMaximum2": "Avatar çok büyük. En fazla 2 MB olabilir.",
       "avatarUpdated": "Avatar güncellendi",
       "cancel": "İptal",
@@ -3418,7 +3428,7 @@
       "noMarketingEmail": "Pazarlama e-postası yok.",
       "notOptional": "İsteğe bağlı değil -",
       "notificationPreferences": "Bildirim tercihleri",
-      "notificationPreferencesDescription": "Yukarıdaki e-posta ayarlarından daha ayrıntılıdır: agentlarınız canlı olarak izlenmiyorken çalıştığında olay bazında uygulama içi veya e-posta bildirimi gönderir. Açıkça ayarlanmamış anahtar varsayılan olarak açıktır.",
+      "notificationPreferencesDescription": "Her kanala ulaşacak olayları seçin. Özel sohbetler için Özel sohbet bildirimleri bölümünde bir hedef de gerekir. Olayları kapatmadığınız sürece bildirimler açıktır.",
       "nothingChanged": "Değişiklik yapılmadı",
       "nothingHereChargesYou": "Burada ücret alınmaz; dolayısıyla yenileme, ödeme hatası veya kredi uyarısı yoktur.",
       "optionalApprovals": "Onay istekleri",
@@ -3459,7 +3469,6 @@
       "revokesEveryActiveSession": "Bu işlem tüm etkin oturumları iptal eder ve bu cihazdaki oturumunuzu da kapatır.",
       "saveChanges": "Değişiklikleri kaydet",
       "saving2": "Kaydediliyor…",
-      "saving3": "Kaydediliyor…",
       "selfDeleteNotEnabled": "Kendi hesabınızı silme özelliği etkin değil. Destek ekibiyle iletişime geçin.",
       "selfHostedDeploymentThere": "Bu dağıtım kendi sunucunuzda barındırılıyor. Bülten veya abone listesi yok.",
       "sentInvitation": "Kuruluş daveti",
@@ -3562,7 +3571,12 @@
           "turnOff": "Bu iPhone’da kapat"
         }
       },
-      "whoReceivesThis": "Bu bildirimi kim alır?"
+      "whoReceivesThis": "Bu bildirimi kim alır?",
+      "notificationSearch": "Bildirimlerde ara…",
+      "notificationNoMatches": "Eşleşen bildirim yok",
+      "notificationSearchHint": "Olay adını veya açıklamasından bir kelimeyi deneyin.",
+      "notificationClearSearch": "Aramayı temizle",
+      "notificationEventCount": "{count, plural, =1 {1 olay} other {# olay}}"
     },
     "rag": {
       "active": "Etkin",
@@ -3614,15 +3628,18 @@
     "vault": {
       "accessTo": "{name} erişimi",
       "addKey": "Anahtar ekle",
-      "addKey2": "Anahtar ekle",
-      "addOneBecomesSelectable": "Bir anahtar ekleyin; Builder içindeki model providerı veya capability içindeki arama hizmeti gibi, gerektiği yerlerde seçilebilir olsun.",
-      "keys": "Anahtarlar",
-      "noKeysYet": "Henüz anahtar yok",
       "pageDescription": "Bu kuruluşun sakladığı tüm anahtarlar. Şifrelenir, kuruluşa bağlanır ve yeniden okunamaz; anahtar gösterilmek yerine değiştirilebilir.",
       "storedCount": "{count, plural, =1 {1 anahtar saklandı} other {# anahtar saklandı}}",
       "vault": "Vault",
-      "vault2": "Vault",
-      "whoCanBindKey": "Bu anahtarı hangi kullanıcıların agenta bağlayıp yenileyebileceği veya silebileceği. Kimsenin erişemediği bir anahtarla hiçbir capability yapılandırılamaz."
+      "whoCanBindKey": "Bu anahtarı hangi kullanıcıların agenta bağlayıp yenileyebileceği veya silebileceği. Kimsenin erişemediği bir anahtarla hiçbir capability yapılandırılamaz.",
+      "connectAccount": "Hesap bağla",
+      "personalAccount": "Hesabınız",
+      "organizationAccount": "Kuruluş hesabı",
+      "emptyTitle": "Henüz kimlik bilgisi yok",
+      "emptyDetail": "Ajanlarınızla kullanmak için bir anahtar ekleyin veya hesap bağlayın.",
+      "connectedAccounts": {
+        "reconnectNamed": "{email} hesabını yeniden bağla"
+      }
     },
     "workspaces": {
       "failedLoadWorkspaces": "Workspace içerikleri yüklenemedi",
@@ -4624,7 +4641,7 @@
     "manageConnectionsOn": "{name} üzerinde {count, plural, =1 {1 bağlantıyı} other {# bağlantıyı}} yönetin",
     "name": "Tool öneki",
     "prefixPlaceholder": "wiki",
-    "nameMustBeLowercase": "Ad yalnızca küçük harf, rakam ve tire içerebilir (en fazla 32 karakter).",
+    "nameMustBeLowercase": "Biçimlendirmeden sonra en fazla 32 karakter olan, harf veya rakam içeren bir ad girin.",
     "namePrefixesToolNames": "Küçük harf, rakam ve tire kullanın. Model her tool çağrısından önce bu adı okur; bu nedenle {scope, select, organization {kuruluşun} other {sizin}} server'ları arasında benzersiz olmalıdır.",
     "needsAuthorization": "Yetkilendirme gerekiyor",
     "noToolMatches": "Eşleşen tool yok.",
@@ -5929,9 +5946,8 @@
     "connectionSDefaultIs": "Bağlantının varsayılanı - {alias}",
     "considerOnlyMostLikely": "Bu olasılık kütlesini oluşturan en olası token'ları dikkate alın. Bunu veya temperature'ı ayarlayın, ikisini birden değil.",
     "contextCount": "{count, plural, =1 {1 context dosyası} other {# context dosyası}}",
-    "contextFilesDetail": "Agent'ın sürekli okuduğu context: prompt'una eklenen bir sözlük veya politika ya da ihtiyaç duyduğunda okuduğu dosyalar.",
     "contextFilesHeading": "Context dosyaları",
-    "contextInjectOnlyNoTools": "Buraya bağlanan her dosya prompt'a eklenir; bu nedenle okuma tool'ları (list_context, read_context) eklenmez. Agent metne zaten sahiptir ve gerektiğinde okuyacağı başka bir şey yoktur. Tool'ları vermek için dosyayı bağlantılı olarak ayarlayın.",
+    "contextInjectOnlyNoTools": "Eklenen bağlam prompt'a dahil edilir. En az bir etkin dosya bağlantılı olduğunda bağlam okuma araçları görünür.",
     "contextLoadingHint": "Eklenen dosya her run'a dahil edilir; bağlantılı dosyayı Agent yalnızca ilgili olduğuna karar verirse okur. <link>Context'i yönet</link>",
     "contextOffButBound": "Context kapalı; eklenenler dahil hiçbir dosya modele ulaşmaz çünkü ekleme burada yapılır. Dosyalar spec'te kalır ve yayınlarken denetlenir. Yukarıdan açın veya seçimlerini kaldırın.",
     "contextPlacement": "Bu yerleşim için context",
@@ -6749,7 +6765,8 @@
     "stavEndpointHint": "api.stav.ai için boş bırakın. Yalnızca Stav.ai’nin bölgesel veya test uç noktası için değiştirin.",
     "otariEndpointHint": "Modelleri yüklemeden önce /api/v1 ile biten ağ geçidi URL’sini girin. Barındırılan hizmet: https://api.otari.ai/api/v1. AB: https://eu.api.otari.ai/api/v1.",
     "loadGatewayModels": "Modelleri yükle",
-    "modelIdOtariHint": "Otari ağ geçidinizde tanımlanan provider:model biçimini veya bir takma ad/yönlendirme politikasını kullanın."
+    "modelIdOtariHint": "Otari ağ geçidinizde tanımlanan provider:model biçimini veya bir takma ad/yönlendirme politikasını kullanın.",
+    "useDefaultModel": "Varsayılan modeli kullan"
   },
   "dashboard": {
     "edit": {
@@ -8232,7 +8249,7 @@
       },
       "vault-keys": {
         "title": "Saklananlar",
-        "body": "Kuruluştaki tüm kimlik bilgileri ad ve türlerine göre listelenir. Agent bir key’e adıyla başvurur; kaydettikten sonra değeri kimseye gösterilmez."
+        "body": "Anahtarlar ve bağlı hesaplar aynı tabloda yer alır. Her kaydın erişimini ve işlemlerini kontrol edin; kayıtlı anahtar değerleri ve OAuth belirteçleri gizli kalır. Üstteki Hesap bağla düğmesiyle kendi hesabınızı veya yönetebildiğiniz bir kuruluş hesabını ekleyin."
       },
       "vault-new": {
         "title": "Vault",
@@ -9013,9 +9030,10 @@
       "elapsedMinutes": "{minutes} dk.{seconds, plural, =0 {} other { # sn.}}",
       "stopped": "Durduruldu{count, plural, =0 {} =1 { · 1 adım} other { · # adım}}",
       "stoppedAfter": "{duration} sonra durduruldu{count, plural, =0 {} =1 { · 1 adım} other { · # adım}}",
-      "activityCount": "{count, plural, one {# işlem} other {# işlem}}"
+      "activityCount": "{count, plural, one {# işlem} other {# işlem}}",
+      "failedWork": "Başarısız{count, plural, =0 {} =1 { · 1 adım} other { · # adım}}",
+      "failedAfter": "{duration} sonra başarısız{count, plural, =0 {} =1 { · 1 adım} other { · # adım}}"
     },
-    "streamError": "❌ Hata: {message}",
     "turnInterrupted": "Yanıtın ortasında bağlantı kesildi. Agent turu tamamlayıp yanıtı bu konuşmaya kaydeder.",
     "turnInterruptedRecheck": "Yanıtı kontrol et",
     "turnStillArriving": "Önceki yanıt hâlâ yazılıyor. Tamamlandığında bu konuşmada, az önce sorduğunuz sorunun altında görünür.",
@@ -9838,7 +9856,9 @@
       "notice": "Kurulum yanıtı · AI modeli çağrılmadı ve sağlayıcı kullanım ücreti oluşmadı.",
       "ownerHint": "Çalışma alanı yöneticin ekip için AI bağlayabilir. Kendi anahtarını sağlaman gerekmez.",
       "contact": "Yöneticinle iletişime geç"
-    }
+    },
+    "runFailedTitle": "Çalıştırma tamamlanmadı",
+    "runFailedHint": "Nihai yanıt üretilmedi. Yukarıdaki çalışmayı inceleyebilirsiniz."
   },
   "admin": {
     "actions": "Eylemler",
@@ -10022,23 +10042,27 @@
     "delete2": "Sil",
     "disableAnyYouDon": "Palet içinde görmek istemediğiniz komutları devre dışı bırakın.",
     "edit": "Düzenle",
-    "edit2": "Düzenle",
     "enabled": "Etkin",
     "failedDelete3": "Silinemedi",
     "failedSaveCommand": "Komut kaydedilemedi",
     "failedToggle": "Ayar değiştirilemedi",
     "failedToggle2": "Ayar değiştirilemedi",
     "local": "yerel",
-    "lowercaseLettersDigitsHyphens": "Küçük harf, rakam ve tire kullanın. En fazla 32 karakter.",
+    "lowercaseLettersDigitsHyphens": "Büyük harfler, boşluklar ve noktalama otomatik biçimlendirilir; örneğin Daily Review, daily-review olur. En fazla 32 karakter.",
     "modelAdded": "{label} eklendi",
     "modelRemoved": "Model kaldırıldı",
     "modelUpdated": "{label} güncellendi",
     "modelInUse": "{label} hâlâ {names} tarafından kullanılıyor{hidden, plural, =0 {} one { ve göremediğiniz 1 agent tarafından} other { ve göremediğiniz # agent tarafından}}. Önce onları başka bir modele taşıyın veya bu modeli silmek yerine anahtarını değiştirin. {archived, plural, =0 {} one {Bir tanesi arşivlenmiş: silin veya geri yükleyip taşıyın.} other {# tanesi arşivlenmiş: silin veya geri yükleyip taşıyın.}}",
     "modelInUseHidden": "{label}, göremediğiniz {count, plural, one {1 agent} other {# agent}} tarafından kullanılmaya devam ediyor. Önce başka bir modele taşınmaları için yöneticiden yardım isteyin.",
     "name": "Ad",
-    "nameMustBeLowercase": "Ad yalnızca küçük harf, rakam ve tire içerebilir (en fazla 32 karakter).",
+    "nameMustBeLowercase": "Biçimlendirmeden sonra en fazla 32 karakter olan, harf veya rakam içeren bir ad girin.",
     "newCommand": "Yeni komut",
     "newCustomCommand": "Yeni özel komut",
+    "toggleCommand": "/{name} etkinleştir",
+    "commandCreated": "/{name} oluşturuldu.",
+    "commandUpdated": "/{name} güncellendi.",
+    "commandDeleted": "/{name} silindi.",
+    "confirmDeleteCommand": "Komut ve kayıtlı istemi silinir. Mevcut konuşmalar korunur.",
     "noCustomCommandsYet": "Henüz özel komut yok",
     "prompt": "Prompt",
     "promptCannotBeEmpty": "Prompt boş olamaz.",
@@ -10097,7 +10121,17 @@
     "couldNotLoad": "API anahtarlarınız yüklenemedi",
     "emptyTitle": "Henüz API anahtarı yok",
     "emptyWhy": "Bir betikten, Postman’den veya Claude Code’dan API’yi çağırmak için anahtar oluşturun.",
-    "personalConsentWhy": "Kişisel onay hazır izin kümelerine dahil değildir. Bu anahtarın veya uygulamanın kişisel bağlantılarınızı ve verilerinizi kullanan rutinleri ve izlemeleri onaylamasına izin vermek için Özel altında personal:consent seçeneğini işaretleyin."
+    "personalConsentWhy": "Kişisel onay hazır izin kümelerine dahil değildir. Bu anahtarın veya uygulamanın kişisel bağlantılarınızı ve verilerinizi kullanan rutinleri ve izlemeleri onaylamasına izin vermek için Özel altında personal:consent seçeneğini işaretleyin.",
+    "search": "API anahtarlarında ara…",
+    "noMatches": "Eşleşen API anahtarı yok",
+    "searchHint": "Anahtar adını, öneki veya oluşturan kişinin e-posta adresini deneyin.",
+    "clearSearch": "Aramayı temizle",
+    "keyCount": "{count, plural, =1 {1 anahtar} other {# anahtar}}",
+    "permissionSearch": "İzin bul",
+    "permissionPlaceholder": "İzinlerde ara…",
+    "noPermissions": "Bu aramayla eşleşen izin yok.",
+    "permissionDetails": "{count, plural, =1 {1 izni görüntüle} other {# izni görüntüle}}",
+    "couldNotLoadScopes": "Kullanılabilir izinler yüklenemedi"
   },
   "kb": {
     "addIntegration": "Entegrasyon ekle",
@@ -10656,6 +10690,8 @@
     "resultInbox": "Yalnızca dikkat gerektiğinde",
     "resultReportHint": "Her çalışmadan sonra seçilen sohbete bir rapor gönderin.",
     "resultInboxHint": "Her kaynak öğesi için bir Inbox kaydı ve çalışma sohbeti oluşturun. İstenen taslakları buraya yazın; değişmeyen kontroller sessiz kalır. Göndermek yine yetki ve onay gerektirir.",
+    "clearSearch": "Aramayı temizle",
+    "noRoutineMatchesHint": "Agent adı, rutin başlığı veya mesajındaki sözcüklerle arayın.",
     "actionConsents": {
       "checkConnections": "Eylemlerini incelemek için bu bağlantıları kontrol edin: {names}.",
       "personalAccount": "{name} · hesabınız",
@@ -11036,7 +11072,13 @@
       "nothingSharedHint": "Grubun Paylaşım panelinden bir öğe paylaşın veya grup sayfasından aynı anda birkaç öğe ekleyin."
     },
     "addToGroupAll": "Tümünü seç",
-    "addToGroupNone": "Seçimi temizle"
+    "addToGroupNone": "Seçimi temizle",
+    "searchGroups": "Bölüm ara…",
+    "noMatches": "Eşleşen bölüm yok",
+    "searchHint": "Bölüm adı veya açıklamasındaki bir sözcükle arayın.",
+    "clearSearch": "Aramayı temizle",
+    "formDescription": "Bir ad ve simge seçin. Bölümün amacını anlatan kısa bir açıklama ekleyin.",
+    "budgetOptions": "Bütçe sınırı"
   },
   "legal": {
     "acceptAll": "Tümünü kabul et",
@@ -11924,7 +11966,9 @@
       "noneInVault": "Vault’ta henüz {provider} key’i yok. Önce vault’a ekleyin, ardından buradan seçin.",
       "notShared": "{name} vault’ta var ancak burada kullanılmadan önce tüm kuruluşla paylaşılmalı. Vault’tan erişimini değiştirin.",
       "chatGPTSignIn": "{name}, ChatGPT aboneliği üzerinden model erişimi sağlayan bir ChatGPT oturum açmasıdır. Voice özellikleri OpenAI API key’i gerektirir; bu oturum açma burada kullanılamaz."
-    }
+    },
+    "notRecorded": "Kaydedilmedi",
+    "googleAccount": "Google hesabı"
   },
   "portals": {
     "mailboxInterval": {
@@ -12772,7 +12816,7 @@
   },
   "apiUsage": {
     "title": "API’yi kullanın",
-    "why": "API key’in HTTP üzerinden yapabildiği her şey: agent çalıştırmak, run’ları ve maliyetlerini okumak, bilgi tabanlarını doldurup aramak, üyeleri yönetmek. Aşağıdan key oluşturup temel URL’yi çağırın.",
+    "why": "API anahtarıyla HTTP üzerinden agent çalıştırın, run bilgilerini okuyun, bilgi tabanlarında arayın ve kaynakları yönetin. Temel URL’yi kopyalayın ve anahtarı bearer token olarak gönderin.",
     "baseUrl": "Temel URL",
     "auth": "Key’i <code>Authorization: Bearer aos_…</code> header’ında gönderin.",
     "reference": "API başvurusu: tüm endpoint’ler",
@@ -13331,5 +13375,39 @@
       "guideName": "AgenticOS",
       "advancedAccess": "E-posta alan adları, başlangıç rolleri ve hesap sınırları ↗"
     }
+  },
+  "notificationRoutes": {
+    "title": "Özel sohbet bildirimleri",
+    "description": "Bu kuruluşun bildirimlerinizi nereye gönderebileceğini seçin. Yalnızca bağladığınız özel sohbetler kullanılabilir. Olay ve rutin tercihleri geçerliliğini korur. E-posta ve push ayrı yapılandırılır.",
+    "off": "Kapalı",
+    "unavailable": "Hedef kullanılamıyor — yeniden seçin veya kapatın",
+    "connect": "Önce bu kuruluşun botlarından birine özel mesaj gönderin ve hesabınızı bağlayın.",
+    "destination": "{bot} · {account} · {id}",
+    "loadFailed": "Bildirim hedefleri yüklenemedi",
+    "saveFailed": "Bildirim hedefi kaydedilemedi",
+    "email": "E-posta",
+    "push": "Cihaz bildirimleri",
+    "slack": "Slack",
+    "telegram": "Telegram",
+    "mattermost": "Mattermost",
+    "teams": "Microsoft Teams",
+    "sms": "SMS",
+    "imessage": "iMessage",
+    "discord": "Discord",
+    "platformOptions": "Sohbet platformları"
+  },
+  "resourceAppearance": {
+    "title": "Simge",
+    "change": "Simgeyi değiştir",
+    "table": "Tablo",
+    "workflow": "İş akışı",
+    "reset": "Varsayılan simgeyi kullan"
+  },
+  "improvementSetup": {
+    "noFeedback": "Henüz geri bildirim yok",
+    "openChat": "Sohbeti aç",
+    "contextTitle": "Bağlamı iyileştir",
+    "contextBody": "Asistan, agentların bu bağlam dosyasını kullandığı konuşmalardaki geri bildirimleri kullanır. Uygulamadan önce her öneriyi inceleyin.",
+    "costs": "Maliyetler ve sınırlar"
   }
 }

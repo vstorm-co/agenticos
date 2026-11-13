@@ -30,3 +30,9 @@ it("opens secondary commands without replacing the primary action and closes on 
   await userEvent.click(document.body);
   expect(toggle).toHaveAttribute("aria-expanded", "false");
 });
+
+it("keeps a resource icon picker outside the heading's accessible name", () => {
+  render(<PageHeader title="Orders" icon={<button>Change icon</button>} />);
+  expect(screen.getByRole("heading", { name: "Orders" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Change icon" }).closest("h1")).toBeNull();
+});

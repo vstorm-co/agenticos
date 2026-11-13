@@ -31,15 +31,14 @@ export default function GroupsPage({ params }: PageProps) {
   const { id: orgId } = use(params);
   const { can } = usePermissions();
   const canManage = can(Perm.membersManage);
-  const { groups, isLoading, error, remove } = useGroups(orgId);
+  const { groups, isLoading, error, remove, refetch } = useGroups(orgId);
   // `"new"` for the create dialog, a group for the edit one.
   const [editing, setEditing] = useState<Group | "new" | null>(null);
   const [deleting, setDeleting] = useState<Group | null>(null);
   const [viewing, setViewing] = useState<Group | null>(null);
 
-  const confirmDelete = async (group: Group) => {
-    await remove.mutateAsync(group.id).catch(() => undefined);
-    setDeleting(null);
+  const confirmDelete = (group: Group) => {
+    remove.mutate(group.id, { onSuccess: () => setDeleting(null) });
   };
 
   return (
@@ -69,6 +68,7 @@ export default function GroupsPage({ params }: PageProps) {
 
       <GroupList
         groups={groups}
+        onRetry={() => void refetch()}
         isLoading={isLoading}
         error={error}
         canManage={canManage}

@@ -111,9 +111,9 @@ test.describe("Refusals", () => {
     const expected = new Map<string, boolean>();
     for (const { permission } of GOVERNED) {
       const scope = await scopeInMatrix(page, role, permission);
-      // "—" is the catalog saying no; null means this server does not define the
+      // "-" is the catalog saying no; null means this server does not define the
       // permission at all, and inventing an expectation for it would be a guess.
-      if (scope !== null) expected.set(permission, scope !== "—");
+      if (scope !== null) expected.set(permission, scope !== "-");
     }
     expect(
       expected.size,

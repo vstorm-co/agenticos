@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -190,4 +190,22 @@ it("shows an empty result and lets Escape preserve the stored alias", async () =
   expect(screen.getByText("No matching time zones")).toBeVisible();
   await userEvent.keyboard("{Escape}");
   expect(screen.getByRole("combobox", { name: "Time zone" })).toHaveTextContent("US/Eastern");
+});
+
+it("rejects an extra form submission while the first save is pending", async () => {
+  let complete!: (value: User) => void;
+  save.mockImplementation(
+    () =>
+      new Promise<User>((resolve) => {
+        complete = resolve;
+      }),
+  );
+  render(<AgentContextSettings user={user()} />);
+  const button = screen.getByRole("button", { name: "Save" });
+  await userEvent.click(button);
+  const form = button.closest("form");
+  if (!form) throw new Error("Missing context form");
+  fireEvent.submit(form);
+  expect(save).toHaveBeenCalledOnce();
+  complete(user());
 });

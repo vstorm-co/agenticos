@@ -40,12 +40,26 @@ describe("IdeaSkillDialog", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
+  it("accepts a human title while editing without premature errors", async () => {
+    const { onCreate } = preview();
+    const field = screen.getByLabelText("Name");
+    await userEvent.clear(field);
+    await userEvent.type(field, "Strategic Diagnostic");
+    expect(field).toHaveValue("Strategic Diagnostic");
+    expect(field).not.toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByRole("button", { name: "Create skill" })).toBeEnabled();
+    await userEvent.click(screen.getByRole("button", { name: "Create skill" }));
+    expect(onCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "strategic-diagnostic" }),
+    );
+  });
+
   it("warns on few answers and holds back a name the library would refuse", async () => {
     preview({ answers: 1 } as never);
     expect(screen.getByRole("status")).toHaveTextContent(
       "Based on 1 answer. Check it before you create it.",
     );
-    expect(screen.getByLabelText("Name")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText("Name")).not.toHaveAttribute("aria-invalid", "true");
     await userEvent.type(screen.getByLabelText("Name"), "Returns");
     expect(screen.getByRole("button", { name: "Create skill" })).toBeDisabled();
     await userEvent.clear(screen.getByLabelText("Name"));

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarClock } from "lucide-react";
+import { CalendarClock, Search } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { ErrorState, LoadingState } from "@/components/states";
@@ -22,6 +22,7 @@ export function RoutinesList() {
   const t = useTranslations("triggers");
   const tw = useTranslations("watches");
   const tErrors = useTranslations("errors");
+  const tc = useTranslations("common");
   const tasks = useOrgTriggers();
   const monitoring = useWatches();
   const { connections } = useMcpConnections();
@@ -69,7 +70,17 @@ export function RoutinesList() {
         }
       >
         {error ? (
-          <ErrorState description={getErrorMessage(error, tErrors)} className="m-5" />
+          <ErrorState
+            description={getErrorMessage(error, tErrors)}
+            cta={{
+              label: tc("retry"),
+              onClick: () => {
+                void tasks.refetch();
+                void monitoring.refetch();
+              },
+            }}
+            className="m-5"
+          />
         ) : loading ? (
           <LoadingState variant="skeleton-list" rows={4} />
         ) : items.length === 0 ? (
@@ -81,7 +92,12 @@ export function RoutinesList() {
         ) : (
           <div className="space-y-3">
             {list.visible.length === 0 ? (
-              <p className="text-muted-foreground text-sm">{t("noRoutineMatches")}</p>
+              <ListCardEmpty
+                icon={Search}
+                title={t("noRoutineMatches")}
+                description={t("noRoutineMatchesHint")}
+                cta={{ label: t("clearSearch"), onClick: () => list.setQuery("") }}
+              />
             ) : (
               <ul className="space-y-3">
                 {list.visible.map((item) =>
