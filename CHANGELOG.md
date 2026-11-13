@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.73.0] - 2026-11-13
+
 ### Added
 
 - **Revert a coding task.** The task panel can restore a complete task's files in its original conversation workspace, with edit access and an audit entry. A durable job reserves the workspace and reconciles uncertain results without applying undo twice. Later changes to any affected file refuse the whole revert. Shared, older, truncated, redacted or linked-file snapshots cannot be reverted.
@@ -21674,7 +21676,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.72.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.73.0...HEAD
+[1.73.0]: https://github.com/vstorm-co/agenticos/compare/v1.72.0...v1.73.0
 [1.72.0]: https://github.com/vstorm-co/agenticos/compare/v1.71.2...v1.72.0
 [1.71.2]: https://github.com/vstorm-co/agenticos/compare/v1.71.1...v1.71.2
 [1.71.1]: https://github.com/vstorm-co/agenticos/compare/v1.71.0...v1.71.1
