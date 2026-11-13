@@ -3,6 +3,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { ErrorState } from "@/components/states";
 import { Button } from "@/components/ui";
 import { StartGuide } from "./start-guide";
 import styles from "./guided-start.module.css";
@@ -63,6 +64,27 @@ export function StartQuestion({
           </Button>
         </footer>
       </section>
+    </div>
+  );
+}
+
+/**
+ * A question step whose settings could not be read: retry, or leave the step -
+ * the wizard's own Back is hidden on a step asked as questions.
+ */
+export function StartStepFailed({ onRetry, onBack }: { onRetry: () => void; onBack?: () => void }) {
+  const t = useTranslations("start.guided");
+  return (
+    <div>
+      <ErrorState title={t("loadFailed")} cta={{ label: t("retry"), onClick: onRetry }} />
+      {onBack && (
+        <div className="flex justify-center">
+          <Button variant="ghost" onClick={onBack}>
+            <ArrowLeft size={15} aria-hidden />
+            {t("back")}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

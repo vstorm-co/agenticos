@@ -8,10 +8,9 @@ import {
   useDeploymentSettings,
   type DeploymentSettingsPatch,
 } from "@/hooks/use-deployment-settings";
-import { ErrorState } from "@/components/states";
 import type { Organization } from "@/types";
 import { StartSkeleton } from "./start-skeleton";
-import { StartQuestion } from "./start-question";
+import { StartQuestion, StartStepFailed } from "./start-question";
 import {
   DeploymentAccess,
   DeploymentDestination,
@@ -50,13 +49,7 @@ export function StartDeployment({
   const [edits, setEdits] = useState<DeploymentSettingsPatch>({});
   const [failed, setFailed] = useState(false);
   if (isLoading) return <StartSkeleton view="deployment" question={question} fullPage={false} />;
-  if (error || !settings)
-    return (
-      <ErrorState
-        title={t("loadFailed")}
-        cta={{ label: t("retry"), onClick: () => void refetch() }}
-      />
-    );
+  if (error || !settings) return <StartStepFailed onRetry={() => void refetch()} onBack={onBack} />;
   const changes: DeploymentSettingsPatch = {
     ...(question === "announcement" && !settings.announcement
       ? { announcement: t("announcementPlaceholder") }

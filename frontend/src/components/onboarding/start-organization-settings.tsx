@@ -13,13 +13,12 @@ import {
   OrgAssistant,
   OrgSystemAgents,
 } from "@/components/teams";
-import { ErrorState } from "@/components/states";
 import { usePermissions } from "@/hooks/use-permissions";
 import type { Organization } from "@/types";
 import { Perm } from "@/types/permissions";
 import { StartSkeleton } from "./start-skeleton";
 import { StartBudget } from "./start-budget";
-import { StartQuestion } from "./start-question";
+import { StartQuestion, StartStepFailed } from "./start-question";
 import styles from "./guided-start.module.css";
 
 export function StartOrganizationSettings({
@@ -47,13 +46,7 @@ export function StartOrganizationSettings({
     if (active && isLoaded)
       rememberStartQuestion("admin.organization", org.id, showBudget ? "budget" : "advanced");
   }, [active, isLoaded, org.id, showBudget]);
-  if (error)
-    return (
-      <ErrorState
-        title={t("loadFailed")}
-        cta={{ label: t("retry"), onClick: () => void refetch() }}
-      />
-    );
+  if (error) return <StartStepFailed onRetry={() => void refetch()} onBack={onBack} />;
   if (!isLoaded)
     return <StartSkeleton fullPage={false} view={budgetDone ? "organization" : "budget"} />;
   if (showBudget)

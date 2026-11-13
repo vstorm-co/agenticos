@@ -22,7 +22,9 @@ const env = vi.hoisted(() => ({
   budget: vi.fn(),
   next: vi.fn(),
   pending: false,
+  failed: false,
   permissions: new Set<Permission>(),
+  permissionsFailed: false,
 }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn() }),
@@ -30,7 +32,9 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@/hooks/use-deployment-settings", () => ({
   useDeploymentSettings: () => ({
-    settings: env.settings,
+    settings: env.failed ? undefined : env.settings,
+    error: env.failed ? new Error("unavailable") : null,
+    refetch: vi.fn(),
     isLoading: false,
     save: { mutateAsync: env.save, isPending: env.pending },
   }),
@@ -42,6 +46,8 @@ vi.mock("@/hooks/use-permissions", () => ({
   usePermissions: () => ({
     can: (permission: Permission) => env.permissions.has(permission),
     isLoaded: true,
+    error: env.permissionsFailed ? new Error("unavailable") : null,
+    refetch: vi.fn(),
   }),
 }));
 vi.mock("@/components/teams", () => ({
@@ -81,6 +87,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   window.history.replaceState(null, "", "/onboarding");
   env.pending = false;
+  env.failed = false;
+  env.permissionsFailed = false;
   env.permissions = new Set();
   env.save.mockResolvedValue({});
   env.budget.mockResolvedValue(org);
@@ -331,4 +339,18 @@ it("selects and saves a budget in whole dollars", async () => {
   expect(slider).toHaveAttribute("aria-valuetext", "$354");
   await proceed();
   expect(env.budget).toHaveBeenCalledWith("company", 354);
+});
+
+it("still leaves the step when its settings could not be read", async () => {
+  env.failed = true;
+  const back = vi.fn();
+  const { unmount } = render(<StartDeployment org={org} onContinue={env.next} onBack={back} />);
+  await userEvent.click(screen.getByRole("button", { name: "Back" }));
+  expect(back).toHaveBeenCalledOnce();
+  unmount();
+
+  env.permissionsFailed = true;
+  render(<StartOrganizationSettings org={org} onContinue={env.next} onBack={back} />);
+  await userEvent.click(screen.getByRole("button", { name: "Back" }));
+  expect(back).toHaveBeenCalledTimes(2);
 });
