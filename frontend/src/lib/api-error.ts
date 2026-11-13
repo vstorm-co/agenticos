@@ -235,6 +235,36 @@ export function schemaDependents(error: unknown): SchemaDependent[] | null {
   return named.length > 0 ? named : null;
 }
 
+/** Why a formula was refused, by a stable reason, and the values its sentence names. */
+export interface FormulaRefusal {
+  /** The formula's field, `columns.<index>.formula`. */
+  field: string;
+  reason: string;
+  params: Record<string, string | number>;
+}
+
+/**
+ * What an `INVALID_SCHEMA` refusal of a formula said, so the console can say it in
+ * the reader's language. Null when the failure was not that kind.
+ */
+export function formulaRefusal(error: unknown): FormulaRefusal | null {
+  if (!(error instanceof ApiError)) return null;
+  const formula = error.details?.formula;
+  const field = fieldProblems(error)[0]?.field;
+  if (!isRecord(formula) || typeof formula.reason !== "string" || field === undefined) return null;
+  const params = isRecord(formula.params) ? formula.params : {};
+  return {
+    field,
+    reason: formula.reason,
+    params: Object.fromEntries(
+      Object.entries(params).filter(
+        (entry): entry is [string, string | number] =>
+          typeof entry[1] === "string" || typeof entry[1] === "number",
+      ),
+    ),
+  };
+}
+
 /**
  * Does this field problem belong to `owned`?
  *

@@ -12322,7 +12322,23 @@
       "label": "Formula",
       "placeholder": "'{Price}' * '{Quantity}'",
       "columns": "Columns to use",
-      "hint": "Name a column in braces. Use + - * / %, = <> < > and, or, not, and IF, ROUND, ABS, MIN, MAX, CONCAT, LEN, UPPER, LOWER, DAYS, TODAY."
+      "hint": "Name a column in braces. Use + - * / %, = <> < > and, or, not, and IF, ROUND, ABS, MIN, MAX, CONCAT, LEN, UPPER, LOWER, DAYS, TODAY. Write decimals with a dot, such as 1.23.",
+      "problem": {
+        "syntax": "The formula is not written correctly.",
+        "too_deep": "The formula nests too deeply.",
+        "constant": "A formula holds numbers, text and true or false.",
+        "unknown_name": "{name} means nothing here: name a column in braces, as '{'{name}'}'.",
+        "arithmetic": "A formula calculates with + - * / and % only.",
+        "operator": "That operator is not one a formula uses.",
+        "comparison": "A formula compares with = <> < <= > >= only.",
+        "function": "A formula calls only these functions: {functions}.",
+        "decimal_comma": "Write decimals with a dot, such as 1.23. A comma separates a function's arguments.",
+        "unsupported": "That is not something a formula can contain.",
+        "empty": "A formula column needs a formula.",
+        "too_long": "A formula is at most {limit} characters.",
+        "not_a_column": "'{'{label}'}' is not a live column of this table.",
+        "not_a_value": "'{'{label}'}' is {type, select, link {a link column} other {a formula column}}: a formula reads columns holding values."
+      }
     },
     "markdown": {
       "library": "Document templates",

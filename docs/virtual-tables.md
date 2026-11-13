@@ -153,6 +153,14 @@ it. A value it cannot work out - a division by zero, text in a sum, an empty
 cell - leaves that record's cell empty. A formula is worked out when the record
 is read, like a lookup, and is never stored, written, filtered or sorted by.
 
+Decimals are written with a dot, `{Price} * 1.23`, in every language: a comma
+separates a function's arguments, so `{Price} * 1,23` is refused with that hint
+rather than read as a number. A refusal names a stable `details.formula.reason`,
+such as `decimal_comma` or `not_a_column`, which the console uses to say it in
+the reader's language. The console shows numbers, a formula's included, with the
+reader's decimal separator - `12,177` in Polish - and leaves a four-digit number
+ungrouped.
+
 ## Changing a schema { #changing-a-schema }
 
 `PUT /tables/{id}/schema` takes the full list of columns the table should have, and

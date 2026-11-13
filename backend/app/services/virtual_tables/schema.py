@@ -301,7 +301,11 @@ def _check_formulas(columns: list[ColumnDef], renamed: Mapping[str, str]) -> lis
                 try:
                     check_formula(column.formula or "", column, columns)
                 except FormulaProblem as problem:
-                    raise InvalidSchemaError(f"columns.{index}.formula", str(problem)) from None
+                    raise InvalidSchemaError(
+                        f"columns.{index}.formula",
+                        str(problem),
+                        formula={"reason": problem.reason, "params": problem.params},
+                    ) from None
         checked.append(column)
     return checked
 

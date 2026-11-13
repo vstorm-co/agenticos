@@ -56,8 +56,8 @@ class InvalidSchemaError(ValidationError):
     message = "The schema change is not valid"
     code = "INVALID_SCHEMA"
 
-    def __init__(self, field: str, message: str) -> None:
-        super().__init__(message=message, details=field_details(field, message))
+    def __init__(self, field: str, message: str, **context: object) -> None:
+        super().__init__(message=message, details=field_details(field, message, **context))
 
 
 class RevisionConflictError(AppException):
