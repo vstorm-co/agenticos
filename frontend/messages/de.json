@@ -11419,6 +11419,7 @@
     "deleteWhy": "Alle Versionen und der öffentliche Link werden mitgelöscht, und niemand, mit dem es geteilt wurde, kann es noch öffnen. Der Agent legt ein neues an, wenn er das nächste Mal unter diesem Namen veröffentlicht.",
     "deleted": "App gelöscht",
     "publicLink": "Öffentlicher Link",
+    "publicLinkAddress": "Adresse des öffentlichen Links",
     "publicLinkOn": "Jeder mit diesem Link kann die neueste Version ohne Konto öffnen.",
     "publicLinkNone": "Nur Personen, mit denen diese App geteilt wurde, können sie öffnen.",
     "createPublicLink": "Öffentlichen Link erstellen",

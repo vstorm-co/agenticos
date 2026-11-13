@@ -11733,6 +11733,7 @@
     "deleteWhy": "Every version and the public link go with it, and nobody it was shared with can open it any more. The agent makes a new one the next time it publishes under this name.",
     "deleted": "App deleted",
     "publicLink": "Public link",
+    "publicLinkAddress": "Public link address",
     "publicLinkOn": "Anyone with this link can open the latest version, without an account.",
     "publicLinkNone": "Only people this app is shared with can open it.",
     "createPublicLink": "Create a public link",

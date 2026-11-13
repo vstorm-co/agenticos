@@ -2142,6 +2142,7 @@
     "deleteWhy": "Tüm sürümler ve herkese açık bağlantı da silinir; paylaşılan kişiler artık uygulamayı açamaz. Agent, bu adla yeniden yayımladığında yeni bir uygulama oluşturur.",
     "deleted": "Uygulama silindi",
     "publicLink": "Herkese açık bağlantı",
+    "publicLinkAddress": "Herkese açık bağlantının adresi",
     "publicLinkOn": "Bu bağlantıya sahip herkes, hesap açmadan en yeni sürümü görüntüleyebilir.",
     "publicLinkNone": "Yalnızca bu uygulamanın paylaşıldığı kişiler açabilir.",
     "createPublicLink": "Herkese açık bağlantı oluştur",
