@@ -22,7 +22,10 @@ const env = vi.hoisted(() => ({
   budget: vi.fn(),
   next: vi.fn(),
   pending: false,
+  failed: false,
+  loading: false,
   permissions: new Set<Permission>(),
+  permissionsFailed: false,
 }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn() }),
@@ -30,8 +33,10 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@/hooks/use-deployment-settings", () => ({
   useDeploymentSettings: () => ({
-    settings: env.settings,
-    isLoading: false,
+    settings: env.failed ? undefined : env.settings,
+    error: env.failed ? new Error("unavailable") : null,
+    refetch: vi.fn(),
+    isLoading: env.loading,
     save: { mutateAsync: env.save, isPending: env.pending },
   }),
 }));
@@ -41,7 +46,9 @@ vi.mock("@/hooks/use-organizations", () => ({
 vi.mock("@/hooks/use-permissions", () => ({
   usePermissions: () => ({
     can: (permission: Permission) => env.permissions.has(permission),
-    isLoaded: true,
+    isLoaded: !env.loading,
+    error: env.permissionsFailed ? new Error("unavailable") : null,
+    refetch: vi.fn(),
   }),
 }));
 vi.mock("@/components/teams", () => ({
@@ -81,6 +88,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   window.history.replaceState(null, "", "/onboarding");
   env.pending = false;
+  env.failed = false;
+  env.loading = false;
+  env.permissionsFailed = false;
   env.permissions = new Set();
   env.save.mockResolvedValue({});
   env.budget.mockResolvedValue(org);
@@ -150,7 +160,7 @@ it("does not move old users or change the default role when choosing a company",
   render(<StartDeployment org={org} onContinue={env.next} />);
   await proceed();
   await userEvent.click(screen.getByRole("button", { name: /Northwind/ }));
-  await userEvent.click(screen.getByRole("switch", { name: "Also create personal workspaces" }));
+  await userEvent.click(screen.getByRole("switch", { name: "Also create personal organizations" }));
   await proceed();
   expect(env.save).toHaveBeenCalledWith({
     default_organization_id: "company",
@@ -166,6 +176,23 @@ it("keeps drafts when navigating between questions and does not write on view", 
     "true",
   );
   expect(env.save).not.toHaveBeenCalled();
+});
+it("leaves the step from its first question through the wizard's Back, and from later ones to the question before", async () => {
+  const back = vi.fn();
+  render(<StartDeployment org={org} onContinue={env.next} onBack={back} />);
+  await userEvent.click(await screen.findByRole("button", { name: "Back" }));
+  expect(back).toHaveBeenCalledOnce();
+
+  await proceed();
+  await userEvent.click(screen.getByRole("button", { name: "Back" }));
+  expect(back).toHaveBeenCalledOnce();
+  expect(screen.getByRole("button", { name: /Self-service sign-up/ })).toBeVisible();
+});
+it("leaves organization settings from the budget question through the wizard's Back", async () => {
+  const back = vi.fn();
+  render(<StartBudget org={org} onContinue={env.next} onBack={back} />);
+  await userEvent.click(screen.getByRole("button", { name: "Back" }));
+  expect(back).toHaveBeenCalledOnce();
 });
 it("offers maintenance guidance without an activation switch", async () => {
   env.settings.maintenance_mode = true;
@@ -314,4 +341,31 @@ it("selects and saves a budget in whole dollars", async () => {
   expect(slider).toHaveAttribute("aria-valuetext", "$354");
   await proceed();
   expect(env.budget).toHaveBeenCalledWith("company", 354);
+});
+
+it("still leaves the step when its settings could not be read", async () => {
+  env.failed = true;
+  const back = vi.fn();
+  const { unmount } = render(<StartDeployment org={org} onContinue={env.next} onBack={back} />);
+  await userEvent.click(screen.getByRole("button", { name: "Back" }));
+  expect(back).toHaveBeenCalledOnce();
+  unmount();
+
+  env.permissionsFailed = true;
+  render(<StartOrganizationSettings org={org} onContinue={env.next} onBack={back} />);
+  await userEvent.click(screen.getByRole("button", { name: "Back" }));
+  expect(back).toHaveBeenCalledTimes(2);
+});
+
+it("still leaves the step while its settings are loading", async () => {
+  env.loading = true;
+  const back = vi.fn();
+  const { unmount } = render(<StartDeployment org={org} onContinue={env.next} onBack={back} />);
+  await userEvent.click(screen.getByRole("button", { name: "Back" }));
+  expect(back).toHaveBeenCalledOnce();
+  unmount();
+
+  render(<StartOrganizationSettings org={org} onContinue={env.next} onBack={back} />);
+  await userEvent.click(screen.getByRole("button", { name: "Back" }));
+  expect(back).toHaveBeenCalledTimes(2);
 });

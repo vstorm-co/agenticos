@@ -110,6 +110,10 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
   const advance = (from: Step, next: Step) => {
     if (mounted.current && stepRef.current === from && scopeRef.current === org?.id) go(next);
   };
+  const back = () => go(steps[index - 1] ?? "workspace");
+  // A step asked as questions carries its own Back, which leaves the step from
+  // its first question; a second one in the header would be the same control twice.
+  const questionStep = step === "deployment" || step === "organization";
   const select = (id: string) => {
     if (!mounted.current || stepRef.current !== "workspace") return;
     switchOrg(id);
@@ -147,12 +151,8 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
         <header className={styles.wizardHeader}>
           <div className={styles.wizardMeta}>
             <div className={styles.wizardScope}>
-              {index > 0 && (
-                <button
-                  className={styles.wizardBack}
-                  type="button"
-                  onClick={() => go(steps[index - 1] ?? "workspace")}
-                >
+              {index > 0 && !questionStep && (
+                <button className={styles.wizardBack} type="button" onClick={back}>
                   <ArrowLeft size={14} aria-hidden />
                   {t("backStep")}
                 </button>
@@ -284,6 +284,7 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
               <StartDeployment
                 active={step === "deployment"}
                 org={org}
+                onBack={back}
                 onContinue={() => advance("deployment", "organization")}
               />
             </section>
@@ -300,6 +301,7 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
               <StartOrganizationSettings
                 active={step === "organization"}
                 org={org}
+                onBack={back}
                 onContinue={() => advance("organization", "task")}
               />
             </section>

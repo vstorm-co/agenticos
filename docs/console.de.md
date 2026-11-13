@@ -1,5 +1,5 @@
 ---
-source_sha: "ab088c17ccdd"
+source_sha: "aeb01d1e0875"
 ---
 
 # Die Konsole { #the-console }
@@ -1093,13 +1093,13 @@ Das Organisationsverzeichnis der Administration zeigt das hochgeladene Bild oder
 
 ## Ihre erste Aufgabe { #your-first-task }
 
-In einem neuen Workspace ist der mitgelieferte **AgenticOS** bereits vor der Veröffentlichung ausgewählt, sofern Sie keinen anderen Standard festgelegt haben. Auf die erste Nachricht kann er die Modelleinrichtung erklären und eine Konfigurationskarte zeigen, ohne den Entwurf auszuführen oder einen KI-Anbieter aufzurufen. Antwort und Karte bleiben im Chatverlauf. Berechtigte Personen öffnen die Modelleinstellungen des Agenten; andere Mitglieder sehen einen Administratorhinweis und den Supportkontakt der Instanz, falls konfiguriert. Wählen Sie ein Modell, ergänzen Sie bei Bedarf einen Schlüssel und veröffentlichen Sie den Agenten, bevor normale KI-Antworten ausgeführt werden können. Gewöhnliche Entwürfe und archivierte Agenten bleiben von der Ausführung ausgeschlossen.
+In einer neuen Organisation ist der mitgelieferte **AgenticOS** bereits vor der Veröffentlichung ausgewählt, sofern Sie keinen anderen Standard festgelegt haben. Auf die erste Nachricht kann er die Modelleinrichtung erklären und eine Konfigurationskarte zeigen, ohne den Entwurf auszuführen oder einen KI-Anbieter aufzurufen. Antwort und Karte bleiben im Chatverlauf. Berechtigte Personen öffnen die Modelleinstellungen des Agenten; andere Mitglieder sehen einen Administratorhinweis und den Supportkontakt der Instanz, falls konfiguriert. Wählen Sie ein Modell, ergänzen Sie bei Bedarf einen Schlüssel und veröffentlichen Sie den Agenten, bevor normale KI-Antworten ausgeführt werden können. Gewöhnliche Entwürfe und archivierte Agenten bleiben von der Ausführung ausgeschlossen.
 
-Wenn kein veröffentlichter Agent verfügbar ist, bietet das Onboarding auch einen zugänglichen Entwurf des mitgelieferten AgenticOS als Einrichtungs-Chat an. Mitglieder können ihn ohne Berechtigung zur Modellverwaltung öffnen; er liefert Einrichtungshinweise statt eines KI-Aufgabenergebnisses. Nicht zugängliche Entwürfe bleiben gesperrt, und ein zugänglicher veröffentlichter Agent hat Vorrang.
+Wenn kein veröffentlichter Agent verfügbar ist, bietet das Onboarding Personen, die einen Agenten vorbereiten dürfen, **Modell verbinden** an: ein Modell wählen und einen Agenten vorbereiten. Allen anderen bietet es einen zugänglichen Entwurf des mitgelieferten AgenticOS als Einrichtungs-Chat an. Mitglieder können ihn ohne Berechtigung zur Modellverwaltung öffnen; er liefert Einrichtungshinweise statt eines KI-Aufgabenergebnisses. Nicht zugängliche Entwürfe bleiben gesperrt, und ein zugänglicher veröffentlichter Agent hat Vorrang.
 
 Das Schließen des Startbanners oder **Für 24 Stunden ausblenden** pausiert das Angebot für
 24 Stunden nach Serverzeit. Danach kann es wieder erscheinen, wenn die Einrichtung nicht
-abgeschlossen ist und der Workspace weiterhin einen ersten Einstieg benötigt. Nach den
+abgeschlossen ist und die Organisation weiterhin einen ersten Einstieg benötigt. Nach den
 Fragen speichert **Einrichtung abschließen und App öffnen** den Abschluss für diese
 Mitgliedschaft. Optionale Felder, Einladungen, ein Modell, ein Agent oder ein KI-Lauf sind
 nicht erforderlich. Der Abschluss der Einrichtung und eine erfolgreiche Aufgabe sind
@@ -1116,14 +1116,14 @@ Der Einstieg berücksichtigt Berechtigungen und bestehende Arbeit:
 
 | Person | Geführter Einstieg |
 | --- | --- |
-| Anwendungsadministrator | Firmen-Workspace erstellen oder wählen, Identität und Einladungen vorbereiten, dann den Beitritt zukünftiger Konten festlegen. |
-| Organisationsadministrator | Workspace und Ausgabenlimit vorbereiten, ohne Deployment-Steuerung. |
+| Anwendungsadministrator | Firmenorganisation erstellen oder wählen, Identität und Einladungen vorbereiten, dann den Beitritt zukünftiger Konten festlegen. |
+| Organisationsadministrator | Organisation und Ausgabenlimit vorbereiten, ohne Deployment-Steuerung. |
 | Neues Mitgliedskonto | Begrüßung, optionales persönliches Profil und Arbeitskontext, dann erste Aufgabe. |
-| Bestehendes Konto in einer weiteren Organisation | Begrüßung im Workspace; gespeichertes Profil verwenden oder bewusst überprüfen. |
+| Bestehendes Konto in einer weiteren Organisation | Begrüßung in der Organisation; gespeichertes Profil verwenden oder bewusst überprüfen. |
 
 Ein AgenticOS-Begleiter erklärt Entscheidungen mit vorbereiteten Oberflächentexten.
 Das sind keine Modellantworten und keine KI-Aufrufe. Profil und Arbeitskontext gelten
-in allen Workspaces des Kontos. Optionale Angaben lassen sich überspringen.
+in allen Organisationen des Kontos. Optionale Angaben lassen sich überspringen.
 **Speichern und weiter** wechselt nach erfolgreichem Speichern zur nächsten Frage;
 bei einem Fehler bleibt die aktuelle Frage erhalten.
 
@@ -1140,7 +1140,7 @@ Auswahl; bei null wird vor möglichen blockierten Läufen gewarnt. Das begrenzt 
 Nutzung und ist kein Abo oder Guthaben. Erweiterte Freigaben, Assistenten und Sprache
 bleiben eingeklappt, mit ihren üblichen Rechten und Speicheraktionen.
 
-Die URL erhält Schritt, Einrichtungsfrage und Workspace für ein Neuladen. Ungespeicherte Änderungen,
+Die URL erhält Schritt, Einrichtungsfrage und Organisation für ein Neuladen. Ungespeicherte Änderungen,
 Zugriff oder Abschluss werden dadurch nicht gespeichert. Organisationswechsel und
 entzogene Rechte verhindern das Wiederherstellen eines privilegierten Schritts.
 Der Abschluss des letzten Schritts wird für die Mitgliedschaft gespeichert, auch
@@ -1150,7 +1150,7 @@ Ein früherer Kontoabschluss gilt für Mitgliedschaften, die zu diesem Zeitpunkt
 bestanden. Spätere Mitgliedschaften beginnen separat. Eigene Chats und abgeschlossene
 Abläufe verhindern automatische Neustarts; veröffentlichte Agenten blenden gewöhnliche
 Startangebote aus. Links nach Registrierung oder Einladung begrüßen Mitglieder ohne
-eigene Aktivität oder Abschluss auch in Workspaces mit fertigen Agenten. Ältere und
+eigene Aktivität oder Abschluss auch in Organisationen mit fertigen Agenten. Ältere und
 fehlgeschlagene Chats zählen als Aktivität, ohne erfolgreiche Läufe zu behaupten.
 Manueller Einstieg und Fortsetzung bleiben verfügbar. Normale Anmeldung öffnet Chat
 oder den gewünschten Link.

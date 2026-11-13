@@ -1,5 +1,5 @@
 ---
-source_sha: "ab088c17ccdd"
+source_sha: "aeb01d1e0875"
 ---
 
 # La consola { #the-console }
@@ -1040,13 +1040,13 @@ El directorio de organizaciones de administración muestra la imagen cargada o l
 
 ## Tu primera tarea { #your-first-task }
 
-En un workspace nuevo se selecciona el **AgenticOS** incluido incluso antes de publicarlo, salvo que hayas elegido otro agente predeterminado. Ante el primer mensaje puede explicar la configuración del modelo y mostrar una tarjeta sin ejecutar el borrador ni llamar a un proveedor de IA. La respuesta y la tarjeta permanecen en el historial. Las personas autorizadas pueden abrir la configuración del modelo; los demás miembros ven indicaciones para contactar al administrador y el contacto de soporte de la instancia, si está configurado. Elige un modelo, añade una clave si se requiere y publica el agente antes de ejecutar respuestas normales de IA. Los borradores ordinarios y los agentes archivados siguen sin poder ejecutarse.
+En una organización nueva se selecciona el **AgenticOS** incluido incluso antes de publicarlo, salvo que hayas elegido otro agente predeterminado. Ante el primer mensaje puede explicar la configuración del modelo y mostrar una tarjeta sin ejecutar el borrador ni llamar a un proveedor de IA. La respuesta y la tarjeta permanecen en el historial. Las personas autorizadas pueden abrir la configuración del modelo; los demás miembros ven indicaciones para contactar al administrador y el contacto de soporte de la instancia, si está configurado. Elige un modelo, añade una clave si se requiere y publica el agente antes de ejecutar respuestas normales de IA. Los borradores ordinarios y los agentes archivados siguen sin poder ejecutarse.
 
-Si no hay un agente publicado disponible, el onboarding también permite abrir un chat de configuración con un borrador accesible del AgenticOS incluido. Los miembros no necesitan permisos de gestión de modelos; reciben orientación de configuración, no el resultado de una tarea de IA. Los borradores inaccesibles siguen bloqueados y un agente publicado accesible tiene prioridad.
+Si no hay un agente publicado disponible, el onboarding ofrece a quien puede preparar un agente **Connect a model**, que elige un modelo y prepara el agente. A los demás les permite abrir un chat de configuración con un borrador accesible del AgenticOS incluido. Los miembros no necesitan permisos de gestión de modelos; reciben orientación de configuración, no el resultado de una tarea de IA. Los borradores inaccesibles siguen bloqueados y un agente publicado accesible tiene prioridad.
 
 Cerrar el aviso inicial o elegir **Ocultar durante 24 horas** lo pausa durante 24 horas
 según la hora del servidor. Después puede reaparecer si la configuración no se ha
-completado y el espacio aún necesita el primer inicio. Tras recorrer las preguntas,
+completado y la organización aún necesita el primer inicio. Tras recorrer las preguntas,
 **Finalizar la configuración y abrir la aplicación** registra la finalización para esta
 membresía. No son obligatorios los campos opcionales, las invitaciones, un modelo, un
 agente ni una ejecución de IA. Completar el onboarding y ejecutar una tarea correctamente
@@ -1064,14 +1064,14 @@ El inicio respeta los permisos y el trabajo que ya existe:
 
 | Persona | Inicio guiado |
 | --- | --- |
-| Administrador de la aplicación | Crear o elegir un workspace de empresa, preparar identidad e invitaciones y decidir cómo se incorporan las cuentas futuras. |
-| Administrador de organización | Preparar el workspace y su límite de gasto, sin controles del despliegue. |
+| Administrador de la aplicación | Crear o elegir una organización de empresa, preparar identidad e invitaciones y decidir cómo se incorporan las cuentas futuras. |
+| Administrador de organización | Preparar la organización y su límite de gasto, sin controles del despliegue. |
 | Cuenta nueva de miembro | Bienvenida, perfil personal y contexto laboral opcionales, después una primera tarea. |
-| Cuenta existente en otra organización | Bienvenida al workspace; usar el perfil guardado o revisarlo de forma deliberada. |
+| Cuenta existente en otra organización | Bienvenida a la organización; usar el perfil guardado o revisarlo de forma deliberada. |
 
 Un acompañante AgenticOS explica cada decisión con mensajes preparados de la interfaz.
 No son respuestas de un modelo ni llamadas de IA. El perfil y el contexto acompañan
-la cuenta en sus workspaces. Los datos opcionales se pueden omitir. **Guardar y
+la cuenta en sus organizaciones. Los datos opcionales se pueden omitir. **Guardar y
 continuar** avanza después de guardar correctamente; un error conserva la pregunta.
 
 El despliegue pregunta por el registro, el destino de cuentas futuras y un anuncio
@@ -1087,7 +1087,7 @@ cero advierte que puede bloquear ejecuciones. Es un límite de uso registrado, n
 suscripción ni saldo de prepago. Aprobaciones, asistentes y voz avanzados quedan
 plegados y conservan sus permisos y acciones de guardado habituales.
 
-La URL conserva el paso, la pregunta de configuración y el workspace tras recargar. No conserva ediciones
+La URL conserva el paso, la pregunta de configuración y la organización tras recargar. No conserva ediciones
 sin guardar ni concede permisos ni acredita la finalización. Cambiar de organización
 o perder permisos impide restaurar un paso privilegiado. El último paso registra la
 finalización de la membresía incluso si se omiten datos opcionales y configuración IA.
@@ -1096,7 +1096,7 @@ La finalización antigua de la cuenta se aplica a membresías que ya existían e
 momento. Una membresía posterior empieza por separado. Los chats propios y recorridos
 terminados siguen evitando reinicios automáticos; los agentes publicados ocultan
 ofertas de inicio normales. Los enlaces de registro e invitación dan la bienvenida a
-miembros sin actividad propia ni finalización incluso si el workspace ya tiene agentes.
+miembros sin actividad propia ni finalización incluso si la organización ya tiene agentes.
 Los chats antiguos o fallidos cuentan como actividad sin afirmar una ejecución correcta.
 El inicio manual y la reanudación siguen disponibles. El acceso normal abre el chat
 o el enlace solicitado.

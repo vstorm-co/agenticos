@@ -31,7 +31,9 @@ export function StartTasks({ data }: { data: Onboarding }) {
     };
   }, []);
   const agent = data.agents.find((item) => item.id === selectedAgent) ?? data.agents[0];
-  const setupAgent = !agent ? data.setup_agent : null;
+  // Somebody who may prepare an agent connects a model here; the setup agent's
+  // chat is for whoever has to wait for an administrator to do it.
+  const setupAgent = !agent && !data.can_prepare ? data.setup_agent : null;
   const chatAgent = agent ?? setupAgent;
   const save = async (next: StartGoal, navigate: boolean) => {
     setSaving(true);
