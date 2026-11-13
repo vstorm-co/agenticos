@@ -811,7 +811,7 @@ To try another approach, or to take a side question somewhere it will not crowd 
 
 Only the conversation's owner can fork it: somebody it is shared with, for viewing or editing, does not get the action. A fork copies the messages and the tool calls, not the attachments' files, the files the agent wrote in its workspace, the images agents generated, the cost or the run records. The agent still has the text of an attachment, but the fork shows no card for it; an image an agent generated is the original's, and stops loading once the original is deleted. While a run in the history is still writing, or waits on an approval or a question, the conversation cannot be forked.
 
-The top of a fork says **Forked from** the original, with a link to it. Only you see that line: if you share the fork, the person you share it with sees an ordinary conversation.
+The top of a fork says **Forked from** the original, with a link to it, and in your conversation list a branch mark before its title names the original. Only you see either: if you share the fork, the person you share it with sees an ordinary conversation.
 
 Forks are limited to 2,000 messages, 10,000 tool calls and 20 MiB of copied text and structured data, with at most ten requests per minute per member and organization. A conversation being updated may briefly refuse a fork; retry once the update finishes. Over-limit histories must be shortened before they can be copied.
 

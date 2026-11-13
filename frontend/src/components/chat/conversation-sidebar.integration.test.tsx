@@ -11,7 +11,7 @@
  * was what a deployment holding hundreds reported.
  */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -480,11 +480,74 @@ describe("what the sidebar says about the list", () => {
     // Rename, share, archive and delete are the owner's; leaving is the reader's own.
     const row = within(list()).getByText("Their pricing plan").closest(".group") as HTMLElement;
     await userEvent.click(within(row).getByRole("button", { name: "Conversation actions" }));
-    expect(within(row).getByRole("button", { name: "Remove from my chats" })).toBeInTheDocument();
-    // Above the next row's agent faces, which stack up to z-30.
-    expect(row).toHaveClass("z-40");
-    expect(within(row).queryByRole("button", { name: "Rename" })).toBeNull();
-    expect(within(row).queryByRole("button", { name: "Delete" })).toBeNull();
+    expect(screen.getByRole("menuitem", { name: "Remove from my chats" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Rename" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Delete" })).toBeNull();
+  });
+
+  it("marks a fork with the conversation it came from, so it reads apart from its source", async () => {
+    serve([
+      conversation("c-1", "Quarterly numbers"),
+      {
+        ...conversation("c-2", "Quarterly numbers"),
+        forked_from: { conversation_id: "c-1", message_id: "m-1", title: "Quarterly numbers" },
+      },
+    ]);
+    mount();
+    await within(list()).findAllByText("Quarterly numbers");
+
+    expect(within(list()).getAllByRole("img", { name: "Fork of Quarterly numbers" })).toHaveLength(
+      1,
+    );
+  });
+
+  it("opens its actions as a menu that is announced and walked with the keyboard", async () => {
+    serve([conversation("c-1", "Quarterly numbers")]);
+    mount();
+    await screen.findAllByText("Quarterly numbers");
+    const trigger = within(list()).getByRole("button", { name: "Conversation actions" });
+    expect(trigger).toHaveAttribute("aria-haspopup", "menu");
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+
+    trigger.focus();
+    await userEvent.keyboard("{Enter}");
+
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    const menu = screen.getByRole("menu");
+    const items = within(menu).getAllByRole("menuitem");
+    expect(items.map((item) => item.textContent)).toEqual([
+      "Rename",
+      "Share",
+      "Favourite",
+      "Archive",
+      "Delete",
+    ]);
+    await waitFor(() => expect(items[0]).toHaveFocus());
+    await userEvent.keyboard("{ArrowDown}");
+    expect(items[1]).toHaveFocus();
+
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(useConversationStore.getState().currentConversationId).toBeNull();
+  });
+
+  it("renames from the menu, with the focus left in the title's field", async () => {
+    serve([conversation("c-1", "Quarterly numbers")]);
+    vi.mocked(apiClient.patch).mockResolvedValue({});
+    mount();
+    await screen.findAllByText("Quarterly numbers");
+
+    await userEvent.click(within(list()).getByRole("button", { name: "Conversation actions" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Rename" }));
+    const field = within(list()).getByDisplayValue("Quarterly numbers");
+    await waitFor(() => expect(field).toHaveFocus());
+    await userEvent.clear(field);
+    await userEvent.type(field, "Q3 numbers{Enter}");
+
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith("/conversations/c-1", { title: "Q3 numbers" }),
+    );
   });
 
   it("opens no conversation when its menu is opened, or closed by clicking away", async () => {
@@ -494,15 +557,14 @@ describe("what the sidebar says about the list", () => {
     const row = within(list()).getByText("Quarterly numbers").closest(".group") as HTMLElement;
 
     await userEvent.click(within(row).getByRole("button", { name: "Conversation actions" }));
-    // The layer that closes the menu covers the page; a click anywhere lands on it.
-    await userEvent.click(row.querySelector(".fixed.inset-0") as HTMLElement);
-
-    expect(within(row).queryByRole("button", { name: "Rename" })).toBeNull();
+    // A click on the menu itself, between its items.
+    await userEvent.click(screen.getByRole("menu"));
     expect(useConversationStore.getState().currentConversationId).toBeNull();
 
-    // Nor a click on the menu itself, between its items.
-    await userEvent.click(within(row).getByRole("button", { name: "Conversation actions" }));
-    await userEvent.click(within(row).getByRole("button", { name: "Rename" }).parentElement!);
+    // While it is open the rest of the page takes no pointer, so a click away
+    // only closes it.
+    fireEvent.pointerDown(document.body);
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
     expect(useConversationStore.getState().currentConversationId).toBeNull();
   });
 
@@ -518,7 +580,7 @@ describe("what the sidebar says about the list", () => {
 
     const row = within(list()).getByText("Their pricing plan").closest(".group") as HTMLElement;
     await userEvent.click(within(row).getByRole("button", { name: "Conversation actions" }));
-    await userEvent.click(within(row).getByRole("button", { name: "Remove from my chats" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Remove from my chats" }));
 
     expect(apiClient.delete).toHaveBeenCalledWith("/conversations/c-shared/shared-with-me");
     await waitFor(() => expect(within(list()).queryByText("Their pricing plan")).toBeNull());
@@ -535,7 +597,7 @@ describe("what the sidebar says about the list", () => {
 
     const row = within(list()).getByText("Their pricing plan").closest(".group") as HTMLElement;
     await userEvent.click(within(row).getByRole("button", { name: "Conversation actions" }));
-    await userEvent.click(within(row).getByRole("button", { name: "Remove from my chats" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Remove from my chats" }));
 
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith("Failed to remove the conversation"),
@@ -812,10 +874,10 @@ describe("the favourites band", () => {
     mount();
     await within(list()).findByText("Refund policy");
 
-    expect(within(list()).queryByRole("button", { name: "Favourite" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Favourite" })).toBeNull();
 
     await userEvent.click(within(list()).getByRole("button", { name: "Conversation actions" }));
-    await userEvent.click(within(list()).getByRole("button", { name: "Favourite" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Favourite" }));
 
     await waitFor(() =>
       expect(apiClient.post).toHaveBeenCalledWith("/conversations/c-1/favourite", {}),
@@ -834,9 +896,10 @@ describe("the favourites band", () => {
       name: "Conversation actions",
     });
     await userEvent.click(inProject!);
-    expect(within(list()).queryByRole("button", { name: "Share" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Share" })).toBeNull();
+    await userEvent.keyboard("{Escape}");
     await userEvent.click(ownChat!);
-    expect(within(list()).getByRole("button", { name: "Share" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Share" })).toBeInTheDocument();
   });
 
   it("draws no star on a starred row, since the band it sits in says so", async () => {
@@ -855,7 +918,7 @@ describe("the favourites band", () => {
     await within(list()).findByText("Rota cover");
 
     await userEvent.click(within(list()).getByRole("button", { name: "Conversation actions" }));
-    await userEvent.click(within(list()).getByRole("button", { name: /Remove from favourites/ }));
+    await userEvent.click(screen.getByRole("menuitem", { name: /Remove from favourites/ }));
 
     await waitFor(() =>
       expect(apiClient.delete).toHaveBeenCalledWith("/conversations/c-1/favourite"),
@@ -1071,14 +1134,12 @@ it("lets a reader favourite and unfavourite a shared conversation", async () => 
   await within(list()).findByText("Team pricing");
   const row = () => within(list()).getByText("Team pricing").closest(".group") as HTMLElement;
   await userEvent.click(within(row()).getByRole("button", { name: "Conversation actions" }));
-  await userEvent.click(within(row()).getByRole("button", { name: "Favourite" }));
+  await userEvent.click(screen.getByRole("menuitem", { name: "Favourite" }));
   await waitFor(() =>
     expect(apiClient.post).toHaveBeenCalledWith("/conversations/shared-favourite/favourite", {}),
   );
   await userEvent.click(within(row()).getByRole("button", { name: "Conversation actions" }));
-  await userEvent.click(
-    await within(row()).findByRole("button", { name: "Remove from favourites" }),
-  );
+  await userEvent.click(await screen.findByRole("menuitem", { name: "Remove from favourites" }));
   await waitFor(() =>
     expect(apiClient.delete).toHaveBeenCalledWith("/conversations/shared-favourite/favourite"),
   );
@@ -1100,6 +1161,6 @@ it("uses the usual favourite band for a starred shared thread while retaining it
   expect(await within(list()).findByRole("button", { name: "Favourites" })).toBeVisible();
   const row = within(list()).getByText("Shared favourite").closest(".group") as HTMLElement;
   await userEvent.click(within(row).getByRole("button", { name: "Conversation actions" }));
-  expect(within(row).getByRole("button", { name: "Remove from my chats" })).toBeVisible();
-  expect(within(row).queryByRole("button", { name: "Rename" })).not.toBeInTheDocument();
+  expect(screen.getByRole("menuitem", { name: "Remove from my chats" })).toBeVisible();
+  expect(screen.queryByRole("menuitem", { name: "Rename" })).not.toBeInTheDocument();
 });

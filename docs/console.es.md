@@ -1,5 +1,5 @@
 ---
-source_sha: "3ff24041727e"
+source_sha: "83d83010c6fa"
 ---
 
 # La consola { #the-console }
@@ -864,7 +864,7 @@ Para probar otro enfoque, o para llevar una pregunta lateral a un sitio donde no
 
 Solo el propietario de la conversación puede bifurcarla: quien la tiene compartida, para ver o para editar, no ve la acción. Una bifurcación copia los mensajes y las llamadas a herramientas, no los archivos de los adjuntos, los archivos que el agent escribió en su workspace, las imágenes que generaron los agents, el coste ni los registros de runs. El agent sigue teniendo el texto de un adjunto, pero la bifurcación no muestra su tarjeta; una imagen generada por un agent es la del original y deja de cargarse cuando el original se borra. Mientras un run de ese historial siga escribiendo, o espere una aprobación o una pregunta, la conversación no se puede bifurcar.
 
-Arriba de una bifurcación aparece **Bifurcada de** con un enlace al original. Esa línea solo la ve usted: si comparte la bifurcación, la otra persona ve una conversación normal.
+Arriba de una bifurcación aparece **Bifurcada de** con un enlace al original, y en su lista de conversaciones una marca de bifurcación delante del título nombra el original. Ambas cosas solo las ve usted: si comparte la bifurcación, la otra persona ve una conversación normal.
 
 Cada bifurcación admite hasta 2000 mensajes, 10 000 llamadas a herramientas y 20 MiB de texto y datos estructurados copiados, con un máximo de diez solicitudes por minuto por miembro y organización. Una conversación que se está actualizando puede rechazar temporalmente la bifurcación; vuelve a intentarlo cuando termine la actualización. Los historiales que superen los límites deben acortarse antes de copiarlos.
 

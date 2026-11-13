@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render as renderBare, screen } from "@testing-library/react";
+import { act, fireEvent, render as renderBare, screen, waitFor } from "@testing-library/react";
 import type { ReactElement } from "react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -461,6 +461,56 @@ describe("what the operator lets the page offer", () => {
 
     expect(await screen.findByDisplayValue("where is my order")).toBeInTheDocument();
     expect(FakeSocket.last!.sent).toEqual([]);
+  });
+
+  function failingRecognition() {
+    const recognition = {
+      continuous: false,
+      interimResults: false,
+      lang: "",
+      onresult: null,
+      onend: null,
+      onerror: null as ((event: { error: string }) => void) | null,
+      start: vi.fn(),
+      stop: vi.fn(),
+    };
+    vi.stubGlobal(
+      "SpeechRecognition",
+      vi.fn(function () {
+        return recognition;
+      }),
+    );
+    vi.stubGlobal("isSecureContext", true);
+    return recognition;
+  }
+
+  it.each([
+    ["not-allowed", /Microphone blocked for this site/],
+    ["audio-capture", /No microphone found/],
+    ["network", /Couldn't reach the speech service/],
+    ["service-not-allowed", /Voice input isn't available in this browser/],
+    ["no-speech", /No speech heard/],
+    ["language-not-supported", /Voice input stopped/],
+  ])("tells the visitor what to do when the browser's recogniser says %s", async (error, said) => {
+    const recognition = failingRecognition();
+    render(<HostedChat config={config({ dictation: "browser" })} />);
+    await userEvent.click(screen.getByRole("button", { name: "Dictate" }));
+
+    act(() => recognition.onerror?.({ error }));
+
+    expect(await screen.findByText(said)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    await waitFor(() => expect(screen.queryByText(said)).toBeNull());
+  });
+
+  it("says nothing when the recogniser was only stopped", async () => {
+    const recognition = failingRecognition();
+    render(<HostedChat config={config({ dictation: "browser" })} />);
+    await userEvent.click(screen.getByRole("button", { name: "Dictate" }));
+
+    act(() => recognition.onerror?.({ error: "aborted" }));
+
+    expect(screen.queryByRole("button", { name: "Dismiss" })).toBeNull();
   });
 });
 

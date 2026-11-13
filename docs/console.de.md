@@ -1,5 +1,5 @@
 ---
-source_sha: "3ff24041727e"
+source_sha: "83d83010c6fa"
 ---
 
 # Die Konsole { #the-console }
@@ -915,7 +915,7 @@ Um einen anderen Ansatz zu probieren oder eine Nebenfrage dort zu klären, wo si
 
 Abzweigen kann nur, wem das Gespräch gehört: Wer es zum Ansehen oder Bearbeiten freigegeben bekommen hat, sieht die Aktion nicht. Eine Abzweigung kopiert die Nachrichten und die Tool-Aufrufe, nicht die Dateien der Anhänge, die Dateien, die der Agent in seinen Workspace geschrieben hat, die von Agenten erzeugten Bilder, die Kosten oder die Run-Datensätze. Der Agent kennt den Text eines Anhangs weiterhin, aber die Abzweigung zeigt keine Karte dafür; ein von einem Agenten erzeugtes Bild gehört dem Original und lädt nicht mehr, sobald das Original gelöscht ist. Solange ein Run in diesem Verlauf noch schreibt oder auf eine Freigabe oder eine Frage wartet, lässt sich das Gespräch nicht abzweigen.
 
-Oben in einer Abzweigung steht **Abgezweigt aus** mit einem Link zum Original. Diese Zeile sehen nur Sie: Geben Sie die Abzweigung frei, sieht die andere Person ein gewöhnliches Gespräch.
+Oben in einer Abzweigung steht **Abgezweigt aus** mit einem Link zum Original, und in Ihrer Liste der Unterhaltungen nennt ein Abzweigungszeichen vor dem Titel das Original. Beides sehen nur Sie: Geben Sie die Abzweigung frei, sieht die andere Person ein gewöhnliches Gespräch.
 
 Eine Abzweigung ist auf 2.000 Nachrichten, 10.000 Werkzeugaufrufe und 20 MiB kopierten Text und strukturierte Daten begrenzt. Pro Mitglied und Organisation sind höchstens zehn Anfragen pro Minute erlaubt. Eine gerade aktualisierte Unterhaltung kann die Abzweigung kurzzeitig ablehnen; versuchen Sie es nach der Aktualisierung erneut. Zu große Verläufe müssen vor dem Kopieren gekürzt werden.
 
