@@ -51,6 +51,58 @@ describe("localizeSchema", () => {
     expect(schema.$defs.TableRef.properties.table_id.title).toBe("Table Id");
   });
 
+  it("words each item of a list - inline, through a $ref, and in an optional list", () => {
+    const itemCopy: Record<string, FieldCopy> = {
+      choices__items__label: { title: "Etykieta" },
+      rules__items__value: { title: "Wartość" },
+      tags__items__name: { title: "Nazwa" },
+    };
+    const schema = {
+      properties: {
+        choices: {
+          type: "array",
+          items: { type: "object", properties: { label: { title: "Label" } } },
+        },
+        rules: { type: "array", items: { $ref: "#/$defs/Rule" } },
+        tags: {
+          anyOf: [
+            { type: "array", items: { type: "object", properties: { name: { title: "Name" } } } },
+            { type: "null" },
+          ],
+        },
+      },
+      $defs: { Rule: { type: "object", properties: { value: { title: "Value" } } } },
+    };
+
+    const worded = localizeSchema(schema, (path) => itemCopy[path] ?? {});
+
+    expect(worded).toMatchObject({
+      properties: {
+        choices: { items: { properties: { label: { title: "Etykieta" } } } },
+        tags: {
+          anyOf: [{ items: { properties: { name: { title: "Nazwa" } } } }, { type: "null" }],
+        },
+      },
+      $defs: { Rule: { properties: { value: { title: "Wartość" } } } },
+    });
+    expect(schema.properties.choices.items.properties.label.title).toBe("Label");
+  });
+
+  it("names a choice's values in the reader's words, keeping any it has none for", () => {
+    const schema = {
+      properties: {
+        events: { "x-enum-labels": { created: "Added", deleted: "Deleted" } },
+      },
+    };
+    const worded = localizeSchema(schema, (path) =>
+      path === "events" ? { option: (value) => (value === "created" ? "Dodany" : undefined) } : {},
+    );
+    expect(worded).toMatchObject({
+      properties: { events: { "x-enum-labels": { created: "Dodany", deleted: "Deleted" } } },
+    });
+    expect(schema.properties.events["x-enum-labels"].created).toBe("Added");
+  });
+
   it("leaves a schema with nothing to word, or no properties, as it was", () => {
     expect(localizeSchema({ type: "string" }, copyOf)).toEqual({ type: "string" });
     expect(localizeSchema({ properties: { x: { $ref: "#/$defs/Gone" } } }, copyOf)).toEqual({

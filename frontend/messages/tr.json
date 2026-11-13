@@ -13916,6 +13916,14 @@
           "min_confidence": {
             "title": "En düşük güven",
             "description": "Bunun altında adım, kategoriden değil Emin değil bağlantı noktasından çıkar. Boşsa her zaman kategoriden çıkar."
+          },
+          "categories__items__name": {
+            "title": "Ad",
+            "description": "Dalın bağlantı noktası kimliği"
+          },
+          "categories__items__description": {
+            "title": "Açıklama",
+            "description": "Bu kategoriye neler girer"
           }
         },
         "input": {
@@ -14055,6 +14063,18 @@
           },
           "files": {
             "title": "Dosyalar"
+          },
+          "files__items__kind": {
+            "title": "Tür"
+          },
+          "files__items__file_id": {
+            "title": "Dosya kimliği"
+          },
+          "files__items__content_type": {
+            "title": "İçerik türü"
+          },
+          "files__items__byte_size": {
+            "title": "Bayt cinsinden boyut"
           }
         }
       },
@@ -14082,6 +14102,18 @@
           },
           "files": {
             "title": "Dosyalar"
+          },
+          "files__items__kind": {
+            "title": "Tür"
+          },
+          "files__items__file_id": {
+            "title": "Dosya kimliği"
+          },
+          "files__items__content_type": {
+            "title": "İçerik türü"
+          },
+          "files__items__byte_size": {
+            "title": "Bayt cinsinden boyut"
           }
         }
       },
@@ -14108,7 +14140,11 @@
         "config": {
           "item_error_policy": {
             "title": "Bir öğe başarısız olduğunda",
-            "description": "Durdur, başarısız olan ilk öğede döngüyü başarısız kılar. Topla, hatayı o öğenin yerine kaydeder ve kalan öğelerle devam eder."
+            "description": "Durdur, başarısız olan ilk öğede döngüyü başarısız kılar. Topla, hatayı o öğenin yerine kaydeder ve kalan öğelerle devam eder.",
+            "options": {
+              "collect": "Topla ve devam et",
+              "stop": "Döngüyü durdur"
+            }
           }
         },
         "input": {
@@ -14208,6 +14244,27 @@
           },
           "input_schema": {
             "description": "JSON nesnesi girdisi için JSON Schema Draft 2020-12 sözleşmesi; referanslar bu belgenin içinde olmalıdır"
+          },
+          "fields__items__name": {
+            "title": "Ad",
+            "description": "run’ın girdisindeki ve bir bağlama için payload içindeki anahtar"
+          },
+          "fields__items__label": {
+            "title": "Etiket",
+            "description": "Run formunda gösterilir"
+          },
+          "fields__items__type": {
+            "title": "Tür"
+          },
+          "fields__items__required": {
+            "title": "Gerekli"
+          },
+          "fields__items__description": {
+            "title": "Açıklama"
+          },
+          "fields__items__options": {
+            "title": "Seçenekler",
+            "description": "Bir seçimin sunduğu seçenekler"
           }
         }
       },
@@ -14224,6 +14281,39 @@
           },
           "structured": {
             "title": "Yapılandırılmış"
+          },
+          "sources__items__document_id": {
+            "title": "Belge kimliği"
+          },
+          "sources__items__filename": {
+            "title": "Dosya adı"
+          },
+          "sources__items__collection": {
+            "title": "Koleksiyon"
+          },
+          "sources__items__page": {
+            "title": "Sayfa"
+          },
+          "sources__items__chunk": {
+            "title": "Parça"
+          },
+          "sources__items__score": {
+            "title": "Puan"
+          },
+          "sources__items__content": {
+            "title": "İçerik"
+          },
+          "artifacts__items__kind": {
+            "title": "Tür"
+          },
+          "artifacts__items__file_id": {
+            "title": "Dosya kimliği"
+          },
+          "artifacts__items__content_type": {
+            "title": "İçerik türü"
+          },
+          "artifacts__items__byte_size": {
+            "title": "Bayt cinsinden boyut"
           }
         }
       },
@@ -14263,6 +14353,19 @@
         "config": {
           "mappings": {
             "title": "Eşlemeler"
+          },
+          "mappings__items__target_field": {
+            "title": "Hedef alan"
+          },
+          "mappings__items__source_path": {
+            "title": "Kaynak yolu",
+            "description": "Girdi üzerinde çalışan bir JMESPath ifadesi; örneğin source.payload.email."
+          },
+          "mappings__items__coerce_to": {
+            "title": "Dönüştürülecek tür"
+          },
+          "mappings__items__default": {
+            "title": "Varsayılan"
           }
         },
         "input": {
@@ -14305,7 +14408,11 @@
           },
           "model": {
             "title": "Model",
-            "description": "Hangi Jev’in yanıt vereceği: sürekli güncellenen sürüm, önizleme veya sabitlenmiş bir sürüm"
+            "description": "Hangi Jev’in yanıt vereceği: sürekli güncellenen sürüm, önizleme veya sabitlenmiş bir sürüm",
+            "options": {
+              "jev_latest": "Jev (en yeni)",
+              "jev_preview": "Jev (önizleme)"
+            }
           },
           "min_confidence": {
             "title": "En düşük güven",
@@ -14313,6 +14420,13 @@
           },
           "options": {
             "title": "Seçenekler"
+          },
+          "options__items__value": {
+            "title": "Değer"
+          },
+          "options__items__description": {
+            "title": "Açıklama",
+            "description": "Bu seçeneğin anlamı, tek satırda - Jev bunu seçenekle birlikte okur"
           }
         },
         "input": {
@@ -14333,7 +14447,11 @@
           },
           "model": {
             "title": "Model",
-            "description": "Hangi Jev’in yanıt vereceği: sürekli güncellenen sürüm, önizleme veya sabitlenmiş bir sürüm"
+            "description": "Hangi Jev’in yanıt vereceği: sürekli güncellenen sürüm, önizleme veya sabitlenmiş bir sürüm",
+            "options": {
+              "jev_latest": "Jev (en yeni)",
+              "jev_preview": "Jev (önizleme)"
+            }
           },
           "min_confidence": {
             "title": "En düşük güven",
@@ -14362,7 +14480,11 @@
           },
           "model": {
             "title": "Model",
-            "description": "Hangi Jev’in yanıt vereceği: sürekli güncellenen sürüm, önizleme veya sabitlenmiş bir sürüm"
+            "description": "Hangi Jev’in yanıt vereceği: sürekli güncellenen sürüm, önizleme veya sabitlenmiş bir sürüm",
+            "options": {
+              "jev_latest": "Jev (en yeni)",
+              "jev_preview": "Jev (önizleme)"
+            }
           },
           "min_confidence": {
             "title": "En düşük güven",
@@ -14404,6 +14526,16 @@
         "config": {
           "branches": {
             "title": "Dallar"
+          },
+          "branches__items__name": {
+            "title": "Ad",
+            "description": "Dalın bağlantı noktası kimliği."
+          },
+          "branches__items__code": {
+            "title": "Kod"
+          },
+          "branches__items__retryable": {
+            "title": "Yeniden denenebilir"
           }
         }
       },
@@ -14767,6 +14899,14 @@
           "choices": {
             "title": "Onaylama seçenekleri",
             "description": "Düz bir Onayla yerine bunları sunun: bu sırayla her biri için bir düğme ve bir çıkış bağlantı noktası; adımın Onaylandı bağlantı noktası olmaz. Boşsa adım onaylar veya reddeder."
+          },
+          "choices__items__id": {
+            "title": "Bağlantı noktası kimliği",
+            "description": "Çıkış bağlantı noktasını ve sonraki adımların choice olarak okuduğu değeri adlandırır. Küçük harfler, rakamlar ve alt çizgiler; in, approved veya rejected olamaz."
+          },
+          "choices__items__label": {
+            "title": "Düğme etiketi",
+            "description": "Onaylayanın düğmede okuduğu metin; örneğin Şimdi gönder."
           }
         },
         "input": {
@@ -14900,6 +15040,18 @@
           "branch_keys": {
             "title": "Dal adları",
             "description": "Gelen her dal için bir ad. Adı olmayan dal, çıktığı adımın veya Dallara ayır adımındaki dalın adını alır"
+          },
+          "branch_keys__items__source_node_id": {
+            "title": "Kaynak adım kimliği",
+            "description": "Dalın çıktığı adım"
+          },
+          "branch_keys__items__source_port": {
+            "title": "Kaynak bağlantı noktası",
+            "description": "Dalın çıktığı bağlantı noktası"
+          },
+          "branch_keys__items__key": {
+            "title": "Anahtar",
+            "description": "Dalın `branches` içindeki adı"
           }
         }
       },
@@ -14908,6 +15060,10 @@
           "branches": {
             "title": "Dallar",
             "description": "Dallar; her biri adlandırılmış bir çıkış bağlantı noktasıdır. En az iki dal olmalı ve her birinin kendi adı olmalı"
+          },
+          "branches__items__name": {
+            "title": "Ad",
+            "description": "Dalın bağlantı noktası kimliği"
           }
         }
       },
@@ -14915,6 +15071,14 @@
         "config": {
           "rules": {
             "title": "Kurallar"
+          },
+          "rules__items__name": {
+            "title": "Ad",
+            "description": "Dalın bağlantı noktası kimliği"
+          },
+          "rules__items__condition": {
+            "title": "Koşul",
+            "description": "Girdi üzerinde çalışan bir JMESPath ifadesi; örneğin value.country == 'PL'"
           }
         },
         "input": {
@@ -15027,7 +15191,12 @@
           },
           "approval": {
             "title": "Onay iste",
-            "description": "Sunucunun salt okunur olarak işaretlemediği bir araçtan önce, her çağrıdan önce veya hiçbir zaman."
+            "description": "Sunucunun salt okunur olarak işaretlemediği bir araçtan önce, her çağrıdan önce veya hiçbir zaman.",
+            "options": {
+              "all": "Her çağrıdan önce",
+              "none": "Hiçbir zaman",
+              "writes": "Bir şeyi değiştirebilecek bir araçtan önce"
+            }
           },
           "approvers": {
             "title": "Onaylayanlar",
@@ -15039,7 +15208,11 @@
           },
           "on_tool_error": {
             "title": "Araç hatayla yanıt verdiğinde",
-            "description": "Aracın hatayla verdiği yanıtın adımı başarısız kılıp kılmayacağı ya da adımın çıktısı olup olmayacağı."
+            "description": "Aracın hatayla verdiği yanıtın adımı başarısız kılıp kılmayacağı ya da adımın çıktısı olup olmayacağı.",
+            "options": {
+              "complete": "Hatayı ilet",
+              "fail": "Adımı başarısız say"
+            }
           }
         },
         "input": {
@@ -15164,6 +15337,75 @@
           },
           "visibility": {
             "title": "Görünürlük"
+          },
+          "columns__items__id": {
+            "title": "Kimlik"
+          },
+          "columns__items__label": {
+            "title": "Etiket"
+          },
+          "columns__items__type": {
+            "title": "Tür"
+          },
+          "columns__items__nullable": {
+            "title": "Boş bırakılabilir"
+          },
+          "columns__items__default": {
+            "title": "Varsayılan"
+          },
+          "columns__items__document_templates": {
+            "title": "Belge şablonları"
+          },
+          "columns__items__document_templates__items__id": {
+            "title": "Kimlik"
+          },
+          "columns__items__document_templates__items__name": {
+            "title": "Ad"
+          },
+          "columns__items__document_templates__items__body": {
+            "title": "Gövde"
+          },
+          "columns__items__default_template_id": {
+            "title": "Varsayılan şablon kimliği"
+          },
+          "columns__items__options": {
+            "title": "Seçenekler"
+          },
+          "columns__items__options__items__id": {
+            "title": "Kimlik"
+          },
+          "columns__items__options__items__label": {
+            "title": "Etiket"
+          },
+          "columns__items__options__items__color": {
+            "title": "Renk",
+            "description": "Görüntüleme rengi; boş bırakılırsa otomatik palet kullanılır"
+          },
+          "columns__items__options__items__archived": {
+            "title": "Arşivlendi"
+          },
+          "columns__items__archived": {
+            "title": "Arşivlendi"
+          },
+          "columns__items__link_table_id": {
+            "title": "Bağlantılı tablo kimliği",
+            "description": "Bağlantı sütunu için: kayıtlarına bağlandığı tablo."
+          },
+          "columns__items__link_column_id": {
+            "title": "Bağlantı sütunu kimliği",
+            "description": "Arama veya toplama sütunu için: bu tablonun, üzerinden okuduğu bağlantı sütunu."
+          },
+          "columns__items__target_column_id": {
+            "title": "Hedef sütun kimliği",
+            "description": "Arama veya toplama sütunu için: bağlantılı tablodan okuduğu sütun. Bağlantıları sayan bir toplama hiçbir sütun okumaz."
+          },
+          "columns__items__aggregate": {
+            "title": "Hesaplanan değer",
+            "description": "Toplama sütunu için: okuduğu değerlerden ne hesapladığı."
+          },
+          "columns__items__formula": {
+            "title": "Formül",
+            "description": "Formül sütunu için: kaydın diğer sütunları üzerinde bir ifade; her sütun süslü parantez içindeki etiketiyle adlandırılır; örneğin '{'Price'}' * '{'Quantity'}'."
           }
         }
       },
@@ -15280,6 +15522,16 @@
           },
           "filters": {
             "title": "Filtreler"
+          },
+          "filters__items__column_id": {
+            "title": "Sütun kimliği"
+          },
+          "filters__items__op": {
+            "title": "Operatör"
+          },
+          "filters__items__value": {
+            "title": "Değer",
+            "description": "İşlenen değer. `in` için bir liste, `is_null` için bir boolean (true hücrenin boş olduğu anlamına gelir), aksi hâlde sütunun türünde bir değer."
           }
         }
       },
@@ -15342,6 +15594,16 @@
           },
           "skip": {
             "title": "Atla"
+          },
+          "filters__items__column_id": {
+            "title": "Sütun kimliği"
+          },
+          "filters__items__op": {
+            "title": "Operatör"
+          },
+          "filters__items__value": {
+            "title": "Değer",
+            "description": "İşlenen değer. `in` için bir liste, `is_null` için bir boolean (true hücrenin boş olduğu anlamına gelir), aksi hâlde sütunun türünde bir değer."
           }
         }
       },
@@ -15565,6 +15827,13 @@
           "only_set": {
             "title": "Yalnızca ayarlananlar",
             "description": "Yalnızca burada ayarlanan alanları tut, diğerlerinin hepsini at"
+          },
+          "set__items__name": {
+            "title": "Ad"
+          },
+          "set__items__expression": {
+            "title": "İfade",
+            "description": "Öğe üzerinde çalışan bir JMESPath ifadesi; örneğin item.first_name"
           }
         },
         "input": {
@@ -15607,6 +15876,12 @@
         "config": {
           "by": {
             "title": "Ölçüt"
+          },
+          "by__items__field": {
+            "title": "Alan"
+          },
+          "by__items__descending": {
+            "title": "Azalan"
           }
         },
         "input": {
@@ -15638,6 +15913,13 @@
           },
           "summaries": {
             "title": "Özetler"
+          },
+          "summaries__items__operation": {
+            "title": "İşlem"
+          },
+          "summaries__items__field": {
+            "title": "Alan",
+            "description": "Saymak için gerekmez"
           }
         },
         "input": {
@@ -15654,7 +15936,11 @@
           },
           "chat_types": {
             "title": "Nerede",
-            "description": "Doğrudan mesajlar, kanallar ve gruplar ya da her ikisi"
+            "description": "Doğrudan mesajlar, kanallar ve gruplar ya da her ikisi",
+            "options": {
+              "group": "Kanallar ve gruplar",
+              "private": "Doğrudan mesajlar"
+            }
           },
           "text_contains": {
             "title": "Yalnızca mesaj şunu içerdiğinde",
@@ -15694,6 +15980,27 @@
           },
           "appearance__layout": {
             "title": "Düzen"
+          },
+          "fields__items__name": {
+            "title": "Ad",
+            "description": "run’ın girdisindeki ve bir bağlama için payload içindeki anahtar"
+          },
+          "fields__items__label": {
+            "title": "Etiket",
+            "description": "Run formunda gösterilir"
+          },
+          "fields__items__type": {
+            "title": "Tür"
+          },
+          "fields__items__required": {
+            "title": "Gerekli"
+          },
+          "fields__items__description": {
+            "title": "Açıklama"
+          },
+          "fields__items__options": {
+            "title": "Seçenekler",
+            "description": "Bir seçimin sunduğu seçenekler"
           }
         }
       },
@@ -15705,7 +16012,16 @@
           },
           "events": {
             "title": "Başlatan olaylar",
-            "description": "Workflow’u başlatan GitHub olayları"
+            "description": "Workflow’u başlatan GitHub olayları",
+            "options": {
+              "issue_comment": "Issue ve pull request yorumları",
+              "issues": "Issue'lar",
+              "pull_request": "Pull request'ler",
+              "pull_request_review": "Pull request incelemeleri",
+              "push": "Push'lar",
+              "release": "Sürümler",
+              "workflow_run": "Actions workflow run'ları"
+            }
           },
           "actions": {
             "title": "Yalnızca bu eylemler",
@@ -15740,6 +16056,27 @@
           },
           "input_schema": {
             "description": "JSON nesnesi girdisi için JSON Schema Draft 2020-12 sözleşmesi; referanslar bu belgenin içinde olmalıdır"
+          },
+          "fields__items__name": {
+            "title": "Ad",
+            "description": "run’ın girdisindeki ve bir bağlama için payload içindeki anahtar"
+          },
+          "fields__items__label": {
+            "title": "Etiket",
+            "description": "Run formunda gösterilir"
+          },
+          "fields__items__type": {
+            "title": "Tür"
+          },
+          "fields__items__required": {
+            "title": "Gerekli"
+          },
+          "fields__items__description": {
+            "title": "Açıklama"
+          },
+          "fields__items__options": {
+            "title": "Seçenekler",
+            "description": "Bir seçimin sunduğu seçenekler"
           }
         }
       },
@@ -15813,11 +16150,26 @@
           },
           "events": {
             "title": "Kayıt şu durumda başlatır",
-            "description": "Eklendi, değiştirildi veya silindi. Sütun seçildiyse, bir değişiklik yalnızca tablonun seçilen sütunlarından biri değiştiğinde workflow’u başlatır."
+            "description": "Eklendi, değiştirildi veya silindi. Sütun seçildiyse, bir değişiklik yalnızca tablonun seçilen sütunlarından biri değiştiğinde workflow’u başlatır.",
+            "options": {
+              "created": "Eklendi",
+              "deleted": "Silindi",
+              "updated": "Değiştirildi"
+            }
           },
           "filters": {
             "title": "Filtreler",
             "description": "Her biri kayıtta sağlanmalıdır - kaydın eklendiği veya değiştirildiği hâliyle ya da silinmeden önceki hâliyle"
+          },
+          "filters__items__column_id": {
+            "title": "Sütun kimliği"
+          },
+          "filters__items__op": {
+            "title": "Operatör"
+          },
+          "filters__items__value": {
+            "title": "Değer",
+            "description": "İşlenen değer. `in` için bir liste, `is_null` için bir boolean (true hücrenin boş olduğu anlamına gelir), aksi hâlde sütunun türünde bir değer."
           }
         }
       },
@@ -15828,6 +16180,27 @@
           },
           "input_schema": {
             "description": "JSON nesnesi girdisi için JSON Schema Draft 2020-12 sözleşmesi; referanslar bu belgenin içinde olmalıdır"
+          },
+          "fields__items__name": {
+            "title": "Ad",
+            "description": "run’ın girdisindeki ve bir bağlama için payload içindeki anahtar"
+          },
+          "fields__items__label": {
+            "title": "Etiket",
+            "description": "Run formunda gösterilir"
+          },
+          "fields__items__type": {
+            "title": "Tür"
+          },
+          "fields__items__required": {
+            "title": "Gerekli"
+          },
+          "fields__items__description": {
+            "title": "Açıklama"
+          },
+          "fields__items__options": {
+            "title": "Seçenekler",
+            "description": "Bir seçimin sunduğu seçenekler"
           }
         }
       },

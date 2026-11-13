@@ -17845,6 +17845,14 @@
           "min_confidence": {
             "title": "Mindestkonfidenz",
             "description": "Darunter geht der Schritt über seinen Unsicher-Port statt über die Kategorie weiter. Wenn leer, immer über die Kategorie."
+          },
+          "categories__items__name": {
+            "title": "Name",
+            "description": "Die Port-ID des Zweigs"
+          },
+          "categories__items__description": {
+            "title": "Beschreibung",
+            "description": "Was in diese Kategorie gehört"
           }
         },
         "input": {
@@ -17984,6 +17992,18 @@
           },
           "files": {
             "title": "Dateien"
+          },
+          "files__items__kind": {
+            "title": "Art"
+          },
+          "files__items__file_id": {
+            "title": "Datei-ID"
+          },
+          "files__items__content_type": {
+            "title": "Inhaltstyp"
+          },
+          "files__items__byte_size": {
+            "title": "Größe in Bytes"
           }
         }
       },
@@ -18011,6 +18031,18 @@
           },
           "files": {
             "title": "Dateien"
+          },
+          "files__items__kind": {
+            "title": "Art"
+          },
+          "files__items__file_id": {
+            "title": "Datei-ID"
+          },
+          "files__items__content_type": {
+            "title": "Inhaltstyp"
+          },
+          "files__items__byte_size": {
+            "title": "Größe in Bytes"
           }
         }
       },
@@ -18037,7 +18069,11 @@
         "config": {
           "item_error_policy": {
             "title": "Wenn ein Element fehlschlägt",
-            "description": "Anhalten lässt die Schleife beim ersten fehlgeschlagenen Element fehlschlagen. Sammeln hält den Fehler an der Stelle dieses Elements fest und macht mit den übrigen weiter."
+            "description": "Anhalten lässt die Schleife beim ersten fehlgeschlagenen Element fehlschlagen. Sammeln hält den Fehler an der Stelle dieses Elements fest und macht mit den übrigen weiter.",
+            "options": {
+              "collect": "Sammeln und weitermachen",
+              "stop": "Schleife anhalten"
+            }
           }
         },
         "input": {
@@ -18137,6 +18173,27 @@
           },
           "input_schema": {
             "description": "Vertrag nach JSON Schema Draft 2020-12 für eine Eingabe als JSON-Objekt; Referenzen müssen lokal auf dieses Dokument verweisen"
+          },
+          "fields__items__name": {
+            "title": "Name",
+            "description": "Der Schlüssel in der Eingabe des Runs und in payload für eine Bindung"
+          },
+          "fields__items__label": {
+            "title": "Bezeichnung",
+            "description": "Im Run-Formular angezeigt"
+          },
+          "fields__items__type": {
+            "title": "Typ"
+          },
+          "fields__items__required": {
+            "title": "Pflichtfeld"
+          },
+          "fields__items__description": {
+            "title": "Beschreibung"
+          },
+          "fields__items__options": {
+            "title": "Optionen",
+            "description": "Was eine Auswahl anbietet"
           }
         }
       },
@@ -18153,6 +18210,39 @@
           },
           "structured": {
             "title": "Strukturiert"
+          },
+          "sources__items__document_id": {
+            "title": "Dokument-ID"
+          },
+          "sources__items__filename": {
+            "title": "Dateiname"
+          },
+          "sources__items__collection": {
+            "title": "Collection"
+          },
+          "sources__items__page": {
+            "title": "Seite"
+          },
+          "sources__items__chunk": {
+            "title": "Chunk"
+          },
+          "sources__items__score": {
+            "title": "Relevanz"
+          },
+          "sources__items__content": {
+            "title": "Inhalt"
+          },
+          "artifacts__items__kind": {
+            "title": "Art"
+          },
+          "artifacts__items__file_id": {
+            "title": "Datei-ID"
+          },
+          "artifacts__items__content_type": {
+            "title": "Inhaltstyp"
+          },
+          "artifacts__items__byte_size": {
+            "title": "Größe in Bytes"
           }
         }
       },
@@ -18192,6 +18282,19 @@
         "config": {
           "mappings": {
             "title": "Zuordnungen"
+          },
+          "mappings__items__target_field": {
+            "title": "Zielfeld"
+          },
+          "mappings__items__source_path": {
+            "title": "Quellpfad",
+            "description": "Ein JMESPath-Ausdruck über die Eingabe, zum Beispiel source.payload.email."
+          },
+          "mappings__items__coerce_to": {
+            "title": "Umwandeln in"
+          },
+          "mappings__items__default": {
+            "title": "Standardwert"
           }
         },
         "input": {
@@ -18234,7 +18337,11 @@
           },
           "model": {
             "title": "Modell",
-            "description": "Welcher Jev antwortet: das fortlaufende Release, die Vorschau oder eine festgelegte Version"
+            "description": "Welcher Jev antwortet: das fortlaufende Release, die Vorschau oder eine festgelegte Version",
+            "options": {
+              "jev_latest": "Jev (neueste)",
+              "jev_preview": "Jev (Vorschau)"
+            }
           },
           "min_confidence": {
             "title": "Mindestkonfidenz",
@@ -18242,6 +18349,13 @@
           },
           "options": {
             "title": "Optionen"
+          },
+          "options__items__value": {
+            "title": "Wert"
+          },
+          "options__items__description": {
+            "title": "Beschreibung",
+            "description": "Was diese Option bedeutet, in einer Zeile - Jev liest es zusammen mit der Option"
           }
         },
         "input": {
@@ -18262,7 +18376,11 @@
           },
           "model": {
             "title": "Modell",
-            "description": "Welcher Jev antwortet: das fortlaufende Release, die Vorschau oder eine festgelegte Version"
+            "description": "Welcher Jev antwortet: das fortlaufende Release, die Vorschau oder eine festgelegte Version",
+            "options": {
+              "jev_latest": "Jev (neueste)",
+              "jev_preview": "Jev (Vorschau)"
+            }
           },
           "min_confidence": {
             "title": "Mindestkonfidenz",
@@ -18291,7 +18409,11 @@
           },
           "model": {
             "title": "Modell",
-            "description": "Welcher Jev antwortet: das fortlaufende Release, die Vorschau oder eine festgelegte Version"
+            "description": "Welcher Jev antwortet: das fortlaufende Release, die Vorschau oder eine festgelegte Version",
+            "options": {
+              "jev_latest": "Jev (neueste)",
+              "jev_preview": "Jev (Vorschau)"
+            }
           },
           "min_confidence": {
             "title": "Mindestkonfidenz",
@@ -18333,6 +18455,16 @@
         "config": {
           "branches": {
             "title": "Zweige"
+          },
+          "branches__items__name": {
+            "title": "Name",
+            "description": "Die Port-ID des Zweigs."
+          },
+          "branches__items__code": {
+            "title": "Code"
+          },
+          "branches__items__retryable": {
+            "title": "Wiederholbar"
           }
         }
       },
@@ -18696,6 +18828,14 @@
           "choices": {
             "title": "Freigabeoptionen",
             "description": "Diese statt eines einfachen Freigeben anbieten: je eine Schaltfläche und ein Ausgangsport, in dieser Reihenfolge, und der Schritt hat keinen Freigegeben-Port. Wenn leer, gibt der Schritt frei oder lehnt ab."
+          },
+          "choices__items__id": {
+            "title": "Port-ID",
+            "description": "Benennt den Ausgangsport und das, was spätere Schritte als choice lesen. Kleinbuchstaben, Ziffern und Unterstriche; nicht in, approved oder rejected."
+          },
+          "choices__items__label": {
+            "title": "Beschriftung der Schaltfläche",
+            "description": "Was der Freigebende auf der Schaltfläche liest, etwa Jetzt senden."
           }
         },
         "input": {
@@ -18829,6 +18969,18 @@
           "branch_keys": {
             "title": "Zweignamen",
             "description": "Ein Name für jeden eingehenden Zweig. Ein Zweig ohne Namen wird nach dem Schritt benannt, den er verlässt, oder nach dem Zweig von Aufteilen"
+          },
+          "branch_keys__items__source_node_id": {
+            "title": "ID des Quellschritts",
+            "description": "Der Schritt, den der Zweig verlässt"
+          },
+          "branch_keys__items__source_port": {
+            "title": "Quellport",
+            "description": "Der Port, über den er ihn verlässt"
+          },
+          "branch_keys__items__key": {
+            "title": "Schlüssel",
+            "description": "Der Name des Zweigs in `branches`"
           }
         }
       },
@@ -18837,6 +18989,10 @@
           "branches": {
             "title": "Zweige",
             "description": "Die Zweige, jeder ein benannter Ausgangsport; mindestens zwei, jeder mit eigenem Namen"
+          },
+          "branches__items__name": {
+            "title": "Name",
+            "description": "Die Port-ID des Zweigs"
           }
         }
       },
@@ -18844,6 +19000,14 @@
         "config": {
           "rules": {
             "title": "Regeln"
+          },
+          "rules__items__name": {
+            "title": "Name",
+            "description": "Die Port-ID des Zweigs"
+          },
+          "rules__items__condition": {
+            "title": "Bedingung",
+            "description": "Ein JMESPath-Ausdruck über die Eingabe, etwa value.country == 'PL'"
           }
         },
         "input": {
@@ -18956,7 +19120,12 @@
           },
           "approval": {
             "title": "Freigabe anfordern",
-            "description": "Vor einem Tool, das der Server nicht als nur lesend kennzeichnet, vor jedem Aufruf oder nie."
+            "description": "Vor einem Tool, das der Server nicht als nur lesend kennzeichnet, vor jedem Aufruf oder nie.",
+            "options": {
+              "all": "Vor jedem Aufruf",
+              "none": "Nie",
+              "writes": "Vor einem Tool, das etwas ändern kann"
+            }
           },
           "approvers": {
             "title": "Freigebende",
@@ -18968,7 +19137,11 @@
           },
           "on_tool_error": {
             "title": "Wenn das Tool mit einem Fehler antwortet",
-            "description": "Ob ein Fehler, mit dem das Tool antwortet, den Schritt fehlschlagen lässt oder seine Ausgabe ist."
+            "description": "Ob ein Fehler, mit dem das Tool antwortet, den Schritt fehlschlagen lässt oder seine Ausgabe ist.",
+            "options": {
+              "complete": "Fehler weitergeben",
+              "fail": "Schritt fehlschlagen lassen"
+            }
           }
         },
         "input": {
@@ -19093,6 +19266,75 @@
           },
           "visibility": {
             "title": "Sichtbarkeit"
+          },
+          "columns__items__id": {
+            "title": "ID"
+          },
+          "columns__items__label": {
+            "title": "Bezeichnung"
+          },
+          "columns__items__type": {
+            "title": "Typ"
+          },
+          "columns__items__nullable": {
+            "title": "Leer erlaubt"
+          },
+          "columns__items__default": {
+            "title": "Standardwert"
+          },
+          "columns__items__document_templates": {
+            "title": "Dokumentvorlagen"
+          },
+          "columns__items__document_templates__items__id": {
+            "title": "ID"
+          },
+          "columns__items__document_templates__items__name": {
+            "title": "Name"
+          },
+          "columns__items__document_templates__items__body": {
+            "title": "Inhalt"
+          },
+          "columns__items__default_template_id": {
+            "title": "ID der Standardvorlage"
+          },
+          "columns__items__options": {
+            "title": "Optionen"
+          },
+          "columns__items__options__items__id": {
+            "title": "ID"
+          },
+          "columns__items__options__items__label": {
+            "title": "Bezeichnung"
+          },
+          "columns__items__options__items__color": {
+            "title": "Farbe",
+            "description": "Anzeigefarbe; leer verwendet die automatische Palette"
+          },
+          "columns__items__options__items__archived": {
+            "title": "Archiviert"
+          },
+          "columns__items__archived": {
+            "title": "Archiviert"
+          },
+          "columns__items__link_table_id": {
+            "title": "ID der verknüpften Tabelle",
+            "description": "Eine Verknüpfungsspalte: die Tabelle, mit deren Datensätzen sie verknüpft."
+          },
+          "columns__items__link_column_id": {
+            "title": "ID der Verknüpfungsspalte",
+            "description": "Eine Nachschlagen- oder Zusammenfassungsspalte: die Verknüpfungsspalte dieser Tabelle, über die sie liest."
+          },
+          "columns__items__target_column_id": {
+            "title": "ID der Zielspalte",
+            "description": "Eine Nachschlagen- oder Zusammenfassungsspalte: die Spalte der verknüpften Tabelle, die sie liest. Eine Zusammenfassung, die die Verknüpfungen zählt, liest keine."
+          },
+          "columns__items__aggregate": {
+            "title": "Aggregation",
+            "description": "Eine Zusammenfassungsspalte: was sie aus den gelesenen Werten macht."
+          },
+          "columns__items__formula": {
+            "title": "Formel",
+            "description": "Eine Formelspalte: ein Ausdruck über die anderen Spalten des Datensatzes, jede mit ihrer Bezeichnung in geschweiften Klammern benannt, etwa '{'Price'}' * '{'Quantity'}'."
           }
         }
       },
@@ -19209,6 +19451,16 @@
           },
           "filters": {
             "title": "Filter"
+          },
+          "filters__items__column_id": {
+            "title": "Spalten-ID"
+          },
+          "filters__items__op": {
+            "title": "Operator"
+          },
+          "filters__items__value": {
+            "title": "Wert",
+            "description": "Der Operand. Eine Liste für `in`, ein Boolean für `is_null` (true bedeutet, dass die Zelle leer ist), sonst ein Wert vom Typ der Spalte."
           }
         }
       },
@@ -19271,6 +19523,16 @@
           },
           "skip": {
             "title": "Überspringen"
+          },
+          "filters__items__column_id": {
+            "title": "Spalten-ID"
+          },
+          "filters__items__op": {
+            "title": "Operator"
+          },
+          "filters__items__value": {
+            "title": "Wert",
+            "description": "Der Operand. Eine Liste für `in`, ein Boolean für `is_null` (true bedeutet, dass die Zelle leer ist), sonst ein Wert vom Typ der Spalte."
           }
         }
       },
@@ -19494,6 +19756,13 @@
           "only_set": {
             "title": "Nur gesetzte",
             "description": "Nur die hier gesetzten Felder behalten und alle anderen verwerfen"
+          },
+          "set__items__name": {
+            "title": "Name"
+          },
+          "set__items__expression": {
+            "title": "Ausdruck",
+            "description": "Ein JMESPath-Ausdruck über das Element, etwa item.first_name"
           }
         },
         "input": {
@@ -19536,6 +19805,12 @@
         "config": {
           "by": {
             "title": "Nach"
+          },
+          "by__items__field": {
+            "title": "Feld"
+          },
+          "by__items__descending": {
+            "title": "Absteigend"
           }
         },
         "input": {
@@ -19567,6 +19842,13 @@
           },
           "summaries": {
             "title": "Zusammenfassungen"
+          },
+          "summaries__items__operation": {
+            "title": "Operation"
+          },
+          "summaries__items__field": {
+            "title": "Feld",
+            "description": "Zum Zählen nicht nötig"
           }
         },
         "input": {
@@ -19583,7 +19865,11 @@
           },
           "chat_types": {
             "title": "Wo",
-            "description": "Direktnachrichten, Kanäle und Gruppen oder beides"
+            "description": "Direktnachrichten, Kanäle und Gruppen oder beides",
+            "options": {
+              "group": "Kanäle und Gruppen",
+              "private": "Direktnachrichten"
+            }
           },
           "text_contains": {
             "title": "Nur wenn die Nachricht enthält",
@@ -19623,6 +19909,27 @@
           },
           "appearance__layout": {
             "title": "Layout"
+          },
+          "fields__items__name": {
+            "title": "Name",
+            "description": "Der Schlüssel in der Eingabe des Runs und in payload für eine Bindung"
+          },
+          "fields__items__label": {
+            "title": "Bezeichnung",
+            "description": "Im Run-Formular angezeigt"
+          },
+          "fields__items__type": {
+            "title": "Typ"
+          },
+          "fields__items__required": {
+            "title": "Pflichtfeld"
+          },
+          "fields__items__description": {
+            "title": "Beschreibung"
+          },
+          "fields__items__options": {
+            "title": "Optionen",
+            "description": "Was eine Auswahl anbietet"
           }
         }
       },
@@ -19634,7 +19941,16 @@
           },
           "events": {
             "title": "Startet bei",
-            "description": "Die GitHub-Ereignisse, die ihn starten"
+            "description": "Die GitHub-Ereignisse, die ihn starten",
+            "options": {
+              "issue_comment": "Kommentare zu Issues und Pull Requests",
+              "issues": "Issues",
+              "pull_request": "Pull Requests",
+              "pull_request_review": "Pull-Request-Reviews",
+              "push": "Pushes",
+              "release": "Releases",
+              "workflow_run": "Runs von Actions-Workflows"
+            }
           },
           "actions": {
             "title": "Nur diese Aktionen",
@@ -19669,6 +19985,27 @@
           },
           "input_schema": {
             "description": "Vertrag nach JSON Schema Draft 2020-12 für eine Eingabe als JSON-Objekt; Referenzen müssen lokal auf dieses Dokument verweisen"
+          },
+          "fields__items__name": {
+            "title": "Name",
+            "description": "Der Schlüssel in der Eingabe des Runs und in payload für eine Bindung"
+          },
+          "fields__items__label": {
+            "title": "Bezeichnung",
+            "description": "Im Run-Formular angezeigt"
+          },
+          "fields__items__type": {
+            "title": "Typ"
+          },
+          "fields__items__required": {
+            "title": "Pflichtfeld"
+          },
+          "fields__items__description": {
+            "title": "Beschreibung"
+          },
+          "fields__items__options": {
+            "title": "Optionen",
+            "description": "Was eine Auswahl anbietet"
           }
         }
       },
@@ -19742,11 +20079,26 @@
           },
           "events": {
             "title": "Startet bei diesen Datensatz-Ereignissen",
-            "description": "Hinzugefügt, geändert oder gelöscht. Sind Spalten gewählt, startet eine Änderung ihn nur, wenn sich eine der gewählten Spalten der Tabelle geändert hat."
+            "description": "Hinzugefügt, geändert oder gelöscht. Sind Spalten gewählt, startet eine Änderung ihn nur, wenn sich eine der gewählten Spalten der Tabelle geändert hat.",
+            "options": {
+              "created": "Hinzugefügt",
+              "deleted": "Gelöscht",
+              "updated": "Geändert"
+            }
           },
           "filters": {
             "title": "Filter",
             "description": "Jeder muss auf den Datensatz zutreffen - so, wie er hinzugefügt oder geändert wurde, oder so, wie er vor dem Löschen war"
+          },
+          "filters__items__column_id": {
+            "title": "Spalten-ID"
+          },
+          "filters__items__op": {
+            "title": "Operator"
+          },
+          "filters__items__value": {
+            "title": "Wert",
+            "description": "Der Operand. Eine Liste für `in`, ein Boolean für `is_null` (true bedeutet, dass die Zelle leer ist), sonst ein Wert vom Typ der Spalte."
           }
         }
       },
@@ -19757,6 +20109,27 @@
           },
           "input_schema": {
             "description": "Vertrag nach JSON Schema Draft 2020-12 für eine Eingabe als JSON-Objekt; Referenzen müssen lokal auf dieses Dokument verweisen"
+          },
+          "fields__items__name": {
+            "title": "Name",
+            "description": "Der Schlüssel in der Eingabe des Runs und in payload für eine Bindung"
+          },
+          "fields__items__label": {
+            "title": "Bezeichnung",
+            "description": "Im Run-Formular angezeigt"
+          },
+          "fields__items__type": {
+            "title": "Typ"
+          },
+          "fields__items__required": {
+            "title": "Pflichtfeld"
+          },
+          "fields__items__description": {
+            "title": "Beschreibung"
+          },
+          "fields__items__options": {
+            "title": "Optionen",
+            "description": "Was eine Auswahl anbietet"
           }
         }
       },

@@ -303,6 +303,12 @@ export function useNodeCatalog() {
                 ? { placeholder: t(`field.${id}.${kind}.${path}.placeholder`) }
                 : {}),
               ...(t.has(`${at}.hint`) ? { hint: t(`field.${id}.${kind}.${path}.hint`) } : {}),
+              option: (value: string) => {
+                const choice = nodeCopyKey(value);
+                return t.has(`${at}.options.${choice}`)
+                  ? t(`field.${id}.${kind}.${path}.options.${choice}`)
+                  : undefined;
+              },
             };
           };
         return {

@@ -4,6 +4,8 @@ export interface FieldCopy {
   description?: string;
   placeholder?: string;
   hint?: string;
+  /** What one of a choice's values is called, by the value - none when the catalog holds none. */
+  option?: (value: string) => string | undefined;
 }
 
 type Json = Record<string, unknown>;
@@ -17,8 +19,9 @@ function isRecord(value: unknown): value is Json {
  * placeholder and hint in the reader's language, wherever `copyOf` has one.
  *
  * A field is found by its path of property names - `auth__token` for `token`
- * inside `auth` - through inline objects, `$ref`s and `anyOf` branches, the way
- * the registry's own copy is collected. A `$defs` model shared by two fields is
+ * inside `auth`, `choices__items__label` for `label` in each of a list's items -
+ * through inline objects, list items, `$ref`s and `anyOf` branches, the way the
+ * registry's own copy is collected. A `$defs` model shared by two fields is
  * worded once, by the first path that reaches it. Nothing else changes, and the
  * schema served is never mutated.
  */
@@ -53,12 +56,34 @@ export function localizeSchema(schema: Json, copyOf: (path: string) => FieldCopy
     if (copy.description !== undefined) out.description = copy.description;
     if (copy.placeholder !== undefined) out["x-placeholder"] = copy.placeholder;
     if (copy.hint !== undefined) out["x-hint"] = copy.hint;
-    throughDef(property.$ref, path);
-    if (Array.isArray(property.anyOf)) {
-      for (const branch of property.anyOf) if (isRecord(branch)) throughDef(branch.$ref, path);
+    const labels = property["x-enum-labels"];
+    if (copy.option !== undefined && isRecord(labels)) {
+      const option = copy.option;
+      out["x-enum-labels"] = Object.fromEntries(
+        Object.entries(labels).map(([value, label]) => [value, option(value) ?? label]),
+      );
     }
+    throughDef(property.$ref, path);
     if (isRecord(property.properties)) out = nested(out, path);
+    out = listItems(out, path);
+    if (Array.isArray(property.anyOf)) {
+      out.anyOf = property.anyOf.map((branch: unknown) => {
+        if (!isRecord(branch)) return branch;
+        throughDef(branch.$ref, path);
+        return listItems(branch, path);
+      });
+    }
     return out;
+  };
+
+  // A list's items are worded under the list's path and `items`: `choices__items__label`.
+  const listItems = (schema: Json, path: string[]): Json => {
+    if (!isRecord(schema.items)) return schema;
+    const at = [...path, "items"];
+    throughDef(schema.items.$ref, at);
+    return isRecord(schema.items.properties)
+      ? { ...schema, items: nested(schema.items, at) }
+      : schema;
   };
 
   const localized = nested(schema, []);
