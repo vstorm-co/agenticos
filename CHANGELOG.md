@@ -25,6 +25,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **DNS parser security update (CVE-2026-128089).** Upgrade dnspython to 2.9.2
+  to reject out-of-range WKS service numbers before allocating their bitmaps.
 - Match workflow editor loading to its full-height workspace and remove the
   redundant count strip and nested padding from the Versions sidebar.
 - Bound coding-task revert verification to 2 MiB per file and 16 MiB overall,
