@@ -174,7 +174,7 @@ describe("WorkflowCanvas", () => {
     expect(container.querySelector('[data-node-id="u"] .react-flow__handle')).toBeNull();
   });
 
-  it("starts without the minimap on a phone, and the toolbar can still show it", async () => {
+  it("keeps a phone's minimap choice apart from the desktop's, across remounts", () => {
     const wide = vi.mocked(window.matchMedia).getMockImplementation()!;
     vi.mocked(window.matchMedia).mockImplementation((query: string) => ({
       ...wide(query),
@@ -182,13 +182,19 @@ describe("WorkflowCanvas", () => {
     }));
     try {
       seedTwoConnected();
-      store.setState({ minimapShown: true });
-      const { container } = render(<WorkflowCanvas workflow={workflow()} catalog={CATALOG} />);
-      expect(store.getState().minimapShown).toBe(false);
-      expect(container.querySelector(".react-flow__minimap")).toBeNull();
+      store.setState({ minimapShown: true, phoneMinimapShown: false });
+      const first = render(<WorkflowCanvas workflow={workflow()} catalog={CATALOG} />);
+      expect(first.container.querySelector(".react-flow__minimap")).toBeNull();
 
-      act(() => store.getState().toggleMinimap());
-      expect(container.querySelector(".react-flow__minimap")).not.toBeNull();
+      act(() => store.getState().toggleMinimap(true));
+      expect(first.container.querySelector(".react-flow__minimap")).not.toBeNull();
+      first.unmount();
+
+      // A remount - a live run starting, another workflow - keeps the phone's choice,
+      // and the desktop preference was never written over.
+      const again = render(<WorkflowCanvas workflow={workflow()} catalog={CATALOG} />);
+      expect(again.container.querySelector(".react-flow__minimap")).not.toBeNull();
+      expect(store.getState().minimapShown).toBe(true);
     } finally {
       vi.mocked(window.matchMedia).mockImplementation(wide);
     }

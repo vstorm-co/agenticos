@@ -198,6 +198,11 @@ export interface WorkflowEditorState {
   /** Whether the canvas shows its minimap. */
   minimapShown: boolean;
   /**
+   * Whether it does on a phone: a choice of its own, off until made, so a narrow
+   * screen neither inherits the desktop's minimap nor overwrites that preference.
+   */
+  phoneMinimapShown: boolean;
+  /**
    * What each step handed on in the test runs watched since the editor opened,
    * the latest winning - what a step's Input and Output show, and what a step
    * test pins for the steps before it.
@@ -270,8 +275,8 @@ export interface WorkflowEditorState {
   setOverlay: (overlay: CanvasOverlay) => void;
   /** Open the picker to put a step into the middle of `edgeId`. */
   beginSplit: (edgeId: Uuid) => void;
-  toggleMinimap: () => void;
-  setMinimapShown: (shown: boolean) => void;
+  /** Show or hide the minimap - the phone's own choice when `onPhone`. */
+  toggleMinimap: (onPhone?: boolean) => void;
   /** Move steps to new places at once - one undoable edit. */
   moveNodes: (layouts: ReadonlyMap<Uuid, NodePosition>) => void;
   /** Give a step a size - or `null` to put it back to the default - as one undoable edit. */
@@ -541,6 +546,7 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
     expectedRevision: null,
     // The builder's own view preference: kept across workflows, not a draft's.
     minimapShown: true,
+    phoneMinimapShown: false,
     ...CLEARED,
 
     load: ({ workflowId, expectedRevision }) => {
@@ -851,9 +857,12 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
 
     beginSplit: (edgeId) => set({ overlay: "picker", splitEdgeId: edgeId }),
 
-    toggleMinimap: () => set({ minimapShown: !get().minimapShown }),
-
-    setMinimapShown: (shown) => set({ minimapShown: shown }),
+    toggleMinimap: (onPhone = false) =>
+      set(
+        onPhone
+          ? { phoneMinimapShown: !get().phoneMinimapShown }
+          : { minimapShown: !get().minimapShown },
+      ),
 
     moveNodes: (layouts) => {
       const { graph } = get();

@@ -336,14 +336,10 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
   };
   const addNote = useWorkflowEditorStore((state) => state.addNote);
   const moveNodes = useWorkflowEditorStore((state) => state.moveNodes);
-  const minimapShown = useWorkflowEditorStore((state) => state.minimapShown);
-  const setMinimapShown = useWorkflowEditorStore((state) => state.setMinimapShown);
-
-  // On a phone the minimap covers a fifth of the canvas it maps. It starts hidden
-  // there; the toolbar still brings it back.
-  useEffect(() => {
-    if (narrow) setMinimapShown(false);
-  }, [narrow, setMinimapShown]);
+  // A phone has its own minimap choice, off until made: it covers a fifth of the canvas.
+  const minimapShown = useWorkflowEditorStore((state) =>
+    narrow ? state.phoneMinimapShown : state.minimapShown,
+  );
   const setSelection = useWorkflowEditorStore((state) => state.setSelection);
 
   // A right click on a step opens that step's menu; on the empty canvas, the step
