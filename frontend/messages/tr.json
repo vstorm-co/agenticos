@@ -414,7 +414,8 @@
     "kind": {
       "approvalRequested": "{agent} onayınızı bekliyor",
       "budgetExceeded": "{agent} durduruldu: {scope, select, agent {aylık bütçesi} group {bir departmanın aylık bütçesi} organization {organizasyonun aylık bütçesi} other {bir harcama sınırı}} tükendi ({limit} sınırın {spent} kadarı harcandı)",
-      "budgetWarning": "{group}, {limit} aylık bütçesinin %{share} kadarını kullandı."
+      "budgetWarning": "{group}, {limit} aylık bütçesinin %{share} kadarını kullandı.",
+      "workflowApproval": "Onay gerekiyor: {title}"
     }
   },
   "billing": {
@@ -12676,7 +12677,15 @@
       "role_pack": "Routine paketi",
       "finding": "Rutin"
     },
-    "openWorkingChat": "Sohbeti aç"
+    "openWorkingChat": "Sohbeti aç",
+    "approvals": {
+      "title": "{count, plural, =1 {1 onay sizi bekliyor} other {# onay sizi bekliyor}}",
+      "open": "Onayları aç",
+      "fromWorkflow": "Workflow {workflow}",
+      "fromAgent": "Agent {agent}",
+      "anAgent": "Bir agent",
+      "toolCall": "{tool} kullanmak istiyor"
+    }
   },
   "agentLimit": {
     "title": "Bu kuruluş agent sınırına ulaştı",

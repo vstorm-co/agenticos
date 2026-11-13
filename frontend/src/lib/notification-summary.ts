@@ -89,6 +89,8 @@ function paramsSummary(item: Notification, t: Translate): string | null {
         spent: usd(params.spent_usd ?? "0"),
         limit: usd(params.limit_usd ?? "0"),
       });
+    case "workflow_notification":
+      return t("kind.workflowApproval", { title: params.approval_title ?? "" });
     case "budget_warning":
       return t("kind.budgetWarning", {
         group: params.group_name ?? "",

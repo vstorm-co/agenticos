@@ -26,6 +26,8 @@ import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import type { Suggestion } from "@/lib/suggestions-api";
 import { timeAgo } from "@/lib/utils";
+import { usePendingApprovals } from "@/hooks/use-pending-approvals";
+import { ApprovalsWaiting } from "./approvals-waiting";
 import { SuggestionRows } from "./suggestion-rows";
 
 type Filter = "all" | "urgent" | "watches" | "suggestions" | "done";
@@ -65,6 +67,10 @@ export function InboxPage() {
   const [asked, setFilter] = useUrlState("filter");
   const filter = initialFilter(asked);
   const open = filter === "done" ? [] : suggestions.filter(KEEPS[filter]);
+  // A step or a tool call standing still until somebody decides is as urgent as
+  // anything here, so it leads the list wherever urgent things are shown.
+  const { count: approvals } = usePendingApprovals();
+  const showsApprovals = (filter === "all" || filter === "urgent") && approvals > 0;
 
   return (
     <div className="flex flex-1 flex-col space-y-4">
@@ -73,7 +79,9 @@ export function InboxPage() {
         fill
         namedByPage
         title={t("title")}
-        counted={isLoading ? null : error ? "—" : t("waiting", { count: suggestions.length })}
+        counted={
+          isLoading ? null : error ? "—" : t("waiting", { count: suggestions.length + approvals })
+        }
         contentClassName="p-0"
         headerTour="inbox-filters"
         controls={
@@ -135,6 +143,7 @@ export function InboxPage() {
           </>
         }
       >
+        {showsApprovals && <ApprovalsWaiting />}
         {filter === "done" ? (
           <Decided />
         ) : isLoading ? (
@@ -145,7 +154,7 @@ export function InboxPage() {
             cta={{ label: ts("retry"), onClick: () => void refetch() }}
           />
         ) : open.length === 0 ? (
-          <Nothing filter={filter} />
+          !showsApprovals && <Nothing filter={filter} />
         ) : (
           <SuggestionRows items={open} expandedDetails />
         )}

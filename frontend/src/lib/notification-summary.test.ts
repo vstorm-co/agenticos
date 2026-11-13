@@ -183,3 +183,13 @@ it("keeps the server's sentence where it kept no values, or for a kind the conso
     "server summary",
   );
 });
+
+it("words a workflow step's approval request from its title", () => {
+  expect(
+    notificationSummary(
+      worded("workflow_notification", { approval_title: "Send the refund?" }),
+      t,
+      stop,
+    ),
+  ).toBe("kind.workflowApproval(Send the refund?)");
+});
