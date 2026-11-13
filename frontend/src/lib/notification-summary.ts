@@ -85,7 +85,9 @@ function paramsSummary(item: Notification, t: Translate): string | null {
     case "budget_exceeded":
       return t("kind.budgetExceeded", {
         agent: params.agent_name ?? "",
-        scope: params.scope ?? "",
+        // A department's cap names its department when the row says which.
+        scope: params.scope === "group" && params.subject ? "department" : (params.scope ?? ""),
+        department: params.subject ?? "",
         spent: usd(params.spent_usd ?? "0"),
         limit: usd(params.limit_usd ?? "0"),
       });

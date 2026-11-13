@@ -46,6 +46,17 @@ def test_a_budget_stop_hands_over_its_numbers_and_none_of_the_rest():
     }
 
 
+def test_a_department_s_budget_stop_names_the_department():
+    context = {
+        "agent_name": "Probe agent",
+        "scope": "group",
+        "limit_usd": "10",
+        "spent_usd": "10.02",
+        "subject": "Sales",
+    }
+    assert _params(NotificationEventType.BUDGET_EXCEEDED, context) == context
+
+
 def test_an_approval_request_hands_over_only_the_agent_name():
     context = {
         "agent_name": "Memory probe",

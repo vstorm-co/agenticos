@@ -151,7 +151,7 @@ it("words an approval request and a budget stop from their values, in the reader
       t,
       stop,
     ),
-  ).toBe("kind.budgetExceeded(Probe agent,agent,$0.0008,$0.0005)");
+  ).toBe("kind.budgetExceeded(Probe agent,agent,,$0.0008,$0.0005)");
   expect(
     notificationSummary(
       worded("budget_warning", { group_name: "Sales", share: "82", limit: "100.00" }),
@@ -159,6 +159,22 @@ it("words an approval request and a budget stop from their values, in the reader
       stop,
     ),
   ).toBe("kind.budgetWarning(Sales,82,$100.00)");
+});
+
+it("names the department whose budget stopped a run", () => {
+  expect(
+    notificationSummary(
+      worded("budget_exceeded", {
+        agent_name: "Probe",
+        scope: "group",
+        subject: "Sales",
+        limit_usd: "10",
+        spent_usd: "10.02",
+      }),
+      t,
+      stop,
+    ),
+  ).toBe("kind.budgetExceeded(Probe,department,Sales,$10.02,$10.00)");
 });
 
 it("shows a limit to the cent, and below a cent to the place spend is shown at", () => {
@@ -173,8 +189,8 @@ it("shows a limit to the cent, and below a cent to the place spend is shown at",
       t,
       stop,
     );
-  expect(stopped("20")).toBe("kind.budgetExceeded(Probe,organization,$20.01,$20.00)");
-  expect(stopped("0.004")).toBe("kind.budgetExceeded(Probe,organization,$20.01,$0.0040)");
+  expect(stopped("20")).toBe("kind.budgetExceeded(Probe,organization,,$20.01,$20.00)");
+  expect(stopped("0.004")).toBe("kind.budgetExceeded(Probe,organization,,$20.01,$0.0040)");
 });
 
 it("keeps the server's sentence where it kept no values, or for a kind the console does not word", () => {

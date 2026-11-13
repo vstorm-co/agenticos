@@ -220,6 +220,7 @@ class NotificationService:
         scope: BudgetScope,
         limit_usd: Decimal | None = None,
         spent_usd: Decimal | None = None,
+        subject: str | None = None,
     ) -> set[UUID]:
         """The run stopped because a limit was reached.
 
@@ -345,6 +346,8 @@ class NotificationService:
                 if limit_usd is not None and spent_usd is not None
                 else {}
             ),
+            # Which department's cap, when it was one: a person can be in several.
+            **({"subject": subject} if subject else {}),
             "run_url": absolute_context_url(run_path),
             "app_name": settings.PROJECT_NAME,
             **native_context,
