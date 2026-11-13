@@ -89,7 +89,7 @@ class HttpAuth(BaseModel):
     header_prefix: str | None = Field(
         default=None,
         pattern=r"^[A-Za-z][A-Za-z0-9+._-]{0,31}$",
-        description="Optional scheme for a custom header, e.g. Token in Authorization: Token <key>.",
+        description="Optional scheme for a custom header, e.g. Token, sent before the key as in Authorization: Token abc123.",
     )
     query_name: str | None = Field(
         default=None,
