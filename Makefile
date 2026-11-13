@@ -55,6 +55,7 @@ sandbox-token:
 # delete it while a container mounts it either: Docker Desktop keeps a mount of
 # the old directory, and the next container fails "no such file or directory"
 # until every container using it is stopped or Docker Desktop restarts.
+# The pinned sandboxd image runs as uid 10001, primary gid 999.
 SANDBOX_WORKSPACE_ROOT ?= /tmp/agenticos-sandbox-workspaces
 
 sandbox-workspace:
@@ -69,7 +70,7 @@ sandbox-workspace:
 		owner=$$(ls -Lnd "$$dir" | awk '{print $$3}'); \
 		group=$$(ls -Lnd "$$dir" | awk '{print $$4}'); \
 		if [ "$$owner" = 10001 ]; then bits=3,4; \
-		elif [ "$$group" = 10001 ]; then bits=6,7; \
+		elif [ "$$group" = 999 ]; then bits=6,7; \
 		else bits=9,10; fi; \
 		access=$$(ls -Lnd "$$dir" | awk '{print $$1}' | cut -c $$bits); \
 		case "$$access" in wx|ws|wt) ;; *) \
