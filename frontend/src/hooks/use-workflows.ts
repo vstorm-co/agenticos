@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo } from "react";
+import { nodeCopyKey } from "@/lib/workflows/node-copy";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -264,14 +265,6 @@ export function useWorkflowVersion(workflowId: string, versionId: string | null)
   return { version: data, isLoading, error, refetch };
 }
 
-/** A node id or a port label as a catalog key: `table.record.upsert` → `table_record_upsert`. */
-export function nodeCopyKey(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_|_$/g, "");
-}
-
 /**
  * Every registered node type, for the editor's palette - named, described and its
  * ports labelled in the reader's language.
@@ -298,6 +291,7 @@ export function useNodeCatalog() {
         const id = nodeCopyKey(node.id);
         return {
           ...node,
+          standardPortLabels: { error: t("port.error"), unsure: t("port.unsure") },
           name: t.has(`node.${id}.name`) ? t(`node.${id}.name`) : node.name,
           description: t.has(`node.${id}.description`)
             ? t(`node.${id}.description`)

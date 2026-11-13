@@ -19,7 +19,7 @@ LOCALES = ("en", "pl", "de", "tr")
 
 
 def _key(text: str) -> str:
-    """The catalog key the console reads: `nodeCopyKey` in `use-workflows.ts`."""
+    """The catalog key the console reads: `nodeCopyKey` in `lib/workflows/node-copy.ts`."""
     return re.sub(r"[^a-z0-9]+", "_", text.lower()).strip("_")
 
 

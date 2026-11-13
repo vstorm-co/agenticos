@@ -10,6 +10,7 @@ import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-stat
 import type { DashboardWidgetProps } from "./types";
 import { useRecentWorkflowLogs } from "@/hooks";
 import { LogOutcome } from "@/components/workflows/logs/workflow-logs";
+import { logStepName } from "@/lib/workflows/node-copy";
 import { ROUTES } from "@/lib/constants";
 import { timeAgo } from "@/lib/utils";
 
@@ -24,6 +25,7 @@ const SHOWN_LINES = 6;
  */
 export function WorkflowLogsWidget({ title, hint, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.workflow-logs");
+  const tNode = useTranslations("workflowNodes");
   const tTime = useTranslations("time");
   const locale = useLocale();
   const { logs, isLoading, error, refetch } = useRecentWorkflowLogs(SHOWN_LINES);
@@ -69,7 +71,7 @@ export function WorkflowLogsWidget({ title, hint, seeAll, options }: DashboardWi
                   >
                     {entry.workflow_name}
                   </Link>
-                  <span className="shrink-0">{`· ${entry.step_label} ·`}</span>
+                  <span className="shrink-0">{`· ${logStepName(entry, tNode)} ·`}</span>
                   <LogOutcome entry={entry} />
                   <span className="shrink-0">{`· ${timeAgo(entry.created_at, tTime, locale)}`}</span>
                 </span>

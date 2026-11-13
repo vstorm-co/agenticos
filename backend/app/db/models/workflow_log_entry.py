@@ -58,6 +58,8 @@ class WorkflowLogEntry(Base):
     # The step in the graph; no foreign key, a step can be deleted from a later draft.
     node_instance_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
     step_label: Mapped[str] = mapped_column(String(128), nullable=False)
+    # Null preserves custom labels and lines written before their origin was recorded.
+    step_definition_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     # The port the step left by, or `error`; several ports are joined with a comma.
     outcome: Mapped[str] = mapped_column(String(256), nullable=False)
     # The step's settled status: `succeeded` or `failed`.

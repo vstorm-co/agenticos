@@ -1,5 +1,5 @@
 ---
-source_sha: "3740db7b4663"
+source_sha: "3126dfadd4f6"
 ---
 
 # Workflows { #workflows }
@@ -1008,6 +1008,8 @@ geschrieben hat. In der Laufansicht stehen die Zeilen jedes Schritts unter ihm, 
 Reihenfolge des Schreibens. Ein Organisations-API-Schlüssel mit `workflows:view` liest
 sie ebenfalls, für Läufe öffentlichen Ursprungs: siehe [Das Log eines Workflows
 lesen](api.md#reading-a-workflows-log).
+
+Neue Quick-Log-Zeilen zeigen Standardnamen der Schritte in der Sprache des Lesers, auch im Dashboard. Eigene Bezeichnungen und Zeilen ohne gespeicherte Namensherkunft behalten ihren gespeicherten Text.
 
 ### Alerts { #log-alerts }
 

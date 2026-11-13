@@ -72,6 +72,7 @@ async def _write(
         run_id=run.id,
         node_instance_id=node.id,
         step_label=label[:128],
+        step_definition_id=None if node.label else node.definition_id,
         outcome=outcome[:256],
         status=status.value,
         message=message,

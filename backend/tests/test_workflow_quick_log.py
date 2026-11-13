@@ -380,3 +380,24 @@ def test_a_run_prefix_with_wildcards_is_matched_literally():
     compiled = _run_matches("ab%_\\").compile(dialect=postgresql.dialect())
     assert "ESCAPE" in str(compiled)
     assert list(compiled.params.values()) == ["ab/%/_\\"]
+
+
+@pytest.mark.parametrize("label", [None, "API request"])
+async def test_log_label_origin_keeps_custom_names_literal(label: str | None) -> None:
+    step = _step("core.input", quick_log=QuickLog())
+    step = step.model_copy(update={"label": label})
+    graph = WorkflowGraph(entry_node_id=step.id, nodes=(step,))
+    definition = _resolve_definitions(graph)[step.id]
+    created = AsyncMock()
+    with patch.object(writer.workflow_log_repo, "create", new=created):
+        await writer.log_completed(
+            AsyncMock(),
+            run=_run(),
+            graph=graph,
+            node_run=SimpleNamespace(node_instance_id=step.id),
+            definition=definition,
+            output={},
+            is_pinned=False,
+        )
+    assert created.await_args.kwargs["step_label"] == "API request"
+    assert created.await_args.kwargs["step_definition_id"] == (None if label else "core.input")

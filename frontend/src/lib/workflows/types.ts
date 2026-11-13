@@ -57,6 +57,8 @@ export interface NodeDefinition {
   input_schema: JsonSchema | null;
   output_schema: JsonSchema | null;
   ports: Port[];
+  /** Localized labels for standard ports synthesized from instance configuration. */
+  standardPortLabels?: { error: string; unsure: string };
   effect_kind: "pure" | "read" | "write";
   retry_guarantee: "none" | "idempotent" | "at_least_once";
   scopes: string[];
@@ -681,6 +683,8 @@ export interface WorkflowLogEntry {
   node_instance_id: Uuid;
   /** The step's name as it was when the line was written. */
   step_label: string;
+  /** The definition to translate; null for a custom label or a legacy line. */
+  step_definition_id?: string | null;
   /** The port the step left by, or `error`. */
   outcome: string;
   status: string;

@@ -1,5 +1,5 @@
 ---
-source_sha: "3740db7b4663"
+source_sha: "3126dfadd4f6"
 ---
 
 # Workflows { #workflows }
@@ -926,6 +926,8 @@ przebiegu otwiera log przefiltrowany do tego przebiegu. Wiersz otwiera przebieg,
 go zapisał. W widoku przebiegu wiersze każdego kroku są pod nim, w kolejności zapisu.
 Klucz API organizacji z `workflows:view` też je odczytuje, dla runów o publicznym
 pochodzeniu: zob. [Odczyt logu workflow](api.md#reading-a-workflows-log).
+
+Nowe wiersze Quick Log pokazują domyślne nazwy kroków w języku czytelnika, także na dashboardzie. Własne etykiety i wiersze zapisane przed rejestrowaniem pochodzenia nazwy zachowują zapisany tekst.
 
 ### Alerty { #log-alerts }
 

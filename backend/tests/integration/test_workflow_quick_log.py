@@ -183,6 +183,7 @@ class TestWhatIsWritten:
         assert entry.message == "Send the mail sent to ada@example.com via out"
         assert (entry.outcome, entry.status) == ("out", "succeeded")
         assert entry.step_label == "Send the mail" and entry.node_instance_id == step.id
+        assert entry.step_definition_id is None
         assert (entry.workflow_id, entry.organization_id) == (seeded.run.workflow_id, seeded.org.id)
         assert (entry.is_test, entry.is_pinned) == (False, False)
 
@@ -193,6 +194,7 @@ class TestWhatIsWritten:
         await drive(seeded)
         (entry,) = await _entries(seeded)
         assert entry.message == "Kind ok → out"
+        assert entry.step_definition_id == kinds["ok"]
 
     async def test_a_test_run_flags_its_lines(self, engine: AsyncEngine, kinds: dict[str, str]):
         seeded = await seed_run(engine, _chain(_step(kinds["ok"], quick_log=QuickLog())))
