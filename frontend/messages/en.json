@@ -18383,7 +18383,11 @@
         "config": {
           "item_error_policy": {
             "title": "When an item fails",
-            "description": "Stop fails the loop at the first item that fails. Collect records the error in that item's place and carries on with the rest."
+            "description": "Stop fails the loop at the first item that fails. Collect records the error in that item's place and carries on with the rest.",
+            "options": {
+              "collect": "Collect and carry on",
+              "stop": "Stop the loop"
+            }
           }
         },
         "input": {
@@ -18647,7 +18651,11 @@
           },
           "model": {
             "title": "Model",
-            "description": "Which Jev answers: the moving release, the preview, or a pinned version"
+            "description": "Which Jev answers: the moving release, the preview, or a pinned version",
+            "options": {
+              "jev_latest": "Jev (latest)",
+              "jev_preview": "Jev (preview)"
+            }
           },
           "min_confidence": {
             "title": "Min Confidence",
@@ -18682,7 +18690,11 @@
           },
           "model": {
             "title": "Model",
-            "description": "Which Jev answers: the moving release, the preview, or a pinned version"
+            "description": "Which Jev answers: the moving release, the preview, or a pinned version",
+            "options": {
+              "jev_latest": "Jev (latest)",
+              "jev_preview": "Jev (preview)"
+            }
           },
           "min_confidence": {
             "title": "Min Confidence",
@@ -18711,7 +18723,11 @@
           },
           "model": {
             "title": "Model",
-            "description": "Which Jev answers: the moving release, the preview, or a pinned version"
+            "description": "Which Jev answers: the moving release, the preview, or a pinned version",
+            "options": {
+              "jev_latest": "Jev (latest)",
+              "jev_preview": "Jev (preview)"
+            }
           },
           "min_confidence": {
             "title": "Min Confidence",
@@ -19418,7 +19434,12 @@
           },
           "approval": {
             "title": "Ask for approval",
-            "description": "Before a tool the server does not mark read-only, before every call, or never."
+            "description": "Before a tool the server does not mark read-only, before every call, or never.",
+            "options": {
+              "all": "Before every call",
+              "none": "Never",
+              "writes": "Before a tool that can change something"
+            }
           },
           "approvers": {
             "title": "Approvers",
@@ -19430,7 +19451,11 @@
           },
           "on_tool_error": {
             "title": "When the tool answers with an error",
-            "description": "Whether an error the tool answers with fails the step or is its output."
+            "description": "Whether an error the tool answers with fails the step or is its output.",
+            "options": {
+              "complete": "Hand the error on",
+              "fail": "Fail the step"
+            }
           }
         },
         "input": {
@@ -20154,7 +20179,11 @@
           },
           "chat_types": {
             "title": "Where",
-            "description": "Direct messages, channels and groups, or both"
+            "description": "Direct messages, channels and groups, or both",
+            "options": {
+              "group": "Channels and groups",
+              "private": "Direct messages"
+            }
           },
           "text_contains": {
             "title": "Only when the message contains",
@@ -20226,7 +20255,16 @@
           },
           "events": {
             "title": "Starts on",
-            "description": "The GitHub events that start it"
+            "description": "The GitHub events that start it",
+            "options": {
+              "issue_comment": "Issue and pull request comments",
+              "issues": "Issues",
+              "pull_request": "Pull requests",
+              "pull_request_review": "Pull request reviews",
+              "push": "Pushes",
+              "release": "Releases",
+              "workflow_run": "Actions workflow runs"
+            }
           },
           "actions": {
             "title": "Only these actions",
@@ -20355,7 +20393,12 @@
           },
           "events": {
             "title": "Starts when a record is",
-            "description": "Added, changed or deleted. A change starts it only when one of the table's chosen columns changed, when columns are chosen."
+            "description": "Added, changed or deleted. A change starts it only when one of the table's chosen columns changed, when columns are chosen.",
+            "options": {
+              "created": "Added",
+              "deleted": "Deleted",
+              "updated": "Changed"
+            }
           },
           "filters": {
             "title": "Filters",

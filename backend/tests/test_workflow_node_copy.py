@@ -40,10 +40,10 @@ def _icu(text: str) -> str:
     return re.sub(r"[{}]", lambda brace: f"'{brace.group(0)}'", text)
 
 
-def _fields(schema: dict[str, Any], *, nested: bool) -> dict[str, dict[str, str]]:
+def _fields(schema: dict[str, Any], *, nested: bool) -> dict[str, dict[str, Any]]:
     """Each field's copy by its path - `localizeSchema` in the console walks the same way."""
     defs = schema.get("$defs", {})
-    found: dict[str, dict[str, str]] = {}
+    found: dict[str, dict[str, Any]] = {}
     seen: set[str] = set()
 
     def through(ref: object, path: list[str]) -> None:
@@ -62,6 +62,10 @@ def _fields(schema: dict[str, Any], *, nested: bool) -> dict[str, dict[str, str]
             # A code field's example is code: the same in every language, so not copy.
             if "x-code" in prop:
                 copy.pop("placeholder", None)
+            if isinstance(prop.get("x-enum-labels"), dict):
+                copy["options"] = {
+                    _key(value): _icu(label) for value, label in prop["x-enum-labels"].items()
+                }
             if copy:
                 found["__".join(at)] = copy
             if not nested:
@@ -87,8 +91,8 @@ def _fields(schema: dict[str, Any], *, nested: bool) -> dict[str, dict[str, str]
     return found
 
 
-def _registry_fields() -> dict[str, dict[str, dict[str, dict[str, str]]]]:
-    worded: dict[str, dict[str, dict[str, dict[str, str]]]] = {}
+def _registry_fields() -> dict[str, dict[str, dict[str, dict[str, Any]]]]:
+    worded: dict[str, dict[str, dict[str, dict[str, Any]]]] = {}
     for d in all_node_definitions():
         for kind, model in (("config", d.config_schema), ("input", d.input_schema)):
             if model is None:

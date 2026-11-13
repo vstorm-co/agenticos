@@ -4,6 +4,8 @@ export interface FieldCopy {
   description?: string;
   placeholder?: string;
   hint?: string;
+  /** What one of a choice's values is called, by the value - none when the catalog holds none. */
+  option?: (value: string) => string | undefined;
 }
 
 type Json = Record<string, unknown>;
@@ -54,6 +56,13 @@ export function localizeSchema(schema: Json, copyOf: (path: string) => FieldCopy
     if (copy.description !== undefined) out.description = copy.description;
     if (copy.placeholder !== undefined) out["x-placeholder"] = copy.placeholder;
     if (copy.hint !== undefined) out["x-hint"] = copy.hint;
+    const labels = property["x-enum-labels"];
+    if (copy.option !== undefined && isRecord(labels)) {
+      const option = copy.option;
+      out["x-enum-labels"] = Object.fromEntries(
+        Object.entries(labels).map(([value, label]) => [value, option(value) ?? label]),
+      );
+    }
     throughDef(property.$ref, path);
     if (isRecord(property.properties)) out = nested(out, path);
     out = listItems(out, path);

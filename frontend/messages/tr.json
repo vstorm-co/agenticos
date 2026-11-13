@@ -14140,7 +14140,11 @@
         "config": {
           "item_error_policy": {
             "title": "Bir öğe başarısız olduğunda",
-            "description": "Durdur, başarısız olan ilk öğede döngüyü başarısız kılar. Topla, hatayı o öğenin yerine kaydeder ve kalan öğelerle devam eder."
+            "description": "Durdur, başarısız olan ilk öğede döngüyü başarısız kılar. Topla, hatayı o öğenin yerine kaydeder ve kalan öğelerle devam eder.",
+            "options": {
+              "collect": "Topla ve devam et",
+              "stop": "Döngüyü durdur"
+            }
           }
         },
         "input": {
@@ -14404,7 +14408,11 @@
           },
           "model": {
             "title": "Model",
-            "description": "Hangi Jev’in yanıt vereceği: sürekli güncellenen sürüm, önizleme veya sabitlenmiş bir sürüm"
+            "description": "Hangi Jev’in yanıt vereceği: sürekli güncellenen sürüm, önizleme veya sabitlenmiş bir sürüm",
+            "options": {
+              "jev_latest": "Jev (en yeni)",
+              "jev_preview": "Jev (önizleme)"
+            }
           },
           "min_confidence": {
             "title": "En düşük güven",
@@ -14439,7 +14447,11 @@
           },
           "model": {
             "title": "Model",
-            "description": "Hangi Jev’in yanıt vereceği: sürekli güncellenen sürüm, önizleme veya sabitlenmiş bir sürüm"
+            "description": "Hangi Jev’in yanıt vereceği: sürekli güncellenen sürüm, önizleme veya sabitlenmiş bir sürüm",
+            "options": {
+              "jev_latest": "Jev (en yeni)",
+              "jev_preview": "Jev (önizleme)"
+            }
           },
           "min_confidence": {
             "title": "En düşük güven",
@@ -14468,7 +14480,11 @@
           },
           "model": {
             "title": "Model",
-            "description": "Hangi Jev’in yanıt vereceği: sürekli güncellenen sürüm, önizleme veya sabitlenmiş bir sürüm"
+            "description": "Hangi Jev’in yanıt vereceği: sürekli güncellenen sürüm, önizleme veya sabitlenmiş bir sürüm",
+            "options": {
+              "jev_latest": "Jev (en yeni)",
+              "jev_preview": "Jev (önizleme)"
+            }
           },
           "min_confidence": {
             "title": "En düşük güven",
@@ -15175,7 +15191,12 @@
           },
           "approval": {
             "title": "Onay iste",
-            "description": "Sunucunun salt okunur olarak işaretlemediği bir araçtan önce, her çağrıdan önce veya hiçbir zaman."
+            "description": "Sunucunun salt okunur olarak işaretlemediği bir araçtan önce, her çağrıdan önce veya hiçbir zaman.",
+            "options": {
+              "all": "Her çağrıdan önce",
+              "none": "Hiçbir zaman",
+              "writes": "Bir şeyi değiştirebilecek bir araçtan önce"
+            }
           },
           "approvers": {
             "title": "Onaylayanlar",
@@ -15187,7 +15208,11 @@
           },
           "on_tool_error": {
             "title": "Araç hatayla yanıt verdiğinde",
-            "description": "Aracın hatayla verdiği yanıtın adımı başarısız kılıp kılmayacağı ya da adımın çıktısı olup olmayacağı."
+            "description": "Aracın hatayla verdiği yanıtın adımı başarısız kılıp kılmayacağı ya da adımın çıktısı olup olmayacağı.",
+            "options": {
+              "complete": "Hatayı ilet",
+              "fail": "Adımı başarısız say"
+            }
           }
         },
         "input": {
@@ -15911,7 +15936,11 @@
           },
           "chat_types": {
             "title": "Nerede",
-            "description": "Doğrudan mesajlar, kanallar ve gruplar ya da her ikisi"
+            "description": "Doğrudan mesajlar, kanallar ve gruplar ya da her ikisi",
+            "options": {
+              "group": "Kanallar ve gruplar",
+              "private": "Doğrudan mesajlar"
+            }
           },
           "text_contains": {
             "title": "Yalnızca mesaj şunu içerdiğinde",
@@ -15983,7 +16012,16 @@
           },
           "events": {
             "title": "Başlatan olaylar",
-            "description": "Workflow’u başlatan GitHub olayları"
+            "description": "Workflow’u başlatan GitHub olayları",
+            "options": {
+              "issue_comment": "Issue ve pull request yorumları",
+              "issues": "Issue'lar",
+              "pull_request": "Pull request'ler",
+              "pull_request_review": "Pull request incelemeleri",
+              "push": "Push'lar",
+              "release": "Sürümler",
+              "workflow_run": "Actions workflow run'ları"
+            }
           },
           "actions": {
             "title": "Yalnızca bu eylemler",
@@ -16112,7 +16150,12 @@
           },
           "events": {
             "title": "Kayıt şu durumda başlatır",
-            "description": "Eklendi, değiştirildi veya silindi. Sütun seçildiyse, bir değişiklik yalnızca tablonun seçilen sütunlarından biri değiştiğinde workflow’u başlatır."
+            "description": "Eklendi, değiştirildi veya silindi. Sütun seçildiyse, bir değişiklik yalnızca tablonun seçilen sütunlarından biri değiştiğinde workflow’u başlatır.",
+            "options": {
+              "created": "Eklendi",
+              "deleted": "Silindi",
+              "updated": "Değiştirildi"
+            }
           },
           "filters": {
             "title": "Filtreler",

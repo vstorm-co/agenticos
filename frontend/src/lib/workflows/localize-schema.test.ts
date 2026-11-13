@@ -88,6 +88,21 @@ describe("localizeSchema", () => {
     expect(schema.properties.choices.items.properties.label.title).toBe("Label");
   });
 
+  it("names a choice's values in the reader's words, keeping any it has none for", () => {
+    const schema = {
+      properties: {
+        events: { "x-enum-labels": { created: "Added", deleted: "Deleted" } },
+      },
+    };
+    const worded = localizeSchema(schema, (path) =>
+      path === "events" ? { option: (value) => (value === "created" ? "Dodany" : undefined) } : {},
+    );
+    expect(worded).toMatchObject({
+      properties: { events: { "x-enum-labels": { created: "Dodany", deleted: "Deleted" } } },
+    });
+    expect(schema.properties.events["x-enum-labels"].created).toBe("Added");
+  });
+
   it("leaves a schema with nothing to word, or no properties, as it was", () => {
     expect(localizeSchema({ type: "string" }, copyOf)).toEqual({ type: "string" });
     expect(localizeSchema({ properties: { x: { $ref: "#/$defs/Gone" } } }, copyOf)).toEqual({

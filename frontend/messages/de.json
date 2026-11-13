@@ -18069,7 +18069,11 @@
         "config": {
           "item_error_policy": {
             "title": "Wenn ein Element fehlschlägt",
-            "description": "Anhalten lässt die Schleife beim ersten fehlgeschlagenen Element fehlschlagen. Sammeln hält den Fehler an der Stelle dieses Elements fest und macht mit den übrigen weiter."
+            "description": "Anhalten lässt die Schleife beim ersten fehlgeschlagenen Element fehlschlagen. Sammeln hält den Fehler an der Stelle dieses Elements fest und macht mit den übrigen weiter.",
+            "options": {
+              "collect": "Sammeln und weitermachen",
+              "stop": "Schleife anhalten"
+            }
           }
         },
         "input": {
@@ -18333,7 +18337,11 @@
           },
           "model": {
             "title": "Modell",
-            "description": "Welcher Jev antwortet: das fortlaufende Release, die Vorschau oder eine festgelegte Version"
+            "description": "Welcher Jev antwortet: das fortlaufende Release, die Vorschau oder eine festgelegte Version",
+            "options": {
+              "jev_latest": "Jev (neueste)",
+              "jev_preview": "Jev (Vorschau)"
+            }
           },
           "min_confidence": {
             "title": "Mindestkonfidenz",
@@ -18368,7 +18376,11 @@
           },
           "model": {
             "title": "Modell",
-            "description": "Welcher Jev antwortet: das fortlaufende Release, die Vorschau oder eine festgelegte Version"
+            "description": "Welcher Jev antwortet: das fortlaufende Release, die Vorschau oder eine festgelegte Version",
+            "options": {
+              "jev_latest": "Jev (neueste)",
+              "jev_preview": "Jev (Vorschau)"
+            }
           },
           "min_confidence": {
             "title": "Mindestkonfidenz",
@@ -18397,7 +18409,11 @@
           },
           "model": {
             "title": "Modell",
-            "description": "Welcher Jev antwortet: das fortlaufende Release, die Vorschau oder eine festgelegte Version"
+            "description": "Welcher Jev antwortet: das fortlaufende Release, die Vorschau oder eine festgelegte Version",
+            "options": {
+              "jev_latest": "Jev (neueste)",
+              "jev_preview": "Jev (Vorschau)"
+            }
           },
           "min_confidence": {
             "title": "Mindestkonfidenz",
@@ -19104,7 +19120,12 @@
           },
           "approval": {
             "title": "Freigabe anfordern",
-            "description": "Vor einem Tool, das der Server nicht als nur lesend kennzeichnet, vor jedem Aufruf oder nie."
+            "description": "Vor einem Tool, das der Server nicht als nur lesend kennzeichnet, vor jedem Aufruf oder nie.",
+            "options": {
+              "all": "Vor jedem Aufruf",
+              "none": "Nie",
+              "writes": "Vor einem Tool, das etwas ändern kann"
+            }
           },
           "approvers": {
             "title": "Freigebende",
@@ -19116,7 +19137,11 @@
           },
           "on_tool_error": {
             "title": "Wenn das Tool mit einem Fehler antwortet",
-            "description": "Ob ein Fehler, mit dem das Tool antwortet, den Schritt fehlschlagen lässt oder seine Ausgabe ist."
+            "description": "Ob ein Fehler, mit dem das Tool antwortet, den Schritt fehlschlagen lässt oder seine Ausgabe ist.",
+            "options": {
+              "complete": "Fehler weitergeben",
+              "fail": "Schritt fehlschlagen lassen"
+            }
           }
         },
         "input": {
@@ -19840,7 +19865,11 @@
           },
           "chat_types": {
             "title": "Wo",
-            "description": "Direktnachrichten, Kanäle und Gruppen oder beides"
+            "description": "Direktnachrichten, Kanäle und Gruppen oder beides",
+            "options": {
+              "group": "Kanäle und Gruppen",
+              "private": "Direktnachrichten"
+            }
           },
           "text_contains": {
             "title": "Nur wenn die Nachricht enthält",
@@ -19912,7 +19941,16 @@
           },
           "events": {
             "title": "Startet bei",
-            "description": "Die GitHub-Ereignisse, die ihn starten"
+            "description": "Die GitHub-Ereignisse, die ihn starten",
+            "options": {
+              "issue_comment": "Kommentare zu Issues und Pull Requests",
+              "issues": "Issues",
+              "pull_request": "Pull Requests",
+              "pull_request_review": "Pull-Request-Reviews",
+              "push": "Pushes",
+              "release": "Releases",
+              "workflow_run": "Runs von Actions-Workflows"
+            }
           },
           "actions": {
             "title": "Nur diese Aktionen",
@@ -20041,7 +20079,12 @@
           },
           "events": {
             "title": "Startet bei diesen Datensatz-Ereignissen",
-            "description": "Hinzugefügt, geändert oder gelöscht. Sind Spalten gewählt, startet eine Änderung ihn nur, wenn sich eine der gewählten Spalten der Tabelle geändert hat."
+            "description": "Hinzugefügt, geändert oder gelöscht. Sind Spalten gewählt, startet eine Änderung ihn nur, wenn sich eine der gewählten Spalten der Tabelle geändert hat.",
+            "options": {
+              "created": "Hinzugefügt",
+              "deleted": "Gelöscht",
+              "updated": "Geändert"
+            }
           },
           "filters": {
             "title": "Filter",

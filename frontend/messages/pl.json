@@ -18156,7 +18156,11 @@
         "config": {
           "item_error_policy": {
             "title": "Gdy element się nie powiedzie",
-            "description": "Zatrzymaj kończy pętlę błędem przy pierwszym elemencie, który się nie powiedzie. Zbieraj zapisuje błąd w miejscu tego elementu i kontynuuje z resztą."
+            "description": "Zatrzymaj kończy pętlę błędem przy pierwszym elemencie, który się nie powiedzie. Zbieraj zapisuje błąd w miejscu tego elementu i kontynuuje z resztą.",
+            "options": {
+              "collect": "Zbierz i kontynuuj",
+              "stop": "Zatrzymaj pętlę"
+            }
           }
         },
         "input": {
@@ -18420,7 +18424,11 @@
           },
           "model": {
             "title": "Model",
-            "description": "Który Jev odpowiada: bieżące wydanie, wersja preview albo przypięta wersja"
+            "description": "Który Jev odpowiada: bieżące wydanie, wersja preview albo przypięta wersja",
+            "options": {
+              "jev_latest": "Jev (najnowszy)",
+              "jev_preview": "Jev (wersja zapoznawcza)"
+            }
           },
           "min_confidence": {
             "title": "Minimalna pewność",
@@ -18455,7 +18463,11 @@
           },
           "model": {
             "title": "Model",
-            "description": "Który Jev odpowiada: bieżące wydanie, wersja preview albo przypięta wersja"
+            "description": "Który Jev odpowiada: bieżące wydanie, wersja preview albo przypięta wersja",
+            "options": {
+              "jev_latest": "Jev (najnowszy)",
+              "jev_preview": "Jev (wersja zapoznawcza)"
+            }
           },
           "min_confidence": {
             "title": "Minimalna pewność",
@@ -18484,7 +18496,11 @@
           },
           "model": {
             "title": "Model",
-            "description": "Który Jev odpowiada: bieżące wydanie, wersja preview albo przypięta wersja"
+            "description": "Który Jev odpowiada: bieżące wydanie, wersja preview albo przypięta wersja",
+            "options": {
+              "jev_latest": "Jev (najnowszy)",
+              "jev_preview": "Jev (wersja zapoznawcza)"
+            }
           },
           "min_confidence": {
             "title": "Minimalna pewność",
@@ -19191,7 +19207,12 @@
           },
           "approval": {
             "title": "Proś o zatwierdzenie",
-            "description": "Przed narzędziem, którego serwer nie oznacza jako tylko do odczytu, przed każdym wywołaniem albo nigdy."
+            "description": "Przed narzędziem, którego serwer nie oznacza jako tylko do odczytu, przed każdym wywołaniem albo nigdy.",
+            "options": {
+              "all": "Przed każdym wywołaniem",
+              "none": "Nigdy",
+              "writes": "Przed narzędziem, które może coś zmienić"
+            }
           },
           "approvers": {
             "title": "Zatwierdzający",
@@ -19203,7 +19224,11 @@
           },
           "on_tool_error": {
             "title": "Gdy narzędzie odpowie błędem",
-            "description": "Czy błąd zwrócony przez narzędzie kończy krok błędem, czy jest jego wynikiem."
+            "description": "Czy błąd zwrócony przez narzędzie kończy krok błędem, czy jest jego wynikiem.",
+            "options": {
+              "complete": "Przekaż błąd dalej",
+              "fail": "Zakończ krok błędem"
+            }
           }
         },
         "input": {
@@ -19927,7 +19952,11 @@
           },
           "chat_types": {
             "title": "Gdzie",
-            "description": "Wiadomości bezpośrednie, kanały i grupy albo jedno i drugie"
+            "description": "Wiadomości bezpośrednie, kanały i grupy albo jedno i drugie",
+            "options": {
+              "group": "Kanały i grupy",
+              "private": "Wiadomości bezpośrednie"
+            }
           },
           "text_contains": {
             "title": "Tylko gdy wiadomość zawiera",
@@ -19999,7 +20028,16 @@
           },
           "events": {
             "title": "Uruchamia się przy",
-            "description": "Zdarzenia GitHub, które go uruchamiają"
+            "description": "Zdarzenia GitHub, które go uruchamiają",
+            "options": {
+              "issue_comment": "Komentarze do issues i pull requestów",
+              "issues": "Issues",
+              "pull_request": "Pull requesty",
+              "pull_request_review": "Recenzje pull requestów",
+              "push": "Pushe",
+              "release": "Wydania",
+              "workflow_run": "Runy workflowów Actions"
+            }
           },
           "actions": {
             "title": "Tylko te akcje",
@@ -20128,7 +20166,12 @@
           },
           "events": {
             "title": "Uruchamia się, gdy rekord zostanie",
-            "description": "Dodany, zmieniony lub usunięty. Gdy wybrano kolumny, zmiana uruchamia go tylko wtedy, gdy zmieniła się jedna z wybranych kolumn tabeli."
+            "description": "Dodany, zmieniony lub usunięty. Gdy wybrano kolumny, zmiana uruchamia go tylko wtedy, gdy zmieniła się jedna z wybranych kolumn tabeli.",
+            "options": {
+              "created": "Dodany",
+              "deleted": "Usunięty",
+              "updated": "Zmieniony"
+            }
           },
           "filters": {
             "title": "Filtry",
