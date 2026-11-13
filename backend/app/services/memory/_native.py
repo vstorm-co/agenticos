@@ -122,7 +122,9 @@ async def refuse_if_erased_during_run(
         return
     run = (
         await db.execute(
-            select(AgentRun.organization_id, AgentRun.started_at).where(AgentRun.id == run_id)
+            select(AgentRun.organization_id, AgentRun.started_at, AgentRun.memory_snapshot).where(
+                AgentRun.id == run_id
+            )
         )
     ).one_or_none()
     if run is None or run.started_at is None:
@@ -133,6 +135,7 @@ async def refuse_if_erased_during_run(
         user_id=_person_of(owner_key),
         agent_id=agent_id,
         since=run.started_at,
+        snapshot=run.memory_snapshot,
     ):
         raise ErasedDuringRun
 

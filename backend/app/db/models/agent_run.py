@@ -456,6 +456,12 @@ class AgentRun(Base, TimestampMixin):
 
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # The transactions committed when the row was inserted, before the run reads any
+    # memory: an erasure missing from it was still running, so what the run read may
+    # predate it. Null on runs from before it was recorded.
+    memory_snapshot: Mapped[str | None] = mapped_column(
+        Text, nullable=True, server_default=text("(pg_current_snapshot())::text")
+    )
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # Stamped every few seconds by the process executing the run
     # (`app.services.run_heartbeat`), so a run whose process died is told apart

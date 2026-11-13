@@ -37,7 +37,7 @@ from uuid import uuid4
 import pytest
 from alembic.config import Config
 from alembic.script import ScriptDirectory
-from sqlalchemy import create_engine, delete, select, text, update
+from sqlalchemy import create_engine, delete, insert, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session as DatabaseSession
@@ -441,17 +441,22 @@ def test_run_conversation_check_waits_for_every_account_delete_cascade() -> None
             chat = Conversation(organization_id=org_id, user_id=owner.id, title="Private")
             db.add_all([agent, chat])
             db.flush()
-            run = AgentRun(
-                organization_id=org_id,
-                agent_id=agent.id,
-                started_at=datetime.now(UTC),
-                user_id=owner.id,
-                conversation_id=chat.id,
-                routine_policy={"approved_sources": []},
+            # A Core insert names only these columns: the model is at head and the
+            # schema here is not.
+            run_id = uuid4()
+            db.execute(
+                insert(AgentRun).values(
+                    id=run_id,
+                    organization_id=org_id,
+                    agent_id=agent.id,
+                    started_at=datetime.now(UTC),
+                    user_id=owner.id,
+                    conversation_id=chat.id,
+                    routine_policy={"approved_sources": []},
+                )
             )
-            db.add(run)
             db.commit()
-            owner_id, run_id = owner.id, run.id
+            owner_id = owner.id
 
         # Re-creating a constraint gives its RI triggers a newer OID, so its action
         # fires after the other one. Each statement forces one of the two orders.

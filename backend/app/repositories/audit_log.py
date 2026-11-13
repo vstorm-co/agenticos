@@ -3,8 +3,9 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import Text, and_, cast, func, literal, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.types import UserDefinedType
 
 from app.db.models.audit_checkpoint import AppAdminAuditCheckpoint
 from app.db.models.audit_log import AppAdminAuditLog
@@ -131,21 +132,37 @@ async def distinct_checkpoint_organization_ids(db: AsyncSession) -> list[UUID | 
     return list(result.scalars().all())
 
 
-async def memory_erased_since(
-    db: AsyncSession,
-    *,
-    organization_id: UUID,
-    user_id: UUID | None,
-    agent_id: UUID | None,
-    since: datetime,
-) -> bool:
-    """Whether this person's memory, or this agent's, was erased after `since`.
+class _PgType(UserDefinedType):
+    """A PostgreSQL type named only to cast to it."""
 
-    An erasure writes the trail as it commits, so this is the cutoff a queued read of an
-    older conversation must respect: the transcript outlives the erasure, and reading it
-    again would put back what the person was just told is gone. Only the erasures of
-    the person and the agent given are asked about; with neither there is nothing to ask.
-    """
+    cache_ok = True
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+    def get_col_spec(self, **_kw: object) -> str:
+        return self.name
+
+
+_XID8 = _PgType("xid8")
+_PG_SNAPSHOT = _PgType("pg_snapshot")
+
+
+ERASURE_TRANSACTION = "transaction"
+"""The key in a memory erasure's audit details naming the transaction that made it."""
+
+
+async def current_transaction(db: AsyncSession) -> str:
+    """This transaction's id, as `memory_erased_since` compares it with a run's snapshot."""
+    return str((await db.execute(select(cast(func.pg_current_xact_id(), Text)))).scalar_one())
+
+
+async def current_snapshot(db: AsyncSession) -> str:
+    """The transactions committed now, as a run records them when its row is inserted."""
+    return str((await db.execute(select(cast(func.pg_current_snapshot(), Text)))).scalar_one())
+
+
+def _memory_erasures(user_id: UUID | None, agent_id: UUID | None) -> list:
     erased = []
     if agent_id is not None:
         erased.append(
@@ -161,15 +178,60 @@ async def memory_erased_since(
                 AppAdminAuditLog.target_id == str(user_id),
             )
         )
+    return erased
+
+
+async def memory_erased_since(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID | None,
+    agent_id: UUID | None,
+    since: datetime,
+    snapshot: str | None = None,
+) -> bool:
+    """Whether this person's memory, or this agent's, was erased after `since`.
+
+    An erasure writes the trail as it commits, so this is the cutoff a queued read of an
+    older conversation must respect: the transcript outlives the erasure, and reading it
+    again would put back what the person was just told is gone. Only the erasures of
+    the person and the agent given are asked about; with neither there is nothing to ask.
+
+    An erasure's entry is dated when its transaction began, so one still committing when
+    the reader began is dated before `since` although the reader saw what it removed.
+    `snapshot`, the transactions committed when the reader began, catches it: an
+    erasure whose transaction is not in it counts as later, whatever its date.
+    """
+    erased = _memory_erasures(user_id, agent_id)
     if not erased:
         return False
+    later = AppAdminAuditLog.created_at > since
+    if snapshot is not None:
+        transaction = AppAdminAuditLog.details[ERASURE_TRANSACTION].astext
+        later = or_(
+            later,
+            and_(
+                transaction.is_not(None),
+                ~func.pg_visible_in_snapshot(
+                    cast(transaction, _XID8), cast(literal(snapshot), _PG_SNAPSHOT)
+                ),
+            ),
+        )
     found = await db.scalar(
         select(AppAdminAuditLog.id)
-        .where(
-            AppAdminAuditLog.organization_id == organization_id,
-            AppAdminAuditLog.created_at > since,
-            or_(*erased),
-        )
+        .where(AppAdminAuditLog.organization_id == organization_id, later, or_(*erased))
         .limit(1)
     )
     return found is not None
+
+
+async def latest_memory_erasure(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID
+) -> datetime | None:
+    """When this person's memory in this organization was last erased, if ever."""
+    return await db.scalar(
+        select(func.max(AppAdminAuditLog.created_at)).where(
+            AppAdminAuditLog.organization_id == organization_id,
+            or_(*_memory_erasures(user_id, None)),
+        )
+    )

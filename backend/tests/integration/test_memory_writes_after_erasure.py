@@ -23,6 +23,7 @@ from app.agents.deps import AgentDeps
 from app.core.memory_keys import person_owner_key, room_owner_key
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
+from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.memory import AgentMemoryFile
 from app.db.models.memory_claim import MemoryClaim
 from app.db.models.organization import Organization, OrganizationMember
@@ -126,6 +127,7 @@ async def test_edit_memory_after_forget_me_changes_nothing_and_says_why(db: Asyn
     # A note written after the erasure, by a run that began after it, is the one
     # an older run must not overwrite with what it read before.
     await _forget(db, user, org)
+    await db.commit()
     later = AgentRun(
         organization_id=org.id,
         agent_id=agent.id,
@@ -152,6 +154,7 @@ async def test_edit_memory_after_forget_me_changes_nothing_and_says_why(db: Asyn
 async def test_a_run_begun_after_the_erasure_writes_as_usual(db: AsyncSession) -> None:
     user, org, agent, _ = await _world(db)
     await _forget(db, user, org)
+    await db.commit()
     _, _, _, later = await _world(db, started=timedelta(minutes=1))
     later.organization_id, later.agent_id, later.user_id = org.id, agent.id, user.id
     await db.flush()
@@ -330,6 +333,7 @@ async def test_a_correction_after_its_agent_was_cleared_changes_nothing_and_says
     ctx = await member_context(db, organization_id=org.id, user_id=user.id)
     assert ctx is not None
     await MemoryService(db).clear_agent(ctx, agent.id)
+    await db.commit()
     # A claim recorded after the clear, by a run that began after it, is the one an
     # older run must not supersede with what it read before.
     later = AgentRun(
@@ -376,3 +380,42 @@ async def test_a_correction_holds_off_clearing_its_agents_memory(
 
     assert said.startswith("Corrected")
     assert not await _agent_lock_free_elsewhere(engine, agent)
+
+
+async def test_a_run_admitted_while_an_erasure_commits_is_still_refused(
+    db: AsyncSession, engine: AsyncEngine
+) -> None:
+    user, org, agent, _ = await _world(db)
+    await db.commit()
+
+    async with AsyncSession(engine) as erasing:
+        ctx = await member_context(erasing, organization_id=org.id, user_id=user.id)
+        assert ctx is not None
+        await MemoryService(erasing).forget_person(ctx, user.id)
+        # Admitted after the erasure's entry is dated but before it commits, so the run
+        # reads memory the erasure has not removed yet.
+        async with AsyncSession(engine) as admitting:
+            run = AgentRun(
+                organization_id=org.id,
+                agent_id=agent.id,
+                user_id=user.id,
+                started_at=datetime.now(UTC),
+            )
+            admitting.add(run)
+            await admitting.flush()
+            run_id = run.id
+            await admitting.commit()
+        await erasing.commit()
+
+    erased_at = await db.scalar(
+        select(AppAdminAuditLog.created_at).where(
+            AppAdminAuditLog.action == "memory.person.forgotten",
+            AppAdminAuditLog.target_id == str(user.id),
+        )
+    )
+    started_at = await db.scalar(select(AgentRun.started_at).where(AgentRun.id == run_id))
+    assert erased_at is not None and started_at is not None and erased_at < started_at
+    with pytest.raises(memory_store.ErasedDuringRun):
+        await _native.refuse_if_erased_during_run(
+            db, owner_key=person_owner_key(user.id), agent_id=None, run_id=run_id
+        )
