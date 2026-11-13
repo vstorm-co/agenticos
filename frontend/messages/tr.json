@@ -1825,9 +1825,25 @@
     },
     "formula": {
       "label": "Formül",
-      "placeholder": "'{Price}' * '{Quantity}'",
+      "placeholder": "'{Fiyat}' * '{Miktar}'",
       "columns": "Kullanılacak sütunlar",
-      "hint": "Sütun adını süslü parantez içinde yazın. + - * / %, = <> < > işleçlerini ve, or, not ile IF, ROUND, ABS, MIN, MAX, CONCAT, LEN, UPPER, LOWER, DAYS, TODAY işlevlerini kullanın."
+      "hint": "Sütun adını süslü parantez içinde yazın. + - * / %, = <> < > işleçlerini ve, or, not ile IF, ROUND, ABS, MIN, MAX, CONCAT, LEN, UPPER, LOWER, DAYS, TODAY işlevlerini kullanın. Ondalık sayıları nokta ile yazın, örneğin 1.23.",
+      "problem": {
+        "syntax": "Formül doğru yazılmamış.",
+        "too_deep": "Formül çok derin iç içe geçmiş.",
+        "constant": "Bir formül sayı, metin ve true ya da false içerir.",
+        "unknown_name": "{name} burada bir anlam taşımıyor: sütunu süslü parantez içinde yazın, örneğin '{'{name}'}'.",
+        "arithmetic": "Bir formül yalnızca + - * / ve % ile hesaplar.",
+        "operator": "Bu işleç formüllerde kullanılmaz.",
+        "comparison": "Bir formül yalnızca = <> < <= > >= ile karşılaştırır.",
+        "function": "Bir formül yalnızca şu işlevleri çağırır: {functions}.",
+        "decimal_comma": "Ondalık sayıları nokta ile yazın, örneğin 1.23. Virgül bir işlevin bağımsız değişkenlerini ayırır.",
+        "unsupported": "Bir formül bunu içeremez.",
+        "empty": "Formül sütunu bir formül gerektirir.",
+        "too_long": "Bir formül en fazla {limit} karakterdir.",
+        "not_a_column": "'{'{label}'}' bu tablonun etkin bir sütunu değil.",
+        "not_a_value": "'{'{label}'}' {type, select, link {bir bağlantı sütunu} other {bir formül sütunu}}: formül değer içeren sütunları okur."
+      }
     },
     "defaults": {
       "value": "Varsayılan değer",

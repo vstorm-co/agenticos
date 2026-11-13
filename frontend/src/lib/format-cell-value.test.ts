@@ -135,6 +135,38 @@ describe("a formula's answer", () => {
   });
 });
 
+describe("a number in the viewer's locale", () => {
+  it("takes the locale's decimal separator, every stored digit kept, and a short one ungrouped", () => {
+    expect(formatCellValue(column({ type: "number" }), 12.177, boolLabel, "pl")).toBe("12,177");
+    expect(formatCellValue(column({ type: "number" }), 12.177, boolLabel, "en")).toBe("12.177");
+    expect(formatCellValue(column({ type: "number" }), 0.12345678912, boolLabel, "en")).toBe(
+      "0.12345678912",
+    );
+    expect(formatCellValue(column({ type: "number" }), 1e-12, boolLabel, "pl")).toBe(
+      "0,000000000001",
+    );
+    expect(formatCellValue(column({ type: "number" }), 0.1, boolLabel, "pl")).toBe("0,1");
+    expect(formatCellValue(column({ type: "integer" }), 2026, boolLabel, "en")).toBe("2026");
+    expect(formatCellValue(column({ type: "integer" }), 1234567, boolLabel, "en")).toBe(
+      "1,234,567",
+    );
+    expect(formatCellValue(column({ type: "rollup" }), 9.9, boolLabel, "de")).toBe("9,9");
+  });
+
+  it("formats a formula's or a lookup's number too, and leaves text as it is", () => {
+    expect(formatCellValue(column({ type: "formula" }), 9.9, boolLabel, "pl")).toBe("9,9");
+    expect(formatCellValue(column({ type: "formula" }), "9.9", boolLabel, "pl")).toBe("9.9");
+    expect(
+      formatCellValue(column({ type: "lookup" }), ["Atlas", 1.5] as never, boolLabel, "pl"),
+    ).toBe("Atlas; 1,5");
+    expect(formatCellValue(column({ type: "lookup" }), [12.5, 3.7] as never, boolLabel, "en")).toBe(
+      "12.5, 3.7",
+    );
+    expect(formatCellValue(column({ type: "lookup" }), 2.5 as never, boolLabel, "pl")).toBe("2,5");
+    expect(formatCellValue(column({ type: "text" }), "1.5", boolLabel, "pl")).toBe("1.5");
+  });
+});
+
 describe("recordCellText", () => {
   const record = {
     values: { c1: ["r1", "r2"], c2: 4 },

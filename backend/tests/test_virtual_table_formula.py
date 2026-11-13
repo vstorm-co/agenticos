@@ -141,35 +141,51 @@ def test_an_unchecked_expression_works_out_nothing():
 
 
 @pytest.mark.parametrize(
-    ("formula", "says"),
+    ("formula", "says", "reason"),
     [
-        ("", "needs a formula"),
-        ("x" * (MAX_FORMULA + 1), "at most"),
-        ("{Price} *", "not written correctly"),
-        ("(", "not written correctly"),
-        ("{Missing} + 1", "not a live column"),
-        ("{Gone} + 1", "not a live column"),
-        ("{Total} + 1", "formula column"),
-        ("{Items}", "link column"),
-        ("Price + 1", "name a column in braces"),
-        ("{Price} ** 2", "calculates with"),
-        ("{Price} // 2", "calculates with"),
-        ("~{Quantity}", "not one a formula uses"),
-        ("{Quantity} in [1]", "compares with"),
-        ("__import__('os')", "functions"),
-        ("UPPER(**{})", "functions"),
-        ("{Name}.upper()", "functions"),
-        ("[1, 2]", "can contain"),
-        ("{Price}[0]", "can contain"),
-        ("lambda: 1", "can contain"),
-        ("None", "numbers, text and true or false"),
-        ("b'x'", "numbers, text and true or false"),
-        ("ABS(" * (MAX_DEPTH + 1) + "1" + ")" * (MAX_DEPTH + 1), "nests too deeply"),
+        ("{Price} * 1,23", "decimals with a dot", "decimal_comma"),
+        ("({Price}, 1)", "decimals with a dot", "decimal_comma"),
+        ("", "needs a formula", "empty"),
+        ("x" * (MAX_FORMULA + 1), "at most", "too_long"),
+        ("{Price} *", "not written correctly", "syntax"),
+        ("(", "not written correctly", "syntax"),
+        ("{Missing} + 1", "not a live column", "not_a_column"),
+        ("{Gone} + 1", "not a live column", "not_a_column"),
+        ("{Total} + 1", "formula column", "not_a_value"),
+        ("{Items}", "link column", "not_a_value"),
+        ("Price + 1", "name a column in braces", "unknown_name"),
+        ("{Price} ** 2", "calculates with", "arithmetic"),
+        ("{Price} // 2", "calculates with", "arithmetic"),
+        ("~{Quantity}", "not one a formula uses", "operator"),
+        ("{Quantity} in [1]", "compares with", "comparison"),
+        ("__import__('os')", "functions", "function"),
+        ("UPPER(**{})", "functions", "function"),
+        ("{Name}.upper()", "functions", "function"),
+        ("[1, 2]", "can contain", "unsupported"),
+        ("{Price}[0]", "can contain", "unsupported"),
+        ("lambda: 1", "can contain", "unsupported"),
+        ("None", "numbers, text and true or false", "constant"),
+        ("b'x'", "numbers, text and true or false", "constant"),
+        ("ABS(" * (MAX_DEPTH + 1) + "1" + ")" * (MAX_DEPTH + 1), "nests too deeply", "too_deep"),
     ],
 )
-def test_a_formula_that_cannot_be_one_is_refused_saying_why(formula, says):
-    with pytest.raises(FormulaProblem, match=says):
+def test_a_formula_that_cannot_be_one_is_refused_saying_why(formula, says, reason):
+    with pytest.raises(FormulaProblem, match=says) as refused:
         _check(formula)
+    assert refused.value.reason == reason
+
+
+def test_a_refusal_carries_what_its_message_names():
+    with pytest.raises(FormulaProblem) as missing:
+        _check("{Missing} + 1")
+    assert missing.value.params == {"label": "Missing"}
+    with pytest.raises(FormulaProblem) as linked:
+        _check("{Items}")
+    assert linked.value.params == {"label": "Items", "type": "link"}
+
+
+def test_a_comma_inside_a_call_still_separates_its_arguments():
+    _check("ROUND({Price} * 1, 2)")
 
 
 def test_deep_unary_nesting_is_refused():
