@@ -8,7 +8,7 @@ import { MediaSurfaceContext } from "@/lib/generated-media";
 import type { ToolCall } from "@/types";
 import type { ColumnDef, TableRead } from "@/types/tables";
 
-import { TableApprovalSummary, TableToolResult } from "./table-call";
+import { TableCallReadout, TableToolResult } from "./table-call";
 
 vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
@@ -291,7 +291,7 @@ describe("table tool results", () => {
   });
 });
 
-describe("table approval summary", () => {
+describe("table call readout", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(apiClient.get).mockResolvedValue(table);
@@ -299,7 +299,7 @@ describe("table approval summary", () => {
 
   it("names a parked write's table and cells", async () => {
     show(
-      <TableApprovalSummary
+      <TableCallReadout
         toolName="agenticos_add_virtual_table_record"
         args={{ table_id: TABLE, values: { [TITLE]: "New story", [STATUS]: QUEUED } }}
       />,
@@ -309,9 +309,21 @@ describe("table approval summary", () => {
     expect(screen.getByText("To be analyzed")).toBeVisible();
   });
 
+  it("adds what the call answered when it has finished", async () => {
+    show(
+      <TableCallReadout
+        toolName="agenticos_query_virtual_table"
+        args={{ table_id: TABLE, ...queued }}
+        result={JSON.stringify({ items: [row("r1", "Agents in prod")], has_more: false })}
+      />,
+    );
+    expect(await screen.findByText("1 record found")).toBeVisible();
+    expect(screen.getByRole("cell", { name: "Agents in prod" })).toBeVisible();
+  });
+
   it("reads nothing for any other tool", () => {
     const { container } = show(
-      <TableApprovalSummary toolName="agenticos_create_routine" args={{ table_id: TABLE }} />,
+      <TableCallReadout toolName="agenticos_create_routine" args={{ table_id: TABLE }} />,
     );
     expect(container).toBeEmptyDOMElement();
     expect(apiClient.get).not.toHaveBeenCalled();
@@ -320,7 +332,7 @@ describe("table approval summary", () => {
   it("stays empty until the table is read", () => {
     vi.mocked(apiClient.get).mockReturnValue(new Promise(() => {}));
     const { container } = show(
-      <TableApprovalSummary
+      <TableCallReadout
         toolName="agenticos_delete_virtual_table_record"
         args={{ table_id: TABLE, record_id: "r1" }}
       />,

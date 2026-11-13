@@ -5,7 +5,7 @@ import { ChevronRight } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { MarkdownContent } from "@/components/chat/markdown-content";
-import { TableApprovalSummary } from "@/components/chat/tool-results/table-call";
+import { TableCallReadout } from "@/components/chat/tool-results/table-call";
 import { BrandIcon, isBrandName } from "@/components/icons/brand-icon";
 import { Monogram } from "@/components/icons/monogram";
 import { serviceAction, spokenArgs } from "@/lib/approval-view";
@@ -176,7 +176,7 @@ export function ApprovalDetails({
   return (
     <div className="space-y-2">
       {/* A table write in the table's own labels, above the ids it will run with. */}
-      <TableApprovalSummary toolName={toolName} args={args} />
+      <TableCallReadout toolName={toolName} args={args} />
       <button
         type="button"
         onClick={() => setOpen((shown) => !shown)}

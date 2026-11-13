@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
@@ -5,13 +6,16 @@ import { describe, expect, it, vi } from "vitest";
 
 import messages from "../../../messages/en.json";
 import { DecidedApproval, PendingApproval } from "./approval-cards";
+import { getTable } from "@/lib/tables-api";
 import type { ToolApproval } from "@/types/runs";
+import type { TableRead } from "@/types/tables";
 
 vi.mock("@/components/dashboard/agent-face", () => ({
   AgentFace: ({ agentId }: { agentId: string }) => <span>{`face ${agentId}`}</span>,
 }));
 vi.mock("@/components/runs/approval-delegate", () => ({ ApprovalDelegate: () => null }));
 vi.mock("@/lib/mobile/haptics", () => ({ haptic: vi.fn() }));
+vi.mock("@/lib/tables-api", () => ({ getTable: vi.fn() }));
 
 function approval(overrides: Partial<ToolApproval> = {}): ToolApproval {
   return {
@@ -185,6 +189,51 @@ describe("PendingApproval - a call from an MCP server", () => {
       />,
     );
     expect(screen.getByText("Account: Work")).toBeInTheDocument();
+  });
+
+  it("names a table write's table and cells instead of leading with its id", async () => {
+    const status = "e30bcc3d-2c44-4aae-86ff-cb149b75f8a1";
+    const table = "638b016e-c0fd-4e4d-b916-c4810a49a54c";
+    vi.mocked(getTable).mockResolvedValue({
+      id: table,
+      name: "hacker_news_table",
+      columns: [
+        {
+          id: status,
+          label: "status",
+          type: "text",
+          nullable: true,
+          default: null,
+          options: [],
+          archived: false,
+        },
+      ],
+    } as unknown as TableRead);
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <NextIntlClientProvider locale="en" messages={messages}>
+          <ul>
+            <PendingApproval
+              approval={approval({
+                tool_id: "agenticos_update_virtual_table_record",
+                tool_args: {
+                  table_id: table,
+                  record_id: "r1",
+                  update: { expected_revision: 1, values: { [status]: "Not worth sharing" } },
+                },
+              })}
+              deciding={false}
+              onDecide={vi.fn()}
+              onOpenRun={vi.fn()}
+            />
+          </ul>
+        </NextIntlClientProvider>
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByRole("link", { name: "hacker_news_table" })).toBeVisible();
+    expect(screen.getByText("Not worth sharing")).toBeVisible();
+    expect(screen.queryByText(table)).toBeNull();
   });
 
   it("has no telling line for a call with nothing to say", () => {

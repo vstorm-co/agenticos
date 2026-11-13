@@ -6,12 +6,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import messages from "../../../messages/en.json";
 import { RunTimeline } from "./run-timeline";
+import { getTable } from "@/lib/tables-api";
 import type { RunTranscript, RunTranscriptMessage } from "@/types/runs";
+import type { TableRead } from "@/types/tables";
 
 /**
  * The trace view's claims: the whole thread is asked for and the focused run's
  * turns are the marked ones; a tool call reads raw - name, status, input JSON,
- * recorded output - not through the chat's renderers; and a run with no
+ * recorded output - not through the chat's renderers, with a platform table call
+ * also named in its table's labels above that; and a run with no
  * conversation says so rather than drawing an empty page. And what the model was
  * actually handed: the files attached to a turn, and what that turn cost.
  */
@@ -51,6 +54,11 @@ vi.mock("@/components/datasets/add-to-dataset-button", () => ({
       Add to dataset
     </button>
   ),
+}));
+
+vi.mock("@/lib/tables-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/tables-api")>()),
+  getTable: vi.fn(),
 }));
 
 vi.mock("@/hooks", async (importOriginal) => ({
@@ -259,6 +267,56 @@ describe("a tool call, raw", () => {
 
     expect(within(step).getByText(/"query": "pgvector"/)).toBeVisible();
     expect(within(step).getByText("3 results")).toBeVisible();
+  });
+
+  it("reads a platform table call in the table's labels, above the raw input", async () => {
+    const status = "e30bcc3d-2c44-4aae-86ff-cb149b75f8a1";
+    vi.mocked(getTable).mockResolvedValue({
+      id: "t1",
+      name: "hacker_news_table",
+      columns: [
+        {
+          id: status,
+          label: "status",
+          type: "text",
+          nullable: true,
+          default: null,
+          options: [],
+          archived: false,
+        },
+      ],
+    } as unknown as TableRead);
+    serve({
+      items: [
+        turn({
+          id: "m-1",
+          parts: [{ type: "tool", tool_call_id: "call-1" }],
+          tool_calls: [
+            {
+              tool_call_id: "call-1",
+              tool_name: "agenticos_update_virtual_table_record",
+              args: {
+                table_id: "t1",
+                record_id: "r1",
+                update: { expected_revision: 1, values: { [status]: "Not worth sharing" } },
+              },
+              result: null,
+              status: "completed",
+            },
+          ],
+        }),
+      ],
+    });
+
+    renderTimeline();
+    const step = screen
+      .getByText("agenticos_update_virtual_table_record")
+      .closest("details") as HTMLElement;
+    await userEvent.click(within(step).getByText("agenticos_update_virtual_table_record"));
+
+    expect(await within(step).findByRole("link", { name: "hacker_news_table" })).toBeVisible();
+    expect(within(step).getByText("Not worth sharing", { selector: "dd" })).toBeVisible();
+    expect(within(step).getByText(/"expected_revision": 1/)).toBeVisible();
   });
 
   it("keeps the stored order: reasoning, tools and text interleaved as written", () => {

@@ -10,6 +10,7 @@ import { surfaceLabel } from "@/components/runs/surface-icon";
 import { Button, SwipeToDecide } from "@/components/ui";
 import { approvalSummary } from "@/lib/agent-step-captions";
 import { callSummary } from "@/lib/approval-view";
+import { isTableTool } from "@/lib/table-tool-calls";
 import { cn, formatDateTime, timeAgo } from "@/lib/utils";
 import type { ToolApproval } from "@/types/runs";
 
@@ -23,10 +24,11 @@ function useCallLine(approval: ToolApproval, withArguments: boolean): string | n
   const t = useTranslations("pages.runs");
   const tTools = useTranslations("chat.tools");
   if (approval.content_hidden) return t("contentHidden");
-  return (
-    approvalSummary(approval.capability_tool_id, approval.context, tTools) ??
-    (withArguments ? callSummary(approval.tool_args) : null)
-  );
+  // A table write's first string argument is its table's id; `TableCallReadout`
+  // names the table and its cells instead.
+  const argumentLine =
+    withArguments && !isTableTool(approval.tool_id) ? callSummary(approval.tool_args) : null;
+  return approvalSummary(approval.capability_tool_id, approval.context, tTools) ?? argumentLine;
 }
 
 /**

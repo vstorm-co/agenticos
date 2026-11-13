@@ -60,22 +60,34 @@ export function TableCallSummary({ call, table }: { call: TableCall; table: Tabl
   );
 }
 
-/** The approval card's account of a parked table write, or nothing for any other tool. */
-export function TableApprovalSummary({
+/**
+ * A table call in the table's labels, above the raw arguments a surface keeps
+ * showing - an approval card, a run's timeline. Nothing for any other tool, or
+ * while the table cannot be read; `result` adds what the call answered.
+ */
+export function TableCallReadout({
   toolName,
   args,
+  result,
 }: {
   toolName: string;
-  args: Record<string, unknown>;
+  args: unknown;
+  result?: unknown;
 }) {
   const call = parseTableCall(toolName, args);
-  // Only a table call reads a table: every other approval stays free of queries.
-  return call === null ? null : <ParkedTableCall call={call} />;
+  // Only a table call reads a table: every other tool stays free of queries.
+  return call === null ? null : <ReadableTableCall call={call} result={result} />;
 }
 
-function ParkedTableCall({ call }: { call: TableCall }) {
+function ReadableTableCall({ call, result }: { call: TableCall; result: unknown }) {
   const table = useCallTable(call);
-  return table === null ? null : <TableCallSummary call={call} table={table} />;
+  if (table === null) return null;
+  return (
+    <div className="space-y-3">
+      <TableCallSummary call={call} table={table} />
+      <TableCallAnswerView call={call} table={table} result={result} />
+    </div>
+  );
 }
 
 /**

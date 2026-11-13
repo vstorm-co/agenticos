@@ -8,6 +8,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { ChevronRight, Paperclip, ThumbsDown } from "lucide-react";
 
 import { CopyButton } from "@/components/chat/copy-button";
+import { TableCallReadout } from "@/components/chat/tool-results/table-call";
 import { MarkdownContent } from "@/components/chat/markdown-content";
 import { MessageCost } from "@/components/chat/message-cost";
 import { AddToDatasetButton } from "@/components/datasets/add-to-dataset-button";
@@ -535,6 +536,12 @@ function RawToolCall({ toolCall }: { toolCall: ToolCall }) {
         </span>
       </summary>
       <div className="space-y-2 px-3 pt-1 pb-3">
+        {/* A table call in the table's labels; the raw input and output stay below it. */}
+        <TableCallReadout
+          toolName={toolLookupName(toolCall)}
+          args={toolCall.args}
+          result={toolCall.result}
+        />
         <div className="group flex items-center justify-between gap-2">
           <p className="text-muted-foreground text-xs tracking-wide uppercase">{t("toolInput")}</p>
           <CopyButton text={args} />
