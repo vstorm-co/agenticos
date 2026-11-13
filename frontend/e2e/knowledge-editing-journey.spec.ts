@@ -49,7 +49,6 @@ test("context editing keeps changes through close, failed save and reopen", asyn
   await page.unroute("**/api/context/*");
   await page.keyboard.press("Escape");
   await guard.getByRole("button", { name: "Save", exact: true }).click();
-  await page.getByRole("button", { name: "Save now", exact: true }).click();
   await expect(editor).toBeHidden();
   await page.reload();
   await page
