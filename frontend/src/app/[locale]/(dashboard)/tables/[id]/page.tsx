@@ -44,6 +44,7 @@ import { ViewSettingsPopover } from "@/components/tables/view-settings-popover";
 import { TableDisplayContext } from "@/components/tables/table-display-context";
 import { DEFAULT_TABLE_DISPLAY, orderedTableColumns } from "@/lib/table-display";
 import type { TableDisplay } from "@/types/tables";
+import { useFormulaProblem } from "@/components/tables/formula-problem";
 import { RecordDetailSheet } from "@/components/tables/record-detail-sheet";
 import { filterable, isComplete } from "@/components/tables/record-filters";
 import { RecordSortPopover } from "@/components/tables/record-sort-popover";
@@ -129,6 +130,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   const tp = useTranslations("pages.tables");
   const tTriggers = useTranslations("pages.tables.triggers");
   const tErrors = useTranslations("errors");
+  const formulaProblem = useFormulaProblem();
   const tc = useTranslations("common");
   const tTasks = useTranslations("durableTasks");
   const taskBoards = useDurableTasks().boards;
@@ -361,7 +363,8 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
         // Only archiving can be refused for what still uses a column, and the
         // archive dialog lists that in place of a toast that names nothing.
         onError: (failure) => {
-          if (schemaDependents(failure) === null) toast.error(getErrorMessage(failure, tErrors));
+          if (schemaDependents(failure) !== null) return;
+          toast.error(formulaProblem(failure)?.text ?? getErrorMessage(failure, tErrors));
         },
       },
     );

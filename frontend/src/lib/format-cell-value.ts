@@ -20,6 +20,7 @@ import { MAX_RATING, type CellValue, type ColumnDef, type RecordRead } from "@/t
  * Given the viewer's `locale`, a date reads as that locale writes one - "Oct 4,
  * 2026", "4 paź 2026" - and a date and time in the viewer's own zone; without
  * one, as it is stored. A date has no zone, so it is read as the day it names.
+ * A number takes the locale's decimal separator the same way - "12.177", "12,177".
  */
 export function formatCellValue(
   column: ColumnDef,
@@ -48,9 +49,11 @@ export function formatCellValue(
     }
     case "formula":
       // A formula answers with whatever it works out - a yes or no reads as one.
-      return typeof value === "boolean" ? boolLabel(value) : String(value);
+      return typeof value === "boolean" ? boolLabel(value) : scalarText(value, locale);
     case "lookup":
-      return Array.isArray(value) ? value.map(String).join(", ") : String(value);
+      return Array.isArray(value)
+        ? value.map((item) => scalarText(item, locale)).join(", ")
+        : scalarText(value, locale);
     case "link":
       // Ids name nothing to a reader; `recordCellText` names them from the record.
       return Array.isArray(value) ? String(value.length) : "";
@@ -65,8 +68,19 @@ export function formatCellValue(
       return dated ?? value;
     }
     default:
-      return String(value);
+      return scalarText(value, locale);
   }
+}
+
+/**
+ * A value as text, a number written the way `locale` writes one. Every digit the
+ * service kept is shown, and a four-digit number - a year, a code - is not grouped.
+ */
+function scalarText(value: unknown, locale: string | undefined): string {
+  if (typeof value !== "number" || locale === undefined) return String(value);
+  return new Intl.NumberFormat(locale, { maximumFractionDigits: 10, useGrouping: "min2" }).format(
+    value,
+  );
 }
 
 /** A stored date or date-time as `locale` writes it, or null when it is not one. */

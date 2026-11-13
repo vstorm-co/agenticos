@@ -390,6 +390,20 @@ def test_a_formula_belongs_to_a_formula_column_and_only_there(submitted):
     assert refused.value.details["fields"][0]["field"] == "columns.0.formula"
 
 
+def test_a_formula_refusal_says_why_in_a_form_a_console_can_translate():
+    with pytest.raises(InvalidSchemaError) as refused:
+        build_columns(
+            [
+                ColumnInput(label="Price", type="number"),
+                ColumnInput(label="Gross", type="formula", formula="{Price} * 1,23"),
+            ],
+            [],
+        )
+
+    assert refused.value.details["fields"][0]["field"] == "columns.1.formula"
+    assert refused.value.details["formula"] == {"reason": "decimal_comma", "params": {}}
+
+
 def test_an_archived_formula_is_kept_without_being_checked_again():
     price = _existing("Price")
     total = ColumnDef(id=uuid.uuid4(), label="Total", type="formula", formula="{Price} * 2")

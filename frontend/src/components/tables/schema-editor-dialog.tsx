@@ -26,6 +26,7 @@ import { OptionColorPicker } from "./option-color-picker";
 import { DocumentTemplateField } from "./document-template-field";
 import { ColumnTypeIcon } from "./column-type-icon";
 import { FormulaField } from "./formula-field";
+import { useFormulaProblem } from "./formula-problem";
 import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { fieldProblems, getErrorMessage, schemaDependents } from "@/lib/api-error";
 import { SchemaDependents } from "./schema-dependents";
@@ -145,8 +146,11 @@ export function SchemaEditorDialog({
   }
 
   const problems = fieldProblems(error);
+  const formulaProblem = useFormulaProblem()(error);
   function problemFor(index: number, field: string): string | undefined {
-    return problems.find((problem) => problem.field === `columns.${index}.${field}`)?.message;
+    const path = `columns.${index}.${field}`;
+    if (formulaProblem?.field === path) return formulaProblem.text;
+    return problems.find((problem) => problem.field === path)?.message;
   }
   // A schema-version conflict names no field at all (`details.current_version`),
   // so `problems` is empty for it even though the save failed - without this,

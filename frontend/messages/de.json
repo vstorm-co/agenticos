@@ -11994,9 +11994,25 @@
     },
     "formula": {
       "label": "Formel",
-      "placeholder": "'{Price}' * '{Quantity}'",
+      "placeholder": "'{Preis}' * '{Menge}'",
       "columns": "Verwendbare Spalten",
-      "hint": "Nennen Sie eine Spalte in geschweiften Klammern. Möglich sind + - * / %, = <> < > and, or, not sowie IF, ROUND, ABS, MIN, MAX, CONCAT, LEN, UPPER, LOWER, DAYS, TODAY."
+      "hint": "Nennen Sie eine Spalte in geschweiften Klammern. Möglich sind + - * / %, = <> < > and, or, not sowie IF, ROUND, ABS, MIN, MAX, CONCAT, LEN, UPPER, LOWER, DAYS, TODAY. Schreiben Sie Dezimalzahlen mit Punkt, etwa 1.23.",
+      "problem": {
+        "syntax": "Die Formel ist nicht korrekt geschrieben.",
+        "too_deep": "Die Formel ist zu tief verschachtelt.",
+        "constant": "Eine Formel enthält Zahlen, Text und true oder false.",
+        "unknown_name": "{name} bedeutet hier nichts: Nennen Sie eine Spalte in geschweiften Klammern, etwa '{'{name}'}'.",
+        "arithmetic": "Eine Formel rechnet nur mit + - * / und %.",
+        "operator": "Diesen Operator verwendet eine Formel nicht.",
+        "comparison": "Eine Formel vergleicht nur mit = <> < <= > >=.",
+        "function": "Eine Formel ruft nur diese Funktionen auf: {functions}.",
+        "decimal_comma": "Schreiben Sie Dezimalzahlen mit Punkt, etwa 1.23. Ein Komma trennt die Argumente einer Funktion.",
+        "unsupported": "Das kann eine Formel nicht enthalten.",
+        "empty": "Eine Formelspalte braucht eine Formel.",
+        "too_long": "Eine Formel hat höchstens {limit} Zeichen.",
+        "not_a_column": "'{'{label}'}' ist keine aktive Spalte dieser Tabelle.",
+        "not_a_value": "'{'{label}'}' ist {type, select, link {eine Verknüpfungsspalte} other {eine Formelspalte}}: Eine Formel liest Spalten mit Werten."
+      }
     },
     "markdown": {
       "library": "Dokumentvorlagen",
