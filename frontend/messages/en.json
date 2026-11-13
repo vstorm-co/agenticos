@@ -1517,7 +1517,7 @@
         },
         "unavailable": {
           "title": "Your browser's speech recognition isn't available",
-          "body": "This agent has no speech-to-text provider for dictation, so the browser transcribes, and its service refused. Ask an admin to turn on Dictation for this agent, or try another browser."
+          "body": "This agent has no speech-to-text provider for dictation, so the browser transcribes, and its service refused. Ask an admin to set up Dictation for this agent, or try another browser."
         },
         "noSpeech": {
           "title": "No speech heard",
@@ -3789,7 +3789,10 @@
         "rateLimitedBody": "Too many recordings in a minute.",
         "keptBody": "Your {duration} recording is kept until you retry or discard it.",
         "notSetUpTitle": "Voice input isn't available right now.",
-        "notSetUpBody": "Please type your message instead."
+        "notSetUpBody": "Please type your message instead.",
+        "browserUnavailable": "<strong>Voice input isn't available in this browser.</strong> Please type your message instead, or try another browser.",
+        "browserNoSpeech": "<strong>No speech heard.</strong> Check the microphone isn't muted, then try again.",
+        "browserFailed": "<strong>Voice input stopped.</strong> Try again, or type your message instead."
       }
     },
     "voice": {

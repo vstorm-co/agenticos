@@ -1517,7 +1517,7 @@
         },
         "unavailable": {
           "title": "Die Spracherkennung Ihres Browsers ist nicht verfügbar",
-          "body": "Dieser Agent hat keinen Speech-to-Text-Anbieter fürs Diktieren, deshalb transkribiert der Browser, und sein Dienst hat abgelehnt. Bitten Sie einen Administrator, Diktieren für diesen Agent zu aktivieren, oder verwenden Sie einen anderen Browser."
+          "body": "Dieser Agent hat keinen Speech-to-Text-Anbieter fürs Diktieren, deshalb transkribiert der Browser, und sein Dienst hat abgelehnt. Bitten Sie einen Administrator, Diktieren für diesen Agent einzurichten, oder verwenden Sie einen anderen Browser."
         },
         "noSpeech": {
           "title": "Nichts Gesprochenes gehört",
@@ -3789,7 +3789,10 @@
         "rateLimitedBody": "Zu viele Aufnahmen in einer Minute.",
         "keptBody": "Ihre Aufnahme ({duration}) bleibt erhalten, bis Sie sie erneut senden oder verwerfen.",
         "notSetUpTitle": "Spracheingabe ist gerade nicht verfügbar.",
-        "notSetUpBody": "Bitte tippen Sie Ihre Nachricht stattdessen ein."
+        "notSetUpBody": "Bitte tippen Sie Ihre Nachricht stattdessen ein.",
+        "browserUnavailable": "<strong>Spracheingabe ist in diesem Browser nicht verfügbar.</strong> Bitte tippen Sie Ihre Nachricht stattdessen ein oder verwenden Sie einen anderen Browser.",
+        "browserNoSpeech": "<strong>Nichts Gesprochenes gehört.</strong> Prüfen Sie, ob das Mikrofon stummgeschaltet ist, und versuchen Sie es erneut.",
+        "browserFailed": "<strong>Die Spracheingabe wurde unterbrochen.</strong> Versuchen Sie es erneut oder tippen Sie Ihre Nachricht ein."
       }
     },
     "voice": {
