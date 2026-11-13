@@ -25,6 +25,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Match workflow editor loading to its full-height workspace and remove the
+  redundant count strip and nested padding from the Versions sidebar.
 - **Trace context parser security update (CVE-2026-126360).** Upgrade the OpenTelemetry stack to 1.45.2/0.66b2 to bound malformed `traceparent` parsing from untrusted carriers, including JSON metadata.
 - Localize notification summaries and built-in workflow step names, including logs and standard error ports, while preserving custom names and precise budget amounts.
 - Keep concurrent table-edit conflicts tied to the latest conflict without overwriting other drafts or accepting stale comparisons.
