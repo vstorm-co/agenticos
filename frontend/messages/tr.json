@@ -9304,7 +9304,24 @@
       "tablesCreating": "Tablo oluşturuluyor",
       "tablesDescribing": "Tablonun sütunları okunuyor",
       "tablesListing": "Kullanabileceği tablolar denetleniyor",
-      "viewsListing": "Tablonun kayıtlı görünümleri listeleniyor"
+      "viewsListing": "Tablonun kayıtlı görünümleri listeleniyor",
+      "tableCall": {
+        "allRecords": "Tüm kayıtlar",
+        "search": "“{text}” ile eşleşen",
+        "sortedBy": "{column} sütununa göre {direction, select, desc {azalan} other {artan}} sıralı",
+        "createdAt": "Oluşturulma",
+        "updatedAt": "Son güncelleme",
+        "limit": "{count, plural, =1 {En fazla 1 kayıt} other {En fazla # kayıt}}",
+        "externalId": "Harici kimlik: {id}",
+        "found": "{count, plural, =0 {Kayıt bulunamadı} =1 {1 kayıt bulundu} other {# kayıt bulundu}}",
+        "hasMore": "devamı sonraki sayfada",
+        "moreRows": "{count, plural, =1 {ve 1 kayıt daha} other {ve # kayıt daha}}",
+        "exists": "Bu harici kimliğe sahip bir kayıt var",
+        "missing": "Bu harici kimliğe sahip kayıt yok",
+        "deleted": "Kayıt silindi",
+        "record": "“{title}” kaydı · revizyon {revision}",
+        "recordUntitled": "Kayıt · revizyon {revision}"
+      }
     },
     "turnWasStopped": "durduruldu",
     "unfavourite": "Favorilerden çıkar",

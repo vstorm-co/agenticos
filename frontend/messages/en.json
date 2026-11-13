@@ -1951,7 +1951,24 @@
       "tablesCreating": "Creating a table",
       "tablesDescribing": "Reading a table's columns",
       "tablesListing": "Checking which tables it can use",
-      "viewsListing": "Listing a table's saved views"
+      "viewsListing": "Listing a table's saved views",
+      "tableCall": {
+        "allRecords": "All records",
+        "search": "Matching “{text}”",
+        "sortedBy": "Sorted by {column}, {direction, select, desc {descending} other {ascending}}",
+        "createdAt": "Created",
+        "updatedAt": "Last updated",
+        "limit": "{count, plural, =1 {At most 1 record} other {At most # records}}",
+        "externalId": "External ID: {id}",
+        "found": "{count, plural, =0 {No records found} =1 {1 record found} other {# records found}}",
+        "hasMore": "more on the next page",
+        "moreRows": "{count, plural, =1 {and 1 more record} other {and # more records}}",
+        "exists": "A record with this external ID exists",
+        "missing": "No record has this external ID",
+        "deleted": "Record deleted",
+        "record": "Record “{title}” · revision {revision}",
+        "recordUntitled": "Record · revision {revision}"
+      }
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",

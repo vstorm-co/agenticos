@@ -1015,7 +1015,24 @@
       "tablesCreating": "Tworzę tabelę",
       "tablesDescribing": "Czytam kolumny tabeli",
       "tablesListing": "Sprawdzam, których tabel może używać",
-      "viewsListing": "Przeglądam zapisane widoki tabeli"
+      "viewsListing": "Przeglądam zapisane widoki tabeli",
+      "tableCall": {
+        "allRecords": "Wszystkie rekordy",
+        "search": "Pasujące do „{text}”",
+        "sortedBy": "Sortowanie: {column}, {direction, select, desc {malejąco} other {rosnąco}}",
+        "createdAt": "Utworzono",
+        "updatedAt": "Ostatnia zmiana",
+        "limit": "{count, plural, one {Najwyżej # rekord} few {Najwyżej # rekordy} many {Najwyżej # rekordów} other {Najwyżej # rekordu}}",
+        "externalId": "Zewnętrzne ID: {id}",
+        "found": "{count, plural, =0 {Nie znaleziono rekordów} one {Znaleziono # rekord} few {Znaleziono # rekordy} many {Znaleziono # rekordów} other {Znaleziono # rekordu}}",
+        "hasMore": "kolejne na następnej stronie",
+        "moreRows": "{count, plural, one {i jeszcze # rekord} few {i jeszcze # rekordy} many {i jeszcze # rekordów} other {i jeszcze # rekordu}}",
+        "exists": "Istnieje rekord z tym zewnętrznym ID",
+        "missing": "Żaden rekord nie ma tego zewnętrznego ID",
+        "deleted": "Rekord usunięty",
+        "record": "Rekord „{title}” · wersja {revision}",
+        "recordUntitled": "Rekord · wersja {revision}"
+      }
     },
     "turnWasStopped": "zatrzymano",
     "unfavourite": "Usuń z ulubionych",

@@ -32,6 +32,8 @@ import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { delegateNamed, type DelegateRef } from "@/lib/delegations";
 import { MemoryToolResult } from "./tool-results/memory";
 import { WorkspaceToolResult } from "./tool-results/workspace";
+import { TableToolResult } from "./tool-results/table-call";
+import { isTableTool } from "@/lib/table-tool-calls";
 import type { McpServerRef } from "@/lib/tool-steps";
 import { useTranslations } from "next-intl";
 
@@ -336,6 +338,14 @@ export const ToolCallCard = memo(function ToolCallCard({
         <MemoryToolResult toolCall={toolCall} resultText={resultText} />
       ) : renderer === "workspace" ? (
         <WorkspaceToolResult toolCall={toolCall} resultText={resultText} fileSource={fileSource} />
+      ) : isTableTool(toolLookupName(toolCall)) ? (
+        // The platform's table tools speak in column and option ids; read through
+        // the table they name, they say what they asked in its labels.
+        <TableToolResult
+          toolCall={toolCall}
+          toolName={toolLookupName(toolCall)}
+          resultText={resultText}
+        />
       ) : (
         // Everything else, and every renderer whose payload turned out not to be one:
         // a `web_search` that errored, a `create_chart` that came back as a sentence.

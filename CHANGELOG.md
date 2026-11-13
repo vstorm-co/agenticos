@@ -19,6 +19,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **Table calls read in the table's own names.** When an agent queries, reads,
+  adds, updates, upserts or deletes Virtual Table records through the platform
+  tools, the chat step shows the table, its conditions, sort order, page size and
+  written cells by column and option label, and the records it found as a short
+  table. Approval cards for table writes show the same summary above the raw
+  arguments. When the reader cannot open the table, and on hosted pages, the call
+  is shown as sent.
+
 ## [1.72.0] - 2026-11-13
 
 ### Added
