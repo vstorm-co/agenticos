@@ -1,5 +1,5 @@
 ---
-source_sha: "90338e3a8738"
+source_sha: "b22ad8577005"
 ---
 
 # Konsola { #the-console }
@@ -46,7 +46,7 @@ Na telefonie modale zachowują 12 px marginesu z każdej strony. Zwarte nagłów
 
 Na telefonie główne akcje strony pozostają widoczne, a drugorzędne polecenia rozwija przycisk **Więcej akcji strony**. Filtry Inbox i format tabeli wybiera się selectem. Ustawienia z wieloma sekcjami mają menu wyboru sekcji; klienta MCP wybiera się z listy. Plik projektu lub workspace otwiera czytnik na pełnym ekranie, a strzałka wstecz wraca do folderów. Edytor kroku workflow pokazuje jeden wybrany panel: ustawienia, wejście albo wynik. Przełączanie zachowuje edycję; desktop nadal pokazuje panele obok siebie.
 
-Pola Markdown i edytory plików również mają przycisk powiększania, który zachowuje bieżący szkic. Opis i kategorię skilla można rozwinąć nad edytorem. Pole wiadomości na czacie zajmuje mniej miejsca i ogranicza wysokość długiego szkicu do dostępnej wysokości ekranu. Otwarcie nawigacji ustawia focus na panelu, a Tab nadal przechodzi do jego kontrolek. Canvas workflow ma na telefonie pływający przycisk pełnego ekranu i mniejszą minimapę.
+Pola Markdown i edytory plików również mają przycisk powiększania, który zachowuje bieżący szkic. Opis i kategorię skilla można rozwinąć nad edytorem. Pole wiadomości na czacie zajmuje mniej miejsca i ogranicza wysokość długiego szkicu do dostępnej wysokości ekranu. Otwarcie nawigacji ustawia focus na panelu, a Tab nadal przechodzi do jego kontrolek. Na telefonie canvas workflow ma pływający przycisk pełnego ekranu, otwiera się z całym przepływem w widoku i startuje z ukrytą minimapą.
 
 Każde jawne kliknięcie **New chat** ponownie ustawia fokus w edytorze, także przy pustym szkicu; nadanie rozmowie identyfikatora podczas pisania nie żąda ponownego fokusu.
 

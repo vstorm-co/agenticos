@@ -271,6 +271,7 @@ export interface WorkflowEditorState {
   /** Open the picker to put a step into the middle of `edgeId`. */
   beginSplit: (edgeId: Uuid) => void;
   toggleMinimap: () => void;
+  setMinimapShown: (shown: boolean) => void;
   /** Move steps to new places at once - one undoable edit. */
   moveNodes: (layouts: ReadonlyMap<Uuid, NodePosition>) => void;
   /** Give a step a size - or `null` to put it back to the default - as one undoable edit. */
@@ -851,6 +852,8 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
     beginSplit: (edgeId) => set({ overlay: "picker", splitEdgeId: edgeId }),
 
     toggleMinimap: () => set({ minimapShown: !get().minimapShown }),
+
+    setMinimapShown: (shown) => set({ minimapShown: shown }),
 
     moveNodes: (layouts) => {
       const { graph } = get();

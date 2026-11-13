@@ -1,5 +1,5 @@
 ---
-source_sha: "d4ebadc86d2b"
+source_sha: "945ef275c425"
 ---
 
 # Workflows { #workflows }
@@ -82,7 +82,11 @@ pokazują tę samą listę.
 
 **More → Settings** zawiera nazwę, opis, tagi i ustawienia wykonania workflow, zapisywane automatycznie. Edytor kroku wypełnia dostępne okno: Input po lewej, Parameters i Settings pośrodku, Output po prawej. Wyzwalacze mają dwa panele, bo nie odbierają danych z poprzednich kroków. Na dużym ekranie panele przewijają się osobno, a na telefonie tworzą jedną przewijaną kolumnę. Zapisane wykonanie pokazuje parametry tylko do odczytu obok danych. Wartości rekordu mają pola nazwane według kolumn tabeli. Notatki oferują Open note, gotowe rozmiary i uchwyty zmiany rozmiaru.
 
-Picker aplikacji pokazuje serwery z katalogu MCP także przed połączeniem; ogólna pozycja Call an MCP tool jest ukryta. Połącz usługę na miejscu, a następnie wybierz wykryte narzędzie. Lista dozwolonych narzędzi połączenia nadal obowiązuje. Kanwa domyślnie pokazuje kolorowe kroki i minimapę. Kroki modeli AI odsłaniają instrukcje, temperaturę i effort; puste ustawienia zachowują domyślne wartości dostawcy. Decyzje Jev pokazują model, pytanie i próg pewności. Send an email używa nadawcy platformy albo łączy Gmail lub Outlook i po potwierdzeniu zmienia krok na rzeczywiste narzędzie MCP tej skrzynki. Zmiana usuwa niezgodne mapowania wejścia i można ją cofnąć.
+Picker aplikacji pokazuje serwery z katalogu MCP także przed połączeniem; ogólna pozycja Call an MCP tool jest ukryta. Połącz usługę na miejscu, a następnie wybierz wykryte narzędzie. Lista dozwolonych narzędzi połączenia nadal obowiązuje.
+
+Kanwa domyślnie pokazuje kolorowe kroki i minimapę. Na telefonie otwiera się z całym przepływem w widoku i ukrytą minimapą; **Canvas options** pokazuje ją z powrotem.
+
+Kroki modeli AI odsłaniają instrukcje, temperaturę i effort; puste ustawienia zachowują domyślne wartości dostawcy. Decyzje Jev pokazują model, pytanie i próg pewności. Send an email używa nadawcy platformy albo łączy Gmail lub Outlook i po potwierdzeniu zmienia krok na rzeczywiste narzędzie MCP tej skrzynki. Zmiana usuwa niezgodne mapowania wejścia i można ją cofnąć.
 
 Krok **Send an email** oferuje też **SMTP account → Nowe konto SMTP**. W formularzu vault podaj serwer, port, login, hasło i nadawcę. STARTTLS zwykle korzysta z 587, a implicit TLS z 465; oba tryby weryfikują certyfikat. Workflow zapisuje tylko `smtp_secret_id`. Opcja **Nadawca platformy** usuwa wybór. Publikacja i wykonanie sprawdzają dostęp do sekretu; niedostępne konto zatrzymuje krok zamiast zmieniać nadawcę.
 

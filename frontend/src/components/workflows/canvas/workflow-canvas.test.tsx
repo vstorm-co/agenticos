@@ -174,6 +174,33 @@ describe("WorkflowCanvas", () => {
     expect(container.querySelector('[data-node-id="u"] .react-flow__handle')).toBeNull();
   });
 
+  it("starts without the minimap on a phone, and the toolbar can still show it", async () => {
+    const wide = vi.mocked(window.matchMedia).getMockImplementation()!;
+    vi.mocked(window.matchMedia).mockImplementation((query: string) => ({
+      ...wide(query),
+      matches: query === "(max-width: 639px)",
+    }));
+    try {
+      seedTwoConnected();
+      store.setState({ minimapShown: true });
+      const { container } = render(<WorkflowCanvas workflow={workflow()} catalog={CATALOG} />);
+      expect(store.getState().minimapShown).toBe(false);
+      expect(container.querySelector(".react-flow__minimap")).toBeNull();
+
+      act(() => store.getState().toggleMinimap());
+      expect(container.querySelector(".react-flow__minimap")).not.toBeNull();
+    } finally {
+      vi.mocked(window.matchMedia).mockImplementation(wide);
+    }
+  });
+
+  it("keeps the minimap on a wide screen", () => {
+    seedTwoConnected();
+    store.setState({ minimapShown: true });
+    const { container } = render(<WorkflowCanvas workflow={workflow()} catalog={CATALOG} />);
+    expect(container.querySelector(".react-flow__minimap")).not.toBeNull();
+  });
+
   it("expands the same canvas and returns without losing its draft", () => {
     seedTwoActions();
     const { container, getByRole } = render(
