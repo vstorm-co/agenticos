@@ -792,6 +792,7 @@ WEEKLY_USAGE_REPORT = _sweep("weekly-usage-report", timeout=timedelta(hours=1), 
 MONTHLY_USAGE_REPORT = _sweep("monthly-usage-report", timeout=timedelta(hours=1), max_attempts=3)
 
 REVERT_CODING_TASK = Task(
+    retry_refusal="Retry the revert from its conversation so its files and current access can be checked again",
     kind="revert-coding-task",
     payload_type=RevertCodingTask,
     pool=Pool.AGENT,

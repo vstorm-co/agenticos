@@ -138,6 +138,8 @@ reverted again. A mixed or unknown state stays reserved for reconciliation;
 the panel shows pending, failed or unknown outcomes. Repeating a completed
 revert returns its timestamp. This restores files, not conversation history or external
 effects such as commits, network requests or database writes.
+Manual queue retry is disabled: retrying from the conversation creates a new claim
+without resetting an old attempt's fence.
 A copied report without its original conversation file origin does not offer undo.
 
 ### Harness research behind the design

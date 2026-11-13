@@ -951,3 +951,21 @@ async def test_personal_credentials_are_removed_from_the_display_and_lossless_pa
     assert redacted.files[0].patch is None
     assert secret not in redacted.model_dump_json()
     assert redact_text(secret, ("", secret)) == "[redacted]"
+
+
+@pytest.mark.security
+async def test_manual_queue_retry_cannot_reuse_a_retired_attempt_fence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.services import background_jobs
+    from app.worker.jobs import REVERT_CODING_TASK
+
+    job = SimpleNamespace(kind=REVERT_CODING_TASK.kind, status="dead")
+    monkeypatch.setattr(background_jobs.background_job_repo, "get", AsyncMock(return_value=job))
+    requeue = AsyncMock()
+    monkeypatch.setattr(background_jobs.background_job_repo, "requeue_dead", requeue)
+    with pytest.raises(BadRequestError, match="Retry the revert from its conversation"):
+        await background_jobs.BackgroundJobService(MagicMock()).retry(
+            uuid4(), actor_user_id=uuid4()
+        )
+    requeue.assert_not_awaited()
