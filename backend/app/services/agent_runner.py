@@ -2184,16 +2184,20 @@ class LiveRunSurface:
 
 
 async def _with_exposure_prompt(spec: AgentSpec, exposure: AgentExposure | None) -> AgentSpec:
-    """Append current surface defaults and the binding's custom additions.
+    """Keep legacy additions or apply an explicitly edited complete surface prompt.
 
-    Surface defaults are deployment-owned; the database stores only additions.
-    The published agent spec remains unchanged.
+    Empty prompts follow current deployment defaults. The agent's own instructions,
+    trusted runtime identity and authorization remain independent of this text.
     """
     if exposure is None:
         return spec
-    added = "\n\n".join(
-        part for part in (house_style(exposure.surface), (exposure.prompt or "").strip()) if part
+    custom = (exposure.prompt or "").strip()
+    defaults = (
+        ""
+        if custom and exposure.prompt_replaces_defaults is True
+        else house_style(exposure.surface)
     )
+    added = "\n\n".join(part for part in (defaults, custom) if part)
     if not added:
         return spec
     return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{added}"})
@@ -4246,7 +4250,10 @@ class AgentRunnerService:
 
         if (
             models_ctx.user_id is not None
-            and not models_ctx.subject_is_publisher_fallback
+            and (
+                not models_ctx.subject_is_publisher_fallback
+                or (channel_directory is not None and channel_directory.destination is not None)
+            )
             and isolation is None
             and not public_origin
             and voice is None
@@ -4257,6 +4264,7 @@ class AgentRunnerService:
                 models_ctx,
                 agent.id,
                 destination=None if channel_directory is None else channel_directory.destination,
+                current_directory=channel_directory,
             )
             reviewed_channels = (
                 None

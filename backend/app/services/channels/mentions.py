@@ -48,10 +48,8 @@ from uuid import UUID
 
 from botocore.exceptions import BotoCoreError, ClientError
 from PIL import Image
-from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.capabilities.channel_actions._contract import ReactionReceipt
 from app.agents.capabilities.channel_tools import ChannelDirectory
 from app.agents.capabilities.charts._spec import parse_chart_spec
 from app.agents.capabilities.image_generation._toolset import parse_generated_image
@@ -120,44 +118,6 @@ _SURFACES: dict[str, RunSurface] = {
 # identical whether they never linked or were removed from the organization -
 # both are "we do not know who you are here", and telling them apart would leak
 # whether an account exists.
-def reaction_only_reply(called: list[RecordedToolCall], incoming: IncomingMessage | None) -> bool:
-    """Only a confirmed native result on this exact question can replace text."""
-    if incoming is None:
-        return False
-    return reaction_only_target(
-        called,
-        bot_id=incoming.bot_id,
-        platform_chat_id=incoming.platform_chat_id,
-        message_id=incoming.message_id,
-    )
-
-
-def reaction_only_target(
-    called: list[RecordedToolCall], *, bot_id: str, platform_chat_id: str, message_id: str | None
-) -> bool:
-    """A continuation must use its admitted original message, never an approval card."""
-    if message_id is None:
-        return False
-    channel_id = platform_chat_id.partition(":")[0]
-    for call in reversed(called):
-        if call.renderer_name != "react_to_chat_message" or call.result is None:
-            continue
-        try:
-            receipt = ReactionReceipt.model_validate_json(call.result)
-        except ValidationError:
-            continue
-        return bool(
-            receipt.reaction_only
-            and receipt.applied
-            and not receipt.failed
-            and not receipt.not_attempted
-            and str(receipt.bot_id) == bot_id
-            and receipt.channel_id == channel_id
-            and receipt.message_id == message_id
-        )
-    return False
-
-
 def drawn_chart(called: list[RecordedToolCall]) -> bytes | None:
     """The last chart this turn drew, as a PNG, or None if it drew none.
 
@@ -366,7 +326,6 @@ class AnsweredTurn:
     """
 
     text: str
-    reaction_only: bool = False
     attachments: list[OutgoingAttachment] = field(default_factory=list)
     refused: list[str] = field(default_factory=list)
     """Produced files the reply names instead of carrying."""
@@ -584,7 +543,6 @@ class ChannelAgentRouter:
             ctx, answer, run, usage_reporting=exposure.usage_reporting, turn=turn
         )
         return AnsweredTurn(
-            reaction_only=reaction_only_reply(called, incoming) and rendered_answer == answer,
             text=rendered_answer,
             attachments=produced,
             refused=refused,
@@ -711,7 +669,6 @@ class ChannelAgentRouter:
             ctx, answer, run, usage_reporting=exposure.usage_reporting, turn=turn
         )
         return AnsweredTurn(
-            reaction_only=reaction_only_reply(called, incoming) and rendered_answer == answer,
             text=rendered_answer,
             attachments=produced,
             refused=refused,

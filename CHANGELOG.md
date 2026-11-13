@@ -24,7 +24,7 @@ Two things are versioned separately from this file and worth knowing about:
 - Organization groups in workflow human/MCP approvals and agent notification audiences. Decisions use current eligible membership; empty or deleted configured groups never become unrestricted approval.
 
 
-- New chat bindings enable all supported tools by default, including agent-chosen emoji reactions on Mattermost, Slack, Discord, Telegram and iMessage, with explicit platform limits and reaction-only answers.
+- New chat bindings enable all supported tools by default, including agent-chosen emoji reactions on Mattermost, Slack, Discord, Telegram and iMessage, with explicit platform limits and text replies alongside reactions.
 
 - Apps exports published reports and browser presentations as real PDF files through the isolated renderer, with audience checks and explicit size/page limits.
 - Apps and Visuals include design playbooks, themed browser presentations, a native UI component studio and richer map/3D examples for school, play and work (#2989).
@@ -45,7 +45,7 @@ Two things are versioned separately from this file and worth knowing about:
 - Apply knowledge-base teardown ownership rules to account and organization purges, and track CLI connector ingestion against concurrent teardown.
 - Enforce base access on integration mutations and cloning, reserve unassigned RAG templates for connection managers, and retain sync-log tenant/target ownership after source deletion. Validate source edits before mutation locks and reject stale validated writes.
 - Native routine skill loading no longer inherits an unrelated write-approval requirement; explicit agent approval policy still applies. Approval decisions no longer leave continuation blocked by a stale cached queue.
-- Keep confirmed reaction-only replies silent after approval continuation. Smooth chat App/Visual previews with reserved skeletons, decode/render readiness and reduced-motion support.
+- Preserve bot text replies after emoji reactions, including approval continuations. Unlinked senders can request bot reactions on the admitted message or earlier messages actually read from that bound channel, without borrowing publisher account authority. Show editable deployment defaults directly in the channel instruction input; preserve legacy custom additions and restore live defaults when cleared. Smooth chat App/Visual previews with reserved skeletons, decode/render readiness and reduced-motion support.
 
 
 - Protect bundled platform and Architect skills from edits, resource/version/fork changes and deletion by callers without organization-wide agent edit authority, including explicit skill grants; reserve their names against unprivileged creation (#2882).

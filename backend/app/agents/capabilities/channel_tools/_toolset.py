@@ -94,7 +94,8 @@ def _post_line(post: ChannelPost) -> str:
     text = _one_line(post.text)
     if len(text) > _POST_CHARS:
         text = text[: _POST_CHARS - 1].rstrip() + "…"
-    return f"{when}{_one_line(post.author)}: {text}"
+    identifier = "" if post.post_id is None else f"[message_id={_one_line(post.post_id)}] "
+    return f"{identifier}{when}{_one_line(post.author)}: {text}"
 
 
 def build_channel_toolset(

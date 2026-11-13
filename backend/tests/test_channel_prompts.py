@@ -1149,7 +1149,7 @@ class TestDelivering:
 @pytest.mark.parametrize(
     "case", ["only", "text", "partial", "wrong_message", "legacy", "preview", "file"]
 )
-async def test_a_resumed_reaction_only_answer_suppresses_only_its_confirmed_original_target(
+async def test_a_resumed_reaction_keeps_the_text_reply_instead_of_deleting_progress(
     monkeypatch, case
 ):
     import app.services.channels.prompts as module
@@ -1196,4 +1196,4 @@ async def test_a_resumed_reaction_only_answer_suppresses_only_its_confirmed_orig
         AsyncMock(return_value="Preview link" if case == "preview" else ""),
     )
     await ChannelPrompts(AsyncMock())._send_segment(bot, "slack", "C1:1.0", segment)
-    assert adapter.send_message.await_count == (0 if case == "only" else 1)
+    assert adapter.send_message.await_count == 1

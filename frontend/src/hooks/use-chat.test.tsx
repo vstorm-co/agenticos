@@ -7041,3 +7041,26 @@ it.each([
   );
   expect(useChatStore.getState().messages).toEqual([]);
 });
+
+it("ends an existing streaming segment when a resumed background turn attaches", () => {
+  useConversationStore.getState().setCurrentConversationId("c-resume");
+  useChatStore.getState().addMessage({
+    id: "old-segment",
+    role: "assistant",
+    content: "Earlier work",
+    timestamp: new Date(),
+    conversationId: "c-resume",
+    runId: "r-resume",
+    isStreaming: true,
+  });
+  renderHook(() => useChat(), { wrapper });
+  receive("turn_attached", { conversation_id: "c-resume" });
+  receive("background_task_turn", {
+    conversation_id: "c-resume",
+    agent_id: "a-1",
+    resumed_run_id: "r-resume",
+  });
+  expect(
+    useChatStore.getState().messages.find((message) => message.id === "old-segment")?.isStreaming,
+  ).toBe(false);
+});

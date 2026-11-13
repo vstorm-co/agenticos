@@ -101,6 +101,7 @@ class ChannelHandbackCall(Payload):
 
 
 class ChannelHandback(Payload):
+    message_id: str | None = None
     organization_id: UUID
     run_id: UUID
     bot_id: UUID

@@ -9,7 +9,10 @@ const state = vi.hoisted(() => ({
   isLoading: false,
 }));
 vi.mock("@/hooks/use-groups", () => ({ useGroups: () => state }));
-vi.mock("@/stores", () => ({ useOrgStore: () => "org" }));
+vi.mock("@/stores", () => ({
+  useOrgStore: (select: (state: { activeOrgId: string }) => unknown) =>
+    select({ activeOrgId: "org" }),
+}));
 beforeEach(() => {
   state.groups = [{ id: "finance", name: "Finance" }];
   state.error = null;

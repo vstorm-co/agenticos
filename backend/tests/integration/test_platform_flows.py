@@ -581,7 +581,12 @@ async def _sync_source_row(db, *, tenant: Tenant, collection_name: str) -> SyncS
 
 
 async def _sync_log_row(
-    db, *, collection_name: str, sync_source_id: uuid.UUID | None = None
+    db,
+    *,
+    collection_name: str,
+    sync_source_id: uuid.UUID | None = None,
+    organization_id: uuid.UUID | None = None,
+    knowledge_base_id: uuid.UUID | None = None,
 ) -> SyncLog:
     log = SyncLog(
         id=uuid.uuid4(),
@@ -590,6 +595,8 @@ async def _sync_log_row(
         mode="full",
         status="running",
         sync_source_id=sync_source_id,
+        organization_id=organization_id,
+        knowledge_base_id=knowledge_base_id,
     )
     db.add(log)
     await db.flush()
@@ -632,8 +639,18 @@ async def rag_estate(db, estate: TwoTenants) -> RagEstate:
         other_source=await _sync_source_row(
             db, tenant=other, collection_name=other_collection.collection_name
         ),
-        home_sync=await _sync_log_row(db, collection_name=home_collection.collection_name),
-        other_sync=await _sync_log_row(db, collection_name=other_collection.collection_name),
+        home_sync=await _sync_log_row(
+            db,
+            collection_name=home_collection.collection_name,
+            organization_id=home.organization.id,
+            knowledge_base_id=home_collection.id,
+        ),
+        other_sync=await _sync_log_row(
+            db,
+            collection_name=other_collection.collection_name,
+            organization_id=other.organization.id,
+            knowledge_base_id=other_collection.id,
+        ),
     )
 
 
@@ -951,6 +968,7 @@ class TestTenantIsolation:
         ours_kb = await _kb_row(db, tenant=home, collection_name="shared_name")
         theirs_kb = await _kb_row(db, tenant=other, collection_name="shared_name")
         documents = {}
+        doc_ids = {}
         for tenant, kb in ((home, ours_kb), (other, theirs_kb)):
             doc = RAGDocument(
                 id=uuid.uuid4(),
@@ -966,6 +984,7 @@ class TestTenantIsolation:
             )
             db.add(doc)
             documents[kb.id] = doc.id
+            doc_ids[kb.id] = doc.vector_document_id
         await db.flush()
 
         response = await rag_api(home.ctx).delete(_rag("/collections/shared_name"))
@@ -984,9 +1003,12 @@ class TestTenantIsolation:
         [cleanup] = [CLEANUP_EXTERNAL_STATE.load(job.payload) for job in jobs]
         assert cleanup.storage_paths == [f"rag/shared_name/{ours_kb.id}.txt"]
         assert cleanup.collections == []
-        assert cleanup.base_purges == [
-            BasePurge(collection="shared_name", knowledge_base_id=ours_kb.id)
-        ]
+        [filed, unfiled] = cleanup.base_purges
+        assert filed == BasePurge(collection="shared_name", knowledge_base_id=ours_kb.id)
+        assert unfiled.collection == "shared_name"
+        assert unfiled.knowledge_base_id == ours_kb.id
+        assert unfiled.takes_unfiled and unfiled.tenant == home.organization.id
+        assert unfiled.vector_document_ids == [doc_ids[ours_kb.id]]
 
     async def test_a_search_naming_one_unreachable_collection_is_refused_entirely(
         self, rag_api: RagClient, rag_estate: RagEstate
@@ -1546,7 +1568,7 @@ class TestSyncSourcesStayWithTheirAudience:
         assert removed.status_code == 204
         assert await db.get(SyncSource, rag_estate.home_source.id) is None
 
-    async def test_an_unassigned_template_takes_only_the_organization(
+    async def test_an_unassigned_template_requires_manage_connections(
         self, db, rag_api: RagClient, rag_estate: RagEstate
     ) -> None:
         template = SyncSource(
@@ -1564,6 +1586,12 @@ class TestSyncSourcesStayWithTheirAudience:
             _rag(f"/sync/sources/{template.id}"), json={"name": "Renamed"}
         )
 
+        assert response.status_code == 404
+        await db.refresh(template)
+        assert template.name == "Drive"
+        response = await rag_api(rag_estate.home.ctx).patch(
+            _rag(f"/sync/sources/{template.id}"), json={"name": "Renamed"}
+        )
         assert response.status_code == 200
 
 

@@ -251,3 +251,60 @@ async def test_pdf_byte_limit_is_enforced_before_a_file_is_written(
             connect=AsyncMock(return_value=browser),
         )
     assert browser.commands("IO.close") and browser.closed
+
+
+async def test_a_missing_agent_and_a_refused_workspace_write_never_claim_an_export():
+    result, workspace = await exported(deps=AgentDeps())
+    assert "agent" in result.lower()
+    workspace.write_bytes.assert_not_awaited()
+    workspace = MagicMock(attached=True, write_bytes=AsyncMock(side_effect=PermissionError()))
+    result, _ = await exported(workspace=workspace)
+    assert "PDF not saved" in result
+
+
+def test_a_corrupted_pdf_stream_is_a_controlled_refusal():
+    with pytest.raises(ExternalServiceError, match="invalid PDF"):
+        renderer._checked_pdf(b"%PDF-broken")
+
+
+def test_a_non_pdf_document_reported_by_the_reader_is_refused(monkeypatch):
+    opened = MagicMock()
+    opened.__enter__.return_value.is_pdf = False
+    monkeypatch.setattr(pymupdf, "open", MagicMock(return_value=opened))
+    with pytest.raises(ExternalServiceError, match="invalid PDF"):
+        renderer._checked_pdf(b"%PDF-pretending")
+
+
+@pytest.mark.parametrize("close_error", [None, renderer.CdpError("already closed"), TimeoutError()])
+async def test_pdf_reads_all_stream_chunks_and_disposes_the_context_if_stream_close_fails(
+    monkeypatch, close_error
+):
+    monkeypatch.setattr(renderer.settings, "ARTIFACT_RENDER_CDP_URL", "http://renderer:9222")
+    monkeypatch.setattr(renderer, "SETTLE_SECONDS", 0)
+    data = pdf()
+    browser = PrintBrowser(data)
+    send = browser.send
+    reads = 0
+
+    async def chunks(method, params=None, *, session_id=None):
+        nonlocal reads
+        result = await send(method, params, session_id=session_id)
+        if method == "IO.read":
+            reads += 1
+            piece = data[:10] if reads == 1 else data[10:]
+            return {
+                "data": base64.b64encode(piece).decode(),
+                "base64Encoded": True,
+                "eof": reads == 2,
+            }
+        if method == "IO.close" and close_error is not None:
+            raise close_error
+        return result
+
+    monkeypatch.setattr(browser, "send", chunks)
+    rendered = await renderer.render(
+        RenderRequest(document=b"<h1>Report</h1>", nonce="n", bindings=None, output="pdf"),
+        connect=AsyncMock(return_value=browser),
+    )
+    assert rendered.pdf == data and reads == 2
+    assert browser.closed and browser.commands("Target.disposeBrowserContext")

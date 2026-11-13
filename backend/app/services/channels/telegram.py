@@ -739,14 +739,6 @@ class TelegramAdapter(ChannelAdapter):
                 reaction=[ReactionTypeEmoji(emoji=symbol)],
             )
 
-    async def delete_reply(
-        self, bot_token: str, platform_chat_id: str, handle: str, *, api_base_url: str | None
-    ) -> None:
-        async with self._bot(bot_token) as bot:
-            await bot.delete_message(
-                chat_id=_where(platform_chat_id)["chat_id"], message_id=int(handle)
-            )
-
     async def acknowledge_message(
         self, bot_token: str, incoming: IncomingMessage, reaction: str
     ) -> None:

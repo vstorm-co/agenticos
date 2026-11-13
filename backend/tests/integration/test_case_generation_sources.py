@@ -106,6 +106,7 @@ async def test_the_agent_is_described_by_its_published_spec_and_its_own_tool_nam
         ("read_artifact", False),
         ("list_artifacts", False),
         ("preview_artifact", False),
+        ("export_artifact", True),
         ("share_artifact", True),
     ]
     (skill,) = material.agent.skills

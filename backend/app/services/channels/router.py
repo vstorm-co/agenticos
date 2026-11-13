@@ -805,31 +805,6 @@ class ChannelMessageRouter:
         A finished answer is offered thumbs to rate it (#2084): in a streamed
         answer as it ends, on an edited one once the edit landed.
         """
-        if (
-            getattr(answered, "reaction_only", False) is True
-            and answered.status == RunStatus.COMPLETED
-            and not answered.attachments
-            and answered.image_png is None
-            and not answered.refused
-            and not answered.delivery_notices
-        ):
-            if streamed is not None:
-                await self._finish_streamed(bot, incoming, streamed, "", None)
-            if handle is None:
-                return
-            try:
-                await get_adapter(incoming.platform).delete_reply(
-                    unseal_bot_token(bot),
-                    incoming.platform_chat_id,
-                    handle,
-                    api_base_url=bot.api_base_url,
-                )
-            except Exception:
-                logger.warning("reaction_only_progress_cleanup_failed", exc_info=True)
-                # Replacing the progress text is still needed when deletion fails.
-                answer = "Reactions sent."
-            else:
-                return
         text = answer or _empty_answer(answered)
         rated = (
             str(answered.run_id)

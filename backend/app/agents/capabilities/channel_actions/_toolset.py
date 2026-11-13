@@ -137,9 +137,13 @@ def build_channel_actions(
         and iMessage allow only one; iMessage uses its supported tapbacks. Other
         platforms do not expose this tool. Check the connection's reaction_limit
         and reaction_scope before calling. The verified current message id
-        is in list_chat_connections; read_chat_messages provides older message ids.
-        Never guess an id. Set reaction_only=true when reactions alone are the
-        complete response to the current message; use false to add a text reply.
+        is in list_chat_connections; read_chat_messages or read_channel_history
+        provides older message ids. An unlinked sender may react as the bot only
+        in the admitted current channel, to the current or actually read message;
+        this does not authorize other-channel operations. Never guess an id. Set reaction_only=true when reactions alone are the
+        complete response to the current message. This legacy option never deletes
+        the bot message: always write a natural text reply as well, brief for a simple
+        reaction request or substantial when the user asked for a report.
         A partial or refused reaction needs a truthful explanation, not a success claim.
 
         Returns:

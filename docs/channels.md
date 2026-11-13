@@ -2895,7 +2895,7 @@ A channel post containing only the bot mention or whitespace is ignored after me
 
 ## Current channel defaults
 
-Channel formatting and conversation guidance come from the current deployment on every run. A binding prompt stores only custom additions. Upgrades remove exact recognized copies of previously shipped defaults while preserving surrounding custom text; edited or unknown text is left alone. Clearing the custom prompt keeps the platform defaults and channel context. No runtime compatibility rewrite of old prompt strings is needed.
+Channel formatting and conversation guidance come from the current deployment on every run. Legacy binding prompts store custom additions; new complete edits are explicitly marked as replacements. Upgrades remove exact recognized copies of previously shipped defaults while preserving surrounding custom text; edited or unknown text is left alone. Clearing the custom prompt keeps the platform defaults and channel context. No runtime compatibility rewrite of old prompt strings is needed.
 
 Downgrading restores the preceding release’s stored channel defaults while preserving custom additions, including bindings created after the upgrade. Other surfaces remain unchanged.
 
@@ -2963,7 +2963,7 @@ Long work streams text and actual tool stages. While a tool runs, text-channel p
 
 ### Agent-chosen reactions
 
-New bot bindings enable every tool supported by their platform, including **React with emoji** where available. Existing bindings keep their saved choices. A reaction may be the whole answer or accompany text. Successful reaction-only answers remove the temporary progress post where deletion is supported. Failed or partially applied reactions never count as a completed reaction-only answer.
+New bot bindings enable every tool supported by their platform, including **React with emoji** where available. Existing bindings keep their saved choices. Reactions accompany a text answer: a brief acknowledgement for a simple request or a substantial report when needed. The bot never deletes its progress post after reacting. It may react to several earlier messages read from its admitted channel history; an unlinked sender gains no access to other channels. Failed or partial reactions are reported honestly.
 
 | Platform | Native reactions through this connection | Limit and scope |
 | --- | --- | --- |
@@ -2977,3 +2977,6 @@ New bot bindings enable every tool supported by their platform, including **Reac
 Slack installations need `reactions:read` as well as `reactions:write`; reinstall the app after updating its manifest. The reactions tool reports the actual outcome rather than silently replacing an unsupported choice. Connection discovery reports each platform's reaction limit and destination scope. The current-message restriction on Telegram, Discord and iMessage prevents a model from guessing a recipient or borrowing an unrelated message ID.
 
 Email, iMessage and Twilio MMS also expose explicit workspace file delivery in the current conversation. MMS remains subject to the deployment's media settings and Twilio attachment limits. Generated charts sent by email become image attachments.
+
+
+The channel instruction input displays the current defaults, including `{{channel_name}}` and `{{channel_members}}` references. Saving an edited complete prompt sets `prompt_replaces_defaults`; it replaces presentation guidance once, without duplicating the default text. Legacy custom prompts retain their additive meaning. Clearing the input restores live deployment defaults. Identity, permissions and trusted runtime context cannot be changed through this field. A bot may react to its admitted incoming message or earlier messages actually read from the bound channel without borrowing an unlinked sender’s accounting publisher identity; other-channel actions still require an identified member and explicit grants.

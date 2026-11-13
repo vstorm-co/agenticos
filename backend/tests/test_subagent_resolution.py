@@ -115,6 +115,15 @@ def _no_registered_architect(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
+@pytest.fixture(autouse=True)
+def _no_connected_chat_bindings(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These agents have no bot grants; channel_actions tests cover connected audiences."""
+    monkeypatch.setattr(
+        "app.services.channel_actions.agent_exposure_repo.list_for_agent",
+        AsyncMock(return_value=[]),
+    )
+
+
 def _ctx() -> AuthContext:
     return AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.OWNER)
 

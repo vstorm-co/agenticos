@@ -202,6 +202,8 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
                 <ExposurePrompt
                   botName={exposure.channel_bot_name}
                   value={exposure.prompt}
+                  defaultPrompt={exposure.default_prompt}
+                  replacesDefaults={exposure.prompt_replaces_defaults}
                   variables={exposure.available_variables}
                   disabled={setPrompt.isPending}
                   onSave={(prompt) => setPrompt.mutate({ exposureId: exposure.id, prompt })}

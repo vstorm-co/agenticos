@@ -1,5 +1,5 @@
 ---
-source_sha: "ff6a84a39b57"
+source_sha: "eb7978fc7771"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -3218,7 +3218,7 @@ Eine Kanalnachricht, die nur die Bot-Erwähnung oder Leerraum enthält, wird nac
 
 ## Aktuelle Kanalvorgaben {#current-channel-defaults}
 
-Formatierung und Gesprächsregeln kommen bei jedem Lauf aus dem aktuellen Deployment. Der Bindungs-Prompt speichert nur eigene Ergänzungen. Upgrades entfernen exakt erkannte Kopien früherer Standardanweisungen und erhalten den umgebenden eigenen Text; bearbeiteter oder unbekannter Text bleibt unverändert. Das Leeren des eigenen Prompts erhält Plattformvorgaben und Kanalkontext. Eine Umschreibung alter Prompt-Zeichenfolgen zur Laufzeit ist nicht erforderlich.
+Formatierung und Gesprächsregeln kommen bei jedem Lauf aus dem aktuellen Deployment. Ältere Bindungs-Prompts speichern Ergänzungen; neue vollständige Änderungen werden ausdrücklich als Ersatz markiert. Upgrades entfernen exakt erkannte Kopien früherer Standardanweisungen und erhalten den umgebenden eigenen Text; bearbeiteter oder unbekannter Text bleibt unverändert. Das Leeren des eigenen Prompts erhält Plattformvorgaben und Kanalkontext. Eine Umschreibung alter Prompt-Zeichenfolgen zur Laufzeit ist nicht erforderlich.
 
 Ein Downgrade stellt die gespeicherten Kanalvorgaben der vorherigen Version wieder her und erhält eigene Ergänzungen, auch bei nach dem Upgrade angelegten Bindungen. Andere Oberflächen bleiben unverändert.
 
@@ -3287,7 +3287,7 @@ Lange Aufgaben streamen Text und tatsächliche Werkzeugschritte. Textkanäle zei
 
 ### Vom Agenten gewählte Reaktionen { #agent-chosen-reactions }
 
-Neue Bot-Bindungen aktivieren alle von der Plattform unterstützten Werkzeuge, einschließlich **React with emoji**, sofern verfügbar. Bestehende Bindungen behalten ihre Auswahl. Eine Reaktion kann die gesamte Antwort sein oder Text begleiten. Nach einer erfolgreichen reinen Reaktionsantwort wird die vorläufige Fortschrittsnachricht gelöscht, soweit die Plattform dies erlaubt. Fehler oder teilweise angewendete Reaktionen gelten nicht als abgeschlossene reine Reaktionsantwort.
+Neue Bot-Bindungen aktivieren alle von der Plattform unterstützten Werkzeuge, einschließlich **React with emoji**, sofern verfügbar. Bestehende Bindungen behalten ihre Auswahl. Reaktionen begleiten eine Textantwort: eine kurze Bestätigung bei einfachen Anfragen oder einen vollständigen Bericht, wenn nötig. Der Bot löscht seine Fortschrittsnachricht nach dem Reagieren nicht. Er darf auf mehrere ältere, aus dem zugelassenen Kanalverlauf gelesene Nachrichten reagieren; nicht verknüpfte Absender erhalten keinen Zugriff auf andere Kanäle. Fehler und teilweise angewendete Reaktionen werden wahrheitsgemäß gemeldet.
 
 | Plattform | Native Reaktionen über diese Verbindung | Grenze und Bereich |
 | --- | --- | --- |
@@ -3301,3 +3301,6 @@ Neue Bot-Bindungen aktivieren alle von der Plattform unterstützten Werkzeuge, e
 Slack benötigt `reactions:read` sowie `reactions:write`; installiere die App nach der Manifeständerung erneut. Das Werkzeug meldet das tatsächliche Ergebnis, statt eine nicht unterstützte Auswahl still zu ersetzen. Die Verbindungsliste zeigt Reaktionsgrenze und Zielbereich. Die Beschränkung auf die aktuelle Nachricht bei Telegram, Discord und iMessage verhindert geratene Empfänger oder fremde Nachrichten-IDs.
 
 E-Mail, iMessage und Twilio MMS bieten außerdem die ausdrückliche Zustellung von Workspace-Dateien in der aktuellen Unterhaltung. MMS unterliegt den Medieneinstellungen der Bereitstellung und den Twilio-Anhangsgrenzen. Per E-Mail gesendete Diagramme werden als Bildanhänge zugestellt.
+
+
+Das Eingabefeld für Kanalanweisungen zeigt die aktuellen Vorgaben einschließlich `{{channel_name}}` und `{{channel_members}}`. Das Speichern eines bearbeiteten vollständigen Prompts setzt `prompt_replaces_defaults`: Darstellungshinweise werden einmal ersetzt, ohne die Vorgaben zu duplizieren. Frühere eigene Prompts bleiben Ergänzungen. Leeren stellt die aktuellen Deployment-Vorgaben wieder her. Identität, Berechtigungen und vertrauenswürdiger Laufzeitkontext bleiben unabhängig. Ein Bot darf auf die zugelassene aktuelle Nachricht reagieren, ohne die Identität des abrechnenden Herausgebers eines nicht verknüpften Absenders zu übernehmen; Aktionen in anderen Kanälen erfordern weiterhin ein identifiziertes Mitglied und ausdrückliche Freigaben.

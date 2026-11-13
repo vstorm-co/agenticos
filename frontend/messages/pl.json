@@ -1027,7 +1027,9 @@
       "listingChatConnections": "Sprawdzanie połączeń komunikatorów",
       "chatConnections": "Połączenia komunikatorów",
       "reactingToMessage": "Dodawanie reakcji do wiadomości",
-      "messageReactions": "Reakcje na wiadomości"
+      "messageReactions": "Reakcje na wiadomości",
+      "exportingArtifact": "Eksportowanie PDF…",
+      "exportArtifact": "Eksportuj opublikowaną aplikację"
     },
     "turnWasStopped": "zatrzymano",
     "unfavourite": "Usuń z ulubionych",
@@ -9127,8 +9129,8 @@
     "channelCanOverrideScope": "Każdy kanał, na którym opublikowano tego agenta, może to nadpisać.",
     "channelLookupsHint": "Nazwa, temat i ograniczona lista widocznych osób są dodawane automatycznie. Te przełączniki przyznają dodatkowe akcje; wysyłka pliku wymaga prośby użytkownika.",
     "channelLookupsOn": "Co agent może robić na {platform}",
-    "channelPromptHint": "Przy każdym runie runtime dodaje platformę, stan połączenia konta nadawcy i aktualne dane kanału. Ten tekst dodaje instrukcje powiązania; nowe powiązania zawierają wskazówki formatowania i prowadzenia rozmowy.",
-    "channelPromptOn": "Dodatkowe instrukcje na {bot}",
+    "channelPromptHint": "Domyślne instrukcje pojawiają się tutaj automatycznie. Edytuj je dla tego kanału lub wyczyść i zapisz, aby przywrócić aktualne domyślne instrukcje. Tożsamością, uprawnieniami i kontekstem uruchomienia zarządza platforma.",
+    "channelPromptOn": "Instrukcje kanału {bot}",
     "channelPromptPlaceholder": "Co ten agent powinien wiedzieć o odpowiadaniu tutaj.",
     "channelPromptVariables": "Wstaw:",
     "choosePeople": "Wybierz osoby",

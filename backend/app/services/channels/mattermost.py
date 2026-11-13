@@ -531,16 +531,6 @@ class MattermostAdapter(ChannelAdapter):
             )
             response.raise_for_status()
 
-    async def delete_reply(
-        self, bot_token: str, platform_chat_id: str, handle: str, *, api_base_url: str | None
-    ) -> None:
-        async with self._client() as client:
-            response = await client.delete(
-                f"{self._server(api_base_url)}/api/v4/posts/{handle}",
-                headers=self._headers(bot_token),
-            )
-            response.raise_for_status()
-
     async def acknowledge_message(
         self, bot_token: str, incoming: IncomingMessage, reaction: str
     ) -> None:

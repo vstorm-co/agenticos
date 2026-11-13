@@ -42,13 +42,16 @@ export interface Exposure {
    * never contradict what the agent is for.
    */
   prompt: string | null;
+  /** Current deployment defaults, shown directly in the instruction editor. */
+  default_prompt?: string;
+  prompt_replaces_defaults?: boolean;
   /**
    * Which channel lookups the agent may make *here*, by tool id.
    *
    * Per bound bot rather than per agent: one agent can answer on an internal
    * Mattermost and a customer Slack, and "may it read what was said in this
-   * channel" is a different answer on each. Empty is what a new binding starts
-   * as and grants none of them.
+   * channel" is a different answer on each. New bindings grant every platform-supported tool; an explicitly
+   * empty saved list grants none.
    */
   tools: string[];
   /**

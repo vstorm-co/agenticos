@@ -622,12 +622,6 @@ class ChannelAdapter(ABC):
         """Apply one real reaction after verifying the target is in the selected channel."""
         raise ChannelDirectoryUnsupported("This platform does not support agent-chosen reactions")
 
-    async def delete_reply(
-        self, bot_token: str, platform_chat_id: str, handle: str, *, api_base_url: str | None
-    ) -> None:
-        """Remove this bot's temporary progress post after a reaction-only answer."""
-        raise ChannelDirectoryUnsupported("This platform cannot remove a temporary reply")
-
     async def acknowledge_message(  # noqa: B027 - a no-op where the platform has no reactions
         self, bot_token: str, incoming: IncomingMessage, reaction: str
     ) -> None:

@@ -32,7 +32,7 @@ async def test_new_binding_defaults_match_actual_platform_actions(platform: str)
     assert platform_actions(platform) - {"list_chat_connections"} <= offered
 
 
-async def test_telegram_sends_one_native_reaction_and_deletes_progress() -> None:
+async def test_telegram_sends_one_native_reaction_without_deleting_the_reply() -> None:
     bot = MagicMock(set_message_reaction=AsyncMock(), delete_message=AsyncMock())
 
     @asynccontextmanager
@@ -45,8 +45,7 @@ async def test_telegram_sends_one_native_reaction_and_deletes_progress() -> None
         await adapter.react_to_message("private-token", "-10042", "7", "heart", api_base_url=None)
         assert bot.set_message_reaction.await_args.kwargs["reaction"][0].emoji == "❤"
         assert bot.set_message_reaction.await_args.kwargs["message_id"] == 7
-        await adapter.delete_reply("private-token", "-10042:3", "8", api_base_url=None)
-        bot.delete_message.assert_awaited_once_with(chat_id="-10042", message_id=8)
+        bot.delete_message.assert_not_awaited()
         with pytest.raises(ChannelDirectoryUnsupported):
             await adapter.react_to_message(
                 "private-token", "-10042", "7", "unknown", api_base_url=None

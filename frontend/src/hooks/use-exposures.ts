@@ -88,10 +88,12 @@ export function useExposures(agentId: string | null) {
 
   const setPrompt = useMutation({
     mutationFn: ({ exposureId, prompt }: { exposureId: string; prompt: string | null }) =>
-      // Only this field goes, for the reason `setActive` says: the server
-      // applies what it was sent, so reading a value back and returning it would
-      // overwrite whatever somebody changed in between.
-      apiClient.patch<Exposure>(`${base}/${exposureId}`, { prompt }),
+      // Prompt and its interpretation change together; never overwrite the
+      // binding's independently edited tools, environment or workspace scope.
+      apiClient.patch<Exposure>(`${base}/${exposureId}`, {
+        prompt,
+        prompt_replaces_defaults: prompt !== null,
+      }),
     onSuccess: invalidate,
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });

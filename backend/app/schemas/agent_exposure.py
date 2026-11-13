@@ -59,6 +59,11 @@ class ExposureRead(BaseSchema):
     # Read back, unlike a credential: it is instructions somebody wrote and has
     # to be able to edit, and the form that edits it needs its current value.
     prompt: str | None = None
+    prompt_replaces_defaults: bool = False
+    default_prompt: str = Field(
+        default="",
+        description="Current deployment-owned channel instructions, applied before custom additions",
+    )
     tools: list[str] = Field(
         default_factory=list,
         description="Channel lookups granted on this binding, by tool id",
@@ -116,7 +121,7 @@ class ExposureCreate(BaseSchema):
     )
     prompt: str | None = Field(
         default=None,
-        max_length=4000,
+        max_length=16000,
         description=(
             "Added to the agent's instructions on this binding only - how to lay "
             "a message out here, how to give a link, how long an answer should "
@@ -138,6 +143,10 @@ class ExposureCreate(BaseSchema):
 
 
 class ExposureUpdate(BaseSchema):
+    prompt_replaces_defaults: bool | None = Field(
+        default=None,
+        description="Whether a custom channel prompt replaces presentation defaults; existing prompts remain additions",
+    )
     usage_reporting: UsageReporting | None = Field(
         default=None,
         description=(
@@ -168,7 +177,7 @@ class ExposureUpdate(BaseSchema):
     )
     prompt: str | None = Field(
         default=None,
-        max_length=4000,
+        max_length=16000,
         description=(
             "Added to the agent's instructions on this binding only - how to lay "
             "a message out here, how to give a link, how long an answer should "

@@ -150,8 +150,8 @@
     "channelCanOverrideScope": "Each channel this agent is published to can override it.",
     "channelLookupsHint": "Channel name, topic and a limited visible member snapshot are added automatically. These switches grant extra actions; file delivery requires a user request.",
     "channelLookupsOn": "What this agent may do on {platform}",
-    "channelPromptHint": "Runtime adds the platform, sender connection state and current channel data on every run. This editable text adds instructions for this binding; new bindings include formatting and channel conversation guidance.",
-    "channelPromptOn": "Extra instructions on {bot}",
+    "channelPromptHint": "Default instructions appear here automatically. Edit to customize this channel, or clear and save to restore the current defaults. Identity, permissions and runtime context remain managed by the platform.",
+    "channelPromptOn": "Channel instructions on {bot}",
     "channelPromptPlaceholder": "What this agent should know about answering here.",
     "channelPromptVariables": "Insert:",
     "choosePeople": "Choose people",
@@ -1982,7 +1982,9 @@
       "listingChatConnections": "Listing messaging connections",
       "chatConnections": "Messaging connections",
       "reactingToMessage": "Reacting to a message",
-      "messageReactions": "Message reactions"
+      "messageReactions": "Message reactions",
+      "exportingArtifact": "Exporting a PDF…",
+      "exportArtifact": "Export a Published App"
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -13360,7 +13362,7 @@
     "channel_tools": {
       "tools": {
         "title": "Allowed lookups",
-        "description": "Which channel lookups this binding allows, by tool id. Empty means none, which is what a binding starts as."
+        "description": "Which channel lookups this binding allows, by tool id. Empty means none. New bindings grant all platform-supported tools; existing choices stay unchanged."
       },
       "default_limit": {
         "title": "Results when no number is asked for",

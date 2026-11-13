@@ -200,6 +200,11 @@ class ChannelDirectory(Protocol):
         """The original channel and bot, where this directory can be restored."""
         ...
 
+    @property
+    def reaction_message_ids(self) -> frozenset[str]:
+        """Messages actually returned from this directory's bound channel in this run."""
+        ...
+
     async def send_file(self, *, filename: str, content: bytes, mime_type: str) -> str:
         """Submit a file to this conversation through the platform adapter."""
         ...

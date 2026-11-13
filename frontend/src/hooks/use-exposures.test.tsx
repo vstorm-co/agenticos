@@ -227,6 +227,7 @@ describe("useExposures", () => {
 
     expect(apiClient.patch).toHaveBeenCalledWith("/agents/a1/exposures/e1", {
       prompt: "Be terse.",
+      prompt_replaces_defaults: true,
     });
   });
 });

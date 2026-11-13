@@ -26,8 +26,11 @@ per-thread session (`channel_session`).
 
 ## Surface prompts
 
-`formatting.house_style` supplies current defaults at run time. Binding prompts
-store custom additions only; do not seed a snapshot of defaults into a new row.
+`formatting.house_style` supplies current defaults at run time. New binding rows
+store no snapshot. The editor shows `default_prompt` directly in the input.
+An explicit `prompt_replaces_defaults` edit replaces surface presentation text;
+legacy prompts remain additions. Clearing restores live defaults. Identity,
+authorization and environment context remain trusted runtime facts.
 Migration `0183_channel_prompt_defaults.py` removes exact historical defaults.
 Channel messages persist raw text and `channel_identity_id`; history author labels
 are resolved just before dispatch by `ChannelReference`, so erasure removes the

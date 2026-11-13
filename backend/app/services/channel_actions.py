@@ -24,6 +24,7 @@ from app.agents.capabilities.channel_actions._contract import (
 )
 from app.agents.capabilities.channel_tools._directory import (
     ChannelDestination,
+    ChannelDirectory,
     HistoryPage,
     HistoryQuery,
 )
@@ -90,11 +91,31 @@ async def granted_connections(
 
 class ChannelActionService:
     def __init__(
-        self, ctx: AuthContext, agent_id: UUID, *, destination: ChannelDestination | None = None
+        self,
+        ctx: AuthContext,
+        agent_id: UUID,
+        *,
+        destination: ChannelDestination | None = None,
+        current_directory: ChannelDirectory | None = None,
     ) -> None:
         self.ctx = ctx
         self.agent_id = agent_id
         self.destination = destination
+        self.current_directory = current_directory
+
+    def _allowed_tools(self, exposure: AgentExposure, bot: ChannelBot) -> frozenset[str]:
+        available = frozenset(exposure.tools) & platform_actions(bot.platform)
+        if not self.ctx.subject_is_publisher_fallback:
+            return available
+        if (
+            self.destination is None
+            or self.destination.bot_id != bot.id
+            or self.destination.message_id is None
+        ):
+            return frozenset()
+        # Admission already bound this bot and incoming message. A bot reaction
+        # uses that transport, never the accounting publisher's account authority.
+        return available & {"react_to_chat_message"}
 
     async def _context(self) -> AuthContext:
         if self.ctx.user_id is None or self.ctx.subject_is_publisher_fallback:
@@ -112,11 +133,16 @@ class ChannelActionService:
             return ctx
 
     async def grants(self) -> dict[UUID, tuple[AgentExposure, ChannelBot]]:
-        ctx = await self._context()
+        ctx = self.ctx if self.ctx.subject_is_publisher_fallback else await self._context()
         async with get_db_context() as db:
-            return await granted_connections(
+            grants = await granted_connections(
                 db, agent_id=self.agent_id, organization_id=ctx.organization_id
             )
+        return {
+            bot_id: (exposure, bot)
+            for bot_id, (exposure, bot) in grants.items()
+            if self._allowed_tools(exposure, bot)
+        }
 
     async def tools(
         self, db: AsyncSession, *, reviewed: Mapping[UUID, str] | None = None
@@ -128,8 +154,7 @@ class ChannelActionService:
             tool
             for exposure, bot in grants.values()
             if reviewed is None or reviewed.get(exposure.id) == grant_fingerprint(exposure, bot)
-            for tool in exposure.tools
-            if tool in platform_actions(bot.platform)
+            for tool in self._allowed_tools(exposure, bot)
         }
         if tools:
             tools.add("list_chat_connections")
@@ -153,10 +178,14 @@ class ChannelActionService:
                         "bot_id": str(bot.id),
                         "name": bot.name,
                         "platform": bot.platform,
-                        "tools": sorted(set(exposure.tools) & platform_actions(bot.platform)),
+                        "tools": sorted(self._allowed_tools(exposure, bot)),
                         "reaction_limit": 1 if bot.platform in {"telegram", "imessage"} else 8,
                         "reaction_scope": "joined_channels"
                         if bot.platform in CROSS_CHANNEL_PLATFORMS
+                        and not self.ctx.subject_is_publisher_fallback
+                        else "current_channel_history"
+                        if self.ctx.subject_is_publisher_fallback
+                        and bot.platform in CROSS_CHANNEL_PLATFORMS
                         else "current_message",
                     }
                     for exposure, bot in grants.values()
@@ -167,11 +196,7 @@ class ChannelActionService:
 
     async def _bot(self, bot_id: UUID, tool: str) -> ChannelBot:
         granted = (await self.grants()).get(bot_id)
-        if (
-            granted is None
-            or tool not in granted[0].tools
-            or tool not in platform_actions(granted[1].platform)
-        ):
+        if granted is None or tool not in self._allowed_tools(*granted):
             raise AuthorizationError(
                 message="This agent has not been granted this action on that messaging connection"
             )
@@ -321,7 +346,7 @@ class ChannelActionService:
             raise BadRequestError(
                 message="This platform allows one bot reaction per message; choose one emoji"
             )
-        if bot.platform in CROSS_CHANNEL_PLATFORMS:
+        if bot.platform in CROSS_CHANNEL_PLATFORMS and not self.ctx.subject_is_publisher_fallback:
             directory = await self._directory(bot, channel_id, None)
             adapter, token = directory.adapter, directory.bot_token
         else:
@@ -331,10 +356,19 @@ class ChannelActionService:
                 self.destination is None
                 or self.destination.bot_id != bot.id
                 or split_thread(self.destination.platform_chat_id)[0] != channel_id
-                or self.destination.message_id != message_id
+                or (
+                    self.destination.message_id != message_id
+                    and not (
+                        self.ctx.subject_is_publisher_fallback
+                        and bot.platform in CROSS_CHANNEL_PLATFORMS
+                        and self.current_directory is not None
+                        and self.current_directory.destination == self.destination
+                        and message_id in self.current_directory.reaction_message_ids
+                    )
+                )
             ):
                 raise AuthorizationError(
-                    message="Reactions on this platform are limited to the current verified message"
+                    message="React only to the current verified message, or a message read from this bound channel history when supported"
                 )
             adapter, token = get_adapter(bot.platform), unseal_bot_token(bot)
         applied: list[str] = []

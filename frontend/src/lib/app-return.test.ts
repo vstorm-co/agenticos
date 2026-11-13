@@ -19,6 +19,7 @@ describe("App return destinations", () => {
     "/apps/a",
     "/chat?id=bad",
     "/chat",
+    "/\\[",
   ])("rejects non-conversation destinations: %s", (value) => {
     expect(appReturnTo(value)).toBeNull();
   });

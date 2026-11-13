@@ -6280,3 +6280,46 @@ def test_where_a_coding_agent_runs_decides_which_listing_field_names_it() -> Non
     assert _personal_coding_harness(shared) is None
     assert _local_coding_agent(None) is None
     assert _personal_coding_harness(None) is None
+
+
+@pytest.mark.security
+@pytest.mark.anyio
+async def test_a_template_refuses_a_same_named_bundled_skill_without_an_installation_receipt():
+    from app.services import agent_templates
+
+    template = agent_templates.get(agent_templates.STARTER_TEMPLATE)
+    assert template is not None
+    row = MagicMock(id=uuid4())
+    row.name = "artifact-pages"
+    with (
+        patch(f"{REGISTRY_PATH}.skill_repo.get_by_name", AsyncMock(return_value=row)),
+        patch(f"{REGISTRY_PATH}.resolve_access", AsyncMock(return_value=True)),
+        patch(f"{REGISTRY_PATH}.SkillService.trusted_template_copy", AsyncMock(return_value=False)),
+        pytest.raises(BadRequestError, match="trusted installation receipt"),
+    ):
+        await AgentRegistryService(_db()).template_skills(_ctx(), template, install_missing=False)
+
+
+@pytest.mark.security
+@pytest.mark.anyio
+@pytest.mark.parametrize("present", [True, False])
+async def test_agent_notification_groups_are_checked_in_the_publishing_organization(present):
+    group_id = uuid4()
+    spec = _spec(notifications={"budget": {"to": ["chosen"], "group_ids": [group_id]}})
+    ctx = _ctx()
+    names = AsyncMock(return_value={group_id: "Finance"} if present else {})
+    with (
+        patch(f"{REGISTRY_PATH}.group_repo.get_names", names),
+        pytest.raises(BadRequestError) as caught,
+    ):
+        await AgentRegistryService(_db()).validate_spec(ctx, spec)
+    fields = {problem["field"] for problem in caught.value.details["fields"]}
+    assert fields == (
+        {"model_profile_id"}
+        if present
+        else {"model_profile_id", "notifications.budget.group_ids.0"}
+    )
+    assert names.await_args.kwargs == {
+        "organization_id": ctx.organization_id,
+        "group_ids": [group_id],
+    }

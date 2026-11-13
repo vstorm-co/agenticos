@@ -774,7 +774,7 @@ def build_artifacts_toolset(
         filename: str | None = None,
         paper: Literal["a4", "slides"] = "a4",
     ) -> str:
-        """Export a published App or browser presentation as a real PDF file.
+        """Export a published App or browser presentation to a PDF file in the workspace.
 
         Use when the person requests a PDF report, handout or slide deck. Export
         the final published version; HTML print styles must include every slide

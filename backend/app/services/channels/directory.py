@@ -10,7 +10,7 @@ import base64
 import hashlib
 import hmac
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 from uuid import UUID
 
@@ -140,6 +140,14 @@ class BoundChannelDirectory:
     conversation an agent may read is the one it was spoken to in.
     """
 
+    _observed_message_ids: set[str] = field(
+        default_factory=set, init=False, repr=False, compare=False
+    )
+
+    @property
+    def reaction_message_ids(self) -> frozenset[str]:
+        return frozenset(self._observed_message_ids)
+
     @property
     def destination(self) -> ChannelDestination | None:
         if self.bot_id is None:
@@ -193,13 +201,17 @@ class BoundChannelDirectory:
     async def history(
         self, *, limit: int, scope: Literal["thread", "channel"] = "thread"
     ) -> list[ChannelPost]:
-        return await self.adapter.channel_history(
+        posts = await self.adapter.channel_history(
             self.bot_token,
             self.channel_id,
             api_base_url=self.api_base_url,
             limit=limit,
             thread_id=self.thread_id if scope == "thread" else None,
         )
+        self._observed_message_ids.update(
+            post.post_id for post in posts if post.post_id is not None
+        )
+        return posts
 
     async def history_page(
         self, *, limit: int, scope: Literal["thread", "channel"], filters: HistoryQuery
@@ -242,6 +254,9 @@ class BoundChannelDirectory:
             limit=limit,
             thread_id=self.thread_id if scope == "thread" else None,
             filters=filters.model_copy(update={"cursor": native}),
+        )
+        self._observed_message_ids.update(
+            post.post_id for post in page.posts if post.post_id is not None
         )
         cursor = None
         if page.cursor is not None:

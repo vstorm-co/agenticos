@@ -592,6 +592,7 @@ class TestReadOnlyDeclarations:
             ("phone_calls", "list_phone_transfer_contacts"),
             ("phone_calls", "transfer_phone_call"),
             ("artifacts", "publish_artifact"),
+            ("artifacts", "export_artifact"),
             ("channel_actions", "send_chat_message"),
             ("channel_actions", "react_to_chat_message"),
             ("artifacts", "share_artifact"),

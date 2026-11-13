@@ -425,15 +425,6 @@ class DiscordAdapter(ChannelAdapter):
         )
         response.raise_for_status()
 
-    async def delete_reply(
-        self, bot_token: str, platform_chat_id: str, handle: str, *, api_base_url: str | None
-    ) -> None:
-        channel_id, _ = await self._destination(bot_token, platform_chat_id)
-        response = await self._call(
-            "DELETE", f"/channels/{channel_id}/messages/{handle}", bot_token
-        )
-        response.raise_for_status()
-
     async def begin_reply(self, bot_token: str, msg: OutgoingMessage) -> str | None:
         """Post the message the answer will be written into, and return its id."""
         if msg.reply_to_message_id:

@@ -1,5 +1,5 @@
 ---
-source_sha: "ff6a84a39b57"
+source_sha: "eb7978fc7771"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -3012,7 +3012,7 @@ Wiadomość kanałowa zawierająca tylko wzmiankę bota lub białe znaki jest po
 
 ## Aktualne domyślne instrukcje kanałów {#current-channel-defaults}
 
-Formatowanie i zasady rozmowy w kanale pochodzą z bieżącego wdrożenia przy każdym uruchomieniu. Prompt powiązania przechowuje tylko własne dodatki. Migracja usuwa dokładnie rozpoznane kopie wcześniej dostarczonych instrukcji, zachowując otaczający je własny tekst; zmieniony lub nieznany tekst pozostaje bez zmian. Wyczyszczenie własnego promptu zachowuje domyślne zasady platformy i kontekst kanału. Nie potrzeba przepisywania starych promptów podczas działania agenta.
+Formatowanie i zasady rozmowy w kanale pochodzą z bieżącego wdrożenia przy każdym uruchomieniu. Wcześniejsze prompty powiązań przechowują własne dodatki; nowe pełne edycje są jawnie oznaczone jako zastępujące wskazówki prezentacji. Migracja usuwa dokładnie rozpoznane kopie wcześniej dostarczonych instrukcji, zachowując otaczający je własny tekst; zmieniony lub nieznany tekst pozostaje bez zmian. Wyczyszczenie własnego promptu zachowuje domyślne zasady platformy i kontekst kanału. Nie potrzeba przepisywania starych promptów podczas działania agenta.
 
 Cofnięcie migracji przywraca zapisane domyślne instrukcje kanałów z poprzedniej wersji i zachowuje własne dodatki, także dla powiązań utworzonych po aktualizacji. Pozostałe powierzchnie pozostają bez zmian.
 
@@ -3080,7 +3080,7 @@ Długie zadania strumieniują tekst i rzeczywiste etapy narzędzi. W komunikator
 
 ### Reakcje wybierane przez agenta { #agent-chosen-reactions }
 
-Nowe podpięcia botów włączają wszystkie narzędzia obsługiwane przez daną platformę, w tym **React with emoji**, gdy jest dostępne. Istniejące podpięcia zachowują zapisane wybory. Reakcja może stanowić całą odpowiedź lub towarzyszyć tekstowi. Po udanej odpowiedzi wyłącznie reakcją tymczasowa wiadomość postępu jest usuwana tam, gdzie platforma na to pozwala. Błąd lub częściowy sukces nie kończy odpowiedzi jako udanej reakcji.
+Nowe podpięcia botów włączają wszystkie narzędzia obsługiwane przez daną platformę, w tym **React with emoji**, jeśli jest dostępne. Istniejące podpięcia zachowują wybrane ustawienia. Reakcjom towarzyszy odpowiedź tekstowa: krótkie potwierdzenie prostej prośby albo pełny raport, gdy jest potrzebny. Bot nie usuwa swojej wiadomości po dodaniu reakcji. Może reagować na kilka wcześniejszych wiadomości odczytanych z historii bieżącego kanału; niepowiązany nadawca nie uzyskuje dostępu do innych kanałów. Nieudane i częściowe reakcje są komunikowane zgodnie z wynikiem narzędzia.
 
 | Platforma | Natywne reakcje przez to połączenie | Limit i zakres |
 | --- | --- | --- |
@@ -3094,3 +3094,6 @@ Nowe podpięcia botów włączają wszystkie narzędzia obsługiwane przez daną
 Instalacja Slacka potrzebuje `reactions:read` i `reactions:write`; po zmianie manifestu zainstaluj aplikację ponownie. Narzędzie zgłasza rzeczywisty wynik zamiast zastępować nieobsługiwany wybór. Lista połączeń podaje limit reakcji i zakres odbiorcy dla każdej platformy. Ograniczenie do bieżącej wiadomości w Telegramie, Discordzie i iMessage zapobiega zgadywaniu odbiorcy lub użyciu identyfikatora innej wiadomości.
 
 Email, iMessage i Twilio MMS udostępniają też jawne wysyłanie plików z workspace w bieżącej rozmowie. MMS podlega ustawieniom mediów wdrożenia i limitom załączników Twilio. Wygenerowane wykresy wysyłane emailem są załącznikami graficznymi.
+
+
+Pole instrukcji kanału wyświetla aktualne wartości domyślne, w tym odniesienia `{{channel_name}}` i `{{channel_members}}`. Zapis edytowanego pełnego promptu ustawia `prompt_replaces_defaults`: zastępuje wskazówki prezentacji bez ich dublowania. Wcześniejsze własne prompty nadal są dopisywane. Wyczyszczenie pola przywraca aktualne instrukcje wdrożenia. Tożsamość, uprawnienia i zaufany kontekst uruchomienia nie podlegają tej edycji. Bot może zareagować na przyjętą bieżącą wiadomość bez korzystania z tożsamości osoby rozliczającej niepowiązanego nadawcę; operacje na innych kanałach nadal wymagają zidentyfikowanego członka i jawnych uprawnień.

@@ -1471,3 +1471,24 @@ async def test_org_integration_mutations_do_not_bypass_personal_base_access(
     finally:
         app.dependency_overrides.clear()
         app.dependency_overrides.update(previous)
+
+
+@pytest.mark.security
+async def test_a_source_less_log_with_an_exact_owned_base_can_be_cancelled_but_a_same_named_one_cannot(
+    service, rows
+):
+    kb = _kb("handbook")
+    log = SyncLog(
+        id=uuid.uuid4(),
+        organization_id=HOME_ORG,
+        knowledge_base_id=kb.id,
+        source="gdrive",
+        collection_name="handbook",
+        mode="full",
+        status="running",
+    )
+    rows.collections, rows.logs = [kb], [log]
+    assert (await service.sync_log(_ctx(), str(log.id))).id == log.id
+    log.knowledge_base_id = uuid.uuid4()
+    with pytest.raises(NotFoundError):
+        await service.sync_log(_ctx(), str(log.id))

@@ -5951,8 +5951,8 @@
     "channelCanOverrideScope": "Agent'ın yayınlandığı her kanal bu ayarı geçersiz kılabilir.",
     "channelLookupsHint": "Kanal adı, konusu ve görülebilen üyelerin sınırlı bir özeti otomatik eklenir. Bu anahtarlar ek işlemlere izin verir; dosya göndermek için kullanıcının isteği gerekir.",
     "channelLookupsOn": "Bu Agent'ın {platform} üzerinde yapabilecekleri",
-    "channelPromptHint": "Runtime her run'da platformu, gönderenin bağlantı durumunu ve geçerli kanal verilerini ekler. Düzenlenebilir bu metin, bu bağlantıya ilişkin talimatları ekler; yeni bağlantılar biçimlendirme ve kanal konuşması yönergelerini içerir.",
-    "channelPromptOn": "{bot} için ek talimatlar",
+    "channelPromptHint": "Varsayılan talimatlar otomatik görünür. Bu kanal için düzenleyin veya güncel varsayılanları geri yüklemek için temizleyip kaydedin. Kimlik, izinler ve çalışma bağlamı platform tarafından yönetilir.",
+    "channelPromptOn": "{bot} kanal talimatları",
     "channelPromptPlaceholder": "Agent'ın burada yanıt verirken bilmesi gerekenler.",
     "channelPromptVariables": "Ekle:",
     "choosePeople": "Kişi seçin",
@@ -9343,7 +9343,9 @@
       "tablesCreating": "Tablo oluşturuluyor",
       "tablesDescribing": "Tablonun sütunları okunuyor",
       "tablesListing": "Kullanabileceği tablolar denetleniyor",
-      "viewsListing": "Tablonun kayıtlı görünümleri listeleniyor"
+      "viewsListing": "Tablonun kayıtlı görünümleri listeleniyor",
+      "exportingArtifact": "PDF dışa aktarılıyor…",
+      "exportArtifact": "Yayınlanan uygulamayı dışa aktar"
     },
     "turnWasStopped": "durduruldu",
     "unfavourite": "Favorilerden çıkar",

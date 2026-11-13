@@ -150,8 +150,8 @@
     "channelCanOverrideScope": "Jeder Kanal, auf dem dieser Agent veröffentlicht ist, kann das überschreiben.",
     "channelLookupsHint": "Name, Thema und eine begrenzte sichtbare Mitgliederliste werden automatisch ergänzt. Diese Schalter gewähren weitere Aktionen; Dateizustellung benötigt eine Nutzeranfrage.",
     "channelLookupsOn": "Was dieser Agent auf {platform} tun darf",
-    "channelPromptHint": "Die Laufzeit ergänzt Plattform, Kontoverbindung des Absenders und aktuelle Kanaldaten bei jedem Run. Dieser editierbare Text ergänzt Bindungsinstruktionen; neue Bindungen enthalten Formatierungs- und Gesprächshinweise.",
-    "channelPromptOn": "Zusätzliche Instruktionen auf {bot}",
+    "channelPromptHint": "Die Standardanweisungen erscheinen automatisch. Bearbeiten Sie sie für diesen Kanal oder leeren und speichern Sie das Feld, um die aktuellen Vorgaben wiederherzustellen. Identität, Berechtigungen und Laufzeitkontext verwaltet die Plattform.",
+    "channelPromptOn": "Kanalanweisungen für {bot}",
     "channelPromptPlaceholder": "Was dieser Agent wissen sollte, um hier zu antworten.",
     "channelPromptVariables": "Einfügen:",
     "choosePeople": "Personen wählen",
@@ -1982,7 +1982,9 @@
       "listingChatConnections": "Chat-Verbindungen auflisten",
       "chatConnections": "Chat-Verbindungen",
       "reactingToMessage": "Auf eine Nachricht reagieren",
-      "messageReactions": "Nachrichtenreaktionen"
+      "messageReactions": "Nachrichtenreaktionen",
+      "exportingArtifact": "PDF wird exportiert…",
+      "exportArtifact": "Veröffentlichte App exportieren"
     },
     "turnWasStopped": "gestoppt",
     "unfavourite": "Aus den Favoriten entfernen",

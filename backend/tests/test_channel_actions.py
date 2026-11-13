@@ -391,3 +391,214 @@ async def test_invalid_reactions_never_reach_the_provider(setup, message_id, emo
             bot.id, "room", message_id, emojis, reaction_only=True
         )
     adapter.react_to_message.assert_not_awaited()
+
+
+@pytest.mark.security
+async def test_an_unlinked_sender_can_only_react_as_the_bot_to_the_admitted_message(setup):
+    from dataclasses import replace
+
+    from app.agents.capabilities.channel_tools._directory import ChannelDestination
+
+    db, ctx, agent_id, bot, exposure, adapter, *_ = setup
+    ctx = replace(ctx, subject_is_publisher_fallback=True)
+    destination = ChannelDestination(
+        bot_id=bot.id, platform_chat_id="room:root", private_chat=False, message_id="incoming"
+    )
+    service = ChannelActionService(ctx, agent_id, destination=destination)
+    assert await service.tools(db) == {"list_chat_connections", "react_to_chat_message"}
+    listing = json.loads(await service.connections())
+    assert listing["connections"][0]["tools"] == ["react_to_chat_message"]
+    assert listing["connections"][0]["reaction_scope"] == "current_channel_history"
+    assert listing["current_conversation"]["message_id"] == "incoming"
+    adapter.react_to_message = AsyncMock()
+    receipt = json.loads(
+        await service.react(bot.id, "room", "incoming", ["heart", "tada"], reaction_only=True)
+    )
+    assert receipt["applied"] == ["heart", "tada"] and receipt["reaction_only"]
+    assert adapter.react_to_message.await_count == 2
+    adapter.require_joined_channel.assert_not_awaited()
+    for channel, message in [("another-room", "incoming"), ("room", "another-post")]:
+        with pytest.raises(AuthorizationError):
+            await service.react(bot.id, channel, message, ["heart"], reaction_only=True)
+    with pytest.raises(AuthorizationError):
+        await service.read(
+            bot.id,
+            "room",
+            thread_id=None,
+            query="",
+            after=None,
+            before=None,
+            author_id=None,
+            cursor=None,
+            limit=20,
+        )
+    with pytest.raises(AuthorizationError):
+        await service.send(bot.id, "room", text="Do not borrow publisher authority", thread_id=None)
+    assert adapter.react_to_message.await_count == 2
+    exposure.tools = []
+    with pytest.raises(AuthorizationError):
+        await service.react(bot.id, "room", "incoming", ["heart"], reaction_only=True)
+
+
+@pytest.mark.security
+async def test_an_unlinked_sender_with_no_admitted_message_gets_no_reaction_tool(setup):
+    from dataclasses import replace
+
+    from app.agents.capabilities.channel_tools._directory import ChannelDestination
+
+    db, ctx, agent_id, bot, *_ = setup
+    ctx = replace(ctx, subject_is_publisher_fallback=True)
+    for destination in [
+        None,
+        ChannelDestination(bot_id=bot.id, platform_chat_id="room", private_chat=False),
+        ChannelDestination(
+            bot_id=uuid4(), platform_chat_id="room", private_chat=False, message_id="incoming"
+        ),
+    ]:
+        service = ChannelActionService(ctx, agent_id, destination=destination)
+        assert not await service.tools(db)
+        assert json.loads(await service.connections())["connections"] == []
+
+
+@pytest.mark.parametrize(
+    ("name", "method", "unsupported"),
+    [
+        ("list_chat_connections", "connections", False),
+        *[
+            (name, method, unsupported)
+            for name, method in [
+                ("find_chat_channels", "find"),
+                ("read_chat_messages", "read"),
+                ("send_chat_message", "send"),
+                ("react_to_chat_message", "react"),
+            ]
+            for unsupported in [False, True]
+        ],
+    ],
+)
+async def test_tool_refusals_remain_a_clear_result_not_a_broken_turn(name, method, unsupported):
+    from app.agents.capabilities.channel_tools._directory import ChannelDirectoryUnsupported
+
+    port = MagicMock()
+    error = (
+        ChannelDirectoryUnsupported("Not supported")
+        if unsupported
+        else AuthorizationError(message="Access removed")
+    )
+    setattr(port, method, AsyncMock(side_effect=error))
+    tools = build_channel_actions(port, TOOLS)
+    context = RunContext(deps=AgentDeps(), model=TestModel(), usage=RunUsage())
+    built = await tools.get_tools(context)
+    args = {"bot_id": str(uuid4()), "channel_id": "room"}
+    if method == "connections":
+        args = {}
+    if method == "find":
+        args.pop("channel_id")
+    if method == "send":
+        args["text"] = "Report"
+    if method == "react":
+        args.update(message_id="incoming", emojis=["heart"])
+    result = await tools.call_tool(name, args, context, built[name])
+    assert result == ("Not supported" if unsupported else "Access removed")
+
+
+async def test_invalid_history_bounds_are_explained_without_retrying_the_adapter():
+    from pydantic import ValidationError
+
+    from app.agents.capabilities.channel_tools._directory import HistoryQuery
+
+    with pytest.raises(ValidationError) as caught:
+        HistoryQuery(after="not a date")
+    port = MagicMock(read=AsyncMock(side_effect=caught.value))
+    tools = build_channel_actions(port, ["read_chat_messages"])
+    context = RunContext(deps=AgentDeps(), model=TestModel(), usage=RunUsage())
+    built = await tools.get_tools(context)
+    result = await tools.call_tool(
+        "read_chat_messages",
+        {"bot_id": str(uuid4()), "channel_id": "room"},
+        context,
+        built["read_chat_messages"],
+    )
+    assert "valid date bounds" in result
+    port.read.assert_awaited_once()
+
+
+def test_a_runtime_channel_binding_without_a_port_or_a_grant_exposes_nothing():
+    from app.agents.capabilities import CapabilityBinding, CapabilityBuildContext, get
+    from app.agents.capabilities.channel_actions import ChannelActionsConfig
+
+    definition = get("channel_actions")
+    binding = CapabilityBinding(capability_id="channel_actions")
+    assert definition.builder(CapabilityBuildContext(binding=binding, config=None)) is None
+    assert (
+        definition.builder(
+            CapabilityBuildContext(
+                binding=binding,
+                config=ChannelActionsConfig(),
+                resources={"channel_actions": MagicMock()},
+            )
+        )
+        is None
+    )
+    assert build_channel_actions(MagicMock(), []).tools == {}
+
+
+@pytest.mark.security
+async def test_an_unlinked_sender_can_react_to_older_messages_only_after_reading_the_bound_channel(
+    setup,
+):
+    from dataclasses import replace
+
+    from app.agents.capabilities.channel_tools._directory import HistoryQuery
+    from app.services.channels.directory import BoundChannelDirectory
+
+    _, ctx, agent_id, bot, _, adapter, *_ = setup
+    ctx = replace(ctx, subject_is_publisher_fallback=True)
+    directory = BoundChannelDirectory(
+        adapter=adapter,
+        bot_token="private-token",
+        channel_id="room",
+        thread_id="root",
+        bot_id=bot.id,
+        message_id="incoming",
+    )
+    service = ChannelActionService(
+        ctx, agent_id, destination=directory.destination, current_directory=directory
+    )
+    adapter.react_to_message = AsyncMock()
+    with pytest.raises(AuthorizationError):
+        await service.react(bot.id, "room", "older", ["heart"], reaction_only=False)
+    adapter.channel_history = AsyncMock(
+        return_value=[
+            ChannelPost("Alice", "Good idea", post_id="older"),
+            ChannelPost("Bob", "No platform id"),
+        ]
+    )
+    await directory.history(limit=30)
+    adapter.channel_history_page.return_value = HistoryPage(
+        (ChannelPost("Bob", "Another idea", post_id="older2"),), 1
+    )
+    await directory.history_page(limit=30, scope="thread", filters=HistoryQuery())
+    assert directory.reaction_message_ids == {"older", "older2"}
+    for message in ["older", "older2"]:
+        receipt = json.loads(
+            await service.react(bot.id, "room", message, ["heart"], reaction_only=False)
+        )
+        assert receipt["applied"] == ["heart"]
+    with pytest.raises(AuthorizationError):
+        await service.react(bot.id, "another-room", "older", ["heart"], reaction_only=False)
+    assert adapter.react_to_message.await_count == 2
+    port = MagicMock()
+    port.read = AsyncMock(
+        return_value=HistoryPage((ChannelPost("Alice", "Good idea", post_id="older"),), 1)
+    )
+    tools = build_channel_actions(port, ["read_chat_messages"])
+    context = RunContext(deps=AgentDeps(), model=TestModel(), usage=RunUsage())
+    built = await tools.get_tools(context)
+    result = await tools.call_tool(
+        "read_chat_messages",
+        {"bot_id": str(bot.id), "channel_id": "room"},
+        context,
+        built["read_chat_messages"],
+    )
+    assert "message_id=older" in result

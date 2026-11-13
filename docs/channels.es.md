@@ -1,5 +1,5 @@
 ---
-source_sha: "ff6a84a39b57"
+source_sha: "eb7978fc7771"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -3047,7 +3047,7 @@ Una publicación que solo contiene la mención del bot o espacios se ignora desp
 
 ## Instrucciones predeterminadas actuales de los canales {#current-channel-defaults}
 
-El formato y las pautas de conversación proceden del despliegue actual en cada ejecución. El prompt del vínculo guarda solo añadidos propios. La migración elimina copias exactas reconocidas de instrucciones anteriores y conserva el texto propio que las rodea; el texto modificado o desconocido permanece intacto. Vaciar el prompt propio conserva las pautas de la plataforma y el contexto del canal. No se reescriben cadenas antiguas de prompts durante la ejecución.
+El formato y las pautas de conversación proceden del despliegue actual en cada ejecución. Los prompts anteriores guardan añadidos propios; las nuevas ediciones completas se marcan explícitamente como sustituciones. La migración elimina copias exactas reconocidas de instrucciones anteriores y conserva el texto propio que las rodea; el texto modificado o desconocido permanece intacto. Vaciar el prompt propio conserva las pautas de la plataforma y el contexto del canal. No se reescriben cadenas antiguas de prompts durante la ejecución.
 
 Al revertir la migración, se restauran las pautas de canal guardadas de la versión anterior y se conservan los añadidos propios, incluso en vínculos creados tras actualizar. Las demás superficies permanecen intactas.
 
@@ -3116,7 +3116,7 @@ Las tareas largas transmiten texto y etapas reales de herramientas. En canales d
 
 ### Reacciones elegidas por el agente { #agent-chosen-reactions }
 
-Las nuevas vinculaciones de bots activan todas las herramientas compatibles con su plataforma, incluida **React with emoji** cuando está disponible. Las vinculaciones existentes conservan su selección. Una reacción puede ser toda la respuesta o acompañar al texto. Una respuesta solo con reacciones confirmadas elimina el mensaje temporal de progreso cuando la plataforma permite borrarlo. Un fallo o una aplicación parcial no cuentan como una respuesta solo con reacciones completada.
+Las nuevas vinculaciones de bots activan todas las herramientas compatibles con su plataforma, incluida **React with emoji** cuando está disponible. Las vinculaciones existentes conservan su selección. Las reacciones acompañan una respuesta de texto: una confirmación breve para solicitudes simples o un informe completo cuando haga falta. El bot no borra su mensaje de progreso después de reaccionar. Puede reaccionar a varios mensajes anteriores leídos del historial del canal admitido; un remitente no vinculado no obtiene acceso a otros canales. Los fallos y las reacciones parciales se comunican fielmente.
 
 | Plataforma | Reacciones nativas mediante esta conexión | Límite y alcance |
 | --- | --- | --- |
@@ -3130,3 +3130,6 @@ Las nuevas vinculaciones de bots activan todas las herramientas compatibles con 
 Slack necesita `reactions:read` además de `reactions:write`; reinstala la aplicación tras actualizar el manifiesto. La herramienta informa del resultado real en vez de sustituir una selección incompatible sin avisar. La lista de conexiones indica el límite de reacciones y el alcance del destino. La restricción al mensaje actual en Telegram, Discord e iMessage impide adivinar destinatarios o reutilizar identificadores de otros mensajes.
 
 El correo electrónico, iMessage y Twilio MMS también ofrecen envío explícito de archivos del workspace en la conversación actual. MMS depende de la configuración multimedia del despliegue y de los límites de adjuntos de Twilio. Los gráficos enviados por correo se convierten en adjuntos de imagen.
+
+
+El campo de instrucciones del canal muestra los valores predeterminados actuales, incluidas las referencias `{{channel_name}}` y `{{channel_members}}`. Guardar un prompt completo editado establece `prompt_replaces_defaults`: sustituye las indicaciones de presentación una vez, sin duplicarlas. Los prompts personalizados anteriores siguen siendo añadidos. Vaciar el campo restaura los valores actuales del despliegue. La identidad, los permisos y el contexto fiable de ejecución siguen siendo independientes. Un bot puede reaccionar al mensaje entrante admitido sin tomar la identidad del publicador que contabiliza al remitente no vinculado; las acciones en otros canales siguen requiriendo un miembro identificado y permisos explícitos.

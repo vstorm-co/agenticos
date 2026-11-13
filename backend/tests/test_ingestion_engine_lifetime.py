@@ -280,6 +280,17 @@ class TestAConnectorSyncsEngine:
         async with _worker(ledger):
             with (
                 patch.object(rag_tasks, "SyncSourceService", return_value=sources),
+                patch.object(
+                    rag_tasks.sync_log_repo,
+                    "get_by_id",
+                    new=AsyncMock(
+                        return_value=MagicMock(
+                            collection_name=source.collection_name,
+                            organization_id=source.organization_id,
+                            knowledge_base_id=None,
+                        )
+                    ),
+                ),
                 patch.dict(rag_tasks.CONNECTOR_REGISTRY, {"gdrive": lambda: connector}),
                 patch("app.services.rag_sync.RAGSyncService", return_value=MagicMock()),
                 patch.object(rag_tasks, "_knowledge_base_for", new=AsyncMock(return_value=None)),
@@ -319,6 +330,17 @@ class TestAConnectorSyncsEngine:
         async with _worker(ledger):
             with (
                 patch.object(rag_tasks, "SyncSourceService", return_value=sources),
+                patch.object(
+                    rag_tasks.sync_log_repo,
+                    "get_by_id",
+                    new=AsyncMock(
+                        return_value=MagicMock(
+                            collection_name=source.collection_name,
+                            organization_id=source.organization_id,
+                            knowledge_base_id=None,
+                        )
+                    ),
+                ),
                 patch.dict(rag_tasks.CONNECTOR_REGISTRY, {"gdrive": lambda: connector}),
                 patch("app.services.rag_sync.RAGSyncService", return_value=MagicMock()),
                 patch.object(rag_tasks, "_knowledge_base_for", new=AsyncMock(return_value=None)),

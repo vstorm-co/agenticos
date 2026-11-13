@@ -269,12 +269,6 @@ class SlackAdapter(ChannelAdapter):
             if error.response.get("error") != "already_reacted":
                 raise
 
-    async def delete_reply(
-        self, bot_token: str, platform_chat_id: str, handle: str, *, api_base_url: str | None
-    ) -> None:
-        channel, _ = split_thread(platform_chat_id)
-        await self._web(bot_token).chat_delete(channel=channel, ts=handle)
-
     async def acknowledge_message(
         self, bot_token: str, incoming: IncomingMessage, reaction: str
     ) -> None:

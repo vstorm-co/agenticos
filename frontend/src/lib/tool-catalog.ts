@@ -216,6 +216,12 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     captionKey: "previewingArtifact",
     displayNameKey: "previewArtifact",
   },
+  export_artifact: {
+    kind: "write",
+    render: "generic",
+    captionKey: "exportingArtifact",
+    displayNameKey: "exportArtifact",
+  },
   // Files a request the owner answers in the Share dialog; nothing is shared by the call.
   share_artifact: {
     kind: "write",

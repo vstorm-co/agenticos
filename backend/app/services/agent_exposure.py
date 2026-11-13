@@ -33,6 +33,7 @@ from app.agents.capabilities.channel_actions._contract import CAPABILITY_ID, pla
 from app.agents.capabilities.channel_tools import CHANNEL_TOOLS_CAPABILITY_ID
 from app.agents.system_agents import refuse_system_agent
 from app.core.audit import record_audit
+from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent_exposure import AgentExposure, ExposureSurface
@@ -51,6 +52,7 @@ from app.schemas.channel_bot import UsageReporting
 from app.services.agent_registry import AgentRegistryService
 from app.services.capability_contracts import ToolContract, tool_contracts
 from app.services.channels.directory import PLATFORM_TOOLS
+from app.services.channels.formatting import TEST_ENVIRONMENT_GUIDANCE, house_style
 from app.services.channels.prompt_variables import VARIABLES as PROMPT_VARIABLES
 
 # How many bots one organization can have bound before the picker stops being a
@@ -242,6 +244,13 @@ class AgentExposureService:
             environment_id=exposure.environment_id,
             session_scope=exposure.session_scope,
             prompt=exposure.prompt,
+            prompt_replaces_defaults=exposure.prompt_replaces_defaults is True,
+            default_prompt=house_style(surface.value)
+            + (
+                "\n\n" + TEST_ENVIRONMENT_GUIDANCE
+                if settings.ENVIRONMENT in {"local", "development"}
+                else ""
+            ),
             tools=list(exposure.tools or []),
             available_tools=await _lookups_for(surface),
             available_variables=_variables_for(surface),
@@ -383,6 +392,8 @@ class AgentExposureService:
         """
         exposure = await self._owned(ctx, agent_id, exposure_id)
         changes = writable(data, over=AgentExposure)
+        if "prompt" in changes and changes["prompt"] is None:
+            changes["prompt_replaces_defaults"] = False
         if changes.get("environment_id") is not None:
             await self._environment_of(ctx, agent_id, changes["environment_id"])
         if changes.get("tools") is not None:
