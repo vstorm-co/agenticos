@@ -7,36 +7,31 @@ import { BrandIcon } from "@/components/icons/brand-icon";
 import { brandForUrl } from "@/lib/link-brands";
 import { cn } from "@/lib/utils";
 
-/**
- * A site's own mark: the bundled logo for a service the console knows, the
- * site's `favicon.ico` for the rest, and a globe where it has none.
- *
- * The favicon is asked of the site the person is linking anyway, with no
- * referrer, so it learns nothing about where the link was written.
- */
+/** Known logos stay local; unknown-site icons use the credential-free fixed-service proxy. */
 export function LinkFavicon({ url, className }: { url: string; className?: string }) {
-  const [missing, setMissing] = useState(false);
+  const [missingOrigin, setMissingOrigin] = useState<string | null>(null);
   const brand = brandForUrl(url);
   const size = cn("h-4 w-4 shrink-0", className);
   if (brand) return <BrandIcon name={brand} aria-hidden className={size} />;
   let origin: string | null = null;
   try {
-    origin = new URL(url).origin;
+    const parsed = new URL(url);
+    origin = parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.origin : null;
   } catch {
     origin = null;
   }
-  if (origin === null || missing) {
+  if (origin === null || missingOrigin === origin) {
     return <Globe aria-hidden className={cn(size, "text-muted-foreground")} />;
   }
   return (
     // eslint-disable-next-line @next/next/no-img-element -- a remote icon of unknown size, not a page image
     <img
-      src={`${origin}/favicon.ico`}
+      src={`/api/link-icon?host=${encodeURIComponent(new URL(origin).hostname)}`}
       alt=""
       aria-hidden
       referrerPolicy="no-referrer"
       loading="lazy"
-      onError={() => setMissing(true)}
+      onError={() => setMissingOrigin(origin)}
       className={cn(size, "rounded-[3px] object-contain")}
     />
   );

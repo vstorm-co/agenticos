@@ -87,3 +87,12 @@ it("supports an asChild list whose child has no rendered element", () => {
   );
   expect(screen.queryByRole("tablist")).toBeNull();
 });
+
+it("keeps a selected tab's label out of the scroll affordance fade", async () => {
+  const view = render(<Strip value="cases" />);
+  const list = screen.getByRole("tablist");
+  list.style.scrollPaddingLeft = "32px";
+  list.style.scrollPaddingRight = "32px";
+  view.rerender(<Strip value="settings" />);
+  await waitFor(() => expect(list.scrollLeft).toBe(172));
+});

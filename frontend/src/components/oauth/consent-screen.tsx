@@ -36,7 +36,7 @@ export function ConsentScreen({ requestId }: { requestId: string }) {
   const { request, isLoading, error, approve, deny } = useConsentRequest(requestId);
 
   if (isLoading) {
-    return <LoadingState variant="skeleton-panel" rows={4} />;
+    return <LoadingState variant="pending" />;
   }
   if (request === null || error) {
     return <EmptyState icon={TimerOff} title={t("expiredTitle")} description={t("expiredWhy")} />;
@@ -68,10 +68,12 @@ function ConsentForm({
   const choice = useScopeChoice(request.catalog);
 
   const answer = async (send: () => Promise<{ redirect_to: string }>) => {
-    try {
-      leave((await send()).redirect_to);
-    } catch (failure) {
-      toast.error(getErrorMessage(failure, tErrors));
+    if (!busy) {
+      try {
+        leave((await send()).redirect_to);
+      } catch (failure) {
+        toast.error(getErrorMessage(failure, tErrors));
+      }
     }
   };
 
@@ -90,7 +92,7 @@ function ConsentForm({
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="consent-organization">{t("organization")}</Label>
-        <Select value={request.organization_id} onValueChange={switchOrg}>
+        <Select value={request.organization_id} onValueChange={switchOrg} disabled={busy}>
           <SelectTrigger id="consent-organization">
             <SelectValue>{request.organization_name}</SelectValue>
           </SelectTrigger>
@@ -103,7 +105,7 @@ function ConsentForm({
           </SelectContent>
         </Select>
       </div>
-      <ScopePicker catalog={request.catalog} choice={choice} id="consent-access" />
+      <ScopePicker catalog={request.catalog} choice={choice} id="consent-access" disabled={busy} />
       <p className="text-muted-foreground text-xs">{t("revokeLater")}</p>
       <div className="flex justify-end gap-2">
         <Button variant="outline" disabled={busy} onClick={() => void answer(onDeny)}>

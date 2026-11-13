@@ -77,6 +77,7 @@ function ImproveButton({
       {asking && (
         <ImproveDialog
           kind="improve"
+          subject="context"
           estimate={assistant.estimate.mutateAsync}
           start={assistant.start.mutateAsync}
           onOpenChange={setAsking}

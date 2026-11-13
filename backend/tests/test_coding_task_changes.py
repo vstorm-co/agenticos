@@ -71,6 +71,28 @@ async def _task(project: Path, edit: Any) -> ChangeSet | None:
 
 @needs_git
 class TestTheSnapshot:
+    @pytest.mark.security
+    @pytest.mark.parametrize("oversized_file", [True, False])
+    async def test_compressed_and_mode_only_patches_cannot_advertise_unbounded_reverts(
+        self, project: Path, store_root: Path, oversized_file: bool
+    ) -> None:
+        count = 1 if oversized_file else 9
+        for index in range(count):
+            (project / f"file-{index}.bin").write_bytes(b"\x00" * (1024 * 1024))
+
+        def edit(root: Path) -> None:
+            for index in range(count):
+                path = root / f"file-{index}.bin"
+                if oversized_file:
+                    path.write_bytes(b"\x00" * (2 * 1024 * 1024 + 1))
+                else:
+                    path.chmod(0o755)
+
+        changes = await _task(project, edit)
+        assert changes is not None and len(changes.files) == count
+        assert not changes.truncated
+        assert changes.revert_patch is None
+
     async def test_a_task_that_edits_two_files_shows_exactly_those_two(
         self, project: Path, store_root: Path
     ) -> None:
@@ -276,22 +298,19 @@ def _halves(listing: str) -> tuple[str, str]:
     return "".join(f"{field}\0" for field in fields[:position]), "\0".join(fields[position:])
 
 
-def _finish_output(listing: str, patch: str, *, size: int | None = None) -> str:
+def _finish_output(listing: str, patch: str | bytes, *, size: int | None = None) -> str:
     """What `FINISH` prints for a listing and a patch, cut where the shell would cut them."""
     raw, counts = (half.encode() for half in _halves(listing))
-    patched = patch.encode()
+    patched = patch.encode() if isinstance(patch, str) else patch
     cap = _changes.MAX_LIST_BYTES
     # `size` stands for bytes git wrote that the sandbox decoded into `patch` as given.
-    kept = (
-        patched[: _changes.MAX_PATCH_BYTES].decode("utf-8", errors="replace")
-        if size is None
-        else patch
-    )
+    kept = patched[: _changes.MAX_PATCH_BYTES] if size is None else patched
     written = min(len(patched), _changes.MAX_PATCH_BYTES + 1) if size is None else size
     files = listing.count(":100644 ")
     return (
         f"{len(raw)}\n{len(counts)}\n{written}\n{files}\n"
-        f"{base64.b64encode(raw[:cap]).decode()}\n{base64.b64encode(counts[:cap]).decode()}\n{kept}"
+        f"{base64.b64encode(raw[:cap]).decode()}\n{base64.b64encode(counts[:cap]).decode()}\n"
+        f"{base64.b64encode(kept).decode()}"
     )
 
 
@@ -304,6 +323,19 @@ def _patch(path: str, lines: int) -> str:
 
 
 class TestTheBounds:
+    @pytest.mark.security
+    @pytest.mark.parametrize("bounds", ["invalid", "1\n1"])
+    def test_untrusted_snapshot_bounds_must_be_one_flag(self, bounds: str) -> None:
+        output = _finish_output(_raw("A", "new.txt") + "1\t0\tnew.txt\0", _patch("new.txt", 1))
+        assert _changes.parse(output + "\n" + bounds) is None
+
+    def test_a_snapshot_cannot_supply_invalid_base64_or_object_ids(self) -> None:
+        assert _changes.parse("0\n0\n0\n0\n\n\n!") is None
+        listing = _raw("M", "a.txt").replace(_SHA, "x" * 40, 1) + "1\t1\ta.txt\0"
+        assert _changes.parse(_finish_output(listing, _patch("a.txt", 1))) is None
+        malformed = ":bad-metadata\0a.txt\0" + "1\t1\ta.txt\0"
+        assert _changes.parse(_finish_output(malformed, _patch("a.txt", 1))) is None
+
     def test_a_patch_past_its_ceiling_is_cut_at_a_line_and_says_so(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -339,7 +371,9 @@ class TestTheBounds:
         listing = _raw("A", "l.txt") + _raw("A", "z.txt") + "1\t0\tl.txt\0" + "1\t0\tz.txt\0"
         # 150 raw bytes of Latin-1 - well under the ceiling, as git wrote them.
         raw_size = len(latin.encode()) - 150 * 2 + len(small.encode())
-        output = _finish_output(listing, latin + small, size=raw_size)
+        output = _finish_output(
+            listing, (latin + small).replace("\ufffd", "\xff").encode("latin-1"), size=raw_size
+        )
 
         changes = _changes.parse(output)
 
@@ -409,15 +443,12 @@ class TestTheBounds:
         forged = (
             f"{len(raw)}\n{len(counts)}\n10\n1\n"
             f"{base64.b64encode(raw).decode()}\n{base64.b64encode(counts).decode()}\n"
-            + _patch("a.txt", 500)
+            + base64.b64encode(_patch("a.txt", 500).encode()).decode()
         )
 
         changes = _changes.parse(forged)
 
-        assert changes is not None and changes.truncated
-        patch = changes.files[0].patch
-        assert patch is not None
-        assert len(patch) <= 100 + len(_changes.TRUNCATED_MARKER)
+        assert changes is None
 
     def test_a_count_no_column_holds_is_clamped(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(_changes, "MAX_LIST_BYTES", 10)
@@ -703,7 +734,7 @@ class TestTheRoute:
         self, service: AsyncMock
     ) -> None:
         change_id = uuid4()
-        service.get.return_value = {
+        service.read.return_value = {
             "id": change_id,
             "conversation_id": uuid4(),
             "harness": "codex",
@@ -718,11 +749,34 @@ class TestTheRoute:
             )
         assert response.status_code == 200
         assert response.json()["files"][0]["patch"] == "+a\n"
-        service.get.assert_awaited_once_with(CTX, change_id)
+        service.read.assert_awaited_once_with(CTX, change_id)
+
+    async def test_revert_uses_current_authority_and_never_returns_the_private_restore_payload(
+        self, service: AsyncMock
+    ) -> None:
+        change_id = uuid4()
+        service.revert.return_value = {
+            "id": change_id,
+            "conversation_id": uuid4(),
+            "harness": "codex",
+            "files": [],
+            "created_at": "2026-11-13T00:00:00Z",
+            "reverted_at": "2026-11-13T01:00:00Z",
+            "revert_patch": "PRIVATE",
+            "workspace_ref": {"provider": "private", "id": "private"},
+        }
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post(
+                f"{settings.API_V1_STR}/conversations/coding-changes/{change_id}/revert"
+            )
+        assert response.status_code == 202
+        assert response.json()["reverted_at"] is not None
+        assert "PRIVATE" not in response.text and "workspace_ref" not in response.json()
+        service.revert.assert_awaited_once_with(CTX, change_id)
 
     @pytest.mark.security
     async def test_one_the_caller_may_not_read_is_a_404(self, service: AsyncMock) -> None:
-        service.get.side_effect = NotFoundError(message="Change set not found")
+        service.read.side_effect = NotFoundError(message="Change set not found")
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get(
                 f"{settings.API_V1_STR}/conversations/coding-changes/{uuid4()}"

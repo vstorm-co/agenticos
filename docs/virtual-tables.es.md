@@ -1,8 +1,10 @@
 ---
-source_sha: "ec1de885016c"
+source_sha: "9bf7eb650d8e"
 ---
 
 # Virtual Tables { #virtual-tables }
+
+Elige el icono de una tabla junto a su nombre en la vista de detalle. La tarjeta del catálogo y la fila del dashboard usan el mismo símbolo. **Usar icono predeterminado** lo restablece; no cambian columnas, registros ni versiones del esquema. El control respeta el acceso de administración, incluidas las restricciones de los tableros de tareas.
 
 Una **virtual table** es una tabla tipada de registros que una organización mantiene
 para sus agents, [workflows](workflows.md) e integraciones: pedidos por conciliar, archivos por
@@ -331,7 +333,8 @@ obligatorios.
 Cada edición es un `PATCH` contra la revisión que se ve en pantalla, así que una
 edición que pierde frente a un cambio más reciente se rechaza en lugar de escribirse
 encima. El registro se abre entonces con el valor rechazado junto a **Reload and
-reapply**. Marcar filas ofrece **Delete** para todas, cada una contra su propia
+reapply**, y se vuelve a leer: el campo dice qué contiene ahora, quién cambió el
+registro por última vez y cuándo, y el título del panel se actualiza. Marcar filas ofrece **Delete** para todas, cada una contra su propia
 revisión: un registro que alguien cambió entretanto se conserva, y la consola dice
 cuántos. El panel del registro elimina uno solo de la misma forma.
 
@@ -354,7 +357,11 @@ El tipo de una columna cambia en **Columns**, a los tipos a los que se convierte
 En **Columns**, **Required** hace que una columna necesite un valor, y una columna
 archivada pasa a **Archived columns**, donde **Restore** la devuelve con sus valores.
 
+Leer la comparación conserva las ediciones sin guardar de otros campos y su revisión original. Un conflicto posterior obtiene otra comparación; la respuesta de un registro cerrado no cierra otro. Los valores largos muestran una vista previa abreviada.
+
 ### Importar y exportar { #import-and-export }
+
+En la importación CSV, asigna cada columna de tabla, incluida **External id**, una sola vez. Los destinos duplicados se marcan y bloquean la importación hasta que elijas otro destino u omitas una columna del archivo.
 
 Las exportaciones leen como máximo 4 MiB de JSON descomprimido por página (o un
 registro), con hasta 500 registros por página. Una organización puede transmitir
@@ -481,6 +488,8 @@ lugar **Add a column**.
 El propietario de una vista la cambia entre **Private** y **Shared** con el botón
 junto a **Rename**. Quien gestiona la vista de otro miembro, como un administrador, no
 recibe ese interruptor: compartir los filtros de una persona es decisión suya.
+
+En el teléfono, el menú **Views** de una vista guardada permite guardar otra vista, cambiar el nombre, compartir y eliminar, con los mismos permisos que los controles de escritorio.
 
 `GET/POST /tables/{id}/views` y `GET/PATCH/DELETE /tables/{id}/views/{view_id}` las
 listan, crean, leen, actualizan y borran. La lista se pagina con `skip` y `limit`
@@ -841,12 +850,12 @@ Un intento sin él se rechaza con `AUTHORIZATION_ERROR` (403).
 
 ## Vista predeterminada {#default-view}
 
-Los editores pueden elegir **Establecer como predeterminada** en la barra de herramientas. El diseño, los filtros y la agrupación se guardan como vista compartida y se abren al visitar la tabla sin parámetros explícitos `view` o `viewId`. Las tablas nuevas de tareas empiezan en Kanban. La vista predeterminada debe ser compartida y pertenecer a la tabla; antes de hacerla privada hay que elegir otra. Eliminarla restaura el diseño de tabla simple. La API usa `PATCH /tables/{id}` con `default_view_id`; null elimina la selección.
+Los editores pueden elegir **Establecer como predeterminada** dentro de **Ajustes de vista**. El diseño, los filtros y la agrupación se guardan como vista compartida y se abren al visitar la tabla sin parámetros explícitos `view` o `viewId`. Las tablas nuevas de tareas empiezan en Kanban. La vista predeterminada debe ser compartida y pertenecer a la tabla; antes de hacerla privada hay que elegir otra. Eliminarla restaura el diseño de tabla simple. La API usa `PATCH /tables/{id}` con `default_view_id`; null elimina la selección.
 
 Las notas de tareas son documentos Markdown con el mismo editor rich text y vista previa que otras celdas documentales. Las relaciones separadas **Persona** y **Agente** conservan a la persona responsable y al agente que trabaja. **Siguiente paso** elige persona o agente y vuelve a la persona después del resultado. La persona responsable inicia el agente con su propia cuenta. Para transferir una tarea, elige primero a la persona como siguiente paso y deja que el destinatario inicie el trabajo con su cuenta.
 
 
-**Group by** se guarda automáticamente cuando un editor elige una columna. Actualiza una vista Kanban guardada que pueda administrar; si no existe, crea y selecciona una vista privada. Si se rechaza el guardado, se conserva la agrupación anterior. Los lectores pueden cambiarla temporalmente. **Set as default** en la barra de herramientas guarda el formato actual para todos; las tablas normales se abren como Table hasta que un editor elige otra vista predeterminada.
+**Group by** se guarda automáticamente cuando un editor elige una columna. Actualiza una vista Kanban guardada que pueda administrar; si no existe, crea y selecciona una vista privada. Si se rechaza el guardado, se conserva la agrupación anterior. Los lectores pueden cambiarla temporalmente. **Set as default** dentro de **View settings** guarda el formato actual para todos; las tablas normales se abren como Table hasta que un editor elige otra vista predeterminada.
 
 No se puede eliminar un agent mientras una tarea gestionada dependa de su ejecución programada. Reasigna, completa o cancela primero esas tareas; eliminar el agent no debe descartar su trabajo silenciosamente.
 

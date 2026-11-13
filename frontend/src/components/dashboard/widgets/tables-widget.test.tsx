@@ -61,6 +61,7 @@ describe("the tables widget", () => {
 
     const link = screen.getByRole("link", { name: "Orders" });
     expect(link).toHaveAttribute("href", "/tables/t-1");
+    expect(link.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
   });
 
   it("asks the server for the six most recently changed tables, rather than re-sorting a name-ordered page", () => {

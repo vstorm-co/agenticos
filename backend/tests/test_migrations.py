@@ -179,6 +179,95 @@ def migration_database() -> Iterator[None]:
         _outside_a_transaction(maintenance, drop)
 
 
+def test_coding_task_revert_columns_round_trip_without_changing_existing_diffs() -> None:
+    """0322_coding_task_revert.py and 0323_coding_revert_admission.py preserve legacy diffs."""
+    from app.db.models.conversation import Conversation
+    from app.db.models.organization import Organization
+
+    result = _alembic("upgrade", "head")
+    assert result.returncode == 0, result.stderr
+    result = _alembic("downgrade", "0321_resource_icons")
+    assert result.returncode == 0, result.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    fields = (
+        "revert_patch",
+        "workspace_ref",
+        "reverted_at",
+        "snapshot_isolated",
+        "revert_job_id",
+        "revert_started_at",
+        "revert_failure",
+    )
+    change_id = uuid4()
+    files = [{"path": "old.py", "status": "modified", "patch": "-before\n+after\n"}]
+    try:
+        with DatabaseSession(engine) as db:
+            owner = User(email=f"{uuid4()}@example.com", hashed_password="x")
+            db.add(owner)
+            db.flush()
+            organization = Organization(
+                name="Legacy diff", slug=f"legacy-{uuid4()}", created_by_user_id=owner.id
+            )
+            db.add(organization)
+            db.flush()
+            conversation = Conversation(
+                organization_id=organization.id, user_id=owner.id, title="Old task"
+            )
+            db.add(conversation)
+            db.flush()
+            db.execute(
+                text(
+                    "INSERT INTO coding_task_changes (id, organization_id, conversation_id, harness, files, omitted, truncated) "
+                    "VALUES (:id, :organization, :conversation, 'codex', CAST(:files AS jsonb), 0, false)"
+                ),
+                {
+                    "id": change_id,
+                    "organization": organization.id,
+                    "conversation": conversation.id,
+                    "files": json.dumps(files),
+                },
+            )
+            db.commit()
+        with engine.connect() as db:
+            before = set(
+                db.execute(
+                    text(
+                        "SELECT column_name FROM information_schema.columns WHERE table_name = 'coding_task_changes'"
+                    )
+                ).scalars()
+            )
+        assert not set(fields) & before
+        for action, target in (
+            ("upgrade", "head"),
+            ("downgrade", "0321_resource_icons"),
+            ("upgrade", "head"),
+        ):
+            result = _alembic(action, target)
+            assert result.returncode == 0, result.stderr
+            if action == "upgrade":
+                with engine.connect() as db:
+                    row = db.execute(
+                        text(
+                            "SELECT files, revert_patch, workspace_ref, reverted_at, snapshot_isolated, revert_job_id, revert_started_at, revert_failure FROM coding_task_changes WHERE id = :id"
+                        ),
+                        {"id": change_id},
+                    ).one()
+                assert row == (files, None, None, None, False, None, None, None)
+        with engine.connect() as db:
+            after = set(
+                db.execute(
+                    text(
+                        "SELECT column_name FROM information_schema.columns WHERE table_name = 'coding_task_changes'"
+                    )
+                ).scalars()
+            )
+        assert after - before == set(fields)
+        result = _alembic("check")
+        assert result.returncode == 0, result.stderr
+    finally:
+        engine.dispose()
+
+
 def test_delete_crosslink_migration_preserves_rows_and_defers_only_checks() -> None:
     """Both cascade orders work on migrated data; dangling references still fail."""
     from app.db.models.agent import Agent, AgentVersion

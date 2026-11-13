@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { ReactNode } from "react";
 import { Maximize2, Trash2 } from "lucide-react";
 
+import { EditorTextLoading } from "./editor-loading";
 import { FileTextView } from "./file-render";
 import { Button } from "@/components/ui";
 import { MarkdownModeToggle } from "@/components/ui/markdown-mode-toggle";
@@ -129,7 +130,9 @@ export function FileEditor({
           have to carry the same one to stay in register. */}
       <div className={cn("min-h-0 flex-1 overflow-auto", mode === "source" ? "p-0" : "p-3")}>
         {loading ? (
-          <p className="text-muted-foreground text-xs">{tc("loading")}</p>
+          <div role="status" aria-busy="true" aria-label={tc("loading")}>
+            <EditorTextLoading />
+          </div>
         ) : mode === "source" ? (
           // Fills the pane rather than sitting in it: a fixed-row box inside a
           // tall panel leaves the text in a letterbox with dead space under it.

@@ -1,5 +1,6 @@
 "use client";
 
+import { normalizeIdentifier } from "@/lib/normalize-identifier";
 import { useState } from "react";
 import { Building2, User } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -92,7 +93,7 @@ export function McpConnectionDialog({
       {/* Scrolls as one piece: with OAuth chosen the form carries a client
           block under the auth choice, and on a laptop viewport a dialog with
           no ceiling put "Connect & check" below the fold. */}
-      <DialogContent className={cn(DIALOG_FORM, DIALOG_SCROLL)}>
+      <DialogContent dismissible={!submitting} className={cn(DIALOG_FORM, DIALOG_SCROLL)}>
         {draft !== null && (
           <ConnectionForm
             key={draft.existing?.id ?? draft.row.key}
@@ -211,14 +212,19 @@ function ConnectionForm({
           id="mcp-name"
           value={name}
           onChange={(event) => {
-            setName(event.target.value.toLowerCase());
+            setName(event.target.value);
             setPrefixEdited(true);
           }}
+          onBlur={() => setName(name === draft.existing?.name ? name : normalizeIdentifier(name))}
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          aria-describedby="mcp-name-hint"
           placeholder={t("prefixPlaceholder")}
           maxLength={32}
           className="mt-1.5"
         />
-        <p className="text-muted-foreground mt-1 text-xs">
+        <p id="mcp-name-hint" className="text-muted-foreground mt-1 text-xs">
           {t("namePrefixesToolNames", { scope })}
         </p>
       </div>
@@ -312,7 +318,8 @@ function ConnectionForm({
               : t("connectForScope", { name: draft.row.name, scope })}
         </DialogTitle>
       </DialogHeader>
-      <div className="space-y-4" data-tour="mcp-dialog-form">
+      <fieldset disabled={submitting} className="min-w-0 space-y-4" data-tour="mcp-dialog-form">
+        <legend className="sr-only">{t("connectAction")}</legend>
         {!known && (
           <>
             {identity}
@@ -506,7 +513,7 @@ function ConnectionForm({
             )}
           </MoreOptions>
         )}
-      </div>
+      </fieldset>
       <DialogFooter>
         <Button variant="ghost" onClick={onCancel} disabled={submitting}>
           {t("cancel")}
@@ -519,7 +526,7 @@ function ConnectionForm({
             }
             onSubmit({
               label,
-              name,
+              name: name === draft.existing?.name ? name : normalizeIdentifier(name),
               url,
               token,
               auth,

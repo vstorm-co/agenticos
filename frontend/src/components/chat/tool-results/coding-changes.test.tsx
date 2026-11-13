@@ -45,6 +45,10 @@ function changes(overrides: Partial<CodingTaskChanges> = {}): CodingTaskChanges 
     omitted: 0,
     truncated: false,
     created_at: "2026-11-04T00:00:00Z",
+    can_revert: false,
+    reverted_at: null,
+    revert_status: null,
+    revert_conflicting_files: [],
     ...overrides,
   };
 }
@@ -56,7 +60,7 @@ function show(answer: CodingTaskChanges | Error | "pending") {
   const client = new QueryClient();
   return render(
     <QueryClientProvider client={client}>
-      <TaskChanges changeId="c-1" fallback={<p>names the harness gave</p>} />
+      <TaskChanges changeId="c-1" />
     </QueryClientProvider>,
   );
 }
@@ -230,7 +234,6 @@ describe("TaskChanges", () => {
     expect(
       await screen.findByText("What the task changed could not be loaded."),
     ).toBeInTheDocument();
-    // A reader the diff is refused to still sees the names the harness gave.
-    expect(screen.getByText("names the harness gave")).toBeInTheDocument();
+    expect(screen.queryByText("names the harness gave")).not.toBeInTheDocument();
   });
 });

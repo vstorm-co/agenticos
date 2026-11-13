@@ -32,6 +32,16 @@ export interface CodingTaskChanges {
   /** Anything - a file, or part of the patch - was left out. */
   truncated: boolean;
   created_at: string;
+  can_revert: boolean;
+  reverted_at: string | null;
+  revert_status: "pending" | "unknown" | "failed" | null;
+  revert_conflicting_files: string[];
+}
+
+export async function revertCodingChanges(changeId: string): Promise<CodingTaskChanges> {
+  return apiClient.post<CodingTaskChanges>(
+    `/conversations/coding-changes/${encodeURIComponent(changeId)}/revert`,
+  );
 }
 
 export async function readCodingChanges(changeId: string): Promise<CodingTaskChanges> {

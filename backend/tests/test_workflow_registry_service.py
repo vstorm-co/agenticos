@@ -75,6 +75,7 @@ def _workflow(ctx: AuthContext, **overrides):
     workflow.slug = "import-orders"
     workflow.name = "Import orders"
     workflow.description = None
+    workflow.icon = None
     workflow.draft_revision = 0
     workflow.draft_graph = _empty_graph().model_dump(mode="json")
     workflow.current_version_id = None

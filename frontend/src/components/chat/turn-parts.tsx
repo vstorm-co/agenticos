@@ -67,6 +67,7 @@ export function TurnParts({
   startedAt,
   durationMs,
   stopped = false,
+  failed = false,
   waitingFor,
   allowSetupActions = false,
 }: {
@@ -88,6 +89,7 @@ export function TurnParts({
   durationMs?: number;
   /** The run was stopped part-way, so its work ends without an answer or a "Done". */
   stopped?: boolean;
+  failed?: boolean;
   /** Includes a delegate paused outside the parent's own tool parts. */
   waitingFor?: "approval" | "answer";
 }) {
@@ -182,7 +184,7 @@ export function TurnParts({
       />
     );
 
-  const active = isStreaming || waiting !== undefined;
+  const active = !failed && (isStreaming || waiting !== undefined);
   const split = foldWork(runs, stopped, active);
   if (split === null) {
     return <>{runs.map((run) => render(run))}</>;
@@ -195,9 +197,10 @@ export function TurnParts({
         steps={split.steps}
         durationMs={durationMs ?? elapsed}
         stopped={stopped}
-        running={isStreaming && !waiting}
+        failed={failed}
+        running={isStreaming && !waiting && !failed}
         activity={activity}
-        waiting={waiting}
+        waiting={failed ? undefined : waiting}
       >
         {split.folded.map((run, index) => {
           const previous = split.folded[index - 1];

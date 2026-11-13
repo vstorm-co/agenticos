@@ -237,6 +237,20 @@ async def get(
     return result.scalar_one_or_none()
 
 
+async def for_session(
+    db: AsyncSession, *, organization_id: UUID, session_id: str
+) -> list[AgentWorkspace]:
+    """Recorded containers of this tenant with this provider-assigned session id."""
+    result = await db.execute(
+        select(AgentWorkspace).where(
+            AgentWorkspace.organization_id == organization_id,
+            AgentWorkspace.session_id == session_id,
+            AgentWorkspace.recovery_of_id.is_(None),
+        )
+    )
+    return list(result.scalars().all())
+
+
 async def list_for_organization(db: AsyncSession, *, organization_id: UUID) -> list[AgentWorkspace]:
     result = await db.execute(
         select(AgentWorkspace)

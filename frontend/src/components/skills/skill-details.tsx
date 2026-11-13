@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Bot, FileText, GitBranch, History } from "lucide-react";
+import { Bot, FileText, History } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { DeleteSkillDialog } from "@/components/skills/delete-skill-dialog";
@@ -24,7 +24,6 @@ import { SkillChecks } from "@/components/skills/skill-checks";
 import { SkillPageHeader, type Merges } from "@/components/skills/skill-page-header";
 import { SkillTestQuestions } from "@/components/skills/skill-test-questions";
 import { SkillUsageCard } from "@/components/skills/skill-usage";
-import { VersionTree } from "@/components/skills/version-tree";
 import { ErrorState, LoadingState } from "@/components/states";
 import { ResourceUnavailable } from "@/components/states/resource-unavailable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
@@ -38,32 +37,24 @@ import { Perm } from "@/types/permissions";
 import type { SkillAgentUsage, SkillFork } from "@/types/skill-versions";
 
 /** The tabs `?tab=` may open, in the order they are drawn. */
-const TABS = ["agents", "content", "history", "tree"];
+const TABS = ["agents", "content", "history"];
 
 /**
  * One skill: the agents that use it and the version each is served, every version
- * it has had, and the tree of its main line and forks.
+ * it has had, and its main line and forks.
  *
  * What the page shows - everyone, one state or one fork - is `?show=`, and a fork
  * chosen there is also the line History lists and Edit saves to.
  */
-export function SkillDetails({
-  id,
-  inDialog = false,
-  onDeleted,
-}: {
-  id: string;
-  inDialog?: boolean;
-  onDeleted?: () => void;
-}) {
+export function SkillDetails({ id }: { id: string }) {
   const t = useTranslations("skills.page");
   const tc = useTranslations("common");
   const tErrors = useTranslations("errors");
   const router = useRouter();
   const { can } = usePermissions();
-  const [tabParam, setTabParam] = useViewState("tab", inDialog, "content");
+  const [tabParam, setTabParam] = useUrlState("tab");
   const tab = tabParam !== null && TABS.includes(tabParam) ? tabParam : "agents";
-  const [showParam, setShowParam] = useViewState("show", inDialog, null);
+  const [showParam, setShowParam] = useUrlState("show");
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<CheckedDraft | null>(null);
   // The editor is heavy to draw, so the button says it is opening until it is.
@@ -84,7 +75,7 @@ export function SkillDetails({
   const failed = error ?? lines.error ?? mainVersions.error;
   if (failed) return <ErrorState description={getErrorMessage(failed, tErrors)} />;
   if (skill === undefined || lines.isLoading || mainVersions.isLoading) {
-    return <LoadingState variant="skeleton-panel" rows={3} />;
+    return <LoadingState variant="pending" />;
   }
   const { forks } = lines;
 
@@ -115,12 +106,6 @@ export function SkillDetails({
     <div className="space-y-6">
       <SkillPageHeader
         skill={skill}
-        inDialog={inDialog}
-        fullViewHref={
-          inDialog
-            ? `${ROUTES.SKILL_DETAIL(id)}?${new URLSearchParams({ tab, ...(showParam === null ? {} : { show: showParam }) })}`
-            : undefined
-        }
         line={fork?.name ?? null}
         improveHref={`${ROUTES.SKILL_DETAIL(id)}/improve/new${fork === null ? "" : `?fork=${fork.id}`}`}
         merges={mergesOf(id, fork)}
@@ -154,10 +139,6 @@ export function SkillDetails({
           <TabsTrigger value="history" data-tour="skill-history-tab">
             <History className="mr-1.5 size-4 shrink-0" aria-hidden />
             {t("tabs.history")}
-          </TabsTrigger>
-          <TabsTrigger value="tree" data-tour="skill-tree-tab">
-            <GitBranch className="mr-1.5 size-4 shrink-0" aria-hidden />
-            {t("tabs.tree")}
           </TabsTrigger>
         </TabsList>
         <TabsContent value="agents" className="space-y-4">
@@ -213,15 +194,6 @@ export function SkillDetails({
             />
           )}
         </TabsContent>
-        <TabsContent value="tree">
-          <VersionTree
-            skillId={id}
-            mainLatest={skill.version}
-            forks={forks}
-            agents={agents.agents?.items ?? []}
-            error={agents.error}
-          />
-        </TabsContent>
       </Tabs>
       {editing && (
         <EditSkillDialog
@@ -255,8 +227,7 @@ export function SkillDetails({
           onClose={() => setDeleting(false)}
           onDelete={async (removeFromAgents) => {
             await remove.mutateAsync(removeFromAgents);
-            if (onDeleted) onDeleted();
-            else router.push(ROUTES.SKILLS);
+            router.push(ROUTES.SKILLS);
           }}
         />
       )}
@@ -303,11 +274,4 @@ function mergesOf(skillId: string, fork: SkillFork | null): Merges | null {
     catchUp: fork.behind_main > 0 ? href("catch_up") : null,
     toMain: href("to_main"),
   };
-}
-
-/** Modal navigation stays local and leaves the catalog's URL and filters intact. */
-function useViewState(key: string, local: boolean, initial: string | null) {
-  const url = useUrlState(key);
-  const state = useState<string | null>(initial);
-  return local ? state : url;
 }

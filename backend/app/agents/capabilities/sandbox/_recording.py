@@ -43,10 +43,13 @@ import asyncio
 import logging
 import shlex
 import time
-from collections.abc import Awaitable, Callable, Coroutine, Mapping, Sequence
+from collections.abc import AsyncGenerator, Awaitable, Callable, Coroutine, Mapping, Sequence
+from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from typing import TYPE_CHECKING, TypeVar
 from uuid import UUID
 
+import anyio
 import httpx
 from pydantic_ai.workspaces import (
     CommandResult,
@@ -98,8 +101,17 @@ class RecordingWorkspace(WrapperWorkspace):
         run_id: UUID | None = None,
         on_settled: Callable[[], Awaitable[None]] | None = None,
         explain_unavailable: Callable[[Exception], Awaitable[Exception | None]] | None = None,
+        isolated_turn: bool = False,
     ) -> None:
         super().__init__(wrapped)
+        self._isolated_turn = isolated_turn
+        self._operation_lock = anyio.Lock()
+        self._operation_owner: ContextVar[bool] = ContextVar(
+            "workspace_operation_owner", default=False
+        )
+        self._snapshot_owner: ContextVar[bool] = ContextVar(
+            "workspace_snapshot_owner", default=False
+        )
         # Asked about every "session is gone" before it is believed. A service of
         # another version answers a route it lacks with a 404 the client reads as
         # a lost session (#2484); the error this returns is raised instead, and a
@@ -132,6 +144,25 @@ class RecordingWorkspace(WrapperWorkspace):
         self._preparer: asyncio.Task[object] | None = None
         self._prepared = asyncio.Event()
         self._prepared.set()
+
+    @property
+    def snapshot_isolated(self) -> bool:
+        return self._isolated_turn and self._snapshot_owner.get()
+
+    @asynccontextmanager
+    async def task_snapshot(self) -> AsyncGenerator[None]:
+        """Keep other tools in this run outside a coding task's capture interval."""
+        # Preparation can itself write. Wait before taking the operation lock,
+        # or a preparer on another task could wait for the lock we hold for it.
+        await self._first_use()
+        async with self._operation_lock:
+            owner = self._operation_owner.set(True)
+            snapshot = self._snapshot_owner.set(True)
+            try:
+                yield
+            finally:
+                self._snapshot_owner.reset(snapshot)
+                self._operation_owner.reset(owner)
 
     def prepare_on_first_use(self, prepare: Callable[[], Awaitable[None]]) -> None:
         """Run `prepare` once, before the first operation that reaches this workspace.
@@ -201,16 +232,19 @@ class RecordingWorkspace(WrapperWorkspace):
         purged mid-turn is often first seen here, and a close that missed it
         would keep the lost session for the next turn to fail on again.
         """
-        await self._first_use(call)
         try:
-            return await call
-        except Exception as exc:
-            explained = await self._explained(exc)
-            if explained is exc:
-                raise
-            raise explained from exc
+            await self._first_use()
+            try:
+                return await call
+            except Exception as exc:
+                explained = await self._explained(exc)
+                if explained is exc:
+                    raise
+                raise explained from exc
+            finally:
+                await self._settled()
         finally:
-            await self._settled()
+            call.close()
 
     async def _recorded(
         self,
@@ -219,7 +253,27 @@ class RecordingWorkspace(WrapperWorkspace):
         call: Coroutine[object, object, _T],
         outcome: Callable[[_T], tuple[bool, str]],
     ) -> _T:
-        await self._first_use(call)
+        try:
+            await self._first_use()
+            if self._operation_owner.get():
+                return await self._perform_recorded(op, target, call, outcome)
+            async with self._operation_lock:
+                token = self._operation_owner.set(True)
+                try:
+                    return await self._perform_recorded(op, target, call, outcome)
+                finally:
+                    self._operation_owner.reset(token)
+        finally:
+            # A cancellation while waiting never starts the underlying operation.
+            call.close()
+
+    async def _perform_recorded(
+        self,
+        op: str,
+        target: str,
+        call: Coroutine[object, object, _T],
+        outcome: Callable[[_T], tuple[bool, str]],
+    ) -> _T:
         started = time.monotonic()
         try:
             result = await call
@@ -266,32 +320,27 @@ class RecordingWorkspace(WrapperWorkspace):
                 self.lost = True
         return exc if explained is None else explained
 
-    async def _first_use(self, call: Coroutine[object, object, object]) -> None:
+    async def _first_use(self) -> None:
         """Mark the workspace used, running a deferred set-up first if there is one.
 
-        `call` is the operation waiting behind it, closed unstarted if the set-up
-        is cancelled, so an abandoned operation does not linger as a coroutine that
-        was never awaited.
+        Callers wait before taking the operation lock. The preparer's own writes
+        can then finish even if another operation arrived first.
         """
         self.touched = True
         if self._prepared.is_set() or asyncio.current_task() is self._preparer:
             return
         prepare = self._before_first_use
+        if prepare is None:
+            # Another task is running the set-up; this operation follows it.
+            await self._prepared.wait()
+            return
+        self._before_first_use = None
+        self._preparer = asyncio.current_task()
         try:
-            if prepare is None:
-                # Another task is running the set-up; this operation follows it.
-                await self._prepared.wait()
-                return
-            self._before_first_use = None
-            self._preparer = asyncio.current_task()
-            try:
-                await prepare()
-            finally:
-                self._preparer = None
-                self._prepared.set()
-        except BaseException:
-            call.close()
-            raise
+            await prepare()
+        finally:
+            self._preparer = None
+            self._prepared.set()
 
     async def _settled(self) -> None:
         """Tell `on_settled` an operation is over. Its failure is not the operation's."""

@@ -1,12 +1,36 @@
 ---
-source_sha: "83d83010c6fa"
+source_sha: "f01c07600e13"
 ---
 
 # La consola { #the-console }
 
+El dashboard personal lee onboarding y Briefing juntos antes de mostrar su primera fila. Una zona de carga reservada evita cambios entre diseños de marcadores; los demás widgets cargan por separado. Los errores de lectura permiten reintentar. La ampliación del área de trabajo se ofrece en teléfonos; al pasar al escritorio se recupera la navegación y se conservan los campos sin guardar.
+
+Los ajustes de contexto muestran filas compactas con controles de uso por agente. Las descripciones largas ya no estiran los archivos vecinos y el contexto solo inyectado muestra una nota informativa. Availability incluye el logotipo de la plataforma junto al nombre del bot. Al compartir una app aparecen primero el enlace de la página y las personas con acceso; caducidad, versión fija, inserción y contraseña empiezan cerradas en los ajustes del enlace. Las restricciones activas siguen visibles como etiquetas y cerrar las opciones conserva las ediciones.
+
+En teléfonos, el registro de canales usa un selector compacto de plataforma. Cancelar un canal nuevo, una clave nueva de la bóveda o una rotación borra las credenciales introducidas. Los formularios de canales y bóveda bloquean la edición y el cierre durante la escritura; un rechazo conserva los valores para corregirlos y reintentar. La edición de canales y la rotación mantienen sus acciones visibles también en ventanas bajas.
+
+En teléfonos, los archivos de contexto nuevos muestran el editor antes de los detalles opcionales. Details indica el acceso efectivo incluso cerrado; ábrelo para cambiar la descripción o el acceso. Un error en la descripción abre automáticamente la sección para poder corregirlo.
+
+Los formularios de nuevos proyectos, archivos de contexto y datasets preguntan antes de descartar un borrador. Stay lo conserva y Discard lo restablece. Durante la creación se bloquean campos, Cancel, Close y Escape hasta terminar la escritura. Un rechazo conserva los valores y permite volver a editarlos. El código fuente de contexto queda de solo lectura durante la escritura.
+
+Al soltar varios archivos de contexto, cerrar ofrece solo Stay o Discard; usa Create para procesarlos en orden. Los detalles del dataset y los formularios de casos también bloquean campos y cierre al guardar, incluido el cambio formulario/JSON. Guardar sigue accesible en ventanas cortas de teléfono.
+
+Al iniciar sesión MCP, el formulario permanece abierto hasta obtener el destino de consentimiento. Un inicio rechazado conserva los datos para corregirlos y reintentar.
+
+La edición de comandos slash propios pregunta antes de descartar un borrador. Al guardar se bloquean los campos y el cierre hasta recibir respuesta; un rechazo conserva los datos. En teléfonos, las acciones tienen una fila propia y controles táctiles. Un cambio de estado pendiente bloquea acciones incompatibles y la eliminación pide confirmación. Los formularios MCP también bloquean campos y cierre al guardar.
+
 La consola es la aplicación web desde la que se configura todo lo demás de este
 sitio. Esta página es el mapa: para qué sirve cada área, y qué página la explica
 como es debido.
+
+Al editar los ajustes de un proyecto, el nombre de una organización, el límite de gasto, los valores de voz predeterminados, los periodos de retención, un skill o un archivo de contexto, antes de salir eliges guardar, descartar o quedarte. También se pregunta al cambiar desde un recurso de skill editado a otro archivo. Si se rechaza el guardado, el borrador permanece abierto; **Save file** lo descarta solo cuando el servidor confirma la escritura. El texto añadido mientras se guarda ese recurso sigue sin guardar.
+
+En el teléfono, los documentos de las bases de conocimiento y los miembros de la organización aparecen en filas etiquetadas con acciones visibles. Eliminar un miembro requiere confirmación y un rechazo mantiene el diálogo abierto. Los formularios de creación de KB, procesamiento y proveedor de embeddings bloquean los campos y permanecen abiertos mientras guardan; tras un rechazo pueden editarse y cerrarse de nuevo. Una descarga fallida muestra un error y permite reintentar.
+
+Cambiar la pregunta o el ámbito de la búsqueda de conocimiento borra los resultados anteriores y cancela la solicitud pendiente. Una respuesta tardía no puede reemplazar los resultados de una búsqueda más reciente.
+
+El chat público permite escribir mientras se conecta, pero habilita Send solo cuando se abre el WebSocket actual. Una conversación nueva espera a su propia conexión; un clic anticipado no puede perder la primera pregunta sin indicarlo.
 
 Si buscas una pantalla concreta, el camino más rápido es el **"?"** de la
 cabecera de cada página — reproduce el recorrido guiado de esa página, y una
@@ -48,7 +72,7 @@ Los diálogos mantienen un margen de 12 px en todos los bordes del teléfono. Lo
 
 En el teléfono, las acciones principales siguen visibles y los comandos secundarios se despliegan con **Más acciones de la página**. Inbox y el formato de tabla usan selectores. Los ajustes con muchas secciones usan un menú; el cliente MCP se elige en una lista. Los archivos de proyecto o workspace se abren en un visor a pantalla completa; la flecha vuelve a las carpetas. El editor de pasos del workflow muestra un panel elegido: ajustes, entrada o salida. Cambiar de panel conserva las ediciones; en escritorio siguen uno al lado del otro.
 
-Los campos Markdown y los editores de archivos también ofrecen un botón para ampliar sin descartar el borrador actual. La descripción y la categoría de un skill pueden desplegarse encima del editor. El cuadro del chat ocupa menos espacio y limita los borradores largos según la altura disponible. Al abrir la navegación, el foco se sitúa en el panel; Tab sigue permitiendo acceder a sus controles. En el teléfono, el lienzo del workflow ofrece un control flotante de pantalla completa y un minimapa más pequeño.
+Los campos Markdown y los editores de archivos también ofrecen un botón para ampliar sin descartar el borrador actual. La descripción y la categoría de un skill pueden desplegarse encima del editor. El cuadro del chat ocupa menos espacio y limita los borradores largos según la altura disponible. Al abrir la navegación, el foco se sitúa en el panel; Tab sigue permitiendo acceder a sus controles. En el teléfono, el lienzo del workflow ofrece un control flotante de pantalla completa, se abre con todo el flujo a la vista y empieza con el minimapa oculto.
 
 En teléfonos, los editores de skills y contexto mantienen plegadas la descripción, la categoría y la gestión de archivos mientras se escribe. Un botón alterna entre código y vista previa. Apps ofrece botones flotantes para volver y abrir opciones; estas muestran el título, la versión, el tema y los controles para compartir.
 
@@ -87,6 +111,10 @@ En el móvil, los mensajes enviados se detienen debajo de los botones flotantes 
 Los agentes predeterminados terminan una solicitud puntual sin mantener abierta la respuesta con una pregunta sobre automatización opcional. Las preguntas resuelven decisiones necesarias para la tarea actual o una automatización solicitada o aceptada. Las tarjetas opcionales de configuración siguen siendo propuestas que no bloquean la finalización.
 
 El botón compacto bajo una respuesta abre Sources junto a la conversación y ocupa todo el ancho en el móvil. Files y Sources comparten el área lateral: abrir uno sustituye al otro. Las fuentes web muestran el favicon del sitio, solicitado sin Referer, o un logotipo conocido; aparece un globo si el icono no está disponible. Las fuentes de conocimiento conservan sus iconos de archivo y el visor del documento original.
+
+Los enlaces web de las respuestas usan la misma política de favicon, sin depender de conexiones MCP. Los iconos de sitios desconocidos pasan por el proxy del mismo origen de la consola y el servicio fijo de iconos de DuckDuckGo. Este solo recibe el nombre de host, nunca las cookies o la dirección IP del lector, la ruta ni los parámetros de URL. El proxy rechaza redirecciones, contenido no rasterizado e iconos de más de 64 KiB; el tiempo límite es de tres segundos. Si falta el icono o no está disponible, aparece un globo. Las vistas inertes de transcripciones no cargan imágenes remotas ni iconos de sitios desconocidos.
+
+Una ejecución fallida muestra el error separado de la respuesta y fuera de las herramientas plegadas, incluso después de recargar la conversación. El filtro de contenido del proveedor tiene una explicación explícita; las respuestas originales del proveedor y los errores históricos desconocidos no se copian a transcripciones compartidas. El trabajo parcial sigue disponible y no se presenta como terminado.
 
 ## El dashboard { #the-dashboard }
 
@@ -195,6 +223,8 @@ instantánea que querías conservar.
     la de serie o de una que tú guardaste.
 
 ## Rutinas y seguimientos { #routines-and-watches }
+
+Los nombres de las rutinas se ajustan en teléfonos. Sin resultados aparece **Clear search**; **Retry** vuelve a cargar tareas y observaciones tras un error de lectura. Los horarios y disparadores se editan entre cabecera y pie de acciones fijos. La escritura bloquea campos y cierre; un rechazo conserva el borrador.
 
 Routines tiene dos pestañas. **Tareas de agentes** ejecuta un agente elegido por
 horario o evento con sus herramientas; las ejecuciones aparecen en Activity.
@@ -515,7 +545,13 @@ entre ellos uno para preguntar qué puede hacer y otro para configurar una rutin
 
 Las listas de conversaciones conservan el agente principal y también muestran Claude Code o Codex cuando los informes de tareas guardados confirman su participación. La barra lateral, los chats de proyecto, el dashboard y el historial de Quick Ask comparten los mismos iconos y etiquetas. Cada coding harness aparece una vez, permanece tras actualizar y no depende de los ajustes actuales del chat. Seleccionarlo sin ejecutarlo no lo añade al historial.
 
-El panel Files agrupa los archivos por carpetas y distingue nombres iguales en distintos directorios. Las vistas previas HTML cargan las hojas de estilo locales y sus recursos anidados mediante el mismo acceso que la página. La vista previa y el código fuente permanecen separados; los scripts siguen desactivados. Si no se puede leer una hoja de estilo, se indica cuál ha fallado. Debajo de cada respuesta aparecen enlaces a los archivos modificados en ese turno, según las rutas comunicadas por herramientas de escritura/edición exitosas o por el coding harness. Los enlaces abren los archivos actuales del workspace, no una copia versionada.
+El panel Files agrupa los archivos por carpetas y distingue nombres iguales en distintos directorios. Las vistas previas HTML cargan las hojas de estilo locales y sus recursos anidados mediante el mismo acceso que la página. La vista previa y el código fuente permanecen separados; los scripts siguen desactivados. Si no se puede leer una hoja de estilo, se indica cuál ha fallado.
+
+Debajo de cada respuesta aparecen enlaces a los archivos modificados en ese turno. Las tareas de código usan su conjunto de cambios guardado, incluidas las ediciones del shell; sin él, usan el informe del harness. El panel ofrece **Revertir esta tarea** cuando puedes editar su workspace original y el snapshot está completo. Los enlaces abren los archivos actuales del workspace, no una copia versionada.
+
+La reversión se ejecuta como un trabajo duradero en un workspace aislado de conversación. Los snapshots compartidos siguen siendo de solo lectura. El panel muestra el progreso; un resultado desconocido reserva el workspace hasta que Reintentar reversión compruebe sus archivos.
+
+Los snapshots para revertir tienen un límite de 2 MiB por archivo y 16 MiB entre los datos anteriores y posteriores; los cambios mayores siguen visibles sin reversión. La verificación también limita las lecturas de snapshots antiguos. Se admiten seis solicitudes por persona y veinte por organización por minuto, con un límite local durante fallos de Redis. Cada organización ejecuta como máximo una reversión a la vez.
 
 Mientras trabaja el agente, los mensajes de progreso y las llamadas a herramientas que les siguen aparecen en orden de llegada dentro de un historial desplegado. Al terminar la ejecución, todo ese historial se contrae bajo un único control «Worked for…» o «Thought for…», dejando debajo solo la respuesta final. Al abrirlo se recupera el mismo orden de mensajes y grupos de herramientas. El razonamiento conserva su desplegable opcional; sus encabezados no generan fases. Las preguntas y aprobaciones mantienen el estado de espera hasta resolverse, también al delegar. Las tarjetas de aprobación activas y los resultados visuales permanecen fuera del historial terminado.
 
@@ -987,6 +1023,20 @@ Cada agent los lee al empezar un run, así que nunca los repites en un chat; «c
 lunes a las 9» son tus 9. La zona horaria se toma de tu navegador la primera vez
 que inicias sesión, hasta que eliges una.
 
+Los ajustes de perfil reúnen el retrato, el nombre y el correo en un formulario,
+con los colores alternativos bajo una opción desplegable. Guardar está debajo
+de los campos; Intro envía el formulario del nombre o del rol. Durante una
+escritura del perfil, se bloquean los campos de identidad y contexto; un rechazo
+conserva el borrador. Los días tienen áreas táctiles mayores y el inicio y el fin
+son campos separados también en el móvil.
+
+**Settings → Notifications** busca nombres y descripciones de eventos y muestra
+seis por página. El selector de chat cambia el canal adicional sin alterar las
+demás preferencias. Los destinos privados conectados aparecen primero; otras
+plataformas están plegadas. Si falla la lectura de preferencias, destinos o
+cuentas vinculadas, se ofrece reintentar sin inventar valores predeterminados
+ni mostrar una lista de cuentas aparentemente vacía.
+
 ## El siguiente paso { #the-next-step }
 
 Una página vacía porque aún no existe nada ofrece el camino para crear lo
@@ -1026,7 +1076,7 @@ El pie de la barra lateral muestra la versión de compilación de la consola jun
 
 Una versión estable más reciente de AgenticOS resalta el número con un punto verde. Al pulsarlo se ven las versiones en uso y disponible y un enlace al lanzamiento oficial. La comprobación en segundo plano se ejecuta al abrir la consola, cada 30 minutos durante el uso y, si los datos están obsoletos, al recuperar el foco o la conexión. El servidor comparte los resultados públicos durante cinco minutos y no envía a GitHub datos de la cuenta, organización o despliegue. Los fallos de red mantienen visible la versión en uso sin afirmar que sea la última. El aviso no recarga la página ni instala actualizaciones automáticamente.
 
-Tras iniciar sesión, **Novedades** muestra las notas públicas de GitHub de la versión instalada una vez por cuenta en este dispositivo. Espera a que se cierre el onboarding. Cerrarlo marca la versión como leída; la ausencia de notas o un error de red no interrumpen la sesión. Las funciones de una versión más reciente aún no instalada solo aparecen desde el aviso de actualización.
+Tras iniciar sesión, **Novedades** muestra las notas públicas de GitHub de la versión instalada una vez por cuenta en este dispositivo. Espera a que se cierre el onboarding. Cerrarlo marca la versión como leída; la ausencia de notas o un error de red no interrumpen la sesión. Las funciones de una versión más reciente aún no instalada solo aparecen desde el aviso de actualización. Las secciones **Upgrading** y **Notes for operators**, con migraciones y pasos de actualización, solo las ven los administradores del despliegue; una versión que no contiene nada más no abre ninguna ventana para los demás.
 
 Chat controls recuerda el modelo, el modo de aprobación y las herramientas locales por cuenta y organización entre chats. Los ajustes de archivos del proyecto tienen prioridad. El consentimiento para todo el ordenador pertenece a una conversación, o a un agente cuando ese agente trabaja en tu equipo. Omitir aprobaciones requiere el permiso actual y la política de la organización. Agent setting (o Cloud para archivos) se desactiva si el agente publicado no tiene esa capacidad; ninguna alternativa local se activa automáticamente. Pulsar la opción local seleccionada la desactiva.
 
