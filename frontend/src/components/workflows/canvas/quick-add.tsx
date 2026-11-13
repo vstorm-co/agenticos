@@ -98,21 +98,19 @@ export function QuickAdd({ catalog, nodeName, portLabel, next, onPick }: QuickAd
             role="radiogroup"
             aria-label={t("quickAddPlacement")}
             className="flex gap-1 border-b p-2"
-            onKeyDown={(event) => {
-              if (!ARROWS.has(event.key)) return;
-              // Two options: any arrow moves to the other one, and selects it.
-              event.preventDefault();
-              setBranch((current) => !current);
-              const other = event.currentTarget.querySelector<HTMLButtonElement>(
-                '[role="radio"][aria-checked="false"]',
-              );
-              other?.focus();
-            }}
           >
-            <PlacementChoice checked={!branch} onSelect={() => setBranch(false)}>
+            <PlacementChoice
+              checked={!branch}
+              onSelect={() => setBranch(false)}
+              onArrow={() => setBranch(true)}
+            >
               {t("quickAddInsertBefore", { name: only.name })}
             </PlacementChoice>
-            <PlacementChoice checked={branch} onSelect={() => setBranch(true)}>
+            <PlacementChoice
+              checked={branch}
+              onSelect={() => setBranch(true)}
+              onArrow={() => setBranch(false)}
+            >
               {t("quickAddBranch")}
             </PlacementChoice>
           </div>
@@ -141,10 +139,13 @@ const ARROWS = new Set(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"]);
 function PlacementChoice({
   checked,
   onSelect,
+  onArrow,
   children,
 }: {
   checked: boolean;
   onSelect: () => void;
+  /** Select the other option: with two, every arrow key leads to it. */
+  onArrow: () => void;
   children: ReactNode;
 }) {
   return (
@@ -154,6 +155,14 @@ function PlacementChoice({
       aria-checked={checked}
       tabIndex={checked ? 0 : -1}
       onClick={onSelect}
+      onKeyDown={(event) => {
+        if (!ARROWS.has(event.key)) return;
+        event.preventDefault();
+        onArrow();
+        const options =
+          event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="radio"]');
+        [...(options ?? [])].find((option) => option !== event.currentTarget)?.focus();
+      }}
       className={cn(
         "focus-visible:ring-ring min-w-0 flex-1 truncate rounded-md border px-2 py-1 text-xs outline-none focus-visible:ring-2",
         checked
