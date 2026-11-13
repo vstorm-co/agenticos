@@ -41,6 +41,10 @@ KEYWORDS = ("tenant", "permission", "budget", "approval", "secret", "plaintext")
 # honest by `TestNoStaleExemptions`, which fails if an entry no longer exists or
 # no longer matches the net.
 EXEMPT: dict[str, str] = {
+    "tests/test_coverage_edges.py::TestRunNotifications::test_a_budget_stop_hands_its_limit_and_spend_to_the_notification": "budget notification values, not spend enforcement",
+    "tests/test_notification_params.py::test_a_budget_stop_hands_over_its_numbers_and_none_of_the_rest": "budget notification allowlist, not spend enforcement",
+    "tests/test_notification_params.py::test_a_department_s_budget_stop_names_the_department": "budget notification wording, not spend enforcement",
+    "tests/test_notification_params.py::test_an_approval_request_hands_over_only_the_agent_name": "approval notification allowlist, not an authorization refusal",
     "tests/test_authoring_fields.py::TestSet::test_a_tool_approval_set_back_to_none_is_removed": "undoing a tightened tool approval restores the spec, no refusal",
     "tests/test_workflow_execution_approval_wake.py::TestWakeAfterApprovalDecision::test_an_answered_or_ended_question_wakes_its_owning_step": "'approval' names the wake module; an accepted question continuation, not an authorization refusal",
     "tests/test_workflow_run_status.py::test_a_question_is_visible_beside_running_approval_and_retry_siblings": "'approval' names a waiting status; severity reporting, not an authorization refusal",

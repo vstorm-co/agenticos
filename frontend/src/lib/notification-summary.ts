@@ -88,7 +88,7 @@ function paramsSummary(item: Notification, t: Translate): string | null {
         // A department's cap names its department when the row says which.
         scope: params.scope === "group" && params.subject ? "department" : (params.scope ?? ""),
         department: params.subject ?? "",
-        spent: usd(params.spent_usd ?? "0"),
+        spent: formatCostUsd(Number(params.spent_usd ?? "0")),
         limit: usd(params.limit_usd ?? "0"),
       });
     case "budget_warning":

@@ -174,7 +174,7 @@ it("names the department whose budget stopped a run", () => {
       t,
       stop,
     ),
-  ).toBe("kind.budgetExceeded(Probe,department,Sales,$10.02,$10.00)");
+  ).toBe("kind.budgetExceeded(Probe,department,Sales,$10.0200,$10.00)");
 });
 
 it("shows a limit to the cent, and below a cent to the place spend is shown at", () => {
@@ -189,8 +189,8 @@ it("shows a limit to the cent, and below a cent to the place spend is shown at",
       t,
       stop,
     );
-  expect(stopped("20")).toBe("kind.budgetExceeded(Probe,organization,,$20.01,$20.00)");
-  expect(stopped("0.004")).toBe("kind.budgetExceeded(Probe,organization,,$20.01,$0.0040)");
+  expect(stopped("20")).toBe("kind.budgetExceeded(Probe,organization,,$20.0100,$20.00)");
+  expect(stopped("0.004")).toBe("kind.budgetExceeded(Probe,organization,,$20.0100,$0.0040)");
 });
 
 it("keeps the server's sentence where it kept no values, or for a kind the console does not word", () => {
@@ -198,4 +198,19 @@ it("keeps the server's sentence where it kept no values, or for a kind the conso
   expect(notificationSummary(worded("run_failed", { agent_name: "Probe" }), t, stop)).toBe(
     "server summary",
   );
+});
+
+it("keeps the metered spend precision above a cent", () => {
+  expect(
+    notificationSummary(
+      worded("budget_exceeded", {
+        agent_name: "Probe",
+        scope: "agent",
+        limit_usd: "0.01",
+        spent_usd: "0.0101",
+      }),
+      t,
+      stop,
+    ),
+  ).toBe("kind.budgetExceeded(Probe,agent,,$0.0101,$0.01)");
 });

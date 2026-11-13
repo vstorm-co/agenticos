@@ -2546,3 +2546,18 @@ async def test_a_routine_without_a_recipient_does_not_invent_one(written):
         observed_at=datetime.now(UTC),
     )
     assert written.calls == []
+
+
+@pytest.mark.anyio
+async def test_department_warning_keeps_a_sub_cent_limit() -> None:
+    service = NotificationService(AsyncMock())
+    group = MagicMock(id=uuid.uuid4(), name="Sales", monthly_budget_usd=Decimal("0.0005"))
+    with (
+        patch.object(service, "_capped_groups", AsyncMock(return_value=[group])),
+        patch.object(service, "_department_audience", AsyncMock(return_value={uuid.uuid4()})),
+        patch(f"{MODULE}.agent_run_repo.sum_cost_since", AsyncMock(return_value=Decimal("0.0004"))),
+        patch.object(service._center, "write", AsyncMock()) as write,
+    ):
+        await service.department_budget_warnings(_run())
+    assert write.await_args.kwargs["render_context"]["limit"] == "0.0005"
+    assert write.await_args.kwargs["render_context"]["share"] == 80

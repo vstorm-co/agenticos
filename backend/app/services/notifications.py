@@ -398,7 +398,7 @@ class NotificationService:
                 render_context={
                     "group_name": group.name,
                     "spent": f"{spent:.2f}",
-                    "limit": f"{group.monthly_budget_usd:.2f}",
+                    "limit": str(group.monthly_budget_usd),
                     "share": share,
                 },
                 organization_id=run.organization_id,
