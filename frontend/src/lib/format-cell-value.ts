@@ -78,7 +78,7 @@ const numberFormats = new Map<string, Intl.NumberFormat>();
 function numberFormat(locale: string): Intl.NumberFormat {
   let format = numberFormats.get(locale);
   if (format === undefined) {
-    format = new Intl.NumberFormat(locale, { maximumFractionDigits: 10, useGrouping: "min2" });
+    format = new Intl.NumberFormat(locale, { maximumFractionDigits: 100, useGrouping: "min2" });
     numberFormats.set(locale, format);
   }
   return format;
@@ -86,7 +86,8 @@ function numberFormat(locale: string): Intl.NumberFormat {
 
 /**
  * A value as text, a number written the way `locale` writes one. Every digit the
- * service kept is shown, and a four-digit number - a year, a code - is not grouped.
+ * stored number has is shown - only the separators change - and a four-digit number
+ * (a year, a code) is not grouped.
  */
 function scalarText(value: unknown, locale: string | undefined): string {
   if (typeof value !== "number" || locale === undefined) return String(value);

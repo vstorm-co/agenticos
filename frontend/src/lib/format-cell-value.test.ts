@@ -136,12 +136,16 @@ describe("a formula's answer", () => {
 });
 
 describe("a number in the viewer's locale", () => {
-  it("takes the locale's decimal separator, every digit kept, and a short one ungrouped", () => {
+  it("takes the locale's decimal separator, every stored digit kept, and a short one ungrouped", () => {
     expect(formatCellValue(column({ type: "number" }), 12.177, boolLabel, "pl")).toBe("12,177");
     expect(formatCellValue(column({ type: "number" }), 12.177, boolLabel, "en")).toBe("12.177");
-    expect(formatCellValue(column({ type: "number" }), 0.1234567891, boolLabel, "en")).toBe(
-      "0.1234567891",
+    expect(formatCellValue(column({ type: "number" }), 0.12345678912, boolLabel, "en")).toBe(
+      "0.12345678912",
     );
+    expect(formatCellValue(column({ type: "number" }), 1e-12, boolLabel, "pl")).toBe(
+      "0,000000000001",
+    );
+    expect(formatCellValue(column({ type: "number" }), 0.1, boolLabel, "pl")).toBe("0,1");
     expect(formatCellValue(column({ type: "integer" }), 2026, boolLabel, "en")).toBe("2026");
     expect(formatCellValue(column({ type: "integer" }), 1234567, boolLabel, "en")).toBe(
       "1,234,567",
