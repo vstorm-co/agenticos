@@ -1,5 +1,5 @@
 ---
-source_sha: "68958b7ea0a1"
+source_sha: "e7de361da337"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1801,8 +1801,26 @@ eran más pequeños al empezar la tarea. El parche se guarda hasta 256 KiB y 500
 **Quién lee el diff.** Se guarda con la conversación y se lee con el mismo acceso
 que su transcripción, así que lo ve quien pueda leer el chat; borrar el chat lo
 borra. En una sandbox que comparten varios chats, una tarea que se ejecuta a la vez
-que otra ve también los cambios de esa en su diff. Todavía no se ofrece revertir
-una tarea, y una tarea en este ordenador no registra diff.
+que otra ve también los cambios de esa en su diff. Una tarea en este ordenador no registra diff.
+
+**Revertir esta tarea.** En una tarea nueva con un snapshot completo, esta acción
+restaura sus archivos regulares en el workspace original del servidor. Necesitas
+acceso de edición a la conversación y su workspace, y la ejecución actual debe
+haber terminado. El contenido y modo ejecutable de cada archivo afectado deben
+seguir coincidiendo con el estado final de la tarea. De lo contrario, se rechaza
+toda la reversión y se muestran los archivos en conflicto. Los demás archivos,
+el índice de Git y su historial permanecen sin cambios.
+
+La reversión restaura solo archivos; conserva la conversación y el informe.
+Requiere Git y Python 3 y rechaza snapshots truncados, redactados, antiguos de
+solo visualización, archivos enlazados y archivos actuales de más de 2 MiB. No
+sustituye un workspace eliminado o trasladado. Las reversiones correctas quedan
+registradas en la auditoría y marcadas en el panel de la tarea.
+
+**Número de archivos cambiados.** El panel y el pie del mensaje usan el conjunto
+de cambios guardado, incluidas las ediciones del shell y el número de archivos
+omitidos por el límite. Solo una tarea sin conjunto de cambios usa la lista del
+harness; los informes nuevos expresan esas rutas respecto al workspace.
 
 **Las tareas de una conversación continúan una sesión.** El id de sesión del harness
 se guarda en la sandbox junto al trabajo, en `.agenticos/coding-agent/`, uno por

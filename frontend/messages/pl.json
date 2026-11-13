@@ -856,7 +856,12 @@
         "binary": "binarny",
         "binaryFile": "Plik binarny: nie ma wierszy do pokazania.",
         "patchOmitted": "Poza limitem patcha: zachowano tylko nazwę.",
-        "noTextChanges": "Zawartość się nie zmieniła: plik przeniesiono albo zmieniono jego uprawnienia."
+        "noTextChanges": "Zawartość się nie zmieniła: plik przeniesiono albo zmieniono jego uprawnienia.",
+        "revertTask": "Cofnij to zadanie",
+        "revertDescription": "Przywróć pliki zmienione przez to zadanie do wcześniejszego stanu. Jeśli którykolwiek z nich został później zmieniony, nic nie zostanie cofnięte.",
+        "taskReverted": "To zadanie zostało cofnięte.",
+        "revertConflict": "Te pliki zmieniły się po zakończeniu zadania. Nic nie zostało cofnięte.",
+        "revertFailed": "Nie udało się cofnąć zadania."
       },
       "runCodingAgent": "Przekaż pracę coding agentowi",
       "runningCodingAgent": "Coding agent pracuje",
@@ -7602,6 +7607,10 @@
       "workflow-input-contract": {
         "title": "Określ oczekiwane dane wejściowe",
         "body": "Wyzwalacze Ręcznie, API i Wywołany przez workflow obsługują proste pola lub kontrakt JSON Schema 2020-12. Schemat obsługuje zagnieżdżone wartości i jest sprawdzany przed rozpoczęciem runu."
+      },
+      "chat-coding-revert": {
+        "title": "Sprawdź i cofnij zadanie programistyczne",
+        "body": "Otwórz zadanie programistyczne, aby sprawdzić zmienione pliki. Cofnięcie przywraca te pliki tylko wtedy, gdy żaden nie zmienił się od zakończenia zadania."
       }
     },
     "chooseLanguage": "Język",

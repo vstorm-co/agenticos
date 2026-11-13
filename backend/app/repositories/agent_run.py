@@ -378,6 +378,23 @@ async def latest_run_for_conversation(
     return result.scalar_one_or_none()
 
 
+async def has_running_in_conversation(
+    db: AsyncSession, *, organization_id: UUID, conversation_id: UUID
+) -> bool:
+    """Whether an executing turn can still write this conversation's files."""
+    return bool(
+        await db.scalar(
+            select(AgentRun.id)
+            .where(
+                AgentRun.organization_id == organization_id,
+                AgentRun.conversation_id == conversation_id,
+                AgentRun.status == "running",
+            )
+            .limit(1)
+        )
+    )
+
+
 async def neighbor_run_ids(db: AsyncSession, run: AgentRun) -> tuple[UUID | None, UUID | None]:
     """The runs either side of this one in its own conversation, by start time.
 

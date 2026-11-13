@@ -515,7 +515,7 @@ async def test_on_this_computer_the_task_needs_no_key_and_reports_like_any_other
     assert report["kind"] == "coding_agent"
     assert report["outcome"] == "completed"
     assert report["answer"] == "Done."
-    assert report["files_changed"] == ["/w/a.py", "/w/b.py"]
+    assert report["files_changed"] == ["a.py", "b.py"]
     assert computer.ops[0] == "agent.open" and computer.ops[-1] == "agent.close"
     kinds = [type(frame).__name__ for frame in frames]
     assert kinds[0] == "SubagentStarted" and kinds[-1] == "SubagentFinished"

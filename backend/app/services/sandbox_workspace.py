@@ -693,6 +693,84 @@ class SandboxWorkspaceService:
         # `None` outside it, where each read builds and closes its own.
         self._shared_archives: dict[UUID, Any] | None = None
 
+    async def recorded_for_task(
+        self, ctx: AuthContext, *, conversation_id: UUID, ref: WorkspaceRef
+    ) -> list[tuple[AgentWorkspace, UUID]]:
+        """The task's recorded containers this person may currently change.
+
+        Metadata only: reading a diff must not load a workspace credential or
+        construct a provider client. Shared scopes have their own current gate.
+        """
+        from app.services.agent_registry import AgentRegistryService
+        from app.services.conversation import ConversationService
+        from app.services.project_workspace_guard import project_for_workspace
+
+        conversation = await ConversationService(self.db).get_conversation(
+            conversation_id,
+            organization_id=ctx.organization_id,
+            user_id=ctx.user_id,
+            for_write=True,
+            turn=True,
+            include_favourite=False,
+            ctx=ctx,
+        )
+        rows = await workspace_repo.for_session(
+            self.db, organization_id=ctx.organization_id, session_id=ref.id
+        )
+        allowed: list[tuple[AgentWorkspace, UUID]] = []
+        for row in rows:
+            connection_id = row.connection_id
+            if connection_id is None or row.backend != "service":
+                continue
+            if row.project_id is not None:
+                if row.project_id != conversation.project_id:
+                    continue
+                project = await project_for_workspace(self.db, ctx, row.project_id)
+                current = await workspace_repo.get_for_project(
+                    self.db, organization_id=ctx.organization_id, project_id=project.id
+                )
+                if current is None or current.id != row.id:
+                    continue
+            elif row.scope == "conversation":
+                if row.conversation_id != conversation_id:
+                    continue
+            elif row.scope == "user":
+                if row.owner_ref != str(ctx.user_id):
+                    continue
+            elif row.scope in ("agent", "channel"):
+                if row.agent_id is None:
+                    continue
+                await AgentRegistryService(self.db).get(ctx, row.agent_id, perm=Perm.AGENTS_RUN)
+            else:
+                continue
+            allowed.append((row, connection_id))
+        if not allowed:
+            raise NotFoundError(message="The task's original workspace is unavailable", details={})
+        return allowed
+
+    @asynccontextmanager
+    async def open_recorded(
+        self, ctx: AuthContext, *, conversation_id: UUID, ref: WorkspaceRef
+    ) -> AsyncGenerator[Workspace]:
+        """Attach the original container, never a replacement for a removed workspace."""
+        for row, connection_id in await self.recorded_for_task(
+            ctx, conversation_id=conversation_id, ref=ref
+        ):
+            resolved = await self._connection(ctx, connection_id)
+            sandbox = self._service_capability(
+                resolved, row.scope_key, tenant=str(ctx.organization_id)
+            )
+            if ref.provider != _provider(sandbox):
+                continue
+            backend = sandbox.backend(ref)
+            try:
+                yield Workspace(backend)
+            finally:
+                if isinstance(backend, OrgOpenSandboxBackend):
+                    await backend.aclose()
+            return
+        raise NotFoundError(message="The task's original workspace is unavailable", details={})
+
     async def open(
         self,
         spec: AgentSpec,

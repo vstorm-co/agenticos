@@ -83,7 +83,15 @@ async def get_coding_task_change(change_id: UUID, service: CodingTaskChangeSvc, 
     whoever may read the conversation the task ran in - the transcript's own
     check - and missing (404) for anybody else, in this organization or another.
     """
-    return await service.get(ctx, change_id)
+    return await service.read(ctx, change_id)
+
+
+@router.post("/coding-changes/{change_id}/revert", response_model=CodingTaskChangeRead)
+async def revert_coding_task_change(
+    change_id: UUID, service: CodingTaskChangeSvc, ctx: Auth
+) -> Any:
+    """Restore a coding task's affected files when they still match its final snapshot."""
+    return await service.revert(ctx, change_id)
 
 
 @router.get("/shared-with-me", response_model=ConversationList)

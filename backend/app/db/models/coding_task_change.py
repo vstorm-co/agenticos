@@ -1,8 +1,9 @@
 """What one coding-agent task changed in its sandbox (#2480)."""
 
 import uuid
+from datetime import datetime
 
-from sqlalchemy import Boolean, ForeignKey, Integer, String
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -42,6 +43,9 @@ class CodingTaskChange(Base, TimestampMixin):
     files: Mapped[list[dict[str, object]]] = mapped_column(JSONB, nullable=False, default=list)
     omitted: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     truncated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    revert_patch: Mapped[str | None] = mapped_column(Text, nullable=True)
+    workspace_ref: Mapped[dict[str, str] | None] = mapped_column(JSONB, nullable=True)
+    reverted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     def __repr__(self) -> str:
         return f"<CodingTaskChange(id={self.id}, conversation_id={self.conversation_id})>"

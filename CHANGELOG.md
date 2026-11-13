@@ -19,6 +19,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **Revert a coding task.** The task panel can restore a complete task's files in its original server workspace, with edit access and an audit entry. Later changes to any affected file refuse the whole revert. Older, truncated, redacted or linked-file snapshots cannot be reverted.
+
+### Fixed
+
+- **Coding task file counts.** The message footer and task panel use the stored change set, including shell edits. New reports normalize harness-only fallback paths relative to the workspace.
+
 ## [1.72.0] - 2026-11-13
 
 ### Added

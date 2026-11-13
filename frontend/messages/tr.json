@@ -8578,6 +8578,10 @@
       "workflow-input-contract": {
         "title": "Beklenen girdiyi tanımlayın",
         "body": "Manuel, API veya Bir workflow tarafından çağrılan tetikleyicileri, basit alanları veya JSON Schema Draft 2020-12 sözleşmesini kullanabilir. Şema iç içe değerleri destekler ve run başlamadan önce doğrulanır."
+      },
+      "chat-coding-revert": {
+        "title": "Kodlama görevini incele ve geri al",
+        "body": "Değişen dosyaları incelemek için kodlama görevini aç. Görev yalnızca etkilenen dosyalar görev bittikten sonra değişmediyse geri alınır."
       }
     }
   },
@@ -9234,7 +9238,12 @@
         "binary": "ikili",
         "binaryFile": "İkili dosya: gösterilecek satır yok.",
         "patchOmitted": "Yama sınırının ötesinde: yalnızca adı saklandı.",
-        "noTextChanges": "İçerik değişmedi: dosya yeniden adlandırıldı ya da modu değişti."
+        "noTextChanges": "İçerik değişmedi: dosya yeniden adlandırıldı ya da modu değişti.",
+        "revertTask": "Bu görevi geri al",
+        "revertDescription": "Bu görevin değiştirdiği dosyaları önceki durumuna döndür. Etkilenen bir dosya daha sonra değiştiyse hiçbir değişiklik geri alınmaz.",
+        "taskReverted": "Bu görev geri alındı.",
+        "revertConflict": "Bu dosyalar görevden sonra değişti. Hiçbir değişiklik geri alınmadı.",
+        "revertFailed": "Görev geri alınamadı."
       },
       "runCodingAgent": "İşi kodlama Agent'ına devret",
       "runningCodingAgent": "Kodlama Agent'ı çalışıyor",

@@ -1870,7 +1870,12 @@
         "binary": "binary",
         "binaryFile": "A binary file: there are no lines to show.",
         "patchOmitted": "Past the patch's limit: only its name is kept.",
-        "noTextChanges": "Its content did not change: it was renamed, or its mode changed."
+        "noTextChanges": "Its content did not change: it was renamed, or its mode changed.",
+        "revertTask": "Revert this task",
+        "revertDescription": "Restore the files changed by this task to their earlier state. If an affected file has changed since, nothing is reverted.",
+        "taskReverted": "This task was reverted.",
+        "revertConflict": "These files changed after the task. Nothing was reverted.",
+        "revertFailed": "The task could not be reverted."
       },
       "runCodingAgent": "Hand the work to the coding agent",
       "runningCodingAgent": "The coding agent is working",
@@ -6001,6 +6006,10 @@
       "workflow-input-contract": {
         "title": "Define the expected input",
         "body": "A Manual, API or Called by a workflow trigger can use simple fields or a JSON Schema Draft 2020-12 contract. The schema supports nested values and is checked before a run starts."
+      },
+      "chat-coding-revert": {
+        "title": "Review and revert a coding task",
+        "body": "Open a coding task to review its changed files. Revert this task restores those files only when none has changed since the task ended."
       }
     },
     "chooseLanguage": "Language",

@@ -1,5 +1,5 @@
 ---
-source_sha: "68958b7ea0a1"
+source_sha: "e7de361da337"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1870,8 +1870,26 @@ markiert, wo er abgeschnitten wurde.
 Zugriff gelesen wie ihr Transkript, also sieht ihn jeder, der den Chat lesen darf;
 wird der Chat gelöscht, verschwindet er mit. In einem Sandbox, den mehrere Chats
 teilen, sieht eine Aufgabe, die gleichzeitig mit einer anderen läuft, auch deren
-Änderungen in ihrem Diff. Eine Aufgabe zurückzunehmen wird noch nicht angeboten,
-und eine Aufgabe auf diesem Computer zeichnet keinen Diff auf.
+Änderungen in ihrem Diff. Eine Aufgabe auf diesem Computer zeichnet keinen Diff auf.
+
+**Diese Aufgabe rückgängig machen.** Bei einer neuen Aufgabe mit vollständigem
+Snapshot stellt diese Aktion reguläre Dateien im ursprünglichen Server-Workspace
+wieder her. Du brauchst Bearbeitungszugriff auf die Unterhaltung und ihren
+Workspace; der aktuelle Run muss beendet sein. Inhalt und Ausführungsmodus jeder
+betroffenen Datei müssen noch dem Zustand nach der Aufgabe entsprechen. Sonst
+wird die gesamte Aktion abgelehnt und die Konfliktdateien werden angezeigt.
+Andere Dateien sowie Git-Index und Git-Verlauf bleiben unverändert.
+
+Die Aktion stellt nur Dateien wieder her; Unterhaltung und Aufgabenbericht
+bleiben erhalten. Sie benötigt Git und Python 3 und lehnt abgeschnittene,
+bereinigte, ältere reine Anzeige-Snapshots, verknüpfte Dateien und aktuelle
+Dateien über 2 MiB ab. Ein entfernter oder verschobener Workspace wird nicht
+ersetzt. Erfolgreiche Aktionen werden protokolliert und im Aufgabenpanel markiert.
+
+**Anzahl geänderter Dateien.** Panel und Nachrichtenfuß verwenden den gespeicherten
+Änderungssatz, einschließlich Shell-Änderungen und der Anzahl nicht aufgelisteter
+Dateien. Nur Aufgaben ohne Änderungssatz nutzen die Dateiliste des Harness;
+neue Berichte geben diese Pfade relativ zum Workspace an.
 
 **Die Aufgaben einer Unterhaltung setzen eine Sitzung fort.** Die Sitzungs-ID des
 Harness liegt im Sandbox neben der Arbeit, unter `.agenticos/coding-agent/`, eine je

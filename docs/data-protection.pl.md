@@ -1,5 +1,5 @@
 ---
-source_sha: "315bb1a3e8a2"
+source_sha: "4349e14107de"
 ---
 
 # Ochrona danych { #data-protection }
@@ -94,7 +94,7 @@ przez sprawdzenie rodzica.
 | `browser_sign_ins` | Zapisane logowania osoby do stron, dla przeglądarki | Strona, organizacja, kiedy ostatnio użyte, i sama sesja (ciasteczka i `localStorage` strony) zapieczętowana w vaulcie w zakresie tej osoby | Kolejne przeglądanie w jej imieniu zaczyna się już zalogowane. Eksport danych osobowych podaje strony, nigdy sesji |
 | `coding_accounts` | Osobiste konta Claude Code/Codex | Organizacja, właściciel, nazwa konta, wersja zgody i klucz API lub para tokenów ChatGPT zaszyfrowane w zakresie użytkownika | Eksport metadanych tylko dla właściciela; osobny kontener na zadanie; odłączenie usuwa zgodę w platformie, nie u dostawcy |
 | `conversations`, `messages`, `tool_calls` | Każdy czat na każdej powierzchni | Tekst, który ludzie napisali, odpowiedzi i rozumowanie modelu, argumenty i wyniki narzędzi, kroczące podsumowanie długich wątków | Podstawowa funkcja produktu; historia, do której człowiek wraca |
-| `coding_task_changes` | Zadanie agenta kodującego przy `edit` w rozmowie | Pliki zmienione przez zadanie i ich patch, do 256 KiB: kod taki, jaki był, i taki, jaki się stał | Diff zadania, pokazywany w jego panelu; czytany z dostępem rozmowy |
+| `coding_task_changes` | Zadanie agenta kodującego przy `edit` w rozmowie | Zmienione pliki, patch do wyświetlania i bezstratna kopia base64 ograniczonego patcha (do 256 KiB przed kodowaniem), skróty plików, odwołanie do pierwotnego workspace i czas cofnięcia | Diff zadania i bezpieczne cofnięcie; odczyt z dostępem rozmowy, cofnięcie z bieżącym dostępem do edycji |
 | `voice_calls` | Każde połączenie [rozmowy głosowej](voice.md) | Id użytkownika rozmówcy (brak dla odwiedzającego), agent, run, konwersacja i embed, do których należała, provider i model, id rozmowy u providera, id klucza z vaultu, którym była prowadzona, worker, który ją trzyma, jej heartbeat, czasy startu, końca i rozłączenia, jej koszt, sekundy i liczba trafień guardraili. **Bez dźwięku i bez transkrypcji** - słowa rozmowy to zwykłe wiersze w `messages`, każdy oznaczony `turn_id` i, gdy rozmówca wszedł agentowi w słowo, `interrupted` | Rozłączanie rozmowy, której proces umarł, i liczenie miesięcznych minut rozmów organizacji |
 | `chat_files` | Załączniki do wiadomości | Nazwa pliku, typ, rozmiar, wyciągnięty tekst (`parsed_content`) i ścieżka bajtów na dysku | Odpowiadanie o pliku |
 | `generated_media` | Jeden wiersz na każdy obraz, klip mowy lub wideo wygenerowane przez agenta | Organizacja, konwersacja, w której powstał, jeśli run ją miał, nazwa pliku, ścieżka w magazynie i rozmiar - **nie jego treść**, która jest plikiem pod `MEDIA_DIR` | Liczenie wygenerowanych mediów każdej organizacji względem jej limitu oraz usuwanie ich razem z konwersacją albo po okresie retencji |

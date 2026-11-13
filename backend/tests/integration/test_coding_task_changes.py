@@ -6,8 +6,11 @@ can show.
 """
 
 import uuid
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from typing import Any, cast
+from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy import select
@@ -23,6 +26,7 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.repositories import conversation_share as conversation_share_repo
 from app.schemas.coding_task_change import ChangedFile, ChangeSet
+from app.services import coding_task_changes as change_service_module
 from app.services.coding_task_changes import CodingTaskChangeService
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
@@ -155,6 +159,52 @@ async def test_deleting_the_conversation_deletes_its_change_sets(db: AsyncSessio
     assert remaining.scalar_one_or_none() is None
 
 
+@pytest.mark.parametrize("share", ["view", "edit"])
+async def test_only_an_edit_share_can_restore_a_task_and_the_result_is_recorded(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch, share: str
+) -> None:
+    from app.db.models.audit_log import AppAdminAuditLog
+
+    owner, colleague = await _person(db), await _person(db)
+    organization = await _organization(db, owner, colleague)
+    recorded = await _recorded(db, organization, owner)
+    recorded.revert_patch = "cGF0Y2g="
+    recorded.workspace_ref = {"provider": "sandboxd:example", "id": "original"}
+    await db.flush()
+    await conversation_share_repo.create(
+        db,
+        conversation_id=recorded.conversation_id,
+        shared_by=owner.id,
+        shared_with=colleague.id,
+        permission=share,
+    )
+
+    @asynccontextmanager
+    async def opened(*args: object, **kwargs: object) -> AsyncGenerator[object]:
+        yield SimpleNamespace()
+
+    monkeypatch.setattr(change_service_module.SandboxWorkspaceService, "open_recorded", opened)
+    restore = AsyncMock()
+    monkeypatch.setattr(change_service_module._coding_task_revert, "revert", restore)
+    ctx = AuthContext(user_id=colleague.id, organization_id=organization.id, role="viewer")
+    if share == "view":
+        with pytest.raises(NotFoundError):
+            await CodingTaskChangeService(db).revert(ctx, recorded.id)
+        restore.assert_not_awaited()
+        assert recorded.reverted_at is None
+    else:
+        result = await CodingTaskChangeService(db).revert(ctx, recorded.id)
+        assert result.reverted_at is not None
+        await db.refresh(recorded)
+        assert recorded.reverted_at == result.reverted_at
+        audit = await db.scalar(
+            select(AppAdminAuditLog).where(AppAdminAuditLog.target_id == str(recorded.id))
+        )
+        assert audit is not None and audit.actor_user_id == colleague.id
+        assert audit.action == "coding_task.revert"
+        assert audit.details == {"conversation_id": str(recorded.conversation_id), "file_count": 2}
+
+
 async def test_a_change_set_that_cannot_be_kept_leaves_its_code_out_of_the_logs(
     engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -176,6 +226,7 @@ async def test_a_change_set_that_cannot_be_kept_leaves_its_code_out_of_the_logs(
     ctx = SimpleNamespace(
         deps=SimpleNamespace(organization_id=uuid.uuid4(), conversation_id=uuid.uuid4()),
         tool_call_id="call-1",
+        workspace=SimpleNamespace(ref=None),
     )
     report = CodingReport(harness="claude_code", access="edit", outcome="completed", answer="Done")
 

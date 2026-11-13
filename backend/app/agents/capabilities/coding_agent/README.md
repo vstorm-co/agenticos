@@ -101,13 +101,54 @@ folders are left out - a spill in a shared workspace is another person's tool
 result. A snapshot that cannot be taken - no `git`, a timeout - costs the diff,
 never the task.
 
+The panel and message footer use that stored file list, including changes made
+through the shell. Without a change set, a new report uses the harness's list,
+with paths relative to the workspace.
+
+## Reverting a task (#2743)
+
+New tasks also keep the bounded patch as lossless bytes (base64), each file's
+before/after Git blob and mode, and the original workspace reference. The
+temporary snapshot store still goes away. Older rows remain readable and cannot
+offer undo: their display patch alone cannot establish the complete file state.
+
+Undo attaches the recorded container, requires current conversation edit access
+and the shared workspace's own access, and refuses while the conversation has a
+running turn. It checks every affected regular file's complete content and mode,
+including absent rename destinations, before reversing the patch in a separate
+Git index. That index must exactly match the recorded before manifest; only then
+does `git apply --reverse --index` write the files. The user's repository, index
+and history are never used. A later edit anywhere in an affected file refuses
+the whole operation. Unrelated files stay as they are.
+
+Truncated or redacted patches, symlinks, hard-linked current files and files over
+2 MiB cannot be restored. The runtime needs Git and Python 3. The undo state and
+audit event are stored with the request; repeating a completed revert returns
+its stored timestamp. This restores files, not conversation history or external
+effects such as commits, network requests or database writes.
+A copied report without its original conversation file origin does not offer undo.
+
+### Harness research behind the design
+
+- [OpenCode snapshots](https://opencode.ai/docs/snapshots) record before/after
+  steps in a separate object database and restore selected paths. Its documented
+  overwrite behavior is why this implementation additionally checks the entire
+  post-task file state.
+- [Gemini CLI checkpointing](https://geminicli.com/docs/cli/checkpointing/) uses a
+  shadow repository without changing the user's repository. Its whole-project
+  restoration is broader than this task-scoped undo.
+- [Aider's undo](https://github.com/Aider-AI/aider/blob/main/aider/commands.py#L560)
+  refuses later uncommitted changes to affected files. Here file fingerprints
+  provide that protection without requiring user-repository commits.
+- [Claude Code checkpointing](https://code.claude.com/docs/en/checkpointing)
+  follows editing tools, so shell-only changes can escape it. Keeping the
+  platform's workspace snapshots makes shell edits visible across harnesses.
+
 ## What it does not do
 
 - Forward the harness's own permission prompts.
 - Run Codex read-only inside a container; local ACP tasks support its native read-only mode.
 - Run on the `state` workspace, which has no shell.
-- Revert a task: its store is gone once the diff is read, and a reverse patch
-  applied after later edits could undo work that is not the task's.
 - Keep a diff for a task on this computer, or one at `read_only`.
 
 ## On the person's own computer (#2576)

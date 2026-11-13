@@ -1870,7 +1870,12 @@
         "binary": "binär",
         "binaryFile": "Eine Binärdatei: Es gibt keine Zeilen anzuzeigen.",
         "patchOmitted": "Jenseits der Patch-Grenze: Nur der Name wird gespeichert.",
-        "noTextChanges": "Der Inhalt hat sich nicht geändert: Die Datei wurde umbenannt oder ihr Modus geändert."
+        "noTextChanges": "Der Inhalt hat sich nicht geändert: Die Datei wurde umbenannt oder ihr Modus geändert.",
+        "revertTask": "Diese Aufgabe rückgängig machen",
+        "revertDescription": "Stelle die von dieser Aufgabe geänderten Dateien auf ihren vorherigen Stand zurück. Wurde eine betroffene Datei seitdem geändert, wird nichts zurückgesetzt.",
+        "taskReverted": "Diese Aufgabe wurde rückgängig gemacht.",
+        "revertConflict": "Diese Dateien wurden nach der Aufgabe geändert. Es wurde nichts zurückgesetzt.",
+        "revertFailed": "Die Aufgabe konnte nicht rückgängig gemacht werden."
       },
       "runCodingAgent": "Arbeit an den Coding Agent übergeben",
       "runningCodingAgent": "Der Coding Agent arbeitet",
@@ -5880,6 +5885,10 @@
       "workflow-input-contract": {
         "title": "Erwartete Eingabe festlegen",
         "body": "Die Trigger Manuell, API und Von einem Workflow aufgerufen unterstützen einfache Felder oder einen Vertrag nach JSON Schema 2020-12. Das Schema unterstützt verschachtelte Werte und wird vor dem Start eines Runs geprüft."
+      },
+      "chat-coding-revert": {
+        "title": "Eine Programmieraufgabe prüfen und rückgängig machen",
+        "body": "Öffne eine Programmieraufgabe, um ihre geänderten Dateien zu prüfen. Die Aufgabe lässt sich nur rückgängig machen, wenn keine dieser Dateien seitdem geändert wurde."
       }
     },
     "chooseLanguage": "Sprache",

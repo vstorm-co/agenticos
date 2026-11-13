@@ -1029,7 +1029,8 @@ _PATCH = (
 # What `FINISH` prints: the sizes, the file count, both lists, the patch.
 _TWO_FILES = (
     f"{len(_RAW)}\n{len(_COUNTS)}\n{len(_PATCH.encode())}\n2\n"
-    f"{base64.b64encode(_RAW).decode()}\n{base64.b64encode(_COUNTS).decode()}\n{_PATCH}"
+    f"{base64.b64encode(_RAW).decode()}\n{base64.b64encode(_COUNTS).decode()}\n"
+    f"{base64.b64encode(_PATCH.encode()).decode()}"
 )
 
 
@@ -1109,6 +1110,7 @@ class TestWhatATaskChanged:
         report = CodingReport.model_validate_json(await _call(shell))
 
         assert report.changes_id == str(recorder.id)
+        assert report.files_changed == ["src/app.py", "README.md"]
         ((changes, where),) = recorder.recorded
         assert [entry.path for entry in changes.files] == ["src/app.py", "README.md"]
         assert where["conversation_id"] == THREAD and where["tool_call_id"] == "call-1"

@@ -1,5 +1,5 @@
 ---
-source_sha: "68958b7ea0a1"
+source_sha: "e7de361da337"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1763,8 +1763,25 @@ tam, gdzie został ucięty.
 **Kto czyta diff.** Jest zapisany razem z rozmową i czytany z takim samym dostępem
 jak jej transkrypcja, więc widzi go każdy, kto może czytać czat; usunięcie czatu
 usuwa też diff. W sandboxie, który dzieli kilka czatów, zadanie działające w tym
-samym czasie co inne widzi w swoim diffie także tamtego zmiany. Cofania zadania
-jeszcze nie ma, a zadanie na tym komputerze nie zapisuje diffu.
+samym czasie co inne widzi w swoim diffie także tamtego zmiany. Zadanie na tym komputerze nie zapisuje diffu.
+
+**Cofnij to zadanie.** Dla nowego zadania z kompletnym snapshotem ta akcja przywraca
+zwykłe pliki w pierwotnym workspace na serwerze. Potrzebujesz dostępu do edycji
+rozmowy i jej workspace, a bieżący run musi się zakończyć. Treść i tryb wykonywalny
+każdego zmienionego pliku muszą nadal odpowiadać stanowi po zadaniu. W przeciwnym
+razie całe cofnięcie jest odrzucane i pojawia się lista plików z konfliktem.
+Pozostałe pliki oraz indeks i historia Git pozostają bez zmian.
+
+Cofnięcie przywraca tylko pliki; rozmowa i raport zadania pozostają. Wymaga Git
+i Python 3. Odrzuca snapshoty ucięte, zredagowane, starsze przeznaczone tylko do
+wyświetlania lub zawierające dowiązania oraz bieżące pliki większe niż 2 MiB.
+Nie tworzy zastępstwa usuniętego ani przeniesionego workspace. Udane cofnięcie
+trafia do audytu i jest oznaczone w panelu zadania.
+
+**Liczba zmienionych plików.** Panel i stopka wiadomości korzystają z zapisanego
+zestawu zmian, w tym edycji przez shell i liczby plików pominiętych przez limit.
+Tylko zadanie bez zestawu zmian używa listy harnessu; nowe raporty podają te ścieżki
+względem workspace.
 
 **Zadania jednej rozmowy kontynuują jedną sesję.** Identyfikator sesji harnessu
 jest trzymany w sandboxie obok pracy, w `.agenticos/coding-agent/`, osobno dla każdej
