@@ -7,7 +7,14 @@ import { useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useAgents, useConversations } from "@/hooks";
 import { ConversationSearchDialog } from "@/components/chat/conversation-search-dialog";
-import { Button, Skeleton } from "@/components/ui";
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Skeleton,
+} from "@/components/ui";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui";
 import { IconButton } from "@/components/ui";
 import { useConversationAgentLabel } from "@/hooks/use-conversation-agent-label";
@@ -33,6 +40,7 @@ import {
   ChevronLeft,
   ChevronDown,
   ChevronRight,
+  GitBranch,
   LogOut,
   Users,
   Loader2,
@@ -93,7 +101,6 @@ function ConversationItem({
   const t = useTranslations("chat");
   const tTime = useTranslations("time");
   const locale = useLocale();
-  const [showMenu, setShowMenu] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(conversation.title || "");
 
@@ -161,18 +168,17 @@ function ConversationItem({
   }, [handedOff, listed, conversation.id, settleWorking]);
   const agentLabel = useConversationAgentLabel(agents, conversation.coding_agents ?? []);
 
-  const favouriteAction = (
-    <button
-      className="hover:bg-accent flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm whitespace-nowrap max-md:min-h-11 [&_svg]:shrink-0"
-      onClick={(e) => {
-        e.stopPropagation();
-        onFavourite(conversation.is_favourite !== true);
-        setShowMenu(false);
-      }}
-    >
+  // Rename moves the focus into the title's field once the menu has closed: the
+  // open menu holds the focus, and a field focused under it would blur at once,
+  // which saves the rename and closes the field.
+  const renaming = useRef(false);
+  const titleField = useRef<HTMLInputElement>(null);
+
+  const favouriteItem = (
+    <DropdownMenuItem onSelect={() => onFavourite(conversation.is_favourite !== true)}>
       <Star className={cn("h-4 w-4", conversation.is_favourite && "text-warning fill-current")} />
       {conversation.is_favourite ? t("unfavourite") : t("favourite")}
-    </button>
+    </DropdownMenuItem>
   );
 
   return (
@@ -182,9 +188,6 @@ function ConversationItem({
         // and a bar at its edge read as two thin lines around one choice.
         "group relative flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1 transition-colors",
         isActive ? "bg-accent" : "hover:bg-foreground/5",
-        // Over the rows below while its menu is open: their agent faces are
-        // stacked up to `z-30`, and drew over the menu's first line.
-        showMenu && "z-40",
       )}
       onClick={onSelect}
     >
@@ -225,8 +228,8 @@ function ConversationItem({
             if (e.key === "Enter") handleRename();
             if (e.key === "Escape") setIsEditing(false);
           }}
+          ref={titleField}
           className="text-foreground min-w-0 flex-1 bg-transparent text-base font-medium outline-none md:text-[13px]"
-          autoFocus
           onClick={(e) => e.stopPropagation()}
         />
       ) : (
@@ -250,6 +253,22 @@ function ConversationItem({
             )}
           </p>
           <div className="flex min-w-0 items-center gap-1.5">
+            {/* A fork keeps its source's title and agent, so without this the
+                two rows differ only in their time. */}
+            {conversation.forked_from && (
+              <span
+                role="img"
+                aria-label={t("sidebar.forkOf", {
+                  title: conversation.forked_from.title || t("untitledFork"),
+                })}
+                title={t("sidebar.forkOf", {
+                  title: conversation.forked_from.title || t("untitledFork"),
+                })}
+                className="text-muted-foreground shrink-0"
+              >
+                <GitBranch className="h-3 w-3" aria-hidden />
+              </span>
+            )}
             {/* Medium, and semibold only while it holds something unread - the
                 weight is the second half of the mark, as in a mail client. */}
             <span
@@ -271,148 +290,108 @@ function ConversationItem({
         </div>
       )}
 
-      <div className="relative">
-        <Button
-          variant="ghost"
-          size="sm"
-          aria-label={t("conversationActions")}
-          className={cn(
-            // Zero *width* until it is wanted, not just transparent: an
-            // invisible control that still reserves 32px is 32px taken off
-            // every title in the list to show something nobody is looking at.
-            // The row reflows on hover and the title truncates a little
-            // earlier, which is the trade the right way round.
-            //
-            // Width rather than `hidden`, because `hidden` takes it out of the
-            // tab order: a keyboard user reaches this by tabbing, and
-            // `focus-visible` is what opens it for them. `touch:` keeps it
-            // permanently sized where there is no hover at all - a phone cannot
-            // reveal a zero-width target, and this menu is the only way to
-            // reach Rename, Share, Archive and Delete. That variant is declared
-            // in `globals.css`; it was in use here and undeclared, which
-            // compiled to nothing.
-            "h-7 shrink-0 overflow-hidden p-0 transition-[width,opacity]",
-            "w-0 opacity-0",
-            "group-hover:w-7 group-hover:opacity-100",
-            "focus-visible:w-7 focus-visible:opacity-100",
-            "touch:w-7 touch:opacity-100",
-            showMenu && "w-7 opacity-100",
-          )}
-          onClick={(e) => {
-            e.stopPropagation();
-            setShowMenu(!showMenu);
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label={t("conversationActions")}
+            className={cn(
+              // Zero *width* until it is wanted, not just transparent: an
+              // invisible control that still reserves 32px is 32px taken off
+              // every title in the list to show something nobody is looking at.
+              // The row reflows on hover and the title truncates a little
+              // earlier, which is the trade the right way round.
+              //
+              // Width rather than `hidden`, because `hidden` takes it out of the
+              // tab order: a keyboard user reaches this by tabbing, and
+              // `focus-visible` is what opens it for them. `touch:` keeps it
+              // permanently sized where there is no hover at all - a phone cannot
+              // reveal a zero-width target, and this menu is the only way to
+              // reach Rename, Share, Archive and Delete. That variant is declared
+              // in `globals.css`.
+              "h-7 shrink-0 overflow-hidden p-0 transition-[width,opacity]",
+              "w-0 opacity-0",
+              "group-hover:w-7 group-hover:opacity-100",
+              "focus-visible:w-7 focus-visible:opacity-100",
+              "touch:w-7 touch:opacity-100",
+              "data-[state=open]:w-7 data-[state=open]:opacity-100",
+            )}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <MoreVertical className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        {/* Portalled, but React still bubbles its clicks through the row, which
+            would open the conversation. */}
+        <DropdownMenuContent
+          align="end"
+          className="w-max min-w-44"
+          onClick={(e) => e.stopPropagation()}
+          onCloseAutoFocus={(e) => {
+            if (!renaming.current) return;
+            renaming.current = false;
+            e.preventDefault();
+            titleField.current?.focus();
           }}
         >
-          <MoreVertical className="h-4 w-4" />
-        </Button>
-
-        {showMenu && (
-          <>
-            {/* Inside the row, so a click that only closes the menu must not
-                reach the row and open its conversation. */}
-            <div
-              className="fixed inset-0 z-10"
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowMenu(false);
-              }}
-            />
-            {/* Drawn like every other menu in the console: one line per item,
-                read from the left, as wide as its longest label. */}
-            <div
-              className="panel absolute top-8 right-0 z-20 w-max min-w-44 rounded-xl p-1 shadow-lg"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Somebody else's thread: renaming, sharing, archiving and
-                    deleting are theirs, and leaving is the reader's own. */}
-              {shared ? (
-                <>
-                  {favouriteAction}
-                  <button
-                    className="text-destructive hover:bg-destructive/10 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm whitespace-nowrap max-md:min-h-11 [&_svg]:shrink-0"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onLeave?.();
-                      setShowMenu(false);
-                    }}
-                  >
-                    <LogOut className="h-4 w-4" />
-                    {t("leaveShared")}
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    className="hover:bg-accent flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm whitespace-nowrap max-md:min-h-11 [&_svg]:shrink-0"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setIsEditing(true);
-                      setShowMenu(false);
-                    }}
-                  >
-                    <Pencil className="h-4 w-4" />
-                    {t("rename")}
-                  </button>
-                  {/* Not for a project's chat: who reads it is the project's to say,
+          {/* Somebody else's thread: renaming, sharing, archiving and
+              deleting are theirs, and leaving is the reader's own. */}
+          {shared ? (
+            <>
+              {favouriteItem}
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onSelect={() => onLeave?.()}
+              >
+                <LogOut className="h-4 w-4" />
+                {t("leaveShared")}
+              </DropdownMenuItem>
+            </>
+          ) : (
+            <>
+              <DropdownMenuItem
+                onSelect={() => {
+                  renaming.current = true;
+                  setIsEditing(true);
+                }}
+              >
+                <Pencil className="h-4 w-4" />
+                {t("rename")}
+              </DropdownMenuItem>
+              {/* Not for a project's chat: who reads it is the project's to say,
                   and the server refuses a share of one. */}
-                  {!conversation.project_id && (
-                    <button
-                      className="hover:bg-accent flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm whitespace-nowrap max-md:min-h-11 [&_svg]:shrink-0"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onShare();
-                        setShowMenu(false);
-                      }}
-                    >
-                      <Share2 className="h-4 w-4" />
-                      {t("share")}
-                    </button>
-                  )}
-                  {/* In the menu as well as on the row: the hover control does not
-                  exist on a touch screen until something is long-pressed. */}
-                  {favouriteAction}
-                  {conversation.is_archived ? (
-                    <button
-                      className="hover:bg-accent flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm whitespace-nowrap max-md:min-h-11 [&_svg]:shrink-0"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onUnarchive();
-                        setShowMenu(false);
-                      }}
-                    >
-                      <ArchiveRestore className="h-4 w-4" />
-                      {t("restore")}
-                    </button>
-                  ) : (
-                    <button
-                      className="hover:bg-accent flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm whitespace-nowrap max-md:min-h-11 [&_svg]:shrink-0"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onArchive();
-                        setShowMenu(false);
-                      }}
-                    >
-                      <Archive className="h-4 w-4" />
-                      {t("archive")}
-                    </button>
-                  )}
-                  <button
-                    className="text-destructive hover:bg-destructive/10 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm whitespace-nowrap max-md:min-h-11 [&_svg]:shrink-0"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDelete();
-                      setShowMenu(false);
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    {t("delete")}
-                  </button>
-                </>
+              {!conversation.project_id && (
+                <DropdownMenuItem onSelect={onShare}>
+                  <Share2 className="h-4 w-4" />
+                  {t("share")}
+                </DropdownMenuItem>
               )}
-            </div>
-          </>
-        )}
-      </div>
+              {/* In the menu as well as on the row: the hover control does not
+                  exist on a touch screen until something is long-pressed. */}
+              {favouriteItem}
+              {conversation.is_archived ? (
+                <DropdownMenuItem onSelect={onUnarchive}>
+                  <ArchiveRestore className="h-4 w-4" />
+                  {t("restore")}
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem onSelect={onArchive}>
+                  <Archive className="h-4 w-4" />
+                  {t("archive")}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onSelect={onDelete}
+              >
+                <Trash2 className="h-4 w-4" />
+                {t("delete")}
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }

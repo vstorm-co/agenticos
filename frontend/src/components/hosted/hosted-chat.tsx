@@ -6,7 +6,16 @@ import { MessageSquarePlus, Mic, MicOff, Paperclip, Send, User, X } from "lucide
 import { useTranslations } from "next-intl";
 
 import { DictationBar } from "@/components/chat/dictation-bar";
-import { dictationHint, DictationStrip, movesOn } from "@/components/chat/dictation-strip";
+import {
+  browserSpeechFailure,
+  type BrowserSpeechFailure,
+} from "@/components/chat/browser-speech-failure";
+import {
+  browserFailureHint,
+  dictationHint,
+  DictationStrip,
+  movesOn,
+} from "@/components/chat/dictation-strip";
 import { MarkdownContent } from "@/components/chat/markdown-content";
 import { useFollowContent } from "@/hooks/use-follow-content";
 import { TurnParts } from "@/components/chat/turn-parts";
@@ -388,6 +397,7 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
   // so a new thread is a new connection rather than a frame.
   const [session, setSession] = useState(0);
   const [listening, setListening] = useState(false);
+  const [browserFailure, setBrowserFailure] = useState<BrowserSpeechFailure | null>(null);
   // Files already stored, waiting on the message that will name them. Held here
   // rather than sent as they arrive: the id is what the turn carries, and a file
   // attached and then thought better of should not become a turn of its own.
@@ -614,7 +624,11 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
           { call: voice.call, onRetry: () => startCall(callTransport), onDismiss: dismissCall },
           tVoice,
         );
-  const composerStrip = voiceHint ?? dictationStrip;
+  const browserStrip =
+    browserFailure === null
+      ? null
+      : browserFailureHint(browserFailure, () => setBrowserFailure(null), tDictation);
+  const composerStrip = voiceHint ?? dictationStrip ?? browserStrip;
   // Nor the browser's recogniser, which the call button sits beside. And the
   // call belongs to the thread it started in, whatever the page opens next.
   useEffect(() => {
@@ -669,9 +683,13 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
       if (heard) setDraft((current) => (current ? `${current} ${heard.trim()}` : heard.trim()));
     };
     recognition.onend = () => setListening(false);
-    recognition.onerror = () => setListening(false);
+    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+      setListening(false);
+      setBrowserFailure(browserSpeechFailure(event.error, window.isSecureContext));
+    };
     recognitionRef.current = recognition;
     recognition.start();
+    setBrowserFailure(null);
     setListening(true);
   }, [listening]);
 
