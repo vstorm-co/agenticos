@@ -408,6 +408,122 @@ def test_delete_crosslink_migration_preserves_rows_and_defers_only_checks() -> N
         engine.dispose()
 
 
+def test_run_conversation_check_waits_for_every_account_delete_cascade() -> None:
+    """Deleting an account succeeds in either trigger order once its runs were written."""
+    from app.db.models.agent import Agent
+    from app.db.models.agent_run import AgentRun
+    from app.db.models.conversation import Conversation
+
+    constraint = "agent_runs_conversation_id_fkey"
+    for action, revision in (
+        ("upgrade", "head"),
+        ("downgrade", "0321_resource_icons"),
+    ):
+        result = _alembic(action, revision)
+        assert result.returncode == 0, result.stderr
+
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    try:
+        with DatabaseSession(engine, expire_on_commit=False) as db:
+            creator = User(email=f"{uuid4()}@example.com", hashed_password="x")
+            owner = User(email=f"{uuid4()}@example.com", hashed_password="x")
+            db.add_all([creator, owner])
+            db.flush()
+            org_id = uuid4()
+            db.execute(
+                text(
+                    "INSERT INTO organizations (id, name, slug, is_personal, created_by_user_id) "
+                    "VALUES (:id, 'Erasure', :slug, false, :creator)"
+                ),
+                {"id": org_id, "slug": f"erasure-{org_id}", "creator": creator.id},
+            )
+            agent = Agent(organization_id=org_id, name="Helper", slug=f"helper-{uuid4()}")
+            chat = Conversation(organization_id=org_id, user_id=owner.id, title="Private")
+            db.add_all([agent, chat])
+            db.flush()
+            run = AgentRun(
+                organization_id=org_id,
+                agent_id=agent.id,
+                started_at=datetime.now(UTC),
+                user_id=owner.id,
+                conversation_id=chat.id,
+                routine_policy={"approved_sources": []},
+            )
+            db.add(run)
+            db.commit()
+            owner_id, run_id = owner.id, run.id
+
+        # Re-creating a constraint gives its RI triggers a newer OID, so its action
+        # fires after the other one. Each statement forces one of the two orders.
+        reorders = (
+            "ALTER TABLE conversations DROP CONSTRAINT conversations_user_id_fkey, "
+            "ADD CONSTRAINT conversations_user_id_fkey FOREIGN KEY (user_id) "
+            "REFERENCES users(id) ON DELETE CASCADE",
+            "ALTER TABLE agent_runs DROP CONSTRAINT agent_runs_user_id_fkey, "
+            "ADD CONSTRAINT agent_runs_user_id_fkey FOREIGN KEY (user_id) "
+            "REFERENCES users(id) ON DELETE SET NULL",
+        )
+
+        def erase(db: DatabaseSession, reorder: str) -> None:
+            db.execute(text(reorder))
+            # The erasure clears policy on the person's runs before deleting the
+            # account, so PostgreSQL rechecks the run's foreign keys on SET NULL.
+            db.execute(update(AgentRun).where(AgentRun.id == run_id).values(routine_policy=None))
+            db.execute(delete(User).where(User.id == owner_id))
+
+        failures = 0
+        for reorder in reorders:
+            with DatabaseSession(engine) as db:
+                try:
+                    erase(db, reorder)
+                except IntegrityError as exc:
+                    assert constraint in str(exc)
+                    failures += 1
+        assert failures == 1, "the old schema must fail in exactly one trigger order"
+
+        for action, revision, deferred in (
+            ("upgrade", "head", True),
+            ("downgrade", "0321_resource_icons", False),
+            ("upgrade", "head", True),
+        ):
+            result = _alembic(action, revision)
+            assert result.returncode == 0, result.stderr
+            with engine.connect() as connection:
+                row = connection.execute(
+                    text(
+                        "SELECT condeferrable, condeferred, confdeltype FROM pg_constraint "
+                        "WHERE conname = :name"
+                    ),
+                    {"name": constraint},
+                ).one()
+                assert (row.condeferrable, row.condeferred, row.confdeltype) == (
+                    deferred,
+                    deferred,
+                    "n",
+                )
+
+        for reorder in reorders:
+            with DatabaseSession(engine) as db:
+                erase(db, reorder)
+                db.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))
+                survivor = db.get(AgentRun, run_id)
+                assert survivor is not None
+                assert survivor.user_id is None
+                assert survivor.conversation_id is None
+                # Roll back so the next order starts from the same rows.
+
+        with DatabaseSession(engine) as db:
+            db.execute(
+                update(AgentRun).where(AgentRun.id == run_id).values(conversation_id=uuid4())
+            )
+            with pytest.raises(IntegrityError, match=constraint):
+                db.commit()
+        check = _alembic("check")
+        assert check.returncode == 0, check.stderr
+    finally:
+        engine.dispose()
+
+
 class TestMigrations:
     """Test Alembic migration integrity."""
 

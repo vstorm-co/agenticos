@@ -50,6 +50,7 @@ from app.repositories import (
     skill_repo,
     skill_usage_repo,
     skill_version_repo,
+    virtual_table_repo,
 )
 from app.repositories import workflow_run as workflow_run_repo
 from app.services.conversation import ConversationService
@@ -97,12 +98,15 @@ TENANT_REQUIRED = [
     (intercepted_tool_call_repo, "add_many"),
     (intercepted_tool_call_repo, "list_for_run"),
     (dataset_repo, "get"),
+    (dataset_repo, "hold_case_sources"),
     (dataset_repo, "get_by_name"),
     (dataset_repo, "lock_revision"),
     (message_rating_repo, "get_down_rating_notes_for_messages"),
     (message_rating_repo, "noter_of"),
     (personal_data_repo, "asker_of"),
     (conversation_share_repo, "has_edit_share"),
+    (virtual_table_repo, "delete_receipts_for_table"),
+    (personal_data_repo, "forget_system_runs_of"),
     (dataset_repo, "lock"),
     (dataset_repo, "list_visible"),
     (dataset_repo, "testing_agent"),
@@ -291,6 +295,7 @@ CROSS_TENANT_BY_DESIGN = [
     (personal_data_repo, "delete_case_proposals_of"),
     (personal_data_repo, "case_proposals_from"),
     (personal_data_repo, "knowledge_searches_of"),
+    (personal_data_repo, "forget_all_system_runs_of"),
     (personal_data_repo, "purge_knowledge_searches_of"),
     (personal_data_repo, "clear_gap_reasons_of"),
     (knowledge_gap_repo, "knowledge_bases_with_ungrouped_misses"),

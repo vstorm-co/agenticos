@@ -29,6 +29,8 @@ from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import Scope
+from app.db.models.agent_run import AgentRun
+from app.db.models.conversation import Conversation
 from app.db.models.dataset import Dataset, DatasetCase, DatasetVersion
 from app.db.models.eval_run import EvalRun, EvalRunStatus
 from app.db.models.eval_suite import EvalSuite
@@ -700,3 +702,40 @@ async def close_revisions(
         .values(removed_in=at)
     )
     await db.flush()
+
+
+async def hold_case_sources(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    run_id: UUID | None,
+    conversation_id: UUID | None,
+) -> tuple[UUID | None, UUID | None]:
+    """The run and conversation a new case may link to, held until it is inserted.
+
+    `FOR KEY SHARE` is the lock the case's own foreign keys would take, so neither
+    row can be deleted between this read and the insert; one that is gone, or in
+    another organization, comes back as `None` and the case links nothing.
+    """
+    run = (
+        None
+        if run_id is None
+        else await db.scalar(
+            select(AgentRun.id)
+            .where(AgentRun.id == run_id, AgentRun.organization_id == organization_id)
+            .with_for_update(key_share=True)
+        )
+    )
+    conversation = (
+        None
+        if conversation_id is None
+        else await db.scalar(
+            select(Conversation.id)
+            .where(
+                Conversation.id == conversation_id,
+                Conversation.organization_id == organization_id,
+            )
+            .with_for_update(key_share=True)
+        )
+    )
+    return run, conversation

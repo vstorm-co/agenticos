@@ -35,8 +35,15 @@ from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent
 from app.db.models.memory import AgentMemoryFile
 from app.db.models.memory_claim import MemoryClaim
-from app.repositories import agent_repo, memory_claim, memory_repo, organization_repo
-from app.schemas.decision_episode import DecisionEpisode, ImproveCaseReview, ImproveDecisionCase
+from app.repositories import (
+    agent_repo,
+    memory_claim,
+    memory_repo,
+    organization_repo,
+    personal_data_repo,
+)
+from app.schemas.dataset import DatasetCaseContent, DatasetCaseRead
+from app.schemas.decision_episode import DecisionEpisode, ImproveCaseReview
 from app.schemas.memory import (
     MemoryClaimCorrect,
     MemoryClaimDetail,
@@ -47,6 +54,7 @@ from app.schemas.memory import (
     MemoryNoteRead,
 )
 from app.services.access import AGENT, resolve_access
+from app.services.dataset import DatasetService
 from app.services.memory import _claims
 
 logger = logging.getLogger(__name__)
@@ -147,15 +155,27 @@ class MemoryService:
 
     async def improve_case(
         self, ctx: AuthContext, claim_id: UUID, data: ImproveCaseReview
-    ) -> ImproveDecisionCase:
-        """Export only human-reviewed text in #2172's JSONL case contract.
+    ) -> DatasetCaseRead:
+        """Add only human-reviewed text from a decision episode to a dataset.
 
-        Dataset import, evaluation and publishing stay in Improve. This does not
-        grant any dataset access or turn one private episode into a shared rule.
+        The caller needs `datasets:edit` on that dataset; this grants no dataset
+        access and turns no private episode into a shared rule. The case records the
+        caller as who asked it, so erasing them anonymises it like any case taken
+        from their conversations.
         """
         row = await self._own_live_claim(ctx, claim_id)
         if row.kind != "decision" or row.episode is None:
             raise BadRequestError(message="Choose a recorded decision episode")
+        case = await DatasetService(self.db).add_reviewed_case(
+            ctx,
+            data.dataset_id,
+            DatasetCaseContent(
+                input=data.input, reference_answer=data.reference_answer, tags=["decision-episode"]
+            ),
+            asked_by=ctx.subject_id,
+            source_run_id=row.source_run_id,
+            source_conversation_id=row.source_conversation_id,
+        )
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -163,14 +183,9 @@ class MemoryService:
             action="memory.episode.exported",
             target_type="memory_claim",
             target_id=str(row.id),
-            details={},
+            details={"dataset_id": str(data.dataset_id), "case_id": str(case.id)},
         )
-        return ImproveDecisionCase(
-            input=data.input,
-            reference_answer=data.reference_answer,
-            tags=["decision-episode"],
-            note=f"Reviewed memory episode {row.id}; source run {row.source_run_id}; source conversation {row.source_conversation_id}",
-        )
+        return case
 
     async def correct_claim(
         self, ctx: AuthContext, claim_id: UUID, data: MemoryClaimCorrect
@@ -447,6 +462,9 @@ class MemoryService:
         claims = await memory_claim.delete_for_scope(
             self.db, organization_id=ctx.organization_id, scope_key=owner_key
         )
+        await personal_data_repo.forget_system_runs_of(
+            self.db, user_id, organization_id=ctx.organization_id
+        )
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -472,6 +490,7 @@ class MemoryService:
             self.db, ctx, agent, Perm.AGENTS_EDIT, resource_type=AGENT
         ):
             raise NotFoundError(message="Agent not found", details={"agent_id": agent_id})
+        await hold_subject(self.db, LockScope.MEMORY_PER_AGENT, agent_id)
         notes = await memory_repo.delete_all_for_agent(
             self.db, organization_id=ctx.organization_id, agent_id=agent_id
         )

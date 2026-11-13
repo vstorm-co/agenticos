@@ -24,10 +24,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.memory_keys import PERSON_PREFIX, is_person_key
-from app.db.locks import LockScope, hold_subject
+from app.db.locks import LockScope, hold_subject, hold_subject_shared
+from app.db.models.agent_run import AgentRun
 from app.db.models.user import User
 from app.db.session import get_db_context
-from app.repositories import memory_repo
+from app.repositories import audit_log_repo, memory_repo
 
 
 @dataclass(frozen=True)
@@ -81,14 +82,59 @@ async def person_still_exists(db: AsyncSession, owner_key: str) -> bool:
     is `app.core.memory_keys`, and inventing a refusal here for a shape that
     module does not produce would be a second answer to the same question.
     """
-    if not is_person_key(owner_key):
-        return True
-    try:
-        user_id = UUID(owner_key.removeprefix(PERSON_PREFIX))
-    except ValueError:
+    user_id = _person_of(owner_key)
+    if user_id is None:
         return True
     await hold_subject(db, LockScope.PERSONAL_DATA_PER_USER, user_id)
     return await db.scalar(select(exists().where(User.id == user_id))) or False
+
+
+def _person_of(owner_key: str) -> UUID | None:
+    if not is_person_key(owner_key):
+        return None
+    try:
+        return UUID(owner_key.removeprefix(PERSON_PREFIX))
+    except ValueError:
+        return None
+
+
+class ErasedDuringRun(Exception):
+    """The store was erased after the run writing to it began, so nothing was written."""
+
+
+async def refuse_if_erased_during_run(
+    db: AsyncSession, *, owner_key: str, agent_id: UUID | None, run_id: UUID | None
+) -> None:
+    """Raise `ErasedDuringRun` when this store was erased after the run started.
+
+    A run admitted before "forget me", or before its agent's memory was cleared,
+    still holds the conversation it read - and a run parked on an approval resumes
+    long after. Writing from it would put back what the person was told is gone.
+    `agent_id` is the agent whose store is written, which a delegate sharing its
+    parent's run need not share with the run; `None` for a store no agent holds.
+    Called after `person_still_exists`, whose lock the erasure takes too, and holds
+    the shared side of the agent's memory lock, which clearing the agent takes
+    whole. A write with no run has no start to compare against and is not refused.
+    """
+    if agent_id is not None:
+        await hold_subject_shared(db, LockScope.MEMORY_PER_AGENT, agent_id)
+    if run_id is None:
+        return
+    run = (
+        await db.execute(
+            select(AgentRun.organization_id, AgentRun.started_at).where(AgentRun.id == run_id)
+        )
+    ).one_or_none()
+    if run is None or run.started_at is None:
+        return
+    if await audit_log_repo.memory_erased_since(
+        db,
+        organization_id=run.organization_id,
+        user_id=_person_of(owner_key),
+        agent_id=agent_id,
+        since=run.started_at,
+    ):
+        raise ErasedDuringRun
 
 
 async def write_file(
@@ -100,12 +146,16 @@ async def write_file(
     content: str,
     description: str | None,
     kind: str,
+    run_id: UUID | None,
 ) -> bool:
     """Create a new note. False when the name is already taken in that store.
 
     A collision is reported rather than silently overwritten: overwriting is
     `edit_file`, a deliberately separate act, so the model cannot lose a note by
     reaching for the wrong verb.
+
+    Raises:
+        ErasedDuringRun: The store was erased after `run_id` started.
     """
     async with get_db_context() as db:
         if not await person_still_exists(db, owner_key):
@@ -115,6 +165,7 @@ async def write_file(
             # note that lands after the purge has read the table is personal
             # data the erasure reported as removed (#1421).
             return False
+        await refuse_if_erased_during_run(db, owner_key=owner_key, agent_id=agent_id, run_id=run_id)
         # The write path is the one that sees a suppressed note, because the name
         # is taken in the database either way and a create that could not see it
         # would fail on the constraint with nothing useful to say. A suppressed
@@ -165,10 +216,23 @@ async def write_file(
 
 
 async def edit_file(
-    *, organization_id: UUID, agent_id: UUID, owner_key: str, name: str, content: str
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    owner_key: str,
+    name: str,
+    content: str,
+    run_id: UUID | None,
 ) -> bool:
-    """Replace an existing note's body. False when there is no such name."""
+    """Replace an existing note's body. False when there is no such name.
+
+    Raises:
+        ErasedDuringRun: The store was erased after `run_id` started.
+    """
     async with get_db_context() as db:
+        if not await person_still_exists(db, owner_key):
+            return False
+        await refuse_if_erased_during_run(db, owner_key=owner_key, agent_id=agent_id, run_id=run_id)
         row = await memory_repo.get_by_name(
             db,
             organization_id=organization_id,

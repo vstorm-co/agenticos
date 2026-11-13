@@ -16,6 +16,7 @@ import re
 from collections import defaultdict
 from collections.abc import Iterable
 from datetime import datetime
+from itertools import batched
 from typing import Any
 from uuid import UUID
 
@@ -87,6 +88,7 @@ from app.db.models.session import Session
 from app.db.models.skill_improvement import SkillImprovementRun
 from app.db.models.skill_proposal import SkillProposal
 from app.db.models.suggestion import Suggestion
+from app.db.models.system_agent_profile import SYSTEM_ROLES
 from app.db.models.task_board import TaskBoard
 from app.db.models.telephony import PhoneCall, PhoneContact
 from app.db.models.user import User
@@ -803,6 +805,11 @@ _SPEC_PARTS = frozenset({"instructions", "system_prompts", "tools", "settings", 
 cost, never the messages, reviews or code that carried what was asked."""
 
 
+def forgotten_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """What a manifest keeps once the person it was about is erased."""
+    return {key: value for key, value in payload.items() if key in _SPEC_PARTS}
+
+
 def judge_runs_of(score: CaseScore) -> set[UUID]:
     """The runs a judge made to grade one score."""
     return {
@@ -825,9 +832,7 @@ async def forget_runs(db: AsyncSession, run_ids: Iterable[UUID]) -> None:
         return
     manifests = await db.execute(select(RunManifest).where(RunManifest.run_id.in_(wanted)))
     for manifest in manifests.scalars():
-        manifest.payload = {
-            key: value for key, value in manifest.payload.items() if key in _SPEC_PARTS
-        }
+        manifest.payload = forgotten_payload(manifest.payload)
         manifest.truncated = True
     await db.execute(
         update(InterceptedToolCall).where(InterceptedToolCall.run_id.in_(wanted)).values(args={})
@@ -836,6 +841,43 @@ async def forget_runs(db: AsyncSession, run_ids: Iterable[UUID]) -> None:
         update(ToolApproval).where(ToolApproval.run_id.in_(wanted)).values(tool_args={})
     )
     await db.flush()
+
+
+def _system_runs_of(user_id: UUID) -> Select[UUID]:
+    return select(AgentRun.id).where(
+        AgentRun.user_id == user_id, AgentRun.system_role.in_(SYSTEM_ROLES)
+    )
+
+
+async def forget_system_runs_of(db: AsyncSession, user_id: UUID, *, organization_id: UUID) -> None:
+    """Trim the manifests of the system-role runs made for this person in one organization.
+
+    Memory maintenance and the daily briefing are attributed to the person they read
+    about: a maintenance manifest keeps the transcript and the facts drawn from it, a
+    briefing's the person's notes and requests - the same personal data as the notes
+    and claims an erasure deletes.
+    """
+    await _forget_in_batches(
+        db, _system_runs_of(user_id).where(AgentRun.organization_id == organization_id)
+    )
+
+
+async def forget_all_system_runs_of(db: AsyncSession, user_id: UUID) -> None:
+    """`forget_system_runs_of` in every organization, for a deleted account.
+
+    Unscoped by organization on purpose: the account is going, so nothing it was
+    told in any organization may stay in a manifest.
+    """
+    await _forget_in_batches(db, _system_runs_of(user_id))
+
+
+_RUN_BATCH = 1000
+"""Run ids per `forget_runs` call: one statement binds every id it is handed."""
+
+
+async def _forget_in_batches(db: AsyncSession, runs: Select[UUID]) -> None:
+    for batch in batched(await db.scalars(runs.order_by(AgentRun.id)), _RUN_BATCH, strict=False):
+        await forget_runs(db, batch)
 
 
 async def scrub_history_turns_of(

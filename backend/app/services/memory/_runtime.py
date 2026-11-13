@@ -35,7 +35,7 @@ from app.repositories.memory_claim import ClaimScope
 from app.schemas.decision_episode import DecisionEpisode
 from app.services.access import PROJECT, acting_member, resolve_access
 from app.services.memory import _claims
-from app.services.memory._native import person_still_exists
+from app.services.memory._native import person_still_exists, refuse_if_erased_during_run
 
 
 @dataclass(frozen=True)
@@ -97,10 +97,17 @@ async def remember(
     effective_from: datetime | None,
     episode: DecisionEpisode | None = None,
 ) -> tuple[ClaimView, bool, bool] | None:
-    """Record a claim. `None` when its person is gone; else (claim, created, disputed)."""
+    """Record a claim. `None` when its person is gone; else (claim, created, disputed).
+
+    Raises:
+        ErasedDuringRun: The scope was erased after `run_id` started.
+    """
     async with get_db_context() as db:
         if not await person_still_exists(db, scope.scope_key):
             return None
+        await refuse_if_erased_during_run(
+            db, owner_key=scope.scope_key, agent_id=scope.agent_id, run_id=run_id
+        )
         result = await _claims.remember(
             db,
             organization_id=organization_id,
@@ -192,6 +199,7 @@ async def correct(
     Raises:
         ShareRefused: The claim is one the whole project or organization reads and the
             person may not change it.
+        ErasedDuringRun: The claim's store was erased after `run_id` started.
     """
     async with get_db_context() as db:
         claim = await claim_repo.get(db, organization_id=organization_id, claim_id=claim_id)
@@ -204,6 +212,11 @@ async def correct(
             # An id from an earlier `recall` can name a claim since corrected, merged or
             # retracted; correcting it would supersede the current one beside it.
             return None
+        if not await person_still_exists(db, claim.scope_key):
+            return None
+        await refuse_if_erased_during_run(
+            db, owner_key=claim.scope_key, agent_id=claim.agent_id, run_id=run_id
+        )
         await _may_write_wide(
             db,
             organization_id=organization_id,

@@ -63,9 +63,10 @@ it("preserves rich notes, assignees, dates and optimistic revision when changing
   });
 });
 it("sends the explicitly reviewed decision answer rather than silently accepting a generated reference", async () => {
-  await reviewDecisionCase("memory", "Original question", "Corrected answer");
+  await reviewDecisionCase("memory", "dataset", "Original question", "Corrected answer");
   expect(apiClient.post).toHaveBeenCalledWith("/memory/claims/mine/memory/improve-case", {
     confirmed: true,
+    dataset_id: "dataset",
     input: "Original question",
     reference_answer: "Corrected answer",
   });

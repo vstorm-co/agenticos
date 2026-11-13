@@ -22,6 +22,7 @@ What keeps it safe is how little it is allowed to do:
 """
 
 import logging
+from datetime import UTC, datetime
 from typing import Literal
 from uuid import UUID
 
@@ -30,7 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.audience import RunAudience
 from app.agents.memory_scope import claim_write_scope
-from app.db.locks import LockScope, hold_subject
+from app.db.locks import LockScope, hold_subject, hold_subject_shared
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.system_agent_profile import MEMORY_MAINTENANCE
 from app.repositories import (
@@ -234,6 +235,9 @@ async def extract(
     ctx = await member_context(db, organization_id=organization_id, user_id=run.user_id)
     if ctx is None or await _erased_since(db, run) or (personal and await _read_by_others(db, run)):
         return 0
+    # The maintenance run is dated from before the transcript is read, so an erasure
+    # committed after this read is one its manifest write still sees.
+    read_at = datetime.now(UTC)
     messages = await conversation_repo.get_messages_by_run(db, run.id, limit=60, newest=True)
     turns = [f"{m.role}: {m.content.strip()}" for m in messages if m.role in ("user", "assistant")]
     transcript = "\n\n".join(turns)[-MAX_TRANSCRIPT_CHARS:]
@@ -246,12 +250,15 @@ async def extract(
         output_type=_Extraction,
         instructions=_INSTRUCTIONS,
         prompt=f"Conversation:\n\n{transcript}",
+        started_at=read_at,
+        erased_since=run.started_at,
     )
     if found is None:
         return 0
     # Acquire before the final erasure check, not only when the first claim is
     # inserted: otherwise an erasure can commit while that insertion waits.
     await hold_subject(db, LockScope.PERSONAL_DATA_PER_USER, run.user_id)
+    await hold_subject_shared(db, LockScope.MEMORY_PER_AGENT, run.agent_id)
     if (
         await _erased_since(db, run)
         or (personal and await _read_by_others(db, run))

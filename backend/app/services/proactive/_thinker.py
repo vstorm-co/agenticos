@@ -49,6 +49,7 @@ from app.agents.failures import run_failure_summary
 from app.agents.manifest import RecordingModel, RunRecorder, as_payload, fit
 from app.core.exceptions import AppException
 from app.core.permissions import AuthContext
+from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent as AgentRow
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.organization import Organization
@@ -57,9 +58,12 @@ from app.db.session import get_worker_db_context
 from app.repositories import (
     agent_repo,
     agent_run_repo,
+    audit_log_repo,
     organization_repo,
+    personal_data_repo,
     run_manifest_repo,
     system_agent_repo,
+    user_repo,
 )
 from app.services.model_profile import ModelProfileService
 from app.services.run_heartbeat import run_heartbeat
@@ -187,12 +191,16 @@ class ProactiveThinker:
         toolsets: Sequence[AbstractToolset[object]] = (),
         source_agent_id: UUID | None = None,
         started_at: datetime | None = None,
+        erased_since: datetime | None = None,
     ) -> OutputT | None:
         """Ask the configured model using platform instructions and role attribution.
 
         `toolsets` are what it may read before answering - a watch's connection,
         narrowed to the tools that only read. `started_at` dates the run from
         earlier than this call, for work that read its material first.
+        `erased_since` is when that material was written, for the check that keeps
+        an erased person's words out of the manifest: an erasure committed after it
+        trims the manifest even when it was recorded before `started_at`.
 
         Maintenance records its originating agent and needs no starter agent.
         Returns `None` - having spent nothing - without its attribution agent or past a
@@ -291,7 +299,9 @@ class ProactiveThinker:
             # The outer job rolls back on cancellation. Own and commit the
             # terminal write here, and drain it even if shutdown cancels again.
             settlement = asyncio.create_task(
-                self._finish(run, ledger, status, error, recorder, transcript)
+                self._finish(
+                    run, ledger, status, error, recorder, transcript, erased_since=erased_since
+                )
             )
             cancelled = False
             try:
@@ -422,7 +432,12 @@ class ProactiveThinker:
         error: str | None,
         recorder: RunRecorder,
         transcript: list[ModelMessage] | None,
+        *,
+        erased_since: datetime | None = None,
     ) -> None:
+        # Before the run row is locked: account deletion holds the erasure lock while
+        # its SET NULL waits for that row, so the other order deadlocks.
+        erased = await self._erased_during(run, since=erased_since or run.started_at)
         await agent_run_repo.finish_run(
             self.db,
             run=run,
@@ -434,11 +449,37 @@ class ProactiveThinker:
             ended_at=datetime.now(UTC),
             error=error,
         )
-        await self._record(run, recorder, transcript)
+        await self._record(run, recorder, transcript, erased=erased)
         await self.db.commit()
 
+    async def _erased_during(self, run: AgentRun, *, since: datetime | None) -> bool:
+        """Whether the person this run read about was erased after `since`.
+
+        The run is committed before the provider call, so an erasure can finish in
+        between and find no manifest to trim. Asked under the erasure's own lock,
+        which it holds until it commits, so the answer cannot change before this
+        transaction writes the manifest.
+        """
+        if run.user_id is None:
+            return False
+        await hold_subject(self.db, LockScope.PERSONAL_DATA_PER_USER, run.user_id)
+        if not await user_repo.existing_ids(self.db, [run.user_id]):
+            return True
+        return since is not None and await audit_log_repo.memory_erased_since(
+            self.db,
+            organization_id=run.organization_id,
+            user_id=run.user_id,
+            agent_id=run.agent_id,
+            since=since,
+        )
+
     async def _record(
-        self, run: AgentRun, recorder: RunRecorder, transcript: list[ModelMessage] | None
+        self,
+        run: AgentRun,
+        recorder: RunRecorder,
+        transcript: list[ModelMessage] | None,
+        *,
+        erased: bool,
     ) -> None:
         if not recorder.requests and recorder.instructions is None:
             return
@@ -456,6 +497,8 @@ class ProactiveThinker:
                     else ModelMessagesTypeAdapter.dump_python([recorder.last_response], mode="json")
                 )
             payload, truncated = fit(payload)
+            if erased:
+                payload, truncated = personal_data_repo.forgotten_payload(payload), True
             async with self.db.begin_nested():
                 await run_manifest_repo.record(
                     self.db,
