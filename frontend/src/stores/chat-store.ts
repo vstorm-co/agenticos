@@ -28,9 +28,11 @@ function persistedAliases(local: ChatMessage[], history: ChatMessage[]): Map<str
     if (key !== undefined) prompts.set(key, prompts.has(key) ? null : index);
   });
   local.forEach((message, index) => {
-    if (!message.isTemporaryId || message.role !== "user") return;
+    if (message.role !== "user") return;
     const key = promptKey(message);
-    const savedIndex = key === undefined ? undefined : prompts.get(key);
+    const stableIndex = history.findIndex((saved) => saved.id === message.id);
+    const savedIndex =
+      stableIndex >= 0 ? stableIndex : key === undefined ? undefined : prompts.get(key);
     if (typeof savedIndex !== "number") return;
     const saved = history[savedIndex]!;
     aliases.set(message.id, saved.id);
@@ -250,9 +252,19 @@ const chatState: StateCreator<ChatState> = (set) => ({
         const persisted = incoming.get(id);
         if (persisted) {
           nextPersisted = id;
+          const previous = state.messages[index - 1];
+          // An acknowledged question still has a live answer until message_saved
+          // renames it. A recovered, unacknowledged question instead uses history.
+          const awaitingSave =
+            message.role === "assistant" &&
+            message.isTemporaryId &&
+            aliases.has(message.id) &&
+            previous?.role === "user" &&
+            !previous.isTemporaryId &&
+            incoming.has(previous.id);
           incoming.set(
             id,
-            message.isStreaming
+            message.isStreaming || awaitingSave
               ? { ...message, persistedId: id }
               : {
                   ...retainNextSteps(persisted, message),

@@ -349,3 +349,45 @@ async def test_multiple_reactions_are_deduplicated_and_partial_failure_is_explic
     assert receipt["not_attempted"] == ["tada"]
     assert not receipt["reaction_only"]
     assert adapter.react_to_message.await_count == 2
+
+
+@pytest.mark.security
+async def test_current_thread_is_disclosed_and_oversized_lookups_are_refused(setup):
+    from app.agents.capabilities.channel_tools._directory import ChannelDestination
+
+    _, ctx, agent_id, bot, _, adapter, *_ = setup
+    service = ChannelActionService(
+        ctx,
+        agent_id,
+        destination=ChannelDestination(
+            bot_id=bot.id,
+            platform_chat_id="room:thread",
+            private_chat=False,
+            message_id="question",
+        ),
+    )
+    current = json.loads(await service.connections())["current_conversation"]
+    assert current == {
+        "bot_id": str(bot.id),
+        "channel_id": "room",
+        "thread_id": "thread",
+        "message_id": "question",
+    }
+    for query, cursor in (("x" * 201, None), ("ok", "x" * 4097)):
+        with pytest.raises(BadRequestError):
+            await service.find(bot.id, query, 10, cursor)
+    adapter.joined_channels.assert_not_awaited()
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "message_id,emojis", [("../message", ["heart"]), ("message", []), ("message", ["bad:emoji"])]
+)
+async def test_invalid_reactions_never_reach_the_provider(setup, message_id, emojis):
+    _, ctx, agent_id, bot, _, adapter, *_ = setup
+    adapter.react_to_message = AsyncMock()
+    with pytest.raises(BadRequestError):
+        await ChannelActionService(ctx, agent_id).react(
+            bot.id, "room", message_id, emojis, reaction_only=True
+        )
+    adapter.react_to_message.assert_not_awaited()

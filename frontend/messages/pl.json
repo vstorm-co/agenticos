@@ -8617,6 +8617,7 @@
     "option": "Kolor {n}"
   },
   "triggers": {
+    "deliveryUnavailable": "Ostatni wynik niedostępny w czacie",
     "attemptsTitle": "Przed uruchomieniem agenta",
     "attemptsHint": "Te próby nie rozpoczęły runu agenta ani nie naliczyły kosztów modelu.",
     "attemptsError": "Nie udało się odczytać prób przed startem agenta.",

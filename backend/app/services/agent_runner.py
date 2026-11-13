@@ -4422,6 +4422,7 @@ class AgentRunnerService:
             surface.value,
             console_url=settings.FRONTEND_URL,
             linked_sender=personal_mcp_user_id is not None,
+            test_environment=settings.ENVIRONMENT in {"local", "development"},
         )
         if context:
             guidance = "" if CHANNEL_BEHAVIOR in spec.instructions else "\n\n" + CHANNEL_BEHAVIOR

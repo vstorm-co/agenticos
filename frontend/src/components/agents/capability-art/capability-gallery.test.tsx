@@ -57,7 +57,6 @@ const REGISTERED = [
   "ask_user",
   "browser_use",
   "channel_tools",
-  "channel_actions",
   "charts",
   "clock",
   "code_execution",
@@ -90,6 +89,11 @@ afterEach(() => {
 describe("the capability art", () => {
   it("draws every registered capability", () => {
     expect(Object.keys(CAPABILITY_ART).sort()).toEqual(REGISTERED);
+  });
+
+  it("draws connected-chat tools using the added scene", () => {
+    const { container } = render(<CapabilityArt id="channel_actions" name="Connected chat apps" />);
+    expect(container.querySelector(".v-B svg")).not.toBeNull();
   });
 
   it("renders the scene for a capability it has one for", () => {

@@ -138,6 +138,15 @@ from tests.workspaces import document_workspace
 
 
 @pytest.fixture(autouse=True)
+def _no_connected_chat_bindings(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These runs have no bot grants; test_channel_actions exercises actual audiences."""
+    monkeypatch.setattr(
+        "app.services.channel_actions.agent_exposure_repo.list_for_agent",
+        AsyncMock(return_value=[]),
+    )
+
+
+@pytest.fixture(autouse=True)
 def _nobody_the_account_describes(monkeypatch: pytest.MonkeyPatch) -> None:
     """No account behind these runs' facts; `test_prompt_variables` covers the person (#2301).
 

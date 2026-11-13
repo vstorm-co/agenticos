@@ -145,6 +145,9 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
           <p className="text-muted-foreground/80 truncate text-xs">{trigger.prompt}</p>
         </div>
       </button>
+      {trigger.last_delivery_status === "unavailable" && (
+        <Badge variant="secondary">{t("deliveryUnavailable")}</Badge>
+      )}
       {trigger.setup_required &&
         (trigger.can_manage && me != null && me === trigger.created_by_user_id && !impersonating ? (
           <Button

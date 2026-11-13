@@ -9771,6 +9771,7 @@
     "option": "Farbe {n}"
   },
   "triggers": {
+    "deliveryUnavailable": "Letzte Antwort im Chat nicht verfügbar",
     "attemptsTitle": "Vor dem Agentenstart",
     "attemptsHint": "Diese Versuche haben keinen Agentenlauf gestartet und keine Modellkosten verursacht.",
     "attemptsError": "Versuche vor dem Agentenstart konnten nicht gelesen werden.",

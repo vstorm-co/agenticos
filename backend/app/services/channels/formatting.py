@@ -83,7 +83,9 @@ CHANNEL_BEHAVIOR = f"""Channel conversation guidance:
 - Prefer balanced diagrams with readable labels over long horizontal chains."""
 
 
-def runtime_context(surface: str, *, console_url: str, linked_sender: bool) -> str:
+def runtime_context(
+    surface: str, *, console_url: str, linked_sender: bool, test_environment: bool = False
+) -> str:
     """Facts the deployment knows, independent of an editable binding prompt."""
     names = {
         "discord": "Discord",
@@ -91,6 +93,9 @@ def runtime_context(surface: str, *, console_url: str, linked_sender: bool) -> s
         "slack": "Slack",
         "teams": "Microsoft Teams",
         "telegram": "Telegram",
+        "sms": "SMS (Twilio)",
+        "email": "Email",
+        "imessage": "iMessage",
     }
     platform = names.get(surface)
     if platform is None:
@@ -104,6 +109,12 @@ def runtime_context(surface: str, *, console_url: str, linked_sender: bool) -> s
         f"You are answering through {platform}, connected to the AgenticOS deployment at {console_url.rstrip('/')}. "
         "Your tools run in its managed workspace. Files on the person's own device are available only when attached or reached through an authorized connection. "
         + identity
+        + (
+            " This is a local test deployment. Connected services and external effects can still be real; "
+            "respect approvals and verify delivery rather than claiming an action was simulated."
+            if test_environment
+            else ""
+        )
     )
 
 

@@ -52,3 +52,12 @@ def test_stored_compaction_and_legacy_summary_are_screened_before_reuse():
     )
     assert "SECRET" in history[0].parts[0].content
     assert all("SECRET" not in part.content for message in cleaned for part in message.parts)
+
+
+def test_a_throwing_input_detector_keeps_the_refusal_marker():
+    from app.agents.capabilities.guardrails import GuardrailBlocked
+
+    def refuse(text: str) -> GuardrailResult:
+        raise GuardrailBlocked(edge="input", message="A private value was refused")
+
+    assert screened_copy("private", None, refuse) == REFUSED_TURN

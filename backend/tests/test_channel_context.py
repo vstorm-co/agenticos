@@ -117,6 +117,9 @@ async def test_failed_context_is_unknown_without_leaking_provider_details(error)
         ("slack", "Slack"),
         ("teams", "Microsoft Teams"),
         ("telegram", "Telegram"),
+        ("sms", "SMS (Twilio)"),
+        ("email", "Email"),
+        ("imessage", "iMessage"),
     ],
 )
 @pytest.mark.parametrize("linked", [True, False])
@@ -492,3 +495,17 @@ async def test_double_braces_and_legacy_placeholders_resolve_once_without_stray_
     assert result.startswith("Support | Support | Ada, Bob | {{unknown}} | {{{channel_name}}}")
     bound.details.assert_awaited_once()
     bound.members.assert_awaited_once()
+
+
+@pytest.mark.parametrize("testing", [True, False])
+def test_runtime_marks_only_test_deployments_and_does_not_pretend_connected_services_are_fake(
+    testing,
+):
+    context = runtime_context(
+        "mattermost",
+        console_url="http://localhost:3213",
+        linked_sender=True,
+        test_environment=testing,
+    )
+    assert ("local test deployment" in context) is testing
+    assert ("external effects can still be real" in context) is testing

@@ -376,9 +376,11 @@ def build_artifacts_toolset(
         `lib/agenticos-2.css`, `lib/agenticos-2.js`, `lib/agenticos-1.css` and `lib/agenticos-map-1.js` stay served for pages published
         against them; build new pages on version 3. Follow the page
         contract in your instructions: doctype and viewport, `main.ao-page`, the header,
-        only the kit's classes, tables with `<thead>`. Keep to the product's look: graphite,
-        no accent colour, green and red only for better and worse, icons rather than
-        emoji unless the person asked for emoji. Before building a page, load the
+        readable semantic sections and tables with `<thead>`. Use the kit for working
+        defaults, then choose a deliberate visual direction for the audience and supplied
+        brand. Custom CSS, palettes, typography and original illustrations are supported;
+        verify contrast, responsive layouts and every control. The console's neutral
+        appearance is not a mandatory theme for generated Apps. Before building a page, load the
         `artifact-pages` skill if it is listed - it has the templates and every
         component. Links to other sites work: the person is asked before one opens.
         For tabular numbers you only want shown in the chat, use `create_chart` instead.

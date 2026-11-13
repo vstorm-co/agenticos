@@ -91,8 +91,8 @@ describe("the placeholders a prompt may carry", () => {
   it("offers only what this platform can fill in", () => {
     mount(null, false, variables);
 
-    expect(screen.getByRole("button", { name: "{channel_name}" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "{member_list}" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "{{channel_name}}" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "{{member_list}}" })).toBeVisible();
   });
 
   it("says nothing at all where the platform fills in nothing", () => {
@@ -109,9 +109,9 @@ describe("the placeholders a prompt may carry", () => {
     const box = screen.getByRole("textbox") as HTMLTextAreaElement;
     box.setSelectionRange(7, 7);
 
-    await userEvent.click(screen.getByRole("button", { name: "{channel_name}" }));
+    await userEvent.click(screen.getByRole("button", { name: "{{channel_name}}" }));
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
-    expect(onSave).toHaveBeenCalledWith("Answer {channel_name}here.");
+    expect(onSave).toHaveBeenCalledWith("Answer {{channel_name}}here.");
   });
 });
