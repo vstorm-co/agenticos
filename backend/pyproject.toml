@@ -2379,6 +2379,9 @@ exclude_also = [
 ]
 
 [tool.uv]
+# CVE-2026-126360: bound untrusted traceparent parsing in the tracing stack.
+constraint-dependencies = ["opentelemetry-api>=1.45.2"]
+
 # aiogram 3.31 caps pydantic below 2.14, and every pydantic 2.13 pins a
 # pydantic-core with no CPython 3.15 wheel, so without this the backend cannot
 # be installed on the Python it runs (#2229). aiogram raises that cap with each
