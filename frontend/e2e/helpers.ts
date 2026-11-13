@@ -511,7 +511,7 @@ export async function gotoRoleMatrix(page: Page): Promise<void> {
  * The scope the role catalog grants `role` for `permission`, read off the
  * matrix. Returns null when the permission or the role is not in the catalog.
  *
- * "—" is the catalog saying no; every other value ("yes", "own", "all", …) is
+ * "-" is the catalog saying no; every other value ("yes", "own", "all", …) is
  * a grant.
  */
 export async function scopeInMatrix(
@@ -519,20 +519,21 @@ export async function scopeInMatrix(
   role: string,
   permission: string,
 ): Promise<string | null> {
-  const headers = await page.getByRole("columnheader").allInnerTexts();
+  const headers = (await page.getByRole("columnheader").allInnerTexts()).slice(1);
   const column = headers.findIndex((header) => header.trim().toLowerCase() === role.toLowerCase());
   if (column === -1) return null;
 
   const rows = page.getByRole("row");
   const total = await rows.count();
   for (let index = 0; index < total; index++) {
-    const cells = rows.nth(index).getByRole("cell");
-    if ((await cells.count()) === 0) continue; // the header row has no cells
+    const row = rows.nth(index);
+    const label = row.getByRole("rowheader");
+    if ((await label.count()) === 0) continue;
 
-    // The permission cell reads "agents:edit" or "agents:edit (scoped)".
-    const name = (await cells.first().innerText()).trim();
+    // The row header reads "agents:edit" or "agents:edit (scoped)".
+    const name = (await label.innerText()).trim();
     if (name === permission || name.startsWith(`${permission} `)) {
-      return (await cells.nth(column).innerText()).trim();
+      return (await row.getByRole("cell").nth(column).innerText()).trim();
     }
   }
   return null;

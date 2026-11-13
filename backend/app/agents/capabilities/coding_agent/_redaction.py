@@ -35,7 +35,7 @@ def redact_changes(changes: ChangeSet, values: tuple[str, ...]) -> ChangeSet:
     files = []
     redacted = False
     for index, file in enumerate(changes.files):
-        matched = any(
+        matched = (file.binary and bool(values)) or any(
             value
             and (
                 value in file.path or value in (file.old_path or "") or value in (file.patch or "")
@@ -56,4 +56,10 @@ def redact_changes(changes: ChangeSet, values: tuple[str, ...]) -> ChangeSet:
             redacted = True
         else:
             files.append(file)
-    return changes.model_copy(update={"files": files, "truncated": changes.truncated or redacted})
+    return changes.model_copy(
+        update={
+            "files": files,
+            "truncated": changes.truncated or redacted,
+            "revert_patch": None if redacted else changes.revert_patch,
+        }
+    )

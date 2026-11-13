@@ -226,7 +226,7 @@ function ExposureStatus({
   const [revealed, setRevealed] = useState<WorkflowExposureWithSecret | null>(null);
   const [renewing, setRenewing] = useState(false);
 
-  if (isLoading) return <LoadingState variant="skeleton-panel" rows={2} />;
+  if (isLoading) return <LoadingState variant="pending" />;
   if (exposure === null) return null;
   const busy = setActive.isPending || rotate.isPending || renewLink.isPending;
 

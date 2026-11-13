@@ -178,9 +178,8 @@
     "connectionSDefaultIs": "Der Standard der Verbindung - {alias}",
     "considerOnlyMostLikely": "Nur die wahrscheinlichsten Token berücksichtigen, die zusammen diese Wahrscheinlichkeitsmasse ausmachen. Setzen Sie dies oder die Temperatur, nicht beides.",
     "contextCount": "{count, plural, =1 {1 Kontextdatei} other {# Kontextdateien}}",
-    "contextFilesDetail": "Ständiger Kontext, den dieser Agent liest – ein Glossar oder eine Richtlinie, in seinen Prompt eingefügt, oder Dateien, die er bei Bedarf liest.",
     "contextFilesHeading": "Kontextdateien",
-    "contextInjectOnlyNoTools": "Jede hier gebundene Datei wird in den Prompt eingefügt, deshalb werden die Lese-Tools (list_context, read_context) nicht angehängt – der Agent hat den Text bereits und hat nichts bei Bedarf zu lesen. Setzen Sie eine Datei auf verknüpft, um ihm die Tools zu geben.",
+    "contextInjectOnlyNoTools": "Eingefügter Kontext wird im Prompt mitgegeben. Werkzeuge zum Lesen des Kontexts erscheinen, sobald mindestens eine aktivierte Datei verknüpft ist.",
     "contextLoadingHint": "Eine eingefügte Datei kommt zu jedem Run hinzu; eine verknüpfte liest der Agent nur, wenn er sie für relevant hält. <link>Kontext verwalten</link>",
     "contextOffButBound": "Kontext ist ausgeschaltet, keine dieser Dateien erreicht also das Modell – auch die eingefügten nicht, denn das Einfügen passiert hier. Sie bleiben im Spec und werden beim Veröffentlichen weiterhin geprüft; schalten Sie ihn oben ein, oder wählen Sie die Dateien ab.",
     "contextPlacement": "Kontext für diese Platzierung",
@@ -1090,7 +1089,8 @@
     "pipelineModelPlaceholder": "Modell auswählen",
     "pipelineNoMatches": "Keine passenden Modelle",
     "alreadyHasIt": "Verwendet ihn",
-    "inDraftOf": "{more, plural, =0 {Im Entwurf von {names}, noch nicht veröffentlicht} other {In den Entwürfen von {names} und # weiteren, noch nicht veröffentlicht}}"
+    "inDraftOf": "{more, plural, =0 {Im Entwurf von {names}, noch nicht veröffentlicht} other {In den Entwürfen von {names} und # weiteren, noch nicht veröffentlicht}}",
+    "useDefaultModel": "Standardmodell verwenden"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -1689,9 +1689,10 @@
       "elapsedMinutes": "{minutes} min{seconds, plural, =0 {} other { # s}}",
       "stopped": "Gestoppt{count, plural, =0 {} =1 { · 1 Schritt} other { · # Schritte}}",
       "stoppedAfter": "Nach {duration} gestoppt{count, plural, =0 {} =1 { · 1 Schritt} other { · # Schritte}}",
-      "activityCount": "{count, plural, one {# Aktion} other {# Aktionen}}"
+      "activityCount": "{count, plural, one {# Aktion} other {# Aktionen}}",
+      "failedAfter": "Fehlgeschlagen nach {duration}{count, plural, =0 {} =1 { · 1 Schritt} other { · # Schritte}}",
+      "failedWork": "Fehlgeschlagen{count, plural, =0 {} =1 { · 1 Schritt} other { · # Schritte}}"
     },
-    "streamError": "❌ Fehler: {message}",
     "turnInterrupted": "Die Verbindung ist mitten in der Antwort abgerissen. Der Agent beendet den Zug und speichert ihn in dieser Unterhaltung.",
     "turnInterruptedRecheck": "Danach sehen",
     "turnStillArriving": "Die frühere Antwort wird noch geschrieben. Sie landet in dieser Unterhaltung, sobald sie fertig ist - unter der Frage, die Sie gerade gestellt haben.",
@@ -1896,7 +1897,15 @@
         "binary": "binär",
         "binaryFile": "Eine Binärdatei: Es gibt keine Zeilen anzuzeigen.",
         "patchOmitted": "Jenseits der Patch-Grenze: Nur der Name wird gespeichert.",
-        "noTextChanges": "Der Inhalt hat sich nicht geändert: Die Datei wurde umbenannt oder ihr Modus geändert."
+        "noTextChanges": "Der Inhalt hat sich nicht geändert: Die Datei wurde umbenannt oder ihr Modus geändert.",
+        "revertTask": "Diese Aufgabe rückgängig machen",
+        "revertDescription": "Stelle die von dieser Aufgabe geänderten Dateien auf ihren vorherigen Stand zurück. Wurde eine betroffene Datei seitdem geändert, wird nichts zurückgesetzt.",
+        "taskReverted": "Diese Aufgabe wurde rückgängig gemacht.",
+        "revertConflict": "Diese Dateien wurden nach der Aufgabe geändert. Es wurde nichts zurückgesetzt.",
+        "revertFailed": "Die Aufgabe konnte nicht rückgängig gemacht werden.",
+        "revertPending": "Diese Aufgabe wird rückgängig gemacht…",
+        "revertUnknown": "Das vorherige Rückgängigmachen konnte nicht bestätigt werden. Der Workspace bleibt reserviert, bis ein erneuter Versuch seine Dateien prüft.",
+        "retryRevert": "Erneut versuchen"
       },
       "runCodingAgent": "Arbeit an den Coding Agent übergeben",
       "runningCodingAgent": "Der Coding Agent arbeitet",
@@ -2536,7 +2545,9 @@
       "notice": "Einrichtungsantwort · Kein KI-Aufruf und keine Nutzungsgebühren beim Anbieter.",
       "ownerHint": "Dein Workspace-Administrator kann KI für das Team verbinden. Du brauchst keinen eigenen Schlüssel.",
       "contact": "Administrator kontaktieren"
-    }
+    },
+    "runFailedTitle": "Ausführung nicht abgeschlossen",
+    "runFailedHint": "Es wurde keine abschließende Antwort erstellt. Die bisherigen Schritte stehen oben."
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",
@@ -2584,7 +2595,8 @@
     "details": "Details",
     "resourceActions": "Weitere Aktionen für {name}",
     "workspaceExpand": "Vollbild",
-    "workspaceCollapse": "Vollbild verlassen"
+    "workspaceCollapse": "Vollbild verlassen",
+    "copyFailed": "Kopieren fehlgeschlagen"
   },
   "dashboard": {
     "actions": {
@@ -4362,7 +4374,7 @@
     "manageConnectionsOn": "{count, plural, =1 {1 Verbindung} other {# Verbindungen}} auf {name} verwalten",
     "name": "Tool-Präfix",
     "prefixPlaceholder": "wiki",
-    "nameMustBeLowercase": "Der Name darf nur Kleinbuchstaben, Ziffern und Bindestriche enthalten (höchstens 32 Zeichen).",
+    "nameMustBeLowercase": "Gib einen Namen mit Buchstaben oder Ziffern ein, der nach der Formatierung höchstens 32 Zeichen hat.",
     "namePrefixesToolNames": "Kleinbuchstaben, Ziffern und Bindestriche. Das Modell liest es vor jedem Tool-Aufruf, es muss also unter {scope, select, organization {den Servern der Organisation} other {Ihren Servern}} eindeutig sein.",
     "needsAuthorization": "Braucht Autorisierung",
     "noToolMatches": "Kein Tool passt dazu.",
@@ -5125,7 +5137,7 @@
       },
       "vault-keys": {
         "title": "Was gespeichert ist",
-        "body": "Jedes Credential in dieser Organisation, nach Name und Art gelistet. Ein Agent verweist per Name auf einen Schlüssel; der Wert selbst wird nach dem Speichern niemandem mehr gezeigt."
+        "body": "Schlüssel und verbundene Konten stehen in einer Tabelle. Prüfe Zugriff und Aktionen jedes Eintrags; gespeicherte Schlüsselwerte und OAuth-Tokens bleiben verborgen. Über Konto verbinden in der Kopfzeile fügst du dein eigenes Konto oder ein Organisationskonto hinzu, das du verwalten darfst."
       },
       "vault-new": {
         "title": "Der Vault",
@@ -5816,10 +5828,6 @@
         "title": "Jede Version und der Weg zurück",
         "body": "Sehen Sie, was jede Version geändert hat, wer sie gemacht hat und woher sie kam. Wiederherstellen holt eine frühere als neueste zurück."
       },
-      "skill-tree": {
-        "title": "Main und seine Forks",
-        "body": "Main läuft von links bis zur neuesten Version, jeder Fork zweigt auf einer eigenen Spur von der Version ab, aus der er entstand, und jeder Agent steht im Feld der Version, die er nutzt. Vergleichen stellt beliebige Versionen nebeneinander."
-      },
       "skill-improve": {
         "title": "Den Skill verbessern",
         "body": "Öffnet eine Sitzung Schritt für Schritt für die angezeigte Linie: main oder den gewählten Fork. Nichts ändert sich, bevor Sie ein Ergebnis annehmen."
@@ -5911,6 +5919,10 @@
       "workflow-input-contract": {
         "title": "Erwartete Eingabe festlegen",
         "body": "Die Trigger Manuell, API und Von einem Workflow aufgerufen unterstützen einfache Felder oder einen Vertrag nach JSON Schema 2020-12. Das Schema unterstützt verschachtelte Werte und wird vor dem Start eines Runs geprüft."
+      },
+      "chat-coding-revert": {
+        "title": "Eine Programmieraufgabe prüfen und rückgängig machen",
+        "body": "Öffne eine Programmieraufgabe, um ihre geänderten Dateien zu prüfen. Die Aufgabe lässt sich nur rückgängig machen, wenn keine dieser Dateien seitdem geändert wurde."
       }
     },
     "chooseLanguage": "Sprache",
@@ -7142,7 +7154,6 @@
       "agentActivity": "Agent-Aktivität",
       "allConversationsKnowledgeBase": "Alle Unterhaltungen, Inhalte der Wissensdatenbank, API-Schlüssel und persönlichen Daten werden endgültig gelöscht. Aktive Abonnements werden gekündigt.",
       "alwaysSent": "Wird immer gesendet",
-      "avatar": "Avatar",
       "avatarTooLargeMaximum2": "Avatar zu groß. Höchstens 2 MB.",
       "avatarUpdated": "Avatar aktualisiert",
       "cancel": "Abbrechen",
@@ -7187,7 +7198,7 @@
       "noMarketingEmail": "Keine Marketing-E-Mails.",
       "notOptional": "Nicht optional –",
       "notificationPreferences": "Benachrichtigungseinstellungen",
-      "notificationPreferencesDescription": "Wähle Ereignisse für jeden Kanal. Die Chatauswahl ändert die zusätzliche Spalte unten; ein privates Ziel muss auch oben aktiviert sein. Nicht gesetzte Ereignisschalter sind standardmäßig an.",
+      "notificationPreferencesDescription": "Wähle die Ereignisse für jeden Kanal. Private Chats brauchen zusätzlich ein Ziel unter Benachrichtigungen in privaten Chats. Ereignisse sind aktiviert, bis du sie ausschaltest.",
       "nothingChanged": "Nichts geändert",
       "nothingHereChargesYou": "Nichts hier stellt Ihnen etwas in Rechnung, es gibt also keine Verlängerungen, fehlgeschlagenen Zahlungen oder Guthabenwarnungen.",
       "optionalApprovals": "Freigabeanfragen",
@@ -7228,7 +7239,6 @@
       "revokesEveryActiveSession": "Das widerruft jede aktive Sitzung und meldet Sie auch auf diesem Gerät ab.",
       "saveChanges": "Änderungen speichern",
       "saving2": "Wird gespeichert …",
-      "saving3": "Wird gespeichert …",
       "selfDeleteNotEnabled": "Selbstlöschung ist nicht aktiviert. Wenden Sie sich an den Support.",
       "selfHostedDeploymentThere": "Dies ist ein selbst gehostetes Deployment. Es gibt keinen Newsletter und keine Abonnentenliste.",
       "sentInvitation": "Einladung in eine Organisation",
@@ -7353,7 +7363,12 @@
       "smsChannel": "SMS",
       "chatChannelPreferences": "Einstellungen für den Chatkanal",
       "imessageChannel": "iMessage",
-      "discordChannel": "Discord"
+      "discordChannel": "Discord",
+      "notificationSearch": "Benachrichtigungen suchen…",
+      "notificationNoMatches": "Keine passenden Benachrichtigungen",
+      "notificationSearchHint": "Suche nach einem Ereignisnamen oder einem Wort aus der Beschreibung.",
+      "notificationClearSearch": "Suche zurücksetzen",
+      "notificationEventCount": "{count, plural, =1 {1 Ereignis} other {# Ereignisse}}"
     },
     "skills": {
       "allCategories": "Alle Kategorien",
@@ -7382,14 +7397,9 @@
     "vault": {
       "accessTo": "Zugriff auf {name}",
       "addKey": "Schlüssel hinzufügen",
-      "addKey2": "Schlüssel hinzufügen",
-      "addOneBecomesSelectable": "Fügen Sie einen hinzu, und er wird überall dort wählbar, wo er gebraucht wird – ein Modell-Provider im Builder, ein Suchdienst in einer Capability.",
-      "keys": "Schlüssel",
-      "noKeysYet": "Noch keine Schlüssel",
       "pageDescription": "Jeder Schlüssel, den diese Organisation gespeichert hat. Verschlüsselt, an diese Organisation gebunden und nie wieder lesbar – ein Schlüssel lässt sich ersetzen, nicht offenlegen.",
       "storedCount": "{count, plural, =1 {1 Schlüssel gespeichert} other {# Schlüssel gespeichert}}",
       "vault": "Vault",
-      "vault2": "Vault",
       "whoCanBindKey": "Wer diesen Schlüssel an einen Agent binden und wer ihn rotieren oder löschen darf. Ein Schlüssel, den niemand erreicht, ist eine Capability, die niemand konfigurieren kann.",
       "connectedAccounts": {
         "personalTitle": "Ihre verbundenen Konten",
@@ -7397,16 +7407,20 @@
         "count": "{count, plural, one {# Konto} other {# Konten}}",
         "connect": "Google-Konto verbinden",
         "noneYet": "Noch keine Konten verbunden",
-        "personalDetail": "Ein Agent, dessen virtuelles Terminal die eigenen Konten jeder Person liest, bindet diese ein, wenn Sie mit ihm sprechen.",
-        "organizationDetail": "Das virtuelle Terminal eines Agenten kann eines dieser Konten für alle lesen, die mit ihm sprechen.",
         "needsReconnect": "Die Anmeldung funktioniert nicht mehr. Verbinden Sie das Konto erneut.",
         "scopes": "{count, plural, one {# Berechtigung erteilt} other {# Berechtigungen erteilt}}",
         "reconnect": "Erneut verbinden",
         "disconnect": "{email} trennen",
         "disconnectTitle": "{email} trennen?",
         "disconnectDetail": "Agenten, die dieses Konto lesen, verlieren seine Ordner beim nächsten Lauf. Die Freigabe wird aus dem Vault gelöscht.",
-        "disconnectConfirm": "Trennen"
-      }
+        "disconnectConfirm": "Trennen",
+        "reconnectNamed": "{email} erneut verbinden"
+      },
+      "connectAccount": "Konto verbinden",
+      "personalAccount": "Dein Konto",
+      "organizationAccount": "Organisationskonto",
+      "emptyTitle": "Noch keine Zugangsdaten",
+      "emptyDetail": "Füge einen Schlüssel hinzu oder verbinde ein Konto, um es mit deinen Agenten zu nutzen."
     },
     "workspaces": {
       "failedLoadWorkspaces": "Workspaces konnten nicht geladen werden",
@@ -7924,7 +7938,7 @@
       "startHeading": "Wie startet er?",
       "start": {
         "manual": {
-          "name": "Manual",
+          "name": "Manuell",
           "description": "Sie starten ihn selbst mit Run, im Editor oder auf seiner Run-Seite."
         },
         "chat": {
@@ -7944,7 +7958,7 @@
           "description": "Ein Datensatz, der einer Tabelle hinzugefügt, geändert oder gelöscht wird, startet einen Lauf mit diesem Datensatz."
         },
         "api": {
-          "name": "API request",
+          "name": "API-Anfrage",
           "description": "Gestartet über eine HTTP-Anfrage oder einen WebSocket, mit der Eingabe, die Sie deklarieren."
         },
         "workflowFailed": {
@@ -7991,7 +8005,7 @@
       "runHint": "Führt den Draft aus, nicht die veröffentlichte Version (Strg oder Cmd + Enter)",
       "runNeedsSteps": "Zuerst einen Schritt hinzufügen",
       "runBlockedByProblems": "{count, plural, one {Zuerst # Problem beheben} other {Zuerst # Probleme beheben}}",
-      "liveRunTitle": "Testlauf",
+      "liveRunTitle": "Test-Run",
       "liveRunSteps": "{count, plural, one {# Schritt fertig} other {# Schritte fertig}}",
       "liveRunOpen": "Run öffnen",
       "liveRunClose": "Run ausblenden",
@@ -8777,23 +8791,27 @@
     "delete2": "Löschen",
     "disableAnyYouDon": "Deaktivieren Sie alles, was Sie in der Palette nicht sehen möchten.",
     "edit": "Bearbeiten",
-    "edit2": "Bearbeiten",
     "enabled": "Aktiviert",
     "failedDelete3": "Löschen fehlgeschlagen",
     "failedSaveCommand": "Befehl konnte nicht gespeichert werden",
     "failedToggle": "Umschalten fehlgeschlagen",
     "failedToggle2": "Umschalten fehlgeschlagen",
     "local": "lokal",
-    "lowercaseLettersDigitsHyphens": "Kleinbuchstaben, Ziffern, Bindestriche. Höchstens 32 Zeichen.",
+    "lowercaseLettersDigitsHyphens": "Großbuchstaben, Leerzeichen und Satzzeichen werden automatisch formatiert, z. B. Daily Review zu daily-review. Höchstens 32 Zeichen.",
     "modelAdded": "{label} hinzugefügt",
     "modelRemoved": "Modell entfernt",
     "modelUpdated": "{label} aktualisiert",
     "modelInUse": "{label} wird noch verwendet von {names}{hidden, plural, =0 {} one { und einem Agenten, den Sie nicht sehen} other { und # Agents, die Sie nicht sehen}}. Verschieben Sie diese zuerst auf ein anderes Modell, oder ändern Sie den Schlüssel dieses Modells, statt es zu löschen. {archived, plural, =0 {} one {Einer davon ist archiviert: Löschen Sie ihn, oder stellen Sie ihn wieder her und verschieben Sie ihn.} other {# davon sind archiviert: Löschen Sie diese, oder stellen Sie sie wieder her und verschieben Sie sie.}}",
     "modelInUseHidden": "{label} wird noch von {count, plural, one {einem Agenten verwendet, den Sie nicht sehen. Bitten Sie einen Admin, ihn} other {# Agents verwendet, die Sie nicht sehen. Bitten Sie einen Admin, diese}} zuerst auf ein anderes Modell zu verschieben.",
     "name": "Name",
-    "nameMustBeLowercase": "Der Name darf nur Kleinbuchstaben, Ziffern und Bindestriche enthalten (höchstens 32 Zeichen).",
+    "nameMustBeLowercase": "Gib einen Namen mit Buchstaben oder Ziffern ein, der nach der Formatierung höchstens 32 Zeichen hat.",
     "newCommand": "Neuer Befehl",
     "newCustomCommand": "Neuer eigener Befehl",
+    "toggleCommand": "/{name} aktivieren",
+    "commandCreated": "/{name} erstellt.",
+    "commandUpdated": "/{name} aktualisiert.",
+    "commandDeleted": "/{name} gelöscht.",
+    "confirmDeleteCommand": "Der Befehl und sein gespeicherter Prompt werden gelöscht. Bestehende Gespräche bleiben erhalten.",
     "noCustomCommandsYet": "Noch keine eigenen Befehle",
     "prompt": "Prompt",
     "promptCannotBeEmpty": "Der Prompt darf nicht leer sein.",
@@ -8832,11 +8850,11 @@
     "share": "Freigeben",
     "sharingUpdated": "Freigabe aktualisiert",
     "visibilityOrg": "Alle in der Organisation",
-    "visibilityOrgReaches": "Alle in der Organisation, die {resource, select, agent {Agents} skill {Skills} collection {Collections} artifact {Apps} dataset {Datasets} context {Kontextdateien} mcp_connection {MCP-Server} other {Secrets}} überhaupt ansehen dürfen.",
+    "visibilityOrgReaches": "Alle in der Organisation, die {resource, select, agent {Agents} skill {Skills} collection {Collections} artifact {Apps} dataset {Datasets} context {Kontextdateien} mcp_connection {MCP-Server} project {Projekte} other {Secrets}} überhaupt ansehen dürfen.",
     "visibilityPrivate": "Nur Personen mit Zugriff",
-    "visibilityPrivateReaches": "Nur die oben aufgeführten Personen. Sonst findet niemand {resource, select, agent {diesen Agent} skill {diesen Skill} collection {diese Collection} artifact {diese App} dataset {dieses Dataset} context {diese Kontextdatei} mcp_connection {diesen MCP-Server} other {dieses Secret}} in seiner Liste – und wenn es noch keinen Besitzer hat, wird es Ihres.",
+    "visibilityPrivateReaches": "Nur die oben aufgeführten Personen. Sonst findet niemand {resource, select, agent {diesen Agent} skill {diesen Skill} collection {diese Collection} artifact {diese App} dataset {dieses Dataset} context {diese Kontextdatei} mcp_connection {diesen MCP-Server} project {Projekt} other {dieses Secret}} in seiner Liste – und wenn es noch keinen Besitzer hat, wird es Ihres.",
     "visibilityTeam": "Team (wird nicht mehr angeboten)",
-    "visibilityTeamReaches": "Jeder, dessen Rolle {resource, select, agent {Team-Agents} skill {Team-Skills} collection {Team-Collections} artifact {Team-Apps} dataset {Team-Datasets} context {Team-Kontextdateien} mcp_connection {Team-MCP-Server} other {Team-Secrets}} erreicht. Diese Organisation hat keine Teams – wählen Sie eine der beiden Optionen darüber.",
+    "visibilityTeamReaches": "Jeder, dessen Rolle {resource, select, agent {Team-Agents} skill {Team-Skills} collection {Team-Collections} artifact {Team-Apps} dataset {Team-Datasets} context {Team-Kontextdateien} mcp_connection {Team-MCP-Server} project {Projekte} other {Team-Secrets}} erreicht. Diese Organisation hat keine Teams – wählen Sie eine der beiden Optionen darüber.",
     "visibilityUpdated": "Sichtbarkeit aktualisiert",
     "groupsHeading": "Gruppen",
     "membersHeading": "Mitglieder",
@@ -8889,7 +8907,7 @@
     "folderMadeByNaming": "Ein Ordner entsteht, indem Sie eine Datei darin benennen – mehr gibt es nicht zu erstellen.",
     "groupsListingNeverReaches": "Gruppiert die Liste. Erreicht das Modell nie.",
     "hide": "Verbergen",
-    "howModelRefersSkill": "Wie das Modell auf diesen Skill verweist: Kleinbuchstaben, Ziffern und Bindestriche, etwa refund-policy. Das lässt sich später nicht mehr ändern.",
+    "howModelRefersSkill": "So verweist das Modell auf diesen Skill. Großbuchstaben, Leerzeichen und Satzzeichen werden automatisch formatiert, z. B. Refund Policy zu refund-policy. Der gespeicherte Name lässt sich nicht ändern.",
     "howRefundsTheirExceptions": "Wie Rückerstattungen und ihre Ausnahmen behandelt werden.",
     "markdownLoadedOnlyAfter": "Markdown. Wird erst geladen, nachdem die Beschreibung das Modell davon überzeugt hat – Länge kostet also nichts, bis sie gebraucht wird.",
     "markdownYouCanFill": "Markdown. Sie können das später ausfüllen – es wird erst geladen, nachdem die Beschreibung das Modell davon überzeugt hat.",
@@ -8956,7 +8974,6 @@
       "tabs": {
         "agents": "Agents",
         "history": "Verlauf",
-        "tree": "Versionsbaum",
         "content": "Inhalt"
       },
       "agentCount": "{count, plural, =0 {Keine Agents} =1 {1 Agent} other {# Agents}}",
@@ -9091,41 +9108,8 @@
         }
       },
       "tree": {
-        "title": "Versionsbaum",
-        "summary": "{versions, plural, =1 {1 Version auf main} other {# Versionen auf main}}{forks, plural, =0 {} =1 { · 1 Fork} other { · # Forks}}",
-        "folded": "{count, plural, other {# Versionen}} (v{from}–v{to})",
         "number": "v{number}",
-        "latest": "neueste",
-        "fork": "Fork „{name}“",
-        "forkFacts": "{changes, plural, =0 {noch keine Änderungen} =1 {1 Änderung} other {# Änderungen}}{behind, plural, =0 {} other { · # hinter main}}",
-        "forkNumber": "{name} v{number}",
-        "noVersionYet": "Noch keine eigene Version",
-        "compare": "{version} vergleichen",
-        "compareShort": "Vergleichen",
-        "comparing": "Im Vergleich"
-      },
-      "compare": {
-        "title": "Vergleich",
-        "count": "{count, plural, =1 {1 Version} other {# Versionen}}",
-        "clear": "Leeren",
-        "pickAnother": "Wähle im Diagramm eine weitere Version, um sie neben diese zu stellen.",
-        "remove": "{version} aus dem Vergleich nehmen",
-        "loading": "Version wird geladen…",
-        "description": "Beschreibung",
-        "instructions": "Anweisungen",
-        "files": "Dateien",
-        "noFiles": "Keine Dateien.",
-        "unreadable": "Diese Version konnte nicht geladen werden.",
-        "retry": "Erneut versuchen",
-        "reference": "Referenz",
-        "setReference": "Als Referenz setzen",
-        "onlyDifferences": "Nur Unterschiede",
-        "sameAsReference": "wie die Referenz",
-        "file": {
-          "added": "hinzugefügt",
-          "removed": "entfernt",
-          "changed": "geändert"
-        }
+        "forkNumber": "{name} v{number}"
       },
       "edit": {
         "saved": "Als v{number} gespeichert.",
@@ -9233,7 +9217,11 @@
         "hidden": "Dieser Skill hat Testfragen, in einem Dataset, das Sie nicht öffnen dürfen."
       },
       "content": {
-        "title": "Was er jetzt ausliefert"
+        "title": "Was er jetzt ausliefert",
+        "description": "Beschreibung",
+        "instructions": "Anweisungen",
+        "files": "Dateien",
+        "noFiles": "Keine Dateien."
       },
       "more": "Weitere Aktionen",
       "checks": {
@@ -9698,7 +9686,9 @@
       "noneInVault": "Im Vault gibt es noch keine {provider}-Schlüssel. Fügen Sie einen im Vault hinzu und wählen Sie ihn dann hier.",
       "notShared": "{name} ist bereits im Vault, muss aber für die gesamte Organisation freigegeben werden, bevor der Schlüssel hier verwendet werden kann. Ändern Sie den Zugriff im Vault.",
       "chatGPTSignIn": "{name} ist eine ChatGPT-Anmeldung für den Modellzugriff über ein ChatGPT-Abonnement. Sprachfunktionen benötigen einen OpenAI-API-Schlüssel; diese Anmeldung kann hier nicht verwendet werden."
-    }
+    },
+    "notRecorded": "Nicht erfasst",
+    "googleAccount": "Google-Konto"
   },
   "context": {
     "created": "{name} erstellt",
@@ -10105,7 +10095,9 @@
     "resultReport": "Nach jeder abgeschlossenen Ausführung",
     "resultInbox": "Nur wenn etwas Aufmerksamkeit braucht",
     "resultReportHint": "Nach jeder Ausführung einen Bericht im gewählten Chat ablegen.",
-    "resultInboxHint": "Pro Quellelement einen Inbox-Vorgang und Arbeitschat erstellen. Angeforderte Entwürfe stehen dort; unveränderte Prüfungen bleiben still. Versand benötigt weiterhin Berechtigung und Freigabe."
+    "resultInboxHint": "Pro Quellelement einen Inbox-Vorgang und Arbeitschat erstellen. Angeforderte Entwürfe stehen dort; unveränderte Prüfungen bleiben still. Versand benötigt weiterhin Berechtigung und Freigabe.",
+    "clearSearch": "Suche löschen",
+    "noRoutineMatchesHint": "Suchen Sie nach dem Agentennamen, dem Routinentitel oder Wörtern aus ihrer Nachricht."
   },
   "portals": {
     "mailboxInterval": {
@@ -10598,6 +10590,11 @@
         "failed": "Das Schreiben Ihrer Testfragen ist fehlgeschlagen."
       }
     },
+    "kind": {
+      "approvalRequested": "{agent} wartet auf Ihre Freigabe",
+      "budgetExceeded": "{agent} wurde gestoppt: {scope, select, agent {sein Monatsbudget} group {das Monatsbudget einer Abteilung} department {das Monatsbudget der Abteilung {department}} organization {das Monatsbudget der Organisation} other {ein Ausgabenlimit}} ist aufgebraucht ({spent} von {limit} ausgegeben)",
+      "budgetWarning": "{group} hat {share} % des Monatsbudgets von {limit} verbraucht."
+    },
     "needsAttention": "Aufmerksamkeit erforderlich"
   },
   "workflows": {
@@ -10633,6 +10630,8 @@
     "versionRestored": "Version {version} ist wieder der Entwurf",
     "versionRestoreConflict": "Der Entwurf hat sich beim Wiederherstellen geändert. Lösen Sie den Konflikt und stellen Sie dann erneut wieder her.",
     "quickAdd": "Einen Schritt nach {name} ({port}) hinzufügen",
+    "stepApprovalDecided": "{known, select, no {{status, select, approved {Genehmigt} other {Abgelehnt}}} other {{status, select, approved {Genehmigt von {name}} other {Abgelehnt von {name}}}}} · {time}",
+    "stepApprovalUndecided": "{status, select, expired {Abgelaufen: Niemand hat rechtzeitig entschieden} cancelled {Mit dem Run abgebrochen} other {Wartet auf eine Entscheidung}}",
     "paletteNoMatches": "Kein Knoten passt zu Ihrer Suche.",
     "canvasTitle": "Arbeitsfläche",
     "canvasHint": "Füge einen Schritt hinzu, um den Workflow zu beginnen.",
@@ -10786,7 +10785,7 @@
       "debug": "Debug",
       "core": "Abschluss",
       "triggers": "Auslöser",
-      "decide": "Jev-Entscheidungen",
+      "decide": "Entscheidungen",
       "people": "Personen",
       "slack": "Slack",
       "mattermost": "Mattermost",
@@ -10911,7 +10910,7 @@
     "categoryHint": {
       "triggers": "Wie ein Run startet",
       "agent": "Einen deiner Agenten ausführen",
-      "decide": "Jev von TypeSafe eine typisierte Frage stellen",
+      "decide": "Mit dem Entscheidungsmodell Jev mit Ja oder Nein antworten, eine Option wählen oder bewerten",
       "knowledge": "Eine Wissensbasis durchsuchen oder etwas hinzufügen",
       "logic": "Einen Weg wählen oder Wege zusammenführen",
       "control": "Über Elemente schleifen, warten oder einen anderen Workflow ausführen",
@@ -10948,6 +10947,9 @@
       "more": "Mehr"
     },
     "pickerSearch": "Schritte suchen",
+    "pickerMoreApps": "{count, plural, one {# weitere App zum Verbinden} other {# weitere Apps zum Verbinden}}",
+    "pickerFewerApps": "Apps zum Verbinden ausblenden",
+    "pickerAppToConnect": "Verbinden",
     "pickerBack": "Alle Schritte",
     "toolbarAddStep": "Schritt hinzufügen",
     "toolbarReady": "Keine Probleme",
@@ -11737,7 +11739,11 @@
       "blockedLink": "Die Seite hat keinen öffentlichen Link. Schalten Sie ihn zuerst ein."
     },
     "lightTheme": "Helles App-Design verwenden",
-    "darkTheme": "Dunkles App-Design verwenden"
+    "darkTheme": "Dunkles App-Design verwenden",
+    "linkSettings": "Link-Einstellungen",
+    "passwordProtected": "Passwortgeschützt",
+    "expiresOn": "Läuft am {date} ab",
+    "embedSiteCount": "{count, plural, one {# einbettende Website} other {# einbettende Websites}}"
   },
   "tables": {
     "cells": {
@@ -11863,6 +11869,10 @@
     "sheet": {
       "title": "Datensatz",
       "conflict": "Jemand anderes hat dieses Feld geändert.",
+      "conflictNow": "Jetzt: {value}, geändert von <who></who> um {time}. Ihr Wert steht im Feld.",
+      "conflictNowUntimed": "Jetzt: {value}, geändert von <who></who>. Ihr Wert steht im Feld.",
+      "conflictEmpty": "leer",
+      "conflictSomeone": "jemand anderem",
       "reloadAndReapply": "Neu laden und erneut anwenden",
       "discard": "Verwerfen",
       "conflictAfterClose": "Jemand anderes hat diesen Datensatz geändert, daher wurde Ihre letzte Änderung nicht gespeichert. Öffnen Sie den Datensatz, um sie erneut anzuwenden oder zu verwerfen.",
@@ -11986,6 +11996,7 @@
       "mapTo": "Wohin {header} geht",
       "skip": "Nicht importieren",
       "externalId": "Externe ID",
+      "duplicateMapping": "Ordne jede Tabellenspalte nur einmal zu. Wähle eine andere Spalte oder importiere dieses Feld nicht.",
       "updateExisting": "Datensätze aktualisieren, die schon hier sind",
       "updateExistingHint": "Eine Zeile, deren externe ID die Tabelle schon hat, ändert die genannten Zellen dieses Datensatzes, statt abgelehnt zu werden.",
       "back": "Zurück",
@@ -12330,7 +12341,13 @@
       "nothingSharedHint": "Teilen Sie etwas über das Freigabe-Panel mit der Gruppe oder fügen Sie auf der Seite der Gruppe mehreres auf einmal hinzu."
     },
     "addToGroupAll": "Alle auswählen",
-    "addToGroupNone": "Leeren"
+    "addToGroupNone": "Leeren",
+    "searchGroups": "Abteilungen suchen…",
+    "noMatches": "Keine passenden Abteilungen",
+    "searchHint": "Suchen Sie nach einem Abteilungsnamen oder einem Wort aus der Beschreibung.",
+    "clearSearch": "Suche löschen",
+    "formDescription": "Wählen Sie einen Namen und ein Symbol. Eine kurze Beschreibung erklärt, was zu dieser Abteilung gehört.",
+    "budgetOptions": "Budgetgrenze"
   },
   "directory": {
     "navLabel": "Verzeichnis",
@@ -12412,7 +12429,17 @@
     "couldNotLoad": "Ihre API-Schlüssel konnten nicht geladen werden",
     "emptyTitle": "Noch keine API-Schlüssel",
     "emptyWhy": "Erstellen Sie einen, um die API aus einem Skript, Postman oder Claude Code aufzurufen.",
-    "personalConsentWhy": "Persönliche Zustimmung ist nicht in den Voreinstellungen enthalten. Damit dieser Schlüssel oder diese App Routinen und Watches mit Ihren persönlichen Verbindungen und Daten genehmigen darf, wählen Sie personal:consent unter Benutzerdefiniert."
+    "personalConsentWhy": "Persönliche Zustimmung ist nicht in den Voreinstellungen enthalten. Damit dieser Schlüssel oder diese App Routinen und Watches mit Ihren persönlichen Verbindungen und Daten genehmigen darf, wählen Sie personal:consent unter Benutzerdefiniert.",
+    "search": "API-Schlüssel suchen…",
+    "noMatches": "Keine passenden API-Schlüssel",
+    "searchHint": "Suche nach Schlüsselname, Präfix oder E-Mail-Adresse des Ausstellers.",
+    "clearSearch": "Suche zurücksetzen",
+    "keyCount": "{count, plural, =1 {1 Schlüssel} other {# Schlüssel}}",
+    "permissionSearch": "Berechtigung finden",
+    "permissionPlaceholder": "Berechtigungen suchen…",
+    "noPermissions": "Keine Berechtigungen passen zu dieser Suche.",
+    "permissionDetails": "{count, plural, =1 {1 Berechtigung anzeigen} other {# Berechtigungen anzeigen}}",
+    "couldNotLoadScopes": "Verfügbare Berechtigungen konnten nicht geladen werden"
   },
   "mcpOauth": {
     "title": "{client} möchte in Ihrem Namen handeln",
@@ -13599,7 +13626,7 @@
   },
   "apiUsage": {
     "title": "Die API verwenden",
-    "why": "Alles, was ein API-Schlüssel kann, über einfaches HTTP: Agents ausführen, Runs und ihre Kosten lesen, Wissensdatenbanken füllen und durchsuchen, Mitglieder verwalten. Erstellen Sie unten einen Schlüssel und rufen Sie die Basis-URL auf.",
+    "why": "Mit einem API-Schlüssel kannst du Agenten starten, Runs lesen, Wissensdatenbanken durchsuchen und Ressourcen über HTTP verwalten. Kopiere die Basis-URL und sende den Schlüssel als Bearer-Token.",
     "baseUrl": "Basis-URL",
     "auth": "Senden Sie den Schlüssel im Header <code>Authorization: Bearer aos_…</code>.",
     "reference": "API-Referenz: jeder Endpunkt",
@@ -16451,7 +16478,8 @@
     "teams": "Microsoft Teams",
     "sms": "SMS",
     "imessage": "iMessage",
-    "discord": "Discord"
+    "discord": "Discord",
+    "platformOptions": "Chat-Plattformen"
   },
   "routineHealth": {
     "label": "Bei wiederholten Fehlern pausieren",
@@ -17353,6 +17381,416 @@
         "catch_up": "Auf main nachziehen",
         "to_main": "Nach main verschieben"
       }
+    }
+  },
+  "resourceAppearance": {
+    "title": "Symbol",
+    "change": "Symbol ändern",
+    "table": "Tabelle",
+    "workflow": "Workflow",
+    "reset": "Standardsymbol verwenden"
+  },
+  "improvementSetup": {
+    "noFeedback": "Noch kein Feedback",
+    "openChat": "Chat öffnen",
+    "contextTitle": "Kontext verbessern",
+    "contextBody": "Der Assistent nutzt Feedback aus Gesprächen, in denen Agenten diese Kontextdatei verwendet haben. Prüfen Sie jeden Vorschlag, bevor Sie ihn übernehmen.",
+    "costs": "Kosten und Limits"
+  },
+  "workflowNodes": {
+    "node": {
+      "agent_run": {
+        "name": "Agent ausführen",
+        "description": "Einen veröffentlichten Agent aus dem Katalog in einer festgelegten Version ausführen und seine Antwort verwenden."
+      },
+      "ai_classify": {
+        "name": "Klassifizieren",
+        "description": "Einen Text von einem Modell einer Ihrer Kategorien zuordnen lassen und danach verzweigen."
+      },
+      "ai_extract": {
+        "name": "Daten extrahieren",
+        "description": "Die von Ihnen benannten Felder von einem Modell als Objekt aus einem Text herauslesen lassen."
+      },
+      "ai_prompt": {
+        "name": "Modell fragen",
+        "description": "Eines Ihrer Modelle etwas fragen, mit Instruktionen, die nur für diesen Schritt gelten."
+      },
+      "ai_rewrite": {
+        "name": "Zusammenfassen oder übersetzen",
+        "description": "Einen Text von einem Modell zusammenfassen, übersetzen oder umschreiben lassen."
+      },
+      "code_javascript_sandbox": {
+        "name": "JavaScript in einer Sandbox",
+        "description": "JavaScript auf Node mit den Dateien des Runs als dauerhaften Job auf dem Sandbox-Host der Organisation ausführen, ohne Zugangsdaten der Plattform darin."
+      },
+      "code_python_sandbox": {
+        "name": "Python in einer Sandbox",
+        "description": "Vollständiges Python mit den Dateien des Runs als dauerhaften Job auf dem Sandbox-Host der Organisation ausführen, ohne Zugangsdaten der Plattform darin."
+      },
+      "code_python_simple": {
+        "name": "Python-Skript",
+        "description": "Einen JSON-Wert mit einem kurzen Python-Skript in der Monty-Sandbox berechnen – ohne Dateien, ohne Netzwerk, mit einer kleinen Standardbibliothek."
+      },
+      "control_foreach": {
+        "name": "Für jedes Element",
+        "description": "Die Schritte in der Schleife für jedes Element einer Liste einmal ausführen, der Reihe nach."
+      },
+      "convert_csv_to_json": {
+        "name": "CSV zu JSON",
+        "description": "Eine CSV-Datei in eine JSON-Datei umwandeln, deren Zeilen nach den Spaltenüberschriften benannt sind."
+      },
+      "convert_json_to_csv": {
+        "name": "JSON zu CSV",
+        "description": "Eine JSON-Liste flacher Objekte in eine CSV-Datei umwandeln."
+      },
+      "convert_pdf_to_png": {
+        "name": "PDF-Seiten als Bilder",
+        "description": "Ausgewählte Seiten eines PDFs als PNG-Bilder rendern, innerhalb des Pixellimits für Bilder."
+      },
+      "convert_text_to_file": {
+        "name": "Text als Datei",
+        "description": "Text als UTF-8-TXT-Datei des Runs speichern."
+      },
+      "core_input": {
+        "name": "API-Anfrage",
+        "description": "Über eine HTTP-Anfrage oder einen WebSocket starten, mit der Eingabe, die Sie deklarieren."
+      },
+      "core_output": {
+        "name": "Ausgabe",
+        "description": "Was der Workflow antwortet: Text, Quellen, Dateien und ein strukturierter Wert."
+      },
+      "data_combine": {
+        "name": "Listen kombinieren",
+        "description": "Aus zwei Listen eine machen: hintereinander, nach Position oder nach einem Schlüssel."
+      },
+      "data_filter": {
+        "name": "Liste filtern",
+        "description": "Die Elemente einer Liste behalten, für die eine Bedingung zutrifft."
+      },
+      "data_map": {
+        "name": "Felder zuordnen",
+        "description": "Werte aus früheren Ausgaben auswählen und jedem einen Typ geben."
+      },
+      "debug_echo": {
+        "name": "Echo",
+        "description": "Gibt seine Eingabe unverändert zurück. Hat keine echte Wirkung."
+      },
+      "debug_relay": {
+        "name": "Weiterleiten",
+        "description": "Gibt eine per Echo zurückgegebene Nachricht als einfache Nachricht weiter. Hat keine echte Wirkung."
+      },
+      "decide_choose": {
+        "name": "Option wählen",
+        "description": "Jev fragen, welche Ihrer Optionen zu einem Text passt – eine Kategorie, eine Warteschlange, eine Absicht."
+      },
+      "decide_score": {
+        "name": "Bewerten",
+        "description": "Jev fragen, wo ein Text auf Ihrer Bewertungsskala liegt – Dringlichkeit, Eignung, Risiko."
+      },
+      "decide_yes_no": {
+        "name": "Ja oder nein",
+        "description": "Jev eine Ja-Nein-Frage zu einem Text stellen und nach der Antwort verzweigen."
+      },
+      "email_send": {
+        "name": "E-Mail senden",
+        "description": "Eine E-Mail an bis zu zehn Adressen über ein SMTP-Konto oder den Absender der Plattform senden."
+      },
+      "error_handle": {
+        "name": "Fehler behandeln",
+        "description": "Einen Fehlschlag an einen Zweig leiten, der nach seinem Fehlercode gewählt wird."
+      },
+      "error_raise": {
+        "name": "Fehler auslösen",
+        "description": "Diesen Zweig mit einem von Ihnen definierten Fehler fehlschlagen lassen."
+      },
+      "file_read": {
+        "name": "Datei lesen",
+        "description": "Eine der Dateien des Runs als UTF-8-Text, JSON-Wert oder CSV-Zeilen lesen."
+      },
+      "file_write": {
+        "name": "Datei schreiben",
+        "description": "Text, einen JSON-Wert oder Zeilen als neue UTF-8-Datei des Runs speichern."
+      },
+      "flow_await_reply": {
+        "name": "Auf E-Mail-Antwort warten",
+        "description": "Auf eine authentifizierte Antwort eines Absenders in einem E-Mail-Thread warten oder bis zu ihrer Frist."
+      },
+      "flow_resume_link": {
+        "name": "Fortsetzungslink",
+        "description": "Die Adresse, über die die „Warten“-Schritte dieses Runs fortgesetzt werden, die auf einen Aufruf warten."
+      },
+      "flow_wait": {
+        "name": "Warten",
+        "description": "Den Run eine Weile oder bis zu einem Zeitpunkt anhalten und dann fortfahren."
+      },
+      "html_parse": {
+        "name": "HTML parsen",
+        "description": "HTML in seinen Text, seine Links und die Treffer eines CSS-Selektors zerlegen – es wird nichts abgerufen oder ausgeführt."
+      },
+      "http_download": {
+        "name": "Datei herunterladen",
+        "description": "Eine Datei über HTTP in den Run laden, gestreamt und größenbegrenzt; ihr Typ wird aus ihren eigenen Bytes ermittelt."
+      },
+      "http_request": {
+        "name": "HTTP-Anfrage",
+        "description": "Eine HTTP-API aufrufen, mit SSRF-Schutz und Zugangsdaten aus dem Vault."
+      },
+      "http_upload": {
+        "name": "Datei hochladen",
+        "description": "Eine der Dateien des Runs an einen HTTP-Endpunkt senden, direkt aus dem Speicher gestreamt."
+      },
+      "human_approval": {
+        "name": "Freigabe anfordern",
+        "description": "Warten, bis eine Person freigibt oder ablehnt, und dann je nach Antwort fortfahren."
+      },
+      "image_transform": {
+        "name": "Bild umwandeln",
+        "description": "Ein PNG-, JPEG-, WebP- oder GIF-Bild zuschneiden, skalieren, drehen oder konvertieren; Metadaten werden entfernt und die Größe wird vor dem Dekodieren begrenzt."
+      },
+      "knowledge_add": {
+        "name": "Zum Wissen hinzufügen",
+        "description": "Einen Text oder eine Datei in Wissens-Collections ablegen, damit Agents sie finden."
+      },
+      "knowledge_search": {
+        "name": "Wissen durchsuchen",
+        "description": "Passagen in Wissens-Collections finden, als Quellen für einen späteren Schritt."
+      },
+      "logic_if": {
+        "name": "Wenn / sonst",
+        "description": "In einem von zwei Zweigen weitermachen, entschieden durch eine Bedingung."
+      },
+      "logic_merge": {
+        "name": "Zusammenführen",
+        "description": "Zweige wieder zu einem Pfad zusammenführen."
+      },
+      "logic_split": {
+        "name": "Aufteilen",
+        "description": "Den Run gleichzeitig in mehrere Zweige schicken."
+      },
+      "logic_switch": {
+        "name": "Weiche",
+        "description": "Im ersten von mehreren Zweigen weitermachen, dessen Regel zutrifft."
+      },
+      "loop_item": {
+        "name": "Schleifenelement",
+        "description": "Das Element, mit dem dieser Schleifendurchlauf arbeitet."
+      },
+      "loop_yield": {
+        "name": "Schleifenergebnis",
+        "description": "Diesen Schleifendurchlauf beenden und sein Ergebnis zurückgeben."
+      },
+      "mattermost_channels_find": {
+        "name": "Kanäle finden",
+        "description": "Kanäle nach Namen in einem Mattermost-Team finden, in dem der Bot Mitglied ist."
+      },
+      "mattermost_members_list": {
+        "name": "Mitglieder auflisten",
+        "description": "Die Personen in einem Mattermost-Kanal auflisten, mit den IDs, die eine Erwähnung braucht."
+      },
+      "mattermost_message_send": {
+        "name": "Nachricht senden",
+        "description": "Eine Nachricht als einer Ihrer Bots in einem Mattermost-Kanal oder einem Thread darin posten."
+      },
+      "mattermost_messages_read": {
+        "name": "Nachrichten lesen",
+        "description": "Die neuesten Nachrichten in einem Mattermost-Kanal oder -Thread lesen."
+      },
+      "mcp_call": {
+        "name": "MCP-Tool aufrufen",
+        "description": "Ein Tool auf einem der MCP-Server der Organisation aufrufen; bevor es etwas ändert, wird zuerst eine Person gefragt."
+      },
+      "notification_send": {
+        "name": "Mitglieder benachrichtigen",
+        "description": "Mitglieder über die Benachrichtigungskanäle benachrichtigen, die sie gewählt haben."
+      },
+      "slack_channels_find": {
+        "name": "Kanäle finden",
+        "description": "Slack-Kanäle nach Namen finden."
+      },
+      "slack_members_list": {
+        "name": "Mitglieder auflisten",
+        "description": "Die Personen in einem Slack-Kanal auflisten, mit den IDs, die eine Erwähnung braucht."
+      },
+      "slack_message_send": {
+        "name": "Nachricht senden",
+        "description": "Eine Nachricht als einer Ihrer Bots in einem Slack-Kanal oder einem Thread darin posten."
+      },
+      "slack_messages_read": {
+        "name": "Nachrichten lesen",
+        "description": "Die neuesten Nachrichten in einem Slack-Kanal oder -Thread lesen."
+      },
+      "table_create": {
+        "name": "Tabelle erstellen",
+        "description": "Eine neue Virtual Table mit den angegebenen Spalten erstellen."
+      },
+      "table_describe": {
+        "name": "Tabelle beschreiben",
+        "description": "Den Namen einer Tabelle und ihre aktuellen Spalten für die nachfolgenden Schritte lesen."
+      },
+      "table_exists": {
+        "name": "Tabelle vorhanden?",
+        "description": "Danach verzweigen, ob eine Tabelle mit diesem Namen existiert."
+      },
+      "table_list": {
+        "name": "Tabellen auflisten",
+        "description": "Die Tabellen auflisten, die dieser Run sehen darf, gefunden über einen Teil des Namens."
+      },
+      "table_record_create": {
+        "name": "Datensatz hinzufügen",
+        "description": "Einen Datensatz zu einer Virtual Table hinzufügen."
+      },
+      "table_record_delete": {
+        "name": "Datensatz löschen",
+        "description": "Einen Datensatz löschen. Sein Verlauf bleibt erhalten."
+      },
+      "table_record_exists": {
+        "name": "Datensatz vorhanden?",
+        "description": "Danach verzweigen, ob ein Datensatz einer Tabelle zu Ihren Filtern passt."
+      },
+      "table_record_get": {
+        "name": "Datensatz finden",
+        "description": "Einen Datensatz über seine ID oder externe ID lesen."
+      },
+      "table_record_query": {
+        "name": "Datensätze auflisten",
+        "description": "Die Datensätze einer Tabelle auflisten, gefiltert und sortiert."
+      },
+      "table_record_update": {
+        "name": "Datensatz aktualisieren",
+        "description": "Einige Zellen eines Datensatzes ändern."
+      },
+      "table_record_upsert": {
+        "name": "Datensatz speichern",
+        "description": "Den Datensatz mit einer externen ID anlegen oder aktualisieren."
+      },
+      "telegram_members_list": {
+        "name": "Administratoren auflisten",
+        "description": "Die Administratoren eines Telegram-Chats auflisten – mehr erfährt ein Bot nicht."
+      },
+      "telegram_message_send": {
+        "name": "Nachricht senden",
+        "description": "Eine Nachricht als einer Ihrer Bots an einen Telegram-Chat senden."
+      },
+      "text_compare": {
+        "name": "Texte vergleichen",
+        "description": "Bewerten, wie ähnlich sich zwei Texte sind – 1 gleich, 0 nichts gemeinsam – ohne Modell."
+      },
+      "text_extract": {
+        "name": "Text extrahieren",
+        "description": "Den Text einer TXT-, JSON-, CSV-, Text-PDF- oder DOCX-Datei lesen. Eine gescannte Seite lässt den Schritt fehlschlagen und meldet, dass sie OCR braucht."
+      },
+      "transform_aggregate": {
+        "name": "Aggregieren",
+        "description": "Die Werte eines Felds über alle Elemente hinweg in einer Liste sammeln."
+      },
+      "transform_crypto": {
+        "name": "Krypto",
+        "description": "Text hashen oder kodieren oder eine ID oder einen Zufallswert erzeugen."
+      },
+      "transform_date_time": {
+        "name": "Datum & Uhrzeit",
+        "description": "Jetzt oder ein verschobener Zeitpunkt, ausgegeben in einer Zeitzone."
+      },
+      "transform_edit_fields": {
+        "name": "Felder bearbeiten",
+        "description": "Felder bei jedem Element einer Liste setzen, umbenennen oder entfernen."
+      },
+      "transform_limit": {
+        "name": "Begrenzen",
+        "description": "Die ersten oder die letzten Elemente einer Liste behalten."
+      },
+      "transform_remove_duplicates": {
+        "name": "Duplikate entfernen",
+        "description": "Von Elementen, die in bestimmten Feldern gleich sind, jeweils eines behalten."
+      },
+      "transform_sort": {
+        "name": "Sortieren",
+        "description": "Die Elemente einer Liste nach einem oder mehreren Feldern sortieren."
+      },
+      "transform_split_out": {
+        "name": "Auffächern",
+        "description": "Eine Liste in jedem Element in eigene Elemente umwandeln."
+      },
+      "transform_summarize": {
+        "name": "Zusammenfassen",
+        "description": "Die Elemente zählen, summieren oder mitteln, nach Gruppen."
+      },
+      "trigger_channel_message": {
+        "name": "Kanalnachricht",
+        "description": "Eine Nachricht an einen Ihrer Slack-, Mattermost- oder Telegram-Bots."
+      },
+      "trigger_chat": {
+        "name": "Chatnachricht",
+        "description": "Ein Mitglied sendet eine Nachricht im Chat, und dieser Workflow ist zum Antworten ausgewählt."
+      },
+      "trigger_form": {
+        "name": "Formular",
+        "description": "Jemand füllt ein Formular unter der öffentlichen Adresse des Workflows aus."
+      },
+      "trigger_github": {
+        "name": "GitHub",
+        "description": "In einem GitHub-Repository passiert etwas – ein Issue, ein Pull Request, ein Push."
+      },
+      "trigger_gmail": {
+        "name": "Gmail",
+        "description": "Eine neue E-Mail kommt im verbundenen Gmail-Postfach der Organisation an."
+      },
+      "trigger_manual": {
+        "name": "Manuell",
+        "description": "Starten Sie ihn mit einem Klick auf Run im Editor oder auf der Run-Seite des Workflows."
+      },
+      "trigger_outlook": {
+        "name": "Outlook",
+        "description": "Eine neue E-Mail kommt in einem Ordner des verbundenen Microsoft-365-Postfachs der Organisation an."
+      },
+      "trigger_schedule": {
+        "name": "Zeitplan",
+        "description": "Läuft nach der Uhr: in Abständen oder nach einem Cron-Ausdruck in UTC."
+      },
+      "trigger_table_record": {
+        "name": "Tabellendatensatz",
+        "description": "Ein Datensatz wird einer Tabelle hinzugefügt, geändert oder gelöscht und passt zu den Filtern."
+      },
+      "trigger_webhook": {
+        "name": "Webhook",
+        "description": "Eine signierte HTTP-Zustellung kommt unter der eigenen Adresse dieses Workflows an."
+      },
+      "trigger_workflow_call": {
+        "name": "Von einem Workflow aufgerufen",
+        "description": "Der Schritt „Workflow ausführen“ eines anderen Workflows startet ihn mit den Feldern, die er deklariert."
+      },
+      "trigger_workflow_failed": {
+        "name": "Bei Fehlschlag eines Workflows",
+        "description": "Ein Run eines Workflows, der diesen als seinen Fehler-Workflow angibt, schlägt fehl."
+      },
+      "webhook_respond": {
+        "name": "Auf Webhook antworten",
+        "description": "Den Webhook-Aufruf beantworten, der den Run gestartet hat: mit Status, Headern und Body."
+      },
+      "workflow_run": {
+        "name": "Workflow ausführen",
+        "description": "Einen anderen Workflow als Schritt ausführen und weitergeben, was er antwortet."
+      }
+    },
+    "port": {
+      "approved": "Freigegeben",
+      "chosen": "Gewählt",
+      "deadline_reached": "Frist erreicht",
+      "default": "Standard",
+      "done": "Fertig",
+      "error": "Fehler",
+      "false": "Falsch",
+      "in": "Eingang",
+      "no": "Nein",
+      "other": "Andere",
+      "otherwise": "Sonst",
+      "out": "Ausgang",
+      "rejected": "Abgelehnt",
+      "reply_received": "Antwort erhalten",
+      "scored": "Bewertet",
+      "true": "Wahr",
+      "unsure": "Unsicher",
+      "yes": "Ja"
     }
   }
 }

@@ -1,8 +1,10 @@
 ---
-source_sha: "d4ebadc86d2b"
+source_sha: "3dcf65276140"
 ---
 
 # Workflows { #workflows }
+
+Ikonę workflow wybierasz obok jego nazwy w edytorze. Ten sam neutralny kafelek pojawia się w katalogu. Wybór pozostaje po odświeżeniu; **Użyj domyślnej ikony** go resetuje. Zmieniają się metadane wyglądu, a nie rewizja draftu ani opublikowany graf.
 
 **Workflow** łączy kroki w automatyzację, którą wykonują Twoje agenty: odczytać
 [tabelę](virtual-tables.md), wywołać agenta, rozgałęzić się na podstawie wyniku,
@@ -82,7 +84,11 @@ pokazują tę samą listę.
 
 **More → Settings** zawiera nazwę, opis, tagi i ustawienia wykonania workflow, zapisywane automatycznie. Edytor kroku wypełnia dostępne okno: Input po lewej, Parameters i Settings pośrodku, Output po prawej. Wyzwalacze mają dwa panele, bo nie odbierają danych z poprzednich kroków. Na dużym ekranie panele przewijają się osobno, a na telefonie tworzą jedną przewijaną kolumnę. Zapisane wykonanie pokazuje parametry tylko do odczytu obok danych. Wartości rekordu mają pola nazwane według kolumn tabeli. Notatki oferują Open note, gotowe rozmiary i uchwyty zmiany rozmiaru.
 
-Picker aplikacji pokazuje serwery z katalogu MCP także przed połączeniem; ogólna pozycja Call an MCP tool jest ukryta. Połącz usługę na miejscu, a następnie wybierz wykryte narzędzie. Lista dozwolonych narzędzi połączenia nadal obowiązuje. Kanwa domyślnie pokazuje kolorowe kroki i minimapę. Kroki modeli AI odsłaniają instrukcje, temperaturę i effort; puste ustawienia zachowują domyślne wartości dostawcy. Decyzje Jev pokazują model, pytanie i próg pewności. Send an email używa nadawcy platformy albo łączy Gmail lub Outlook i po potwierdzeniu zmienia krok na rzeczywiste narzędzie MCP tej skrzynki. Zmiana usuwa niezgodne mapowania wejścia i można ją cofnąć.
+Picker aplikacji pokazuje serwery z katalogu MCP także przed połączeniem; ogólna pozycja Call an MCP tool jest ukryta, a te, których nikt nie połączył, czekają pod **aplikacjami do połączenia** na końcu swojej sekcji. Połącz usługę na miejscu, a następnie wybierz wykryte narzędzie. Lista dozwolonych narzędzi połączenia nadal obowiązuje.
+
+Kanwa domyślnie pokazuje kolorowe kroki i minimapę. Na telefonie otwiera się z całym przepływem w widoku i ukrytą minimapą; **Canvas options** pokazuje ją z powrotem.
+
+Kroki modeli AI odsłaniają instrukcje, temperaturę i effort; puste ustawienia zachowują domyślne wartości dostawcy. Kroki **Decyzje**, na które odpowiada model decyzyjny Jev, pokazują model, pytanie i próg pewności. Send an email używa nadawcy platformy albo łączy Gmail lub Outlook i po potwierdzeniu zmienia krok na rzeczywiste narzędzie MCP tej skrzynki. Zmiana usuwa niezgodne mapowania wejścia i można ją cofnąć.
 
 Krok **Send an email** oferuje też **SMTP account → Nowe konto SMTP**. W formularzu vault podaj serwer, port, login, hasło i nadawcę. STARTTLS zwykle korzysta z 587, a implicit TLS z 465; oba tryby weryfikują certyfikat. Workflow zapisuje tylko `smtp_secret_id`. Opcja **Nadawca platformy** usuwa wybór. Publikacja i wykonanie sprawdzają dostęp do sekretu; niedostępne konto zatrzymuje krok zamiast zmieniać nadawcę.
 
@@ -114,6 +120,8 @@ Agenci wywoływani z workflow mogą używać narzędzi AgenticOS MCP w workerze 
 
 ## Kanwa i dodawanie kroków { #the-canvas-and-the-palette }
 
+Po **Test draft** kanwa pokazuje status runu i liczbę ukończonych kroków. **Open run** otwiera szczegóły. Na wąskim ekranie pasek statusu zawija się wewnątrz kanwy, dzięki czemu link i przycisk zamknięcia pozostają dostępne.
+
 Edytor pozostawia widoczne **Runs**, **Test draft** i **Publish**. **More** zawiera **Versions** i przełącznik edycji/podglądu. **Canvas options** mieści minimapę, styl połączeń i skróty. Krok bez połączenia wejściowego pomija pusty panel Input, zostawiając więcej miejsca na parametry; **Expected output fields** rozwija schemat wyjścia. **Review setup before testing** odsłania brakującą konfigurację.
 
 **Kanwa** to miejsce, w którym pojawiają się kroki i połączenia workflow, i ma całą
@@ -133,7 +141,7 @@ Cmd z kółkiem - ją przybliża; jej przyciski są w rogu.
 
 Kroki wybiera się w **wyborze kroków**. Pokazuje sekcje - **Start**, **AI**,
 **Flow**, **Data**, **Apps and the web** - z grupami pod każdą. Grupa taka jak
-**Slack**, **Tables** czy **Jev decisions** otwiera się na swoje kroki, a grupa z jednym
+**Slack**, **Tables** czy **Decisions** otwiera się na swoje kroki, a grupa z jednym
 krokiem jest tym krokiem. **Search steps** znajduje dowolny krok po nazwie, tym, co
 robi, albo po grupie. Krok dodajesz na cztery sposoby:
 
@@ -865,6 +873,12 @@ zatwierdziła. Decydujący, którego krok nie wskazuje, widzi propozycję tylko 
 prośba rozstrzygnięta ze zmienioną wersją ma pod **Zdecydowane (Decided)** znacznik
 **Zmieniono (Edited)**.
 
+W samym runie zakończony krok zatwierdzenia zaczyna się od tego, kto i kiedy zdecydował -
+**Zatwierdzone przez** albo **Odrzucone przez** osobę i czas - same decyzję i czas, gdy
+konta już nie ma albo czytelnik nie może przeglądać członków - nad wynikiem kroku. Gdy zatwierdzający zmienił propozycję,
+**Pokaż zmiany (Show changes)** porównuje obie wersje. Prośba, która wygasła albo została
+anulowana razem z runem, mówi o tym zamiast tego.
+
 Gdy krok wymienia **Ways to approve**, kolejka pokazuje po jednym przycisku na każdy, z
 etykietą, którą napisał autor, zamiast **Approve**; **Reject** zostaje. Każdy sposób
 jest portem wyjściowym kroku, więc workflow idzie dalej tym, który wybrał zatwierdzający,
@@ -922,6 +936,8 @@ przebiegu otwiera log przefiltrowany do tego przebiegu. Wiersz otwiera przebieg,
 go zapisał. W widoku przebiegu wiersze każdego kroku są pod nim, w kolejności zapisu.
 Klucz API organizacji z `workflows:view` też je odczytuje, dla runów o publicznym
 pochodzeniu: zob. [Odczyt logu workflow](api.md#reading-a-workflows-log).
+
+Nowe wiersze Quick Log pokazują domyślne nazwy kroków w języku czytelnika, także na dashboardzie. Zapisany graf runu identyfikuje nazwy domyślne, także w starszych wierszach. Własne etykiety i wiersze, których zapisany graf nie identyfikuje już kroku, zachowują zapisany tekst.
 
 ### Alerty { #log-alerts }
 

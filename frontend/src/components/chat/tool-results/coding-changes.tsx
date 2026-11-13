@@ -2,7 +2,7 @@
 
 import { Check, Copy } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useMemo, type ReactNode } from "react";
+import { useMemo } from "react";
 
 import { Button } from "@/components/ui";
 import { useCodingChanges } from "@/hooks/use-coding-changes";
@@ -11,6 +11,7 @@ import type { ChangedFile, CodingTaskChanges } from "@/lib/coding-changes-api";
 import { capChangeSet, type Hunk } from "@/lib/patch";
 import { cn } from "@/lib/utils";
 import { CollapsibleBlock } from "../collapsible-block";
+import { RevertTask } from "./coding-task-revert";
 
 /**
  * What a coding task changed in the sandbox (#2480): the files first, then each
@@ -18,11 +19,10 @@ import { CollapsibleBlock } from "../collapsible-block";
  */
 export function TaskChanges({
   changeId,
-  fallback,
+  conversationId,
 }: {
   changeId: string;
-  /** What the panel showed before diffs - the names the harness gave - for a reader the diff is refused to. */
-  fallback: ReactNode;
+  conversationId?: string;
 }) {
   const t = useTranslations("chat.tools.codingAgent");
   const { changes, isLoading, failed } = useCodingChanges(changeId);
@@ -30,12 +30,7 @@ export function TaskChanges({
 
   if (isLoading) return <p className="text-muted-foreground text-xs">{t("changesLoading")}</p>;
   if (failed || changes === null) {
-    return (
-      <>
-        <p className="text-muted-foreground text-xs">{t("changesUnavailable")}</p>
-        {fallback}
-      </>
-    );
+    return <p className="text-muted-foreground text-xs">{t("changesUnavailable")}</p>;
   }
   if (changes.files.length === 0 && changes.omitted === 0) {
     return <p className="text-muted-foreground text-xs">{t("noChanges")}</p>;
@@ -45,6 +40,7 @@ export function TaskChanges({
     <CollapsibleBlock label={t("changes", { count })} open>
       <div className="space-y-3 p-3">
         <FileList changes={changes} />
+        <RevertTask changes={changes} conversationId={conversationId} />
         {diffs.map(({ file, hunks, hidden }) => (
           <FileDiff
             key={`${file.old_path ?? ""}:${file.path}`}

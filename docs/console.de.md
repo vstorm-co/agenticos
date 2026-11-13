@@ -1,12 +1,36 @@
 ---
-source_sha: "83d83010c6fa"
+source_sha: "f01c07600e13"
 ---
 
 # Die Konsole { #the-console }
 
+Das persönliche Dashboard liest Onboarding und Briefing gemeinsam, bevor es die erste Zeile anzeigt. Ein reservierter Ladebereich verhindert wechselnde Platzhalterlayouts; andere Widgets laden unabhängig. Fehlgeschlagene Lesevorgänge können erneut versucht werden. Arbeitsbereiche lassen sich auf Smartphones erweitern; beim Wechsel zum Desktop kehrt die Navigation zurück und ungespeicherte Felder bleiben erhalten.
+
+Die Kontexteinstellungen zeigen kompakte Dateizeilen mit Einstellungen für die Nutzung durch den Agenten. Lange Beschreibungen strecken benachbarte Dateien nicht mehr; ausschließlich eingefügter Kontext erhält einen neutralen Hinweis. Availability zeigt das Plattformlogo neben dem Botnamen. Beim Teilen einer App stehen Seitenlink und Personen mit Zugriff zuerst. Ablaufdatum, Versionsbindung, Einbettung und Passwort sind zunächst unter Link-Einstellungen eingeklappt. Aktive Einschränkungen bleiben als Kennzeichnungen sichtbar; Einklappen erhält die Bearbeitung.
+
+Auf Telefonen verwendet die Kanalregistrierung eine kompakte Plattformauswahl. Abbrechen eines neuen Kanals, eines neuen Tresorschlüssels oder einer Schlüsselrotation löscht die eingegebenen Zugangsdaten. Kanal- und Tresorformulare sperren Bearbeitung und Schließen während des Schreibvorgangs; eine Ablehnung erhält die Werte zur Korrektur und Wiederholung. Kanalbearbeitung und Schlüsselrotation halten ihre Aktionsleiste auch in niedrigen Fenstern sichtbar.
+
+Auf Telefonen zeigt eine neue Kontextdatei den Quelltexteditor vor optionalen Details. Details nennt den wirksamen Zugriff auch im eingeklappten Zustand; öffne den Bereich, um Beschreibung oder Zugriff zu ändern. Eine abgelehnte Beschreibung öffnet den Bereich automatisch zur Korrektur.
+
+Formulare für neue Projekte, Kontextdateien und Datasets fragen vor dem Verwerfen eines Entwurfs. Bleiben erhält ihn, Verwerfen setzt ihn zurück. Beim Anlegen sind Felder, Abbrechen, Schließen und Escape bis zum Ende des Schreibvorgangs gesperrt. Eine Ablehnung erhält die Werte und erlaubt wieder die Bearbeitung. Der Kontextquelltext ist währenddessen schreibgeschützt.
+
+Bei mehreren abgelegten Kontextdateien bietet das Schließen nur Bleiben oder Verwerfen; mit Erstellen werden sie der Reihe nach verarbeitet. Dataset-Details und Fallformulare sperren beim Speichern ebenfalls Felder und Schließen, einschließlich des Formular/JSON-Wechsels. Speichern bleibt in kurzen Telefonfenstern erreichbar.
+
+Beim Start der MCP-Anmeldung bleibt das Formular offen, bis das Zustimmungsziel bereitsteht. Ein abgelehnter Start erhält die Werte für Korrektur und Wiederholung.
+
+Beim Bearbeiten eigener Slash-Befehle fragt die Konsole vor dem Verwerfen eines Entwurfs. Während des Speicherns sind Felder und Schließen gesperrt; eine Ablehnung erhält den Entwurf. Auf Telefonen stehen die Aktionen in einer eigenen Zeile mit Touch-Zielen. Ein laufender Umschaltvorgang sperrt konkurrierende Aktionen; Löschen verlangt Bestätigung. Auch MCP-Verbindungsformulare sperren Felder und Schließen beim Speichern.
+
 Die Konsole ist die Webanwendung, über die alles andere auf dieser Site
 konfiguriert wird. Diese Seite ist die Landkarte: wofür jeder Bereich da ist,
 und welche Seite ihn ausführlich erklärt.
+
+Wenn du Projekteinstellungen, den Organisationsnamen, das Ausgabenlimit, die Sprachvorgaben, die Aufbewahrungszeiten, einen Skill oder eine Kontextdatei bearbeitest, fragt die Konsole vor dem Verlassen, ob du speichern, verwerfen oder bleiben möchtest. Das gilt auch beim Wechsel von einer bearbeiteten Skill-Ressource zu einer anderen Datei. Ein abgelehnter Speichervorgang lässt den Entwurf offen; **Save file** verwirft ihn erst nach der Bestätigung des Servers. Während dieses Speichervorgangs ergänzter Text bleibt ungespeichert.
+
+Auf dem Telefon zeigen Wissensbasis-Dokumente und Organisationsmitglieder beschriftete Zeilen mit sichtbaren Aktionen. Das Entfernen eines Mitglieds erfordert eine Bestätigung; bei Ablehnung bleibt sie offen. Dialoge zum Erstellen einer Wissensbasis, zur Verarbeitung und zum Embedding-Anbieter sperren während des Speicherns ihre Felder und bleiben offen; nach einer Ablehnung lassen sie sich wieder bearbeiten und schließen. Ein fehlgeschlagener Dokumentdownload zeigt einen Fehler und kann erneut versucht werden.
+
+Wenn du die Frage oder den Suchbereich der Wissenssuche änderst, werden bisherige Ergebnisse entfernt und die laufende Anfrage abgebrochen. Eine verspätete Antwort kann die Ergebnisse einer neueren Suche nicht ersetzen.
+
+Im öffentlichen Chat kannst du während des Verbindungsaufbaus schreiben. Send wird erst aktiviert, wenn der aktuelle WebSocket geöffnet ist. Eine neue Unterhaltung wartet auf ihre eigene Verbindung; ein früher Klick kann die erste Frage nicht unbemerkt verlieren.
 
 Wenn Sie einen einzelnen Screen suchen, ist der schnellste Weg das **"?"** in
 der Kopfzeile einer Seite — es spielt den Rundgang dieser Seite ab, und eine
@@ -50,7 +74,7 @@ Auf dem Smartphone bleiben die Hauptaktionen sichtbar; weitere Befehle öffnet *
 
 Jede ausdrückliche Aktion **New chat** fokussiert den Editor erneut, auch bei einem leeren Entwurf; die Vergabe einer Gesprächs-ID während des Schreibens fordert keinen Fokus an.
 
-Markdown-Felder und Dateieditoren bieten ebenfalls eine Schaltfläche zum Vergrößern, ohne den aktuellen Entwurf zu verwerfen. Beschreibung und Kategorie eines Skills lassen sich über dem Editor aufklappen. Das Chat-Eingabefeld benötigt weniger Platz und begrenzt lange Entwürfe anhand der verfügbaren Bildschirmhöhe. Beim Öffnen der Navigation erhält das Panel den Fokus; mit Tab sind dessen Bedienelemente weiterhin erreichbar. Der Workflow-Canvas bietet auf Telefonen eine schwebende Vollbild-Schaltfläche und eine kleinere Minimap.
+Markdown-Felder und Dateieditoren bieten ebenfalls eine Schaltfläche zum Vergrößern, ohne den aktuellen Entwurf zu verwerfen. Beschreibung und Kategorie eines Skills lassen sich über dem Editor aufklappen. Das Chat-Eingabefeld benötigt weniger Platz und begrenzt lange Entwürfe anhand der verfügbaren Bildschirmhöhe. Beim Öffnen der Navigation erhält das Panel den Fokus; mit Tab sind dessen Bedienelemente weiterhin erreichbar. Auf Telefonen bietet der Workflow-Canvas eine schwebende Vollbild-Schaltfläche, öffnet sich mit dem ganzen Ablauf im Blick und startet mit ausgeblendeter Minimap.
 
 Auf Telefonen bleiben Beschreibung, Kategorie und Dateiverwaltung in Skill- und Kontexteditoren beim Schreiben eingeklappt. Eine Schaltfläche wechselt zwischen Quelltext und Vorschau. Apps bietet schwebende Zurück- und Optionsschaltflächen; die Optionen zeigen Titel, Version, Design und Freigabe.
 
@@ -87,6 +111,10 @@ Auf dem Smartphone halten gesendete Nachrichten unterhalb der schwebenden Chat-S
 Standardagenten schließen einmalige Anfragen ab, ohne die Antwort durch eine optionale Automatisierungsfrage offen zu halten. Fragen klären notwendige Entscheidungen zur aktuellen Aufgabe oder zu einer angefragten beziehungsweise akzeptierten Automatisierung. Optionale Einrichtungskarten bleiben unverbindliche Vorschläge und blockieren den Abschluss nicht.
 
 Die kompakte Quellen-Schaltfläche unter einer Antwort öffnet Sources neben dem Gespräch, auf dem Smartphone als vollbreites Panel. Files und Sources teilen sich den Seitenbereich: Das Öffnen eines Panels ersetzt das andere. Webquellen zeigen das ohne Referrer geladene Favicon oder ein bekanntes Dienstlogo; bei fehlendem Symbol bleibt der Globus. Wissensquellen behalten ihre Dateisymbole und die Originaldokumentansicht.
+
+Weblinks in Antworten verwenden dieselbe Favicon-Regel unabhängig von MCP-Verbindungen. Symbole unbekannter Seiten werden über den Proxy unter derselben Origin wie die Konsole und den festen Symboldienst von DuckDuckGo geladen. Dieser erhält nur den Hostnamen, keine Cookies oder IP-Adresse des Lesers, URL-Pfade oder Abfrageparameter. Der Proxy verweigert Weiterleitungen, nicht-rasterbasierte Inhalte und Symbole über 64 KiB; das Zeitlimit beträgt drei Sekunden. Bei fehlenden oder nicht erreichbaren Symbolen erscheint ein Globus. Inaktive Transkriptansichten laden weder entfernte Bilder noch Symbole unbekannter Seiten.
+
+Ein fehlgeschlagener Chat-Run zeigt seinen Fehler getrennt von der Antwort und außerhalb der eingeklappten Tool-Schritte, auch nach dem Neuladen. Inhaltsfilter des Anbieters erhalten eine ausdrückliche Erklärung; rohe Anbieterantworten und unbekannte historische Fehlermeldungen werden nicht in geteilte Transkripte kopiert. Teilergebnisse bleiben sichtbar, und fehlgeschlagene Arbeit erscheint nicht als abgeschlossen.
 
 ## Das Dashboard { #the-dashboard }
 
@@ -198,6 +226,8 @@ statt still den Snapshot zu überschreiben, den Sie behalten wollten.
     eigenen gespeicherten Anordnung stammt.
 
 ## Routinen und Beobachtungen { #routines-and-watches }
+
+Routinennamen werden auf Telefonen umgebrochen. Ohne Suchtreffer erscheint **Suche löschen**; **Erneut versuchen** lädt Aufgaben und Beobachtungen nach einem Lesefehler neu. Zeitpläne und Ereignisauslöser werden zwischen festem Kopf und Aktionsleiste bearbeitet. Schreibvorgänge sperren Felder und Schließen bis zum Abschluss; eine Ablehnung erhält den Entwurf.
 
 Routines hat zwei Tabs. **Agentenaufgaben** startet einen gewählten Agenten nach
 Zeitplan oder Ereignis mit seinen Werkzeugen; die Läufe erscheinen in Activity.
@@ -538,7 +568,13 @@ Routine einrichtet.
 
 Unterhaltungslisten behalten den Hauptagenten bei und nennen zusätzlich Claude Code oder Codex, wenn gespeicherte Aufgabenberichte ihre Mitarbeit belegen. Sidebar, Projektchats, Dashboard und Quick-Ask-Verlauf verwenden dieselben Symbole und Beschriftungen. Jeder Coding-Harness erscheint einmal, bleibt nach dem Aktualisieren sichtbar und ist unabhängig von aktuellen Chat-Einstellungen. Die Auswahl ohne Ausführung fügt ihn nicht zum Verlauf hinzu.
 
-Das Files-Panel gruppiert Dateien nach Ordnern und unterscheidet gleiche Namen in verschiedenen Verzeichnissen. HTML-Vorschauen laden lokale Stylesheets und ihre verschachtelten Ressourcen über denselben Dateizugriff wie die Seite. Vorschau und Quelltext bleiben getrennt; Skripte sind deaktiviert. Ist ein Stylesheet nicht lesbar, nennt die Vorschau die betroffene Datei. Unter einer Antwort stehen Links zu den in diesem Turn geänderten Dateien, anhand der von erfolgreichen Schreib-/Bearbeitungswerkzeugen oder dem Coding-Harness gemeldeten Pfade. Die Links öffnen aktuelle Workspace-Dateien, keine versionierte Kopie.
+Das Files-Panel gruppiert Dateien nach Ordnern und unterscheidet gleiche Namen in verschiedenen Verzeichnissen. HTML-Vorschauen laden lokale Stylesheets und ihre verschachtelten Ressourcen über denselben Dateizugriff wie die Seite. Vorschau und Quelltext bleiben getrennt; Skripte sind deaktiviert. Ist ein Stylesheet nicht lesbar, nennt die Vorschau die betroffene Datei.
+
+Unter einer Antwort stehen Links zu den in diesem Turn geänderten Dateien. Programmieraufgaben verwenden ihren gespeicherten Änderungssatz einschließlich Shell-Änderungen; ohne Änderungssatz nutzen sie den Harness-Bericht. Das Aufgabenpanel bietet **Diese Aufgabe rückgängig machen** an, wenn du den ursprünglichen Workspace bearbeiten darfst und der Snapshot vollständig ist. Die Links öffnen aktuelle Workspace-Dateien, keine versionierte Kopie.
+
+Die Rücknahme läuft als dauerhafter Job in einem isolierten Unterhaltungs-Workspace. Snapshots geteilter Bereiche bleiben schreibgeschützt. Das Panel zeigt den Fortschritt; ein unbekanntes Ergebnis reserviert den Workspace, bis Erneut versuchen seine Dateien prüft.
+
+Snapshots für Rücknahmen sind auf 2 MiB pro Datei und insgesamt 16 MiB für die Daten vor und nach der Änderung begrenzt; größere Änderungen bleiben ohne Rücknahme einsehbar. Die Prüfung begrenzt auch das Lesen älterer Snapshots. Pro Minute sind sechs Anfragen pro Person und zwanzig pro Organisation zulässig, mit einer lokalen Grenze bei Redis-Ausfällen. Jede Organisation führt höchstens einen Rücknahme-Job gleichzeitig aus.
 
 Während der Arbeit erscheinen Fortschrittsmeldungen und die jeweils folgenden Tool-Aufrufe in ihrer Eingangsreihenfolge in einem aufgeklappten Verlauf. Erst nach Abschluss wird der Verlauf unter einem „Worked for…“- oder „Thought for…“-Schalter eingeklappt; darunter bleibt nur die finale Antwort. Aufklappen zeigt dieselben Nachrichten und Tool-Gruppen wieder chronologisch. Begründungen bleiben separat aufklappbar; ihre Überschriften erzeugen keine Prozessphasen. Fragen und Freigaben behalten ihren Wartestatus bis zur Entscheidung, auch bei delegierten Anfragen. Aktive Freigabekarten und visuelle Ergebnisse bleiben außerhalb des abgeschlossenen Verlaufs sichtbar.
 
@@ -1037,6 +1073,20 @@ arbeiten und Ihre Zeitzone. Jeder Agent liest sie zu Beginn eines Runs, sodass S
 sie in keinem Chat wiederholen; „jeden Montag um 9“ ist Ihre 9. Die Zeitzone wird
 bei der ersten Anmeldung aus Ihrem Browser übernommen, bis Sie eine wählen.
 
+Die Profileinstellungen verbinden Porträt, Anzeigename und E-Mail in einem
+Formular; Ersatzfarben stehen unter einer aufklappbaren Zeile. Speichern steht
+unter den Feldern, Enter sendet das Namens- oder Rollenformular. Während eines
+Profilzugriffs zum Speichern bleiben Identität und Kontext gesperrt; eine
+Ablehnung behält den Entwurf. Arbeitstage haben größere Touch-Ziele; Beginn
+und Ende stehen auch auf dem Smartphone in getrennten Feldern.
+
+**Einstellungen → Benachrichtigungen** durchsucht Ereignisnamen und Beschreibungen,
+mit sechs Ereignissen pro Seite. Die Chatauswahl ändert den zusätzlichen Kanal,
+ohne andere Einstellungen zu verändern. Verknüpfte private Chatziele stehen
+zuerst; weitere Plattformen sind eingeklappt. Fehlgeschlagene Lesevorgänge für
+Einstellungen, Ziele oder Konten bieten einen neuen Versuch statt erfundener
+Standardwerte oder einer scheinbar leeren Kontenliste.
+
 ## Der nächste Schritt { #the-next-step }
 
 Eine Seite, die leer ist, weil noch nichts existiert, bietet den Weg zum ersten
@@ -1079,7 +1129,7 @@ Die Seitenleistenfußzeile zeigt die Build-Version der Konsole neben Suche und B
 
 Eine neuere stabile AgenticOS-Version hebt die Versionsnummer mit einem grünen Punkt hervor. Ein Klick zeigt die laufende und verfügbare Version sowie einen Link zum offiziellen Release. Die Hintergrundprüfung läuft beim Öffnen der Konsole, während der Nutzung alle 30 Minuten und bei veralteten Daten nach erneutem Fokus oder Wiederherstellung der Verbindung. Der Server teilt öffentliche Prüfergebnisse fünf Minuten lang und sendet keine Konto-, Organisations- oder Bereitstellungsdaten an GitHub. Bei Netzwerkfehlern bleibt die laufende Version sichtbar, ohne als aktuell bezeichnet zu werden. Der Hinweis lädt die Seite nicht neu und installiert kein Update automatisch.
 
-Nach der Anmeldung zeigt **Was ist neu** einmal pro Konto auf diesem Gerät die öffentlichen GitHub-Versionshinweise der installierten Version. Das Fenster wartet, bis das Onboarding geschlossen ist. Schließen markiert die Version als gelesen; fehlende Hinweise oder Netzwerkfehler unterbrechen die Sitzung nicht. Funktionen einer neueren, noch nicht installierten Version stehen nur hinter dem Update-Hinweis.
+Nach der Anmeldung zeigt **Was ist neu** einmal pro Konto auf diesem Gerät die öffentlichen GitHub-Versionshinweise der installierten Version. Das Fenster wartet, bis das Onboarding geschlossen ist. Schließen markiert die Version als gelesen; fehlende Hinweise oder Netzwerkfehler unterbrechen die Sitzung nicht. Funktionen einer neueren, noch nicht installierten Version stehen nur hinter dem Update-Hinweis. Die Abschnitte **Upgrading** und **Notes for operators** mit Migrationen und Upgrade-Schritten sehen nur Administratoren des Deployments; eine Version, die nichts anderes enthält, öffnet für alle anderen kein Fenster.
 
 Chat controls merkt sich Modell, Freigabemodus und lokale Werkzeuge pro Konto und Organisation über Chats hinweg. Projektdateieinstellungen haben Vorrang. Die Zustimmung zum gesamten Computer gilt für eine Unterhaltung oder für einen Agenten, wenn dieser auf Ihrem Computer arbeitet. Das Überspringen von Freigaben benötigt weiterhin die aktuelle Berechtigung und Organisationsrichtlinie. Agent setting (oder Cloud für Dateien) ist deaktiviert, wenn dem veröffentlichten Agenten diese Fähigkeit fehlt; lokale Alternativen werden nicht automatisch aktiviert. Ein Klick auf die ausgewählte lokale Option schaltet sie aus.
 

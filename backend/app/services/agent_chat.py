@@ -655,6 +655,7 @@ class ChatAgentRunner:
         error: str | None = None
         paused: PausedRunState | None = None
         budget_scope: BudgetScope | None = None
+        budget: BudgetExceeded | None = None
         output = ""
         summarized: list[dict[str, Any]] | None = None
         # Set as the last statement of the `try`, so it is True only when this run
@@ -713,6 +714,7 @@ class ChatAgentRunner:
             status = RunStatus.BUDGET_EXCEEDED
             error = str(exc)
             budget_scope = exc.scope
+            budget = exc
             logger.info("Chat run %s stopped by budget: %s", prepared.run.id, exc)
             raise
         except GuardrailBlocked as exc:
@@ -753,6 +755,7 @@ class ChatAgentRunner:
                     error=error,
                     paused_state=paused,
                     budget_scope=budget_scope,
+                    budget=budget,
                 )
                 if prepared.run.status == RunStatus.FAILED.value:
                     status = RunStatus.FAILED

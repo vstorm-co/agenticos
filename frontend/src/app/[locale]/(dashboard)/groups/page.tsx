@@ -28,7 +28,7 @@ export default function GroupsPage() {
   const orgId = useOrgStore((state) => state.activeOrgId) ?? "";
   const { can } = usePermissions();
   const canManage = can(Perm.membersManage);
-  const { groups, isLoading, error, remove } = useGroups(orgId);
+  const { groups, isLoading, error, remove, refetch } = useGroups(orgId);
   const [editing, setEditing] = useState<Group | "new" | null>(null);
   const [deleting, setDeleting] = useState<Group | null>(null);
   const [viewing, setViewing] = useState<Group | null>(null);
@@ -60,6 +60,7 @@ export default function GroupsPage() {
       <div data-tour="groups-list" className="flex flex-1 flex-col">
         <GroupList
           groups={groups}
+          onRetry={() => void refetch()}
           isLoading={isLoading}
           error={error}
           canManage={canManage}
@@ -97,10 +98,7 @@ export default function GroupsPage() {
           confirmLabel={t("delete")}
           destructive
           loading={remove.isPending}
-          onConfirm={async () => {
-            await remove.mutateAsync(deleting.id).catch(() => undefined);
-            setDeleting(null);
-          }}
+          onConfirm={() => remove.mutate(deleting.id, { onSuccess: () => setDeleting(null) })}
         />
       )}
     </div>

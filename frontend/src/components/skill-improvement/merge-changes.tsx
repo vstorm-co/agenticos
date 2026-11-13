@@ -29,7 +29,7 @@ export function MergeChanges({
   const actions = useSkillMerge(session.skill_id, session.id, { at: standing(session) });
   const [refusal, setRefusal] = useState<string | null>(null);
   const { merge } = actions;
-  if (actions.isLoading) return <LoadingState variant="skeleton-cards" rows={2} />;
+  if (actions.isLoading) return <LoadingState variant="pending" />;
   if (actions.error || !merge)
     return (
       <ErrorState

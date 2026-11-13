@@ -300,3 +300,22 @@ describe("helpers", () => {
     expect(routesErrors({ policy: null })).toBe(false);
   });
 });
+
+it("uses localized labels only for synthesized standard ports", () => {
+  const definition = makeDefinition({
+    id: "ai.classify",
+    ports: [port("other", "output", null)],
+    standardPortLabels: { error: "Błąd", unsure: "Niepewne" },
+  });
+  const ports = instancePorts(
+    instance({
+      definition_id: "ai.classify",
+      config: { categories: [{ name: "Error" }], min_confidence: 0.8 },
+      policy: { on_error: "route" },
+    }),
+    definition,
+  );
+  expect(ports.find((p) => p.id === "error")?.label).toBe("Błąd");
+  expect(ports.find((p) => p.id === "unsure")?.label).toBe("Niepewne");
+  expect(ports.find((p) => p.id === "Error")?.label).toBe("Error");
+});

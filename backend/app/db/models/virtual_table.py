@@ -48,6 +48,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.resource_icons import ResourceIconName
 from app.db.base import Base, TimestampMixin
 from app.db.models.resource_grant import Visibility
 
@@ -77,6 +78,7 @@ class VirtualTable(Base, TimestampMixin):
     )
     name: Mapped[str] = mapped_column(String(64), nullable=False)
     description: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    icon: Mapped[ResourceIconName | None] = mapped_column(String(32), nullable=True)
     default_view_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey(

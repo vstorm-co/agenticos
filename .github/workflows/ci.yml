@@ -723,9 +723,9 @@ jobs:
             > "$RUNNER_TEMP/backend.log" 2>&1 &
           echo "$!" > "$RUNNER_TEMP/backend.pid"
 
-      - name: Start background work for the evals journey
+      - name: Start background work for evals, ingestion and workflows
         run: |
-          uv run --directory backend python -m app.worker --pools agent,eval,system \
+          uv run --directory backend python -m app.worker --pools agent,eval,system,ingest,workflow \
             > "$RUNNER_TEMP/eval-worker.log" 2>&1 &
           echo "$!" > "$RUNNER_TEMP/eval-worker.pid"
 
