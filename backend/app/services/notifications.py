@@ -218,6 +218,8 @@ class NotificationService:
         spec: AgentSpec,
         reason: str,
         scope: BudgetScope,
+        limit_usd: Decimal | None = None,
+        spent_usd: Decimal | None = None,
     ) -> set[UUID]:
         """The run stopped because a limit was reached.
 
@@ -336,6 +338,13 @@ class NotificationService:
             "org_name": organization_name,
             "reason": reason,
             "spent": f"{run.cost_usd:.2f}" if run.cost_usd is not None else "0.00",
+            # The refusal's own numbers, which the console words in the reader's
+            # language; `reason` above is the same sentence in English.
+            **(
+                {"scope": scope.value, "limit_usd": str(limit_usd), "spent_usd": str(spent_usd)}
+                if limit_usd is not None and spent_usd is not None
+                else {}
+            ),
             "run_url": absolute_context_url(run_path),
             "app_name": settings.PROJECT_NAME,
             **native_context,
@@ -387,6 +396,7 @@ class NotificationService:
                     "group_name": group.name,
                     "spent": f"{spent:.2f}",
                     "limit": f"{group.monthly_budget_usd:.2f}",
+                    "share": share,
                 },
                 organization_id=run.organization_id,
                 use_savepoint=True,

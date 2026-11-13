@@ -83,6 +83,17 @@ _SCOPE_LABELS = {
 }
 
 
+def usd(amount: Decimal) -> str:
+    """Dollars to the cent, or to four places when the cent would read as nothing.
+
+    A sub-cent limit beside a spend of `$0.0008` reads as `$0.00` to the cent,
+    which says the limit is zero when it is not.
+    """
+    if Decimal(0) < amount < Decimal("0.01"):
+        return f"${amount:.4f}"
+    return f"${amount:.2f}"
+
+
 class BudgetExceeded(Exception):
     """Raised when a run would spend past its limit.
 
@@ -106,7 +117,7 @@ class BudgetExceeded(Exception):
         # alone would not say whose cap to go and ask about.
         label = f"{subject} department monthly" if subject else scope.label
         super().__init__(
-            f"{label} budget exhausted: ${spent_usd:.4f} spent of ${limit_usd:.2f} limit"
+            f"{label} budget exhausted: ${spent_usd:.4f} spent of {usd(limit_usd)} limit"
         )
 
 

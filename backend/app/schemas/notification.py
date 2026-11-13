@@ -75,6 +75,27 @@ def _outcome_of(notification: Notification) -> NotificationOutcome | None:
     )
 
 
+# What the console may word itself, per kind: named fields of `render_context` and
+# nothing else, since the rest of it holds links, ids and email-only copy.
+_PARAMS: dict[str, tuple[str, ...]] = {
+    NotificationEventType.APPROVAL_REQUESTED.value: ("agent_name",),
+    NotificationEventType.BUDGET_EXCEEDED.value: ("agent_name", "scope", "limit_usd", "spent_usd"),
+    NotificationEventType.BUDGET_WARNING.value: ("group_name", "share", "limit"),
+}
+
+
+def _params_of(notification: Notification) -> dict[str, str] | None:
+    keys = _PARAMS.get(notification.event_type)
+    context = notification.render_context or {}
+    if keys is None or any(not isinstance(context.get(key), str | int) for key in keys):
+        return None
+    # An approval asked through a chat by somebody unverified says so in English
+    # only; its wording is not one the console has.
+    if context.get("asked_by"):
+        return None
+    return {key: str(context[key]) for key in keys}
+
+
 class NotificationRead(BaseSchema):
     """One inbox row - `render_context` itself never leaves the service layer."""
 
@@ -96,6 +117,13 @@ class NotificationRead(BaseSchema):
     outcome_id: UUID | None = Field(
         default=None,
         description="The shared outcome this row is a delivery of; settling it clears every one.",
+    )
+    params: dict[str, str] | None = Field(
+        default=None,
+        description="For an approval request or a budget limit: the named values its sentence "
+        "is built from, so the console can word it in the reader's language. Null for any "
+        "other kind, for a row written before it was kept, and for a reader served "
+        "another wording.",
     )
 
     @classmethod
@@ -120,6 +148,7 @@ class NotificationRead(BaseSchema):
             agent=_agent_of(notification.render_context),
             outcome=_outcome_of(notification),
             outcome_id=notification.outcome_id,
+            params=None if summary_override else _params_of(notification),
         )
 
 

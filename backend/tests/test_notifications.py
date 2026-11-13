@@ -196,6 +196,32 @@ class TestBudgetExceeded:
         call = written.calls[0]
         assert call["event_type"] is NotificationEventType.BUDGET_EXCEEDED
         assert set(call["recipients"]) == {admin_id, owner_id}
+        # No amounts were handed over, so none are claimed for the console to word.
+        assert "limit_usd" not in call["render_context"]
+
+    @pytest.mark.anyio
+    async def test_the_limit_and_spend_are_kept_for_the_reader_s_language(self, written):
+        """The sentence is English; the numbers and which cap bound are what a console words."""
+        admin_id = uuid.uuid4()
+        with (
+            patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles(admin_id)),
+            patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members()),
+            patch(f"{MODULE}.organization_repo.get_by_id", new=AsyncMock(return_value=None)),
+        ):
+            await NotificationService(MagicMock()).budget_exceeded(
+                _run(),
+                agent=_agent(),
+                spec=_spec(),
+                reason="Agent monthly budget exhausted: $0.0008 spent of $0.0005 limit",
+                scope=BudgetScope.AGENT,
+                limit_usd=Decimal("0.0005"),
+                spent_usd=Decimal("0.0008"),
+            )
+
+        context = written.calls[0]["render_context"]
+        assert context["scope"] == "agent"
+        assert context["limit_usd"] == "0.0005"
+        assert context["spent_usd"] == "0.0008"
 
     @pytest.mark.anyio
     async def test_an_id_reached_two_ways_is_notified_once(self, written):
