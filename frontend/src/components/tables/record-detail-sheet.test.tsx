@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps, ReactNode } from "react";
 import { toast } from "sonner";
@@ -373,6 +373,28 @@ describe("RecordDetailSheet", () => {
     expect(onRecordUpdated).toHaveBeenCalledWith(theirs);
     expect(screen.getByRole("textbox")).toHaveValue("Ada Lovelace");
     expect(apiClient.get).toHaveBeenCalledTimes(1);
+  });
+
+  it("forgets what a cleared conflict read, so the next one shows only its own", async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({
+      ...record,
+      values: { c1: "First" },
+      revision: 2,
+    });
+    renderSheet();
+    await raiseConflict("x");
+    expect(await screen.findByTestId("conflict-now")).toHaveTextContent("Now: First");
+
+    act(() => useTableViewStore.getState().clearConflict("r1", "c1"));
+    await waitFor(() => expect(screen.queryByTestId("conflict-now")).toBeNull());
+
+    const second = deferred<RecordRead>();
+    vi.mocked(apiClient.get).mockReturnValueOnce(second.promise);
+    await raiseConflict("y");
+    // Until its own read lands, the second conflict says nothing of the first's value.
+    expect(screen.queryByTestId("conflict-now")).toBeNull();
+    second.resolve({ ...record, values: { c1: "Second" }, revision: 3 });
+    expect(await screen.findByTestId("conflict-now")).toHaveTextContent("Now: Second");
   });
 
   it("reads the record again for a conflict raised before the sheet opened", async () => {

@@ -137,6 +137,13 @@ export function RecordDetailSheet({
   // Read once per conflict; `known` holds what each conflict's record read as.
   const [known, setKnown] = useState<ReadonlyMap<string, RecordRead>>(new Map());
   const asked = useRef(new Set<string>());
+  const forget = useEffectEvent((keys: string[]) =>
+    setKnown((current) => {
+      const next = new Map(current);
+      for (const key of keys) next.delete(key);
+      return next;
+    }),
+  );
   const readAgain = useEffectEvent((target: RecordRead, fieldId: string, key: string) => {
     void refetch(target, fieldId).then((fresh) => {
       if (fresh) setKnown((current) => new Map(current).set(key, fresh));
@@ -150,8 +157,12 @@ export function RecordDetailSheet({
   useEffect(() => {
     if (!open || record === null) return;
     const live = new Set(signature === "" ? [] : signature.split("|"));
-    for (const key of [...asked.current]) {
-      if (key.startsWith(`${record.id}:`) && !live.has(key)) asked.current.delete(key);
+    const cleared = [...asked.current].filter(
+      (key) => key.startsWith(`${record.id}:`) && !live.has(key),
+    );
+    if (cleared.length > 0) {
+      for (const key of cleared) asked.current.delete(key);
+      forget(cleared);
     }
     for (const key of live) {
       if (asked.current.has(key)) continue;
