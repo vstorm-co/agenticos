@@ -131,3 +131,55 @@ it("words a session nobody took further, which closed on its own", () => {
     ),
   ).toBe("outcome.improvement.stopped(Refund desk) stop:expired");
 });
+
+function worded(event_type: string, params: Notification["params"]): Notification {
+  return { ...row(event_type, null), params };
+}
+
+it("words an approval request and a budget stop from their values, in the reader's language", () => {
+  expect(
+    notificationSummary(worded("approval_requested", { agent_name: "Memory probe" }), t, stop),
+  ).toBe("kind.approvalRequested(Memory probe)");
+  expect(
+    notificationSummary(
+      worded("budget_exceeded", {
+        agent_name: "Probe agent",
+        scope: "agent",
+        limit_usd: "0.0005",
+        spent_usd: "0.0008",
+      }),
+      t,
+      stop,
+    ),
+  ).toBe("kind.budgetExceeded(Probe agent,agent,$0.0008,$0.0005)");
+  expect(
+    notificationSummary(
+      worded("budget_warning", { group_name: "Sales", share: "82", limit: "100.00" }),
+      t,
+      stop,
+    ),
+  ).toBe("kind.budgetWarning(Sales,82,$100.00)");
+});
+
+it("shows a limit to the cent, and below a cent to the place spend is shown at", () => {
+  const stopped = (limit: string) =>
+    notificationSummary(
+      worded("budget_exceeded", {
+        agent_name: "Probe",
+        scope: "organization",
+        limit_usd: limit,
+        spent_usd: "20.01",
+      }),
+      t,
+      stop,
+    );
+  expect(stopped("20")).toBe("kind.budgetExceeded(Probe,organization,$20.01,$20.00)");
+  expect(stopped("0.004")).toBe("kind.budgetExceeded(Probe,organization,$20.01,$0.0040)");
+});
+
+it("keeps the server's sentence where it kept no values, or for a kind the console does not word", () => {
+  expect(notificationSummary(worded("budget_exceeded", null), t, stop)).toBe("server summary");
+  expect(notificationSummary(worded("run_failed", { agent_name: "Probe" }), t, stop)).toBe(
+    "server summary",
+  );
+});

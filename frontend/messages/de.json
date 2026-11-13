@@ -10567,6 +10567,11 @@
         "failed": "Das Schreiben Ihrer Testfragen ist fehlgeschlagen."
       }
     },
+    "kind": {
+      "approvalRequested": "{agent} wartet auf Ihre Freigabe",
+      "budgetExceeded": "{agent} wurde gestoppt: {scope, select, agent {sein Monatsbudget} group {das Monatsbudget einer Abteilung} organization {das Monatsbudget der Organisation} other {ein Ausgabenlimit}} ist aufgebraucht ({spent} von {limit} ausgegeben)",
+      "budgetWarning": "{group} hat {share} % des Monatsbudgets von {limit} verbraucht."
+    },
     "needsAttention": "Aufmerksamkeit erforderlich"
   },
   "workflows": {

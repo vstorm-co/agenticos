@@ -10881,6 +10881,11 @@
         "failed": "Writing your test questions failed."
       }
     },
+    "kind": {
+      "approvalRequested": "{agent} is waiting on your approval",
+      "budgetExceeded": "{agent} stopped: {scope, select, agent {its monthly budget} group {a department's monthly budget} organization {the organization's monthly budget} other {a spending limit}} is used up ({spent} spent of {limit})",
+      "budgetWarning": "{group} has used {share}% of its {limit} monthly budget."
+    },
     "needsAttention": "Needs attention"
   },
   "workflows": {
