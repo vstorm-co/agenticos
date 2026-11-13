@@ -1,5 +1,5 @@
 ---
-source_sha: "9cb2e6e3e60c"
+source_sha: "64af32ae4c8c"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -377,6 +377,8 @@ die sich ihre Werte umwandeln lassen.
 In **Columns** macht **Required** eine Spalte zur Pflicht, und eine archivierte Spalte
 wandert unter **Archived columns**, wo **Restore** sie samt ihren Werten
 zurückbringt.
+
+Das Lesen des Vergleichs erhält ungespeicherte Änderungen anderer Felder und deren ursprüngliche Revision. Ein weiterer Konflikt liest einen neuen Vergleich; eine Antwort für einen geschlossenen Datensatz schließt keinen anderen. Lange Werte erscheinen als gekürzte Vorschau.
 
 ### Import und Export { #import-and-export }
 

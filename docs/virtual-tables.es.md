@@ -1,5 +1,5 @@
 ---
-source_sha: "9cb2e6e3e60c"
+source_sha: "64af32ae4c8c"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -354,6 +354,8 @@ El tipo de una columna cambia en **Columns**, a los tipos a los que se convierte
 
 En **Columns**, **Required** hace que una columna necesite un valor, y una columna
 archivada pasa a **Archived columns**, donde **Restore** la devuelve con sus valores.
+
+Leer la comparación conserva las ediciones sin guardar de otros campos y su revisión original. Un conflicto posterior obtiene otra comparación; la respuesta de un registro cerrado no cierra otro. Los valores largos muestran una vista previa abreviada.
 
 ### Importar y exportar { #import-and-export }
 

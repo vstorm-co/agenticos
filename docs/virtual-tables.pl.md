@@ -1,5 +1,5 @@
 ---
-source_sha: "9cb2e6e3e60c"
+source_sha: "64af32ae4c8c"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -354,6 +354,8 @@ typy, na które dają się przekonwertować jej wartości.
 W **Columns** przełącznik **Required** sprawia, że kolumna wymaga wartości, a
 zarchiwizowana kolumna trafia do **Archived columns**, skąd **Restore** przywraca ją
 razem z jej wartościami.
+
+Odczyt porównania zachowuje niezapisane edycje innych pól i ich pierwotną rewizję. Kolejny konflikt odczytuje nowe porównanie; odpowiedź dla zamkniętego rekordu nie zamknie innego rekordu. Długie wartości mają skrócony podgląd.
 
 ### Import i eksport { #import-and-export }
 

@@ -23,6 +23,7 @@ export function RecordConflictNow({ column, record }: { column: ColumnDef; recor
     (on) => (on ? tCells("true") : tCells("false")),
     locale,
   );
+  const preview = value.length > 300 ? `${value.slice(0, 300)}…` : value;
   const who = (
     <RecordSourceBadge
       source={record.updated_source}
@@ -31,9 +32,9 @@ export function RecordConflictNow({ column, record }: { column: ColumnDef; recor
     />
   );
   return (
-    <p className="text-foreground" data-testid="conflict-now">
+    <p className="text-foreground break-words" role="status" data-testid="conflict-now">
       {t.rich(record.updated_at ? "conflictNow" : "conflictNowUntimed", {
-        value: value || t("conflictEmpty"),
+        value: preview || t("conflictEmpty"),
         time: record.updated_at ? formatDateTime(record.updated_at, locale) : "",
         who: () => who,
       })}

@@ -338,6 +338,8 @@ In **Columns**, **Required** makes a column need a
 value, and an archived column moves under **Archived columns**, where **Restore** brings
 it back with its values.
 
+Reading the comparison keeps unsaved edits in other fields and their original revision. A later conflict reads a new comparison; a response for a record you closed cannot close another record. Long values show a shortened preview.
+
 ### Import and export { #import-and-export }
 
 Exports read at most 4 MiB of decoded record JSON per page (or one record),
