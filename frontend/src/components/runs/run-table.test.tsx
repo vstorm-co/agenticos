@@ -76,7 +76,9 @@ describe("a run history row", () => {
     // carries the full rendering.
     render(
       <RunTable
-        runs={[run({ status: "failed", error: "The run did not finish (ModelHTTPError, HTTP 400)" })]}
+        runs={[
+          run({ status: "failed", error: "The run did not finish (ModelHTTPError, HTTP 400)" }),
+        ]}
       />,
     );
 
@@ -123,6 +125,42 @@ describe("a run history row", () => {
   it("says nothing about waiting for a run that is not parked on a question", () => {
     render(<RunTable runs={[run({ status: "completed" })]} />);
 
+    expect(within(row()).queryByText(/Expires in/)).toBeNull();
+  });
+
+  it("names the missing secret when an awaiting run has no question", () => {
+    render(
+      <RunTable
+        runs={[
+          run({
+            status: "awaiting_answer",
+            waiting_secret_requests: ["Inventory API key"],
+          }),
+        ]}
+      />,
+    );
+
+    const prompt = within(row()).getByText("Needs secret: Inventory API key");
+    expect(prompt).toBeVisible();
+    expect(prompt).toHaveAttribute("title", "Needs secret: Inventory API key");
+    expect(within(row()).queryByText(/Expires in/)).toBeNull();
+  });
+
+  it("shows no waiting prompt or expiry when an awaiting run has no requests", () => {
+    render(
+      <RunTable
+        runs={[
+          run({
+            status: "awaiting_answer",
+            waiting_questions: [],
+            waiting_secret_requests: [],
+            waiting_expires_at: new Date(Date.now() + 25 * 60 * 60 * 1000).toISOString(),
+          }),
+        ]}
+      />,
+    );
+
+    expect(within(row()).queryByText(/Needs secret:/)).toBeNull();
     expect(within(row()).queryByText(/Expires in/)).toBeNull();
   });
 

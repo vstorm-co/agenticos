@@ -49,11 +49,15 @@ function WaitingQuestion({ run }: { run: AgentRun }) {
   const t = useTranslations("pages.runs");
   const questions = run.waiting_questions ?? [];
   const secrets = run.waiting_secret_requests ?? [];
-  if (run.status !== "awaiting_answer" || (questions.length === 0 && secrets.length === 0)) {
+  if (run.status !== "awaiting_answer") {
+    return null;
+  }
+  const name = secrets[0];
+  const first = questions[0] ?? (name === undefined ? undefined : t("needsSecret", { name }));
+  if (first === undefined) {
     return null;
   }
   const remaining = timeUntil(run.waiting_expires_at);
-  const first = questions[0] ?? t("needsSecret", { name: secrets[0] });
   return (
     <span
       className="text-muted-foreground block max-w-72 truncate text-xs"
