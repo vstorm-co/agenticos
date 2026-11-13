@@ -84,11 +84,14 @@ _SCOPE_LABELS = {
 
 
 def usd(amount: Decimal) -> str:
-    """Dollars to the cent, or to four places when the cent would read as nothing.
+    """Dollars to the cent, or to as many places as it takes not to read as nothing.
 
     A sub-cent limit beside a spend of `$0.0008` reads as `$0.00` to the cent,
-    which says the limit is zero when it is not.
+    which says the limit is zero when it is not. Four places hold most such
+    limits; six, the column's own precision, hold the rest.
     """
+    if Decimal(0) < amount < Decimal("0.0001"):
+        return f"${amount:.6f}"
     if Decimal(0) < amount < Decimal("0.01"):
         return f"${amount:.4f}"
     return f"${amount:.2f}"
