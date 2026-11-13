@@ -964,3 +964,35 @@ async def test_the_final_image_reaches_a_viewer_before_the_finish_closes_its_soc
         "browser_frame",
         "browser_finished",
     ]
+
+
+async def test_final_channel_links_keep_only_this_runs_existing_views(store: _Store) -> None:
+    await live_browse.open_view(RUN, CALL, _meta())
+    await live_browse.open_view(RUN, CALL, _meta())
+    await live_browse.open_view("another-run", "private", _meta())
+    assert await live_browse.view_links(RUN) == (live_browse.link(RUN, CALL),)
+    del store.values[_key("meta")]
+    assert await live_browse.view_links(RUN) == ()
+    assert f"browse:{RUN}:views" in store.expiries
+
+
+async def test_final_links_are_bounded_and_survive_no_streaming_observer(store: _Store) -> None:
+    for index in range(40):
+        await live_browse.open_view(RUN, f"window-{index}", _meta())
+    assert len(store.lists[f"browse:{RUN}:views"]) == 32
+    assert await live_browse.view_links(RUN) == tuple(
+        live_browse.link(RUN, f"window-{index}") for index in range(32, 40)
+    )
+
+
+async def test_link_lookup_failure_does_not_erase_the_answer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = MagicMock(spec=RedisClient)
+    client.list_range = AsyncMock(side_effect=ConnectionError("offline"))
+    monkeypatch.setattr(live_browse, "_redis", client)
+    assert await live_browse.view_links(RUN) == ()
+
+
+async def test_link_lookup_without_redis_is_unavailable(no_redis: None) -> None:
+    assert await live_browse.view_links(RUN) == ()

@@ -1,5 +1,5 @@
 ---
-source_sha: "3849e81358a8"
+source_sha: "1b576c3b17a9"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -3263,3 +3263,13 @@ Eingehende E-Mails werden vor der Signaturprüfung als begrenzter Stream mit hö
 
 
 Vor der dauerhaften E-Mail-Annahme gelten je Organisation höchstens 4.096 aufbewahrte Zustellaufträge und 256 MiB Nachrichtentext, einschließlich abgeschlossener und fehlgeschlagener Zustellungen. Die Annahme ist workerübergreifend serialisiert; doppelte Message-IDs bleiben idempotent. Bei voller Quote folgt HTTP 429, bevor weiterer Inhalt gespeichert wird. Aufbewahrungsbereinigung oder Löschen gespeicherter Aufträge gibt Kapazität frei.
+
+## Älterer Verlauf und authentifizierte Vorschauen { #history-pages-and-live-views }
+
+`read_channel_history` unterstützt `query` (wörtlicher Text), `author_id`, `after` und `before` (ISO-Zeitstempel mit Zeitzone). Die Zeitgrenzen sind exklusiv. Mit `cursor="start"` beginnt die Seitennavigation ohne Filter; der zurückgegebene Cursor wird mit denselben Filtern, demselben Bereich und Limit fortgesetzt. Auch eine Seite ohne Treffer kann einen Folgecursor haben. Jeder Aufruf prüft eine begrenzte Seite statt des gesamten Archivs; Nachrichtentexte bleiben auf 500 Zeichen begrenzt.
+
+Mattermost findet Text oder Zeitfenster in Teamkanälen über seinen Suchindex und setzt dann mit nativen Nachrichten-IDs fort, auch ohne Elasticsearch. Die Abdeckung hängt vom Index und der Aufbewahrung ab. In Direktgesprächen ist die Indexsuche nicht verfügbar; deren Verlauf lässt sich mit nativen Seiten ohne Text-/Zeitsuche prüfen. Thread-Seiten verwenden den gebundenen Thread und native Zeit-/ID-Positionen. Slack verwendet eigene Cursor und Zeitgrenzen und filtert Text und Autor innerhalb jeder Seite. Andere Adapter melden fehlende Unterstützung ausdrücklich; bisherige Abfragen letzter Nachrichten bleiben unverändert.
+
+Das Ziel bleibt der aktuelle Kanal oder Thread. Ein Cursor kann weder in ein anderes Ziel übertragen noch mit geänderten Filtern verwendet werden. Bestehende Berechtigungen und Freigaben gelten weiterhin. Ältere Nachrichten sind Quellen, keine neuen Anweisungen; Systemereignisse starten keine kostenpflichtigen Runs.
+
+Browser- und Computeraktionen können während der Ausführung einen authentifizierten Vorschaulink zeigen. Die abschließende Kanalantwort und Antworten nach einer Freigabe behalten verfügbare Links, auch bei umbenannten Tools. Das Öffnen erfordert Anmeldung und die bestehenden Run-/Ansichtsberechtigungen; ein persönlicher Desktop wird dadurch nicht mit dem Raum geteilt. Die Verfügbarkeit hängt vom Vorschaudienst und seiner Aufbewahrung ab und verspricht keine dauerhafte Aufzeichnung.

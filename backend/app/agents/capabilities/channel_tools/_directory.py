@@ -25,7 +25,7 @@ from datetime import datetime
 from typing import Literal, Protocol
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
 CHANNEL_TOOLS_CAPABILITY_ID = "channel_tools"
 """The registry id, held here rather than imported from `__init__`.
@@ -137,6 +137,43 @@ class ChannelPost:
     """
 
 
+class HistoryQuery(BaseModel):
+    """A bounded history page; content filters never select another destination."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    query: str = Field(default="", max_length=200)
+    author_id: str | None = Field(default=None, max_length=128)
+    after: AwareDatetime | None = None
+    before: AwareDatetime | None = None
+    cursor: str | None = Field(default=None, max_length=4096)
+
+    @model_validator(mode="after")
+    def ordered_window(self) -> HistoryQuery:
+        if self.after is not None and self.before is not None and self.after >= self.before:
+            raise ValueError("after must be earlier than before")
+        return self
+
+    def includes(self, post: ChannelPost) -> bool:
+        """Apply exact timestamp, author and literal substring filters."""
+        return (
+            (not self.query or self.query.casefold() in post.text.casefold())
+            and (self.author_id is None or post.author_id == self.author_id)
+            and (self.after is None or (post.posted_at is not None and post.posted_at > self.after))
+            and (
+                self.before is None or (post.posted_at is not None and post.posted_at < self.before)
+            )
+        )
+
+
+@dataclass(frozen=True)
+class HistoryPage:
+    """One scanned page, which may have no matches and still have a continuation."""
+
+    posts: tuple[ChannelPost, ...]
+    scanned: int
+    cursor: str | None = None
+
+
 class ChannelDirectory(Protocol):
     """One channel, on one platform, reachable with one bot's token.
 
@@ -174,4 +211,10 @@ class ChannelDirectory(Protocol):
         self, *, limit: int, scope: Literal["thread", "channel"] = "thread"
     ) -> list[ChannelPost]:
         """Recent messages in the bound thread or its channel, newest last."""
+        ...
+
+    async def history_page(
+        self, *, limit: int, scope: Literal["thread", "channel"], filters: HistoryQuery
+    ) -> HistoryPage:
+        """A filtered page in this destination; its cursor is bound to the filters."""
         ...

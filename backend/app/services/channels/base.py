@@ -13,6 +13,7 @@ from app.agents.capabilities.channel_tools import (
     ChannelPost,
     ChannelSummary,
 )
+from app.agents.capabilities.channel_tools._directory import HistoryPage, HistoryQuery
 from app.core.memory_keys import room_owner_key
 from app.services.channels import connection_state
 from app.services.channels.exceptions import ChannelNotConfigured
@@ -734,6 +735,22 @@ class ChannelAdapter(ABC):
             ChannelDirectoryUnsupported: If this platform has no channel search.
         """
         raise ChannelDirectoryUnsupported(f"{self.platform} has no channel search for a bot.")
+
+    async def channel_history_page(
+        self,
+        bot_token: str,
+        channel_id: str,
+        *,
+        api_base_url: str | None,
+        limit: int,
+        thread_id: str | None,
+        filters: HistoryQuery,
+    ) -> HistoryPage:
+        """Read a bounded, filtered page where the platform supports native paging."""
+        raise ChannelDirectoryUnsupported(
+            f"{self.platform} does not support filtered, paginated history here. "
+            "Read recent history without filters instead."
+        )
 
     async def channel_history(
         self,

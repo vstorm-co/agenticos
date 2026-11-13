@@ -1,5 +1,5 @@
 ---
-source_sha: "3849e81358a8"
+source_sha: "1b576c3b17a9"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -3092,3 +3092,13 @@ El correo entrante se lee como un flujo limitado a 25 MiB antes de verificar la 
 
 
 Antes de aceptar correo de forma duradera, cada organización tiene un máximo de 4096 trabajos de entrega retenidos y 256 MiB de contenido, incluidas entregas completadas y fallidas. La admisión se serializa entre workers; los Message-ID duplicados siguen siendo idempotentes. Al alcanzar la cuota se devuelve HTTP 429 antes de almacenar otro contenido; la limpieza de retención o la eliminación de trabajos libera capacidad.
+
+## Historial anterior y vistas autenticadas { #history-pages-and-live-views }
+
+`read_channel_history` admite `query` (texto literal), `author_id`, `after` y `before` (fechas ISO con zona horaria). Los límites temporales son exclusivos. Usa `cursor="start"` para paginar sin filtros y continúa con el cursor devuelto manteniendo filtros, ámbito y límite. Una página sin coincidencias puede tener continuación. Cada llamada examina una página acotada, no todo el archivo; los mensajes siguen limitados a 500 caracteres.
+
+Mattermost localiza texto o periodos en canales de equipo mediante su índice y después continúa por identificadores nativos, incluso sin Elasticsearch. La cobertura depende del índice y la retención. La búsqueda indexada no está disponible en conversaciones directas; su historial puede recorrerse con páginas nativas sin búsqueda de texto o periodo. Las páginas de hilo usan el hilo vinculado y posiciones nativas de tiempo o ID. Slack usa sus cursores y límites temporales, filtrando texto y autor dentro de cada página. Los demás adaptadores indican explícitamente la falta de soporte; las lecturas recientes conservan su comportamiento.
+
+El destino sigue siendo el canal o hilo actual. El cursor no puede trasladarse a otro destino ni reutilizarse con filtros distintos. Se mantienen los permisos y aprobaciones existentes. Los mensajes anteriores son fuentes, no instrucciones nuevas; los eventos del sistema no inician ejecuciones de pago.
+
+Las acciones de navegador y ordenador pueden mostrar un enlace autenticado durante la ejecución. La respuesta final y las respuestas reanudadas tras aprobación conservan los enlaces disponibles, incluso con herramientas renombradas. Abrirlos requiere iniciar sesión y los permisos existentes de ejecución y vista; no comparte un escritorio personal con todo el canal. Su disponibilidad depende del servicio de vista y su retención, sin prometer una grabación permanente.

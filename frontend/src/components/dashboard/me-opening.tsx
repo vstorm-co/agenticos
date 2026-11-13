@@ -34,7 +34,7 @@ export function MeOpening({
         role="status"
         aria-busy="true"
         aria-label={states("loading")}
-        className="bg-card mt-6 flex h-56 items-center justify-center rounded-2xl border"
+        className="bg-card mt-6 flex h-[26rem] items-center justify-center rounded-2xl border"
       >
         <Spinner className="text-muted-foreground size-5" aria-hidden />
       </div>
@@ -42,7 +42,7 @@ export function MeOpening({
   return (
     // Match the checklist while it is visible; a briefing on its own should not
     // keep the space of a checklist that has been completed or dismissed.
-    <div className="mt-6 flex flex-col gap-6 lg:flex-row [&>*]:min-w-0 [&>*]:shrink-0 lg:[&>*]:flex-1 [&>.dash-widget]:h-56 [&>.dash-widget]:min-h-56 lg:[&>.dash-widget:not(:only-child)]:h-[31rem]">
+    <div className="mt-6 flex flex-col gap-6 lg:flex-row [&>*]:min-w-0 [&>*]:shrink-0 lg:[&>*]:flex-1 [&>.dash-widget]:h-[26rem] [&>.dash-widget]:min-h-[26rem] lg:[&>.dash-widget:not(:only-child)]:h-[31rem]">
       {orgId && <StartChecklist orgId={orgId} className="mt-0" />}
       {can(Perm.agentsRun) && (
         <SuggestionsWidget

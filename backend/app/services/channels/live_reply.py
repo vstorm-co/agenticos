@@ -22,6 +22,7 @@ import logging
 import time
 from collections.abc import Awaitable, Callable, Mapping
 from typing import Any, Protocol
+from uuid import UUID
 
 import anyio
 from pydantic import BaseModel
@@ -330,6 +331,15 @@ async def _follow_browse(reply: AnswerSink, run_id: str, call_id: str, source: S
             )
 
 
+async def with_preview_links(answer: str, run_id: UUID) -> str:
+    """Retain authenticated views when the platform replaces streamed progress."""
+    if not answer:
+        return answer
+    links = await live_browse.view_links(str(run_id))
+    additions = [f"[Live view (sign-in required)]({url})" for url in links if url not in answer]
+    return "\n\n".join([answer, *additions])
+
+
 def channel_stream(reply: AnswerSink) -> RunStream:
     """Drive an agent run into `reply`.
 
@@ -360,11 +370,55 @@ def channel_stream(reply: AnswerSink) -> RunStream:
         # `ctx.deps` is the graph's own; the run's `AgentDeps` are inside it.
         deps = agent_run.ctx.deps.user_deps
         run_id = deps.run_id if isinstance(deps, AgentDeps) else None
-        async with anyio.create_task_group() as followed:
-            try:
-                await walk(agent_run, followed, None if run_id is None else str(run_id))
-            finally:
-                followed.cancel_scope.cancel()
+        original = deps.browser_events if isinstance(deps, AgentDeps) else None
+        previews: dict[str, StepSource] = {}
+
+        async def preview(event: BrowserEvent) -> bool:
+            # Direct browser tools, computer use and nested code-mode calls
+            # publish their own view IDs. Their outer tool-call ID need not
+            # match the view, so discover the link from the opening event.
+            if event.call_id not in followers:
+                if (
+                    event.kind == "browser_opened"
+                    and (view_run := event.run_id or (str(run_id) if run_id else None))
+                    and live_browse.available()
+                ):
+                    previews[event.call_id] = StepSource(
+                        url=live_browse.link(view_run, event.call_id), title=LIVE_VIEW
+                    )
+                if (source := previews.get(event.call_id)) is not None and event.kind in {
+                    "browser_opened",
+                    "browser_needs_person",
+                    "browser_held",
+                    "browser_released",
+                    "browser_finished",
+                }:
+                    finished = event.kind == "browser_finished"
+                    await reply.step(
+                        AnswerStep(
+                            f"preview:{event.call_id}",
+                            _browse_title(event) if not finished else LIVE_VIEW,
+                            ("error" if event.outcome == "failed" else "complete")
+                            if finished
+                            else "in_progress",
+                            sources=(source,),
+                        )
+                    )
+            # A text channel does not consume screenshot frames. Preserve any
+            # existing observer without turning on image streaming for itself.
+            return False if original is None else await original(event)
+
+        if isinstance(deps, AgentDeps):
+            deps.browser_events = preview
+        try:
+            async with anyio.create_task_group() as followed:
+                try:
+                    await walk(agent_run, followed, None if run_id is None else str(run_id))
+                finally:
+                    followed.cancel_scope.cancel()
+        finally:
+            if isinstance(deps, AgentDeps):
+                deps.browser_events = original
 
     async def follow(
         run_id: str,

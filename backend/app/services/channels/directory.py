@@ -6,6 +6,10 @@ capability never holds a token and never chooses a channel: both are decided
 here, from the row the message arrived on, before the agent is built.
 """
 
+import base64
+import hashlib
+import hmac
+import json
 from dataclasses import dataclass
 from typing import Literal
 from uuid import UUID
@@ -18,6 +22,11 @@ from app.agents.capabilities.channel_tools import (
     ChannelMember,
     ChannelPost,
     ChannelSummary,
+)
+from app.agents.capabilities.channel_tools._directory import (
+    ChannelDirectoryUnsupported,
+    HistoryPage,
+    HistoryQuery,
 )
 from app.core.exceptions import BadRequestError
 from app.db.models.agent_exposure import AgentExposure
@@ -186,6 +195,57 @@ class BoundChannelDirectory:
             limit=limit,
             thread_id=self.thread_id if scope == "thread" else None,
         )
+
+    async def history_page(
+        self, *, limit: int, scope: Literal["thread", "channel"], filters: HistoryQuery
+    ) -> HistoryPage:
+        # The adapter sees only its native token. The signed envelope cannot be
+        # moved between destinations, windows, authors or page sizes.
+        binding = json.dumps(
+            [
+                self.adapter.platform,
+                self.api_base_url,
+                scope,
+                self.channel_id,
+                self.thread_id if scope == "thread" else None,
+                limit,
+                filters.model_dump(mode="json", exclude={"cursor"}),
+            ],
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        native = None
+        if filters.cursor is not None:
+            try:
+                encoded, signature = filters.cursor.rsplit(".", 1)
+                native = base64.urlsafe_b64decode(encoded.encode()).decode()
+            except (ValueError, UnicodeError) as exc:
+                raise ChannelDirectoryUnsupported(
+                    "This history cursor is invalid or belongs to different filters. Start again without it."
+                ) from exc
+            expected = hmac.new(
+                self.bot_token.encode(), (binding + encoded).encode(), hashlib.sha256
+            ).hexdigest()
+            if not hmac.compare_digest(signature, expected):
+                raise ChannelDirectoryUnsupported(
+                    "This history cursor is invalid or belongs to different filters. Start again without it."
+                )
+        page = await self.adapter.channel_history_page(
+            self.bot_token,
+            self.channel_id,
+            api_base_url=self.api_base_url,
+            limit=limit,
+            thread_id=self.thread_id if scope == "thread" else None,
+            filters=filters.model_copy(update={"cursor": native}),
+        )
+        cursor = None
+        if page.cursor is not None:
+            encoded = base64.urlsafe_b64encode(page.cursor.encode()).decode()
+            signature = hmac.new(
+                self.bot_token.encode(), (binding + encoded).encode(), hashlib.sha256
+            ).hexdigest()
+            cursor = f"{encoded}.{signature}"
+        return HistoryPage(posts=page.posts, scanned=page.scanned, cursor=cursor)
 
 
 async def restore_directory(

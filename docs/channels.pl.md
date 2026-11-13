@@ -1,5 +1,5 @@
 ---
-source_sha: "3849e81358a8"
+source_sha: "1b576c3b17a9"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -3056,3 +3056,13 @@ Przychodzący e-mail jest odczytywany strumieniowo z limitem 25 MiB przed sprawd
 
 
 Przed trwałym zapisaniem e-maila organizację obowiązuje limit 4096 zachowanych zadań dostarczenia i 256 MiB treści, również zakończonych i nieudanych. Przyjęcia są serializowane między workerami; powtórzone Message-ID pozostają idempotentne. Przekroczenie limitu zwraca HTTP 429 przed zapisaniem kolejnej treści; retencja lub usunięcie zachowanych zadań zwalnia miejsce.
+
+## Starsza historia i uwierzytelnione podglądy { #history-pages-and-live-views }
+
+`read_channel_history` obsługuje `query` (tekst dosłowny), `author_id`, `after` i `before` (czas ISO ze strefą). Granice czasu są wyłączne. Podaj `cursor="start"`, aby stronicować bez filtrów; kolejne wywołanie musi użyć zwróconego kursora oraz tych samych filtrów, zakresu i limitu. Strona bez dopasowań może nadal mieć kontynuację. Wywołanie przegląda ograniczoną stronę, a nie całe archiwum; tekst wiadomości pozostaje ograniczony do 500 znaków.
+
+Mattermost używa indeksu wyszukiwania do znalezienia tekstu lub okresu w kanale zespołu, a następnie stronicuje po identyfikatorach wiadomości, także bez Elasticsearch. Wyniki zależą od indeksu i retencji. W rozmowach bezpośrednich wyszukiwanie indeksowe jest niedostępne; historię można przeglądać zwykłymi stronami bez wyszukiwania tekstu lub okresu. Strony wątku używają przypisanego wątku oraz natywnych pozycji czasu i identyfikatorów. Slack używa własnych kursorów i granic czasu, filtrując tekst i autora na każdej stronie. Pozostałe adaptery jawnie zgłaszają brak obsługi; dotychczasowy odczyt ostatnich wiadomości pozostaje dostępny.
+
+Miejscem docelowym pozostaje bieżący kanał lub wątek. Kursora nie można przenieść do innej rozmowy ani zmienić jego filtrów. Nadal obowiązują uprawnienia i akceptacje historii. Starsze wiadomości są materiałem źródłowym, a nie nowymi instrukcjami; zdarzenia systemowe nie uruchamiają płatnych runów.
+
+Działania przeglądarki i komputera mogą pokazywać link do uwierzytelnionego podglądu podczas pracy. Końcowa odpowiedź i odpowiedź po wznowieniu zachowują dostępne linki, także po zmianie nazwy narzędzia. Otwarcie wymaga logowania i dotychczasowych uprawnień do runu oraz podglądu; link nie udostępnia osobistego pulpitu całemu kanałowi. Dostępność zależy od usługi podglądu i jej retencji, bez obietnicy trwałego nagrania.

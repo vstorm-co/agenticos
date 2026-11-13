@@ -104,7 +104,7 @@ class ChannelToolsConfig(BaseModel):
         ),
         CapabilityToolInfo(
             id="read_channel_history",
-            description="Read the most recent messages in this channel, newest last.",
+            description="Read recent messages or filtered history pages in this channel or thread.",
         ),
         CapabilityToolInfo(
             id="send_channel_file",

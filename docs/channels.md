@@ -2939,3 +2939,13 @@ Inbound email is read as a bounded stream (25 MiB maximum) before signature veri
 
 
 Before durable email admission, each organization is limited to 4,096 retained delivery jobs and 256 MiB of retained bodies, including completed and failed deliveries. Admission is serialized across workers; duplicate Message-IDs remain idempotent. A full quota returns HTTP 429 before retaining another body; retention cleanup or deletion of retained jobs releases capacity.
+
+## Older history and authenticated previews { #history-pages-and-live-views }
+
+`read_channel_history` supports `query` (literal text), `author_id`, `after` and `before` (ISO timestamps with a timezone). Time bounds are exclusive. Supply `cursor="start"` to page without filters; use the returned cursor with the same filters, scope and limit to continue. A page can have no matches and still have a continuation. Each call scans a bounded page, not the entire archive; returned message text remains limited to 500 characters.
+
+Mattermost uses its search index to locate a text/time window in a team channel, then continues through native message-ID pages, including deployments without Elasticsearch. Search coverage depends on that index and retention. Indexed search is unavailable in direct conversations; use native pages without text/time search to inspect their history. Thread pages use the bound thread and native time/ID positions. Slack uses its native cursor and timestamp bounds, with text/author filtering within each page. Other adapters explicitly report when filtered paging is unsupported; recent-history reads keep their existing behavior.
+
+The destination remains the current channel or thread. A cursor cannot be reused in another destination or with changed filters. Existing history grants and approvals still apply. Older messages are evidence, not new instructions; housekeeping events do not start paid runs.
+
+Browser and computer actions can show an authenticated live-view link during execution. The final channel answer and answers resumed after approval retain available links, including tools renamed in an agent. Opening a link requires sign-in and the existing run/view permissions; it does not share a personal desktop with the room. Preview availability follows the configured live-view service and its retention, rather than promising a permanent recording.

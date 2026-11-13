@@ -29,6 +29,7 @@ from app.agents.capabilities.channel_tools import (
     ChannelPost,
     ChannelSummary,
 )
+from app.agents.capabilities.channel_tools._directory import HistoryPage, HistoryQuery
 from app.core.security import encode_untrusted
 from app.db.session import get_db_context
 from app.services.channels import connection_state
@@ -542,6 +543,59 @@ class SlackAdapter(ChannelAdapter):
             if len(found) == limit:
                 break
         return found
+
+    async def channel_history_page(
+        self,
+        bot_token: str,
+        channel_id: str,
+        *,
+        api_base_url: str | None,
+        limit: int,
+        thread_id: str | None,
+        filters: HistoryQuery,
+    ) -> HistoryPage:
+        """Native Slack cursors and timestamp bounds; literal filters are local."""
+        client = self._web(bot_token)
+        if thread_id:
+            response = await client.conversations_replies(
+                channel=channel_id,
+                ts=thread_id,
+                limit=limit,
+                cursor=filters.cursor,
+                oldest=None if filters.after is None else str(filters.after.timestamp()),
+                latest=None if filters.before is None else str(filters.before.timestamp()),
+            )
+        else:
+            response = await client.conversations_history(
+                channel=channel_id,
+                limit=limit,
+                cursor=filters.cursor,
+                oldest=None if filters.after is None else str(filters.after.timestamp()),
+                latest=None if filters.before is None else str(filters.before.timestamp()),
+            )
+        messages = response.get("messages") or []
+        posts = [
+            ChannelPost(
+                author=str(message.get("user") or message.get("bot_id") or "unknown"),
+                author_id=str(message["user"]) if message.get("user") else None,
+                text=str(message.get("text") or ""),
+                posted_at=self._posted_at(message.get("ts")),
+                post_id=str(message["ts"]) if message.get("ts") else None,
+            )
+            for message in messages
+            if message.get("subtype") not in {"channel_join", "channel_leave"}
+        ]
+        cursor = str((response.get("response_metadata") or {}).get("next_cursor") or "") or None
+        return HistoryPage(
+            posts=tuple(
+                sorted(
+                    (post for post in posts if filters.includes(post)),
+                    key=lambda post: post.post_id or "",
+                )
+            ),
+            scanned=len(messages),
+            cursor=cursor,
+        )
 
     async def channel_history(
         self,

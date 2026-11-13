@@ -30,6 +30,7 @@ import binascii
 import contextlib
 import json
 import logging
+import math
 import re
 import secrets
 from collections.abc import Mapping, Sequence
@@ -41,6 +42,7 @@ import httpx
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
+from pydantic import BaseModel
 
 from app.agents.capabilities.channel_tools import (
     ChannelDetails,
@@ -49,6 +51,7 @@ from app.agents.capabilities.channel_tools import (
     ChannelPost,
     ChannelSummary,
 )
+from app.agents.capabilities.channel_tools._directory import HistoryPage, HistoryQuery
 from app.core.security import encode_untrusted
 from app.db.session import get_db_context
 from app.services.channels import connection_state
@@ -71,6 +74,26 @@ from app.services.channels.base import (
 from app.services.channels.exceptions import ChannelNotConfigured
 from app.services.channels.router import ChannelMessageRouter
 from app.services.channels.webhooks import inbound_actions_url, inbound_dialogs_url, sign_press
+
+
+class _HistoryPost(BaseModel):
+    channel_id: str
+    user_id: str = ""
+    message: str = ""
+    create_at: int
+    root_id: str = ""
+    type: str = ""
+
+
+class _HistoryPayload(BaseModel):
+    posts: dict[str, _HistoryPost]
+    order: list[str]
+
+
+class _HistoryChannel(BaseModel):
+    name: str
+    team_id: str = ""
+
 
 logger = logging.getLogger(__name__)
 
@@ -876,6 +899,124 @@ class MattermostAdapter(ChannelAdapter):
             )
             for entry in found.json()[:limit]
         ]
+
+    async def channel_history_page(
+        self,
+        bot_token: str,
+        channel_id: str,
+        *,
+        api_base_url: str | None,
+        limit: int,
+        thread_id: str | None,
+        filters: HistoryQuery,
+    ) -> HistoryPage:
+        """Search the bound room, then continue with native message-ID paging.
+
+        Search's page/per_page works only with Elasticsearch. Use its first
+        bounded result as a time/query anchor, then native history for older pages.
+        Exact filters and destination checks apply to every returned post.
+        """
+        base = self._server(api_base_url)
+        headers = self._headers(bot_token)
+        searched = False
+        async with self._client() as client:
+            if thread_id:
+                params: dict[str, str | int] = {"perPage": min(200, limit + 1), "direction": "up"}
+                if filters.cursor is not None:
+                    params["fromPost"] = filters.cursor
+                else:
+                    upper = filters.before or datetime.now(UTC)
+                    params["fromCreateAt"] = math.ceil(upper.timestamp() * 1000)
+                response = await client.get(
+                    f"{base}/api/v4/posts/{thread_id}/thread", headers=headers, params=params
+                )
+            elif filters.cursor is None and (filters.query or filters.before is not None):
+                searched = True
+                channel = await client.get(f"{base}/api/v4/channels/{channel_id}", headers=headers)
+                channel.raise_for_status()
+                details = _HistoryChannel.model_validate(channel.json())
+                if not details.team_id:
+                    raise ChannelDirectoryUnsupported(
+                        "Indexed history search is unavailable in this direct conversation. "
+                        "Use cursor='start' and continue native pages instead."
+                    )
+                # Search syntax never comes from the question. Text is reduced
+                # to literal word tokens; returned destination IDs are checked too.
+                words = re.findall(r"[^\W_]+", filters.query, re.UNICODE)
+                terms = [f"in:{details.name}", *(f'"{word}"' for word in words)]
+                if filters.query and not words:
+                    raise ChannelDirectoryUnsupported("Search needs at least one letter or number.")
+                if filters.after is not None:
+                    terms.append(
+                        f"after:{(filters.after.astimezone(UTC) - timedelta(days=1)).date()}"
+                    )
+                if filters.before is not None:
+                    terms.append(
+                        f"before:{(filters.before.astimezone(UTC) + timedelta(days=1)).date()}"
+                    )
+                response = await client.post(
+                    f"{base}/api/v4/teams/{details.team_id}/posts/search",
+                    headers=headers,
+                    json={"terms": " ".join(terms), "is_or_search": False, "time_zone_offset": 0},
+                )
+            else:
+                params = {"per_page": limit}
+                if filters.cursor is not None:
+                    params["before"] = filters.cursor
+                response = await client.get(
+                    f"{base}/api/v4/channels/{channel_id}/posts", headers=headers, params=params
+                )
+            response.raise_for_status()
+            payload = _HistoryPayload.model_validate(response.json())
+        ordered = sorted(
+            (
+                (post_id, post)
+                for post_id, post in payload.posts.items()
+                if post_id in payload.order
+                and post.channel_id == channel_id
+                and (thread_id is None or post_id == thread_id or post.root_id == thread_id)
+                and post_id != filters.cursor
+                and (
+                    thread_id is None
+                    or post_id != thread_id
+                    or not any(key != thread_id and key != filters.cursor for key in payload.posts)
+                )
+            ),
+            key=lambda item: (item[1].create_at, item[0]),
+            reverse=True,
+        )[:limit]
+        posts = [
+            ChannelPost(
+                author=post.user_id or "unknown",
+                author_id=post.user_id or None,
+                text=post.message,
+                posted_at=datetime.fromtimestamp(post.create_at / 1000, UTC),
+                post_id=post_id,
+            )
+            for post_id, post in ordered
+            if not post.type.startswith("system_")
+        ]
+        cursor = (
+            ordered[-1][0]
+            if ordered
+            and (
+                searched
+                or len(ordered) == limit
+                or (thread_id is not None and ordered[-1][0] != thread_id)
+            )
+            else None
+        )
+        if (
+            ordered
+            and filters.after is not None
+            and ordered[-1][1].create_at <= filters.after.timestamp() * 1000
+        ):
+            cursor = None
+        return HistoryPage(
+            posts=tuple(reversed([post for post in posts if filters.includes(post)])),
+            scanned=len(ordered),
+            cursor=cursor,
+        )
 
     async def channel_history(
         self,
