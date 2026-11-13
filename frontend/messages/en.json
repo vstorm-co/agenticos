@@ -1502,6 +1502,28 @@
       "scrollAttachmentsRight": "Later attachments",
       "send": "Send message",
       "speechError": "Speech recognition error",
+      "speech": {
+        "micDenied": {
+          "title": "Microphone blocked for this site",
+          "body": "Click the icon left of the address bar, set Microphone to Allow, then try again."
+        },
+        "micInsecure": {
+          "title": "This page can't use the microphone",
+          "body": "Browsers open the microphone only on HTTPS or on localhost. Ask your administrator to serve the console over HTTPS."
+        },
+        "micNotFound": {
+          "title": "No microphone found",
+          "body": "Connect a microphone, or check that your system lets the browser use it, then try again."
+        },
+        "unavailable": {
+          "title": "Your browser's speech recognition isn't available",
+          "body": "This agent has no speech-to-text provider for dictation, so the browser transcribes, and its service refused. Ask an admin to turn on Dictation for this agent, or try another browser."
+        },
+        "noSpeech": {
+          "title": "No speech heard",
+          "body": "Check the microphone isn't muted, then try again."
+        }
+      },
       "stopGenerating": "Stop generating",
       "stopRecording": "Stop recording",
       "uploadFailed": "Upload failed",

@@ -8854,6 +8854,28 @@
       "scrollAttachmentsRight": "Sonraki ekler",
       "send": "Mesajı gönder",
       "speechError": "Konuşma tanıma hatası",
+      "speech": {
+        "micDenied": {
+          "title": "Bu site için mikrofon engellenmiş",
+          "body": "Adres çubuğunun solundaki simgeye tıklayın, Mikrofon'u İzin ver olarak ayarlayıp yeniden deneyin."
+        },
+        "micInsecure": {
+          "title": "Bu sayfa mikrofonu kullanamıyor",
+          "body": "Browser'lar mikrofonu yalnızca HTTPS veya localhost üzerinden açar. Yöneticinizden console'u HTTPS üzerinden sunmasını isteyin."
+        },
+        "micNotFound": {
+          "title": "Mikrofon bulunamadı",
+          "body": "Mikrofon bağlayın veya sisteminizin browser'a izin verdiğini denetleyin; sonra yeniden deneyin."
+        },
+        "unavailable": {
+          "title": "Browser'ın konuşma tanıması kullanılamıyor",
+          "body": "Bu Agent'ın dikte için speech-to-text provider'ı yok, bu nedenle metne browser çeviriyor ve hizmeti reddetti. Bir yöneticiden bu Agent için dikteyi açmasını isteyin veya başka bir browser deneyin."
+        },
+        "noSpeech": {
+          "title": "Konuşma duyulmadı",
+          "body": "Mikrofonun kapalı olmadığını denetleyip yeniden deneyin."
+        }
+      },
       "stopGenerating": "Oluşturmayı durdur",
       "stopRecording": "Kaydı durdur",
       "uploadFailed": "Yükleme başarısız oldu",

@@ -566,6 +566,28 @@
       "scrollAttachmentsRight": "Późniejsze załączniki",
       "send": "Wyślij wiadomość",
       "speechError": "Błąd rozpoznawania mowy",
+      "speech": {
+        "micDenied": {
+          "title": "Mikrofon jest zablokowany dla tej strony",
+          "body": "Kliknij ikonę po lewej stronie paska adresu, ustaw Mikrofon na Zezwalaj i spróbuj ponownie."
+        },
+        "micInsecure": {
+          "title": "Ta strona nie może użyć mikrofonu",
+          "body": "Przeglądarki udostępniają mikrofon tylko przez HTTPS albo na localhost. Poproś administratora o udostępnienie konsoli przez HTTPS."
+        },
+        "micNotFound": {
+          "title": "Nie znaleziono mikrofonu",
+          "body": "Podłącz mikrofon albo sprawdź, czy system pozwala przeglądarce z niego korzystać, i spróbuj ponownie."
+        },
+        "unavailable": {
+          "title": "Rozpoznawanie mowy w przeglądarce jest niedostępne",
+          "body": "Ten agent nie ma dostawcy speech-to-text do dyktowania, więc mowę przepisuje przeglądarka, a jej usługa odmówiła. Poproś administratora o włączenie dyktowania dla tego agenta albo użyj innej przeglądarki."
+        },
+        "noSpeech": {
+          "title": "Nie usłyszano mowy",
+          "body": "Sprawdź, czy mikrofon nie jest wyciszony, i spróbuj ponownie."
+        }
+      },
       "stopGenerating": "Zatrzymaj generowanie",
       "stopRecording": "Zatrzymaj nagrywanie",
       "uploadFailed": "Wgrywanie nie powiodło się",
