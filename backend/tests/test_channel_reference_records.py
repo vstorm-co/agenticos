@@ -17,6 +17,7 @@ from pydantic_ai.models.function import FunctionModel
 from pydantic_ai_harness.guardrails import GuardrailResult
 
 from app.agents.capabilities.guardrails._capability import GuardrailsConfig, input_screen
+from app.agents.channel_reference import ChannelReferencePart
 from app.agents.manifest import RecordingModel, RunRecorder, as_payload
 from app.db.models.channel_identity import ChannelIdentity
 from app.services.channels.base import IncomingMessage
@@ -102,12 +103,22 @@ async def test_history_uses_opaque_refs_and_resolves_names_only_for_the_model() 
         screen=input_screen(GuardrailsConfig(redact_pii_in=True, blocked_keywords_in="classified")),
         lookup_authors=lookup,
         authors_by_timestamp=channel_author_references(history),
+        author_identity_id=identity_id,
     )
     agent = Agent(RecordingModel(FunctionModel(respond), recorder), capabilities=[reference])
     result = await agent.run("Current question", message_history=history)
     dispatched = str(observed)
     assert "U-PRIVATE" in dispatched and "Secret Name" in dispatched
     assert "alice@example.com" not in dispatched and "classified" not in dispatched
+    references = [
+        part.content
+        for message in observed[0]
+        if isinstance(message, ModelRequest)
+        for part in message.parts
+        if isinstance(part, ChannelReferencePart)
+    ]
+    assert references
+    assert all("Message:\n" not in content for content in references)
     kept = json.dumps(as_payload(recorder), default=str)
     for private in ["U-PRIVATE", "Secret Name", "alice@example.com", "classified"]:
         assert private not in kept

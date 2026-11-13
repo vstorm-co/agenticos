@@ -1186,6 +1186,9 @@ class MattermostAdapter(ChannelAdapter):
         except json.JSONDecodeError, TypeError:
             return None
 
+        if str(post.get("type") or "").startswith("system_"):
+            return None
+
         # A bot's own posts come back down the same socket. Answering them is an
         # infinite loop with a bill attached.
         props = post.get("props") or {}
