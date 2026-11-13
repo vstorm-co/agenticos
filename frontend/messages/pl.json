@@ -3796,7 +3796,7 @@
           "description": "Uruchamiany żądaniem HTTP albo przez WebSocket, z wejściem, które zadeklarujesz."
         },
         "workflowFailed": {
-          "name": "Po nieudanym przebiegu workflow",
+          "name": "Po nieudanym runie workflow",
           "description": "Nieudany run innego workflow uruchamia go, z informacją, co zawiodło."
         },
         "workflowCall": {
