@@ -343,6 +343,21 @@ describe("RecordDetailSheet", () => {
     expect(onOpenChange).not.toHaveBeenCalled();
   });
 
+  it("drops a pending edit when the record is deleted before explicit reload", async () => {
+    const onOpenChange = vi.fn();
+    renderSheet({ onOpenChange });
+    await raiseConflict();
+    await screen.findByTestId("conflict-now");
+    vi.mocked(apiClient.get).mockRejectedValueOnce(new ApiError(404, "Record not found"));
+
+    await userEvent.click(screen.getByRole("button", { name: /reload and reapply/i }));
+
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(toast.error).toHaveBeenCalledWith("Record not found");
+    expect(useTableViewStore.getState().conflicts).toEqual({});
+    expect(apiClient.patch).toHaveBeenCalledTimes(1);
+  });
+
   it("a conflict on a record since deleted drops the edit and closes the sheet", async () => {
     vi.mocked(apiClient.get).mockRejectedValue(new ApiError(404, "Record not found"));
     const onOpenChange = vi.fn();
