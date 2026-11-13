@@ -113,6 +113,7 @@ class BudgetExceeded(Exception):
         self.limit_usd = limit_usd
         self.spent_usd = spent_usd
         self.scope = scope
+        self.subject = subject
         # A person can sit in several capped departments, so "Department monthly"
         # alone would not say whose cap to go and ask about.
         label = f"{subject} department monthly" if subject else scope.label

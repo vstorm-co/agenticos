@@ -227,7 +227,10 @@ class TestRunNotifications:
     @pytest.mark.anyio
     async def test_a_budget_stop_hands_its_limit_and_spend_to_the_notification(self):
         refusal = BudgetExceeded(
-            limit_usd=Decimal("0.0005"), spent_usd=Decimal("0.0008"), scope=BudgetScope.AGENT
+            limit_usd=Decimal("0.0005"),
+            spent_usd=Decimal("0.0008"),
+            scope=BudgetScope.GROUP,
+            subject="Sales",
         )
         with patch(
             "app.services.agent_runner.NotificationService", new=_notifier()
@@ -246,6 +249,7 @@ class TestRunNotifications:
         kwargs = notifications.return_value.budget_exceeded.call_args.kwargs
         assert kwargs["limit_usd"] == Decimal("0.0005")
         assert kwargs["spent_usd"] == Decimal("0.0008")
+        assert kwargs["subject"] == "Sales"
 
     @pytest.mark.anyio
     async def test_a_parked_run_tells_somebody_which_tools_are_waiting(self):

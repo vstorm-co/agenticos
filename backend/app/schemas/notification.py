@@ -86,6 +86,12 @@ _PARAMS: dict[str, tuple[str, ...]] = {
 }
 
 
+# Named when the row has them, and the row is worded without them otherwise.
+_OPTIONAL_PARAMS: dict[str, tuple[str, ...]] = {
+    NotificationEventType.BUDGET_EXCEEDED.value: ("subject",),
+}
+
+
 def _params_of(notification: Notification) -> dict[str, str] | None:
     keys = _PARAMS.get(notification.event_type)
     context = notification.render_context or {}
@@ -95,7 +101,9 @@ def _params_of(notification: Notification) -> dict[str, str] | None:
     # only; its wording is not one the console has.
     if context.get("asked_by"):
         return None
-    return {key: str(context[key]) for key in keys}
+    optional = _OPTIONAL_PARAMS.get(notification.event_type, ())
+    present = [key for key in optional if isinstance(context.get(key), str | int)]
+    return {key: str(context[key]) for key in (*keys, *present)}
 
 
 class NotificationRead(BaseSchema):

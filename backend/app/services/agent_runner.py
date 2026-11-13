@@ -7021,6 +7021,7 @@ class AgentRunnerService:
                 scope=budget_scope or BudgetScope.AGENT,
                 limit_usd=budget.limit_usd if budget else None,
                 spent_usd=budget.spent_usd if budget else None,
+                subject=budget.subject if budget else None,
             )
         elif status is RunStatus.AWAITING_APPROVAL:
             approvals = await agent_run_repo.list_approvals_for_run(

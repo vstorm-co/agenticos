@@ -11072,7 +11072,7 @@
     },
     "kind": {
       "approvalRequested": "Agent {agent} czeka na Twoje zatwierdzenie",
-      "budgetExceeded": "Agent {agent} zatrzymał się: wyczerpał się {scope, select, agent {jego miesięczny budżet} group {miesięczny budżet działu} organization {miesięczny budżet organizacji} other {limit wydatków}} (wydano {spent} z {limit})",
+      "budgetExceeded": "Agent {agent} zatrzymał się: wyczerpał się {scope, select, agent {jego miesięczny budżet} group {miesięczny budżet działu} department {miesięczny budżet działu {department}} organization {miesięczny budżet organizacji} other {limit wydatków}} (wydano {spent} z {limit})",
       "budgetWarning": "Dział {group} wykorzystał {share}% miesięcznego budżetu {limit}.",
       "workflowApproval": "Potrzebne zatwierdzenie: {title}"
     },
