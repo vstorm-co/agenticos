@@ -893,11 +893,13 @@ describe("a node card's +", () => {
     );
     seed([instance("i", "logic.if")]);
     const editing = render(<WorkflowCanvas workflow={WORKFLOW} catalog={deciding} />);
-    expect(
-      editing.container.querySelector(
-        '[data-node-id="i"] button[aria-label="1 thing worth a look"]',
-      ),
-    ).toBeTruthy();
+    const badge = editing.container.querySelector(
+      '[data-node-id="i"] button[aria-label="1 thing worth a look"]',
+    ) as HTMLElement;
+    expect(badge).toBeTruthy();
+    // A click opens the step, where the warning is said in full.
+    fireEvent.click(badge);
+    expect(store.getState().editingNodeId).toBe("i");
     editing.unmount();
 
     const readOnly = render(<WorkflowCanvas workflow={WORKFLOW} catalog={deciding} readOnly />);
