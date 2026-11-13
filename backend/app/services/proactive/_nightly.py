@@ -32,6 +32,7 @@ from app.agents.person_briefing import LANGUAGE_NAMES
 from app.agents.spec import AgentSpec
 from app.core.memory_keys import person_owner_key
 from app.core.permissions import AuthContext
+from app.db.locks import LockScope, hold_subject
 from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.organization import OrganizationMember
 from app.db.models.suggestion import SuggestionKind
@@ -275,6 +276,19 @@ class NightlyLook:
             erased_snapshot=read_snapshot,
         )
         if reading is None:
+            return 0
+        # An erasure committed during the model call trims the run's manifest, but what
+        # the look saves next would be built from what it erased. Held until this
+        # transaction commits, so none can come between the check and the writes.
+        await hold_subject(self.db, LockScope.PERSONAL_DATA_PER_USER, user_id)
+        if await audit_log_repo.memory_erased_since(
+            self.db,
+            organization_id=organization_id,
+            user_id=user_id,
+            agent_id=None,
+            since=now,
+            snapshot=read_snapshot,
+        ):
             return 0
         await conversation_repo.mark_nightly_reads(
             self.db,

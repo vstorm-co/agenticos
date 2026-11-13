@@ -807,7 +807,15 @@ def _request(content: str) -> PersonRequest:
 class TestTheNightlyLook:
     @staticmethod
     def _patches(
-        *, user=None, member=True, agent=True, requests=(), reading=None, starters=None, erased=None
+        *,
+        user=None,
+        member=True,
+        agent=True,
+        requests=(),
+        reading=None,
+        starters=None,
+        erased=None,
+        erased_meanwhile=False,
     ):
         thinker = MagicMock()
         thinker.starter_agent = AsyncMock(return_value=_agent() if agent else None)
@@ -857,6 +865,11 @@ class TestTheNightlyLook:
                     f"{NIGHTLY}.audit_log_repo.latest_memory_erasure",
                     new=AsyncMock(return_value=erased),
                 ),
+                patch(f"{NIGHTLY}.hold_subject", new=AsyncMock()),
+                patch(
+                    f"{NIGHTLY}.audit_log_repo.memory_erased_since",
+                    new=AsyncMock(return_value=erased_meanwhile),
+                ),
             ],
         }
 
@@ -884,6 +897,8 @@ class TestTheNightlyLook:
             "mark_read",
             "snapshot",
             "erased",
+            "lock",
+            "erased_meanwhile",
         ]
         return made, setup["thinker"], dict(zip(names, started, strict=True))
 
@@ -932,6 +947,20 @@ class TestTheNightlyLook:
         since = mocks["requests"].await_args.kwargs["since"]
         assert since > erased
         assert since == thinker.think.await_args.kwargs["started_at"] - timedelta(days=7)
+
+    async def test_an_erasure_during_the_model_call_saves_nothing_it_read(self):
+        reading = NightlyReading(starters=["Plan na dziś"], role_pack="sales")
+
+        made, _, mocks = await self._look(
+            reading=reading, requests=[_request("x")], erased_meanwhile=True
+        )
+
+        assert made == 0
+        assert mocks["erased_meanwhile"].await_args.kwargs["snapshot"] == "100:100:"
+        mocks["lock"].assert_awaited_once()
+        mocks["mark_read"].assert_not_awaited()
+        mocks["starters"].assert_not_awaited()
+        mocks["propose"].assert_not_awaited()
 
     async def test_a_model_that_could_not_answer_proposes_nothing(self):
         made, _, mocks = await self._look(reading=None, requests=[_request("x")])
