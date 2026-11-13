@@ -30,7 +30,9 @@ iteration asks on its own.
 ## Who decides
 
 `approvers` names members; empty, anyone holding `approvals:decide` may decide.
-Named approvers get an in-app notification when the step asks. A decision wakes
+When the step asks, its named approvers are notified in the app; a step naming
+nobody notifies every member holding `approvals:decide`. The notification opens
+the approvals queue, and the request also leads the Inbox. A decision wakes
 the step after it commits, and `workflow-reconcile` wakes one whose wake was
 lost, or whose request passed `timeout_hours` - it then expires, and the step
 leaves by `rejected` with `decision: "expired"`. Cancelling the run cancels its

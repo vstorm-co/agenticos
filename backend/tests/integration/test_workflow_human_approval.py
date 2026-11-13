@@ -755,6 +755,36 @@ class TestWhoDecides:
         with pytest.raises(NotFoundError):
             await _decide(seeded, (await _request(seeded)).id, approved=True, ctx=stranger)
 
+    async def test_a_step_naming_nobody_tells_whoever_may_decide_in_its_own_organization(
+        self, engine: AsyncEngine
+    ):
+        """It used to tell nobody: the run waited where only Activity showed it."""
+        elsewhere = await seed_run(engine, Graph().graph)
+        seeded = await seed_run(engine, Graph().graph)
+        admin = await _another_member(seeded, role="admin")
+        member = await _another_member(seeded, role="member")
+        outsider = await _another_member(elsewhere, role="admin")
+        await drive(seeded)
+
+        async with seeded.factory() as db:
+            rows = (
+                (
+                    await db.execute(
+                        select(Notification).where(
+                            Notification.summary == "Approval needed: Send the refund?"
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        told = {row.recipient_user_id for row in rows}
+        assert {seeded.principal.id, admin.user_id} <= told
+        assert member.user_id not in told
+        assert outsider.user_id not in told and elsewhere.principal.id not in told
+        assert {row.organization_id for row in rows} == {seeded.org.id}
+        assert {row.context_url for row in rows} == {f"/runs?tab=approvals&org={seeded.org.id}"}
+
     async def test_named_approvers_are_told_and_must_be_members(self, engine: AsyncEngine):
         seeded = await seed_run(engine, Graph().graph)
         approver = await _another_member(seeded)

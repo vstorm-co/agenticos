@@ -1,5 +1,5 @@
 ---
-source_sha: "4d205a52251b"
+source_sha: "167432f9cbe8"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -1011,7 +1011,9 @@ tego, co run ma zrobić, a potem idzie dalej przez `approved` albo `rejected`.
 Zatwierdzający czyta `title` kroku i powiązane z nim `details` w zakładce
 **Approvals** w Activity albo przez `GET /api/v1/workflow-approvals`.
 `approvers` wskazuje, kto może zdecydować, i ci ludzie dostają powiadomienie w
-aplikacji; gdy lista jest pusta, może każdy z `approvals:decide`. Po
+aplikacji; gdy lista jest pusta, może każdy z `approvals:decide` i wszyscy oni
+dostają powiadomienie. Prośba trafia też na początek Inboxu każdego, kto może ją
+rozstrzygnąć. Po
 `timeout_hours` prośba wygasa, a krok wychodzi przez `rejected` z
 `decision: "expired"`. Anulowanie runa anuluje jego prośby, tak samo jak anulowanie workflowu, który ten run wywołał. Każdy przebieg kroku
 pyta raz, więc ponowienie ani iteracja pętli nigdy nie pytają dwa razy o to samo.
