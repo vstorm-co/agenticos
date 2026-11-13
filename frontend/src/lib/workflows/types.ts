@@ -636,6 +636,15 @@ export interface ReplyExpectationEdit extends ReplyExpectationInput {
   review_mailbox: boolean;
 }
 
+/** How an approval step's request was settled. Mirrors `WorkflowStepDecision`. */
+export interface WorkflowStepDecision {
+  status: "pending" | "approved" | "rejected" | "expired" | "cancelled";
+  /** When a person decided it; null while pending, and when it expired or was cancelled. */
+  decided_at: string | null;
+  /** The decider's name or email; null when nobody decided or their account is gone. */
+  decided_by_name: string | null;
+}
+
 /** One step of a run, in one loop iteration. Mirrors `WorkflowNodeRunRead`. */
 export interface WorkflowNodeRunRead {
   reply_expectation?: ReplyExpectation | null;
@@ -655,6 +664,8 @@ export interface WorkflowNodeRunRead {
   late_output: Record<string, unknown> | null;
   started_at: string | null;
   ended_at: string | null;
+  /** The decision an approval step asked for; null for every other step. */
+  approval?: WorkflowStepDecision | null;
 }
 
 /** Questions the reading caller may answer for one suspended agent step. */

@@ -10922,6 +10922,8 @@
     "versionRestored": "Version {version} is the draft again",
     "versionRestoreConflict": "The draft changed while restoring. Resolve the conflict, then restore again.",
     "quickAdd": "Add a step after {name} ({port})",
+    "stepApprovalDecided": "{known, select, no {{status, select, approved {Approved by a former member} other {Rejected by a former member}}} other {{status, select, approved {Approved by {name}} other {Rejected by {name}}}}} · {time}",
+    "stepApprovalUndecided": "{status, select, expired {Expired: nobody decided in time} cancelled {Cancelled with its run} other {Waiting for a decision}}",
     "paletteNoMatches": "No nodes match your search.",
     "canvasTitle": "Canvas",
     "canvasHint": "Add a step to start the workflow.",

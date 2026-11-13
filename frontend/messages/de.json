@@ -10602,6 +10602,8 @@
     "versionRestored": "Version {version} ist wieder der Entwurf",
     "versionRestoreConflict": "Der Entwurf hat sich beim Wiederherstellen geändert. Lösen Sie den Konflikt und stellen Sie dann erneut wieder her.",
     "quickAdd": "Einen Schritt nach {name} ({port}) hinzufügen",
+    "stepApprovalDecided": "{known, select, no {{status, select, approved {Genehmigt von einem ehemaligen Mitglied} other {Abgelehnt von einem ehemaligen Mitglied}}} other {{status, select, approved {Genehmigt von {name}} other {Abgelehnt von {name}}}}} · {time}",
+    "stepApprovalUndecided": "{status, select, expired {Abgelaufen: Niemand hat rechtzeitig entschieden} cancelled {Mit dem Run abgebrochen} other {Wartet auf eine Entscheidung}}",
     "paletteNoMatches": "Kein Knoten passt zu Ihrer Suche.",
     "canvasTitle": "Arbeitsfläche",
     "canvasHint": "Füge einen Schritt hinzu, um den Workflow zu beginnen.",

@@ -1145,6 +1145,8 @@
     "versionRestored": "{version} sürümü yeniden taslak oldu",
     "versionRestoreConflict": "Geri yükleme sırasında taslak değişti. Çakışmayı çözün, sonra yeniden geri yükleyin.",
     "quickAdd": "{name} adımından sonra bir adım ekle ({port})",
+    "stepApprovalDecided": "{known, select, no {{status, select, approved {Eski bir üye tarafından onaylandı} other {Eski bir üye tarafından reddedildi}}} other {{status, select, approved {{name} tarafından onaylandı} other {{name} tarafından reddedildi}}}} · {time}",
+    "stepApprovalUndecided": "{status, select, expired {Süresi doldu: kimse zamanında karar vermedi} cancelled {Run ile birlikte iptal edildi} other {Karar bekleniyor}}",
     "paletteNoMatches": "Aramanızla eşleşen düğüm yok.",
     "canvasTitle": "Canvas",
     "canvasHint": "Workflow’u başlatmak için bir adım ekleyin.",

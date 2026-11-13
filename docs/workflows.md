@@ -838,6 +838,12 @@ a later step sends what the person approved. A decider the step does not name se
 the proposal read-only, and a request decided with a changed version
 shows an **Edited** badge under **Decided**.
 
+In the run itself, a finished approval step opens with who decided it and when -
+**Approved by** or **Rejected by** the person and the time, or **a former member** when
+their account is gone - above the step's output. When the approver changed the
+proposal, **Show changes** compares the two. A request that expired or was cancelled
+with its run says so instead.
+
 When the step lists **Ways to approve**, the queue shows one button for each, with the
 label its author wrote, in place of **Approve**; **Reject** stays. Each way is an output
 port of the step, so the workflow goes on by the one the approver pressed, and the

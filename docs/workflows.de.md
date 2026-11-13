@@ -1,5 +1,5 @@
 ---
-source_sha: "d4ebadc86d2b"
+source_sha: "5d76c80578ea"
 ---
 
 # Workflows { #workflows }
@@ -938,6 +938,12 @@ weiter, sodass ein späterer Schritt sendet, was die Person freigegeben hat. Wer
 Schritt aber nicht genannt wird, sieht den Vorschlag schreibgeschützt, und eine mit
 einer geänderten Fassung entschiedene Anfrage trägt unter **Entschieden (Decided)** das Zeichen
 **Bearbeitet (Edited)**.
+
+Im Run selbst beginnt ein abgeschlossener Freigabeschritt damit, wer wann entschieden hat -
+**Genehmigt von** oder **Abgelehnt von** der Person mit der Uhrzeit, oder **einem ehemaligen
+Mitglied**, wenn dessen Konto nicht mehr existiert - über der Ausgabe des Schritts. Hat die
+freigebende Person den Vorschlag geändert, vergleicht **Änderungen anzeigen (Show changes)**
+beide Fassungen. Eine abgelaufene oder mit dem Run abgebrochene Anfrage sagt stattdessen das.
 
 Listet der Schritt **Ways to approve**, zeigt die Warteschlange statt **Approve** eine
 Schaltfläche je Weg, mit der Beschriftung, die ihr Autor geschrieben hat; **Reject**

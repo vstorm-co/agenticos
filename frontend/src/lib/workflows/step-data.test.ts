@@ -74,6 +74,23 @@ describe("what a run's steps did", () => {
   });
 });
 
+describe("how a run's approval steps were decided", () => {
+  it("keeps the decision with the step's output, and adds nothing to other steps", () => {
+    const approval = {
+      status: "approved" as const,
+      decided_at: "2026-11-13T10:28:00Z",
+      decided_by_name: "Ola",
+    };
+    const data = stepDataOf("r", [
+      row({ node_instance_id: "a", output: { decision: "approved" }, approval }),
+      row({ node_instance_id: "b", output: { n: 1 }, approval: null }),
+    ]);
+
+    expect(data.a).toEqual({ output: { decision: "approved" }, error: null, runId: "r", approval });
+    expect(data.b).toEqual({ output: { n: 1 }, error: null, runId: "r" });
+  });
+});
+
 describe("what a run's steps did in each loop iteration", () => {
   const loop = (index: number) => [{ loop_node_id: "l", index }];
   const rows = [

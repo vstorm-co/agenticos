@@ -27,6 +27,7 @@ from app.db.models.resource_grant import Visibility
 from app.db.models.workflow import WorkflowStatus
 from app.db.models.workflow_run import WorkflowRunMode, WorkflowRunStatus
 from app.main import app
+from app.repositories.workflow_approval import StepDecision
 from app.schemas.reply_expectation import ReplyExpectation
 from app.services.workflow_execution.facade import WorkflowExecutionService, _read
 from app.workflows.graph.model import NodeInstance, NodePosition, WorkflowGraph
@@ -772,6 +773,10 @@ class TestNodesRoute:
             patch(
                 f"{FACADE_PATH}.workflow_run_repo.list_attempts_of", new=AsyncMock(return_value=[])
             ),
+            patch(
+                f"{FACADE_PATH}.workflow_approval_repo.step_decisions",
+                new=AsyncMock(return_value=[]),
+            ),
         ):
             async with owner_client() as http:
                 response = await http.get(_url(f"/{run.id}/nodes"))
@@ -779,6 +784,51 @@ class TestNodesRoute:
         body = response.json()
         assert body["total"] == 1
         assert body["items"][0]["status"] == "succeeded" and body["items"][0]["attempts"] == 0
+        assert body["items"][0]["approval"] is None
+
+    async def test_an_approval_step_says_who_decided_and_when(self, owner_client: OpenClient):
+        run = _run_row()
+        workflow = _workflow(id=run.workflow_id)
+        decided_at = datetime.now(UTC)
+        node_run = MagicMock(
+            id=uuid.uuid4(),
+            node_instance_id=uuid.uuid4(),
+            scope_path=[],
+            status="succeeded",
+            waiting_reason=None,
+            started_at=decided_at,
+            ended_at=decided_at,
+        )
+        decision = StepDecision(
+            node_run_id=node_run.id,
+            status="rejected",
+            decided_at=decided_at,
+            decided_by_name="Ola Nowak",
+        )
+        with (
+            patch(f"{FACADE_PATH}.workflow_run_repo.get_run", new=AsyncMock(return_value=run)),
+            patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+            patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(
+                f"{FACADE_PATH}.workflow_run_repo.list_node_runs_page",
+                new=AsyncMock(return_value=([node_run], 1)),
+            ),
+            patch(
+                f"{FACADE_PATH}.workflow_run_repo.list_attempts_of", new=AsyncMock(return_value=[])
+            ),
+            patch(
+                f"{FACADE_PATH}.workflow_approval_repo.step_decisions",
+                new=AsyncMock(return_value=[decision]),
+            ),
+        ):
+            async with owner_client() as http:
+                response = await http.get(_url(f"/{run.id}/nodes"))
+        assert response.status_code == 200
+        assert response.json()["items"][0]["approval"] == {
+            "status": "rejected",
+            "decided_at": decided_at.isoformat(),
+            "decided_by_name": "Ola Nowak",
+        }
 
 
 class TestGraphRoute:

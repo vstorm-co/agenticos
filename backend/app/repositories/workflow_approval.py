@@ -9,6 +9,7 @@ from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.user import User
 from app.db.models.workflow import Workflow
 from app.db.models.workflow_approval import (
     ProposalFormat,
@@ -27,6 +28,15 @@ from app.db.models.workflow_run import (
 from app.repositories import workflow as workflow_repo
 
 OutcomeLevel = Literal["total", "step", "workflow"]
+
+
+class StepDecision(NamedTuple):
+    """How one step's request was settled, and by whom - for a run's own view of it."""
+
+    node_run_id: UUID
+    status: str
+    decided_at: datetime | None
+    decided_by_name: str | None
 
 
 async def create(
@@ -144,6 +154,32 @@ async def list_with_workflow(
         .limit(limit)
     )
     return [(approval, name) for approval, name in rows.all()], total or 0
+
+
+async def step_decisions(
+    db: AsyncSession, *, organization_id: UUID, node_run_ids: Sequence[UUID]
+) -> list[StepDecision]:
+    """The requests these steps made, each with the decider's name or email.
+
+    The name is null when nobody decided (pending, expired, cancelled) and when the
+    decider's account is gone - the foreign key is set null on delete.
+    """
+    if not node_run_ids:
+        return []
+    rows = await db.execute(
+        select(
+            WorkflowApproval.node_run_id,
+            WorkflowApproval.status,
+            WorkflowApproval.decided_at,
+            func.coalesce(func.nullif(User.full_name, ""), User.email),
+        )
+        .outerjoin(User, User.id == WorkflowApproval.decided_by_user_id)
+        .where(
+            WorkflowApproval.organization_id == organization_id,
+            WorkflowApproval.node_run_id.in_(node_run_ids),
+        )
+    )
+    return [StepDecision(*row) for row in rows.all()]
 
 
 async def update(

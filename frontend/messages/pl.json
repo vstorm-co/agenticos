@@ -11105,6 +11105,8 @@
     "versionRestored": "Wersja {version} jest znów wersją roboczą",
     "versionRestoreConflict": "Wersja robocza zmieniła się podczas przywracania. Rozwiąż konflikt, a potem przywróć ponownie.",
     "quickAdd": "Dodaj krok po {name} ({port})",
+    "stepApprovalDecided": "{known, select, no {{status, select, approved {Zatwierdzone przez byłego członka} other {Odrzucone przez byłego członka}}} other {{status, select, approved {Zatwierdzone przez {name}} other {Odrzucone przez {name}}}}} · {time}",
+    "stepApprovalUndecided": "{status, select, expired {Wygasło: nikt nie zdecydował na czas} cancelled {Anulowane razem z runem} other {Czeka na decyzję}}",
     "paletteNoMatches": "Żaden węzeł nie pasuje do wyszukiwania.",
     "canvasTitle": "Płótno",
     "canvasHint": "Dodaj krok, żeby zacząć workflow.",

@@ -1,5 +1,5 @@
 ---
-source_sha: "d4ebadc86d2b"
+source_sha: "5d76c80578ea"
 ---
 
 # Workflows { #workflows }
@@ -864,6 +864,12 @@ dalej `final`, `original` i `edited`, więc kolejny krok wysyła to, co osoba
 zatwierdziła. Decydujący, którego krok nie wskazuje, widzi propozycję tylko do odczytu, a
 prośba rozstrzygnięta ze zmienioną wersją ma pod **Zdecydowane (Decided)** znacznik
 **Zmieniono (Edited)**.
+
+W samym runie zakończony krok zatwierdzenia zaczyna się od tego, kto i kiedy zdecydował -
+**Zatwierdzone przez** albo **Odrzucone przez** osobę i czas, albo **byłego członka**, gdy
+jego konta już nie ma - nad wynikiem kroku. Gdy zatwierdzający zmienił propozycję,
+**Pokaż zmiany (Show changes)** porównuje obie wersje. Prośba, która wygasła albo została
+anulowana razem z runem, mówi o tym zamiast tego.
 
 Gdy krok wymienia **Ways to approve**, kolejka pokazuje po jednym przycisku na każdy, z
 etykietą, którą napisał autor, zamiast **Approve**; **Reject** zostaje. Każdy sposób

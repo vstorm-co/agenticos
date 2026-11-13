@@ -1,5 +1,5 @@
 ---
-source_sha: "d4ebadc86d2b"
+source_sha: "5d76c80578ea"
 ---
 
 # Workflows { #workflows }
@@ -886,6 +886,12 @@ pasa entonces `final`, `original` y `edited`, de modo que un paso posterior env�
 lo que la persona aprobó. Quien puede decidir pero no está nombrado en el paso ve la propuesta de solo
 lectura, y una solicitud decidida con una versión cambiada lleva la insignia
 **Edited** en **Decided**.
+
+En el propio run, un paso de aprobación terminado empieza por quién lo decidió y cuándo -
+**Approved by** o **Rejected by** la persona y la hora, o **a former member** cuando su
+cuenta ya no existe - encima de la salida del paso. Si quien aprobó cambió la propuesta,
+**Show changes** compara las dos versiones. Una solicitud que caducó o se canceló con su
+run lo dice en su lugar.
 
 Cuando el paso enumera **Ways to approve**, la cola muestra un botón por cada una, con la
 etiqueta que escribió su autor, en lugar de **Approve**; **Reject** se queda. Cada forma
