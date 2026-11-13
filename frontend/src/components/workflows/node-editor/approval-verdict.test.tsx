@@ -23,16 +23,14 @@ describe("ApprovalVerdict", () => {
     expect(screen.queryByRole("button", { name: "Show changes" })).toBeNull();
   });
 
-  it("says a rejection came from a former member when their account is gone", () => {
+  it("names nobody when the decider is not given - gone, or not the reader's to see", () => {
     render(
       <ApprovalVerdict
         approval={{ status: "rejected", decided_at: AT, decided_by_name: null }}
         output={{ decision: "rejected" }}
       />,
     );
-    expect(screen.getByTestId("approval-verdict")).toHaveTextContent(
-      `Rejected by a former member · ${WHEN}`,
-    );
+    expect(screen.getByTestId("approval-verdict")).toHaveTextContent(`Rejected · ${WHEN}`);
   });
 
   it("says nobody decided an expired request, or one cancelled with its run", () => {

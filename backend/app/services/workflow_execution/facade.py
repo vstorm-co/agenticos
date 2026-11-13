@@ -1198,7 +1198,11 @@ class WorkflowExecutionService:
                 read.approval = WorkflowStepDecision(
                     status=WorkflowApprovalStatus(decision.status),
                     decided_at=decision.decided_at,
-                    decided_by_name=decision.decided_by_name,
+                    # Who decided names a member: a caller who may not list the
+                    # members - a key scoped to workflows - reads the decision alone.
+                    decided_by_name=decision.decided_by_name
+                    if ctx.has(Perm.MEMBERS_VIEW)
+                    else None,
                 )
             items.append(read)
         return WorkflowNodeRunList(items=items, total=total)

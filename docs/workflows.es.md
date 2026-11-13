@@ -1,5 +1,5 @@
 ---
-source_sha: "5d76c80578ea"
+source_sha: "6069a1766b26"
 ---
 
 # Workflows { #workflows }
@@ -888,8 +888,8 @@ lectura, y una solicitud decidida con una versión cambiada lleva la insignia
 **Edited** en **Decided**.
 
 En el propio run, un paso de aprobación terminado empieza por quién lo decidió y cuándo -
-**Approved by** o **Rejected by** la persona y la hora, o **a former member** cuando su
-cuenta ya no existe - encima de la salida del paso. Si quien aprobó cambió la propuesta,
+**Approved by** o **Rejected by** la persona y la hora - solo la decisión y la hora cuando
+la cuenta ya no existe o quien lee no puede ver los miembros - encima de la salida del paso. Si quien aprobó cambió la propuesta,
 **Show changes** compara las dos versiones. Una solicitud que caducó o se canceló con su
 run lo dice en su lugar.
 

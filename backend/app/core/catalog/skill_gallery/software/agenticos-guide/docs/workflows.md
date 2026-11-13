@@ -839,8 +839,8 @@ the proposal read-only, and a request decided with a changed version
 shows an **Edited** badge under **Decided**.
 
 In the run itself, a finished approval step opens with who decided it and when -
-**Approved by** or **Rejected by** the person and the time, or **a former member** when
-their account is gone - above the step's output. When the approver changed the
+**Approved by** or **Rejected by** the person and the time - only the decision and the time
+when the account is gone or the reader may not list members - above the step's output. When the approver changed the
 proposal, **Show changes** compares the two. A request that expired or was cancelled
 with its run says so instead.
 

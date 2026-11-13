@@ -89,6 +89,16 @@ describe("how a run's approval steps were decided", () => {
     expect(data.a).toEqual({ output: { decision: "approved" }, error: null, runId: "r", approval });
     expect(data.b).toEqual({ output: { n: 1 }, error: null, runId: "r" });
   });
+
+  it("keeps a request its run was cancelled during, with nothing handed on", () => {
+    const approval = { status: "cancelled" as const, decided_at: null, decided_by_name: null };
+    const data = stepDataOf("r", [
+      row({ node_instance_id: "a", status: "cancelled", approval }),
+      row({ node_instance_id: "b", status: "cancelled" }),
+    ]);
+
+    expect(data).toEqual({ a: { output: null, error: null, runId: "r", approval } });
+  });
 });
 
 describe("what a run's steps did in each loop iteration", () => {

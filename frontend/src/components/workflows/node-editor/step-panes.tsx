@@ -423,6 +423,9 @@ export function OutputPane({
               {t("stepReviewSetup")}
             </Button>
           )}
+          {readOnly && data?.approval !== undefined && (
+            <ApprovalVerdict approval={data.approval} output={data.output} />
+          )}
           {shown === null ? (
             failed == null && (
               <MoreOptions label={t("stepOutputFields")}>
@@ -434,12 +437,7 @@ export function OutputPane({
               </MoreOptions>
             )
           ) : (
-            <>
-              {readOnly && data?.approval !== undefined && (
-                <ApprovalVerdict approval={data.approval} output={data.output} />
-              )}
-              <StepDataView node={node} value={shown} />
-            </>
+            <StepDataView node={node} value={shown} />
           )}
           {canPin && (
             <div className="flex flex-wrap gap-2">

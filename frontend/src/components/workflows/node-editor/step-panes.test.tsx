@@ -304,6 +304,20 @@ describe("OutputPane", () => {
     expect(screen.queryByTestId("approval-verdict")).toBeNull();
   });
 
+  it("says a request was cancelled with its run, though the step handed nothing on", () => {
+    seed(line());
+    store.getState().mergeStepData({
+      b: {
+        output: null,
+        error: null,
+        runId: "r",
+        approval: { status: "cancelled", decided_at: null, decided_by_name: null },
+      },
+    });
+    renderOutput(STEP, [STEP], true);
+    expect(screen.getByTestId("approval-verdict")).toHaveTextContent("Cancelled with its run");
+  });
+
   it("shows a table step's records in its table's column order", () => {
     useWorkflowTable.mockReturnValueOnce({
       table: {

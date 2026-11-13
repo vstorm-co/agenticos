@@ -1,5 +1,5 @@
 ---
-source_sha: "5d76c80578ea"
+source_sha: "6069a1766b26"
 ---
 
 # Workflows { #workflows }
@@ -866,8 +866,8 @@ prośba rozstrzygnięta ze zmienioną wersją ma pod **Zdecydowane (Decided)** z
 **Zmieniono (Edited)**.
 
 W samym runie zakończony krok zatwierdzenia zaczyna się od tego, kto i kiedy zdecydował -
-**Zatwierdzone przez** albo **Odrzucone przez** osobę i czas, albo **byłego członka**, gdy
-jego konta już nie ma - nad wynikiem kroku. Gdy zatwierdzający zmienił propozycję,
+**Zatwierdzone przez** albo **Odrzucone przez** osobę i czas - same decyzję i czas, gdy
+konta już nie ma albo czytelnik nie może przeglądać członków - nad wynikiem kroku. Gdy zatwierdzający zmienił propozycję,
 **Pokaż zmiany (Show changes)** porównuje obie wersje. Prośba, która wygasła albo została
 anulowana razem z runem, mówi o tym zamiast tego.
 

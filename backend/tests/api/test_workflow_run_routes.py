@@ -832,6 +832,67 @@ class TestNodesRoute:
 
 
 class TestGraphRoute:
+    async def test_a_key_that_may_not_list_members_reads_the_decision_without_its_decider(self):
+        """A key scoped to workflows sees that a step was approved, and when - not by whom."""
+        run = _run_row()
+        workflow = _workflow(id=run.workflow_id)
+        decided_at = datetime.now(UTC)
+        node_run = MagicMock(
+            id=uuid.uuid4(),
+            node_instance_id=uuid.uuid4(),
+            scope_path=[],
+            status="succeeded",
+            waiting_reason=None,
+            started_at=decided_at,
+            ended_at=decided_at,
+        )
+        decision = StepDecision(
+            node_run_id=node_run.id,
+            status="approved",
+            decided_at=decided_at,
+            decided_by_name="Ola Nowak",
+        )
+        context = AuthContext(
+            user_id=uuid.uuid4(),
+            organization_id=_ORGANIZATION_ID,
+            role=OrgRoleName.OWNER,
+            key_scopes=frozenset({Perm.WORKFLOWS_VIEW}),
+        )
+        app.dependency_overrides[deps.get_auth_context] = lambda: context
+        app.dependency_overrides[deps.get_workflow_execution_service] = lambda: (
+            WorkflowExecutionService(_db())
+        )
+        try:
+            with (
+                patch(f"{FACADE_PATH}.workflow_run_repo.get_run", new=AsyncMock(return_value=run)),
+                patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+                patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(return_value=True)),
+                patch(
+                    f"{FACADE_PATH}.workflow_run_repo.list_node_runs_page",
+                    new=AsyncMock(return_value=([node_run], 1)),
+                ),
+                patch(
+                    f"{FACADE_PATH}.workflow_run_repo.list_attempts_of",
+                    new=AsyncMock(return_value=[]),
+                ),
+                patch(
+                    f"{FACADE_PATH}.workflow_approval_repo.step_decisions",
+                    new=AsyncMock(return_value=[decision]),
+                ),
+            ):
+                async with AsyncClient(
+                    transport=ASGITransport(app=app), base_url="http://test"
+                ) as http:
+                    response = await http.get(_url(f"/{run.id}/nodes"))
+        finally:
+            app.dependency_overrides.clear()
+        assert response.status_code == 200
+        assert response.json()["items"][0]["approval"] == {
+            "status": "approved",
+            "decided_at": decided_at.isoformat(),
+            "decided_by_name": None,
+        }
+
     async def test_answering_with_the_graph_a_run_executes(self, owner_client: OpenClient):
         run = _run_row()
         workflow = _workflow(id=run.workflow_id)

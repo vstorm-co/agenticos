@@ -40,6 +40,10 @@ function rowData(runId: string, row: WorkflowNodeRunRead): StepData | null {
       ? { output: row.output, error: null, runId, approval: row.approval }
       : { output: row.output, error: null, runId };
   }
+  // A run cancelled while a person was asked hands nothing on, but the request still says so.
+  if (row.status === "cancelled" && row.approval) {
+    return { output: null, error: null, runId, approval: row.approval };
+  }
   if (row.status === "failed" && row.error !== null) {
     return { output: null, error: { code: row.error.code, message: row.error.message }, runId };
   }

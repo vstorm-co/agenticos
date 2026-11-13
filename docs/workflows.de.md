@@ -1,5 +1,5 @@
 ---
-source_sha: "5d76c80578ea"
+source_sha: "6069a1766b26"
 ---
 
 # Workflows { #workflows }
@@ -940,8 +940,9 @@ einer geänderten Fassung entschiedene Anfrage trägt unter **Entschieden (Decid
 **Bearbeitet (Edited)**.
 
 Im Run selbst beginnt ein abgeschlossener Freigabeschritt damit, wer wann entschieden hat -
-**Genehmigt von** oder **Abgelehnt von** der Person mit der Uhrzeit, oder **einem ehemaligen
-Mitglied**, wenn dessen Konto nicht mehr existiert - über der Ausgabe des Schritts. Hat die
+**Genehmigt von** oder **Abgelehnt von** der Person mit der Uhrzeit - nur Entscheidung und
+Uhrzeit, wenn das Konto nicht mehr existiert oder die lesende Person keine Mitglieder sehen
+darf - über der Ausgabe des Schritts. Hat die
 freigebende Person den Vorschlag geändert, vergleicht **Änderungen anzeigen (Show changes)**
 beide Fassungen. Eine abgelaufene oder mit dem Run abgebrochene Anfrage sagt stattdessen das.
 

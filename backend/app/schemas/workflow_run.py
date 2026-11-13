@@ -195,7 +195,8 @@ class WorkflowStepDecision(BaseSchema):
     decided_by_name: str | None = Field(
         default=None,
         description="The decider's name, or their email when they set none. Null when nobody "
-        "decided, or the decider's account no longer exists",
+        "decided, when the decider's account no longer exists, and for a caller without "
+        "`members:view`",
     )
 
 
