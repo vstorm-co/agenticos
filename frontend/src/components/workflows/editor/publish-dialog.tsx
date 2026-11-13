@@ -18,7 +18,7 @@ import {
 } from "@/components/ui";
 import { nodeNames, ProblemsFooter } from "@/components/workflows/property-panel/problems";
 import type { ValidationProblem } from "@/components/workflows/validation";
-import { validateGraph } from "@/components/workflows/validation";
+import { graphWarnings, validateGraph } from "@/components/workflows/validation";
 import { ApiError, fieldProblems } from "@/lib/api-error";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
@@ -114,6 +114,12 @@ export function PublishDialog({ workflow, catalog, publish }: PublishDialogProps
       : (catalog.find((definition) => definition.id === node.definition_id)?.name ?? null);
   }, [graph, nodeCatalog, catalog]);
 
+  const warnings = useMemo(
+    () => (graph === null ? [] : graphWarnings(graph, nodeCatalog, t)),
+    [graph, nodeCatalog, t],
+  );
+
+  const names = useMemo(() => nodeNames(graph, nodeCatalog), [graph, nodeCatalog]);
   const blocked = clientProblems.length > 0;
   const problems = clientProblems.length > 0 ? clientProblems : serverProblems;
 
@@ -216,12 +222,28 @@ export function PublishDialog({ workflow, catalog, publish }: PublishDialogProps
             <p className="text-muted-foreground text-xs">{t("publishBlocked")}</p>
           )}
           {isDirty && <p className="text-muted-foreground text-xs">{t("publishSaving")}</p>}
-          <ProblemsFooter
-            problems={problems}
-            names={nodeNames(graph, nodeCatalog)}
-            onSelectNode={selectNode}
-            defaultOpen
-          />
+          {!blocked && warnings.length > 0 && (
+            <div className="text-warning space-y-1 text-xs">
+              <p>{t("publishWarnings")}</p>
+              <ul className="space-y-1">
+                {warnings.map((warning, index) => (
+                  <li key={index}>
+                    <button
+                      type="button"
+                      className="text-left underline-offset-2 hover:underline"
+                      onClick={() => selectNode(warning.nodeId!)}
+                    >
+                      {t("publishWarningAt", {
+                        step: names.get(warning.nodeId!) ?? "",
+                        warning: warning.message,
+                      })}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <ProblemsFooter problems={problems} names={names} onSelectNode={selectNode} defaultOpen />
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)} disabled={submitting}>

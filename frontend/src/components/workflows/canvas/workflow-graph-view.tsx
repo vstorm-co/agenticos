@@ -25,7 +25,7 @@ import { ContextMenu, ContextMenuTrigger } from "@/components/ui";
 import { readNodeDragData } from "@/components/workflows/palette";
 import { fittingMergeConfigs } from "@/components/workflows/property-panel/merge-config";
 import { problemText } from "@/components/workflows/property-panel/problems";
-import { validateGraph } from "@/components/workflows/validation";
+import { graphWarnings, validateGraph } from "@/components/workflows/validation";
 import { useResolvedTheme } from "@/hooks/use-resolved-theme";
 import type { NodeDefinition, WorkflowGraph } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
@@ -303,7 +303,19 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
       portId: string,
       definition: NodeDefinition,
       config?: Record<string, unknown>,
-    ) => insert(definition, { from: { nodeId, portId }, config }),
+      beforeEdgeId?: string,
+    ) => {
+      const between = useWorkflowEditorStore
+        .getState()
+        .graph?.edges.find((edge) => edge.id === beforeEdgeId);
+      // `from` stays: a step the connection cannot pass through is added after the port
+      // as a branch, and the connection is left as it was.
+      insert(definition, {
+        from: { nodeId, portId },
+        config,
+        ...(between ? { between, keepOnward: true } : {}),
+      });
+    },
     [insert],
   );
   // Worked out once for the whole graph, not per card: each rule reads the graph
@@ -331,6 +343,15 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
     }
     return texts;
   }, [problems, graph, catalog, t]);
+  const warningTexts = useMemo(() => {
+    const texts = new Map<string, string[]>();
+    if (readOnly || graph === null) return texts;
+    for (const warning of graphWarnings(graph, { items: catalog, total: catalog.length }, t)) {
+      const nodeId = warning.nodeId!;
+      texts.set(nodeId, [...(texts.get(nodeId) ?? []), warning.message]);
+    }
+    return texts;
+  }, [readOnly, graph, catalog, t]);
   const editNode = useWorkflowEditorStore((state) => state.editNode);
   const openNode = (_event: React.MouseEvent, node: { id: string; type?: string }) => {
     if (node.type !== "note") editNode(node.id);
@@ -405,8 +426,18 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
       catalog,
       insertAfter,
       problemTexts,
+      warningTexts,
     }),
-    [readOnly, connectSource, beginConnect, completeConnect, catalog, insertAfter, problemTexts],
+    [
+      readOnly,
+      connectSource,
+      beginConnect,
+      completeConnect,
+      catalog,
+      insertAfter,
+      problemTexts,
+      warningTexts,
+    ],
   );
 
   return (

@@ -137,7 +137,10 @@ group. You add a step four ways:
   flow in view, wired to it when their ports fit. A starting step goes before the
   current start instead and becomes it.
 - **+** beside a step's output opens the picker for the step that comes after that
-  output.
+  output. When the output already leads to a step, the picker asks where the new one
+  goes: **Insert before** that step puts it into the connection, and **Add a parallel
+  branch** keeps the connection and runs the new step beside it. An output that already
+  leads to several steps can only take another branch.
 - **Right-click** the canvas: the same picker opens where you clicked, and the step
   lands there. Beneath it, **Add a note** and, once something is copied, **Paste**.
 - **Drag** a step from the picker to put it where you drop it, wired to nothing.
@@ -659,6 +662,11 @@ version is never changed after it is created. The publish dialog names the versi
 version, it says so first. If the graph still has
 problems, publishing is blocked with **Fix the problems below before
 publishing**, so a version that would not validate is never created.
+
+Some things are worth a look without being wrong, and an amber sign on the step marks
+them: an **Ask for approval** outcome that leads nowhere, or a step that decides
+between outputs when none of them leads anywhere. The run simply ends there. The
+publish dialog lists them too, but they never block a test run or a publish.
 
 Publishing does not end your editing. The draft goes on existing independently of
 any published version, so you keep editing it straight away. **Versions** under **More** in the
