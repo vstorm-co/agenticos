@@ -18,7 +18,12 @@ import { TriggerRow } from "./trigger-row";
 
 type Routine = { kind: "task"; row: Trigger } | { kind: "monitor"; row: Watch };
 
-export function RoutinesList() {
+export function RoutinesList({
+  emptyAction,
+}: {
+  /** The way to start a first routine, for a caller who may; offered inside the empty list. */
+  emptyAction?: { label: string; onClick: () => void };
+} = {}) {
   const t = useTranslations("triggers");
   const tw = useTranslations("watches");
   const tErrors = useTranslations("errors");
@@ -77,6 +82,7 @@ export function RoutinesList() {
             icon={CalendarClock}
             title={t("activityEmptyTitle")}
             description={t("activityEmptyDescription")}
+            cta={emptyAction}
           />
         ) : (
           <div className="space-y-3">

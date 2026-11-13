@@ -11557,9 +11557,9 @@
     "archivedWhy": "Niemand kann diese Seite öffnen, und der Agent kann sie nicht erneut veröffentlichen. Nach dem Wiederherstellen bleibt ihr öffentlicher Link aus, bis Sie ihn einschalten.",
     "unarchive": "Wiederherstellen",
     "archivedBadge": "Archiviert",
-    "shownFilter": "Welche Artefakte",
+    "shownFilter": "Welche Apps",
     "shown": {
-      "live": "Aktive Artefakte",
+      "live": "Aktive Apps",
       "all": "Auch archivierte"
     },
     "consent": {

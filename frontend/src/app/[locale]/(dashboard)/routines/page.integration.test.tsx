@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import RoutinesPage from "./page";
@@ -6,7 +6,11 @@ import RoutinesPage from "./page";
 const state = vi.hoisted(() => ({ create: true, monitor: true }));
 vi.mock("@/hooks", () => ({ useCanCreateTrigger: () => state.create }));
 vi.mock("@/components/triggers/routines-list", () => ({
-  RoutinesList: () => <div data-testid="all-routines" />,
+  RoutinesList: ({ emptyAction }: { emptyAction?: { label: string; onClick: () => void } }) => (
+    <div data-testid="all-routines">
+      {emptyAction && <button onClick={emptyAction.onClick}>{emptyAction.label}</button>}
+    </div>
+  ),
 }));
 vi.mock("@/components/watches/watches-card", () => ({ useCanWatch: () => state.monitor }));
 vi.mock("@/components/triggers/trigger-form-dialog", () => ({
@@ -40,6 +44,21 @@ describe("RoutinesPage", () => {
     await userEvent.click(screen.getByRole("menuitem", { name: label }));
     expect(screen.getByRole("dialog", { name: dialog })).toBeVisible();
   });
+  it.each([
+    [true, true, "Run on a schedule", "schedule"],
+    [false, true, "Monitor and inform", "monitor"],
+  ])(
+    "hands the empty list the first routine the caller may start (create %s, monitor %s)",
+    async (create, monitor, label, dialog) => {
+      state.create = create;
+      state.monitor = monitor;
+      render(<RoutinesPage />);
+      await userEvent.click(
+        within(screen.getByTestId("all-routines")).getByRole("button", { name: label }),
+      );
+      expect(screen.getByRole("dialog", { name: dialog })).toBeVisible();
+    },
+  );
   it("offers monitoring independently of agent task creation", async () => {
     state.create = false;
     render(<RoutinesPage />);

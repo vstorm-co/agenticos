@@ -11871,9 +11871,9 @@
     "archivedWhy": "Nobody can open this page and the agent can't publish it again. After a restore, its public link stays off until you turn it on.",
     "unarchive": "Restore",
     "archivedBadge": "Archived",
-    "shownFilter": "Which artifacts",
+    "shownFilter": "Which apps",
     "shown": {
-      "live": "Active artifacts",
+      "live": "Active apps",
       "all": "Archived included"
     },
     "consent": {
