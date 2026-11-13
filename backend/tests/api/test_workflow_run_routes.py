@@ -786,6 +786,7 @@ class TestNodesRoute:
         assert body["items"][0]["status"] == "succeeded" and body["items"][0]["attempts"] == 0
         assert body["items"][0]["approval"] is None
 
+    @pytest.mark.security
     async def test_an_approval_step_says_who_decided_and_when(self, owner_client: OpenClient):
         run = _run_row()
         workflow = _workflow(id=run.workflow_id)
@@ -832,6 +833,7 @@ class TestNodesRoute:
 
 
 class TestGraphRoute:
+    @pytest.mark.security
     async def test_a_key_that_may_not_list_members_reads_the_decision_without_its_decider(self):
         """A key scoped to workflows sees that a step was approved, and when - not by whom."""
         run = _run_row()
