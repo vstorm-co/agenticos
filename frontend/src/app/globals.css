@@ -2986,11 +2986,15 @@ body .tour-spotlight {
   .chat-input-form[data-editing] .chat-input-send {
     order: 3;
     align-self: flex-end;
+    min-block-size: 2.75rem;
+    align-items: center;
     padding-bottom: 0;
+  }
+  .chat-input-form[data-editing] .composer-editor-shell {
+    --composer-padding: 0.625rem;
   }
   .chat-input-form[data-editing] .composer-editor {
     min-height: 44px;
-    padding-block: 10px;
   }
   /* Keep the scroll gesture, without a scrollbar beside the send action. */
   .chat-input-form .composer-editor {
