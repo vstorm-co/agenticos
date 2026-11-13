@@ -40,7 +40,18 @@ Value = CellValue | list[CellValue]
 
 
 class FormulaProblem(ValueError):
-    """A formula that cannot be one. The message is written for its author."""
+    """A formula that cannot be one. The message is written for its author.
+
+    Attributes:
+        reason: A stable name for what is wrong, so a console can say it in the
+            author's language; the English message stays what an API caller reads.
+        params: The values the message names - a column's label, a limit.
+    """
+
+    def __init__(self, message: str, reason: str, **params: str | int) -> None:
+        super().__init__(message)
+        self.reason = reason
+        self.params = params
 
 
 def _number(value: object) -> float | int:
@@ -170,7 +181,7 @@ def _parse(formula: str, labels: Sequence[str]) -> ast.Expression:
     try:
         return ast.parse(_spreadsheet_words(source), mode="eval")
     except SyntaxError, tokenize.TokenError:
-        raise FormulaProblem("The formula is not written correctly") from None
+        raise FormulaProblem("The formula is not written correctly", "syntax") from None
 
 
 def _spreadsheet_words(source: str) -> str:
@@ -205,43 +216,54 @@ def _spreadsheet_words(source: str) -> str:
 def _check(node: ast.AST, depth: int = 0) -> None:
     """Refuse anything a formula may not contain."""
     if depth > MAX_DEPTH:
-        raise FormulaProblem("The formula nests too deeply")
+        raise FormulaProblem("The formula nests too deeply", "too_deep")
     if isinstance(node, ast.Expression):
         _check(node.body, depth + 1)
     elif isinstance(node, ast.Constant):
         if not isinstance(node.value, int | float | str | bool):
-            raise FormulaProblem("A formula holds numbers, text and true or false")
+            raise FormulaProblem("A formula holds numbers, text and true or false", "constant")
     elif isinstance(node, ast.Name):
         if not node.id.startswith("__column_"):
             raise FormulaProblem(
-                f"{node.id} means nothing here: name a column in braces, as {{{node.id}}}"
+                f"{node.id} means nothing here: name a column in braces, as {{{node.id}}}",
+                "unknown_name",
+                name=node.id,
             )
     elif isinstance(node, ast.BinOp):
         if type(node.op) not in _ARITHMETIC:
-            raise FormulaProblem("A formula calculates with + - * / and % only")
+            raise FormulaProblem("A formula calculates with + - * / and % only", "arithmetic")
         _check(node.left, depth + 1)
         _check(node.right, depth + 1)
     elif isinstance(node, ast.UnaryOp):
         if not isinstance(node.op, ast.USub | ast.UAdd | ast.Not):
-            raise FormulaProblem("That operator is not one a formula uses")
+            raise FormulaProblem("That operator is not one a formula uses", "operator")
         _check(node.operand, depth + 1)
     elif isinstance(node, ast.BoolOp):
         for value in node.values:
             _check(value, depth + 1)
     elif isinstance(node, ast.Compare):
         if any(type(op) not in _COMPARISONS for op in node.ops):
-            raise FormulaProblem("A formula compares with = <> < <= > >= only")
+            raise FormulaProblem("A formula compares with = <> < <= > >= only", "comparison")
         for part in (node.left, *node.comparators):
             _check(part, depth + 1)
     elif isinstance(node, ast.Call):
         name = node.func.id.upper() if isinstance(node.func, ast.Name) else None
         if name is None or name not in FUNCTIONS or node.keywords:
             known = ", ".join(sorted(FUNCTIONS))
-            raise FormulaProblem(f"A formula calls only these functions: {known}")
+            raise FormulaProblem(
+                f"A formula calls only these functions: {known}", "function", functions=known
+            )
         for arg in node.args:
             _check(arg, depth + 1)
+    elif isinstance(node, ast.Tuple):
+        # `{Price} * 1,23` reads as two values: the comma separates a function's
+        # arguments, so it cannot also be a decimal separator.
+        raise FormulaProblem(
+            "Write decimals with a dot, such as 1.23: a comma separates a function's arguments",
+            "decimal_comma",
+        )
     else:
-        raise FormulaProblem("That is not something a formula can contain")
+        raise FormulaProblem("That is not something a formula can contain", "unsupported")
 
 
 def check_formula(formula: str, column: ColumnDef, columns: Sequence[ColumnDef]) -> None:
@@ -252,18 +274,25 @@ def check_formula(formula: str, column: ColumnDef, columns: Sequence[ColumnDef])
         FormulaProblem: Saying what is wrong, for the person writing it.
     """
     if not formula.strip():
-        raise FormulaProblem("A formula column needs a formula")
+        raise FormulaProblem("A formula column needs a formula", "empty")
     if len(formula) > MAX_FORMULA:
-        raise FormulaProblem(f"A formula is at most {MAX_FORMULA} characters")
+        raise FormulaProblem(
+            f"A formula is at most {MAX_FORMULA} characters", "too_long", limit=MAX_FORMULA
+        )
     live = {c.label: c for c in columns if not c.archived and c.id != column.id}
     named = references(formula)
     for label in named:
         target = live.get(label)
         if target is None:
-            raise FormulaProblem(f"{{{label}}} is not a live column of this table")
+            raise FormulaProblem(
+                f"{{{label}}} is not a live column of this table", "not_a_column", label=label
+            )
         if target.type in ("formula", "link"):
             raise FormulaProblem(
-                f"{{{label}}} is a {target.type} column; a formula reads columns holding values"
+                f"{{{label}}} is a {target.type} column; a formula reads columns holding values",
+                "not_a_value",
+                label=label,
+                type=target.type,
             )
     _check(_parse(formula, named))
 

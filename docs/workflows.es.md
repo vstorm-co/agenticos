@@ -1,5 +1,5 @@
 ---
-source_sha: "b3880c2b1db9"
+source_sha: "9c018612d58f"
 ---
 
 # Workflows { #workflows }
@@ -151,7 +151,10 @@ hace o por su grupo. Añades un paso de cuatro maneras:
   a la vista, conectado a él cuando sus puertos encajan. Un paso de inicio va en
   cambio antes del inicio actual y pasa a serlo.
 - **+** junto a la salida de un paso abre el selector para el paso que va tras esa
-  salida.
+  salida. Si la salida ya lleva a un paso, el selector pregunta dónde va el nuevo:
+  **Insert before** lo coloca en esa conexión y **Add a parallel branch** conserva la
+  conexión y ejecuta el nuevo paso a su lado. Una salida que ya lleva a varios pasos solo
+  admite otra rama.
 - **Clic derecho** en el lienzo: el mismo selector se abre donde hiciste clic, y el
   paso aparece allí. Debajo, **Add a note** y, cuando hay algo copiado, **Paste**.
 - **Arrastra** un paso desde el selector para dejarlo donde lo sueltes, sin conectar.
@@ -699,6 +702,12 @@ versión nunca se cambia después de crearse. El diálogo de publicación nombra
 versión en vivo, lo dice primero. Si el grafo aún tiene problemas, la
 publicación se bloquea con **Fix the problems below before publishing**, así que una
 versión que no validaría nunca se crea.
+
+Algunas cosas merecen un vistazo sin ser errores, y un signo ámbar en el paso las marca:
+un resultado de **Ask for approval** que no lleva a ninguna parte, o un paso que decide
+entre salidas cuando ninguna lleva a ninguna parte. El run simplemente termina ahí. El
+diálogo de publicación también las enumera, pero nunca bloquean una prueba ni una
+publicación.
 
 Publicar no termina tu edición. El draft sigue existiendo con independencia de
 cualquier versión publicada, así que lo sigues editando enseguida. **Versions** en la

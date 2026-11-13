@@ -1,5 +1,5 @@
 ---
-source_sha: "ec1de885016c"
+source_sha: "f42ada39df6d"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -159,6 +159,14 @@ w niej nie tak. Wartość, której nie da się wyliczyć - dzielenie przez zero,
 w sumie, pusta komórka - zostawia komórkę tego rekordu pustą. Formuła jest
 wyliczana przy odczycie rekordu, jak odczyt z powiązania, i nigdy nie jest
 zapisywana, filtrowana ani sortowana.
+
+Ułamki dziesiętne zapisuje się z kropką, `{Price} * 1.23`, w każdym języku:
+przecinek oddziela argumenty funkcji, więc `{Price} * 1,23` zostaje odrzucone z tą
+wskazówką, a nie odczytane jako liczba. Odmowa podaje stały powód w
+`details.formula.reason`, na przykład `decimal_comma` albo `not_a_column`, dzięki
+któremu konsola mówi o nim w języku czytelnika. Konsola pokazuje liczby, także
+wynik formuły, z separatorem dziesiętnym czytelnika - `12,177` po polsku - i nie
+grupuje liczb czterocyfrowych.
 
 ## Zmiana schematu { #changing-a-schema }
 
