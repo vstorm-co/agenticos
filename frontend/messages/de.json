@@ -1616,6 +1616,7 @@
       "sortTitleAsc": "Titel A–Z",
       "sortTitleDesc": "Titel Z–A",
       "apiBadge": "API",
+      "forkOf": "Abgezweigt aus {title}",
       "hideApi": "Über die API eröffnete Unterhaltungen ausblenden",
       "filters": "Filtern und sortieren",
       "show": "Anzeigen",

@@ -8969,6 +8969,7 @@
       "sortTitleAsc": "Başlık A–Z",
       "sortTitleDesc": "Başlık Z–A",
       "apiBadge": "API",
+      "forkOf": "{title} konuşmasından dallandırıldı",
       "hideApi": "API üzerinden açılan konuşmaları gizle",
       "filters": "Filtrele ve sırala",
       "show": "Göster",
