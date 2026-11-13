@@ -99,3 +99,12 @@ it("cuts an operator section at the top level too", () => {
     "# Added\n\nNew page.",
   );
 });
+
+it.each(["### Upgrading ###", "   ## Notes for operators", "  ### Upgrading ###  "])(
+  "recognizes the Markdown operator heading %s",
+  (heading) => {
+    expect(memberReleaseNotes(`${heading}\n\nMigrate first.\n\n   # Added #\n\nNew page.`)).toBe(
+      "# Added #\n\nNew page.",
+    );
+  },
+);

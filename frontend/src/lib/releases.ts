@@ -57,8 +57,9 @@ export interface CurrentReleaseResponse {
 }
 
 /** Headings whose sections speak to whoever runs the deployment, not to the people using it. */
-const OPERATOR_HEADING = /^(#{1,6})\s+(upgrading|notes for operators)\s*$/i;
-const HEADING = /^(#{1,6})\s/;
+const OPERATOR_HEADING =
+  /^ {0,3}(#{1,6})[ \t]+(upgrading|notes for operators)(?:[ \t]+#+)?[ \t]*\r?$/i;
+const HEADING = /^ {0,3}(#{1,6})(?:[ \t]|\r?$)/;
 const FENCE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
 
 /**
