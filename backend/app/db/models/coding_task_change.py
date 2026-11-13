@@ -46,6 +46,15 @@ class CodingTaskChange(Base, TimestampMixin):
     revert_patch: Mapped[str | None] = mapped_column(Text, nullable=True)
     workspace_ref: Mapped[dict[str, str] | None] = mapped_column(JSONB, nullable=True)
     reverted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    snapshot_isolated: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    revert_job_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    """A durable reservation, retained even if queue retention removes an unknown job."""
+    revert_started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    revert_failure: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
 
     def __repr__(self) -> str:
         return f"<CodingTaskChange(id={self.id}, conversation_id={self.conversation_id})>"

@@ -112,9 +112,17 @@ before/after Git blob and mode, and the original workspace reference. The
 temporary snapshot store still goes away. Older rows remain readable and cannot
 offer undo: their display patch alone cannot establish the complete file state.
 
-Undo attaches the recorded container, requires current conversation edit access
-and the shared workspace's own access, and refuses while the conversation has a
-running turn. It checks every affected regular file's complete content and mode,
+Undo is offered only for a conversation-scoped container whose capture was
+isolated from other platform writers. Conversation workspace admission refuses
+overlapping runs, and the recording wrapper keeps other tools outside the coding
+task's whole snapshot interval. Project-, agent-, channel- and user-scoped
+snapshots remain readable without undo: a diff can include another chat's work.
+
+The request requires current conversation edit access and queues its job and
+workspace reservation in one transaction. New runs and other reverts cannot
+enter the reserved workspace. The worker rechecks current membership and access,
+then releases its connection and row locks before the workspace command.
+It checks every affected regular file's complete content and mode,
 including absent rename destinations, before reversing the patch in a separate
 Git index. That index must exactly match the recorded before manifest; only then
 does `git apply --reverse --index` write the files. The user's repository, index
@@ -122,9 +130,13 @@ and history are never used. A later edit anywhere in an affected file refuses
 the whole operation. Unrelated files stay as they are.
 
 Truncated or redacted patches, symlinks, hard-linked current files and files over
-2 MiB cannot be restored. The runtime needs Git and Python 3. The undo state and
-audit event are stored with the request; repeating a completed revert returns
-its stored timestamp. This restores files, not conversation history or external
+2 MiB cannot be restored. The runtime needs Git and Python 3. The worker records
+the success marker and audit event together. If its response or final transaction
+is lost, the reservation survives: another attempt checks the full before/after
+states under a nonblocking workspace file lock. Already restored files are not
+reverted again. A mixed or unknown state stays reserved for reconciliation;
+the panel shows pending, failed or unknown outcomes. Repeating a completed
+revert returns its timestamp. This restores files, not conversation history or external
 effects such as commits, network requests or database writes.
 A copied report without its original conversation file origin does not offer undo.
 

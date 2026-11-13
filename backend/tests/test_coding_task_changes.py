@@ -741,7 +741,7 @@ class TestTheRoute:
             response = await client.post(
                 f"{settings.API_V1_STR}/conversations/coding-changes/{change_id}/revert"
             )
-        assert response.status_code == 200
+        assert response.status_code == 202
         assert response.json()["reverted_at"] is not None
         assert "PRIVATE" not in response.text and "workspace_ref" not in response.json()
         service.revert.assert_awaited_once_with(CTX, change_id)

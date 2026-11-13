@@ -379,20 +379,17 @@ async def latest_run_for_conversation(
 
 
 async def has_running_in_conversation(
-    db: AsyncSession, *, organization_id: UUID, conversation_id: UUID
+    db: AsyncSession, *, organization_id: UUID, conversation_id: UUID, excluding: UUID | None = None
 ) -> bool:
     """Whether an executing turn can still write this conversation's files."""
-    return bool(
-        await db.scalar(
-            select(AgentRun.id)
-            .where(
-                AgentRun.organization_id == organization_id,
-                AgentRun.conversation_id == conversation_id,
-                AgentRun.status == "running",
-            )
-            .limit(1)
-        )
+    query = select(AgentRun.id).where(
+        AgentRun.organization_id == organization_id,
+        AgentRun.conversation_id == conversation_id,
+        AgentRun.status == "running",
     )
+    if excluding is not None:
+        query = query.where(AgentRun.id != excluding)
+    return (await db.scalar(query.limit(1))) is not None
 
 
 async def neighbor_run_ids(db: AsyncSession, run: AgentRun) -> tuple[UUID | None, UUID | None]:

@@ -1,5 +1,5 @@
 ---
-source_sha: "e7de361da337"
+source_sha: "07f6be53fe17"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1803,19 +1803,25 @@ que su transcripción, así que lo ve quien pueda leer el chat; borrar el chat l
 borra. En una sandbox que comparten varios chats, una tarea que se ejecuta a la vez
 que otra ve también los cambios de esa en su diff. Una tarea en este ordenador no registra diff.
 
-**Revertir esta tarea.** En una tarea nueva con un snapshot completo, esta acción
-restaura sus archivos regulares en el workspace original del servidor. Necesitas
-acceso de edición a la conversación y su workspace, y la ejecución actual debe
-haber terminado. El contenido y modo ejecutable de cada archivo afectado deben
-seguir coincidiendo con el estado final de la tarea. De lo contrario, se rechaza
-toda la reversión y se muestran los archivos en conflicto. Los demás archivos,
-el índice de Git y su historial permanecen sin cambios.
+**Revertir esta tarea.** Las tareas nuevas pueden restaurar archivos regulares
+solo si su snapshot completo se capturó en un workspace aislado de conversación.
+Los snapshots con ámbito de proyecto, agente, canal o usuario siguen siendo de
+solo lectura, porque pueden incluir trabajo de otra conversación. Necesitas
+acceso de edición actual y ningún run debe estar escribiendo en el workspace.
+El contenido y modo ejecutable de cada archivo deben coincidir con el estado
+final de la tarea. Un conflicto rechaza toda la reversión e indica los archivos.
+Los demás archivos, el índice de Git y su historial permanecen sin cambios.
+
+La acción encola un trabajo duradero y reserva el workspace. El panel muestra el
+progreso y los rechazos confirmados. Un resultado desconocido conserva la reserva;
+**Reintentar reversión** comprueba antes de escribir si los archivos ya se
+restauraron. Así, un fallo o una respuesta perdida no aplica la reversión dos
+veces. El worker vuelve a comprobar el acceso y registra el éxito en la auditoría.
 
 La reversión restaura solo archivos; conserva la conversación y el informe.
 Requiere Git y Python 3 y rechaza snapshots truncados, redactados, antiguos de
 solo visualización, archivos enlazados y archivos actuales de más de 2 MiB. No
-sustituye un workspace eliminado o trasladado. Las reversiones correctas quedan
-registradas en la auditoría y marcadas en el panel de la tarea.
+sustituye un workspace eliminado o trasladado.
 
 **Número de archivos cambiados.** El panel y el pie del mensaje usan el conjunto
 de cambios guardado, incluidas las ediciones del shell y el número de archivos

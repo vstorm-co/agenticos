@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import anyio
+import anyio.lowlevel
 import pytest
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.tools import RunContext
@@ -364,6 +365,10 @@ def stored() -> CodingTaskChange:
         revert_patch="cGF0Y2g=",
         workspace_ref={"provider": "sandboxd:host", "id": "session"},
         reverted_at=None,
+        snapshot_isolated=True,
+        revert_job_id=None,
+        revert_started_at=None,
+        revert_failure=None,
         created_at=datetime.now(UTC),
     )
 
@@ -371,153 +376,564 @@ def stored() -> CodingTaskChange:
 @pytest.fixture
 def facade(monkeypatch: pytest.MonkeyPatch, stored: CodingTaskChange) -> SimpleNamespace:
     conversations = SimpleNamespace(
-        get_conversation=AsyncMock(return_value=SimpleNamespace(project_id=None))
+        get_conversation=AsyncMock(return_value=SimpleNamespace(id=stored.conversation_id))
     )
     monkeypatch.setattr(service_module, "ConversationService", lambda db: conversations)
     repository = SimpleNamespace(
-        get_in_organization=AsyncMock(return_value=stored), mark_reverted=AsyncMock()
+        get_in_organization=AsyncMock(return_value=stored), save=AsyncMock()
     )
     monkeypatch.setattr(service_module, "change_repo", repository)
-    audit = AsyncMock()
-    monkeypatch.setattr(service_module, "record_audit", audit)
-    running = AsyncMock(return_value=False)
-    monkeypatch.setattr(service_module.run_repo, "has_running_in_conversation", running)
-    gate = MagicMock()
-
-    @asynccontextmanager
-    async def opened(*args: object, **kwargs: object) -> AsyncGenerator[object]:
-        gate(*args, **kwargs)
-        yield SimpleNamespace()
-
-    async def recorded(*args: object, **kwargs: object) -> list[object]:
-        gate(*args, **kwargs)
-        return [SimpleNamespace()]
-
+    enqueue = AsyncMock(return_value=uuid4())
+    monkeypatch.setattr(service_module, "enqueue", enqueue)
+    job = AsyncMock(return_value=None)
+    monkeypatch.setattr(service_module.job_repo, "get", job)
+    gate = AsyncMock(return_value=[])
     monkeypatch.setattr(
         service_module,
         "SandboxWorkspaceService",
-        lambda db: SimpleNamespace(open_recorded=opened, recorded_for_task=recorded),
+        lambda db: SimpleNamespace(recorded_for_task=gate),
     )
-    restore = AsyncMock()
-    monkeypatch.setattr(service_module._coding_task_revert, "revert", restore)
-
-    async def mark(*args: object, **kwargs: object) -> CodingTaskChange:
-        stored.reverted_at = datetime.now(UTC)
-        return stored
-
-    repository.mark_reverted.side_effect = mark
+    admission = AsyncMock()
+    monkeypatch.setattr(service_module, "admit", admission)
     return SimpleNamespace(
         service=CodingTaskChangeService(MagicMock()),
         ctx=AuthContext(user_id=uuid4(), organization_id=stored.organization_id, role="viewer"),
         conversations=conversations,
         repository=repository,
-        audit=audit,
-        running=running,
+        enqueue=enqueue,
+        job=job,
         gate=gate,
-        restore=restore,
+        admission=admission,
     )
 
 
-async def test_an_authorized_revert_is_audited_once_and_retries_are_idempotent(
+async def test_undo_reserves_a_durable_job_without_running_a_workspace_command(
     facade: SimpleNamespace, stored: CodingTaskChange
 ) -> None:
     result = await facade.service.revert(facade.ctx, stored.id)
-    assert result.reverted_at is not None and not result.can_revert
-    assert "revert_patch" not in result.model_dump()
-    assert "workspace_ref" not in result.model_dump()
-    assert facade.restore.await_count == 1
-    assert facade.audit.await_args.kwargs["details"] == {
-        "conversation_id": str(stored.conversation_id),
-        "file_count": 1,
-    }
+    assert (
+        result.reverted_at is None and result.revert_status == "pending" and not result.can_revert
+    )
+    assert stored.revert_job_id == facade.enqueue.return_value
+    assert "revert_patch" not in result.model_dump() and "workspace_ref" not in result.model_dump()
+    task, payload = facade.enqueue.await_args.args[1:]
+    assert task.kind == "revert-coding-task" and payload.user_id == facade.ctx.user_id
+    assert payload.organization_id == stored.organization_id and payload.change_id == stored.id
+    assert facade.enqueue.await_args.kwargs["dedupe_active"] is True
     assert facade.conversations.get_conversation.await_args.kwargs["for_write"] is True
-    assert facade.repository.get_in_organization.await_args.kwargs["for_update"] is True
+    stored.reverted_at = datetime.now(UTC)
     again = await facade.service.revert(facade.ctx, stored.id)
-    assert again.reverted_at == result.reverted_at
-    assert facade.restore.await_count == facade.audit.await_count == 1
+    assert again.reverted_at == stored.reverted_at
+    assert facade.enqueue.await_count == 1
 
 
 @pytest.mark.security
-async def test_a_reader_without_edit_access_cannot_revert(
+async def test_queued_undo_preserves_api_key_authority_for_the_worker(
+    facade: SimpleNamespace, stored: CodingTaskChange
+) -> None:
+    key_id = uuid4()
+    ctx = AuthContext(
+        user_id=facade.ctx.user_id,
+        organization_id=stored.organization_id,
+        role="viewer",
+        api_key_id=key_id,
+    )
+    await facade.service.revert(ctx, stored.id)
+    assert facade.enqueue.await_args.args[2].api_key_id == key_id
+
+
+@pytest.mark.parametrize("retained_job", [True, False])
+async def test_a_person_can_retry_an_unknown_outcome_without_erasing_its_recovery_state(
+    facade: SimpleNamespace, stored: CodingTaskChange, retained_job: bool
+) -> None:
+    old_job, started = uuid4(), datetime.now(UTC)
+    stored.revert_job_id, stored.revert_started_at = old_job, started
+    facade.job.return_value = SimpleNamespace(status="dead") if retained_job else None
+    result = await facade.service.revert(facade.ctx, stored.id)
+    assert result.revert_status == "pending"
+    assert stored.revert_job_id != old_job and stored.revert_started_at == started
+
+
+async def test_a_reservation_committed_after_the_reader_check_still_prevents_a_duplicate_job(
+    facade: SimpleNamespace, stored: CodingTaskChange
+) -> None:
+    observed = SimpleNamespace(
+        **{key: value for key, value in stored.__dict__.items() if not key.startswith("_")}
+    )
+    stored.revert_job_id = uuid4()
+    facade.repository.get_in_organization.side_effect = [observed, stored]
+    facade.job.return_value = SimpleNamespace(status="queued")
+    with pytest.raises(AlreadyExistsError):
+        await facade.service.revert(facade.ctx, stored.id)
+    facade.enqueue.assert_not_awaited()
+
+
+@pytest.mark.security
+async def test_a_reader_without_edit_access_cannot_queue_undo(
     facade: SimpleNamespace, stored: CodingTaskChange
 ) -> None:
     facade.conversations.get_conversation.side_effect = [
         SimpleNamespace(),
-        NotFoundError(message="Conversation not found", details={}),
+        NotFoundError(message="Missing", details={}),
     ]
     with pytest.raises(NotFoundError):
         await facade.service.revert(facade.ctx, stored.id)
-    facade.restore.assert_not_awaited()
-    facade.audit.assert_not_awaited()
+    facade.enqueue.assert_not_awaited()
 
 
 @pytest.mark.parametrize(
-    "reason", ["truncated", "omitted", "legacy", "no-workspace", "active", "deleted"]
+    "reason",
+    [
+        "truncated",
+        "omitted",
+        "legacy",
+        "no-workspace",
+        "shared",
+        "deleted",
+        "active",
+        "duplicate",
+        "deduped",
+        "finished",
+    ],
 )
-async def test_an_incomplete_or_active_task_never_reaches_restore(
+async def test_unsafe_or_duplicate_undo_requests_never_start_another_job(
     facade: SimpleNamespace, stored: CodingTaskChange, reason: str
 ) -> None:
     if reason in ("truncated", "omitted"):
-        setattr(stored, reason, True if reason == "truncated" else 1)
+        setattr(stored, reason, 1)
     elif reason == "legacy":
         stored.revert_patch = None
     elif reason == "no-workspace":
         stored.workspace_ref = None
-    elif reason == "active":
-        facade.running.return_value = True
+    elif reason == "shared":
+        stored.snapshot_isolated = False
     elif reason == "deleted":
         facade.repository.get_in_organization.side_effect = [stored, None]
+    elif reason == "active":
+        facade.admission.side_effect = AlreadyExistsError(message="Busy", details={})
+    elif reason == "duplicate":
+        stored.revert_job_id = uuid4()
+        facade.job.return_value = SimpleNamespace(status="running")
+    elif reason == "deduped":
+        facade.enqueue.return_value = None
+    elif reason == "finished":
+        # Another worker can finish between the reader check and the row lock.
+        finished = SimpleNamespace(
+            **{key: value for key, value in stored.__dict__.items() if not key.startswith("_")}
+        )
+        finished.reverted_at = datetime.now(UTC)
+        facade.repository.get_in_organization.side_effect = [stored, finished]
+        result = await facade.service.revert(facade.ctx, stored.id)
+        assert result.reverted_at is not None
+        facade.enqueue.assert_not_awaited()
+        return
     expected = (
-        AlreadyExistsError
-        if reason == "active"
-        else NotFoundError
+        NotFoundError
         if reason == "deleted"
+        else AlreadyExistsError
+        if reason in ("active", "duplicate", "deduped")
         else BadRequestError
     )
     with pytest.raises(expected):
         await facade.service.revert(facade.ctx, stored.id)
-    facade.restore.assert_not_awaited()
-    facade.audit.assert_not_awaited()
+    assert facade.enqueue.await_count == (1 if reason == "deduped" else 0)
 
 
-@pytest.mark.parametrize("available", [True, False, "legacy", "truncated", "reverted", "moving"])
-async def test_the_read_response_only_offers_revert_with_current_edit_access(
-    facade: SimpleNamespace, stored: CodingTaskChange, available: bool | str
+@pytest.mark.parametrize(
+    "state",
+    [
+        "ready",
+        "denied",
+        "legacy",
+        "truncated",
+        "reverted",
+        "shared",
+        "pending",
+        "unknown",
+        "missing-job",
+        "failed",
+        "bad-failure",
+    ],
+)
+async def test_read_reports_undo_progress_and_only_offers_a_safe_action(
+    facade: SimpleNamespace, stored: CodingTaskChange, state: str
 ) -> None:
-    if available is False:
-        facade.gate.side_effect = NotFoundError(message="Conversation not found", details={})
-    elif available == "legacy":
+    if state == "denied":
+        facade.gate.side_effect = NotFoundError(message="Missing", details={})
+    elif state == "legacy":
         stored.revert_patch = None
-    elif available == "truncated":
+    elif state == "truncated":
         stored.truncated = True
-    elif available == "reverted":
+    elif state == "reverted":
         stored.reverted_at = datetime.now(UTC)
-    elif available == "moving":
-        facade.gate.side_effect = AlreadyExistsError(message="Files are moving", details={})
+    elif state == "shared":
+        stored.snapshot_isolated = False
+    elif state in ("pending", "unknown", "missing-job"):
+        stored.revert_job_id = uuid4()
+        facade.job.return_value = (
+            None
+            if state == "missing-job"
+            else SimpleNamespace(status="queued" if state == "pending" else "dead")
+        )
+    elif state in ("failed", "bad-failure"):
+        stored.revert_failure = {
+            "conflicting_files": ["one.txt", 42] if state == "failed" else "not a list"
+        }
     result = await facade.service.read(facade.ctx, stored.id)
-    assert result.can_revert is (available is True)
-    facade.restore.assert_not_awaited()
+    assert result.can_revert is (
+        state in ("ready", "unknown", "missing-job", "failed", "bad-failure")
+    )
+    assert result.revert_status == (
+        "unknown"
+        if state in ("unknown", "missing-job")
+        else "pending"
+        if state == "pending"
+        else "failed"
+        if state in ("failed", "bad-failure")
+        else None
+    )
+    assert result.revert_conflicting_files == (["one.txt"] if state == "failed" else [])
 
 
-async def test_project_revert_takes_the_project_lock_before_locking_the_task(
-    facade: SimpleNamespace, stored: CodingTaskChange, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    project_id = uuid4()
-    facade.conversations.get_conversation.return_value = SimpleNamespace(project_id=project_id)
-    order: list[str] = []
+async def test_reconciliation_recognizes_restored_files_without_reversing_twice(root: Path) -> None:
+    changes = await captured(root, lambda path: (path / "one.txt").write_text("after\n"))
+    workspace = Workspace(LocalWorkspaceBackend(root))
+    await revert(workspace, changes.files, changes.revert_patch)
+    await revert(workspace, changes.files, changes.revert_patch, reconcile=True)
+    assert (root / "one.txt").read_text() == "before\n"
 
-    async def project(*args: object) -> None:
-        order.append("project")
 
-    async def task(*args: object, **kwargs: object) -> CodingTaskChange:
-        if kwargs.get("for_update"):
-            order.append("task")
+async def test_reconciliation_can_finish_an_attempt_that_never_changed_files(root: Path) -> None:
+    changes = await captured(root, lambda path: (path / "one.txt").write_text("after\n"))
+    await revert(
+        Workspace(LocalWorkspaceBackend(root)), changes.files, changes.revert_patch, reconcile=True
+    )
+    assert (root / "one.txt").read_text() == "before\n"
+
+
+@pytest.mark.security
+async def test_an_uncertain_partial_state_is_not_mistaken_for_a_fresh_conflict(root: Path) -> None:
+    changes = await captured(root, lambda path: (path / "one.txt").write_text("after\n"))
+    (root / "one.txt").write_text("unknown third state\n")
+    with pytest.raises(ExternalServiceError):
+        await revert(
+            Workspace(LocalWorkspaceBackend(root)),
+            changes.files,
+            changes.revert_patch,
+            reconcile=True,
+        )
+    assert (root / "one.txt").read_text() == "unknown third state\n"
+
+
+async def test_a_still_running_attempt_cannot_be_overlapped_by_reconciliation(root: Path) -> None:
+    import fcntl
+
+    changes = await captured(root, lambda path: (path / "one.txt").write_text("after\n"))
+    (root / ".agenticos").mkdir()
+    with (root / ".agenticos" / "task-revert.lock").open("w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        with pytest.raises(ExternalServiceError):
+            await revert(
+                Workspace(LocalWorkspaceBackend(root)),
+                changes.files,
+                changes.revert_patch,
+                reconcile=True,
+            )
+    assert (root / "one.txt").read_text() == "after\n"
+
+
+async def test_notebook_fallback_keeps_the_exact_unclipped_notebook_path() -> None:
+    from app.agents.capabilities.coding_agent._harness import claude_report
+
+    path = "/workspace/" + "a/" * 110 + "notebook.ipynb"
+    report, _ = claude_report(
+        [
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "name": "NotebookEdit",
+                            "input": {"notebook_path": path},
+                        }
+                    ]
+                },
+            },
+            {"type": "result", "subtype": "success", "result": "done"},
+        ],
+        access="edit",
+        base_url=None,
+    )
+    assert report.files_changed == [path]
+
+
+@pytest.fixture
+def worker(monkeypatch: pytest.MonkeyPatch, stored: CodingTaskChange) -> SimpleNamespace:
+    from app.worker.jobs import RevertCodingTask
+    from app.worker.tasks import coding_tasks
+
+    ctx = AuthContext(user_id=uuid4(), organization_id=stored.organization_id, role="viewer")
+    payload = RevertCodingTask(
+        organization_id=stored.organization_id,
+        change_id=stored.id,
+        user_id=ctx.user_id,
+        claim_id=uuid4(),
+    )
+    stored.revert_job_id = uuid4()
+    job = SimpleNamespace(payload={"claim_id": str(payload.claim_id)})
+    db = SimpleNamespace(commit=AsyncMock())
+
+    @asynccontextmanager
+    async def transaction() -> AsyncGenerator[object]:
+        yield db
+        await db.commit()
+
+    @asynccontextmanager
+    async def opened(*args: object, **kwargs: object) -> AsyncGenerator[object]:
+        yield SimpleNamespace()
+
+    get = AsyncMock(return_value=stored)
+    save = AsyncMock()
+
+    async def mark(*args: object, **kwargs: object) -> CodingTaskChange:
+        stored.reverted_at = datetime.now(UTC)
+        stored.revert_job_id = None
         return stored
 
-    monkeypatch.setattr(service_module, "project_for_workspace", project)
-    facade.repository.get_in_organization.side_effect = task
-    await facade.service.revert(facade.ctx, stored.id)
-    assert order == ["project", "task"]
+    monkeypatch.setattr(coding_tasks.change_repo, "get_in_organization", get)
+    monkeypatch.setattr(coding_tasks.change_repo, "save", save)
+    monkeypatch.setattr(coding_tasks.change_repo, "mark_reverted", mark)
+    owned = AsyncMock(return_value=job)
+    monkeypatch.setattr(coding_tasks.job_repo, "get_for_attempt", owned)
+    authority = AsyncMock(return_value=ctx)
+    monkeypatch.setattr(coding_tasks, "job_context", authority)
+    conversations = SimpleNamespace(get_conversation=AsyncMock(return_value=SimpleNamespace()))
+    monkeypatch.setattr(coding_tasks, "ConversationService", lambda db: conversations)
+    monkeypatch.setattr(service_module, "ConversationService", lambda db: conversations)
+    monkeypatch.setattr(
+        coding_tasks, "SandboxWorkspaceService", lambda db: SimpleNamespace(open_recorded=opened)
+    )
+    monkeypatch.setattr(coding_tasks, "get_worker_db_context", transaction)
+    monkeypatch.setattr(coding_tasks, "current_attempt_number", lambda: 1)
+    restore = AsyncMock()
+    monkeypatch.setattr(coding_tasks._coding_task_revert, "revert", restore)
+    audit = AsyncMock()
+    monkeypatch.setattr(coding_tasks, "record_audit", audit)
+    return SimpleNamespace(
+        run=coding_tasks.revert_coding_task,
+        payload=payload,
+        db=db,
+        get=get,
+        owned=owned,
+        authority=authority,
+        conversations=conversations,
+        restore=restore,
+        audit=audit,
+        save=save,
+    )
+
+
+async def test_worker_commits_its_reservation_before_restoring_and_audits_success_once(
+    worker: SimpleNamespace, stored: CodingTaskChange
+) -> None:
+    async def restore(*args: object, **kwargs: object) -> None:
+        assert stored.revert_started_at is not None
+        assert worker.db.commit.await_count == 1
+        assert kwargs["reconcile"] is False
+
+    worker.restore.side_effect = restore
+    await worker.run(worker.payload)
+    assert stored.reverted_at is not None and stored.revert_job_id is None
+    assert worker.audit.await_args.kwargs["details"]["file_count"] == 1
+    await worker.run(worker.payload)
+    assert worker.restore.await_count == worker.audit.await_count == 1
+
+
+@pytest.mark.parametrize("failure", [AlreadyExistsError, BadRequestError, ExternalServiceError])
+async def test_worker_releases_only_definite_refusals_and_keeps_uncertain_effects_reserved(
+    worker: SimpleNamespace, stored: CodingTaskChange, failure: type[Exception]
+) -> None:
+    worker.restore.side_effect = failure(
+        message="Refused", details={"conflicting_files": ["one.txt"]}
+    )
+    if failure is ExternalServiceError:
+        with pytest.raises(ExternalServiceError):
+            await worker.run(worker.payload)
+        assert stored.revert_job_id is not None and stored.revert_started_at is not None
+        assert stored.revert_failure is None
+    else:
+        await worker.run(worker.payload)
+        assert stored.revert_job_id is None and stored.revert_started_at is None
+        assert stored.revert_failure == {"conflicting_files": ["one.txt"]}
+    worker.audit.assert_not_awaited()
+    assert stored.reverted_at is None
+
+
+async def test_a_retry_reconciles_an_unknown_effect_instead_of_blindly_reapplying(
+    worker: SimpleNamespace, stored: CodingTaskChange
+) -> None:
+    stored.revert_started_at = datetime.now(UTC)
+    await worker.run(worker.payload)
+    assert worker.restore.await_args.kwargs["reconcile"] is True
+
+
+@pytest.mark.security
+async def test_the_worker_rebuilds_the_original_keys_current_scopes(
+    worker: SimpleNamespace,
+) -> None:
+    key_id = uuid4()
+    payload = worker.payload.model_copy(update={"api_key_id": key_id})
+    await worker.run(payload)
+    assert worker.authority.await_args.kwargs["api_key_id"] == key_id
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "reason",
+    [
+        "member-removed",
+        "grant-revoked",
+        "unisolated",
+        "missing-workspace",
+        "missing-patch",
+        "truncated",
+        "omitted",
+    ],
+)
+async def test_a_job_rechecks_access_and_capture_safety_before_any_external_effect(
+    worker: SimpleNamespace, stored: CodingTaskChange, reason: str
+) -> None:
+    from app.core.exceptions import AuthorizationError
+
+    expected = BadRequestError
+    if reason == "member-removed":
+        worker.authority.return_value = None
+        expected = AuthorizationError
+    elif reason == "grant-revoked":
+        worker.conversations.get_conversation.side_effect = NotFoundError(
+            message="Missing", details={}
+        )
+        expected = NotFoundError
+    elif reason == "unisolated":
+        stored.snapshot_isolated = False
+    elif reason == "missing-workspace":
+        stored.workspace_ref = None
+    elif reason == "missing-patch":
+        stored.revert_patch = None
+    else:
+        setattr(stored, reason, 1)
+    with pytest.raises(expected):
+        await worker.run(worker.payload)
+    worker.restore.assert_not_awaited()
+    assert stored.revert_job_id is not None
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "reason",
+    [
+        "missing",
+        "reverted",
+        "no-job",
+        "lease-lost",
+        "superseded",
+        "locked-missing",
+        "locked-new-job",
+        "locked-reverted",
+        "lost-after-effect",
+    ],
+)
+async def test_a_worker_without_the_current_fence_cannot_mutate_or_settle_the_task(
+    worker: SimpleNamespace, stored: CodingTaskChange, reason: str
+) -> None:
+    if reason == "missing":
+        worker.get.return_value = None
+    elif reason == "reverted":
+        stored.reverted_at = datetime.now(UTC)
+    elif reason == "no-job":
+        stored.revert_job_id = None
+    elif reason == "lease-lost":
+        worker.owned.return_value = None
+    elif reason == "superseded":
+        worker.owned.return_value = SimpleNamespace(payload={"claim_id": str(uuid4())})
+    elif reason == "lost-after-effect":
+        worker.owned.side_effect = [worker.owned.return_value, None]
+    else:
+        locked = SimpleNamespace(revert_job_id=stored.revert_job_id, reverted_at=None)
+        if reason == "locked-new-job":
+            locked.revert_job_id = uuid4()
+        elif reason == "locked-reverted":
+            locked.reverted_at = datetime.now(UTC)
+        worker.get.side_effect = [stored, None if reason == "locked-missing" else locked]
+    await worker.run(worker.payload)
+    assert worker.restore.await_count == (1 if reason == "lost-after-effect" else 0)
+    worker.audit.assert_not_awaited()
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("busy", ["admission", "run", "revert", "none"])
+async def test_workspace_admission_never_waits_or_overlaps_an_active_writer(
+    monkeypatch: pytest.MonkeyPatch, busy: str
+) -> None:
+    from app.services import workspace_turn_guard as guard
+
+    lock = AsyncMock(return_value=busy != "admission")
+    running = AsyncMock(return_value=busy == "run")
+    pending = AsyncMock(return_value=busy == "revert")
+    monkeypatch.setattr(guard, "try_hold_subject", lock)
+    monkeypatch.setattr(guard.run_repo, "has_running_in_conversation", running)
+    monkeypatch.setattr(guard.change_repo, "has_pending_revert", pending)
+    run_id = uuid4()
+    if busy != "none":
+        with pytest.raises(AlreadyExistsError):
+            await guard.admit(
+                MagicMock(), organization_id=uuid4(), conversation_id=uuid4(), run_id=run_id
+            )
+    else:
+        await guard.admit(
+            MagicMock(), organization_id=uuid4(), conversation_id=uuid4(), run_id=run_id
+        )
+        assert running.await_args.kwargs["excluding"] == run_id
+    if busy == "admission":
+        running.assert_not_awaited()
+        pending.assert_not_awaited()
+
+
+@pytest.mark.security
+async def test_a_parallel_file_tool_cannot_enter_the_capture_interval(root: Path) -> None:
+    from app.agents.capabilities.sandbox._recording import RecordingWorkspace
+
+    workspace = RecordingWorkspace(
+        Workspace(LocalWorkspaceBackend(root)),
+        db=MagicMock(),
+        organization_id=uuid4(),
+        session_key="conversation",
+        agent_id=None,
+        isolated_turn=True,
+    )
+    ctx = RunContext(deps=AgentDeps(), model=TestModel(), usage=RunUsage(), workspace=workspace)
+    start, written = anyio.Event(), anyio.Event()
+
+    async def another_tool() -> None:
+        await start.wait()
+        await workspace.write_bytes("two.txt", b"other tool's work\n")
+        written.set()
+
+    async with anyio.create_task_group() as group:
+        group.start_soon(another_tool)
+        async with workspace.task_snapshot():
+            assert workspace.snapshot_isolated
+            baseline = await _changes.begin(ctx)
+            assert baseline is not None
+            start.set()
+            await anyio.lowlevel.checkpoint()
+            assert not written.is_set()
+            await workspace.write_bytes("one.txt", b"task change\n")
+            changes = await _changes.finish(ctx, baseline)
+            assert changes is not None and [file.path for file in changes.files] == ["one.txt"]
+        assert not workspace.snapshot_isolated
+    assert written.is_set() and (root / "two.txt").read_text() == "other tool's work\n"
 
 
 @pytest.mark.security

@@ -47,6 +47,8 @@ function changes(overrides: Partial<CodingTaskChanges> = {}): CodingTaskChanges 
     created_at: "2026-11-04T00:00:00Z",
     can_revert: false,
     reverted_at: null,
+    revert_status: null,
+    revert_conflicting_files: [],
     ...overrides,
   };
 }

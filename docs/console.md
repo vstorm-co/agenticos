@@ -514,6 +514,8 @@ The Files panel groups files by folder, keeping identical names in different dir
 
 Files changed by a turn are linked below its answer. Coding tasks use their stored change set, including shell edits; a task without one uses its harness report. The task panel offers **Revert this task** when you can edit its original workspace and its snapshot is complete. These links open the current workspace files, not a versioned snapshot.
 
+Revert runs as a durable job in an isolated conversation workspace. Shared-scope snapshots stay read-only. The panel shows progress; an unknown outcome reserves the workspace until Retry revert checks its files.
+
 While an agent works, progress messages and their following tool calls appear in arrival order inside one expanded timeline. Completing the run collapses that history under one “Worked for…” or “Thought for…” control, with only the final answer below it. Opening the history restores the same chronological messages and tool groups. Reasoning remains a separate, optional disclosure; its headings do not create process stages. Questions and approvals keep their waiting status until resolved, including delegated requests. Actionable approval cards and visual results remain visible outside completed history.
 
 Consecutive tool calls between messages share a collapsed group; expand it to inspect individual calls.

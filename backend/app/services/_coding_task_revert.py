@@ -27,6 +27,7 @@ PAYLOAD_ENV = "AGENTICOS_REVERT"
 # The payload goes through the environment: the workspace audit records commands.
 SCRIPT = r"""
 import base64
+import fcntl
 import json
 import os
 import stat
@@ -69,6 +70,25 @@ def read(path):
         os.close(descriptor)
 
 root = os.getcwd()
+# Every attempt uses the same inode. Never unlink it: an old, timed-out
+# command might still hold its lock when a worker tries to reconcile it.
+try:
+    try:
+        os.mkdir(".agenticos", 0o700)
+    except FileExistsError:
+        pass
+    directory = os.open(".agenticos", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        lock = os.open("task-revert.lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK,
+                       0o600, dir_fd=directory)
+    finally:
+        os.close(directory)
+    info = os.fstat(lock)
+    if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+        answer("unavailable")
+    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+except OSError:
+    answer("unavailable")
 with tempfile.TemporaryDirectory(prefix="agenticos-revert-") as store:
     env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
     env.update(GIT_DIR=store + "/git", GIT_INDEX_FILE=store + "/index", GIT_WORK_TREE=root,
@@ -87,7 +107,7 @@ with tempfile.TemporaryDirectory(prefix="agenticos-revert-") as store:
         answer("unavailable")
     if git("read-tree", "--empty").returncode:
         answer("unavailable")
-    conflicts, index = [], []
+    conflicts, index, states = [], [], {}
     for path in paths:
         try:
             current = read(path)
@@ -96,18 +116,23 @@ with tempfile.TemporaryDirectory(prefix="agenticos-revert-") as store:
             continue
         expected = after[path]
         if current is None:
+            states[path] = None
             if expected is not None:
                 conflicts.append(path)
             continue
         mode, content = current
         hashed = git("hash-object", "-w", "--no-filters", "--stdin", data=content)
         oid = hashed.stdout.decode("ascii").strip()
+        if not hashed.returncode:
+            states[path] = [mode, oid]
         if hashed.returncode or expected != [mode, oid]:
             conflicts.append(path)
             continue
         index.append((mode + " " + oid + "\t" + path).encode("utf-8") + b"\0")
+    if payload["reconcile"] and states == before:
+        answer("ok")
     if conflicts:
-        answer("conflict", conflicts)
+        answer("unknown" if payload["reconcile"] else "conflict", conflicts)
     if git("update-index", "-z", "--index-info", data=b"".join(index)).returncode:
         answer("unavailable")
     if git("update-index", "--refresh").returncode:
@@ -137,7 +162,7 @@ with tempfile.TemporaryDirectory(prefix="agenticos-revert-") as store:
 
 
 class RevertAnswer(BaseModel):
-    status: Literal["ok", "conflict", "invalid_patch", "unavailable"]
+    status: Literal["ok", "conflict", "invalid_patch", "unavailable", "unknown"]
     paths: list[str] = []
 
 
@@ -191,10 +216,12 @@ def manifests(
     return before, after
 
 
-async def revert(workspace: Workspace, files: list[ChangedFile], patch: str) -> None:
+async def revert(
+    workspace: Workspace, files: list[ChangedFile], patch: str, *, reconcile: bool = False
+) -> None:
     """Refuse every conflict before restoring exactly the task's affected files."""
     before, after = manifests(files)
-    payload = json.dumps({"before": before, "after": after, "patch": patch})
+    payload = json.dumps({"before": before, "after": after, "patch": patch, "reconcile": reconcile})
     # Linux limits each individual argument/environment value to 128 KiB.
     chunks = [payload[index : index + 32_000] for index in range(0, len(payload), 32_000)]
     env = {f"{PAYLOAD_ENV}_{index}": chunk for index, chunk in enumerate(chunks)}
@@ -219,6 +246,11 @@ async def revert(workspace: Workspace, files: list[ChangedFile], patch: str) -> 
     if result.exit_code != 0 or answer.status == "unavailable":
         raise ExternalServiceError(
             message="The workspace could not complete the revert", details={}
+        )
+    if answer.status == "unknown":
+        raise ExternalServiceError(
+            message="The previous revert's outcome could not be established. The workspace remains reserved.",
+            details={},
         )
     if answer.status == "conflict":
         # Never return paths supplied by a sandbox that were not in the recorded set.

@@ -1,5 +1,5 @@
 ---
-source_sha: "e7de361da337"
+source_sha: "07f6be53fe17"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1872,19 +1872,26 @@ wird der Chat gelöscht, verschwindet er mit. In einem Sandbox, den mehrere Chat
 teilen, sieht eine Aufgabe, die gleichzeitig mit einer anderen läuft, auch deren
 Änderungen in ihrem Diff. Eine Aufgabe auf diesem Computer zeichnet keinen Diff auf.
 
-**Diese Aufgabe rückgängig machen.** Bei einer neuen Aufgabe mit vollständigem
-Snapshot stellt diese Aktion reguläre Dateien im ursprünglichen Server-Workspace
-wieder her. Du brauchst Bearbeitungszugriff auf die Unterhaltung und ihren
-Workspace; der aktuelle Run muss beendet sein. Inhalt und Ausführungsmodus jeder
-betroffenen Datei müssen noch dem Zustand nach der Aufgabe entsprechen. Sonst
-wird die gesamte Aktion abgelehnt und die Konfliktdateien werden angezeigt.
-Andere Dateien sowie Git-Index und Git-Verlauf bleiben unverändert.
+**Diese Aufgabe rückgängig machen.** Neue Aufgaben können reguläre Dateien nur
+wiederherstellen, wenn ihr vollständiger Snapshot in einem isolierten
+Unterhaltungs-Workspace entstand. Snapshots mit Projekt-, Agent-, Kanal- oder
+Benutzerumfang bleiben schreibgeschützt, weil sie Arbeit anderer Unterhaltungen
+enthalten können. Du brauchst aktuellen Bearbeitungszugriff; kein Run darf im
+Workspace schreiben. Inhalt und Ausführungsmodus jeder Datei müssen dem Zustand
+nach der Aufgabe entsprechen. Ein Konflikt lehnt die gesamte Aktion ab und nennt
+die Dateien. Andere Dateien sowie Git-Index und Git-Verlauf bleiben unverändert.
+
+Die Aktion reiht einen dauerhaften Job ein und reserviert den Workspace. Das
+Panel zeigt Fortschritt und eindeutige Ablehnungen. Bei unbekanntem Ergebnis
+bleibt die Reservierung bestehen; **Erneut versuchen** prüft vor dem Schreiben,
+ob die Dateien bereits wiederhergestellt wurden. Ein Absturz oder eine verlorene
+Antwort kann die Rücknahme deshalb nicht unbemerkt doppelt anwenden. Der Worker
+prüft den Zugriff erneut und protokolliert den Erfolg.
 
 Die Aktion stellt nur Dateien wieder her; Unterhaltung und Aufgabenbericht
 bleiben erhalten. Sie benötigt Git und Python 3 und lehnt abgeschnittene,
 bereinigte, ältere reine Anzeige-Snapshots, verknüpfte Dateien und aktuelle
-Dateien über 2 MiB ab. Ein entfernter oder verschobener Workspace wird nicht
-ersetzt. Erfolgreiche Aktionen werden protokolliert und im Aufgabenpanel markiert.
+Dateien über 2 MiB ab. Ein entfernter oder verschobener Workspace wird nicht ersetzt.
 
 **Anzahl geänderter Dateien.** Panel und Nachrichtenfuß verwenden den gespeicherten
 Änderungssatz, einschließlich Shell-Änderungen und der Anzahl nicht aufgelisteter

@@ -34,6 +34,8 @@ export interface CodingTaskChanges {
   created_at: string;
   can_revert: boolean;
   reverted_at: string | null;
+  revert_status: "pending" | "unknown" | "failed" | null;
+  revert_conflicting_files: string[];
 }
 
 export async function revertCodingChanges(changeId: string): Promise<CodingTaskChanges> {

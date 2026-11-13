@@ -74,6 +74,7 @@ from app.agents.capabilities.coding_agent._task import (
     run_detached,
     task_files,
 )
+from app.agents.capabilities.sandbox._recording import RecordingWorkspace
 from app.agents.model_context import check_model_context
 from app.core.exceptions import AppException, BadRequestError
 from app.db.session import get_db_context
@@ -565,6 +566,23 @@ def build_coding_toolset(
         *,
         home: str | None,
     ) -> CodingReport | str:
+        workspace = ctx.workspace
+        async with (
+            workspace.task_snapshot()
+            if isinstance(workspace, RecordingWorkspace)
+            else nullcontext()
+        ):
+            return await captured_task(ctx, task, session, fresh_session, narration, home=home)
+
+    async def captured_task(
+        ctx: RunContext[Any],
+        task: str,
+        session: str,
+        fresh_session: bool,
+        narration: Narration,
+        *,
+        home: str | None,
+    ) -> CodingReport | str:
         """The task in this conversation's session, or a new one when that is gone.
 
         Snapshotted before and diffed after when its changes are kept, so the
@@ -796,6 +814,8 @@ async def _with_changes(
                         tool_call_id=ctx.tool_call_id,
                         harness=report.harness,
                         workspace_ref=ctx.workspace.ref,
+                        snapshot_isolated=isinstance(ctx.workspace, RecordingWorkspace)
+                        and ctx.workspace.snapshot_isolated,
                     )
             except SQLAlchemyError as failed:
                 return _unrecorded(ctx, report, failed)

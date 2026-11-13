@@ -1875,7 +1875,10 @@
         "revertDescription": "Restore the files changed by this task to their earlier state. If an affected file has changed since, nothing is reverted.",
         "taskReverted": "This task was reverted.",
         "revertConflict": "These files changed after the task. Nothing was reverted.",
-        "revertFailed": "The task could not be reverted."
+        "revertFailed": "The task could not be reverted.",
+        "revertPending": "Reverting this task…",
+        "revertUnknown": "The previous revert could not be confirmed. The workspace is reserved until a retry checks its files.",
+        "retryRevert": "Retry revert"
       },
       "runCodingAgent": "Hand the work to the coding agent",
       "runningCodingAgent": "The coding agent is working",

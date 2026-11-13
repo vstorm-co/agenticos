@@ -58,6 +58,7 @@ from app.agents.capabilities.tool_output_limits import OVERFLOW_PREFIX, Workspac
 from app.agents.spec import AgentSpec
 from app.core import background
 from app.core.exceptions import (
+    AlreadyExistsError,
     BadRequestError,
     ExportTooLargeError,
     ExternalServiceError,
@@ -80,6 +81,17 @@ from app.services.sandbox_workspace import (
 from tests.workspaces import document_workspace
 
 pytestmark = pytest.mark.anyio
+
+
+@pytest.fixture(autouse=True)
+def conversation_writers(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
+    from app.services import workspace_turn_guard
+
+    running, pending = AsyncMock(return_value=False), AsyncMock(return_value=False)
+    monkeypatch.setattr(workspace_turn_guard, "try_hold_subject", AsyncMock(return_value=True))
+    monkeypatch.setattr(workspace_turn_guard.run_repo, "has_running_in_conversation", running)
+    monkeypatch.setattr(workspace_turn_guard.change_repo, "has_pending_revert", pending)
+    return SimpleNamespace(running=running, pending=pending)
 
 
 @pytest.fixture(autouse=True)
@@ -3073,11 +3085,10 @@ class TestRecordedTaskWorkspace:
         assert sandboxes.attached == []
 
     @pytest.mark.parametrize("scope", ["user", "agent", "channel", "project"])
-    async def test_shared_scopes_require_their_own_current_access(
+    @pytest.mark.security
+    async def test_shared_scopes_cannot_prove_which_task_owned_the_snapshot(
         self, recorded: SimpleNamespace, sandboxes: _Sandboxes, scope: str
     ) -> None:
-        from app.core.permissions import Perm
-
         recorded.row.scope = scope
         if scope == "user":
             recorded.row.owner_ref = str(recorded.ctx.user_id)
@@ -3085,17 +3096,12 @@ class TestRecordedTaskWorkspace:
             recorded.row.project_id = uuid4()
             recorded.conversation.project_id = recorded.row.project_id
             recorded.project.return_value.id = recorded.row.project_id
-        async with recorded.service.open_recorded(
-            recorded.ctx, conversation_id=recorded.conversation.id, ref=recorded.ref
-        ):
-            pass
-        assert sandboxes.attached == [recorded.ref]
-        if scope in ("agent", "channel"):
-            recorded.registry.assert_awaited_once_with(
-                recorded.ctx, recorded.row.agent_id, perm=Perm.AGENTS_RUN
-            )
-        if scope == "project":
-            recorded.project.assert_awaited_once()
+        with pytest.raises(NotFoundError):
+            async with recorded.service.open_recorded(
+                recorded.ctx, conversation_id=recorded.conversation.id, ref=recorded.ref
+            ):
+                pytest.fail("shared snapshot must remain read-only")
+        assert sandboxes.attached == []
 
     @pytest.mark.security
     async def test_a_revoked_conversation_write_is_refused_before_finding_a_container(
@@ -3126,6 +3132,24 @@ class TestRecordedTaskWorkspace:
 
 class TestContainerBackedWorkspaces:
     """The paths that talk to something outside this process."""
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("writer", ["running", "pending"])
+    async def test_a_workspace_with_an_active_writer_or_unknown_undo_does_not_open_another_provider(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        mock_db_session: AsyncMock,
+        sandboxes: _Sandboxes,
+        conversation_writers: SimpleNamespace,
+        writer: str,
+    ) -> None:
+        getattr(conversation_writers, writer).return_value = True
+        _serve(monkeypatch, _resolved())
+        with pytest.raises(AlreadyExistsError):
+            await SandboxWorkspaceService(mock_db_session).open(
+                _spec(backend="service"), ctx=_ctx(), identity=_identity()
+            )
+        assert sandboxes.made == sandboxes.attached == []
 
     async def test_a_container_workspace_is_the_session_named_by_its_scope(
         self, monkeypatch, mock_db_session, sandboxes

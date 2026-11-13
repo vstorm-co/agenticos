@@ -861,7 +861,10 @@
         "revertDescription": "Przywróć pliki zmienione przez to zadanie do wcześniejszego stanu. Jeśli którykolwiek z nich został później zmieniony, nic nie zostanie cofnięte.",
         "taskReverted": "To zadanie zostało cofnięte.",
         "revertConflict": "Te pliki zmieniły się po zakończeniu zadania. Nic nie zostało cofnięte.",
-        "revertFailed": "Nie udało się cofnąć zadania."
+        "revertFailed": "Nie udało się cofnąć zadania.",
+        "revertPending": "Cofanie tego zadania…",
+        "revertUnknown": "Nie udało się potwierdzić poprzedniego cofnięcia. Workspace pozostaje zarezerwowany, dopóki ponowienie nie sprawdzi jego plików.",
+        "retryRevert": "Ponów cofnięcie"
       },
       "runCodingAgent": "Przekaż pracę coding agentowi",
       "runningCodingAgent": "Coding agent pracuje",

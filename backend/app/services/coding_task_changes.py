@@ -5,12 +5,11 @@ and recorded here; reading it back asks the question reading the task itself ask
 may this person read the conversation it ran in - and nothing wider.
 """
 
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from pydantic_ai.workspaces import WorkspaceRef
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.audit import record_audit
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
@@ -19,13 +18,15 @@ from app.core.exceptions import (
 )
 from app.core.permissions import AuthContext
 from app.db.models.coding_task_change import CodingTaskChange
-from app.repositories import agent_run as run_repo
+from app.repositories import background_job as job_repo
 from app.repositories import coding_task_change as change_repo
-from app.schemas.coding_task_change import ChangedFile, ChangeSet, CodingTaskChangeRead
+from app.schemas.coding_task_change import ChangeSet, CodingTaskChangeRead
 from app.services import _coding_task_revert
+from app.services.background_jobs import enqueue
 from app.services.conversation import ConversationService
-from app.services.project_workspace_guard import project_for_workspace
 from app.services.sandbox_workspace import SandboxWorkspaceService
+from app.services.workspace_turn_guard import admit
+from app.worker.jobs import REVERT_CODING_TASK, RevertCodingTask
 
 
 class CodingTaskChangeService:
@@ -41,6 +42,7 @@ class CodingTaskChangeService:
         tool_call_id: str | None,
         harness: str,
         workspace_ref: WorkspaceRef | None = None,
+        snapshot_isolated: bool = False,
     ) -> CodingTaskChange:
         """Keep one task's change set, in the conversation it ran in."""
         return await change_repo.create(
@@ -58,6 +60,7 @@ class CodingTaskChangeService:
                 if workspace_ref is not None
                 else None
             ),
+            snapshot_isolated=snapshot_isolated,
         )
 
     async def get(self, ctx: AuthContext, change_id: UUID) -> CodingTaskChange:
@@ -97,12 +100,26 @@ class CodingTaskChangeService:
         """A task's diff and whether this reader may currently revert it."""
         change = await self.get(ctx, change_id)
         readable = CodingTaskChangeRead.model_validate(change)
+        if change.revert_job_id is not None and change.reverted_at is None:
+            job = await job_repo.get(self.db, change.revert_job_id)
+            readable.revert_status = (
+                "pending" if job is not None and job.status in ("queued", "running") else "unknown"
+            )
+        elif change.revert_failure is not None:
+            readable.revert_status = "failed"
+            paths = change.revert_failure.get("conflicting_files", [])
+            if isinstance(paths, list):
+                readable.revert_conflicting_files = [
+                    path for path in paths if isinstance(path, str)
+                ]
         if (
             change.truncated
             or change.omitted
             or not change.revert_patch
             or change.workspace_ref is None
             or change.reverted_at is not None
+            or not change.snapshot_isolated
+            or readable.revert_status == "pending"
         ):
             return readable
         try:
@@ -117,19 +134,22 @@ class CodingTaskChangeService:
         return readable.model_copy(update={"can_revert": True})
 
     async def revert(self, ctx: AuthContext, change_id: UUID) -> CodingTaskChangeRead:
-        """Undo a complete task in its original workspace, refusing later file edits.
+        """Queue a recoverable undo in an isolated conversation workspace.
 
         Requires a person with edit access to the conversation and its workspace.
         Truncated, redacted and older display-only patches cannot restore files.
-        A repeated successful request returns the original successful result.
+        The reservation and job commit together before external work starts.
+        A repeated successful request returns the original successful result;
+        an in-flight request is refused without waiting. An unknown outcome can
+        be retried to reconcile the original file states.
 
         Raises:
             NotFoundError: The task or original workspace is unavailable to this caller.
             BadRequestError: The recorded change set cannot restore the full task.
-            AlreadyExistsError: An affected file has changed; no file is reverted.
+            AlreadyExistsError: Another writer or revert currently holds the workspace.
         """
         change = await self.get(ctx, change_id)
-        conversation = await ConversationService(self.db).get_conversation(
+        await ConversationService(self.db).get_conversation(
             change.conversation_id,
             organization_id=ctx.organization_id,
             user_id=ctx.user_id,
@@ -138,9 +158,20 @@ class CodingTaskChangeService:
             include_favourite=False,
             ctx=ctx,
         )
-        if conversation.project_id is not None:
-            # Project deletion takes this lock before cascading into task rows.
-            await project_for_workspace(self.db, ctx, conversation.project_id)
+        if change.reverted_at is not None:
+            return CodingTaskChangeRead.model_validate(change)
+        # A worker may briefly lock the task while preparing its attempt. A
+        # duplicate must reject the committed reservation before taking that lock.
+        if change.revert_job_id is not None:
+            job = await job_repo.get(self.db, change.revert_job_id)
+            if job is not None and job.status in ("queued", "running"):
+                raise AlreadyExistsError(message="This task is already being reverted", details={})
+        await admit(
+            self.db,
+            organization_id=ctx.organization_id,
+            conversation_id=change.conversation_id,
+            change_id=change_id,
+        )
         locked = await change_repo.get_in_organization(
             self.db, change_id, organization_id=ctx.organization_id, for_update=True
         )
@@ -153,32 +184,42 @@ class CodingTaskChangeService:
             or locked.omitted
             or not locked.revert_patch
             or locked.workspace_ref is None
+            or not locked.snapshot_isolated
         ):
             raise BadRequestError(
                 message="This task has no complete snapshot to revert", details={}
             )
-        if await run_repo.has_running_in_conversation(
-            self.db, organization_id=ctx.organization_id, conversation_id=locked.conversation_id
-        ):
-            raise AlreadyExistsError(
-                message="Wait for the conversation's current run to finish before reverting",
-                details={},
-            )
-        files = [ChangedFile.model_validate(file) for file in locked.files]
-        async with SandboxWorkspaceService(self.db).open_recorded(
+        if locked.revert_job_id is not None:
+            job = await job_repo.get(self.db, locked.revert_job_id)
+            if job is not None and job.status in ("queued", "running"):
+                raise AlreadyExistsError(message="This task is already being reverted", details={})
+        await SandboxWorkspaceService(self.db).recorded_for_task(
             ctx,
             conversation_id=locked.conversation_id,
             ref=WorkspaceRef(**locked.workspace_ref),
-        ) as workspace:
-            await _coding_task_revert.revert(workspace, files, locked.revert_patch)
-        await change_repo.mark_reverted(self.db, change=locked)
-        await record_audit(
-            self.db,
-            actor_user_id=ctx.user_id,
-            organization_id=ctx.organization_id,
-            action="coding_task.revert",
-            target_type="coding_task_change",
-            target_id=str(change_id),
-            details={"conversation_id": str(locked.conversation_id), "file_count": len(files)},
         )
-        return CodingTaskChangeRead.model_validate(locked)
+        _coding_task_revert.manifests(CodingTaskChangeRead.model_validate(locked).files)
+        assert ctx.user_id is not None, "get requires an authenticated person"
+        job_id = await enqueue(
+            self.db,
+            REVERT_CODING_TASK,
+            RevertCodingTask(
+                organization_id=ctx.organization_id,
+                change_id=change_id,
+                user_id=ctx.user_id,
+                claim_id=uuid4(),
+                api_key_id=ctx.api_key_id,
+            ),
+            organization_id=ctx.organization_id,
+            dedupe_key=f"coding-task-revert:{change_id}",
+            dedupe_active=True,
+            concurrency_key=f"coding-task-revert:{ctx.organization_id}:{locked.conversation_id}",
+        )
+        if job_id is None:
+            raise AlreadyExistsError(message="This task is already being reverted", details={})
+        locked.revert_job_id = job_id
+        locked.revert_failure = None
+        await change_repo.save(self.db, locked)
+        return CodingTaskChangeRead.model_validate(locked).model_copy(
+            update={"revert_status": "pending"}
+        )

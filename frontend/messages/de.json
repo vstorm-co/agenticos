@@ -1875,7 +1875,10 @@
         "revertDescription": "Stelle die von dieser Aufgabe geänderten Dateien auf ihren vorherigen Stand zurück. Wurde eine betroffene Datei seitdem geändert, wird nichts zurückgesetzt.",
         "taskReverted": "Diese Aufgabe wurde rückgängig gemacht.",
         "revertConflict": "Diese Dateien wurden nach der Aufgabe geändert. Es wurde nichts zurückgesetzt.",
-        "revertFailed": "Die Aufgabe konnte nicht rückgängig gemacht werden."
+        "revertFailed": "Die Aufgabe konnte nicht rückgängig gemacht werden.",
+        "revertPending": "Diese Aufgabe wird rückgängig gemacht…",
+        "revertUnknown": "Das vorherige Rückgängigmachen konnte nicht bestätigt werden. Der Workspace bleibt reserviert, bis ein erneuter Versuch seine Dateien prüft.",
+        "retryRevert": "Erneut versuchen"
       },
       "runCodingAgent": "Arbeit an den Coding Agent übergeben",
       "runningCodingAgent": "Der Coding Agent arbeitet",

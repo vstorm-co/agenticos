@@ -1696,17 +1696,24 @@ transcript's own access, so whoever can read the chat sees it; deleting the chat
 deletes it. In a sandbox several chats share, a task running at the same time as
 another sees that one's edits in its diff too. A task on this computer records no diff.
 
-**Revert this task.** For a new task with a complete snapshot, this action restores
-its regular files in the original server workspace. You need edit access to the
-conversation and its workspace, and its current run must have finished. Every
-affected file must still match the task's final content and executable mode;
-otherwise the whole revert is refused and the conflicting files are listed.
-Unrelated files and your Git index and history stay unchanged.
+**Revert this task.** New tasks can restore regular files only when their complete
+snapshot was captured in an isolated conversation workspace. Project-, agent-,
+channel- and user-scoped snapshots stay read-only because they can include another
+conversation's work. You need current edit access, and no run may be writing the
+workspace. Every affected file must match the task's final content and executable
+mode; a conflict refuses the whole revert and lists the files. Unrelated files
+and your Git index and history stay unchanged.
+
+The action queues a durable job and reserves the workspace. The panel shows
+progress and any definite refusal. An unknown result keeps the reservation;
+**Retry revert** checks whether the files were already restored before applying
+anything. A crash or a lost response therefore cannot silently apply undo twice.
+The worker rechecks access before acting and audits success.
 
 Revert restores files only, keeping the conversation and task report. It requires
 Git and Python 3 and refuses truncated, redacted, older display-only or linked-file
 snapshots, and current files over 2 MiB. A removed or moved workspace is not
-replaced. Successful reverts are audited and marked in the task panel.
+replaced.
 
 **Changed-file counts.** The panel and message footer use the stored change set,
 including shell edits and the count of files omitted by the limit. Only a task

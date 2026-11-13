@@ -9243,7 +9243,10 @@
         "revertDescription": "Bu görevin değiştirdiği dosyaları önceki durumuna döndür. Etkilenen bir dosya daha sonra değiştiyse hiçbir değişiklik geri alınmaz.",
         "taskReverted": "Bu görev geri alındı.",
         "revertConflict": "Bu dosyalar görevden sonra değişti. Hiçbir değişiklik geri alınmadı.",
-        "revertFailed": "Görev geri alınamadı."
+        "revertFailed": "Görev geri alınamadı.",
+        "revertPending": "Bu görev geri alınıyor…",
+        "revertUnknown": "Önceki geri alma doğrulanamadı. Yeniden deneme dosyaları kontrol edene kadar workspace ayrılmış kalır.",
+        "retryRevert": "Geri almayı yeniden dene"
       },
       "runCodingAgent": "İşi kodlama Agent'ına devret",
       "runningCodingAgent": "Kodlama Agent'ı çalışıyor",

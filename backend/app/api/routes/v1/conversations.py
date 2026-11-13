@@ -86,11 +86,15 @@ async def get_coding_task_change(change_id: UUID, service: CodingTaskChangeSvc, 
     return await service.read(ctx, change_id)
 
 
-@router.post("/coding-changes/{change_id}/revert", response_model=CodingTaskChangeRead)
+@router.post(
+    "/coding-changes/{change_id}/revert",
+    response_model=CodingTaskChangeRead,
+    status_code=status.HTTP_202_ACCEPTED,
+)
 async def revert_coding_task_change(
     change_id: UUID, service: CodingTaskChangeSvc, ctx: Auth
 ) -> Any:
-    """Restore a coding task's affected files when they still match its final snapshot."""
+    """Queue a recoverable task revert; read its change set to follow the outcome."""
     return await service.revert(ctx, change_id)
 
 

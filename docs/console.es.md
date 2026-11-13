@@ -1,5 +1,5 @@
 ---
-source_sha: "e49766c134b2"
+source_sha: "ace4f593a277"
 ---
 
 # La consola { #the-console }
@@ -548,6 +548,8 @@ Las listas de conversaciones conservan el agente principal y también muestran C
 El panel Files agrupa los archivos por carpetas y distingue nombres iguales en distintos directorios. Las vistas previas HTML cargan las hojas de estilo locales y sus recursos anidados mediante el mismo acceso que la página. La vista previa y el código fuente permanecen separados; los scripts siguen desactivados. Si no se puede leer una hoja de estilo, se indica cuál ha fallado.
 
 Debajo de cada respuesta aparecen enlaces a los archivos modificados en ese turno. Las tareas de código usan su conjunto de cambios guardado, incluidas las ediciones del shell; sin él, usan el informe del harness. El panel ofrece **Revertir esta tarea** cuando puedes editar su workspace original y el snapshot está completo. Los enlaces abren los archivos actuales del workspace, no una copia versionada.
+
+La reversión se ejecuta como un trabajo duradero en un workspace aislado de conversación. Los snapshots compartidos siguen siendo de solo lectura. El panel muestra el progreso; un resultado desconocido reserva el workspace hasta que Reintentar reversión compruebe sus archivos.
 
 Mientras trabaja el agente, los mensajes de progreso y las llamadas a herramientas que les siguen aparecen en orden de llegada dentro de un historial desplegado. Al terminar la ejecución, todo ese historial se contrae bajo un único control «Worked for…» o «Thought for…», dejando debajo solo la respuesta final. Al abrirlo se recupera el mismo orden de mensajes y grupos de herramientas. El razonamiento conserva su desplegable opcional; sus encabezados no generan fases. Las preguntas y aprobaciones mantienen el estado de espera hasta resolverse, también al delegar. Las tarjetas de aprobación activas y los resultados visuales permanecen fuera del historial terminado.
 

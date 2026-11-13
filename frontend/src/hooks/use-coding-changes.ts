@@ -1,6 +1,13 @@
 "use client";
 
-import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  queryOptions,
+  useMutation,
+  useQueries,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { useEffect } from "react";
 
 import { ApiError } from "@/lib/api-error";
 import {
@@ -25,21 +32,34 @@ interface UseCodingChangesResult {
  * retry, or the panel would stay empty after the server recovers.
  */
 function codingChangesQuery(changeId: string) {
-  return {
+  return queryOptions({
     queryKey: qk.codingChanges.detail(changeId),
     queryFn: () => readCodingChanges(changeId),
+    refetchInterval: (query) => (query.state.data?.revert_status === "pending" ? 1000 : false),
     retry: (failureCount: number, cause: Error) =>
       !(cause instanceof ApiError && cause.status < 500) && failureCount < 1,
-  };
+  });
 }
 
 export function useCodingChanges(changeId: string): UseCodingChangesResult {
   const { data, isLoading, isError } = useQuery(codingChangesQuery(changeId));
+  useRefreshRevertedFiles(data?.reverted_at ?? "");
   return { changes: data ?? null, isLoading, failed: isError };
+}
+
+function useRefreshRevertedFiles(stamp: string) {
+  const client = useQueryClient();
+  useEffect(() => {
+    if (!stamp) return;
+    void client.invalidateQueries({ queryKey: qk.conversationWorkspace.all() });
+    void client.invalidateQueries({ queryKey: qk.sandboxWorkspaces.all() });
+    void client.invalidateQueries({ queryKey: qk.projects.all() });
+  }, [client, stamp]);
 }
 
 export function useCodingChangeSets(changeIds: string[]): Map<string, CodingTaskChanges> {
   const queries = useQueries({ queries: changeIds.map(codingChangesQuery) });
+  useRefreshRevertedFiles(queries.map(({ data }) => data?.reverted_at ?? "").join(""));
   return new Map(queries.flatMap(({ data }) => (data ? [[data.id, data] as const] : [])));
 }
 

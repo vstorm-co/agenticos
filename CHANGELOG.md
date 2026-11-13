@@ -21,7 +21,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
-- **Revert a coding task.** The task panel can restore a complete task's files in its original server workspace, with edit access and an audit entry. Later changes to any affected file refuse the whole revert. Older, truncated, redacted or linked-file snapshots cannot be reverted.
+- **Revert a coding task.** The task panel can restore a complete task's files in its original conversation workspace, with edit access and an audit entry. A durable job reserves the workspace and reconciles uncertain results without applying undo twice. Later changes to any affected file refuse the whole revert. Shared, older, truncated, redacted or linked-file snapshots cannot be reverted.
 
 ### Fixed
 

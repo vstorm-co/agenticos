@@ -180,7 +180,7 @@ def migration_database() -> Iterator[None]:
 
 
 def test_coding_task_revert_columns_round_trip_without_changing_existing_diffs() -> None:
-    """0322_coding_task_revert.py leaves display-only tasks readable and undo unavailable."""
+    """0322_coding_task_revert.py and 0323_coding_revert_admission.py preserve legacy diffs."""
     from app.db.models.conversation import Conversation
     from app.db.models.organization import Organization
 
@@ -189,7 +189,15 @@ def test_coding_task_revert_columns_round_trip_without_changing_existing_diffs()
     result = _alembic("downgrade", "0321_resource_icons")
     assert result.returncode == 0, result.stderr
     engine = create_engine(_url(MIGRATION_DATABASE))
-    fields = ("revert_patch", "workspace_ref", "reverted_at")
+    fields = (
+        "revert_patch",
+        "workspace_ref",
+        "reverted_at",
+        "snapshot_isolated",
+        "revert_job_id",
+        "revert_started_at",
+        "revert_failure",
+    )
     change_id = uuid4()
     files = [{"path": "old.py", "status": "modified", "patch": "-before\n+after\n"}]
     try:
@@ -240,11 +248,11 @@ def test_coding_task_revert_columns_round_trip_without_changing_existing_diffs()
                 with engine.connect() as db:
                     row = db.execute(
                         text(
-                            "SELECT files, revert_patch, workspace_ref, reverted_at FROM coding_task_changes WHERE id = :id"
+                            "SELECT files, revert_patch, workspace_ref, reverted_at, snapshot_isolated, revert_job_id, revert_started_at, revert_failure FROM coding_task_changes WHERE id = :id"
                         ),
                         {"id": change_id},
                     ).one()
-                assert row == (files, None, None, None)
+                assert row == (files, None, None, None, False, None, None, None)
         with engine.connect() as db:
             after = set(
                 db.execute(

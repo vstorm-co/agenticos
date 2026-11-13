@@ -699,11 +699,9 @@ class SandboxWorkspaceService:
         """The task's recorded containers this person may currently change.
 
         Metadata only: reading a diff must not load a workspace credential or
-        construct a provider client. Shared scopes have their own current gate.
+        construct a provider client. Shared-scope snapshots stay read-only.
         """
-        from app.services.agent_registry import AgentRegistryService
         from app.services.conversation import ConversationService
-        from app.services.project_workspace_guard import project_for_workspace
 
         conversation = await ConversationService(self.db).get_conversation(
             conversation_id,
@@ -722,26 +720,13 @@ class SandboxWorkspaceService:
             connection_id = row.connection_id
             if connection_id is None or row.backend != "service":
                 continue
-            if row.project_id is not None:
-                if row.project_id != conversation.project_id:
-                    continue
-                project = await project_for_workspace(self.db, ctx, row.project_id)
-                current = await workspace_repo.get_for_project(
-                    self.db, organization_id=ctx.organization_id, project_id=project.id
-                )
-                if current is None or current.id != row.id:
-                    continue
-            elif row.scope == "conversation":
-                if row.conversation_id != conversation_id:
-                    continue
-            elif row.scope == "user":
-                if row.owner_ref != str(ctx.user_id):
-                    continue
-            elif row.scope in ("agent", "channel"):
-                if row.agent_id is None:
-                    continue
-                await AgentRegistryService(self.db).get(ctx, row.agent_id, perm=Perm.AGENTS_RUN)
-            else:
+            # A shared container can include another conversation's edits in the
+            # capture interval. Its diff is useful; it cannot prove task ownership.
+            if (
+                row.scope != "conversation"
+                or row.project_id is not None
+                or row.conversation_id != conversation.id
+            ):
                 continue
             allowed.append((row, connection_id))
         if not allowed:
@@ -1039,6 +1024,15 @@ class SandboxWorkspaceService:
         resolving can fail for reasons that were fine at publish time (a key
         rotated away, a host switched off) and each of those says which.
         """
+        if scope == "conversation" and identity.conversation_id is not None:
+            from app.services.workspace_turn_guard import admit
+
+            await admit(
+                self.db,
+                organization_id=identity.organization_id,
+                conversation_id=identity.conversation_id,
+                run_id=identity.run_id,
+            )
         briefing: str | None = None
         parses_documents = False
         notice = _OpeningNotice(on_wait) if on_wait is not None else None
@@ -1073,6 +1067,7 @@ class SandboxWorkspaceService:
             session_key=key,
             agent_id=identity.agent_id,
             run_id=identity.run_id,
+            isolated_turn=scope == "conversation" and identity.run_id is not None,
             on_settled=notice.settled if notice is not None else None,
             explain_unavailable=(
                 partial(explain_unavailable, base_url=sandbox.service_url, client=_sandboxd_http())

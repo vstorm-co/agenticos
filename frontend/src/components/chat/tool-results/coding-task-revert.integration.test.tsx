@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, renderHook, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 
@@ -7,6 +7,7 @@ import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
 import type { CodingTaskChanges } from "@/lib/coding-changes-api";
 import { qk } from "@/lib/query-keys";
+import { useCodingChangeSets } from "@/hooks/use-coding-changes";
 import { TaskChanges } from "./coding-changes";
 
 vi.mock("@/lib/api-client", () => ({ apiClient: { get: vi.fn(), post: vi.fn() } }));
@@ -32,6 +33,8 @@ const changes: CodingTaskChanges = {
   created_at: "2026-11-13T00:00:00Z",
   can_revert: true,
   reverted_at: null,
+  revert_status: null,
+  revert_conflicting_files: [],
 };
 
 function show(
@@ -52,6 +55,64 @@ function show(
 }
 
 beforeEach(() => vi.clearAllMocks());
+
+it("refreshes workspace files when the footer observes completion after the task panel closes", async () => {
+  const restored = { ...changes, can_revert: false, reverted_at: "2026-11-13T01:00:00Z" };
+  vi.mocked(apiClient.get).mockResolvedValue(restored);
+  const client = new QueryClient();
+  const invalidate = vi.spyOn(client, "invalidateQueries");
+  const { result } = renderHook(() => useCodingChangeSets([changes.id]), {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    ),
+  });
+  await waitFor(() => expect(result.current.get(changes.id)).toEqual(restored));
+  expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.conversationWorkspace.all() });
+});
+
+it("shows a queued revert, polls its outcome and refreshes the restored files", async () => {
+  const user = userEvent.setup();
+  const pending: CodingTaskChanges = { ...changes, can_revert: false, revert_status: "pending" };
+  const restored: CodingTaskChanges = {
+    ...changes,
+    can_revert: false,
+    reverted_at: "2026-11-13T01:00:00Z",
+  };
+  vi.mocked(apiClient.post).mockResolvedValue(pending);
+  const { client, invalidate } = show();
+  await user.click(await screen.findByRole("button", { name: "Revert this task" }));
+  vi.mocked(apiClient.get).mockResolvedValue(restored);
+  await user.click(screen.getAllByRole("button", { name: "Revert this task" }).at(-1)!);
+  expect(await screen.findByRole("status")).toHaveTextContent("Reverting this task…");
+  expect(screen.queryByRole("button", { name: "Revert this task" })).toBeNull();
+  expect(await screen.findByText("This task was reverted.")).toBeVisible();
+  expect(client.getQueryData(qk.codingChanges.detail(changes.id))).toEqual(restored);
+  expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.conversationWorkspace.all() });
+});
+
+it.each([{ files: [] }, { files: ["src/later.py"] }])(
+  "retains a definite worker refusal with conflicting files %j",
+  async ({ files }) => {
+    show({ ...changes, revert_status: "failed", revert_conflicting_files: files });
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      files.length
+        ? "These files changed after the task. Nothing was reverted."
+        : "The task could not be reverted.",
+    );
+    if (files.length) expect(alert).toHaveTextContent("src/later.py");
+    expect(screen.getByRole("button", { name: "Revert this task" })).toBeVisible();
+  },
+);
+
+it("explains an unknown outcome and offers reconciliation by deliberate retry", async () => {
+  show({ ...changes, revert_status: "unknown" });
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "The previous revert could not be confirmed.",
+  );
+  expect(screen.getByRole("button", { name: "Retry revert" })).toBeVisible();
+  expect(apiClient.post).not.toHaveBeenCalled();
+});
 
 it("hides revert for a reader without workspace edit access", async () => {
   show({ ...changes, can_revert: false });

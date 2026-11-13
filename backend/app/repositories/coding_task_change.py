@@ -21,6 +21,7 @@ async def create(
     truncated: bool,
     revert_patch: str | None = None,
     workspace_ref: dict[str, str] | None = None,
+    snapshot_isolated: bool = False,
 ) -> CodingTaskChange:
     change = CodingTaskChange(
         organization_id=organization_id,
@@ -32,6 +33,7 @@ async def create(
         truncated=truncated,
         revert_patch=revert_patch,
         workspace_ref=workspace_ref,
+        snapshot_isolated=snapshot_isolated,
     )
     db.add(change)
     await db.flush()
@@ -54,6 +56,27 @@ async def get_in_organization(
 
 async def mark_reverted(db: AsyncSession, *, change: CodingTaskChange) -> CodingTaskChange:
     change.reverted_at = datetime.now(UTC)
+    change.revert_job_id = None
+    change.revert_failure = None
     await db.flush()
     await db.refresh(change)
     return change
+
+
+async def has_pending_revert(
+    db: AsyncSession, *, organization_id: UUID, conversation_id: UUID, excluding: UUID | None = None
+) -> bool:
+    query = select(CodingTaskChange.id).where(
+        CodingTaskChange.organization_id == organization_id,
+        CodingTaskChange.conversation_id == conversation_id,
+        CodingTaskChange.revert_job_id.is_not(None),
+        CodingTaskChange.reverted_at.is_(None),
+    )
+    if excluding is not None:
+        query = query.where(CodingTaskChange.id != excluding)
+    return (await db.scalar(query.limit(1))) is not None
+
+
+async def save(db: AsyncSession, change: CodingTaskChange) -> None:
+    await db.flush()
+    await db.refresh(change)

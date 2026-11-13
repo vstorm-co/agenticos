@@ -56,6 +56,14 @@ class WakeTask(Payload):
     revision: int = Field(ge=1)
 
 
+class RevertCodingTask(Payload):
+    organization_id: UUID
+    change_id: UUID
+    user_id: UUID
+    claim_id: UUID
+    api_key_id: UUID | None = None
+
+
 class MoveProjectWorkspacePayload(Payload):
     transfer_id: UUID
     project_id: UUID
@@ -783,6 +791,15 @@ WATCH_SWEEP = _sweep("watch-sweep")
 WEEKLY_USAGE_REPORT = _sweep("weekly-usage-report", timeout=timedelta(hours=1), max_attempts=3)
 MONTHLY_USAGE_REPORT = _sweep("monthly-usage-report", timeout=timedelta(hours=1), max_attempts=3)
 
+REVERT_CODING_TASK = Task(
+    kind="revert-coding-task",
+    payload_type=RevertCodingTask,
+    pool=Pool.AGENT,
+    max_attempts=3,
+    timeout=timedelta(minutes=3),
+    priority=Priority.INTERACTIVE,
+)
+
 MOVE_PROJECT_WORKSPACE = Task(
     retry_refusal="Start a new transfer in the project's sandbox settings; retired transfer copies cannot be reused",
     kind="move-project-workspace",
@@ -827,6 +844,7 @@ TASKS: dict[str, TaskKind] = {
         PROCESS_EMAIL_DELIVERY,
         DELIVER_CHANNEL_HANDBACK,
         MOVE_PROJECT_WORKSPACE,
+        REVERT_CODING_TASK,
         INGEST_DOCUMENT,
         SYNC_COLLECTION,
         SYNC_SOURCE,

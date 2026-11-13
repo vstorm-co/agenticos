@@ -61,3 +61,5 @@ class CodingTaskChangeRead(ChangeSet, TimestampSchema):
     harness: str
     can_revert: bool = False
     reverted_at: datetime | None = None
+    revert_status: Literal["pending", "unknown", "failed"] | None = None
+    revert_conflicting_files: list[str] = []

@@ -15,6 +15,7 @@ import shlex
 from collections.abc import Mapping
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import MagicMock
 from uuid import UUID, uuid4
 
 import anyio
@@ -1101,6 +1102,25 @@ def recorder(monkeypatch: pytest.MonkeyPatch) -> _Recorder:
 
 class TestWhatATaskChanged:
     """#2480: the workspace is snapshotted around a task and the diff kept for its panel."""
+
+    @pytest.mark.parametrize("isolated", [True, False])
+    async def test_only_a_guarded_conversation_turn_records_proof_of_isolation(
+        self, recorder: _Recorder, isolated: bool
+    ) -> None:
+        from app.agents.capabilities.sandbox._recording import RecordingWorkspace
+
+        shell = _Snapshotting(events=_lines(_claude_stream(result=_CLAUDE_DONE)))
+        workspace = RecordingWorkspace(
+            shell,
+            db=MagicMock(),
+            organization_id=uuid4(),
+            session_key="conversation",
+            agent_id=None,
+            isolated_turn=isolated,
+        )
+        report = CodingReport.model_validate_json(await _call(workspace))
+        assert report.changes_id == str(recorder.id)
+        assert recorder.recorded[0][1]["snapshot_isolated"] is isolated
 
     async def test_a_task_that_edits_two_files_names_its_change_set(
         self, recorder: _Recorder
