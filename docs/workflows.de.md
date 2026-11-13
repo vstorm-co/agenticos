@@ -1,5 +1,5 @@
 ---
-source_sha: "d4ebadc86d2b"
+source_sha: "3740db7b4663"
 ---
 
 # Workflows { #workflows }
@@ -87,7 +87,11 @@ Neuladen oder ein geteilter Link dieselbe Liste zeigt.
 
 **More → Settings** enthält Name, Beschreibung, Tags und Laufzeiteinstellungen des Workflows; Änderungen werden automatisch gespeichert. Der Schritteditor nutzt das verfügbare Fenster: Input links, Parameters und Settings in der Mitte, Output rechts. Trigger haben zwei Bereiche, da sie keine eingehenden Daten haben. Auf großen Bildschirmen scrollt jeder Bereich separat, auf Telefonen gibt es eine Spalte. Gespeicherte Ausführungen zeigen ihre Parameter schreibgeschützt neben den Daten. Datensatzwerte verwenden die Spaltennamen der Tabelle. Notizen bieten Open note, Größen und Ziehgriffe.
 
-Die App-Auswahl zeigt MCP-Katalogserver bereits vor dem Verbinden; der allgemeine Eintrag Call an MCP tool ist ausgeblendet. Verbinde einen Dienst direkt und wähle anschließend eines seiner erkannten Werkzeuge. Die Werkzeug-Freigabeliste bleibt wirksam. Farbige Schritte und Minimap sind standardmäßig aktiv. KI-Modellschritte zeigen Anweisungen, Temperatur und Reasoning-Aufwand; leere Einstellungen behalten die Anbieterstandards. Jev zeigt Modell, Frage und Konfidenzschwelle. Send an email verwendet den Plattformabsender oder verbindet Gmail beziehungsweise Outlook und wechselt nach Bestätigung zum tatsächlichen MCP-Werkzeug des Postfachs. Dabei werden inkompatible Eingabezuordnungen entfernt; der Wechsel lässt sich rückgängig machen.
+Die App-Auswahl zeigt MCP-Katalogserver bereits vor dem Verbinden; der allgemeine Eintrag Call an MCP tool ist ausgeblendet, und Dienste, die niemand verbunden hat, warten unter **Apps zum Verbinden** am Ende ihres Abschnitts. Verbinde einen Dienst direkt und wähle anschließend eines seiner erkannten Werkzeuge. Die Werkzeug-Freigabeliste bleibt wirksam.
+
+Farbige Schritte und Minimap sind standardmäßig aktiv.
+
+KI-Modellschritte zeigen Anweisungen, Temperatur und Reasoning-Aufwand; leere Einstellungen behalten die Anbieterstandards. **Decisions**-Schritte, die das Entscheidungsmodell Jev beantwortet, zeigen Modell, Frage und Konfidenzschwelle. Send an email verwendet den Plattformabsender oder verbindet Gmail beziehungsweise Outlook und wechselt nach Bestätigung zum tatsächlichen MCP-Werkzeug des Postfachs. Dabei werden inkompatible Eingabezuordnungen entfernt; der Wechsel lässt sich rückgängig machen.
 
 Der Schritt **Send an email** bietet auch **SMTP account → Neues SMTP-Konto**. Im Vault-Dialog werden Server, Port, Benutzername, Passwort und Absender gespeichert. STARTTLS nutzt meist 587, implizites TLS meist 465; beide prüfen Zertifikate. Im Workflow steht nur `smtp_secret_id`. **Plattformabsender** entfernt die Auswahl. Veröffentlichung und Ausführung prüfen den Secret-Zugriff; ein nicht verfügbares Konto stoppt den Schritt statt den Absender zu wechseln.
 
@@ -141,7 +145,7 @@ sitzt in der Ecke.
 
 Schritte wählen Sie in der **Schrittauswahl**. Sie zeigt Abschnitte - **Start**,
 **AI**, **Flow**, **Data**, **Apps and the web** - mit den Gruppen darunter. Eine
-Gruppe wie **Slack**, **Tables** oder **Jev decisions** öffnet sich zu ihren
+Gruppe wie **Slack**, **Tables** oder **Decisions** öffnet sich zu ihren
 Schritten, und eine Gruppe mit einem Schritt ist dieser Schritt. **Search steps**
 findet jeden Schritt nach Namen, nach dem, was er tut, oder nach seiner Gruppe. Sie
 fügen einen Schritt auf vier Wegen hinzu:

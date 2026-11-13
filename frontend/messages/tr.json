@@ -739,7 +739,7 @@
       "notification": "Bildirimler",
       "debug": "Hata ayıklama",
       "triggers": "Tetikleyiciler",
-      "decide": "Jev kararları",
+      "decide": "Kararlar",
       "people": "İnsanlar",
       "slack": "Slack",
       "mattermost": "Mattermost",
@@ -797,7 +797,7 @@
     "categoryHint": {
       "triggers": "run nasıl başlar?",
       "agent": "run temsilcilerinizden biri",
-      "decide": "TypeSafe'ten Jev'e yazılı bir soru sorun",
+      "decide": "Jev karar modeliyle evet ya da hayır yanıtı verin, bir seçenek seçin veya puan verin",
       "knowledge": "Bir bilgi tabanında arama yapın veya birine ekleme yapın",
       "logic": "Bir yol seçin veya onlara tekrar katılın",
       "control": "Öğeler üzerinde döngü yapın, bekleyin veya run başka bir iş akışı",
@@ -1331,6 +1331,9 @@
     "pickerMcpNeverTested": "Bu sunucuyu henüz kimse test etmediği için araçları listelenmiyor. Listelemek için yenileyin.",
     "pickerMcpNeverTestedEditor": "Bu sunucuyu henüz kimse test etmediği için araçları listelenmiyor. Kuruluş sunucularını yöneten birinden test etmesini isteyin.",
     "pickerSearch": "Adımlarda ara",
+    "pickerMoreApps": "{count, plural, other {Bağlanacak # uygulama daha}}",
+    "pickerFewerApps": "Bağlanacak uygulamaları gizle",
+    "pickerAppToConnect": "Bağlan",
     "pickerBack": "Tüm adımlar",
     "toolbarAddStep": "Adım ekle",
     "toolbarReady": "Sorun yok",
@@ -3972,7 +3975,7 @@
       "runHint": "Yayımlanmış sürüm yerine taslağı çalıştırır (Ctrl veya Cmd + Enter)",
       "runNeedsSteps": "Önce bir adım ekleyin",
       "runBlockedByProblems": "{count, plural, one {Önce # sorunu çözün} other {Önce # sorunu çözün}}",
-      "liveRunTitle": "Test runı",
+      "liveRunTitle": "Deneme run'ı",
       "liveRunSteps": "{count, plural, one {# adım tamamlandı} other {# adım tamamlandı}}",
       "liveRunOpen": "Runı aç",
       "liveRunClose": "Runı gizle",
@@ -13330,6 +13333,402 @@
       },
       "guideName": "AgenticOS",
       "advancedAccess": "E-posta alan adları, başlangıç rolleri ve hesap sınırları ↗"
+    }
+  },
+  "workflowNodes": {
+    "node": {
+      "agent_run": {
+        "name": "Agent çalıştır",
+        "description": "Katalogdaki yayımlanmış bir agent’ı sabitlenmiş bir sürümde çalıştırın ve yanıtını kullanın."
+      },
+      "ai_classify": {
+        "name": "Sınıflandır",
+        "description": "Bir modelin metni kategorilerinizden birine yerleştirmesini sağlayın ve sonuca göre dallanın."
+      },
+      "ai_extract": {
+        "name": "Veri çıkar",
+        "description": "Bir modelin, adını verdiğiniz alanları metinden bir nesne olarak çıkarmasını sağlayın."
+      },
+      "ai_prompt": {
+        "name": "Modele sor",
+        "description": "Modellerinizden birine, adımın kendi talimatlarıyla bir şey sorun."
+      },
+      "ai_rewrite": {
+        "name": "Özetle veya çevir",
+        "description": "Bir modelin metni özetlemesini, çevirmesini veya yeniden yazmasını sağlayın."
+      },
+      "code_javascript_sandbox": {
+        "name": "Sandbox’ta JavaScript",
+        "description": "JavaScript’i Node üzerinde run’ın dosyalarıyla, kuruluşun sandbox sunucusunda kalıcı bir iş olarak çalıştırın; içinde hiçbir platform kimlik bilgisi bulunmaz."
+      },
+      "code_python_sandbox": {
+        "name": "Sandbox’ta Python",
+        "description": "Tam Python’u run’ın dosyalarıyla, kuruluşun sandbox sunucusunda kalıcı bir iş olarak çalıştırın; içinde hiçbir platform kimlik bilgisi bulunmaz."
+      },
+      "code_python_simple": {
+        "name": "Python betiği",
+        "description": "Monty sandbox’ında kısa bir Python betiğiyle bir JSON değeri hesaplayın - dosya yok, ağ yok, küçük bir standart kütüphane."
+      },
+      "control_foreach": {
+        "name": "Her öğe için",
+        "description": "Döngüdeki adımları bir listedeki her öğe için sırayla birer kez çalıştırın."
+      },
+      "convert_csv_to_json": {
+        "name": "CSV’den JSON’a",
+        "description": "Bir CSV dosyasını, satırları başlıklara göre anahtarlanmış bir JSON dosyasına dönüştürün."
+      },
+      "convert_json_to_csv": {
+        "name": "JSON’dan CSV’ye",
+        "description": "Düz nesnelerden oluşan bir JSON listesini CSV dosyasına dönüştürün."
+      },
+      "convert_pdf_to_png": {
+        "name": "PDF sayfalarından görsel",
+        "description": "Bir PDF’in seçilen sayfalarını, görsel piksel sınırı içinde PNG görsellerine dönüştürün."
+      },
+      "convert_text_to_file": {
+        "name": "Metinden dosyaya",
+        "description": "Metni run’ın bir UTF-8 TXT dosyası olarak saklayın."
+      },
+      "core_input": {
+        "name": "API isteği",
+        "description": "Bir HTTP isteğiyle veya WebSocket üzerinden, tanımladığınız girdiyle başlayın."
+      },
+      "core_output": {
+        "name": "Çıktı",
+        "description": "Workflow’un yanıtı: metin, kaynaklar, dosyalar ve yapılandırılmış bir değer."
+      },
+      "data_combine": {
+        "name": "Listeleri birleştir",
+        "description": "İki listeden tek bir liste oluşturun: art arda, konuma göre veya bir anahtara göre."
+      },
+      "data_filter": {
+        "name": "Listeyi filtrele",
+        "description": "Bir listenin koşulu sağlayan öğelerini tutun."
+      },
+      "data_map": {
+        "name": "Alanları eşle",
+        "description": "Önceki çıktılardan değerler seçin ve her birine bir tür verin."
+      },
+      "debug_echo": {
+        "name": "Yankı",
+        "description": "Girdisini değiştirmeden geri döndürür. Gerçek bir etkisi yoktur."
+      },
+      "debug_relay": {
+        "name": "Aktarıcı",
+        "description": "Yankılanan bir mesajı düz bir mesaj olarak iletir. Gerçek bir etkisi yoktur."
+      },
+      "decide_choose": {
+        "name": "Birini seç",
+        "description": "Jev’e seçeneklerinizden hangisinin bir metne uyduğunu sorun - bir kategori, bir kuyruk, bir niyet."
+      },
+      "decide_score": {
+        "name": "Puanla",
+        "description": "Jev’e bir metnin değerlendirme ölçütünüzde nerede durduğunu sorun - aciliyet, uygunluk, risk."
+      },
+      "decide_yes_no": {
+        "name": "Evet veya hayır",
+        "description": "Jev’e bir metin hakkında evet veya hayır sorusu sorun ve yanıta göre dallanın."
+      },
+      "email_send": {
+        "name": "E-posta gönder",
+        "description": "Bir SMTP hesabı veya platform göndericisi üzerinden en fazla on adrese e-posta gönderin."
+      },
+      "error_handle": {
+        "name": "Hatayı işle",
+        "description": "Bir başarısızlığı, hata koduna göre seçilen bir dala yönlendirin."
+      },
+      "error_raise": {
+        "name": "Hata oluştur",
+        "description": "Bu dalı, tanımladığınız bir hatayla başarısız kılın."
+      },
+      "file_read": {
+        "name": "Dosya oku",
+        "description": "Run’ın dosyalarından birini UTF-8 metin, JSON değeri veya CSV satırları olarak okuyun."
+      },
+      "file_write": {
+        "name": "Dosya yaz",
+        "description": "Metni, bir JSON değerini veya satırları run’ın yeni bir UTF-8 dosyası olarak saklayın."
+      },
+      "flow_await_reply": {
+        "name": "E-posta yanıtını bekle",
+        "description": "Bir posta konusundaki tek bir göndericiden kimliği doğrulanmış bir yanıt gelmesini ya da son sürenin dolmasını bekleyin."
+      },
+      "flow_resume_link": {
+        "name": "Devam bağlantısı",
+        "description": "Bu run’ın bir çağrı bekleyen Bekle adımlarını sürdüren adres."
+      },
+      "flow_wait": {
+        "name": "Bekle",
+        "description": "Run’ı bir süre veya belirli bir zamana kadar bekletin, sonra devam edin."
+      },
+      "html_parse": {
+        "name": "HTML ayrıştır",
+        "description": "HTML’den metnini, bağlantılarını ve bir CSS seçicinin seçtiklerini okuyun - hiçbir şey indirilmez veya çalıştırılmaz."
+      },
+      "http_download": {
+        "name": "Dosya indir",
+        "description": "HTTP üzerinden bir dosyayı akışla ve boyut sınırıyla run’a indirin; türü kendi baytlarından okunur."
+      },
+      "http_request": {
+        "name": "HTTP isteği",
+        "description": "SSRF korumasıyla ve vault’taki bir kimlik bilgisiyle bir HTTP API’si çağırın."
+      },
+      "http_upload": {
+        "name": "Dosya yükle",
+        "description": "Run’ın dosyalarından birini depolamadan akışla bir HTTP uç noktasına gönderin."
+      },
+      "human_approval": {
+        "name": "Onay iste",
+        "description": "Bir kişi onaylayana veya reddedene kadar bekleyin, sonra yanıtına göre devam edin."
+      },
+      "image_transform": {
+        "name": "Görseli dönüştür",
+        "description": "PNG, JPEG, WebP veya GIF görselini kırpın, yeniden boyutlandırın, döndürün ya da dönüştürün; meta verileri kaldırılır ve çözülmeden önce boyutu sınırlanır."
+      },
+      "knowledge_add": {
+        "name": "Bilgi tabanına ekle",
+        "description": "Agent’ların bulabilmesi için bir metni veya dosyayı bilgi tabanlarına ekleyin."
+      },
+      "knowledge_search": {
+        "name": "Bilgi tabanında ara",
+        "description": "Bilgi tabanlarında, sonraki bir adımın kaynak olarak kullanabileceği bölümler bulun."
+      },
+      "logic_if": {
+        "name": "Eğer / değilse",
+        "description": "Bir koşula göre iki daldan biriyle devam edin."
+      },
+      "logic_merge": {
+        "name": "Birleştir",
+        "description": "Dalları yeniden tek bir yolda birleştirin."
+      },
+      "logic_split": {
+        "name": "Dallara ayır",
+        "description": "Run’ı aynı anda birkaç dala gönderin."
+      },
+      "logic_switch": {
+        "name": "Yönlendir",
+        "description": "Birçok dal arasından kuralı sağlanan ilk dalla devam edin."
+      },
+      "loop_item": {
+        "name": "Döngü öğesi",
+        "description": "Döngünün bu yinelemesinde üzerinde çalışılan öğe."
+      },
+      "loop_yield": {
+        "name": "Döngü sonucu",
+        "description": "Döngünün bu yinelemesini bitirin ve sonucunu geri verin."
+      },
+      "mattermost_channels_find": {
+        "name": "Kanalları bul",
+        "description": "Botun bulunduğu bir Mattermost ekibinde kanalları ada göre bulun."
+      },
+      "mattermost_members_list": {
+        "name": "Üyeleri listele",
+        "description": "Bir Mattermost kanalındaki kişileri, bahsetmek için gereken ID’lerle listeleyin."
+      },
+      "mattermost_message_send": {
+        "name": "Mesaj gönder",
+        "description": "Botlarınızdan biri olarak bir Mattermost kanalına veya içindeki bir konuya mesaj gönderin."
+      },
+      "mattermost_messages_read": {
+        "name": "Mesajları oku",
+        "description": "Bir Mattermost kanalındaki veya konusundaki en son mesajları okuyun."
+      },
+      "mcp_call": {
+        "name": "MCP aracı çağır",
+        "description": "Kuruluşun MCP sunucularından birinde bir araç çağırın; araç bir şeyi değiştirmeden önce bir kişiye sorulur."
+      },
+      "notification_send": {
+        "name": "Üyeleri bilgilendir",
+        "description": "Üyeleri, açmayı seçtikleri bildirim kanalları üzerinden bilgilendirin."
+      },
+      "slack_channels_find": {
+        "name": "Kanalları bul",
+        "description": "Slack kanallarını ada göre bulun."
+      },
+      "slack_members_list": {
+        "name": "Üyeleri listele",
+        "description": "Bir Slack kanalındaki kişileri, bahsetmek için gereken ID’lerle listeleyin."
+      },
+      "slack_message_send": {
+        "name": "Mesaj gönder",
+        "description": "Botlarınızdan biri olarak bir Slack kanalına veya içindeki bir konuya mesaj gönderin."
+      },
+      "slack_messages_read": {
+        "name": "Mesajları oku",
+        "description": "Bir Slack kanalındaki veya konusundaki en son mesajları okuyun."
+      },
+      "table_create": {
+        "name": "Tablo oluştur",
+        "description": "Verilen sütunlarla yeni bir Sanal Tablo oluşturun."
+      },
+      "table_describe": {
+        "name": "Tabloyu incele",
+        "description": "Sonraki adımlar için bir tablonun adını ve güncel sütunlarını okuyun."
+      },
+      "table_exists": {
+        "name": "Tablo var mı?",
+        "description": "Bu ada sahip bir tablonun var olup olmadığına göre dallanın."
+      },
+      "table_list": {
+        "name": "Tabloları listele",
+        "description": "Bu run’ın görebildiği tabloları, adın bir kısmına göre bulup listeleyin."
+      },
+      "table_record_create": {
+        "name": "Kayıt ekle",
+        "description": "Bir Sanal Tabloya kayıt ekleyin."
+      },
+      "table_record_delete": {
+        "name": "Kaydı sil",
+        "description": "Bir kaydı silin. Geçmişi korunur."
+      },
+      "table_record_exists": {
+        "name": "Kayıt var mı?",
+        "description": "Bir tablodaki herhangi bir kaydın filtrelerinize uyup uymadığına göre dallanın."
+      },
+      "table_record_get": {
+        "name": "Kayıt bul",
+        "description": "Bir kaydı ID’sine veya harici ID’sine göre okuyun."
+      },
+      "table_record_query": {
+        "name": "Kayıtları listele",
+        "description": "Bir tablonun kayıtlarını filtreleyip sıralayarak listeleyin."
+      },
+      "table_record_update": {
+        "name": "Kaydı güncelle",
+        "description": "Bir kaydın bazı hücrelerini değiştirin."
+      },
+      "table_record_upsert": {
+        "name": "Kaydı sakla",
+        "description": "Harici ID’si olan kaydı oluşturun veya güncelleyin."
+      },
+      "telegram_members_list": {
+        "name": "Yöneticileri listele",
+        "description": "Bir Telegram sohbetinin yöneticilerini listeleyin - bir bota bildirilen yalnızca budur."
+      },
+      "telegram_message_send": {
+        "name": "Mesaj gönder",
+        "description": "Botlarınızdan biri olarak bir Telegram sohbetine mesaj gönderin."
+      },
+      "text_compare": {
+        "name": "Metinleri karşılaştır",
+        "description": "İki metnin ne kadar benzediğini model kullanmadan puanlayın - 1 aynı, 0 hiç ortak yanı yok."
+      },
+      "text_extract": {
+        "name": "Metin çıkar",
+        "description": "TXT, JSON, CSV, metin tabanlı PDF veya DOCX dosyasının metnini okuyun. Taranmış bir sayfa adımı başarısız kılar ve OCR gerektiğini bildirir."
+      },
+      "transform_aggregate": {
+        "name": "Bir araya getir",
+        "description": "Bir alanın tüm öğelerdeki değerlerini tek bir listede toplayın."
+      },
+      "transform_crypto": {
+        "name": "Kripto",
+        "description": "Metni hash’leyin veya kodlayın ya da bir ID veya rastgele bir değer üretin."
+      },
+      "transform_date_time": {
+        "name": "Tarih ve saat",
+        "description": "Şu an ya da kaydırılıp bir saat diliminde yazılmış bir an."
+      },
+      "transform_edit_fields": {
+        "name": "Alanları düzenle",
+        "description": "Bir listenin her öğesinde alanları ayarlayın, yeniden adlandırın veya kaldırın."
+      },
+      "transform_limit": {
+        "name": "Sınırla",
+        "description": "Bir listenin ilk veya son öğelerini tutun."
+      },
+      "transform_remove_duplicates": {
+        "name": "Yinelenenleri kaldır",
+        "description": "Bazı alanlarda eşit olan öğelerin her grubundan yalnızca birini tutun."
+      },
+      "transform_sort": {
+        "name": "Sırala",
+        "description": "Bir listenin öğelerini bir veya daha fazla alana göre sıralayın."
+      },
+      "transform_split_out": {
+        "name": "Öğelere ayır",
+        "description": "Her öğenin içindeki listeyi ayrı öğelere dönüştürün."
+      },
+      "transform_summarize": {
+        "name": "Özetle",
+        "description": "Öğeleri gruplara göre sayın, toplayın veya ortalamasını alın."
+      },
+      "trigger_channel_message": {
+        "name": "Kanal mesajı",
+        "description": "Slack, Mattermost veya Telegram botlarınızdan birine gelen bir mesaj."
+      },
+      "trigger_chat": {
+        "name": "Sohbet mesajı",
+        "description": "Bir üye sohbette mesaj gönderir ve yanıt vermek için bu workflow seçilmiştir."
+      },
+      "trigger_form": {
+        "name": "Form",
+        "description": "Biri, workflow’un herkese açık adresindeki bir formu doldurur."
+      },
+      "trigger_github": {
+        "name": "GitHub",
+        "description": "Bir GitHub deposunda bir şey olur - bir issue, bir pull request, bir push."
+      },
+      "trigger_gmail": {
+        "name": "Gmail",
+        "description": "Kuruluşun bağlı Gmail posta kutusuna yeni bir e-posta gelir."
+      },
+      "trigger_manual": {
+        "name": "Elle",
+        "description": "Düzenleyicide veya workflow’un run sayfasında Run düğmesine tıklayarak başlatın."
+      },
+      "trigger_outlook": {
+        "name": "Outlook",
+        "description": "Kuruluşun bağlı Microsoft 365 posta kutusundaki bir klasöre yeni bir e-posta gelir."
+      },
+      "trigger_schedule": {
+        "name": "Zamanlama",
+        "description": "Saate göre çalışır: belirli aralıklarla veya UTC’de bir cron ifadesine göre."
+      },
+      "trigger_table_record": {
+        "name": "Tablo kaydı",
+        "description": "Bir tabloya kayıt eklenir, bir kayıt değiştirilir veya silinir ve filtrelere uyar."
+      },
+      "trigger_webhook": {
+        "name": "Webhook",
+        "description": "İmzalı bir HTTP teslimatı bu workflow’un kendi adresine ulaşır."
+      },
+      "trigger_workflow_call": {
+        "name": "Workflow’dan çağrıldığında",
+        "description": "Başka bir workflow’daki Workflow çalıştır adımı, bunu tanımladığı alanlarla başlatır."
+      },
+      "trigger_workflow_failed": {
+        "name": "Workflow başarısız olduğunda",
+        "description": "Bunu hata workflow’u olarak belirleyen bir workflow’un run’ı başarısız olur."
+      },
+      "webhook_respond": {
+        "name": "Webhook’a yanıt ver",
+        "description": "Run’ı başlatan webhook çağrısını yanıtlayın: bir durum kodu, header’lar ve bir gövde."
+      },
+      "workflow_run": {
+        "name": "Workflow çalıştır",
+        "description": "Başka bir workflow’u bir adım olarak çalıştırın ve yanıtını aktarın."
+      }
+    },
+    "port": {
+      "approved": "Onaylandı",
+      "chosen": "Seçildi",
+      "deadline_reached": "Süre doldu",
+      "default": "Varsayılan",
+      "done": "Tamamlandı",
+      "error": "Hata",
+      "false": "Yanlış",
+      "in": "Giriş",
+      "no": "Hayır",
+      "other": "Diğer",
+      "otherwise": "Aksi halde",
+      "out": "Çıkış",
+      "rejected": "Reddedildi",
+      "reply_received": "Yanıt geldi",
+      "scored": "Puanlandı",
+      "true": "Doğru",
+      "unsure": "Emin değil",
+      "yes": "Evet"
     }
   }
 }

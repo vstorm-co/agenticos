@@ -78,7 +78,11 @@ the same list.
 
 **More → Settings** contains the workflow's name, description, tags and runtime settings, saved automatically. The step editor fills the available window: Input on the left, Parameters and Settings in the middle, Output on the right. Triggers use two panes because they have no incoming data. Each pane scrolls independently on larger screens; phones use one scrolling column. Recorded executions show the parameters read-only beside their data. Record values are fields named after table columns. Notes offer Open note, size presets and resize handles.
 
-The app picker includes catalog MCP servers before they are connected; its generic Call an MCP tool entry is hidden. Connect a service in place, then choose one of its discovered tools. The connection's allowlist remains enforced. The canvas starts with colored steps and a minimap. AI model steps expose instructions, temperature and reasoning effort; unset controls retain provider defaults. Jev decisions expose their model, question and confidence threshold. Send an email uses the platform sender, or connects Gmail or Outlook and switches to that mailbox's actual MCP tool after confirmation. Switching clears incompatible input mappings and is undoable.
+The app picker includes catalog MCP servers before they are connected; its generic Call an MCP tool entry is hidden, and those nobody has connected wait under **more apps to connect** at the end of their section. Connect a service in place, then choose one of its discovered tools. The connection's allowlist remains enforced.
+
+The canvas starts with colored steps and a minimap.
+
+AI model steps expose instructions, temperature and reasoning effort; unset controls retain provider defaults. **Decisions** steps, answered by the Jev decision model, expose their model, question and confidence threshold. Send an email uses the platform sender, or connects Gmail or Outlook and switches to that mailbox's actual MCP tool after confirmation. Switching clears incompatible input mappings and is undoable.
 
 The **Send an email** step also offers **SMTP account → New SMTP account**. Enter the server, port, username, password and sender in the vault dialog. STARTTLS usually uses 587; implicit TLS usually uses 465, with certificate verification in both modes. Only `smtp_secret_id` is stored in the workflow. Select **Platform sender** to clear it. Publication and execution enforce secret access; an unavailable account fails instead of silently changing senders.
 
@@ -128,7 +132,7 @@ pinch - or Ctrl or Cmd with the wheel - zooms it; its controls sit in the corner
 
 Steps are chosen in the **step picker**. It lists sections - **Start**, **AI**,
 **Flow**, **Data**, **Apps and the web** - with the groups under each. A group such
-as **Slack**, **Tables** or **Jev decisions** opens to its steps, and a group of one
+as **Slack**, **Tables** or **Decisions** opens to its steps, and a group of one
 step is that step. **Search steps** finds any step by its name, what it does or its
 group. You add a step four ways:
 

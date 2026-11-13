@@ -1,5 +1,5 @@
 ---
-source_sha: "d4ebadc86d2b"
+source_sha: "3740db7b4663"
 ---
 
 # Workflows { #workflows }
@@ -86,7 +86,11 @@ un enlace compartido muestran la misma lista.
 
 **More → Settings** contiene el nombre, la descripción, las etiquetas y los ajustes de ejecución; los cambios se guardan automáticamente. El editor ocupa la ventana disponible: Input a la izquierda, Parameters y Settings en el centro y Output a la derecha. Los disparadores usan dos paneles porque no reciben datos anteriores. En pantallas grandes cada panel se desplaza por separado; en móviles hay una columna. Las ejecuciones guardadas muestran sus parámetros de solo lectura junto a sus datos. Los valores del registro usan los nombres de las columnas. Las notas ofrecen Open note, tamaños y controles para redimensionar.
 
-El selector muestra servidores del catálogo MCP antes de conectarlos; la entrada genérica Call an MCP tool está oculta. Conecta un servicio y elige una de sus herramientas descubiertas. Se mantiene la lista de herramientas permitidas. Los pasos de colores y el minimapa están activos por defecto. Los pasos de modelos muestran instrucciones, temperatura y esfuerzo; los ajustes vacíos conservan los valores del proveedor. Jev muestra modelo, pregunta y umbral de confianza. Send an email usa el remitente de la plataforma o conecta Gmail u Outlook y, tras confirmar, cambia a la herramienta MCP real del buzón. El cambio elimina asignaciones incompatibles y se puede deshacer.
+El selector muestra servidores del catálogo MCP antes de conectarlos; la entrada genérica Call an MCP tool está oculta, y los que nadie ha conectado esperan bajo **apps para conectar** al final de su sección. Conecta un servicio y elige una de sus herramientas descubiertas. Se mantiene la lista de herramientas permitidas.
+
+Los pasos de colores y el minimapa están activos por defecto.
+
+Los pasos de modelos muestran instrucciones, temperatura y esfuerzo; los ajustes vacíos conservan los valores del proveedor. Los pasos de **Decisions**, que responde el modelo de decisión Jev, muestran modelo, pregunta y umbral de confianza. Send an email usa el remitente de la plataforma o conecta Gmail u Outlook y, tras confirmar, cambia a la herramienta MCP real del buzón. El cambio elimina asignaciones incompatibles y se puede deshacer.
 
 El paso **Send an email** también ofrece **SMTP account → New SMTP account**. Guarda servidor, puerto, usuario, contraseña y remitente en el diálogo del vault. STARTTLS suele usar 587 y TLS implícito 465; ambos verifican certificados. El workflow solo guarda `smtp_secret_id`. **Platform sender** elimina la selección. La publicación y cada ejecución comprueban el acceso al secreto; una cuenta no disponible detiene el paso en lugar de cambiar de remitente.
 
@@ -138,7 +142,7 @@ un pellizco - o Ctrl o Cmd con la rueda - lo amplía; sus controles están en la
 
 Los pasos se eligen en el **selector de pasos**. Muestra secciones - **Start**, **AI**,
 **Flow**, **Data**, **Apps and the web** - con sus grupos debajo. Un grupo como
-**Slack**, **Tables** o **Jev decisions** se abre a sus pasos, y un grupo de un solo
+**Slack**, **Tables** o **Decisions** se abre a sus pasos, y un grupo de un solo
 paso es ese paso. **Search steps** encuentra cualquier paso por su nombre, por lo que
 hace o por su grupo. Añades un paso de cuatro maneras:
 
