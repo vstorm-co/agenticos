@@ -61,8 +61,9 @@ describe("ApprovalVerdict", () => {
         output={{
           decision: "approved",
           edited: true,
-          original: "Refund 40 EUR",
-          final: "Refund 45 EUR",
+          original:
+            "Hello,\nthe order\nis on\nits way\nsoon.\nThanks\nfor\nwaiting.\nRefund 40 EUR",
+          final: "Hello,\nthe order\nis on\nits way\nsoon.\nThanks\nfor\nwaiting.\nRefund 45 EUR",
         }}
       />,
     );
@@ -70,6 +71,8 @@ describe("ApprovalVerdict", () => {
     expect(screen.queryByText("Refund 45 EUR")).toBeNull();
     await userEvent.click(toggle);
     expect(screen.getByText("Refund 45 EUR")).toBeTruthy();
+    // Lines the approver left alone fold into a count.
+    expect(screen.getByText(/^\d+ unchanged lines?$/)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Hide changes" })).toHaveAttribute(
       "aria-expanded",
       "true",
