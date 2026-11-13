@@ -376,7 +376,7 @@
         "computer": "Ten komputer",
         "notLinked": "Wybierz folder lub Cały komputer, aby połączyć aplikację i zatwierdzić dostęp.",
         "linking": "Łączenie…",
-        "offline": "Ten komputer nie jest teraz połączony; uruchomienie poczeka, aż wróci.",
+        "offline": "Ten komputer nie jest teraz połączony; run poczeka, aż wróci.",
         "folders": "Foldery",
         "pick": "Wybierz folder…",
         "folderAccess": "Dostęp do folderu",
@@ -870,7 +870,7 @@
       "workedInText": "Popracował nad tym w trybie tekstowym",
       "workflowsListing": "Sprawdza, które workflow może uruchomić",
       "workflowRunning": "Uruchamia workflow",
-      "workflowRunReading": "Sprawdza przebieg workflow",
+      "workflowRunReading": "Sprawdza run workflow",
       "activeTasks": "Aktywne zadania",
       "addStep": "Dodaj krok",
       "addSubtask": "Dodaj podzadanie",
@@ -1456,7 +1456,7 @@
     },
     "turnLost": "Agent przerwał, zanim odpowiedział - serwer, na którym działał, przestał odpowiadać.",
     "turnLostAskAgain": "Zapytaj ponownie",
-    "waitingForComputer": "Czekam na twój komputer. Otwórz na nim aplikację AgenticOS, a uruchomienie będzie kontynuowane…",
+    "waitingForComputer": "Czekam na twój komputer. Otwórz na nim aplikację AgenticOS, a run będzie kontynuowany…",
     "browserShownInPanel": "{host} jest otwarte w panelu przeglądarki",
     "browserOpenPanel": "Otwórz obok czatu",
     "browserDock": "Wróć obok czatu",
@@ -3517,9 +3517,9 @@
         "historyOf": "Historia: {name}",
         "historyTitle": "Co zrobił {name}",
         "historyEmpty": "Od włączenia nic nie stało się z żadnym rekordem.",
-        "openRun": "Otwórz uruchomienie",
+        "openRun": "Otwórz run",
         "status": {
-          "queued": "Rozpoczął uruchomienie",
+          "queued": "Rozpoczął run",
           "filtered": "Pominięty",
           "blocked": "Zablokowany",
           "failed": "Nie udało się uruchomić"
@@ -3527,7 +3527,7 @@
         "reason": {
           "filter_mismatch": "Rekord nie pasował do filtrów",
           "pre_activation": "Dodany, zanim wyzwalacz włączono",
-          "cycle": "Uruchomiłby sam siebie ponownie przez własne uruchomienie",
+          "cycle": "Uruchomiłby sam siebie ponownie przez własny run",
           "depth_limit": "Zbyt wiele wyzwalaczy w głąb",
           "quota": "Zbyt wiele uruchomień naraz",
           "permission_denied": "Członek, w którego imieniu działa, nie może go już uruchomić",
@@ -3591,9 +3591,9 @@
       },
       "notFound": "Nie znaleziono workflow",
       "notFoundDetail": "Ten workflow nie istnieje albo nie jest Ci udostępniony.",
-      "runsTitle": "Uruchomienia",
-      "runsDescription": "Każde uruchomienie tego workflow, od najnowszego: co je rozpoczęło, jak poszło i ile kosztowało.",
-      "runTitle": "Uruchomienie {id}",
+      "runsTitle": "Runy",
+      "runsDescription": "Każdy run tego workflow, od najnowszego: co go rozpoczęło, jak przebiegł i ile kosztował.",
+      "runTitle": "Run {id}",
       "history": "Wersje",
       "viewMode": "Przełącz na podgląd",
       "editMode": "Przełącz na edycję",
@@ -3604,9 +3604,9 @@
       },
       "neverPublished": "Nieopublikowany",
       "editedWhen": "edytowano {when}",
-      "runsFor": "Uruchomienia {name}",
-      "runStarted": "Rozpoczęto uruchomienie",
-      "runCancelled": "Anulowano uruchomienie",
+      "runsFor": "Runy {name}",
+      "runStarted": "Rozpoczęto run",
+      "runCancelled": "Anulowano run",
       "runStatus": {
         "budget_exceeded": "Budżet wyczerpany",
         "failed": "Nieudane",
@@ -3632,8 +3632,8 @@
         "starting": "Uruchamia się",
         "switchedOff": "Wyłączony"
       },
-      "startRun": "Rozpocznij uruchomienie",
-      "startRunTitle": "Rozpocznij uruchomienie",
+      "startRun": "Uruchom run",
+      "startRunTitle": "Uruchom run",
       "startRunDescription": "Wejście to to, co krok Input workflow przekazuje dalej jako payload.",
       "startRunMode": "Uruchom",
       "modeTest": "Przetestuj wersję roboczą",
@@ -3663,7 +3663,7 @@
         "table_updated": "Zmieniony rekord",
         "table_deleted": "Usunięty rekord",
         "workflow_call": "Inny workflow",
-        "workflow_failed": "Nieudany przebieg",
+        "workflow_failed": "Nieudany run",
         "agent": "Agent",
         "form": "Formularz",
         "channel_message": "Wiadomość na kanale",
@@ -3672,19 +3672,19 @@
         "outlook": "Outlook",
         "app": "Strona"
       },
-      "runsCount": "{count, plural, one {# uruchomienie} few {# uruchomienia} many {# uruchomień} other {# uruchomienia}}",
+      "runsCount": "{count, plural, one {# run} few {# runy} many {# runów} other {# runa}}",
       "runsEmpty": "Nie ma jeszcze uruchomień",
-      "runsEmptyDetail": "Rozpocznij uruchomienie, żeby przetestować wersję roboczą, albo opublikuj i pozwól go wyzwalać.",
-      "runTestDescription": "Testowe uruchomienie wersji roboczej takiej, jaka była w chwili startu.",
-      "runRealDescription": "Uruchomienie opublikowanej wersji.",
-      "cancelRun": "Anuluj uruchomienie",
+      "runsEmptyDetail": "Uruchom run, żeby przetestować wersję roboczą, albo opublikuj i pozwól go wyzwalać.",
+      "runTestDescription": "Testowy run wersji roboczej takiej, jaka była w chwili startu.",
+      "runRealDescription": "Run opublikowanej wersji.",
+      "cancelRun": "Anuluj run",
       "runDuration": "Czas",
       "runCost": "Koszt",
       "runBudget": "z budżetu ${limit}",
       "runSteps": "Wykonane kroki",
       "runOutput": "Wynik",
-      "runOutputPending": "Wynik pojawi się, gdy uruchomienie dojdzie do kroku Output.",
-      "runOutputNone": "To uruchomienie zakończyło się bez wyniku.",
+      "runOutputPending": "Wynik pojawi się, gdy run dojdzie do kroku Output.",
+      "runOutputNone": "Ten run zakończył się bez wyniku.",
       "runStepList": "Kroki",
       "runLogsFailed": "Nie udało się odczytać wierszy zapisanych przez kroki.",
       "runStepIteration": "Iteracja {index}",
@@ -3692,10 +3692,10 @@
       "triggers": "Wyzwalacz",
       "copied": "Skopiowano",
       "copyNamed": "Kopiuj {name}",
-      "exposureCallDescription": "Każdy, kto może uruchamiać ten workflow, może go uruchomić przez HTTP API, jako on sam. Nic nie trzeba konfigurować: uruchomienie korzysta z aktywnej wersji i jest rozliczane oraz audytowane tak jak uruchomione tutaj.",
+      "exposureCallDescription": "Każdy, kto może uruchamiać ten workflow, może go uruchomić przez HTTP API, jako on sam. Nic nie trzeba konfigurować: run korzysta z aktywnej wersji i jest rozliczany oraz audytowany tak jak run uruchomiony tutaj.",
       "exposureApiLabel": "Endpoint",
       "exposureApiBody": "Treść żądania",
-      "exposureSocketNote": "Żeby śledzić uruchomienie na bieżąco, otwórz WebSocket pod /api/v1/ws/workflow-runs i wyślij ramkę start albo attach; ponowne połączenie podejmuje od ostatniego zdarzenia, które widziało.",
+      "exposureSocketNote": "Żeby śledzić run na bieżąco, otwórz WebSocket pod /api/v1/ws/workflow-runs i wyślij ramkę start albo attach; ponowne połączenie podejmuje od ostatniego zdarzenia, które widziało.",
       "exposureCadence": "Uruchamia",
       "exposureCadenceInterval": "Co…",
       "exposureCadenceDaily": "Codziennie o ustalonej godzinie",
@@ -3715,7 +3715,7 @@
       "exposurePaused": "Wstrzymany",
       "exposureVersion": "Uruchamia v{version}",
       "exposureNextFire": "Następne {when}",
-      "exposureLastRun": "Ostatnie uruchomienie",
+      "exposureLastRun": "Ostatni run",
       "webhookReadyTitle": "Twój webhook jest gotowy",
       "webhookReadyDescription": "Skieruj nadawcę na ten adres i podpisuj każdą dostawę sekretem.",
       "webhookUrl": "Adres webhooka",
@@ -3726,8 +3726,8 @@
       "webhookSigningDelivery": "X-Delivery-Id: identyfikator dostawy. Ponowienie wysyła ten sam identyfikator, a workflow uruchamia się raz.",
       "webhookReadyDone": "Gotowe",
       "runFiles": "Pliki",
-      "runFilesCaption": "Co zapisały kroki tego uruchomienia",
-      "runFilesNone": "To uruchomienie nie zapisało żadnych plików.",
+      "runFilesCaption": "Co zapisały kroki tego runa",
+      "runFilesNone": "Ten run nie zapisał żadnych plików.",
       "runFileDownload": "Pobierz {name}",
       "catalog": "Workflow",
       "shownCount": "{count, plural, =1 {1 workflow} other {# workflow}}",
@@ -3789,7 +3789,7 @@
         },
         "tableRecord": {
           "name": "Rekord w tabeli",
-          "description": "Rekord dodany do tabeli, zmieniony lub usunięty uruchamia przebieg z tym rekordem."
+          "description": "Rekord dodany do tabeli, zmieniony lub usunięty uruchamia run z tym rekordem."
         },
         "api": {
           "name": "API request",
@@ -3797,7 +3797,7 @@
         },
         "workflowFailed": {
           "name": "Po nieudanym przebiegu workflow",
-          "description": "Nieudany przebieg innego workflow uruchamia go, z informacją, co zawiodło."
+          "description": "Nieudany run innego workflow uruchamia go, z informacją, co zawiodło."
         },
         "workflowCall": {
           "name": "Wywołany przez workflow",
@@ -3845,8 +3845,8 @@
       "liveRunClose": "Ukryj run",
       "activeOn": "Aktywny",
       "activeOff": "Wstrzymany",
-      "activeHintOn": "Jego wyzwalacz sam uruchamia przebiegi. Wyłącz, aby go wstrzymać.",
-      "activeHintOff": "Jego wyzwalacz jest wstrzymany. Włącz, aby znów uruchamiał przebiegi.",
+      "activeHintOn": "Jego wyzwalacz sam uruchamia runy. Wyłącz, aby go wstrzymać.",
+      "activeHintOff": "Jego wyzwalacz jest wstrzymany. Włącz, aby znów uruchamiał runy.",
       "activeTurnedOn": "Workflow włączony.",
       "activeTurnedOff": "Workflow wstrzymany.",
       "addTag": "Tag",
@@ -3860,7 +3860,7 @@
       "restore": "Przywróć",
       "delete": "Usuń",
       "deleteTitle": "Usunąć {name}?",
-      "deleteDescription": "Jego wersje, przebiegi i udostępnienia znikną razem z nim i nie da się tego cofnąć. Workflow z trwającymi przebiegami nie zostanie usunięty.",
+      "deleteDescription": "Jego wersje, runy i udostępnienia znikną razem z nim i nie da się tego cofnąć. Workflow z trwającymi runami nie zostanie usunięty.",
       "searchPlaceholder": "Szukaj workflow",
       "filterByTag": "Filtruj po tagu",
       "allTags": "Wszystkie tagi",
@@ -3870,9 +3870,9 @@
         "name": "Nazwa",
         "created": "Najnowsze"
       },
-      "allRuns": "Przebiegi",
-      "allRunsTitle": "Przebiegi workflow",
-      "allRunsDescription": "Każdy przebieg workflow, które widzisz, od najnowszego.",
+      "allRuns": "Runy",
+      "allRunsTitle": "Runy workflow",
+      "allRunsDescription": "Każdy run workflow, które widzisz, od najnowszego.",
       "runRetryMark": "ponowienie",
       "runModeTest": "Wersja robocza (test)",
       "runModeReal": "Opublikowana",
@@ -3881,7 +3881,7 @@
       "runFilterAnyTrigger": "Dowolny wyzwalacz",
       "runFilterAnySince": "Dowolny czas",
       "runStepsOf": "{done} z {count}",
-      "runAnswerEmpty": "Przebieg zakończył się bez odpowiedzi.",
+      "runAnswerEmpty": "Run zakończył się bez odpowiedzi.",
       "runAnswerSources": "{count, plural, one {# źródło} few {# źródła} many {# źródeł} other {# źródła}}",
       "runAnswerSource": "{file} · {collection}",
       "runAnswerSourcePage": "{file} · {collection} · strona {page}",
@@ -3892,10 +3892,10 @@
       "runFilterStatus": "Status",
       "runFilterMode": "Wersja",
       "runFilterTrigger": "Uruchomione przez",
-      "runsNoMatch": "Żaden przebieg nie pasuje",
-      "runsNoMatchDetail": "Usuń filtr, by zobaczyć więcej przebiegów.",
+      "runsNoMatch": "Żaden run nie pasuje",
+      "runsNoMatchDetail": "Usuń filtr, by zobaczyć więcej runów.",
       "logsTitle": "Logi",
-      "logsDescription": "Co szybkie logi tego workflow zapisały w jego uruchomieniach, od najnowszych.",
+      "logsDescription": "Co szybkie logi tego workflow zapisały w jego runach, od najnowszych.",
       "logsCount": "{count, plural, =0 {Brak wierszy} one {# wiersz} few {# wiersze} many {# wierszy} other {# wiersza}}",
       "logColumns": {
         "time": "Czas",
@@ -3905,20 +3905,20 @@
         "actions": "Akcje"
       },
       "logSearch": "Szukaj w wiadomościach",
-      "logFilterRun": "Uruchomienie: wklej identyfikator lub jego początek",
-      "logShowOnlyRun": "Pokaż tylko to uruchomienie",
-      "logClearRun": "Wyczyść filtr uruchomienia",
+      "logFilterRun": "Run: wklej identyfikator lub jego początek",
+      "logShowOnlyRun": "Pokaż tylko ten run",
+      "logClearRun": "Wyczyść filtr runa",
       "logFilterStep": "Krok",
       "logFilterAnyStep": "Dowolny krok",
       "logFilterOutcome": "Wynik",
       "logFilterAnyOutcome": "Dowolny wynik",
       "logFilterSince": "Zapisane",
       "logFilterAnySince": "Kiedykolwiek",
-      "logIncludeTest": "Uwzględnij uruchomienia testowe",
+      "logIncludeTest": "Uwzględnij runy testowe",
       "logTest": "test",
       "logPinned": "przypięty",
       "logsEmpty": "Nic jeszcze nie zalogowano",
-      "logsEmptyDetail": "Dodaj szybki log do kroku w edytorze. Za każdym razem, gdy ten krok kończy się w uruchomieniu, zapisze tu wiersz.",
+      "logsEmptyDetail": "Dodaj szybki log do kroku w edytorze. Za każdym razem, gdy ten krok kończy się w runie, zapisze tu wiersz.",
       "logsNoMatch": "Żaden wiersz nie pasuje",
       "logsNoMatchDetail": "Usuń filtr, aby zobaczyć więcej wierszy.",
       "logsFailed": "Nie udało się odczytać logu",
@@ -3987,31 +3987,31 @@
       "stepUseLate": "Użyj tego wyniku",
       "stepTreatAsFailed": "Uznaj za nieudany",
       "stepUseErrorRoute": "Przejdź jego ścieżką błędu",
-      "stepFailRun": "Zakończ uruchomienie błędem",
+      "stepFailRun": "Zakończ run błędem",
       "stepResolved": "Krok rozstrzygnięty",
-      "runStepFinishedLate": "Zakończył się po zatrzymaniu uruchomienia.",
+      "runStepFinishedLate": "Zakończył się po zatrzymaniu runa.",
       "runRetryOf": "Ponawia",
       "runDebug": "Debuguj w edytorze",
       "runSeeInLogs": "Zobacz w logach",
-      "runDebugPinned": "{count, plural, =0 {Z tego przebiegu nie ma czego przypiąć} one {Przypięto dane # kroku z przebiegu} few {Przypięto dane # kroków z przebiegu} many {Przypięto dane # kroków z przebiegu} other {Przypięto dane # kroku z przebiegu}}",
+      "runDebugPinned": "{count, plural, =0 {Z tego runa nie ma czego przypiąć} one {Przypięto dane # kroku z runa} few {Przypięto dane # kroków z runa} many {Przypięto dane # kroków z runa} other {Przypięto dane # kroku z runa}}",
       "settings": "Ustawienia",
-      "settingsIntro": "Z czym ten workflow jest uruchamiany. Należą do workflow, nie do wersji: każdy przebieg rozpoczęty po zmianie ją przyjmuje.",
+      "settingsIntro": "Z czym ten workflow jest uruchamiany. Należą do workflow, nie do wersji: każdy run rozpoczęty po zmianie ją przyjmuje.",
       "settingsTimezone": "Strefa czasowa",
       "settingsTimezoneHint": "W niej czytane jest wyrażenie cron harmonogramu. Bez ustawienia UTC.",
       "settingsDeadline": "Domyślny termin (minuty)",
       "settingsDeadlineNone": "Bez terminu",
-      "settingsDeadlineHint": "Przebieg, któremu nic nie nadało terminu, przestaje uruchamiać kroki po tym czasie od startu.",
+      "settingsDeadlineHint": "Run, któremu nic nie nadało terminu, przestaje uruchamiać kroki po tym czasie od startu.",
       "settingsErrorWorkflow": "Workflow błędów",
       "settingsErrorWorkflowNone": "Brak",
       "settingsErrorWorkflowGone": "Workflow, którego nie można już wybrać",
-      "settingsErrorWorkflowHint": "Uruchamiany raz, gdy przebieg tego workflow się nie powiedzie, jako ty. Opublikuj go z wyzwalaczem On failure of a workflow, by móc go tu wybrać.",
-      "settingsRetention": "Przechowuj przebiegi (dni)",
+      "settingsErrorWorkflowHint": "Uruchamiany raz, gdy run tego workflow się nie powiedzie, jako ty. Opublikuj go z wyzwalaczem On failure of a workflow, by móc go tu wybrać.",
+      "settingsRetention": "Przechowuj runy (dni)",
       "settingsRetentionForever": "Na zawsze",
-      "settingsKeepSucceeded": "Przechowuj udane przebiegi",
-      "settingsRetentionHint": "Przebieg i zapisane przez niego pliki są usuwane po tym czasie od końca. Udane przebiegi, których nie przechowujesz, znikają następnego dnia.",
+      "settingsKeepSucceeded": "Przechowuj udane runy",
+      "settingsRetentionHint": "Run i zapisane przez niego pliki są usuwane po tym czasie od końca. Udane runy, których nie przechowujesz, znikają następnego dnia.",
       "settingsSave": "Zapisz ustawienia",
       "settingsSaved": "Ustawienia zapisane",
-      "triggerWorkflowFailedLive": "Uruchamiany raz dla każdego nieudanego przebiegu workflow, którego ustawienia wskazują ten jako workflow błędów, z informacją, co zawiodło.",
+      "triggerWorkflowFailedLive": "Uruchamiany raz dla każdego nieudanego runa workflow, którego ustawienia wskazują ten jako workflow błędów, z informacją, co zawiodło.",
       "triggerWorkflowCallLive": "Uruchamiany przez krok Run a workflow innego workflow, z polami zadeklarowanymi poniżej. Nie da się go uruchomić ręcznie ani przez API.",
       "exportWorkflow": "Eksportuj workflow",
       "importWorkflow": "Importuj",
@@ -4039,9 +4039,9 @@
         "workflow_failed": "Uruchomione po niepowodzeniu",
         "other": "Uruchomione przez"
       },
-      "runCausedByHidden": "uruchomienie, którego nie możesz otworzyć",
-      "runOpenCalled": "Otwórz uruchomienie {id}",
-      "liveRunStale": "Graf zmienił się od ostatniego przebiegu testowego.",
+      "runCausedByHidden": "run, którego nie możesz otworzyć",
+      "runOpenCalled": "Otwórz run {id}",
+      "liveRunStale": "Graf zmienił się od ostatniego runa testowego.",
       "moreActions": "Więcej",
       "statusArchived": "Zarchiwizowany",
       "statusNeverPublished": "Szkic, nieopublikowany",
@@ -4150,7 +4150,7 @@
       "replyPaused": "Oczekiwanie wstrzymane: {sender}, termin {deadline}",
       "replyWaiting": "Oczekiwanie na {sender} do {deadline}",
       "replyEdit": "Zmień oczekiwanie na odpowiedź",
-      "replyScope": "Skrzynka: {provider} · {account}. Zmiana konta wymaga nowego uruchomienia.",
+      "replyScope": "Skrzynka: {provider} · {account}. Zmiana konta wymaga nowego runa.",
       "replyThread": "Identyfikator wątku u dostawcy",
       "replySender": "Oczekiwany nadawca",
       "replyAfter": "Otrzymano po (ISO 8601 ze strefą czasową)",
@@ -4240,7 +4240,7 @@
       "cancel": "Anuluj",
       "pipeline": "Otwórz pipeline wdrożenia",
       "confirmTitle": "Wykonać przygotowaną aktualizację?",
-      "confirmHint": "Nowe zadania zostaną wstrzymane, a trwające uruchomienia zakończą pracę. Przed migracją powstanie świeża kopia bazy, plików media i konfiguracji. API i frontend uruchomią się ponownie; dostęp wróci po sprawdzeniu gotowości.",
+      "confirmHint": "Nowe zadania zostaną wstrzymane, a trwające runy zakończą pracę. Przed migracją powstanie świeża kopia bazy, plików media i konfiguracji. API i frontend uruchomią się ponownie; dostęp wróci po sprawdzeniu gotowości.",
       "steps": {
         "prepare": "Przygotowanie",
         "backup": "Kopia",
@@ -4310,7 +4310,7 @@
         "reconnect": "Podłącz ponownie",
         "disconnect": "Odłącz {email}",
         "disconnectTitle": "Odłączyć {email}?",
-        "disconnectDetail": "Agenci czytający to konto stracą jego foldery przy następnym uruchomieniu. Zgoda zostanie usunięta z vault.",
+        "disconnectDetail": "Agenci czytający to konto stracą jego foldery przy następnym runie. Zgoda zostanie usunięta z vault.",
         "disconnectConfirm": "Odłącz"
       }
     },
@@ -4654,7 +4654,7 @@
         "subline": "uruchomiło agenta w tym okresie",
         "empty": {
           "title": "Nikt nic nie uruchomił",
-          "description": "Adopcja zaczyna się od pierwszego uruchomienia pierwszej osoby."
+          "description": "Adopcja zaczyna się od pierwszego runa pierwszej osoby."
         },
         "description": "Ilu członków zespołu uruchomiło agenta w tym okresie.",
         "ofMembers": "{total, plural, =1 {z 1 osoby} few {z # osób} many {z # osób} other {z # osób}}",
@@ -4679,7 +4679,7 @@
           "title": "Nic nie czeka",
           "description": "Każde zatwierdzenie zostało rozstrzygnięte. Ta karta zasługuje na miejsce, będąc pustą."
         },
-        "description": "Uruchomienia wstrzymane na wywołaniu narzędzia, czekające na decyzję.",
+        "description": "Runy wstrzymane na wywołaniu narzędzia, czekające na decyzję.",
         "someAgent": "Agent",
         "forPerson": "dla {email} · czeka {ago}",
         "forChatAccount": "dla {name} (konto niezweryfikowane) · czeka {ago}"
@@ -4744,10 +4744,10 @@
         "p95": "Najwolniejsze 5% (p95)",
         "empty": {
           "title": "Brak ukończonych uruchomień",
-          "description": "Opóźnienie wymaga co najmniej jednego zakończonego uruchomienia."
+          "description": "Opóźnienie wymaga co najmniej jednego zakończonego runa."
         },
         "viewSlowest": "Otwórz te runy, od najwolniejszego",
-        "description": "Ile trwają uruchomienia - mediana i ogon rozkładu.",
+        "description": "Ile trwają runy - mediana i ogon rozkładu.",
         "tail": "Najwolniejsze 5% trwa {ratio}× dłużej niż mediana"
       },
       "mcp-health": {
@@ -4780,11 +4780,11 @@
         "unit": "{count, plural, one {członek} few {członkowie} many {członków} other {członków}}"
       },
       "model-mix": {
-        "title": "Modele za uruchomieniami",
+        "title": "Modele za runami",
         "notRecorded": "nie zarejestrowano",
         "empty": {
           "title": "Brak uruchomień w tym okresie",
-          "description": "Podział modeli pojawi się z pierwszym uruchomieniem."
+          "description": "Podział modeli pojawi się z pierwszym runem."
         },
         "modelRepaired": "{model} · naprawione: {repaired}",
         "description": "Które modele stoją za runami - tak, jak zapisał to każdy run.",
@@ -4798,7 +4798,7 @@
           "title": "Brak Twoich uruchomień",
           "description": "Uruchom dowolnego agenta - Twoja historia pokaże się tutaj, tylko Tobie."
         },
-        "description": "Twoje własne uruchomienia i to, co czeka na decyzję."
+        "description": "Twoje własne runy i to, co czeka na decyzję."
       },
       "my-agents": {
         "title": "Twoi agenci",
@@ -4824,7 +4824,7 @@
       },
       "my-top-agents": {
         "title": "Agenci, których używasz najczęściej",
-        "subline": "Twoje własne uruchomienia w tym okresie - niczyje inne.",
+        "subline": "Twoje własne runy w tym okresie - niczyje inne.",
         "empty": {
           "title": "Brak Twoich uruchomień",
           "description": "Uruchom dowolnego agenta - Twoi ulubieńcy pojawią się tutaj."
@@ -4854,9 +4854,9 @@
         },
         "empty": {
           "title": "Brak uruchomień w tym okresie",
-          "description": "Podział wyników pojawi się z pierwszym uruchomieniem."
+          "description": "Podział wyników pojawi się z pierwszym runem."
         },
-        "description": "Jak kończyły się uruchomienia - ukończone, nieudane, po przekroczeniu budżetu, oczekujące."
+        "description": "Jak kończyły się runy - ukończone, nieudane, po przekroczeniu budżetu, oczekujące."
       },
       "platform": {
         "title": "Platforma w skrócie",
@@ -4886,16 +4886,16 @@
         "unknownAgent": "Nieznany agent",
         "budgetExceeded": "budżet przekroczony w trakcie",
         "failed": "nieudane",
-        "open": "Otwórz uruchomienia",
+        "open": "Otwórz runy",
         "empty": {
           "title": "Brak niepowodzeń",
-          "description": "Każde uruchomienie w tym okresie zakończyło się czysto."
+          "description": "Każdy run w tym okresie zakończył się czysto."
         },
-        "description": "Uruchomienia, które zawiodły lub wyczerpały budżet, od najnowszych.",
+        "description": "Runy, które zawiodły lub wyczerpały budżet, od najnowszych.",
         "timesFailed": "{count, plural, other {# razy}}"
       },
       "runs": {
-        "title": "Uruchomienia w czasie",
+        "title": "Runy w czasie",
         "unit": "uruchomień",
         "delta": "vs poprzedni okres",
         "empty": {
@@ -4987,7 +4987,7 @@
         "delta": "vs poprzedni okres",
         "empty": {
           "title": "Jeszcze nic nie wydano",
-          "description": "Koszt modeli ląduje tutaj uruchomienie po uruchomieniu."
+          "description": "Koszt modeli ląduje tutaj run po runie."
         },
         "monthToDate": "W tym miesiącu do teraz: {amount}",
         "notRecorded": "nie zarejestrowano",
@@ -4998,7 +4998,7 @@
         "spentLabel": "wydano {amount}"
       },
       "surfaces": {
-        "title": "Skąd pochodzą uruchomienia",
+        "title": "Skąd pochodzą runy",
         "names": {
           "playground": "Playground",
           "web": "Czat web",
@@ -5016,7 +5016,7 @@
           "title": "Brak uruchomień w tym okresie",
           "description": "Playground, czat web, API, Slack, Telegram, Mattermost i widget lądują tutaj."
         },
-        "description": "Skąd pochodzą uruchomienia - czat web, API, kanały.",
+        "description": "Skąd pochodzą runy - czat web, API, kanały.",
         "unit": "uruchomień"
       },
       "top-orgs": {
@@ -5036,37 +5036,37 @@
         "title": "Kto z tego korzysta",
         "columns": {
           "person": "Osoba",
-          "runs": "Uruchomienia",
+          "runs": "Runy",
           "cost": "Koszt",
           "lastRun": "Ostatnie"
         },
         "others": "{count, plural, =1 {1 kolejna osoba uruchomiła co najmniej jednego agenta} few {# kolejne osoby uruchomiły co najmniej jednego agenta} many {# kolejnych osób uruchomiło co najmniej jednego agenta} other {# kolejnych osób uruchomiło co najmniej jednego agenta}}",
         "empty": {
           "title": "Nikt nic nie uruchomił",
-          "description": "Pierwsze uruchomienie pierwszej osoby wpisze tu nazwisko."
+          "description": "Pierwszy run pierwszej osoby wpisze tu nazwisko."
         },
         "description": "Osoby korzystające najczęściej, według runów, z kosztem obok.",
         "disclosure": "Widzi to każdy z runs:view - builderzy i operatorzy tak samo jak właściciele i admini."
       },
       "version-compare": {
         "title": "Wersja do wersji",
-        "subline": "{agent} - {current} (bieżąca) vs {previous}, tylko uruchomienia danej wersji",
+        "subline": "{agent} - {current} (bieżąca) vs {previous}, tylko runy danej wersji",
         "metric": {
-          "runs": "Uruchomienia",
+          "runs": "Runy",
           "completed": "Skuteczność",
           "p95": "Opóźnienie p95",
-          "cost": "Koszt uruchomienia",
+          "cost": "Koszt runa",
           "ratings": "Oceny pozytywne"
         },
         "empty": {
           "title": "Działała tylko jedna wersja",
-          "description": "Opublikuj nową wersję - porównanie pojawi się, gdy obie będą miały uruchomienia w okresie."
+          "description": "Opublikuj nową wersję - porównanie pojawi się, gdy obie będą miały runy w okresie."
         },
         "description": "Czy nowa wersja agenta zachowuje się lepiej niż poprzednia."
       },
       "routines": {
         "title": "Rutyny",
-        "description": "Co działa, gdy nikogo nie ma przy klawiaturze - najbliższe najpierw - i jak poszło ostatnie uruchomienie.",
+        "description": "Co działa, gdy nikogo nie ma przy klawiaturze - najbliższe najpierw - i jak poszedł ostatni run.",
         "unnamed": "Rutyna bez nazwy",
         "cost": "${cost}",
         "nextFire": "następne {at} ({zone})",
@@ -5949,7 +5949,7 @@
     "systemAgents": {
       "configure": "Model i budżet",
       "title": "Usługi działające w tle",
-      "description": "Usługi platformy korzystające z modeli. Rozwiń usługę, aby ustawić jej model i budżet. Zużycie i ostatnie uruchomienia są widoczne poniżej.",
+      "description": "Usługi platformy korzystające z modeli. Rozwiń usługę, aby ustawić jej model i budżet. Zużycie i ostatnie runy są widoczne poniżej.",
       "on": "Włączona",
       "off": "Wyłączona",
       "managedIn": "Działa na {model}. Konfiguracja w zakładce Proaktywność, ze wspólnym modelem i limitem.",
@@ -6350,15 +6350,15 @@
     "steps": {
       "activity-approvals": {
         "title": "Co czeka na Ciebie",
-        "body": "Uruchomienia wstrzymane na ludzką decyzję czekają tutaj. Zatwierdź lub odrzuć każde, a uruchomienie ruszy stamtąd, gdzie stanęło - ta zakładka pojawia się tylko, jeśli wolno Ci o nich decydować."
+        "body": "Runy wstrzymane na ludzką decyzję czekają tutaj. Zatwierdź lub odrzuć każdy, a run ruszy stamtąd, gdzie stanął - ta zakładka pojawia się tylko, jeśli wolno Ci o nich decydować."
       },
       "activity-overview": {
         "title": "Obserwuj aktywność",
-        "body": "Każde uruchomienie jest zapisane z kosztem i wynikiem, więc widzisz, co zrobili Twoi agenci, i wkraczasz, gdy któryś czeka na decyzję. Te liczby podsumowują całość."
+        "body": "Każdy run jest zapisany z kosztem i wynikiem, więc widzisz, co zrobili Twoi agenci, i wkraczasz, gdy któryś czeka na decyzję. Te liczby podsumowują całość."
       },
       "activity-runs": {
-        "title": "Każde uruchomienie",
-        "body": "Pełna historia: kto uruchomił którego agenta, ile to kosztowało i jak się skończyło. Filtruj albo otwórz uruchomienie, żeby zobaczyć całą rozmowę i wywołane narzędzia."
+        "title": "Każdy run",
+        "body": "Pełna historia: kto uruchomił którego agenta, ile to kosztowało i jak się skończyło. Filtruj albo otwórz run, żeby zobaczyć całą rozmowę i wywołane narzędzia."
       },
       "activity-spend": {
         "title": "Gdzie poszły pieniądze",
@@ -6390,7 +6390,7 @@
       },
       "agent-limits": {
         "title": "Trzymaj go w ryzach",
-        "body": "Ogranicz miesięczny wydatek i to, z ilu kroków może się składać jedno uruchomienie, i wybierz, kto zostanie powiadomiony, gdy agent osiągnie limit albo zawiedzie."
+        "body": "Ogranicz miesięczny wydatek i to, z ilu kroków może się składać jeden run, i wybierz, kto zostanie powiadomiony, gdy agent osiągnie limit albo zawiedzie."
       },
       "agent-mcp": {
         "title": "I całe zestawy narzędzi",
@@ -6522,7 +6522,7 @@
       },
       "flow-agent-limits": {
         "title": "Ustaw budżet (opcjonalnie)",
-        "body": "Ogranicz, ile ten agent może wydać w miesiącu i z ilu kroków może się składać jedno uruchomienie, i wybierz, kto zostanie powiadomiony przy limicie. Tak agent, który się zapętli albo wymknie spod kontroli, zatrzyma się sam. Wybierz Dalej, żeby przejść dalej."
+        "body": "Ogranicz, ile ten agent może wydać w miesiącu i z ilu kroków może się składać jeden run, i wybierz, kto zostanie powiadomiony przy limicie. Tak agent, który się zapętli albo wymknie spod kontroli, zatrzyma się sam. Wybierz Dalej, żeby przejść dalej."
       },
       "flow-agent-platform-mcp": {
         "title": "Pozwól mu działać w platformie (opcjonalnie)",
@@ -6566,7 +6566,7 @@
       },
       "flow-agent-run-send": {
         "title": "Wyślij mu wiadomość",
-        "body": "Wpisz prompt i wyślij - pierwsze uruchomienie Twojego agenta i koniec przewodnika. Zamkniemy w chwili, gdy wiadomość poleci."
+        "body": "Wpisz prompt i wyślij - pierwszy run Twojego agenta i koniec przewodnika. Zamkniemy w chwili, gdy wiadomość poleci."
       },
       "flow-agent-skills": {
         "title": "Daj mu umiejętności (opcjonalnie)",
@@ -7151,7 +7151,7 @@
       },
       "table-triggers": {
         "title": "Gdy przybędzie rekord",
-        "body": "Uruchamiaj opublikowany workflow dla każdego rekordu dodanego do tej tabeli, niezależnie od tego, jak go dodano. Wybierz filtrami, które rekordy go uruchamiają, i od czego startuje jego uruchomienie."
+        "body": "Uruchamiaj opublikowany workflow dla każdego rekordu dodanego do tej tabeli, niezależnie od tego, jak go dodano. Wybierz filtrami, które rekordy go uruchamiają, i od czego startuje jego run."
       },
       "table-view-tabs": {
         "title": "Trzy sposoby patrzenia",
@@ -7182,8 +7182,8 @@
         "title": "Utwórz rutynę"
       },
       "workflows-runs": {
-        "title": "Przebiegi wszystkich workflow",
-        "body": "Co się uruchomiło we wszystkich workflow, które widzisz, od najnowszego. Zawęź do nieudanych przebiegów, testów wersji roboczych albo tego, co uruchomił jeden wyzwalacz. Otwórz przebieg, żeby zobaczyć dane każdego kroku, ponowić go od nieudanego kroku albo przenieść jego dane do edytora."
+        "title": "Runy wszystkich workflow",
+        "body": "Co się uruchomiło we wszystkich workflow, które widzisz, od najnowszego. Zawęź do nieudanych runów, runów testowych wersji roboczych albo tego, co uruchomił jeden wyzwalacz. Otwórz run, żeby zobaczyć dane każdego kroku, ponowić go od nieudanego kroku albo przenieść jego dane do edytora."
       },
       "workflow-stats": {
         "title": "Jak to idzie",
@@ -7195,7 +7195,7 @@
       },
       "workflow-logs": {
         "title": "Jego log",
-        "body": "Wiersze, które kroki tego workflow zapisały szybkim logiem, od najnowszych. Zawęź je według kroku, wyniku lub czasu, przeszukaj wiadomość i dodaj uruchomienia testowe. Wiersz otwiera uruchomienie, które go zapisało."
+        "body": "Wiersze, które kroki tego workflow zapisały szybkim logiem, od najnowszych. Zawęź je według kroku, wyniku lub czasu, przeszukaj wiadomość i dodaj runy testowe. Wiersz otwiera run, który go zapisał."
       },
       "workflow-log-alerts": {
         "title": "Jego alerty",
@@ -7955,8 +7955,8 @@
     "support": "support",
     "whatSoModelCan": "Co w nim jest, żeby model mógł zdecydować bez wczytywania go",
     "gallery": {
-      "browse": "Galeria skills",
-      "title": "Galeria skills",
+      "browse": "Galeria skilli",
+      "title": "Galeria skilli",
       "description": "Gotowe skills według branży. Instalacja kopiuje jeden do twojej organizacji, gdzie możesz go edytować.",
       "industryHint": "Zainstaluj jeden albo całą półkę. Skill, który już masz, zostaje dokładnie taki, jaki jest.",
       "back": "Wszystkie branże",
@@ -8354,7 +8354,7 @@
       "startUnchecked": "Dalej bez sprawdzenia",
       "noReaders": "Żaden agent nie czyta tej linii, więc nie ma kogo sprawdzić. Dalej zmiana od razu zostanie zastosowana."
     },
-    "savedMainVersion": "Zapisano jako nową wersję main. Agenci na main czytają ją od następnego uruchomienia; przypięci agenci i forki zostają przy swoich.",
+    "savedMainVersion": "Zapisano jako nową wersję main. Agenci na main czytają ją od następnego runa; przypięci agenci i forki zostają przy swoich.",
     "instructions": "Instrukcje",
     "architect": "Architekt",
     "architectHint": "Zainstalowany dla Architekta AI, który go czyta. Zmiana tego skilla zmienia sposób pracy Architekta."
@@ -8614,9 +8614,9 @@
     },
     "runAsMe": "Uruchamiaj jako ja",
     "runAsCreator": "Działa jako osoba, która go utworzyła",
-    "runAsMeScheduleHint": "Każde uruchomienie korzysta z twojej pamięci i twoich własnych połączeń - skrzynki, kalendarza - jak twój czat. Może zapisywać dla ciebie notatki; nigdy nie przeszukuje twoich rozmów.",
-    "runAsMeEventHint": "Każde uruchomienie korzysta z twojej pamięci i twoich własnych połączeń, jak twój czat. Czyta notatki, ale niczego nie zapisuje, bo treść zdarzenia przychodzi z zewnątrz; nigdy nie przeszukuje twoich rozmów.",
-    "runAsCreatorOthersHint": "Każde uruchomienie korzysta z pamięci i własnych połączeń tej osoby. Włączyć może tylko ona, a zmiana wiadomości, środowiska, filtra albo kanału Teams to wyłącza.",
+    "runAsMeScheduleHint": "Każdy run korzysta z twojej pamięci i twoich własnych połączeń - skrzynki, kalendarza - jak twój czat. Może zapisywać dla ciebie notatki; nigdy nie przeszukuje twoich rozmów.",
+    "runAsMeEventHint": "Każdy run korzysta z twojej pamięci i twoich własnych połączeń, jak twój czat. Czyta notatki, ale niczego nie zapisuje, bo treść zdarzenia przychodzi z zewnątrz; nigdy nie przeszukuje twoich rozmów.",
+    "runAsCreatorOthersHint": "Każdy run korzysta z pamięci i własnych połączeń tej osoby. Włączyć może tylko ona, a zmiana wiadomości, środowiska, filtra albo kanału Teams to wyłącza.",
     "limitsCreatorOnly": "Dopóki ta rutyna działa jako osoba, która ją utworzyła, tylko ta osoba może ją wznowić, zmienić jej datę końca albo podnieść jej limity. Żeby to zrobić, najpierw odznacz „Działa jako osoba, która go utworzyła”.",
     "actsAsCreator": "Jako twórca",
     "personalReachHint": "Ten agent korzysta z pamięci, przeszukiwania rozmów albo osobistego połączenia. Harmonogram lub zdarzenie sięga do pamięci i osobistych połączeń tylko wtedy, gdy działa jako osoba, która je utworzyła, a do jej rozmów - nigdy.",
@@ -8755,7 +8755,7 @@
     "resume": "Wznów",
     "delete": "Usuń",
     "viewRuns": "Zobacz, co zrobił ten wyzwalacz",
-    "runsTitle": "Uruchomienia wyzwalacza",
+    "runsTitle": "Runy wyzwalacza",
     "fireCount": "{count, plural, =0 {brak runów} one {1 run} few {# runy} many {# runów} other {# runu}}",
     "fireStarting": "Uruchamianie…",
     "fireSummary": "{status} · ${cost}",
@@ -8772,7 +8772,7 @@
       "loop_stopped": "zatrzymany: pętla"
     },
     "noMessagesYet": "Brak wiadomości",
-    "noMessagesDescription": "Ten wyzwalacz jeszcze się nie uruchomił. Jego uruchomienia pojawią się tutaj, gdy zadziała.",
+    "noMessagesDescription": "Ten wyzwalacz jeszcze się nie uruchomił. Jego runy pojawią się tutaj, gdy zadziała.",
     "runsCouldNotBeRead": "Nie udało się odczytać uruchomień tego wyzwalacza.",
     "unit": "Jednostka",
     "activityTitle": "Rutyny",
@@ -8822,16 +8822,16 @@
     "templateScratchHelpEvent": "Napisz własną wiadomość.",
     "sourceEmail": "Przychodzącym e-mailu",
     "sourceHelpEmail": "Skieruj przekaźnik poczty przychodzącej na ten webhook. Przekaźnik musi podpisać każdą dostawę (HMAC) - Zapier i Make potrafią to tylko przez krok z kodem; zwykła akcja webhooka bez kodu przychodzi niepodpisana i jest odrzucana.",
-    "overlapLabel": "Jeśli poprzednie uruchomienie wciąż trwa",
+    "overlapLabel": "Jeśli poprzedni run wciąż trwa",
     "overlap": {
-      "skip": "Pomiń to uruchomienie",
+      "skip": "Pomiń ten run",
       "queue": "Uruchom, gdy się skończy",
       "allow": "Uruchom mimo to"
     },
     "overlapHint": {
       "skip": "Harmonogram czeka na kolejny termin. Wolny agent działa tak często, jak zdąży skończyć.",
       "queue": "Uruchamia się raz po zakończeniu poprzedniego, niezależnie od liczby pominiętych terminów.",
-      "allow": "Startuje o czasie obok trwającego uruchomienia. Płacisz za oba."
+      "allow": "Startuje o czasie obok trwającego runa. Płacisz za oba."
     },
     "howOften": "Jak często",
     "choiceEvery15m": "Co 15 min",
@@ -8932,7 +8932,7 @@
       "description": "Rutyna korzysta tylko z opublikowanych zasobów, kont i narzędzi zatwierdzonych tutaj. Nowe źródła i ponowna zgoda na konto wymagają przeglądu.",
       "retry": "Spróbuj ponownie",
       "current": "Zatwierdzone źródła są aktualne.",
-      "changed": "Przejrzyj te źródła przed kolejnym uruchomieniem.",
+      "changed": "Przejrzyj te źródła przed kolejnym runem.",
       "unavailable": "Najpierw sprawdź lub ponownie połącz źródła: {names}",
       "accept": "Zatwierdź te źródła"
     },
@@ -10369,7 +10369,7 @@
       },
       "allow_any_agent": {
         "title": "Korzystaj z innych dostępnych agentów",
-        "description": "Udostępnia bieżące opublikowane wersje innych agentów, których ta osoba może uruchomić w tej organizacji, pod nazwami ze slugiem poprzedzonym agent-. Jawne przypięcia zachowują wybrane wersje. Katalog jest rozwiązywany na początku każdego interaktywnego uruchomienia; praca bez nadzoru korzysta wyłącznie z przejrzanych przypięć. Duży katalog wydłuża przygotowanie i zwiększa kontekst."
+        "description": "Udostępnia bieżące opublikowane wersje innych agentów, których ta osoba może uruchomić w tej organizacji, pod nazwami ze slugiem poprzedzonym agent-. Jawne przypięcia zachowują wybrane wersje. Katalog jest rozwiązywany na początku każdego interaktywnego runa; praca bez nadzoru korzysta wyłącznie z przejrzanych przypięć. Duży katalog wydłuża przygotowanie i zwiększa kontekst."
       }
     },
     "system_reminders": {
@@ -10626,8 +10626,8 @@
         "description": "Ile akcji może wysłać jedno wywołanie."
       },
       "max_actions": {
-        "title": "Akcje na uruchomienie",
-        "description": "Ile akcji łącznie może wykonać jedno uruchomienie."
+        "title": "Akcje na run",
+        "description": "Ile akcji łącznie może wykonać jeden run."
       },
       "preview": {
         "title": "Podgląd na żywo",
@@ -11144,8 +11144,8 @@
     "validationErrorHandlerShared": "Dwie gałęzie wykonywane równocześnie kierują tu swoje błędy. Daj każdej gałęzi własną obsługę błędów.",
     "validationErrorHandlerDefaultUnwired": "Domyślna gałąź obsługi błędów musi do czegoś prowadzić.",
     "validationErrorPortUnwired": "Ten krok kieruje swoje błędy, ale jego port błędów nigdzie nie prowadzi.",
-    "validationOutputsBothRun": "Ten krok Output i inny mogą wykonać się w jednym uruchomieniu, a uruchomienie odpowiada tylko raz.",
-    "validationRespondBothRun": "Ten krok Respond to webhook i inny mogą wykonać się w jednym uruchomieniu, a webhook dostaje odpowiedź tylko raz.",
+    "validationOutputsBothRun": "Ten krok Output i inny mogą wykonać się w jednym runie, a run odpowiada tylko raz.",
+    "validationRespondBothRun": "Ten krok Respond to webhook i inny mogą wykonać się w jednym runie, a webhook dostaje odpowiedź tylko raz.",
     "validationSplitRoutesErrors": "Split nie może kierować swoich błędów. Kieruj błędy każdej gałęzi osobno.",
     "validationMergeSettingBound": "Ustawienia scalenia nie można powiązać. Ustaw je w samym scaleniu.",
     "validationPortNameTaken": "„{name}” jest już wyjściem tego kroku - zmień nazwę.",
@@ -11289,7 +11289,7 @@
     "scopeStepCount": "{count, plural, =0 {Pusto} one {# krok} few {# kroki} many {# kroków} other {# kroku}}",
     "policySection": "Gdy jest wolny albo zawodzi",
     "policyRouteLabel": "Obsługuj błędy",
-    "policyRouteHint": "Błąd wychodzi portem Error, który możesz podłączyć, zamiast kończyć uruchomienie niepowodzeniem.",
+    "policyRouteHint": "Błąd wychodzi portem Error, który możesz podłączyć, zamiast kończyć run niepowodzeniem.",
     "policyAttemptsLabel": "Próby",
     "policyAttemptsDefault": "Domyślnie",
     "policyAttemptsCount": "{count, plural, one {# próba} few {# próby} many {# prób} other {# próby}}",
@@ -11434,13 +11434,13 @@
     "triggerHintApi": "Uruchom go przez POST /api/v1/workflow-runs albo przez WebSocket runów. Pełne żądanie pokazuje Trigger. Kolejne kroki czytają wejście jako payload.",
     "validationLabelTaken": "Inny krok nazywa się już „{label}”.",
     "validationTriggerSwitchedOff": "Wyzwalacza nie można wyłączyć.",
-    "validationControlSwitchedOff": "Kroku, który decyduje o drodze przebiegu, nie można wyłączyć.",
+    "validationControlSwitchedOff": "Kroku, który decyduje o drodze runa, nie można wyłączyć.",
     "validationLoopPartSwitchedOff": "Kroku elementu ani wyniku pętli nie można wyłączyć.",
     "validationBindingReadsSwitchedOff": "To czyta wyłączony krok, więc nic by nie otrzymało.",
     "stepName": "Nazwa kroku",
     "stepNotes": "Notatka",
     "stepNotesPlaceholder": "Po co jest ten krok, dla tego, kto edytuje go następny",
-    "stepIsSwitchedOff": "Wyłączony: pomijany, gdy przebieg do niego dotrze",
+    "stepIsSwitchedOff": "Wyłączony: pomijany, gdy run do niego dotrze",
     "stepHasNote": "Ma notatkę",
     "quickLogAdd": "Dodaj szybki log do kroku {name}",
     "quickLogTab": "Szybki log kroku {name}",
@@ -11542,19 +11542,19 @@
     "stepTestNotReachable": "Połącz ten krok z wyzwalaczem, zanim go przetestujesz.",
     "stepTestInsideALoop": "Krok w pętli działa raz na element; przetestuj całą pętlę",
     "stepTestWriteTitle": "Przetestować krok, który zapisuje?",
-    "stepTestWriteDescription": "Test naprawdę wykonuje krok: rekordy zostaną zapisane, a wiadomości wysłane, tak jak w prawdziwym przebiegu.",
+    "stepTestWriteDescription": "Test naprawdę wykonuje krok: rekordy zostaną zapisane, a wiadomości wysłane, tak jak w prawdziwym runie.",
     "stepPin": "Zachowaj jako dane testowe",
     "stepPinWrite": "Ustaw dane testowe",
     "stepPinEdit": "Edytuj dane testowe",
     "stepUnpin": "Usuń dane testowe",
-    "stepPinnedHint": "Dane testowe: testowe przebiegi przekazują je dalej bez uruchamiania kroku. Opublikowane wersje zawsze go uruchamiają.",
+    "stepPinnedHint": "Dane testowe: runy testowe przekazują je dalej bez uruchamiania kroku. Opublikowane wersje zawsze go uruchamiają.",
     "stepPinEditor": "Dane testowe jako JSON",
     "stepPinSave": "Zapisz",
     "stepPinCancel": "Anuluj",
     "stepPinNotJson": "To nie jest poprawny JSON.",
     "stepPinNotObject": "Dane testowe to obiekt JSON, w nawiasach klamrowych.",
     "stepPinTooLarge": "Dane testowe mogą mieć najwyżej {limit} bajtów.",
-    "stepHasPinnedData": "Ma przypięte dane: przebiegi testowe używają ich zamiast uruchamiać krok",
+    "stepHasPinnedData": "Ma przypięte dane: runy testowe używają ich zamiast uruchamiać krok",
     "dataDragHint": "Przeciągnij pole na parametr, żeby go tam użyć.",
     "bindingDropIncompatible": "„{field}” nie jest wartością, jaką może przyjąć {target}.",
     "bindingDropUnreachable": "Ten krok nie może czytać tamtego: nie zawsze działa przed nim.",
@@ -11688,7 +11688,7 @@
     "stepTabParameters": "Parametry",
     "stepTabSettings": "Ustawienia",
     "stepTabSettingsSet": "Część ustawień jest zmieniona",
-    "stepRunsHint": "Wyłączony: przebieg go pomija i przekazuje dalej to, co do niego dotarło",
+    "stepRunsHint": "Wyłączony: run go pomija i przekazuje dalej to, co do niego dotarło",
     "versionLive": "Aktywna",
     "publishTitleVersion": "Opublikuj wersję {version}",
     "publishNothingChanged": "Nic się nie zmieniło od wersji {version}, która jest aktywna: powstanie identyczna wersja.",
@@ -11907,7 +11907,7 @@
     "noMatches": "Żadna aplikacja nie pasuje",
     "noMatchesWhy": "Przeszukiwane są tytuły i nazwy.",
     "noneYet": "Nic jeszcze nie opublikowano",
-    "noneYetWhy": "Agent z capability Aplikacje publikuje tu aplikację, gdy poprosisz go o raport albo dashboard. Jest prywatna, dopóki jej nie udostępnisz.",
+    "noneYetWhy": "Agent z capability „Aplikacje” publikuje tu aplikację, gdy poprosisz go o raport albo dashboard. Jest prywatna, dopóki jej nie udostępnisz.",
     "noneYetCta": "Otwórz swoich agentów",
     "sharedOrg": "Cała organizacja",
     "publicBadge": "Link publiczny",
@@ -12028,9 +12028,9 @@
     "archivedWhy": "Nikt nie może otworzyć tej strony, a agent nie opublikuje jej ponownie. Po przywróceniu jej publiczny link pozostaje wyłączony, dopóki go nie włączysz.",
     "unarchive": "Przywróć",
     "archivedBadge": "Zarchiwizowany",
-    "shownFilter": "Które artefakty",
+    "shownFilter": "Które aplikacje",
     "shown": {
-      "live": "Aktywne artefakty",
+      "live": "Aktywne aplikacje",
       "all": "Także zarchiwizowane"
     },
     "consent": {
@@ -12061,11 +12061,11 @@
       "log": {
         "step": "z kroku {step}",
         "outcomes": "z wynikiem {outcomes}",
-        "run": "z uruchomienia {run}",
+        "run": "z runa {run}",
         "filters": "Tylko wiersze {conditions}.",
         "allLines": "Wszystkie wiersze.",
-        "testsIncluded": "Uruchomienia testowe są uwzględnione.",
-        "testsLeftOut": "Uruchomienia testowe są pominięte.",
+        "testsIncluded": "Runy testowe są uwzględnione.",
+        "testsLeftOut": "Runy testowe są pominięte.",
         "lines": "Udostępnia {count, plural, =1 {najnowszy wiersz} few {# najnowsze wiersze} many {# najnowszych wierszy} other {# najnowszego wiersza}}, od najnowszego.",
         "perDay": "Udostępnia liczbę wierszy na dzień z {days} dni, w strefie {tz}.",
         "summary": "{workflow}: {keeps} {serves}"
@@ -13349,7 +13349,7 @@
       "example1": "Uruchom watcher testów i naprawiaj każdy błąd, gdy się pojawi",
       "example2": "Śledź log wdrożenia i zgłoś pierwszy błąd",
       "needs": "Przestrzeń robocza z powłoką, np. capability Sandbox albo folder na twoim komputerze.",
-      "never": "Nigdy nie zostawia polecenia po końcu tury: każda obserwacja kończy się razem z przebiegiem."
+      "never": "Nigdy nie zostawia polecenia po końcu tury: każda obserwacja kończy się razem z runem."
     },
     "background_tasks": {
       "name": "Tematy w tle",
@@ -14145,7 +14145,7 @@
         },
         "e2b": {
           "label": "E2B",
-          "description": "Uruchom osobny pulpit E2B dla tego przebiegu. Wybierz poniżej klucz E2B organizacji; połączenie Sandbox nie jest potrzebne.",
+          "description": "Uruchom osobny pulpit E2B dla tego runa. Wybierz poniżej klucz E2B organizacji; połączenie Sandbox nie jest potrzebne.",
           "summary": "Odizolowany pulpit w chmurze E2B."
         },
         "sandbox": {
@@ -15048,7 +15048,7 @@
       "side": "Strona",
       "pending": "Oczekujące",
       "reusedFrom": "wynik z runu z {date}",
-      "singleTitle": "Metryki uruchomienia",
+      "singleTitle": "Metryki runa",
       "singleTitleTag": "Metryki dla #{tag}"
     },
     "cases": {
@@ -15351,7 +15351,7 @@
         "dataset": "Dataset",
         "datasetPlaceholder": "Wybierz dataset",
         "datasetOption": "{name} · {count, plural, one {# przypadek} few {# przypadki} many {# przypadków} other {# przypadku}}",
-        "datasetHint": "Przy każdym uruchomieniu odpowiada jego najnowsza wersja, oceniana tak, jak mówi dataset.",
+        "datasetHint": "Przy każdym runie odpowiada jego najnowsza wersja, oceniana tak, jak mówi dataset.",
         "environment": "Środowisko",
         "currentVersion": "Każda nowa wersja",
         "environmentHint": "Wybierz wersję sprawdzaną przez run: każdą nowo opublikowaną albo wersję serwowaną przez wskazane środowisko z jego połączeniami testowymi. Promocja dotyczy tego środowiska.",
@@ -15388,7 +15388,7 @@
         "efficiencyHint": "Opcjonalne limity względem baseline'u. Puste pola niczego nie sprawdzają.",
         "costRise": "Koszt na zaliczony przypadek może wzrosnąć o (%)",
         "p95Rise": "Opóźnienie p95 może wzrosnąć o (%)",
-        "maxRunUsd": "Pomiń uruchomienie z pełnym szacunkiem powyżej ($)",
+        "maxRunUsd": "Pomiń run z pełnym szacunkiem powyżej ($)",
         "maxRunUsdHint": "Uwzględnia powtórzenia i poprzednią wersję. Rzeczywisty koszt może się różnić; limit nie zatrzymuje trwającej ewaluacji.",
         "description": "Notatka",
         "estimateRun": "Jeden run: około {amount} za {count, plural, one {# przypadek} few {# przypadki} many {# przypadków} other {# przypadku}}.",
@@ -15444,7 +15444,7 @@
       "reviewer": "osoba przeglądająca"
     },
     "table": {
-      "run": "Uruchomienie",
+      "run": "Run",
       "status": "Status",
       "result": "Wynik",
       "passRate": "Zdawalność",

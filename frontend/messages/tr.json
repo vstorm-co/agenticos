@@ -2235,9 +2235,9 @@
     "archivedWhy": "Kimse bu sayfayı açamaz ve agent yeniden yayımlayamaz. Geri yükledikten sonra siz etkinleştirene kadar herkese açık bağlantısı kapalı kalır.",
     "unarchive": "Geri yükle",
     "archivedBadge": "Arşivlendi",
-    "shownFilter": "Gösterilecek artifact’lar",
+    "shownFilter": "Gösterilecek uygulamalar",
     "shown": {
-      "live": "Etkin artifact’lar",
+      "live": "Etkin uygulamalar",
       "all": "Arşivlenenler dâhil"
     },
     "publicData": {
