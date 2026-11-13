@@ -308,8 +308,13 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
       const between = useWorkflowEditorStore
         .getState()
         .graph?.edges.find((edge) => edge.id === beforeEdgeId);
-      // `from` stays: a step the connection cannot pass through is added after the port.
-      insert(definition, { from: { nodeId, portId }, config, ...(between ? { between } : {}) });
+      // `from` stays: a step the connection cannot pass through is added after the port
+      // as a branch, and the connection is left as it was.
+      insert(definition, {
+        from: { nodeId, portId },
+        config,
+        ...(between ? { between, keepOnward: true } : {}),
+      });
     },
     [insert],
   );

@@ -822,6 +822,36 @@ describe("a node card's +", () => {
     );
   });
 
+  it("branches instead when the chosen step cannot carry the connection on", async () => {
+    seed([instance("i", "logic.if"), instance("m", "data.map", { layout: { x: 320, y: 0 } })], {
+      edges: [
+        {
+          id: "e1",
+          source_node_id: "i",
+          source_port: "true",
+          target_node_id: "m",
+          target_port: "in",
+        },
+      ],
+    });
+    const { container } = render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
+
+    await userEvent.click(
+      container.querySelector(
+        'button[aria-label="Add a step or a branch after If (true)"]',
+      ) as HTMLElement,
+    );
+    await userEvent.type(screen.getByPlaceholderText("Search steps"), "Raise");
+    await userEvent.click(await screen.findByText("Raise"));
+
+    const graph = store.getState().graph;
+    const added = graph?.nodes.find((node) => node.definition_id === "error.raise");
+    expect(graph?.edges).toEqual([
+      expect.objectContaining({ id: "e1", target_node_id: "m" }),
+      expect.objectContaining({ source_node_id: "i", target_node_id: added?.id }),
+    ]);
+  });
+
   it("adds a parallel branch beside what follows when asked to", async () => {
     seed([instance("i", "logic.if"), instance("m", "data.map", { layout: { x: 320, y: 0 } })], {
       edges: [

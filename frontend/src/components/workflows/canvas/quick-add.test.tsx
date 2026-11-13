@@ -121,6 +121,37 @@ describe("QuickAdd", () => {
     expect(screen.getByRole("radio", { name: "Insert before Output" })).toBeChecked();
   });
 
+  it("moves between the two placements with the arrow keys, one tab stop between them", async () => {
+    render(
+      <QuickAdd
+        catalog={[NOTIFY]}
+        nodeName="Save a record"
+        portLabel="Out"
+        onPick={vi.fn()}
+        next={[{ edgeId: "e1", name: "Output" }]}
+      />,
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Add a step or a branch after Save a record (Out)" }),
+    );
+    const before = screen.getByRole("radio", { name: "Insert before Output" });
+    const branch = screen.getByRole("radio", { name: "Add a parallel branch" });
+    expect(before).toHaveAttribute("tabindex", "0");
+    expect(branch).toHaveAttribute("tabindex", "-1");
+
+    before.focus();
+    await userEvent.keyboard("{ArrowRight}");
+    expect(branch).toBeChecked();
+    expect(branch).toHaveFocus();
+    expect(branch).toHaveAttribute("tabindex", "0");
+    await userEvent.keyboard("{ArrowUp}");
+    expect(before).toBeChecked();
+    expect(before).toHaveFocus();
+    // Any other key is the picker's to use.
+    await userEvent.keyboard("{Enter}");
+    expect(before).toBeChecked();
+  });
+
   it("only branches from an output that already leads to several steps", async () => {
     const onPick = vi.fn();
     render(

@@ -98,6 +98,16 @@ export function QuickAdd({ catalog, nodeName, portLabel, next, onPick }: QuickAd
             role="radiogroup"
             aria-label={t("quickAddPlacement")}
             className="flex gap-1 border-b p-2"
+            onKeyDown={(event) => {
+              if (!ARROWS.has(event.key)) return;
+              // Two options: any arrow moves to the other one, and selects it.
+              event.preventDefault();
+              setBranch((current) => !current);
+              const other = event.currentTarget.querySelector<HTMLButtonElement>(
+                '[role="radio"][aria-checked="false"]',
+              );
+              other?.focus();
+            }}
           >
             <PlacementChoice checked={!branch} onSelect={() => setBranch(false)}>
               {t("quickAddInsertBefore", { name: only.name })}
@@ -125,6 +135,9 @@ export function QuickAdd({ catalog, nodeName, portLabel, next, onPick }: QuickAd
   );
 }
 
+const ARROWS = new Set(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"]);
+
+/** One option of the placement choice; only the checked one is a tab stop, as in a radio group. */
 function PlacementChoice({
   checked,
   onSelect,
@@ -139,6 +152,7 @@ function PlacementChoice({
       type="button"
       role="radio"
       aria-checked={checked}
+      tabIndex={checked ? 0 : -1}
       onClick={onSelect}
       className={cn(
         "focus-visible:ring-ring min-w-0 flex-1 truncate rounded-md border px-2 py-1 text-xs outline-none focus-visible:ring-2",
