@@ -11831,6 +11831,10 @@
     "sheet": {
       "title": "Datensatz",
       "conflict": "Jemand anderes hat dieses Feld geändert.",
+      "conflictNow": "Jetzt: {value}, geändert von <who></who> um {time}. Ihr Wert steht im Feld.",
+      "conflictNowUntimed": "Jetzt: {value}, geändert von <who></who>. Ihr Wert steht im Feld.",
+      "conflictEmpty": "leer",
+      "conflictSomeone": "jemand anderem",
       "reloadAndReapply": "Neu laden und erneut anwenden",
       "discard": "Verwerfen",
       "conflictAfterClose": "Jemand anderes hat diesen Datensatz geändert, daher wurde Ihre letzte Änderung nicht gespeichert. Öffnen Sie den Datensatz, um sie erneut anzuwenden oder zu verwerfen.",

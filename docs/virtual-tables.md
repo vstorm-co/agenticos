@@ -315,7 +315,9 @@ in instead, so nothing is written until every required value is there.
 
 Each edit is one `PATCH` against the revision on screen, so an edit that loses to a
 newer change is refused rather than written over it. The record then opens with the
-refused value kept beside **Reload and reapply**. Ticking rows offers **Delete** for
+refused value kept beside **Reload and reapply**, and the record read again: the field
+says what it holds now, who changed the record last and when, and the panel's title
+follows. Ticking rows offers **Delete** for
 all of them, each against its own revision: a record someone changed meanwhile is
 kept, and the console says how many were. The record panel deletes one record the same
 way.

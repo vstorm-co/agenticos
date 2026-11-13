@@ -12334,6 +12334,10 @@
     "sheet": {
       "title": "Rekord",
       "conflict": "Ktoś inny zmienił to pole.",
+      "conflictNow": "Teraz: {value}, zmienione przez <who></who> o {time}. Twoja wartość jest w polu.",
+      "conflictNowUntimed": "Teraz: {value}, zmienione przez <who></who>. Twoja wartość jest w polu.",
+      "conflictEmpty": "puste",
+      "conflictSomeone": "kogoś innego",
       "reloadAndReapply": "Odśwież i zastosuj ponownie",
       "discard": "Odrzuć",
       "conflictAfterClose": "Ktoś inny zmienił ten rekord, więc Twoja ostatnia zmiana nie została zapisana. Otwórz rekord, aby ją ponowić lub odrzucić.",

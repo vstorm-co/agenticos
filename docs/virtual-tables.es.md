@@ -1,5 +1,5 @@
 ---
-source_sha: "ec1de885016c"
+source_sha: "9cb2e6e3e60c"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -331,7 +331,8 @@ obligatorios.
 Cada edición es un `PATCH` contra la revisión que se ve en pantalla, así que una
 edición que pierde frente a un cambio más reciente se rechaza en lugar de escribirse
 encima. El registro se abre entonces con el valor rechazado junto a **Reload and
-reapply**. Marcar filas ofrece **Delete** para todas, cada una contra su propia
+reapply**, y se vuelve a leer: el campo dice qué contiene ahora, quién cambió el
+registro por última vez y cuándo, y el título del panel se actualiza. Marcar filas ofrece **Delete** para todas, cada una contra su propia
 revisión: un registro que alguien cambió entretanto se conserva, y la consola dice
 cuántos. El panel del registro elimina uno solo de la misma forma.
 

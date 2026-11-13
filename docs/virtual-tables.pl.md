@@ -1,5 +1,5 @@
 ---
-source_sha: "ec1de885016c"
+source_sha: "9cb2e6e3e60c"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -329,7 +329,9 @@ nic nie zostaje zapisane, dopóki nie ma wszystkich wymaganych wartości.
 
 Każda edycja to jeden `PATCH` względem rewizji widocznej na ekranie, więc edycja, która
 przegrywa z nowszą zmianą, zostaje odrzucona, a nie zapisana na niej. Rekord otwiera się
-wtedy z odrzuconą wartością zachowaną obok **Reload and reapply**. Zaznaczenie wierszy
+wtedy z odrzuconą wartością zachowaną obok **Reload and reapply** i zostaje odczytany
+ponownie: pole mówi, co zawiera teraz, kto ostatnio zmienił rekord i kiedy, a tytuł
+panelu się odświeża. Zaznaczenie wierszy
 udostępnia **Delete** dla wszystkich naraz, każdy względem własnej rewizji: rekord,
 który ktoś w międzyczasie zmienił, zostaje, a konsola mówi, ile takich było. Panel
 rekordu usuwa pojedynczy rekord w ten sam sposób.

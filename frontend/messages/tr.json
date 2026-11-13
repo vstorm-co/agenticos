@@ -1653,6 +1653,10 @@
     "sheet": {
       "title": "Kayıt",
       "conflict": "Bu alanı başka biri değiştirdi.",
+      "conflictNow": "Şimdi: {value}, <who></who> tarafından {time} tarihinde değiştirildi. Sizin değeriniz alanda.",
+      "conflictNowUntimed": "Şimdi: {value}, <who></who> tarafından değiştirildi. Sizin değeriniz alanda.",
+      "conflictEmpty": "boş",
+      "conflictSomeone": "başka biri",
       "reloadAndReapply": "Yeniden yükle ve değişikliği uygula",
       "discard": "Değişikliği at",
       "conflictAfterClose": "Bu kaydı başka biri değiştirdiğinden son düzenlemeniz kaydedilmedi. Değişikliği yeniden uygulamak veya atmak için kaydı açın.",

@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { AlertTriangle, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -19,6 +19,7 @@ import { isRecordGone, isRevisionConflict, useRecordMutation } from "@/hooks/use
 import { getErrorMessage } from "@/lib/api-error";
 import { useTableViewStore } from "@/stores";
 import { RecordCellEditor } from "./record-cell-editor";
+import { RecordConflictNow } from "./record-conflict-now";
 import type { CellValue, ColumnDef, RecordRead } from "@/types/tables";
 import { recordCellText } from "@/lib/format-cell-value";
 import { WorkspaceFullscreenButton } from "@/components/ui/workspace-fullscreen-button";
@@ -131,6 +132,34 @@ export function RecordDetailSheet({
     }
   }
 
+  // A conflict says what the field holds now, so the record is read again as soon as
+  // one shows - raised here, or by the grid or the board before the sheet opened.
+  // Read once per conflict; `known` holds what each conflict's record read as.
+  const [known, setKnown] = useState<ReadonlyMap<string, RecordRead>>(new Map());
+  const asked = useRef(new Set<string>());
+  const readAgain = useEffectEvent((target: RecordRead, fieldId: string, key: string) => {
+    void refetch(target, fieldId).then((fresh) => {
+      if (fresh) setKnown((current) => new Map(current).set(key, fresh));
+    });
+  });
+  const conflictedFields = record
+    ? Object.keys(conflicts[record.id] ?? {}).filter((fieldId) => fieldId !== "")
+    : [];
+  const conflictKeys = record ? conflictedFields.map((fieldId) => `${record.id}:${fieldId}`) : [];
+  const signature = conflictKeys.join("|");
+  useEffect(() => {
+    if (!open || record === null) return;
+    const live = new Set(signature === "" ? [] : signature.split("|"));
+    for (const key of [...asked.current]) {
+      if (key.startsWith(`${record.id}:`) && !live.has(key)) asked.current.delete(key);
+    }
+    for (const key of live) {
+      if (asked.current.has(key)) continue;
+      asked.current.add(key);
+      readAgain(record, key.slice(record.id.length + 1), key);
+    }
+  }, [open, record, signature]);
+
   /**
    * "Reload and reapply": fetch the record's current state and retry the same
    * edit against its fresh revision. The conflict is cleared only once the
@@ -237,6 +266,12 @@ export function RecordDetailSheet({
                           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
                           <span>{t("conflict")}</span>
                         </div>
+                        {known.has(`${record.id}:${column.id}`) && (
+                          <RecordConflictNow
+                            column={column}
+                            record={known.get(`${record.id}:${column.id}`)!}
+                          />
+                        )}
                         <div className="flex gap-2">
                           <Button
                             type="button"

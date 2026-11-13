@@ -12145,6 +12145,10 @@
     "sheet": {
       "title": "Record",
       "conflict": "Someone else changed this field.",
+      "conflictNow": "Now: {value}, changed by <who></who> at {time}. Your value is in the field.",
+      "conflictNowUntimed": "Now: {value}, changed by <who></who>. Your value is in the field.",
+      "conflictEmpty": "empty",
+      "conflictSomeone": "someone else",
       "reloadAndReapply": "Reload and reapply",
       "discard": "Discard",
       "conflictAfterClose": "Someone else changed that record, so your last edit was not saved. Open the record to reapply or discard it.",

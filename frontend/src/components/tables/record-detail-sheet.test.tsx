@@ -342,17 +342,52 @@ describe("RecordDetailSheet", () => {
     expect(onOpenChange).not.toHaveBeenCalled();
   });
 
-  it("a reload that finds the record deleted drops the edit and closes the sheet", async () => {
+  it("a conflict on a record since deleted drops the edit and closes the sheet", async () => {
     vi.mocked(apiClient.get).mockRejectedValue(new ApiError(404, "Record not found"));
     const onOpenChange = vi.fn();
     renderSheet({ onOpenChange });
     await raiseConflict();
 
-    await userEvent.click(screen.getByRole("button", { name: /reload and reapply/i }));
-
+    // The record is read again as soon as the conflict shows, and is gone.
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
     expect(toast.error).toHaveBeenCalledWith("Record not found");
     expect(useTableViewStore.getState().conflicts).toEqual({});
+  });
+
+  it("says what the field holds now, who changed it and when, and refreshes the record", async () => {
+    const theirs: RecordRead = {
+      ...record,
+      values: { c1: "Grace" },
+      revision: 3,
+      updated_at: "2026-11-13T10:28:00Z",
+      updated_source: { kind: "user", id: "u2", name: "Ola Nowak" },
+    };
+    vi.mocked(apiClient.get).mockResolvedValue(theirs);
+    const onRecordUpdated = vi.fn();
+    renderSheet({ onRecordUpdated });
+    await raiseConflict("Ada Lovelace");
+
+    const now = await screen.findByTestId("conflict-now");
+    expect(now).toHaveTextContent(/^Now: Grace, changed by .*Ola Nowak at .+\./);
+    expect(now).toHaveTextContent("Your value is in the field.");
+    expect(onRecordUpdated).toHaveBeenCalledWith(theirs);
+    expect(screen.getByRole("textbox")).toHaveValue("Ada Lovelace");
+    expect(apiClient.get).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads the record again for a conflict raised before the sheet opened", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ ...record, values: { c1: "" }, revision: 2 });
+    useTableViewStore
+      .getState()
+      .setConflict({ recordId: "r1", pendingValues: { c1: "Mine" }, fieldId: "c1" });
+    const view = renderSheet({ open: false });
+    expect(apiClient.get).not.toHaveBeenCalled();
+
+    view.rerender(sheet({ open: true }));
+
+    expect(await screen.findByTestId("conflict-now")).toHaveTextContent(
+      "Now: empty, changed by someone else.",
+    );
   });
 
   it("reload-and-reapply refetches the record and commits against its fresh revision", async () => {
