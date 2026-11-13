@@ -401,6 +401,7 @@ const BROWSER_FAILURE_HINTS = {
   micInsecure: "micInsecure",
   micNotFound: "micNotFound",
   unavailable: "browserUnavailable",
+  network: "browserNetwork",
   noSpeech: "browserNoSpeech",
   generic: "browserFailed",
 } as const satisfies Record<BrowserSpeechFailure, string>;

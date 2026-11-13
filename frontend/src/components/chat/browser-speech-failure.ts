@@ -1,14 +1,15 @@
 /** What the composer says about a failed browser recognition, by its message under `chat.input.speech`. */
 export type BrowserSpeechFailure =
-  "micDenied" | "micInsecure" | "micNotFound" | "unavailable" | "noSpeech" | "generic";
+  "micDenied" | "micInsecure" | "micNotFound" | "unavailable" | "network" | "noSpeech" | "generic";
 
 /**
  * The Web Speech API's `error` code, read as the step that fixes it, or `null`
  * for a recognition that was stopped and has nothing to report.
  *
- * `network` and `service-not-allowed` both mean the browser's own speech service
- * would not transcribe: Chrome sends the audio to a server, and a browser that
- * ships the API without that server refuses every request.
+ * `service-not-allowed` means the browser's own speech service will not
+ * transcribe here: a browser that ships the API without that service refuses
+ * every request. `network` means it could not be reached this time - Chrome
+ * sends the audio to a server.
  */
 export function browserSpeechFailure(error: string, secure: boolean): BrowserSpeechFailure | null {
   switch (error) {
@@ -17,8 +18,9 @@ export function browserSpeechFailure(error: string, secure: boolean): BrowserSpe
     case "audio-capture":
       return "micNotFound";
     case "service-not-allowed":
-    case "network":
       return "unavailable";
+    case "network":
+      return "network";
     case "no-speech":
       return "noSpeech";
     case "aborted":

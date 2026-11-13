@@ -487,7 +487,8 @@ describe("what the operator lets the page offer", () => {
   it.each([
     ["not-allowed", /Microphone blocked for this site/],
     ["audio-capture", /No microphone found/],
-    ["network", /Voice input isn't available in this browser/],
+    ["network", /Couldn't reach the speech service/],
+    ["service-not-allowed", /Voice input isn't available in this browser/],
     ["no-speech", /No speech heard/],
     ["language-not-supported", /Voice input stopped/],
   ])("tells the visitor what to do when the browser's recogniser says %s", async (error, said) => {

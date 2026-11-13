@@ -1519,6 +1519,10 @@
           "title": "Die Spracherkennung Ihres Browsers ist nicht verfügbar",
           "body": "Dieser Agent hat keinen Speech-to-Text-Anbieter fürs Diktieren, deshalb transkribiert der Browser, und sein Dienst hat abgelehnt. Bitten Sie einen Administrator, Diktieren für diesen Agent einzurichten, oder verwenden Sie einen anderen Browser."
         },
+        "network": {
+          "title": "Der Spracherkennungsdienst war nicht erreichbar",
+          "body": "Ihr Browser sendet, was Sie sagen, an seinen Spracherkennungsdienst, und die Verbindung ist fehlgeschlagen. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut."
+        },
         "noSpeech": {
           "title": "Nichts Gesprochenes gehört",
           "body": "Prüfen Sie, ob das Mikrofon stummgeschaltet ist, und versuchen Sie es erneut."
@@ -3791,6 +3795,7 @@
         "notSetUpTitle": "Spracheingabe ist gerade nicht verfügbar.",
         "notSetUpBody": "Bitte tippen Sie Ihre Nachricht stattdessen ein.",
         "browserUnavailable": "<strong>Spracheingabe ist in diesem Browser nicht verfügbar.</strong> Bitte tippen Sie Ihre Nachricht stattdessen ein oder verwenden Sie einen anderen Browser.",
+        "browserNetwork": "<strong>Der Spracherkennungsdienst war nicht erreichbar.</strong> Prüfen Sie Ihre Verbindung und versuchen Sie es erneut oder tippen Sie Ihre Nachricht ein.",
         "browserNoSpeech": "<strong>Nichts Gesprochenes gehört.</strong> Prüfen Sie, ob das Mikrofon stummgeschaltet ist, und versuchen Sie es erneut.",
         "browserFailed": "<strong>Die Spracheingabe wurde unterbrochen.</strong> Versuchen Sie es erneut oder tippen Sie Ihre Nachricht ein."
       }

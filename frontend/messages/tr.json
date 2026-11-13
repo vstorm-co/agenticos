@@ -8871,6 +8871,10 @@
           "title": "Browser'ın konuşma tanıması kullanılamıyor",
           "body": "Bu Agent'ın dikte için speech-to-text provider'ı yok, bu nedenle metne browser çeviriyor ve hizmeti reddetti. Bir yöneticiden bu Agent için dikteyi ayarlamasını isteyin veya başka bir browser deneyin."
         },
+        "network": {
+          "title": "Konuşma tanıma hizmetine ulaşılamadı",
+          "body": "Browser'ınız söylediklerinizi konuşma tanıma hizmetine gönderir ve bağlantı başarısız oldu. Bağlantınızı kontrol edip yeniden deneyin."
+        },
         "noSpeech": {
           "title": "Konuşma duyulmadı",
           "body": "Mikrofonun kapalı olmadığını denetleyip yeniden deneyin."
@@ -9983,6 +9987,7 @@
         "notSetUpTitle": "Sesli giriş şu anda kullanılamıyor.",
         "notSetUpBody": "Lütfen mesajınızı yazarak gönderin.",
         "browserUnavailable": "<strong>Sesli giriş bu browser'da kullanılamıyor.</strong> Lütfen mesajınızı yazarak gönderin veya başka bir browser deneyin.",
+        "browserNetwork": "<strong>Konuşma tanıma hizmetine ulaşılamadı.</strong> Bağlantınızı kontrol edip yeniden deneyin veya mesajınızı yazarak gönderin.",
         "browserNoSpeech": "<strong>Konuşma duyulmadı.</strong> Mikrofonun sessizde olmadığını kontrol edip yeniden deneyin.",
         "browserFailed": "<strong>Sesli giriş durdu.</strong> Yeniden deneyin veya mesajınızı yazarak gönderin."
       }

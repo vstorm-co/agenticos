@@ -678,8 +678,8 @@ describe("ChatInput when the browser's recognition fails", () => {
     ],
     [
       "network",
-      "Your browser's speech recognition isn't available",
-      "This agent has no speech-to-text provider for dictation, so the browser transcribes, and its service refused. Ask an admin to set up Dictation for this agent, or try another browser.",
+      "Couldn't reach the speech service",
+      "Your browser sends what you say to its speech service, and the connection failed. Check your connection, then try again.",
     ],
   ])("says what to do about %s", async (error, title, description) => {
     await dictateAndFail(error);

@@ -1519,6 +1519,10 @@
           "title": "Your browser's speech recognition isn't available",
           "body": "This agent has no speech-to-text provider for dictation, so the browser transcribes, and its service refused. Ask an admin to set up Dictation for this agent, or try another browser."
         },
+        "network": {
+          "title": "Couldn't reach the speech service",
+          "body": "Your browser sends what you say to its speech service, and the connection failed. Check your connection, then try again."
+        },
         "noSpeech": {
           "title": "No speech heard",
           "body": "Check the microphone isn't muted, then try again."
@@ -3791,6 +3795,7 @@
         "notSetUpTitle": "Voice input isn't available right now.",
         "notSetUpBody": "Please type your message instead.",
         "browserUnavailable": "<strong>Voice input isn't available in this browser.</strong> Please type your message instead, or try another browser.",
+        "browserNetwork": "<strong>Couldn't reach the speech service.</strong> Check your connection, then try again, or type your message instead.",
         "browserNoSpeech": "<strong>No speech heard.</strong> Check the microphone isn't muted, then try again.",
         "browserFailed": "<strong>Voice input stopped.</strong> Try again, or type your message instead."
       }
