@@ -538,3 +538,24 @@ async def test_a_database_that_refuses_the_cluster_identifier_still_admits_runs(
     await _forget(db, user, org)
     said = await MemoryToolset().remember(_ctx(user, org, agent, run), "Prefers short answers")
     assert "erased after this conversation began" in said
+
+
+async def test_a_lookup_rolled_back_is_asked_again_on_the_same_connection(
+    engine: AsyncEngine,
+) -> None:
+    from sqlalchemy import text
+
+    snapshot = text("SELECT agenticos_memory_snapshot()")
+    setting = text("SELECT current_setting('agenticos.memory_cluster', true)")
+    async with engine.connect() as connection:
+        # The connection as one that has not looked the cluster up yet.
+        await connection.execute(text("SELECT set_config('agenticos.memory_cluster', '', false)"))
+        await connection.commit()
+
+        assert await connection.scalar(snapshot) is not None
+        await connection.rollback()
+        # The rollback takes the cached cluster with it and leaves '' - not a refusal.
+        assert await connection.scalar(setting) == ""
+        await connection.rollback()
+
+        assert await connection.scalar(snapshot) is not None
