@@ -1,5 +1,5 @@
 ---
-source_sha: "90338e3a8738"
+source_sha: "d4353cfdfb0e"
 ---
 
 # Die Konsole { #the-console }
@@ -1079,7 +1079,7 @@ Die Seitenleistenfußzeile zeigt die Build-Version der Konsole neben Suche und B
 
 Eine neuere stabile AgenticOS-Version hebt die Versionsnummer mit einem grünen Punkt hervor. Ein Klick zeigt die laufende und verfügbare Version sowie einen Link zum offiziellen Release. Die Hintergrundprüfung läuft beim Öffnen der Konsole, während der Nutzung alle 30 Minuten und bei veralteten Daten nach erneutem Fokus oder Wiederherstellung der Verbindung. Der Server teilt öffentliche Prüfergebnisse fünf Minuten lang und sendet keine Konto-, Organisations- oder Bereitstellungsdaten an GitHub. Bei Netzwerkfehlern bleibt die laufende Version sichtbar, ohne als aktuell bezeichnet zu werden. Der Hinweis lädt die Seite nicht neu und installiert kein Update automatisch.
 
-Nach der Anmeldung zeigt **Was ist neu** einmal pro Konto auf diesem Gerät die öffentlichen GitHub-Versionshinweise der installierten Version. Das Fenster wartet, bis das Onboarding geschlossen ist. Schließen markiert die Version als gelesen; fehlende Hinweise oder Netzwerkfehler unterbrechen die Sitzung nicht. Funktionen einer neueren, noch nicht installierten Version stehen nur hinter dem Update-Hinweis.
+Nach der Anmeldung zeigt **Was ist neu** einmal pro Konto auf diesem Gerät die öffentlichen GitHub-Versionshinweise der installierten Version. Das Fenster wartet, bis das Onboarding geschlossen ist. Schließen markiert die Version als gelesen; fehlende Hinweise oder Netzwerkfehler unterbrechen die Sitzung nicht. Funktionen einer neueren, noch nicht installierten Version stehen nur hinter dem Update-Hinweis. Die Abschnitte **Upgrading** und **Notes for operators** mit Migrationen und Upgrade-Schritten sehen nur Administratoren des Deployments; eine Version, die nichts anderes enthält, öffnet für alle anderen kein Fenster.
 
 Chat controls merkt sich Modell, Freigabemodus und lokale Werkzeuge pro Konto und Organisation über Chats hinweg. Projektdateieinstellungen haben Vorrang. Die Zustimmung zum gesamten Computer gilt für eine Unterhaltung oder für einen Agenten, wenn dieser auf Ihrem Computer arbeitet. Das Überspringen von Freigaben benötigt weiterhin die aktuelle Berechtigung und Organisationsrichtlinie. Agent setting (oder Cloud für Dateien) ist deaktiviert, wenn dem veröffentlichten Agenten diese Fähigkeit fehlt; lokale Alternativen werden nicht automatisch aktiviert. Ein Klick auf die ausgewählte lokale Option schaltet sie aus.
 

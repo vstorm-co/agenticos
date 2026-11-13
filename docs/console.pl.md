@@ -1,5 +1,5 @@
 ---
-source_sha: "90338e3a8738"
+source_sha: "d4353cfdfb0e"
 ---
 
 # Konsola { #the-console }
@@ -999,7 +999,7 @@ Stopka panelu bocznego pokazuje wersję kompilacji konsoli obok wyszukiwania i p
 
 Nowsze stabilne wydanie AgenticOS podświetla ten numer i dodaje zieloną kropkę. Kliknięcie pokazuje uruchomioną i dostępną wersję oraz odnośnik do oficjalnego wydania. Sprawdzenie w tle odbywa się przy otwarciu konsoli, co 30 minut podczas pracy oraz po odzyskaniu fokusu lub połączenia, jeśli dane są nieaktualne. Serwer współdzieli wyniki publicznych sprawdzeń przez pięć minut i nie wysyła do GitHuba danych konta, organizacji ani wdrożenia. Awaria sieci pozostawia numer uruchomionej wersji bez stwierdzenia, że jest najnowsza. Powiadomienie nie przeładowuje strony ani nie instaluje aktualizacji automatycznie.
 
-Po zalogowaniu **Co nowego** pokazuje publiczne informacje o zainstalowanej wersji z GitHub Releases, raz dla konta na tym urządzeniu. Okno czeka na zamknięcie onboardingu. Zamknięcie oznacza wersję jako przeczytaną; brak opisu lub błąd pobierania nie przerywa sesji. Funkcje nowszej, niezainstalowanej wersji są dostępne tylko z informacji o aktualizacji.
+Po zalogowaniu **Co nowego** pokazuje publiczne informacje o zainstalowanej wersji z GitHub Releases, raz dla konta na tym urządzeniu. Okno czeka na zamknięcie onboardingu. Zamknięcie oznacza wersję jako przeczytaną; brak opisu lub błąd pobierania nie przerywa sesji. Funkcje nowszej, niezainstalowanej wersji są dostępne tylko z informacji o aktualizacji. Sekcje **Upgrading** i **Notes for operators**, z migracjami i krokami aktualizacji, widzą tylko administratorzy wdrożenia; wydanie, które nie zawiera nic poza nimi, nie otwiera okna nikomu innemu.
 
 Chat controls zapamiętuje model, tryb zatwierdzania i lokalne narzędzia dla konta i organizacji między chatami. Ustawienia plików projektu mają pierwszeństwo. Zgoda na cały komputer dotyczy jednej rozmowy albo jednego agenta, gdy ten agent pracuje na Twoim komputerze. Pomijanie zatwierdzeń wymaga bieżących uprawnień i zgody organizacji. Agent setting (lub Cloud dla plików) jest nieaktywne, jeśli opublikowany agent nie ma tej funkcji; lokalna opcja nie włącza się sama. Kliknięcie wybranej lokalnej opcji wyłącza ją.
 

@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { isNewerRelease, parseVersion } from "./releases";
+import { isNewerRelease, memberReleaseNotes, parseVersion } from "./releases";
 
 it.each([
   ["1.28.0", "1.29.0", true],
@@ -26,4 +26,39 @@ it.each([
   "99999999999999999.1.1",
 ])("refuses invalid version %s", (value) => {
   expect(parseVersion(value)).toBeNull();
+});
+
+it("leaves a release's operator sections out of the notes a member reads", () => {
+  const body = [
+    "### Fixed",
+    "",
+    "- Charts render again.",
+    "",
+    "### Upgrading",
+    "",
+    "- Run migration 0320 before restarting the worker.",
+    "",
+    "### Notes for operators",
+    "",
+    "- The early evaluation migrations retain `capability_requested`.",
+    "",
+    "### Added",
+    "",
+    "- Folders in Documents.",
+  ].join("\n");
+  const member = memberReleaseNotes(body);
+  expect(member).toContain("Charts render again.");
+  expect(member).toContain("Folders in Documents.");
+  expect(member).not.toMatch(/Upgrading|migration 0320|Notes for operators|capability_requested/);
+});
+
+it("ends an operator section at the next heading of its level or above, whichever level it uses", () => {
+  const body =
+    "## Upgrading\n\nRestart the worker.\n\n### Detail\n\nStill operators.\n\n## Added\n\nNew page.";
+  expect(memberReleaseNotes(body).trim()).toBe("## Added\n\nNew page.");
+});
+
+it("leaves notes with nothing for operators as they are, and empties notes that held only that", () => {
+  expect(memberReleaseNotes("### Fixed\n\n- A fix.")).toBe("### Fixed\n\n- A fix.");
+  expect(memberReleaseNotes("### Upgrading\n\n- Migrate first.").trim()).toBe("");
 });
