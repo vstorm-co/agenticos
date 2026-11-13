@@ -18180,7 +18180,7 @@
           },
           "fields__items__label": {
             "title": "Bezeichnung",
-            "description": "Im Ausführen-Formular angezeigt"
+            "description": "Im Run-Formular angezeigt"
           },
           "fields__items__type": {
             "title": "Typ"
@@ -19916,7 +19916,7 @@
           },
           "fields__items__label": {
             "title": "Bezeichnung",
-            "description": "Im Ausführen-Formular angezeigt"
+            "description": "Im Run-Formular angezeigt"
           },
           "fields__items__type": {
             "title": "Typ"
@@ -19992,7 +19992,7 @@
           },
           "fields__items__label": {
             "title": "Bezeichnung",
-            "description": "Im Ausführen-Formular angezeigt"
+            "description": "Im Run-Formular angezeigt"
           },
           "fields__items__type": {
             "title": "Typ"
@@ -20116,7 +20116,7 @@
           },
           "fields__items__label": {
             "title": "Bezeichnung",
-            "description": "Im Ausführen-Formular angezeigt"
+            "description": "Im Run-Formular angezeigt"
           },
           "fields__items__type": {
             "title": "Typ"

@@ -18267,7 +18267,7 @@
           },
           "fields__items__label": {
             "title": "Etykieta",
-            "description": "Wyświetlana w formularzu uruchomienia"
+            "description": "Wyświetlana w formularzu Run"
           },
           "fields__items__type": {
             "title": "Typ"
@@ -20003,7 +20003,7 @@
           },
           "fields__items__label": {
             "title": "Etykieta",
-            "description": "Wyświetlana w formularzu uruchomienia"
+            "description": "Wyświetlana w formularzu Run"
           },
           "fields__items__type": {
             "title": "Typ"
@@ -20079,7 +20079,7 @@
           },
           "fields__items__label": {
             "title": "Etykieta",
-            "description": "Wyświetlana w formularzu uruchomienia"
+            "description": "Wyświetlana w formularzu Run"
           },
           "fields__items__type": {
             "title": "Typ"
@@ -20203,7 +20203,7 @@
           },
           "fields__items__label": {
             "title": "Etykieta",
-            "description": "Wyświetlana w formularzu uruchomienia"
+            "description": "Wyświetlana w formularzu Run"
           },
           "fields__items__type": {
             "title": "Typ"
