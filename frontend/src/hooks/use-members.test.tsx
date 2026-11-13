@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -53,6 +53,23 @@ beforeEach(() => {
  * the filter runs over what was fetched (#1335).
  */
 describe("useMembers", () => {
+  it("reports whether removal succeeded and retains a refused member", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [member(0)], total: 1 });
+    vi.mocked(apiClient.delete)
+      .mockRejectedValueOnce(new Error("Refused"))
+      .mockResolvedValueOnce(undefined);
+    const { result } = renderHook(() => useMembers("org-1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await act(async () => {
+      expect(await result.current.removeMember("u-0")).toBe(false);
+    });
+    expect(result.current.members).toHaveLength(1);
+    await act(async () => {
+      expect(await result.current.removeMember("u-0")).toBe(true);
+    });
+    await waitFor(() => expect(result.current.members).toHaveLength(0));
+  });
+
   it("keeps asking until a page comes back short", async () => {
     const first = Array.from({ length: 100 }, (_, index) => member(index));
     const second = Array.from({ length: 10 }, (_, index) => member(100 + index));

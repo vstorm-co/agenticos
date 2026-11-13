@@ -95,7 +95,7 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
     router.replace(`${ROUTES.AGENTS}/${owner}/evals/${runId}${query ? `?${query}` : ""}`);
   }, [misplaced, owner, runId, params, router]);
 
-  if (isLoading || misplaced) return <LoadingState variant="skeleton-cards" rows={3} />;
+  if (isLoading || misplaced) return <LoadingState variant="pending" />;
   if (error instanceof ApiError && error.status === 403) {
     return <EmptyState icon={Lock} title={t("noAccess.title")} description={t("noAccess.body")} />;
   }

@@ -78,7 +78,7 @@ describe("the sites your agents' browser starts signed in to", () => {
     const row = screen.getByText("portal.example.test").closest("li");
     const icon = row?.querySelector("img");
     if (!icon) throw new Error("missing site favicon");
-    expect(icon).toHaveAttribute("src", "https://portal.example.test/favicon.ico");
+    expect(icon).toHaveAttribute("src", "/api/link-icon?host=portal.example.test");
     expect(icon).toHaveAttribute("referrerpolicy", "no-referrer");
     fireEvent.error(icon);
     expect(row?.querySelector(".lucide-globe")).toBeInTheDocument();

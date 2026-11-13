@@ -1,10 +1,10 @@
 ---
-source_sha: "ccdac29aa383"
+source_sha: "65dcefce4721"
 ---
 
 # Skille { #skills }
 
-Kliknięcie skilla w katalogu otwiera modal bez utraty wyszukiwania, filtrów i strony listy. **Otwórz pełny widok** przechodzi do tej samej zakładki i wybranej linii na osobnej stronie. Drzewo wersji rośnie wraz z zawartością do ograniczonej wysokości; jedna wersja nie pozostawia dużego pustego płótna. Pojedynczy podgląd porównania korzysta z dostępnej szerokości i wyświetla instrukcje jako Markdown z możliwością podejrzenia źródła. Wiele wybranych wersji dzieli miejsce na komputerze, a na telefonie przewija się wewnątrz porównania.
+Kliknięcie skilla w katalogu otwiera modal z instrukcjami, opisem i plikami bez utraty wyszukiwania, filtrów ani strony listy. **Otwórz pełny widok** obok **Udostępnij** w dolnym pasku modalu otwiera zakładkę Treść na osobnej stronie, z dostępnymi zakładkami Agenci i Historia. Wyjście z niezapisanymi zmianami wymaga decyzji, co zachować. Gdy brakuje opinii, Improve wskazuje następny krok zamiast formularza limitu, którego nie można uruchomić.
 
 
 Skill to wiedza praktyczna zapisana raz i podpięta do wielu agentów: jak
@@ -125,8 +125,12 @@ używają skilla - albo że jeszcze żaden. Pliki kontekstu i bazy wiedzy mają 
 
 **Nazwa skilla to id, pod którym model go ładuje**, więc ma formę, w jakiej
 modele piszą id: małe litery i cyfry połączone pojedynczymi myślnikami, na przykład
-`refund-policy`. Nazwa ze spacjami lub wielkimi literami jest odrzucana przy
-tworzeniu skilla. Nazwę, którą model musiałby odtworzyć dokładnie, jak
+`refund-policy`. Konsola automatycznie formatuje wielkie litery, spacje, interpunkcję
+i łacińskie znaki diakrytyczne po opuszczeniu pola lub przy zapisie: `Refund Policy`
+zmienia się w `refund-policy`. API nadal wymaga formatu kanonicznego. Kolizje z
+istniejącą nazwą i nazwy capabilities są odrzucane bez utraty formularza.
+
+Nazwę, którą model musiałby odtworzyć dokładnie, jak
 `Refund policy`, ładował jako `refund-policy`, a dwie błędne próby kończą turę
 ([#1911](https://github.com/vstorm-co/agenticos/issues/1911)).
 
@@ -799,21 +803,6 @@ kiedy każda trwała i kto ją zaczął, jak się skończyła - zastosowana jako
 fork, odrzucona, wygasła - i ile kosztowała. **Kontynuuj** otwiera sesję, która
 wciąż na Ciebie czeka; **Otwórz** pokazuje zakończoną. Wersja, którą sesja
 zastosowała, linkuje do niej.
-
-**Drzewo wersji** rysuje main jako linię pól od lewej do prawej, kończącą się na
-najnowszej wersji. Każdy fork odchodzi na własnym torze od wersji, od której
-wystartował, a każdy agent siedzi w polu wersji, której używa. Na linii z co
-najmniej ośmioma wersjami odcinki, których nie używa żaden agent, zwijają się do
-jednego pola. **Porównaj** przy wersji dodaje ją do porównania pod diagramem.
-Wybierz dowolnie wiele wersji, z main i z forków, żeby zobaczyć obok siebie ich
-opisy, instrukcje i pliki. Diagram przesuwa się przeciągnięciem i przybliża kółkiem
-albo przyciskami, tak jak mapa agenta.
-
-Pierwsza wybrana wersja jest **wzorcem** i zawsze stoi pierwsza, za kreską
-oddzielającą. Każda inna kolumna zaznacza, co mówi
-inaczej niż on, słowo po słowie, tak jak diffy w historii, a jej pliki jako dodane,
-usunięte albo zmienione. **Ustaw jako wzorzec** robi wzorcem inną kolumnę, a **Tylko
-różnice** zwija części, które mówią to samo.
 
 **Edytuj** zapisuje nową wersję na widocznej linii. Na main agenci podążający za
 main dostają ją od razu; przypięci agenci i forki zostają przy swojej wersji.

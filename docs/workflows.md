@@ -1,5 +1,7 @@
 # Workflows
 
+Choose a workflow’s icon beside its name in the editor. The same neutral tile appears in the catalog. A selected mark survives reload; **Use default icon** resets it. This changes presentation metadata, not the draft revision or published graph.
+
 A **workflow** chains steps into an automation your agents carry out: read a
 [table](virtual-tables.md), call an agent, branch on the result, loop over a
 list. You build it on a canvas, wire the steps together, and publish it as an
@@ -108,6 +110,8 @@ An agent step can call `ask_user_question` to pause with **Waiting for user**. A
 Agents called from workflows can use their AgenticOS MCP tools in the background worker as well as in the web chat.
 
 ## The canvas and adding steps { #the-canvas-and-the-palette }
+
+After **Test draft**, the canvas shows the run's status and completed-step count. **Open run** opens its details. On narrow screens the status bar wraps inside the canvas so the link and close button remain reachable.
 
 The editor keeps **Runs**, **Test draft** and **Publish** visible. **More** contains **Versions** and the edit/view switch. **Canvas options** holds the minimap, connection style and shortcuts. A step with no incoming connection leaves more room for parameters by omitting the empty Input pane; **Expected output fields** expands the output schema. **Review setup before testing** opens the unfinished setup.
 

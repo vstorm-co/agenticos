@@ -82,6 +82,27 @@ describe("ListCard", () => {
     expect(container.querySelector(".animate-pulse")).not.toBeNull();
   });
 
+  it("removes an empty toolbar from keyboard navigation and restores it with results", async () => {
+    const user = userEvent.setup();
+    const view = (empty: boolean) => (
+      <ListCard
+        title="Skills"
+        counted={empty ? "0 skills" : "1 skill"}
+        namedByPage
+        empty={empty}
+        controls={<input aria-label="Search skills" />}
+      >
+        <button>Create skill</button>
+      </ListCard>
+    );
+    const { rerender } = render(view(true));
+    expect(screen.queryByRole("textbox", { name: "Search skills" })).toBeNull();
+    await user.tab();
+    expect(screen.getByRole("button", { name: "Create skill" })).toHaveFocus();
+    rerender(view(false));
+    expect(screen.getByRole("textbox", { name: "Search skills" })).toBeVisible();
+  });
+
   it("drops the toolbar over an empty list, leaving the empty state to say so", () => {
     render(
       <ListCard title="Skills" counted="0 skills" namedByPage empty>
@@ -89,7 +110,7 @@ describe("ListCard", () => {
       </ListCard>,
     );
 
-    expect(screen.getByText("0 skills").parentElement).toHaveClass("sr-only");
+    expect(screen.getByText("0 skills").parentElement).toHaveAttribute("hidden");
     expect(screen.getByText("No skills yet")).toBeVisible();
   });
 });

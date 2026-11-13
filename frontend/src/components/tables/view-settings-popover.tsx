@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { ArrowDown, ArrowUp, GripVertical, Settings2 } from "lucide-react";
 import {
@@ -33,7 +33,9 @@ export function ViewSettingsPopover({
   display,
   onChange,
   onToggle,
+  actions,
 }: {
+  actions?: ReactNode;
   columns: ColumnDef[];
   visible: string[] | null;
   display: TableDisplay;
@@ -251,6 +253,7 @@ export function ViewSettingsPopover({
             )}
           </section>
         </div>
+        {actions && <div className="shrink-0 border-t p-3 [&>button]:w-full">{actions}</div>}
       </PopoverContent>
     </Popover>
   );

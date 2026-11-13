@@ -17,6 +17,7 @@ interface UseNotificationPreferencesResult {
   preferences: NotificationPreference[];
   isLoading: boolean;
   error: string | null;
+  retry: () => void;
   /** Whether `event_type`'s `channel` is on - unset pairs default to on
    * (the server's own default), matching what `GET` never has to say. Only
    * meaningful once the read has actually succeeded; a caller with `error`
@@ -45,6 +46,7 @@ export function useNotificationPreferences(): UseNotificationPreferencesResult {
     data: preferences = [],
     isLoading,
     error: queryError,
+    refetch,
   } = useQuery({
     queryKey: qk.notifications.preferences(),
     queryFn: listNotificationPreferences,
@@ -92,5 +94,14 @@ export function useNotificationPreferences(): UseNotificationPreferencesResult {
     [queryClient],
   );
 
-  return { preferences, isLoading, error, isEnabled, setPreference };
+  return {
+    preferences,
+    isLoading,
+    error,
+    retry: () => {
+      void refetch();
+    },
+    isEnabled,
+    setPreference,
+  };
 }

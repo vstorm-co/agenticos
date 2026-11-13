@@ -178,9 +178,8 @@
     "connectionSDefaultIs": "The connection's default - {alias}",
     "considerOnlyMostLikely": "Consider only the most likely tokens making up this much probability mass. Set this or temperature, not both.",
     "contextCount": "{count, plural, =1 {1 context file} other {# context files}}",
-    "contextFilesDetail": "Standing context this agent reads - a glossary or policy injected into its prompt, or files it reads on demand.",
     "contextFilesHeading": "Context files",
-    "contextInjectOnlyNoTools": "Every file bound here is injected into the prompt, so the read tools (list_context, read_context) are not attached - the agent already has the text and has nothing to read on demand. Set a file to linked to give it the tools.",
+    "contextInjectOnlyNoTools": "Injected context is included in the prompt. Context read tools appear when at least one enabled file is linked.",
     "contextLoadingHint": "An injected file is added to every run; a linked one the agent reads only when it decides it is relevant. <link>Manage context</link>",
     "contextOffButBound": "Context is switched off, so none of these files reach the model - not the injected ones either, because the injection happens here. They stay in the spec and are still checked at publish; switch it on above, or unpick them.",
     "contextPlacement": "Context for this placement",
@@ -1090,7 +1089,8 @@
     "pipelineModelPlaceholder": "Choose a model",
     "pipelineNoMatches": "No matching models",
     "alreadyHasIt": "Uses it",
-    "inDraftOf": "{more, plural, =0 {In the draft of {names}, not published yet} other {In the drafts of {names} and # more, not published yet}}"
+    "inDraftOf": "{more, plural, =0 {In the draft of {names}, not published yet} other {In the drafts of {names} and # more, not published yet}}",
+    "useDefaultModel": "Use default model"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -1662,9 +1662,10 @@
       "elapsedMinutes": "{minutes}m{seconds, plural, =0 {} other { #s}}",
       "stopped": "Stopped{count, plural, =0 {} =1 { · 1 step} other { · # steps}}",
       "stoppedAfter": "Stopped after {duration}{count, plural, =0 {} =1 { · 1 step} other { · # steps}}",
-      "activityCount": "{count, plural, one {# action} other {# actions}}"
+      "activityCount": "{count, plural, one {# action} other {# actions}}",
+      "failedAfter": "Failed after {duration}{count, plural, =0 {} =1 { · 1 step} other { · # steps}}",
+      "failedWork": "Failed{count, plural, =0 {} =1 { · 1 step} other { · # steps}}"
     },
-    "streamError": "❌ Error: {message}",
     "turnInterrupted": "The connection dropped mid-answer. The agent finishes the turn and saves it to this conversation.",
     "turnInterruptedRecheck": "Check for it",
     "turnStillArriving": "The earlier answer is still being written. It lands in this conversation when it finishes, below the question you have just asked.",
@@ -2509,7 +2510,9 @@
       "notice": "Setup response · No AI model was called and no provider usage was charged.",
       "ownerHint": "Your workspace administrator can connect AI for the team. You do not need to provide your own key.",
       "contact": "Contact your administrator"
-    }
+    },
+    "runFailedTitle": "Run did not finish",
+    "runFailedHint": "No final answer was produced. You can review the work above."
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",
@@ -2557,7 +2560,8 @@
     "details": "Details",
     "resourceActions": "More actions for {name}",
     "workspaceExpand": "Full screen",
-    "workspaceCollapse": "Exit full screen"
+    "workspaceCollapse": "Exit full screen",
+    "copyFailed": "Copy failed"
   },
   "dashboard": {
     "actions": {
@@ -4449,7 +4453,7 @@
     "manageConnectionsOn": "Manage {count, plural, =1 {1 connection} other {# connections}} on {name}",
     "name": "Tool prefix",
     "prefixPlaceholder": "wiki",
-    "nameMustBeLowercase": "Name must be lowercase letters, digits and hyphens (max 32 characters).",
+    "nameMustBeLowercase": "Enter a name containing letters or digits, with no more than 32 characters after formatting.",
     "namePrefixesToolNames": "Lowercase letters, digits and hyphens. The model reads it before every tool call, so it has to be unique among {scope, select, organization {the organization's} other {your}} servers.",
     "needsAuthorization": "Needs authorization",
     "noToolMatches": "No tool matches that.",
@@ -5215,7 +5219,7 @@
       },
       "vault-keys": {
         "title": "What's stored",
-        "body": "Every credential in this organization, listed by name and kind. An agent references a key by its name; the value itself is shown to no one once it's saved."
+        "body": "Keys and connected accounts share this table. Check each entry's access and actions; stored key values and OAuth tokens stay hidden. Use Connect account in the header to add your own account or an organization account you may manage."
       },
       "vault-new": {
         "title": "The vault",
@@ -5905,10 +5909,6 @@
       "skill-history": {
         "title": "Every version, and the way back",
         "body": "See what each version changed, who made it and where it came from. Restore brings an earlier one back as the newest."
-      },
-      "skill-tree": {
-        "title": "Main and its forks",
-        "body": "Main runs left to right to its newest version, each fork branches off the version it started from on a lane of its own, and every agent sits in the box of the version it uses. Compare puts any versions side by side."
       },
       "skill-improve": {
         "title": "Improve the skill",
@@ -7838,7 +7838,6 @@
       "agentActivity": "Agent activity",
       "allConversationsKnowledgeBase": "All conversations, knowledge base contents, API keys, and personal data will be permanently deleted. Active subscriptions will be canceled.",
       "alwaysSent": "Always sent",
-      "avatar": "Avatar",
       "avatarTooLargeMaximum2": "Avatar too large. Maximum 2MB.",
       "avatarUpdated": "Avatar updated",
       "cancel": "Cancel",
@@ -7883,7 +7882,7 @@
       "noMarketingEmail": "No marketing email.",
       "notOptional": "Not optional -",
       "notificationPreferences": "Notification preferences",
-      "notificationPreferencesDescription": "Choose which events reach each channel. The chat selector changes the additional column below; a private destination must also be enabled above. An unset event switch defaults to on.",
+      "notificationPreferencesDescription": "Choose which events reach each channel. Private chats also need a destination in Private chat notifications. Event switches are on unless you turn them off.",
       "nothingChanged": "Nothing changed",
       "nothingHereChargesYou": "Nothing here charges you, so there are no renewals, payment failures or credit warnings.",
       "optionalApprovals": "Approval requests",
@@ -7924,7 +7923,6 @@
       "revokesEveryActiveSession": "This revokes every active session and signs you out of this device too.",
       "saveChanges": "Save changes",
       "saving2": "Saving…",
-      "saving3": "Saving…",
       "selfDeleteNotEnabled": "Self-delete not enabled. Contact support.",
       "selfHostedDeploymentThere": "This is a self-hosted deployment. There is no newsletter and no subscriber list.",
       "sentInvitation": "Organization invitation",
@@ -8049,7 +8047,12 @@
       "smsChannel": "SMS",
       "chatChannelPreferences": "Chat channel preferences",
       "imessageChannel": "iMessage",
-      "discordChannel": "Discord"
+      "discordChannel": "Discord",
+      "notificationSearch": "Find notifications…",
+      "notificationNoMatches": "No matching notifications",
+      "notificationSearchHint": "Try an event name or a word from its description.",
+      "notificationClearSearch": "Clear search",
+      "notificationEventCount": "{count, plural, =1 {1 event} other {# events}}"
     },
     "skills": {
       "allCategories": "All categories",
@@ -8078,14 +8081,9 @@
     "vault": {
       "accessTo": "Access to {name}",
       "addKey": "Add key",
-      "addKey2": "Add key",
-      "addOneBecomesSelectable": "Add one and it becomes selectable wherever it is needed - a model provider in the Builder, a search service in a capability.",
-      "keys": "Keys",
-      "noKeysYet": "No keys yet",
       "pageDescription": "Every key this organization has stored. Encrypted, bound to this organization, and never readable again - a key can be replaced, not revealed.",
       "storedCount": "{count, plural, =1 {1 key stored} other {# keys stored}}",
       "vault": "Vault",
-      "vault2": "Vault",
       "whoCanBindKey": "Who can bind this key to an agent, and who can rotate or delete it. A key nobody can reach is a capability nobody can configure.",
       "connectedAccounts": {
         "personalTitle": "Your connected accounts",
@@ -8093,16 +8091,20 @@
         "count": "{count, plural, one {# account} other {# accounts}}",
         "connect": "Connect Google account",
         "noneYet": "No accounts connected yet",
-        "personalDetail": "An agent whose virtual terminal reads each person's own accounts mounts these when you talk to it.",
-        "organizationDetail": "An agent's virtual terminal can read one of these for everybody who talks to it.",
         "needsReconnect": "Its sign-in stopped working. Connect it again.",
         "scopes": "{count, plural, one {# permission granted} other {# permissions granted}}",
         "reconnect": "Reconnect",
         "disconnect": "Disconnect {email}",
         "disconnectTitle": "Disconnect {email}?",
         "disconnectDetail": "Agents that read this account lose its folders on their next run. The grant is deleted from the vault.",
-        "disconnectConfirm": "Disconnect"
-      }
+        "disconnectConfirm": "Disconnect",
+        "reconnectNamed": "Reconnect {email}"
+      },
+      "connectAccount": "Connect account",
+      "personalAccount": "Your account",
+      "organizationAccount": "Organization account",
+      "emptyTitle": "No credentials yet",
+      "emptyDetail": "Add a key or connect an account to use it with your agents."
     },
     "workspaces": {
       "failedLoadWorkspaces": "Failed to load workspaces",
@@ -8867,23 +8869,27 @@
     "delete2": "Delete",
     "disableAnyYouDon": "Disable any you don't want to see in the palette.",
     "edit": "Edit",
-    "edit2": "Edit",
     "enabled": "Enabled",
     "failedDelete3": "Failed to delete",
     "failedSaveCommand": "Failed to save command",
     "failedToggle": "Failed to toggle",
     "failedToggle2": "Failed to toggle",
     "local": "local",
-    "lowercaseLettersDigitsHyphens": "Lowercase letters, digits, hyphens. Max 32 chars.",
+    "lowercaseLettersDigitsHyphens": "Capitals, spaces and punctuation are formatted automatically, e.g. Daily Review becomes daily-review. Max 32 characters.",
     "modelAdded": "Added {label}",
     "modelRemoved": "Model removed",
     "modelUpdated": "Updated {label}",
     "modelInUse": "{label} is still used by {names}{hidden, plural, =0 {} one { and one agent you cannot see} other { and # agents you cannot see}}. Move them to another model first, or change this model's key instead of deleting it. {archived, plural, =0 {} one {One of them is archived: delete it, or restore it and move it.} other {# of them are archived: delete them, or restore them and move them.}}",
     "modelInUseHidden": "{label} is still used by {count, plural, one {one agent} other {# agents}} you cannot see. Ask an admin to move them to another model first.",
     "name": "Name",
-    "nameMustBeLowercase": "Name must be lowercase letters, digits, and hyphens (max 32 chars).",
+    "nameMustBeLowercase": "Enter a name containing letters or digits, with no more than 32 characters after formatting.",
     "newCommand": "New command",
     "newCustomCommand": "New custom command",
+    "toggleCommand": "Enable /{name}",
+    "commandCreated": "/{name} created.",
+    "commandUpdated": "/{name} updated.",
+    "commandDeleted": "/{name} deleted.",
+    "confirmDeleteCommand": "This removes the command and its saved prompt. Existing conversations are kept.",
     "noCustomCommandsYet": "No custom commands yet",
     "prompt": "Prompt",
     "promptCannotBeEmpty": "Prompt cannot be empty.",
@@ -8922,11 +8928,11 @@
     "share": "Share",
     "sharingUpdated": "Sharing updated",
     "visibilityOrg": "Everyone in the organization",
-    "visibilityOrgReaches": "Everyone in the organization who can view {resource, select, agent {agents} skill {skills} collection {collections} artifact {apps} dataset {datasets} context {context files} mcp_connection {MCP servers} other {secrets}} at all.",
+    "visibilityOrgReaches": "Everyone in the organization who can view {resource, select, agent {agents} skill {skills} collection {collections} artifact {apps} dataset {datasets} context {context files} mcp_connection {MCP servers} project {projects} other {secrets}} at all.",
     "visibilityPrivate": "Only people with access",
-    "visibilityPrivateReaches": "Only the people listed above. Nobody else finds this {resource, select, agent {agent} skill {skill} collection {collection} artifact {app} dataset {dataset} context {context file} mcp_connection {MCP server} other {secret}} in their list - and if it has no owner yet, it becomes yours.",
+    "visibilityPrivateReaches": "Only the people listed above. Nobody else finds this {resource, select, agent {agent} skill {skill} collection {collection} artifact {app} dataset {dataset} context {context file} mcp_connection {MCP server} project {project} other {secret}} in their list - and if it has no owner yet, it becomes yours.",
     "visibilityTeam": "Team (no longer offered)",
-    "visibilityTeamReaches": "Anyone whose role reaches team {resource, select, agent {agents} skill {skills} collection {collections} artifact {apps} dataset {datasets} context {context files} mcp_connection {MCP servers} other {secrets}}. This organization has no teams - pick one of the two above.",
+    "visibilityTeamReaches": "Anyone whose role reaches team {resource, select, agent {agents} skill {skills} collection {collections} artifact {apps} dataset {datasets} context {context files} mcp_connection {MCP servers} project {projects} other {secrets}}. This organization has no teams - pick one of the two above.",
     "visibilityUpdated": "Visibility updated",
     "groupsHeading": "Groups",
     "membersHeading": "Members",
@@ -8979,7 +8985,7 @@
     "folderMadeByNaming": "A folder is made by naming a file inside it - there is nothing else to create.",
     "groupsListingNeverReaches": "Groups the listing. Never reaches the model.",
     "hide": "Hide",
-    "howModelRefersSkill": "How the model refers to this skill: lowercase letters, digits and hyphens, such as refund-policy. It cannot be changed later.",
+    "howModelRefersSkill": "How the model refers to this skill. Capitals, spaces and punctuation are formatted automatically, e.g. Refund Policy becomes refund-policy. The saved name cannot be changed.",
     "howRefundsTheirExceptions": "How refunds and their exceptions are handled.",
     "markdownLoadedOnlyAfter": "Markdown. Loaded only after the description convinced the model to, so length costs nothing until it is needed.",
     "markdownYouCanFill": "Markdown. You can fill this in later - it is loaded only after the description convinced the model to.",
@@ -9046,7 +9052,6 @@
       "tabs": {
         "agents": "Agents",
         "history": "History",
-        "tree": "Version tree",
         "content": "Content"
       },
       "agentCount": "{count, plural, =0 {No agents} =1 {1 agent} other {# agents}}",
@@ -9181,41 +9186,8 @@
         }
       },
       "tree": {
-        "title": "Version tree",
-        "summary": "{versions, plural, =1 {1 version on main} other {# versions on main}}{forks, plural, =0 {} =1 { · 1 fork} other { · # forks}}",
-        "folded": "{count, plural, other {# versions}} (v{from}–v{to})",
         "number": "v{number}",
-        "latest": "latest",
-        "fork": "Fork “{name}”",
-        "forkFacts": "{changes, plural, =0 {no changes yet} =1 {1 change} other {# changes}}{behind, plural, =0 {} other { · # behind main}}",
-        "forkNumber": "{name} v{number}",
-        "noVersionYet": "No version of its own yet",
-        "compare": "Compare {version}",
-        "compareShort": "Compare",
-        "comparing": "Comparing"
-      },
-      "compare": {
-        "title": "Comparison",
-        "count": "{count, plural, =1 {1 version} other {# versions}}",
-        "clear": "Clear",
-        "pickAnother": "Pick another version on the diagram to put beside this one.",
-        "remove": "Remove {version} from the comparison",
-        "loading": "Loading the version…",
-        "description": "Description",
-        "instructions": "Instructions",
-        "files": "Files",
-        "noFiles": "No files.",
-        "unreadable": "Couldn't load this version.",
-        "retry": "Retry",
-        "reference": "Reference",
-        "setReference": "Set as reference",
-        "onlyDifferences": "Only the differences",
-        "sameAsReference": "same as the reference",
-        "file": {
-          "added": "added",
-          "removed": "removed",
-          "changed": "changed"
-        }
+        "forkNumber": "{name} v{number}"
       },
       "edit": {
         "saved": "Saved as v{number}.",
@@ -9323,7 +9295,11 @@
         "hidden": "This skill has test questions, in a dataset you may not open."
       },
       "content": {
-        "title": "What it serves now"
+        "title": "What it serves now",
+        "description": "Description",
+        "instructions": "Instructions",
+        "files": "Files",
+        "noFiles": "No files."
       },
       "more": "More actions",
       "checks": {
@@ -9787,7 +9763,9 @@
       "noneInVault": "No {provider} keys in the vault yet. Add one in the vault, then choose it here.",
       "notShared": "{name} is already in the vault, but must be shared with the whole organization before it can be used here. Change its access in the Vault.",
       "chatGPTSignIn": "{name} is a ChatGPT sign-in for model access through a ChatGPT subscription. Voice features require an OpenAI API key; this sign-in cannot be used here."
-    }
+    },
+    "notRecorded": "Not recorded",
+    "googleAccount": "Google account"
   },
   "context": {
     "created": "Created {name}",
@@ -10194,7 +10172,9 @@
     "resultReport": "After every completed run",
     "resultInbox": "Only when something needs attention",
     "resultReportHint": "Deliver a report to the chosen conversation after each run.",
-    "resultInboxHint": "Create one Inbox case and working chat per source item. Include requested drafts there; unchanged checks stay quiet. Sending still requires the appropriate permission and approval."
+    "resultInboxHint": "Create one Inbox case and working chat per source item. Include requested drafts there; unchanged checks stay quiet. Sending still requires the appropriate permission and approval.",
+    "clearSearch": "Clear search",
+    "noRoutineMatchesHint": "Try an agent name, routine title or words from its message."
   },
   "portals": {
     "mailboxInterval": {
@@ -12019,7 +11999,11 @@
       "blockedLink": "The page has no public link. Turn it on first."
     },
     "lightTheme": "Use light app theme",
-    "darkTheme": "Use dark app theme"
+    "darkTheme": "Use dark app theme",
+    "linkSettings": "Link settings",
+    "passwordProtected": "Password protected",
+    "expiresOn": "Expires {date}",
+    "embedSiteCount": "{count, plural, one {# embedding site} other {# embedding sites}}"
   },
   "tables": {
     "cells": {
@@ -12268,6 +12252,7 @@
       "mapTo": "Where {header} goes",
       "skip": "Don't import",
       "externalId": "External id",
+      "duplicateMapping": "Map each table column only once. Choose a different column or Don't import.",
       "updateExisting": "Update records already here",
       "updateExistingHint": "A row whose external id the table already holds changes that record's cells it names, instead of being refused.",
       "back": "Back",
@@ -12612,7 +12597,13 @@
       "nothingSharedHint": "Share something with the group from its Sharing panel, or add several at once from the group's page."
     },
     "addToGroupAll": "Select all",
-    "addToGroupNone": "Clear"
+    "addToGroupNone": "Clear",
+    "searchGroups": "Search departments…",
+    "noMatches": "No departments match",
+    "searchHint": "Try a department name or a word from its description.",
+    "clearSearch": "Clear search",
+    "formDescription": "Choose a name and icon. Add a short description so people know what belongs here.",
+    "budgetOptions": "Budget limit"
   },
   "directory": {
     "navLabel": "Directory",
@@ -12694,7 +12685,17 @@
     "couldNotLoad": "Could not load your API keys",
     "emptyTitle": "No API keys yet",
     "emptyWhy": "Create one to call the API from a script, Postman or Claude Code.",
-    "personalConsentWhy": "Personal consent is excluded from presets. To let this key or app approve routines and watches that use your personal connections and data, select personal:consent under Custom."
+    "personalConsentWhy": "Personal consent is excluded from presets. To let this key or app approve routines and watches that use your personal connections and data, select personal:consent under Custom.",
+    "search": "Search API keys…",
+    "noMatches": "No matching API keys",
+    "searchHint": "Try a key name, prefix or the email of its issuer.",
+    "clearSearch": "Clear search",
+    "keyCount": "{count, plural, =1 {1 key} other {# keys}}",
+    "permissionSearch": "Find a permission",
+    "permissionPlaceholder": "Search permissions…",
+    "noPermissions": "No permissions match this search.",
+    "permissionDetails": "{count, plural, =1 {View 1 permission} other {View # permissions}}",
+    "couldNotLoadScopes": "Could not load available permissions"
   },
   "mcpOauth": {
     "title": "{client} wants to act as you",
@@ -13881,7 +13882,7 @@
   },
   "apiUsage": {
     "title": "Use the API",
-    "why": "Everything an API key can do, over plain HTTP: run agents, read runs and what they cost, fill and search knowledge bases, manage members. Create a key below, then call the base URL.",
+    "why": "Use an API key to run agents, read runs, search knowledge bases and manage resources over HTTP. Copy the base URL and send the key as a bearer token.",
     "baseUrl": "Base URL",
     "auth": "Send the key in the <code>Authorization: Bearer aos_…</code> header.",
     "reference": "API reference: every endpoint",
@@ -16733,7 +16734,8 @@
     "teams": "Microsoft Teams",
     "sms": "SMS",
     "imessage": "iMessage",
-    "discord": "Discord"
+    "discord": "Discord",
+    "platformOptions": "Chat platforms"
   },
   "routineHealth": {
     "label": "Pause after repeated failures",
@@ -17636,5 +17638,19 @@
         "to_main": "Move to main"
       }
     }
+  },
+  "resourceAppearance": {
+    "title": "Icon",
+    "change": "Change icon",
+    "table": "Table",
+    "workflow": "Workflow",
+    "reset": "Use default icon"
+  },
+  "improvementSetup": {
+    "noFeedback": "No feedback yet",
+    "openChat": "Open chat",
+    "contextTitle": "Improve context",
+    "contextBody": "The assistant uses feedback from conversations where agents used this context file. Review every suggestion before applying it.",
+    "costs": "Costs and limits"
   }
 }

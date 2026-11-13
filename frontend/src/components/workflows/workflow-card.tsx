@@ -1,5 +1,7 @@
 "use client";
 
+import { ResourceIcon } from "@/components/ui/resource-icon";
+
 import Link from "next/link";
 import { useState } from "react";
 import {
@@ -13,11 +15,9 @@ import {
   Trash2,
   Users,
 } from "lucide-react";
-import { WorkflowIcon as Workflow } from "@/components/icons/product-icons";
 import { useLocale, useTranslations } from "next-intl";
 
 import { WorkflowRunStatusBadge } from "@/components/workflows/runs/run-status";
-import { NodeTile } from "@/components/workflows/node-tile";
 import {
   Badge,
   ConfirmDialog,
@@ -92,18 +92,7 @@ export function WorkflowCard({
           aria-label={tc("openNamed", { name: workflow.name })}
         />
         <div className="pointer-events-none relative mb-3 flex items-start gap-3">
-          {workflow.entry_node === null ? (
-            <span className="bg-muted text-muted-foreground flex size-10 shrink-0 items-center justify-center rounded-lg">
-              <Workflow aria-hidden="true" className="size-5" />
-            </span>
-          ) : (
-            <NodeTile
-              definitionId={workflow.entry_node}
-              category="triggers"
-              className="size-10 rounded-lg"
-              iconClassName="size-5"
-            />
-          )}
+          <ResourceIcon kind="workflow" icon={workflow.icon} />
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">

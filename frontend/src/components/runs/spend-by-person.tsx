@@ -42,7 +42,7 @@ export function SpendByPerson({ from, to }: { from: string; to: string }) {
   const others = Math.max((usage?.active_users?.active ?? 0) - byUser.length, 0);
 
   if (!maySee) return null;
-  if (isLoading) return <LoadingState variant="skeleton-panel" rows={3} className="m-5" />;
+  if (isLoading) return <LoadingState variant="pending" className="m-5" />;
   if (error)
     return (
       <div className="m-5 space-y-2">
