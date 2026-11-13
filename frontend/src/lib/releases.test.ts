@@ -62,3 +62,19 @@ it("leaves notes with nothing for operators as they are, and empties notes that 
   expect(memberReleaseNotes("### Fixed\n\n- A fix.")).toBe("### Fixed\n\n- A fix.");
   expect(memberReleaseNotes("### Upgrading\n\n- Migrate first.").trim()).toBe("");
 });
+
+it("reads a shell comment in an operator's code block as code, not as the section's end", () => {
+  const body = [
+    "### Upgrading",
+    "",
+    "```bash",
+    "# back up first",
+    "pg_dump agenticos > backup.sql",
+    "```",
+    "",
+    "### Fixed",
+    "",
+    "- A fix.",
+  ].join("\n");
+  expect(memberReleaseNotes(body)).toBe("### Fixed\n\n- A fix.");
+});

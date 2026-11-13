@@ -59,6 +59,7 @@ export interface CurrentReleaseResponse {
 /** Headings whose sections speak to whoever runs the deployment, not to the people using it. */
 const OPERATOR_HEADING = /^(#{2,6})\s+(upgrading|notes for operators)\s*$/i;
 const HEADING = /^(#{1,6})\s/;
+const FENCE = /^\s*(```|~~~)/;
 
 /**
  * A release's notes without its operator sections - `Upgrading` and `Notes for
@@ -68,11 +69,15 @@ const HEADING = /^(#{1,6})\s/;
 export function memberReleaseNotes(body: string): string {
   const kept: string[] = [];
   let skipping: number | null = null;
+  // A `#` comment in a shell block is not a heading, and an upgrade section is
+  // where shell steps go.
+  let fenced = false;
   for (const line of body.split("\n")) {
-    const heading = HEADING.exec(line);
+    const heading = fenced ? null : HEADING.exec(line);
     if (heading && skipping !== null && heading[1]!.length <= skipping) skipping = null;
-    const operator = OPERATOR_HEADING.exec(line);
+    const operator = fenced ? null : OPERATOR_HEADING.exec(line);
     if (skipping === null && operator) skipping = operator[1]!.length;
+    if (FENCE.test(line)) fenced = !fenced;
     if (skipping === null) kept.push(line);
   }
   return kept.join("\n").trim();
