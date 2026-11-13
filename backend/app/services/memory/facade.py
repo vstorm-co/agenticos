@@ -37,6 +37,7 @@ from app.db.models.memory import AgentMemoryFile
 from app.db.models.memory_claim import MemoryClaim
 from app.repositories import (
     agent_repo,
+    audit_log_repo,
     memory_claim,
     memory_repo,
     organization_repo,
@@ -472,7 +473,11 @@ class MemoryService:
             action="memory.person.forgotten",
             target_type="user",
             target_id=str(user_id),
-            details={"notes": notes, "claims": claims},
+            details={
+                "notes": notes,
+                "claims": claims,
+                **await audit_log_repo.erasure_marks(self.db),
+            },
         )
         return MemoryErasureResult(notes_deleted=notes, claims_deleted=claims)
 
@@ -504,6 +509,10 @@ class MemoryService:
             action="memory.agent.cleared",
             target_type="agent",
             target_id=str(agent_id),
-            details={"notes": notes, "claims": claims},
+            details={
+                "notes": notes,
+                "claims": claims,
+                **await audit_log_repo.erasure_marks(self.db),
+            },
         )
         return MemoryErasureResult(notes_deleted=notes, claims_deleted=claims)

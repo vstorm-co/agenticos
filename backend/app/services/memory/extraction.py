@@ -201,6 +201,7 @@ async def _erased_since(db: AsyncSession, run: AgentRun) -> bool:
         user_id=run.user_id,
         agent_id=run.agent_id,
         since=since,
+        snapshot=run.memory_snapshot,
     )
 
 
@@ -252,6 +253,7 @@ async def extract(
         prompt=f"Conversation:\n\n{transcript}",
         started_at=read_at,
         erased_since=run.started_at,
+        erased_snapshot=run.memory_snapshot,
     )
     if found is None:
         return 0
