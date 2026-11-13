@@ -491,7 +491,7 @@
     "download": "Pobierz",
     "dropFilesAttach": "Upuść pliki, aby załączyć",
     "edit": "Edytuj",
-    "editMeans": "Edit pozwala zmienić nazwę, zarchiwizować i usunąć tę konwersację oraz dopisywać do niej tury.",
+    "editMeans": "„Edytuj” pozwala zmienić nazwę, zarchiwizować i usunąć tę rozmowę oraz dopisywać do niej tury.",
     "empty": {
       "commandPalette": "paleta komend",
       "capabilitiesPrompt": "Co możesz tu dla mnie zrobić? Pokaż na przykładzie z mojej pracy.",
@@ -566,6 +566,32 @@
       "scrollAttachmentsRight": "Późniejsze załączniki",
       "send": "Wyślij wiadomość",
       "speechError": "Błąd rozpoznawania mowy",
+      "speech": {
+        "micDenied": {
+          "title": "Mikrofon jest zablokowany dla tej strony",
+          "body": "Kliknij ikonę po lewej stronie paska adresu, ustaw Mikrofon na Zezwalaj i spróbuj ponownie."
+        },
+        "micInsecure": {
+          "title": "Ta strona nie może użyć mikrofonu",
+          "body": "Przeglądarki udostępniają mikrofon tylko przez HTTPS albo na localhost. Poproś administratora o udostępnienie konsoli przez HTTPS."
+        },
+        "micNotFound": {
+          "title": "Nie znaleziono mikrofonu",
+          "body": "Podłącz mikrofon albo sprawdź, czy system pozwala przeglądarce z niego korzystać, i spróbuj ponownie."
+        },
+        "unavailable": {
+          "title": "Rozpoznawanie mowy w przeglądarce jest niedostępne",
+          "body": "Ten agent nie ma dostawcy speech-to-text do dyktowania, więc mowę przepisuje przeglądarka, a jej usługa odmówiła. Poproś administratora o skonfigurowanie dyktowania dla tego agenta albo użyj innej przeglądarki."
+        },
+        "network": {
+          "title": "Nie udało się połączyć z usługą rozpoznawania mowy",
+          "body": "Przeglądarka wysyła to, co mówisz, do swojej usługi rozpoznawania mowy, a połączenie się nie powiodło. Sprawdź połączenie i spróbuj ponownie."
+        },
+        "noSpeech": {
+          "title": "Nie usłyszano mowy",
+          "body": "Sprawdź, czy mikrofon nie jest wyciszony, i spróbuj ponownie."
+        }
+      },
       "stopGenerating": "Zatrzymaj generowanie",
       "stopRecording": "Zatrzymaj nagrywanie",
       "uploadFailed": "Wgrywanie nie powiodło się",
@@ -679,6 +705,7 @@
       "sortTitleAsc": "Tytuł A–Z",
       "sortTitleDesc": "Tytuł Z–A",
       "apiBadge": "API",
+      "forkOf": "Rozgałęzienie rozmowy {title}",
       "hideApi": "Ukryj rozmowy otwarte przez API",
       "filters": "Filtruj i sortuj",
       "show": "Pokaż",
@@ -1044,7 +1071,7 @@
       "empty": "Kontekst, koszt i budżety pojawią się tutaj po pierwszej odpowiedzi agenta."
     },
     "view": "Podgląd",
-    "viewMeans": "View pozwala tylko czytać tę konwersację.",
+    "viewMeans": "„Podgląd” pozwala tylko czytać tę rozmowę.",
     "web": "Web",
     "whatWentWrong": "Co poszło nie tak?",
     "reply": {
@@ -7661,7 +7688,11 @@
         "rateLimitedBody": "Za dużo nagrań w ciągu minuty.",
         "keptBody": "Twoje nagranie ({duration}) poczeka, aż ponowisz próbę albo je odrzucisz.",
         "notSetUpTitle": "Wprowadzanie głosowe jest teraz niedostępne.",
-        "notSetUpBody": "Zamiast tego napisz wiadomość."
+        "notSetUpBody": "Zamiast tego napisz wiadomość.",
+        "browserUnavailable": "<strong>Wprowadzanie głosowe nie działa w tej przeglądarce.</strong> Zamiast tego napisz wiadomość albo użyj innej przeglądarki.",
+        "browserNetwork": "<strong>Nie udało się połączyć z usługą rozpoznawania mowy.</strong> Sprawdź połączenie i spróbuj ponownie albo napisz wiadomość.",
+        "browserNoSpeech": "<strong>Nie usłyszano mowy.</strong> Sprawdź, czy mikrofon nie jest wyciszony, i spróbuj ponownie.",
+        "browserFailed": "<strong>Wprowadzanie głosowe przerwało działanie.</strong> Spróbuj ponownie albo napisz wiadomość."
       }
     },
     "voice": {
@@ -11922,6 +11953,7 @@
     "deleteWhy": "Znikną wszystkie wersje i link publiczny, a osoby, którym go udostępniono, nie otworzą go więcej. Agent utworzy nowy, gdy następnym razem opublikuje aplikację pod tą nazwą.",
     "deleted": "Aplikacja usunięta",
     "publicLink": "Link publiczny",
+    "publicLinkAddress": "Adres linku publicznego",
     "publicLinkOn": "Każdy, kto ma ten link, otworzy najnowszą wersję bez konta.",
     "publicLinkNone": "Otworzyć ją mogą tylko osoby, którym ją udostępniono.",
     "createPublicLink": "Utwórz link publiczny",

@@ -22,6 +22,7 @@ import { createPortal } from "react-dom";
 import { AttachmentCard, PendingAttachmentCard } from "./attachment-card";
 import { AttachmentRow } from "./attachment-row";
 import { ReplyingTo } from "./reply-quote";
+import { browserSpeechFailure } from "./browser-speech-failure";
 import { useChatStore } from "@/stores";
 import { ComposerSheet, type AttachSource } from "./composer-sheet";
 
@@ -683,10 +684,17 @@ export function ChatInput({
       setMessage((prev) => prev.replace(/\u200B/g, ""));
     };
 
-    recognition.onerror = () => {
+    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
       setIsListening(false);
       mic?.stop();
-      toast.error(t("speechError"));
+      const failure = browserSpeechFailure(event.error, window.isSecureContext);
+      if (failure === null) return;
+      if (failure === "generic") {
+        toast.error(t("speechError"));
+        return;
+      }
+      const notify = failure === "noSpeech" ? toast.info : toast.error;
+      notify(t(`speech.${failure}.title`), { description: t(`speech.${failure}.body`) });
     };
 
     recognitionRef.current = recognition;

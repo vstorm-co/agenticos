@@ -1127,6 +1127,41 @@ describe("the public link card", () => {
     expect(onEnable).toHaveBeenCalled();
   });
 
+  it("keeps the link's settings out of sight until the link exists", () => {
+    const settings = <p>link settings</p>;
+    const { rerender } = render(
+      <PublicLinkCard
+        publicUrl={null}
+        link={link()}
+        canManage
+        busy={false}
+        onEnable={vi.fn()}
+        onDisable={vi.fn()}
+      >
+        {settings}
+      </PublicLinkCard>,
+    );
+    expect(screen.queryByText("link settings")).toBeNull();
+    expect(screen.queryByLabelText("Public link address")).toBeNull();
+
+    rerender(
+      <PublicLinkCard
+        publicUrl="https://console.example/a/key"
+        link={link()}
+        canManage
+        busy={false}
+        onEnable={vi.fn()}
+        onDisable={vi.fn()}
+      >
+        {settings}
+      </PublicLinkCard>,
+    );
+    expect(screen.getByText("link settings")).toBeInTheDocument();
+    expect(screen.getByLabelText("Public link address")).toHaveValue(
+      "https://console.example/a/key",
+    );
+  });
+
   it("lets a manager replace or turn off a live link", async () => {
     const onEnable = vi.fn();
     const onDisable = vi.fn();
@@ -1140,7 +1175,9 @@ describe("the public link card", () => {
         onDisable={onDisable}
       />,
     );
-    expect(screen.getByLabelText("Public link")).toHaveValue("https://console.example/a/key");
+    expect(screen.getByLabelText("Public link address")).toHaveValue(
+      "https://console.example/a/key",
+    );
     expect(screen.getByText("Not opened yet")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Replace the link" }));
     await userEvent.click(screen.getByRole("button", { name: "Turn off" }));

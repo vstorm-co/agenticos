@@ -1502,6 +1502,32 @@
       "scrollAttachmentsRight": "Later attachments",
       "send": "Send message",
       "speechError": "Speech recognition error",
+      "speech": {
+        "micDenied": {
+          "title": "Microphone blocked for this site",
+          "body": "Click the icon left of the address bar, set Microphone to Allow, then try again."
+        },
+        "micInsecure": {
+          "title": "This page can't use the microphone",
+          "body": "Browsers open the microphone only on HTTPS or on localhost. Ask your administrator to serve the console over HTTPS."
+        },
+        "micNotFound": {
+          "title": "No microphone found",
+          "body": "Connect a microphone, or check that your system lets the browser use it, then try again."
+        },
+        "unavailable": {
+          "title": "Your browser's speech recognition isn't available",
+          "body": "This agent has no speech-to-text provider for dictation, so the browser transcribes, and its service refused. Ask an admin to set up Dictation for this agent, or try another browser."
+        },
+        "network": {
+          "title": "Couldn't reach the speech service",
+          "body": "Your browser sends what you say to its speech service, and the connection failed. Check your connection, then try again."
+        },
+        "noSpeech": {
+          "title": "No speech heard",
+          "body": "Check the microphone isn't muted, then try again."
+        }
+      },
       "stopGenerating": "Stop generating",
       "stopRecording": "Stop recording",
       "uploadFailed": "Upload failed",
@@ -1616,6 +1642,7 @@
       "sortTitleAsc": "Title A–Z",
       "sortTitleDesc": "Title Z–A",
       "apiBadge": "API",
+      "forkOf": "Fork of {title}",
       "hideApi": "Hide conversations opened over the API",
       "filters": "Filter and sort",
       "show": "Show",
@@ -3767,7 +3794,11 @@
         "rateLimitedBody": "Too many recordings in a minute.",
         "keptBody": "Your {duration} recording is kept until you retry or discard it.",
         "notSetUpTitle": "Voice input isn't available right now.",
-        "notSetUpBody": "Please type your message instead."
+        "notSetUpBody": "Please type your message instead.",
+        "browserUnavailable": "<strong>Voice input isn't available in this browser.</strong> Please type your message instead, or try another browser.",
+        "browserNetwork": "<strong>Couldn't reach the speech service.</strong> Check your connection, then try again, or type your message instead.",
+        "browserNoSpeech": "<strong>No speech heard.</strong> Check the microphone isn't muted, then try again.",
+        "browserFailed": "<strong>Voice input stopped.</strong> Try again, or type your message instead."
       }
     },
     "voice": {
@@ -11733,6 +11764,7 @@
     "deleteWhy": "Every version and the public link go with it, and nobody it was shared with can open it any more. The agent makes a new one the next time it publishes under this name.",
     "deleted": "App deleted",
     "publicLink": "Public link",
+    "publicLinkAddress": "Public link address",
     "publicLinkOn": "Anyone with this link can open the latest version, without an account.",
     "publicLinkNone": "Only people this app is shared with can open it.",
     "createPublicLink": "Create a public link",
