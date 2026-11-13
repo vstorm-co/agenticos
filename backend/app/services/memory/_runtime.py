@@ -199,6 +199,7 @@ async def correct(
     Raises:
         ShareRefused: The claim is one the whole project or organization reads and the
             person may not change it.
+        ErasedDuringRun: The claim's store was erased after `run_id` started.
     """
     async with get_db_context() as db:
         claim = await claim_repo.get(db, organization_id=organization_id, claim_id=claim_id)
@@ -211,6 +212,11 @@ async def correct(
             # An id from an earlier `recall` can name a claim since corrected, merged or
             # retracted; correcting it would supersede the current one beside it.
             return None
+        if not await person_still_exists(db, claim.scope_key):
+            return None
+        await refuse_if_erased_during_run(
+            db, owner_key=claim.scope_key, agent_id=claim.agent_id, run_id=run_id
+        )
         await _may_write_wide(
             db,
             organization_id=organization_id,

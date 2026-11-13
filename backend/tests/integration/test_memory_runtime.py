@@ -99,6 +99,35 @@ async def _no(*_args, **_kwargs) -> bool:
     return False
 
 
+async def test_a_person_gone_means_nothing_is_corrected(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user, org, agent, *_ = await _world(db)
+    mine = ClaimScope(person_owner_key(user.id), agent.id)
+    saved = await _remember(org, mine, "Prefers tea", user)
+    assert saved is not None
+    monkeypatch.setattr(runtime, "person_still_exists", _no)
+
+    fixed = await runtime.correct(
+        organization_id=org.id,
+        claim_id=saved[0].id,
+        scopes=[mine],
+        statement="Prefers coffee",
+        author_user_id=user.id,
+        effective_from=None,
+        run_id=None,
+        conversation_id=None,
+        agent_id=agent.id,
+    )
+
+    assert fixed is None
+    assert (
+        await runtime.claim_for_approval(
+            organization_id=org.id, claim_id=saved[0].id, scopes=[mine]
+        )
+    ) is not None
+
+
 async def test_a_profile_is_bounded_text_and_a_scope_with_nothing_is_empty(
     db: AsyncSession,
 ) -> None:

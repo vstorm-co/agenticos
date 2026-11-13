@@ -464,6 +464,8 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
             )
         except ShareRefused as refused:
             return f"Not corrected: {refused}"
+        except memory_store.ErasedDuringRun:
+            return _ERASED
         if fixed is None:
             return "No such claim here to correct."
         return f"Corrected (claim {fixed.id}); the earlier version is kept in its history."
