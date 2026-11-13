@@ -157,7 +157,7 @@ class HtmlParseConfig(BaseModel):
         title="CSS selector",
         description=(
             "The elements to pick, as in a stylesheet - for example `table.prices td` or "
-            "`a[href^='https']`. Empty picks nothing."
+            "`a.download`. Empty picks nothing."
         ),
     )
     max_matches: int = Field(
@@ -165,7 +165,7 @@ class HtmlParseConfig(BaseModel):
         ge=1,
         le=200,
         title="Most matches",
-        description="How many picked elements to return",
+        description="How many picked elements it hands on",
     )
     base_url: str | None = Field(
         default=None,

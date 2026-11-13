@@ -1,5 +1,5 @@
 ---
-source_sha: "5a3ae1c6af23"
+source_sha: "37be6df188e7"
 ---
 
 # Workflows { #workflows }
@@ -288,7 +288,9 @@ i porównanie pokazują zapisany rozmiar bez uchwytów.
 ## Konfigurowanie węzła { #configuring-a-node }
 
 Co robi każdy węzeł, czym się go konfiguruje i co znaczą jego błędy, opisuje
-[referencja węzłów](reference/workflow-nodes.md).
+[referencja węzłów](reference/workflow-nodes.md). Konsola nazywa każdy krok, jego porty i
+ustawienia w języku czytelnika; referencja, API i wyeksportowany workflow zachowują
+angielskie nazwy.
 
 Kliknięcie zaznacza krok, a dwuklik otwiera go nad kanwą. W opublikowanej wersji lub w trybie **View only** wystarczy jedno kliknięcie. Nagłówek pokazuje nazwę kroku i jedno rozwijane podsumowanie brakującej konfiguracji. Rozwiń je, aby zobaczyć braki; wybranie pola przenosi do jego inputu. Po próbie testu lub publikacji szczegóły walidacji rozwijają się automatycznie.
 

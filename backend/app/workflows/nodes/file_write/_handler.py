@@ -29,7 +29,7 @@ class FileWriteConfig(BaseModel):
         default=None,
         max_length=255,
         json_schema_extra={"x-bindable": True},
-        description="What to call the file. `output.<format>` when left empty.",
+        description="What to call the file. `output` with the format's extension, such as `output.csv`, when left empty.",
     )
 
 
