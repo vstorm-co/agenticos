@@ -78,6 +78,7 @@ export const qk = {
     members: (orgId: string) => ["organizations", orgId, "members"] as const,
     permissions: (orgId: string) => ["organizations", orgId, "permissions"] as const,
     roleCatalog: () => ["organizations", "role-catalog"] as const,
+    roleNavigation: (orgId: string) => ["organizations", orgId, "role-navigation"] as const,
     audit: (orgId: string) => ["organizations", orgId, "audit"] as const,
     retention: (orgId: string) => ["organizations", orgId, "retention"] as const,
     // One group's members sit beneath the list, so invalidating the list after a

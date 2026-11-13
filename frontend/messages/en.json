@@ -5243,6 +5243,10 @@
         "title": "What each role may do",
         "body": "The permission matrix, role by role: what each may touch and how far it reaches. Sharing a single resource can widen access beyond the role, never narrow it."
       },
+      "org-role-navigation": {
+        "title": "Choose each role's sidebar",
+        "body": "Preview a role's navigation and choose which links it sees. Save changes for this organization, or reset that role to its defaults. The permission matrix still governs access to data and actions."
+      },
       "my-memory": {
         "title": "What agents remember about you",
         "body": "Agents keep notes between conversations. This is yours: read what was written, stop a note being used without destroying it, or delete it outright. A note in an external memory service is named here but not shown."
@@ -7132,8 +7136,40 @@
       "uploadFailed2": "Upload failed",
       "usedOfMax": "{used} of {max} used",
       "usersRoles": "Users & Roles",
+      "navigation": {
+        "title": "Sidebar visibility",
+        "description": "Choose which navigation items each role sees in this organization.",
+        "accessNotice": "These settings hide navigation links. Data access, direct links and actions still follow the permission matrix and resource sharing.",
+        "role": "Role",
+        "readOnly": "You can preview this role. Editing is available only for roles below your own.",
+        "ownerProtected": "The Owner sidebar stays available so organization settings can always be recovered.",
+        "previewTitle": "Sidebar preview",
+        "previewHint": "This preview uses the role's permissions. Pinned apps and projects appear only when accessible content exists.",
+        "general": "General",
+        "alwaysShown": "Always shown",
+        "permissionUnavailable": "Unavailable to this role",
+        "showItem": "Show {item}",
+        "visible": "Visible",
+        "hidden": "Hidden",
+        "save": "Save sidebar",
+        "reset": "Reset to defaults",
+        "discard": "Discard changes",
+        "unsaved": "Unsaved changes. Save or discard before changing roles.",
+        "saved": "Sidebar saved",
+        "loadError": "Sidebar settings could not be loaded.",
+        "retry": "Try again",
+        "controlsTitle": "Navigation items",
+        "roles": {
+          "owner": "Owner",
+          "admin": "Admin",
+          "builder": "Builder",
+          "operator": "Operator",
+          "member": "Member",
+          "viewer": "Viewer"
+        }
+      },
       "waitingOnResponse": "{count, plural, =1 {1 waiting on a response} other {# waiting on a response}}",
-      "whatEachRoleMay": "What each role may do. Permissions are defined in code and bundled into roles - a role can never hold a permission the platform does not define.",
+      "whatEachRoleMay": "Review role permissions and choose which sidebar links each role sees in this organization.",
       "workspaceAvatarUpdated": "Organization avatar updated",
       "workspaceName": "Organization name",
       "workspaceProfile": "Organization profile",

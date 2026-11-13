@@ -805,7 +805,10 @@ class TestPermissionIntrospectionIsOpenToEveryMember:
     async def test_every_role_can_read_its_own_permissions(
         self, role: OrgRoleName, as_role: ClientFactory
     ) -> None:
-        async with as_role(role) as client:
+        navigation = SimpleNamespace(for_caller=AsyncMock(return_value=[]))
+        async with as_role(
+            role, overrides={deps.get_role_navigation_service: lambda: navigation}
+        ) as client:
             response = await client.get(f"{settings.API_V1_STR}/me/permissions")
 
         assert response.status_code == 200

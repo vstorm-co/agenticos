@@ -13,6 +13,7 @@ import { CommandPalette } from "./command-palette";
 import { apiClient } from "@/lib/api-client";
 
 const can = vi.fn<(permission: string) => boolean>();
+const navigation = { hiddenItems: [] as string[], isLoaded: true };
 const currentUser = vi.fn<() => { is_app_admin?: boolean } | null>(() => ({
   is_app_admin: false,
 }));
@@ -27,7 +28,13 @@ vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
   permanentRedirect: vi.fn(),
 }));
-vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can }) }));
+vi.mock("@/hooks/use-permissions", () => ({
+  usePermissions: () => ({
+    can,
+    hiddenNavigationItems: navigation.hiddenItems,
+    isLoaded: navigation.isLoaded,
+  }),
+}));
 vi.mock("@/hooks", () => ({ useAuth: () => ({ user: currentUser(), logout: vi.fn() }) }));
 vi.mock("@/lib/api-client", () => ({ apiClient: { get: vi.fn() } }));
 
@@ -52,6 +59,8 @@ async function openPalette() {
 beforeEach(() => {
   vi.clearAllMocks();
   can.mockReturnValue(true);
+  navigation.hiddenItems = [];
+  navigation.isLoaded = true;
   currentUser.mockReturnValue({ is_app_admin: false });
   vi.mocked(apiClient.get).mockImplementation((endpoint: string) =>
     endpoint in ANSWERS
@@ -153,6 +162,55 @@ describe("the palette's destinations", () => {
 });
 
 describe("the palette's named entities", () => {
+  it("does not fetch or offer shortcuts for hidden sections", async () => {
+    navigation.hiddenItems = ["agents", "knowledgeBases", "chat"];
+    await openPalette();
+
+    for (const name of [
+      "agents",
+      "knowledgeBases",
+      "chat",
+      "startNewChat",
+      "Getting Started",
+      "E2E Handbook",
+      "Refund policy",
+    ]) {
+      expect(screen.queryByRole("option", { name })).not.toBeInTheDocument();
+    }
+    expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
+  it("removes cached entity shortcuts when an administrator hides their sections", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const contents = () => (
+      <QueryClientProvider client={client}>
+        <CommandPalette />
+      </QueryClientProvider>
+    );
+    const { rerender } = render(contents());
+    act(() => window.dispatchEvent(new CustomEvent("command-palette:open")));
+    await screen.findByRole("option", { name: "Getting Started" });
+    await screen.findByRole("option", { name: "E2E Handbook" });
+    await screen.findByRole("option", { name: "Refund policy" });
+
+    navigation.hiddenItems = ["agents", "knowledgeBases", "chat"];
+    rerender(contents());
+
+    for (const name of ["Getting Started", "E2E Handbook", "Refund policy", "startNewChat"]) {
+      expect(screen.queryByRole("option", { name })).not.toBeInTheDocument();
+    }
+  });
+
+  it("waits for the policy before offering configurable navigation or loading entities", async () => {
+    navigation.isLoaded = false;
+    await openPalette();
+    expect(screen.queryByRole("option", { name: "chat" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "startNewChat" })).not.toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "dashboard" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "organizations" })).toBeInTheDocument();
+    expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
   it("finds an agent by name and opens that agent", async () => {
     await openPalette();
 
