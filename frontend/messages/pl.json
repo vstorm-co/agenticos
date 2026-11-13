@@ -17893,6 +17893,14 @@
           "min_confidence": {
             "title": "Minimalna pewność",
             "description": "Poniżej tej wartości krok wychodzi portem Niepewne zamiast portem kategorii. Gdy puste, zawsze wychodzi portem kategorii."
+          },
+          "categories__items__name": {
+            "title": "Nazwa",
+            "description": "Identyfikator portu gałęzi"
+          },
+          "categories__items__description": {
+            "title": "Opis",
+            "description": "Co należy do tej kategorii"
           }
         },
         "input": {
@@ -18032,6 +18040,18 @@
           },
           "files": {
             "title": "Pliki"
+          },
+          "files__items__kind": {
+            "title": "Rodzaj"
+          },
+          "files__items__file_id": {
+            "title": "Identyfikator pliku"
+          },
+          "files__items__content_type": {
+            "title": "Typ zawartości"
+          },
+          "files__items__byte_size": {
+            "title": "Rozmiar w bajtach"
           }
         }
       },
@@ -18059,6 +18079,18 @@
           },
           "files": {
             "title": "Pliki"
+          },
+          "files__items__kind": {
+            "title": "Rodzaj"
+          },
+          "files__items__file_id": {
+            "title": "Identyfikator pliku"
+          },
+          "files__items__content_type": {
+            "title": "Typ zawartości"
+          },
+          "files__items__byte_size": {
+            "title": "Rozmiar w bajtach"
           }
         }
       },
@@ -18185,6 +18217,27 @@
           },
           "input_schema": {
             "description": "Kontrakt JSON Schema Draft 2020-12 dla wejścia w postaci obiektu JSON; referencje muszą być lokalne dla tego dokumentu"
+          },
+          "fields__items__name": {
+            "title": "Nazwa",
+            "description": "Klucz w wejściu runa i w payload dla powiązania"
+          },
+          "fields__items__label": {
+            "title": "Etykieta",
+            "description": "Wyświetlana w formularzu uruchomienia"
+          },
+          "fields__items__type": {
+            "title": "Typ"
+          },
+          "fields__items__required": {
+            "title": "Wymagane"
+          },
+          "fields__items__description": {
+            "title": "Opis"
+          },
+          "fields__items__options": {
+            "title": "Opcje",
+            "description": "Co oferuje pole wyboru"
           }
         }
       },
@@ -18201,6 +18254,39 @@
           },
           "structured": {
             "title": "Wartość strukturalna"
+          },
+          "sources__items__document_id": {
+            "title": "Identyfikator dokumentu"
+          },
+          "sources__items__filename": {
+            "title": "Nazwa pliku"
+          },
+          "sources__items__collection": {
+            "title": "Kolekcja"
+          },
+          "sources__items__page": {
+            "title": "Strona"
+          },
+          "sources__items__chunk": {
+            "title": "Chunk"
+          },
+          "sources__items__score": {
+            "title": "Wynik"
+          },
+          "sources__items__content": {
+            "title": "Zawartość"
+          },
+          "artifacts__items__kind": {
+            "title": "Rodzaj"
+          },
+          "artifacts__items__file_id": {
+            "title": "Identyfikator pliku"
+          },
+          "artifacts__items__content_type": {
+            "title": "Typ zawartości"
+          },
+          "artifacts__items__byte_size": {
+            "title": "Rozmiar w bajtach"
           }
         }
       },
@@ -18240,6 +18326,19 @@
         "config": {
           "mappings": {
             "title": "Mapowania"
+          },
+          "mappings__items__target_field": {
+            "title": "Pole docelowe"
+          },
+          "mappings__items__source_path": {
+            "title": "Ścieżka źródłowa",
+            "description": "Wyrażenie JMESPath na wejściu, na przykład source.payload.email."
+          },
+          "mappings__items__coerce_to": {
+            "title": "Konwertuj na typ"
+          },
+          "mappings__items__default": {
+            "title": "Wartość domyślna"
           }
         },
         "input": {
@@ -18290,6 +18389,13 @@
           },
           "options": {
             "title": "Opcje"
+          },
+          "options__items__value": {
+            "title": "Wartość"
+          },
+          "options__items__description": {
+            "title": "Opis",
+            "description": "Co oznacza ta opcja, w jednym wierszu - Jev czyta to razem z opcją"
           }
         },
         "input": {
@@ -18381,6 +18487,16 @@
         "config": {
           "branches": {
             "title": "Gałęzie"
+          },
+          "branches__items__name": {
+            "title": "Nazwa",
+            "description": "Identyfikator portu gałęzi."
+          },
+          "branches__items__code": {
+            "title": "Kod"
+          },
+          "branches__items__retryable": {
+            "title": "Można ponowić"
           }
         }
       },
@@ -18744,6 +18860,14 @@
           "choices": {
             "title": "Sposoby zatwierdzenia",
             "description": "Zaproponuj je zamiast zwykłego Zatwierdź: każdy z jednym przyciskiem i jednym portem wyjściowym, w tej kolejności, a krok nie ma portu Zatwierdzone. Gdy puste, krok zatwierdza albo odrzuca."
+          },
+          "choices__items__id": {
+            "title": "Identyfikator portu",
+            "description": "Nazywa port wyjściowy i to, co kolejne kroki odczytują jako choice. Małe litery, cyfry i podkreślenia; nie może to być in, approved ani rejected."
+          },
+          "choices__items__label": {
+            "title": "Etykieta przycisku",
+            "description": "Tekst, który zatwierdzający widzi na przycisku, np. Wyślij teraz."
           }
         },
         "input": {
@@ -18877,6 +19001,18 @@
           "branch_keys": {
             "title": "Nazwy gałęzi",
             "description": "Nazwa dla każdej przychodzącej gałęzi. Gałąź bez nazwy jest nazywana od kroku, z którego wychodzi, albo od gałęzi kroku Rozdziel"
+          },
+          "branch_keys__items__source_node_id": {
+            "title": "Identyfikator kroku źródłowego",
+            "description": "Krok, z którego wychodzi gałąź"
+          },
+          "branch_keys__items__source_port": {
+            "title": "Port źródłowy",
+            "description": "Port, którym wychodzi"
+          },
+          "branch_keys__items__key": {
+            "title": "Klucz",
+            "description": "Nazwa gałęzi w `branches`"
           }
         }
       },
@@ -18885,6 +19021,10 @@
           "branches": {
             "title": "Gałęzie",
             "description": "Gałęzie, każda jako nazwany port wyjściowy; co najmniej dwie, każda z własną nazwą"
+          },
+          "branches__items__name": {
+            "title": "Nazwa",
+            "description": "Identyfikator portu gałęzi"
           }
         }
       },
@@ -18892,6 +19032,14 @@
         "config": {
           "rules": {
             "title": "Reguły"
+          },
+          "rules__items__name": {
+            "title": "Nazwa",
+            "description": "Identyfikator portu gałęzi"
+          },
+          "rules__items__condition": {
+            "title": "Warunek",
+            "description": "Wyrażenie JMESPath na wejściu, np. value.country == 'PL'"
           }
         },
         "input": {
@@ -19141,6 +19289,75 @@
           },
           "visibility": {
             "title": "Widoczność"
+          },
+          "columns__items__id": {
+            "title": "Identyfikator"
+          },
+          "columns__items__label": {
+            "title": "Etykieta"
+          },
+          "columns__items__type": {
+            "title": "Typ"
+          },
+          "columns__items__nullable": {
+            "title": "Może być puste"
+          },
+          "columns__items__default": {
+            "title": "Wartość domyślna"
+          },
+          "columns__items__document_templates": {
+            "title": "Szablony dokumentów"
+          },
+          "columns__items__document_templates__items__id": {
+            "title": "Identyfikator"
+          },
+          "columns__items__document_templates__items__name": {
+            "title": "Nazwa"
+          },
+          "columns__items__document_templates__items__body": {
+            "title": "Treść"
+          },
+          "columns__items__default_template_id": {
+            "title": "Identyfikator szablonu domyślnego"
+          },
+          "columns__items__options": {
+            "title": "Opcje"
+          },
+          "columns__items__options__items__id": {
+            "title": "Identyfikator"
+          },
+          "columns__items__options__items__label": {
+            "title": "Etykieta"
+          },
+          "columns__items__options__items__color": {
+            "title": "Kolor",
+            "description": "Kolor wyświetlania; puste oznacza automatyczną paletę"
+          },
+          "columns__items__options__items__archived": {
+            "title": "Zarchiwizowana"
+          },
+          "columns__items__archived": {
+            "title": "Zarchiwizowana"
+          },
+          "columns__items__link_table_id": {
+            "title": "Identyfikator tabeli powiązania",
+            "description": "Kolumna powiązania: tabela, z której rekordami się łączy."
+          },
+          "columns__items__link_column_id": {
+            "title": "Identyfikator kolumny powiązania",
+            "description": "Kolumna odczytu z powiązania lub podsumowania powiązań: kolumna powiązania tej tabeli, przez którą czyta."
+          },
+          "columns__items__target_column_id": {
+            "title": "Identyfikator kolumny docelowej",
+            "description": "Kolumna odczytu z powiązania lub podsumowania powiązań: kolumna powiązanej tabeli, którą czyta. Podsumowanie, które liczy powiązania, nie czyta żadnej."
+          },
+          "columns__items__aggregate": {
+            "title": "Agregacja",
+            "description": "Kolumna podsumowania powiązań: co robi z odczytanymi wartościami."
+          },
+          "columns__items__formula": {
+            "title": "Formuła",
+            "description": "Kolumna formuły: wyrażenie na pozostałych kolumnach rekordu, z których każda jest nazwana swoją etykietą w nawiasach klamrowych, np. '{'Price'}' * '{'Quantity'}'."
           }
         }
       },
@@ -19257,6 +19474,16 @@
           },
           "filters": {
             "title": "Filtry"
+          },
+          "filters__items__column_id": {
+            "title": "Identyfikator kolumny"
+          },
+          "filters__items__op": {
+            "title": "Operator"
+          },
+          "filters__items__value": {
+            "title": "Wartość",
+            "description": "Operand. Lista dla `in`, wartość logiczna dla `is_null` (true oznacza pustą komórkę), w pozostałych przypadkach wartość typu kolumny."
           }
         }
       },
@@ -19319,6 +19546,16 @@
           },
           "skip": {
             "title": "Pomiń"
+          },
+          "filters__items__column_id": {
+            "title": "Identyfikator kolumny"
+          },
+          "filters__items__op": {
+            "title": "Operator"
+          },
+          "filters__items__value": {
+            "title": "Wartość",
+            "description": "Operand. Lista dla `in`, wartość logiczna dla `is_null` (true oznacza pustą komórkę), w pozostałych przypadkach wartość typu kolumny."
           }
         }
       },
@@ -19542,6 +19779,13 @@
           "only_set": {
             "title": "Tylko ustawione",
             "description": "Zachowaj tylko pola ustawione tutaj, usuwając wszystkie pozostałe"
+          },
+          "set__items__name": {
+            "title": "Nazwa"
+          },
+          "set__items__expression": {
+            "title": "Wyrażenie",
+            "description": "Wyrażenie JMESPath na elemencie, np. item.first_name"
           }
         },
         "input": {
@@ -19584,6 +19828,12 @@
         "config": {
           "by": {
             "title": "Według"
+          },
+          "by__items__field": {
+            "title": "Pole"
+          },
+          "by__items__descending": {
+            "title": "Malejąco"
           }
         },
         "input": {
@@ -19615,6 +19865,13 @@
           },
           "summaries": {
             "title": "Podsumowania"
+          },
+          "summaries__items__operation": {
+            "title": "Operacja"
+          },
+          "summaries__items__field": {
+            "title": "Pole",
+            "description": "Niepotrzebne do zliczania"
           }
         },
         "input": {
@@ -19671,6 +19928,27 @@
           },
           "appearance__layout": {
             "title": "Układ"
+          },
+          "fields__items__name": {
+            "title": "Nazwa",
+            "description": "Klucz w wejściu runa i w payload dla powiązania"
+          },
+          "fields__items__label": {
+            "title": "Etykieta",
+            "description": "Wyświetlana w formularzu uruchomienia"
+          },
+          "fields__items__type": {
+            "title": "Typ"
+          },
+          "fields__items__required": {
+            "title": "Wymagane"
+          },
+          "fields__items__description": {
+            "title": "Opis"
+          },
+          "fields__items__options": {
+            "title": "Opcje",
+            "description": "Co oferuje pole wyboru"
           }
         }
       },
@@ -19717,6 +19995,27 @@
           },
           "input_schema": {
             "description": "Kontrakt JSON Schema Draft 2020-12 dla wejścia w postaci obiektu JSON; referencje muszą być lokalne dla tego dokumentu"
+          },
+          "fields__items__name": {
+            "title": "Nazwa",
+            "description": "Klucz w wejściu runa i w payload dla powiązania"
+          },
+          "fields__items__label": {
+            "title": "Etykieta",
+            "description": "Wyświetlana w formularzu uruchomienia"
+          },
+          "fields__items__type": {
+            "title": "Typ"
+          },
+          "fields__items__required": {
+            "title": "Wymagane"
+          },
+          "fields__items__description": {
+            "title": "Opis"
+          },
+          "fields__items__options": {
+            "title": "Opcje",
+            "description": "Co oferuje pole wyboru"
           }
         }
       },
@@ -19795,6 +20094,16 @@
           "filters": {
             "title": "Filtry",
             "description": "Każdy musi być spełniony dla rekordu - w postaci, w jakiej został dodany lub zmieniony, albo w jakiej był przed usunięciem"
+          },
+          "filters__items__column_id": {
+            "title": "Identyfikator kolumny"
+          },
+          "filters__items__op": {
+            "title": "Operator"
+          },
+          "filters__items__value": {
+            "title": "Wartość",
+            "description": "Operand. Lista dla `in`, wartość logiczna dla `is_null` (true oznacza pustą komórkę), w pozostałych przypadkach wartość typu kolumny."
           }
         }
       },
@@ -19805,6 +20114,27 @@
           },
           "input_schema": {
             "description": "Kontrakt JSON Schema Draft 2020-12 dla wejścia w postaci obiektu JSON; referencje muszą być lokalne dla tego dokumentu"
+          },
+          "fields__items__name": {
+            "title": "Nazwa",
+            "description": "Klucz w wejściu runa i w payload dla powiązania"
+          },
+          "fields__items__label": {
+            "title": "Etykieta",
+            "description": "Wyświetlana w formularzu uruchomienia"
+          },
+          "fields__items__type": {
+            "title": "Typ"
+          },
+          "fields__items__required": {
+            "title": "Wymagane"
+          },
+          "fields__items__description": {
+            "title": "Opis"
+          },
+          "fields__items__options": {
+            "title": "Opcje",
+            "description": "Co oferuje pole wyboru"
           }
         }
       },

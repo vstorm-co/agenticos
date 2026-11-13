@@ -139,7 +139,7 @@ class OptionDef(_Schema):
     id: UUID
     label: Label
     color: OptionColor | None = Field(
-        default=None, description="Display color; null uses the automatic palette"
+        default=None, description="Display color; empty uses the automatic palette"
     )
     archived: bool = False
 
@@ -150,7 +150,7 @@ class OptionInput(_Request):
     id: UUID | None = None
     label: Label
     color: OptionColor | None = Field(
-        default=None, description="Display color; null uses the automatic palette"
+        default=None, description="Display color; empty uses the automatic palette"
     )
     archived: bool = False
 
