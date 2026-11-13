@@ -476,9 +476,7 @@ class MemoryService:
             details={
                 "notes": notes,
                 "claims": claims,
-                audit_log_repo.ERASURE_TRANSACTION: await audit_log_repo.current_transaction(
-                    self.db
-                ),
+                **await audit_log_repo.erasure_marks(self.db),
             },
         )
         return MemoryErasureResult(notes_deleted=notes, claims_deleted=claims)
@@ -514,9 +512,7 @@ class MemoryService:
             details={
                 "notes": notes,
                 "claims": claims,
-                audit_log_repo.ERASURE_TRANSACTION: await audit_log_repo.current_transaction(
-                    self.db
-                ),
+                **await audit_log_repo.erasure_marks(self.db),
             },
         )
         return MemoryErasureResult(notes_deleted=notes, claims_deleted=claims)

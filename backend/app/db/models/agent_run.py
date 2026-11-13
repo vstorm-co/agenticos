@@ -458,9 +458,15 @@ class AgentRun(Base, TimestampMixin):
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # The transactions committed when the row was inserted, before the run reads any
     # memory: an erasure missing from it was still running, so what the run read may
-    # predate it. Null on runs from before it was recorded.
+    # predate it. Prefixed with the cluster, whose transaction ids alone it compares.
+    # Null on runs from before it was recorded.
     memory_snapshot: Mapped[str | None] = mapped_column(
-        Text, nullable=True, server_default=text("(pg_current_snapshot())::text")
+        Text,
+        nullable=True,
+        server_default=text(
+            "((pg_control_system()).system_identifier)::text || '/' || "
+            "(pg_current_snapshot())::text"
+        ),
     )
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # Stamped every few seconds by the process executing the run

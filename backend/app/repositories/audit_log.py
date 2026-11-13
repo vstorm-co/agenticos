@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import Text, and_, cast, func, literal, or_, select
+from sqlalchemy import DateTime, Text, and_, case, cast, func, literal, literal_column, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.types import UserDefinedType
 
@@ -149,17 +149,39 @@ _PG_SNAPSHOT = _PgType("pg_snapshot")
 
 
 ERASURE_TRANSACTION = "transaction"
-"""The key in a memory erasure's audit details naming the transaction that made it."""
+"""The key in a memory erasure's audit details naming its cluster and transaction."""
+
+ERASURE_FINISHED = "finished_at"
+"""The key in a memory erasure's audit details holding when its deletes were done."""
+
+# Transaction ids and snapshots belong to one PostgreSQL cluster: a dump restored into
+# another numbers transactions afresh. Each is stored as `<cluster>/<value>` and only
+# compared with a value from the same cluster.
+_CLUSTER = cast(literal_column("(pg_control_system()).system_identifier"), Text)
 
 
-async def current_transaction(db: AsyncSession) -> str:
-    """This transaction's id, as `memory_erased_since` compares it with a run's snapshot."""
-    return str((await db.execute(select(cast(func.pg_current_xact_id(), Text)))).scalar_one())
+async def erasure_marks(db: AsyncSession) -> dict[str, str]:
+    """What a memory erasure records once its deletes are done, for `memory_erased_since`."""
+    transaction, finished = (
+        await db.execute(
+            select(
+                _CLUSTER.concat("/").concat(cast(func.pg_current_xact_id(), Text)),
+                cast(func.clock_timestamp(), Text),
+            )
+        )
+    ).one()
+    return {ERASURE_TRANSACTION: str(transaction), ERASURE_FINISHED: str(finished)}
 
 
 async def current_snapshot(db: AsyncSession) -> str:
     """The transactions committed now, as a run records them when its row is inserted."""
-    return str((await db.execute(select(cast(func.pg_current_snapshot(), Text)))).scalar_one())
+    return str(
+        (
+            await db.execute(
+                select(_CLUSTER.concat("/").concat(cast(func.pg_current_snapshot(), Text)))
+            )
+        ).scalar_one()
+    )
 
 
 def _memory_erasures(user_id: UUID | None, agent_id: UUID | None) -> list:
@@ -200,23 +222,28 @@ async def memory_erased_since(
     An erasure's entry is dated when its transaction began, so one still committing when
     the reader began is dated before `since` although the reader saw what it removed.
     `snapshot`, the transactions committed when the reader began, catches it: an
-    erasure whose transaction is not in it counts as later, whatever its date.
+    erasure whose transaction is not in it counts as later, whatever its date. An
+    erasure recorded in another cluster, before a restore, is judged by its date alone.
     """
     erased = _memory_erasures(user_id, agent_id)
     if not erased:
         return False
     later = AppAdminAuditLog.created_at > since
-    if snapshot is not None:
+    cluster, _, visible = (snapshot or "").partition("/")
+    if visible:
         transaction = AppAdminAuditLog.details[ERASURE_TRANSACTION].astext
-        later = or_(
-            later,
-            and_(
-                transaction.is_not(None),
+        # A CASE, so the id is cast only once its cluster is known to be this one.
+        uncommitted = case(
+            (
+                func.split_part(transaction, "/", 1) == cluster,
                 ~func.pg_visible_in_snapshot(
-                    cast(transaction, _XID8), cast(literal(snapshot), _PG_SNAPSHOT)
+                    cast(func.split_part(transaction, "/", 2), _XID8),
+                    cast(literal(visible), _PG_SNAPSHOT),
                 ),
             ),
+            else_=False,
         )
+        later = or_(later, uncommitted)
     found = await db.scalar(
         select(AppAdminAuditLog.id)
         .where(AppAdminAuditLog.organization_id == organization_id, later, or_(*erased))
@@ -228,9 +255,15 @@ async def memory_erased_since(
 async def latest_memory_erasure(
     db: AsyncSession, *, organization_id: UUID, user_id: UUID
 ) -> datetime | None:
-    """When this person's memory in this organization was last erased, if ever."""
+    """When this person's memory in this organization was last erased, if ever.
+
+    The later of the entry's date, from the app's clock, and the database's clock once
+    the deletes were done, which is the clock a message is dated on: what the person
+    wrote while it ran counts as before it, whatever the two clocks disagree by.
+    """
+    finished = cast(AppAdminAuditLog.details[ERASURE_FINISHED].astext, DateTime(timezone=True))
     return await db.scalar(
-        select(func.max(AppAdminAuditLog.created_at)).where(
+        select(func.max(func.greatest(AppAdminAuditLog.created_at, finished))).where(
             AppAdminAuditLog.organization_id == organization_id,
             or_(*_memory_erasures(user_id, None)),
         )

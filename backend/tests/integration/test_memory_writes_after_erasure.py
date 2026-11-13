@@ -420,3 +420,52 @@ async def test_a_run_admitted_while_an_erasure_commits_is_still_refused(
         await _native.refuse_if_erased_during_run(
             db, owner_key=person_owner_key(user.id), agent_id=None, run_id=run_id
         )
+
+
+async def test_an_erasure_from_another_cluster_is_judged_by_its_date_alone(
+    db: AsyncSession,
+) -> None:
+    from app.repositories import audit_log_repo
+
+    user, org, _, _ = await _world(db)
+    await _forget(db, user, org)
+    cluster = (await audit_log_repo.current_snapshot(db)).partition("/")[0]
+    later_than_it = datetime.now(UTC) + timedelta(hours=1)
+
+    async def erased(snapshot: str) -> bool:
+        return await audit_log_repo.memory_erased_since(
+            db,
+            organization_id=org.id,
+            user_id=user.id,
+            agent_id=None,
+            since=later_than_it,
+            snapshot=snapshot,
+        )
+
+    # A snapshot older than every transaction: in this cluster the erasure is later.
+    assert await erased(f"{cluster}/1:1:")
+    # Restored from another cluster, the ids mean nothing here; its date says earlier.
+    assert not await erased("1/1:1:")
+
+
+async def test_a_briefing_counts_what_was_written_during_an_erasure_as_before_it(
+    db: AsyncSession,
+) -> None:
+    from app.repositories import audit_log_repo
+
+    user, org, _, _ = await _world(db)
+    await _forget(db, user, org)
+    entry = await db.scalar(
+        select(AppAdminAuditLog).where(
+            AppAdminAuditLog.action == "memory.person.forgotten",
+            AppAdminAuditLog.target_id == str(user.id),
+        )
+    )
+    assert entry is not None and entry.details is not None
+
+    latest = await audit_log_repo.latest_memory_erasure(db, organization_id=org.id, user_id=user.id)
+
+    # The database's clock once the deletes were done, which a message's date is read on;
+    # the entry's own date comes from the app's clock, and the later of the two counts.
+    finished = datetime.fromisoformat(entry.details[audit_log_repo.ERASURE_FINISHED])
+    assert latest == max(finished, entry.created_at)

@@ -6,7 +6,8 @@ still committing when the run began: its entry is dated earlier, yet the run
 read memory the erasure had not removed yet. `memory_snapshot` holds the
 transaction snapshot the run's row was inserted under, and an erasure's audit
 entry names its transaction, so whether the erasure had committed for the run
-is a question of commit order.
+is a question of commit order. Both name the cluster they were taken in, since a
+dump restored into another cluster numbers transactions afresh.
 
 The column is added without a default and the default set afterwards, so no
 existing row is rewritten; older runs keep a null and are judged by time.
@@ -21,12 +22,13 @@ down_revision: str = "0322_defer_run_conversation_fk"
 branch_labels: None = None
 depends_on: None = None
 
+# The cluster the snapshot belongs to, as an erasure records it beside its transaction.
+_DEFAULT = "((pg_control_system()).system_identifier)::text || '/' || (pg_current_snapshot())::text"
+
 
 def upgrade() -> None:
     op.add_column("agent_runs", sa.Column("memory_snapshot", sa.Text(), nullable=True))
-    op.alter_column(
-        "agent_runs", "memory_snapshot", server_default=sa.text("(pg_current_snapshot())::text")
-    )
+    op.alter_column("agent_runs", "memory_snapshot", server_default=sa.text(_DEFAULT))
 
 
 def downgrade() -> None:
