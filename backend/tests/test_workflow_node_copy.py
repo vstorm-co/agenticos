@@ -35,6 +35,11 @@ _COPY_KEYS = (
 )
 
 
+def _icu(text: str) -> str:
+    """`text` as a message: a brace quoted, so `{Price}` reads as written, not as an argument."""
+    return re.sub(r"[{}]", lambda brace: f"'{brace.group(0)}'", text)
+
+
 def _fields(schema: dict[str, Any], *, nested: bool) -> dict[str, dict[str, str]]:
     """Each field's copy by its path - `localizeSchema` in the console walks the same way."""
     defs = schema.get("$defs", {})
@@ -53,7 +58,7 @@ def _fields(schema: dict[str, Any], *, nested: bool) -> dict[str, dict[str, str]
     def walk(target: dict[str, Any], path: list[str]) -> None:
         for name, prop in (target.get("properties") or {}).items():
             at = [*path, name]
-            copy = {key: prop[src] for src, key in _COPY_KEYS if src in prop}
+            copy = {key: _icu(prop[src]) for src, key in _COPY_KEYS if src in prop}
             # A code field's example is code: the same in every language, so not copy.
             if "x-code" in prop:
                 copy.pop("placeholder", None)
@@ -62,10 +67,21 @@ def _fields(schema: dict[str, Any], *, nested: bool) -> dict[str, dict[str, str]
             if not nested:
                 continue
             through(prop.get("$ref"), at)
-            for branch in prop.get("anyOf", []):
-                through(branch.get("$ref"), at)
             if "properties" in prop:
                 walk(prop, at)
+            items(prop, at)
+            for branch in prop.get("anyOf", []):
+                through(branch.get("$ref"), at)
+                items(branch, at)
+
+    def items(schema: dict[str, Any], path: list[str]) -> None:
+        item = schema.get("items")
+        if not isinstance(item, dict):
+            return
+        at = [*path, "items"]
+        through(item.get("$ref"), at)
+        if "properties" in item:
+            walk(item, at)
 
     walk(schema, [])
     return found
@@ -105,7 +121,8 @@ def _strings(tree: object) -> list[str]:
 def test_no_copy_holds_what_a_message_would_parse(locale: str):
     """A brace is an ICU argument and `<` opens a tag: copy holding either renders
     broken, or throws, though the English still equals the registry's."""
-    assert [text for text in _strings(_copy(locale)) if re.search(r"[{}<]", text)] == []
+    unquoted = [text.replace("'{'", "").replace("'}'", "") for text in _strings(_copy(locale))]
+    assert [text for text in unquoted if re.search(r"[{}<]", text)] == []
 
 
 def test_the_english_copy_is_the_registry_s():
