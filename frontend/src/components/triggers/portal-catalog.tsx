@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { KeyRound, Plug, RefreshCw, Sparkles, Webhook } from "lucide-react";
+import { ChevronDown, KeyRound, Plug, RefreshCw, Sparkles, Webhook } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -127,6 +127,8 @@ export function PortalCatalog({
   const [installing, setInstalling] = useState<PortalWithState | null>(null);
   const [installationId, setInstallationId] = useState("");
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  const Entry = compact ? "details" : "div";
+  const Heading = compact ? "summary" : "div";
   const [dialog, setDialog] = useState<PortalWithState | null>(null);
   const [advanced, setAdvanced] = useState(false);
   // Which card asked, not merely that one did: the dialog opens on the credential
@@ -174,7 +176,9 @@ export function PortalCatalog({
   }
 
   if (isLoading) {
-    return <LoadingState variant="skeleton-table" columns={1} rows={4} />;
+    return (
+      <LoadingState variant={compact ? "skeleton-list" : "skeleton-cards"} rows={compact ? 8 : 6} />
+    );
   }
   if (error) {
     return <ErrorState description={getErrorMessage(error, tErrors, t("loadError"))} />;
@@ -224,6 +228,8 @@ export function PortalCatalog({
         </DialogContent>
       </Dialog>
       <ListCard
+        namedByPage={compact}
+        layout={compact ? "grid" : undefined}
         title={t("title")}
         counted={t("portalCount", { count: items.length })}
         controls={
@@ -233,7 +239,7 @@ export function PortalCatalog({
             placeholder={t("searchPlaceholder")}
           />
         }
-        contentClassName="space-y-4 p-4"
+        contentClassName={compact ? "space-y-3 p-0" : "space-y-4 p-4"}
       >
         <div className="flex flex-wrap items-center gap-2">
           <Select value={category} onValueChange={setCategory}>
@@ -271,7 +277,10 @@ export function PortalCatalog({
             description={t("noMatchesDescription")}
           />
         )}
-        <div className={cn("grid gap-3 sm:grid-cols-2", !compact && "lg:grid-cols-3")}>
+        <section
+          aria-label={t("title")}
+          className={cn("grid gap-3 sm:grid-cols-2", !compact && "lg:grid-cols-3")}
+        >
           {list.visible.map((item) => (
             <Card
               key={item.portal.key}
@@ -279,47 +288,66 @@ export function PortalCatalog({
               aria-label={item.portal.name}
               className="h-full"
             >
-              <CardContent className="flex h-full flex-col gap-3 p-4">
-                <div className="flex items-start gap-2.5">
-                  {item.portal.icon && isBrandName(item.portal.icon) ? (
-                    // Ink, like every other mark in the product. Brand colours were
-                    // tried here and cannot make this grid consistent: GitHub's own
-                    // colour is `#181717`, so colouring every mark leaves GitHub
-                    // black beside a red Gmail - the same odd-one-out, reached by a
-                    // longer route. Monochrome is what makes a set read as a set.
-                    <BrandIcon
-                      name={item.portal.icon}
-                      aria-hidden
-                      className="mt-0.5 h-6 w-6 shrink-0"
-                    />
-                  ) : (
-                    <Monogram label={item.portal.name} className="mt-0.5 h-6 w-6" />
-                  )}
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <span className="truncate text-sm font-medium">{item.portal.name}</span>
-                    <p className="text-muted-foreground text-xs font-medium tracking-wide">
-                      {categoryLabel(item.portal.category)}
-                    </p>
-                    <p className="text-muted-foreground line-clamp-2 text-sm">
-                      {item.portal.description}
-                    </p>
-                  </div>
-                </div>
+              <CardContent className={compact ? "p-0" : "h-full p-4"}>
+                <Entry className={compact ? "group" : "flex h-full flex-col gap-3"}>
+                  <Heading
+                    className={cn(
+                      "flex items-start gap-2.5",
+                      compact &&
+                        "cursor-pointer list-none rounded-xl p-3 focus-visible:outline-2 [&::-webkit-details-marker]:hidden",
+                    )}
+                  >
+                    {item.portal.icon && isBrandName(item.portal.icon) ? (
+                      // Ink, like every other mark in the product. Brand colours were
+                      // tried here and cannot make this grid consistent: GitHub's own
+                      // colour is `#181717`, so colouring every mark leaves GitHub
+                      // black beside a red Gmail - the same odd-one-out, reached by a
+                      // longer route. Monochrome is what makes a set read as a set.
+                      <BrandIcon
+                        name={item.portal.icon}
+                        aria-hidden
+                        className="mt-0.5 h-6 w-6 shrink-0"
+                      />
+                    ) : (
+                      <Monogram label={item.portal.name} className="mt-0.5 h-6 w-6" />
+                    )}
+                    <span className="min-w-0 flex-1 space-y-1">
+                      <span className="truncate text-sm font-medium">{item.portal.name}</span>
+                      <span className="text-muted-foreground block text-xs font-medium tracking-wide">
+                        {categoryLabel(item.portal.category)}
+                      </span>
+                      {!compact && (
+                        <span className="text-muted-foreground line-clamp-2 text-sm">
+                          {item.portal.description}
+                        </span>
+                      )}
+                    </span>
+                    {compact && (
+                      <ChevronDown
+                        aria-hidden
+                        className="text-muted-foreground ml-auto size-4 shrink-0 self-center transition-transform group-open:rotate-180"
+                      />
+                    )}
+                  </Heading>
+                  <div className={cn("space-y-3", compact && "border-t px-3 pt-3 pb-3")}>
+                    {compact && (
+                      <p className="text-muted-foreground text-sm">{item.portal.description}</p>
+                    )}
 
-                <div className="flex flex-wrap gap-1">
-                  {item.portal.presets.map((preset) => (
-                    <Badge key={preset.key} variant="outline" className="text-xs">
-                      {preset.label}
-                    </Badge>
-                  ))}
-                </div>
+                    <div className="flex flex-wrap gap-1">
+                      {item.portal.presets.map((preset) => (
+                        <Badge key={preset.key} variant="outline" className="text-xs">
+                          {preset.label}
+                        </Badge>
+                      ))}
+                    </div>
 
-                <div className="mt-auto">
-                  {/* How often a connected mailbox is checked - the mailbox's own
+                    <div className="mt-auto">
+                      {/* How often a connected mailbox is checked - the mailbox's own
                       setting, shared by every trigger on it. Renders nothing for
                       any other portal. */}
-                  <MailboxInterval portal={item.portal} canManage={canManageConnections} />
-                  {/* The prerequisite, said before the click rather than as a red
+                      <MailboxInterval portal={item.portal} canManage={canManageConnections} />
+                      {/* The prerequisite, said before the click rather than as a red
                       toast after it - and answerable *here*, which is the half
                       that was missing. GitHub's consent URL is built from the
                       organization's own OAuth App credentials, so with none
@@ -327,65 +355,75 @@ export function PortalCatalog({
                       beside an explanation is still leaving a control that lies
                       (#1068). Gated on the same permission the connect control
                       is: a Member who cannot fix it is not told to. */}
-                  {blocked(item) && canManageConnections && (
-                    <p className="text-muted-foreground border-border mt-3 border-t pt-3 text-xs">
-                      {t(BLOCKED_REASON[item.portal.connect_blocked_by ?? "oauth_app_secret"], {
-                        portal: item.portal.name,
-                        credential: credentialName(item.portal.oauth_app_kind),
-                      })}
-                    </p>
-                  )}
-                  <div className="border-border mt-3 flex flex-wrap items-center gap-1.5 border-t pt-3">
-                    {/* The credentials, added without leaving the grid. The Vault
+                      {blocked(item) && canManageConnections && (
+                        <p className="text-muted-foreground border-border mt-3 border-t pt-3 text-xs">
+                          {t(BLOCKED_REASON[item.portal.connect_blocked_by ?? "oauth_app_secret"], {
+                            portal: item.portal.name,
+                            credential: credentialName(item.portal.oauth_app_kind),
+                          })}
+                        </p>
+                      )}
+                      <div className="border-border mt-3 flex flex-wrap items-center gap-1.5 border-t pt-3">
+                        {/* The credentials, added without leaving the grid. The Vault
                         page stays a link rather than the only way in: this is a
                         shortcut to the same store, not a second one - the dialog
                         is the vault's own, built from the kind's schema. */}
-                    {vaultFixable(item) &&
-                      canManageConnections &&
-                      (item.portal.connect_blocked_by === "oauth_app_secret" ? (
-                        <Button size="sm" variant="outline" onClick={() => setAddingSecret(item)}>
-                          <KeyRound className="mr-1 h-3.5 w-3.5" />
-                          {t("addCredentials")}
-                        </Button>
-                      ) : (
-                        // Ambiguity is fixed by *removing* one of the two, which is
-                        // the vault's job - so adding a third is the one thing that
-                        // would make it worse, and a disabled button beside a link
-                        // was two controls for one answer.
-                        <Button size="sm" variant="ghost" asChild>
-                          <Link href={ROUTES.VAULT}>{t("openVault")}</Link>
-                        </Button>
-                      ))}
-                    {item.action === "create" && canRun && (
-                      <Button size="sm" variant="outline" onClick={() => setDialog(item)}>
-                        <Sparkles className="mr-1 h-3.5 w-3.5" />
-                        {t("createAction")}
-                      </Button>
-                    )}
-                    {item.action === "connect" && canManageConnections && !blocked(item) && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={busyKey === item.portal.key}
-                        onClick={() => connect(item)}
-                      >
-                        <Plug className="mr-1 h-3.5 w-3.5" />
-                        {busyKey === item.portal.key ? t("redirecting") : t("connectAction")}
-                      </Button>
-                    )}
-                    {item.action === "reauthorize" && canManageConnections && !blocked(item) && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={busyKey === item.portal.key}
-                        onClick={() => connect(item)}
-                      >
-                        <RefreshCw className="mr-1 h-3.5 w-3.5" />
-                        {busyKey === item.portal.key ? t("redirecting") : t("reauthorizeAction")}
-                      </Button>
-                    )}
+                        {vaultFixable(item) &&
+                          canManageConnections &&
+                          (item.portal.connect_blocked_by === "oauth_app_secret" ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setAddingSecret(item)}
+                            >
+                              <KeyRound className="mr-1 h-3.5 w-3.5" />
+                              {t("addCredentials")}
+                            </Button>
+                          ) : (
+                            // Ambiguity is fixed by *removing* one of the two, which is
+                            // the vault's job - so adding a third is the one thing that
+                            // would make it worse, and a disabled button beside a link
+                            // was two controls for one answer.
+                            <Button size="sm" variant="ghost" asChild>
+                              <Link href={ROUTES.VAULT}>{t("openVault")}</Link>
+                            </Button>
+                          ))}
+                        {item.action === "create" && canRun && (
+                          <Button size="sm" variant="outline" onClick={() => setDialog(item)}>
+                            <Sparkles className="mr-1 h-3.5 w-3.5" />
+                            {t("createAction")}
+                          </Button>
+                        )}
+                        {item.action === "connect" && canManageConnections && !blocked(item) && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={busyKey === item.portal.key}
+                            onClick={() => connect(item)}
+                          >
+                            <Plug className="mr-1 h-3.5 w-3.5" />
+                            {busyKey === item.portal.key ? t("redirecting") : t("connectAction")}
+                          </Button>
+                        )}
+                        {item.action === "reauthorize" &&
+                          canManageConnections &&
+                          !blocked(item) && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={busyKey === item.portal.key}
+                              onClick={() => connect(item)}
+                            >
+                              <RefreshCw className="mr-1 h-3.5 w-3.5" />
+                              {busyKey === item.portal.key
+                                ? t("redirecting")
+                                : t("reauthorizeAction")}
+                            </Button>
+                          )}
+                      </div>
+                    </div>
                   </div>
-                </div>
+                </Entry>
               </CardContent>
             </Card>
           ))}
@@ -397,22 +435,37 @@ export function PortalCatalog({
               is your own code posting signed JSON. Outside the search, the
               category filter and the pager, since it is not a catalog row. */}
           {canRun && (
-            <Card role="group" aria-label={t("advancedWebhook")} className="h-full border-dashed">
-              <CardContent className="flex h-full flex-col gap-3 p-4">
-                <div className="flex items-start gap-2.5">
+            <Card
+              role="group"
+              aria-label={t("advancedWebhook")}
+              className={cn("h-full border-dashed", compact && "sm:col-span-2")}
+            >
+              <CardContent
+                className={
+                  compact ? "flex items-center gap-3 p-3" : "flex h-full flex-col gap-3 p-4"
+                }
+              >
+                <div className="flex min-w-0 flex-1 items-start gap-2.5">
                   <Webhook className="text-muted-foreground mt-0.5 h-6 w-6 shrink-0" aria-hidden />
                   <div className="min-w-0 flex-1 space-y-1">
                     <span className="truncate text-sm font-medium">{t("advancedWebhook")}</span>
                     <p className="text-muted-foreground text-xs font-medium tracking-wide">
                       {t("apiCategory")}
                     </p>
-                    <p className="text-muted-foreground line-clamp-2 text-sm">
-                      {t("apiDescription")}
-                    </p>
+                    {!compact && (
+                      <p className="text-muted-foreground line-clamp-2 text-sm">
+                        {t("apiDescription")}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="mt-auto">
-                  <div className="border-border mt-3 flex flex-wrap items-center gap-1.5 border-t pt-3">
+                  <div
+                    className={cn(
+                      "flex flex-wrap items-center gap-1.5",
+                      !compact && "border-border mt-3 border-t pt-3",
+                    )}
+                  >
                     <Button size="sm" variant="outline" onClick={() => setAdvanced(true)}>
                       <Sparkles className="mr-1 h-3.5 w-3.5" />
                       {t("createAction")}
@@ -422,7 +475,7 @@ export function PortalCatalog({
               </CardContent>
             </Card>
           )}
-        </div>
+        </section>
 
         <Pager
           page={list.page}

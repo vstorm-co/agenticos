@@ -15,8 +15,9 @@ import type { Group } from "@/types/groups";
 import type { OrganizationMember } from "@/types";
 import { encodeSubject } from "./grants";
 
-/** Ten rows of a two-line person, and then a scrollbar. */
-const TEN_ROWS = "max-h-[min(26rem,60vh)]";
+/** Reserve the search header before using the popover’s remaining collision space. */
+const SUBJECT_LIST_HEIGHT =
+  "max-h-[min(26rem,calc(var(--radix-popover-content-available-height,60dvh)-3.5rem))]";
 
 const HEADINGS =
   "[&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:tracking-wide [&_[cmdk-group-heading]]:uppercase";
@@ -73,7 +74,8 @@ export function SubjectPicker({
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    // A portaled picker inside a modal needs its own scroll-lock scope, or the outer lock cancels its wheel/touch events.
+    <Popover modal open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           id={id}
@@ -90,16 +92,25 @@ export function SubjectPicker({
         </Button>
       </PopoverTrigger>
 
-      <PopoverContent className="w-[min(22rem,90vw)] rounded-lg p-0" align="start">
-        <Command shouldFilter className={HEADINGS}>
-          <div className="border-border border-b px-3 py-2">
+      <PopoverContent
+        className="flex min-h-0 w-[min(22rem,90vw)] flex-col overflow-hidden rounded-lg p-0"
+        align="start"
+      >
+        <Command shouldFilter className={cn(HEADINGS, "flex min-h-0 flex-col")}>
+          <div className="border-border shrink-0 border-b px-3 py-2">
             <Command.Input
               placeholder={t("searchSubjects")}
+              aria-label={t("searchSubjects")}
               className="placeholder:text-muted-foreground w-full bg-transparent text-sm outline-none"
             />
           </div>
 
-          <Command.List className={cn(TEN_ROWS, "scrollbar-thin overflow-y-auto p-1")}>
+          <Command.List
+            className={cn(
+              SUBJECT_LIST_HEIGHT,
+              "min-h-0 scrollbar-thin overflow-y-auto overscroll-contain p-1",
+            )}
+          >
             <Command.Empty className="text-muted-foreground px-3 py-6 text-center text-sm">
               {tOrgs("nobodyHereMatches")}
             </Command.Empty>

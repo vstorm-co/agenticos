@@ -792,13 +792,6 @@ export const TOUR_STEPS: readonly TourStep[] = [
     activate: "skill-history-tab",
     permission: Perm.skillsView,
   },
-  {
-    id: "skill-tree",
-    page: SKILL_DETAIL,
-    target: "skill-tree",
-    activate: "skill-tree-tab",
-    permission: Perm.skillsView,
-  },
 
   {
     id: "skill-improvement-start",

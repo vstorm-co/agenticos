@@ -1408,6 +1408,17 @@ class TestATurnThatDidNotFinish:
         )
         assert "503 from https://api.example.com/v1/chat" in caplog.text
 
+    async def test_a_content_filter_uses_the_same_safe_live_and_stored_summary(self):
+        from pydantic_ai.exceptions import ContentFilterError
+
+        from app.agents.failures import CONTENT_FILTER_SUMMARY
+
+        session = _session()
+        with _chat(AsyncMock(side_effect=ContentFilterError("private provider detail"))):
+            await session.process_message(_message())
+
+        assert _sent_events(session)[-1] == ("error", {"message": CONTENT_FILTER_SUMMARY})
+
     async def test_a_provider_out_of_credit_is_told_in_words(self):
         """A 402 from the provider's gateway (an OpenRouter key over its limit) was
         shown as "(ModelHTTPError)"; the reader can act on it, so it says why."""

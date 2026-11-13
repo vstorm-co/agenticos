@@ -70,7 +70,7 @@ export function SidebarSearch({ variant = "row" }: SidebarSearchProps) {
       {mounted && (
         <kbd
           aria-hidden
-          className="bg-foreground/5 text-muted-foreground touch:hidden rounded px-1.5 py-0.5 text-[10px] leading-4"
+          className="bg-foreground/5 text-foreground/75 touch:hidden rounded px-1.5 py-0.5 text-[10px] leading-4"
         >
           {mac ? "⌘K" : t("searchShortcut")}
         </kbd>

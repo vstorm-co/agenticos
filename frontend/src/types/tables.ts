@@ -1,3 +1,4 @@
+import type { ResourceIconName } from "@/types/resource-icons";
 /**
  * Types for Virtual Tables, mirroring `backend/app/schemas/virtual_table.py`
  * and `backend/app/schemas/table_view.py`.
@@ -195,6 +196,7 @@ export interface ColumnInput {
 }
 
 export interface TableSummary {
+  icon?: ResourceIconName | null;
   default_view_id?: string | null;
   id: string;
   name: string;
@@ -248,6 +250,7 @@ export interface TableCreate {
 }
 
 export interface TableUpdate {
+  icon?: ResourceIconName | null;
   default_view_id?: string | null;
   name?: string;
   description?: string | null;

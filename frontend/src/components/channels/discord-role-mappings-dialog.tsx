@@ -64,7 +64,7 @@ export function DiscordRoleMappingsDialog({
           {error ? (
             <ErrorState description={getErrorMessage(error, tErrors)} />
           ) : isLoading ? (
-            <LoadingState variant="skeleton-panel" rows={2} />
+            <LoadingState variant="pending" />
           ) : mappings.length === 0 && !adding ? (
             <p className="text-muted-foreground py-4 text-center text-sm">{t("empty")}</p>
           ) : (

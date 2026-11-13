@@ -16,6 +16,7 @@ import {
   SEEDED_AGENT_NAME,
   SEEDED_KB_NAME,
   SEEDED_SKILL_NAME,
+  scopeInMatrix,
   skillCard,
 } from "./helpers";
 
@@ -157,12 +158,14 @@ test.describe("Dashboard navigation", () => {
 
     // The matrix is served by the backend, so a row from the real catalog is
     // what separates "the table rendered" from "the table rendered empty".
-    await expect(page.getByRole("cell", { name: /^agents:edit/ })).toBeVisible();
+    await expect(page.getByRole("rowheader", { name: /^agents:edit/ })).toBeVisible();
     await expect(page.getByRole("columnheader", { name: "owner" })).toBeVisible();
 
     // The scopes are the catalog's, not the component's: `member` may edit what
     // it owns and nothing wider. A table rendered from an empty response has the
     // headers and none of this.
     await expect(page.getByRole("row", { name: /^agents:edit/ })).toContainText("own");
+    expect(await scopeInMatrix(page, "member", "agents:edit")).toBe("own");
+    expect(await scopeInMatrix(page, "viewer", "agents:edit")).toBe("-");
   });
 });

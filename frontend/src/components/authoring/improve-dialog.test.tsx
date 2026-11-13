@@ -186,3 +186,37 @@ it("re-estimates after changing the model and starts with exactly that model", a
     helper_settings: { model_profile_id: "chosen-model", instructions: null },
   });
 });
+
+it("closes an idle estimate with Escape without starting paid work", async () => {
+  const onOpenChange = vi.fn();
+  const start = vi.fn();
+  render(
+    <ImproveDialog
+      kind="improve"
+      estimate={vi.fn().mockResolvedValue(quote())}
+      start={start}
+      onOpenChange={onOpenChange}
+    />,
+  );
+  await screen.findByText(/It will read/);
+  await userEvent.keyboard("{Escape}");
+  expect(onOpenChange).toHaveBeenCalledWith(false);
+  expect(start).not.toHaveBeenCalled();
+});
+
+it("takes an author without evidence to chat without starting an improvement", async () => {
+  const close = vi.fn();
+  const start = vi.fn();
+  render(
+    <ImproveDialog
+      kind="improve"
+      subject="context"
+      estimate={vi.fn().mockResolvedValue(quote({ reason: "no_evidence" }))}
+      start={start}
+      onOpenChange={close}
+    />,
+  );
+  await userEvent.click(await screen.findByRole("button", { name: "Open chat" }));
+  expect(close).toHaveBeenCalledWith(false);
+  expect(start).not.toHaveBeenCalled();
+});
