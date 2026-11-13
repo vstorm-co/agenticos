@@ -65,6 +65,12 @@ export interface InsertionRequest {
   dropAt?: NodePosition;
   /** The connection it goes into the middle of, when one was chosen. */
   between?: WorkflowEdge;
+  /**
+   * Put the step into `between` only when it can also carry the connection on to where it
+   * led; otherwise add it after `from`, leaving the connection whole. Without it, a step
+   * that cannot feed the old target still takes the connection and leaves the target unwired.
+   */
+  keepOnward?: boolean;
   /** The new node's id - a parameter so a plan is deterministic under test. */
   id?: Uuid;
   /** The catalog's loop item and result steps, put inside a new loop; none without them. */
@@ -334,7 +340,9 @@ export function planInsertion(request: InsertionRequest): NodeInsertion {
 
   if (request.between !== undefined) {
     const planned = splitting(request.between, graph, visible, definitions, definition, id);
-    if (planned !== null) return withBody(planned);
+    if (planned !== null && !(request.keepOnward === true && planned.split?.tail == null)) {
+      return withBody(planned);
+    }
   }
 
   // A drop at the top level is placed where it fell and left for the user to wire;

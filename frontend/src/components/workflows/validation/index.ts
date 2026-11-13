@@ -70,6 +70,7 @@ export {
   schemaTypeToken,
 } from "./schema";
 export { deriveScopes, resolveDefinitions } from "./topology";
+export { graphWarnings } from "./warnings";
 export type { ValidationCode, ValidationTranslator } from "./types";
 export { MESSAGE_KEYS } from "./types";
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "945ef275c425"
+source_sha: "92df3ae42cac"
 ---
 
 # Workflows { #workflows }
@@ -145,7 +145,10 @@ robi, albo po grupie. Krok dodajesz na cztery sposoby:
   otwiera wybór. Krok trafia za zaznaczony krok albo na koniec widocznego przepływu i
   łączy się z nim, gdy porty pasują. Krok startowy trafia zamiast tego przed obecny
   start i staje się nim.
-- **+** przy wyjściu kroku otwiera wybór kroku, który idzie po tym wyjściu.
+- **+** przy wyjściu kroku otwiera wybór kroku, który idzie po tym wyjściu. Gdy
+  wyjście prowadzi już do kroku, wybór pyta, gdzie trafi nowy: **Insert before** wstawia
+  go w to połączenie, a **Add a parallel branch** zostawia połączenie i uruchamia nowy
+  krok obok. Wyjście, które prowadzi już do kilku kroków, przyjmie tylko kolejną gałąź.
 - **Prawy przycisk** na kanwie: ten sam wybór kroków otwiera się tam, gdzie kliknąłeś,
   i tam trafia krok. Pod nim **Dodaj notatkę** (Add a note) oraz, gdy coś skopiowano, **Wklej** (Paste).
 - **Przeciągnij** krok z wyboru, żeby położyć go tam, gdzie go upuścisz, bez połączeń.
@@ -680,6 +683,11 @@ nie jest zmieniana po utworzeniu. Okno publikowania mówi, którą wersję utwor
 wersji, mówi to najpierw. Jeśli graf wciąż ma problemy, publikowanie jest
 zablokowane z **Fix the problems below before publishing**, więc wersja, która by nie
 przeszła walidacji, nigdy nie powstaje.
+
+Niektóre rzeczy warto sprawdzić, choć nie są błędem, i oznacza je bursztynowy znak na
+kroku: wynik **Ask for approval**, który nigdzie nie prowadzi, albo krok wybierający
+między wyjściami, z których żadne nigdzie nie prowadzi. Run po prostu się tam kończy.
+Okno publikacji też je wymienia, ale nigdy nie blokują testu ani publikacji.
 
 Publikowanie nie kończy Twojej edycji. Draft istnieje dalej niezależnie od każdej
 opublikowanej wersji, więc edytujesz go od razu dalej. **Versions** pod **More** w nagłówku edytora
