@@ -71,6 +71,28 @@ async def _task(project: Path, edit: Any) -> ChangeSet | None:
 
 @needs_git
 class TestTheSnapshot:
+    @pytest.mark.security
+    @pytest.mark.parametrize("oversized_file", [True, False])
+    async def test_compressed_and_mode_only_patches_cannot_advertise_unbounded_reverts(
+        self, project: Path, store_root: Path, oversized_file: bool
+    ) -> None:
+        count = 1 if oversized_file else 9
+        for index in range(count):
+            (project / f"file-{index}.bin").write_bytes(b"\x00" * (1024 * 1024))
+
+        def edit(root: Path) -> None:
+            for index in range(count):
+                path = root / f"file-{index}.bin"
+                if oversized_file:
+                    path.write_bytes(b"\x00" * (2 * 1024 * 1024 + 1))
+                else:
+                    path.chmod(0o755)
+
+        changes = await _task(project, edit)
+        assert changes is not None and len(changes.files) == count
+        assert not changes.truncated
+        assert changes.revert_patch is None
+
     async def test_a_task_that_edits_two_files_shows_exactly_those_two(
         self, project: Path, store_root: Path
     ) -> None:
@@ -301,6 +323,12 @@ def _patch(path: str, lines: int) -> str:
 
 
 class TestTheBounds:
+    @pytest.mark.security
+    @pytest.mark.parametrize("bounds", ["invalid", "1\n1"])
+    def test_untrusted_snapshot_bounds_must_be_one_flag(self, bounds: str) -> None:
+        output = _finish_output(_raw("A", "new.txt") + "1\t0\tnew.txt\0", _patch("new.txt", 1))
+        assert _changes.parse(output + "\n" + bounds) is None
+
     def test_a_snapshot_cannot_supply_invalid_base64_or_object_ids(self) -> None:
         assert _changes.parse("0\n0\n0\n0\n\n\n!") is None
         listing = _raw("M", "a.txt").replace(_SHA, "x" * 40, 1) + "1\t1\ta.txt\0"

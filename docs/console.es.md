@@ -1,5 +1,5 @@
 ---
-source_sha: "292f1f7d3d0b"
+source_sha: "1d738a8f00d6"
 ---
 
 # La consola { #the-console }
@@ -550,6 +550,8 @@ El panel Files agrupa los archivos por carpetas y distingue nombres iguales en d
 Debajo de cada respuesta aparecen enlaces a los archivos modificados en ese turno. Las tareas de código usan su conjunto de cambios guardado, incluidas las ediciones del shell; sin él, usan el informe del harness. El panel ofrece **Revertir esta tarea** cuando puedes editar su workspace original y el snapshot está completo. Los enlaces abren los archivos actuales del workspace, no una copia versionada.
 
 La reversión se ejecuta como un trabajo duradero en un workspace aislado de conversación. Los snapshots compartidos siguen siendo de solo lectura. El panel muestra el progreso; un resultado desconocido reserva el workspace hasta que Reintentar reversión compruebe sus archivos.
+
+Los snapshots para revertir tienen un límite de 2 MiB por archivo y 16 MiB entre los datos anteriores y posteriores; los cambios mayores siguen visibles sin reversión. La verificación también limita las lecturas de snapshots antiguos. Se admiten seis solicitudes por persona y veinte por organización por minuto, con un límite local durante fallos de Redis. Cada organización ejecuta como máximo una reversión a la vez.
 
 Mientras trabaja el agente, los mensajes de progreso y las llamadas a herramientas que les siguen aparecen en orden de llegada dentro de un historial desplegado. Al terminar la ejecución, todo ese historial se contrae bajo un único control «Worked for…» o «Thought for…», dejando debajo solo la respuesta final. Al abrirlo se recupera el mismo orden de mensajes y grupos de herramientas. El razonamiento conserva su desplegable opcional; sus encabezados no generan fases. Las preguntas y aprobaciones mantienen el estado de espera hasta resolverse, también al delegar. Las tarjetas de aprobación activas y los resultados visuales permanecen fuera del historial terminado.
 

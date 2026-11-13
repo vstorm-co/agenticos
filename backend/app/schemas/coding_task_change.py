@@ -10,6 +10,9 @@ from app.schemas.base import BaseSchema, TimestampSchema
 
 ChangeStatus = Literal["added", "modified", "deleted", "renamed"]
 
+MAX_REVERT_FILE_BYTES = 2 * 1024 * 1024
+MAX_REVERT_BYTES = 16 * 1024 * 1024
+
 
 class ChangedFile(BaseSchema):
     """One file a task added, changed, removed or renamed, with its part of the patch.

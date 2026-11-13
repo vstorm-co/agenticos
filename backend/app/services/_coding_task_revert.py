@@ -17,7 +17,7 @@ from pydantic_ai.exceptions import UserError
 from pydantic_ai.workspaces import Workspace, WorkspaceError
 
 from app.core.exceptions import AlreadyExistsError, BadRequestError, ExternalServiceError
-from app.schemas.coding_task_change import ChangedFile
+from app.schemas.coding_task_change import MAX_REVERT_BYTES, MAX_REVERT_FILE_BYTES, ChangedFile
 from app.services.sandbox_workspace import NOT_BROWSABLE, TOOLING_DIRS
 
 logger = logging.getLogger(__name__)
@@ -45,6 +45,7 @@ def answer(status, conflicts=None):
     raise SystemExit
 
 def read(path):
+    global remaining
     descriptor = os.open(".", os.O_RDONLY | os.O_DIRECTORY)
     try:
         parts = path.split("/")
@@ -55,11 +56,15 @@ def read(path):
         file = os.open(parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=descriptor)
         try:
             info = os.fstat(file)
-            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_size > 2 * 1024 * 1024:
+            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_size > file_limit:
                 raise ValueError("unsupported file")
+            if info.st_size > remaining:
+                raise ValueError("verification byte limit exceeded")
+            read_limit = min(file_limit, remaining)
             with os.fdopen(os.dup(file), "rb") as stream:
-                content = stream.read(2 * 1024 * 1024 + 1)
-            if len(content) > 2 * 1024 * 1024:
+                content = stream.read(read_limit + 1)
+            remaining -= len(content)
+            if len(content) > read_limit:
                 raise ValueError("oversized file")
             return "100755" if info.st_mode & stat.S_IXUSR else "100644", content
         finally:
@@ -70,6 +75,8 @@ def read(path):
         os.close(descriptor)
 
 root = os.getcwd()
+file_limit = payload["file_limit"]
+remaining = payload["byte_limit"]
 # Every attempt uses the same inode. Never unlink it: an old, timed-out
 # command might still hold its lock when a worker tries to reconcile it.
 try:
@@ -225,7 +232,16 @@ async def revert(
 ) -> None:
     """Refuse every conflict before restoring exactly the task's affected files."""
     before, after = manifests(files)
-    payload = json.dumps({"before": before, "after": after, "patch": patch, "reconcile": reconcile})
+    payload = json.dumps(
+        {
+            "before": before,
+            "after": after,
+            "patch": patch,
+            "reconcile": reconcile,
+            "file_limit": MAX_REVERT_FILE_BYTES,
+            "byte_limit": MAX_REVERT_BYTES,
+        }
+    )
     # Linux limits each individual argument/environment value to 128 KiB.
     chunks = [payload[index : index + 32_000] for index in range(0, len(payload), 32_000)]
     env = {f"{PAYLOAD_ENV}_{index}": chunk for index, chunk in enumerate(chunks)}

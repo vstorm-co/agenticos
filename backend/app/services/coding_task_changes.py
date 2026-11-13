@@ -213,7 +213,7 @@ class CodingTaskChangeService:
             organization_id=ctx.organization_id,
             dedupe_key=f"coding-task-revert:{change_id}",
             dedupe_active=True,
-            concurrency_key=f"coding-task-revert:{ctx.organization_id}:{locked.conversation_id}",
+            concurrency_key=f"coding-task-revert:{ctx.organization_id}",
         )
         if job_id is None:
             raise AlreadyExistsError(message="This task is already being reverted", details={})

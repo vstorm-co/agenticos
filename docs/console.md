@@ -516,6 +516,8 @@ Files changed by a turn are linked below its answer. Coding tasks use their stor
 
 Revert runs as a durable job in an isolated conversation workspace. Shared-scope snapshots stay read-only. The panel shows progress; an unknown outcome reserves the workspace until Retry revert checks its files.
 
+Revert snapshots are limited to 2 MiB per file and 16 MiB across their before/after blobs; larger changes remain viewable without undo. Verification also bounds reads of older snapshots. Admission allows six requests per person and twenty per organization per minute, with a local ceiling during Redis outages. Each organization runs at most one revert job at a time.
+
 While an agent works, progress messages and their following tool calls appear in arrival order inside one expanded timeline. Completing the run collapses that history under one “Worked for…” or “Thought for…” control, with only the final answer below it. Opening the history restores the same chronological messages and tool groups. Reasoning remains a separate, optional disclosure; its headings do not create process stages. Questions and approvals keep their waiting status until resolved, including delegated requests. Actionable approval cards and visual results remain visible outside completed history.
 
 Consecutive tool calls between messages share a collapsed group; expand it to inspect individual calls.

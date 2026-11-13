@@ -17,6 +17,7 @@ from app.api.deps import (
     VisualSvc,
     WorkspaceSvc,
     key_needs,
+    limit_coding_revert,
     limit_fork,
     require,
 )
@@ -88,6 +89,7 @@ async def get_coding_task_change(change_id: UUID, service: CodingTaskChangeSvc, 
 
 @router.post(
     "/coding-changes/{change_id}/revert",
+    dependencies=[Depends(limit_coding_revert)],
     response_model=CodingTaskChangeRead,
     status_code=status.HTTP_202_ACCEPTED,
 )

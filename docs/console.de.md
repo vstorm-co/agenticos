@@ -1,5 +1,5 @@
 ---
-source_sha: "292f1f7d3d0b"
+source_sha: "1d738a8f00d6"
 ---
 
 # Die Konsole { #the-console }
@@ -573,6 +573,8 @@ Das Files-Panel gruppiert Dateien nach Ordnern und unterscheidet gleiche Namen i
 Unter einer Antwort stehen Links zu den in diesem Turn geänderten Dateien. Programmieraufgaben verwenden ihren gespeicherten Änderungssatz einschließlich Shell-Änderungen; ohne Änderungssatz nutzen sie den Harness-Bericht. Das Aufgabenpanel bietet **Diese Aufgabe rückgängig machen** an, wenn du den ursprünglichen Workspace bearbeiten darfst und der Snapshot vollständig ist. Die Links öffnen aktuelle Workspace-Dateien, keine versionierte Kopie.
 
 Die Rücknahme läuft als dauerhafter Job in einem isolierten Unterhaltungs-Workspace. Snapshots geteilter Bereiche bleiben schreibgeschützt. Das Panel zeigt den Fortschritt; ein unbekanntes Ergebnis reserviert den Workspace, bis Erneut versuchen seine Dateien prüft.
+
+Snapshots für Rücknahmen sind auf 2 MiB pro Datei und insgesamt 16 MiB für die Daten vor und nach der Änderung begrenzt; größere Änderungen bleiben ohne Rücknahme einsehbar. Die Prüfung begrenzt auch das Lesen älterer Snapshots. Pro Minute sind sechs Anfragen pro Person und zwanzig pro Organisation zulässig, mit einer lokalen Grenze bei Redis-Ausfällen. Jede Organisation führt höchstens einen Rücknahme-Job gleichzeitig aus.
 
 Während der Arbeit erscheinen Fortschrittsmeldungen und die jeweils folgenden Tool-Aufrufe in ihrer Eingangsreihenfolge in einem aufgeklappten Verlauf. Erst nach Abschluss wird der Verlauf unter einem „Worked for…“- oder „Thought for…“-Schalter eingeklappt; darunter bleibt nur die finale Antwort. Aufklappen zeigt dieselben Nachrichten und Tool-Gruppen wieder chronologisch. Begründungen bleiben separat aufklappbar; ihre Überschriften erzeugen keine Prozessphasen. Fragen und Freigaben behalten ihren Wartestatus bis zur Entscheidung, auch bei delegierten Anfragen. Aktive Freigabekarten und visuelle Ergebnisse bleiben außerhalb des abgeschlossenen Verlaufs sichtbar.
 

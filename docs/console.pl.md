@@ -1,5 +1,5 @@
 ---
-source_sha: "292f1f7d3d0b"
+source_sha: "1d738a8f00d6"
 ---
 
 # Konsola { #the-console }
@@ -532,6 +532,8 @@ Panel Files grupuje pliki według folderów, rozróżniając identyczne nazwy w 
 Pliki zmienione w turze mają skróty pod odpowiedzią. Zadania programistyczne korzystają z zapisanego zestawu zmian, w tym edycji przez shell; zadanie bez niego używa raportu harnessu. Panel zadania oferuje **Cofnij to zadanie**, gdy możesz edytować jego pierwotny workspace, a snapshot jest kompletny. Skróty otwierają bieżące pliki workspace, a nie wersjonowaną kopię.
 
 Cofnięcie działa jako trwałe zadanie w izolowanym workspace rozmowy. Snapshoty współdzielonych zakresów pozostają tylko do odczytu. Panel pokazuje postęp; nieznany wynik rezerwuje workspace, dopóki Ponów cofnięcie nie sprawdzi jego plików.
+
+Snapshoty do cofania mają limit 2 MiB na plik i 16 MiB łącznie dla danych przed zmianą i po niej; większe zmiany można przeglądać bez cofania. Weryfikacja ogranicza też odczyty starszych snapshotów. Przyjmowanych jest sześć żądań na osobę i dwadzieścia na organizację na minutę, z lokalnym limitem podczas awarii Redis. W organizacji działa najwyżej jedno zadanie cofania naraz.
 
 Podczas pracy agenta komunikaty o postępie i następujące po nich wywołania narzędzi pojawiają się w kolejności nadejścia w jednej rozwiniętej osi czasu. Zakończenie uruchomienia zwija historię pod jednym „Worked for…” lub „Thought for…”, pozostawiając pod spodem tylko finalną odpowiedź. Rozwinięcie historii przywraca tę samą kolejność wiadomości i grup narzędzi. Rozumowanie ma osobne, opcjonalne rozwinięcie; jego nagłówki nie tworzą etapów procesu. Pytania i zatwierdzenia zachowują stan oczekiwania do rozwiązania, także przy delegacji. Aktywne karty zatwierdzania i wyniki wizualne pozostają poza zakończoną historią.
 

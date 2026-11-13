@@ -33,7 +33,13 @@ import anyio
 from pydantic_ai.tools import RunContext
 
 from app.agents.capabilities.coding_agent._task import SANDBOX_FAILURES
-from app.schemas.coding_task_change import ChangedFile, ChangeSet, ChangeStatus
+from app.schemas.coding_task_change import (
+    MAX_REVERT_BYTES,
+    MAX_REVERT_FILE_BYTES,
+    ChangedFile,
+    ChangeSet,
+    ChangeStatus,
+)
 from app.services.sandbox_workspace import NOT_BROWSABLE, TOOLING_DIRS
 
 logger = logging.getLogger(__name__)
@@ -145,10 +151,18 @@ FINISH = (
     f"{{ tr '\\000' '\\n' < \"${STORE_ENV}/raw\" | grep -c '^:[0-7]* [0-7]* ' || true; }}; "
     f"head -c {MAX_LIST_BYTES} \"${STORE_ENV}/raw\" | base64 | tr -d '\\n'; echo; "
     f"head -c {MAX_LIST_BYTES} \"${STORE_ENV}/num\" | base64 | tr -d '\\n'; echo; "
-    f"head -c {MAX_PATCH_BYTES} \"${STORE_ENV}/patch\" | base64 | tr -d '\\n'"
+    f"head -c {MAX_PATCH_BYTES} \"${STORE_ENV}/patch\" | base64 | tr -d '\\n'; echo; "
+    # Count both blob states, including mode-only changes and repeated blobs.
+    # A small compressed patch need not mean a small verification workload.
+    f"{_DIFF} --no-renames --raw "
+    "| awk '/^:/ {if ($3 !~ /^0+$/) print $3; if ($4 !~ /^0+$/) print $4}' "
+    "| git cat-file --batch-check='%(objectsize)' "
+    f"| awk '{{total += $1; if ($0 !~ /^[0-9]+$/ || $1 > {MAX_REVERT_FILE_BYTES}) bad=1}} "
+    f"END {{print (bad || total > {MAX_REVERT_BYTES}) ? 0 : 1}}'"
 )
 """Snapshot again and print the change, a line each: the sizes of the `--raw` list, the
-`--numstat` list and the patch, the file count, each list's head (base64), then the patch.
+`--numstat` list and the patch, the file count, each list's head (base64), the patch,
+and whether its before/after blobs fit the revert verification limits.
 
 The lists are written to the store first, so `set -e` sees `diff-tree` fail -
 piped straight out, a failing one printed nothing and read as a task that
@@ -246,9 +260,16 @@ def parse(stdout: str) -> ChangeSet | None:
     have sent, and no patch past `MAX_PATCH_BYTES` characters - the shell's
     bytes, as many or fewer once decoded.
     """
-    head = stdout.split("\n", 6)
+    head = stdout.split("\n", 7)
     if len(head) < 7:
         return None
+    # Older capture output has seven lines; new captures append the workload flag.
+    bounded = True
+    if len(head) == 8:
+        bounds = head.pop().strip()
+        if bounds not in {"0", "1"}:
+            return None
+        bounded = bounds == "1"
     *sizes, raw_text, num_text, encoded_patch = head
     if not all(size.strip().isdecimal() and len(size.strip()) <= MAX_SIZE_DIGITS for size in sizes):
         return None
@@ -279,7 +300,7 @@ def parse(stdout: str) -> ChangeSet | None:
         files=kept,
         omitted=omitted,
         truncated=truncated,
-        revert_patch=encoded_patch if kept and not truncated else None,
+        revert_patch=encoded_patch if kept and not truncated and bounded else None,
     )
 
 

@@ -83,6 +83,35 @@ async def test_a_task_that_only_deletes_a_file_can_be_restored(root: Path) -> No
     assert (root / "one.txt").read_text() == "before\n"
 
 
+async def test_a_grown_binary_at_the_revert_file_limit_restores_its_original_bytes(
+    root: Path,
+) -> None:
+    changes = await captured(
+        root, lambda path: (path / "one.txt").write_bytes(b"\x00" * (2 * 1024 * 1024))
+    )
+    await revert(Workspace(LocalWorkspaceBackend(root)), changes.files, changes.revert_patch)
+    assert (root / "one.txt").read_text() == "before\n"
+
+
+@pytest.mark.security
+async def test_verification_byte_budget_also_bounds_old_stored_snapshots(
+    root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.services import _coding_task_revert
+
+    def edit(path: Path) -> None:
+        (path / "one.txt").write_text("after one\n")
+        (path / "two.txt").write_text("after two\n")
+
+    changes = await captured(root, edit)
+    monkeypatch.setattr(_coding_task_revert, "MAX_REVERT_BYTES", 12)
+    with pytest.raises(AlreadyExistsError) as refused:
+        await revert(Workspace(LocalWorkspaceBackend(root)), changes.files, changes.revert_patch)
+    assert refused.value.details == {"conflicting_files": ["two.txt"]}
+    assert (root / "one.txt").read_text() == "after one\n"
+    assert (root / "two.txt").read_text() == "after two\n"
+
+
 @pytest.mark.security
 async def test_workspace_python_modules_cannot_run_during_revert(root: Path) -> None:
     (root / "json.py").write_text("raise RuntimeError('workspace code executed')\n")
@@ -420,6 +449,9 @@ async def test_undo_reserves_a_durable_job_without_running_a_workspace_command(
     assert task.kind == "revert-coding-task" and payload.user_id == facade.ctx.user_id
     assert payload.organization_id == stored.organization_id and payload.change_id == stored.id
     assert facade.enqueue.await_args.kwargs["dedupe_active"] is True
+    assert facade.enqueue.await_args.kwargs["concurrency_key"] == (
+        f"coding-task-revert:{stored.organization_id}"
+    )
     assert facade.conversations.get_conversation.await_args.kwargs["for_write"] is True
     stored.reverted_at = datetime.now(UTC)
     again = await facade.service.revert(facade.ctx, stored.id)
