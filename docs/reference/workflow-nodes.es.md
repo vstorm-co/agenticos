@@ -1,5 +1,5 @@
 ---
-source_sha: "5a1c3230cf70"
+source_sha: "a9b67bff9ee7"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -1425,6 +1425,7 @@ de confianza.
 | El trabajo superó `timeout_seconds` | `PYTHON_SANDBOX_TIMEOUT`, la sesión purgada |
 | No hay una conexión `sandboxd` utilizable | `SANDBOX_UNAVAILABLE` |
 | Escribió más de 20 archivos o 100 MB, o imprimió más de 10 MB | `PYTHON_OUTPUT_TOO_LARGE`, medido en la sandbox antes de traer nada, y la sesión purgada |
+| El host respondió pero no pudo iniciar el sandbox: un directorio de workspace en el que no puede escribir, una imagen que no se pudo construir | `SANDBOX_START_FAILED` con un diagnóstico seguro; la salida sin procesar queda en los registros del host, se reintenta |
 | No se pudo alcanzar el host | `SANDBOX_UNREACHABLE`, se reintenta |
 
 ::: app.workflows.nodes.code_python_simple._handler.PythonSimpleConfig

@@ -1,5 +1,5 @@
 ---
-source_sha: "e23a2fdc098e"
+source_sha: "3dcf65276140"
 ---
 
 # Workflows { #workflows }
@@ -88,7 +88,11 @@ un enlace compartido muestran la misma lista.
 
 **More → Settings** contiene el nombre, la descripción, las etiquetas y los ajustes de ejecución; los cambios se guardan automáticamente. El editor ocupa la ventana disponible: Input a la izquierda, Parameters y Settings en el centro y Output a la derecha. Los disparadores usan dos paneles porque no reciben datos anteriores. En pantallas grandes cada panel se desplaza por separado; en móviles hay una columna. Las ejecuciones guardadas muestran sus parámetros de solo lectura junto a sus datos. Los valores del registro usan los nombres de las columnas. Las notas ofrecen Open note, tamaños y controles para redimensionar.
 
-El selector muestra servidores del catálogo MCP antes de conectarlos; la entrada genérica Call an MCP tool está oculta. Conecta un servicio y elige una de sus herramientas descubiertas. Se mantiene la lista de herramientas permitidas. Los pasos de colores y el minimapa están activos por defecto. Los pasos de modelos muestran instrucciones, temperatura y esfuerzo; los ajustes vacíos conservan los valores del proveedor. Jev muestra modelo, pregunta y umbral de confianza. Send an email usa el remitente de la plataforma o conecta Gmail u Outlook y, tras confirmar, cambia a la herramienta MCP real del buzón. El cambio elimina asignaciones incompatibles y se puede deshacer.
+El selector muestra servidores del catálogo MCP antes de conectarlos; la entrada genérica Call an MCP tool está oculta, y los que nadie ha conectado esperan bajo **apps para conectar** al final de su sección. Conecta un servicio y elige una de sus herramientas descubiertas. Se mantiene la lista de herramientas permitidas.
+
+Los pasos de colores y el minimapa están activos por defecto. En el teléfono, el lienzo se abre con todo el flujo a la vista y el minimapa oculto; **Canvas options** lo vuelve a mostrar.
+
+Los pasos de modelos muestran instrucciones, temperatura y esfuerzo; los ajustes vacíos conservan los valores del proveedor. Los pasos de **Decisions**, que responde el modelo de decisión Jev, muestran modelo, pregunta y umbral de confianza. Send an email usa el remitente de la plataforma o conecta Gmail u Outlook y, tras confirmar, cambia a la herramienta MCP real del buzón. El cambio elimina asignaciones incompatibles y se puede deshacer.
 
 El paso **Send an email** también ofrece **SMTP account → New SMTP account**. Guarda servidor, puerto, usuario, contraseña y remitente en el diálogo del vault. STARTTLS suele usar 587 y TLS implícito 465; ambos verifican certificados. El workflow solo guarda `smtp_secret_id`. **Platform sender** elimina la selección. La publicación y cada ejecución comprueban el acceso al secreto; una cuenta no disponible detiene el paso en lugar de cambiar de remitente.
 
@@ -142,7 +146,7 @@ un pellizco - o Ctrl o Cmd con la rueda - lo amplía; sus controles están en la
 
 Los pasos se eligen en el **selector de pasos**. Muestra secciones - **Start**, **AI**,
 **Flow**, **Data**, **Apps and the web** - con sus grupos debajo. Un grupo como
-**Slack**, **Tables** o **Jev decisions** se abre a sus pasos, y un grupo de un solo
+**Slack**, **Tables** o **Decisions** se abre a sus pasos, y un grupo de un solo
 paso es ese paso. **Search steps** encuentra cualquier paso por su nombre, por lo que
 hace o por su grupo. Añades un paso de cuatro maneras:
 
@@ -891,6 +895,12 @@ lo que la persona aprobó. Quien puede decidir pero no está nombrado en el paso
 lectura, y una solicitud decidida con una versión cambiada lleva la insignia
 **Edited** en **Decided**.
 
+En el propio run, un paso de aprobación terminado empieza por quién lo decidió y cuándo -
+**Approved by** o **Rejected by** la persona y la hora - solo la decisión y la hora cuando
+la cuenta ya no existe o quien lee no puede ver los miembros - encima de la salida del paso. Si quien aprobó cambió la propuesta,
+**Show changes** compara las dos versiones. Una solicitud que caducó o se canceló con su
+run lo dice en su lugar.
+
 Cuando el paso enumera **Ways to approve**, la cola muestra un botón por cada una, con la
 etiqueta que escribió su autor, en lugar de **Approve**; **Reject** se queda. Cada forma
 es un puerto de salida del paso, así que el workflow sigue por la que pulsó quien
@@ -954,6 +964,8 @@ la escribió. En la vista de la ejecución, las líneas de cada paso están deba
 el orden en que se escribieron. Una clave de API de la organización con `workflows:view`
 también las lee, para las ejecuciones de origen público: consulta [Leer el log de un
 workflow](api.md#reading-a-workflows-log).
+
+Las nuevas líneas de Quick Log muestran los nombres predeterminados de los pasos en el idioma del lector, también en el dashboard. El grafo guardado del run identifica los nombres predeterminados, también en las líneas antiguas. Las etiquetas propias y las líneas cuyo grafo guardado ya no identifica el paso conservan su texto guardado.
 
 ### Alertas { #log-alerts }
 

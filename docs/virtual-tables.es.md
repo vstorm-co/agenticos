@@ -1,5 +1,5 @@
 ---
-source_sha: "e49637ff7aa2"
+source_sha: "9bf7eb650d8e"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -333,7 +333,8 @@ obligatorios.
 Cada edición es un `PATCH` contra la revisión que se ve en pantalla, así que una
 edición que pierde frente a un cambio más reciente se rechaza en lugar de escribirse
 encima. El registro se abre entonces con el valor rechazado junto a **Reload and
-reapply**. Marcar filas ofrece **Delete** para todas, cada una contra su propia
+reapply**, y se vuelve a leer: el campo dice qué contiene ahora, quién cambió el
+registro por última vez y cuándo, y el título del panel se actualiza. Marcar filas ofrece **Delete** para todas, cada una contra su propia
 revisión: un registro que alguien cambió entretanto se conserva, y la consola dice
 cuántos. El panel del registro elimina uno solo de la misma forma.
 
@@ -355,6 +356,8 @@ El tipo de una columna cambia en **Columns**, a los tipos a los que se convierte
 
 En **Columns**, **Required** hace que una columna necesite un valor, y una columna
 archivada pasa a **Archived columns**, donde **Restore** la devuelve con sus valores.
+
+Leer la comparación conserva las ediciones sin guardar de otros campos y su revisión original. Un conflicto posterior obtiene otra comparación; la respuesta de un registro cerrado no cierra otro. Los valores largos muestran una vista previa abreviada.
 
 ### Importar y exportar { #import-and-export }
 

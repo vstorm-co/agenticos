@@ -8,6 +8,7 @@ from uuid import UUID
 from pydantic import Field, field_validator, model_validator
 
 from app.core.config import settings
+from app.db.models.workflow_approval import WorkflowApprovalStatus
 from app.db.models.workflow_run import (
     NodeAttemptStatus,
     NodeRunStatus,
@@ -183,6 +184,22 @@ class WorkflowQuestionRead(BaseSchema):
     questions: list[ParkedQuestion]
 
 
+class WorkflowStepDecision(BaseSchema):
+    """How a `human.approval` step's request was settled, for the run view to say so."""
+
+    status: WorkflowApprovalStatus
+    decided_at: datetime | None = Field(
+        default=None,
+        description="When a person decided it. Null while pending, and when it expired or was cancelled",
+    )
+    decided_by_name: str | None = Field(
+        default=None,
+        description="The decider's name, or their email when they set none. Null when nobody "
+        "decided, when the decider's account no longer exists, and for a caller without "
+        "`members:view`",
+    )
+
+
 class WorkflowNodeRunRead(BaseSchema):
     """One step of a run, in one loop iteration - what a run view colours its graph by.
 
@@ -217,6 +234,11 @@ class WorkflowNodeRunRead(BaseSchema):
     started_at: datetime | None
     ended_at: datetime | None
     reply_expectation: ReplyExpectation | None = None
+    approval: WorkflowStepDecision | None = Field(
+        default=None,
+        description="The decision an approval step asked for - who settled it and when. Null "
+        "for every other step",
+    )
 
 
 class WorkflowRunGraph(BaseSchema):

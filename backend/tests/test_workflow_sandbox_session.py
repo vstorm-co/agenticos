@@ -6,7 +6,9 @@ import httpx
 import pytest
 from pydantic_ai.workspaces import CommandResult, FileEntry
 
+from app.workflows.contracts.results import Failed
 from app.workflows.nodes import _sandbox_job as job
+from app.workflows.nodes.code_python_sandbox._handler import PYTHON
 
 pytestmark = pytest.mark.anyio
 
@@ -136,3 +138,128 @@ async def test_outputs_added_after_measurement_are_refused_before_their_bytes_ar
         f"{job.ROOT}/result.json",
         f"{job.ROOT}/log.txt",
     ]
+
+
+def _answered(status: int, body: bytes, path: str = "/sessions") -> httpx.HTTPStatusError:
+    request = httpx.Request("POST", f"http://sandboxd:8080{path}")
+    response = httpx.Response(status, content=body, request=request)
+    return httpx.HTTPStatusError("refused", request=request, response=response)
+
+
+async def _run_against(error: Exception) -> Failed:
+    current = MagicMock(idempotency_key="key", node_run_id="run", organization_id="org")
+    with (
+        patch.object(job.context, "current", return_value=current),
+        patch.object(job, "_connection", new=AsyncMock(return_value=MagicMock(kind="docker"))),
+        patch.object(job, "_open", side_effect=error),
+    ):
+        failed = await job.run_job(
+            PYTHON,
+            code="1",
+            timeout_seconds=1,
+            connection_id=None,
+            runtime=None,
+            args={},
+            input_files=(),
+        )
+    assert isinstance(failed, Failed)
+    return failed
+
+
+async def test_a_host_start_failure_has_a_safe_diagnosis(caplog) -> None:
+    """A 502 from opening a session carries the cause; reporting it as unreachable hid it."""
+    cause = "Could not start sandbox: [Errno 13] Permission denied: '/tmp/ws/key'"
+    failed = await _run_against(_answered(502, f'{{"detail": "{cause}"}}'.encode()))
+    assert failed.error.code == "SANDBOX_START_FAILED"
+    assert "workspace directory permissions" in failed.error.message
+    assert cause not in failed.error.message
+    assert cause.split("'")[1] not in caplog.text
+    assert failed.error.retryable
+
+
+async def test_a_long_refusal_uses_a_controlled_message() -> None:
+    failed = await _run_against(_answered(502, b'{"detail": "' + b"x" * 5000 + b'"}'))
+    assert "Check the sandbox host's logs" in failed.error.message
+    assert "x" * 50 not in failed.error.message
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        _answered(503, b'{"detail": "draining"}'),
+        _answered(502, b'{"detail": "gone"}', path="/sessions/abc/run"),
+        httpx.ConnectError("refused"),
+    ],
+)
+async def test_anything_else_is_still_a_host_that_could_not_be_reached(error: Exception) -> None:
+    failed = await _run_against(error)
+    assert failed.error.code == "SANDBOX_UNREACHABLE"
+    assert failed.error.retryable
+
+
+@pytest.mark.parametrize(
+    "body", [b"<html>Bad Gateway</html>", b"[]", b'{"detail":""}', b"x" * 20000]
+)
+async def test_an_unstructured_start_failure_keeps_the_startup_code(body: bytes) -> None:
+    failed = await _run_against(_answered(502, body))
+    assert failed.error.code == "SANDBOX_START_FAILED"
+    assert "Check the sandbox host's logs" in failed.error.message
+
+
+@pytest.mark.parametrize(
+    "detail", ["image build failed: token=secret", "password=secret /host/private\\file"]
+)
+async def test_host_diagnostics_stay_out_of_the_result_and_log(detail: str, caplog) -> None:
+    import json
+
+    failed = await _run_against(_answered(502, json.dumps({"detail": detail}).encode()))
+    assert "secret" not in failed.error.message
+    assert "secret" not in caplog.text
+
+
+@pytest.mark.parametrize("encoding", ["identity", "gzip"])
+async def test_error_bodies_are_bounded_before_parsing_and_always_closed(encoding: str) -> None:
+    from collections.abc import AsyncIterator
+
+    class Growing(httpx.AsyncByteStream):
+        chunks_read = 0
+        closed = False
+
+        async def __aiter__(self) -> AsyncIterator[bytes]:
+            for _ in range(100):
+                self.chunks_read += 1
+                yield b"x" * 4096
+
+        async def aclose(self) -> None:
+            self.closed = True
+
+    stream = Growing()
+    transport = job._CappedTransport(
+        httpx.MockTransport(
+            lambda _: httpx.Response(
+                502,
+                headers={"content-encoding": encoding, "content-length": "409600"},
+                stream=stream,
+            )
+        )
+    )
+    async with httpx.AsyncClient(transport=transport) as client:
+        response = await client.post("http://sandboxd:8080/sessions")
+    assert response.status_code == 502
+    assert response.content == b""
+    assert stream.chunks_read <= 5
+    assert stream.closed
+
+
+async def test_a_small_error_body_is_available_for_classification() -> None:
+    transport = job._CappedTransport(
+        httpx.MockTransport(
+            lambda _: httpx.Response(
+                502, json={"detail": "Permission denied"}, headers={"retry-after": "5"}
+            )
+        )
+    )
+    async with httpx.AsyncClient(transport=transport) as client:
+        response = await client.post("http://sandboxd:8080/sessions")
+    assert response.json() == {"detail": "Permission denied"}
+    assert response.headers["retry-after"] == "5"

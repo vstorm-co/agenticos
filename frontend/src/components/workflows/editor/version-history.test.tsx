@@ -87,7 +87,7 @@ describe("VersionHistory", () => {
   it("shows nothing published yet while loading, without the empty state", () => {
     versionsState.current = { versions: [], isLoading: true };
     render(<VersionHistory workflowId="w1" liveVersionId={null} catalog={[]} />);
-    expect(screen.getByText("Version history")).toBeVisible();
+    expect(screen.getByRole("region", { name: "Version history" })).toBeVisible();
     expect(screen.queryByText("No versions yet")).not.toBeInTheDocument();
   });
 

@@ -569,7 +569,10 @@ class TestSetUpOnFirstUse:
         assert {entry.name for entry in listing} == {"skills"}
         assert [row.target for row in session.rows] == ["skills/s/SKILL.md", "."]
 
-    async def test_an_operation_arriving_meanwhile_waits_for_the_set_up(self, tmp_path: Path):
+    @pytest.mark.parametrize("second_is_question", [False, True])
+    async def test_an_operation_arriving_meanwhile_waits_for_the_set_up(
+        self, tmp_path: Path, second_is_question: bool
+    ):
         recorder, _ = _wrap(tmp_path)
         release = anyio.Event()
         order: list[str] = []
@@ -580,7 +583,10 @@ class TestSetUpOnFirstUse:
             order.append("set up")
 
         async def operation(name: str) -> None:
-            await recorder.write_text(name, name)
+            if second_is_question and name == "second.txt":
+                await recorder.exists(name)
+            else:
+                await recorder.write_text(name, name)
             order.append(name)
 
         recorder.prepare_on_first_use(set_up)
