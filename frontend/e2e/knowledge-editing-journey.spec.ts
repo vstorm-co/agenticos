@@ -49,6 +49,7 @@ test("context editing keeps changes through close, failed save and reopen", asyn
   await page.unroute("**/api/context/*");
   await page.keyboard.press("Escape");
   await guard.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByRole("button", { name: "Save now", exact: true }).click();
   await expect(editor).toBeHidden();
   await page.reload();
   await page
@@ -105,7 +106,7 @@ test("a skill resource keeps a refused edit and saves before switching files", a
   await guard.getByRole("button", { name: "Save", exact: true }).click();
   await expect(guard).toBeHidden();
   await expect(input).toHaveValue(draft);
-  await editor.getByRole("button", { name: "SKILL.md", exact: true }).click();
+  await editor.getByRole("button", { name: "Instructions", exact: true }).click();
   await expect(guard).toBeVisible();
   await guard.getByRole("button", { name: "Save", exact: true }).click();
   await expect(guard).toBeHidden();
@@ -114,21 +115,25 @@ test("a skill resource keeps a refused edit and saves before switching files", a
   await page.keyboard.press("Escape");
   await guard.getByRole("button", { name: "Stay", exact: true }).click();
   await expect(input).toHaveValue(draft);
-  await editor.getByRole("button", { name: "SKILL.md", exact: true }).click();
+  await editor.getByRole("button", { name: "Instructions", exact: true }).click();
   await guard.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(editor.getByRole("textbox", { name: "SKILL.md source", exact: true })).toHaveValue(
-    bodyDraft,
-  );
+  await expect(
+    editor.getByRole("textbox", { name: "Instructions source", exact: true }),
+  ).toHaveValue(bodyDraft);
   await editor.getByRole("treeitem", { name: "checklist.md", exact: true }).click();
   await expect(input).toHaveValue(draft);
   await editor.getByRole("button", { name: "Cancel", exact: true }).click();
   await guard.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByRole("button", { name: "Save now", exact: true }).click();
   await expect(editor).toBeHidden();
   await page.reload();
   await page
     .getByRole("button", { name: new RegExp(name) })
     .first()
     .click();
+  await expect(
+    editor.getByRole("textbox", { name: "Instructions source", exact: true }),
+  ).toHaveValue(bodyDraft);
   await editor.getByRole("treeitem", { name: "checklist.md", exact: true }).click();
   await expect(input).toHaveValue(draft);
   expect((await page.request.delete(`/api/skills/${String(skill.id)}`)).ok()).toBe(true);

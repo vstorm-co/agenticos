@@ -123,13 +123,15 @@ test("phone catalog filters leave room for search and keep their accessible stat
       expect(box!.x + box!.width).toBeLessThanOrEqual(width - 12);
     }
     await filters.click();
-    await expect(filters).toHaveAttribute("aria-expanded", "true");
     if (path === "/agents") {
-      await expect(page.getByRole("option", { name: "Published", exact: true })).toBeVisible();
-      await page.keyboard.press("Escape");
+      const published = page.getByRole("option", { name: "Published", exact: true });
+      await expect(published).toBeVisible();
+      await published.click();
       await expect(filters).toHaveAttribute("aria-expanded", "false");
+      await expect(filters).toContainText("Published");
       continue;
     }
+    await expect(filters).toHaveAttribute("aria-expanded", "true");
     const panelId = await filters.getAttribute("aria-controls");
     expect(panelId).toBeTruthy();
     await expect(page.locator(`[id="${panelId}"]`)).not.toHaveAttribute("hidden");
