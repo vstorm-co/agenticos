@@ -413,8 +413,8 @@
     "triggerLabel": "Bildirimler{count, plural, =0 {} other {, # okunmamış}}",
     "kind": {
       "approvalRequested": "{agent} onayınızı bekliyor",
-      "budgetExceeded": "{agent} durduruldu: {scope, select, agent {aylık bütçesi} group {bir departmanın aylık bütçesi} department {{department} departmanının aylık bütçesi} organization {organizasyonun aylık bütçesi} other {bir harcama sınırı}} tükendi ({limit} sınırın {spent} kadarı harcandı)",
-      "budgetWarning": "{group}, {limit} aylık bütçesinin %{share} kadarını kullandı.",
+      "budgetExceeded": "{agent} durduruldu: {scope, select, agent {aylık budget'ı} group {bir departmanın aylık budget'ı} department {{department} departmanının aylık budget'ı} organization {organizasyonun aylık budget'ı} other {bir harcama sınırı}} tükendi ({limit} sınırın {spent} kadarı harcandı)",
+      "budgetWarning": "{group}, {limit} aylık budget'ının %{share} kadarını kullandı.",
       "workflowApproval": "Onay gerekiyor: {title}"
     }
   },

@@ -115,6 +115,7 @@ def test_a_reader_served_another_wording_gets_no_params():
     ("amount", "said"),
     [
         (Decimal("0.0005"), "$0.0005"),
+        (Decimal("0.00005"), "$0.000050"),
         (Decimal("0"), "$0.00"),
         (Decimal("0.01"), "$0.01"),
         (Decimal("20"), "$20.00"),
