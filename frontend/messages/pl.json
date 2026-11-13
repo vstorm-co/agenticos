@@ -3787,7 +3787,7 @@
       "startHeading": "Jak ma się zaczynać?",
       "start": {
         "manual": {
-          "name": "Manual",
+          "name": "Ręcznie",
           "description": "Uruchamiasz go sam przyciskiem Run, w edytorze albo na stronie runów."
         },
         "chat": {
@@ -3807,7 +3807,7 @@
           "description": "Rekord dodany do tabeli, zmieniony lub usunięty uruchamia przebieg z tym rekordem."
         },
         "api": {
-          "name": "API request",
+          "name": "Żądanie API",
           "description": "Uruchamiany żądaniem HTTP albo przez WebSocket, z wejściem, które zadeklarujesz."
         },
         "workflowFailed": {
@@ -3854,7 +3854,7 @@
       "runHint": "Uruchamia draft, a nie opublikowaną wersję (Ctrl lub Cmd + Enter)",
       "runNeedsSteps": "Najpierw dodaj krok",
       "runBlockedByProblems": "{count, plural, one {Najpierw popraw # problem} few {Najpierw popraw # problemy} many {Najpierw popraw # problemów} other {Najpierw popraw # problemu}}",
-      "liveRunTitle": "Test run",
+      "liveRunTitle": "Run testowy",
       "liveRunSteps": "{count, plural, one {# krok gotowy} few {# kroki gotowe} many {# kroków gotowych} other {# kroku gotowego}}",
       "liveRunOpen": "Otwórz run",
       "liveRunClose": "Ukryj run",
@@ -11062,6 +11062,11 @@
         "failed": "Pisanie pytań testowych się nie powiodło."
       }
     },
+    "kind": {
+      "approvalRequested": "Agent {agent} czeka na Twoje zatwierdzenie",
+      "budgetExceeded": "Agent {agent} zatrzymał się: wyczerpał się {scope, select, agent {jego miesięczny budget} group {miesięczny budget działu} department {miesięczny budget działu {department}} organization {miesięczny budget organizacji} other {limit wydatków}} (wydano {spent} z {limit})",
+      "budgetWarning": "Dział {group} wykorzystał {share}% miesięcznego budgetu {limit}."
+    },
     "needsAttention": "Wymaga uwagi"
   },
   "workflows": {
@@ -11097,6 +11102,8 @@
     "versionRestored": "Wersja {version} jest znów wersją roboczą",
     "versionRestoreConflict": "Wersja robocza zmieniła się podczas przywracania. Rozwiąż konflikt, a potem przywróć ponownie.",
     "quickAdd": "Dodaj krok po {name} ({port})",
+    "stepApprovalDecided": "{known, select, no {{status, select, approved {Zatwierdzone} other {Odrzucone}}} other {{status, select, approved {Zatwierdzone przez {name}} other {Odrzucone przez {name}}}}} · {time}",
+    "stepApprovalUndecided": "{status, select, expired {Wygasło: nikt nie zdecydował na czas} cancelled {Anulowane razem z runem} other {Czeka na decyzję}}",
     "paletteNoMatches": "Żaden węzeł nie pasuje do wyszukiwania.",
     "canvasTitle": "Płótno",
     "canvasHint": "Dodaj krok, żeby zacząć workflow.",
@@ -11250,7 +11257,7 @@
       "debug": "Debugowanie",
       "core": "Zakończenie",
       "triggers": "Wyzwalacze",
-      "decide": "Decyzje Jev",
+      "decide": "Decyzje",
       "people": "Ludzie",
       "slack": "Slack",
       "mattermost": "Mattermost",
@@ -11375,7 +11382,7 @@
     "categoryHint": {
       "triggers": "Jak startuje run",
       "agent": "Uruchom jednego ze swoich agentów",
-      "decide": "Zadaj Jev od TypeSafe typowane pytanie",
+      "decide": "Odpowiedz tak lub nie, wybierz opcję albo wystaw ocenę za pomocą modelu decyzyjnego Jev",
       "knowledge": "Przeszukaj bazę wiedzy albo coś do niej dodaj",
       "logic": "Wybierz ścieżkę albo połącz je z powrotem",
       "control": "Pętla po elementach, czekanie albo inny workflow",
@@ -11412,6 +11419,9 @@
       "more": "Więcej"
     },
     "pickerSearch": "Szukaj kroków",
+    "pickerMoreApps": "{count, plural, one {# aplikacja do połączenia} few {# aplikacje do połączenia} many {# aplikacji do połączenia} other {# aplikacji do połączenia}}",
+    "pickerFewerApps": "Ukryj aplikacje do połączenia",
+    "pickerAppToConnect": "Połącz",
     "pickerBack": "Wszystkie kroki",
     "toolbarAddStep": "Dodaj krok",
     "toolbarReady": "Bez problemów",
@@ -12330,6 +12340,10 @@
     "sheet": {
       "title": "Rekord",
       "conflict": "Ktoś inny zmienił to pole.",
+      "conflictNow": "Teraz: {value}, zmienione przez <who></who> o {time}. Twoja wartość jest w polu.",
+      "conflictNowUntimed": "Teraz: {value}, zmienione przez <who></who>. Twoja wartość jest w polu.",
+      "conflictEmpty": "puste",
+      "conflictSomeone": "kogoś innego",
       "reloadAndReapply": "Odśwież i zastosuj ponownie",
       "discard": "Odrzuć",
       "conflictAfterClose": "Ktoś inny zmienił ten rekord, więc Twoja ostatnia zmiana nie została zapisana. Otwórz rekord, aby ją ponowić lub odrzucić.",
@@ -17437,5 +17451,401 @@
     "contextTitle": "Ulepsz kontekst",
     "contextBody": "Asystent korzysta z opinii o rozmowach, w których agenci używali tego pliku kontekstu. Sprawdź każdą propozycję przed jej zastosowaniem.",
     "costs": "Koszty i limity"
+  },
+  "workflowNodes": {
+    "node": {
+      "agent_run": {
+        "name": "Uruchom agenta",
+        "description": "Uruchom opublikowanego agenta z katalogu w przypiętej wersji i użyj jego odpowiedzi."
+      },
+      "ai_classify": {
+        "name": "Klasyfikuj",
+        "description": "Niech model przypisze tekst do jednej z Twoich kategorii, a potem rozgałęź według niej."
+      },
+      "ai_extract": {
+        "name": "Wyciągnij dane",
+        "description": "Niech model wyciągnie z tekstu wskazane przez Ciebie pola jako obiekt."
+      },
+      "ai_prompt": {
+        "name": "Zapytaj model",
+        "description": "Zapytaj o coś jeden ze swoich modeli, z instrukcjami należącymi do tego kroku."
+      },
+      "ai_rewrite": {
+        "name": "Podsumuj lub przetłumacz",
+        "description": "Niech model podsumuje, przetłumaczy lub przeredaguje tekst."
+      },
+      "code_javascript_sandbox": {
+        "name": "JavaScript w sandboksie",
+        "description": "Uruchom JavaScript w Node z plikami runa jako trwałe zadanie na hoście sandboksa organizacji, bez żadnych poświadczeń platformy w środku."
+      },
+      "code_python_sandbox": {
+        "name": "Python w sandboksie",
+        "description": "Uruchom pełnego Pythona z plikami runa jako trwałe zadanie na hoście sandboksa organizacji, bez żadnych poświadczeń platformy w środku."
+      },
+      "code_python_simple": {
+        "name": "Skrypt w Pythonie",
+        "description": "Oblicz wartość JSON krótkim skryptem w Pythonie w sandboksie Monty - bez plików, bez sieci, z małą biblioteką standardową."
+      },
+      "control_foreach": {
+        "name": "Dla każdego",
+        "description": "Uruchom kroki wewnątrz pętli raz dla każdego elementu listy, po kolei."
+      },
+      "convert_csv_to_json": {
+        "name": "CSV na JSON",
+        "description": "Przekonwertuj plik CSV na plik JSON z wierszami, których klucze pochodzą z nagłówka."
+      },
+      "convert_json_to_csv": {
+        "name": "JSON na CSV",
+        "description": "Przekonwertuj listę płaskich obiektów JSON na plik CSV."
+      },
+      "convert_pdf_to_png": {
+        "name": "Strony PDF na obrazy",
+        "description": "Wyrenderuj wybrane strony pliku PDF jako obrazy PNG, w granicach limitu pikseli obrazu."
+      },
+      "convert_text_to_file": {
+        "name": "Tekst do pliku",
+        "description": "Zapisz tekst jako plik TXT runa w kodowaniu UTF-8."
+      },
+      "core_input": {
+        "name": "Żądanie API",
+        "description": "Start od żądania HTTP lub przez WebSocket, z wejściem, które zadeklarujesz."
+      },
+      "core_output": {
+        "name": "Wynik",
+        "description": "Co odpowiada workflow: tekst, źródła, pliki i wartość strukturalna."
+      },
+      "data_combine": {
+        "name": "Połącz listy",
+        "description": "Zrób jedną listę z dwóch: jedna po drugiej, według pozycji albo według klucza."
+      },
+      "data_filter": {
+        "name": "Filtruj listę",
+        "description": "Zostaw te elementy listy, dla których warunek jest spełniony."
+      },
+      "data_map": {
+        "name": "Mapuj pola",
+        "description": "Wybierz wartości z wcześniejszych wyjść i nadaj każdej z nich typ."
+      },
+      "debug_echo": {
+        "name": "Echo",
+        "description": "Zwraca swoje wejście bez zmian. Nie ma żadnego realnego efektu."
+      },
+      "debug_relay": {
+        "name": "Przekaźnik",
+        "description": "Przekazuje odbitą wiadomość dalej jako zwykłą wiadomość. Nie ma żadnego realnego efektu."
+      },
+      "decide_choose": {
+        "name": "Wybierz jedno",
+        "description": "Zapytaj Jev, która z Twoich opcji pasuje do tekstu - kategoria, kolejka, intencja."
+      },
+      "decide_score": {
+        "name": "Oceń",
+        "description": "Zapytaj Jev, gdzie tekst plasuje się na Twojej skali ocen - pilność, dopasowanie, ryzyko."
+      },
+      "decide_yes_no": {
+        "name": "Tak czy nie",
+        "description": "Zadaj Jev pytanie typu tak lub nie o tekst i rozgałęź według odpowiedzi."
+      },
+      "email_send": {
+        "name": "Wyślij e-mail",
+        "description": "Wyślij e-mail na maksymalnie dziesięć adresów przez konto SMTP lub nadawcę platformy."
+      },
+      "error_handle": {
+        "name": "Obsłuż błąd",
+        "description": "Skieruj niepowodzenie do gałęzi wybranej według kodu błędu."
+      },
+      "error_raise": {
+        "name": "Zgłoś błąd",
+        "description": "Zakończ tę gałąź niepowodzeniem z błędem, który sam zdefiniujesz."
+      },
+      "file_read": {
+        "name": "Odczytaj plik",
+        "description": "Odczytaj jeden z plików runa jako tekst UTF-8, wartość JSON lub wiersze CSV."
+      },
+      "file_write": {
+        "name": "Zapisz plik",
+        "description": "Zapisz tekst, wartość JSON lub wiersze jako nowy plik runa w UTF-8."
+      },
+      "flow_await_reply": {
+        "name": "Czekaj na odpowiedź e-mail",
+        "description": "Czekaj na zweryfikowaną odpowiedź od jednego nadawcy w jednym wątku poczty albo na upływ terminu."
+      },
+      "flow_resume_link": {
+        "name": "Link wznowienia",
+        "description": "Adres, który wznawia kroki „Czekaj” tego runa oczekujące na wywołanie."
+      },
+      "flow_wait": {
+        "name": "Czekaj",
+        "description": "Wstrzymaj run na jakiś czas albo do wskazanej chwili, a potem kontynuuj."
+      },
+      "html_parse": {
+        "name": "Parsuj HTML",
+        "description": "Odczytaj z HTML tekst, linki i to, co wybierze selektor CSS - nic nie jest pobierane ani uruchamiane."
+      },
+      "http_download": {
+        "name": "Pobierz plik",
+        "description": "Pobierz plik przez HTTP do runa, strumieniowo i z limitem rozmiaru, rozpoznając typ po jego własnych bajtach."
+      },
+      "http_request": {
+        "name": "Żądanie HTTP",
+        "description": "Wywołaj API HTTP z ochroną przed SSRF i poświadczeniem z vault."
+      },
+      "http_upload": {
+        "name": "Wyślij plik",
+        "description": "Wyślij jeden z plików runa do endpointu HTTP, strumieniowo z magazynu."
+      },
+      "human_approval": {
+        "name": "Poproś o zatwierdzenie",
+        "description": "Poczekaj, aż osoba zatwierdzi lub odrzuci, i kontynuuj zgodnie z jej odpowiedzią."
+      },
+      "image_transform": {
+        "name": "Przekształć obraz",
+        "description": "Przytnij, zmień rozmiar, obróć lub przekonwertuj obraz PNG, JPEG, WebP lub GIF, z usuniętymi metadanymi i rozmiarem ograniczonym przed dekodowaniem."
+      },
+      "knowledge_add": {
+        "name": "Dodaj do wiedzy",
+        "description": "Dodaj tekst lub plik do kolekcji wiedzy, żeby agenci mogli go znaleźć."
+      },
+      "knowledge_search": {
+        "name": "Przeszukaj wiedzę",
+        "description": "Znajdź fragmenty w kolekcjach wiedzy jako źródła, których może użyć późniejszy krok."
+      },
+      "logic_if": {
+        "name": "Jeśli / inaczej",
+        "description": "Kontynuuj jedną z dwóch gałęzi, zależnie od warunku."
+      },
+      "logic_merge": {
+        "name": "Scal",
+        "description": "Połącz gałęzie z powrotem w jedną ścieżkę."
+      },
+      "logic_split": {
+        "name": "Rozdziel",
+        "description": "Poprowadź run kilkoma gałęziami naraz."
+      },
+      "logic_switch": {
+        "name": "Przełącznik",
+        "description": "Kontynuuj pierwszą z wielu gałęzi, której reguła jest spełniona."
+      },
+      "loop_item": {
+        "name": "Element pętli",
+        "description": "Element, na którym pracuje ta iteracja pętli."
+      },
+      "loop_yield": {
+        "name": "Wynik pętli",
+        "description": "Zakończ tę iterację pętli i przekaż jej wynik."
+      },
+      "mattermost_channels_find": {
+        "name": "Znajdź kanały",
+        "description": "Znajdź kanały po nazwie w zespole Mattermost, do którego należy bot."
+      },
+      "mattermost_members_list": {
+        "name": "Wypisz członków",
+        "description": "Wypisz osoby z kanału Mattermost wraz z identyfikatorami potrzebnymi do wzmianki."
+      },
+      "mattermost_message_send": {
+        "name": "Wyślij wiadomość",
+        "description": "Opublikuj wiadomość na kanale Mattermost lub w jego wątku jako jeden z Twoich botów."
+      },
+      "mattermost_messages_read": {
+        "name": "Czytaj wiadomości",
+        "description": "Odczytaj najnowsze wiadomości z kanału lub wątku Mattermost."
+      },
+      "mcp_call": {
+        "name": "Wywołaj narzędzie MCP",
+        "description": "Wywołaj jedno narzędzie na jednym z serwerów MCP organizacji, pytając najpierw osobę, zanim cokolwiek zmieni."
+      },
+      "notification_send": {
+        "name": "Powiadom członków",
+        "description": "Powiadom członków przez kanały powiadomień, które sami włączyli."
+      },
+      "slack_channels_find": {
+        "name": "Znajdź kanały",
+        "description": "Znajdź kanały Slacka po nazwie."
+      },
+      "slack_members_list": {
+        "name": "Wypisz członków",
+        "description": "Wypisz osoby z kanału Slacka wraz z identyfikatorami potrzebnymi do wzmianki."
+      },
+      "slack_message_send": {
+        "name": "Wyślij wiadomość",
+        "description": "Opublikuj wiadomość na kanale Slacka lub w jego wątku jako jeden z Twoich botów."
+      },
+      "slack_messages_read": {
+        "name": "Czytaj wiadomości",
+        "description": "Odczytaj najnowsze wiadomości z kanału lub wątku Slacka."
+      },
+      "table_create": {
+        "name": "Utwórz tabelę",
+        "description": "Utwórz nową Virtual Table z podanymi kolumnami."
+      },
+      "table_describe": {
+        "name": "Opisz tabelę",
+        "description": "Odczytaj nazwę tabeli i jej bieżące kolumny dla kolejnych kroków."
+      },
+      "table_exists": {
+        "name": "Tabela istnieje?",
+        "description": "Rozgałęź według tego, czy istnieje tabela o tej nazwie."
+      },
+      "table_list": {
+        "name": "Wypisz tabele",
+        "description": "Wypisz tabele widoczne dla tego runa, wyszukane po fragmencie nazwy."
+      },
+      "table_record_create": {
+        "name": "Dodaj rekord",
+        "description": "Dodaj rekord do Virtual Table."
+      },
+      "table_record_delete": {
+        "name": "Usuń rekord",
+        "description": "Usuń rekord. Jego historia zostaje zachowana."
+      },
+      "table_record_exists": {
+        "name": "Rekord istnieje?",
+        "description": "Rozgałęź według tego, czy jakikolwiek rekord tabeli pasuje do Twoich filtrów."
+      },
+      "table_record_get": {
+        "name": "Znajdź rekord",
+        "description": "Odczytaj jeden rekord po jego identyfikatorze lub identyfikatorze zewnętrznym."
+      },
+      "table_record_query": {
+        "name": "Wypisz rekordy",
+        "description": "Wypisz rekordy tabeli, przefiltrowane i posortowane."
+      },
+      "table_record_update": {
+        "name": "Zaktualizuj rekord",
+        "description": "Zmień niektóre komórki rekordu."
+      },
+      "table_record_upsert": {
+        "name": "Zapisz rekord",
+        "description": "Utwórz lub zaktualizuj rekord o danym identyfikatorze zewnętrznym."
+      },
+      "telegram_members_list": {
+        "name": "Wypisz administratorów",
+        "description": "Wypisz administratorów czatu Telegrama - tylko tyle bot może się dowiedzieć."
+      },
+      "telegram_message_send": {
+        "name": "Wyślij wiadomość",
+        "description": "Wyślij wiadomość na czat Telegrama jako jeden z Twoich botów."
+      },
+      "text_compare": {
+        "name": "Porównaj teksty",
+        "description": "Oceń, jak podobne są dwa teksty - 1 to identyczne, 0 to nic wspólnego - bez użycia modelu."
+      },
+      "text_extract": {
+        "name": "Wyodrębnij tekst",
+        "description": "Odczytaj tekst z pliku TXT, JSON, CSV, tekstowego PDF lub DOCX. Zeskanowana strona kończy krok błędem z informacją, że potrzebny jest OCR."
+      },
+      "transform_aggregate": {
+        "name": "Agreguj",
+        "description": "Zbierz wartości pola ze wszystkich elementów w jedną listę."
+      },
+      "transform_crypto": {
+        "name": "Kryptografia",
+        "description": "Zahaszuj lub zakoduj tekst albo wygeneruj identyfikator lub losową wartość."
+      },
+      "transform_date_time": {
+        "name": "Data i czas",
+        "description": "Teraz albo moment przesunięty i zapisany w wybranej strefie czasowej."
+      },
+      "transform_edit_fields": {
+        "name": "Edytuj pola",
+        "description": "Ustaw, zmień nazwę lub usuń pola w każdym elemencie listy."
+      },
+      "transform_limit": {
+        "name": "Ogranicz",
+        "description": "Zostaw pierwsze lub ostatnie elementy listy."
+      },
+      "transform_remove_duplicates": {
+        "name": "Usuń duplikaty",
+        "description": "Zostaw po jednym elemencie z każdej grupy równej w wybranych polach."
+      },
+      "transform_sort": {
+        "name": "Sortuj",
+        "description": "Posortuj elementy listy według jednego lub kilku pól."
+      },
+      "transform_split_out": {
+        "name": "Rozbij na elementy",
+        "description": "Zamień listę wewnątrz każdego elementu na osobne elementy."
+      },
+      "transform_summarize": {
+        "name": "Podsumuj",
+        "description": "Policz, zsumuj lub uśrednij elementy w grupach."
+      },
+      "trigger_channel_message": {
+        "name": "Wiadomość na kanale",
+        "description": "Wiadomość do jednego z Twoich botów Slack, Mattermost lub Telegram."
+      },
+      "trigger_chat": {
+        "name": "Wiadomość w czacie",
+        "description": "Członek wysyła wiadomość w czacie, w którym do odpowiedzi wybrano ten workflow."
+      },
+      "trigger_form": {
+        "name": "Formularz",
+        "description": "Ktoś wypełnia formularz pod publicznym adresem workflow."
+      },
+      "trigger_github": {
+        "name": "GitHub",
+        "description": "Coś dzieje się w repozytorium GitHub - issue, pull request, push."
+      },
+      "trigger_gmail": {
+        "name": "Gmail",
+        "description": "Nowy e-mail trafia do połączonej skrzynki Gmail organizacji."
+      },
+      "trigger_manual": {
+        "name": "Ręcznie",
+        "description": "Start po kliknięciu „Uruchom” w edytorze lub na stronie runów workflow."
+      },
+      "trigger_outlook": {
+        "name": "Outlook",
+        "description": "Nowy e-mail trafia do folderu połączonej skrzynki Microsoft 365 organizacji."
+      },
+      "trigger_schedule": {
+        "name": "Harmonogram",
+        "description": "Uruchamia się według zegara: co jakiś czas albo według wyrażenia cron w UTC."
+      },
+      "trigger_table_record": {
+        "name": "Rekord tabeli",
+        "description": "Rekord zostaje dodany do tabeli, zmieniony lub usunięty i pasuje do filtrów."
+      },
+      "trigger_webhook": {
+        "name": "Webhook",
+        "description": "Podpisana dostawa HTTP trafia na własny adres tego workflow."
+      },
+      "trigger_workflow_call": {
+        "name": "Wywołany przez workflow",
+        "description": "Krok „Uruchom workflow” w innym workflow uruchamia go z polami, które deklaruje."
+      },
+      "trigger_workflow_failed": {
+        "name": "Po błędzie workflow",
+        "description": "Kończy się niepowodzeniem run workflow, który wskazuje ten jako swój workflow obsługi błędów."
+      },
+      "webhook_respond": {
+        "name": "Odpowiedz na webhook",
+        "description": "Odpowiedz na wywołanie webhooka, które rozpoczęło run: status, nagłówki i treść."
+      },
+      "workflow_run": {
+        "name": "Uruchom workflow",
+        "description": "Uruchom inny workflow jako krok i przekaż dalej jego odpowiedź."
+      }
+    },
+    "port": {
+      "approved": "Zatwierdzone",
+      "chosen": "Wybrane",
+      "deadline_reached": "Minął termin",
+      "default": "Domyślna",
+      "done": "Gotowe",
+      "error": "Błąd",
+      "false": "Fałsz",
+      "in": "Wejście",
+      "no": "Nie",
+      "other": "Inne",
+      "otherwise": "W innym razie",
+      "out": "Wyjście",
+      "rejected": "Odrzucone",
+      "reply_received": "Jest odpowiedź",
+      "scored": "Ocenione",
+      "true": "Prawda",
+      "unsure": "Niepewne",
+      "yes": "Tak"
+    }
   }
 }

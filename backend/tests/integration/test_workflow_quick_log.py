@@ -26,7 +26,7 @@ from app.core.permissions import AuthContext
 from app.db.models.organization import OrganizationMember
 from app.db.models.resource_grant import ResourceGrant, Visibility
 from app.db.models.user import User
-from app.db.models.workflow import Workflow
+from app.db.models.workflow import Workflow, WorkflowVersion
 from app.db.models.workflow_log_entry import WorkflowLogEntry
 from app.db.models.workflow_run import WorkflowRun, WorkflowRunMode, WorkflowRunStatus
 from app.repositories import workflow_log_entry as workflow_log_repo
@@ -183,6 +183,7 @@ class TestWhatIsWritten:
         assert entry.message == "Send the mail sent to ada@example.com via out"
         assert (entry.outcome, entry.status) == ("out", "succeeded")
         assert entry.step_label == "Send the mail" and entry.node_instance_id == step.id
+        assert entry.step_definition_id is None
         assert (entry.workflow_id, entry.organization_id) == (seeded.run.workflow_id, seeded.org.id)
         assert (entry.is_test, entry.is_pinned) == (False, False)
 
@@ -193,6 +194,7 @@ class TestWhatIsWritten:
         await drive(seeded)
         (entry,) = await _entries(seeded)
         assert entry.message == "Kind ok → out"
+        assert entry.step_definition_id == kinds["ok"]
 
     async def test_a_test_run_flags_its_lines(self, engine: AsyncEngine, kinds: dict[str, str]):
         seeded = await seed_run(engine, _chain(_step(kinds["ok"], quick_log=QuickLog())))
@@ -1016,3 +1018,58 @@ class TestLoops:
             ("loop error BAD_ITEM", "error"),
         ]
         assert "done" not in {e.outcome for e in entries}
+
+
+@pytest.mark.parametrize("label", [None, "Kind ok"])
+async def test_log_name_origin_comes_from_the_run_version_not_the_current_draft(
+    engine: AsyncEngine, kinds: dict[str, str], label: str | None
+) -> None:
+    step = _step(kinds["ok"], label=label, quick_log=QuickLog())
+    graph = _chain(step)
+    seeded = await seed_run(engine, graph)
+    await drive(seeded)
+    async with seeded.factory() as db:
+        version = WorkflowVersion(
+            organization_id=seeded.org.id,
+            workflow_id=seeded.run.workflow_id,
+            version=1,
+            graph=graph.model_dump(mode="json"),
+        )
+        db.add(version)
+        await db.flush()
+        await db.execute(
+            update(WorkflowRun)
+            .where(WorkflowRun.id == seeded.run.id)
+            .values(
+                workflow_version_id=version.id,
+                draft_graph_snapshot=None,
+            )
+        )
+        changed = graph.model_dump(mode="json")
+        changed["nodes"][0]["label"] = "Changed later" if label is None else None
+        await db.execute(
+            update(Workflow)
+            .where(Workflow.id == seeded.run.workflow_id)
+            .values(draft_graph=changed)
+        )
+        await db.commit()
+    (entry,) = await _entries(seeded)
+    assert entry.step_label == "Kind ok"
+    assert entry.step_definition_id == (kinds["ok"] if label is None else None)
+
+
+async def test_log_name_falls_back_when_its_saved_graph_cannot_identify_the_step(
+    engine: AsyncEngine, kinds: dict[str, str]
+) -> None:
+    seeded = await seed_run(engine, _chain(_step(kinds["ok"], quick_log=QuickLog())))
+    await drive(seeded)
+    async with seeded.factory() as db:
+        await db.execute(
+            update(WorkflowRun)
+            .where(WorkflowRun.id == seeded.run.id)
+            .values(draft_graph_snapshot={})
+        )
+        await db.commit()
+    (entry,) = await _entries(seeded)
+    assert entry.step_label == "Kind ok"
+    assert entry.step_definition_id is None

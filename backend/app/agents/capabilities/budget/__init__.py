@@ -23,6 +23,7 @@ from app.agents.capabilities.budget._capability import (
     reserved_limits,
     usage_counts,
     usage_delta,
+    usd,
 )
 
 __all__ = [
@@ -48,4 +49,5 @@ __all__ = [
     "reserved_limits",
     "usage_counts",
     "usage_delta",
+    "usd",
 ]
