@@ -18159,6 +18159,14 @@
           "min_confidence": {
             "title": "Minimum confidence",
             "description": "Below this the step leaves by its unsure port instead of by the category. Empty, it always leaves by the category."
+          },
+          "categories__items__name": {
+            "title": "Name",
+            "description": "The branch's port id"
+          },
+          "categories__items__description": {
+            "title": "Description",
+            "description": "What belongs in this category"
           }
         },
         "input": {
@@ -18298,6 +18306,18 @@
           },
           "files": {
             "title": "Files"
+          },
+          "files__items__kind": {
+            "title": "Kind"
+          },
+          "files__items__file_id": {
+            "title": "File Id"
+          },
+          "files__items__content_type": {
+            "title": "Content Type"
+          },
+          "files__items__byte_size": {
+            "title": "Byte Size"
           }
         }
       },
@@ -18325,6 +18345,18 @@
           },
           "files": {
             "title": "Files"
+          },
+          "files__items__kind": {
+            "title": "Kind"
+          },
+          "files__items__file_id": {
+            "title": "File Id"
+          },
+          "files__items__content_type": {
+            "title": "Content Type"
+          },
+          "files__items__byte_size": {
+            "title": "Byte Size"
           }
         }
       },
@@ -18451,6 +18483,27 @@
           },
           "input_schema": {
             "description": "JSON Schema Draft 2020-12 contract for JSON object input; references must be local to this document"
+          },
+          "fields__items__name": {
+            "title": "Name",
+            "description": "The key in the run's input, and in payload for a binding"
+          },
+          "fields__items__label": {
+            "title": "Label",
+            "description": "Shown in the Run form"
+          },
+          "fields__items__type": {
+            "title": "Type"
+          },
+          "fields__items__required": {
+            "title": "Required"
+          },
+          "fields__items__description": {
+            "title": "Description"
+          },
+          "fields__items__options": {
+            "title": "Options",
+            "description": "What a choice offers"
           }
         }
       },
@@ -18467,6 +18520,39 @@
           },
           "structured": {
             "title": "Structured"
+          },
+          "sources__items__document_id": {
+            "title": "Document Id"
+          },
+          "sources__items__filename": {
+            "title": "Filename"
+          },
+          "sources__items__collection": {
+            "title": "Collection"
+          },
+          "sources__items__page": {
+            "title": "Page"
+          },
+          "sources__items__chunk": {
+            "title": "Chunk"
+          },
+          "sources__items__score": {
+            "title": "Score"
+          },
+          "sources__items__content": {
+            "title": "Content"
+          },
+          "artifacts__items__kind": {
+            "title": "Kind"
+          },
+          "artifacts__items__file_id": {
+            "title": "File Id"
+          },
+          "artifacts__items__content_type": {
+            "title": "Content Type"
+          },
+          "artifacts__items__byte_size": {
+            "title": "Byte Size"
           }
         }
       },
@@ -18506,6 +18592,19 @@
         "config": {
           "mappings": {
             "title": "Mappings"
+          },
+          "mappings__items__target_field": {
+            "title": "Target Field"
+          },
+          "mappings__items__source_path": {
+            "title": "Source Path",
+            "description": "A JMESPath expression over the input, for example source.payload.email."
+          },
+          "mappings__items__coerce_to": {
+            "title": "Coerce To"
+          },
+          "mappings__items__default": {
+            "title": "Default"
           }
         },
         "input": {
@@ -18556,6 +18655,13 @@
           },
           "options": {
             "title": "Options"
+          },
+          "options__items__value": {
+            "title": "Value"
+          },
+          "options__items__description": {
+            "title": "Description",
+            "description": "What this option means, in a line - Jev reads it alongside the option"
           }
         },
         "input": {
@@ -18647,6 +18753,16 @@
         "config": {
           "branches": {
             "title": "Branches"
+          },
+          "branches__items__name": {
+            "title": "Name",
+            "description": "The branch's port id."
+          },
+          "branches__items__code": {
+            "title": "Code"
+          },
+          "branches__items__retryable": {
+            "title": "Retryable"
           }
         }
       },
@@ -19010,6 +19126,14 @@
           "choices": {
             "title": "Ways to approve",
             "description": "Offer these instead of a plain Approve: one button and one output port each, in this order, and the step has no approved port. Empty, the step approves or rejects."
+          },
+          "choices__items__id": {
+            "title": "Port id",
+            "description": "Names the output port and what later steps read as choice. Lower case letters, digits and underscores; not in, approved or rejected."
+          },
+          "choices__items__label": {
+            "title": "Button label",
+            "description": "What the approver reads on the button, such as Send now."
           }
         },
         "input": {
@@ -19143,6 +19267,18 @@
           "branch_keys": {
             "title": "Branch Keys",
             "description": "A name for each incoming branch. A branch with none is called after the step it leaves, or after the Split's branch"
+          },
+          "branch_keys__items__source_node_id": {
+            "title": "Source Node Id",
+            "description": "The step the branch leaves"
+          },
+          "branch_keys__items__source_port": {
+            "title": "Source Port",
+            "description": "The port it leaves by"
+          },
+          "branch_keys__items__key": {
+            "title": "Key",
+            "description": "The branch's name in `branches`"
           }
         }
       },
@@ -19151,6 +19287,10 @@
           "branches": {
             "title": "Branches",
             "description": "The branches, each a named output port; at least two, each with its own name"
+          },
+          "branches__items__name": {
+            "title": "Name",
+            "description": "The branch's port id"
           }
         }
       },
@@ -19158,6 +19298,14 @@
         "config": {
           "rules": {
             "title": "Rules"
+          },
+          "rules__items__name": {
+            "title": "Name",
+            "description": "The branch's port id"
+          },
+          "rules__items__condition": {
+            "title": "Condition",
+            "description": "A JMESPath expression over the input, such as value.country == 'PL'"
           }
         },
         "input": {
@@ -19407,6 +19555,75 @@
           },
           "visibility": {
             "title": "Visibility"
+          },
+          "columns__items__id": {
+            "title": "Id"
+          },
+          "columns__items__label": {
+            "title": "Label"
+          },
+          "columns__items__type": {
+            "title": "Type"
+          },
+          "columns__items__nullable": {
+            "title": "Nullable"
+          },
+          "columns__items__default": {
+            "title": "Default"
+          },
+          "columns__items__document_templates": {
+            "title": "Document Templates"
+          },
+          "columns__items__document_templates__items__id": {
+            "title": "Id"
+          },
+          "columns__items__document_templates__items__name": {
+            "title": "Name"
+          },
+          "columns__items__document_templates__items__body": {
+            "title": "Body"
+          },
+          "columns__items__default_template_id": {
+            "title": "Default Template Id"
+          },
+          "columns__items__options": {
+            "title": "Options"
+          },
+          "columns__items__options__items__id": {
+            "title": "Id"
+          },
+          "columns__items__options__items__label": {
+            "title": "Label"
+          },
+          "columns__items__options__items__color": {
+            "title": "Color",
+            "description": "Display color; empty uses the automatic palette"
+          },
+          "columns__items__options__items__archived": {
+            "title": "Archived"
+          },
+          "columns__items__archived": {
+            "title": "Archived"
+          },
+          "columns__items__link_table_id": {
+            "title": "Link Table Id",
+            "description": "A link column: the table whose records it links to."
+          },
+          "columns__items__link_column_id": {
+            "title": "Link Column Id",
+            "description": "A lookup or rollup column: the link column of this table it reads through."
+          },
+          "columns__items__target_column_id": {
+            "title": "Target Column Id",
+            "description": "A lookup or rollup column: the column of the linked table it reads. A rollup that counts the links reads none."
+          },
+          "columns__items__aggregate": {
+            "title": "Aggregate",
+            "description": "A rollup column: what it makes of the values it reads."
+          },
+          "columns__items__formula": {
+            "title": "Formula",
+            "description": "A formula column: an expression over the record's other columns, each named by its label in braces, such as '{'Price'}' * '{'Quantity'}'."
           }
         }
       },
@@ -19523,6 +19740,16 @@
           },
           "filters": {
             "title": "Filters"
+          },
+          "filters__items__column_id": {
+            "title": "Column Id"
+          },
+          "filters__items__op": {
+            "title": "Op"
+          },
+          "filters__items__value": {
+            "title": "Value",
+            "description": "The operand. A list for `in`, a boolean for `is_null` (true means the cell is empty), otherwise a value of the column's type."
           }
         }
       },
@@ -19585,6 +19812,16 @@
           },
           "skip": {
             "title": "Skip"
+          },
+          "filters__items__column_id": {
+            "title": "Column Id"
+          },
+          "filters__items__op": {
+            "title": "Op"
+          },
+          "filters__items__value": {
+            "title": "Value",
+            "description": "The operand. A list for `in`, a boolean for `is_null` (true means the cell is empty), otherwise a value of the column's type."
           }
         }
       },
@@ -19808,6 +20045,13 @@
           "only_set": {
             "title": "Only Set",
             "description": "Keep only the fields set here, dropping every other"
+          },
+          "set__items__name": {
+            "title": "Name"
+          },
+          "set__items__expression": {
+            "title": "Expression",
+            "description": "A JMESPath expression over the item, such as item.first_name"
           }
         },
         "input": {
@@ -19850,6 +20094,12 @@
         "config": {
           "by": {
             "title": "By"
+          },
+          "by__items__field": {
+            "title": "Field"
+          },
+          "by__items__descending": {
+            "title": "Descending"
           }
         },
         "input": {
@@ -19881,6 +20131,13 @@
           },
           "summaries": {
             "title": "Summaries"
+          },
+          "summaries__items__operation": {
+            "title": "Operation"
+          },
+          "summaries__items__field": {
+            "title": "Field",
+            "description": "Not needed to count"
           }
         },
         "input": {
@@ -19937,6 +20194,27 @@
           },
           "appearance__layout": {
             "title": "Layout"
+          },
+          "fields__items__name": {
+            "title": "Name",
+            "description": "The key in the run's input, and in payload for a binding"
+          },
+          "fields__items__label": {
+            "title": "Label",
+            "description": "Shown in the Run form"
+          },
+          "fields__items__type": {
+            "title": "Type"
+          },
+          "fields__items__required": {
+            "title": "Required"
+          },
+          "fields__items__description": {
+            "title": "Description"
+          },
+          "fields__items__options": {
+            "title": "Options",
+            "description": "What a choice offers"
           }
         }
       },
@@ -19983,6 +20261,27 @@
           },
           "input_schema": {
             "description": "JSON Schema Draft 2020-12 contract for JSON object input; references must be local to this document"
+          },
+          "fields__items__name": {
+            "title": "Name",
+            "description": "The key in the run's input, and in payload for a binding"
+          },
+          "fields__items__label": {
+            "title": "Label",
+            "description": "Shown in the Run form"
+          },
+          "fields__items__type": {
+            "title": "Type"
+          },
+          "fields__items__required": {
+            "title": "Required"
+          },
+          "fields__items__description": {
+            "title": "Description"
+          },
+          "fields__items__options": {
+            "title": "Options",
+            "description": "What a choice offers"
           }
         }
       },
@@ -20061,6 +20360,16 @@
           "filters": {
             "title": "Filters",
             "description": "Every one must hold on the record - as it was added or changed to, or as it was before it was deleted"
+          },
+          "filters__items__column_id": {
+            "title": "Column Id"
+          },
+          "filters__items__op": {
+            "title": "Op"
+          },
+          "filters__items__value": {
+            "title": "Value",
+            "description": "The operand. A list for `in`, a boolean for `is_null` (true means the cell is empty), otherwise a value of the column's type."
           }
         }
       },
@@ -20071,6 +20380,27 @@
           },
           "input_schema": {
             "description": "JSON Schema Draft 2020-12 contract for JSON object input; references must be local to this document"
+          },
+          "fields__items__name": {
+            "title": "Name",
+            "description": "The key in the run's input, and in payload for a binding"
+          },
+          "fields__items__label": {
+            "title": "Label",
+            "description": "Shown in the Run form"
+          },
+          "fields__items__type": {
+            "title": "Type"
+          },
+          "fields__items__required": {
+            "title": "Required"
+          },
+          "fields__items__description": {
+            "title": "Description"
+          },
+          "fields__items__options": {
+            "title": "Options",
+            "description": "What a choice offers"
           }
         }
       },
