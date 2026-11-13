@@ -1,5 +1,5 @@
 ---
-source_sha: "66ff628633d4"
+source_sha: "9f6c89e7d352"
 ---
 
 # Governance { #governance }
@@ -1972,6 +1972,10 @@ Protokoll der Tool-Aufrufe aufgelistet.
 Einen Schritt, der seine Freigebenden nennt, können nur sie entscheiden. Eine
 Anfrage, die niemand rechtzeitig entscheidet, läuft ab, und ein abgebrochener Run
 bricht seine Anfragen ab.
+
+Ein Schritt, der seine Freigebenden nennt, benachrichtigt nur sie. Ein Schritt
+ohne benannte Freigebende benachrichtigt alle mit `approvals:decide` an der
+Glocke, und die Anfrage steht oben in ihrem Inbox.
 
 Ein Schritt mit `editable` zeigt der freigebenden Person auch einen Vorschlag,
 etwa eine vorbereitete Antwort, den sie vor der Freigabe ändern darf. Der

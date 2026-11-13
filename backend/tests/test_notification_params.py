@@ -130,3 +130,11 @@ def test_a_refusal_names_a_sub_cent_limit_as_it_is():
         limit_usd=Decimal("0.0005"), spent_usd=Decimal("0.0008"), scope=BudgetScope.AGENT
     )
     assert str(refusal) == "Agent monthly budget exhausted: $0.0008 spent of $0.0005 limit"
+
+
+def test_a_workflow_approval_hands_over_its_title_and_a_step_s_own_notice_nothing():
+    asked = {"approval_title": "Send the refund?"}
+    assert _params(NotificationEventType.WORKFLOW_NOTIFICATION, asked) == {
+        "approval_title": "Send the refund?"
+    }
+    assert _params(NotificationEventType.WORKFLOW_NOTIFICATION, {"text": "Deployed"}) is None

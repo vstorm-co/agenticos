@@ -982,7 +982,8 @@ about to do, then goes on by `approved` or `rejected`. The approver reads the
 step's `title` and the `details` bound to it, in the **Approvals** tab of
 Activity or over `GET /api/v1/workflow-approvals`. `approvers` names who may
 decide, and they are notified in the app; left empty, anyone holding
-`approvals:decide` may. Past `timeout_hours` the request expires and the step
+`approvals:decide` may, and they are all notified. The request also leads the
+Inbox of whoever may decide it. Past `timeout_hours` the request expires and the step
 leaves by `rejected` with `decision: "expired"`. Cancelling the run cancels what
 it asked, and so does cancelling a workflow that called the run. Each run of the step asks once, so a retry or a loop iteration never
 asks twice for the same thing.

@@ -36,7 +36,6 @@ A workflow that sends the approved `final` through `mcp.call` sets that step's
 `approval` to `none`, or the person is asked twice.
 """
 
-import hashlib
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal, Self
 from uuid import UUID
@@ -45,7 +44,6 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import AuthContext, Perm, role_has
-from app.db.models.notification import NotificationChannel, NotificationEventType
 from app.db.models.workflow_approval import (
     ProposalFormat,
     WorkflowApproval,
@@ -55,10 +53,10 @@ from app.db.session import get_worker_db_context
 from app.repositories import member as member_repo
 from app.repositories import workflow_approval as approval_repo
 from app.schemas.workflow_approval import MAX_PROPOSAL_CHARS
-from app.services.notification_center import NotificationCenterService
 from app.services.workflow_execution import context
 from app.workflows.contracts.definition import Port
 from app.workflows.contracts.results import Completed, Failed, NodeResult, Waiting, WorkflowError
+from app.workflows.nodes._approvals import notify_approvers
 from app.workflows.nodes._port_names import refuse_clash
 
 MAX_APPROVERS = 50
@@ -295,17 +293,7 @@ async def _ask(
             else None
         ),
     )
-    if config.approvers:
-        await NotificationCenterService(db).write(
-            recipients=list(dict.fromkeys(config.approvers)),
-            event_type=NotificationEventType.WORKFLOW_NOTIFICATION,
-            occurrence_id="workflow-approval:"
-            + hashlib.sha256(current.idempotency_key.encode()).hexdigest(),
-            summary=f"Approval needed: {config.title}",
-            organization_id=current.organization_id,
-            actor_user_id=current.auth.user_id,
-            channels={NotificationChannel.IN_APP},
-        )
+    await notify_approvers(db, title=config.title, approvers=config.approvers)
 
 
 async def handle(config: BaseModel | None, node_input: BaseModel | None) -> NodeResult:

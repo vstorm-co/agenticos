@@ -27,7 +27,6 @@ too. One after an unkeyed call to any other tool may have acted, so the step end
 import asyncio
 import base64
 import binascii
-import hashlib
 import json
 from typing import TYPE_CHECKING, Any, Literal
 from urllib.parse import quote, quote_plus
@@ -40,13 +39,11 @@ from app.agents.mcp import carries_base_exception, mcp_session, probe_error_mess
 from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, Perm, role_has
 from app.db.models.mcp_connection import McpConnection
-from app.db.models.notification import NotificationChannel, NotificationEventType
 from app.db.models.workflow_approval import WorkflowApprovalStatus
 from app.db.session import get_worker_db_context
 from app.repositories import member as member_repo
 from app.repositories import workflow_approval as approval_repo
 from app.services.mcp_connection import McpConnectionService, resolve_auth_headers
-from app.services.notification_center import NotificationCenterService
 from app.services.workflow_execution import context
 from app.workflows.contracts.definition import RetryGuarantee
 from app.workflows.contracts.results import (
@@ -57,6 +54,7 @@ from app.workflows.contracts.results import (
     Waiting,
     WorkflowError,
 )
+from app.workflows.nodes._approvals import notify_approvers
 
 if TYPE_CHECKING:
     from mcp.types import CallToolResult
@@ -405,17 +403,7 @@ async def _ask(
         approver_user_ids=list(config.approvers),
         expires_at=None,
     )
-    if config.approvers:
-        await NotificationCenterService(db).write(
-            recipients=list(dict.fromkeys(config.approvers)),
-            event_type=NotificationEventType.WORKFLOW_NOTIFICATION,
-            occurrence_id="workflow-approval:"
-            + hashlib.sha256(current.idempotency_key.encode()).hexdigest(),
-            summary=f"Approval needed: {title}",
-            organization_id=current.organization_id,
-            actor_user_id=current.auth.user_id,
-            channels={NotificationChannel.IN_APP},
-        )
+    await notify_approvers(db, title=title, approvers=config.approvers)
     return None
 
 

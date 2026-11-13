@@ -1739,6 +1739,10 @@ trail with what was asked, and stays listed under **Decided** with the tool call
 own record. A step that names its approvers can be decided only by
 them. One nobody decides in time expires, and a cancelled run cancels its requests.
 
+A step that names its approvers tells only them. A step naming nobody tells
+everyone holding `approvals:decide`, at the bell, and the request leads their
+Inbox.
+
 A step that is `editable` also shows the approver a proposal, such as a drafted
 reply, which they may change before approving it. The audit entry records whether
 the step was editable, whether the approver edited it (`edited`) and the length of
