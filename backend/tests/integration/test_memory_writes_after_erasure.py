@@ -246,7 +246,8 @@ async def test_a_delegate_is_held_to_the_agent_whose_store_it_writes(db: AsyncSe
         )
 
     await MemoryService(db).clear_agent(ctx, parent.id)
-    assert await write(specialist, "kept")
+    kept = await write(specialist, "kept")
+    assert kept
     await MemoryService(db).clear_agent(ctx, specialist.id)
     with pytest.raises(memory_store.ErasedDuringRun):
         await write(specialist, "refused")
