@@ -10907,7 +10907,8 @@
     "kind": {
       "approvalRequested": "{agent} is waiting on your approval",
       "budgetExceeded": "{agent} stopped: {scope, select, agent {its monthly budget} group {a department's monthly budget} department {the {department} department's monthly budget} organization {the organization's monthly budget} other {a spending limit}} is used up ({spent} spent of {limit})",
-      "budgetWarning": "{group} has used {share}% of its {limit} monthly budget."
+      "budgetWarning": "{group} has used {share}% of its {limit} monthly budget.",
+      "workflowApproval": "Approval needed: {title}"
     },
     "needsAttention": "Needs attention"
   },
@@ -14483,7 +14484,15 @@
       "role_pack": "Routine pack",
       "finding": "Routine"
     },
-    "openWorkingChat": "Open conversation"
+    "openWorkingChat": "Open conversation",
+    "approvals": {
+      "title": "{count, plural, =1 {1 approval waits on you} other {# approvals wait on you}}",
+      "open": "Open approvals",
+      "fromWorkflow": "Workflow {workflow}",
+      "fromAgent": "Agent {agent}",
+      "anAgent": "An agent",
+      "toolCall": "Wants to use {tool}"
+    }
   },
   "datasets": {
     "scoring": {

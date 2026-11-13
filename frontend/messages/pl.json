@@ -11096,7 +11096,8 @@
     "kind": {
       "approvalRequested": "Agent {agent} czeka na Twoje zatwierdzenie",
       "budgetExceeded": "Agent {agent} zatrzymał się: wyczerpał się {scope, select, agent {jego miesięczny budget} group {miesięczny budget działu} department {miesięczny budget działu {department}} organization {miesięczny budget organizacji} other {limit wydatków}} (wydano {spent} z {limit})",
-      "budgetWarning": "Dział {group} wykorzystał {share}% miesięcznego budgetu {limit}."
+      "budgetWarning": "Dział {group} wykorzystał {share}% miesięcznego budgetu {limit}.",
+      "workflowApproval": "Potrzebne zatwierdzenie: {title}"
     },
     "needsAttention": "Wymaga uwagi"
   },
@@ -13712,7 +13713,15 @@
       "role_pack": "Pakiet rutyn",
       "finding": "Rutyna"
     },
-    "openWorkingChat": "Otwórz rozmowę"
+    "openWorkingChat": "Otwórz rozmowę",
+    "approvals": {
+      "title": "{count, plural, one {1 zatwierdzenie czeka na Ciebie} few {# zatwierdzenia czekają na Ciebie} many {# zatwierdzeń czeka na Ciebie} other {# zatwierdzenia czeka na Ciebie}}",
+      "open": "Otwórz zatwierdzenia",
+      "fromWorkflow": "Workflow {workflow}",
+      "fromAgent": "Agent {agent}",
+      "anAgent": "Agent",
+      "toolCall": "Chce użyć {tool}"
+    }
   },
   "agentLimit": {
     "title": "Ta organizacja osiągnęła limit agentów",

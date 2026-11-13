@@ -214,3 +214,13 @@ it("keeps the metered spend precision above a cent", () => {
     ),
   ).toBe("kind.budgetExceeded(Probe,agent,,$0.0101,$0.01)");
 });
+
+it("words a workflow step's approval request from its title", () => {
+  expect(
+    notificationSummary(
+      worded("workflow_notification", { approval_title: "Send the refund?" }),
+      t,
+      stop,
+    ),
+  ).toBe("kind.workflowApproval(Send the refund?)");
+});

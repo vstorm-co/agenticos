@@ -10593,7 +10593,8 @@
     "kind": {
       "approvalRequested": "{agent} wartet auf Ihre Freigabe",
       "budgetExceeded": "{agent} wurde gestoppt: {scope, select, agent {sein Monatsbudget} group {das Monatsbudget einer Abteilung} department {das Monatsbudget der Abteilung {department}} organization {das Monatsbudget der Organisation} other {ein Ausgabenlimit}} ist aufgebraucht ({spent} von {limit} ausgegeben)",
-      "budgetWarning": "{group} hat {share} % des Monatsbudgets von {limit} verbraucht."
+      "budgetWarning": "{group} hat {share} % des Monatsbudgets von {limit} verbraucht.",
+      "workflowApproval": "Freigabe nötig: {title}"
     },
     "needsAttention": "Aufmerksamkeit erforderlich"
   },
@@ -14169,7 +14170,15 @@
       "role_pack": "Routinenpaket",
       "finding": "Routine"
     },
-    "openWorkingChat": "Gespräch öffnen"
+    "openWorkingChat": "Gespräch öffnen",
+    "approvals": {
+      "title": "{count, plural, =1 {1 Freigabe wartet auf Sie} other {# Freigaben warten auf Sie}}",
+      "open": "Freigaben öffnen",
+      "fromWorkflow": "Workflow {workflow}",
+      "fromAgent": "Agent {agent}",
+      "anAgent": "Ein Agent",
+      "toolCall": "Möchte {tool} verwenden"
+    }
   },
   "datasets": {
     "scoring": {
