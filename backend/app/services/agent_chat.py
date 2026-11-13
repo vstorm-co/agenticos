@@ -781,7 +781,11 @@ class ChatAgentRunner:
             agent_id=prepared.agent.id,
             agent_version_id=prepared.run.agent_version_id,
             run_id=prepared.run.id,
-            parked=tuple(prepared.approvals.requested),
+            parked=tuple(
+                entry
+                for entry in prepared.approvals.requested
+                if str(entry.approval_id) in prepared.approvals.parked
+            ),
             questions=tuple(paused.questions) if paused is not None else (),
             mcp_origins=prepared.mcp_origins,
             draft_tools=draft_tool_names(prepared.spec),

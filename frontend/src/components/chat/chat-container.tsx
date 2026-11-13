@@ -27,6 +27,7 @@ import {
 } from "@/hooks";
 import type { ChatTesting, SteerDraft } from "@/hooks/use-chat";
 import { AgentPicker, isChattable } from "./agent-picker";
+import { ChatApprovalSelector } from "./chat-approval-selector";
 import { useSavedChatControls } from "@/hooks/use-saved-chat-controls";
 import { ChatControls } from "./chat-controls";
 import { SheetRow } from "./composer-sheet";
@@ -1855,11 +1856,13 @@ function ChatUI({
                             // Who answers first and largest: it is the most
                             // consequential choice in the composer.
                             controlsSlot={
-                              agentFixed ? undefined : (
-                                <>
-                                  <AgentPicker />
-                                  {/* A phone's row is the agent alone; the project is
-                                    picked from its `+` sheet. */}
+                              <>
+                                {!agentFixed && <AgentPicker />}
+                                <ChatApprovalSelector
+                                  onChange={onApprovalModeChange}
+                                  disabled={isProcessing || readOnly}
+                                />
+                                {!agentFixed && (
                                   <span className="contents max-md:hidden">
                                     <ProjectChip
                                       conversationId={conversationId}
@@ -1867,8 +1870,8 @@ function ChatUI({
                                       onPickerOpenChange={setProjectPickerOpen}
                                     />
                                   </span>
-                                </>
-                              )
+                                )}
+                              </>
                             }
                             onProject={
                               agentFixed || conversationId

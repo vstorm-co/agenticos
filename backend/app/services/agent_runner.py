@@ -1324,8 +1324,10 @@ class ApprovalChannel:
     tool_consent: Callable[[ApprovalRequest], Awaitable[UUID | None]] | None = None
 
     requested: list[ParkedApproval] = field(default_factory=list)
-    """What was parked, in enough detail for a surface to put it to somebody and
-    for :meth:`AgentRunnerService._write_approvals` to write the row.
+    """Audit entries for pending and automatically granted calls.
+
+    Surfaces may ask for a decision only on entries also present in `parked`.
+    :meth:`AgentRunnerService._write_approvals` persists all entries.
 
     Kept here rather than read back from the rows afterwards for two reasons: the
     rows do not exist yet while the run is going, and re-reading them would be a

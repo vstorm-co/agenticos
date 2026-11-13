@@ -1381,7 +1381,13 @@
       "waiverSettings": "Genehmigungseinstellungen öffnen",
       "toolsTab": "Werkzeuge und Dateien",
       "preferencesTab": "Einstellungen",
-      "savedAutomatically": "Änderungen werden automatisch gespeichert"
+      "savedAutomatically": "Änderungen werden automatisch gespeichert",
+      "activeApprovalMode": "Genehmigungsmodus: {mode}",
+      "compactMode": {
+        "follow_agent": "Agent-Regeln",
+        "approve_all": "Alles erlauben",
+        "ask_all": "Immer fragen"
+      }
     },
     "conversationArchived": "Diese Unterhaltung ist archiviert",
     "conversationDeleted": "Unterhaltung gelöscht",

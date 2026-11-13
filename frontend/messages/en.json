@@ -1381,7 +1381,13 @@
       "waiverSettings": "Open approval settings",
       "toolsTab": "Tools & files",
       "preferencesTab": "Preferences",
-      "savedAutomatically": "Changes are saved automatically"
+      "savedAutomatically": "Changes are saved automatically",
+      "activeApprovalMode": "Permission mode: {mode}",
+      "compactMode": {
+        "follow_agent": "Agent rules",
+        "approve_all": "Approve all",
+        "ask_all": "Ask always"
+      }
     },
     "conversationArchived": "This conversation is archived",
     "conversationDeleted": "Conversation deleted",

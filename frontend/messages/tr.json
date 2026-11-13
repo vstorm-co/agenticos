@@ -8787,7 +8787,13 @@
       "waiverSettings": "Onay ayarlarını aç",
       "toolsTab": "Tool'lar ve dosyalar",
       "preferencesTab": "Tercihler",
-      "savedAutomatically": "Değişiklikler otomatik kaydedilir"
+      "savedAutomatically": "Değişiklikler otomatik kaydedilir",
+      "activeApprovalMode": "Onay modu: {mode}",
+      "compactMode": {
+        "follow_agent": "Agent kuralları",
+        "approve_all": "Tümünü onayla",
+        "ask_all": "Her zaman sor"
+      }
     },
     "conversationArchived": "Bu konuşma arşivlendi",
     "conversationDeleted": "Konuşma silindi",

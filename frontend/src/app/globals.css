@@ -3017,7 +3017,13 @@ body .tour-spotlight {
     min-height: 44px;
     min-width: 44px;
   }
-  .chat-input-form[data-editing] .chat-input-selection,
+  /* Agent and permission mode remain visible before sending, even while the
+     compact phone editor is focused. They share one context row above it. */
+  .chat-input-form[data-editing] .chat-input-selection {
+    display: flex;
+    order: 0;
+    flex: 0 0 100%;
+  }
   .chat-input-form[data-editing] .chat-input-mic {
     display: none;
   }

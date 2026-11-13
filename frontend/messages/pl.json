@@ -446,7 +446,13 @@
       "waiverSettings": "Otwórz ustawienia zatwierdzeń",
       "toolsTab": "Narzędzia i pliki",
       "preferencesTab": "Preferencje",
-      "savedAutomatically": "Zmiany są zapisywane automatycznie"
+      "savedAutomatically": "Zmiany są zapisywane automatycznie",
+      "activeApprovalMode": "Tryb akceptacji: {mode}",
+      "compactMode": {
+        "follow_agent": "Zasady agenta",
+        "approve_all": "Zatwierdzaj wszystko",
+        "ask_all": "Zawsze pytaj"
+      }
     },
     "conversationArchived": "Ta rozmowa jest zarchiwizowana",
     "conversationDeleted": "Rozmowa usunięta",
