@@ -10,7 +10,7 @@ import {
 } from "@/hooks/use-deployment-settings";
 import type { Organization } from "@/types";
 import { StartSkeleton } from "./start-skeleton";
-import { StartQuestion, StartStepFailed } from "./start-question";
+import { StartQuestion, StartStepFailed, StartStepPending } from "./start-question";
 import {
   DeploymentAccess,
   DeploymentDestination,
@@ -48,7 +48,12 @@ export function StartDeployment({
   }, [active, question, org.id]);
   const [edits, setEdits] = useState<DeploymentSettingsPatch>({});
   const [failed, setFailed] = useState(false);
-  if (isLoading) return <StartSkeleton view="deployment" question={question} fullPage={false} />;
+  if (isLoading)
+    return (
+      <StartStepPending onBack={onBack}>
+        <StartSkeleton view="deployment" question={question} fullPage={false} />
+      </StartStepPending>
+    );
   if (error || !settings) return <StartStepFailed onRetry={() => void refetch()} onBack={onBack} />;
   const changes: DeploymentSettingsPatch = {
     ...(question === "announcement" && !settings.announcement

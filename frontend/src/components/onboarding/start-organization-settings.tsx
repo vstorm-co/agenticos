@@ -18,7 +18,7 @@ import type { Organization } from "@/types";
 import { Perm } from "@/types/permissions";
 import { StartSkeleton } from "./start-skeleton";
 import { StartBudget } from "./start-budget";
-import { StartQuestion, StartStepFailed } from "./start-question";
+import { StartQuestion, StartStepFailed, StartStepPending } from "./start-question";
 import styles from "./guided-start.module.css";
 
 export function StartOrganizationSettings({
@@ -48,7 +48,11 @@ export function StartOrganizationSettings({
   }, [active, isLoaded, org.id, showBudget]);
   if (error) return <StartStepFailed onRetry={() => void refetch()} onBack={onBack} />;
   if (!isLoaded)
-    return <StartSkeleton fullPage={false} view={budgetDone ? "organization" : "budget"} />;
+    return (
+      <StartStepPending onBack={onBack}>
+        <StartSkeleton fullPage={false} view={budgetDone ? "organization" : "budget"} />
+      </StartStepPending>
+    );
   if (showBudget)
     return <StartBudget org={org} onBack={onBack} onContinue={() => setBudgetDone(true)} />;
   return (

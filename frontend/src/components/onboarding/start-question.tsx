@@ -69,14 +69,21 @@ export function StartQuestion({
 }
 
 /**
- * A question step whose settings could not be read: retry, or leave the step -
- * the wizard's own Back is hidden on a step asked as questions.
+ * A question step that has no question to show yet - loading, or failed to read
+ * its settings - with the way out of it. The wizard's own Back is hidden on a
+ * step asked as questions, so without this a slow or failed read is a dead end.
  */
-export function StartStepFailed({ onRetry, onBack }: { onRetry: () => void; onBack?: () => void }) {
+export function StartStepPending({
+  children,
+  onBack,
+}: {
+  children: ReactNode;
+  onBack?: () => void;
+}) {
   const t = useTranslations("start.guided");
   return (
     <div>
-      <ErrorState title={t("loadFailed")} cta={{ label: t("retry"), onClick: onRetry }} />
+      {children}
       {onBack && (
         <div className="flex justify-center">
           <Button variant="ghost" onClick={onBack}>
@@ -86,5 +93,15 @@ export function StartStepFailed({ onRetry, onBack }: { onRetry: () => void; onBa
         </div>
       )}
     </div>
+  );
+}
+
+/** A question step whose settings could not be read: retry, or leave the step. */
+export function StartStepFailed({ onRetry, onBack }: { onRetry: () => void; onBack?: () => void }) {
+  const t = useTranslations("start.guided");
+  return (
+    <StartStepPending onBack={onBack}>
+      <ErrorState title={t("loadFailed")} cta={{ label: t("retry"), onClick: onRetry }} />
+    </StartStepPending>
   );
 }

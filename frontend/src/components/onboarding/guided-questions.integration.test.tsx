@@ -23,6 +23,7 @@ const env = vi.hoisted(() => ({
   next: vi.fn(),
   pending: false,
   failed: false,
+  loading: false,
   permissions: new Set<Permission>(),
   permissionsFailed: false,
 }));
@@ -35,7 +36,7 @@ vi.mock("@/hooks/use-deployment-settings", () => ({
     settings: env.failed ? undefined : env.settings,
     error: env.failed ? new Error("unavailable") : null,
     refetch: vi.fn(),
-    isLoading: false,
+    isLoading: env.loading,
     save: { mutateAsync: env.save, isPending: env.pending },
   }),
 }));
@@ -45,7 +46,7 @@ vi.mock("@/hooks/use-organizations", () => ({
 vi.mock("@/hooks/use-permissions", () => ({
   usePermissions: () => ({
     can: (permission: Permission) => env.permissions.has(permission),
-    isLoaded: true,
+    isLoaded: !env.loading,
     error: env.permissionsFailed ? new Error("unavailable") : null,
     refetch: vi.fn(),
   }),
@@ -88,6 +89,7 @@ beforeEach(() => {
   window.history.replaceState(null, "", "/onboarding");
   env.pending = false;
   env.failed = false;
+  env.loading = false;
   env.permissionsFailed = false;
   env.permissions = new Set();
   env.save.mockResolvedValue({});
@@ -350,6 +352,19 @@ it("still leaves the step when its settings could not be read", async () => {
   unmount();
 
   env.permissionsFailed = true;
+  render(<StartOrganizationSettings org={org} onContinue={env.next} onBack={back} />);
+  await userEvent.click(screen.getByRole("button", { name: "Back" }));
+  expect(back).toHaveBeenCalledTimes(2);
+});
+
+it("still leaves the step while its settings are loading", async () => {
+  env.loading = true;
+  const back = vi.fn();
+  const { unmount } = render(<StartDeployment org={org} onContinue={env.next} onBack={back} />);
+  await userEvent.click(screen.getByRole("button", { name: "Back" }));
+  expect(back).toHaveBeenCalledOnce();
+  unmount();
+
   render(<StartOrganizationSettings org={org} onContinue={env.next} onBack={back} />);
   await userEvent.click(screen.getByRole("button", { name: "Back" }));
   expect(back).toHaveBeenCalledTimes(2);
