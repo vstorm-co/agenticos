@@ -806,7 +806,9 @@ def _request(content: str) -> PersonRequest:
 
 class TestTheNightlyLook:
     @staticmethod
-    def _patches(*, user=None, member=True, agent=True, requests=(), reading=None, starters=None):
+    def _patches(
+        *, user=None, member=True, agent=True, requests=(), reading=None, starters=None, erased=None
+    ):
         thinker = MagicMock()
         thinker.starter_agent = AsyncMock(return_value=_agent() if agent else None)
         thinker.think = AsyncMock(return_value=reading)
@@ -847,6 +849,14 @@ class TestTheNightlyLook:
                     return_value=MagicMock(suggestions_ready=AsyncMock()),
                 ),
                 patch(f"{NIGHTLY}.conversation_repo.mark_nightly_reads", new=AsyncMock()),
+                patch(
+                    f"{NIGHTLY}.audit_log_repo.current_snapshot",
+                    new=AsyncMock(return_value="100:100:"),
+                ),
+                patch(
+                    f"{NIGHTLY}.audit_log_repo.latest_memory_erasure",
+                    new=AsyncMock(return_value=erased),
+                ),
             ],
         }
 
@@ -872,6 +882,8 @@ class TestTheNightlyLook:
             "propose",
             "notify",
             "mark_read",
+            "snapshot",
+            "erased",
         ]
         return made, setup["thinker"], dict(zip(names, started, strict=True))
 
@@ -901,6 +913,25 @@ class TestTheNightlyLook:
         else:
             thinker.think.assert_not_awaited()
         assert made == 0
+
+    async def test_a_look_after_forget_me_reads_only_what_was_asked_since(self):
+        erased = datetime.now(UTC) - timedelta(days=2)
+
+        _, thinker, mocks = await self._look(requests=[_request("x")], erased=erased)
+
+        assert mocks["requests"].await_args.kwargs["since"] == erased
+        kwargs = thinker.think.await_args.kwargs
+        assert kwargs["erased_since"] == kwargs["started_at"]
+        assert kwargs["erased_snapshot"] == "100:100:"
+
+    async def test_an_erasure_older_than_the_week_does_not_shorten_it(self):
+        erased = datetime.now(UTC) - timedelta(days=30)
+
+        _, thinker, mocks = await self._look(requests=[_request("x")], erased=erased)
+
+        since = mocks["requests"].await_args.kwargs["since"]
+        assert since > erased
+        assert since == thinker.think.await_args.kwargs["started_at"] - timedelta(days=7)
 
     async def test_a_model_that_could_not_answer_proposes_nothing(self):
         made, _, mocks = await self._look(reading=None, requests=[_request("x")])

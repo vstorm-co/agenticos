@@ -40,6 +40,7 @@ from app.repositories import (
     agent_repo,
     agent_run_repo,
     agent_trigger_repo,
+    audit_log_repo,
     conversation_repo,
     mcp_connection_repo,
     member_repo,
@@ -195,13 +196,21 @@ class NightlyLook:
         if agent is None:
             return 0
         now = datetime.now(UTC)
+        # Taken before anything is read, so an erasure committing while this reads
+        # still trims what the look records.
+        read_snapshot = await audit_log_repo.current_snapshot(self.db)
+        # The person's requests outlive "forget me"; one written before it is part of
+        # what they asked to have forgotten.
+        erased = await audit_log_repo.latest_memory_erasure(
+            self.db, organization_id=organization_id, user_id=user_id
+        )
         requests = await self._past_the_input_edge(
             organization_id,
             await conversation_repo.person_requests_since(
                 self.db,
                 organization_id=organization_id,
                 user_id=user_id,
-                since=now - WINDOW,
+                since=max(now - WINDOW, erased) if erased is not None else now - WINDOW,
                 limit=MAX_REQUESTS,
             ),
         )
@@ -262,6 +271,8 @@ class NightlyLook:
             # Due time belongs to this look; per-message receipts decide what
             # was read, including prompts whose verdict arrives after this read.
             started_at=now,
+            erased_since=now,
+            erased_snapshot=read_snapshot,
         )
         if reading is None:
             return 0
