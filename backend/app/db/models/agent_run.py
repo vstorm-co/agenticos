@@ -18,6 +18,7 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
+    DDL,
     Boolean,
     CheckConstraint,
     DateTime,
@@ -27,6 +28,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    event,
     text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
@@ -459,14 +461,12 @@ class AgentRun(Base, TimestampMixin):
     # The transactions committed when the row was inserted, before the run reads any
     # memory: an erasure missing from it was still running, so what the run read may
     # predate it. Prefixed with the cluster, whose transaction ids alone it compares.
-    # Null on runs from before it was recorded.
+    # Null on runs from before it was recorded, and where the database does not say
+    # which cluster it is (0323_run_memory_snapshot.py).
     memory_snapshot: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
-        server_default=text(
-            "((pg_control_system()).system_identifier)::text || '/' || "
-            "(pg_current_snapshot())::text"
-        ),
+        server_default=text("agenticos_memory_snapshot()"),
     )
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # Stamped every few seconds by the process executing the run
@@ -506,6 +506,40 @@ class AgentRun(Base, TimestampMixin):
 
     def __repr__(self) -> str:
         return f"<AgentRun(agent={self.agent_id}, status={self.status}, cost=${self.cost_usd})>"
+
+
+# The functions `memory_snapshot`'s default calls, for a schema built from the models;
+# 0323_run_memory_snapshot.py creates the same ones for a migrated database.
+_MEMORY_CLUSTER_FUNCTION = DDL(
+    """
+CREATE OR REPLACE FUNCTION agenticos_memory_cluster() RETURNS text
+LANGUAGE plpgsql VOLATILE AS $$
+DECLARE
+    cluster text := current_setting('agenticos.memory_cluster', true);
+BEGIN
+    IF cluster IS NULL THEN
+        BEGIN
+            cluster := coalesce((pg_control_system()).system_identifier::text, '');
+        EXCEPTION WHEN others THEN
+            cluster := '';
+        END;
+        PERFORM set_config('agenticos.memory_cluster', cluster, false);
+    END IF;
+    RETURN nullif(cluster, '');
+END
+$$
+"""
+)
+_MEMORY_SNAPSHOT_FUNCTION = DDL(
+    """
+CREATE OR REPLACE FUNCTION agenticos_memory_snapshot() RETURNS text
+LANGUAGE sql VOLATILE AS $$
+    SELECT agenticos_memory_cluster() || '/' || pg_current_snapshot()::text
+$$
+"""
+)
+event.listen(AgentRun.__table__, "before_create", _MEMORY_CLUSTER_FUNCTION)
+event.listen(AgentRun.__table__, "before_create", _MEMORY_SNAPSHOT_FUNCTION)
 
 
 class ApprovalStatus(enum.StrEnum):

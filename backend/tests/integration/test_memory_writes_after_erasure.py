@@ -429,7 +429,9 @@ async def test_an_erasure_from_another_cluster_is_judged_by_its_date_alone(
 
     user, org, _, _ = await _world(db)
     await _forget(db, user, org)
-    cluster = (await audit_log_repo.current_snapshot(db)).partition("/")[0]
+    snapshot = await audit_log_repo.current_snapshot(db)
+    assert snapshot is not None
+    cluster = snapshot.partition("/")[0]
     later_than_it = datetime.now(UTC) + timedelta(hours=1)
 
     async def erased(snapshot: str) -> bool:
@@ -469,3 +471,29 @@ async def test_a_briefing_counts_what_was_written_during_an_erasure_as_before_it
     # the entry's own date comes from the app's clock, and the later of the two counts.
     finished = datetime.fromisoformat(entry.details[audit_log_repo.ERASURE_FINISHED])
     assert latest == max(finished, entry.created_at)
+
+
+async def test_without_the_clusters_identifier_time_alone_decides(db: AsyncSession) -> None:
+    from sqlalchemy import text
+
+    from app.repositories import audit_log_repo
+
+    # What the identifier's lookup leaves for the connection where the database
+    # refuses it, as a managed service may.
+    await db.execute(text("SELECT set_config('agenticos.memory_cluster', '', false)"))
+    user, org, agent, run = await _world(db)
+    await db.refresh(run)
+    assert run.memory_snapshot is None
+    assert await audit_log_repo.current_snapshot(db) is None
+
+    await _forget(db, user, org)
+
+    entry = await db.scalar(
+        select(AppAdminAuditLog.details).where(
+            AppAdminAuditLog.action == "memory.person.forgotten",
+            AppAdminAuditLog.target_id == str(user.id),
+        )
+    )
+    assert entry is not None and audit_log_repo.ERASURE_TRANSACTION not in entry
+    said = await MemoryToolset().remember(_ctx(user, org, agent, run), "Prefers short answers")
+    assert "erased after this conversation began" in said

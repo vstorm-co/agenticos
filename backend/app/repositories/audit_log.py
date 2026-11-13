@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import DateTime, Text, and_, case, cast, func, literal, literal_column, or_, select
+from sqlalchemy import DateTime, Text, and_, case, cast, func, literal, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.types import UserDefinedType
 
@@ -156,8 +156,8 @@ ERASURE_FINISHED = "finished_at"
 
 # Transaction ids and snapshots belong to one PostgreSQL cluster: a dump restored into
 # another numbers transactions afresh. Each is stored as `<cluster>/<value>` and only
-# compared with a value from the same cluster.
-_CLUSTER = cast(literal_column("(pg_control_system()).system_identifier"), Text)
+# compared with a value from the same cluster. Both are null where the database does
+# not say which cluster it is (0323_run_memory_snapshot.py), and time decides alone.
 
 
 async def erasure_marks(db: AsyncSession) -> dict[str, str]:
@@ -165,23 +165,23 @@ async def erasure_marks(db: AsyncSession) -> dict[str, str]:
     transaction, finished = (
         await db.execute(
             select(
-                _CLUSTER.concat("/").concat(cast(func.pg_current_xact_id(), Text)),
+                func.agenticos_memory_cluster()
+                .concat("/")
+                .concat(cast(func.pg_current_xact_id(), Text)),
                 cast(func.clock_timestamp(), Text),
             )
         )
     ).one()
-    return {ERASURE_TRANSACTION: str(transaction), ERASURE_FINISHED: str(finished)}
+    marks = {ERASURE_FINISHED: str(finished)}
+    if transaction is not None:
+        marks[ERASURE_TRANSACTION] = str(transaction)
+    return marks
 
 
-async def current_snapshot(db: AsyncSession) -> str:
+async def current_snapshot(db: AsyncSession) -> str | None:
     """The transactions committed now, as a run records them when its row is inserted."""
-    return str(
-        (
-            await db.execute(
-                select(_CLUSTER.concat("/").concat(cast(func.pg_current_snapshot(), Text)))
-            )
-        ).scalar_one()
-    )
+    snapshot = (await db.execute(select(func.agenticos_memory_snapshot()))).scalar_one()
+    return None if snapshot is None else str(snapshot)
 
 
 def _memory_erasures(user_id: UUID | None, agent_id: UUID | None) -> list:
