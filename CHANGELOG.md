@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Activity separates the runtime tool catalog from provider-resolved visibility, records Tool Search policy and per-request tool counts, and puts model settings and cache usage beside readable prompt/source views. Run history fills the available viewport even when it contains few records.
+
 ### Fixed
 
 - Read Mattermost thread history in creation-time order and honor result limits even when the platform returns an unordered or oversized thread. Use the thread endpoint's native paging parameters for both text and attachment backfill.

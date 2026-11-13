@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
  * palette and property panel scroll inside a workspace that fills the window.
  */
 const OWN_SCROLL_PANE =
-  /\/(?:chat|projects\/[^/]+)(?:\/|$)|\/admin\/(?:users|organizations)\/?$|\/workflows\/[^/]+$/;
+  /\/(?:chat|runs|projects\/[^/]+)(?:\/|$)|\/admin\/(?:users|organizations)\/?$|\/workflows\/[^/]+$/;
 
 /**
  * Routes that place their own room under themselves, lower down.
@@ -32,12 +32,8 @@ const OWN_SCROLL_PANE =
  *   control is a gap under it, so the page takes none at all.
  * - **`/workflows/<id>`**, the editor, whose workspace ends at that edge with
  *   its own margin.
- * - **`/runs`**, whose run detail is `sticky` beside the list. A sticky box is
- *   clamped to its containing block, so padding *below* that block shortens the
- *   scrollport the panel may pin in: 64px of it put the panel's top at -48px at
- *   maximum scroll and cut its own header off by 56px (#1206). Activity declares
- *   the same `PAGE_CLEARANCE` one level in, on the list column, where it lands
- *   under the last row and leaves the row itself ending at the viewport.
+ * - **`/runs`**, whose history and inspector fill the available viewport.
+ *   Activity owns the bottom margin around both independently scrolling panes.
  */
 const OWN_BOTTOM_ROOM = /\/(?:chat|runs|projects\/[^/]+)(?:\/|$)|\/workflows\/[^/]+$/;
 

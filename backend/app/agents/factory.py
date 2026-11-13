@@ -86,7 +86,7 @@ from app.agents.capabilities.system_reminders import (
     ReminderState,
     SystemReminders,
 )
-from app.agents.capabilities.tool_search import ConfiguredToolSearch
+from app.agents.capabilities.tool_search import ConfiguredToolSearch, ToolSearchConfig
 from app.agents.capabilities.visuals import WEB_REACH_RESOURCE, web_reach
 from app.agents.code_mode import CodeCalls, code_mode
 from app.agents.computer_on_use import REQUEST_COMPUTER_ACCESS, RequestComputerOnUse
@@ -94,7 +94,7 @@ from app.agents.connect_on_use import CONNECT_ACCOUNT, ConnectOnUse
 from app.agents.deps import AgentDeps, ApprovalCallback
 from app.agents.isolation import IsolationGuard, RunIsolation, capability_tools
 from app.agents.loop_guard import LoopGuard
-from app.agents.manifest import RecordingModel, RunRecorder
+from app.agents.manifest import RecordedToolSearch, RecordingModel, RunRecorder
 from app.agents.model_resolver import PROMPT_CACHE, ModelRequestSpec
 from app.agents.observability import instrument_agent, suppress_content
 from app.agents.routine_actions import RoutineToolCheck
@@ -499,6 +499,18 @@ def build_agent(
     # Made before the capabilities, because a run reviewer, code mode and
     # `CacheWatch` write onto it.
     recorder = RunRecorder()
+    for binding in bindings:
+        if binding.capability_id == "tool_search":
+            search = ToolSearchConfig.model_validate(binding.config)
+            recorder.tool_search = RecordedToolSearch(
+                strategy=search.strategy,
+                max_results=search.max_results,
+                defer_capabilities=search.defer_capabilities,
+                defer_mcp_servers=search.defer_mcp_servers,
+                exclude_capabilities=tuple(search.exclude_capabilities),
+                exclude_mcp_servers=tuple(search.exclude_mcp_servers),
+                exclude_tools=tuple(search.exclude_tools),
+            )
     asking = frozenset(
         name
         for name, kind in (
