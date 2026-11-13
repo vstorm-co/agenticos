@@ -1109,7 +1109,25 @@
       "send_channel_file": "Send a file here",
       "react_to_chat_message": "React with emoji"
     },
-    "groupsNotifyOnly": "Recipients are notified using current group membership. This does not grant or restrict approval authority."
+    "groupsNotifyOnly": "Recipients are notified using current group membership. This does not grant or restrict approval authority.",
+    "observationTitle": "Join conversations automatically",
+    "observationSummary": "A separate model decides when a contribution would help.",
+    "observationOn": "On",
+    "observationOff": "Off",
+    "observationConfigure": "Configure",
+    "observationDescription": "Analyze new messages on every channel this bot can access. Mentions still receive an immediate answer.",
+    "observationEnable": "Enable automatic participation",
+    "observationDecisionModel": "Decision model",
+    "observationFocus": "What to focus on and when to contribute",
+    "observationTiming": "Check intervals in minutes",
+    "observationUnmentioned": "Before the agent is mentioned",
+    "observationMentioned": "After the agent is mentioned",
+    "observationTimingHint": "Only new messages trigger analysis. Empty intervals make no model requests.",
+    "observationAllChannels": "All channels this bot can access",
+    "observationAuthorityHint": "The decision model has no tools. Automatic replies use the published agent’s main model and bound organization MCP accounts, with their normal approval rules. Personal accounts and other action tools require someone to mention the bot in the thread. Calls needing approval are not executed automatically. Both model costs appear in Activity.",
+    "observationRequired": "Select the model that decides whether the agent should join.",
+    "observationSaveFailed": "Could not save. Your edits remain in this form; try again.",
+    "observationSave": "Save participation settings"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -7881,7 +7899,8 @@
       "inputTokenOutput": "Output tokens",
       "inputTokenCacheRead": "Cache read",
       "inputTokenCacheWrite": "Cache write",
-      "inputTokenHint": "Totals across recorded model requests. Cache tokens are included in input, not added on top."
+      "inputTokenHint": "Totals across recorded model requests. Cache tokens are included in input, not added on top.",
+      "systemRoleChannelDecision": "Channel participation decision (system)"
     },
     "sandboxes": {
       "addConnection": "Add connection",

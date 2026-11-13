@@ -26,6 +26,8 @@ interface ModelProfilePickerProps {
   profiles: ModelProfile[];
   /** A single selector for setup dialogs; model management keeps its full editor. */
   compact?: boolean;
+  /** A required independent model can label the empty choice without implying inheritance. */
+  emptyLabel?: string;
   /**
    * What `profiles` is: the organization's answer, a read still in flight, or
    * one that failed.
@@ -115,6 +117,7 @@ export function ModelProfilePicker({
   onChange,
   onCreationPendingChange,
   compact = false,
+  emptyLabel,
   allowAdd = false,
   allowRemove = false,
   disabled,
@@ -266,7 +269,7 @@ export function ModelProfilePicker({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="default">{t("useDefaultModel")}</SelectItem>
+              <SelectItem value="default">{emptyLabel ?? t("useDefaultModel")}</SelectItem>
               {offered.map((profile) => (
                 <SelectItem
                   key={profile.id}

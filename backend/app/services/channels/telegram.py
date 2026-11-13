@@ -564,7 +564,7 @@ class TelegramAdapter(ChannelAdapter):
             return None
 
         from_user: dict[str, Any] = msg_data.get("from") or {}
-        if not from_user.get("id"):
+        if not from_user.get("id") or from_user.get("is_bot") is True:
             return None
 
         attachments = self._attachments(msg_data)

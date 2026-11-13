@@ -11,13 +11,15 @@ from app.db.models.agent_exposure import AgentExposure
 
 
 async def get(
-    db: AsyncSession, exposure_id: UUID, *, organization_id: UUID
+    db: AsyncSession, exposure_id: UUID, *, organization_id: UUID, fresh: bool = False
 ) -> AgentExposure | None:
     result = await db.execute(
-        select(AgentExposure).where(
+        select(AgentExposure)
+        .where(
             AgentExposure.id == exposure_id,
             AgentExposure.organization_id == organization_id,
         )
+        .execution_options(populate_existing=fresh)
     )
     return result.scalar_one_or_none()
 
@@ -89,6 +91,28 @@ async def list_active_for_bot(
         .order_by(Agent.slug)
     )
     return [(exposure, agent) for exposure, agent in result.all()]
+
+
+async def list_observers_for_bot(
+    db: AsyncSession,
+    *,
+    channel_bot_id: UUID,
+) -> list[tuple[AgentExposure, str]]:
+    """An opt-in check reads neither other agents' drafts nor disabled bindings."""
+    result = await db.execute(
+        select(AgentExposure, Agent.slug)
+        .join(
+            Agent,
+            (Agent.id == AgentExposure.agent_id)
+            & (Agent.organization_id == AgentExposure.organization_id),
+        )
+        .where(
+            AgentExposure.channel_bot_id == channel_bot_id,
+            AgentExposure.is_active.is_(True),
+            AgentExposure.observation["enabled"].as_boolean().is_(True),
+        )
+    )
+    return [(exposure, slug) for exposure, slug in result.all()]
 
 
 async def active_agents_for_bots(

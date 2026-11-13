@@ -4587,7 +4587,8 @@
       "inputTokenOutput": "Çıktı tokenları",
       "inputTokenCacheRead": "Önbellekten okunan",
       "inputTokenCacheWrite": "Önbelleğe yazılan",
-      "inputTokenHint": "Kaydedilen model isteklerinin toplamı. Önbellek tokenları girdiye dahildir, ayrıca eklenmez."
+      "inputTokenHint": "Kaydedilen model isteklerinin toplamı. Önbellek tokenları girdiye dahildir, ayrıca eklenmez.",
+      "systemRoleChannelDecision": "Kanala katılım kararı (sistem)"
     },
     "adminSettingsLayout": {
       "title": "Dağıtım ayarları",
@@ -6799,7 +6800,25 @@
     "otariEndpointHint": "Modelleri yüklemeden önce /api/v1 ile biten ağ geçidi URL’sini girin. Barındırılan hizmet: https://api.otari.ai/api/v1. AB: https://eu.api.otari.ai/api/v1.",
     "loadGatewayModels": "Modelleri yükle",
     "modelIdOtariHint": "Otari ağ geçidinizde tanımlanan provider:model biçimini veya bir takma ad/yönlendirme politikasını kullanın.",
-    "useDefaultModel": "Varsayılan modeli kullan"
+    "useDefaultModel": "Varsayılan modeli kullan",
+    "observationTitle": "Sohbetlere otomatik katıl",
+    "observationSummary": "Ayrı bir model ne zaman katkı sağlamanın yararlı olacağına karar verir.",
+    "observationOn": "Açık",
+    "observationOff": "Kapalı",
+    "observationConfigure": "Yapılandır",
+    "observationDescription": "Botun erişebildiği tüm kanallardaki yeni iletileri analiz et. Bahsetmeler anında yanıt alır.",
+    "observationEnable": "Otomatik katılımı etkinleştir",
+    "observationDecisionModel": "Karar modeli",
+    "observationFocus": "Odak noktası ve katılma koşulları",
+    "observationTiming": "Dakika cinsinden kontrol aralıkları",
+    "observationUnmentioned": "Ajandan bahsedilmeden önce",
+    "observationMentioned": "Ajandan bahsedildikten sonra",
+    "observationTimingHint": "Yalnızca yeni iletiler analiz edilir. Boş aralıklarda model çağrısı yapılmaz.",
+    "observationAllChannels": "Botun erişebildiği tüm kanallar",
+    "observationAuthorityHint": "Karar modelinin araçları yoktur. Otomatik yanıtlar ana modeli ve bağlı kuruluş MCP hesaplarını normal onay kurallarıyla kullanır. Kişisel hesaplar ve diğer eylem araçları için birinin konuda bottan bahsetmesi gerekir. Onay gerektiren çağrılar otomatik yürütülmez. Her iki modelin maliyeti Activity içinde görünür.",
+    "observationRequired": "Katılım kararını verecek modeli seçin.",
+    "observationSaveFailed": "Kaydedilemedi. Değişiklikler formda duruyor; yeniden deneyin.",
+    "observationSave": "Katılım ayarlarını kaydet"
   },
   "dashboard": {
     "edit": {

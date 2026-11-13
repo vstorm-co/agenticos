@@ -1,5 +1,5 @@
 ---
-source_sha: "eb7978fc7771"
+source_sha: "3d76e4884645"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -83,6 +83,16 @@ otwiera, a on jest liczony na adres, tak jak socket widgetu.
 
     [HTTP API](api.md) opisuje uwierzytelnianie, nagłówek organizacji,
     uruchamianie agenta po HTTP, dwa endpointy WebSocket i kopertę błędu.
+
+## Automatyczne uczestnictwo w kanałach {#automatic-channel-participation}
+
+Opcja jest domyślnie wyłączona na każdym powiązaniu. Osoba z uprawnieniem **Manage channels** włącza ją w **Availability → Chat apps → Configure**. Wybiera osobny model decyzyjny, instrukcję określającą cel, obserwację wszystkich kanałów dostępnych botowi oraz dwa interwały: domyślnie 20 minut przed oznaczeniem agenta w rozmowie i 1 minutę po oznaczeniu. Bezpośrednie oznaczenie nadal wywołuje odpowiedź natychmiast. Sprawdzane są tylko nowe wiadomości ludzi; puste interwały nie wywołują modelu.
+
+Worker grupuje maksymalnie 20 wiadomości po 2000 znaków. Identyfikatory dostarczenia zapobiegają duplikatom przez siedem dni; okna referencyjne wygasają po siedmiu dniach bez aktywności. Zadania przetrwają restart, lecz płatna analiza lub odpowiedź nie jest automatycznie ponawiana. Zmiana lub wyłączenie powiązania, odebranie kontu uprawnień oraz odpowiedź na bezpośrednie oznaczenie unieważniają oczekujące uczestnictwo. Activity oddzielnie zapisuje decyzję małego modelu i odpowiedź agenta oraz koszt obu, także przy błędzie.
+
+Automatyczne odpowiedzi korzystają z głównego modelu i instrukcji opublikowanego agenta oraz zachowują jego budżet, guardraile i ustawienia wyszukiwania narzędzi. Mogą używać wyłącznie kont MCP organizacji jawnie przypiętych do agenta, w granicach list narzędzi połączenia i powiązania. Połączenia prywatne, poświadczenia MCP platformy i pozostałe capabilities wykonujące akcje są niedostępne. Zwykłe zasady akceptacji MCP nadal obowiązują: wywołanie wymagające zgody nie wykona się ani nie zatrzyma przebiegu w oczekiwaniu. Agent wyjaśnia kolejny krok i prosi osobę o oznaczenie go w wątku. Zwykły przebieg korzysta wtedy z jej tożsamości i normalnych ustawień akceptacji. Konto wykonawcze należy do osoby zapisującej konfigurację; aktualne członkostwo i uprawnienie zarządzania kanałami są ponownie sprawdzane przed wywołaniem modelu i dostarczeniem odpowiedzi.
+
+Obserwacja wymaga strumienia wiadomości grupowych: WebSocket lub obserwowany webhook wychodzący Mattermosta; pełne zdarzenia wiadomości Slacka zamiast samego `app_mention`; zgody RSC na wszystkie wiadomości w Teams; odpowiednich ustawień prywatności lub administratora Telegrama; albo dostępu do wiadomości i intentów Discorda. Analizowane są wyłącznie wiadomości dostarczane przez platformę. SMS, email i iMessage zachowują zwykły tryb pytanie–odpowiedź, bez tej obserwacji kanału.
 
 ## Widget na stronie { #the-website-widget }
 

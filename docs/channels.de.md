@@ -1,5 +1,5 @@
 ---
-source_sha: "eb7978fc7771"
+source_sha: "3d76e4884645"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -87,6 +87,16 @@ Seite öffnet, und das wird wie das des Widgets pro Adresse gezählt.
     [Die HTTP-API](api.md) behandelt die Authentifizierung, den
     Organisations-Header, das Ausführen eines Agents über HTTP, die beiden
     WebSocket-Endpunkte und den Fehler-Envelope.
+
+## Automatische Kanalteilnahme {#automatic-channel-participation}
+
+Die Funktion ist für jede Bindung zunächst ausgeschaltet. Ein Mitglied mit **Manage channels** aktiviert sie unter **Availability → Chat apps → Configure** und wählt ein separates Entscheidungsmodell, einen Schwerpunkt, die Beobachtung aller für den Bot zugänglichen Kanäle. Zwei konfigurierbare Intervalle gelten: standardmäßig 20 Minuten vor einer Erwähnung des Agenten im Gespräch und 1 Minute danach. Direkte Erwähnungen werden weiterhin sofort beantwortet. Ohne neue menschliche Nachrichten erfolgt kein Modellaufruf.
+
+Der Worker bündelt höchstens 20 Nachrichten mit jeweils 2.000 Zeichen. Zustellbelege verhindern sieben Tage lang Duplikate; Referenzfenster verfallen nach sieben Tagen ohne Aktivität. Aufgaben überleben Neustarts, bezahlte Analysen und Antworten werden jedoch nicht automatisch wiederholt. Änderungen oder Deaktivierung der Bindung, entzogene Kontorechte sowie eine Antwort auf eine direkte Erwähnung ersetzen wartende Teilnahme. Activity erfasst Entscheidung und Agentenantwort getrennt sowie beide Kosten, auch bei Fehlern.
+
+Automatische Antworten nutzen Hauptmodell und Anweisungen des veröffentlichten Agenten und bewahren Budget, Guardrails und Tool-Suche. Sie dürfen ausschließlich ausdrücklich gebundene MCP-Organisationskonten innerhalb der Tool-Freigaben von Verbindung und Bindung verwenden. Persönliche Verbindungen, Plattform-MCP-Zugangsdaten und andere Aktionsfähigkeiten bleiben unverfügbar. Bestehende MCP-Freigaberegeln gelten weiterhin: Ein freigabepflichtiger Aufruf wird ohne Ausführung oder Parken verweigert. Der Agent erklärt den nächsten Schritt und bittet eine Person um eine Erwähnung im Thread. Der normale Lauf verwendet dann deren Identität und die üblichen Freigabeeinstellungen. Das ausführende Konto gehört dem Mitglied, das die Konfiguration speichert; aktuelle Mitgliedschaft und Kanalverwaltungsrecht werden vor Modellaufrufen und Zustellung erneut geprüft.
+
+Passive Beobachtung benötigt einen tatsächlichen Gruppen-Nachrichtenstrom: Mattermost-WebSocket oder beobachteten ausgehenden Webhook, vollständige Slack-Nachrichtenereignisse statt nur `app_mention`, Teams-RSC für alle Nachrichten, entsprechende Telegram-Datenschutz-/Administratoreinstellungen oder Discord-Nachrichtenzugriff und Intents. Nur vom Anbieter zugestellte Nachrichten werden beobachtet. SMS, E-Mail und iMessage behalten ihr normales Anfrage-Antwort-Verhalten ohne diesen Kanalmodus.
 
 ## Das Website-Widget { #the-website-widget }
 

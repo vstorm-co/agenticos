@@ -16,7 +16,17 @@ export type SessionScope = "run" | "conversation" | "channel" | "user" | "agent"
 export type ExposureSurface =
   "slack" | "telegram" | "mattermost" | "teams" | "sms" | "email" | "discord" | "imessage";
 
+export interface ChannelObservationConfig {
+  enabled: boolean;
+  model_profile_id: string | null;
+  instructions: string;
+  unmentioned_interval_minutes: number;
+  mentioned_interval_minutes: number;
+}
+
 export interface Exposure {
+  observation?: ChannelObservationConfig;
+  observation_user_id?: string | null;
   id: string;
   agent_id: string;
   surface: ExposureSurface;

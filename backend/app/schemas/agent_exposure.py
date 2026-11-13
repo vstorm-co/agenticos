@@ -9,6 +9,7 @@ from pydantic import Field
 from app.db.models.agent_exposure import ExposureSurface
 from app.schemas.base import BaseSchema
 from app.schemas.channel_bot import UsageReporting
+from app.schemas.channel_observer import ChannelObservationConfig
 
 
 class ExposureTool(BaseSchema):
@@ -49,6 +50,8 @@ class ExposureRead(BaseSchema):
     this section on `channels:manage`, which is not who publishes agents.
     """
 
+    observation: ChannelObservationConfig = Field(default_factory=ChannelObservationConfig)
+    observation_user_id: UUID | None = None
     id: UUID
     agent_id: UUID
     surface: ExposureSurface
@@ -143,6 +146,7 @@ class ExposureCreate(BaseSchema):
 
 
 class ExposureUpdate(BaseSchema):
+    observation: ChannelObservationConfig | None = None
     prompt_replaces_defaults: bool | None = Field(
         default=None,
         description="Whether a custom channel prompt replaces presentation defaults; existing prompts remain additions",

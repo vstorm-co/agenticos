@@ -23,7 +23,7 @@ exactly the people it is for.
 
 import re
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -36,6 +36,7 @@ from app.core.audit import record_audit
 from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
+from app.db.locks import LockScope, hold_subject_shared
 from app.db.models.agent_exposure import AgentExposure, ExposureSurface
 from app.db.models.channel_bot import ChannelBot
 from app.db.updates import writable
@@ -49,6 +50,7 @@ from app.schemas.agent_exposure import (
     ExposureVariable,
 )
 from app.schemas.channel_bot import UsageReporting
+from app.schemas.channel_observer import ChannelObservationConfig
 from app.services.agent_registry import AgentRegistryService
 from app.services.capability_contracts import ToolContract, tool_contracts
 from app.services.channels.directory import PLATFORM_TOOLS
@@ -244,6 +246,8 @@ class AgentExposureService:
             environment_id=exposure.environment_id,
             session_scope=exposure.session_scope,
             prompt=exposure.prompt,
+            observation=ChannelObservationConfig.model_validate(exposure.observation or {}),
+            observation_user_id=exposure.observation_user_id,
             prompt_replaces_defaults=exposure.prompt_replaces_defaults is True,
             default_prompt=house_style(surface.value)
             + (
@@ -392,6 +396,18 @@ class AgentExposureService:
         """
         exposure = await self._owned(ctx, agent_id, exposure_id)
         changes = writable(data, over=AgentExposure)
+        if data.observation is not None:
+            from app.services.channels.observation import validate_configuration
+
+            await hold_subject_shared(
+                self.db, LockScope.MODEL_PROFILE_REFERENCES, ctx.organization_id
+            )
+            await validate_configuration(self.db, ctx, exposure, data.observation)
+            changes["observation"] = data.observation.model_dump(mode="json")
+            changes["observation_user_id"] = ctx.user_id
+            changes["observation_generation"] = uuid4()
+        elif exposure.observation and changes:
+            changes["observation_generation"] = uuid4()
         if "prompt" in changes and changes["prompt"] is None:
             changes["prompt_replaces_defaults"] = False
         if changes.get("environment_id") is not None:

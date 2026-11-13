@@ -3221,7 +3221,8 @@
       "inputTokenOutput": "Tokeny wyjściowe",
       "inputTokenCacheRead": "Odczyt cache",
       "inputTokenCacheWrite": "Zapis cache",
-      "inputTokenHint": "Suma zapisanych zapytań modelu. Tokeny cache są częścią wejścia, a nie dodatkową pozycją."
+      "inputTokenHint": "Suma zapisanych zapytań modelu. Tokeny cache są częścią wejścia, a nie dodatkową pozycją.",
+      "systemRoleChannelDecision": "Decyzja o dołączeniu do kanału (system)"
     },
     "sandboxes": {
       "addConnection": "Dodaj połączenie",
@@ -10088,7 +10089,25 @@
       "send_channel_file": "Wysyłanie pliku tutaj",
       "react_to_chat_message": "Odpowiadaj reakcjami emoji"
     },
-    "groupsNotifyOnly": "Powiadomienia otrzymają aktualni członkowie grup. Ten wybór nie przyznaje ani nie ogranicza prawa do akceptacji."
+    "groupsNotifyOnly": "Powiadomienia otrzymają aktualni członkowie grup. Ten wybór nie przyznaje ani nie ogranicza prawa do akceptacji.",
+    "observationTitle": "Dołączaj automatycznie do rozmów",
+    "observationSummary": "Osobny model ocenia, kiedy warto się odezwać.",
+    "observationOn": "Włączone",
+    "observationOff": "Wyłączone",
+    "observationConfigure": "Konfiguruj",
+    "observationDescription": "Analizuj nowe wiadomości na wszystkich kanałach dostępnych botowi. Oznaczenie nadal wywoła odpowiedź natychmiast.",
+    "observationEnable": "Włącz automatyczne uczestnictwo",
+    "observationDecisionModel": "Model podejmujący decyzję",
+    "observationFocus": "Na czym się skupiać i kiedy dołączać",
+    "observationTiming": "Interwały sprawdzania w minutach",
+    "observationUnmentioned": "Zanim agent zostanie oznaczony",
+    "observationMentioned": "Po oznaczeniu agenta",
+    "observationTimingHint": "Analizowane są tylko nowe wiadomości. Puste interwały nie wywołują modelu.",
+    "observationAllChannels": "Wszystkie kanały dostępne botowi",
+    "observationAuthorityHint": "Model decyzyjny nie ma narzędzi. Automatyczne odpowiedzi korzystają z głównego modelu agenta i przypiętych kont MCP organizacji, z ich zwykłymi zasadami akceptacji. Konta prywatne i pozostałe narzędzia wymagają oznaczenia bota przez osobę w wątku. Wywołania wymagające akceptacji nie wykonają się automatycznie. Koszt obu modeli widać w Activity.",
+    "observationRequired": "Wybierz model podejmujący decyzję o dołączeniu do rozmowy.",
+    "observationSaveFailed": "Nie udało się zapisać. Zmiany pozostały w formularzu; spróbuj ponownie.",
+    "observationSave": "Zapisz ustawienia uczestnictwa"
   },
   "steps": {
     "skills-gallery": {

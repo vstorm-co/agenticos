@@ -353,13 +353,14 @@ describe("ExposuresPanel", () => {
     await mount();
 
     await userEvent.type(
-      await screen.findByLabelText("Extra instructions on Acme Support"),
+      await screen.findByLabelText("Channel instructions on Acme Support"),
       "Be terse.",
     );
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
     expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/exposures/e1`, {
       prompt: "Be terse.",
+      prompt_replaces_defaults: true,
     });
   });
 

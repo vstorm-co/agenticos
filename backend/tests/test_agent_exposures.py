@@ -280,6 +280,8 @@ class TestReading:
         service = _service(agent)
         bot = _bot(name="Acme Support")
         exposure = MagicMock(
+            observation={},
+            observation_user_id=None,
             id=uuid.uuid4(),
             agent_id=agent.id,
             surface="slack",
@@ -309,6 +311,8 @@ class TestReading:
         agent = _agent()
         service = _service(agent)
         exposure = MagicMock(
+            observation={},
+            observation_user_id=None,
             id=uuid.uuid4(),
             agent_id=agent.id,
             surface="slack",
@@ -464,7 +468,7 @@ class TestChangingABinding:
         """The update path takes the same shortcut-proof check the create does."""
         agent = _agent()
         service = _service(agent)
-        exposure = MagicMock(id=uuid.uuid4(), agent_id=agent.id)
+        exposure = MagicMock(observation={}, id=uuid.uuid4(), agent_id=agent.id)
 
         with (
             patch("app.services.agent_exposure.agent_exposure_repo") as exposures,
@@ -483,7 +487,7 @@ class TestChangingABinding:
         goes back to serving what everyone else gets, with nothing looked up."""
         agent = _agent()
         service = _service(agent)
-        exposure = MagicMock(id=uuid.uuid4(), agent_id=agent.id)
+        exposure = MagicMock(observation={}, id=uuid.uuid4(), agent_id=agent.id)
 
         with (
             patch("app.services.agent_exposure.agent_exposure_repo") as exposures,
@@ -507,7 +511,7 @@ class TestChangingABinding:
         agent = _agent()
         service = _service(agent)
         audit = AsyncMock()
-        exposure = MagicMock(id=uuid.uuid4(), agent_id=agent.id)
+        exposure = MagicMock(observation={}, id=uuid.uuid4(), agent_id=agent.id)
         with (
             patch("app.services.agent_exposure.agent_exposure_repo") as exposures,
             patch("app.services.agent_exposure.record_audit", new=audit),
@@ -525,7 +529,7 @@ class TestChangingABinding:
         agent = _agent()
         service = _service(agent)
         audit = AsyncMock()
-        exposure = MagicMock(id=uuid.uuid4(), agent_id=agent.id, surface="telegram")
+        exposure = MagicMock(observation={}, id=uuid.uuid4(), agent_id=agent.id, surface="telegram")
         with (
             patch("app.services.agent_exposure.agent_exposure_repo") as exposures,
             patch("app.services.agent_exposure.record_audit", new=audit),
@@ -543,7 +547,7 @@ class TestChangingABinding:
     async def test_changing_a_binding_demands_permission_to_publish_the_agent(self):
         agent = _agent()
         service = _service(agent)
-        exposure = MagicMock(id=uuid.uuid4(), agent_id=agent.id, surface="slack")
+        exposure = MagicMock(observation={}, id=uuid.uuid4(), agent_id=agent.id, surface="slack")
         with (
             patch("app.services.agent_exposure.agent_exposure_repo") as exposures,
             patch("app.services.agent_exposure.record_audit", new=AsyncMock()),
@@ -728,6 +732,8 @@ class TestWhatTheAgentMayLookUpHere:
     @staticmethod
     def _exposure(surface: str, tools: list[str] | None = None, agent_id=None) -> MagicMock:
         return MagicMock(
+            observation={},
+            observation_user_id=None,
             id=uuid.uuid4(),
             agent_id=agent_id or uuid.uuid4(),
             channel_bot_id=uuid.uuid4(),
@@ -948,3 +954,59 @@ async def test_an_edited_complete_channel_prompt_replaces_only_the_surface_defau
     exposure.prompt = None
     reset = await _with_exposure_prompt(spec, exposure)
     assert "You are answering in Slack" in reset.instructions
+
+
+async def test_clearing_a_complete_prompt_restores_live_defaults_in_storage():
+    agent = _agent()
+    service = _service(agent)
+    exposure = MagicMock(observation={}, id=uuid.uuid4(), agent_id=agent.id)
+    with (
+        patch("app.services.agent_exposure.agent_exposure_repo") as exposures,
+        patch("app.services.agent_exposure.record_audit", new=AsyncMock()),
+    ):
+        exposures.get = AsyncMock(return_value=exposure)
+        exposures.update = AsyncMock(return_value=exposure)
+        await service.update(_ctx(), agent.id, exposure.id, ExposureUpdate(prompt=None))
+        assert exposures.update.call_args.kwargs["update_data"] == {
+            "prompt": None,
+            "prompt_replaces_defaults": False,
+        }
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("change", ["observation", "pause"])
+async def test_saving_automatic_participation_rotates_authority_and_records_the_execution_member(
+    change,
+):
+    from app.schemas.channel_observer import ChannelObservationConfig
+
+    agent = _agent()
+    service = _service(agent)
+    exposure = MagicMock(observation={"enabled": True}, id=uuid.uuid4(), agent_id=agent.id)
+    old_generation = uuid.uuid4()
+    exposure.observation_generation = old_generation
+    config = ChannelObservationConfig()
+    with (
+        patch("app.services.agent_exposure.agent_exposure_repo") as exposures,
+        patch("app.services.agent_exposure.record_audit", new=AsyncMock()),
+        patch("app.services.agent_exposure.hold_subject_shared", new=AsyncMock()),
+        patch(
+            "app.services.channels.observation.validate_configuration", new=AsyncMock()
+        ) as validate,
+    ):
+        exposures.get = AsyncMock(return_value=exposure)
+        exposures.update = AsyncMock(return_value=exposure)
+        data = (
+            ExposureUpdate(observation=config)
+            if change == "observation"
+            else ExposureUpdate(is_active=False)
+        )
+        await service.update(_ctx(), agent.id, exposure.id, data)
+    saved = exposures.update.call_args.kwargs["update_data"]
+    assert saved["observation_generation"] != old_generation
+    if change == "observation":
+        assert saved["observation"] == config.model_dump(mode="json")
+        assert saved["observation_user_id"] == _CALLER
+        validate.assert_awaited_once_with(service.db, _ctx(), exposure, config)
+    else:
+        validate.assert_not_awaited()

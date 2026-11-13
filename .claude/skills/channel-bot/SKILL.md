@@ -43,6 +43,10 @@ A decision made outside the chat (console, web chat, session API) continues the 
 Channel metadata remains request-only reference data, outside system instructions
 and the guarded input. Never infer identity or authorization from display labels.
 
+## Automatic participation
+
+`services/channels/observation.py` batches opted-in group messages through durable worker jobs. The binding owns the model, focus, channel scope and 20/1-minute intervals. It is off by default. Only native admitted human messages reach the bounded window; raw provider payloads and credentials never do. The tool-free decision and the main reply use the shared runner with source-agent budgets and guardrails. Main replies may use explicitly bound organization MCP accounts only, retaining allowlists, tool search and approvals. Never resolve personal or platform MCP credentials for an automatic turn. Refuse calls needing approval without parking; ask a participant to mention the bot for normal identity and approval handling. Re-check binding generation, bot admission fingerprint and active execution membership before model requests and delivery. Each paid window has a transactional, single-use claim; never replay uncertain replies.
+
 ## Tokens go through the vault
 
 Bot tokens are sealed with `app/core/vault.py`, bound to the organization.

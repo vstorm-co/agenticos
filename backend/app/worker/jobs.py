@@ -117,6 +117,15 @@ class NoPayload(Payload):
     """For a job whose work is to look at the current state."""
 
 
+class AnalyzeChannel(Payload):
+    organization_id: UUID
+    observation_id: UUID
+    generation: UUID
+    admission_hash: str = Field(min_length=64, max_length=64)
+    revision: int = Field(ge=1)
+    messages: list[dict[str, JsonValue]] = Field(min_length=1, max_length=20)
+
+
 class Tick(Payload):
     """A scheduled job: the occurrence it was fired for, the same on every attempt."""
 
@@ -776,6 +785,16 @@ RECONCILE_CONVERSATION_TASKS = _sweep("reconcile-conversation-tasks", timeout=ti
 SWEEP_GENERATED_MEDIA = _sweep("sweep-generated-media")
 SEND_DIAGNOSTICS = _sweep("send-diagnostics", timeout=timedelta(seconds=60))
 PROACTIVE_SWEEP = _sweep("proactive-sweep")
+CHANNEL_OBSERVATION_SWEEP = _sweep("channel-observation-sweep")
+ANALYZE_CHANNEL = Task(
+    kind="analyze-channel",
+    payload_type=AnalyzeChannel,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(minutes=5),
+    priority=Priority.SCHEDULED,
+    retry_refusal="Wait for new channel messages; automatic replies are not replayed",
+)
 WATCH_SWEEP = _sweep("watch-sweep")
 # Three attempts, unlike the sweeps above: a sweep's next tick is the same work
 # again, but the next report is a week or a month away and covers another window,
@@ -890,6 +909,8 @@ TASKS: dict[str, TaskKind] = {
         SWEEP_GENERATED_MEDIA,
         SEND_DIAGNOSTICS,
         PROACTIVE_SWEEP,
+        CHANNEL_OBSERVATION_SWEEP,
+        ANALYZE_CHANNEL,
         WATCH_SWEEP,
         WEEKLY_USAGE_REPORT,
         MONTHLY_USAGE_REPORT,

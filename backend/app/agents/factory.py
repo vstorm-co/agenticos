@@ -254,11 +254,14 @@ def build_agent(
     test_bindings: frozenset[str] = frozenset(),
     voice: VoiceOptions | None = None,
     answering_call: VoiceOptions | None = None,
+    offer_setup_tools: bool = True,
 ) -> BuiltAgent:
     """Instantiate an agent from its spec.
 
     Args:
         spec: The published (or draft, when previewing) agent definition.
+        offer_setup_tools: Whether to offer implicit setup actions. Restricted
+            automatic turns and answer-only turns cannot expand their setup.
         model_spec: Already-resolved model and credentials.
         run_person: The member who answers for this run, or `None` when nobody
             does - derived by the runner, which alone knows the request. Handed
@@ -562,7 +565,11 @@ def build_agent(
         # Every agent, in text: what it can and cannot do here, from the spec
         # rather than from a prompt that goes stale the moment a capability is
         # switched (#2301). A call is told by its text twin instead.
-        *((SetupBriefing.for_spec(spec, agent_id=agent_id),) if voice is None else ()),
+        *(
+            (SetupBriefing.for_spec(spec, agent_id=agent_id),)
+            if voice is None and offer_setup_tools
+            else ()
+        ),
         *extra_capabilities,
         AnswerUnknownTools(structured=voice is None),
         *(

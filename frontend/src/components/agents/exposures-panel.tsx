@@ -24,6 +24,7 @@ import { ChannelPlatformIcon } from "@/components/channels/channel-platform-icon
 import { ExposurePrompt } from "@/components/agents/exposure-prompt";
 import { ExposureCostReporting } from "@/components/agents/exposure-cost-reporting";
 import { ExposureTools } from "@/components/agents/exposure-tools";
+import { ExposureObservation } from "@/components/agents/exposure-observation";
 import type { ExposureSurface } from "@/types/exposures";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
@@ -75,6 +76,7 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
     setPrompt,
     setTools,
     setUsageReporting,
+    setObservation,
     revoke,
   } = useExposures(agentId);
   const { environments } = useAgentEnvironments(agentId);
@@ -199,6 +201,18 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
                   disabled={setTools.isPending}
                   onChange={(tools) => setTools.mutate({ exposureId: exposure.id, tools })}
                 />
+                {canRegister &&
+                  ["mattermost", "slack", "teams", "telegram", "discord"].includes(
+                    exposure.surface,
+                  ) && (
+                    <ExposureObservation
+                      value={exposure.observation}
+                      disabled={setObservation.isPending}
+                      onSave={(observation) =>
+                        setObservation.mutateAsync({ exposureId: exposure.id, observation })
+                      }
+                    />
+                  )}
                 <ExposurePrompt
                   botName={exposure.channel_bot_name}
                   value={exposure.prompt}

@@ -1109,7 +1109,25 @@
       "send_channel_file": "Hier eine Datei senden",
       "react_to_chat_message": "Mit Emoji reagieren"
     },
-    "groupsNotifyOnly": "Aktuelle Gruppenmitglieder werden benachrichtigt. Dies erteilt oder beschränkt keine Genehmigungsrechte."
+    "groupsNotifyOnly": "Aktuelle Gruppenmitglieder werden benachrichtigt. Dies erteilt oder beschränkt keine Genehmigungsrechte.",
+    "observationTitle": "Automatisch an Gesprächen teilnehmen",
+    "observationSummary": "Ein separates Modell entscheidet, wann ein Beitrag hilfreich ist.",
+    "observationOn": "Ein",
+    "observationOff": "Aus",
+    "observationConfigure": "Konfigurieren",
+    "observationDescription": "Neue Nachrichten werden auf allen für den Bot zugänglichen Kanälen analysiert. Erwähnungen erhalten sofort eine Antwort.",
+    "observationEnable": "Automatische Teilnahme aktivieren",
+    "observationDecisionModel": "Entscheidungsmodell",
+    "observationFocus": "Schwerpunkt und Anlass für Beiträge",
+    "observationTiming": "Prüfintervalle in Minuten",
+    "observationUnmentioned": "Vor der ersten Erwähnung",
+    "observationMentioned": "Nach einer Erwähnung",
+    "observationTimingHint": "Nur neue Nachrichten lösen eine Analyse aus. Leere Intervalle verursachen keine Modellaufrufe.",
+    "observationAllChannels": "Alle für den Bot zugänglichen Kanäle",
+    "observationAuthorityHint": "Das Entscheidungsmodell hat keine Tools. Automatische Antworten nutzen das Hauptmodell und die gebundenen MCP-Organisationskonten mit ihren Freigaberegeln. Persönliche Konten und andere Aktionstools erfordern eine Erwähnung des Bots durch eine Person. Freigabepflichtige Aufrufe werden nicht automatisch ausgeführt. Beide Modellkosten erscheinen in Activity.",
+    "observationRequired": "Wählen Sie das Modell für die Teilnahmeentscheidung.",
+    "observationSaveFailed": "Speichern fehlgeschlagen. Ihre Änderungen bleiben im Formular erhalten.",
+    "observationSave": "Teilnahmeeinstellungen speichern"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -7154,7 +7172,8 @@
       "inputTokenOutput": "Output-Token",
       "inputTokenCacheRead": "Cache gelesen",
       "inputTokenCacheWrite": "Cache geschrieben",
-      "inputTokenHint": "Summe der erfassten Modellanfragen. Cache-Token sind im Input enthalten und werden nicht zusätzlich gezählt."
+      "inputTokenHint": "Summe der erfassten Modellanfragen. Cache-Token sind im Input enthalten und werden nicht zusätzlich gezählt.",
+      "systemRoleChannelDecision": "Entscheidung zur Kanalteilnahme (System)"
     },
     "sandboxes": {
       "addConnection": "Verbindung hinzufügen",

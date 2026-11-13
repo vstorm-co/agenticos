@@ -778,6 +778,9 @@ include = [
     "app/services/channels/feedback.py",
     "app/services/channels/membership.py",
     "app/services/channels/mentions.py",
+    "app/services/channels/observation.py",
+    "app/schemas/channel_observer.py",
+    "app/db/models/channel_observation.py",
     # Approvals and questions offered as buttons in a chat, and the Slack app
     # around the bot (#2064, #2067, #2068).
     "app/services/channels/prompts.py",
@@ -938,6 +941,7 @@ include = [
     "app/schemas/agent_environment.py",
     "app/repositories/agent_environment.py",
     "app/repositories/agent_exposure.py",
+    "app/repositories/channel_observation.py",
     "app/repositories/agent_trigger.py",
     "app/repositories/ingestion_spend.py",
     "app/repositories/mcp_connection.py",
@@ -1342,6 +1346,7 @@ include = [
     "app/services/discord_role_mapping.py",
     "app/services/channels/discord_roles.py",
     "app/worker/tasks/channel_tasks.py",
+    "app/worker/tasks/channel_observation_tasks.py",
     # Node contracts, registry and graph validation (#1786). Mirrors the
     # capability registry's split: typed definitions in code, a graph checked
     # against them before it can be published.
@@ -1654,6 +1659,9 @@ include = [
     "app/services/channels/feedback.py",
     "app/services/channels/membership.py",
     "app/services/channels/mentions.py",
+    "app/services/channels/observation.py",
+    "app/schemas/channel_observer.py",
+    "app/db/models/channel_observation.py",
     # Approvals and questions offered as buttons in a chat, and the Slack app
     # around the bot (#2064, #2067, #2068).
     "app/services/channels/prompts.py",
@@ -1844,6 +1852,7 @@ include = [
     "app/schemas/agent_environment.py",
     "app/repositories/agent_environment.py",
     "app/repositories/agent_exposure.py",
+    "app/repositories/channel_observation.py",
     "app/repositories/agent_trigger.py",
     "app/repositories/ingestion_spend.py",
     "app/repositories/mcp_connection.py",
@@ -2248,6 +2257,7 @@ include = [
     "app/services/discord_role_mapping.py",
     "app/services/channels/discord_roles.py",
     "app/worker/tasks/channel_tasks.py",
+    "app/worker/tasks/channel_observation_tasks.py",
     # Node contracts, registry and graph validation (#1786). Mirrors the
     # capability registry's split: typed definitions in code, a graph checked
     # against them before it can be published.

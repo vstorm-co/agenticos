@@ -1,5 +1,5 @@
 ---
-source_sha: "eb7978fc7771"
+source_sha: "3d76e4884645"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -84,6 +84,20 @@ ese se cuenta por dirección como el del widget.
     [La API HTTP](api.md) cubre la autenticación, la cabecera de organización,
     ejecutar un agent por HTTP, los dos endpoints WebSocket y el sobre de
     errores.
+
+## Participación automática en canales {#automatic-channel-participation}
+
+La función está desactivada por defecto en cada vinculación. Un miembro con **Manage channels** la activa en **Availability → Chat apps → Configure** y elige un modelo de decisión independiente, instrucciones de enfoque, la observación de todos los canales accesibles al bot. Hay dos intervalos configurables: por defecto 20 minutos antes de mencionar al agente en la conversación y 1 minuto después. Las menciones directas siguen recibiendo respuesta inmediata. Sin mensajes humanos nuevos no se llama al modelo.
+
+El worker agrupa como máximo 20 mensajes de 2000 caracteres. Los recibos de entrega evitan duplicados durante siete días y las ventanas de referencia caducan tras siete días sin actividad. Las tareas sobreviven a reinicios, pero los análisis pagados y las respuestas nunca se reintentan automáticamente. Editar o desactivar la vinculación, retirar los permisos de la cuenta o responder a una mención directa invalida la participación pendiente. Activity registra por separado la decisión y la respuesta del agente y el coste de ambos, también en caso de error.
+
+Las respuestas automáticas usan el modelo principal y las instrucciones del agente publicado, conservando su presupuesto, guardrails y búsqueda de herramientas.
+
+Solo pueden utilizar las cuentas MCP de organización vinculadas explícitamente al agente, dentro de las listas de herramientas permitidas por la conexión y la vinculación. Las conexiones personales, credenciales MCP de la plataforma y otras capacidades de acción no están disponibles. Se mantienen las reglas de aprobación MCP: una llamada que necesita aprobación se rechaza sin ejecutarla ni aparcar el flujo. El agente explica el siguiente paso y pide que una persona lo mencione en el hilo; el flujo normal usa entonces su identidad y los ajustes habituales de aprobación.
+
+La cuenta ejecutora pertenece al miembro que guarda la configuración; se comprueban de nuevo su pertenencia y permiso de gestión de canales antes de llamar al modelo y entregar la respuesta.
+
+La observación pasiva requiere un flujo real de mensajes grupales: WebSocket de Mattermost o webhook saliente supervisado, eventos completos de Slack en lugar de solo `app_mention`, consentimiento RSC de todos los mensajes en Teams, los ajustes de privacidad/administración necesarios en Telegram o acceso a mensajes e intents de Discord. Solo se observan mensajes entregados por el proveedor. SMS, email e iMessage mantienen su comportamiento normal de solicitud y respuesta sin este modo de canal.
 
 ## El widget de sitio web { #the-website-widget }
 

@@ -9,6 +9,7 @@ import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import type { UsageReporting } from "@/types/channels";
 import type { Exposure, ExposureList, ExposureTarget, ExposureTargetList } from "@/types/exposures";
+import type { ChannelObservationConfig } from "@/types/exposures";
 
 /**
  * Where one agent is available, and where it could be.
@@ -124,6 +125,18 @@ export function useExposures(agentId: string | null) {
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
+  const setObservation = useMutation({
+    mutationFn: ({
+      exposureId,
+      observation,
+    }: {
+      exposureId: string;
+      observation: ChannelObservationConfig;
+    }) => apiClient.patch<Exposure>(`${base}/${exposureId}`, { observation }),
+    onSuccess: invalidate,
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+  });
+
   const revoke = useMutation({
     mutationFn: (exposureId: string) => apiClient.delete<void>(`${base}/${exposureId}`),
     onSuccess: async () => {
@@ -153,6 +166,7 @@ export function useExposures(agentId: string | null) {
     setPrompt,
     setTools,
     setUsageReporting,
+    setObservation,
     revoke,
   };
 }

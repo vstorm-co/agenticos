@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Opt-in automatic channel participation with a separate decision model, focus instructions, bounded message windows and configurable pre-/post-mention intervals. Automatic replies can use bound organization MCP accounts; private accounts and calls needing human approval require a direct mention.
+
 - Organization groups in workflow human/MCP approvals and agent notification audiences. Decisions use current eligible membership; empty or deleted configured groups never become unrestricted approval.
 
 

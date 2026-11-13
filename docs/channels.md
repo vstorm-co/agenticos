@@ -78,6 +78,20 @@ counted per address like the widget's.
     running an agent over HTTP, the two WebSocket endpoints and the error
     envelope.
 
+## Automatic channel participation
+
+Automatic participation is off on every binding until a member with **Manage channels** enables it in **Availability → Chat apps → Configure**. Choose a separate decision model, a focus prompt, automatic observation of all channels the bot can access, and two intervals: 20 minutes before the agent is mentioned in a conversation and 1 minute afterwards by default. An explicit mention still runs immediately. Only new human messages trigger a check; empty intervals cause no model call.
+
+The worker batches at most 20 messages of 2,000 characters each. Native delivery receipts deduplicate messages for seven days, and reference windows expire after seven days without activity. Jobs survive restarts, but a paid analysis/reply is never retried automatically. Editing or disabling the binding, revoking its execution account, or answering a direct mention supersedes queued participation. Activity records the small-model decision separately from the full agent's answer and records both costs, including failed calls.
+
+Automatic replies use the published agent's main model and instructions, preserving its budget, guardrails and tool search settings.
+
+They may use only organization MCP accounts explicitly bound to that agent, within the connection and binding allowlists. Personal connections, platform MCP credentials and other action capabilities are unavailable. Existing MCP approval policies still apply: a call needing approval is refused without parking or performing it. The agent explains the next step and asks someone to mention it in the thread; the ordinary run then follows that person’s identity and normal approval settings.
+
+The execution account is the member who saves the configuration, and its current membership and channel-management permission are checked again before model requests and delivery.
+
+Passive observation requires an actual group-message feed: Mattermost's WebSocket stream or a watched outgoing webhook; Slack full message events rather than only `app_mention`; Teams all-message resource-specific consent; Telegram delivery with the necessary privacy/admin settings; or Discord message access and intents. Only messages the provider delivers are observed. SMS, email and iMessage retain their normal request/reply behavior; they do not offer this ambient channel mode.
+
 ## The website widget
 
 The shortest path. Publish the agent, create an embed, paste two lines.

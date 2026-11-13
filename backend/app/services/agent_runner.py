@@ -242,6 +242,7 @@ from app.agents.spec import (
     ExternalAgentRef,
     McpServerRef,
     ObservabilitySpec,
+    OrgMcpServerRef,
     PersonalMcpServerRef,
     PlatformMcpServerRef,
     SkillBindingSpec,
@@ -2824,6 +2825,15 @@ def _answer_only(spec: AgentSpec) -> AgentSpec:
     )
 
 
+def _organization_mcp_only(spec: AgentSpec) -> AgentSpec:
+    """An unattended channel turn can use the agent's organization accounts only."""
+    return _answer_only(spec).model_copy(
+        update={
+            "mcp_servers": [ref for ref in spec.mcp_servers if isinstance(ref, OrgMcpServerRef)]
+        }
+    )
+
+
 def _with_channel_service_approval(
     spec: AgentSpec, surface: RunSurface, *, linked_sender: bool = False
 ) -> AgentSpec:
@@ -3693,6 +3703,7 @@ class AgentRunnerService:
         draft: bool = False,
         test: bool = False,
         aside: bool = False,
+        organization_mcp_only: bool = False,
         source_run: AgentRun | None = None,
         watch_receipt: WatchReadReceipt | None = None,
     ) -> PreparedRun:
@@ -3842,6 +3853,8 @@ class AgentRunnerService:
             spec = without_voice_unavailable(spec)
         if aside:
             spec = _answer_only(spec)
+        if organization_mcp_only:
+            spec = _organization_mcp_only(spec)
         prepared = await self._assemble(
             ctx,
             agent=agent,
@@ -3866,6 +3879,7 @@ class AgentRunnerService:
             approval_mode=await self._allowed_approval_mode(ctx, approval_mode, surface=surface),
             local=local,
             answer_only=aside,
+            organization_mcp_only=organization_mcp_only,
             # Passed in rather than set on the built deps like `on_compaction`:
             # whether a gap is briefed or offered as a tool decides what is built.
             request_connection=request_connection,
@@ -4007,6 +4021,7 @@ class AgentRunnerService:
         approval_mode: ApprovalMode = ApprovalMode.FOLLOW_AGENT,
         local: LocalTarget | None = None,
         answer_only: bool = False,
+        organization_mcp_only: bool = False,
         specialists: Mapping[str | None, Sequence[RegisteredSpecialist]] | None = None,
         discovered_delegates: dict[str, list[SubagentRef]] | None = None,
         mirage_authorities: dict[str, str] | None = None,
@@ -5112,6 +5127,12 @@ class AgentRunnerService:
             on_use = None
             computer_on_use = None
 
+        if organization_mcp_only:
+            spec = _organization_mcp_only(spec)
+            extra_toolsets = []
+            on_use = None
+            computer_on_use = None
+
         built = build_agent(
             spoken_spec if voice is not None else spec,
             model_spec,
@@ -5144,7 +5165,7 @@ class AgentRunnerService:
             org_monthly_budget_usd=organization.monthly_budget_usd,
             run_limit_usd=run_limit_usd,
             group_limits=group_limits,
-            request_approval=channel,
+            request_approval=None if organization_mcp_only else channel,
             routine_action_check=None if routine is None else routine.action_policy,
             gate_every_tool=approval_mode is ApprovalMode.ASK_ALL,
             # Both from one read of the conversation (see
@@ -5157,6 +5178,7 @@ class AgentRunnerService:
             isolation=isolation,
             test_bindings=test_bindings,
             voice=None if voice is None else voice.options,
+            offer_setup_tools=not (answer_only or organization_mcp_only),
         )
 
         # Both only assignable now, and both before the run starts. The guard and
@@ -7131,11 +7153,18 @@ class AgentRunnerService:
         watch_receipt: WatchReadReceipt | None = None,
         conversation_task_id: UUID | None = None,
         result_only: bool = False,
+        organization_mcp_only: bool = False,
         on_run_open: Callable[[AgentRun], Awaitable[None]] | None = None,
         check_model_request: Callable[[AsyncSession], Awaitable[None]] | None = None,
         on_segment: Callable[[RunSegment], Awaitable[None]] | None = None,
     ) -> tuple[str, AgentRun]:
         """Run an agent to completion and return its answer.
+
+        `organization_mcp_only` is an unattended channel turn: only organization
+        MCP bindings and answer-shaping capabilities survive. Personal/platform
+        credentials, implicit setup and action tools are unavailable. Gated calls
+        are refused without parking; the agent asks a person to mention it for
+        the normal identity and approval flow instead of approving itself.
 
         `check_model_request` validates additional trusted context before every
         provider request, including nested models. It receives a fresh, short-lived
@@ -7243,6 +7272,7 @@ class AgentRunnerService:
             run_limit_usd=run_limit_usd,
             public_origin=public_origin,
             aside=aside or result_only,
+            organization_mcp_only=organization_mcp_only,
             draft=draft,
             watch_receipt=watch_receipt,
         )
