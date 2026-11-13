@@ -1502,6 +1502,32 @@
       "scrollAttachmentsRight": "Spätere Anhänge",
       "send": "Nachricht senden",
       "speechError": "Fehler bei der Spracherkennung",
+      "speech": {
+        "micDenied": {
+          "title": "Mikrofon für diese Website blockiert",
+          "body": "Klicken Sie auf das Symbol links neben der Adressleiste, stellen Sie Mikrofon auf Zulassen und versuchen Sie es erneut."
+        },
+        "micInsecure": {
+          "title": "Diese Seite kann das Mikrofon nicht verwenden",
+          "body": "Browser geben das Mikrofon nur über HTTPS oder auf localhost frei. Bitten Sie Ihren Administrator, die Konsole über HTTPS bereitzustellen."
+        },
+        "micNotFound": {
+          "title": "Kein Mikrofon gefunden",
+          "body": "Schließen Sie ein Mikrofon an oder prüfen Sie, ob Ihr System dem Browser den Zugriff erlaubt, und versuchen Sie es erneut."
+        },
+        "unavailable": {
+          "title": "Die Spracherkennung Ihres Browsers ist nicht verfügbar",
+          "body": "Dieser Agent hat keinen Speech-to-Text-Anbieter fürs Diktieren, deshalb transkribiert der Browser, und sein Dienst hat abgelehnt. Bitten Sie einen Administrator, Diktieren für diesen Agent einzurichten, oder verwenden Sie einen anderen Browser."
+        },
+        "network": {
+          "title": "Der Spracherkennungsdienst war nicht erreichbar",
+          "body": "Ihr Browser sendet, was Sie sagen, an seinen Spracherkennungsdienst, und die Verbindung ist fehlgeschlagen. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut."
+        },
+        "noSpeech": {
+          "title": "Nichts Gesprochenes gehört",
+          "body": "Prüfen Sie, ob das Mikrofon stummgeschaltet ist, und versuchen Sie es erneut."
+        }
+      },
       "stopGenerating": "Erzeugen stoppen",
       "stopRecording": "Aufnahme stoppen",
       "uploadFailed": "Upload fehlgeschlagen",
@@ -3768,7 +3794,11 @@
         "rateLimitedBody": "Zu viele Aufnahmen in einer Minute.",
         "keptBody": "Ihre Aufnahme ({duration}) bleibt erhalten, bis Sie sie erneut senden oder verwerfen.",
         "notSetUpTitle": "Spracheingabe ist gerade nicht verfügbar.",
-        "notSetUpBody": "Bitte tippen Sie Ihre Nachricht stattdessen ein."
+        "notSetUpBody": "Bitte tippen Sie Ihre Nachricht stattdessen ein.",
+        "browserUnavailable": "<strong>Spracheingabe ist in diesem Browser nicht verfügbar.</strong> Bitte tippen Sie Ihre Nachricht stattdessen ein oder verwenden Sie einen anderen Browser.",
+        "browserNetwork": "<strong>Der Spracherkennungsdienst war nicht erreichbar.</strong> Prüfen Sie Ihre Verbindung und versuchen Sie es erneut oder tippen Sie Ihre Nachricht ein.",
+        "browserNoSpeech": "<strong>Nichts Gesprochenes gehört.</strong> Prüfen Sie, ob das Mikrofon stummgeschaltet ist, und versuchen Sie es erneut.",
+        "browserFailed": "<strong>Die Spracheingabe wurde unterbrochen.</strong> Versuchen Sie es erneut oder tippen Sie Ihre Nachricht ein."
       }
     },
     "voice": {

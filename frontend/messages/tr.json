@@ -8855,6 +8855,32 @@
       "scrollAttachmentsRight": "Sonraki ekler",
       "send": "Mesajı gönder",
       "speechError": "Konuşma tanıma hatası",
+      "speech": {
+        "micDenied": {
+          "title": "Bu site için mikrofon engellenmiş",
+          "body": "Adres çubuğunun solundaki simgeye tıklayın, Mikrofon'u İzin ver olarak ayarlayıp yeniden deneyin."
+        },
+        "micInsecure": {
+          "title": "Bu sayfa mikrofonu kullanamıyor",
+          "body": "Browser'lar mikrofonu yalnızca HTTPS veya localhost üzerinden açar. Yöneticinizden console'u HTTPS üzerinden sunmasını isteyin."
+        },
+        "micNotFound": {
+          "title": "Mikrofon bulunamadı",
+          "body": "Mikrofon bağlayın veya sisteminizin browser'a izin verdiğini denetleyin; sonra yeniden deneyin."
+        },
+        "unavailable": {
+          "title": "Browser'ın konuşma tanıması kullanılamıyor",
+          "body": "Bu Agent'ın dikte için speech-to-text provider'ı yok, bu nedenle metne browser çeviriyor ve hizmeti reddetti. Bir yöneticiden bu Agent için dikteyi ayarlamasını isteyin veya başka bir browser deneyin."
+        },
+        "network": {
+          "title": "Konuşma tanıma hizmetine ulaşılamadı",
+          "body": "Browser'ınız söylediklerinizi konuşma tanıma hizmetine gönderir ve bağlantı başarısız oldu. Bağlantınızı kontrol edip yeniden deneyin."
+        },
+        "noSpeech": {
+          "title": "Konuşma duyulmadı",
+          "body": "Mikrofonun kapalı olmadığını denetleyip yeniden deneyin."
+        }
+      },
       "stopGenerating": "Oluşturmayı durdur",
       "stopRecording": "Kaydı durdur",
       "uploadFailed": "Yükleme başarısız oldu",
@@ -9961,7 +9987,11 @@
         "rateLimitedBody": "Bir dakika içinde çok fazla kayıt yapıldı.",
         "keptBody": "{duration} uzunluğundaki kaydınız yeniden deneyene veya atana kadar saklanır.",
         "notSetUpTitle": "Sesli giriş şu anda kullanılamıyor.",
-        "notSetUpBody": "Lütfen mesajınızı yazarak gönderin."
+        "notSetUpBody": "Lütfen mesajınızı yazarak gönderin.",
+        "browserUnavailable": "<strong>Sesli giriş bu browser'da kullanılamıyor.</strong> Lütfen mesajınızı yazarak gönderin veya başka bir browser deneyin.",
+        "browserNetwork": "<strong>Konuşma tanıma hizmetine ulaşılamadı.</strong> Bağlantınızı kontrol edip yeniden deneyin veya mesajınızı yazarak gönderin.",
+        "browserNoSpeech": "<strong>Konuşma duyulmadı.</strong> Mikrofonun sessizde olmadığını kontrol edip yeniden deneyin.",
+        "browserFailed": "<strong>Sesli giriş durdu.</strong> Yeniden deneyin veya mesajınızı yazarak gönderin."
       }
     },
     "voice": {
