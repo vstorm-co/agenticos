@@ -49,9 +49,12 @@ export function ImproveCaseDialog({
   const queryClient = useQueryClient();
   const { editable, isLoading, error, refetch, search, target, choose, remember } =
     useDatasetTarget();
+  // A failed listing hides the picker, so a dataset remembered from before is not
+  // one the person can see: nothing may be consented to or sent until it reloads.
+  const chosen = error ? undefined : target;
   // Consent names the dataset it was given for: one resolved or chosen later voids it.
   const [consentedTo, setConsentedTo] = useState<string | null>(null);
-  const confirmed = target !== undefined && consentedTo === target.id;
+  const confirmed = chosen !== undefined && consentedTo === chosen.id;
   const [input, setInput] = useState(episode.situation);
   const [reference, setReference] = useState(episode.correction ?? episode.choice);
   const add = useMutation({
@@ -129,21 +132,21 @@ export function ImproveCaseDialog({
           <label className="flex items-center gap-2 text-sm">
             <Checkbox
               checked={confirmed}
-              disabled={target === undefined}
-              onCheckedChange={(value) => setConsentedTo(value === true ? target!.id : null)}
+              disabled={chosen === undefined}
+              onCheckedChange={(value) => setConsentedTo(value === true ? chosen!.id : null)}
             />
             {t("consent")}
           </label>
           {add.error ? <p role="alert">{getErrorMessage(add.error, errors)}</p> : null}
           <Button
             disabled={
-              target === undefined ||
+              chosen === undefined ||
               !confirmed ||
               !input.trim() ||
               !reference.trim() ||
               add.isPending
             }
-            onClick={() => target !== undefined && add.mutate(target)}
+            onClick={() => chosen !== undefined && add.mutate(chosen)}
           >
             {t("add")}
           </Button>

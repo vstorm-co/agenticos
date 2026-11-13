@@ -181,6 +181,13 @@ it("says when the datasets could not be listed and offers a retry", async () => 
   await userEvent.click(screen.getByRole("button", { name: "Retry" }));
   expect(state.refetch).toHaveBeenCalled();
 });
+it("lets nothing be consented to or sent while the datasets cannot be listed", async () => {
+  state.error = new Error("Listing failed");
+  mount();
+  await userEvent.click(screen.getByRole("button", { name: "Add as an Improve case" }));
+  expect(screen.getByRole("checkbox")).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Add reviewed case" })).toBeDisabled();
+});
 it("voids consent when the dataset it was given for is replaced", async () => {
   const queries = client();
   const view = mount(claim, queries);
