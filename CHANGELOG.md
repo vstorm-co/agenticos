@@ -21,6 +21,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Read Mattermost thread history in creation-time order and honor result limits even when the platform returns an unordered or oversized thread. Use the thread endpoint's native paging parameters for both text and attachment backfill.
 - Discover both search and fetch tools from multi-query local tool search, including MCP tools with long descriptions.
 - Keep channel author metadata separate from user messages, without inserting an empty message marker. Ignore Mattermost system housekeeping posts before they can start paid agent runs.
 

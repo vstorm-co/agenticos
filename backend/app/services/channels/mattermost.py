@@ -32,7 +32,7 @@ import json
 import logging
 import re
 import secrets
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.parse import parse_qs, quote
@@ -125,6 +125,23 @@ def _posted_at(create_at: Any) -> datetime | None:
     if not isinstance(create_at, int | float) or not create_at:
         return None
     return datetime.fromtimestamp(create_at / 1000, UTC)
+
+
+def _recent_post_ids(
+    posts: Mapping[str, Mapping[str, object]], order: Sequence[str], limit: int
+) -> list[str]:
+    """Select recent human posts by creation time, independent of API order."""
+    return sorted(
+        (
+            post_id
+            for post_id in order
+            if post_id in posts and not str(posts[post_id].get("type") or "").startswith("system_")
+        ),
+        key=lambda post_id: (
+            _posted_at(posts[post_id].get("create_at")) or datetime.min.replace(tzinfo=UTC),
+            post_id,
+        ),
+    )[-limit:]
 
 
 def decode_webhook_body(raw: str) -> dict[str, Any]:
@@ -877,10 +894,9 @@ class MattermostAdapter(ChannelAdapter):
         thread, "summarise what we decided above" summarised the rest of the room
         (#1353).
 
-        Both endpoints answer the same `{order, posts}` shape, so the reversal and
-        the system-message filter below serve either. `order` comes back newest
-        first, and a model reading a conversation top to bottom wants it the way a
-        person would.
+        Both endpoints answer `{order, posts}`, but the thread order is not
+        reliably chronological and its paging parameters differ. Sort by creation
+        time and enforce the requested bound locally as well as at the API.
         """
         base_url = self._server(api_base_url)
         headers = self._headers(bot_token)
@@ -893,17 +909,20 @@ class MattermostAdapter(ChannelAdapter):
             response = await client.get(
                 url,
                 headers=headers,
-                params={"per_page": limit},
+                params=(
+                    {
+                        "perPage": limit,
+                        "fromCreateAt": int(datetime.now(UTC).timestamp() * 1000),
+                        "direction": "up",
+                    }
+                    if thread_id
+                    else {"per_page": limit}
+                ),
             )
             response.raise_for_status()
             payload = response.json()
             posts = payload.get("posts") or {}
-            order = [
-                post_id
-                for post_id in reversed(payload.get("order") or [])
-                # "somebody joined the channel" is not what was said in it.
-                if not str((posts.get(post_id) or {}).get("type") or "").startswith("system_")
-            ]
+            order = _recent_post_ids(posts, payload.get("order") or [], limit)
             if not order:
                 return []
 
@@ -956,16 +975,20 @@ class MattermostAdapter(ChannelAdapter):
             response = await client.get(
                 f"{base_url}/api/v4/posts/{thread_id}/thread",
                 headers=self._headers(bot_token),
-                params={"per_page": limit},
+                params={
+                    "perPage": limit,
+                    "fromCreateAt": int(datetime.now(UTC).timestamp() * 1000),
+                    "direction": "up",
+                },
             )
             response.raise_for_status()
             payload = response.json()
 
         posts = payload.get("posts") or {}
         found: list[IncomingAttachment] = []
-        # `order` is newest first, like every Mattermost listing; reversed so the
-        # caller's "keep the last few" keeps the most recent, not the oldest.
-        for post_id in reversed(payload.get("order") or []):
+        # Thread endpoints can return more posts than requested, in arbitrary
+        # order. Bound the scan and retain chronological attachment selection.
+        for post_id in _recent_post_ids(posts, payload.get("order") or [], limit):
             post = posts.get(post_id) or {}
             props = post.get("props") or {}
             # Its own uploads: a chart it drew, a file it returned. Feeding those
