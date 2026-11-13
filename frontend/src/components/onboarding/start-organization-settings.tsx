@@ -25,10 +25,13 @@ import styles from "./guided-start.module.css";
 export function StartOrganizationSettings({
   org,
   onContinue,
+  onBack,
   active = true,
 }: {
   org: Organization;
   onContinue: () => void;
+  /** Back to the wizard's previous step, from this step's first question. */
+  onBack?: () => void;
   active?: boolean;
 }) {
   const t = useTranslations("start.guided");
@@ -53,14 +56,15 @@ export function StartOrganizationSettings({
     );
   if (!isLoaded)
     return <StartSkeleton fullPage={false} view={budgetDone ? "organization" : "budget"} />;
-  if (showBudget) return <StartBudget org={org} onContinue={() => setBudgetDone(true)} />;
+  if (showBudget)
+    return <StartBudget org={org} onBack={onBack} onContinue={() => setBudgetDone(true)} />;
   return (
     <StartQuestion
       index={can(Perm.budgetsManage) ? 1 : 0}
       total={can(Perm.budgetsManage) ? 2 : 1}
       title={t("workspaceReadyTitle")}
       message={t("workspaceReadyGuide")}
-      onBack={can(Perm.budgetsManage) ? () => setBudgetDone(false) : undefined}
+      onBack={can(Perm.budgetsManage) ? () => setBudgetDone(false) : onBack}
       onContinue={onContinue}
     >
       <div className={styles.preview}>

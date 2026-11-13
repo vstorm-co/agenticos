@@ -25,10 +25,13 @@ const QUESTIONS = ["access", "destination", "announcement", "extras"] as const;
 export function StartDeployment({
   org,
   onContinue,
+  onBack,
   active = true,
 }: {
   org: Organization;
   onContinue: () => void;
+  /** Back to the wizard's previous step, from this step's first question. */
+  onBack?: () => void;
   active?: boolean;
 }) {
   const t = useTranslations("start.guided");
@@ -101,7 +104,7 @@ export function StartDeployment({
               const previous = QUESTIONS[index - 1];
               if (previous) setQuestion(previous);
             }
-          : undefined
+          : onBack
       }
       onContinue={() => void submit()}
       onSkip={index < QUESTIONS.length - 1 ? next : undefined}

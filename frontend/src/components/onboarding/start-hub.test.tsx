@@ -122,7 +122,7 @@ it.each(["close", "escape"])(
     const action = screen.getByRole("button", { name: "Get access to an agent" });
     await userEvent.click(action);
     const dialog = screen.getByRole("dialog", {
-      name: "Your workspace needs a little preparation",
+      name: "Your organization needs a little preparation",
     });
     expect(within(dialog).getByRole("link", { name: "owner@example.com" })).toHaveAttribute(
       "href",
@@ -144,7 +144,7 @@ it.each([true, false])(
     env.data.can_configure_model = allowAdd;
     render(<StartHub />);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Set up my agent" }));
+    await userEvent.click(screen.getByRole("button", { name: "Connect a model" }));
     const dialog = screen.getByRole("dialog", { name: "Connect AI and prepare your first task" });
     expect(
       within(dialog).getByText(allowAdd ? "Can add a model" : "Existing models only"),
@@ -158,7 +158,7 @@ it("uses the saved choice on return", () => {
   env.data.goal = "compare";
   render(<StartHub />);
   expect(screen.getByRole("radio", { name: /Compare options/ })).toBeChecked();
-  expect(screen.getByRole("status")).toHaveTextContent("Choice saved to this workspace");
+  expect(screen.getByRole("status")).toHaveTextContent("Choice saved to this organization");
 });
 it("keeps demonstrations and access help available during a pending choice save", async () => {
   let finish: (() => void) | undefined;
@@ -188,7 +188,7 @@ it("keeps the chosen demonstration if preferences fail", async () => {
   expect(
     within(screen.getByRole("region", { name: "Compare three offers" })).getByRole("alert"),
   ).toHaveTextContent("Your choice wasn't saved");
-  expect(screen.queryByText("Choice saved to this workspace")).not.toBeInTheDocument();
+  expect(screen.queryByText("Choice saved to this organization")).not.toBeInTheDocument();
 });
 it("hands only an explicitly requested task to the selected runnable agent", async () => {
   if (!env.data) throw new Error("missing fixture");
@@ -248,7 +248,7 @@ it("does not present a failed read as an empty workspace", () => {
 it("explains an account with no assigned organization", () => {
   env.organizations = [];
   render(<StartHub />);
-  expect(screen.getByRole("heading", { name: "Choose your workspace" })).toBeVisible();
+  expect(screen.getByRole("heading", { name: "Choose your organization" })).toBeVisible();
 });
 
 it("starts an application administrator with setup even without a membership", () => {
@@ -296,6 +296,20 @@ it("lets a member enter the trusted draft setup chat instead of blocking on admi
   expect(url.searchParams.get("example")).toBe("meeting");
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   expect(screen.queryByText("Can add a model")).not.toBeInTheDocument();
+});
+
+it("offers an owner who may prepare an agent the model to connect, not an administrator to wait for", async () => {
+  if (!env.data) throw new Error("Missing onboarding fixture");
+  env.data.setup_agent = { id: "starter", name: "AgenticOS" };
+  env.data.can_prepare = true;
+  render(<StartHub />);
+  expect(screen.getByText(/Connect a model when you are ready/)).toBeVisible();
+  expect(screen.queryByText(/You can open the chat now/)).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Connect a model" }));
+  expect(
+    screen.getByRole("dialog", { name: "Connect AI and prepare your first task" }),
+  ).toBeVisible();
+  expect(env.push).not.toHaveBeenCalled();
 });
 
 it("prefers an accessible published agent over setup guidance", async () => {

@@ -150,7 +150,7 @@ it("does not move old users or change the default role when choosing a company",
   render(<StartDeployment org={org} onContinue={env.next} />);
   await proceed();
   await userEvent.click(screen.getByRole("button", { name: /Northwind/ }));
-  await userEvent.click(screen.getByRole("switch", { name: "Also create personal workspaces" }));
+  await userEvent.click(screen.getByRole("switch", { name: "Also create personal organizations" }));
   await proceed();
   expect(env.save).toHaveBeenCalledWith({
     default_organization_id: "company",
@@ -166,6 +166,23 @@ it("keeps drafts when navigating between questions and does not write on view", 
     "true",
   );
   expect(env.save).not.toHaveBeenCalled();
+});
+it("leaves the step from its first question through the wizard's Back, and from later ones to the question before", async () => {
+  const back = vi.fn();
+  render(<StartDeployment org={org} onContinue={env.next} onBack={back} />);
+  await userEvent.click(await screen.findByRole("button", { name: "Back" }));
+  expect(back).toHaveBeenCalledOnce();
+
+  await proceed();
+  await userEvent.click(screen.getByRole("button", { name: "Back" }));
+  expect(back).toHaveBeenCalledOnce();
+  expect(screen.getByRole("button", { name: /Self-service sign-up/ })).toBeVisible();
+});
+it("leaves organization settings from the budget question through the wizard's Back", async () => {
+  const back = vi.fn();
+  render(<StartBudget org={org} onContinue={env.next} onBack={back} />);
+  await userEvent.click(screen.getByRole("button", { name: "Back" }));
+  expect(back).toHaveBeenCalledOnce();
 });
 it("offers maintenance guidance without an activation switch", async () => {
   env.settings.maintenance_mode = true;

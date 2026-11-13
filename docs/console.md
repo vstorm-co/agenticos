@@ -980,12 +980,12 @@ The administration organization directory shows the uploaded organization pictur
 
 ## Your first task
 
-In a new workspace, the shipped **AgenticOS** is selected before publication unless you chose another default. Its first message can explain model setup and show a configuration card without executing the draft or calling an AI provider. The reply and card remain in chat history. Builders can open the agent's model settings; other members see administrator guidance and the deployment's support contact when configured. Choose a model, add a key if required and publish the agent before normal AI replies can run. Ordinary drafts and archived agents remain unavailable for execution.
+In a new organization, the shipped **AgenticOS** is selected before publication unless you chose another default. Its first message can explain model setup and show a configuration card without executing the draft or calling an AI provider. The reply and card remain in chat history. Builders can open the agent's model settings; other members see administrator guidance and the deployment's support contact when configured. Choose a model, add a key if required and publish the agent before normal AI replies can run. Ordinary drafts and archived agents remain unavailable for execution.
 
-When no published agent is available, onboarding also offers an accessible shipped AgenticOS draft as a setup chat. Members can open it without model-management permissions; it provides configuration guidance, not an AI task result. Inaccessible drafts remain unavailable, and an accessible published agent takes precedence.
+When no published agent is available, onboarding offers somebody who may prepare an agent **Connect a model**, which picks a model and prepares one. Everybody else is offered an accessible shipped AgenticOS draft as a setup chat. Members can open it without model-management permissions; it provides configuration guidance, not an AI task result. Inaccessible drafts remain unavailable, and an accessible published agent takes precedence.
 
 Closing the start banner or choosing **Hide for 24 hours** snoozes the offer for 24 hours,
-using server time. It can return afterward if setup is unfinished and the workspace still
+using server time. It can return afterward if setup is unfinished and the organization still
 needs a first start. After going through the questions, **Finish setup and open the app**
 records completion for this membership. Optional fields, invitations, a model, an agent
 and an AI run are not required. Completion and a successful task are separate states.
@@ -1002,14 +1002,14 @@ The start follows the person's authority and existing work:
 
 | Person | Guided start |
 | --- | --- |
-| Application administrator | Create or choose a company workspace, prepare identity and invitations, then decide how future accounts join. |
-| Organization administrator | Prepare their workspace and its spending limit; no deployment controls. |
+| Application administrator | Create or choose a company organization, prepare identity and invitations, then decide how future accounts join. |
+| Organization administrator | Prepare their organization and its spending limit; no deployment controls. |
 | New member account | Welcome, optional personal profile and work context, then a first task. |
-| Existing account joining another organization | Welcome to that workspace; use the saved personal profile or deliberately review it. |
+| Existing account joining another organization | Welcome to that organization; use the saved personal profile or deliberately review it. |
 
 A scripted AgenticOS companion explains each decision. These are interface messages,
 not model responses, and they make no AI calls. Personal identity and work context
-follow the account across workspaces. Optional details can be skipped. **Save and
+follow the account across organizations. Optional details can be skipped. **Save and
 continue** advances after a successful save; a failed save keeps the current question.
 
 Deployment setup asks about registration, the destination of future accounts and
@@ -1026,7 +1026,7 @@ runs can be blocked. This is a ceiling for tracked usage, not a subscription or
 prepaid credit. Advanced approvals, assistants and voice settings stay collapsed
 and retain their usual permissions and save actions.
 
-The URL keeps the current step, setup question and workspace for a reload. It does not preserve
+The URL keeps the current step, setup question and organization for a reload. It does not preserve
 unsaved field edits, grant access or mark completion. A changed organization or
 revoked authority cannot restore a privileged step. Finishing the last step records
 membership completion even when optional fields and AI setup were skipped.
