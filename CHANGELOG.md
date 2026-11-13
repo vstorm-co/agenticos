@@ -26,6 +26,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **HTML selector security update (CVE-2026-126190).** Upgrade Soup Sieve to 4.1 while retaining process, time and memory limits. **Upgrade action:** `html.parse` document selectors and links exclude inert `<template>` contents and follow browser-aligned form selector rules. Review workflows relying on the old matching behavior. Selecting the `<template>` element itself still returns its HTML and text.
 - **Failed chat turns remain visibly failed.** A safe failure notice stays outside folded work and survives transcript reloads; partial answers remain separate from platform errors. Provider content-filter refusals get an explicit explanation without exposing raw provider payloads or unknown historical errors.
 - **Favicons for ordinary web links.** Unknown HTTP(S) sites use a hostname-only, credential-free icon proxy even without an MCP connection, with a globe if unavailable. Model-supplied links never make the reader’s browser contact the target site to load an icon. Inert transcript views make no remote icon requests, and a missing icon on one site does not suppress another site's icon.
 - Unify Vault keys and personal/organization connected accounts in one table,
