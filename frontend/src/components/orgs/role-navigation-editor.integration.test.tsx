@@ -3,6 +3,7 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import messages from "../../../messages/en.json";
 import { RoleNavigationEditor } from "./role-navigation-editor";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
@@ -126,8 +127,9 @@ describe("role navigation editor", () => {
     expect(preview().queryByText("Activity")).not.toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: "Show Activity" })).toBeDisabled();
     expect(screen.getByRole("checkbox", { name: "Show Activity" })).not.toBeChecked();
-    expect(screen.getByRole("checkbox", { name: "Show Dashboard" })).toBeChecked();
-    expect(screen.getByRole("checkbox", { name: "Show Dashboard" })).toBeDisabled();
+    const dashboard = screen.getByRole("checkbox", { name: `Show ${messages.nav.dashboard}` });
+    expect(dashboard).toBeChecked();
+    expect(dashboard).toBeDisabled();
     expect(screen.getByRole("checkbox", { name: "Show Organizations" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Save sidebar" })).toBeDisabled();
   });

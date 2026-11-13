@@ -67,7 +67,8 @@ describe("role sidebar policy", () => {
     await act(async () => {
       await result.current.refetch();
     });
-    expect(result.current.data).toEqual(POLICY);
+    await waitFor(() => expect(result.current.data).toEqual(POLICY));
+    expect(result.current.error).toBeNull();
   });
 
   it("saves one role in the captured organization and refreshes its permissions", async () => {

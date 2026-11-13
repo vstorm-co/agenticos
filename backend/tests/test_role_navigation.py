@@ -64,7 +64,9 @@ def test_a_reset_is_explicit_and_entries_have_stable_catalog_order() -> None:
 
 def test_every_sidebar_destination_has_a_policy_entry_or_is_explicitly_protected() -> None:
     source = Path(__file__).resolve().parents[2] / "frontend/src/lib/nav-sections.ts"
-    destinations = set(re.findall(r'labelKey:\s*"([^"]+)",\s*href:', source.read_text(encoding="utf-8")))
+    destinations = set(
+        re.findall(r'labelKey:\s*"([^"]+)",\s*href:', source.read_text(encoding="utf-8"))
+    )
     protected = {"dashboard", "organizations", "adminOverview"}
     assert protected <= destinations
     assert set(NAVIGATION_ITEM_IDS) == destinations - protected

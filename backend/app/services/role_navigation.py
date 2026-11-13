@@ -71,7 +71,7 @@ class RoleNavigationService:
         if organization is None:
             raise NotFoundError(
                 message="Organization not found or access denied",
-                details={"org_id": str(ctx.organization_id)},
+                details={"org_id": ctx.organization_id},
             )
         await record_audit(
             self.db,
@@ -91,6 +91,6 @@ class RoleNavigationService:
         if organization is None:
             raise NotFoundError(
                 message="Organization not found or access denied",
-                details={"org_id": str(ctx.organization_id)},
+                details={"org_id": ctx.organization_id},
             )
         return organization
