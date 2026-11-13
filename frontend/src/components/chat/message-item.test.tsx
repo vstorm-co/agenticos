@@ -750,7 +750,7 @@ describe("citations", () => {
 
     // Two passages of one file are one source.
     const footer = screen.getByRole("button", { name: /2 sources/ });
-    expect(footer.querySelector("img")).toHaveAttribute("src", "https://a.example/favicon.ico");
+    expect(footer.querySelector("img")).toHaveAttribute("src", "/api/link-icon?host=a.example");
     expect(footer.querySelectorAll("svg")).toHaveLength(2);
   });
 
