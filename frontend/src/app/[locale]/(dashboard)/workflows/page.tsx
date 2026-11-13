@@ -323,7 +323,19 @@ export default function WorkflowsPage() {
                   ? t("createFirst")
                   : t("nobodyHasShared")
             }
-            cta={filtersActive ? { label: t("clearFilter"), onClick: clearFilters } : undefined}
+            cta={
+              filtersActive
+                ? { label: t("clearFilter"), onClick: clearFilters }
+                : canCreate
+                  ? {
+                      label: t("newWorkflow"),
+                      onClick: () => {
+                        setInitial(undefined);
+                        setCreateOpen(true);
+                      },
+                    }
+                  : undefined
+            }
           />
         ) : (
           <div className="space-y-4">

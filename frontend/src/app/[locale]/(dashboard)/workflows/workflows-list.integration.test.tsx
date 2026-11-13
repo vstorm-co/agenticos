@@ -180,6 +180,23 @@ describe("the workflows list", () => {
     expect(apiClient.get).not.toHaveBeenCalledWith("/workflows");
   });
 
+  it("offers a first workflow inside the empty catalog, only to a caller who may create", async () => {
+    serve([]);
+    const { unmount } = render(<WorkflowsPage />, { wrapper });
+    await screen.findByText("No workflows yet");
+    // The header's, and the empty catalog's own.
+    const offered = screen.getAllByRole("button", { name: "New workflow" });
+    expect(offered).toHaveLength(2);
+    await userEvent.click(offered[1]!);
+    expect(await screen.findByText("How does it start?")).toBeInTheDocument();
+    unmount();
+
+    perms.can = (permission: string) => permission === "workflows:view";
+    render(<WorkflowsPage />, { wrapper });
+    await screen.findByText("No workflows yet");
+    expect(screen.queryByRole("button", { name: "New workflow" })).toBeNull();
+  });
+
   it("opens named creation and keeps templates in their own library", async () => {
     render(<WorkflowsPage />, { wrapper });
     await screen.findByRole("link", { name: "Open Live" });

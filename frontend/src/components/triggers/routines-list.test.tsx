@@ -3,17 +3,21 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import { RoutinesList } from "./routines-list";
 
-const state = vi.hoisted(() => ({ error: null as Error | null, loading: false }));
+const state = vi.hoisted(() => ({ error: null as Error | null, loading: false, empty: false }));
 vi.mock("@/hooks/use-org-triggers", () => ({
   useOrgTriggers: () => ({
-    triggers: [{ id: "task", name: "Weekly report", prompt: "Summarize invoices" }],
+    triggers: state.empty
+      ? []
+      : [{ id: "task", name: "Weekly report", prompt: "Summarize invoices" }],
     error: state.error,
     isLoading: state.loading,
   }),
 }));
 vi.mock("@/hooks/use-watches", () => ({
   useWatches: () => ({
-    watches: [{ id: "monitor", title: "Client mail", instructions: "Find urgent mail" }],
+    watches: state.empty
+      ? []
+      : [{ id: "monitor", title: "Client mail", instructions: "Find urgent mail" }],
     isLoading: false,
     error: null,
   }),
@@ -29,6 +33,21 @@ vi.mock("@/components/watches/watch-dialog", () => ({ WatchDialog: () => null })
 beforeEach(() => {
   state.error = null;
   state.loading = false;
+  state.empty = false;
+});
+it("offers the way to start a routine inside the empty list", async () => {
+  state.empty = true;
+  const onClick = vi.fn();
+  render(<RoutinesList emptyAction={{ label: "Run on a schedule", onClick }} />);
+  expect(screen.getByText("No agent routines yet")).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "Run on a schedule" }));
+  expect(onClick).toHaveBeenCalledOnce();
+});
+it("offers nothing in the empty list to somebody who may not start a routine", () => {
+  state.empty = true;
+  render(<RoutinesList />);
+  expect(screen.getByText("No agent routines yet")).toBeVisible();
+  expect(screen.queryByRole("button")).toBeNull();
 });
 
 it("lists scheduled tasks and monitoring in the same searchable list", async () => {
