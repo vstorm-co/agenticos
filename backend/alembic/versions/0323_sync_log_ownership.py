@@ -33,12 +33,12 @@ def upgrade() -> None:
             nullable=True,
         ),
     )
-    op.create_index("ix_sync_logs_organization_id", "sync_logs", ["organization_id"])
-    op.create_index("ix_sync_logs_knowledge_base_id", "sync_logs", ["knowledge_base_id"])
+    op.create_index("sync_logs_organization_id_idx", "sync_logs", ["organization_id"])
+    op.create_index("sync_logs_knowledge_base_id_idx", "sync_logs", ["knowledge_base_id"])
 
 
 def downgrade() -> None:
-    op.drop_index("ix_sync_logs_knowledge_base_id", table_name="sync_logs")
-    op.drop_index("ix_sync_logs_organization_id", table_name="sync_logs")
+    op.drop_index("sync_logs_knowledge_base_id_idx", table_name="sync_logs")
+    op.drop_index("sync_logs_organization_id_idx", table_name="sync_logs")
     op.drop_column("sync_logs", "knowledge_base_id")
     op.drop_column("sync_logs", "organization_id")
