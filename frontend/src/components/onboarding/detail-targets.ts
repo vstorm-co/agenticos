@@ -27,6 +27,7 @@ import {
   WORKFLOW_RUN_DETAIL,
   WORKSPACE_DETAIL,
   PROJECT_DETAIL,
+  SKILL_DETAIL,
 } from "@/lib/onboarding/tour";
 import { qk } from "@/lib/query-keys";
 import { useOrgStore } from "@/stores";
@@ -35,6 +36,7 @@ import type { DatasetList } from "@/types/datasets";
 import type { GroupList } from "@/types/groups";
 import type { KnowledgeBaseList } from "@/types/knowledge-base";
 import type { OrganizationList } from "@/types/organization";
+import type { SkillList } from "@/types/providers";
 
 /**
  * The organization a path names, for the `/orgs/<id>/…` detail routes, or `null`
@@ -58,6 +60,7 @@ export const FETCHED_DETAIL_PAGES: ReadonlySet<string> = new Set([
   AGENT_BUILDER,
   KB_DETAIL,
   DATASET_DETAIL,
+  SKILL_DETAIL,
   GROUP_DETAIL,
   ORG_MEMBERS,
   ORG_RETENTION,
@@ -128,6 +131,21 @@ export function useDetailTargets(enabled: boolean): Record<string, ResolvedDetai
   });
   const datasetId = datasets.data?.items[0]?.id ?? null;
 
+  // The first page the Skills list itself reads, so the two share one cache entry.
+  const skills = useQuery({
+    queryKey: qk.skills.list({
+      search: "",
+      category: "",
+      sort: "name",
+      skip: 0,
+      limit: PAGE_SIZE,
+      groupId: "",
+    }),
+    queryFn: () => apiClient.get<SkillList>(`/skills?sort=name&skip=0&limit=${PAGE_SIZE}`),
+    enabled,
+  });
+  const skillId = skills.data?.items[0]?.id ?? null;
+
   // The example organization is the one the reader is looking at, then the one
   // they are in, then the list (which is also what `pending` waits on). Members and
   // roles are two routes under the same org, so both resolve from the one id.
@@ -174,6 +192,10 @@ export function useDetailTargets(enabled: boolean): Record<string, ResolvedDetai
       [DATASET_DETAIL]: {
         pending: enabled && datasets.isPending,
         href: datasetId ? ROUTES.DATASET_DETAIL(datasetId) : null,
+      },
+      [SKILL_DETAIL]: {
+        pending: enabled && skills.isPending,
+        href: skillId ? ROUTES.SKILL_DETAIL(skillId) : null,
       },
       [ORG_MEMBERS]: {
         pending: orgPending,
@@ -226,6 +248,8 @@ export function useDetailTargets(enabled: boolean): Record<string, ResolvedDetai
       kbId,
       datasets.isPending,
       datasetId,
+      skills.isPending,
+      skillId,
       orgPending,
       orgId,
       activeOrgId,

@@ -176,6 +176,15 @@ describe("the server's own instructions", () => {
     } as unknown as DraftState;
   }
 
+  it("keeps an unchanged existing prefix when saving another setting", async () => {
+    const draft = editing(false);
+    if (!draft.existing) throw new Error("Missing connection fixture");
+    draft.existing.name = "notion--work-";
+    const onSubmit = open(draft);
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ name: "notion--work-" }));
+  });
+
   it("is offered only on a connection that exists, off unless it was opted in", async () => {
     const onSubmit = open(editing(false));
 
@@ -209,5 +218,44 @@ describe("a second account on one service", () => {
     await userEvent.click(screen.getByRole("button", { name: /Connect/ }));
 
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ label: "Work" }));
+  });
+});
+
+describe("human-entered prefixes", () => {
+  it("formats a pasted prefix on blur and sends its canonical value", async () => {
+    const onSubmit = open(custom());
+    await userEvent.type(screen.getByLabelText("Name", { exact: true }), "Company CRM");
+    const prefix = screen.getByLabelText("Tool prefix");
+    await userEvent.clear(prefix);
+    await userEvent.type(prefix, "Support CRM");
+    expect(prefix).toHaveValue("Support CRM");
+    await userEvent.tab();
+    expect(prefix).toHaveValue("support-crm");
+    await typeAddress("https://mcp.example.test/mcp");
+    await userEvent.click(screen.getByRole("button", { name: /Connect/ }));
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ name: "support-crm" }));
+  });
+});
+
+describe("pending connection writes", () => {
+  it("freezes the form and dismissal until the request settles", async () => {
+    const draft = custom();
+    const onClose = vi.fn();
+    const onSubmit = vi.fn();
+    const props = { draft, onClose, onSubmit, canManageOrganization: true };
+    const view = render(<McpConnectionDialog {...props} submitting={false} />);
+    await userEvent.type(screen.getByLabelText("Name", { exact: true }), "Company workspace");
+    view.rerender(<McpConnectionDialog {...props} submitting />);
+    expect(screen.getByLabelText("Name", { exact: true })).toBeDisabled();
+    expect(screen.getByLabelText("Tool prefix")).toBeDisabled();
+    expect(screen.getByLabelText("Server URL")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+    await userEvent.keyboard("{Escape}");
+    expect(onClose).not.toHaveBeenCalled();
+    view.rerender(<McpConnectionDialog {...props} submitting={false} />);
+    expect(screen.getByLabelText("Name", { exact: true })).toBeEnabled();
+    expect(screen.getByLabelText("Name", { exact: true })).toHaveValue("Company workspace");
+    expect(screen.getByRole("button", { name: "Close" })).toBeEnabled();
   });
 });

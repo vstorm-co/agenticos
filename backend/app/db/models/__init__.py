@@ -51,7 +51,7 @@ from app.db.models.sandbox_connection import SandboxConnection
 from app.db.models.sandbox_operation import SandboxOperation
 from app.db.models.agent_exposure import AgentExposure, ExposureSurface
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, RunSurface, ToolApproval
-from app.db.models.agent_trigger import AgentTrigger, ScheduleKind
+from app.db.models.agent_trigger import AgentTrigger, ScheduleKind, TriggerAttempt
 from app.db.models.run_manifest import RunManifest
 from app.db.models.intercepted_tool_call import (
     InterceptedToolCall,
@@ -122,7 +122,12 @@ from app.db.models.virtual_table import (
 )
 from app.db.models.table_view import TableView
 from app.db.models.skill import Skill, SkillResource
+from app.db.models.skill_usage import RunSkillUse
+from app.db.models.skill_improvement import SkillImprovementIteration, SkillImprovementRun
+from app.db.models.skill_check import SkillCheck, SkillCheckAgent
+from app.db.models.skill_merge import SkillMerge
 from app.db.models.skill_proposal import ProposalStatus, SkillProposal
+from app.db.models.skill_version import SkillFile, SkillFork, SkillVersion, SkillVersionSource
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
 from app.db.models.group import Group, GroupMember
 from app.db.models.directory_mapping import DirectoryGroupMapping
@@ -303,6 +308,7 @@ __all__ = [
     "AgentExposure",
     "ExposureSurface",
     "AgentTrigger",
+    "TriggerAttempt",
     "ScheduleKind",
     "AgentRun",
     "RunManifest",
@@ -371,10 +377,20 @@ __all__ = [
     "VirtualTableRecordHistory",
     "VirtualTableSchemaVersion",
     "TableView",
+    "RunSkillUse",
     "Skill",
+    "SkillImprovementIteration",
+    "SkillImprovementRun",
     "SkillProposal",
     "ProposalStatus",
     "SkillResource",
+    "SkillCheck",
+    "SkillCheckAgent",
+    "SkillMerge",
+    "SkillVersion",
+    "SkillVersionSource",
+    "SkillFork",
+    "SkillFile",
     "ResourceGrant",
     "GrantLevel",
     "Group",

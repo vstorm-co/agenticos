@@ -72,6 +72,36 @@ describe("EvalRunsWidget", () => {
     expect(screen.queryByRole("link", { name: /Activity/ })).toBeNull();
   });
 
+  it("marks a skill check's stage and names its sides by the text each read", () => {
+    const stage = (version: { skill_id: string; number: number; fork_name: string | null }[]) =>
+      evalRun({
+        id: `stage-${version.length}`,
+        proposal_check: {
+          kind: "skill",
+          base_version: 3,
+          on_draft: false,
+          suggestions: 1,
+          skill_check_id: "check-1",
+        },
+        arms: [
+          arm({ source: "explicit", version_number: 3, skill_ids: ["skill-1"] }),
+          arm({ id: "arm-0", role: "baseline", version_number: 3, skill_versions: version }),
+        ],
+      });
+    recent.value = {
+      ...recent.value,
+      runs: [stage([{ skill_id: "skill-1", number: 3, fork_name: null }]), stage([])],
+    };
+    widget();
+
+    expect(
+      screen.getByText("Refund desk · Skill check stage · Proposed text vs Current v3"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Refund desk · Skill check stage · Proposed text vs Current text"),
+    ).toBeInTheDocument();
+  });
+
   it("starts a row at what was tested for who may not see agents", () => {
     access.agents = false;
     recent.value = { ...recent.value, runs: [evalRun()] };

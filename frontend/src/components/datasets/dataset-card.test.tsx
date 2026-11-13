@@ -35,6 +35,15 @@ const DATASET: Dataset = {
 };
 
 describe("DatasetCard", () => {
+  it("marks a skill's test questions, linking to that skill's section", () => {
+    render(<DatasetCard dataset={{ ...DATASET, skill_id: "k1" }} onDelete={vi.fn()} />);
+
+    expect(screen.getByRole("link", { name: "Skill's test questions" })).toHaveAttribute(
+      "href",
+      "/skills/k1#test-questions",
+    );
+  });
+
   it("links to the dataset and shows its size and version", async () => {
     const onDelete = vi.fn();
     render(<DatasetCard dataset={DATASET} onDelete={onDelete} />);

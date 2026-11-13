@@ -1,5 +1,5 @@
 ---
-source_sha: "aa26227d35e6"
+source_sha: "810bed82ae73"
 ---
 
 # Befehle { #commands }
@@ -38,6 +38,7 @@ Führen Sie diese aus dem Wurzelverzeichnis des Projekts aus.
 | `make desktop-check` | `bun test` über das Pet, dann rustfmt, clippy mit Warnungen als Fehler und die Rust-Tests der Hülle. Nicht in `lint` oder `check`, denn CI hat noch keine Rust-Toolchain |
 | `make audit` | Den gesperrten Abhängigkeitssatz auf bekannte Schwachstellen prüfen. Braucht das Netzwerk — ein Request pro gesperrter Distribution — seine letzte Zeile sagt deshalb, in welchem von vier Zuständen er geendet hat, statt einen roten Lauf mehrdeutig zu lassen. Siehe unten |
 | `make sandbox-token` | Den eigenen `SANDBOXD_TOKEN` des Sandbox-Services einmalig in `backend/.env` erzeugen. `make dev` führt es für Sie aus; es erzeugt nie neu, denn ein neuer Token verwaist jeden Workspace, den der Service hält. Das Connection-Formular bietet an, denselben Wert im Vault abzulegen, er muss also nirgendwohin eingefügt werden |
+| `make seed-skills-lab` | Die Organisation Skills lab auf einem laufenden Stack aufbauen, zum Durchklicken der Skill-Verbesserung: ein Skill, `returns-policy`, den mehrere Agents teilen, dazu ihre Testfragen und bewertete Chats. Spricht über HTTP mit dem Stack, legt also nur an, was fehlt, und ein zweiter Lauf behält, was Menschen geändert haben. Login des Owners und Provider-Schlüssel kommen aus `SKILLS_LAB_EMAIL`, `SKILLS_LAB_PASSWORD` und `SKILLS_LAB_OPENROUTER_KEY`; `SKILLS_LAB_URL` nennt den Stack. `PROBE=v1`, `broad`, `narrow` oder `gift` misst eine Formulierung des Skills in einer eigenen Organisation, und `DROP_PROBES=1` löscht diese Organisationen |
 | `make clean` | Cache-Dateien entfernen (__pycache__, .pytest_cache usw.) |
 
 ### Vor einem Pull Request { #before-a-pull-request }
@@ -327,6 +328,10 @@ uv run agenticos cmd <command-name> [options]
 
 ```bash
 # An organization, an owner, a model profile and a published agent. Idempotent.
+# --org names the organization bootstrap sets up. An account that already
+# exists gets one by that name, even if it runs another; its personal
+# organization is left alone. Without --org, it is the one the owner lands in.
+# A deployment's default organization still opens first at sign-in.
 uv run agenticos cmd bootstrap \
     --email owner@example.com --password secret \
     --org "Acme" --provider anthropic --api-key sk-ant-...

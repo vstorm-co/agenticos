@@ -956,6 +956,36 @@ async def list_waited_child_runs(
     return list(result.scalars().all())
 
 
+async def list_called_run_ids(
+    db: AsyncSession, *, workflow_run_ids: Sequence[UUID], organization_id: UUID
+) -> list[UUID]:
+    """All runs called by these runs, including terminal intermediates with live descendants."""
+    result = await db.execute(
+        select(WorkflowRun.id)
+        .join(NodeRun, NodeRun.id == WorkflowRun.parent_node_run_id)
+        .where(
+            NodeRun.workflow_run_id.in_(workflow_run_ids),
+            NodeRun.organization_id == organization_id,
+            WorkflowRun.organization_id == organization_id,
+        )
+        .order_by(WorkflowRun.created_at, WorkflowRun.id)
+    )
+    return list(result.scalars().all())
+
+
+async def try_lock_run(
+    db: AsyncSession, run_id: UUID, *, organization_id: UUID
+) -> WorkflowRun | None:
+    """The run, row-locked - or None when another transaction holds it right now."""
+    result = await db.execute(
+        select(WorkflowRun)
+        .where(WorkflowRun.id == run_id, WorkflowRun.organization_id == organization_id)
+        .with_for_update(skip_locked=True)
+        .execution_options(populate_existing=True)
+    )
+    return result.scalar_one_or_none()
+
+
 async def list_stale_question_waits(db: AsyncSession, *, limit: int = 100) -> list[NodeRun]:
     """Question waits with accepted answers or an ended child, and no queued continuation."""
     live_outbox = select(DispatchOutbox.node_run_id).where(

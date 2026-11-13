@@ -1,3 +1,4 @@
+import type { ResourceIconName } from "@/types/resource-icons";
 /**
  * Types for Virtual Tables, mirroring `backend/app/schemas/virtual_table.py`
  * and `backend/app/schemas/table_view.py`.
@@ -195,6 +196,7 @@ export interface ColumnInput {
 }
 
 export interface TableSummary {
+  icon?: ResourceIconName | null;
   default_view_id?: string | null;
   id: string;
   name: string;
@@ -248,6 +250,7 @@ export interface TableCreate {
 }
 
 export interface TableUpdate {
+  icon?: ResourceIconName | null;
   default_view_id?: string | null;
   name?: string;
   description?: string | null;
@@ -304,6 +307,8 @@ export interface RecordBatchResult {
   /** How many existing records an `update_existing` batch changed. */
   updated?: number;
   failed: RecordBatchFailure[];
+  /** When the import began, by the server's clock: sent back with its later batches. */
+  as_of: string;
 }
 
 export interface RecordExportQuery extends RecordCountQuery {

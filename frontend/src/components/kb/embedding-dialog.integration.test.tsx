@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -138,6 +138,24 @@ beforeEach(() => {
 });
 
 describe("what this dialog will and will not change", () => {
+  it("freezes the provider draft until the write settles", async () => {
+    let reject!: (error: Error) => void;
+    save.mockReturnValueOnce(
+      new Promise<never>((_resolve, fail) => {
+        reject = fail;
+      }),
+    );
+    show();
+    await userEvent.click(await screen.findByLabelText("Embedding provider"));
+    await userEvent.click(await screen.findByRole("option", { name: "OpenAI" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(screen.getByLabelText("Embedding provider")).toBeDisabled();
+    expect(screen.getByLabelText("Key")).toBeDisabled();
+    await act(async () => reject(new Error("Refused")));
+    await waitFor(() => expect(screen.getByLabelText("Embedding provider")).toBeEnabled());
+    expect(screen.getByLabelText("Embedding provider")).toHaveTextContent("OpenAI");
+  });
+
   it("states the model rather than offering it", async () => {
     show();
 

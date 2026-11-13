@@ -1,5 +1,5 @@
 ---
-source_sha: "3503412daf98"
+source_sha: "d8ab63f0a753"
 ---
 
 # La API HTTP { #the-http-api }
@@ -53,6 +53,17 @@ también como una entrada de auditoría nombra la clave que actuó: cada entrada
 registrada durante una petición autenticada con clave lleva `via_api_key` en sus
 detalles. Una clave puede caducar, y revocarla (`DELETE /api/v1/api-keys/{id}`)
 surte efecto en su siguiente petición.
+
+La consola muestra las claves antes que la guía de conexión, con las activas
+primero. Busca por nombre, prefijo o emisor; las tarjetas del móvil conservan la
+caducidad y el último uso. En **Create key**, despliega los detalles de permisos
+de una plantilla o elige **Custom** para buscar permisos individuales. La búsqueda conserva la selección.
+Intro en el campo del nombre crea la clave; Intro en la búsqueda de permisos no envía el formulario.
+
+Durante la creación se bloquean los campos y el cierre. Si se rechaza, el borrador
+se conserva para reintentar. Copia la clave antes de cerrar; si el portapapeles
+falla, el valor sigue disponible para otro intento. Cerrar limpia el estado de
+creación. Si se rechaza una revocación, su confirmación sigue abierta para reintentar.
 
 **Una clave no es la persona que la emitió.** Un run que inicia pertenece a quien
 la emitió, cuenta en su presupuesto y en su auditoría, pero no alcanza nada
@@ -167,15 +178,17 @@ por una renovación rutinaria.
 
 ### Trabajo que se ejecuta después de la petición { #work-that-runs-after-the-request }
 
-Una clave de la organización no puede iniciar un [eval run](evals.md) ni una
-petición al [asistente de autoría](authoring.md): esas rutas son para personas
-con sesión iniciada, y a una clave se le responde `403` en ellas. El trabajo que
-se ejecuta más tarde, en segundo plano, se ciñe a la autoridad de quien lo
-inició tal como está cuando el trabajo empieza - un rol perdido desde entonces
-lo detiene. Si alguna vez se dejara a una clave iniciar ese trabajo, lo mismo
-valdría para ella: sus permisos tal como estén entonces, y una clave revocada,
-caducada o eliminada desde entonces detendría el trabajo, con un motivo en el
+Una clave de la organización no puede iniciar un [eval run](evals.md) ni una petición al
+[asistente de autoría](authoring.md): esas rutas son para personas con sesión iniciada,
+y a una clave se le responde `403` en ellas. El trabajo que se ejecuta más tarde, en
+segundo plano, se ciñe a la autoridad de quien lo inició tal como está cuando el trabajo
+empieza - un rol perdido desde entonces lo detiene. Si alguna vez se dejara a una clave
+iniciar ese trabajo, lo mismo valdría para ella: sus permisos tal como estén entonces, y
+una clave revocada o eliminada desde entonces detendría el trabajo, con un motivo en el
 run o en la petición.
+
+La caducidad solo limita lo que una clave puede iniciar: el trabajo que inició siendo
+válida sigue después de que caduque.
 
 ## La cabecera de organización { #the-organization-header }
 
@@ -312,7 +325,8 @@ superficie.
 Lo que se puede comprobar al momento se comprueba al momento: una conversación
 o un adjunto desconocidos son un `404` en el `POST`, no un fallo que haya que
 esperar. Los permisos de la clave se vuelven a comprobar cuando el run arranca,
-así que una clave revocada mientras su run esperaba no lo ejecuta. Solo quien lo
+así que una clave revocada mientras su run esperaba no lo ejecuta; una que solo
+caducó entretanto, sí. Solo quien lo
 pidió, o una clave suya, puede leer una petición de run; la de otro responde
 `404`. Un run asíncrono tiene un intento: un run que falla queda registrado con
 lo que gastó y no se reintenta para no gastarlo dos veces.
@@ -345,14 +359,17 @@ no puedes ver no aporta ninguna.
 
 ## Ejecutar un workflow { #running-a-workflow }
 
-Las claves de API de la organización pueden iniciar runs y leer su estado, grafo,
-pasos, archivos y eventos en `/api/v1/workflow-runs`. Iniciar requiere `workflows:run`,
-leer también `workflows:view`, y probar un borrador `workflows:edit`. El worker conserva
-el límite de permisos admitido y comprueba la clave y el emisor antes de cada paso,
-incluso tras una aprobación o espera. Revocar, caducar o eliminar la clave detiene
-trabajo nuevo con `PRINCIPAL_REVOKED`; reanudar nunca otorga el rol completo del emisor.
-Los runs iniciados con clave no acceden al estado personal del emisor. Editar un
-workflow sigue requiriendo una sesión.
+Las claves de API de la organización pueden iniciar runs y leer su estado, grafo, pasos,
+archivos y eventos en `/api/v1/workflow-runs`. Iniciar requiere `workflows:run`, leer
+también `workflows:view`, y probar un borrador `workflows:edit`. El worker conserva el
+límite de permisos admitido y comprueba la clave y el emisor antes de cada paso, incluso
+tras una aprobación o espera. Revocar o eliminar la clave detiene trabajo nuevo con
+`PRINCIPAL_REVOKED`; reanudar nunca otorga el rol completo del emisor.
+
+La caducidad no: una clave caducada no inicia nada, pero un run que inició siendo válida
+sigue, así que la hora de un token OAuth no corta una espera larga. Los runs iniciados
+con clave no acceden al estado personal del emisor. Editar un workflow sigue requiriendo
+una sesión.
 
 Las claves API pueden consultar ejecuciones de origen público, incluidas las
 iniciadas con claves. Las ejecuciones personales iniciadas por miembros devuelven
@@ -537,7 +554,8 @@ curl -X POST "$WEBHOOK_URL" \
 
 Responde `202` con `{"run_id": ..., "duplicate": false}` en cuanto el run queda
 admitido, sin esperar nunca al run en sí. Un id de entrega ya admitido responde
-`"duplicate": true` con el id del primer run. Una firma que no se verifica es un
+`"duplicate": true` con el id del primer run, igual que la misma solicitud firmada con
+otro id en 24 horas. Una firma que no se verifica es un
 `403`, una entrega sin id o con un cuerpo que no es un objeto JSON un `400`, y un
 webhook pausado o desconocido un `404`.
 
@@ -553,6 +571,8 @@ abre una URL de prueba para el borrador, devuelta como `url` con el `test_token`
 abierta para una llamada durante dos minutos. La llamada no necesita firma, recibe
 `{"captured": true}` y no inicia ningún run. `GET .../webhook-test/{token}` lee
 `state` (`listening`, `caught` o `expired`) y la `delivery` recibida.
+
+Las claves internas y OAuth caducadas se conservan mientras un workflow, una evaluación, una mejora, una solicitud de autoría, una comprobación de skills, una generación de casos o un trabajo en cola o en ejecución las necesite. Al terminar, la limpieza habitual puede eliminarlas.
 
 ## Trabajar con tablas { #working-with-tables }
 

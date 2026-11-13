@@ -40,7 +40,7 @@ agent was last measured on - or the only one there is - is already chosen; the
 environment, recordings and reruns are under **Advanced**. The cost is worked
 out as the fields settle and says what grades the answers and what the agent's
 and the organization's budgets keep after it; the run starts only from the
-button that names the amount. **Draft differs from vN** on the agent's page -
+button that names the amount. **Draft differs from agent vN** on the agent's page -
 vN is the latest published version, and when production's guards hold it on an
 older one a second badge says which, such as "production on v1 (waiting for
 evals)" - carries a **Test draft** button that opens the same dialog. The publish

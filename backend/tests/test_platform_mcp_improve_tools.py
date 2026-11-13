@@ -1349,10 +1349,10 @@ class TestFindingSessionsWithoutAnId:
         )
         api.refuse = MagicMock(side_effect=ToolError("refused"))
 
-        with pytest.raises(ToolError):
+        with pytest.raises(ToolError) as error:
             await _call(server, "list_improvements", agent_name=name)
 
-        assert api.refuse.call_args.args[0].startswith(refusal)
+        assert str(error.value).startswith(refusal)
 
 
 QUOTE = {"total_usd": "0.01", "per_round_usd": "0.03", "max_iterations": 3}
@@ -1894,3 +1894,29 @@ def test_every_route_the_improve_tools_call_admits_the_tools_key(method: str, pa
     from tests.test_platform_mcp_tools import _reachable
 
     assert _reachable(method, path), f"no public or assistant route answers {method} {path}"
+
+
+@pytest.mark.parametrize("ambiguous", [False, True])
+async def test_named_agent_lookup_reads_beyond_the_first_page_without_missing_ambiguity(
+    server: FastMCP, api: MagicMock, ambiguous: bool
+) -> None:
+    first = [{"id": str(uuid.UUID(int=i + 1)), "name": f"Other {i}"} for i in range(100)]
+    if ambiguous:
+        first[0] = {"id": str(uuid.UUID(int=500)), "name": "Refund desk"}
+    api.request = AsyncMock(
+        side_effect=[
+            {"items": first, "total": 101},
+            {"items": [{"id": str(AGENT), "name": "Refund desk"}], "total": 101},
+            [],
+            {"id": str(AGENT), "current_version_id": None},
+            {"items": [], "total": 0},
+        ]
+    )
+    if ambiguous:
+        with pytest.raises(ToolError, match="Several agents match"):
+            await _call(server, "list_improvements", agent_name="Refund desk")
+    else:
+        listing = await _call(server, "list_improvements", agent_name="Refund desk")
+        assert listing["agent_id"] == str(AGENT)
+    assert api.request.await_args_list[0].kwargs == {"params": {"limit": 100}}
+    assert api.request.await_args_list[1].kwargs == {"params": {"limit": 100, "skip": 100}}

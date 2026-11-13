@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "1.66.0"
+version = "1.72.0"
 description = "OS for your agents."
 requires-python = ">=3.15"
 license = { text = "Apache-2.0" }
@@ -89,7 +89,9 @@ dependencies = [
     # freeze the detectors and the model registry they read. Every agent also
     # wraps RepairToolArguments, whose json-repair dependency is selected by
     # its capability extra in the 0.64 release.
-    "pydantic-ai-harness[e2b,repair-tool-arguments]>=0.66.0",
+    "pydantic-ai-harness[e2b,opensandbox,repair-tool-arguments]>=0.66.0",
+    # The provider adapter uses SDK 1.2 retry and transport configuration explicitly.
+    "opensandbox>=1.2.0,<2",
     "websockets>=17.4",
     # Required, not optional: hybrid retrieval fuses BM25 with the vector search
     # and a deployment cannot choose otherwise. It is also the only reason
@@ -108,9 +110,8 @@ dependencies = [
     # elements with soupsieve. Both already ship through `pydantic-ai-slim`'s
     # web-fetch extra; declared here so a release of it cannot drop them.
     "beautifulsoup4>=4.15.0",
-    # Soup Sieve 4 hides template contents from document selectors; preserve
-    # html.parse links and matches until that major change is supported.
-    "soupsieve>=2.9.2,<4",
+    # Patched selector matching for untrusted HTML (CVE-2026-126190).
+    "soupsieve>=4.1,<5",
     # Google Drive speaks plain REST through `app/services/rag/drive_api.py`;
     # `google-auth` only signs the service account's token, over `requests`.
     # `google-api-python-client` was 108 MB of discovery documents for four URLs.
@@ -650,6 +651,7 @@ include = [
     "app/commands/data_protection.py",
     "app/commands/mcp_audit.py",
     "app/core/permissions.py",
+    "app/core/resource_icons.py",
     "app/core/catalog/**",
     "app/core/secret_kinds.py",
     "app/core/tool_identity.py",
@@ -745,6 +747,10 @@ include = [
     "app/repositories/local_service.py",
     "app/repositories/sandbox_connection.py",
     "app/repositories/skill_proposal.py",
+    "app/repositories/skill_usage.py",
+    "app/repositories/skill_check.py",
+    "app/repositories/skill_merge.py",
+    "app/repositories/skill_version.py",
     "app/services/attachments.py",
     # The one subprocess in the chat attachment feature (#1591): a managed,
     # killable `soffice` for DOC. Every branch is a refusal or a teardown - a
@@ -762,7 +768,11 @@ include = [
     # what stops an upload from writing outside its folder.
     "app/services/workspace_archive.py",
     "app/services/usage_report.py",
+    "app/services/skill_agents.py",
+    "app/services/skill_catch_up.py",
+    "app/services/skill_merge.py",
     "app/services/skill_proposal.py",
+    "app/services/skill_versions.py",
     "app/services/skill_workspace.py",
     "app/services/channels/attachments.py",
     "app/services/channels/sms_media.py",
@@ -948,6 +958,7 @@ include = [
     "app/api/routes/v1/local_services.py",
     "app/api/routes/v1/sandbox_connections.py",
     "app/api/routes/v1/skill_changes.py",
+    "app/api/routes/v1/skill_checks.py",
     "app/api/routes/v1/workspaces.py",
     "app/api/routes/v1/_workspace_bytes.py",
     "app/api/routes/v1/sharing.py",
@@ -983,6 +994,14 @@ include = [
     "app/api/routes/v1/datasets.py",
     "app/db/models/knowledge_gap.py",
     "app/schemas/knowledge_gap.py",
+    "app/db/models/skill_usage.py",
+    "app/schemas/skill_usage.py",
+    "app/db/models/skill_check.py",
+    "app/db/models/skill_merge.py",
+    "app/services/skill_check_rules.py",
+    "app/schemas/skill_check.py",
+    "app/schemas/skill_merge.py",
+    "app/services/skill_check.py",
     "app/repositories/knowledge_gap.py",
     "app/services/knowledge_gaps.py",
     "app/api/routes/v1/knowledge_gaps.py",
@@ -1175,8 +1194,16 @@ include = [
     "app/services/improvement_data.py",
     "app/schemas/improvement.py",
     "app/services/improvement_pipeline.py",
+    "app/services/improvement_skills.py",
     "app/api/routes/v1/improvements.py",
     "app/worker/tasks/improvement_tasks.py",
+    # Skill improvement sessions: the same steps on one line of a shared skill.
+    "app/db/models/skill_improvement.py",
+    "app/repositories/skill_improvement.py",
+    "app/schemas/skill_improvement.py",
+    "app/services/skill_improvement.py",
+    "app/api/routes/v1/skill_improvements.py",
+    "app/worker/tasks/skill_check_tasks.py",
     "app/db/models/context_proposal.py",
     "app/repositories/context_proposal.py",
     "app/schemas/context_proposal.py",
@@ -1494,6 +1521,7 @@ include = [
     "app/commands/data_protection.py",
     "app/commands/mcp_audit.py",
     "app/core/permissions.py",
+    "app/core/resource_icons.py",
     "app/core/catalog/**",
     "app/core/secret_kinds.py",
     "app/core/tool_identity.py",
@@ -1592,6 +1620,10 @@ include = [
     "app/repositories/local_service.py",
     "app/repositories/sandbox_connection.py",
     "app/repositories/skill_proposal.py",
+    "app/repositories/skill_usage.py",
+    "app/repositories/skill_check.py",
+    "app/repositories/skill_merge.py",
+    "app/repositories/skill_version.py",
     "app/services/attachments.py",
     # The one subprocess in the chat attachment feature (#1591): a managed,
     # killable `soffice` for DOC. Every branch is a refusal or a teardown - a
@@ -1609,7 +1641,11 @@ include = [
     # what stops an upload from writing outside its folder.
     "app/services/workspace_archive.py",
     "app/services/usage_report.py",
+    "app/services/skill_agents.py",
+    "app/services/skill_catch_up.py",
+    "app/services/skill_merge.py",
     "app/services/skill_proposal.py",
+    "app/services/skill_versions.py",
     "app/services/skill_workspace.py",
     "app/services/channels/attachments.py",
     "app/services/channels/sms_media.py",
@@ -1825,6 +1861,7 @@ include = [
     "app/api/routes/v1/local_services.py",
     "app/api/routes/v1/sandbox_connections.py",
     "app/api/routes/v1/skill_changes.py",
+    "app/api/routes/v1/skill_checks.py",
     "app/api/routes/v1/workspaces.py",
     "app/api/routes/v1/_workspace_bytes.py",
     "app/api/routes/v1/sharing.py",
@@ -1860,6 +1897,14 @@ include = [
     "app/api/routes/v1/datasets.py",
     "app/db/models/knowledge_gap.py",
     "app/schemas/knowledge_gap.py",
+    "app/db/models/skill_usage.py",
+    "app/schemas/skill_usage.py",
+    "app/db/models/skill_check.py",
+    "app/db/models/skill_merge.py",
+    "app/services/skill_check_rules.py",
+    "app/schemas/skill_check.py",
+    "app/schemas/skill_merge.py",
+    "app/services/skill_check.py",
     "app/repositories/knowledge_gap.py",
     "app/services/knowledge_gaps.py",
     "app/api/routes/v1/knowledge_gaps.py",
@@ -2052,8 +2097,16 @@ include = [
     "app/services/improvement_data.py",
     "app/schemas/improvement.py",
     "app/services/improvement_pipeline.py",
+    "app/services/improvement_skills.py",
     "app/api/routes/v1/improvements.py",
     "app/worker/tasks/improvement_tasks.py",
+    # Skill improvement sessions: the same steps on one line of a shared skill.
+    "app/db/models/skill_improvement.py",
+    "app/repositories/skill_improvement.py",
+    "app/schemas/skill_improvement.py",
+    "app/services/skill_improvement.py",
+    "app/api/routes/v1/skill_improvements.py",
+    "app/worker/tasks/skill_check_tasks.py",
     "app/db/models/context_proposal.py",
     "app/repositories/context_proposal.py",
     "app/schemas/context_proposal.py",

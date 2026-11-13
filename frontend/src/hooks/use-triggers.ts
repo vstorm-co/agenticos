@@ -9,6 +9,7 @@ import { qk } from "@/lib/query-keys";
 import { getErrorMessage } from "@/lib/api-error";
 import type {
   Trigger,
+  TriggerAttemptList,
   TriggerCreate,
   TriggerCreated,
   TriggerList,
@@ -121,4 +122,16 @@ export function useTriggers(agentId: string | null) {
     remove,
     rotateSecret,
   };
+}
+
+/** Durable refusals are separate from agent runs and survive notification delivery failures. */
+export function useTriggerAttempts(trigger: Trigger, page: number, pending: boolean) {
+  return useQuery({
+    queryKey: qk.triggers.attempts(trigger.agent_id, trigger.id, page),
+    queryFn: () =>
+      apiClient.get<TriggerAttemptList>(
+        `/agents/${trigger.agent_id}/triggers/${trigger.id}/attempts?skip=${page * 10}&limit=10`,
+      ),
+    refetchInterval: pending ? 3000 : trigger.is_active ? 30_000 : false,
+  });
 }

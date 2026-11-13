@@ -59,7 +59,9 @@ export default defineConfig({
         "src/components/agents/**/*.{ts,tsx}",
         "src/components/authoring/**/*.tsx",
         "src/components/improvement/**/*.tsx",
+        "src/components/skill-improvement/**/*.tsx",
         "src/components/triggers/source-consents-panel.tsx",
+        "src/components/triggers/action-selection.tsx",
         "src/components/triggers/routine-options.tsx",
         "src/components/chat/tool-results/memory.tsx",
         "src/components/projects/project-tracking-control.tsx",
@@ -356,9 +358,8 @@ export default defineConfig({
         // The one key field every speech-to-text level names its key with
         // (#1797), new and so inside the gate.
         "src/components/vault/speech-key-field.tsx",
-        // The connected accounts a virtual terminal reads as (#2191), new and so
-        // inside the gate.
-        "src/components/vault/connected-accounts-card.tsx",
+        // Keys and connected accounts share the vault inventory and its coverage gate.
+        "src/components/vault/vault-table.tsx",
       ],
       exclude: [
         "node_modules",

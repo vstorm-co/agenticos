@@ -1,5 +1,5 @@
 ---
-source_sha: "a709a06f672e"
+source_sha: "0a32b884bf8a"
 ---
 
 # Arquitectura { #architecture }
@@ -1058,3 +1058,6 @@ dice cómo encontrar los documentos, publicado al asistente como JSON Schema.
   fuera de él importa sus submódulos.
 
 Los efectos telefónicos también requieren una frontera duradera: `telephony.runtime.dial`, la admisión entrante, transferencia y finalización confirman su intención antes de llamar al proveedor. La aceptación incierta conserva esa intención para callbacks firmados y limpieza, sin volver a marcar. La admisión de audio confirma su reserva de un solo uso antes de abrir la sesión del modelo.
+
+
+La admisión del canal también confirma su transacción antes de preparar el run: `ChannelMessageRouter._route_inner` guarda la identidad, la sesión y la conversación después de comprobar el acceso y los límites. La credencial MCP de la plataforma se crea en una transacción independiente y referencia esa conversación; un flush no la hace visible allí. Si falla el commit, la preparación no comienza.

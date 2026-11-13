@@ -202,6 +202,8 @@ interface WizardNavProps {
   onBack: () => void;
   /** Draw the back arrow (a step back) rather than a plain cancel link. */
   backIsStep?: boolean;
+  /** Disable cancellation when a write cannot be cancelled by closing its dialog. */
+  backDisabled?: boolean;
   nextLabel: string;
   onNext: () => void;
   nextDisabled?: boolean;
@@ -220,6 +222,7 @@ export function WizardNav({
   backLabel,
   onBack,
   backIsStep = false,
+  backDisabled = false,
   nextLabel,
   onNext,
   nextDisabled = false,
@@ -228,14 +231,14 @@ export function WizardNav({
   busyLabel,
 }: WizardNavProps) {
   return (
-    <div className="border-foreground/10 flex items-center justify-between border-t px-6 py-4">
+    <div className="border-foreground/10 flex items-center justify-between border-t px-4 py-4 sm:px-6">
       <button
         type="button"
         onClick={onBack}
-        // A step back mid-submit would show a form the in-flight create is about
-        // to answer; a cancel stays live, the way the dialog's X and Escape do.
-        disabled={busy && backIsStep}
-        className="text-foreground/65 hover:text-foreground inline-flex items-center gap-1.5 text-sm font-medium"
+        // Some callers can cancel their operation; writes that must settle
+        // explicitly disable cancellation along with their dialog's dismissal.
+        disabled={backDisabled || (busy && backIsStep)}
+        className="text-foreground/65 hover:text-foreground touch:min-h-11 touch:min-w-11 inline-flex items-center gap-1.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
       >
         {backIsStep && <ArrowLeft className="h-4 w-4" />}
         {backLabel}
@@ -245,7 +248,7 @@ export function WizardNav({
         type="button"
         onClick={onNext}
         disabled={nextDisabled || busy}
-        className="bg-foreground text-background hover:bg-foreground/90 disabled:bg-foreground/30 inline-flex items-center gap-1.5 rounded-full px-5 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed"
+        className="bg-foreground text-background hover:bg-foreground/90 disabled:bg-foreground/30 touch:min-h-11 touch:min-w-11 inline-flex items-center gap-1.5 rounded-full px-5 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed"
       >
         {busy ? (
           <>

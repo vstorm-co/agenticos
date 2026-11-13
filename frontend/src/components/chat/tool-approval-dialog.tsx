@@ -85,6 +85,9 @@ export function ToolApprovalDialog({
         action.tool_name === actionRequests[0]!.tool_name &&
         action.account === actionRequests[0]!.account,
     );
+  const mayApprove = actionRequests.every(
+    (action) => !(action.always_asks && action.content_hidden),
+  );
   const decideAll = (type: "approve" | "reject", scope?: Decision["remember_scope"]) =>
     onDecisions(
       actionRequests.map((_, index) => ({
@@ -182,10 +185,14 @@ export function ToolApprovalDialog({
               {t("reject")}
             </Button>
             <div className="flex items-center gap-1">
-              <Button size="sm" onClick={() => decideAll("approve")} disabled={disabled}>
-                {t("approve")}
-              </Button>
-              {mayRemember && sameTool && (
+              {mayApprove ? (
+                <Button size="sm" onClick={() => decideAll("approve")} disabled={disabled}>
+                  {t("approve")}
+                </Button>
+              ) : (
+                <p className="text-muted-foreground max-w-56 text-xs">{t("approvalNeedsTheRun")}</p>
+              )}
+              {mayApprove && mayRemember && sameTool && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button

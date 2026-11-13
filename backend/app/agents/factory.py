@@ -43,6 +43,8 @@ from app.agents.capabilities import get as capability_def
 from app.agents.capabilities._overrides import ToolOverrides
 from app.agents.capabilities.approval import (
     ApprovalGate,
+    always_asking_checks,
+    always_asking_tools,
     approval_describers,
     approval_required_tools,
     approval_tool_ids,
@@ -508,6 +510,8 @@ def build_agent(
     gate = ApprovalGate(
         routine_policy=routine_policy,
         required_tool_names=approval_required,
+        always_asking_tool_names=always_asking_tools(spec),
+        always_asking_checks=always_asking_checks(spec),
         gate_every_tool=gate_every_tool,
         describers=approval_describers(spec),
         tool_ids=approval_tool_ids(spec),

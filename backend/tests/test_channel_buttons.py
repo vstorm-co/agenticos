@@ -312,7 +312,12 @@ class TestMattermost:
         body = json.loads(seen[0].content)
         assert str(seen[0].url) == "https://mm.acme/api/v4/posts"
         assert (body["channel_id"], body["root_id"]) == ("ch", "root")
-        actions = body["props"]["attachments"][0]["actions"]
+        assert body["message"] == ""
+        card = body["props"]["attachments"][0]
+        assert card["text"] == _prompt().text
+        assert card["fallback"] == _prompt().text
+        assert card["title"] == "Your response is needed"
+        actions = card["actions"]
         assert [(action["name"], action["style"]) for action in actions] == [
             ("Approve", "primary"),
             ("Reject", "danger"),
@@ -367,10 +372,20 @@ class TestMattermost:
         assert len(seen) == 2
         assert str(seen[0].url) == "https://mm.acme/api/v4/posts/post-1/patch"
         assert json.loads(seen[0].content) == {
-            "message": "Approve it?\n**Approved.**",
-            "props": {"attachments": []},
+            "message": "",
+            "props": {
+                "attachments": [
+                    {
+                        "title": "Approved.",
+                        "text": "Approve it?",
+                        "fallback": "Approve it?\n**Approved.**",
+                        "color": "#6b7280",
+                    }
+                ]
+            },
         }
-        assert json.loads(seen[1].content)["message"] == "**Approved.**"
+        assert json.loads(seen[1].content)["props"]["attachments"][0]["text"] == ""
+        assert "actions" not in json.loads(seen[0].content)["props"]["attachments"][0]
 
     def test_a_signed_press_is_read_and_an_unsigned_one_is_not(self):
         signed = {

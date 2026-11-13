@@ -25,6 +25,9 @@ class McpToolRead(BaseSchema):
     # The JSON Schema of the tool's arguments, when the server's was small
     # enough to keep. Absent from a list recorded before it was kept.
     input_schema: dict[str, Any] | None = None
+    read_only_hint: bool | None = Field(
+        default=None, description="Explicit server readOnlyHint; null means no recorded declaration"
+    )
     read_only: bool = Field(
         default=False,
         description="The server marks it readOnlyHint; anything else is treated as a write",

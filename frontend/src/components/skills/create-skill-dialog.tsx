@@ -1,5 +1,6 @@
 "use client";
 
+import { normalizeIdentifier } from "@/lib/normalize-identifier";
 import {
   AudiencePicker,
   EVERYONE,
@@ -84,7 +85,7 @@ const PHONE_SCROLLS = "max-md:overflow-y-auto";
  * New skill, laid out as the editor it becomes.
  *
  * The same arrangement as `SkillWorkbench`, deliberately: a strip of facts on
- * top, the body as `SKILL.md` in a file tree on the left, one pane reading a
+ * top, the body as Instructions in a file tree on the left, one pane reading a
  * file on the right. It used to be a stacked form with a lone "Content"
  * textarea, which meant the second time anybody saw their skill it looked
  * nothing like the first - and the create form was the only place in the
@@ -160,7 +161,7 @@ export function CreateSkillDialog({ open, onOpenChange, onCreated }: CreateSkill
     setSubmitting(true);
     try {
       const skill = await create.mutateAsync({
-        name,
+        name: normalizeIdentifier(name),
         description,
         content,
         // Whitespace-only means "no category" - the backend refuses an empty
@@ -218,12 +219,22 @@ export function CreateSkillDialog({ open, onOpenChange, onCreated }: CreateSkill
                 id="new-skill-name"
                 value={name}
                 onChange={(event) => edit("name", event.target.value)}
+                onBlur={() => {
+                  const formatted = normalizeIdentifier(name);
+                  if (formatted !== name) edit("name", formatted);
+                }}
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                aria-describedby="new-skill-name-hint"
                 placeholder="refund-policy"
                 maxLength={MAX_NAME}
                 className="font-mono"
                 aria-invalid={errors.name ? true : undefined}
               />
-              <FieldNote error={errors.name}>{t("howModelRefersSkill")}</FieldNote>
+              <div id="new-skill-name-hint">
+                <FieldNote error={errors.name}>{t("howModelRefersSkill")}</FieldNote>
+              </div>
             </div>
             <div
               className="min-w-0 flex-1 basis-72 space-y-1.5"
@@ -296,7 +307,7 @@ export function CreateSkillDialog({ open, onOpenChange, onCreated }: CreateSkill
                   )}
                 >
                   <BookOpen className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate font-mono text-xs">{BODY}</span>
+                  <span className="truncate text-xs">{t("instructions")}</span>
                 </button>
                 <FileTree
                   nodes={tree}
@@ -334,6 +345,7 @@ export function CreateSkillDialog({ open, onOpenChange, onCreated }: CreateSkill
               ) : (
                 <FileEditor
                   name={BODY}
+                  label={t("instructions")}
                   content={content}
                   canEdit
                   // The shape a skill body takes - when it applies, then the

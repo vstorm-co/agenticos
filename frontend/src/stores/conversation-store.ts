@@ -10,6 +10,9 @@ export interface ConversationState {
   // (qk.conversations.list). This store holds the current selection, the
   // loaded messages for that selection, and the fetch/select status.
   currentConversationId: string | null;
+  /** The fresh conversation confirmed by this scope's authenticated socket. */
+  createdConversationId: string | null;
+  adoptCreatedConversation: (id: string) => void;
   /** Explicit New chat requests, including starting over in an empty draft. */
   composerFocusRequest: number;
   requestComposerFocus: () => void;
@@ -58,6 +61,7 @@ export interface ConversationState {
 
 const initialState = {
   currentConversationId: null,
+  createdConversationId: null,
   composerFocusRequest: 0,
   currentMessages: [],
   hasEarlierMessages: false,
@@ -70,7 +74,12 @@ const initialState = {
 const conversationState: StateCreator<ConversationState> = (set) => ({
   ...initialState,
 
-  setCurrentConversationId: (id) => set({ currentConversationId: id }),
+  setCurrentConversationId: (id) =>
+    set((state) => ({
+      currentConversationId: id,
+      createdConversationId: state.createdConversationId === id ? id : null,
+    })),
+  adoptCreatedConversation: (id) => set({ currentConversationId: id, createdConversationId: id }),
   requestComposerFocus: () =>
     set((state) => ({ composerFocusRequest: state.composerFocusRequest + 1 })),
 

@@ -8,10 +8,12 @@ run commit together, that the member a fire acts as is read afresh, and that a
 webhook's address and secret survive a publish of the same node.
 """
 
+import asyncio
 import contextlib
 import hashlib
 import hmac
 import json
+import time
 import uuid
 from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import asynccontextmanager
@@ -23,7 +25,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import anyio
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.api import deps
@@ -720,12 +722,127 @@ class TestWebhookDeliveries:
             await service.receive_webhook(exposure_id, body=body, headers=_signed(secret, body))
             spent.assert_awaited_once_with(str(exposure_id))
             spent.return_value = rate_limit.Decision(allowed=False, retry_after_seconds=12)
-            fresh = _signed(secret, body) | {"x-delivery-id": "d-2"}
-            fresh["x-signature-256"] = _signed(secret, body)["x-signature-256"]
+            other = b'{"lead": 2}'
             with pytest.raises(RateLimitError) as refused:
-                await service.receive_webhook(exposure_id, body=body, headers=fresh)
+                await service.receive_webhook(
+                    exposure_id, body=other, headers=_signed(secret, other, "d-2")
+                )
         assert refused.value.details == {"retry_after_seconds": 12}
         assert len(await _runs(db)) == 1
+
+    @pytest.mark.security
+    async def test_the_same_signed_request_under_another_id_is_a_copy_of_the_first(
+        self, db, tenant
+    ):
+        owner, org, workflow = tenant
+        exposure_id, secret = await _webhook(db, _ctx(owner, org), workflow)
+        body = b'{"lead": "Acme"}'
+        service = WorkflowExposureService(db)
+        first = await service.receive_webhook(
+            exposure_id, body=body, headers=_signed(secret, body, "d-1")
+        )
+        again = await service.receive_webhook(
+            exposure_id, body=body, headers=_signed(secret, body, "d-2")
+        )
+        moved = await service.receive_webhook(
+            exposure_id,
+            body=body,
+            headers={
+                "x-hub-signature-256": _signed(secret, body)["x-signature-256"],
+                "x-github-delivery": "gh-3",
+            },
+        )
+
+        assert isinstance(first, WebhookAdmitted) and first.duplicate is False
+        assert again == moved == WebhookAdmitted(run_id=first.run_id, duplicate=True)
+        assert len(await _runs(db)) == 1
+
+    async def test_the_same_content_a_day_later_starts_a_run_again(self, db, tenant):
+        owner, org, workflow = tenant
+        exposure_id, secret = await _webhook(db, _ctx(owner, org), workflow)
+        body = b'{"job": "nightly build"}'
+        service = WorkflowExposureService(db)
+        await service.receive_webhook(exposure_id, body=body, headers=_signed(secret, body, "d-1"))
+        await db.execute(
+            update(WorkflowWebhookDelivery)
+            .where(WorkflowWebhookDelivery.exposure_id == exposure_id)
+            .values(created_at=func.now() - timedelta(hours=25))
+        )
+
+        later = await service.receive_webhook(
+            exposure_id, body=body, headers=_signed(secret, body, "d-2")
+        )
+
+        assert isinstance(later, WebhookAdmitted) and later.duplicate is False
+        assert len(await _runs(db)) == 2
+
+    async def test_identical_content_signed_at_different_times_is_two_deliveries(self, db, tenant):
+        owner, org, workflow = tenant
+        exposure_id, secret = await _webhook(db, _ctx(owner, org), workflow)
+        body = b'{"job": "nightly build"}'
+        service = WorkflowExposureService(db)
+        now = int(time.time())
+        for offset, delivery in ((0, "d-1"), (1, "d-2")):
+            stamp = str(now + offset)
+            signed = stamp.encode() + b"." + body
+            await service.receive_webhook(
+                exposure_id,
+                body=body,
+                headers={
+                    "x-signature-256": "sha256="
+                    + hmac.new(secret.encode(), signed, hashlib.sha256).hexdigest(),
+                    "x-signature-timestamp": stamp,
+                    "x-delivery-id": delivery,
+                },
+            )
+        assert len(await _runs(db)) == 2
+
+    @pytest.mark.security
+    async def test_copies_sent_at_once_under_different_ids_admit_one_run(self, engine, db, tenant):
+        owner, org, workflow = tenant
+        exposure_id, secret = await _webhook(db, _ctx(owner, org), workflow)
+        await db.commit()
+        body = b'{"lead": "Acme"}'
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        async def deliver(delivery: str) -> WebhookAdmitted | WebhookAnswer:
+            async with factory() as session:
+                answer = await WorkflowExposureService(session).receive_webhook(
+                    exposure_id, body=body, headers=_signed(secret, body, delivery)
+                )
+                await session.commit()
+                return answer
+
+        answers = await asyncio.gather(*(deliver(f"d-{n}") for n in range(4)))
+
+        admitted = [answer for answer in answers if isinstance(answer, WebhookAdmitted)]
+        assert len(admitted) == 4
+        assert sorted(answer.duplicate for answer in admitted) == [False, True, True, True]
+        assert len({answer.run_id for answer in admitted}) == 1
+
+    @pytest.mark.security
+    async def test_a_delivery_id_cannot_name_another_requests_signed_copy_lock(
+        self, engine, db, tenant
+    ):
+        from app.repositories import workflow_exposure as workflow_exposure_repo
+
+        owner, org, workflow = tenant
+        exposure_id, _secret = await _webhook(db, _ctx(owner, org), workflow)
+        await db.commit()
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as copying, factory() as delivering:
+            await workflow_exposure_repo.lock_signed_copy(
+                copying, exposure_id=exposure_id, signed_digest="d" * 64
+            )
+            # The sender chooses its delivery id, so it may spell out the copy's key.
+            await asyncio.wait_for(
+                workflow_exposure_repo.lock_delivery(
+                    delivering, exposure_id=exposure_id, delivery_id=f"signed:{'d' * 64}"
+                ),
+                timeout=5,
+            )
+            await delivering.rollback()
+            await copying.rollback()
 
     async def test_githubs_own_headers_are_accepted(self, db, tenant):
         owner, org, workflow = tenant
@@ -1953,7 +2070,8 @@ def _github_delivery(
     repository: str | None = "acme/api",
     delivery: str | None = "g-1",
 ) -> tuple[bytes, dict[str, str]]:
-    payload: dict[str, object] = {"sender": {"login": "ada"}}
+    # Each GitHub event carries its own content; only a redelivery repeats a body.
+    payload: dict[str, object] = {"sender": {"login": "ada"}, "issue": {"title": f"#{delivery}"}}
     if repository is not None:
         payload["repository"] = {"full_name": repository}
     if action is not None:
@@ -2059,6 +2177,23 @@ class TestGithub:
         assert run.input["payload"]["repository"] == {"full_name": "acme/api"}
 
     @pytest.mark.security
+    @pytest.mark.security
+    async def test_a_signed_delivery_under_a_new_id_is_a_copy_of_the_first(self, db, tenant):
+        owner, org, workflow = tenant
+        service = WorkflowExposureService(db)
+        graph = _graph("trigger.github", {**GITHUB, "register_with_account": False})
+        published = await _publish(db, _ctx(owner, org), workflow, graph)
+        body, headers = _github_delivery(published.webhook_secret)
+        first = await service.receive_github(published.exposure.id, body=body, headers=headers)
+
+        copy = await service.receive_github(
+            published.exposure.id, body=body, headers=headers | {"x-github-delivery": "g-9"}
+        )
+
+        assert isinstance(first, WebhookAdmitted)
+        assert copy == WebhookAdmitted(run_id=first.run_id, duplicate=True)
+        assert [run.id for run in await _runs(db)] == [first.run_id]
+
     async def test_a_redelivery_gets_its_run_after_the_filters_narrow(self, db, tenant):
         owner, org, workflow = tenant
         ctx = _ctx(owner, org)

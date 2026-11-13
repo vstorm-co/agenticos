@@ -19,6 +19,8 @@ import {
   ORG_GROUPS,
   ORG_MEMBERS,
   ORG_ROLES,
+  SKILL_IMPROVEMENT,
+  SKILL_IMPROVEMENT_START,
   TABLE_DETAIL,
   PROJECT_DETAIL,
 } from "@/lib/onboarding/tour";
@@ -662,6 +664,26 @@ describe("canOfferFlow", () => {
 it("offers the start of an improvement on its start page and a session's walk on a session", () => {
   expect(flowForPage(IMPROVEMENT_START)).toBe("first-improvement");
   expect(flowForPage(IMPROVEMENT)).toBe("improvement-session");
+});
+
+it("offers a skill's improvement its own start and session walks", () => {
+  expect(flowForPage(SKILL_IMPROVEMENT_START)).toBe("first-skill-improvement");
+  expect(flowForPage(SKILL_IMPROVEMENT)).toBe("skill-improvement-session");
+  expect(FLOWS["first-skill-improvement"].steps.map((step) => step.target)).toEqual([
+    "skill-improvement-start",
+    "skill-merge-start",
+  ]);
+  const session = FLOWS["skill-improvement-session"].steps;
+  expect(session.map((step) => step.target)).toEqual([
+    "improvement-steps",
+    "skill-merge-changes",
+    "skill-improvement-agents",
+    "skill-improvement-accept",
+  ]);
+  expect(session.filter((step) => !step.optional).map((step) => step.target)).toEqual([
+    "improvement-steps",
+  ]);
+  expect(session.at(-1)?.permission).toBe(Perm.skillsEdit);
 });
 
 it("walks the start of an improvement through its one decision", () => {

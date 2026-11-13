@@ -7,15 +7,16 @@ import {
   SEEDED_SKILL_NAME,
   pageHeading,
   skillCard,
+  submitDialog,
 } from "./helpers";
 
 test.use({ storageState: AUTH_STATE });
 
 /**
- * Skills are the one thing on this platform that has no draft and no publish
- * step: a save is live everywhere on the next run. The gallery has to list what
- * exists, the editor has to open it with what is actually stored, and the
- * editor has to say out loud how far a save reaches.
+ * A skill's save makes a new version on one line, live at once for every agent
+ * following that line. The gallery has to list what exists, a skill's page has to
+ * open its editor with what is actually stored, and the editor has to say out loud
+ * how far a save reaches.
  *
  * `seed.setup.ts` writes the skill these assert on, through this same UI —
  * bootstrap creates none, and a gallery asserted to be empty is a gallery that
@@ -23,6 +24,32 @@ test.use({ storageState: AUTH_STATE });
  */
 
 test.describe("Skills", () => {
+  for (const width of [390, 1440]) {
+    test(`a skill opens in a readable modal with a full-view link at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/skills");
+      await skillCard(page, SEEDED_SKILL_NAME).click();
+      const modal = page.getByRole("dialog", { name: SEEDED_SKILL_NAME, exact: true });
+      await expect(modal).toBeVisible();
+      await expect(modal.getByLabel(/Instructions source/)).toHaveValue(SEEDED_SKILL_CONTENT);
+      await expect(modal.getByRole("tab", { name: "Version tree", exact: true })).toHaveCount(0);
+      await expect(
+        modal.getByRole("heading", { name: SEEDED_SKILL_NAME, exact: true }),
+      ).toBeVisible();
+      const bounds = await modal.boundingBox();
+      expect(bounds).not.toBeNull();
+      expect(bounds!.x).toBeGreaterThanOrEqual(0);
+      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+      const fullView = modal.getByRole("button", { name: "Open full view", exact: true });
+      await fullView.click();
+      await expect(page).toHaveURL(/\/skills\/[^?]+\?tab=content$/);
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await expect(pageHeading(page, SEEDED_SKILL_NAME)).toBeVisible();
+    });
+  }
+
   test("the gallery lists the organization's skills", async ({ page }) => {
     await page.goto("/skills");
     await expect(pageHeading(page, "Skills")).toBeVisible();
@@ -60,7 +87,7 @@ test.describe("Skills", () => {
     );
 
     // The editor opens on the source: assert the stored text, not the toggle.
-    await expect(dialog.getByLabel(/SKILL\.md source/)).toHaveValue(SEEDED_SKILL_CONTENT);
+    await expect(dialog.getByLabel(/Instructions source/)).toHaveValue(SEEDED_SKILL_CONTENT);
   });
 
   test("editing a skill warns how far the save reaches", async ({ page }) => {
@@ -87,8 +114,8 @@ test.describe("Skills", () => {
     await dialog.getByLabel("Description", { exact: true }).fill("Edited by the E2E suite.");
 
     // A skill has no draft and no publish step, so this warning is the only
-    // moment anyone is told that every agent bound to the skill changes too.
-    await expect(blastRadius).toContainText("Saving reaches every agent bound to this skill");
+    // moment anyone is told that the agents following main change too.
+    await expect(blastRadius).toContainText("on main");
     await expect(save).toBeEnabled();
   });
 
@@ -106,7 +133,11 @@ test.describe("Skills", () => {
     const dialog = page.getByRole("dialog");
     await dialog.getByLabel("Name").fill(name);
     await dialog.getByLabel("Description", { exact: true }).fill("Written by the E2E suite.");
-    await dialog.getByRole("button", { name: "Create" }).click();
+    await submitDialog(page, {
+      dialog,
+      submit: dialog.getByRole("button", { name: "Create" }),
+      path: "/api/skills",
+    });
     await expect(skillCard(page, name)).toBeVisible();
 
     await skillCard(page, name).click();
@@ -115,18 +146,21 @@ test.describe("Skills", () => {
     );
     await dialog.getByLabel("Description", { exact: true }).fill(edited);
     await dialog.getByRole("button", { name: "Save" }).click();
-    await expect(dialog).toBeHidden();
+    // A changed text asks before it goes live, naming the agents it would reach.
+    await page.getByRole("button", { name: "Save now" }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
 
     // Reloaded rather than read off the cache the mutation patched: a panel that
     // only looks right until the next fetch is a panel that never wrote
     // anything.
     await page.reload();
-    await expect(skillCard(page, name)).toContainText(edited);
-
     await skillCard(page, name).click();
+    await expect(dialog.getByLabel("Description", { exact: true })).toHaveValue(edited);
+
     await dialog.getByRole("button", { name: `More actions for ${name}`, exact: true }).click();
     await page.getByRole("menuitem", { name: `Delete ${name}`, exact: true }).click();
     await page.getByRole("button", { name: "Delete", exact: true }).click();
+    await expect(pageHeading(page, "Skills")).toBeVisible();
     await expect(skillCard(page, name)).toHaveCount(0);
   });
 });

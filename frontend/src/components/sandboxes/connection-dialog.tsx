@@ -60,12 +60,14 @@ const PURPOSE: Record<SandboxConnectionKind, string> = {
   docker: "sandboxd",
   daytona: "daytona",
   e2b: "e2b",
+  opensandbox: "opensandbox",
 };
 
 const SUGGESTED_NAME: Record<SandboxConnectionKind, string> = {
   docker: "secretNameDocker",
   daytona: "secretNameDaytona",
   e2b: "secretNameE2b",
+  opensandbox: "secretNameOpenSandbox",
 };
 
 interface FormState {
@@ -78,6 +80,7 @@ interface FormState {
   defaultRuntime: string;
   isDefault: boolean;
   isActive: boolean;
+  secureAccess: boolean;
 }
 
 function initialState(editing: SandboxConnectionRecord | null, defaultName: string): FormState {
@@ -93,6 +96,7 @@ function initialState(editing: SandboxConnectionRecord | null, defaultName: stri
     defaultRuntime: editing?.default_runtime ?? "",
     isDefault: editing?.is_default ?? false,
     isActive: editing?.is_active ?? true,
+    secureAccess: editing?.secure_access ?? false,
   };
 }
 
@@ -106,7 +110,8 @@ function initialState(editing: SandboxConnectionRecord | null, defaultName: stri
  */
 function isComplete(form: FormState, baseUrl: string): boolean {
   if (form.name.trim().length === 0) return false;
-  return form.kind !== "docker" || baseUrl.trim().length > 0;
+  if (["docker", "opensandbox"].includes(form.kind) && !baseUrl.trim()) return false;
+  return form.kind !== "opensandbox" || (!!form.secretId && !!form.defaultRuntime.trim());
 }
 
 /**
@@ -117,7 +122,10 @@ function isComplete(form: FormState, baseUrl: string): boolean {
  * - names `base_url` (#891). And the name, through `identifiedBy`: a duplicate
  * is a 409 about a row that exists, which only this form can place.
  */
-const FORM = { fields: ["base_url"], identifiedBy: "name" } as const;
+const FORM = {
+  fields: ["base_url", "default_runtime", "secure_access"],
+  identifiedBy: "name",
+} as const;
 
 /**
  * Register or edit a place sandboxes run.
@@ -159,7 +167,9 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
   // is a default for a field nobody has touched, and an effect that filled the box
   // would refill it every time somebody cleared it to type another host. `touched`
   // is what separates "not filled in yet" from "deliberately empty".
-  const baseUrl = form.urlTouched ? form.baseUrl : form.baseUrl || (local?.url ?? "");
+  const baseUrl = form.urlTouched
+    ? form.baseUrl
+    : form.baseUrl || (form.kind === "docker" ? (local?.url ?? "") : "");
 
   const address = baseUrl.trim();
   const secretId = form.secretId;
@@ -171,7 +181,13 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
   // as data, so an answer for anything but the form as it stands now is not an
   // answer this form displays: the field falls back to the catalogue's own list
   // until the host has been asked again.
-  const identity = `${address}\u0000${secretId ?? ""}`;
+  const identity = JSON.stringify([
+    form.kind,
+    address,
+    secretId,
+    form.kind === "opensandbox" ? form.defaultRuntime.trim() : null,
+    form.secureAccess,
+  ]);
   const allowed = answer !== null && answer.for === identity ? answer.runtimes : null;
   const refused = answer !== null && answer.for === identity ? answer.failure : null;
   const shown = refused ?? failure;
@@ -182,12 +198,19 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
   // recorded over a newer host's. Neither covers both.
   const inFlight = useRef<string | null>(null);
   const ask = useCallback(async () => {
-    const forWhom = `${address}\u0000${secretId ?? ""}`;
+    const forWhom = identity;
     inFlight.current = forWhom;
     setTesting(true);
     setFailure(NO_FAILURE);
     try {
-      const policy = await probe(address, secretId);
+      const policy =
+        form.kind === "opensandbox"
+          ? await probe(address, secretId, {
+              kind: "opensandbox",
+              image: form.defaultRuntime.trim(),
+              secureAccess: form.secureAccess,
+            })
+          : await probe(address, secretId);
       if (inFlight.current !== forWhom) return;
       setAnswer({ for: forWhom, runtimes: policy.runtimes, failure: null });
     } catch (error) {
@@ -196,7 +219,16 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
     } finally {
       if (inFlight.current === forWhom) setTesting(false);
     }
-  }, [address, secretId, probe, tErrors]);
+  }, [
+    address,
+    secretId,
+    probe,
+    tErrors,
+    identity,
+    form.kind,
+    form.defaultRuntime,
+    form.secureAccess,
+  ]);
 
   /**
    * Ask, but only the address this deployment reported itself.
@@ -222,11 +254,11 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
   // those, so this is the same bound stated on the button.
   const askableWithLocalToken = local !== null && local.token_available && address === knownAddress;
   useEffect(() => {
-    if (address !== knownAddress || !address) return;
+    if (form.kind !== "docker" || address !== knownAddress || !address) return;
     if (!secretId && !askableWithLocalToken) return;
     const timer = setTimeout(() => void ask(), 600);
     return () => clearTimeout(timer);
-  }, [address, secretId, knownAddress, askableWithLocalToken, ask]);
+  }, [address, secretId, knownAddress, askableWithLocalToken, ask, form.kind]);
 
   const usable = secrets.filter((secret) => secret.kind === "api_key");
 
@@ -253,7 +285,10 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
         kind: form.kind,
         // Daytona has an address of its own, so ours is deliberately cleared
         // rather than left holding whatever was typed before the kind changed.
-        base_url: form.kind === "docker" ? baseUrl.trim() : null,
+        base_url: ["docker", "opensandbox"].includes(form.kind) ? baseUrl.trim() : null,
+        ...((form.kind === "opensandbox" || editing?.secure_access) && {
+          secure_access: form.kind === "opensandbox" && form.secureAccess,
+        }),
         secret_id: secretId,
         default_runtime: form.defaultRuntime.trim() || null,
         is_default: form.isDefault,
@@ -307,7 +342,16 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
               <Select
                 value={form.kind}
                 onValueChange={(kind) =>
-                  setForm({ ...form, kind: kind as SandboxConnectionKind, secretId: null })
+                  setForm({
+                    ...form,
+                    kind: kind as SandboxConnectionKind,
+                    secretId: null,
+                    defaultRuntime:
+                      kind === "opensandbox" || form.kind === "opensandbox"
+                        ? ""
+                        : form.defaultRuntime,
+                    secureAccess: false,
+                  })
                 }
               >
                 <SelectTrigger id="connection-kind">
@@ -326,6 +370,12 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
                       {t("kindDaytona")}
                     </span>
                   </SelectItem>
+                  <SelectItem value="opensandbox">
+                    <span className="flex items-center gap-2">
+                      <ConnectionKindIcon kind="opensandbox" />
+                      {t("kindOpenSandbox")}
+                    </span>
+                  </SelectItem>
                   <SelectItem value="e2b">
                     <span className="flex items-center gap-2">
                       <ConnectionKindIcon kind="e2b" />
@@ -337,12 +387,16 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
             </div>
           </div>
 
-          {form.kind === "docker" && (
+          {["docker", "opensandbox"].includes(form.kind) && (
             <div className="space-y-2">
               <FormField
                 htmlFor="connection-url"
                 label={t("address")}
-                description={t("whereSandboxServiceAnswers")}
+                description={t(
+                  form.kind === "opensandbox"
+                    ? "openSandboxAddressHint"
+                    : "whereSandboxServiceAnswers",
+                )}
                 error={shown.fields.base_url}
               >
                 <Input
@@ -355,7 +409,7 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
                   }}
                 />
               </FormField>
-              {local?.url != null && (
+              {form.kind === "docker" && local?.url != null && (
                 <p className="text-muted-foreground text-xs">
                   {local.registered_connection_id === null
                     ? t("localServiceFound", { url: local.url })
@@ -396,7 +450,9 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
                 ? t("dockerTokenHint")
                 : form.kind === "e2b"
                   ? t("e2bKeyHint")
-                  : t("daytonaKeyHint")}
+                  : form.kind === "opensandbox"
+                    ? t("openSandboxKeyHint")
+                    : t("daytonaKeyHint")}
             </p>
             {/* The token is not something to go and find: `make sandbox-token`
                 generated it into `backend/.env`, and that is the file the service
@@ -430,6 +486,52 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
               onTest={address && (secretId || askableWithLocalToken) ? ask : null}
               testing={testing}
             />
+          ) : form.kind === "opensandbox" ? (
+            <div className="space-y-4">
+              <FormField
+                htmlFor="connection-runtime"
+                label={t("openSandboxImage")}
+                description={t("openSandboxImageHint")}
+                error={shown.fields.default_runtime}
+              >
+                {/* i18n-exempt: an OCI image reference example, not prose. */}
+                <Input
+                  id="connection-runtime"
+                  value={form.defaultRuntime}
+                  maxLength={512}
+                  placeholder="python:3.12-slim"
+                  onChange={(event) => setForm({ ...form, defaultRuntime: event.target.value })}
+                />
+              </FormField>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <Label htmlFor="connection-secure-access">{t("openSandboxSecureAccess")}</Label>
+                  <p className="text-muted-foreground text-xs" id="secure-access-hint">
+                    {t("openSandboxSecureAccessHint")}
+                  </p>
+                </div>
+                <Switch
+                  id="connection-secure-access"
+                  aria-describedby="secure-access-hint"
+                  checked={form.secureAccess}
+                  onCheckedChange={(secureAccess) => setForm({ ...form, secureAccess })}
+                />
+              </div>
+              <p className="text-muted-foreground text-xs">{t("openSandboxTestHint")}</p>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={testing || !address || !secretId || !form.defaultRuntime.trim()}
+                onClick={() => void ask()}
+              >
+                {t(testing ? "openSandboxTesting" : "openSandboxTest")}
+              </Button>
+              {answer?.for === identity && answer.failure === null && (
+                <p role="status" className="text-muted-foreground text-sm">
+                  {t("openSandboxTestSuccess")}
+                </p>
+              )}
+            </div>
           ) : (
             <div className="space-y-2">
               <Label htmlFor="connection-runtime">{t("defaultRuntime")}</Label>

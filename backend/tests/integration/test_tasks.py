@@ -1695,3 +1695,127 @@ async def test_a_member_who_sees_a_board_default_view_is_refused_it_not_told_it_
         )
     with pytest.raises(AuthorizationError):
         await views.delete_view(other_ctx, board.table_id, table.default_view_id)
+
+
+@pytest.mark.parametrize("settled_before_archive", [False, True])
+async def test_a_case_settled_while_its_board_is_archived_moves_the_task_once_it_returns(
+    db: AsyncSession,
+    settled_before_archive: bool,
+) -> None:
+    from app.db.models.virtual_table import VirtualTableRecord
+    from app.services.outcome import OutcomeService
+
+    data = await world(db)
+    service = TaskService(db)
+    owner = data.contexts[0]
+    settled, still_open = [
+        await service.create(
+            owner, TaskCreate(title=title, start_at=datetime.now(UTC) - timedelta(minutes=1))
+        )
+        for title in ("Send the approved draft", "Call the supplier")
+    ]
+    for task in (settled, still_open):
+        await TaskExecution(db).wake(
+            WakeTask(organization_id=data.org.id, task_id=task.id, revision=task.revision)
+        )
+    case = (await service.get(owner, settled.id)).outcome_id
+    tables = VirtualTableService(db)
+    await tables.archive_table(owner, settled.table_id)
+    record = await db.get(VirtualTableRecord, settled.id)
+    assert record is not None
+    revision = record.revision
+
+    await OutcomeService(db).settle(owner, case, "resolve", via="inbox")
+    if settled_before_archive:
+        # Settlement is stamped before taking the board lock; archive can win that lock.
+        from app.db.models.outcome import Outcome
+        from app.db.models.virtual_table import VirtualTable
+
+        board_row = await db.get(VirtualTable, settled.table_id)
+        case_row = await db.get(Outcome, case)
+        assert board_row is not None and board_row.archived_at is not None
+        assert case_row is not None
+        case_row.settled_at = board_row.archived_at - timedelta(microseconds=1)
+        await db.flush()
+
+    await db.refresh(record)
+    assert record.revision == revision
+
+    await tables.unarchive_table(owner, settled.table_id)
+
+    assert (await service.get(owner, settled.id)).status == "done"
+    assert (await service.get(owner, still_open.id)).status == "waiting_for_user"
+
+
+async def test_reopening_a_case_whose_task_board_is_archived_is_refused(db: AsyncSession) -> None:
+    from app.db.models.suggestion import Suggestion
+    from app.services.outcome import OutcomeService
+    from app.services.suggestions import SuggestionService
+    from app.services.virtual_tables.exceptions import TableArchivedError
+
+    data = await world(db)
+    service = TaskService(db)
+    owner = data.contexts[0]
+    task = await service.create(
+        owner,
+        TaskCreate(title="Check the draft", start_at=datetime.now(UTC) - timedelta(minutes=1)),
+    )
+    await TaskExecution(db).wake(
+        WakeTask(organization_id=data.org.id, task_id=task.id, revision=task.revision)
+    )
+    task = await service.get(owner, task.id)
+    await OutcomeService(db).settle(owner, task.outcome_id, "mute", via="inbox")
+    finding = await db.scalar(select(Suggestion).where(Suggestion.outcome_id == task.outcome_id))
+    assert finding is not None
+    await VirtualTableService(db).archive_table(owner, task.table_id)
+
+    with pytest.raises(TableArchivedError):
+        await SuggestionService(db).restore(owner, finding.id)
+
+
+async def test_waking_a_task_waits_for_its_board_before_it_holds_the_task(engine) -> None:
+    """Restoring a board holds its table, then locks each task: a wake that held its task
+    first and then waited on the table would deadlock with it."""
+    import asyncio
+
+    from sqlalchemy.exc import DBAPIError
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    from app.db.models.virtual_table import VirtualTable, VirtualTableRecord
+
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as db:
+        data = await world(db)
+        task = await TaskService(db).create(
+            data.contexts[0],
+            TaskCreate(title="Send the draft", start_at=datetime.now(UTC) - timedelta(minutes=1)),
+        )
+        await db.commit()
+
+    async def wake() -> None:
+        async with factory() as db:
+            await TaskExecution(db).wake(
+                WakeTask(organization_id=data.org.id, task_id=task.id, revision=task.revision)
+            )
+            await db.commit()
+
+    async with factory() as restoring:
+        await restoring.execute(
+            select(VirtualTable.id).where(VirtualTable.id == task.table_id).with_for_update()
+        )
+        waking = asyncio.create_task(wake())
+        await asyncio.sleep(0.5)
+        try:
+            held = await restoring.scalar(
+                select(VirtualTableRecord.id)
+                .where(VirtualTableRecord.id == task.id)
+                .with_for_update(nowait=True)
+            )
+        except DBAPIError:
+            held = None
+        await restoring.rollback()
+    await waking
+
+    assert held == task.id
+    async with factory() as db:
+        assert (await TaskService(db).get(data.contexts[0], task.id)).status == "waiting_for_user"

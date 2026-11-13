@@ -117,6 +117,9 @@ function servePermissions(permissions: readonly string[]) {
     if (path.startsWith("/datasets?")) {
       return Promise.resolve({ items: [{ id: "dataset-1", name: "Refunds" }], total: 1 });
     }
+    if (path.startsWith("/skills?")) {
+      return Promise.resolve({ items: [{ id: "skill-1", name: "refund-policy" }], total: 1 });
+    }
     return Promise.resolve({
       organization_id: "org-1",
       role: "member",
@@ -308,8 +311,9 @@ describe("OnboardingTour", () => {
   it("offers the section's create flow when a '?' walk runs to its end", async () => {
     // Every section's "?" ends by asking whether to make the thing the section
     // is for - the re-entry into the interactive flows.
+    // The Skills walk ends on a skill's own page, which is where the reader is.
     servePermissions(OWNER);
-    nav.pathname = "/skills";
+    nav.pathname = "/skills/skill-1";
     useOnboardingStore.setState({ isOpen: true, index: 99, mode: "page" });
     if (!useOnboardingStore.getState().isOpen) useOnboardingStore.getState().openTour();
     render(<OnboardingTour />, { wrapper });
@@ -411,6 +415,7 @@ describe("OnboardingTour", () => {
     expect(asked).not.toContain("/kb");
     expect(asked).not.toContain("/orgs");
     expect(asked.some((path) => path.startsWith("/datasets?"))).toBe(false);
+    expect(asked.some((path) => path.startsWith("/skills?"))).toBe(false);
   });
 
   it("asks for them on a walk that does step into a detail view", async () => {
@@ -576,6 +581,46 @@ describe("OnboardingTour's light", () => {
       ),
     );
     now.mockRestore();
+  });
+
+  it("passes an absent stop in the direction the reader moved, and counts only present ones", async () => {
+    // On a skill's page on main, the catch-up stop never mounts: Next skips it on to
+    // the stop after, and Back from there skips it back to the stop before.
+    const steps = stepsForPage("/skills/skill-1", () => true);
+    const absent = steps.findIndex((one) => one.id === "skill-catch-up");
+    const present = steps
+      .filter((one) => one.id !== "skill-catch-up")
+      .map((one) => {
+        const element = document.createElement("div");
+        element.dataset.tour = one.target ?? one.id;
+        return element;
+      });
+    const tabs = steps
+      .flatMap((one) => [one.activate ?? []].flat().map((id) => tab(id, "active")))
+      .filter(
+        (element, i, all) => all.findIndex((x) => x.dataset.tour === element.dataset.tour) === i,
+      );
+    serveElements(...present, ...tabs);
+    servePermissions(OWNER);
+    nav.pathname = "/skills/skill-1";
+    useOnboardingStore.setState({ isOpen: true, index: absent - 1, mode: "page" });
+    render(<OnboardingTour />, { wrapper });
+    const total = steps.length;
+    await waitFor(() =>
+      expect(shownStep().popover?.progressText).toBe(`Step ${absent} of ${total}`),
+    );
+
+    act(() => shownStep().popover?.onNextClick?.(undefined, {} as DriveStep, {} as never));
+    await waitFor(() => expect(useOnboardingStore.getState().index).toBe(absent + 1));
+    await waitFor(() =>
+      expect(shownStep().popover?.progressText).toBe(`Step ${absent + 1} of ${total - 1}`),
+    );
+
+    act(() => shownStep().popover?.onPrevClick?.(undefined, {} as DriveStep, {} as never));
+    await waitFor(() => expect(useOnboardingStore.getState().index).toBe(absent - 1));
+    await waitFor(() =>
+      expect(shownStep().popover?.progressText).toBe(`Step ${absent} of ${total - 1}`),
+    );
   });
 
   it("leaves an open popover open rather than pressing its trigger shut", async () => {

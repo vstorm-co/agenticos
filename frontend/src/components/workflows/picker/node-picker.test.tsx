@@ -429,12 +429,20 @@ describe("NodePicker app groups", () => {
     await userEvent.type(search, "create draft");
     expect(screen.getByRole("option", { name: /Create draft/ })).toBeTruthy();
 
-    // The app's name: its trigger once (under Triggers), then both of its actions.
+    // The app's name: the app's group first, then its trigger once (under Triggers),
+    // then both of its actions - built-in steps before an app's actions.
     await userEvent.clear(search);
     await userEvent.type(search, "gmail");
     const rows = screen.getAllByRole("option").map((row) => row.textContent ?? "");
-    expect(rows.filter((row) => row.startsWith("Gmail"))).toHaveLength(1);
-    expect(rows).toHaveLength(3);
+    expect(rows).toHaveLength(4);
+    expect(rows[0]).toMatch(/^Gmail/);
+    expect(rows.slice(2).every((row) => row.includes("MCP"))).toBe(true);
+    const headings = document.querySelectorAll("[cmdk-group-heading]");
+    expect(Array.from(headings, (heading) => heading.textContent)).toEqual([
+      "Categories",
+      "Built-in steps",
+      "App actions",
+    ]);
 
     await userEvent.clear(search);
     await userEvent.type(search, "gmail-dev");

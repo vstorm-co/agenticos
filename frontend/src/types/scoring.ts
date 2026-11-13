@@ -88,6 +88,16 @@ export interface JudgePin {
   prompt_version: number | null;
 }
 
+/** The skill check an answer was given in, and which side of it. */
+export interface SkillCheckAnswer {
+  skill_id: string;
+  check_id: string;
+  /** `proposed`: the change the check measures; `current`: the skill as the line serves it. */
+  arm: "proposed" | "current";
+  /** The skill version that side read; null for a change not yet saved as a version. */
+  version: number | null;
+}
+
 export interface CaseScore {
   id: string;
   dataset_id: string;
@@ -117,6 +127,10 @@ export interface CaseScore {
   case_masked?: boolean;
   /** The eval run that scored it; null for a score asked for by hand. */
   eval_run_id: string | null;
+  /** The skill check whose stage gave the answer, and with which side of the skill. */
+  skill_check?: SkillCheckAnswer | null;
+  /** For an eval run's answer: 0 for the case's first answer, 1 and up for a re-ask. */
+  eval_attempt?: number | null;
   results: ScorerResult[];
   judge: JudgePin | null;
   passed: boolean | null;

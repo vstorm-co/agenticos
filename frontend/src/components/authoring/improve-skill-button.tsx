@@ -5,27 +5,10 @@ import { Loader2, Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui";
-import { useContextAuthoring, useSkillAuthoring } from "@/hooks/use-authoring";
+import { useContextAuthoring } from "@/hooks/use-authoring";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Perm } from "@/types/permissions";
 import { ImproveDialog } from "./improve-dialog";
-
-/**
- * Ask the assistant to improve a skill from the runs that opened it.
- *
- * What it proposes waits under Skills like any other change: applying a skill
- * change is live for every agent bound to it, so it is a decision of its own.
- */
-export function ImproveSkillButton({ skillId }: { skillId: string }) {
-  const t = useTranslations("authoring.skill");
-  const canReadRuns = usePermissions().can(Perm.runsView);
-  return (
-    <ImproveButton
-      assistant={useSkillAuthoring(skillId, { enabled: canReadRuns })}
-      labels={{ improve: t("improve"), working: t("working"), aiOff: t("aiOff") }}
-    />
-  );
-}
 
 /**
  * Ask the assistant to improve a context file from the runs of the agents that use it.
@@ -57,7 +40,7 @@ function ImproveButton({
   labels,
   held = null,
 }: {
-  assistant: ReturnType<typeof useSkillAuthoring>;
+  assistant: ReturnType<typeof useContextAuthoring>;
   labels: { improve: string; working: string; aiOff: string };
   /** Why it waits for now, when it does. */
   held?: string | null;
@@ -94,6 +77,7 @@ function ImproveButton({
       {asking && (
         <ImproveDialog
           kind="improve"
+          subject="context"
           estimate={assistant.estimate.mutateAsync}
           start={assistant.start.mutateAsync}
           onOpenChange={setAsking}

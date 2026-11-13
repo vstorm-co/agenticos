@@ -1,5 +1,7 @@
 "use client";
 
+import { CatalogLoading } from "@/components/states/catalog-loading";
+
 import { useWorkspaceFullscreen } from "@/hooks/use-workspace-fullscreen";
 import { WorkspaceFullscreenButton } from "@/components/ui/workspace-fullscreen-button";
 import { useState } from "react";
@@ -27,7 +29,6 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Skeleton,
   useDebounced,
 } from "@/components/ui";
 import { useTables, usePermissions } from "@/hooks";
@@ -151,11 +152,7 @@ export default function TablesPage() {
         data-tour="tables-catalog"
       >
         {isLoading && tables.length === 0 ? (
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {[0, 1, 2].map((row) => (
-              <Skeleton key={row} className="h-36 w-full rounded-xl" />
-            ))}
-          </div>
+          <CatalogLoading kind="resource" />
         ) : error && tables.length === 0 ? (
           <ErrorState cta={{ label: tc("retry"), onClick: () => void refetch() }} />
         ) : tables.length === 0 ? (

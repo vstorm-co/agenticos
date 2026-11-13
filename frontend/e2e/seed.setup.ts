@@ -126,8 +126,8 @@ setup("a skill exists", async ({ page }) => {
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Name").fill(SEEDED_SKILL_NAME);
   await dialog.getByLabel("Description").fill(SEEDED_SKILL_DESCRIPTION);
-  // Creation opens directly on the source of the selected file.
-  await dialog.getByLabel(/SKILL\.md source/).fill(SEEDED_SKILL_CONTENT);
+  // Creation opens directly on the source of the body, which the pane calls Instructions.
+  await dialog.getByLabel(/Instructions source/).fill(SEEDED_SKILL_CONTENT);
   await submitDialog(page, {
     dialog,
     submit: dialog.getByRole("button", { name: "Create" }),
@@ -217,7 +217,7 @@ async function storeSecret(
 
   await page.getByRole("button", { name: "Add key" }).first().click();
   const dialog = page.getByRole("dialog");
-  await expect(dialog.getByText("Add a key")).toBeVisible();
+  await expect(dialog.getByRole("heading", { name: "Add a key" })).toBeVisible();
 
   // Two steps rather than one list of thirty-one: the family first, which rules
   // out most of the second question.
@@ -298,7 +298,7 @@ setup("an S3 key pair is stored", async ({ page }) => {
 
   await page.getByRole("button", { name: "Add key" }).first().click();
   const dialog = page.getByRole("dialog");
-  await expect(dialog.getByText("Add a key")).toBeVisible();
+  await expect(dialog.getByRole("heading", { name: "Add a key" })).toBeVisible();
 
   await dialog.getByRole("button", { name: /^Document source/ }).click();
   await dialog.getByLabel(/^(Which one|Service)$/).click();

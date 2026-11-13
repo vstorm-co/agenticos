@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { toast } from "sonner";
@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { OrgVoiceSettings } from "./org-voice-settings";
 import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
+import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import { useOrgStore } from "@/stores";
 import type { Organization } from "@/types";
 
@@ -179,7 +180,25 @@ async function choose(field: string | RegExp, option: string | RegExp) {
 describe("OrgVoiceSettings", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useUnsavedChangesStore.setState({ sources: {}, prompt: null, saving: false });
     useOrgStore.setState({ activeOrgId: ORG_ID });
+  });
+
+  it("holds navigation for an edited recording limit and keeps a refused save", async () => {
+    serve();
+    vi.mocked(apiClient.patch).mockRejectedValue(new ApiError(409, "Changed elsewhere"));
+    render(<OrgVoiceSettings org={org()} />, { wrapper });
+    const input = await screen.findByLabelText("Max recording length");
+    await userEvent.clear(input);
+    await userEvent.type(input, "8");
+    const proceed = vi.fn();
+    act(() => useUnsavedChangesStore.getState().leave(proceed));
+    await act(() => useUnsavedChangesStore.getState().answer("save"));
+    expect(proceed).not.toHaveBeenCalled();
+    expect(input).toHaveValue("8");
+    act(() => useUnsavedChangesStore.getState().leave(proceed));
+    await act(() => useUnsavedChangesStore.getState().answer("discard"));
+    expect(input).toHaveValue("5");
   });
 
   it("shows nothing to somebody who may not change organization settings", async () => {

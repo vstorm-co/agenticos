@@ -21,6 +21,7 @@ import { Upload } from "lucide-react";
 
 import { FileEditor, FileIcon, PathTree, type PathTreeNode } from "@/components/files";
 import { Button, Input, Label, Textarea } from "@/components/ui";
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useSkillResource } from "@/hooks";
 import { folderPaths, type TreeNode } from "@/lib/file-tree";
 import type { SkillResourceSummary } from "@/types/providers";
@@ -141,7 +142,7 @@ export function FilePane({
   resource: SkillResourceSummary;
   canEdit: boolean;
   busy: boolean;
-  onSave: (content: string) => void;
+  onSave: (content: string) => Promise<unknown>;
   onDelete: () => void;
 }) {
   const t = useTranslations("skills");
@@ -150,6 +151,22 @@ export function FilePane({
 
   const value = draft ?? loaded?.content ?? "";
   const dirty = draft !== null && draft !== loaded?.content;
+
+  const save = async (): Promise<boolean> => {
+    try {
+      await onSave(value);
+      setDraft((current) => (current === value ? null : current));
+      return true;
+    } catch {
+      // The resource mutation shows the error; preserve the text for another attempt.
+      return false;
+    }
+  };
+  useUnsavedChanges(`skill-resource:${skillId}:${resource.id}`, {
+    dirty: canEdit && dirty,
+    save,
+    discard: () => setDraft(null),
+  });
 
   return (
     <FileEditor
@@ -162,15 +179,7 @@ export function FilePane({
       footer={
         canEdit ? (
           <>
-            <Button
-              size="sm"
-              loading={busy}
-              disabled={!dirty}
-              onClick={() => {
-                onSave(value);
-                setDraft(null);
-              }}
-            >
+            <Button size="sm" loading={busy} disabled={!dirty} onClick={() => void save()}>
               {t("saveFile")}
             </Button>
             {dirty && (

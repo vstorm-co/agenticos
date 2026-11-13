@@ -34,6 +34,7 @@ Run these from the project root directory.
 | `make desktop-check` | `bun test` over the pet, then rustfmt, clippy with warnings denied and the shell's Rust tests. Not in `lint` or `check`, because CI has no Rust toolchain yet |
 | `make audit` | Audit the locked dependency set for known vulnerabilities. Needs the network — one request per locked distribution — so its last line says which of four states it ended in rather than leaving a red run ambiguous. See below |
 | `make sandbox-token` | Generate the sandbox service's own `SANDBOXD_TOKEN` into `backend/.env`, once. `make dev` runs it for you; it never regenerates, because a new token orphans every workspace the service is holding. The connection form offers to store the same value in the vault, so it does not have to be pasted anywhere |
+| `make seed-skills-lab` | Build the Skills lab organization on a running stack, for clicking through skill improvement: one skill, `returns-policy`, that several agents share, their test questions and rated chats. Talks to the stack over HTTP, so it creates only what is missing and a second run keeps what people changed. The owner's login and the provider key come from `SKILLS_LAB_EMAIL`, `SKILLS_LAB_PASSWORD` and `SKILLS_LAB_OPENROUTER_KEY`; `SKILLS_LAB_URL` names the stack. `PROBE=v1`, `broad`, `narrow` or `gift` measures one wording of the skill in an organization of its own, and `DROP_PROBES=1` deletes those organizations |
 | `make clean` | Remove cache files (__pycache__, .pytest_cache, etc.) |
 
 ### Before a pull request
@@ -310,6 +311,10 @@ uv run agenticos cmd <command-name> [options]
 
 ```bash
 # An organization, an owner, a model profile and a published agent. Idempotent.
+# --org names the organization bootstrap sets up. An account that already
+# exists gets one by that name, even if it runs another; its personal
+# organization is left alone. Without --org, it is the one the owner lands in.
+# A deployment's default organization still opens first at sign-in.
 uv run agenticos cmd bootstrap \
     --email owner@example.com --password secret \
     --org "Acme" --provider anthropic --api-key sk-ant-...

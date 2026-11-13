@@ -52,6 +52,8 @@ describe("a field change", () => {
           field({ path: "capabilities/sandbox/approval" }),
           field({ path: "capabilities/sandbox/tool_approval/execute" }),
           field({ path: null }),
+          hunk({ kind: "skill_body", path: null }),
+          hunk({ kind: "skill_description", path: null }),
         ]}
       />,
     );
@@ -72,10 +74,13 @@ describe("a field change", () => {
       "Settings of knowledge",
       "Approval for sandbox",
       "Approval for tool execute",
-      "Approval for tool",
+      "Other change",
+      "Skill instructions",
+      "Skill description",
     ]) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
+    expect(screen.queryByText("Approval for tool")).toBeNull();
   });
 
   it("lets a single setting or a text be edited, as the value the field holds", () => {

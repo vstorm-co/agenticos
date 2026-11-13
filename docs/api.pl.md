@@ -1,5 +1,5 @@
 ---
-source_sha: "3503412daf98"
+source_sha: "d8ab63f0a753"
 ---
 
 # API HTTP { #the-http-api }
@@ -51,6 +51,17 @@ nazywa klucz, który zadziałał: każdy wpis zapisany w trakcie żądania
 uwierzytelnionego kluczem niesie w szczegółach `via_api_key`. Klucz może mieć datę
 wygaśnięcia, a jego unieważnienie (`DELETE /api/v1/api-keys/{id}`) działa od
 następnego żądania.
+
+W konsoli klucze są przed instrukcją połączenia, a aktywne pojawiają się pierwsze.
+Szukaj po nazwie, prefiksie lub autorze; na telefonie karty pokazują wygaśnięcie
+oraz ostatnie użycie. W **Utwórz klucz** rozwiń szczegóły uprawnień presetu albo
+wybierz **Własne**, żeby wyszukać pojedyncze uprawnienia. Wyszukiwanie nie usuwa zaznaczeń.
+Enter w polu nazwy tworzy klucz; Enter w wyszukiwarce uprawnień nie wysyła formularza.
+
+Podczas tworzenia klucza pola i zamknięcie okna są zablokowane. Odmowa zachowuje
+formularz do ponowienia. Po utworzeniu skopiuj klucz przed zamknięciem; odmowa
+schowka zostawia wartość dostępną do kolejnej próby. Zamknięcie czyści stan
+tworzenia. Odmowa unieważnienia zostawia otwarte potwierdzenie do ponowienia.
 
 **Klucz nie jest osobą, która go wystawiła.** Run, który uruchamia, należy do
 wystawcy, jest liczony w jego budżecie i audycie, ale nie sięga do niczego
@@ -160,14 +171,17 @@ przerwane przez rutynowe odświeżenie.
 
 ### Praca, która działa po żądaniu { #work-that-runs-after-the-request }
 
-[Eval run](evals.md) ani żądanie do [asystenta tworzenia](authoring.md) nie
-mogą zostać rozpoczęte kluczem organizacji: te trasy są dla osób zalogowanych, a
-klucz dostaje na nich `403`. Praca, która wykonuje się później, w tle, podlega
-uprawnieniom osoby, która ją rozpoczęła, w ich stanie z chwili, gdy praca się
-zaczyna - rola utracona w międzyczasie ją zatrzymuje. Gdyby klucz kiedyś mógł
-rozpocząć taką pracę, to samo dotyczyłoby klucza: liczyłyby się jego uprawnienia
-w ówczesnym stanie, a klucz unieważniony, wygasły albo usunięty w międzyczasie
-zatrzymywałby pracę, z powodem zapisanym na runie albo żądaniu.
+[Eval run](evals.md) ani żądanie do [asystenta tworzenia](authoring.md) nie mogą zostać
+rozpoczęte kluczem organizacji: te trasy są dla osób zalogowanych, a klucz dostaje na
+nich `403`. Praca, która wykonuje się później, w tle, podlega uprawnieniom osoby, która
+ją rozpoczęła, w ich stanie z chwili, gdy praca się zaczyna - rola utracona w
+międzyczasie ją zatrzymuje. Gdyby klucz kiedyś mógł rozpocząć taką pracę, to samo
+dotyczyłoby klucza: liczyłyby się jego uprawnienia w ówczesnym stanie, a klucz
+unieważniony albo usunięty w międzyczasie zatrzymywałby pracę, z powodem zapisanym na
+runie albo żądaniu.
+
+Wygaśnięcie ogranicza tylko to, co klucz może rozpocząć: praca rozpoczęta, gdy był
+ważny, trwa dalej po jego wygaśnięciu.
 
 ## Nagłówek organizacji { #the-organization-header }
 
@@ -298,7 +312,7 @@ budżet i zatwierdzenia co na każdej innej powierzchni.
 To, co da się sprawdzić od razu, jest sprawdzane od razu: nieznana rozmowa albo
 załącznik to `404` na `POST`, a nie błąd, na który trzeba czekać. Uprawnienia
 klucza są sprawdzane ponownie, gdy run startuje, więc klucz odwołany w czasie,
-gdy run czekał, go nie uruchomi. Żądanie runu może odczytać tylko osoba, która
+gdy run czekał, go nie uruchomi; klucz, który w tym czasie tylko wygasł, uruchomi. Żądanie runu może odczytać tylko osoba, która
 o nie poprosiła, albo jej klucz; cudze odpowiada `404`. Asynchroniczny run ma
 jedną próbę - run, który się nie powiódł, jest zapisany z tym, co wydał, i nie
 jest ponawiany, żeby nie wydać tego drugi raz.
@@ -328,14 +342,17 @@ filtra. Prywatny agent, którego nie widzisz, nie dodaje żadnej.
 
 ## Uruchamianie workflowu { #running-a-workflow }
 
-Klucze API organizacji mogą uruchamiać runy i odczytywać ich stan, graf, kroki,
-pliki oraz zdarzenia przez `/api/v1/workflow-runs`. Start wymaga `workflows:run`,
-odczyt także `workflows:view`, a test draftu `workflows:edit`. Worker zachowuje zakres
-klucza z chwili przyjęcia runu i sprawdza klucz oraz wystawcę przed każdym krokiem,
-także po zatwierdzeniu lub oczekiwaniu. Unieważnienie, wygaśnięcie albo usunięcie
-klucza zatrzymuje nową pracę z `PRINCIPAL_REVOKED`; wznowienie nigdy nie dostaje pełnej
-roli wystawcy. Run uruchomiony kluczem nie ma dostępu do osobistego stanu wystawcy.
-Edycja workflow nadal wymaga sesji.
+Klucze API organizacji mogą uruchamiać runy i odczytywać ich stan, graf, kroki, pliki
+oraz zdarzenia przez `/api/v1/workflow-runs`. Start wymaga `workflows:run`, odczyt także
+`workflows:view`, a test draftu `workflows:edit`. Worker zachowuje zakres klucza z
+chwili przyjęcia runu i sprawdza klucz oraz wystawcę przed każdym krokiem, także po
+zatwierdzeniu lub oczekiwaniu. Unieważnienie albo usunięcie klucza zatrzymuje nową pracę
+z `PRINCIPAL_REVOKED`; wznowienie nigdy nie dostaje pełnej roli wystawcy.
+
+Wygaśnięcie tego nie robi: wygasły klucz niczego nie rozpocznie, ale run, który
+rozpoczął, gdy był ważny, trwa dalej, więc godzina ważności tokenu OAuth nie przerywa
+długiego oczekiwania. Run uruchomiony kluczem nie ma dostępu do osobistego stanu
+wystawcy. Edycja workflow nadal wymaga sesji.
 
 Klucze API mogą wyświetlać przebiegi pochodzenia publicznego, w tym uruchomione
 kluczem. Osobiste przebiegi uruchomione przez użytkownika zwracają `404`, również dla
@@ -508,7 +525,8 @@ curl -X POST "$WEBHOOK_URL" \
 
 Odpowiada `202` z `{"run_id": ..., "duplicate": false}`, gdy tylko run zostanie
 przyjęty, nigdy nie czekając na sam run. Id dostarczenia, które już przyjęto,
-odpowiada `"duplicate": true` z id pierwszego runa. Podpis, który się nie weryfikuje,
+odpowiada `"duplicate": true` z id pierwszego runa, tak samo jak to samo podpisane
+żądanie pod innym id w ciągu 24 godzin. Podpis, który się nie weryfikuje,
 to `403`, dostarczenie bez id albo z treścią, która nie jest obiektem JSON, to `400`,
 a wstrzymany albo nieznany webhook to `404`.
 
@@ -524,6 +542,8 @@ otwiera testowy URL dla szkicu, zwracany jako `url` z `test_token` w środku i o
 jedno wywołanie przez dwie minuty. Wywołanie nie potrzebuje podpisu, dostaje
 odpowiedź `{"captured": true}` i nie uruchamia runa. `GET .../webhook-test/{token}`
 odczytuje `state` (`listening`, `caught` albo `expired`) i odebrane `delivery`.
+
+Wiersze wygasłych kluczy wewnętrznych i OAuth pozostają, dopóki potrzebuje ich workflow, ewaluacja, ulepszanie, edycja z pomocą AI, test umiejętności, generowanie przypadków lub zadanie w kolejce albo w trakcie wykonania. Po zakończeniu pracy standardowe sprzątanie może je usunąć.
 
 ## Praca z tabelami { #working-with-tables }
 

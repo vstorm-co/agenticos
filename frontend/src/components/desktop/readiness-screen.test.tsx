@@ -38,10 +38,11 @@ beforeEach(() => {
   env.finish.mockResolvedValue();
 });
 
-it("shows the browser explanation instead of native connection actions", () => {
+it("is one screen saying it opens in the desktop app, in a browser", () => {
   env.desktop = false;
   mount();
-  expect(screen.getByText("Permissions stay visible")).toBeVisible();
+  expect(screen.getByText("This opens in the AgenticOS desktop app.")).toBeVisible();
+  expect(screen.queryByText("Permissions stay visible")).toBeNull();
   expect(screen.queryByRole("button", { name: "Get started" })).toBeNull();
 });
 

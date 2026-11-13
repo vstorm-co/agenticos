@@ -48,7 +48,7 @@ from app.api.routes.v1 import model_providers
 from app.api.routes.v1 import secrets
 from app.api.routes.v1 import runs as agent_runs
 from app.api.routes.v1 import stats
-from app.api.routes.v1 import context_changes, skill_changes
+from app.api.routes.v1 import context_changes, skill_changes, skill_checks
 from app.api.routes.v1 import workspaces as agent_workspaces
 from app.api.routes.v1 import skills as agent_skills
 from app.api.routes.v1 import artifacts
@@ -58,7 +58,7 @@ from app.api.routes.v1 import datasets
 from app.api.routes.v1 import dataset_generations
 from app.api.routes.v1 import agent_test_sets, eval_runs, eval_suites
 from app.api.routes.v1 import knowledge_gaps
-from app.api.routes.v1 import authoring, improvements
+from app.api.routes.v1 import authoring, improvements, skill_improvements
 from app.api.routes.v1 import virtual_tables, tasks
 from app.api.routes.v1 import (
     workflow_approvals,
@@ -142,6 +142,8 @@ v1_router.include_router(embed_generated_media.router, prefix="/embed", tags=["e
 v1_router.include_router(agent_runs.router, tags=["runs"])
 v1_router.include_router(stats.router, tags=["stats"])
 v1_router.include_router(agent_skills.router, prefix="/skills", tags=["skills"])
+v1_router.include_router(skill_checks.router, prefix="/skills", tags=["skills:checks"])
+v1_router.include_router(skill_checks.awaiting, tags=["skills:checks"])
 v1_router.include_router(context_files.router, prefix="/context", tags=["context"])
 v1_router.include_router(datasets.router, prefix="/datasets", tags=["datasets"])
 v1_router.include_router(
@@ -154,6 +156,9 @@ v1_router.include_router(knowledge_gaps.router, prefix="/knowledge-gaps", tags=[
 v1_router.include_router(authoring.router, tags=["authoring"])
 v1_router.include_router(improvements.router, tags=["improvements"])
 v1_router.include_router(improvements.sessions, tags=["improvements"])
+v1_router.include_router(skill_improvements.router, tags=["skill-improvements"])
+v1_router.include_router(skill_improvements.sessions, tags=["skill-improvements"])
+v1_router.include_router(skill_improvements.merges, tags=["skill-improvements"])
 v1_router.include_router(virtual_tables.router, prefix="/tables", tags=["tables"])
 v1_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
 v1_router.include_router(workflows.router, prefix="/workflows", tags=["workflows"])

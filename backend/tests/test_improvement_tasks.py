@@ -124,3 +124,86 @@ async def test_the_recovery_tick_returns_the_count_after_committing() -> None:
     ):
         assert await improvement_tasks.sweep_improvements() == 3
     assert events == ["commit"]
+
+
+@dataclass
+class SkillState:
+    skill_id: UUID
+    status: str = "running"
+    stage: str = "understanding"
+    iteration: int = 1
+
+
+async def test_a_skill_session_step_and_its_sweep_run_in_one_worker_transaction() -> None:
+    from app.worker.jobs import AdvanceSkillImprovement
+
+    job = AdvanceSkillImprovement(run_id=uuid4(), organization_id=uuid4())
+    events: list[str] = []
+    service = MagicMock(advance=AsyncMock(), sweep=AsyncMock(return_value=3))
+
+    @asynccontextmanager
+    async def session() -> AsyncGenerator[MagicMock]:
+        events.append("begin")
+        yield MagicMock()
+        events.append("commit")
+
+    with (
+        patch.object(improvement_tasks, "get_worker_db_context", session),
+        patch("app.repositories.skill_improvement_repo.get_run", AsyncMock(return_value=None)),
+        patch("app.services.skill_improvement.SkillImprovementService", return_value=service),
+        patch("app.services.change_feed.connect_in_worker", AsyncMock()),
+        patch("app.services.change_feed.publish", AsyncMock()) as publish,
+    ):
+        await improvement_tasks.advance_skill_improvement(job)
+        swept = await improvement_tasks.sweep_skill_improvements()
+
+    service.advance.assert_awaited_once_with(job.run_id, job.organization_id)
+    assert swept == 3 and events == ["begin", "commit", "begin", "commit"]
+    publish.assert_not_awaited()
+
+
+@pytest.mark.parametrize("change", ["status", "stage", "iteration", "none"])
+async def test_a_skill_session_step_announces_its_skill_once_committed(change: str) -> None:
+    from app.worker.jobs import AdvanceSkillImprovement
+
+    job = AdvanceSkillImprovement(run_id=uuid4(), organization_id=uuid4())
+    row = SkillState(skill_id=uuid4())
+    events: list[str] = []
+
+    @asynccontextmanager
+    async def session() -> AsyncGenerator[MagicMock]:
+        events.append("begin")
+        yield MagicMock()
+        events.append("commit")
+
+    async def advance(run_id: UUID, organization_id: UUID) -> None:
+        if change == "status":
+            row.status = "waiting"
+        elif change == "stage":
+            row.stage = "changes"
+        elif change == "iteration":
+            row.iteration = 2
+
+    async def publish(event: ChangeEvent) -> None:
+        assert events == ["begin", "commit"]
+        assert (event.organization_id, event.resource, event.id) == (
+            job.organization_id,
+            "skill",
+            row.skill_id,
+        )
+        assert event.action == "updated" and event.surface == "system"
+        assert event.actor_user_id is None
+        events.append("published")
+
+    with (
+        patch.object(improvement_tasks, "get_worker_db_context", session),
+        patch("app.repositories.skill_improvement_repo.get_run", AsyncMock(return_value=row)),
+        patch(
+            "app.services.skill_improvement.SkillImprovementService",
+            return_value=MagicMock(advance=advance),
+        ),
+        patch("app.services.change_feed.connect_in_worker", AsyncMock()),
+        patch("app.services.change_feed.publish", publish),
+    ):
+        await improvement_tasks.advance_skill_improvement(job)
+    assert events == (["begin", "commit"] if change == "none" else ["begin", "commit", "published"])

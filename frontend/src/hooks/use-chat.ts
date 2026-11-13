@@ -194,6 +194,7 @@ export function useChat(options: UseChatOptions = {}) {
   const selectionApi = useAgentSelectionStore.useApi();
   const scoped = useInChatScope();
   const {
+    adoptCreatedConversation,
     setCurrentConversationId,
     setCurrentCost,
     currentConversationId: currentConversationIdFromStore,
@@ -865,7 +866,11 @@ export function useChat(options: UseChatOptions = {}) {
           useWorkOnStore.getState().adopt(conversation_id);
           createdConversationIdRef.current = conversation_id;
           attachedRef.current = conversation_id;
-          setCurrentConversationId(conversation_id);
+          if (conversationApi.getState().currentConversationId === null) {
+            adoptCreatedConversation(conversation_id);
+          } else {
+            setCurrentConversationId(conversation_id);
+          }
           // Reflect the new ID in the URL so the page is refreshable + shareable.
           if (!scoped) setUrlParam("id", conversation_id);
           const { updateMessagesWhere } = chatApi.getState();
@@ -1288,14 +1293,13 @@ export function useChat(options: UseChatOptions = {}) {
             currentMessageIdRef.current ??
             (unanswered ? createNewMessage("") : null);
           if (id) {
-            // Into the timeline rather than onto `content` directly: the store's
-            // append keeps the two in step, and it starts a parts list for a
-            // message that has none - which is what a replayed turn looks like.
-            appendTextDelta(
-              id,
-              `\n\n${t("streamError", { message: message || t("unknownError") })}`,
-            );
-            updateMessage(id, (msg) => ({ ...msg, isStreaming: false }));
+            // A failure belongs to the run, not to the assistant's answer.
+            updateMessage(id, (msg) => ({
+              ...msg,
+              isStreaming: false,
+              runFailed: true,
+              runError: message || t("unknownError"),
+            }));
             abandonOpenCalls(id);
           }
           if (followingRef.current === null) setIsProcessing(false);
@@ -1605,6 +1609,7 @@ export function useChat(options: UseChatOptions = {}) {
       updateToolCallPart,
       abandonOpenCalls,
       offerParkedQuestion,
+      adoptCreatedConversation,
       setCurrentConversationId,
       setCurrentMessageId,
       onConversationCreated,
@@ -2252,6 +2257,8 @@ export function useChat(options: UseChatOptions = {}) {
               capability_tool_id: call.capability_tool_id,
               context: call.context,
               account: call.account,
+              content_hidden: call.content_hidden,
+              always_asks: call.always_asks,
             })),
             reviewConfigs: actionable.map((call) => ({
               tool_name: call.tool_name,
@@ -2445,6 +2452,8 @@ export function useChat(options: UseChatOptions = {}) {
             capability_tool_id: call.capability_tool_id,
             context: call.context,
             account: call.account,
+            content_hidden: call.content_hidden,
+            always_asks: call.always_asks,
           })),
           reviewConfigs: parkedAgain.map((call) => ({
             tool_name: call.tool_name,

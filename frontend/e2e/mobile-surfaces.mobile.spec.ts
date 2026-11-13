@@ -175,7 +175,7 @@ for (const platform of ["ios", "android"] as const) {
     test("uses touch targets throughout settings and preserves the viewport", async ({ page }) => {
       test.setTimeout(60_000);
       await page.goto("/settings/profile");
-      await expectTouchTarget(page.getByRole("radio", { name: "Automatic colour", exact: true }));
+      await expectTouchTarget(page.getByRole("radio", { name: /^Standard/ }));
       const theme = page
         .locator('[data-tour="settings-appearance"]')
         .getByRole("radio", { name: "Dark", exact: true });
@@ -198,22 +198,20 @@ for (const platform of ["ios", "android"] as const) {
       await expectContained(page);
     });
 
-    test("keeps phone catalog filters compact and preserves their selection", async ({ page }) => {
+    test("keeps the phone status filter visible and preserves its selection", async ({ page }) => {
       for (const width of [320, 390]) {
         await page.setViewportSize({ width, height: 844 });
         await page.goto("/agents");
-        const toggle = page.getByRole("button", { name: /^Filters/ });
-        await expectTouchTarget(toggle);
+        // The toolbar mounts before the catalog query settles. Interact with
+        // the loaded seeded page, including after the viewport/navigation change.
+        await expect(
+          page.getByRole("heading", { name: "AgenticOS", exact: true, level: 3 }),
+        ).toBeVisible();
         const status = page.getByRole("combobox", { name: "Filter by status" });
-        await expect(status).toBeHidden();
-        await toggle.tap();
-        await expect(status).toBeVisible();
+        await expectTouchTarget(status);
         await status.tap();
         await page.getByRole("option", { name: "Published", exact: true }).tap();
-        await toggle.tap();
-        await expect(status).toBeHidden();
-        await expect(toggle).toHaveText("Filters 1");
-        await toggle.tap();
+        await expect(status).toBeVisible();
         await expect(status).toContainText("Published");
         const title = page.getByRole("heading", { level: 3 }).first();
         await expect(title).toBeVisible();
@@ -400,7 +398,8 @@ for (const platform of ["ios", "android"] as const) {
         await expect(card).toBeVisible();
         const add = card.getByRole("button", { name: "Add to an agent", exact: true });
         await expectTouchTarget(add);
-        const content = await card.locator(":scope > button").boundingBox();
+        // A skill's card is a link to its page; a context file's opens it in place.
+        const content = await card.locator(":scope > a, :scope > button").first().boundingBox();
         const action = await add.boundingBox();
         if (!content || !action) throw new Error("Expected the resource card's bounds");
         expect(action.y).toBeGreaterThanOrEqual(content.y + content.height);

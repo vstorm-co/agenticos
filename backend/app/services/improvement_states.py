@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
 from enum import StrEnum
+from typing import Protocol
 from uuid import UUID
 
 from app.db.models.authoring import AuthoringStatus
@@ -169,20 +170,29 @@ class Pins:
     suite_hash: str | None
 
 
-def stale(pinned: Pins, current: Pins, *, archived: bool) -> bool:
+def stale[P](pinned: P, current: P, *, archived: bool) -> bool:
     """Whether what the session is measured against changed since it started.
 
-    A changed draft, a newer version under it, different grading, a suite whose
-    threshold was edited, an archived agent, or a pinned dataset or suite that no
-    longer exists - `current` names it as `None` - each mean the check would
-    compare with something other than what the session promised.
+    `P` is what a kind of session pins, compared whole: `Pins` for an agent's, the
+    line's latest version for a skill's. For an agent's, a changed draft, a newer
+    version under it, different grading, a suite whose threshold was edited, an
+    archived agent, or a pinned dataset or suite that no longer exists - `current`
+    names it as `None` - each mean the check would compare with something other
+    than what the session promised.
     """
     return archived or pinned != current
 
 
+class Permitted(Protocol):
+    """Whether the person a session acts for may still do what it does, for any kind of session."""
+
+    @property
+    def allowed(self) -> bool: ...
+
+
 @dataclass(frozen=True)
 class Standing:
-    """Whether the person the session acts for may still do what it does."""
+    """Whether the person an agent's session acts for may still do what it does."""
 
     member: bool
     edits_agent: bool
@@ -194,12 +204,12 @@ class Standing:
         return self.member and self.edits_agent and self.views_runs and self.runs_dataset
 
 
-def checked(
+def checked[P](
     stage: ImprovementStage | None,
     *,
-    standing: Standing,
-    pinned: Pins,
-    current: Pins,
+    standing: Permitted,
+    pinned: P,
+    current: P,
     archived: bool,
 ) -> Transition | None:
     """The stop a session takes before any step, or `None` to carry on.

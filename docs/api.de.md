@@ -1,5 +1,5 @@
 ---
-source_sha: "3503412daf98"
+source_sha: "d8ab63f0a753"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -56,6 +56,18 @@ Eintrag, der während einer mit einem Schlüssel authentifizierten Anfrage
 geschrieben wird, trägt `via_api_key` in seinen Details. Ein Schlüssel kann ein
 Ablaufdatum haben, und sein Widerruf (`DELETE /api/v1/api-keys/{id}`) wirkt ab
 seiner nächsten Anfrage.
+
+In der Konsole stehen die Schlüssel vor der Verbindungsanleitung, aktive zuerst.
+Suche nach Name, Präfix oder Aussteller; auf dem Smartphone zeigen Karten auch
+Ablauf und letzte Nutzung. Unter **Schlüssel erstellen** kannst du die
+Berechtigungsdetails einer Vorlage öffnen oder unter **Benutzerdefiniert**
+einzelne Berechtigungen suchen. Die Suche behält deine Auswahl.
+Enter im Namensfeld erstellt den Schlüssel; Enter in der Berechtigungssuche sendet nichts ab.
+
+Während der Erstellung sind Eingaben und Schließen gesperrt. Bei einer Ablehnung
+bleibt der Entwurf erhalten. Kopiere den Schlüssel vor dem Schließen; bei einem
+Zwischenablagefehler bleibt der Wert für einen neuen Versuch verfügbar. Schließen
+leert den Erstellungszustand. Bei einem abgelehnten Widerruf bleibt die Bestätigung offen.
 
 **Ein Schlüssel ist nicht die Person, die ihn ausgestellt hat.** Ein Run, den er
 startet, gehört der ausstellenden Person, läuft über ihr Budget und ihr Audit,
@@ -172,16 +184,17 @@ Verbindung von einem routinemäßigen Refresh nicht gekappt wird.
 
 ### Arbeit, die nach der Anfrage läuft { #work-that-runs-after-the-request }
 
-Ein [Eval-Run](evals.md) oder eine Anfrage an den
-[Authoring-Assistenten](authoring.md) lässt sich nicht mit einem
-Organisationsschlüssel starten: Diese Routen sind für angemeldete Personen, und
-ein Schlüssel erhält dort `403`. Arbeit, die später im Hintergrund läuft, ist an
-die Befugnisse der Person gebunden, die sie gestartet hat, so wie sie zu Beginn
-der Arbeit stehen - eine seither verlorene Rolle stoppt sie. Dürfte ein
-Schlüssel je solche Arbeit starten, gälte dasselbe für ihn: seine
-Berechtigungen, wie sie dann stehen, und ein seither widerrufener, abgelaufener
-oder gelöschter Schlüssel stoppte die Arbeit, mit einem Grund am Run oder an der
-Anfrage.
+Ein [Eval-Run](evals.md) oder eine Anfrage an den [Authoring-Assistenten](authoring.md)
+lässt sich nicht mit einem Organisationsschlüssel starten: Diese Routen sind für
+angemeldete Personen, und ein Schlüssel erhält dort `403`. Arbeit, die später im
+Hintergrund läuft, ist an die Befugnisse der Person gebunden, die sie gestartet hat, so
+wie sie zu Beginn der Arbeit stehen - eine seither verlorene Rolle stoppt sie. Dürfte
+ein Schlüssel je solche Arbeit starten, gälte dasselbe für ihn: seine Berechtigungen,
+wie sie dann stehen, und ein seither widerrufener oder gelöschter Schlüssel stoppte die
+Arbeit, mit einem Grund am Run oder an der Anfrage.
+
+Der Ablauf begrenzt nur, was ein Schlüssel starten kann: Arbeit, die er gültig gestartet
+hat, läuft nach seinem Ablauf weiter.
 
 ## Der Organisations-Header { #the-organization-header }
 
@@ -324,7 +337,7 @@ Was sich sofort prüfen lässt, wird sofort geprüft: Eine unbekannte Konversati
 oder Anlage ist ein `404` auf den `POST`, kein Fehler, auf den man warten muss.
 Die Rechte des Schlüssels werden beim Start des Runs erneut geprüft, ein
 Schlüssel, der widerrufen wurde, während sein Run wartete, führt ihn also nicht
-aus. Nur die Person, die angefragt hat, oder ein Schlüssel von ihr kann eine
+aus; einer, der in der Zeit nur abgelaufen ist, schon. Nur die Person, die angefragt hat, oder ein Schlüssel von ihr kann eine
 Run-Anfrage lesen; die eines anderen antwortet `404`. Ein asynchroner Run hat
 einen Versuch - ein gescheiterter Run wird mit dem festgehalten, was er
 ausgegeben hat, und nicht wiederholt, um es nicht zweimal auszugeben.
@@ -358,14 +371,18 @@ Ein privater Agent, den Sie nicht sehen, trägt keines bei.
 
 ## Einen Workflow ausführen { #running-a-workflow }
 
-Organisations-API-Keys können Runs starten und Status, Graph, Schritte, Dateien
-und Ereignisse über `/api/v1/workflow-runs` lesen. Ein Start verlangt `workflows:run`,
-das Lesen zusätzlich `workflows:view`, ein Entwurfstest `workflows:edit`. Der Worker
-behält die beim Start zugelassenen Scopes und prüft Key und Aussteller vor jedem
-Schritt erneut, auch nach einer Freigabe oder Wartezeit. Widerruf, Ablauf oder
-Löschung stoppen neue Arbeit mit `PRINCIPAL_REVOKED`; eine Fortsetzung erhält nie
-die volle Rolle des Ausstellers. Key-Runs erreichen keine persönlichen Daten des
-Ausstellers. Das Bearbeiten eines Workflows verlangt weiterhin eine Sitzung.
+Organisations-API-Keys können Runs starten und Status, Graph, Schritte, Dateien und
+Ereignisse über `/api/v1/workflow-runs` lesen. Ein Start verlangt `workflows:run`, das
+Lesen zusätzlich `workflows:view`, ein Entwurfstest `workflows:edit`. Der Worker behält
+die beim Start zugelassenen Scopes und prüft Key und Aussteller vor jedem Schritt
+erneut, auch nach einer Freigabe oder Wartezeit. Widerruf oder Löschung stoppen neue
+Arbeit mit `PRINCIPAL_REVOKED`; eine Fortsetzung erhält nie die volle Rolle des
+Ausstellers.
+
+Der Ablauf nicht: Ein abgelaufener Schlüssel startet nichts, aber ein Run, den er gültig
+gestartet hat, läuft weiter, sodass die Stunde eines OAuth-Tokens kein langes Warten
+abbricht. Key-Runs erreichen keine persönlichen Daten des Ausstellers. Das Bearbeiten
+eines Workflows verlangt weiterhin eine Sitzung.
 
 API-Schlüssel können Läufe öffentlichen Ursprungs einschließlich schlüsselgestarteter
 Läufe lesen. Persönliche, von Mitgliedern gestartete Läufe antworten mit `404`, auch
@@ -550,7 +567,8 @@ curl -X POST "$WEBHOOK_URL" \
 
 Es antwortet mit `202` und `{"run_id": ..., "duplicate": false}`, sobald der Run
 zugelassen ist, und wartet nie auf den Run selbst. Eine bereits zugelassene
-Zustellungs-ID antwortet mit `"duplicate": true` und der ID des ersten Runs. Eine
+Zustellungs-ID antwortet mit `"duplicate": true` und der ID des ersten Runs, ebenso
+dieselbe signierte Anfrage unter einer anderen ID innerhalb von 24 Stunden. Eine
 Signatur, die sich nicht verifizieren lässt, ist ein `403`, eine Zustellung ohne ID
 oder mit einem Body, der kein JSON-Objekt ist, ein `400`, und ein pausierter oder
 unbekannter Webhook ein `404`.
@@ -568,6 +586,8 @@ Vor der Veröffentlichung öffnet `POST /api/v1/workflows/{id}/webhook-test`
 Signatur, wird mit `{"captured": true}` beantwortet und startet keinen Run.
 `GET .../webhook-test/{token}` liest `state` (`listening`, `caught` oder `expired`)
 und die empfangene `delivery` zurück.
+
+Abgelaufene interne und OAuth-Schlüssel bleiben gespeichert, solange ein Workflow, eine Evaluation, ein Verbesserungslauf, eine Autorenanfrage, eine Skill-Prüfung, eine Fallgenerierung oder ein wartender oder laufender Hintergrundjob sie benötigt. Nach Abschluss darf die reguläre Bereinigung sie entfernen.
 
 ## Mit Tabellen arbeiten { #working-with-tables }
 

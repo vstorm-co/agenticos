@@ -1,5 +1,6 @@
 "use client";
 
+import { normalizeIdentifier } from "@/lib/normalize-identifier";
 import { useState } from "react";
 import {
   AlertTriangle,
@@ -156,18 +157,18 @@ export function EnvironmentsPanel({
   }
 
   const canRelease = canManage && !system;
-  const nameOk = NAME_PATTERN.test(name.trim());
-  const renameOk = renaming !== null && NAME_PATTERN.test(renaming.name.trim());
+  const nameOk = NAME_PATTERN.test(normalizeIdentifier(name));
+  const renameOk = renaming !== null && NAME_PATTERN.test(normalizeIdentifier(renaming.name));
 
   async function add() {
-    await create.mutateAsync({ name: name.trim() });
+    await create.mutateAsync({ name: normalizeIdentifier(name) });
     setName("");
   }
 
   async function saveRename(environment: AgentEnvironment, next: string) {
     // An unchanged name is a dismissal, not a request: sending it would write
     // the row and mint an `agent.environment_renamed` audit entry for nothing.
-    const trimmed = next.trim();
+    const trimmed = next.trim() === environment.name ? environment.name : normalizeIdentifier(next);
     if (trimmed !== environment.name) {
       await rename.mutateAsync({ environmentId: environment.id, name: trimmed });
     }
@@ -187,6 +188,9 @@ export function EnvironmentsPanel({
                     <Input
                       value={renaming.name}
                       aria-label={tc("renameNamed", { name: environment.name })}
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
                       maxLength={64}
                       ref={(node) => node?.focus()}
                       className="h-8 font-mono text-base md:text-sm"
@@ -372,6 +376,10 @@ export function EnvironmentsPanel({
               id="env-name"
               value={name}
               onChange={(event) => setName(event.target.value)}
+              onBlur={() => setName(normalizeIdentifier(name))}
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               placeholder={t("devStagingClientS")}
               maxLength={64}
             />

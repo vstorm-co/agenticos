@@ -92,6 +92,8 @@ export interface McpToolInfo {
   input_schema?: Record<string, unknown> | null;
   /** The server marks it read-only; anything else is treated as a write. */
   read_only?: boolean;
+  /** Explicit server annotation; absent/null is unknown, never proof of a write. */
+  read_only_hint?: boolean | null;
 }
 
 export interface McpConnectionTestResult {

@@ -1,5 +1,5 @@
 ---
-source_sha: "9c37b08af0c5"
+source_sha: "1e63060a548e"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -516,7 +516,10 @@ caso de un dataset que quien lo lee no puede ver.
 Cada puntuación conserva modelo, identidad publicada del ayudante, hash de criterios, versión de tarea y hash de instrucciones. Se pueden cambiar modelo e instrucciones del dataset; las calificaciones de configuraciones distintas no son directamente comparables.
 
 ### Revisión { #review }
+
 Review presenta todas las respuestas evaluadas en una tabla con pregunta, agent, resultado, modelo, fecha y origen. Seleccionar una respuesta abre evidencia, calificación y decisión en un panel lateral. Guardar mantiene el panel abierto y la fila en su lugar; se puede retirar o deshacer una decisión. Si cambia una máscara de privacidad del servidor, se descartan el panel y la nota sin guardar.
+
+El origen dice de dónde viene cada respuesta: de un run de evals, de una calificación a mano o de un lado de la comprobación de un skill (el texto propuesto o la versión actual), y qué repregunta fue, así que una pregunta respondida varias veces se lee como filas distintas; las respuestas de una comprobación de un skill van bajo el encabezado de la comprobación.
 
 Una puntuación espera en la **cola de revisión** cuando alguien la envía allí, o
 lo hace un run de eval. Tras volver a ejecutar lo que cambió, un run de eval

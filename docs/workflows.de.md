@@ -1,8 +1,10 @@
 ---
-source_sha: "aa54fb9dafe5"
+source_sha: "e23a2fdc098e"
 ---
 
 # Workflows { #workflows }
+
+Das Workflow-Symbol wählen Sie neben dem Namen im Editor. Dieselbe neutrale Kachel erscheint im Katalog. Die Auswahl bleibt nach dem Neuladen erhalten; **Standardsymbol verwenden** setzt sie zurück. Dies ändert Darstellungsmetadaten, weder die Entwurfsrevision noch den veröffentlichten Graphen.
 
 Ein **Workflow** verkettet Schritte zu einer Automatisierung, die Ihre Agents
 ausführen: eine [Tabelle](virtual-tables.md) lesen, einen Agent aufrufen, auf das
@@ -118,6 +120,8 @@ Ein Agent-Schritt kann mit `ask_user_question` pausieren und **Wartet auf Benutz
 Aus Workflows aufgerufene Agenten können ihre AgenticOS-MCP-Werkzeuge sowohl im Hintergrund-Worker als auch im Webchat verwenden.
 
 ## Die Zeichenfläche und das Hinzufügen von Schritten { #the-canvas-and-the-palette }
+
+Nach **Test draft** zeigt die Zeichenfläche den Status des Runs und die Anzahl abgeschlossener Schritte. **Open run** öffnet die Details. Auf schmalen Bildschirmen bricht die Statusleiste innerhalb der Zeichenfläche um, sodass der Link und die Schaltfläche zum Schließen erreichbar bleiben.
 
 Der Editor zeigt **Runs**, **Test draft** und **Publish** direkt. **More** enthält **Versions** und den Wechsel zwischen Bearbeiten und Ansicht. **Canvas options** enthält Minimap, Verbindungsstil und Tastenkürzel. Ein Schritt ohne eingehende Verbindung lässt das leere Input-Panel weg und gibt Parametern mehr Platz; **Expected output fields** öffnet das Ausgabeschema. **Review setup before testing** zeigt die unvollständige Einrichtung.
 
@@ -1112,6 +1116,17 @@ weiter, mit ihrer `delivery_id`. Ein Retry, der eine ID wiederholt, wird mit dem
 ersten Run beantwortet und startet nichts, weil die ID zusammen mit dem Run, den sie
 zugelassen hat, in einer Transaktion gespeichert wird.
 
+Die ID gehört nicht zu dem, was der Absender signiert, daher ist dieselbe signierte Anfrage
+unter einer anderen ID innerhalb von 24 Stunden ebenfalls eine Kopie: Sie wird mit dem
+ersten Run beantwortet und startet nichts, gleich in welchem der beiden Signatur-Header sie
+steckt. Derselbe Inhalt startet nach 24 Stunden wieder einen Run. Ein Absender, der
+denselben Body absichtlich öfter sendet, macht jeden unterscheidbar, mit eigener ID oder
+Zeit im Body, oder signiert die Zeit: Mit `X-Signature-Timestamp` (Unix-Sekunden) deckt
+die Signatur `{timestamp}.{body}` ab und wird abgelehnt, wenn sie mehr als fünf Minuten
+von der Serveruhr abweicht.
+
+Vor der Speicherung von Signatur-Digests angenommene Zustellungen bleiben über ihre Zustellungs-ID dedupliziert. Signierte Kopien unter einer anderen ID lassen sich aus diesen älteren Zeilen nicht erkennen; die signaturbasierte Erkennung beginnt mit von der neuen Version gespeicherten Zustellungen.
+
 Ein **Schedule**-Trigger läuft in einem festen Abstand, täglich zu einer festen
 Uhrzeit oder nach einem Cron-Ausdruck, in der Zeitzone des Workflows (UTC, sofern seine **Settings** keine andere nennen)
 und höchstens einmal pro Minute, zu seinem Tick und nicht erst beim nächsten Durchlauf danach.
@@ -1349,12 +1364,18 @@ wird abgelehnt.
 Aufgerufene Workflows übernehmen das verbleibende Laufbudget des Aufrufers und
 die frühere Frist. Ihre Kosten zählen zum Gesamtbetrag des Aufrufers; `own_cost`
 enthält nur dessen direkte Gebühren, damit aggregierte Laufdaten nichts doppelt zählen.
-Bei begrenztem Budget muss das Warten auf den Abschluss aktiviert bleiben. Abbruch
-oder entzogene Berechtigungen des Aufrufers stoppen das Kind vor dem nächsten Schritt;
-eine laufende externe Anfrage kann noch enden. Ein erneuter Aufruf verwendet die
-erfolgreichen Schritte des ursprünglichen, eingefrorenen Kindes. Ein noch laufendes
-Kind muss zuerst enden oder gestoppt werden. Ergebnisdateien werden ausdrücklich in
-den Aufrufer importiert; beim Fortsetzen wird der Zugriff erneut geprüft.
+Bei begrenztem Budget muss das Warten auf den Abschluss aktiviert bleiben.
+
+Bricht der Aufrufer ab oder ist sein Budget erschöpft, wird jedes noch offene Kind, das
+er aufgerufen hat, und jedes von diesem aufgerufene abgebrochen, samt Freigabeanfragen
+und Fragen. Ein Kind, dessen Schritt gerade ausgeführt wird, stoppt vor dem nächsten
+Schritt, ebenso eines, dessen Aufrufer seine Berechtigungen verloren hat; eine laufende
+externe Anfrage kann noch enden.
+
+Ein erneuter Aufruf verwendet die erfolgreichen Schritte des ursprünglichen,
+eingefrorenen Kindes. Ein noch laufendes Kind muss zuerst enden oder gestoppt werden.
+Ergebnisdateien werden ausdrücklich in den Aufrufer importiert; beim Fortsetzen wird der
+Zugriff erneut geprüft.
 
 Tagesdiagramm und Schrittstatistiken des Aufrufers enthalten ebenfalls die Gebühren aufgerufener Läufe.
 
@@ -1419,7 +1440,7 @@ Idempotenzschlüssel. Das Wiederholungsversprechen jedes Schritts steht in der
 | Was Sie sehen | Warum | Was tun |
 |---|---|---|
 | **Braucht Aufmerksamkeit** | Ein Schritt, der gewirkt haben kann, wurde unterbrochen oder hat aufgehört zu warten, und nichts weckt ihn | Prüfen Sie, ob seine Wirkung eingetreten ist, und klären Sie den Schritt dann im Run mit **Resolve**: erneut ausführen, ein spät gemeldetes Ergebnis verwenden, seinen Fehlerpfad nehmen oder den Run fehlschlagen lassen. Den Run abzubrechen und dann **Retry from failed step** zu wählen, beginnt von vorn |
-| `PRINCIPAL_REVOKED` | Das Mitglied, als das der Run handelt, hat den Zugriff verloren oder sein Konto wurde deaktiviert | Ein Mitglied, das den Workflow ausführen darf, veröffentlicht ihn erneut, damit sein Trigger als es läuft |
+| `PRINCIPAL_REVOKED` | Das Mitglied, als das der Run handelt, hat den Zugriff verloren oder sein Konto wurde deaktiviert, oder der API-Schlüssel, der den Run gestartet hat, wurde widerrufen | Ein Mitglied, das den Workflow ausführen darf, veröffentlicht ihn erneut, damit sein Trigger als es läuft |
 | `WORKFLOW_TRIGGER_MISMATCH` | Der Run wurde über einen Weg angefordert, der nicht sein Live-Trigger ist: von Hand oder per API für einen Workflow, der mit einem Webhook startet, oder im Chat für einen, der nicht mit einer Chatnachricht startet | Starten Sie ihn so, wie sein Trigger es sagt, oder testen Sie den Draft, der jeden Trigger nimmt |
 | `INVALID_BINDING` | Ein Wert passte nicht zu dem Feld, an das er gebunden war | Der Fehler des Schritts nennt das Feld; korrigieren Sie die Bindung oder den Wert davor |
 | `REVISION_CONFLICT` | Jemand hat einen Datensatz geändert, nachdem der Schritt ihn gelesen hat | Leiten Sie den Fehler des Schritts mit `error.handle` zu einem frischen Lesen um |

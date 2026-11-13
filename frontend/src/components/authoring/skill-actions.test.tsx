@@ -5,8 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { authoringRequest } from "@/test-utils/authoring";
 import type { AuthoringRequest } from "@/types/authoring";
 import { DescribeWithArchitect } from "./describe-with-architect";
-import { ImproveContextButton, ImproveSkillButton } from "./improve-skill-button";
-import { ContextCheckButton, SkillCheckButton } from "./skill-check-button";
+import { ImproveContextButton } from "./improve-skill-button";
+import { ContextCheckButton } from "./skill-check-button";
 
 const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
@@ -70,20 +70,14 @@ beforeEach(() => {
   state.ask = vi.fn();
 });
 
-describe("ImproveSkillButton", () => {
-  it("asks before improving a skill", async () => {
-    render(<ImproveSkillButton skillId="skill-1" />);
-    await userEvent.click(screen.getByRole("button", { name: "Improve with the assistant" }));
-    expect(await screen.findByText(/It will read 2 runs/)).toBeInTheDocument();
-  });
-
+describe("the assistant's Improve button", () => {
   it("is busy while it works and says when it failed", () => {
     state.latest = authoringRequest({ status: "queued" });
-    const second = render(<ImproveSkillButton skillId="skill-1" />);
+    const second = render(<ImproveContextButton contextId="context-1" />);
     expect(screen.getByRole("button", { name: "Reading the runs…" })).toBeDisabled();
     second.unmount();
     state.latest = authoringRequest({ status: "failed", error: "No runs opened it" });
-    render(<ImproveSkillButton skillId="skill-1" />);
+    render(<ImproveContextButton contextId="context-1" />);
     expect(screen.getByRole("alert")).toHaveTextContent("No runs opened it");
   });
 
@@ -92,28 +86,12 @@ describe("ImproveSkillButton", () => {
       status: "completed",
       report: { summary: "s", no_change: true },
     });
-    render(<ImproveSkillButton skillId="skill-1" />);
+    render(<ImproveContextButton contextId="context-1" />);
     expect(
       screen.getByText(
         "The assistant found nothing to change: what it proposed is what is there now.",
       ),
     ).toBeVisible();
-  });
-});
-
-describe("SkillCheckButton", () => {
-  it("checks a skill change on the agent chosen, and goes to that run", async () => {
-    render(<SkillCheckButton skillId="skill-1" proposalId="change-1" />);
-    await userEvent.click(screen.getByRole("button", { name: "Check with evals" }));
-    await userEvent.click(
-      await screen.findByRole("combobox", { name: "Agent that uses the skill" }),
-    );
-    await userEvent.click(await screen.findByRole("option", { name: "Clerk" }));
-    await userEvent.click(screen.getByRole("combobox", { name: "Check against" }));
-    await userEvent.click(await screen.findByRole("option", { name: "Refund cases" }));
-    await screen.findByText("priced");
-    await userEvent.click(screen.getByRole("button", { name: "Start the check" }));
-    await waitFor(() => expect(push).toHaveBeenCalledWith("/agents/agent-2/evals/eval-3"));
   });
 });
 

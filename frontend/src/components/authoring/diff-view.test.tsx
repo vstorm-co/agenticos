@@ -81,8 +81,28 @@ it("puts the two versions side by side on a wide screen, and back", async () => 
   );
 });
 
+it("offers no second view for a text with nothing to compare", () => {
+  wide.value = true;
+  render(<DiffView before={lines(10, "keep")} after={lines(10, "keep")} modes={false} />);
+  expect(screen.queryByRole("button", { name: "Side by side" })).toBeNull();
+  expect(screen.getByText(diffLine("keep 1")).closest("table")).not.toBeNull();
+  expect(screen.queryByRole("button", { name: /unchanged/ })).toBeNull();
+});
+
 it("marks a removed line with nothing to pair whole", () => {
   render(<DiffView before={"first\nsecond"} after="first edited" />);
   expect(screen.getByText(diffLine("second")).querySelector("del")).toBeNull();
   expect(screen.getByText(diffLine("first edited")).querySelector("ins")).not.toBeNull();
+});
+
+it("keeps the sign gutter narrow when the table opens on a fold, in either view", async () => {
+  wide.value = true;
+  const { container } = render(
+    <DiffView before={`${lines(10, "keep")}\nold`} after={`${lines(10, "keep")}\nnew`} />,
+  );
+  const gutters = () =>
+    [...container.querySelectorAll("col")].map((col) => col.className === "w-6");
+  expect(gutters()).toEqual([true, false]);
+  await userEvent.click(screen.getByRole("button", { name: "Side by side" }));
+  expect(gutters()).toEqual([true, false, true, false]);
 });

@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui";
 import { useAgentEnvironments } from "@/hooks/use-agent-environments";
 import { useEvalComparison, useEvalRun } from "@/hooks/use-eval-runs";
 import { useImprovement, useImprovementEvidence } from "@/hooks/use-improvements";
+import { subjectOf } from "@/lib/improvement-subject";
 import { useKnowledgeGaps } from "@/hooks/use-knowledge-gaps";
 import { getErrorMessage } from "@/lib/api-error";
 import type { Improvement, ImprovementIteration } from "@/types/improvement";
@@ -32,7 +33,7 @@ export const DOCUMENTS_ANCHOR = "improvement-documents";
  */
 export function useSessionTopics(session: Improvement) {
   const gaps = useKnowledgeGaps({ kind: "agent", id: session.agent_id });
-  const sources = useImprovementEvidence(session.agent_id, { sessionId: session.id });
+  const sources = useImprovementEvidence(subjectOf(session), { sessionId: session.id });
   const ours = new Set(sources.evidence?.items.map((item) => item.topic_id).filter(Boolean));
   return {
     topics: gaps.topics.filter((topic) => topic.status === "open" && ours.has(topic.id)),
@@ -125,7 +126,7 @@ export function KnowledgeDocuments({
   const t = useTranslations("improvement");
   const tErrors = useTranslations("errors");
   const { topics, error, isLoading, retry } = useSessionTopics(session);
-  const actions = useImprovement(session.agent_id, session.id);
+  const actions = useImprovement(subjectOf(session), session.id);
   const [open, setOpen] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const later = session.deferred_topic_ids ?? [];

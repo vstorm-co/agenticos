@@ -1,12 +1,36 @@
 ---
-source_sha: "bf0b4309d434"
+source_sha: "1b6fafac402e"
 ---
 
 # Die Konsole { #the-console }
 
+Das persönliche Dashboard liest Onboarding und Briefing gemeinsam, bevor es die erste Zeile anzeigt. Ein reservierter Ladebereich verhindert wechselnde Platzhalterlayouts; andere Widgets laden unabhängig. Fehlgeschlagene Lesevorgänge können erneut versucht werden. Arbeitsbereiche lassen sich auf Smartphones erweitern; beim Wechsel zum Desktop kehrt die Navigation zurück und ungespeicherte Felder bleiben erhalten.
+
+Die Kontexteinstellungen zeigen kompakte Dateizeilen mit Einstellungen für die Nutzung durch den Agenten. Lange Beschreibungen strecken benachbarte Dateien nicht mehr; ausschließlich eingefügter Kontext erhält einen neutralen Hinweis. Availability zeigt das Plattformlogo neben dem Botnamen. Beim Teilen einer App stehen Seitenlink und Personen mit Zugriff zuerst. Ablaufdatum, Versionsbindung, Einbettung und Passwort sind zunächst unter Link-Einstellungen eingeklappt. Aktive Einschränkungen bleiben als Kennzeichnungen sichtbar; Einklappen erhält die Bearbeitung.
+
+Auf Telefonen verwendet die Kanalregistrierung eine kompakte Plattformauswahl. Abbrechen eines neuen Kanals, eines neuen Tresorschlüssels oder einer Schlüsselrotation löscht die eingegebenen Zugangsdaten. Kanal- und Tresorformulare sperren Bearbeitung und Schließen während des Schreibvorgangs; eine Ablehnung erhält die Werte zur Korrektur und Wiederholung. Kanalbearbeitung und Schlüsselrotation halten ihre Aktionsleiste auch in niedrigen Fenstern sichtbar.
+
+Auf Telefonen zeigt eine neue Kontextdatei den Quelltexteditor vor optionalen Details. Details nennt den wirksamen Zugriff auch im eingeklappten Zustand; öffne den Bereich, um Beschreibung oder Zugriff zu ändern. Eine abgelehnte Beschreibung öffnet den Bereich automatisch zur Korrektur.
+
+Formulare für neue Projekte, Kontextdateien und Datasets fragen vor dem Verwerfen eines Entwurfs. Bleiben erhält ihn, Verwerfen setzt ihn zurück. Beim Anlegen sind Felder, Abbrechen, Schließen und Escape bis zum Ende des Schreibvorgangs gesperrt. Eine Ablehnung erhält die Werte und erlaubt wieder die Bearbeitung. Der Kontextquelltext ist währenddessen schreibgeschützt.
+
+Bei mehreren abgelegten Kontextdateien bietet das Schließen nur Bleiben oder Verwerfen; mit Erstellen werden sie der Reihe nach verarbeitet. Dataset-Details und Fallformulare sperren beim Speichern ebenfalls Felder und Schließen, einschließlich des Formular/JSON-Wechsels. Speichern bleibt in kurzen Telefonfenstern erreichbar.
+
+Beim Start der MCP-Anmeldung bleibt das Formular offen, bis das Zustimmungsziel bereitsteht. Ein abgelehnter Start erhält die Werte für Korrektur und Wiederholung.
+
+Beim Bearbeiten eigener Slash-Befehle fragt die Konsole vor dem Verwerfen eines Entwurfs. Während des Speicherns sind Felder und Schließen gesperrt; eine Ablehnung erhält den Entwurf. Auf Telefonen stehen die Aktionen in einer eigenen Zeile mit Touch-Zielen. Ein laufender Umschaltvorgang sperrt konkurrierende Aktionen; Löschen verlangt Bestätigung. Auch MCP-Verbindungsformulare sperren Felder und Schließen beim Speichern.
+
 Die Konsole ist die Webanwendung, über die alles andere auf dieser Site
 konfiguriert wird. Diese Seite ist die Landkarte: wofür jeder Bereich da ist,
 und welche Seite ihn ausführlich erklärt.
+
+Wenn du Projekteinstellungen, den Organisationsnamen, das Ausgabenlimit, die Sprachvorgaben, die Aufbewahrungszeiten, einen Skill oder eine Kontextdatei bearbeitest, fragt die Konsole vor dem Verlassen, ob du speichern, verwerfen oder bleiben möchtest. Das gilt auch beim Wechsel von einer bearbeiteten Skill-Ressource zu einer anderen Datei. Ein abgelehnter Speichervorgang lässt den Entwurf offen; **Save file** verwirft ihn erst nach der Bestätigung des Servers. Während dieses Speichervorgangs ergänzter Text bleibt ungespeichert.
+
+Auf dem Telefon zeigen Wissensbasis-Dokumente und Organisationsmitglieder beschriftete Zeilen mit sichtbaren Aktionen. Das Entfernen eines Mitglieds erfordert eine Bestätigung; bei Ablehnung bleibt sie offen. Dialoge zum Erstellen einer Wissensbasis, zur Verarbeitung und zum Embedding-Anbieter sperren während des Speicherns ihre Felder und bleiben offen; nach einer Ablehnung lassen sie sich wieder bearbeiten und schließen. Ein fehlgeschlagener Dokumentdownload zeigt einen Fehler und kann erneut versucht werden.
+
+Wenn du die Frage oder den Suchbereich der Wissenssuche änderst, werden bisherige Ergebnisse entfernt und die laufende Anfrage abgebrochen. Eine verspätete Antwort kann die Ergebnisse einer neueren Suche nicht ersetzen.
+
+Im öffentlichen Chat kannst du während des Verbindungsaufbaus schreiben. Send wird erst aktiviert, wenn der aktuelle WebSocket geöffnet ist. Eine neue Unterhaltung wartet auf ihre eigene Verbindung; ein früher Klick kann die erste Frage nicht unbemerkt verlieren.
 
 Wenn Sie einen einzelnen Screen suchen, ist der schnellste Weg das **"?"** in
 der Kopfzeile einer Seite — es spielt den Rundgang dieser Seite ab, und eine
@@ -88,6 +112,10 @@ Standardagenten schließen einmalige Anfragen ab, ohne die Antwort durch eine op
 
 Die kompakte Quellen-Schaltfläche unter einer Antwort öffnet Sources neben dem Gespräch, auf dem Smartphone als vollbreites Panel. Files und Sources teilen sich den Seitenbereich: Das Öffnen eines Panels ersetzt das andere. Webquellen zeigen das ohne Referrer geladene Favicon oder ein bekanntes Dienstlogo; bei fehlendem Symbol bleibt der Globus. Wissensquellen behalten ihre Dateisymbole und die Originaldokumentansicht.
 
+Weblinks in Antworten verwenden dieselbe Favicon-Regel unabhängig von MCP-Verbindungen. Symbole unbekannter Seiten werden über den Proxy unter derselben Origin wie die Konsole und den festen Symboldienst von DuckDuckGo geladen. Dieser erhält nur den Hostnamen, keine Cookies oder IP-Adresse des Lesers, URL-Pfade oder Abfrageparameter. Der Proxy verweigert Weiterleitungen, nicht-rasterbasierte Inhalte und Symbole über 64 KiB; das Zeitlimit beträgt drei Sekunden. Bei fehlenden oder nicht erreichbaren Symbolen erscheint ein Globus. Inaktive Transkriptansichten laden weder entfernte Bilder noch Symbole unbekannter Seiten.
+
+Ein fehlgeschlagener Chat-Run zeigt seinen Fehler getrennt von der Antwort und außerhalb der eingeklappten Tool-Schritte, auch nach dem Neuladen. Inhaltsfilter des Anbieters erhalten eine ausdrückliche Erklärung; rohe Anbieterantworten und unbekannte historische Fehlermeldungen werden nicht in geteilte Transkripte kopiert. Teilergebnisse bleiben sichtbar, und fehlgeschlagene Arbeit erscheint nicht als abgeschlossen.
+
 ## Das Dashboard { #the-dashboard }
 
 Die Startseite ist ein **anordenbares Raster aus Widgets**, und sie ist die
@@ -105,7 +133,7 @@ an, die Sie öffnen dürfen. Alle starten in der Ansicht **Ich**:
 
 | Ansicht | Beantwortet |
 | --- | --- |
-| **Ich** | Eine Begrüßung, Ihr Zeitraum und alles, was auf Sie wartet, in zwei Sätzen - Aufrufe, Antworten zur Prüfung, durchgefallene Suites, Vorschläge des Assistenten; Ihre Runs, wie viele fertig wurden, was auf Sie wartet und was es gekostet hat; dann die Aufrufe, die auf Sie warten, Ihre Unterhaltungen, die Agents, die Aufmerksamkeit brauchen, die Verbesserungen, die auf Sie warten, Ihre Agents, was mit Ihnen geteilt wurde, Ihre [Datasets](datasets.md) mit dem, woran ihre Fälle die Antwort messen, die neuesten Eval-Runs und Suites, die Vorschläge des Assistenten nach Agent, Skill und Datei und die Wissenslücken |
+| **Ich** | Eine Begrüßung, Ihr Zeitraum und alles, was auf Sie wartet, in zwei Sätzen - Aufrufe, Antworten zur Prüfung, durchgefallene Suites, Vorschläge des Assistenten; Ihre Runs, wie viele fertig wurden, was auf Sie wartet (gleich gezählt) und was es gekostet hat; dann die Aufrufe, die auf Sie warten, Ihre Unterhaltungen, die Agents, die Aufmerksamkeit brauchen, die Verbesserungen, die auf Sie warten, Ihre Agents, was mit Ihnen geteilt wurde, Ihre [Datasets](datasets.md) mit dem, woran ihre Fälle die Antwort messen, die neuesten Eval-Runs und Suites, die Vorschläge des Assistenten nach Agent, Skill und Datei und die Wissenslücken |
 | **Ich** | Eine Begrüßung und Ihr Zeitraum in einem Satz; Ihre Runs, wie viele fertig wurden, was auf Sie wartet und was es gekostet hat; dann die Aufrufe, die auf Sie warten, Ihre Unterhaltungen, Ihre Agents und was mit Ihnen geteilt wurde |
 | **Organisation** | Die anordenbare Seite unten |
 | **Gruppe** | Die Mitglieder einer [Gruppe](departments.md) - ihre Runs, Ausgaben, Modelle, wann sie arbeiten und wer es am meisten nutzt. Die Gruppe wählen Sie neben dem Schalter. Eine Gruppe, deren Mitglieder im Zeitraum nichts ausgeführt haben, sagt das einmal, mit einem Weg zur Gruppe, statt eine Seite leerer Karten zu zeigen |
@@ -123,7 +151,13 @@ eigene sammelt. Beides erfordert `runs:view`.
 
 Darunter listet **Verbesserungen, die auf Sie warten** die
 [Verbessern](authoring.md#the-improve-wizard)-Sitzungen, die für Ihren nächsten
-Schritt oder Ihre Entscheidung angehalten haben, jede an ihrem Halt geöffnet.
+Schritt oder Ihre Entscheidung angehalten haben, jede an ihrem Halt geöffnet, und
+die [Prüfungen einer Skill-Änderung](skills.md#when-an-agent-got-worse), über die
+Sie entscheiden können und die noch laufen oder auf eine Entscheidung warten.
+Danach folgen die von Agents vorgeschlagenen Skill-Änderungen, dann die
+festgesetzten Agents und die Forks, an denen main
+[vorbeigezogen ist](skills.md#which-version-an-agent-reads). Ein Fork wird von
+dort nachgezogen, ein festgesetzter Agent auf der Seite seines Skills verschoben.
 
 Die Ansicht der Organisation zeigt die Karten, die mit Daten antworten, in
 Gruppen. Der Rest - Integrationen, Kanäle, Routinen, Wissens-Sync, Abteilungen,
@@ -192,6 +226,8 @@ statt still den Snapshot zu überschreiben, den Sie behalten wollten.
     eigenen gespeicherten Anordnung stammt.
 
 ## Routinen und Beobachtungen { #routines-and-watches }
+
+Routinennamen werden auf Telefonen umgebrochen. Ohne Suchtreffer erscheint **Suche löschen**; **Erneut versuchen** lädt Aufgaben und Beobachtungen nach einem Lesefehler neu. Zeitpläne und Ereignisauslöser werden zwischen festem Kopf und Aktionsleiste bearbeitet. Schreibvorgänge sperren Felder und Schließen bis zum Abschluss; eine Ablehnung erhält den Entwurf.
 
 Routines hat zwei Tabs. **Agentenaufgaben** startet einen gewählten Agenten nach
 Zeitplan oder Ereignis mit seinen Werkzeugen; die Läufe erscheinen in Activity.
@@ -1031,6 +1067,20 @@ arbeiten und Ihre Zeitzone. Jeder Agent liest sie zu Beginn eines Runs, sodass S
 sie in keinem Chat wiederholen; „jeden Montag um 9“ ist Ihre 9. Die Zeitzone wird
 bei der ersten Anmeldung aus Ihrem Browser übernommen, bis Sie eine wählen.
 
+Die Profileinstellungen verbinden Porträt, Anzeigename und E-Mail in einem
+Formular; Ersatzfarben stehen unter einer aufklappbaren Zeile. Speichern steht
+unter den Feldern, Enter sendet das Namens- oder Rollenformular. Während eines
+Profilzugriffs zum Speichern bleiben Identität und Kontext gesperrt; eine
+Ablehnung behält den Entwurf. Arbeitstage haben größere Touch-Ziele; Beginn
+und Ende stehen auch auf dem Smartphone in getrennten Feldern.
+
+**Einstellungen → Benachrichtigungen** durchsucht Ereignisnamen und Beschreibungen,
+mit sechs Ereignissen pro Seite. Die Chatauswahl ändert den zusätzlichen Kanal,
+ohne andere Einstellungen zu verändern. Verknüpfte private Chatziele stehen
+zuerst; weitere Plattformen sind eingeklappt. Fehlgeschlagene Lesevorgänge für
+Einstellungen, Ziele oder Konten bieten einen neuen Versuch statt erfundener
+Standardwerte oder einer scheinbar leeren Kontenliste.
+
 ## Der nächste Schritt { #the-next-step }
 
 Eine Seite, die leer ist, weil noch nichts existiert, bietet den Weg zum ersten
@@ -1179,3 +1229,7 @@ sind optionale Hilfe; ihr Schließen erzeugt keinen erfolgreichen Lauf.
 Integrationen, Dateien, Agentenbau, Einladungen und Routinen sind optionale Folgeschritte.
 
 Mitgliederverwalter können prüfen, ob sie und ein bestehendes Mitglied einen gemeinsamen veröffentlichten Agenten ausführen können. Die Vorschau liefert nur diese Antwort, keine privaten Agentennamen, und ruft kein Modell auf. Sie bestätigt nicht die Erreichbarkeit des Anbieters. Einladungen von einer Loopback-Adresse sind in diesem Start gesperrt; verwenden Sie eine für den Empfänger erreichbare Serveradresse.
+
+Abgeschlossene Chat-Turns zeigen den vor einer Agentenfrage gelieferten Text neben der abschließenden Antwort, auch nach Ablehnung der Frage oder Fortsetzung des Runs. Tool-Ergebnisse und Überlegungen bleiben im aufklappbaren Arbeitsverlauf. Dies gilt für gespeicherte und geteilte Chats; die Textlänge entscheidet nicht über die Einordnung.
+
+Der Run-Verlauf unterscheidet die anfragende Person vom Herausgeber, dessen Berechtigung eine externe Anfrage zulässt. Nicht verknüpfte Kanalabsender erscheinen auf Desktop und Mobilgeräten als ausdrücklich unbestätigte Chat-Konten; anonyme Anfragen erhalten keine erfundene Mitgliedsidentität. Die Run-API behält `user_id` als Berechtigungskontext und ergänzt `initiated_by_publisher_fallback` und `asked_in_chat` für eine korrekte Zuordnung. Die Anzeige verknüpft keine Konten und gewährt keinen Zugriff auf persönliche Verbindungen des Herausgebers.

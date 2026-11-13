@@ -6,9 +6,8 @@ import { toast } from "sonner";
 
 import {
   AnswerStyleFields,
-  DEFAULT_ANSWER_STYLE,
+  defaultAnswerStyle,
   REACTION_PATTERN,
-  reactsOn,
 } from "@/components/channels/answer-style-fields";
 import { ChannelPlatformIcon } from "@/components/channels/channel-platform-icon";
 import { SlackTransport } from "@/components/channels/slack-transport";
@@ -23,6 +22,11 @@ import {
   FormField,
   Input,
   MoreOptions,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui";
 import {
   INHERIT,
@@ -146,7 +150,9 @@ export function AddChannelDialog({
   const [teamsTenantId, setTeamsTenantId] = useState("");
   const [respondToBroadcasts, setRespondToBroadcasts] = useState(false);
   const [discordGuilds, setDiscordGuilds] = useState("");
-  const [answerStyle, setAnswerStyle] = useState<AnswerStyle>(DEFAULT_ANSWER_STYLE);
+  const [answerStyle, setAnswerStyle] = useState<AnswerStyle>(() =>
+    defaultAnswerStyle(initialPlatform),
+  );
   const [transcription, setTranscription] = useState<TranscriptionChoice>(INHERIT);
   // A bot not yet registered serves no agent, so what it would inherit today is
   // the organization's pair; binding an agent with its own may change that.
@@ -200,7 +206,7 @@ export function AddChannelDialog({
     setSlackWebhook(true);
     setTeamsAppId("");
     setTeamsTenantId("");
-    setAnswerStyle(DEFAULT_ANSWER_STYLE);
+    setAnswerStyle(defaultAnswerStyle(initialPlatform));
     setRespondToBroadcasts(false);
     setDiscordGuilds("");
     setTranscription(INHERIT);
@@ -218,12 +224,18 @@ export function AddChannelDialog({
     setAppToken("");
     setTeamsAppId("");
     setTeamsTenantId("");
-    // Hidden where the bot cannot react, and a hidden choice would still be sent.
-    if (!reactsOn(next)) setAnswerStyle((style) => ({ ...style, ack_reaction: null }));
+    setAnswerStyle((style) => ({ ...style, ack_reaction: defaultAnswerStyle(next).ack_reaction }));
     setErrors({});
   }
 
+  function changeOpen(next: boolean) {
+    if (isPending) return;
+    if (!next) reset();
+    onOpenChange(next);
+  }
+
   async function submit() {
+    if (isPending) return;
     try {
       await onSubmit({
         platform,
@@ -301,283 +313,301 @@ export function AddChannelDialog({
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (!next) reset();
-        onOpenChange(next);
-      }}
-    >
+    <Dialog open={open} onOpenChange={changeOpen}>
       {/* One column that scrolls as a whole: the platform, what it needs to
           connect, and the rest folded under More options. */}
-      <DialogContent className={cn(DIALOG_FORM, DIALOG_COLUMN)}>
+      <DialogContent className={cn(DIALOG_FORM, DIALOG_COLUMN)} dismissible={!isPending}>
         <DialogHeader>
           <DialogTitle>{t("addChannel")}</DialogTitle>
           <DialogDescription>{t("addChannelDescription")}</DialogDescription>
         </DialogHeader>
 
-        <div className={cn(DIALOG_BODY, "space-y-5")}>
-          {/* A caption over a group of buttons, not a `Label`: a label names one
+        <div className={DIALOG_BODY}>
+          <fieldset disabled={isPending} className="min-w-0 space-y-5">
+            <legend className="sr-only">{t("addChannel")}</legend>
+            {/* A caption over a group of buttons, not a `Label`: a label names one
               control and this one names a set of platforms. */}
-          <div className="space-y-2">
-            <p id="channel-platform" className="text-muted-foreground text-xs font-medium">
-              {t("platform")}
-            </p>
-            <div
-              role="group"
-              aria-labelledby="channel-platform"
-              className="grid grid-cols-2 gap-2 sm:grid-cols-4"
-            >
-              {PLATFORMS.map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  onClick={() => choosePlatform(option)}
-                  aria-pressed={platform === option}
-                  className={cn(
-                    "focus-visible:ring-ring flex min-h-14 min-w-0 items-center gap-2 rounded-lg border px-2.5 py-2 text-left text-[13px] transition-colors outline-none focus-visible:ring-2",
-                    platform === option
-                      ? "border-foreground/35 bg-accent text-foreground"
-                      : "bg-background/70 text-muted-foreground hover:border-border hover:text-foreground hover:bg-accent/60 border-transparent",
-                  )}
+            <div className="space-y-2">
+              <p id="channel-platform" className="text-muted-foreground text-xs font-medium">
+                {t("platform")}
+              </p>
+              <div className="md:hidden">
+                <Select
+                  value={platform}
+                  disabled={isPending}
+                  onValueChange={(value) => {
+                    const next = PLATFORMS.find((option) => option === value);
+                    if (next) choosePlatform(next);
+                  }}
                 >
-                  <ChannelPlatformIcon
-                    platform={option}
-                    className="h-6 w-6 rounded-none bg-transparent"
-                  />
-                  <span className="min-w-0 flex-1 font-medium">{PLATFORM_LABEL[option]}</span>
-                  <Check
-                    className={cn("size-3.5 shrink-0", platform !== option && "invisible")}
-                    aria-hidden
-                  />
-                </button>
-              ))}
+                  <SelectTrigger aria-labelledby="channel-platform">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PLATFORMS.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {PLATFORM_LABEL[option]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div
+                role="group"
+                aria-labelledby="channel-platform"
+                className="hidden grid-cols-4 gap-2 md:grid"
+              >
+                {PLATFORMS.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => choosePlatform(option)}
+                    aria-pressed={platform === option}
+                    className={cn(
+                      "focus-visible:ring-ring flex min-h-14 min-w-0 items-center gap-2 rounded-lg border px-2.5 py-2 text-left text-[13px] transition-colors outline-none focus-visible:ring-2",
+                      platform === option
+                        ? "border-foreground/35 bg-accent text-foreground"
+                        : "bg-background/70 text-muted-foreground hover:border-border hover:text-foreground hover:bg-accent/60 border-transparent",
+                    )}
+                  >
+                    <ChannelPlatformIcon
+                      platform={option}
+                      className="h-6 w-6 rounded-none bg-transparent"
+                    />
+                    <span className="min-w-0 flex-1 font-medium">{PLATFORM_LABEL[option]}</span>
+                    <Check
+                      className={cn("size-3.5 shrink-0", platform !== option && "invisible")}
+                      aria-hidden
+                    />
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
 
-          <div className="space-y-5">
-            <FormField
-              label={t("name")}
-              htmlFor="channel-name"
-              error={errors.name}
-              description={t("nameHint")}
-              required
-            >
-              <Input
-                id="channel-name"
-                name="channel_name"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                placeholder={t("supportBot")}
-                autoComplete="off"
-                maxLength={MAX_NAME}
-              />
-            </FormField>
-
-            <FormField
-              label={t(platform === "email" ? "emailAddress" : "botToken")}
-              htmlFor="channel-token"
-              error={errors.token}
-              description={t(TOKEN_HINT[platform])}
-              required
-            >
-              <Input
-                key={platform}
-                id="channel-token"
-                name="channel_credential"
-                type={platform === "email" ? "email" : "password"}
-                value={token}
-                onChange={(event) => setToken(event.target.value)}
-                autoComplete={platform === "email" ? "off" : "new-password"}
-              />
-            </FormField>
-          </div>
-
-          {platform === "discord" && (
-            <DiscordGuildsField
-              idPrefix="channel"
-              value={discordGuilds}
-              onChange={setDiscordGuilds}
-            />
-          )}
-          {platform === "mattermost" && (
             <div className="space-y-5">
               <FormField
-                label={t("mattermostServerUrl")}
-                htmlFor="channel-server-url"
-                error={errors.api_base_url}
-                description={t("mattermostServerUrlHint")}
+                label={t("name")}
+                htmlFor="channel-name"
+                error={errors.name}
+                description={t("nameHint")}
                 required
               >
                 <Input
-                  id="channel-server-url"
+                  id="channel-name"
+                  name="channel_name"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder={t("supportBot")}
+                  autoComplete="off"
+                  maxLength={MAX_NAME}
+                />
+              </FormField>
+
+              <FormField
+                label={t(platform === "email" ? "emailAddress" : "botToken")}
+                htmlFor="channel-token"
+                error={errors.token}
+                description={t(TOKEN_HINT[platform])}
+                required
+              >
+                <Input
+                  key={platform}
+                  id="channel-token"
+                  name="channel_credential"
+                  type={platform === "email" ? "email" : "password"}
+                  value={token}
+                  onChange={(event) => setToken(event.target.value)}
+                  autoComplete={platform === "email" ? "off" : "new-password"}
+                />
+              </FormField>
+            </div>
+
+            {platform === "discord" && (
+              <DiscordGuildsField
+                idPrefix="channel"
+                value={discordGuilds}
+                onChange={setDiscordGuilds}
+              />
+            )}
+            {platform === "mattermost" && (
+              <div className="space-y-5">
+                <FormField
+                  label={t("mattermostServerUrl")}
+                  htmlFor="channel-server-url"
+                  error={errors.api_base_url}
+                  description={t("mattermostServerUrlHint")}
+                  required
+                >
+                  <Input
+                    id="channel-server-url"
+                    value={serverUrl}
+                    onChange={(event) => setServerUrl(event.target.value)}
+                    placeholder="https://mattermost.example.com"
+                    maxLength={MAX_URL}
+                  />
+                </FormField>
+
+                <FormField
+                  label={t("mattermostWebhookToken")}
+                  htmlFor="channel-webhook-secret"
+                  error={errors.webhook_secret}
+                  description={t("mattermostWebhookTokenHint")}
+                >
+                  <Input
+                    id="channel-webhook-secret"
+                    type="password"
+                    value={webhookSecret}
+                    onChange={(event) => setWebhookSecret(event.target.value)}
+                    autoComplete="off"
+                    maxLength={MAX_NAME}
+                  />
+                </FormField>
+              </div>
+            )}
+
+            {platform === "imessage" && (
+              <FormField
+                label={t("imessageServerUrl")}
+                htmlFor="imessage-server-url"
+                description={t("imessageServerUrlHint")}
+                error={errors.api_base_url}
+                required
+              >
+                <Input
+                  id="imessage-server-url"
                   value={serverUrl}
                   onChange={(event) => setServerUrl(event.target.value)}
-                  placeholder="https://mattermost.example.com"
                   maxLength={MAX_URL}
+                  placeholder="http://mac-bridge:1234"
                 />
               </FormField>
+            )}
 
+            {platform === "email" && (
               <FormField
-                label={t("mattermostWebhookToken")}
-                htmlFor="channel-webhook-secret"
+                label={t("emailRelaySecret")}
+                htmlFor="channel-relay-secret"
                 error={errors.webhook_secret}
-                description={t("mattermostWebhookTokenHint")}
+                description={t("emailRelaySecretHint")}
+                required
               >
-                <Input
-                  id="channel-webhook-secret"
-                  type="password"
-                  value={webhookSecret}
-                  onChange={(event) => setWebhookSecret(event.target.value)}
-                  autoComplete="off"
-                  maxLength={MAX_NAME}
-                />
+                <div className="flex gap-2">
+                  <Input
+                    id="channel-relay-secret"
+                    type="password"
+                    value={webhookSecret}
+                    onChange={(event) => setWebhookSecret(event.target.value)}
+                    autoComplete="off"
+                    maxLength={MAX_NAME}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setWebhookSecret(generateRelaySecret())}
+                  >
+                    {t("emailGenerateSecret")}
+                  </Button>
+                </div>
               </FormField>
-            </div>
-          )}
+            )}
 
-          {platform === "imessage" && (
-            <FormField
-              label={t("imessageServerUrl")}
-              htmlFor="imessage-server-url"
-              description={t("imessageServerUrlHint")}
-              error={errors.api_base_url}
-              required
-            >
-              <Input
-                id="imessage-server-url"
-                value={serverUrl}
-                onChange={(event) => setServerUrl(event.target.value)}
-                maxLength={MAX_URL}
-                placeholder="http://mac-bridge:1234"
-              />
-            </FormField>
-          )}
-
-          {platform === "email" && (
-            <FormField
-              label={t("emailRelaySecret")}
-              htmlFor="channel-relay-secret"
-              error={errors.webhook_secret}
-              description={t("emailRelaySecretHint")}
-              required
-            >
-              <div className="flex gap-2">
-                <Input
-                  id="channel-relay-secret"
-                  type="password"
-                  value={webhookSecret}
-                  onChange={(event) => setWebhookSecret(event.target.value)}
-                  autoComplete="off"
-                  maxLength={MAX_NAME}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setWebhookSecret(generateRelaySecret())}
+            {platform === "teams" && (
+              <div className="space-y-5">
+                <FormField
+                  label={t("teamsAppId")}
+                  htmlFor="channel-teams-app-id"
+                  error={errors.teams_app_id}
+                  description={t("teamsAppIdHint")}
+                  required
                 >
-                  {t("emailGenerateSecret")}
-                </Button>
+                  <Input
+                    id="channel-teams-app-id"
+                    value={teamsAppId}
+                    onChange={(event) => setTeamsAppId(event.target.value)}
+                    placeholder="00000000-0000-0000-0000-000000000000"
+                    autoComplete="off"
+                  />
+                </FormField>
+                <FormField
+                  label={t("teamsTenantId")}
+                  htmlFor="channel-teams-tenant-id"
+                  error={errors.teams_tenant_id}
+                  description={t("teamsTenantIdHint")}
+                  required
+                >
+                  <Input
+                    id="channel-teams-tenant-id"
+                    value={teamsTenantId}
+                    onChange={(event) => setTeamsTenantId(event.target.value)}
+                    placeholder="00000000-0000-0000-0000-000000000000"
+                    autoComplete="off"
+                  />
+                </FormField>
               </div>
-            </FormField>
-          )}
+            )}
 
-          {platform === "teams" && (
-            <div className="space-y-5">
-              <FormField
-                label={t("teamsAppId")}
-                htmlFor="channel-teams-app-id"
-                error={errors.teams_app_id}
-                description={t("teamsAppIdHint")}
-                required
-              >
-                <Input
-                  id="channel-teams-app-id"
-                  value={teamsAppId}
-                  onChange={(event) => setTeamsAppId(event.target.value)}
-                  placeholder="00000000-0000-0000-0000-000000000000"
-                  autoComplete="off"
-                />
-              </FormField>
-              <FormField
-                label={t("teamsTenantId")}
-                htmlFor="channel-teams-tenant-id"
-                error={errors.teams_tenant_id}
-                description={t("teamsTenantIdHint")}
-                required
-              >
-                <Input
-                  id="channel-teams-tenant-id"
-                  value={teamsTenantId}
-                  onChange={(event) => setTeamsTenantId(event.target.value)}
-                  placeholder="00000000-0000-0000-0000-000000000000"
-                  autoComplete="off"
-                />
-              </FormField>
-            </div>
-          )}
+            {platform === "slack" && (
+              <>
+                <SlackTransport webhookMode={slackWebhook} onChange={setSlackWebhook} />
+                {slackWebhook ? (
+                  <FormField
+                    label={t("signingSecret")}
+                    htmlFor="channel-signing-secret"
+                    description={t("signingSecretHint")}
+                  >
+                    <Input
+                      id="channel-signing-secret"
+                      type="password"
+                      value={signingSecret}
+                      onChange={(event) => setSigningSecret(event.target.value)}
+                      autoComplete="off"
+                    />
+                  </FormField>
+                ) : (
+                  <FormField
+                    label={t("appLevelToken")}
+                    htmlFor="channel-app-token"
+                    description={t("appLevelTokenHint")}
+                  >
+                    <Input
+                      id="channel-app-token"
+                      type="password"
+                      value={appToken}
+                      onChange={(event) => setAppToken(event.target.value)}
+                      autoComplete="off"
+                    />
+                  </FormField>
+                )}
+              </>
+            )}
 
-          {platform === "slack" && (
-            <>
-              <SlackTransport webhookMode={slackWebhook} onChange={setSlackWebhook} />
-              {slackWebhook ? (
-                <FormField
-                  label={t("signingSecret")}
-                  htmlFor="channel-signing-secret"
-                  description={t("signingSecretHint")}
-                >
-                  <Input
-                    id="channel-signing-secret"
-                    type="password"
-                    value={signingSecret}
-                    onChange={(event) => setSigningSecret(event.target.value)}
-                    autoComplete="off"
-                  />
-                </FormField>
-              ) : (
-                <FormField
-                  label={t("appLevelToken")}
-                  htmlFor="channel-app-token"
-                  description={t("appLevelTokenHint")}
-                >
-                  <Input
-                    id="channel-app-token"
-                    type="password"
-                    value={appToken}
-                    onChange={(event) => setAppToken(event.target.value)}
-                    autoComplete="off"
-                  />
-                </FormField>
-              )}
-            </>
-          )}
-
-          <MentionPolicyFields
-            idPrefix="channel"
-            platform={platform}
-            enabled={respondToBroadcasts}
-            onChange={setRespondToBroadcasts}
-          />
-          <MoreOptions label={t("moreOptions")}>
-            <AnswerStyleFields
+            <MentionPolicyFields
               idPrefix="channel"
               platform={platform}
-              value={answerStyle}
-              onChange={setAnswerStyle}
+              enabled={respondToBroadcasts}
+              onChange={setRespondToBroadcasts}
             />
-            <TranscriptionFields
-              idPrefix="channel"
-              platform={platform}
-              inherited={inherited}
-              value={transcription}
-              onChange={setTranscription}
-              keyError={errors.speech_to_text_secret_id}
-            />
-          </MoreOptions>
+            <MoreOptions label={t("moreOptions")}>
+              <AnswerStyleFields
+                idPrefix="channel"
+                platform={platform}
+                value={answerStyle}
+                onChange={setAnswerStyle}
+              />
+              <TranscriptionFields
+                idPrefix="channel"
+                platform={platform}
+                inherited={inherited}
+                value={transcription}
+                onChange={setTranscription}
+                keyError={errors.speech_to_text_secret_id}
+              />
+            </MoreOptions>
+          </fieldset>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" disabled={isPending} onClick={() => changeOpen(false)}>
             {t("cancel")}
           </Button>
           <Button onClick={submit} loading={isPending} disabled={!complete}>

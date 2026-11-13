@@ -84,6 +84,42 @@ describe("RejectedChanges", () => {
     ).toBeVisible();
   });
 
+  it("names the skill a refused skill problem was about, and why each skill change was refused", async () => {
+    render(
+      <RejectedChanges
+        report={report({
+          rejected: [
+            {
+              kind: "skill_problem",
+              reason: "skill_not_used",
+              change: { skill: "returns-policy", problem: "It says ninety days" },
+            },
+            { kind: "skill_problem", reason: "unknown_skill", change: { skill: "x", problem: "" } },
+            {
+              kind: "instructions",
+              reason: "copies_skill",
+              change: { old_text: "", new_text: "" },
+            },
+            { kind: "create_skill", reason: "duplicates_skill", change: { name: "returns" } },
+          ],
+        })}
+      />,
+    );
+    await userEvent.click(screen.getByText("4 more ideas the assistant did not add"));
+
+    expect(screen.getAllByText("Skill problem")).toHaveLength(2);
+    expect(screen.getByText("returns-policy")).toBeVisible();
+    expect(screen.getByText("It says ninety days")).toBeVisible();
+    expect(
+      screen.getByText("None of the answers it cites used this version of the skill"),
+    ).toBeVisible();
+    expect(screen.getByText("The agent has no such skill")).toBeVisible();
+    expect(
+      screen.getByText("It copies one of the agent's skills, which the agent already reads"),
+    ).toBeVisible();
+    expect(screen.getByText("The agent already has a skill with this name or text")).toBeVisible();
+  });
+
   it("counts one in the singular, and lists all when none is cut", () => {
     render(<RejectedChanges report={report({ rejected: REJECTED.slice(0, 1) })} />);
     expect(screen.getByText("1 more idea the assistant did not add")).toBeInTheDocument();

@@ -479,6 +479,8 @@ Each score keeps its model, published helper identity, rubric hash, task version
 ### Review { #review }
 Review shows all graded answers in one table with question, agent, result, model, date and source columns. Select an answer to open its evidence, grading and decision in a side panel. Saving keeps the panel open and the decided row in place; a decision can be withdrawn or undone. If a server-side privacy mask changes, the open panel and its unsaved note are discarded.
 
+The source says where each answer came from: an eval run, grading by hand, or a side of a skill's check (the proposed text or the current version), and which re-ask it was, so one question answered several times reads as several distinct rows; a skill check's answers are headed as the check's.
+
 A score waits in the **review queue** when somebody sends it there, or an eval
 run does. Once it has rerun what flipped, an eval run sends the regressions it
 confirmed and the answers the judge failed on with an error - not one it

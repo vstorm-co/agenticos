@@ -316,6 +316,7 @@ def _dataset_read(
         visibility=as_visibility(dataset.visibility),
         owner_user_id=dataset.owner_user_id,
         agent_id=dataset.agent_id,
+        skill_id=dataset.skill_id,
         latest_version=dataset.latest_version,
         case_count=dataset.case_count,
         can_edit=can_edit,
@@ -564,12 +565,18 @@ class DatasetService:
             raise _name_taken(name)
 
     async def create(
-        self, ctx: AuthContext, data: DatasetCreate, *, agent_id: UUID | None = None
+        self,
+        ctx: AuthContext,
+        data: DatasetCreate,
+        *,
+        agent_id: UUID | None = None,
+        skill_id: UUID | None = None,
     ) -> DatasetRead:
         """An empty dataset, visible to the whole organization unless `data` says otherwise.
 
         `agent_id` names the agent it is made to test, for the caller that made it
-        for one; the caller has checked that agent is theirs to see.
+        for one; the caller has checked that agent is theirs to see. `skill_id` makes
+        it that skill's own test questions, for a caller that may edit the skill.
         """
         await self._refuse_taken_name(ctx, data.name)
         try:
@@ -585,6 +592,7 @@ class DatasetService:
                     description=data.description,
                     visibility=data.visibility,
                     agent_id=agent_id,
+                    skill_id=skill_id,
                     improvement_holdout_share=data.improvement_holdout_share,
                 )
         except IntegrityError:
@@ -781,28 +789,14 @@ class DatasetService:
         reads = [_case_read(case) for case in cases]
         if ctx.has(Perm.RUNS_VIEW):
             return reads
-        accessible: dict[UUID, bool] = {}
-        conversations = ConversationService(self.db)
+        readable = await ConversationService(self.db).readable(
+            ctx,
+            {case.source_conversation_id for case in cases if case.source_conversation_id},
+        )
         for case, read in zip(cases, reads, strict=True):
             if case.source != CaseSource.CONVERSATION.value and case.source_conversation_id is None:
                 continue
-            source = case.source_conversation_id
-            if source is not None and source not in accessible:
-                allowed = False
-                if ctx.user_id is not None:
-                    try:
-                        await conversations.get_conversation(
-                            source,
-                            organization_id=ctx.organization_id,
-                            user_id=ctx.subject_id,
-                            ctx=ctx,
-                            include_favourite=False,
-                        )
-                        allowed = True
-                    except NotFoundError:
-                        allowed = False
-                accessible[source] = allowed
-            if source is not None and accessible[source]:
+            if case.source_conversation_id in readable:
                 continue
             read.input = "From a conversation you cannot open"
             read.history = []
@@ -1546,6 +1540,7 @@ class DatasetService:
         answer_as: AnswerAs | Mapping[UUID, AnswerAs] = "counter_example",
         with_history: bool = True,
         limit: int | None = None,
+        one_per_question: bool = False,
     ) -> tuple[DatasetVersionRead | None, int]:
         """Add several agents' answers as cases, in one new version.
 
@@ -1555,7 +1550,9 @@ class DatasetService:
         as a counter-example. `with_history` false leaves out the turns before
         each question. `limit` stops once that many cases are built, so answers
         the caller may not read never take a place; the ones not reached are
-        neither added nor counted as skipped.
+        neither added nor counted as skipped. `one_per_question` keeps only the
+        first answer given to each question, compared without case or spacing, so
+        a question never holds both an answer to give and one to avoid.
 
         Each answer is built and checked as :meth:`add_from_message` builds and
         checks one. An answer the caller may not read - absent, in another
@@ -1576,6 +1573,7 @@ class DatasetService:
         current = await self.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
         built: list[tuple[DatasetCaseContent, dict[str, UUID | None], Authorship]] = []
         replies: set[UUID | None] = set()
+        questions: set[str] = set()
         examined = 0
         for message_id in message_ids:
             if limit is not None and len(built) >= limit:
@@ -1594,7 +1592,11 @@ class DatasetService:
                 continue
             if case[1]["source_message_id"] in replies:
                 continue
+            question = " ".join(case[0].input.split()).casefold()
+            if one_per_question and question in questions:
+                continue
             replies.add(case[1]["source_message_id"])
+            questions.add(question)
             built.append(case)
         skipped = examined - len(built)
         if not built:

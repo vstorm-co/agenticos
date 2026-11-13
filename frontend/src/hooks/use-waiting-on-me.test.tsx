@@ -2,7 +2,7 @@ import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Perm, type Permission } from "@/types/permissions";
-import { useWaitingOnMe } from "./use-waiting-on-me";
+import { useWaitingOnMe, waitingOn } from "./use-waiting-on-me";
 
 const state = vi.hoisted(() => ({
   granted: new Set<string>(),
@@ -11,7 +11,7 @@ const state = vi.hoisted(() => ({
   review: [] as unknown[],
   suites: [] as unknown[],
   waiting: null as unknown,
-  read: { isLoading: false, error: null as unknown },
+  read: { isLoading: false, error: null as unknown, refetch: (() => {}) as () => void },
 }));
 vi.mock("@/hooks/use-permissions", () => ({
   usePermissions: () => ({
@@ -28,20 +28,20 @@ vi.mock("@/hooks/use-scoring", () => ({
 vi.mock("@/hooks/use-eval-suites", () => ({
   useVisibleEvalSuites: (args: unknown) => {
     state.asked.suites = args;
-    return { suites: state.suites, isLoading: false, error: null };
+    return { suites: state.suites, isLoading: false, error: null, refetch: vi.fn() };
   },
 }));
 vi.mock("@/hooks/use-authoring", () => ({
   useWaitingSuggestions: (args: unknown) => {
     state.asked.suggestions = args;
-    return { waiting: state.waiting, isLoading: false, error: null };
+    return { waiting: state.waiting, isLoading: false, error: null, refetch: vi.fn() };
   },
 }));
 
 beforeEach(() => {
   state.granted = new Set([Perm.datasetsView, Perm.runsView, Perm.agentsEdit]);
   state.loaded = true;
-  state.read = { isLoading: false, error: null };
+  state.read = { isLoading: false, error: null, refetch: vi.fn() };
   state.asked = {};
   state.review = [];
   state.suites = [];
@@ -72,11 +72,12 @@ describe("useWaitingOnMe", () => {
       contexts: 2,
     };
 
-    expect(renderHook(() => useWaitingOnMe()).result.current).toEqual({
+    expect(renderHook(() => useWaitingOnMe()).result.current).toMatchObject({
       review: 9,
       suites: 3,
       suggestions: 8,
       settled: true,
+      failed: false,
     });
   });
 
@@ -87,26 +88,51 @@ describe("useWaitingOnMe", () => {
   });
 
   it("is not settled while a list is loading or after it failed", () => {
-    state.read = { isLoading: true, error: null };
-    expect(renderHook(() => useWaitingOnMe()).result.current.settled).toBe(false);
+    state.read = { isLoading: true, error: null, refetch: vi.fn() };
+    const loading = renderHook(() => useWaitingOnMe()).result.current;
+    expect(loading.settled).toBe(false);
+    expect(loading.failed).toBe(false);
 
-    state.read = { isLoading: false, error: new Error("boom") };
-    expect(renderHook(() => useWaitingOnMe()).result.current.settled).toBe(false);
+    state.read = { isLoading: false, error: new Error("boom"), refetch: vi.fn() };
+    const failed = renderHook(() => useWaitingOnMe()).result.current;
+    expect(failed.settled).toBe(false);
+    expect(failed.failed).toBe(true);
+  });
+
+  it("reads again only the lists that were refused", () => {
+    const refused = vi.fn();
+    state.read = { isLoading: false, error: new Error("boom"), refetch: refused };
+
+    renderHook(() => useWaitingOnMe()).result.current.retry();
+
+    expect(refused).toHaveBeenCalledOnce();
   });
 
   it("reads each list only for whoever may act on it, and counts nothing it did not read", () => {
     state.granted = new Set();
 
-    expect(renderHook(() => useWaitingOnMe()).result.current).toEqual({
+    expect(renderHook(() => useWaitingOnMe()).result.current).toMatchObject({
       review: 0,
       suites: 0,
       suggestions: 0,
       settled: true,
+      failed: false,
     });
     expect(state.asked).toEqual({
       review: { limit: 1, enabled: false },
       suites: { enabled: false },
       suggestions: { enabled: false },
     });
+  });
+});
+
+describe("waitingOn", () => {
+  it("lists each kind that waits, the tool calls first, and none at zero", () => {
+    expect(waitingOn(2, { review: 0, suites: 1, suggestions: 3 })).toEqual([
+      ["approvals", 2],
+      ["suites", 1],
+      ["suggestions", 3],
+    ]);
+    expect(waitingOn(0, { review: 0, suites: 0, suggestions: 0 })).toEqual([]);
   });
 });

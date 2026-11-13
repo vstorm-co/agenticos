@@ -1,8 +1,32 @@
 # The console
 
+The personal dashboard reads onboarding and Briefing together before drawing its opening row. A single reserved loading area avoids alternating placeholder layouts; other widgets load independently. Failed reads retain their retry state. Workspace expansion is offered on phones; resizing to desktop restores navigation and keeps unsaved fields.
+
+Context settings lists files in compact rows with per-agent usage controls. Long descriptions no longer stretch neighbouring files, and injected-only context uses an informational note. Availability shows each chat app’s platform logo beside the bot name. App sharing puts the page link and people with access first; expiration, version pinning, embedding and password settings start collapsed under Link settings. Active restrictions remain visible as badges, and collapsing the options preserves edits.
+
+On phones, channel registration uses a compact platform selector. Cancelling a new channel, new vault key or key rotation clears its entered credentials. Channel and vault forms block editing and dismissal during a write; a refused write keeps the values for correction and retry. Channel editing and key rotation keep their action footer visible in short windows.
+
 The console is the web application everything else on this site is configured
 through. This page is the map: what each area is for, and which page explains it
 properly.
+
+On phones, new context files put the source editor before optional details. Details shows the effective audience even while collapsed; expand it to change the description or access. A refused description automatically expands that section so its error can be corrected.
+
+New project, context-file and dataset forms ask before discarding a draft. Stay preserves it; Discard resets it. During creation, fields, Cancel, Close and Escape are blocked until the write settles. A refusal restores editing and retains the values. Context source editing is read-only during that write.
+
+When several context files were dropped, closing asks only Stay or Discard; use Create to process them in order. Dataset details and case forms also lock fields and dismissal while saving, including the case form/JSON switch. Their Save actions remain reachable in short phone windows.
+
+Starting MCP sign-in keeps the form open until the consent destination is ready. A refused start preserves its values for correction and retry.
+
+Custom slash-command editing asks before dropping a draft. Save freezes its fields and dismissal until the request settles; a refusal keeps the draft. On phones, command actions have their own row and touch-sized controls. A pending toggle blocks conflicting actions, and removal asks for confirmation. MCP connection forms also freeze their fields and dismissal while saving.
+
+When you edit project settings, an organization name, spending cap, voice defaults or data-retention periods, a skill or a context file, leaving asks whether to save, discard or stay. Switching away from an edited skill resource asks too. A refused save keeps the draft open; **Save file** clears it only after the server confirms the write. Typing added while that resource save is in flight remains unsaved.
+
+On phones, knowledge-base documents and organization members use labeled rows with visible actions. Member removal asks for confirmation and a refusal keeps it open. Knowledge-base creation, parsing and embedding-provider dialogs keep their fields disabled and stay open while saving, then restore editing and dismissal if the write is refused. A failed document download shows an error and can be retried.
+
+Changing the knowledge-search question or scope clears previous results and cancels the pending request. A late response cannot replace the results of a newer search.
+
+Hosted chat lets you compose while connecting, but enables Send only after the current WebSocket opens. Starting a new conversation waits for its own connection; an early click cannot silently drop the first question.
 
 If you are looking for one screen, the fastest route is the **"?"** in a page's
 header — it replays that page's walkthrough, and a page whose header carries no
@@ -80,6 +104,10 @@ Default agents finish a one-off request without holding the answer open for an o
 
 The compact source button below an answer opens Sources beside the conversation, with a full-width panel on phones. Files and Sources share the side space: opening one replaces the other. Web sources use the site favicon, requested without a referrer, or a known service logo; a globe remains when the icon is unavailable. Knowledge-base sources retain their file marks and original-document viewer.
 
+Inline web links use the same favicon policy independently of MCP connections. Unknown-site icons pass through the console's same-origin proxy and DuckDuckGo's fixed icon service. Only the hostname is sent to that service, never the reader's cookies, IP address, URL path or query. The proxy refuses redirects, non-raster content and icons over 64 KiB, and times out after three seconds. Missing or unavailable icons fall back to a globe. Inert transcript views keep remote images and unknown-site icons unloaded.
+
+A failed chat run shows its failure separately from the assistant’s answer, outside folded tool work, including after reloading the conversation. A provider content filter is identified explicitly; raw provider responses and unknown historical error strings are not copied into shared transcripts. Partial work remains available, and failed work is not labelled as completed.
+
 ## The dashboard
 
 The landing page is an **arrangeable grid of widgets**, and it is the answer to
@@ -96,7 +124,7 @@ may open. Everybody opens on **Me**:
 
 | View             | Answers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Me**           | A greeting, your period and everything waiting on you, in two sentences - calls, answers to review, failing suites, the assistant's suggestions; your runs, how many finished, what is waiting on you and what it cost; then the calls waiting on you, your conversations, the agents that need attention, the improvements waiting for you, your agents, what was shared with you, your [datasets](datasets.md) with what their cases test against, the latest eval runs and suites, the assistant's suggestions by agent, skill and file, and knowledge gaps |
+| **Me**           | A greeting, your period and everything waiting on you, in two sentences - calls, answers to review, failing suites, the assistant's suggestions; your runs, how many finished, what is waiting on you (counted the same way) and what it cost; then the calls waiting on you, your conversations, the agents that need attention, the improvements waiting for you, your agents, what was shared with you, your [datasets](datasets.md) with what their cases test against, the latest eval runs and suites, the assistant's suggestions by agent, skill and file, and knowledge gaps |
 | **Organization** | The arrangeable page below                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | **Group**        | One [group](departments.md)'s members - their runs, spend, models, when they work and who uses it most. Choose the group beside the switch. A group whose members ran nothing in the period says so once, with a way to the group, rather than showing a page of empty cards                                                                                                                                                                                                                                                                                   |
 | **Deployment**   | Only for a [deployment admin](permissions.md) — platform totals, health, busiest tenants, ratings                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
@@ -110,7 +138,12 @@ version each agent serves now in its default environment: publishing a fix
 clears the signal until the new version earns its own. Both need `runs:view`.
 
 Below it, **Improvements waiting for you** lists the [Improve](authoring.md#the-improve-wizard)
-sessions stopped for your next step or decision, each opening at its stop.
+sessions stopped for your next step or decision, each opening at its stop, and the
+[checks of a skill change](skills.md#when-an-agent-got-worse) you can decide that
+still run or wait for a decision. After them come the skill changes agents
+proposed, then the pinned agents and the forks that main has
+[moved past](skills.md#which-version-an-agent-reads). A fork is caught up from
+there, and a pinned agent is moved on its skill's page.
 
 The organization's view shows the cards that answer with data, grouped into
 bands. The rest - integrations, channels, routines, knowledge sync, departments,
@@ -171,6 +204,8 @@ snapshot you meant to keep.
     the default or from your own saved one.
 
 ## Routines and watches
+
+Routine names wrap on phones. A search with no matches offers **Clear search**; **Retry** reloads both tasks and watches after a read failure. Schedule and event editing scrolls between a fixed header and action footer. Routine writes freeze fields and dismissal until they settle; a refusal preserves the draft.
 
 Routines has two tabs. **Agent routines** runs a chosen agent on a schedule or
 event, with its configured tools; runs appear in Activity. **My watches** only
@@ -922,6 +957,18 @@ reads them at the start of a run, so you never repeat them in a chat; "every Mon
 at 9" is your 9. The time zone is taken from your browser the first time you sign
 in, until you choose one.
 
+Profile settings keep your portrait, display name and email in one form, with
+fallback colours under an expandable control. Save sits below the fields and
+Enter submits the identity or role form. While any profile write is pending,
+both identity and context fields stay locked; a refusal retains the draft.
+Working days use larger targets, with separate start and end fields on phones.
+
+**Settings → Notifications** searches event names and descriptions and lists six
+events per page. The chat selector changes the additional channel without
+changing other preferences. Connected private-chat destinations appear first;
+other platforms are folded below. Failed preference, destination and linked-account
+reads offer Retry instead of displaying invented defaults or an empty account list.
+
 ## The next step
 
 A page that is empty because nothing exists yet offers the way to make the first
@@ -1061,3 +1108,7 @@ are optional help; closing one does not create a successful run. Integrations,
 files, agent building, team invitations and routines are optional next steps.
 
 Member managers can check whether an existing teammate and they can run a common published agent. The preview returns only that answer, never private agent names, and makes no model call. It does not certify provider availability. Team invitations from a loopback address are blocked in this start; use a server address reachable by the recipient.
+
+Completed chat turns keep the text delivered before an agent asks a question visible beside the final answer, including after the question is declined or the run resumes. Tool results and reasoning stay in the expandable work history. This applies to stored conversations and shared chat views; it does not infer answers from text length.
+
+Run history distinguishes the person asking from the publisher whose authority admits an external request. An unlinked channel sender appears as their chat account, explicitly unverified, on desktop and phones; an anonymous request has no invented member identity. The run API retains `user_id` for its authority context and exposes `initiated_by_publisher_fallback` and `asked_in_chat` for truthful attribution. This presentation does not link accounts or grant access to a publisher’s personal connections.

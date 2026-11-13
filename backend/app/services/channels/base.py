@@ -241,6 +241,9 @@ class IncomingMessage:
     platform_username: str | None = None
     platform_display_name: str | None = None
     message_id: str | None = None
+    dedupe_claimed: bool = False
+    """Request-only evidence that shared Redis admitted this delivery, not a fail-open path."""
+
     broadcast_mention: bool = False
     addressed: bool | None = None
     """Whether this message named the bot, where the platform says.

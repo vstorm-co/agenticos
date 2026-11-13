@@ -1,7 +1,7 @@
 """Data access for the authoring assistant's requests, proposals and evidence."""
 
 import dataclasses
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -22,10 +22,12 @@ from app.db.models.authoring import (
     SpecProposalBatch,
     SpecProposalHunk,
 )
-from app.db.models.conversation import Message, ToolCall
+from app.db.models.conversation import Message
 from app.db.models.message_rating import MessageRating
 from app.db.models.skill import Skill
 from app.db.models.skill_proposal import ProposalStatus, SkillProposal
+from app.db.models.skill_usage import RunSkillUse
+from app.repositories import skill_usage as skill_usage_repo
 from app.repositories.agent_run import served_runs
 
 if TYPE_CHECKING:
@@ -50,6 +52,7 @@ async def create_request(
     excluded_message_ids: Sequence[UUID] = (),
     improvement_run_id: UUID | None = None,
     improver_agent_id: UUID | None = None,
+    skill_improvement_run_id: UUID | None = None,
     helper_settings: dict[str, JsonValue] | None = None,
 ) -> AuthoringRequest:
     request = AuthoringRequest(
@@ -58,6 +61,7 @@ async def create_request(
         kind=kind,
         improver_agent_id=improver_agent_id,
         improvement_run_id=improvement_run_id,
+        skill_improvement_run_id=skill_improvement_run_id,
         target=target,
         agent_id=agent_id,
         skill_id=skill_id,
@@ -74,6 +78,21 @@ async def create_request(
     await db.flush()
     await db.refresh(request)
     return request
+
+
+async def requests_of_improvement(
+    db: AsyncSession, improvement_run_id: UUID, *, organization_id: UUID
+) -> list[AuthoringRequest]:
+    """The requests an Improve session's attempts made, newest first."""
+    result = await db.execute(
+        select(AuthoringRequest)
+        .where(
+            AuthoringRequest.organization_id == organization_id,
+            AuthoringRequest.improvement_run_id == improvement_run_id,
+        )
+        .order_by(AuthoringRequest.created_at.desc(), AuthoringRequest.id)
+    )
+    return list(result.scalars().all())
 
 
 async def get_request(
@@ -96,9 +115,16 @@ async def list_requests(
     skill_id: UUID | None = None,
     context_id: UUID | None = None,
     limit: int = 10,
+    sessions: bool = True,
 ) -> list[AuthoringRequest]:
-    """The latest requests on one agent, skill or context file, newest first."""
+    """The latest requests on one agent, skill or context file, newest first.
+
+    `sessions=False` leaves out the steps of a skill's Improve sessions, which are
+    read through the session.
+    """
     statement = select(AuthoringRequest).where(AuthoringRequest.organization_id == organization_id)
+    if not sessions:
+        statement = statement.where(AuthoringRequest.skill_improvement_run_id.is_(None))
     if agent_id is not None:
         statement = statement.where(AuthoringRequest.agent_id == agent_id)
     if skill_id is not None:
@@ -225,6 +251,38 @@ async def create_batch(
         source_started_at=source_started_at,
         status=BatchStatus.CANDIDATE.value if improvement_run_id else BatchStatus.OPEN.value,
         improvement_run_id=improvement_run_id,
+        expected_effect=expected_effect,
+        evidence_conversation_ids=list(evidence_conversation_ids),
+    )
+    db.add(batch)
+    await db.flush()
+    await db.refresh(batch)
+    return batch
+
+
+async def create_skill_batch(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    skill_id: UUID,
+    fork_id: UUID | None,
+    base_skill_version_id: UUID,
+    skill_improvement_run_id: UUID,
+    request_id: UUID,
+    source_started_at: datetime,
+    expected_effect: str,
+    evidence_conversation_ids: Sequence[UUID],
+) -> SpecProposalBatch:
+    """A skill session's candidate: edits to one line's text, never an agent's open batch."""
+    batch = SpecProposalBatch(
+        organization_id=organization_id,
+        skill_id=skill_id,
+        fork_id=fork_id,
+        base_skill_version_id=base_skill_version_id,
+        skill_improvement_run_id=skill_improvement_run_id,
+        request_id=request_id,
+        source_started_at=source_started_at,
+        status=BatchStatus.CANDIDATE.value,
         expected_effect=expected_effect,
         evidence_conversation_ids=list(evidence_conversation_ids),
     )
@@ -364,6 +422,7 @@ async def pending_counts(
     )
     counts: dict[UUID, dict[str, int]] = {}
     for agent_id, kind, count in result.all():
+        assert agent_id is not None, "filtered on agent_id"
         counts.setdefault(agent_id, {})[kind] = int(count)
     return counts
 
@@ -446,7 +505,10 @@ async def evidence_runs(
     organization_id: UUID,
     agent_id: UUID | None = None,
     agent_ids: Sequence[UUID] | None = None,
-    skill_name: str | None = None,
+    skill_id: UUID | None = None,
+    skill_versions: Collection[UUID] | None = None,
+    skill_readers: Collection[UUID] | None = None,
+    skill_agent_ids: Collection[UUID] | None = None,
     excluded_message_ids: Sequence[UUID] = (),
     since: datetime,
     only_run_ids: Sequence[UUID] | None = None,
@@ -458,12 +520,12 @@ async def evidence_runs(
     then up-rated runs as the contrast, newest first within each; unrated runs
     that succeeded are not evidence of anything. `agent_id` narrows the runs to
     one agent's, `agent_ids` to several agents' - those binding a context file -
-    and `skill_name` to those whose model opened that skill.
+    and `skill_id` to those that used that skill, by their own agent or by an
+    agent they delegated to, as `run_skill_uses` recorded it; `skill_versions`
+    narrows that to uses of those versions, `skill_readers` to uses by those
+    agents, and `skill_agent_ids` to runs in which no other agent used it. A run that only named the skill's workspace
+    folder counts here too, and its reader says it is probable.
     `excluded_message_ids` leaves out the runs that gave those answers.
-
-    A skill reaches a run as a deferred capability the model loads with
-    `load_capability`, a framework tool no binding can rename, so the call's
-    name and its `id` argument identify the skill on every run.
     """
     rating = (
         select(
@@ -528,17 +590,24 @@ async def evidence_runs(
             Message.run_id == AgentRun.id, Message.id.in_(list(excluded_message_ids))
         )
         statement = statement.where(~answered)
-    if skill_name is not None:
-        loaded = (
-            select(ToolCall.id)
-            .join(Message, Message.id == ToolCall.message_id)
-            .where(
-                Message.run_id == AgentRun.id,
-                ToolCall.tool_name == "load_capability",
-                ToolCall.args["id"].astext == skill_name,
-            )
+    if skill_id is not None:
+        uses = select(RunSkillUse.id).where(
+            RunSkillUse.run_id == AgentRun.id,
+            RunSkillUse.skill_id == skill_id,
+            or_(skill_usage_repo.used(), RunSkillUse.workspace_reads > 0),
         )
-        statement = statement.where(loaded.exists())
+        if skill_versions is not None:
+            uses = uses.where(RunSkillUse.skill_version_id.in_(list(skill_versions)))
+        if skill_readers is not None:
+            uses = uses.where(RunSkillUse.agent_id.in_(list(skill_readers)))
+        statement = statement.where(uses.exists())
+        if skill_agent_ids is not None:
+            other = select(RunSkillUse.id).where(
+                RunSkillUse.run_id == AgentRun.id,
+                RunSkillUse.skill_id == skill_id,
+                RunSkillUse.agent_id.not_in(list(skill_agent_ids)),
+            )
+            statement = statement.where(~other.exists())
     if only_run_ids is not None:
         statement = statement.where(AgentRun.id.in_(only_run_ids))
     result = await db.execute(statement.order_by(rank, AgentRun.started_at.desc()).limit(limit))
@@ -579,6 +648,7 @@ async def split_candidate(
     The source request still names its original batch. The split is attributed
     through the shared improvement run, so lookup by request remains unique.
     """
+    assert batch.agent_id is not None, "only an agent session's candidate is split"
     separate = await create_batch(
         db,
         organization_id=batch.organization_id,

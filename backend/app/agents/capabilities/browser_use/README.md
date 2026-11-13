@@ -165,3 +165,5 @@ receive or decode their base64 data. Remote preview delivery keeps one pending i
 queue. A socket write exceeding two seconds, or a full narration queue, ends that
 viewer with close code 1013. Reconnecting obtains a fresh snapshot. Images are
 not also copied into the resumable chat buffer when a live-view socket owns them.
+
+Tab actions are offered according to live state. Opening, browsing and restoration remain available without a tab. Switching or closing requires an open tab; click, type, select, scroll and back require an active tab. The capability filters definitions after renames using owned metadata, and existing execution guards remain in place. Restorable sessions are reached through `browser_read` or `browser_tabs`; merely enumerating tools does not restore or open a browser.

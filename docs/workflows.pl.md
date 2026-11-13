@@ -1,8 +1,10 @@
 ---
-source_sha: "aa54fb9dafe5"
+source_sha: "e23a2fdc098e"
 ---
 
 # Workflows { #workflows }
+
+Ikonę workflow wybierasz obok jego nazwy w edytorze. Ten sam neutralny kafelek pojawia się w katalogu. Wybór pozostaje po odświeżeniu; **Użyj domyślnej ikony** go resetuje. Zmieniają się metadane wyglądu, a nie rewizja draftu ani opublikowany graf.
 
 **Workflow** łączy kroki w automatyzację, którą wykonują Twoje agenty: odczytać
 [tabelę](virtual-tables.md), wywołać agenta, rozgałęzić się na podstawie wyniku,
@@ -113,6 +115,8 @@ Krok agenta może wywołać `ask_user_question`, aby wstrzymać się ze stanem *
 Agenci wywoływani z workflow mogą używać narzędzi AgenticOS MCP w workerze w tle, tak samo jak w czacie internetowym.
 
 ## Kanwa i dodawanie kroków { #the-canvas-and-the-palette }
+
+Po **Test draft** kanwa pokazuje status runu i liczbę ukończonych kroków. **Open run** otwiera szczegóły. Na wąskim ekranie pasek statusu zawija się wewnątrz kanwy, dzięki czemu link i przycisk zamknięcia pozostają dostępne.
 
 Edytor pozostawia widoczne **Runs**, **Test draft** i **Publish**. **More** zawiera **Versions** i przełącznik edycji/podglądu. **Canvas options** mieści minimapę, styl połączeń i skróty. Krok bez połączenia wejściowego pomija pusty panel Input, zostawiając więcej miejsca na parametry; **Expected output fields** rozwija schemat wyjścia. **Review setup before testing** odsłania brakującą konfigurację.
 
@@ -1022,6 +1026,16 @@ jego `delivery_id`. Ponowienie, które powtarza id, dostaje odpowiedź z pierwsz
 runem i niczego nie uruchamia, bo id jest zapisywane razem z runem, który wpuściło,
 w jednej transakcji.
 
+Id nie jest częścią tego, co nadawca podpisuje, więc to samo podpisane żądanie pod innym
+id w ciągu 24 godzin też jest kopią: dostaje odpowiedź z pierwszym runem i niczego nie
+uruchamia, niezależnie od tego, który z dwóch nagłówków podpisu je niesie. Ta sama treść
+wysłana ponownie po 24 godzinach uruchamia run. Nadawca, który celowo wysyła to samo body
+częściej, sprawia, że każde się różni, umieszczając w nim własne id albo czas, albo
+podpisuje czas: z `X-Signature-Timestamp` (sekundy Unix) podpis obejmuje
+`{timestamp}.{body}` i jest odrzucany, gdy różni się od zegara serwera o ponad pięć minut.
+
+Dostawy przyjęte przed zapisywaniem skrótów podpisów zachowują deduplikację po identyfikatorze dostawy. Starsze wiersze nie pozwalają rozpoznać podpisanej kopii pod innym identyfikatorem; wykrywanie kopii po podpisie zaczyna się od dostaw zapisanych przez nową wersję.
+
 Wyzwalacz **Schedule** uruchamia się co jakiś czas, codziennie o ustalonej godzinie
 albo według wyrażenia cron, w strefie czasowej workflow (UTC, chyba że jego **Settings** wskazują inną) i
 najczęściej raz na minutę. Rusza w swoim tyknięciu, a nie przy następnym przeglądzie
@@ -1243,11 +1257,17 @@ Wywołany workflow dziedziczy pozostały budżet przebiegu nadrzędnego i wcześ
 termin zakończenia. Jego koszt powiększa koszt nadrzędny; `own_cost` podaje wyłącznie
 bezpośrednie opłaty danego przebiegu, aby sumowanie rekordów nie liczyło ich podwójnie.
 Przy skończonym budżecie opcja oczekiwania na zakończenie musi pozostać włączona.
-Anulowanie przebiegu nadrzędnego lub odebranie mu dostępu zatrzymuje podproces przed
-kolejnym krokiem; rozpoczęte żądanie zewnętrzne może się zakończyć. Ponowienie wywołania
-korzysta z udanych kroków pierwotnej, zamrożonej wersji podprocesu. Jeśli podproces
-nadal działa, trzeba go najpierw zakończyć lub zatrzymać. Pliki wynikowe są jawnie
-importowane do przebiegu nadrzędnego, a wznowienie oczekiwania ponownie sprawdza dostęp.
+
+Anulowanie przebiegu nadrzędnego albo wyczerpanie jego budżetu anuluje każdy
+niezakończony podproces, który wywołał, i każdy wywołany przez nie, razem z ich prośbami
+o zatwierdzenie i pytaniami. Podproces, którego krok właśnie się wykonuje, zatrzymuje
+się przed kolejnym krokiem, tak samo jak podproces, którego przebieg nadrzędny stracił
+dostęp; rozpoczęte żądanie zewnętrzne może się zakończyć.
+
+Ponowienie wywołania korzysta z udanych kroków pierwotnej, zamrożonej wersji podprocesu.
+Jeśli podproces nadal działa, trzeba go najpierw zakończyć lub zatrzymać. Pliki wynikowe
+są jawnie importowane do przebiegu nadrzędnego, a wznowienie oczekiwania ponownie
+sprawdza dostęp.
 
 Wykres dzienny i statystyki kroków przebiegu nadrzędnego także obejmują opłaty podprocesu.
 
@@ -1309,7 +1329,7 @@ każdego kroku jest w [referencji węzłów](reference/workflow-nodes.md).
 | Co widzisz | Dlaczego | Co zrobić |
 |---|---|---|
 | **Wymaga uwagi** | Przerwano krok, który mógł zadziałać, albo przestał czekać i nic go nie obudzi | Sprawdź, czy jego efekt nastąpił, a potem użyj **Resolve** na kroku w runie: uruchom go ponownie, użyj wyniku zgłoszonego późno, przejdź jego ścieżką błędu albo zakończ run błędem. Anulowanie runa, a potem **Retry from failed step**, zaczyna od nowa |
-| `PRINCIPAL_REVOKED` | Członek, jako który działa run, stracił dostęp albo jego konto dezaktywowano | Niech członek, który może uruchamiać workflow, opublikuje go ponownie, żeby jego wyzwalacz działał jako on |
+| `PRINCIPAL_REVOKED` | Członek, jako który działa run, stracił dostęp albo jego konto dezaktywowano, albo klucz API, który uruchomił run, został unieważniony | Niech członek, który może uruchamiać workflow, opublikuje go ponownie, żeby jego wyzwalacz działał jako on |
 | `WORKFLOW_TRIGGER_MISMATCH` | Run zażądano drogą, którą nie jest żywy wyzwalacz: ręcznie albo przez API dla workflow startującego od webhooka, albo na czacie dla takiego, który nie startuje od wiadomości na czacie | Uruchom go tak, jak mówi jego wyzwalacz, albo przetestuj szkic, który przyjmuje dowolny wyzwalacz |
 | `INVALID_BINDING` | Wartość nie pasowała do pola, do którego ją zbindowano | Błąd kroku wskazuje pole; popraw binding albo wartość wcześniej w grafie |
 | `REVISION_CONFLICT` | Ktoś zmienił rekord po tym, jak krok go odczytał | Skieruj błąd kroku przez `error.handle` do świeżego odczytu |

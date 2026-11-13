@@ -12,7 +12,7 @@ import anyio
 from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.encoders import jsonable_encoder
 from pydantic import Field, ValidationError
-from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
+from pydantic_ai.exceptions import ContentFilterError, ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import ModelMessage, ToolCallPart
 from pydantic_ai_harness.ask_user import AskUserRequest, AskUserResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -183,7 +183,7 @@ def _turn_failed(exc: Exception) -> str:
     cause: BaseException = exc
     while isinstance(cause, BaseExceptionGroup):
         cause = cause.exceptions[0]
-    if isinstance(cause, ModelHTTPError | UsageLimitExceeded):
+    if isinstance(cause, ContentFilterError | ModelHTTPError | UsageLimitExceeded):
         return run_failure_summary(cause)
     return (
         f"The agent could not finish this turn ({type(exc).__name__}). "
@@ -1204,7 +1204,8 @@ class AgentSession:
                                 "tool_name": parked.tool_name,
                                 "subagent_name": parked.subagent,
                                 "can_remember": turn.agent_version_id is not None
-                                and parked.subagent is None,
+                                and parked.subagent is None
+                                and not parked.always_asks,
                                 "args": parked.tool_args,
                                 "capability_tool_id": parked.capability_tool_id,
                                 "context": parked.context,

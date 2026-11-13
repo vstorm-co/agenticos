@@ -1,5 +1,5 @@
 ---
-source_sha: "f30353327843"
+source_sha: "0ec608602ddd"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -22,12 +22,13 @@ Er tut drei Dinge:
 - Ihre eigenen Änderungen **prüfen**: den Entwurf mit der Version, auf der er
   beruht - der zuletzt veröffentlichten -, anhand derselben Belege vergleichen und
   sagen, was die Änderungen verbessern, riskieren und entfernt haben.
-- **Einen Skill** oder **eine Context-Datei verbessern**: einen neuen Inhalt aus
-  den Runs vorschlagen, die sie gelesen haben.
+- **Eine Context-Datei verbessern**: einen neuen Inhalt aus den Runs vorschlagen,
+  die sie gelesen haben. Ein Skill wird Schritt für Schritt auf seiner eigenen
+  Seite verbessert - siehe [Einen Skill verbessern](skills.md#improving-a-skill).
 
 Im Agent Builder enthält **Bauen** die Konfiguration und **Test** öffnet das interaktive Testpanel für den Entwurf. Öffnen Sie **Evals**, um einen Entwurf mit einer veröffentlichten Version auf einem Dataset zu vergleichen oder **Verbessern** zu starten. Vor der Ausführung erscheint die Kostenschätzung. Der ältere evidenzbasierte Verify-Endpunkt bleibt für API-Kompatibilität verfügbar.
 
-**Improve** öffnet eine Verbesserungssitzung. Modell und Anweisungen stehen in den **Einstellungen** des gewählten Datasets; Helfer haben Code-Vorgaben und keine bearbeitbare Katalogseite. Skill- und Kontextdialoge wählen ein Modell direkt. Budgetprüfungen und Aktivität-Aufzeichnungen bleiben bestehen.
+**Improve** öffnet eine Verbesserungssitzung. Modell und Anweisungen stehen in den **Einstellungen** des gewählten Datasets; Helfer haben Code-Vorgaben und keine bearbeitbare Katalogseite. Der Dialog zum Verbessern einer Context-Datei wählt ein Modell direkt. Budgetprüfungen und Aktivität-Aufzeichnungen bleiben bestehen.
 
 ## Was er liest { #what-it-reads }
 
@@ -250,17 +251,19 @@ erneut.
 
 ## Skills { #skills }
 
-Ein Skill wird aus seiner Werkbank unter Skills verbessert. Der Assistent schlägt
-einen vollständigen neuen Inhalt vor, der mit den anderen
-[Skill](skills.md)-Änderungen unter Skills wartet, mit Begründung und Belegen.
+Ein Skill wird auf seiner eigenen Seite unter Skills verbessert. **Verbessern**
+öffnet dort eine Sitzung für die angezeigte Linie, in denselben fünf Schritten
+wie bei einem Agent, und prüft die Änderung an jedem Agent dieser Linie, bevor
+etwas angewendet wird - siehe [Einen Skill verbessern](skills.md#improving-a-skill).
 
-Das Anwenden einer Skill-Änderung wirkt sofort: Jeder an den Skill gebundene
-Agent liest den neuen Inhalt beim nächsten Run. Deshalb lässt sich eine
-Skill-Änderung zuerst mit Evals prüfen, an einem Agent, der den Skill nutzt:
-Beide Seiten führen die veröffentlichte Version dieses Agents aus, und nur der
-Inhalt des Skills unterscheidet sich. Eine Änderung, die für eine ältere Version
-des Skills geschrieben wurde, wird abgelehnt, sobald jemand den Skill seitdem
-geändert hat.
+Das Anwenden einer Skill-Änderung wirkt sofort: Jeder Agent, der der Linie des
+Skills folgt, liest den neuen Inhalt beim nächsten Run. Deshalb geht eine
+Skill-Änderung nur über eine
+[Prüfung auf jedem Agent ihrer Linie](skills.md#checking-a-change-on-every-agent)
+live: Die veröffentlichte Version jedes Agents antwortet mit dem Skill, wie er
+ist, und mit der Änderung, und die Änderung wird aus dem Ergebnis dieser Prüfung
+angewendet. Eine Änderung, die für eine ältere Version des Skills geschrieben
+wurde, wird abgelehnt, sobald jemand den Skill seitdem geändert hat.
 
 ## Context-Dateien { #context-files }
 
@@ -522,6 +525,22 @@ Der Assistent kann **Ein Skill wäre sinnvoll** vorschlagen, wenn ein wiederverw
 Ein Ablauf aus weniger als drei verschiedenen Antworten wird nicht als Vorschlag aufgenommen. Er wartet unter **Zu prüfen** in der Gruppe Neue Skills mit vollständigem Text. **Verwerfen** verschiebt ihn nach **Entschieden**, und Rückgängig holt ihn zurück. **Create skill** öffnet eine Vorschau: Name, Beschreibung und Inhalt lassen sich bearbeiten, und ein Hinweis nennt, auf wie vielen Antworten er beruht. **Create skill** in der Vorschau legt den Skill in der Bibliothek an und bindet ihn an den Entwurf des Agenten, nie an eine veröffentlichte Version. Dafür gelten dieselben Berechtigungen wie für Accept, und es gibt keinen Modellaufruf. Ein zweiter Klick liefert den bereits erstellten Skill.
 
 Die Kostenschätzung berücksichtigt den vollständigen vorgeschlagenen Inhalt für jede Kandidatenantwort und bestätigende Wiederholungen zusätzlich zum historischen Antwortpreis.
+
+### Einen Skill verbessern { #improving-a-skill }
+
+Einen Skill, den mehrere Agents lesen, verbessern Sie auf seiner eigenen Seite,
+eine Linie auf einmal, wie [Einen Skill verbessern](skills.md#improving-a-skill)
+beschreibt.
+
+### Wenn der Fehler im Skill liegt { #when-the-fault-is-in-a-skill }
+
+Andere Agents können denselben Skill lesen, deshalb ändert Agent-Improve nie einen Skill. Der Helfer liest die Skills des Agents: Name, Beschreibung und Version jedes Skills sowie den vollen Text der Skills, die die Belege genutzt haben. Zeigen die Runs, dass ein Skill falsch ist, meldet der Helfer das Problem für diesen Skill. Er schreibt den Text des Skills nicht in die Anweisungen des Agents. Die Schätzung zählt den Skill-Text mit, den der Helfer liest.
+
+Eine Änderung, die eine Passage von 200 Zeichen eines gebundenen Skills wiederholt, wird abgelehnt, ebenso ein neuer Skill mit dem Namen oder Text eines gebundenen Skills. Ein gemeldetes Problem bleibt nur, wenn es einen Skill des Agents nennt und einen Run zitiert, der die Version genutzt hat, die der Agent jetzt liest; Zitate aus anderen Runs werden daraus entfernt. Ein Run, der eine ältere Version oder einen anderen Fork bekam, ist kein Beleg gegen den Text, den der Helfer liest.
+
+Der Schritt Changes listet diese Probleme unter **Gehört zu einem Skill**. Jede Karte zeigt die Probleme mit ihren Zitaten und wie viele Agents dieselbe Linie des Skills lesen. **X verbessern** öffnet das Improve des Skills selbst, mit den Problemen dieser Session als Startbelegen. Folgt der Agent einem Fork, arbeitet dieses Improve am Fork; die Probleme eines gepinnten Agents gehen an Main. Ohne Bearbeitungsrecht für den Skill sagt die Karte, wen man fragen kann.
+
+Liegt der Agent hinter Main, öffnet eine Karte **Auf vN aktualisieren** oder **Fork auf Main bringen** die Seite des Skills. Lassen sich die Skills nicht lesen, sagt der Abschnitt das, statt zu verschwinden.
 
 ### Einen Wissensentwurf prüfen { #checking-a-knowledge-draft }
 

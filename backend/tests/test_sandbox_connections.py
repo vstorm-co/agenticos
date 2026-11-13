@@ -69,6 +69,7 @@ def _row(**overrides: object) -> MagicMock:
         base_url="http://sandboxd:8080",
         secret_id=uuid.uuid4(),
         default_runtime=None,
+        secure_access=False,
         is_default=True,
         is_active=True,
         created_at=datetime(2026, 8, 3, tzinfo=UTC),

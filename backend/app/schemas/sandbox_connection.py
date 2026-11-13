@@ -19,31 +19,35 @@ class SandboxConnectionCreate(BaseSchema):
     """Register a place an organization's sandboxes run."""
 
     name: str = Field(min_length=1, max_length=128, description="What operators call this host")
-    kind: Literal["docker", "daytona", "e2b"] = Field(
+    kind: Literal["docker", "daytona", "e2b", "opensandbox"] = Field(
         description=(
             "docker: a sandboxd service on a host you run. "
             "daytona: cloud sandboxes on this organization's own Daytona account. "
             "e2b: cloud sandboxes on this organization's own E2B account; the "
             "default runtime names an E2B template, and `desktop` is the one "
-            "computer use drives."
+            "computer use drives. opensandbox: your server, vault key and sandbox image."
         )
     )
     base_url: ServiceAddress | None = Field(
         default=None,
         max_length=512,
-        description="Where the sandbox service answers, e.g. http://sandboxd:8080. Container only.",
+        description="Where sandboxd or OpenSandbox answers, reachable from the backend.",
     )
     secret_id: UUID | None = Field(
         default=None,
         description=(
-            "The vault entry holding the service token or Daytona key. An id, never "
+            "The vault entry holding the provider API key or service token. An id, never "
             "a value: whoever holds this credential can run commands on that host."
         ),
     )
     default_runtime: str | None = Field(
         default=None,
-        max_length=64,
-        description="Alias an agent gets when its spec names none; null takes the service's own",
+        max_length=512,
+        description="Runtime alias, E2B template, or OpenSandbox image an agent gets by default",
+    )
+    secure_access: bool = Field(
+        default=False,
+        description="OpenSandbox only: require Secure Access for new sandboxes; needs Kubernetes with its ingress gateway",
     )
     is_default: bool = Field(
         default=False,
@@ -55,10 +59,11 @@ class SandboxConnectionUpdate(BaseSchema):
     """Change one. Every field optional; unset means unchanged."""
 
     name: str | None = Field(default=None, min_length=1, max_length=128)
-    kind: Literal["docker", "daytona", "e2b"] | None = None
+    kind: Literal["docker", "daytona", "e2b", "opensandbox"] | None = None
     base_url: ServiceAddress | None = Field(default=None, max_length=512)
     secret_id: UUID | None = None
-    default_runtime: str | None = Field(default=None, max_length=64)
+    default_runtime: str | None = Field(default=None, max_length=512)
+    secure_access: bool | None = None
     is_default: bool | None = None
     is_active: bool | None = None
 
@@ -70,6 +75,7 @@ class SandboxConnectionRead(BaseSchema, TimestampSchema):
     base_url: str | None = None
     secret_id: UUID | None = None
     default_runtime: str | None = None
+    secure_access: bool = False
     is_default: bool
     is_active: bool
 
@@ -155,6 +161,13 @@ class SandboxProbeRequest(BaseSchema):
     posted one would have had it in a browser.
     """
 
+    kind: Literal["docker", "opensandbox"] = "docker"
+    default_runtime: str | None = Field(
+        default=None,
+        max_length=512,
+        description="OpenSandbox image to check in a disposable sandbox",
+    )
+    secure_access: bool = False
     base_url: ServiceAddress = Field(min_length=1, max_length=512)
     secret_id: UUID | None = Field(
         default=None, description="The vault entry holding the service token"
@@ -266,7 +279,7 @@ class SandboxSessionList(BaseSchema):
     """
 
     sessions: list[SandboxSessionRead] = Field(default_factory=list)
-    kind: Literal["docker", "daytona", "e2b"] = Field(
+    kind: Literal["docker", "daytona", "e2b", "opensandbox"] = Field(
         description="Which sort of host answered, so an empty daytona listing is told apart from an idle docker one",
     )
     limit: int | None = None

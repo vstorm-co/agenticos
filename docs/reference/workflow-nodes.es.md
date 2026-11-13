@@ -1,5 +1,5 @@
 ---
-source_sha: "a586ae2275e1"
+source_sha: "5a1c3230cf70"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -442,6 +442,8 @@ paleta dibuja el paso con un icono de diferencias, entre los pasos de datos.
 ::: app.workflows.nodes.text_compare._handler.TextCompareOutput
 
 ## html.parse { #html-parse }
+
+Desde la versión 1.72.0, los selectores del documento y la extracción de enlaces excluyen el contenido inerte de `<template>`. Seleccionar el propio elemento `template` sigue devolviendo su HTML y texto. Soup Sieve 4 ajusta los selectores de estado de formularios al comportamiento del navegador; al actualizar, revise los flujos que dependan de las reglas anteriores. La evaluación utiliza caché; los límites de tiempo y memoria del proceso lector siguen vigentes.
 
 **Parse HTML** lee HTML como su texto, sus enlaces y los elementos que elige un
 selector CSS. Sirve para el HTML con el que se topa un flujo: el cuerpo de un
@@ -1028,7 +1030,7 @@ Activity o por `GET /api/v1/workflow-approvals`. `approvers` nombra quién puede
 decidir, y esas personas reciben un aviso en la aplicación; vacío, puede
 cualquiera con `approvals:decide`. Pasado `timeout_hours` la solicitud caduca y el
 paso sale por `rejected` con `decision: "expired"`. Cancelar el run cancela lo que
-pidió. Cada ejecución del paso pregunta una vez, así que un reintento o una
+pidió, y también cancelar un workflow que llamó a ese run. Cada ejecución del paso pregunta una vez, así que un reintento o una
 iteración de un bucle nunca preguntan dos veces lo mismo.
 
 Los aprobadores nombrados deben ser miembros activos con `approvals:decide`. Se comprueba al publicar y de nuevo antes de pedir la aprobación. Si han perdido ese permiso, el paso falla con `APPROVER_UNAVAILABLE` en lugar de dejar una solicitud que nadie puede resolver.

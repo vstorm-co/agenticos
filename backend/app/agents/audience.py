@@ -108,6 +108,15 @@ class RunAudience:
     so a run parked before this existed resumes signed out.
     """
 
+    shared_transcript: bool = False
+    """Whether people besides the person read this conversation: a project chat, or
+    one shared with somebody to edit.
+
+    Read from the conversation at every admission and resume rather than kept, since
+    a chat can be shared while a run is parked. The person's own memory stays out of
+    such a chat; the project's and the organization's do not.
+    """
+
     @property
     def private(self) -> bool:
         """Whether the person is the only listener.

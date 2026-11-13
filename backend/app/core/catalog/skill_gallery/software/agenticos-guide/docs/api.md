@@ -47,6 +47,17 @@ the key that acted — every entry recorded during a key-authenticated request
 carries `via_api_key` in its details. A key can have an expiry, and revoking it
 (`DELETE /api/v1/api-keys/{id}`) takes effect on its next request.
 
+The console puts your keys before the connection guide, with active keys first.
+Search by name, prefix or issuer; phone cards keep expiry and last use visible.
+In **Create key**, expand the permission details for a preset, or choose
+**Custom** to search individual permissions. Searching does not clear selections.
+Enter in the name field creates the key; Enter in the permission search does not submit.
+
+Fields and dismissal are locked while a key is being created. A refusal keeps
+your draft for retry. After creation, copy the key before closing; a clipboard
+refusal leaves the value available for another attempt. Closing clears the
+creation state. A refused revocation keeps its confirmation open for retry.
+
 **A key is not its issuer's person.** A run it starts is owned, budgeted and
 audited as the issuer, but it reaches none of their personal state: no
 [memory](https://vstorm-co.github.io/agenticos/reference/capabilities/#whose-notes-and-who-may-hear-them), no search
@@ -151,13 +162,16 @@ off by a routine refresh.
 
 ### Work that runs after the request { #work-that-runs-after-the-request }
 
-An organization key cannot start an [eval run](evals.md) or a request to the
-[authoring assistant](authoring.md): those routes are for people signed in, and
-a key is answered `403` on them. Work that runs later, in the background, is
-held to its starter's authority as it stands when the work starts - a role lost
-since stops it. Were a key ever let start such work, the same would hold for
-the key: its scopes as they stand then, and a key revoked, expired or deleted
-since stopping the work, with a reason on the run or the request.
+An organization key cannot start an [eval run](evals.md) or a request to the [authoring
+assistant](authoring.md): those routes are for people signed in, and a key is answered
+`403` on them. Work that runs later, in the background, is held to its starter's
+authority as it stands when the work starts - a role lost since stops it. Were a key
+ever let start such work, the same would hold for the key: its scopes as they stand
+then, and a key revoked or deleted since stopping the work, with a reason on the run or
+the request.
+
+Expiry only bounds what a key can start: work it started while valid goes on after it
+expires.
 
 ## The organization header
 
@@ -288,7 +302,7 @@ approvals as every other surface.
 What can be checked at once is checked at once: an unknown conversation or
 attachment is a `404` on the `POST`, not a failure to poll for. The key's
 authority is checked again when the run starts, so a key revoked while its run
-waited does not run it. Only the person who asked, or a key of theirs, can read
+waited does not run it; one that only expired meanwhile still does. Only the person who asked, or a key of theirs, can read
 a run request; anyone else's answers `404`. An asynchronous run gets one
 attempt - a run that failed is recorded with what it spent, and is not retried
 into spending it twice.
@@ -317,14 +331,16 @@ menu offers. A private agent you cannot see adds none.
 
 ## Running a workflow
 
-Organization API keys may start runs and read their status, graph, steps, files
-and events through `/api/v1/workflow-runs`. Start with `workflows:run`; reading also
-needs `workflows:view`, and draft tests need `workflows:edit`. The worker retains
-the key's admitted scope ceiling and rechecks the key and the issuer on every
-step, including after an approval or wait. Revocation, expiry or deletion stops
-new work with `PRINCIPAL_REVOKED`; it never promotes a continuation to the issuer's
-full role. Key-started runs have no access to the issuer's personal state. Workflow
-authoring remains session-only.
+Organization API keys may start runs and read their status, graph, steps, files and
+events through `/api/v1/workflow-runs`. Start with `workflows:run`; reading also needs
+`workflows:view`, and draft tests need `workflows:edit`. The worker retains the key's
+admitted scope ceiling and rechecks the key and the issuer on every step, including
+after an approval or wait. Revocation or deletion stops new work with
+`PRINCIPAL_REVOKED`; it never promotes a continuation to the issuer's full role.
+
+Expiry does not: an expired key starts nothing, but a run it started while valid goes
+on, so an OAuth token's hour does not cut a long wait short. Key-started runs have no
+access to the issuer's personal state. Workflow authoring remains session-only.
 
 API keys can list and read public-origin runs, including runs started by keys;
 member-started personal runs return `404`, including their graph, steps, events,
@@ -500,7 +516,8 @@ curl -X POST "$WEBHOOK_URL" \
 
 It answers `202` with `{"run_id": ..., "duplicate": false}` as soon as the run is
 admitted, never waiting for the run itself. A delivery id already admitted answers
-`"duplicate": true` with the first run's id. A signature that does not verify is a
+`"duplicate": true` with the first run's id, and so does the same signed request under
+another id within 24 hours. A signature that does not verify is a
 `403`, a delivery with no id or with a body that is not a JSON object a `400`, and
 a paused or unknown webhook a `404`.
 
@@ -516,6 +533,8 @@ opens a test URL for the draft, returned as `url` with the `test_token` in it an
 for one call for two minutes. The call needs no signature, is answered
 `{"captured": true}` and starts no run. `GET .../webhook-test/{token}` reads back
 `state` (`listening`, `caught` or `expired`) and the `delivery` it caught.
+
+Expired internal and OAuth key rows are retained while a workflow, eval, improvement run, authoring request, skill check, case generation or queued/running background job still needs them. Once that work finishes, the usual cleanup may remove them.
 
 ## Working with tables { #working-with-tables }
 

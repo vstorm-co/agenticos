@@ -1,8 +1,10 @@
 ---
-source_sha: "539603f9eb62"
+source_sha: "e49637ff7aa2"
 ---
 
 # Virtual Tables { #virtual-tables }
+
+Das Tabellensymbol wählen Sie neben dem Namen in der Detailansicht. Katalogkarte und Dashboard-Zeile verwenden dasselbe Zeichen. **Standardsymbol verwenden** setzt es zurück; Spalten, Datensätze und Schemaversionen bleiben unverändert. Die Steuerung folgt dem Verwaltungsrecht der Tabelle, einschließlich der Einschränkungen von Aufgabenboards.
 
 Eine **Virtual Table** ist eine typisierte Tabelle mit Datensätzen, die eine
 Organisation für ihre Agents, [Workflows](workflows.md) und Integrationen führt: abzugleichende
@@ -184,8 +186,12 @@ Der Service gleicht sie mit den aktuellen Spalten ab:
   wird zu Datum und Uhrzeit; eine Auswahl wird zu mehreren und zurück, wenn es eine
   ist. Jede andere Änderung wird abgelehnt, ebenso eine, die ein Wert nicht übersteht -
   mit Anzahl und Beispiel, und nichts wird geschrieben. Was die Spalte verwendet, lehnt
-  sie wie eine Archivierung ab. Die Revision eines Datensatzes rückt weiter, sodass
-  eine Bearbeitung gegen den alten Wert ein Konflikt ist.
+  sie wie eine Archivierung ab. Ein Datensatz, dessen Wert sich im neuen Typ anders
+  liest, erhält eine neue Revision, sodass eine Bearbeitung gegen den alten Wert ein
+  Konflikt ist, und sein Verlauf hält die Änderung unter der Person fest, die sie
+  vorgenommen hat; ein Wert, den die Änderung nicht berührt, lässt die Revision seines
+  Datensatzes unverändert. Eine Typänderung löst keinen [Trigger](#triggers) aus: Eine
+  Schemaänderung startet nicht für jeden Datensatz einen Workflow.
 - Text wird zu einer `email`-, `url`-, `phone`- oder `rating`-Spalte, wenn jeder Wert
   sich so liest, und eine Zahl wird zu einer Bewertung, wenn sie eine ganze Zahl von 1
   bis 5 ist. Jede davon wird wieder zu Text, eine Bewertung auch zu einer Zahl.
@@ -208,7 +214,7 @@ Der Service gleicht sie mit den aktuellen Spalten ab:
   angehängt, und die aktuelle Tabelle wird zurückgegeben. Eine neue Reihenfolge oder eine
   geänderte Bezeichnung ist eine Änderung.
 
-Datensätze werden nicht umgeschrieben. Ein unter Version 1 geschriebener Datensatz
+Außer bei einer Typänderung werden Datensätze nicht umgeschrieben. Ein unter Version 1 geschriebener Datensatz
 bleibt unter Version 4 lesbar und bearbeitbar; eine Pflichtspalte, die er nie hatte,
 erhält beim nächsten Bearbeiten des Datensatzes ihren Standardwert.
 
@@ -375,6 +381,8 @@ zurückbringt.
 
 ### Import und Export { #import-and-export }
 
+Ordne beim CSV-Import jede Tabellenspalte, einschließlich **External id**, nur einmal zu. Doppelte Ziele werden markiert und blockieren den Import, bis du ein anderes Ziel wählst oder eine Dateispalte überspringst.
+
 Exporte lesen höchstens 4 MiB des entpackten Datensatz-JSON pro Seite (oder
 einen Datensatz), mit maximal 500 Datensätzen pro Seite. Eine Organisation kann
 einen Export gleichzeitig übertragen und zehn pro Minute starten. Weitere
@@ -408,6 +416,13 @@ hat, ändert die genannten Zellen dieses Datensatzes, statt als vergeben abgeleh
 werden (`update_existing` im Batch), und der Import zählt, was er hinzugefügt und was er
 aktualisiert hat.
 
+Einen Datensatz, den jemand nach Beginn des Imports geändert hat, lässt er unverändert
+und führt ihn als `REVISION_CONFLICT` auf: Der erste Batch antwortet mit `as_of`, dem
+Beginn nach der Serveruhr, und die übrigen senden es zurück. Eine Zeile, die eine
+externe ID wiederholt, die die Datei schon genannt hat, wird aufgeführt statt gesendet,
+und der Batch lehnt eine Zeile, die eine ID wiederholt, die er schon enthält, mit
+`INVALID_RECORD` ab.
+
 **New table** beginnt mit einer Spalte **Name**. Geben Sie zuerst den Tabellennamen und die Spalten an; Beschreibung und Sichtbarkeit stehen unter **More options**, standardmäßig privat. Stattdessen kann sie mit einer Datei
 beginnen: **Start from a CSV file** macht aus der Kopfzeile Spalten und gibt jeder den engsten Typ, als den
 sich alle ihre Werte lesen lassen - Ganzzahl, Zahl, Ja/Nein, Datum, Datum und
@@ -425,7 +440,7 @@ erste Antwort mit `Idempotent-Replayed: true` und schreibt nichts, selbst wenn s
 Datensatz inzwischen geändert hat. Derselbe Schlüssel mit einem anderen Body wird mit
 `IDEMPOTENCY_KEY_REUSED` abgelehnt.
 
-Der Header kennzeichnet ein wiederholtes Create, Update oder Upsert. Ein wiederholtes
+Der Header kennzeichnet ein wiederholtes Create, Update, Upsert oder einen wiederholten Batch. Ein wiederholtes
 Delete antwortet wie beim ersten Mal mit 204 und wird nicht gekennzeichnet.
 
 Ein Schlüssel gehört dem Aufrufer und der Art des Schreibzugriffs, sodass zwei Aufrufer
@@ -502,6 +517,8 @@ Der Eigentümer einer Ansicht schaltet sie mit der Schaltfläche neben **Rename*
 zwischen **Private** und **Shared** um. Wer die Ansicht eines anderen Mitglieds
 verwaltet, etwa ein Admin, bekommt diesen Schalter nicht: Ob jemandes eigene Filter
 geteilt werden, entscheidet diese Person selbst.
+
+Auf dem Telefon enthält das Menü **Views** einer gespeicherten Ansicht das Speichern einer weiteren Ansicht, Umbenennen, Teilen und Löschen mit denselben Berechtigungen wie die Desktop-Steuerelemente.
 
 `GET/POST /tables/{id}/views` und `GET/PATCH/DELETE /tables/{id}/views/{view_id}`
 listen, erstellen, lesen, aktualisieren und löschen sie. Die Liste ist mit `skip`
@@ -878,13 +895,13 @@ Ein Versuch ohne es wird mit `AUTHORIZATION_ERROR` (403) abgelehnt.
 
 ## Standardansicht {#default-view}
 
-Tabelleneditoren können **Als Standard festlegen** in der Werkzeugleiste wählen. Layout, Filter und Gruppierung werden als geteilte Ansicht gespeichert und bei Besuchen ohne ausdrückliche URL-Parameter `view` oder `viewId` geöffnet. Neue Aufgabentabellen starten mit Kanban. Die Standardansicht muss geteilt sein und zur Tabelle gehören. Vor dem Privatmachen muss ein anderer Standard gewählt werden. Löschen stellt das einfache Tabellenlayout wieder her. Die API verwendet `PATCH /tables/{id}` mit `default_view_id`; null entfernt den Standard.
+Tabelleneditoren können **Als Standard festlegen** unter **Ansichtseinstellungen** wählen. Layout, Filter und Gruppierung werden als geteilte Ansicht gespeichert und bei Besuchen ohne ausdrückliche URL-Parameter `view` oder `viewId` geöffnet. Neue Aufgabentabellen starten mit Kanban. Die Standardansicht muss geteilt sein und zur Tabelle gehören. Vor dem Privatmachen muss ein anderer Standard gewählt werden. Löschen stellt das einfache Tabellenlayout wieder her. Die API verwendet `PATCH /tables/{id}` mit `default_view_id`; null entfernt den Standard.
 
 Aufgabennotizen sind Markdown-Dokumente mit demselben Rich-Text-Editor und derselben Vorschau wie andere Dokumentzellen. Separate Beziehungen **Person** und **Agent** behalten die verantwortliche Person und den ausführenden Agenten. **Nächster Schritt** wählt Person oder Agent und kehrt nach einem Ergebnis zur Person zurück. Die verantwortliche Person startet Agentenarbeit mit ihrem eigenen Konto. Für eine Übergabe zuerst die Person als nächsten Schritt wählen und den Empfänger selbst starten lassen.
 
 
-**Group by** wird automatisch gespeichert, wenn ein Bearbeiter eine Spalte auswählt. Ein verwaltbarer gespeicherter Kanban wird aktualisiert; andernfalls wird eine private Ansicht erstellt und ausgewählt. Bei abgelehntem Speichern bleibt die bisherige Gruppierung erhalten. Leser können die Gruppierung vorübergehend ändern. **Set as default** in der Werkzeugleiste speichert das aktuelle Format für alle; normale Tabellen öffnen sich als Table, bis ein Bearbeiter eine andere Standardansicht auswählt.
+**Group by** wird automatisch gespeichert, wenn ein Bearbeiter eine Spalte auswählt. Ein verwaltbarer gespeicherter Kanban wird aktualisiert; andernfalls wird eine private Ansicht erstellt und ausgewählt. Bei abgelehntem Speichern bleibt die bisherige Gruppierung erhalten. Leser können die Gruppierung vorübergehend ändern. **Set as default** unter **View settings** speichert das aktuelle Format für alle; normale Tabellen öffnen sich als Table, bis ein Bearbeiter eine andere Standardansicht auswählt.
 
 Ein Agent kann nicht gelöscht werden, solange eine verwaltete Aufgabe von seiner geplanten Ausführung abhängt. Weise diese Aufgaben zuerst neu zu, schließe sie ab oder brich sie ab; das Löschen darf ihre Ausführung nicht stillschweigend verwerfen.
 
-Beim Wiederherstellen einer archivierten verwalteten Aufgabentafel werden geplante Erinnerungen für Personen erneut eingereiht, auch wenn ihr Termin während der Archivierung verstrichen ist. Die Zustellung prüft weiterhin den aktuellen Zugriff des ursprünglichen Erstellers und Empfängers; die Wiederherstellung autorisiert keine neue Agentenarbeit.
+Beim Wiederherstellen einer archivierten verwalteten Aufgabentafel werden geplante Erinnerungen für Personen erneut eingereiht, auch wenn ihr Termin während der Archivierung verstrichen ist. Die Zustellung prüft weiterhin den aktuellen Zugriff des ursprünglichen Erstellers und Empfängers; die Wiederherstellung autorisiert keine neue Agentenarbeit. Auch die eigenen Aufgaben schreiben nicht in eine archivierte Tafel: Ein Fall, der in der Zwischenzeit in der Inbox erledigt wird, lässt seine Aufgabe unverändert, und erst die Wiederherstellung der Tafel setzt sie auf erledigt oder abgebrochen. Einen Fall wieder zu öffnen, dessen Aufgabe auf einer archivierten Tafel liegt, wird mit `TABLE_ARCHIVED` abgelehnt.

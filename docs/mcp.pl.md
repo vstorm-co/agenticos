@@ -1,5 +1,5 @@
 ---
-source_sha: "62e7ca10f103"
+source_sha: "64b3eac00c71"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -204,6 +204,20 @@ przestrzenie nazw serwerów albo pojedyncze narzędzia widoczne od pierwszego ż
 Te wykluczenia zmieniają moment pokazania schematu narzędzia; listy dozwolonych
 narzędzi połączenia i powiązania nadal decydują, czy jest ono dostępne.
 
+Nowe szablony AgenticOS i Architect odraczają także narzędzia capability, pozostawiając
+pytania i narzędzia sandboxa widoczne od razu, oraz używają lokalnego wyszukiwania
+BM25 z maksymalnie pięcioma wynikami. Istniejące opublikowane agenty zachowują
+konfigurację; nowe wartości można przyjąć w ustawieniach wyszukiwania narzędzi.
+Wyszukiwanie nie usuwa instrukcji ani historii rozmowy, a suma tokenów wejściowych
+obejmuje wszystkie żądania do modelu.
+
+Dostępność narzędzi przeglądarki zależy dodatkowo od stanu kart: otwieranie, czytanie
+i lista kart pozostają dostępne do rozpoczęcia lub przywrócenia sesji. Zamykanie
+i przełączanie wymagają otwartej karty, a działania na stronie — aktywnej karty.
+Wyszukiwanie nie ujawnia działania niedostępnego w bieżącym stanie. Zmiany dostępności
+mogą wpływać na cache promptu u dostawcy, więc sama mniejsza liczba schematów narzędzi
+nie dowodzi niższego kosztu.
+
 ### Które wywołania czekają na człowieka { #which-calls-wait-for-a-person }
 
 Każde powiązanie ma politykę `approval` dla narzędzi swojego serwera. Domyślna,
@@ -344,6 +358,8 @@ konta: czat, Activity i dashboard pokazują ją obok akcji, wiadomość w Slacku
 Telegramie pyta o zgodę „to _send in Gmail_ as _Work_”, a e-mail z prośbą o
 zatwierdzenie podaje ją po nazwie narzędzia. Jedno konto bez etykiety nie ma od
 czego się odróżniać, więc nic nie jest dodawane.
+
+Okno narzędzi połączenia pokazuje **tylko odczyt** dla jawnego `readOnlyHint: true`, **może zmieniać dane** dla jawnego false oraz **brak deklaracji**, gdy deklaracji nie ma lub starszy test jej nie zapisał. Polityka `writes` traktuje brak metadanych ostrożnie; nie dowodzi on zapisu. Ponownie przetestuj starsze połączenie, aby odświeżyć deklaracje. Klasyfikacja jest niezależna od zaufania do deklaracji serwera w izolowanych ewaluacjach.
 
 ## Uwierzytelnianie { #authentication }
 
@@ -1230,17 +1246,18 @@ Sprawdzenie połączenia aktualizuje wykryte narzędzia i status. Dlatego `test_
 | Narzędzie | Wymaga |
 | --- | --- |
 | `whoami` | — |
-| `list_agents`, `get_agent`, `list_capabilities`, `list_models`, `search_mcp_servers` | `agents:view` |
+| `list_agents`, `get_agent`, `list_capabilities`, `get_capability`, `list_models`, `search_mcp_servers` | `agents:view` |
 | `create_agent_draft`, `update_agent_draft`, `test_agent_draft` | `agents:edit` |
 | `list_sandbox_connections`, `list_sandbox_runtimes`, `get_sandbox_policy` | `connections:view` |
 | `list_org_connections` | `mcp:manage` |
+| `list_mcp_connection_tools`, `get_mcp_connection_tool` | `mcp:manage` (organizacja); własne połączenia osobiste (klucz: `agents:run`) |
 | `publish_agent` | `agents:publish` na tym agencie |
 | `discard_agent_draft` | `agents:edit`, dla twojego draftu, który nigdy nie był opublikowany |
 | `run_agent` | `agents:run` |
 | `list_routines` | `agents:view` |
 | `create_routine`, `run_routine_now` | `agents:run` na agencie |
 | `update_routine`, `delete_routine` | twórca rutyny albo `agents:edit` na jej agencie |
-| `list_runs`, `get_run`, `read_conversation`, `list_conversations`, `get_spend` | `runs:view` |
+| `list_runs`, `get_run`, `read_run_transcript`, `read_run_tool_call`, `read_conversation`, `read_conversation_tool_call`, `list_conversations`, `get_spend` | `runs:view` |
 | `create_conversation` | `agents:run` |
 | `update_proactivity_settings` | `org:settings`, `budgets:manage` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |
@@ -1248,8 +1265,14 @@ Sprawdzenie połączenia aktualizuje wykryte narzędzia i status. Dlatego `test_
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
 | `create_skill` | `skills:edit` |
-| `get_skill` | `skills:view` |
+| `get_skill`, `list_skill_versions`, `get_skill_version` | `skills:view`; agenci, których wywołujący nie widzi, są tylko policzeni |
 | `update_skill`, `add_skill_resource` | `skills:edit` |
+| `list_skill_improvements`, `get_skill_improvement` | `skills:view` i `runs:view` |
+| `estimate_skill_improvement`, `start_skill_improvement`, `estimate_next_skill_improvement_step`, `run_next_skill_improvement_step`, `retry_skill_improvement_step`, `accept_skill_improvement`, `end_skill_improvement` | prawo edycji skilla i `runs:view`; przypięcie gorszych agentów także `agents:publish` na każdym z nich |
+| `change_skill_version` | prawo edycji agenta; wejście na żywo także `agents:publish` |
+| `list_skills_behind_main` | `skills:view` |
+| `estimate_skill_update_check`, `start_skill_update_check`, `estimate_skill_catch_up`, `start_skill_catch_up` | prawo edycji skilla i `runs:view`; sprawdzenie aktualizacji także dostęp do agenta |
+| `return_skill_fork_to_main` | prawo edycji każdego agenta; wejście na żywo także `agents:publish` |
 | `list_context_files`, `get_context_file` | `context:view` |
 | `create_context_file`, `update_context_file` | `context:edit` |
 | `list_projects` | `projects:view` |
@@ -1432,3 +1455,19 @@ Migracja `0293_connected_account_sources.py` wymaga ponownej zgody dla starszych
 Pauzy akceptacji Mirage przypinają tożsamość kont i generacje sekretów. Ich zmiana podczas oczekiwania wymaga nowego uruchomienia i zgody. Przegląd źródeł rutyny wiąże te same generacje, a zapis i komendy terminala wymagają zgody na skutki rutyny nawet przy wyłączonych akceptacjach zapisu dla montowania.
 
 Usunięcie członka trwale odwołuje jego osobiste zgody wydane przez tę organizację; ponowne zaproszenie wymaga nowej zgody.
+
+## Ograniczone odkrywanie i analiza uruchomień { #bounded-discovery }
+
+MCP platformy zwraca najpierw podsumowania, a pełne kontrakty dopiero na żądanie. `list_org_connections` i `list_my_connections` przyjmują `q`, `limit` (1–50, domyślnie 20) i `skip`; kolejne strony wskazuje `next_skip`, aż do null. Listy pomijają zapisane schematy narzędzi i tablice agentów korzystających z połączenia. `tool_count: null` oznacza brak zapisanego katalogu, a zero — zapisany pusty katalog. Null w `allowed_tool_count` oznacza brak listy dozwolonych narzędzi. `list_my_connections(include_tools=true)` nadal obsługuje małe odpowiedzi, ale odmawia zwrócenia ponad 64 KiB.
+
+`list_mcp_connection_tools(connection_id, account, q, limit, skip)` wyszukuje narzędzia jednego dostępnego połączenia. Zwraca nazwy, ograniczone fragmenty opisów, status listy dozwolonych narzędzi i jawną deklarację serwera `read_only_hint`. Null oznacza brak deklaracji, a nie dowód zapisu. `get_mcp_connection_tool` odczytuje jeden pełny zapisany kontrakt ze schematem wejścia. Schemat null oznacza, że go nie zachowano, a nie brak argumentów. Oba wywołania czytają ostatni zapisany katalog, bez wykonywania narzędzi ani testowania serwera; sprawdź `last_checked_at` i `tools_cached`. Odczyt organizacji wymaga `mcp:manage`, a odczyt osobisty dotyczy wyłącznie własnych połączeń.
+
+`list_capabilities(q, limit, skip)` zwraca podsumowania; przed konfiguracją wywołaj `get_capability(capability_id)`, aby poznać schemat, wartości domyślne i kontrakty narzędzi. `list_skills` domyślnie zwraca 20 pozycji, przekazuje `q` do API i pomija fragmenty treści. `get_skill` czyta treść, a `include_usage=true` dodaje agentów korzystających z umiejętności. Odpowiedzi odkrywania mają limit 64 KiB i jawnie odmawiają przekroczenia, wskazując potrzebę zawężenia zapytania. Nie usuwają po cichu wymaganych pól schematu. Klienci MCP odczytujący konfigurację bezpośrednio z list muszą używać narzędzi szczegółów i stronicowania. Odpowiedzi REST konsoli pozostają bez zmian.
+
+W diagnostyce `list_runs` obsługuje filtry statusu, kanału, zapisanej wersji oraz dat ze strefą czasową. Historyczne awarie nie dowodzą błędu obecnej wersji. `read_conversation` nadal czyta tylko własne chaty. `read_run_transcript` pozwala czytać autoryzowane uruchomienie, także kolegi lub kanału, według istniejących zasad `runs:view`. Pomija tury odrzucone przez guardrails przed stronicowaniem i wyklucza cytowane odpowiedzi.
+
+Indeksy wiadomości dotyczą przefiltrowanej transkrypcji. Zwraca ograniczone okna tekstu i metadane wywołań, bez wszystkich argumentów i wyników. Korzystaj z `next_skip`, `next_offset` i `next_tool_skip`; dla dalszego fragmentu długiej wiadomości ustaw `limit=1`. `read_run_tool_call` czyta okno `args` albo `result` jednego wywołania, sprawdza zgodność identyfikatora wiadomości ze stroną i niczego nie wykonuje. Niezapisany wynik jest null. Nie przyznaje to dodatkowego dostępu do prywatnych rozmów.
+
+Wyszukiwanie agenta po nazwie w Improve sprawdza wszystkie strony przed wyborem lub zgłoszeniem niejednoznaczności; pierwsze 100 agentów nie jest uznawane za cały katalog.
+
+`read_conversation` stosuje te same ograniczone okna wiadomości i metadanych wywołań co analiza runów, domyślnie po 10 wiadomości. `read_conversation_tool_call` czyta wybrany zapisany wynik, także w starszych wiadomościach bez identyfikatora runu, przez niezmienione API własnych rozmów. Klienci MCP muszą korzystać ze wskaźników kontynuacji zamiast oczekiwać pełnych wyników narzędzi w transkrypcji.

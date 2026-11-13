@@ -1,5 +1,5 @@
 ---
-source_sha: "a586ae2275e1"
+source_sha: "5a1c3230cf70"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -455,6 +455,8 @@ Palette zeigt den Schritt mit einem Diff-Symbol bei den Datenschritten.
 ::: app.workflows.nodes.text_compare._handler.TextCompareOutput
 
 ## html.parse { #html-parse }
+
+Seit Version 1.72.0 schließen Dokumentselektoren und die Linkextraktion inaktive Inhalte von `<template>` aus. Die Auswahl des Elements `template` selbst liefert weiterhin dessen HTML und Text. Soup Sieve 4 gleicht Formularzustandsselektoren an das Browserverhalten an; prüfen Sie beim Upgrade Workflows, die von den bisherigen Auswahlregeln abhängen. Die Selektorauswertung nutzt einen Cache; Zeit- und Speicherlimits des Leseprozesses bleiben bestehen.
 
 **Parse HTML** liest HTML als Text, als Links und als die Elemente, die ein
 CSS-Selektor auswählt. Es ist für das HTML gedacht, dem ein Ablauf begegnet: ein
@@ -1056,7 +1058,7 @@ Tab **Approvals** unter Activity oder über `GET /api/v1/workflow-approvals`.
 `approvers` nennt, wer entscheiden darf, und diese Personen werden in der App
 benachrichtigt; leer darf jeder mit `approvals:decide`. Nach `timeout_hours`
 läuft die Anfrage ab, und der Schritt geht über `rejected` mit
-`decision: "expired"` weiter. Einen Run abzubrechen bricht seine Anfragen ab.
+`decision: "expired"` weiter. Einen Run abzubrechen bricht seine Anfragen ab, ebenso der Abbruch eines Workflows, der diesen Run aufgerufen hat.
 Jeder Lauf des Schritts fragt einmal, sodass eine Wiederholung oder eine
 Schleifeniteration nie zweimal nach demselben fragt.
 

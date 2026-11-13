@@ -112,6 +112,33 @@ class TestOrganizationRepository:
 
         assert slug == "acme-corp-2"
 
+    @pytest.mark.anyio
+    async def test_a_long_taken_slug_leaves_room_for_its_suffix(self, mock_db):
+        """The column holds 64 characters, so a 64-character base cannot simply grow."""
+        call_count = [0]
+
+        async def mock_execute(*args, **kwargs):
+            call_count[0] += 1
+            result = MagicMock()
+            result.scalar.return_value = 1 if call_count[0] == 1 else 0
+            return result
+
+        mock_db.execute.side_effect = mock_execute
+
+        slug = await org_repo.generate_unique_slug(mock_db, "a" * 63 + " b")
+
+        assert len(slug) <= 64 and slug.endswith("-2") and "--" not in slug
+
+    @pytest.mark.anyio
+    async def test_the_random_fallback_also_fits(self, mock_db):
+        result = MagicMock()
+        result.scalar.return_value = 1
+        mock_db.execute.return_value = result
+
+        slug = await org_repo.generate_unique_slug(mock_db, "x" * 80)
+
+        assert len(slug) == 64 and slug.startswith("x" * 57 + "-")
+
 
 class TestMemberRepository:
     """Tests for member repository (PostgreSQL async)."""
