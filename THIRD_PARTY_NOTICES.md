@@ -101,7 +101,7 @@ names no author is in the evidence column below.
 | defusedxml | 0.7.1 | PSF-2.0 | https://github.com/tiran/defusedxml | classifier |
 | deprecated | 1.3.1 | MIT | https://github.com/laurent-laporte-pro/deprecated | License field |
 | distro | 1.9.0 | Apache-2.0 | https://github.com/python-distro/distro | License field |
-| dnspython | 2.9.0 | ISC | https://github.com/rthalley/dnspython.git | License-Expression; no licence file, attributed to Bob Halley |
+| dnspython | 2.9.2 | ISC | https://github.com/rthalley/dnspython.git | License-Expression |
 | docstring-parser | 0.18.0 | MIT | https://github.com/rr-/docstring_parser | License field |
 | e2b | 2.59.0 | MIT | https://github.com/e2b-dev/e2b/tree/main/packages/python-sdk | License-Expression; no licence file, attributed to e2b |
 | e2b-dockerfile-utils | 0.1.1 | Apache-2.0 | https://github.com/e2b-dev/e2b/tree/main/packages/dockerfile-utils-python | License-Expression |
