@@ -1042,6 +1042,7 @@ async def test_template_sharing_refuses_if_its_new_table_cannot_be_loaded():
             f"{REGISTRY_PATH}.virtual_table_repo.get_live_table_by_name",
             new=AsyncMock(return_value=None),
         ),
+        patch(f"{REGISTRY_PATH}.hold_subject", new=AsyncMock()),
     ):
         tables.return_value.create_table = AsyncMock(return_value=SimpleNamespace(id=uuid.uuid4()))
         with pytest.raises(NotFoundError):
@@ -1073,8 +1074,14 @@ async def test_template_table_is_named_after_the_workflow_without_an_id(taken, e
     workflow = _workflow(ctx)
     workflow.name = "Markdown notes"
 
+    order: list[str] = []
+
     async def live(_db, name, *, organization_id):
+        order.append("lookup")
         return SimpleNamespace(id=uuid.uuid4()) if name in taken else None
+
+    async def lock(_db, scope, subject):
+        order.append(f"lock:{scope.name}:{subject}")
 
     class Created(Exception):
         """Stops the template once its table is asked for; the graph after it is not under test."""
@@ -1082,6 +1089,7 @@ async def test_template_table_is_named_after_the_workflow_without_an_id(taken, e
     with (
         patch(f"{REGISTRY_PATH}.VirtualTableService") as tables,
         patch(f"{REGISTRY_PATH}.virtual_table_repo.get_live_table_by_name", new=live),
+        patch(f"{REGISTRY_PATH}.hold_subject", new=lock),
         pytest.raises(Created),
     ):
         tables.return_value.create_table = AsyncMock(side_effect=Created)
@@ -1091,3 +1099,6 @@ async def test_template_table_is_named_after_the_workflow_without_an_id(taken, e
 
     created = tables.return_value.create_table.await_args.args[1]
     assert created.name == expected
+    # The name is chosen under the lock `create_table` claims names under, so a
+    # table created in between cannot take it.
+    assert order[0] == f"lock:VIRTUAL_TABLE_NAMES_PER_ORG:{ctx.organization_id}"

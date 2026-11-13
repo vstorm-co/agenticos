@@ -587,7 +587,12 @@ class WorkflowRegistryService:
         )
 
     async def _free_table_name(self, ctx: AuthContext, base: str) -> str:
-        """`base`, or `base (2)`, `base (3)`… - the first no live table in the organization holds."""
+        """`base`, or `base (2)`, `base (3)`… - the first no live table in the organization holds.
+
+        Chosen under the lock `create_table` claims a name under, held to the end of
+        this transaction, so nobody takes the chosen name before it is created.
+        """
+        await hold_subject(self.db, LockScope.VIRTUAL_TABLE_NAMES_PER_ORG, ctx.organization_id)
         name, copy = base, 1
         while await virtual_table_repo.get_live_table_by_name(
             self.db, name, organization_id=ctx.organization_id
