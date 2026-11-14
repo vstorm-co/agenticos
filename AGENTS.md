@@ -251,6 +251,7 @@ retranslated is how a stale translation stops being visible.
 | Authoring assistant — suggestions from evidence, decisions, checking with evals | `docs/authoring.md` |
 | Virtual Tables — typed records, schema versions, revisions, idempotent writes, the `/tables` API | `docs/virtual-tables.md` |
 | Agent and team tasks: research and proposal only | `docs/design/agent-tasks.md` (repo only) |
+| Room lead routing and handoffs over existing tasks | `docs/design/room-lead-task-handoffs.md` (repo only; proposal) |
 | Workflows — the visual editor: canvas, palette, bindings, autosave, publish, versions | `docs/workflows.md` |
 | Projects: shared files, instructions and chats | `docs/projects.md` |
 | Agent messages: direct messages between agents, in a thread the console shows | `docs/agent-messages.md` |
