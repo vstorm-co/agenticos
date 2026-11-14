@@ -41,6 +41,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Activity separates the runtime tool catalog from provider-resolved visibility, records Tool Search policy and per-request tool counts, and puts model settings and cache usage beside readable prompt/source views. Run history fills the available viewport even when it contains few records.
 
+- A retrieval benchmark over 34 documentation questions, including negative and
+  cross-language answers. `make eval-retrieval` compares retrieval depth, query
+  expansion and chunk settings, with per-question results and reproducible run
+  metadata. [Retrieval evaluation](docs/retrieval-eval.md) records the measured
+  comparison and the decision on knowledge-agent defaults (#2482).
+
 ### Fixed
 
 - Keep sandbox connection details and session controls readable on narrow screens, search sessions by agent name, and confirm channel-bot removal before disconnecting bound agents.
@@ -81,6 +87,10 @@ Two things are versioned separately from this file and worth knowing about:
 - Read Mattermost thread history in creation-time order and honor result limits even when the platform returns an unordered or oversized thread. Use the thread endpoint's native paging parameters for both text and attachment backfill.
 - Discover both search and fetch tools from multi-query local tool search, including MCP tools with long descriptions.
 - Keep channel author metadata separate from user messages, without inserting an empty message marker. Ignore Mattermost system housekeeping posts before they can start paid agent runs.
+
+- Workflow **knowledge.search** citations omit page numbers for formats without
+  pages, including Markdown, text, HTML and `.docx`. PDF pages and presentation
+  slides keep their locations (#2482).
 
 ### Changed
 

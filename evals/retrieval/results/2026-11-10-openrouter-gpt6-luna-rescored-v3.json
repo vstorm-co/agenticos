@@ -1,0 +1,320 @@
+{
+  "kind": "retrieval_rescore",
+  "revision": 3,
+  "rescored_at": "2026-11-14T13:24:40.363000+00:00",
+  "source": {
+    "path": "evals/retrieval/results/2026-11-10-openrouter-gpt6-luna.json",
+    "sha256": "ae537c9848a49514ee005dcf142c57edb2ab9adc1a0db0505e54deda100a9933"
+  },
+  "previous_rescore": {
+    "path": "evals/retrieval/results/2026-11-10-openrouter-gpt6-luna-rescored-v2.json",
+    "sha256": "555a2b65931a445b6edc71082721c1c38fac6de3f2b410e898126c4b9d04f294"
+  },
+  "dataset": {
+    "path": "evals/retrieval/docs_questions.yaml",
+    "version": 1,
+    "sha256": "057ad54ce3879bedce9852fc4a4098c7e4135b73e5f26e1333b701ff9f861675"
+  },
+  "scoring": {
+    "path": "evals/retrieval/scoring.py",
+    "sha256": "0b8d8c09ba2c8e62c934ce6cce7eb0964d1837795473d826d5ab0cb0e13e157f"
+  },
+  "model_requests": 0,
+  "embedding_requests": 0,
+  "method": "Re-evaluate all original ranked page keys and unchanged answers with the current dataset and the unchanged v2 scorer. Only the managed Redis answer alternative changes. This correction records all category summaries and the one changed per-question verdict; other per-question verdicts and all retrieval metrics are verified identical to v2. The original and all earlier rescoring files are unchanged.",
+  "changed_expected_facts": {
+    "redis-cluster-pl-corpus": [
+      [
+        "no",
+        "not",
+        "nie",
+        "isn't"
+      ],
+      [
+        "one instance",
+        "single instance",
+        "primary",
+        "one endpoint",
+        "one Redis",
+        "single Redis",
+        "managed Redis",
+        "managed Redis instance",
+        "pojedyncz*"
+      ]
+    ]
+  },
+  "configurations": [
+    {
+      "label": "top_k=5, query_analysis_mode=off",
+      "top_k": 5,
+      "query_analysis_mode": "off",
+      "summary": [
+        {
+          "category": "factual",
+          "questions": 14,
+          "hit_rate": 0.9285714285714286,
+          "recall": 0.8214285714285714,
+          "mrr": 0.6845238095238095,
+          "answered": 14,
+          "answers_correct": 12
+        },
+        {
+          "category": "negative",
+          "questions": 10,
+          "hit_rate": 1.0,
+          "recall": 0.9,
+          "mrr": 0.7833333333333333,
+          "answered": 10,
+          "answers_correct": 8
+        },
+        {
+          "category": "cross_language",
+          "questions": 10,
+          "hit_rate": 0.8,
+          "recall": 0.65,
+          "mrr": 0.5583333333333333,
+          "answered": 10,
+          "answers_correct": 7
+        },
+        {
+          "category": "all",
+          "questions": 34,
+          "hit_rate": 0.9117647058823529,
+          "recall": 0.7941176470588235,
+          "mrr": 0.6764705882352942,
+          "answered": 34,
+          "answers_correct": 27
+        }
+      ],
+      "changed_answer_checks": []
+    },
+    {
+      "label": "top_k=5, query_analysis_mode=multi_query",
+      "top_k": 5,
+      "query_analysis_mode": "multi_query",
+      "summary": [
+        {
+          "category": "factual",
+          "questions": 14,
+          "hit_rate": 0.9285714285714286,
+          "recall": 0.8214285714285714,
+          "mrr": 0.6845238095238095,
+          "answered": 14,
+          "answers_correct": 12
+        },
+        {
+          "category": "negative",
+          "questions": 10,
+          "hit_rate": 1.0,
+          "recall": 0.9,
+          "mrr": 0.6916666666666667,
+          "answered": 10,
+          "answers_correct": 8
+        },
+        {
+          "category": "cross_language",
+          "questions": 10,
+          "hit_rate": 0.8,
+          "recall": 0.7,
+          "mrr": 0.6166666666666667,
+          "answered": 10,
+          "answers_correct": 7
+        },
+        {
+          "category": "all",
+          "questions": 34,
+          "hit_rate": 0.9117647058823529,
+          "recall": 0.8088235294117647,
+          "mrr": 0.6666666666666667,
+          "answered": 34,
+          "answers_correct": 27
+        }
+      ],
+      "changed_answer_checks": []
+    },
+    {
+      "label": "top_k=5, query_analysis_mode=hyde",
+      "top_k": 5,
+      "query_analysis_mode": "hyde",
+      "summary": [
+        {
+          "category": "factual",
+          "questions": 14,
+          "hit_rate": 1.0,
+          "recall": 0.8571428571428571,
+          "mrr": 0.7642857142857142,
+          "answered": 14,
+          "answers_correct": 11
+        },
+        {
+          "category": "negative",
+          "questions": 10,
+          "hit_rate": 1.0,
+          "recall": 0.9,
+          "mrr": 0.8033333333333333,
+          "answered": 10,
+          "answers_correct": 9
+        },
+        {
+          "category": "cross_language",
+          "questions": 10,
+          "hit_rate": 0.9,
+          "recall": 0.8,
+          "mrr": 0.75,
+          "answered": 10,
+          "answers_correct": 9
+        },
+        {
+          "category": "all",
+          "questions": 34,
+          "hit_rate": 0.9705882352941176,
+          "recall": 0.8529411764705882,
+          "mrr": 0.7715686274509804,
+          "answered": 34,
+          "answers_correct": 29
+        }
+      ],
+      "changed_answer_checks": []
+    },
+    {
+      "label": "top_k=10, query_analysis_mode=off",
+      "top_k": 10,
+      "query_analysis_mode": "off",
+      "summary": [
+        {
+          "category": "factual",
+          "questions": 14,
+          "hit_rate": 1.0,
+          "recall": 0.8928571428571429,
+          "mrr": 0.6964285714285714,
+          "answered": 14,
+          "answers_correct": 13
+        },
+        {
+          "category": "negative",
+          "questions": 10,
+          "hit_rate": 1.0,
+          "recall": 0.95,
+          "mrr": 0.7833333333333333,
+          "answered": 10,
+          "answers_correct": 9
+        },
+        {
+          "category": "cross_language",
+          "questions": 10,
+          "hit_rate": 0.9,
+          "recall": 0.85,
+          "mrr": 0.5599999999999999,
+          "answered": 10,
+          "answers_correct": 7
+        },
+        {
+          "category": "all",
+          "questions": 34,
+          "hit_rate": 0.9705882352941176,
+          "recall": 0.8970588235294118,
+          "mrr": 0.6818627450980392,
+          "answered": 34,
+          "answers_correct": 29
+        }
+      ],
+      "changed_answer_checks": []
+    },
+    {
+      "label": "top_k=10, query_analysis_mode=multi_query",
+      "top_k": 10,
+      "query_analysis_mode": "multi_query",
+      "summary": [
+        {
+          "category": "factual",
+          "questions": 14,
+          "hit_rate": 1.0,
+          "recall": 0.8928571428571429,
+          "mrr": 0.6928571428571428,
+          "answered": 14,
+          "answers_correct": 13
+        },
+        {
+          "category": "negative",
+          "questions": 10,
+          "hit_rate": 1.0,
+          "recall": 0.95,
+          "mrr": 0.7583333333333333,
+          "answered": 10,
+          "answers_correct": 9
+        },
+        {
+          "category": "cross_language",
+          "questions": 10,
+          "hit_rate": 0.8,
+          "recall": 0.7,
+          "mrr": 0.6833333333333333,
+          "answered": 10,
+          "answers_correct": 7
+        },
+        {
+          "category": "all",
+          "questions": 34,
+          "hit_rate": 0.9411764705882353,
+          "recall": 0.8529411764705882,
+          "mrr": 0.7093137254901961,
+          "answered": 34,
+          "answers_correct": 29
+        }
+      ],
+      "changed_answer_checks": []
+    },
+    {
+      "label": "top_k=10, query_analysis_mode=hyde",
+      "top_k": 10,
+      "query_analysis_mode": "hyde",
+      "summary": [
+        {
+          "category": "factual",
+          "questions": 14,
+          "hit_rate": 1.0,
+          "recall": 0.9285714285714286,
+          "mrr": 0.7642857142857142,
+          "answered": 14,
+          "answers_correct": 12
+        },
+        {
+          "category": "negative",
+          "questions": 10,
+          "hit_rate": 1.0,
+          "recall": 0.95,
+          "mrr": 0.8033333333333333,
+          "answered": 10,
+          "answers_correct": 9
+        },
+        {
+          "category": "cross_language",
+          "questions": 10,
+          "hit_rate": 1.0,
+          "recall": 0.95,
+          "mrr": 0.7625,
+          "answered": 10,
+          "answers_correct": 10
+        },
+        {
+          "category": "all",
+          "questions": 34,
+          "hit_rate": 1.0,
+          "recall": 0.9411764705882353,
+          "mrr": 0.7752450980392157,
+          "answered": 34,
+          "answers_correct": 31
+        }
+      ],
+      "changed_answer_checks": [
+        {
+          "id": "redis-cluster-pl-corpus",
+          "previous_answer_correct": false,
+          "answer_correct": true,
+          "answer": "No. AgenticOS does not yet support Redis Cluster [8]. The documentation says a managed Redis instance is acceptable, but does not state that it can be sharded [2].",
+          "missing_facts": []
+        }
+      ]
+    }
+  ]
+}
