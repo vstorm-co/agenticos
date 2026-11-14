@@ -533,8 +533,9 @@ def claude_report(
                 if name in _CLAUDE_QUIET:
                     continue
                 step = _claude_step(name, arguments)
-                if step.kind == "edit" and step.title not in files:
-                    files.append(step.title)
+                path = _text(arguments.get("file_path")) or _text(arguments.get("notebook_path"))
+                if step.kind == "edit" and path and path not in files:
+                    files.append(path)
                 key = _text(part.get("id")) or str(len(order))
                 steps[key] = step
                 order.append(key)

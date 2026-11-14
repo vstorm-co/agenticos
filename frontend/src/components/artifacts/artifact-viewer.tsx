@@ -417,6 +417,7 @@ export function ArtifactViewer({
       </div>
       <ArtifactShareDialog
         artifact={artifact}
+        hasPendingRequests={waiting.length > 0}
         open={sharing}
         onOpenChange={setSharing}
         versions={versions}

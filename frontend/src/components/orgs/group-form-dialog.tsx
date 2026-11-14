@@ -1,5 +1,6 @@
 "use client";
 
+import { Check } from "lucide-react";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -8,17 +9,19 @@ import {
   Button,
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
   FormField,
   Input,
   Textarea,
+  MoreOptions,
 } from "@/components/ui";
 import { useGroups } from "@/hooks";
 import { submitFailure } from "@/lib/api-error";
-import { DIALOG_CONFIRM } from "@/lib/dialog-sizes";
-import { GROUP_ICON_COMPONENTS } from "@/components/groups/group-icon";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_CONFIRM } from "@/lib/dialog-sizes";
+import { GroupIcon, GROUP_ICON_COMPONENTS } from "@/components/groups/group-icon";
 import { cn } from "@/lib/utils";
 import { GROUP_ICONS, type Group, type GroupIcon as GroupIconName } from "@/types/groups";
 
@@ -53,10 +56,12 @@ export function GroupFormDialog({ orgId, group, onClose }: GroupFormDialogProps)
   const [icon, setIcon] = useState<GroupIconName | null>(group?.icon ?? null);
   const [budget, setBudget] = useState(asBudgetInput(group?.monthly_budget_usd));
   const [problems, setProblems] = useState<Readonly<Record<string, string>>>({});
+  const [optionsOpen, setOptionsOpen] = useState(group?.monthly_budget_usd != null);
   const pending = create.isPending || update.isPending;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (pending) return;
     // An emptied description is cleared, not saved as an empty string; an
     // emptied budget lifts the cap.
     const input = {
@@ -77,93 +82,122 @@ export function GroupFormDialog({ orgId, group, onClose }: GroupFormDialogProps)
         tErrors,
       );
       setProblems(failure.fields);
+      if (failure.fields.monthly_budget_usd) setOptionsOpen(true);
       if (failure.toast) toast.error(failure.toast);
     }
   };
 
   return (
     // Mounted only while open, so the one change of openness it can report is closing.
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent className={DIALOG_CONFIRM}>
+    <Dialog
+      open
+      onOpenChange={() => {
+        if (!pending) onClose();
+      }}
+    >
+      <DialogContent className={cn(DIALOG_CONFIRM, DIALOG_COLUMN)} dismissible={!pending}>
         <DialogHeader>
           <DialogTitle>{group ? t("editGroup") : t("newGroup")}</DialogTitle>
+          <DialogDescription>{t("formDescription")}</DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <FormField label={t("name")} htmlFor="group-name" error={problems.name}>
-            <Input
-              id="group-name"
-              value={name}
-              onChange={(e) => {
-                setName(e.target.value);
-                setProblems({});
-              }}
-              placeholder={t("namePlaceholder")}
-              maxLength={MAX_NAME}
-            />
-          </FormField>
-          <FormField
-            label={t("descriptionLabel")}
-            htmlFor="group-description"
-            error={problems.description}
-          >
-            <Textarea
-              id="group-description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder={t("descriptionPlaceholder")}
-              maxLength={MAX_DESCRIPTION}
-              rows={3}
-            />
-          </FormField>
-          <FormField
-            label={t("monthlyBudget")}
-            htmlFor="group-budget"
-            error={problems.monthly_budget_usd}
-            description={t("monthlyBudgetHint")}
-          >
-            <Input
-              id="group-budget"
-              type="number"
-              min="0"
-              step="1"
-              value={budget}
-              onChange={(e) => setBudget(e.target.value)}
-              placeholder={t("noBudget")}
-            />
-          </FormField>
-          <div className="space-y-1.5">
-            <p className="text-sm font-medium">{t("icon")}</p>
-            <div
-              role="radiogroup"
-              aria-label={t("icon")}
-              className="grid grid-cols-6 gap-1.5 sm:grid-cols-12"
-            >
-              {GROUP_ICONS.map((key) => {
-                const Mark = GROUP_ICON_COMPONENTS[key];
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    role="radio"
-                    aria-checked={icon === key}
-                    aria-label={t(`icons.${key}`)}
-                    onClick={() => setIcon(icon === key ? null : key)}
-                    className={cn(
-                      "flex aspect-square w-full items-center justify-center rounded-lg border transition-colors",
-                      icon === key ? "border-foreground/40 bg-accent" : "hover:bg-accent/50",
-                    )}
-                  >
-                    <Mark className="h-4 w-4" aria-hidden />
-                  </button>
-                );
-              })}
-            </div>
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-col gap-5">
+          <div className={DIALOG_BODY}>
+            <fieldset disabled={pending} className="min-w-0 space-y-5">
+              <legend className="sr-only">{group ? t("editGroup") : t("newGroup")}</legend>
+              <div className="flex items-end gap-3">
+                <GroupIcon icon={icon} className="mb-0.5 size-11 rounded-xl [&_svg]:size-5" />
+                <FormField
+                  className="min-w-0 flex-1"
+                  label={t("name")}
+                  htmlFor="group-name"
+                  error={problems.name}
+                >
+                  <Input
+                    id="group-name"
+                    value={name}
+                    onChange={(e) => {
+                      setName(e.target.value);
+                      setProblems({});
+                    }}
+                    placeholder={t("namePlaceholder")}
+                    maxLength={MAX_NAME}
+                  />
+                </FormField>
+              </div>
+              <FormField
+                label={t("descriptionLabel")}
+                htmlFor="group-description"
+                error={problems.description}
+              >
+                <Textarea
+                  id="group-description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder={t("descriptionPlaceholder")}
+                  maxLength={MAX_DESCRIPTION}
+                  rows={3}
+                />
+              </FormField>
+              <div className="space-y-1.5">
+                <p className="text-sm font-medium">{t("icon")}</p>
+                <div
+                  role="group"
+                  aria-label={t("icon")}
+                  className="grid grid-cols-4 gap-2 sm:grid-cols-6"
+                >
+                  {GROUP_ICONS.map((key) => {
+                    const Mark = GROUP_ICON_COMPONENTS[key];
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        aria-pressed={icon === key}
+                        aria-label={t(`icons.${key}`)}
+                        title={t(`icons.${key}`)}
+                        onClick={() => setIcon(icon === key ? null : key)}
+                        className={cn(
+                          "relative flex h-11 min-h-11 w-full items-center justify-center rounded-xl border transition-colors",
+                          icon === key ? "border-foreground/40 bg-accent" : "hover:bg-accent/50",
+                        )}
+                      >
+                        <Mark className="size-5" aria-hidden />
+                        {icon === key && (
+                          <Check className="absolute top-1 right-1 size-3" aria-hidden />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <MoreOptions
+                label={t("budgetOptions")}
+                open={optionsOpen}
+                onOpenChange={setOptionsOpen}
+              >
+                <FormField
+                  label={t("monthlyBudget")}
+                  htmlFor="group-budget"
+                  error={problems.monthly_budget_usd}
+                  description={t("monthlyBudgetHint")}
+                >
+                  <Input
+                    id="group-budget"
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={budget}
+                    onChange={(e) => setBudget(e.target.value)}
+                    placeholder={t("noBudget")}
+                  />
+                </FormField>
+              </MoreOptions>
+            </fieldset>
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="outline" disabled={pending} onClick={onClose}>
               {t("cancel")}
             </Button>
-            <Button type="submit" disabled={!name.trim() || pending}>
+            <Button type="submit" loading={pending} disabled={!name.trim()}>
               {group ? t("save") : t("create")}
             </Button>
           </DialogFooter>

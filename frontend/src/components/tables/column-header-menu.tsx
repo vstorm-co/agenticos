@@ -15,9 +15,10 @@ import { ColumnTypeIcon } from "./column-type-icon";
 
 export interface ColumnActions {
   onSort: (sort: RecordSort) => void;
-  onRename: (column: ColumnDef) => void;
+  /** Absent for a caller who may work on the table but not change its columns. */
+  onRename?: (column: ColumnDef) => void;
   onHide: (column: ColumnDef) => void;
-  onArchive: (column: ColumnDef) => void;
+  onArchive?: (column: ColumnDef) => void;
 }
 
 /**
@@ -67,16 +68,25 @@ export function ColumnHeaderMenu({
             <DropdownMenuSeparator />
           </>
         )}
-        <DropdownMenuItem onSelect={() => actions.onRename(column)}>
-          <Pencil className="size-4" /> {t("rename")}
-        </DropdownMenuItem>
+        {actions.onRename && (
+          <DropdownMenuItem onSelect={() => actions.onRename?.(column)}>
+            <Pencil className="size-4" /> {t("rename")}
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem onSelect={() => actions.onHide(column)}>
           <EyeOff className="size-4" /> {t("hide")}
         </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem className="text-destructive" onSelect={() => actions.onArchive(column)}>
-          <Archive className="size-4" /> {t("archive")}
-        </DropdownMenuItem>
+        {actions.onArchive && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive"
+              onSelect={() => actions.onArchive?.(column)}
+            >
+              <Archive className="size-4" /> {t("archive")}
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

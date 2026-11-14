@@ -28,15 +28,21 @@ async def can_write_record(
     record_id: UUID,
     columns: list[ColumnDef],
     values: Mapping[str, object],
+    *,
+    allow_archived: bool = False,
 ) -> bool:
-    """Write may come from a row grant without promoting the member to table editor."""
+    """Write may come from a row grant without promoting the member to table editor.
+
+    A receipt replay may omit the archive lifecycle check; all authority checks
+    still apply, and a fresh write always requires a live table.
+    """
     policy = parse_policy(table.row_policy)
     if not policy_columns_valid(policy, columns):
         return False
     if (
         ctx.user_id is None
         or table.organization_id != ctx.organization_id
-        or table.archived_at is not None
+        or (table.archived_at is not None and not allow_archived)
         or not ctx.key_allows(Perm.TABLES_EDIT)
     ):
         return False

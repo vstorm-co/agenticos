@@ -4,10 +4,12 @@ import { useId, useState } from "react";
 import { AlertTriangle, SlidersHorizontal } from "lucide-react";
 
 import { Alert, AlertDescription, Button, DialogFooter, Input, Label } from "@/components/ui";
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { cn } from "@/lib/utils";
 import { FileEditor } from "@/components/files";
 import { ResourceActions } from "@/components/sharing/resource-actions";
 import { ShareResourceButton } from "@/components/sharing/share-resource-button";
+import { ImproveContextButton } from "@/components/authoring/improve-skill-button";
 import { displayName } from "@/components/context/file-name";
 import type { ContextEdit } from "@/hooks/use-context";
 import type { ContextFile } from "@/types/providers";
@@ -18,7 +20,7 @@ interface ContextEditorProps {
   /** A viewer reads a file; only an editor gets the write controls. */
   canEdit: boolean;
   isSaving: boolean;
-  onSave: (edit: ContextEdit) => void;
+  onSave: (edit: ContextEdit) => Promise<void>;
   onCancel: () => void;
   onDelete?: () => void;
 }
@@ -57,6 +59,24 @@ export function ContextEditor({
 
   const editedDescription = description.trim() === "" ? null : description.trim();
   const changed = editedDescription !== file.description || content !== file.content;
+
+  const save = async (): Promise<boolean> => {
+    try {
+      await onSave({ description: editedDescription, content });
+      return true;
+    } catch {
+      // The mutation reports the failure; leaving must keep the unsaved text.
+      return false;
+    }
+  };
+  useUnsavedChanges(`context-editor:${file.id}`, {
+    dirty: canEdit && changed,
+    save,
+    discard: () => {
+      setDescription(file.description ?? "");
+      setContent(file.content);
+    },
+  });
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
@@ -128,6 +148,7 @@ export function ContextEditor({
             name={file.name}
             canManage={canEdit}
           />
+          {canEdit && <ImproveContextButton contextId={file.id} unsaved={changed} />}
           {canEdit && onDelete && (
             <ResourceActions name={file.name} onDelete={onDelete} disabled={isSaving} />
           )}
@@ -136,16 +157,7 @@ export function ContextEditor({
           {canEdit ? t("cancel") : t("close")}
         </Button>
         {canEdit && (
-          <Button
-            onClick={() =>
-              onSave({
-                description: editedDescription,
-                content,
-              })
-            }
-            loading={isSaving}
-            disabled={!changed}
-          >
+          <Button onClick={() => void save()} loading={isSaving} disabled={!changed}>
             {t("save")}
           </Button>
         )}

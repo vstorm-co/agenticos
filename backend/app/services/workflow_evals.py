@@ -11,6 +11,7 @@ Writing cases and trying them needs `workflows:edit`, as testing the draft does:
 a case holds test data, and trying one runs the draft.
 """
 
+import json
 from typing import Any
 from uuid import UUID
 
@@ -36,7 +37,6 @@ from app.schemas.workflow_eval import (
 from app.schemas.workflow_run import WorkflowStepTest
 from app.services import rate_limit
 from app.services.access import WORKFLOW, resolve_access
-from app.services.eval_judging import judge
 from app.services.workflow_execution.facade import WorkflowExecutionService, node_run_read
 from app.workflows.graph.model import WorkflowGraph
 
@@ -53,6 +53,57 @@ MODEL_STEPS = frozenset(
     }
 )
 """The steps whose answer a model writes - the ones evals are for."""
+
+_SHOWN = 500
+"""How much of an answer a result shows: enough to see what it said."""
+
+
+def _at(output: dict[str, Any], field: str | None) -> Any:
+    """The value at a dotted path into a step's output, or `None` past its end."""
+    if field is None:
+        return output
+    value: Any = output
+    for part in field.split("."):
+        if not isinstance(value, dict) or part not in value:
+            return None
+        value = value[part]
+    return value
+
+
+def _as_text(value: Any) -> str:
+    return value if isinstance(value, str) else json.dumps(value, ensure_ascii=False, default=str)
+
+
+def judge(expectation: EvalExpectation, output: dict[str, Any]) -> tuple[bool, str]:
+    """Compare structured JSON independently of key order and whitespace.
+
+    Array order and value types remain significant. Plain-text expectations keep
+    their existing case-insensitive equality/substring semantics, including when
+    searching a JSON-rendered output. The preview remains the original output.
+    """
+    value = _at(output, expectation.field)
+    actual = "" if value is None else _as_text(value)
+    compared, expected = actual, expectation.value
+    if isinstance(value, dict | list):
+        try:
+            expected_json: object = json.loads(expectation.value)
+        except json.JSONDecodeError:
+            pass
+        else:
+            compared = json.dumps(
+                value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str
+            )
+            expected = json.dumps(
+                expected_json, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+            )
+    said, wanted = compared.strip().casefold(), expected.strip().casefold()
+    if expectation.kind == "equals":
+        passed = said == wanted
+    elif expectation.kind == "contains":
+        passed = wanted in said
+    else:
+        passed = wanted not in said
+    return passed, actual[:_SHOWN]
 
 
 class WorkflowEvalService:

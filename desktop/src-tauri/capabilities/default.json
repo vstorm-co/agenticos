@@ -13,6 +13,7 @@
     "allow-connect",
     "allow-page-error",
     "allow-onboarding-state",
+    "allow-set-onboarding-language",
     "allow-onboarding-permissions",
     "allow-request-onboarding-permission",
     "allow-local-status",

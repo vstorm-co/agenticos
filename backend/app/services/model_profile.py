@@ -33,6 +33,7 @@ from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
     BadRequestError,
+    ConcurrentChangeError,
     ConfigurationError,
     ExternalServiceError,
     InUseError,
@@ -54,6 +55,7 @@ from app.db.models.organization_secret import OrganizationSecret
 from app.repositories import (
     agent_repo,
     credential_repo,
+    eval_run_repo,
     organization_repo,
     organization_secret_repo,
     system_agent_repo,
@@ -444,6 +446,11 @@ class ModelProfileService:
             target_id=str(profile.id),
             details={"label": label, "provider": provider, "model": model},
         )
+        # The agent registry reads this module's fallback depth, and system
+        # agents are built on the registry: imported here, not at the top.
+        from app.services.system_agents import SystemAgentService
+
+        await SystemAgentService(self.db).adopt_model(organization_id=ctx.organization_id)
         return profile
 
     async def _listed_model(
@@ -665,6 +672,9 @@ class ModelProfileService:
         Raises:
             NotFoundError: If the profile is not this organization's.
             InUseError: If an agent still names it.
+            ConcurrentChangeError: A queued or running eval run has a side on it.
+                Removing it would null that side's model, and its remaining cases
+                would answer on another model than the ones before them.
         """
         # Exclusive against every write that can name a profile - a draft save,
         # a publish, a promotion - which take it shared: the check below and the
@@ -711,6 +721,17 @@ class ModelProfileService:
                     ],
                     "hidden_agents": hidden,
                 },
+            )
+        live = await eval_run_repo.count_live_with_model(
+            self.db, model_profile_id=profile_id, organization_id=ctx.organization_id
+        )
+        if live:
+            raise ConcurrentChangeError(
+                message=(
+                    f"{live} eval run(s) on this model are still queued or running. "
+                    "Remove it once they finish, or cancel them first."
+                ),
+                details={"profile_id": str(profile_id), "eval_runs": live},
             )
         # The organization's proactive work may run on this model. Its column
         # clears itself on delete, and on without a model is off in practice - so

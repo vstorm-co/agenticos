@@ -366,9 +366,9 @@ async def release(db: AsyncSession, job_id: UUID, *, fence: int) -> JobStatus | 
             finished_at=_finished_unless_queued(),
             last_error=(
                 "the worker stopped while it ran (attempt "
-                + cast(BackgroundJob.attempts, String)
+                + cast(BackgroundJob.attempts, String())
                 + " of "
-                + cast(BackgroundJob.max_attempts, String)
+                + cast(BackgroundJob.max_attempts, String())
                 + ")"
             ),
             lease_until=None,
@@ -528,6 +528,27 @@ async def has_active_for_schedule(db: AsyncSession, schedule_name: str) -> bool:
 
 async def get(db: AsyncSession, job_id: UUID) -> BackgroundJob | None:
     return await db.get(BackgroundJob, job_id)
+
+
+async def get_for_attempt(db: AsyncSession, job_id: UUID, *, fence: int) -> BackgroundJob | None:
+    """Fence a domain settlement against lease takeover until its transaction ends."""
+    return await db.scalar(
+        select(BackgroundJob)
+        .where(
+            BackgroundJob.id == job_id,
+            BackgroundJob.status == "running",
+            BackgroundJob.attempts == fence,
+        )
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+
+
+async def get_many(db: AsyncSession, job_ids: Sequence[UUID]) -> dict[UUID, BackgroundJob]:
+    if not job_ids:
+        return {}
+    result = await db.execute(select(BackgroundJob).where(BackgroundJob.id.in_(list(job_ids))))
+    return {job.id: job for job in result.scalars()}
 
 
 async def latest_with_dedupe_key(db: AsyncSession, dedupe_key: str) -> BackgroundJob | None:

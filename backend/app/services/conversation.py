@@ -10,7 +10,7 @@ member's request reaches.
 import asyncio
 import json
 import logging
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Iterable, Sequence
 from datetime import UTC, datetime
 from typing import Any, Literal
 from uuid import UUID
@@ -30,6 +30,7 @@ from app.agents.ask_user import parked_status
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.capabilities.media import prefix_for, restore_stored_media
 from app.agents.capabilities.media._store import BoundedOrganizationMediaStore, MediaReadLimitError
+from app.agents.failures import stored_failure_summary
 from app.agents.model_context import ModelContextCheck
 from app.agents.steering import STEER_PREFIX
 from app.core.background import spawn_after_commit
@@ -613,6 +614,34 @@ class ConversationService:
             logger.info(
                 "conversation_summary_superseded", extra={"conversation_id": str(conversation_id)}
             )
+
+    async def readable(self, ctx: AuthContext, conversation_ids: Iterable[UUID]) -> set[UUID]:
+        """Which of these conversations the caller may read the text of.
+
+        All of them with `runs:view`, the lens that reads any run in its context.
+        Otherwise those the caller may open - their own, shared with them, or in a
+        project they belong to - each asked once. A conversation that no longer
+        exists has nobody left to authorize it, and is not readable.
+        """
+        wanted = set(conversation_ids)
+        if ctx.has(Perm.RUNS_VIEW):
+            return wanted
+        if ctx.user_id is None:
+            return set()
+        readable: set[UUID] = set()
+        for conversation_id in wanted:
+            try:
+                await self.get_conversation(
+                    conversation_id,
+                    organization_id=ctx.organization_id,
+                    user_id=ctx.subject_id,
+                    ctx=ctx,
+                    include_favourite=False,
+                )
+            except NotFoundError:
+                continue
+            readable.add(conversation_id)
+        return readable
 
     async def get_conversation(
         self,
@@ -1844,6 +1873,9 @@ class ConversationService:
             include_favourite=False,
             ctx=ctx,
         )
+        await personal_data_repo.unlink_dataset_cases_from_conversation(
+            self.db, conversation_id, organization_id=organization_id
+        )
         await self.forget_stored_files(organization_id, [conversation_id])
         await conversation_repo.delete_conversation(self.db, db_conversation=conversation)
         return True
@@ -1986,6 +2018,11 @@ class ConversationService:
                 # complete one, and the reader believes the agent finished.
                 outcome = outcomes.get(msg.run_id) if msg.run_id else None
                 msg_schema.run_status = outcome.status if outcome else None
+                msg_schema.run_error = (
+                    stored_failure_summary(outcome.error)
+                    if outcome and outcome.status == "failed"
+                    else None
+                )
                 msg_schema.run_duration_ms = outcome.duration_ms if outcome else None
                 msg_schema.run_started_at = outcome.started_at if outcome else None
                 enriched.append(msg_schema)

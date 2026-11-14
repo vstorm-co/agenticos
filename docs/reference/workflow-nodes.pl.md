@@ -1,5 +1,5 @@
 ---
-source_sha: "b4d9ec998c26"
+source_sha: "a9b67bff9ee7"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -307,9 +307,9 @@ ponawiany. Oba wyzwalacze poczty przyjmują dane z zewnątrz.
 **Folder** i **Shared mailbox** są miejscem, w którym poller szuka, a zarazem
 filtrem, a pierwszy odczyt folderu zaczyna się od chwili opublikowania lub ostatniego włączenia workflow. Wskazanie skrzynki
 współdzielonej, którą otwiera grant Microsoft organizacji, wymaga uprawnienia do
-zarządzania połączeniami, tak jak w triggerach agentów Outlook; workflow, który już
-nasłuchuje takiej skrzynki, zachowuje ją przy kolejnych publikacjach, a jej zmiana znowu
-wymaga tego uprawnienia.
+zarządzania połączeniami, tak jak w triggerach agentów Outlook; wymaga go każda publikacja, która ją wskazuje, bo osoba publikująca staje się
+członkiem, jako który skrzynka jest czytana, a wiadomość do workflow, którego
+publikujący już go nie ma, nie uruchamia runa.
 **Sender contains** dopasowuje adres nadawcy, jak w Gmailu, i wymaga poczty,
 którą uwierzytelniła domena nadawcy albo która przyszła z wnętrza tenanta. Folder
 lub skrzynka współdzielona, które według Outlooka nie dają się odczytać,
@@ -324,7 +324,8 @@ wiadomości. Jej wyjście jest takie samo jak [trigger.gmail](#trigger-gmail).
 
 **Channel message.** Startuje od wiadomości do jednego z botów organizacji na
 Slacku, Mattermost lub Telegramie, na którą bot odpowiedziałby własnym agentem i
-która pasuje do filtra węzła. Publikacja wymaga `channels:manage`, a wiadomości
+która pasuje do filtra węzła. Publikacja wymaga `channels:manage`, sprawdzanego
+ponownie przy każdej wiadomości, a wiadomości
 jednego bota uruchamiają najwyżej jeden workflow. `triggered_by` to `channel_message`.
 Bot Teams jest odrzucany przy publikacji i w przebiegu testowym; nasłuch Teams opublikowany
 wcześniej oddaje swoje wiadomości agentowi bota.
@@ -433,6 +434,8 @@ pusty daje 0. Paleta rysuje krok z ikoną różnic, wśród kroków danych.
 ::: app.workflows.nodes.text_compare._handler.TextCompareOutput
 
 ## html.parse { #html-parse }
+
+Od wersji 1.72.0 selektory dokumentu i zbieranie linków pomijają nieaktywną zawartość `<template>`. Wybranie samego elementu `template` nadal zwraca jego HTML i tekst. Soup Sieve 4 dostosowuje też selektory stanu formularzy do zachowania przeglądarek; przy aktualizacji sprawdź workflowy zależne od poprzednich reguł dopasowania. Dopasowanie korzysta z pamięci podręcznej; limity czasu i pamięci procesu czytnika pozostają w mocy.
 
 **Parse HTML** zamienia HTML na jego tekst, linki i elementy wybrane selektorem CSS.
 Służy do HTML-a, który spotyka przepływ: treści maila, body z `http.request`,
@@ -1012,7 +1015,7 @@ Zatwierdzający czyta `title` kroku i powiązane z nim `details` w zakładce
 `approvers` wskazuje, kto może zdecydować, i ci ludzie dostają powiadomienie w
 aplikacji; gdy lista jest pusta, może każdy z `approvals:decide`. Po
 `timeout_hours` prośba wygasa, a krok wychodzi przez `rejected` z
-`decision: "expired"`. Anulowanie runa anuluje jego prośby. Każdy przebieg kroku
+`decision: "expired"`. Anulowanie runa anuluje jego prośby, tak samo jak anulowanie workflowu, który ten run wywołał. Każdy przebieg kroku
 pyta raz, więc ponowienie ani iteracja pętli nigdy nie pytają dwa razy o to samo.
 
 Wskazani zatwierdzający muszą być aktywnymi członkami z `approvals:decide`. Publikacja to sprawdza, a krok sprawdza ponownie przed wysłaniem prośby; utrata tego uprawnienia kończy krok kodem `APPROVER_UNAVAILABLE` zamiast zostawiać prośbę, której nikt nie może rozstrzygnąć.
@@ -1202,10 +1205,13 @@ rewizji albo błąd walidacji można skierować, ale nigdy nie jest ponawiany na
 
 `control.foreach` uruchamia swoje ciało raz dla każdego elementu zbindowanej
 listy `items`, po jednym elemencie i po kolei. Potem idzie dalej portem `done` z
-`results` w kolejności wejścia, `errors` i `count`. Ciało zaczyna się od
-`loop.item`, podłączonego z portu `body` pętli, który udostępnia `item`, `index`
-i `count`. Kończy się na `loop.yield`, którego zbindowane `value` jest wynikiem
-iteracji. Żadna krawędź nie prowadzi z powrotem do pętli. Krok w ciele może
+`results` w kolejności wejścia, `errors` i `count`. Ciało to kroki, które wskazują
+pętlę w `scope_id`; żadna krawędź do niego nie prowadzi. Zaczyna się od
+`loop.item`, który udostępnia `item`, `index` i `count`, a do każdego kroku ciała
+musi prowadzić z `loop.item` ścieżka po krawędziach samego ciała. Kończy się na `loop.yield`, którego zbindowane `value` jest wynikiem
+iteracji.
+
+Żadna krawędź nie prowadzi z powrotem do pętli. Krok w ciele może
 bindować do wszystkiego, co działało przed pętlą, a nic spoza ciała nie może
 bindować do jego wnętrza.
 
@@ -1396,6 +1402,7 @@ wybierz runtime bez sieci.
 | Zadanie przekroczyło `timeout_seconds` | `PYTHON_SANDBOX_TIMEOUT`, sesja wyczyszczona |
 | Brak używalnego połączenia `sandboxd` | `SANDBOX_UNAVAILABLE` |
 | Zapisał więcej niż 20 plików albo 100 MB albo wypisał więcej niż 10 MB | `PYTHON_OUTPUT_TOO_LARGE`, zmierzone w sandboksie, zanim cokolwiek zostanie pobrane, a sesja wyczyszczona |
+| Host odpowiedział, ale nie uruchomił sandboxa - nie może pisać do katalogu workspace albo obraz się nie zbudował | `SANDBOX_START_FAILED` z bezpieczną diagnozą; surowa odpowiedź pozostaje w logach hosta, ponawiane |
 | Nie udało się połączyć z hostem | `SANDBOX_UNREACHABLE`, ponawiane |
 
 ::: app.workflows.nodes.code_python_simple._handler.PythonSimpleConfig

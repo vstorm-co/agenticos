@@ -85,9 +85,14 @@ export interface ChatMessage {
   timestamp: Date;
   toolCalls?: ToolCall[];
   isStreaming?: boolean;
+  /** Local reveal for a newly received setup reply; absent from loaded history. */
+  animateSetupReply?: boolean;
   /** Run-level pause, including gated delegate tools absent from this message. */
   runWaitingFor?: "approval" | "answer";
   runStartedAt?: Date;
+  runFailed?: boolean;
+  /** Safe run failure explanation, shown separately from the assistant's words. */
+  runError?: string;
   /** Group ID for related messages in a multi-agent chain. */
   groupId?: string;
   /** IDs of attached files - kept for sending. Use `files` for rendering. */
@@ -209,7 +214,14 @@ export interface ToolCall {
 
 /** The kinds of segment a turn is built from, live and replayed alike. */
 export type MessagePartType =
-  "thinking" | "text" | "tool" | "ask_user" | "steer" | "workflow_run" | "phone_call";
+  | "thinking"
+  | "text"
+  | "tool"
+  | "ask_user"
+  | "steer"
+  | "workflow_run"
+  | "phone_call"
+  | "model_setup";
 
 /** A workflow answering a chat turn: which run it is and where it stands. */
 export interface WorkflowRunPart {
@@ -224,6 +236,7 @@ export interface WorkflowRunPart {
 
 /** One ordered segment of an assistant turn. */
 export interface MessagePart {
+  setupAgentId?: string;
   id: string;
   type: MessagePartType;
   /** Text for "thinking"/"text" parts, and what the person added for a "steer" (#2087). */
@@ -295,6 +308,7 @@ export type WSEventType =
   | "next_steps"
   | "user_prompt"
   | "session_ready"
+  | "model_setup_required"
   | "model_request_start"
   | "text_delta"
   | "thinking_delta"
@@ -534,6 +548,10 @@ export interface ActionRequest {
   context?: Record<string, string> | null;
   /** Which of a service's accounts the call acts as, where its binding names one. */
   account?: string | null;
+  /** What the call quotes from its run was left out, because this person may not see the run. */
+  content_hidden?: boolean;
+  /** Only a person's answer could let the call run; with `content_hidden`, only Reject is offered. */
+  always_asks?: boolean;
 }
 
 export interface ReviewConfig {

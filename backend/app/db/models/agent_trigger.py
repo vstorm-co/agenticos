@@ -427,9 +427,11 @@ class AgentTrigger(Base, TimestampMixin):
             .scalar_subquery()
         )
 
+    # Deleting the creator also deletes their conversations. Check after both
+    # SET NULL paths finish, regardless of PostgreSQL's cascade trigger order.
     delivery_conversation_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("conversations.id", ondelete="SET NULL"),
+        ForeignKey("conversations.id", ondelete="SET NULL", deferrable=True, initially="DEFERRED"),
         nullable=True,
     )
     # What this routine may spend a month (#2575), counted from the runs it started. Once
@@ -564,3 +566,42 @@ class AgentTrigger(Base, TimestampMixin):
             f"<AgentTrigger(id={self.id}, agent_id={self.agent_id}, "
             f"type={self.trigger_type}, active={self.is_active})>"
         )
+
+
+class TriggerAttempt(Base):
+    """An activation that stopped before producing an agent run.
+
+    Only bounded reason codes are kept: no prompt, provider error, credential or
+    source metadata can leak through routine history.
+    """
+
+    __tablename__ = "trigger_attempts"
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    trigger_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("agent_triggers.id", ondelete="CASCADE"), nullable=False
+    )
+    activation_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    stage: Mapped[str] = mapped_column(String(24), nullable=False)
+    reason: Mapped[str] = mapped_column(String(40), nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    __table_args__ = (
+        Index("uq_trigger_attempt_activation", "trigger_id", "activation_id", unique=True),
+        Index("ix_trigger_attempt_history", "organization_id", "trigger_id", "occurred_at", "id"),
+        CheckConstraint("status IN ('blocked', 'failed')", name="ck_trigger_attempt_status"),
+        CheckConstraint(
+            "stage IN ('source_review', 'preparation')", name="ck_trigger_attempt_stage"
+        ),
+        CheckConstraint(
+            "reason IN ('platform_identity_required', 'source_review_required', "
+            "'agent_unavailable', 'preparation_failed')",
+            name="ck_trigger_attempt_reason",
+        ),
+    )

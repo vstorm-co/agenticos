@@ -6,6 +6,7 @@ import { Check, ChevronDown, ChevronRight, LoaderCircle, X, type LucideIcon } fr
 
 import { logoDataUri } from "@/lib/mcp-catalog";
 import { cn } from "@/lib/utils";
+import styles from "./agent-step.module.css";
 import { STEP_ICONS } from "@/lib/step-icons";
 import type { StepKind } from "@/lib/tool-catalog";
 
@@ -26,9 +27,8 @@ interface AgentStepsProps {
 /**
  * The rail a run of steps hangs from, showing the one that matters.
  *
- * One element around the run rather than a border on each row, because the line has to
- * be *continuous*: gaps between individually bordered rows read as a dashed line, which
- * says something this does not mean.
+ * Connect icon centres through the gutter, ending at the final step's icon.
+ * Expanded details stay to the right of that gutter so the rail never crosses content.
  *
  * **Only the last step stays open.** A turn that reads three files, greps twice and
  * writes one pushes the answer off the screen with work nobody asked to watch - and the
@@ -48,7 +48,7 @@ export function AgentSteps({ children, showAll = false, done = false }: AgentSte
   const folded = !showAll && !opened && earlier.length >= 2;
 
   return (
-    <div className="before:bg-border/70 relative space-y-0.5 before:absolute before:inset-y-4 before:left-4 before:w-px before:content-['']">
+    <div className={`${styles.steps} relative space-y-0.5`}>
       {folded ? (
         <button
           type="button"
@@ -219,7 +219,7 @@ export function AgentStep({
       {expanded && children !== undefined && (
         <div
           id={detailsId}
-          className="border-border/60 bg-muted/15 mt-1 mb-2 min-w-0 overflow-hidden rounded-lg border p-3"
+          className="border-border/60 bg-muted/15 mt-1 mb-2 ml-9 min-w-0 overflow-hidden rounded-lg border p-3"
         >
           {children}
         </div>

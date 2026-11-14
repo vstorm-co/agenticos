@@ -1,5 +1,6 @@
 """Each platform MCP tool is exactly one public API call, made as the caller (#2058)."""
 
+import json
 import uuid
 from typing import Any, ClassVar
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -10,6 +11,7 @@ from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 from fastmcp.exceptions import ValidationError as MCPValidationError
 from fastmcp.server.auth import AccessToken
+from pydantic import JsonValue
 
 from app.services.platform_mcp import _unreachable, platform_tool_catalog
 from app.services.platform_mcp._api import PlatformApi
@@ -29,7 +31,7 @@ RUN = uuid.UUID("00000000-0000-4000-8000-0000000000c1")
 @pytest.fixture
 def api() -> MagicMock:
     stub = MagicMock()
-    stub.request = AsyncMock(return_value={"organization_id": ORG})
+    stub.request = AsyncMock(return_value={"organization_id": ORG, "items": [], "total": 0})
     return stub
 
 
@@ -410,7 +412,7 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
     (
         "list_skills",
         {"skip": 50},
-        ("GET", "/skills", {"params": {"limit": 50, "skip": 50}}),
+        ("GET", "/skills", {"params": {"limit": 20, "skip": 50}}),
     ),
     ("list_capabilities", {}, ("GET", "/agents/capabilities", {})),
     (
@@ -607,7 +609,7 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
         (
             "GET",
             "/conversations/00000000-0000-0000-0000-000000000001/transcript",
-            {"params": {"limit": 100, "skip": 0, "for_model": True}},
+            {"params": {"limit": 10, "skip": 0, "for_model": True}},
         ),
     ),
     (
@@ -781,7 +783,6 @@ CALLS.extend(
 
 CALLS.extend(
     [
-        ("get_skill", {"skill_id": str(KB)}, ("GET", f"/skills/{KB}", {})),
         (
             "update_skill",
             {"skill_id": str(KB), "changes": {"content": "Revised"}},
@@ -888,27 +889,30 @@ async def test_routine_update_sets_delivery_and_limits(server: FastMCP, api: Mag
 @pytest.mark.parametrize(
     ("method", "path"), sorted({(call[0], call[1]) for _tool, _args, call in CALLS})
 )
-def test_every_call_reaches_a_public_route(method: str, path: str) -> None:
-    """A tool is a call to the public API, so the route has to exist and admit a key.
+def test_every_call_reaches_a_route_its_key_may_call(method: str, path: str) -> None:
+    """A tool is a call to the API, so the route has to exist and admit the tool's key:
+    a public route, or one marked for the platform's own tools.
 
     The table above checks the call a tool makes, not that anything answers it:
     `list_models` once asked for `/model-profiles`, which is mounted under
     `/providers`, and every agent-building conversation hit a 404 (#2301).
     """
+    assert _reachable(method, path), f"no public or assistant route answers {method} {path}"
+
+
+def _reachable(method: str, path: str) -> bool:
     import re
 
-    from app.api.public_api import public_operations
+    from app.api.public_api import assistant_operations, public_operations
     from app.core.config import settings
     from app.main import app
 
     full = f"{settings.API_V1_STR}{path}"
-    public = [
-        template
-        for verb, template in public_operations(app.routes)
-        if verb == method.lower() and re.fullmatch(re.sub(r"\{[^}]+\}", "[^/]+", template), full)
-    ]
-
-    assert public, f"no public route answers {method} {path}"
+    operations = public_operations(app.routes) | assistant_operations(app.routes)
+    return any(
+        verb == method.lower() and re.fullmatch(re.sub(r"\{[^}]+\}", "[^/]+", template), full)
+        for verb, template in operations
+    )
 
 
 class TestListingMyConnections:
@@ -917,6 +921,7 @@ class TestListingMyConnections:
     LISTING: ClassVar[dict[str, Any]] = {
         "items": [
             {
+                "id": str(KB),
                 "name": "stripe",
                 "catalog_key": "stripe",
                 "authorized": True,
@@ -933,8 +938,18 @@ class TestListingMyConnections:
         result = await server.call_tool("list_my_connections", {})
 
         assert result.structured_content == {
-            "items": [{"name": "stripe", "catalog_key": "stripe", "authorized": True}],
+            "items": [
+                {
+                    "id": str(KB),
+                    "name": "stripe",
+                    "catalog_key": "stripe",
+                    "authorized": True,
+                    "tool_count": 2,
+                    "allowed_tool_count": 1,
+                }
+            ],
             "total": 1,
+            "next_skip": None,
         }
 
     async def test_the_tools_come_when_asked_for(self, server: FastMCP, api: MagicMock) -> None:
@@ -942,7 +957,272 @@ class TestListingMyConnections:
 
         result = await server.call_tool("list_my_connections", {"include_tools": True})
 
-        assert result.structured_content == self.LISTING
+        assert result.structured_content == {**self.LISTING, "next_skip": None}
+
+
+class TestConnectionDiscovery:
+    @staticmethod
+    def connection(tools: list[dict[str, JsonValue]] | None) -> dict[str, JsonValue]:
+        return {
+            "id": str(KB),
+            "name": "crm",
+            "label": "Sales",
+            "last_tools": tools,
+            "allowed_tools": ["lookup"],
+            "used_by": [{"id": str(AGENT)}],
+            "last_checked_at": "2026-11-12T12:00:00Z",
+        }
+
+    @pytest.mark.parametrize(
+        "account,path", [("organization", "/mcp-connections"), ("personal", "/me/mcp-connections")]
+    )
+    async def test_discovery_does_not_repeat_large_schemas(
+        self, server: FastMCP, api: MagicMock, account: str, path: str
+    ) -> None:
+        tools = [
+            {
+                "name": f"lookup_{i}",
+                "description": "Read records",
+                "input_schema": {"description": "x" * 19000},
+            }
+            for i in range(190)
+        ]
+        item = self.connection(tools)
+        api.request.return_value = {"items": [item], "total": 1}
+        name = "list_org_connections" if account == "organization" else "list_my_connections"
+        result = (await server.call_tool(name, {})).structured_content
+        assert len(json.dumps(result)) < 1000
+        assert result["items"][0]["tool_count"] == 190
+        assert "last_tools" not in result["items"][0]
+        assert "used_by" not in result["items"][0]
+        api.request.assert_awaited_once_with("GET", path)
+
+    async def test_names_are_searchable_and_pages_have_continuations(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request.return_value = {
+            "items": [self.connection(None), self.connection([])],
+            "total": 2,
+        }
+        first = (
+            await server.call_tool("list_org_connections", {"q": "SALES", "limit": 1})
+        ).structured_content
+        second = (
+            await server.call_tool("list_org_connections", {"q": "sales", "limit": 1, "skip": 1})
+        ).structured_content
+        assert first["total"] == 2 and first["next_skip"] == 1
+        assert first["items"][0]["tool_count"] is None
+        assert second["next_skip"] is None and second["items"][0]["tool_count"] == 0
+        assert (await server.call_tool("list_my_connections", {"q": "absent"})).structured_content[
+            "total"
+        ] == 0
+
+    async def test_inspects_selected_tools_without_loading_every_contract(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        selected = {
+            "name": "lookup",
+            "description": "x" * 700,
+            "read_only_hint": True,
+            "input_schema": {"type": "object", "properties": {"id": {"type": "string"}}},
+        }
+        api.request.return_value = {
+            "items": [
+                self.connection(
+                    [
+                        selected,
+                        {"name": "write", "description": "Change record", "read_only_hint": None},
+                    ]
+                )
+            ],
+            "total": 1,
+        }
+        page = (
+            await server.call_tool(
+                "list_mcp_connection_tools", {"connection_id": str(KB), "limit": 1}
+            )
+        ).structured_content
+        assert page["next_skip"] == 1 and page["tools_cached"] is True
+        assert page["items"][0]["description_truncated"] is True
+        assert "input_schema" not in page["items"][0]
+        assert page["items"][0]["allowed"] is True
+        detail = (
+            await server.call_tool(
+                "get_mcp_connection_tool", {"connection_id": str(KB), "tool_name": "lookup"}
+            )
+        ).structured_content
+        assert detail["tool"] == selected and detail["allowed"] is True
+        writes = (
+            await server.call_tool(
+                "list_mcp_connection_tools", {"connection_id": str(KB), "q": "CHANGE"}
+            )
+        ).structured_content
+        assert writes["total"] == 1 and writes["items"][0]["read_only_hint"] is None
+        assert writes["items"][0]["allowed"] is False
+
+    @pytest.mark.parametrize("tool", ["list_mcp_connection_tools", "get_mcp_connection_tool"])
+    async def test_an_inaccessible_id_is_not_treated_as_an_empty_catalog(
+        self, server: FastMCP, api: MagicMock, tool: str
+    ) -> None:
+        api.request.return_value = {"items": [], "total": 0}
+        args = {
+            "connection_id": str(KB),
+            **({"tool_name": "read"} if tool.startswith("get") else {}),
+        }
+        with pytest.raises(ToolError, match="not found"):
+            await server.call_tool(tool, args)
+
+    async def test_uncached_is_distinct_from_empty_and_unknown_schema(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request.return_value = {"items": [self.connection(None)], "total": 1}
+        args = {"connection_id": str(KB), "account": "personal"}
+        page = (await server.call_tool("list_mcp_connection_tools", args)).structured_content
+        assert page["tools_cached"] is False and page["total"] == 0
+        api.request.assert_awaited_once_with("GET", "/me/mcp-connections")
+        with pytest.raises(ToolError, match="No cached"):
+            await server.call_tool("get_mcp_connection_tool", {**args, "tool_name": "read"})
+        api.request.return_value = {"items": [self.connection([])], "total": 1}
+        with pytest.raises(ToolError, match="Tool not found"):
+            await server.call_tool("get_mcp_connection_tool", {**args, "tool_name": "read"})
+
+    async def test_legacy_bulk_opt_in_cannot_reintroduce_the_context_explosion(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request.return_value = {
+            "items": [self.connection([{"name": "huge", "description": "x" * 100000}])],
+            "total": 1,
+        }
+        with pytest.raises(ToolError, match="exceed 64 KiB"):
+            await server.call_tool("list_my_connections", {"include_tools": True})
+        with pytest.raises(ToolError, match="exceed 64 KiB"):
+            await server.call_tool(
+                "get_mcp_connection_tool", {"connection_id": str(KB), "tool_name": "huge"}
+            )
+
+    @pytest.mark.parametrize(
+        "tool,args",
+        [
+            ("list_org_connections", {"limit": 0}),
+            ("list_my_connections", {"skip": -1}),
+            ("list_mcp_connection_tools", {"connection_id": str(KB), "limit": 51}),
+            (
+                "get_mcp_connection_tool",
+                {"connection_id": str(KB), "tool_name": "read", "account": "other"},
+            ),
+        ],
+    )
+    async def test_invalid_discovery_inputs_never_reach_the_api(
+        self, server: FastMCP, api: MagicMock, tool: str, args: dict[str, JsonValue]
+    ) -> None:
+        with pytest.raises(MCPValidationError):
+            await server.call_tool(tool, args)
+        api.request.assert_not_awaited()
+
+
+class TestFocusedCatalogs:
+    async def test_capability_discovery_omits_contracts_but_detail_retains_them(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        capability = {
+            "id": "web",
+            "name": "Web research",
+            "description": "Search pages",
+            "config_schema": {"properties": {"depth": {"type": "integer"}}},
+            "contracts": [{"tool_id": "search", "parameters": {"type": "object"}}],
+        }
+        api.request.return_value = {
+            "items": [capability, {**capability, "id": "other"}],
+            "total": 2,
+        }
+        page = (
+            await server.call_tool("list_capabilities", {"q": "WEB", "limit": 1})
+        ).structured_content
+        assert page == {
+            "items": [{"id": "web", "name": "Web research", "description": "Search pages"}],
+            "total": 2,
+            "next_skip": 1,
+        }
+        detail = (
+            await server.call_tool("get_capability", {"capability_id": "web"})
+        ).structured_content
+        assert detail == capability
+        assert (await server.call_tool("list_capabilities", {"q": "absent"})).structured_content[
+            "items"
+        ] == []
+        with pytest.raises(ToolError, match="Capability not found"):
+            await server.call_tool("get_capability", {"capability_id": "absent"})
+
+    async def test_skill_search_is_forwarded_and_body_excerpts_are_not_repeated(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request.return_value = {
+            "items": [
+                {
+                    "id": str(KB),
+                    "name": "audit",
+                    "excerpt": "large body",
+                    "used_by": [{"id": str(AGENT)}],
+                    "drafted_by": [],
+                }
+            ],
+            "total": 2,
+        }
+        result = (
+            await server.call_tool("list_skills", {"q": "audit", "limit": 1})
+        ).structured_content
+        api.request.assert_awaited_once_with(
+            "GET", "/skills", params={"q": "audit", "limit": 1, "skip": 0}
+        )
+        assert result == {
+            "items": [{"id": str(KB), "name": "audit", "used_by_count": 1, "drafted_by_count": 0}],
+            "total": 2,
+            "next_skip": 1,
+        }
+        used = (
+            await server.call_tool("list_skills", {"include_usage": True, "skip": 1})
+        ).structured_content
+        assert used["items"][0]["used_by"] == [{"id": str(AGENT)}]
+        assert used["next_skip"] is None
+        api.request.return_value = {"items": [{"id": str(KB)}], "total": 1}
+        unknown = (await server.call_tool("list_skills", {})).structured_content
+        assert unknown["items"][0]["used_by_count"] is None
+
+    async def test_run_diagnostics_can_target_the_failing_surface_version_and_time(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        await server.call_tool(
+            "list_runs",
+            {
+                "agent_id": str(AGENT),
+                "status": "failed,budget_exceeded",
+                "surface": "mattermost",
+                "agent_version_id": str(KB),
+                "started_from": "2026-11-12T00:00:00Z",
+                "started_to": "2026-11-13T00:00:00Z",
+            },
+        )
+        api.request.assert_awaited_once_with(
+            "GET",
+            "/runs",
+            params={
+                "limit": 20,
+                "skip": 0,
+                "agent_id": str(AGENT),
+                "status": "failed,budget_exceeded",
+                "surface": "mattermost",
+                "agent_version_id": str(KB),
+                "started_from": "2026-11-12T00:00:00+00:00",
+                "started_to": "2026-11-13T00:00:00+00:00",
+            },
+        )
+
+    async def test_run_time_filters_require_a_timezone(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        with pytest.raises(MCPValidationError):
+            await server.call_tool("list_runs", {"started_from": "2026-11-12T00:00:00"})
+        api.request.assert_not_awaited()
 
 
 class TestUndoingADraft:
@@ -1144,6 +1424,29 @@ class TestTheInProcessCall:
 
         with pytest.raises(ToolError, match="Insufficient permissions"):
             await _api(handler).request("POST", "/agents", json={})
+
+    @pytest.mark.parametrize(("status", "code"), [(404, "NOT_FOUND"), (422, "VALIDATION_ERROR")])
+    async def test_a_missing_or_malformed_target_is_never_read_as_nothing_found(
+        self, status: int, code: str
+    ) -> None:
+        """Given an agent id it had made up, the Architect reported "no sessions" as fact."""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                status, json={"error": {"code": code, "message": "Agent not found"}}
+            )
+
+        with pytest.raises(ToolError) as refused:
+            await _api(handler).request("GET", "/agents/x/improvements")
+
+        error = json.loads(str(refused.value))["error"]
+        assert (error["status"], error["code"], error["message"]) == (
+            status,
+            code,
+            "Agent not found",
+        )
+        assert "it is not an empty result, so never report it as none" in error["hint"]
+        assert "matching listing tool" in error["hint"]
 
     async def test_an_unexpected_error_body_still_says_something(self) -> None:
         def handler(request: httpx.Request) -> httpx.Response:
@@ -1733,3 +2036,225 @@ def test_proactivity_tool_explains_both_required_scopes(api: MagicMock) -> None:
     tool = next(tool for tool in platform_tools(api) if tool.name == "update_proactivity_settings")
     assert tool.function.__doc__ is not None
     assert "`org:settings` and `budgets:manage`" in tool.function.__doc__
+
+
+class TestRunInspection:
+    @staticmethod
+    def recording(*, result: JsonValue = "x" * 100000) -> dict[str, JsonValue]:
+        return {
+            "run_id": str(RUN),
+            "conversation_id": str(AGENT),
+            "total": 1,
+            "items": [
+                {
+                    "id": str(KB),
+                    "role": "assistant",
+                    "content": "Report: " + "a" * 10000,
+                    "thinking": "Do not repeat reasoning in the inspection summary",
+                    "tool_calls": [
+                        {
+                            "tool_call_id": "call-1",
+                            "tool_name": "crm_search",
+                            "status": "completed",
+                            "args": {"q": "Łódź"},
+                            "result": result,
+                            "duration_ms": 20,
+                        }
+                    ],
+                }
+            ],
+        }
+
+    async def test_run_summary_does_not_load_every_tool_payload_into_the_model(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request.return_value = self.recording()
+        page = (
+            await server.call_tool("read_run_transcript", {"run_id": str(RUN)})
+        ).structured_content
+        assert len(json.dumps(page)) < 3000
+        assert page["items"][0]["next_offset"] == 2000
+        assert page["items"][0]["message_index"] == 0
+        assert page["next_skip"] is None
+        call = page["items"][0]["tool_calls"][0]
+        assert call == {
+            "tool_call_id": "call-1",
+            "tool_name": "crm_search",
+            "status": "completed",
+            "duration_ms": 20,
+        }
+        assert "thinking" not in page["items"][0]
+        api.request.assert_awaited_once_with(
+            "GET",
+            f"/runs/{RUN}/transcript",
+            params={
+                "limit": 10,
+                "skip": 0,
+                "scope": "run",
+                "for_model": True,
+            },
+        )
+
+    async def test_individual_payload_windows_retain_unicode_and_real_arguments(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request.return_value = self.recording(result="A😀BC")
+        args = {
+            "run_id": str(RUN),
+            "message_index": 0,
+            "message_id": str(KB),
+            "tool_call_id": "call-1",
+        }
+        first = (
+            await server.call_tool("read_run_tool_call", {**args, "chars": 2})
+        ).structured_content
+        second = (
+            await server.call_tool(
+                "read_run_tool_call", {**args, "offset": first["next_offset"], "chars": 2}
+            )
+        ).structured_content
+        assert first["content"] + second["content"] == "A😀BC"
+        assert second["next_offset"] is None and second["total_chars"] == 4
+        recorded_args = (
+            await server.call_tool("read_run_tool_call", {**args, "field": "args"})
+        ).structured_content
+        assert json.loads(recorded_args["content"]) == {"q": "Łódź"}
+        api.request.assert_awaited_with(
+            "GET",
+            f"/runs/{RUN}/transcript",
+            params={
+                "limit": 1,
+                "skip": 0,
+                "scope": "run",
+                "for_model": True,
+            },
+        )
+        api.request.return_value = self.recording(result=None)
+        unavailable = (await server.call_tool("read_run_tool_call", args)).structured_content
+        assert unavailable["available"] is False and unavailable["content"] is None
+
+    @pytest.mark.parametrize(
+        "case", ["empty", "changed", "missing-call", "invalid-result", "invalid-content"]
+    )
+    async def test_missing_or_changed_records_are_explicit_errors(
+        self, server: FastMCP, api: MagicMock, case: str
+    ) -> None:
+        recording = self.recording()
+        items = recording["items"]
+        assert isinstance(items, list) and isinstance(items[0], dict)
+        item = items[0]
+        if case == "empty":
+            recording["items"] = []
+        elif case == "changed":
+            item["id"] = str(AGENT)
+        elif case == "missing-call":
+            item["tool_calls"] = []
+        elif case == "invalid-content":
+            item["content"] = None
+        else:
+            calls = item["tool_calls"]
+            assert isinstance(calls, list) and isinstance(calls[0], dict)
+            calls[0]["result"] = True
+        api.request.return_value = recording
+        with pytest.raises(ToolError):
+            if case == "invalid-content":
+                await server.call_tool("read_run_transcript", {"run_id": str(RUN)})
+            else:
+                await server.call_tool(
+                    "read_run_tool_call",
+                    {
+                        "run_id": str(RUN),
+                        "message_index": 0,
+                        "message_id": str(KB),
+                        "tool_call_id": "call-1",
+                    },
+                )
+
+    async def test_message_and_tool_pages_have_explicit_continuations(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        calls: list[JsonValue] = [
+            {"tool_call_id": str(i), "tool_name": "lookup", "result": "secret"} for i in range(21)
+        ]
+        api.request.return_value = {
+            "total": 3,
+            "items": [{"id": str(KB), "role": "assistant", "content": "Done", "tool_calls": calls}],
+        }
+        args = {"run_id": str(RUN), "limit": 1, "skip": 1}
+        page = (await server.call_tool("read_run_transcript", args)).structured_content
+        assert page["next_skip"] == 2 and page["items"][0]["next_tool_skip"] == 20
+        assert len(page["items"][0]["tool_calls"]) == 20
+        tail = (
+            await server.call_tool("read_run_transcript", {**args, "tool_skip": 20})
+        ).structured_content
+        assert tail["items"][0]["next_tool_skip"] is None
+        assert len(tail["items"][0]["tool_calls"]) == 1
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        "tool,args",
+        [
+            ("list_org_connections", {}),
+            ("get_capability", {"capability_id": "clock"}),
+            ("read_run_transcript", {"run_id": str(RUN)}),
+            (
+                "read_run_tool_call",
+                {
+                    "run_id": str(RUN),
+                    "message_index": 0,
+                    "message_id": str(KB),
+                    "tool_call_id": "call-1",
+                },
+            ),
+        ],
+    )
+    async def test_api_authorization_refusals_are_never_replaced_with_empty_data(
+        self, server: FastMCP, api: MagicMock, tool: str, args: dict[str, JsonValue]
+    ) -> None:
+        api.request.side_effect = ToolError("Caller lacks the required permission")
+        with pytest.raises(ToolError, match="required permission"):
+            await server.call_tool(tool, args)
+
+
+async def test_personal_transcript_reads_use_windows_without_changing_ownership(
+    server: FastMCP, api: MagicMock
+) -> None:
+    api.request.return_value = TestRunInspection.recording(result="abcdef")
+    page = (
+        await server.call_tool("read_conversation", {"conversation_id": str(AGENT)})
+    ).structured_content
+    assert len(json.dumps(page)) < 3000
+    assert "result" not in page["items"][0]["tool_calls"][0]
+    api.request.assert_awaited_with(
+        "GET",
+        f"/conversations/{AGENT}/transcript",
+        params={
+            "limit": 10,
+            "skip": 0,
+            "for_model": True,
+        },
+    )
+    selected = (
+        await server.call_tool(
+            "read_conversation_tool_call",
+            {
+                "conversation_id": str(AGENT),
+                "message_index": 0,
+                "message_id": str(KB),
+                "tool_call_id": "call-1",
+                "offset": 2,
+                "chars": 2,
+            },
+        )
+    ).structured_content
+    assert selected["content"] == "cd" and selected["next_offset"] == 4
+    assert selected["conversation_id"] == str(AGENT)
+    api.request.assert_awaited_with(
+        "GET",
+        f"/conversations/{AGENT}/transcript",
+        params={
+            "limit": 1,
+            "skip": 0,
+            "for_model": True,
+        },
+    )

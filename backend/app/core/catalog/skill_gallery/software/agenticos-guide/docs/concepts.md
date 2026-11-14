@@ -21,7 +21,7 @@ If you read nothing else on this page, read the first two.
 
 Instructions, a model profile, capability bindings, collection and skill
 references, a budget, and who to tell when something happens. It is defined in
-[`app/agents/spec.py`](reference/spec.md) and validated by Pydantic.
+[`app/agents/spec.py`](https://vstorm-co.github.io/agenticos/reference/spec/) and validated by Pydantic.
 
 An agent has exactly one *draft* spec, which the Builder edits and saves
 continuously.
@@ -52,7 +52,7 @@ The spec keeps two rules, and they are what make it useful.
 
 !!! info "A template is a spec somebody already wrote"
 
-    The [agent templates](first-agent.md#3-build-the-agent) that ship with the
+    The [agent templates](https://vstorm-co.github.io/agenticos/first-agent/#3-build-the-agent) that ship with the
     platform are specs with everything a folder in an image can know: the
     instructions, the capabilities, and the skills to install. They name no
     model and no collection, because those are UUIDs nobody outside your
@@ -125,7 +125,7 @@ moves.
 
 !!! tip "Versions do not have to go live all at once"
 
-    An [environment](environments.md) is a name pinned to a version, so
+    An [environment](https://vstorm-co.github.io/agenticos/environments/) is a name pinned to a version, so
     `staging` can serve version 7 while `production` stays on 6. Publishing
     mints the version; putting it somewhere is a separate decision.
 
@@ -177,12 +177,12 @@ do not lend it their **identity**. Nobody is listening to an unattended run, so
 it answers to no identified person, the same as an embedded widget visitor. These
 per-person stores are closed to it:
 
-- [Memory](reference/capabilities.md#memory-files): every tool answers that the
+- [Memory](https://vstorm-co.github.io/agenticos/reference/capabilities/#memory-files): every tool answers that the
   conversation has no memory.
-- [Past conversations](reference/capabilities.md#conversation-search): both
+- [Past conversations](https://vstorm-co.github.io/agenticos/reference/capabilities/#conversation-search): both
   tools refuse.
 - A [personal MCP binding](mcp.md#whose-account-a-binding-speaks-through): the creator's own Notion or mailbox is absent, and the agent is told why.
-- [Artifacts](reference/capabilities.md#artifacts): `publish_artifact` still publishes, and the page is
+- [Artifacts](https://vstorm-co.github.io/agenticos/reference/capabilities/#artifacts): `publish_artifact` still publishes, and the page is
   private to the creator, but `read_artifact` refuses, so a fire republishes a
   whole page rather than editing one.
 
@@ -209,6 +209,10 @@ matters in my inbox* the default cannot do — on these terms:
 - **So does a new version you did not publish yourself.** A publish, a
   promotion or a rollback by anybody else turns it off - and so does one made
   through your API key or by an administrator impersonating you.
+- **Resuming it and its end date are yours.** While it acts as you, nobody else can
+  resume it, change or clear its end date, or raise or remove its failure and
+  spending limits: they are refused until they turn Run as me off. Anyone who may
+  edit it can still pause it or tighten those limits.
 - **The record says so.** The run names the trigger that fired it, and every audit
   entry the fire records carries `via_trigger` with the member it acted as.
 - **It may work on the creator's own computer.** With Run as me on, the creator
@@ -225,8 +229,8 @@ The rule decides how you design an agent that runs on a trigger:
 | State kept from one fire to the next | A [sandbox](sandbox.md) with `session_scope: conversation`: every fire of one trigger appends to the same run-log conversation |
 | A mailbox or another external service | A connection bound with the organization's account, or the creator's own with **Run as me** |
 
-[Competitor monitoring](howto/competitor-monitoring.md) and
-[a personal assistant](howto/personal-assistant.md) both meet this rule and show
+[Competitor monitoring](https://vstorm-co.github.io/agenticos/howto/competitor-monitoring/) and
+[a personal assistant](https://vstorm-co.github.io/agenticos/howto/personal-assistant/) both meet this rule and show
 the workaround.
 
 ### Everything else is an ordinary run
@@ -239,7 +243,7 @@ unattended run from a person's. Each fire is its own run in Activity, and its
 answers accumulate in one run-log conversation the trigger opens once — eagerly,
 the moment the trigger is created, so it is a clickable item before it has ever
 fired. A trigger can also post each answer to a Teams channel or group chat its
-organization's bot is in ([Microsoft Teams](channels.md#microsoft-teams)).
+organization's bot is in ([Microsoft Teams](https://vstorm-co.github.io/agenticos/channels/#microsoft-teams)).
 
 ### Two ways to fire
 
@@ -264,7 +268,7 @@ organization's bot is in ([Microsoft Teams](channels.md#microsoft-teams)).
     a small script, covers whatever else you want to fire on.
 
     It arrives as a signed webhook the platform verifies against a per-trigger
-    secret [sealed in the vault](secrets.md), matched against an optional
+    secret [sealed in the vault](https://vstorm-co.github.io/agenticos/secrets/), matched against an optional
     per-source filter, and then the agent runs with the payload appended to its
     prompt.
 
@@ -303,7 +307,7 @@ gates creating one.
     last run's outcome, cost and rating. The unattended half of an organization is
     visible at the same glance as the attended one.
 
-[Triggers and schedules](triggers.md) is the whole story.
+[Triggers and schedules](https://vstorm-co.github.io/agenticos/triggers/) is the whole story.
 
 ## Run
 
@@ -320,8 +324,8 @@ correctly:
 |---|---|
 | `failed` | broke |
 | `budget_exceeded` | reached a cap — a spending limit doing its job |
-| `guardrail_blocked` | was refused by a [guardrail](reference/capabilities.md#guardrails) |
-| `loop_stopped` | kept repeating the same tool calls after it was warned, and was [stopped](governance.md#step-limits) |
+| `guardrail_blocked` | was refused by a [guardrail](https://vstorm-co.github.io/agenticos/reference/capabilities/#guardrails) |
+| `loop_stopped` | kept repeating the same tool calls after it was warned, and was [stopped](https://vstorm-co.github.io/agenticos/governance/#step-limits) |
 | `cancelled` | was stopped: the composer's stop button, a socket that went away, a delegation cancelled from above. On every surface, not only the streaming one |
 | `awaiting_approval` | parked on an approval, and is **resumable** — its message history is stored, so the decision applies to the conversation it belongs to |
 
@@ -354,7 +358,7 @@ answers with — and a run that ran with no conversation says so with a null
 
 It is a route of its own and not a filter on the conversation endpoint, so the
 conversation endpoint itself stays owner-scoped. See
-[Governance](governance.md#what-run-history-shows).
+[Governance](https://vstorm-co.github.io/agenticos/governance/#what-run-history-shows).
 
 `?scope=conversation` widens the same read to the whole thread the run sits in,
 for a detail view that shows the run in context and scrolls to it. That is a
@@ -384,7 +388,7 @@ Linking a turn is not the same as writing one, and what each surface actually
 writes is a separate question this column cannot answer, since it links rows that
 already exist. The non-streaming surfaces are written by the runner rather than by
 themselves, which is what made them uniform; the exceptions are under
-[Surfaces](channels.md#what-each-surface-records).
+[Surfaces](https://vstorm-co.github.io/agenticos/channels/#what-each-surface-records).
 
 Run history filters on exactly this. `GET /runs` takes a comma-separated list of
 statuses (`?status=failed,budget_exceeded`), because the operator's question is a
@@ -399,7 +403,7 @@ settings — and none of that is derivable afterwards.
 
 What the model was told is the spec's instructions plus the platform's, plus
 whatever a channel binding appended, plus the bound skills, plus whichever
-[system reminder](reference/capabilities.md) fired on that request. What it could
+[system reminder](https://vstorm-co.github.io/agenticos/reference/capabilities/) fired on that request. What it could
 call is the capability registry plus the organization's MCP servers, minus
 whatever [tool search](mcp.md) hid.
 
@@ -423,7 +427,7 @@ existence resolved against your organization first, then `runs:view`.
 !!! danger "Two things it deliberately does not do"
 
     It never records provider passthrough (`extra_headers`, `extra_body`), because
-    that is where a provider credential rides and [the vault](secrets.md) is the
+    that is where a provider credential rides and [the vault](https://vstorm-co.github.io/agenticos/secrets/) is the
     only place a secret is kept.
 
     And a run that never reached a model — stopped by a budget, blocked by a
@@ -462,8 +466,8 @@ Approval resolves most-specific-first:
 The Builder states the *outcome* in words rather than describing the rule, because
 a rule the reader has to run in their head is a setting nobody dares touch.
 
-See the [capability catalog](reference/capabilities.md) for what ships, and
-[Add a capability](howto/add-capability.md) for a new one.
+See the [capability catalog](https://vstorm-co.github.io/agenticos/reference/capabilities/) for what ships, and
+[Add a capability](https://vstorm-co.github.io/agenticos/howto/add-capability/) for a new one.
 
 !!! note "MCP tools are the exception to all of the above"
 
@@ -509,7 +513,7 @@ something an agent here:
 | **Versioned** | yes — pinned, and a pin only moves when somebody moves it | **no** |
 | **Permission-checked at publish** | yes — `agents:run` on that row | yes — the same scope, secret, collection and skill checks the parent's own bindings get |
 | **Its own capabilities** | yes — its published spec's | yes — its own, plus what the parent shares |
-| **Metered and capped** | yes | yes — by the run's caps, which is [what binds inside any delegation](governance.md#delegation-spends-the-parents-budget) |
+| **Metered and capped** | yes | yes — by the run's caps, which is [what binds inside any delegation](https://vstorm-co.github.io/agenticos/governance/#delegation-spends-the-parents-budget) |
 
 **The missing one is the version**, and everything a specialist cannot do follows
 from it: nothing else can reference it, editing the parent changes it, it gets no
@@ -526,13 +530,13 @@ A third kind sits beside them: a **remote agent**, another vendor's agent reache
 over A2A and registered in the organization by its agent card. It is called the
 same way and billed against the same budget, but it is not versioned here — its
 owner changes it on their side — so a reference names the registration rather than
-a version. See [Remote agents over A2A](reference/capabilities.md#remote-agents).
+a version. See [Remote agents over A2A](https://vstorm-co.github.io/agenticos/reference/capabilities/#remote-agents).
 
 #### Dynamic specialists, and the way out
 
 A third kind sits below the inline one: a **dynamic specialist**, invented by the
 model at run time under
-[`allow_dynamic`](reference/capabilities.md#delegation).
+[`allow_dynamic`](https://vstorm-co.github.io/agenticos/reference/capabilities/#delegation).
 
 It is a specialist that is not even written down in a parent's spec, and it is
 persisted nowhere — keeping one would mean publishing an agent, and publishing is a
@@ -581,12 +585,28 @@ finds out.
 The cost of that is paid in the Builder, which compares each pin against what the
 delegate publishes now and offers to move it.
 
-See the [`subagents` capability](reference/capabilities.md#delegation) for the
+See the [`subagents` capability](https://vstorm-co.github.io/agenticos/reference/capabilities/#delegation) for the
 ceilings and the tools, and
-[Permissions](permissions.md#delegation-is-not-a-privilege-boundary) for who may
+[Permissions](https://vstorm-co.github.io/agenticos/permissions/#delegation-is-not-a-privilege-boundary) for who may
 delegate to what.
 
 ---
+
+## Evaluation helpers { #system-agents }
+
+Evaluation uses code-defined helpers for grading, generating cases and proposing improvements. They are configured with the dataset, and do not appear as agents to create or edit in the agent catalog. Architect and AgenticOS assistants remain ordinary product agents.
+
+A dataset's **Grading** tab chooses the grading model, instructions, criteria and pass mark. **Settings** chooses the model and instructions for case generation and agent improvement, using the same model picker and Markdown editor as Agent Builder. Instructions initially come from the code-defined defaults. Changes require `datasets:edit`; adding a model also requires `connections:manage`.
+
+Queued generations, authoring requests and improvement sessions keep their admitted model and instructions. Editing settings affects later work. Historical helper identities and published versions remain in storage for run attribution, budgets and old pins; they do not consume the deployment's user-agent allowance.
+
+### Isolation { #system-agent-spec }
+
+Helpers run through the existing agent runner on the `eval` surface. Caller access, model credentials and budgets are checked before paid calls; costs and failures remain visible in Activity. Isolation blocks writes to production connections and keeps knowledge reads scoped to the requesting person. A helper cannot be exposed through chat, a channel, a schedule or delegation.
+
+### Existing work { #retiring-a-system-agent }
+
+Migration preserves the model and instructions of existing graders and queued work. Historical runs and suite pins retain their original identities. There is no organization-wide AI-assistance switch or grading-model setting; configure the dataset and use the existing permissions and budgets.
 
 ## Model profiles
 
@@ -600,7 +620,7 @@ A profile with no credential behind it is marked `no key` everywhere it appears,
 because that is the one fact deciding whether the agent can run at all. Pickers do
 not offer it and publish refuses it until it has a key again. A profile that agents
 use cannot be deleted; see
-[Changing a profile's key or endpoint](models.md#changing-a-profiles-key-or-endpoint).
+[Changing a profile's key or endpoint](https://vstorm-co.github.io/agenticos/models/#changing-a-profiles-key-or-endpoint).
 
 Prices come from [`genai-prices`](https://github.com/pydantic/genai-prices), which
 Pydantic maintains, rather than from a table in this repository — a hand-kept table
@@ -608,7 +628,7 @@ cannot express tiered pricing and goes stale silently. A model the package does 
 know is recorded at zero with a warning, and the run's total is flagged as a floor
 rather than guessed at.
 
-See [Models and providers](models.md) for the twenty-seven providers, the
+See [Models and providers](https://vstorm-co.github.io/agenticos/models/) for the twenty-seven providers, the
 credential each one wants, and how fallbacks behave.
 
 ## Organizations
@@ -637,15 +657,15 @@ stored it, so a row copied between tenants cannot be decrypted.
 
 <div class="grid cards" markdown>
 
-- :material-account-key:{ .lg .middle } **[Permissions](permissions.md)**
+- :material-account-key:{ .lg .middle } **[Permissions](https://vstorm-co.github.io/agenticos/permissions/)**
 
     Roles, scopes and grants.
 
-- :material-shield-check:{ .lg .middle } **[Governance](governance.md)**
+- :material-shield-check:{ .lg .middle } **[Governance](https://vstorm-co.github.io/agenticos/governance/)**
 
     Budgets, approvals, alerts, audit.
 
-- :material-toolbox:{ .lg .middle } **[Capabilities](reference/capabilities.md)**
+- :material-toolbox:{ .lg .middle } **[Capabilities](https://vstorm-co.github.io/agenticos/reference/capabilities/)**
 
     What an agent can be given.
 
@@ -655,6 +675,6 @@ stored it, so a row copied between tenants cannot be decrypted.
 
 </div>
 
-Also: [Models](models.md) for providers and cost, [Secrets](secrets.md) for why a
-ciphertext cannot move tenants, and [Architecture](architecture.md) for how the
+Also: [Models](https://vstorm-co.github.io/agenticos/models/) for providers and cost, [Secrets](https://vstorm-co.github.io/agenticos/secrets/) for why a
+ciphertext cannot move tenants, and [Architecture](https://vstorm-co.github.io/agenticos/architecture/) for how the
 code is laid out.

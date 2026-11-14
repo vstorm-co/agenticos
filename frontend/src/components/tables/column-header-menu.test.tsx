@@ -64,6 +64,23 @@ describe("ColumnHeaderMenu", () => {
     expect(handlers[handler]).toHaveBeenCalledWith(argument);
   });
 
+  it("offers only sorting and hiding to someone who may not change the columns", async () => {
+    const user = userEvent.setup();
+    render(
+      <ColumnHeaderMenu
+        column={seats}
+        sort={{ by: "created_at", direction: "asc" }}
+        actions={{ onSort: vi.fn(), onHide: vi.fn() }}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Seats column actions" }));
+
+    expect(screen.getByRole("menuitem", { name: /hide/i })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: /rename/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: /archive/i })).not.toBeInTheDocument();
+  });
+
   it("offers no sort for a column the service cannot sort", async () => {
     const user = userEvent.setup();
     render(

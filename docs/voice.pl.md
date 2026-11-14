@@ -1,5 +1,5 @@
 ---
-source_sha: "f415e83adfe5"
+source_sha: "4154d0af5d18"
 title: "Rozmowy głosowe"
 seo_title: "Rozmowy głosowe: rozmawiaj z opublikowanym agentem"
 description: "Zadzwoń do opublikowanego agenta i porozmawiaj z nim: modele realtime, zatwierdzenia w rozmowie, limity czasu i budżety, bezpieczne rozłączanie i transkrypcje."
@@ -16,7 +16,7 @@ nie jest przechowywany nigdzie.
 
 Rozmowy prowadzi się z `/chat` w konsoli, a z widgetu albo hostowanej strony -
 gdy włączony jest własny przełącznik embeda. Każda rozmowa to jeden
-[run](concepts.md) z nazwą modelu realtime, więc Aktywność (Activity), ekran
+[run](concepts.md) z nazwą modelu realtime, więc **Aktywność** (Activity), ekran
 kosztów i ślad audytowy widzą ją jak każdy inny run.
 
 W `/chat` rozmowa to pigułka unosząca się nad polem wiadomości, które się nie
@@ -180,6 +180,10 @@ budżetu. Odpowiada tym, co zrobił, a model rozmowy mówi to na głos.
   wywołane przez model tekstowy albo jego subagenta, pokazuje tę samą kartę
   zatwierdzenia co narzędzie wywołane przez rozmowę. Rozmowa gościa i tu nie ma
   narzędzi wymagających zatwierdzenia.
+- **Wywołanie, które pyta za każdym razem, rozstrzyga się na piśmie.**
+  Narzędzie takie jak `share_memory` czeka na kogoś, kto przeczyta dokładnie, co
+  zmieni, a karta w rozmowie głosowej tego nie pokaże. Rozmowa je odrzuca, a agent
+  proponuje zapytać na czacie tekstowym.
 - **Jedno przekazanie naraz.** Każde kontynuuje to, co w tej rozmowie zrobiło
   poprzednie, więc „teraz wyślij ten plik” działa po „spisz to”.
 - **Porażka jest mówiona, nie ukrywana.** Przekazanie, któremu skończy się budżet

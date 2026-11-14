@@ -17,6 +17,7 @@ from app.repositories import resource_grant_repo, virtual_table_repo
 from app.schemas.table_record_access import RecordGrantUpdate
 from app.schemas.virtual_table import (
     ColumnInput,
+    RecordBatchCreate,
     RecordCountQuery,
     RecordCreate,
     RecordFilter,
@@ -33,7 +34,7 @@ from app.services.virtual_tables import VirtualTableService
 from app.services.virtual_tables.exceptions import InvalidRowPolicyError
 from tests.integration.virtual_table_support import ctx_for, make_org, make_user
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 @dataclass
@@ -86,6 +87,8 @@ async def grant(rows: SharedRows, level: str, **extra):
 
 async def test_read_and_write_are_distinct_and_share_neither_schema_nor_deletion(rows):
     service, table, reader = rows.service, rows.table, rows.reader
+    owners_catalog = await service.list_tables(rows.owner)
+    assert next(item.record_count for item in owners_catalog.items if item.id == table.id) == 2
     assert (await service.list_records(reader, table.id)).items == []
     await grant(rows, "read")
     listed = await service.list_records(reader, table.id, RecordQuery(limit=1))
@@ -213,6 +216,96 @@ async def test_revocation_applies_to_saved_write_receipts(db, rows):
         )
         == {}
     )
+
+
+async def test_an_archived_receipt_still_checks_current_write_grants(db, rows):
+    await grant(rows, "write")
+    data = RecordUpdate(expected_revision=1, values={str(rows.table.columns[0].id): "Once"})
+    written = await rows.service.update_record(
+        rows.reader, rows.table.id, rows.first.id, data, operation_key="archived-write"
+    )
+    await rows.service.archive_table(rows.owner, rows.table.id)
+    replay = await rows.service.update_record(
+        rows.reader, rows.table.id, rows.first.id, data, operation_key="archived-write"
+    )
+    assert replay.replayed and replay.record.values == written.record.values
+    assert replay.record.access == "read" and not replay.record.can_delete
+    await resource_grant_repo.upsert(
+        db,
+        organization_id=rows.reader.organization_id,
+        subject_user_id=rows.reader.user_id,
+        resource_type="table_record",
+        resource_id=rows.first.id,
+        level=GrantLevel.READ,
+    )
+    with pytest.raises(NotFoundError) as refused:
+        await rows.service.update_record(
+            rows.reader, rows.table.id, rows.first.id, data, operation_key="archived-write"
+        )
+    assert refused.value.details == {"table_id": rows.table.id}
+
+
+async def test_a_row_writer_cannot_use_batch_import_without_table_edit(rows):
+    await grant(rows, "write")
+    data = RecordBatchCreate(
+        records=[RecordCreate(external_id="first", values={})], update_existing=True
+    )
+    with pytest.raises(NotFoundError):
+        await rows.service.write_batch(rows.reader, rows.table.id, data, operation_key="batch")
+
+
+@pytest.mark.parametrize("conflict", [False, True])
+async def test_batch_receipts_keep_counts_but_refuse_disclosure_after_row_revocation(
+    db, rows, conflict
+):
+    await grant(rows, "write")
+    await resource_grant_repo.upsert(
+        db,
+        organization_id=rows.reader.organization_id,
+        subject_user_id=rows.reader.user_id,
+        resource_type="table",
+        resource_id=rows.table.id,
+        level=GrantLevel.EDIT,
+    )
+    data = RecordBatchCreate(
+        records=[
+            RecordCreate(external_id="first", values={str(rows.table.columns[0].id): "Imported"})
+        ],
+        update_existing=True,
+        as_of=rows.first.created_at - timedelta(seconds=1) if conflict else None,
+    )
+    result, replayed = await rows.service.write_batch(
+        rows.reader, rows.table.id, data, operation_key="batch-row-write"
+    )
+    assert not replayed
+    assert result.updated == (0 if conflict else 1)
+    if conflict:
+        assert result.failed[0].details["record_id"] == rows.first.id
+    replay, replayed = await rows.service.write_batch(
+        rows.reader, rows.table.id, data, operation_key="batch-row-write"
+    )
+    assert replayed and replay.model_dump(mode="json") == result.model_dump(mode="json")
+    await grant(rows, "read")
+    with pytest.raises(NotFoundError) as refused:
+        await rows.service.write_batch(
+            rows.reader, rows.table.id, data, operation_key="batch-row-write"
+        )
+    assert refused.value.details == {"table_id": rows.table.id}
+    fresh, replayed = await rows.service.write_batch(
+        rows.reader, rows.table.id, data, operation_key="batch-after-revocation"
+    )
+    assert not replayed and fresh.updated == 0
+    assert fresh.failed[0].details == {"table_id": rows.table.id}
+
+
+async def test_an_external_id_does_not_reveal_a_hidden_record_id_or_revision(rows):
+    for data in (
+        RecordUpsert(values={}, expected_revision=None),
+        RecordUpsert(values={}, expected_revision=999),
+    ):
+        with pytest.raises(NotFoundError) as refused:
+            await rows.service.upsert_record(rows.reader, rows.table.id, "second", data)
+        assert refused.value.details == {"table_id": rows.table.id}
 
 
 async def test_grant_subjects_must_belong_to_this_organization(db, rows):

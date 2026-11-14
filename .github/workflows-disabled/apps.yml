@@ -28,7 +28,25 @@ jobs:
         with: {persist-credentials: false}
       - name: Linux native libraries
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev libxcb-randr0-dev libxcb-shape0-dev libxcb-xfixes0-dev libpipewire-0.3-dev libgbm-dev clang xvfb bubblewrap
+        timeout-minutes: 8
+        run: |
+          set -euo pipefail
+          # Choose a reachable mirror; apt still verifies Ubuntu's signed indexes.
+          UBUNTU_SERIES="$(. /etc/os-release && printf '%s' "$VERSION_CODENAME")"
+          UBUNTU_ARCHIVE=""
+          for CANDIDATE in https://mirrors.edge.kernel.org/ubuntu https://archive.ubuntu.com/ubuntu; do
+            if curl --ipv4 --fail --silent --show-error --connect-timeout 15 --max-time 25 "$CANDIDATE/dists/$UBUNTU_SERIES/InRelease" > /dev/null; then
+              UBUNTU_ARCHIVE="$CANDIDATE"
+              break
+            fi
+          done
+          test -n "$UBUNTU_ARCHIVE"
+          echo "Using Ubuntu archive: $UBUNTU_ARCHIVE"
+          sudo sed -Ei "s|https?://azure.archive.ubuntu.com/ubuntu|$UBUNTU_ARCHIVE|g" /etc/apt/sources.list.d/ubuntu.sources
+          printf '%s\n' "$UBUNTU_ARCHIVE" | sudo tee /etc/apt/apt-mirrors.txt > /dev/null
+          APT_NETWORK=(-o Acquire::ForceIPv4=true -o Acquire::Retries=2 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15)
+          sudo apt-get "${APT_NETWORK[@]}" update --error-on=any
+          sudo apt-get "${APT_NETWORK[@]}" install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev libxcb-randr0-dev libxcb-shape0-dev libxcb-xfixes0-dev libpipewire-0.3-dev libgbm-dev clang xvfb bubblewrap
       # Ubuntu's hosted runner restricts unprivileged user namespaces. Exercise
       # the actual bubblewrap boundary instead of skipping its confinement test.
       - name: Allow sandbox namespaces on the ephemeral Linux runner

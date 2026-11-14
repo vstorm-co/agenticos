@@ -377,6 +377,7 @@ async def test_the_toolset_can_forward_an_existing_tool():
 
 async def test_code_mode_keeps_the_native_skill_loader_directly_available():
     from app.agents.code_mode import code_mode
+    from app.agents.deps import AgentDeps
 
     def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         names = {tool.name for tool in info.function_tools}
@@ -395,4 +396,4 @@ async def test_code_mode_keeps_the_native_skill_loader_directly_available():
             code_mode(approval_required=frozenset(), asking=frozenset(), max_tool_calls=10),
         ],
     )
-    assert (await agent.run("Refund")).output == "done"
+    assert (await agent.run("Refund", deps=AgentDeps())).output == "done"

@@ -136,7 +136,9 @@ class FollowUpService:
         ):
             # The channel router starts its copy only after posting the answer.
             return []
-        if parent.surface == RunSurface.EMBED:
+        # An eval run - an eval case, Improve measuring a candidate, or a system
+        # agent at work - answers no person, so nobody is offered a next step.
+        if parent.surface in {RunSurface.EMBED, RunSurface.EVAL}:
             return []
         conversation = await conversation_repo.get_conversation_by_id(
             self.db, message.conversation_id
@@ -230,6 +232,7 @@ class FollowUpService:
         status = RunStatus.FAILED
         error: str | None = None
         budget_scope: BudgetScope | None = None
+        budget: BudgetExceeded | None = None
         try:
             config = _guardrails(prepared.spec)
             incoming = input_screen(config)
@@ -264,6 +267,7 @@ class FollowUpService:
         except BudgetExceeded as exc:
             status = RunStatus.BUDGET_EXCEEDED
             budget_scope = exc.scope
+            budget = exc
             error = str(exc)
             logger.info("next_steps_skipped_at_budget_cap", extra={"run_id": str(prepared.run.id)})
             return []
@@ -278,7 +282,7 @@ class FollowUpService:
             # Drain settlement even through repeated shutdown cancellation, as
             # the proactive runner does: failures still consumed a paid request.
             settlement = asyncio.create_task(
-                self._finish(runner, prepared, status, error, budget_scope)
+                self._finish(runner, prepared, status, error, budget_scope, budget)
             )
             cancelled = False
             while not settlement.done():
@@ -297,6 +301,9 @@ class FollowUpService:
         status: RunStatus,
         error: str | None,
         budget_scope: BudgetScope | None,
+        budget: BudgetExceeded | None = None,
     ) -> None:
-        await runner.finish(prepared, status=status, error=error, budget_scope=budget_scope)
+        await runner.finish(
+            prepared, status=status, error=error, budget_scope=budget_scope, budget=budget
+        )
         await self.db.commit()

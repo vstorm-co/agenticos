@@ -20,6 +20,7 @@ from pydantic import (
     model_validator,
 )
 
+from app.core.resource_icons import ResourceIconName
 from app.db.models.resource_grant import Visibility
 from app.schemas.base import BaseSchema
 from app.schemas.reply_expectation import ReplyDraftSelection, ReplyMailboxSelection
@@ -122,6 +123,7 @@ class WorkflowRead(BaseSchema):
 
     id: UUID
     slug: str
+    icon: ResourceIconName | None = None
     name: str
     description: str | None = None
     status: str
@@ -193,6 +195,7 @@ WorkflowTag = Annotated[
 class WorkflowCreate(AudienceChoice):
     """Create a named draft and audience, optionally preparing a selected template."""
 
+    icon: ResourceIconName | None = None
     name: str = Field(min_length=1, max_length=128)
     tags: list[WorkflowTag] = Field(default_factory=list, max_length=MAX_TAGS)
     template_id: Literal["publicApi", "markdownNotes", "awaitReply"] | None = None
@@ -225,6 +228,7 @@ class WorkflowUpdate(BaseSchema):
 
     model_config = ConfigDict(extra="forbid")
 
+    icon: ResourceIconName | None = None
     name: str | None = Field(default=None, min_length=1, max_length=128)
     description: str | None = Field(default=None, max_length=2000)
     tags: list[WorkflowTag] | None = Field(default=None, max_length=MAX_TAGS)

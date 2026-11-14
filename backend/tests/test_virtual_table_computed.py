@@ -186,6 +186,7 @@ def _linked_table(policy):
 
 
 async def test_an_invisible_linked_row_yields_no_label_and_no_rollup(monkeypatch):
+    monkeypatch.setattr(_computed.resource_grant_repo, "record_levels", AsyncMock(return_value={}))
     monkeypatch.setattr(
         _computed, "linked_table_access", AsyncMock(return_value=_linked_table(_POLICY))
     )

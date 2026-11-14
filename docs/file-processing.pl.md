@@ -1,5 +1,5 @@
 ---
-source_sha: "1aaedaaa4081"
+source_sha: "1555844ea407"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -377,6 +377,13 @@ media/
 `FILE_STORAGE_S3_PREFIX`, i prosi magazyn o zaszyfrowanie każdego z nich —
 domyślnie SSE-S3, a SSE-KMS kluczem, który nazywa wdrożenie. Ustawienia znajdziesz
 w [konfiguracji](configuration.md#uploaded-files-at-rest).
+
+Ingest bazy wiedzy przy lokalnym storage nadal wymaga współdzielenia
+`MEDIA_DIR/_rag_tmp` przez API i worker. Przy S3 każde wykonanie workera pobiera
+własny zapisany obiekt i usuwa kopię tymczasową po zakończeniu, błędzie parsera
+lub anulowaniu. Pody nie współdzielą dysku tymczasowego API; zobacz
+[wdrożenie Kubernetes](kubernetes.md). Zabite dziecko może pozostawić kopię do
+momentu wymiany poda.
 
 !!! info "Który backend uruchomić i czego każdy od Ciebie wymaga"
 

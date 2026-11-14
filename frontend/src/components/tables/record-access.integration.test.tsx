@@ -59,6 +59,7 @@ const table: TableRead = {
   created_at: "2026-01-01T00:00:00Z",
   updated_at: null,
   can_edit: true,
+  can_manage: true,
   can_restore: false,
   can_manage_row_access: true,
   row_policy_valid: true,
