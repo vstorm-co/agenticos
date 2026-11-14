@@ -26,6 +26,8 @@ import json
 import os
 import re
 import sys
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TypedDict, get_args
@@ -35,10 +37,11 @@ from pydantic import ValidationError
 from pydantic_ai import Agent
 from pydantic_ai.usage import RunUsage
 from scoring import Answer, Retrieve, Retrieved, as_json, evaluate, render_markdown
+from sqlalchemy import BigInteger, cast, func, select
 
 from app.core.exceptions import BadRequestError
 from app.db.base import Base
-from app.db.session import close_db, get_db_context
+from app.db.session import close_db, get_db_context, get_worker_connection
 from app.db.vector_tables import VectorScope, validate_collection_name
 from app.repositories import knowledge_base_repo
 from app.services.ingestion_config import ChunkingStrategy, IngestionConfig, rag_settings_for
@@ -103,6 +106,31 @@ async def refuse_held_names(collections: list[str]) -> None:
             f"A knowledge base already uses {', '.join(held)}. Pass another --collection-prefix, "
             "and run this against a development database rather than a deployment's."
         )
+
+
+@asynccontextmanager
+async def collection_locks(collections: list[str]) -> AsyncGenerator[None]:
+    """Reserve every collection through indexing and measurement, or refuse a busy run.
+
+    Session locks survive ingestion's independent commits. The dedicated NullPool
+    connection releases them on exit, including cancellation or a partial acquisition.
+    The namespace uses Postgres's separate bigint advisory-lock key space.
+    """
+    async with get_worker_connection() as connection:
+        for name in sorted(set(collections)):
+            digest = hashlib.sha256(f"agenticos:retrieval-eval:{name}".encode()).digest()
+            key = int.from_bytes(digest[:8], byteorder="big", signed=True)
+            result = await connection.execute(
+                select(func.pg_try_advisory_lock(cast(key, BigInteger)))
+            )
+            acquired = bool(result.scalar_one())
+            await connection.commit()
+            if not acquired:
+                raise SystemExit(
+                    f"Another retrieval evaluation is using {name}. Wait for it to finish "
+                    "or choose another --collection-prefix."
+                )
+        yield
 
 
 async def ingest(
@@ -215,7 +243,10 @@ def rag_settings(arguments: argparse.Namespace) -> RAGSettings:
             for e in error.errors(include_url=False)
         ]
         raise SystemExit("; ".join(problems)) from None
-    if arguments.embedding_model not in EMBEDDING_DIMENSIONS and arguments.embedding_dim is None:
+    catalogued = arguments.embedding_model in EMBEDDING_DIMENSIONS
+    if catalogued and arguments.embedding_dim is not None:
+        raise SystemExit("--embedding-dim is only accepted for models outside the catalog")
+    if not catalogued and arguments.embedding_dim is None:
         raise SystemExit(
             f"--embedding-dim is required for uncatalogued embedding model "
             f"{arguments.embedding_model!r}"
@@ -348,6 +379,12 @@ async def measure(arguments: argparse.Namespace) -> tuple[str, dict[str, object]
     collections = collection_names(
         arguments.collection_prefix, settings, arguments.embedding_base_url, locales
     )
+    modes = [MODES[name] for name in arguments.mode or ["off"]]
+    usage = RunUsage()
+    generate = (
+        _generate(arguments.llm_model, usage) if any(mode != "off" for mode in modes) else None
+    )
+    answer = answerer(arguments.llm_model, usage) if arguments.answers else None
     files = {locale: corpus_files(docs_root, locale) for locale in locales}
     corpus = {
         locale: corpus_fingerprint(paths, docs_root=docs_root) for locale, paths in files.items()
@@ -362,66 +399,66 @@ async def measure(arguments: argparse.Namespace) -> tuple[str, dict[str, object]
     store = process_vector_store(settings, embedder)
     retrieval = RetrievalService(vector_store=store, settings=settings)
     ingestion = IngestionService(processor=DocumentProcessor(settings), vector_store=store)
-    await refuse_held_names(list(collections.values()))
-    for locale, collection in collections.items():
-        await ingest(
-            store,
-            ingestion,
-            collection,
-            files[locale],
-            docs_root=docs_root,
-            reingest=arguments.reingest,
-        )
-
-    usage = RunUsage()
-    generate = _generate(arguments.llm_model, usage)
-    answer = answerer(arguments.llm_model, usage) if arguments.answers else None
-    sections = [
-        f"## Retrieval over docs/ ({', '.join(locales)}), question set v{dataset.version}, "
-        f"{len(dataset.items)} questions, embeddings {arguments.embedding_model}",
-        "",
-    ]
-    sections.extend(
-        f"Corpus `{locale}`: {snapshot['pages']} pages; SHA-256 `{snapshot['sha256']}` "
-        f"({CORPUS_FINGERPRINT_ALGORITHM})."
-        for locale, snapshot in corpus.items()
-    )
-    sections.append("")
-    reports: list[dict[str, object]] = []
-    plans: QueryPlans = {}
-    for top_k in arguments.top_k or [5]:
-        for mode in (MODES[name] for name in arguments.mode or ["off"]):
-            label = f"top_k={top_k}, query_analysis_mode={mode}"
-            print(f"measuring {label}", file=sys.stderr)
-            search = retriever(
-                retrieval,
-                collections=collections,
-                top_k=top_k,
-                mode=mode,
-                max_variants=arguments.max_variants,
-                generate=generate,
-                plans=plans,
+    async with collection_locks(list(collections.values())):
+        await refuse_held_names(list(collections.values()))
+        for locale, collection in collections.items():
+            await ingest(
+                store,
+                ingestion,
+                collection,
+                files[locale],
+                docs_root=docs_root,
+                reingest=arguments.reingest,
             )
-            results = await evaluate(dataset, search, answer)
-            sections.append(render_markdown(label, results))
-            planned = None if mode == "off" else {i.id: plans[(i.id, mode)] for i in dataset.items}
-            reports.append(as_json(label, top_k, mode, results, queries=planned))
-    if arguments.llm_model is not None:
-        sections.append(
-            f"Model calls ({arguments.llm_model}): {usage.requests} requests, "
-            f"{usage.input_tokens} input and {usage.output_tokens} output tokens.\n"
+
+        sections = [
+            f"## Retrieval over docs/ ({', '.join(locales)}), question set v{dataset.version}, "
+            f"{len(dataset.items)} questions, embeddings {arguments.embedding_model}",
+            "",
+        ]
+        sections.extend(
+            f"Corpus `{locale}`: {snapshot['pages']} pages; SHA-256 `{snapshot['sha256']}` "
+            f"({CORPUS_FINGERPRINT_ALGORITHM})."
+            for locale, snapshot in corpus.items()
         )
-    exported = provenance(
-        arguments,
-        dataset=dataset,
-        settings=settings,
-        locales=locales,
-        collections=collections,
-        corpus=corpus,
-        started_at=started_at,
-        reports=reports,
-    )
-    return "\n".join(sections), exported
+        sections.append("")
+        reports: list[dict[str, object]] = []
+        plans: QueryPlans = {}
+        for top_k in arguments.top_k or [5]:
+            for mode in modes:
+                label = f"top_k={top_k}, query_analysis_mode={mode}"
+                print(f"measuring {label}", file=sys.stderr)
+                search = retriever(
+                    retrieval,
+                    collections=collections,
+                    top_k=top_k,
+                    mode=mode,
+                    max_variants=arguments.max_variants,
+                    generate=generate,
+                    plans=plans,
+                )
+                results = await evaluate(dataset, search, answer)
+                sections.append(render_markdown(label, results))
+                planned = (
+                    None if mode == "off" else {i.id: plans[(i.id, mode)] for i in dataset.items}
+                )
+                reports.append(as_json(label, top_k, mode, results, queries=planned))
+        if arguments.llm_model is not None:
+            sections.append(
+                f"Model calls ({arguments.llm_model}): {usage.requests} requests, "
+                f"{usage.input_tokens} input and {usage.output_tokens} output tokens.\n"
+            )
+        exported = provenance(
+            arguments,
+            dataset=dataset,
+            settings=settings,
+            locales=locales,
+            collections=collections,
+            corpus=corpus,
+            started_at=started_at,
+            reports=reports,
+        )
+        return "\n".join(sections), exported
 
 
 def provenance(

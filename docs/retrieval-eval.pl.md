@@ -1,7 +1,7 @@
 ---
 title: Ewaluacja wyszukiwania
 description: Zestaw pytań o znanych odpowiedziach do dokumentacji AgenticOS i harness mierzący na nim wyszukiwanie wiedzy według kategorii, top_k i rozszerzania zapytań.
-source_sha: "3ae4747b9b05"
+source_sha: "cc72beabc60f"
 ---
 
 # Ewaluacja wyszukiwania { #retrieval-evaluation }
@@ -143,7 +143,7 @@ Opcje:
 | `--max-variants` | `3` | Przeredagowania, które może dodać `multi_query`, 1–5 |
 | `--locale` | `en`, `pl` | Powtarzalna. Indeksowane języki; musi obejmować język każdego pytania `cross_language` |
 | `--embedding-model` | `text-embedding-3-small` | Dowolny model z katalogu embeddingów albo inny z `--embedding-dim` |
-| `--embedding-dim` | z katalogu modeli | Wymagany dodatni wymiar dla modelu spoza katalogu |
+| `--embedding-dim` | z katalogu modeli | Wymagany dodatni wymiar dla modelu spoza katalogu; odrzucany dla modeli z katalogu |
 | `--embedding-base-url` | `https://api.openai.com/v1` | Dowolny endpoint `/v1/embeddings` zgodny z OpenAI |
 | `--embedding-api-key-env` | `OPENAI_API_KEY` | Zmienna, z której czytany jest klucz |
 | `--keyless` | wył. | Endpoint nie przyjmuje klucza |
@@ -151,6 +151,10 @@ Opcje:
 | `--answers` | wył. | Dodatkowo odpowiada na każde pytanie na podstawie pobranych treści i sprawdza fakty |
 | `--reingest` | wył. | Usuwa kolekcje i indeksuje korpus od nowa. Przebieg robi to sam, gdy zmieniła się jakaś strona lub ustawienie chunków; podaj ją po zmianie w kodzie parsera |
 | `--json` | brak | Dodatkowo zapisuje wyniki dla poszczególnych pytań do tego pliku |
+
+Agenci potrzebni do rozwijania zapytań i odpowiedzi są przygotowywani przed indeksowaniem, więc błędna konfiguracja LLM zatrzymuje przebieg przed embeddingami. Przy samym `--mode off`, bez `--answers`, podany `--llm-model` pozostaje nieużywany i agent LLM nie jest tworzony.
+
+Równoległe benchmarki rezerwują nazwy kolekcji przez sesyjne blokady doradcze PostgreSQL, od sprawdzenia właściciela przez indeksowanie aż do pomiaru. Jeśli dowolna nazwa jest zajęta, nowy przebieg zatrzymuje się przed wywołaniami embeddingów i wyszukiwania. Poczekaj na drugi przebieg albo wybierz inny `--collection-prefix`. Sukces, błąd i przerwanie zwalniają wszystkie rezerwacje.
 
 Opcje chunków są sprawdzane tak jak ustawienia ingestii bazy wiedzy, a każde inne
 ustawienie ingestii ma domyślną wartość tego formularza. Korpus to Markdown,
@@ -253,12 +257,12 @@ pozostają bez zmian. Pierwotne wyniki kontroli odpowiedzi są obok poprawionych
 | 5 | `hyde` | 97.1% | 85.3% | 0.772 | 25/34 | 29/34 |
 | 10 | `off` | 97.1% | 89.7% | 0.682 | 28/34 | 29/34 |
 | 10 | `multi_query` | 94.1% | 85.3% | 0.709 | 24/34 | 29/34 |
-| 10 | `hyde` | 100.0% | 94.1% | 0.775 | 27/34 | 30/34 |
+| 10 | `hyde` | 100.0% | 94.1% | 0.775 | 27/34 | 31/34 |
 
 Oba pytania o SAML we wszystkich sześciu konfiguracjach znajdują i cytują stronę
 o logowaniu katalogowym oraz odpowiadają, że bezpośredni SAML nie jest obsługiwany,
 a pośrednikiem jest Keycloak. `10/hyde` dociera do oczekiwanej strony dla wszystkich
-34 pytań, w tym dziesięciu międzyjęzykowych, i zalicza 30/34 kontrole faktów.
+34 pytań, w tym dziesięciu międzyjęzykowych, i zalicza 31/34 kontrole faktów.
 `10/off` dociera do oczekiwanej strony dla 33/34 pytań i zalicza 29/34 kontroli
 bez rozwijania zapytań.
 
@@ -272,12 +276,14 @@ Niezmieniony [pierwotny przebieg](https://github.com/vstorm-co/agenticos/blob/ma
 stronę, zapytanie, hash korpusu i ustawienia środowiska. Wykonał 272 żądania modelu,
 zużywając 872 567 tokenów wejściowych i 41 553 wyjściowych, poza embeddingami.
 [Pierwsza ponowna ocena](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna-rescored.json) zachowuje poprawki sformułowań;
-[najnowsza ocena](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna-rescored-v2.json) zapisuje poprawione listy stron i kod
+[druga ocena](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna-rescored-v2.json) zapisuje poprawione listy stron i kod
 oceny, hashe źródła, zestawu i kodu, wyniki kategorii oraz nowe werdykty wyszukiwania
 i odpowiedzi każdego pytania. Obie ponowne oceny wykonały zero żądań do providerów.
 
+[Korekta Redisa](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna-rescored-v3.json) akceptuje też „managed Redis instance” jako alternatywę bez klastra. Podnosi wynik `10/hyde` z 30/34 do 31/34 kontroli faktów; pozostałe werdykty i metryki wyszukiwania są bez zmian. Zapisuje hashe źródła i poprzedniej oceny, zmienioną grupę faktów i werdykt oraz podsumowania każdej kategorii. Nie wykonuje wywołań providera i zachowuje trzy wcześniejsze pliki.
+
 To pomiary jednego przebiegu. Trafienie wskazuje oczekiwaną stronę; zwrócony chunk
-może nadal pomijać zdanie z odpowiedzią. Cztery odpowiedzi `10/hyde` nadal nie
+może nadal pomijać zdanie z odpowiedzią. Trzy odpowiedzi `10/hyde` nadal nie
 zaliczają kontroli faktów, a dopasowanie słów nie gwarantuje poprawności znaczenia.
 Przeczytaj odpowiedzi i powtórz pomiar na swoim korpusie przed szerszym przyjęciem
 ustawień.

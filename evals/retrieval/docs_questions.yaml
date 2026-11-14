@@ -300,7 +300,7 @@ items:
     expected_pages: [scaling.md]
     expected_facts:
       - ["no", "not", "nie", "isn't"]
-      - ["one instance", "single instance", primary, "one endpoint", "one Redis", "single Redis", pojedyncz*]
+      - ["one instance", "single instance", primary, "one endpoint", "one Redis", "single Redis", "managed Redis", "managed Redis instance", pojedyncz*]
     evidence: "scaling.md: The client is not cluster-aware, so Redis Cluster is not supported."
 
   - id: desktop-app-framework-pl-corpus

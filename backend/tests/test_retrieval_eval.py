@@ -13,12 +13,14 @@ import importlib.util
 import json
 import subprocess
 import sys
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
 import pytest
+from pydantic_ai.exceptions import UserError
 
 from app.services.rag.config import EmbeddingsConfig, RAGSettings
 from app.services.rag.models import IngestionStatus, SearchResult
@@ -258,6 +260,20 @@ class TestTheCommittedSetCannotBeGamed:
     @pytest.fixture(scope="class")
     def committed(self):
         return dataset.load_dataset(HARNESS / "docs_questions.yaml", docs_root=REPO_ROOT / "docs")
+
+    def test_the_saved_redis_answer_accepts_a_managed_instance(self, committed) -> None:
+        item = next(item for item in committed.items if item.id == "redis-cluster-pl-corpus")
+        source = json.loads((HARNESS / "results/2026-11-10-openrouter-gpt6-luna.json").read_text())
+        configuration = next(
+            c
+            for c in source["configurations"]
+            if c["top_k"] == 10 and c["query_analysis_mode"] == "hyde"
+        )
+        measured = next(i for i in configuration["items"] if i["id"] == item.id)
+
+        result = scoring.ItemResult(item=item, retrieved=(), answer=measured["answer"])
+
+        assert result.answer_correct is True
 
     @pytest.mark.parametrize(
         ("item_id", "answer"),
@@ -918,6 +934,8 @@ class TestRefusals:
         ("arguments", "message"),
         [
             (["--embedding-model", "my-model"], "--embedding-dim is required"),
+            (["--embedding-dim", "3072"], "--embedding-dim is only accepted"),
+            (["--embedding-dim", "1536"], "--embedding-dim is only accepted"),
             (["--collection-prefix", "my-eval"], "--collection-prefix:"),
         ],
     )
@@ -985,6 +1003,90 @@ class TestRefusals:
         assert finished.returncode == 1
         assert "Traceback" not in finished.stderr
         assert "item a: an expected page is listed twice" in finished.stderr
+
+
+class TestModelPreparation:
+    @pytest.fixture
+    def isolated_measure(self, monkeypatch: pytest.MonkeyPatch) -> list[str]:
+        events: list[str] = []
+        active = False
+
+        @asynccontextmanager
+        async def locks(_collections: list[str]) -> AsyncGenerator[None]:
+            nonlocal active
+            active = True
+            events.append("locked")
+            try:
+                yield
+            finally:
+                active = False
+                events.append("unlocked")
+
+        async def ownership(_collections: list[str]) -> None:
+            assert active
+
+        async def ingest(*_args: object, **_kwargs: object) -> None:
+            assert active
+            events.append("index")
+
+        async def evaluate(*_args: object) -> list[object]:
+            assert active
+            events.append("measure")
+            raise RuntimeError("measurement reached")
+
+        monkeypatch.setattr(run, "collection_locks", locks)
+        monkeypatch.setattr(run, "refuse_held_names", ownership)
+        monkeypatch.setattr(run, "ingest", ingest)
+        monkeypatch.setattr(run, "evaluate", evaluate)
+        monkeypatch.setattr(run, "EmbeddingService", lambda *_args, **_kwargs: object())
+        monkeypatch.setattr(run, "process_vector_store", lambda *_args: _Store())
+        monkeypatch.setattr(run, "RetrievalService", lambda **_kwargs: object())
+        monkeypatch.setattr(run, "IngestionService", lambda **_kwargs: object())
+        monkeypatch.setattr(run, "DocumentProcessor", lambda *_args: object())
+        return events
+
+    @pytest.mark.parametrize(
+        ("flags", "agents"),
+        [
+            ([], 0),
+            (["--mode", "off"], 0),
+            (["--answers"], 1),
+            (["--mode", "hyde"], 1),
+            (["--mode", "hyde", "--answers"], 2),
+        ],
+    )
+    async def test_only_needed_agents_are_prepared_before_indexing(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        isolated_measure: list[str],
+        flags: list[str],
+        agents: int,
+    ) -> None:
+        def agent(*_args: object, **_kwargs: object) -> object:
+            isolated_measure.append("agent")
+            return object()
+
+        monkeypatch.setattr(run, "Agent", agent)
+
+        with pytest.raises(RuntimeError, match="measurement reached"):
+            await run.measure(run.parse(["--keyless", "--llm-model", "unused:invalid", *flags]))
+
+        assert isolated_measure.count("agent") == agents
+        assert isolated_measure[:agents] == ["agent"] * agents
+        assert "index" in isolated_measure and "measure" in isolated_measure
+        assert isolated_measure[agents] == "locked" and isolated_measure[-1] == "unlocked"
+
+    @pytest.mark.parametrize("flags", [["--mode", "hyde"], ["--answers"]])
+    async def test_an_invalid_required_model_stops_before_embedding_setup(
+        self, monkeypatch: pytest.MonkeyPatch, flags: list[str]
+    ) -> None:
+        def no_embeddings(*_args: object, **_kwargs: object) -> None:
+            pytest.fail("an invalid required LLM must stop before any embedding setup")
+
+        monkeypatch.setattr(run, "EmbeddingService", no_embeddings)
+
+        with pytest.raises(UserError):
+            await run.measure(run.parse(["--keyless", "--llm-model", "invalid:model", *flags]))
 
 
 class TestIngestionFlags:

@@ -1,7 +1,7 @@
 ---
 title: Retrieval-Evaluierung
 description: Ein Fragenkatalog mit bekannten Antworten über die AgenticOS-Doku und ein Harness, der das Retrieval darauf misst, nach Kategorie, top_k und Abfrageerweiterung.
-source_sha: "3ae4747b9b05"
+source_sha: "cc72beabc60f"
 ---
 
 # Retrieval-Evaluierung { #retrieval-evaluation }
@@ -150,7 +150,7 @@ Die Optionen:
 | `--max-variants` | `3` | Umformulierungen, die `multi_query` hinzufügen darf, 1–5 |
 | `--locale` | `en`, `pl` | Wiederholbar. Die indexierten Sprachen; muss die jeder `cross_language`-Frage enthalten |
 | `--embedding-model` | `text-embedding-3-small` | Jedes Modell aus dem Embedding-Katalog, oder ein anderes mit `--embedding-dim` |
-| `--embedding-dim` | aus dem Modellkatalog | Erforderliche positive Dimension für ein Modell außerhalb des Katalogs |
+| `--embedding-dim` | aus dem Modellkatalog | Positive Dimension für Modelle außerhalb des Katalogs erforderlich; für katalogisierte Modelle abgelehnt |
 | `--embedding-base-url` | `https://api.openai.com/v1` | Jeder OpenAI-kompatible `/v1/embeddings`-Endpunkt |
 | `--embedding-api-key-env` | `OPENAI_API_KEY` | Die Variable, aus der der Schlüssel gelesen wird |
 | `--keyless` | aus | Der Endpunkt nimmt keinen Schlüssel |
@@ -158,6 +158,10 @@ Die Optionen:
 | `--answers` | aus | Beantwortet außerdem jede Frage aus dem Abgerufenen und prüft die Fakten |
 | `--reingest` | aus | Verwirft die Collections und indexiert den Korpus neu. Ein Lauf tut das von selbst, wenn sich eine Seite oder eine Chunk-Einstellung geändert hat; nach einer Änderung am Parser-Code angeben |
 | `--json` | keiner | Schreibt außerdem die Ergebnisse je Frage in diese Datei |
+
+Benötigte Agents für Abfrageerweiterung und Antworten werden vor dem Indexieren vorbereitet. Eine ungültige LLM-Konfiguration stoppt somit vor den Embedding-Aufrufen. Bei ausschließlich `--mode off` ohne `--answers` bleibt ein angegebenes `--llm-model` unbenutzt; es wird kein LLM-Agent erstellt.
+
+Parallele Benchmarks reservieren ihre Collection-Namen mit sitzungsgebundenen PostgreSQL-Advisory-Locks, von der Besitzprüfung über das Indexieren bis zur Messung. Ist ein Name belegt, stoppt der neue Lauf vor Embedding- oder Suchaufrufen. Warte auf den anderen Lauf oder wähle ein anderes `--collection-prefix`. Erfolg, Fehler und Unterbrechung geben alle Reservierungen frei.
 
 Die Chunk-Optionen werden geprüft wie die Ingestion-Einstellungen einer
 Wissensdatenbank, und jede andere Ingestion-Einstellung hat den Standardwert
@@ -264,12 +268,12 @@ neben den korrigierten Ergebnissen.
 | 5 | `hyde` | 97.1% | 85.3% | 0.772 | 25/34 | 29/34 |
 | 10 | `off` | 97.1% | 89.7% | 0.682 | 28/34 | 29/34 |
 | 10 | `multi_query` | 94.1% | 85.3% | 0.709 | 24/34 | 29/34 |
-| 10 | `hyde` | 100.0% | 94.1% | 0.775 | 27/34 | 30/34 |
+| 10 | `hyde` | 100.0% | 94.1% | 0.775 | 27/34 | 31/34 |
 
 Beide SAML-Fragen finden und zitieren in allen sechs Konfigurationen die
 Verzeichnisseite und antworten: Direkter SAML-Zugriff wird nicht unterstützt,
 Keycloak dient als Brücke. `10/hyde` erreicht für alle 34 Fragen eine erwartete
-Seite, einschließlich aller zehn sprachübergreifenden Fälle, und besteht 30/34
+Seite, einschließlich aller zehn sprachübergreifenden Fälle, und besteht 31/34
 Faktenprüfungen. `10/off` erreicht für 33/34 Fragen eine erwartete Seite und
 besteht 29/34 Prüfungen ohne Abfrageerweiterung.
 
@@ -283,13 +287,15 @@ Der unveränderte [ursprüngliche Lauf](https://github.com/vstorm-co/agenticos/b
 abgerufene Seite, Abfrage, Korpus-Hashes und Umgebungseinstellungen. Er führte
 272 Modellanfragen mit 872.567 Eingabe- und 41.553 Ausgabe-Tokens aus, zusätzlich
 zu Embeddings. Die [erste Neubewertung](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna-rescored.json) bewahrt die
-Formulierungskorrekturen; die [aktuelle Neubewertung](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna-rescored-v2.json)
+Formulierungskorrekturen; die [zweite Neubewertung](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna-rescored-v2.json)
 erfasst korrigierte Antwortseiten und Bewertungscode, Hashes von Quelle,
 Fragensatz und Code, Kategorieergebnisse sowie jedes neue Abruf- und Antworturteil.
 Beide Neubewertungen führten null Provider-Anfragen aus.
 
+Die [Redis-Korrektur](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna-rescored-v3.json) akzeptiert auch „managed Redis instance“ als Alternative ohne Cluster. Sie erhöht `10/hyde` von 30/34 auf 31/34 bestandene Faktenprüfungen; alle anderen Antworturteile und Abrufmetriken bleiben gleich. Sie erfasst die Hashes der Quelle und vorherigen Bewertung, die geänderte Faktengruppe und das Urteil sowie jede Kategorieübersicht. Sie macht keine Provider-Aufrufe und bewahrt die drei früheren Dateien.
+
 Das sind Messungen eines einzelnen Laufs. Ein Treffer nennt eine erwartete Seite;
-der zurückgegebene Chunk kann den antwortenden Satz dennoch verfehlen. Vier
+der zurückgegebene Chunk kann den antwortenden Satz dennoch verfehlen. Drei
 Antworten mit `10/hyde` bestehen die Faktenprüfung weiterhin nicht, und ein
 Worttreffer garantiert keine semantische Richtigkeit. Lies die Antworten und
 wiederhole die Messung mit deinem Korpus, bevor du eine Einstellung breit übernimmst.

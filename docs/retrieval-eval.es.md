@@ -1,7 +1,7 @@
 ---
 title: "Evaluación de recuperación"
 description: "Un conjunto de preguntas sobre la documentación con respuestas conocidas, y el harness que mide la recuperación por categoría, top_k y expansión."
-source_sha: "3ae4747b9b05"
+source_sha: "cc72beabc60f"
 ---
 
 # Evaluación de recuperación { #retrieval-evaluation }
@@ -150,7 +150,7 @@ Las opciones:
 | `--max-variants` | `3` | Reformulaciones que `multi_query` puede añadir, 1–5 |
 | `--locale` | `en`, `pl` | Repetible. Los idiomas indexados; debe incluir el de cada pregunta `cross_language` |
 | `--embedding-model` | `text-embedding-3-small` | Cualquier modelo del catálogo de embeddings, u otro con `--embedding-dim` |
-| `--embedding-dim` | del catálogo de modelos | Dimensión positiva obligatoria para un modelo fuera del catálogo |
+| `--embedding-dim` | del catálogo de modelos | Dimensión positiva obligatoria para modelos fuera del catálogo; se rechaza para modelos del catálogo |
 | `--embedding-base-url` | `https://api.openai.com/v1` | Cualquier endpoint `/v1/embeddings` compatible con OpenAI |
 | `--embedding-api-key-env` | `OPENAI_API_KEY` | La variable de la que se lee la clave |
 | `--keyless` | desactivado | El endpoint no requiere clave |
@@ -158,6 +158,10 @@ Las opciones:
 | `--answers` | desactivado | Además responde cada pregunta a partir de lo recuperado y comprueba los hechos |
 | `--reingest` | desactivado | Elimina las colecciones e indexa el corpus de nuevo. Una ejecución lo hace por sí sola cuando cambia una página o un ajuste de fragmentación; páselo tras un cambio en el código del parser |
 | `--json` | ninguno | Además escribe los resultados por pregunta en este archivo |
+
+Los agentes necesarios para ampliar consultas y responder se preparan antes de indexar, de modo que una configuración LLM no válida detiene la ejecución antes de generar embeddings. Con solo `--mode off` y sin `--answers`, un `--llm-model` indicado queda sin usar y no se construye ningún agente LLM.
+
+Los benchmarks simultáneos reservan sus nombres de colección con bloqueos consultivos de sesión de PostgreSQL, desde comprobar el propietario hasta indexar y medir. Si un nombre está ocupado, la nueva ejecución se detiene antes de llamar a embeddings o recuperación. Espera a la otra ejecución o elige otro `--collection-prefix`. El éxito, el fallo y la interrupción liberan todas las reservas.
 
 Las opciones de fragmentación se comprueban como los ajustes de ingesta de una
 base de conocimiento, y cualquier otro ajuste de ingesta tiene el valor por
@@ -263,12 +267,12 @@ corregidos.
 | 5 | `hyde` | 97.1% | 85.3% | 0.772 | 25/34 | 29/34 |
 | 10 | `off` | 97.1% | 89.7% | 0.682 | 28/34 | 29/34 |
 | 10 | `multi_query` | 94.1% | 85.3% | 0.709 | 24/34 | 29/34 |
-| 10 | `hyde` | 100.0% | 94.1% | 0.775 | 27/34 | 30/34 |
+| 10 | `hyde` | 100.0% | 94.1% | 0.775 | 27/34 | 31/34 |
 
 Las dos preguntas sobre SAML recuperan y citan la página de directorio y responden
 que SAML directo no se admite y Keycloak sirve de puente, en las seis
 configuraciones. `10/hyde` alcanza una página esperada para las 34 preguntas,
-incluidos los diez casos entre idiomas, y supera 30/34 comprobaciones de hechos.
+incluidos los diez casos entre idiomas, y supera 31/34 comprobaciones de hechos.
 `10/off` alcanza una página esperada para 33/34 preguntas y supera 29/34
 comprobaciones sin ampliar consultas.
 
@@ -282,13 +286,15 @@ La [ejecución original](https://github.com/vstorm-co/agenticos/blob/main/evals/
 página recuperada, consulta, hashes del corpus y ajustes del entorno. Realizó
 272 solicitudes al modelo con 872.567 tokens de entrada y 41.553 de salida,
 además de los embeddings. La [primera reevaluación](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna-rescored.json) conserva
-las correcciones de expresiones; la [reevaluación actual](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna-rescored-v2.json)
+las correcciones de expresiones; la [segunda reevaluación](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna-rescored-v2.json)
 registra páginas esperadas y evaluador corregidos, hashes de fuente, conjunto y
 código, resultados por categoría y cada nuevo veredicto de recuperación y
 respuesta. Ambas reevaluaciones hicieron cero solicitudes a providers.
 
+La [corrección de Redis](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna-rescored-v3.json) también acepta «managed Redis instance» como alternativa sin clúster. Eleva `10/hyde` de 30/34 a 31/34 comprobaciones de hechos; los demás veredictos y las métricas de recuperación no cambian. Registra los hashes de la fuente y evaluación anterior, el grupo de hechos y veredicto modificados, y los resúmenes de cada categoría. No hace llamadas a providers y conserva los tres archivos anteriores.
+
 Son medidas de una sola ejecución. Un acierto nombra una página esperada; el
-fragmento devuelto aún puede omitir la frase que responde. Cuatro respuestas de
+fragmento devuelto aún puede omitir la frase que responde. Tres respuestas de
 `10/hyde` siguen fallando las comprobaciones de hechos, y una coincidencia de
 palabras no garantiza corrección semántica. Lee las respuestas y repite la medida
 con tu corpus antes de adoptar un ajuste de forma general.

@@ -139,7 +139,7 @@ The options:
 | `--max-variants` | `3` | Rephrasings `multi_query` may add, 1–5 |
 | `--locale` | `en`, `pl` | Repeatable. The languages indexed; must include each `cross_language` question's |
 | `--embedding-model` | `text-embedding-3-small` | Any model in the embedding catalog, or another with `--embedding-dim` |
-| `--embedding-dim` | from the model catalog | Required positive dimension for a model outside the catalog |
+| `--embedding-dim` | from the model catalog | Required positive dimension for a model outside the catalog; rejected for catalogued models |
 | `--embedding-base-url` | `https://api.openai.com/v1` | Any OpenAI-compatible `/v1/embeddings` endpoint |
 | `--embedding-api-key-env` | `OPENAI_API_KEY` | The variable the key is read from |
 | `--keyless` | off | The endpoint takes no key |
@@ -147,6 +147,10 @@ The options:
 | `--answers` | off | Also answer each question from what was retrieved, and check the facts |
 | `--reingest` | off | Drop the collections and index the corpus again. A run does this by itself when a page or a chunk setting changed; pass it after a change to parser code |
 | `--json` | none | Also write the per-question results to this file |
+
+Required expansion and answer agents are prepared before indexing, so an invalid LLM configuration stops before embedding work. With only `--mode off` and no `--answers`, a supplied `--llm-model` is unused and no LLM agent is constructed.
+
+Concurrent benchmarks reserve their collection names with PostgreSQL session advisory locks, from the ownership check through indexing and measurement. If any name is busy, the new run stops before embedding or retrieval calls. Wait for the other run, or choose a different `--collection-prefix`. Success, failure and interruption release all reservations.
 
 The chunk options are checked as a knowledge base's ingestion settings are, and
 every other ingestion setting is that form's default. The corpus is Markdown,
@@ -247,12 +251,12 @@ Original answer-check totals remain alongside the revised totals.
 | 5 | `hyde` | 97.1% | 85.3% | 0.772 | 25/34 | 29/34 |
 | 10 | `off` | 97.1% | 89.7% | 0.682 | 28/34 | 29/34 |
 | 10 | `multi_query` | 94.1% | 85.3% | 0.709 | 24/34 | 29/34 |
-| 10 | `hyde` | 100.0% | 94.1% | 0.775 | 27/34 | 30/34 |
+| 10 | `hyde` | 100.0% | 94.1% | 0.775 | 27/34 | 31/34 |
 
 Both SAML questions retrieve and cite the directory page and answer that direct
 SAML is unsupported, with Keycloak as the bridge, in all six configurations.
 `10/hyde` reaches an expected page for all 34 questions, including all ten
-cross-language cases, and passes 30/34 fact checks. `10/off` reaches an expected
+cross-language cases, and passes 31/34 fact checks. `10/off` reaches an expected
 page for 33/34 questions and passes 29/34 fact checks without expansion calls.
 
 For documentation agents on this snapshot, choose `default_top_k: 10` with
@@ -265,13 +269,15 @@ The unchanged [original run](https://github.com/vstorm-co/agenticos/blob/main/ev
 query, corpus hash and environment setting. It made 272 model requests using
 872,567 input and 41,553 output tokens, plus embeddings. The
 [first rescoring](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna-rescored.json) preserves the answer-wording corrections;
-the [latest rescoring](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna-rescored-v2.json) records the revised answer-page
+the [second rescoring](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna-rescored-v2.json) records the revised answer-page
 lists and scorer, with source/dataset/scorer hashes, category scores and each
 question's new retrieval and answer verdicts. Both rescoring passes made zero
 provider requests.
 
+The [Redis correction](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna-rescored-v3.json) also accepts “managed Redis instance” as the non-cluster alternative. It raises `10/hyde` from 30/34 to 31/34 fact checks; all other answer verdicts and retrieval metrics are unchanged. This correction records source and previous-result hashes, the changed fact group and verdict, and every category summary. It makes zero provider calls and preserves all three earlier files.
+
 These are single-run measurements. A hit names an expected page; its returned
-chunk may still miss the answering sentence. Four `10/hyde` answers still fail
+chunk may still miss the answering sentence. Three `10/hyde` answers still fail
 fact checks, and a word match is no guarantee of semantic correctness. Read the
 answers and repeat on your corpus before adopting a setting broadly.
 
