@@ -73,7 +73,7 @@ async def test_use_grant_still_binds_but_cannot_change_sharing(caller, connectio
     assert await McpConnectionService(db).get_org_connection(caller, connection.id) is connection
     assert (
         await AgentRegistryService(db)._mcp_problems(
-            caller, [OrgMcpServerRef(connection_id=connection.id)]
+            caller, [OrgMcpServerRef(connection_id=connection.id)], taken={}
         )
         == []
     )
@@ -230,7 +230,7 @@ async def test_a_preexisting_management_key_keeps_selecting_its_use_grant(
     )
     assert (
         await AgentRegistryService(AsyncMock())._mcp_problems(
-            caller, [OrgMcpServerRef(connection_id=connection.id)]
+            caller, [OrgMcpServerRef(connection_id=connection.id)], taken={}
         )
         == []
     )
