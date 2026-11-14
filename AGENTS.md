@@ -237,6 +237,7 @@ retranslated is how a stale translation stops being visible.
 | Which model to pick, open weights vs closed | `docs/choosing-models.md` |
 | Adoption, roles, cost, the security review | `docs/rollout.md` |
 | The vault, secret kinds, what never leaks | `docs/secrets.md` |
+| Browser login, TOTP and profile Vault proposal | `docs/design/browser-credential-vault.md` (repo only; not implemented) |
 | Where personal data lives, what leaves, deletion, the controls and the open gaps | `docs/data-protection.md` |
 | Third-party licences, the notices, the review and its open findings | `docs/licenses.md` |
 | Every component a deployment is made of, and the release SBOM | `docs/reference/components.md` |
