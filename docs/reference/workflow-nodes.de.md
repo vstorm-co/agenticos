@@ -1,5 +1,5 @@
 ---
-source_sha: "a9b67bff9ee7"
+source_sha: "68ac0f7695b1"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -748,17 +748,9 @@ schicken oder zwei Kategorien zu einem Protokollschritt.
 
 ## Entscheidungen { #decisions }
 
-Drei Schritte stellen TypeSafes Jev eine typisierte Frage zu einem gebundenen
-`text`, mit einem TypeSafe-API-Key aus dem Vault. Jev schreibt keinen Text: Er
-beantwortet die Frage mit einer Konfidenz von 0 bis 1, in einer Anfrage, und kann
-nur mit einer der Antworten antworten, die der Schritt zulässt. Unter dem
-`min_confidence` des Schritts verlässt er ihn stattdessen über seinen Port
-`unsure`, sodass ein Workflow dort entscheidet, was ein Mensch oder ein Agent mit
-einem zweifelhaften Fall tut.
+Drei Schritte stellen einem nativen Entscheidungsmodell eine typisierte Frage zum gebundenen `text`. Wähle ein Modellprofil mit Anbieter, Tresorschlüssel und Endpunkt. Bestehende Konfigurationen mit TypeSafe-Schlüssel und Jev-Modell bleiben unverändert gültig. Der Anbieter bestimmt die unterstützten Frageformen.
 
-`decide.*` ruft nur TypeSafes gehostetes Jev auf. Um zweifelhafte Fälle mit einem
-selbst gehosteten Modell zu routen, nehmen Sie `ai.classify` mit `min_confidence`,
-das den Schritt genauso über `unsure` verlässt.
+Das Modell liefert Antwort und Konfidenz. Unter `min_confidence` folgt der Schritt `unsure`; der Workflow kann eskalieren oder einen anderen Pfad wählen. Native Profile nutzen OpenAI, Google, OpenRouter, TypeSafe oder einen eigenen System-One-Endpunkt über Pydantic AI. Verfügbarkeit und den Unterschied zu LLM-Bewertungen erläutern die [Entscheidungsmodelle](../models.md#decision-models).
 
 | Schritt | Fragt | Verlässt über |
 |---|---|---|
@@ -766,12 +758,7 @@ das den Schritt genauso über `unsure` verlässt.
 | `decide.choose` | welche von bis zu 255 Optionen passt | `out` mit der `choice`, oder `unsure` |
 | `decide.score` | wo der Text auf einer Skala von 2 bis 10 Stufen liegt | `out` mit dem `score`, oder `unsure` |
 
-Der Key wird beim Veröffentlichen geprüft und bei jedem Run neu gelesen. Ein Key,
-der weg oder nicht mehr geteilt ist, lässt den Schritt mit `SECRET_NOT_USABLE`
-fehlschlagen, ein Modell, das nicht antwortet, mit `DECISION_FAILED`, das nach der
-Policy des Schritts wiederholt wird, und eine Bereitstellung ohne das Extra
-`browser` mit `DECISION_MODEL_UNAVAILABLE`. Ein Merge darf die Zweige einer
-Entscheidung wieder zusammenführen, wie die eines If.
+Zugangsdaten und Zugriff werden beim Veröffentlichen und bei jeder Ausführung geprüft. Ein entfernter alter Schlüssel ergibt `SECRET_NOT_USABLE`, ein Profil ohne native API `DECISION_MODEL_REQUIRED`. Anbieterfehler ergeben `DECISION_FAILED` gemäß Wiederholungsrichtlinie. Kosten zählen zum Workflow- und Organisationsbudget. Merge kann Entscheidungszweige zusammenführen.
 
 ::: app.workflows.nodes._decide.DecisionConfig
 

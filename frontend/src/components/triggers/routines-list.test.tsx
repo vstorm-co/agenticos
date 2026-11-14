@@ -69,7 +69,8 @@ it("clears an empty search and restores both kinds of routine", async () => {
   render(<RoutinesList />);
   await userEvent.type(screen.getByPlaceholderText("Search routines"), "nothing-matches");
   expect(screen.getByText("No routine matches that.")).toBeVisible();
-  await userEvent.click(screen.getByText("Clear search", { selector: "button" }));
+  expect(screen.queryByText(/0 of 2 routines/)).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Clear filters" }));
   expect(screen.getByPlaceholderText("Search routines")).toHaveValue("");
   expect(screen.getByText("Weekly report")).toBeVisible();
   expect(screen.getByText("Client mail")).toBeVisible();

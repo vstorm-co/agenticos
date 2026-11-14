@@ -129,6 +129,9 @@ export function RunTable({
 
   /** The agent's face and name, or nothing when the reader cannot resolve it. */
   const agentLabel = (run: AgentRun) => {
+    if (run.system_role === "channel_decision") {
+      return <span className="truncate italic">{t("systemRoleChannelDecision")}</span>;
+    }
     // Work a platform role did is named for the role, not for the starter agent it is
     // recorded under: that agent's instructions never ran (#2575).
     if (run.system_role === "daily_briefing" || run.system_role === "memory_maintenance") {

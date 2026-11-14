@@ -2,14 +2,17 @@
 
 import { Maximize2, Minimize2 } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { cn } from "@/lib/utils";
 import { Button } from "./button";
 
 export function WorkspaceFullscreenButton({
   expanded,
   onToggle,
+  className,
 }: {
   expanded: boolean;
   onToggle: () => void;
+  className?: string;
 }) {
   const t = useTranslations("common");
   const label = t(expanded ? "workspaceCollapse" : "workspaceExpand");
@@ -18,7 +21,7 @@ export function WorkspaceFullscreenButton({
       type="button"
       variant="ghost"
       size="icon"
-      className="md:hidden"
+      className={cn("md:hidden", className)}
       aria-label={label}
       title={label}
       onClick={onToggle}

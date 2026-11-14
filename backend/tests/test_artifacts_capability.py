@@ -516,6 +516,7 @@ class TestRegistration:
             "read_artifact",
             "list_artifacts",
             "preview_artifact",
+            "export_artifact",
             "share_artifact",
         }
 

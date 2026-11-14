@@ -792,6 +792,8 @@ class TeamsAdapter(ChannelAdapter):
         if chat_id is None or not user_id:
             return None
         recipient = (raw_payload.get("recipient") or {}).get("id")
+        if (raw_payload.get("from") or {}).get("role") == "bot" or user_id == recipient:
+            return None
         channel_data = raw_payload.get("channelData") or {}
         room_ids = {
             str(value)

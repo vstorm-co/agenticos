@@ -310,6 +310,16 @@ export default function SkillsPage() {
             <NothingSharedWithGroup groupId={groupId} />
           ) : skills.length === 0 ? (
             <ListCardEmpty
+              onClearFilters={
+                isFiltering
+                  ? () => {
+                      setQuery("");
+                      setSelectedCategories([]);
+                      setGroupId(null);
+                      setPage(0);
+                    }
+                  : undefined
+              }
               icon={BookOpen}
               title={isFiltering ? t("noSkillMatches") : t("noSkillsYet")}
               description={

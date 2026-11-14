@@ -86,7 +86,7 @@ interface AgentStepProps {
   state: "running" | "done" | "error" | "parked";
   /**
    * What a parked step waits for. A question's own label already says it waits
-   * for an answer, so only an approval carries the amber note.
+   * for an answer, so only an approval carries the explicit status note.
    */
   parkedOn?: "approval" | "answer";
   expanded: boolean;
@@ -154,7 +154,7 @@ export function AgentStep({
               state === "error"
                 ? "text-destructive"
                 : state === "parked"
-                  ? "text-amber-700 dark:text-amber-400"
+                  ? "text-foreground/75"
                   : "text-muted-foreground",
             )}
           />
@@ -175,7 +175,7 @@ export function AgentStep({
         </span>
       )}
       {state === "parked" && parkedOn === "approval" && (
-        <span className="ml-auto shrink-0 rounded-md border border-amber-500/20 bg-amber-500/5 px-1.5 py-0.5 text-[11px] leading-4 text-amber-700 dark:text-amber-400">
+        <span className="border-border bg-muted text-foreground/80 ml-auto shrink-0 rounded-md border px-1.5 py-0.5 text-[11px] leading-4">
           {t("awaitingApproval")}
         </span>
       )}

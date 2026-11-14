@@ -42,6 +42,16 @@ describe("DataTable", () => {
     expect(cell).toHaveTextContent("Existing member");
   });
 
+  it("keeps stacked labels and an intrinsic placeholder width while loading", () => {
+    renderTable({ stackOnNarrow: true, loading: true, skeletonRows: 2 });
+    const cells = screen.getAllByRole("cell");
+    expect(cells).toHaveLength(2);
+    for (const cell of cells) {
+      expect(cell).toHaveTextContent("Name");
+      expect(cell.querySelector(".animate-pulse")).toHaveClass("w-24", "max-w-full");
+    }
+  });
+
   it("keeps an add action immediately after the rows in the same table body", () => {
     renderTable({
       rows: [{ id: "one", name: "Existing row" }],

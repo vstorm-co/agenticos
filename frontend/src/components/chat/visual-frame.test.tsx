@@ -77,6 +77,28 @@ describe("VisualFrame", () => {
     expect(frame.getAttribute("scrolling")).toBe("no");
   });
 
+  it("reserves space and reveals a finished visual only after its own renderer is ready", () => {
+    const { container } = render(
+      <VisualFrame kind="html" title="T" content="<p>Ready</p>" done height={480} />,
+    );
+    const originalFrame = frameOf();
+    expect(container.querySelector("[data-preview-skeleton]")).not.toBeNull();
+    say({ type: "agenticos:visual-ready" });
+    expect(container.querySelector("[data-preview-skeleton]")).not.toBeNull();
+    say({ type: "agenticos:visual-rendered" });
+    expect(container.querySelector("[data-preview-skeleton]")).toBeNull();
+    expect(frameOf()).toBe(originalFrame);
+    expect(originalFrame).toHaveClass("opacity-100", "motion-reduce:transition-none");
+  });
+
+  it("does not leave a loading animation over a failed renderer", () => {
+    const { container } = render(
+      <VisualFrame kind="html" title="T" content="bad" done height={480} />,
+    );
+    say({ type: "agenticos:visual-error", message: "Invalid markup" });
+    expect(container.querySelector("[data-preview-skeleton]")).toBeNull();
+  });
+
   it("posts the drawing as it grows, then once more as final", () => {
     const { rerender } = render(
       <VisualFrame kind="html" title="T" content="<p>a" done={false} height={480} />,

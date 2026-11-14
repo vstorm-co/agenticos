@@ -1,5 +1,5 @@
 ---
-source_sha: "840fe6e181cf"
+source_sha: "38183986d0d8"
 ---
 
 # Słownik { #glossary }
@@ -126,6 +126,7 @@ w [Capabilities](capabilities.md).
 | Wersje robocze | `drafts` |
 | Przeglądarka | `browser_use` |
 | Informacje o kanale czatu | `channel_tools` |
+| Podłączone komunikatory | `channel_actions` |
 | Połączenia telefoniczne | `phone_calls` |
 | Wykresy | `charts` |
 | Data i godzina | `clock` |

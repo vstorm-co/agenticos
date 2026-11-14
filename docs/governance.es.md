@@ -1,5 +1,5 @@
 ---
-source_sha: "66ff628633d4"
+source_sha: "b677b4ad3aa4"
 ---
 
 # Governance { #governance }
@@ -2541,3 +2541,11 @@ Las herramientas MCP de Inbox sirven a sesiones iniciadas y credenciales de
 confianza de un chat privado; estas últimas solo acceden a casos de ese chat.
 Las claves API ordinarias, ejecuciones desatendidas e identidades de respaldo del
 publicador no pueden leer ni resolver casos privados de Inbox.
+
+## Grupos de aprobación { #approval-groups }
+
+Los pasos de aprobación humana y llamadas MCP de workflows pueden indicar personas, grupos de la organización o ambos. Una sola persona elegible decide y debe tener `approvals:decide` de forma independiente. Sin personas ni grupos configurados sigue vigente la regla anterior basada en ese permiso. Un grupo configurado vacío o eliminado nunca permite que decida cualquiera.
+
+La pertenencia al grupo y la cuenta activa se comprueban al decidir. Las notificaciones resuelven miembros elegibles al crear la solicitud y eliminan duplicados con personas indicadas. Incorporarse después puede dar derecho a decidir sin otra notificación; salir o perder permisos lo retira.
+
+Las alertas del agente sobre aprobaciones, presupuesto y uso también admiten grupos como destinatarios elegidos. Solo son audiencias de notificación: no conceden ni restringen autoridad para decidir. Se respetan las preferencias personales de notificación.

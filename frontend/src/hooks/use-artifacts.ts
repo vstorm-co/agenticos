@@ -1,5 +1,6 @@
 "use client";
 
+import { useAuthStore, useOrgStore } from "@/stores";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -20,6 +21,7 @@ import type {
   ArtifactPublicLinkUpdate,
   ArtifactVersionList,
   ArtifactView,
+  ArtifactThumbnail,
 } from "@/types/artifact";
 
 /** Which slice of the artifacts the caller may open to ask for. */
@@ -517,5 +519,36 @@ export function usePublicArtifactUnlock(publicKey: string) {
   const { apiUrl } = usePublicConfig();
   return useMutation({
     mutationFn: (password: string) => unlockPublicArtifact(apiUrl, publicKey, password),
+  });
+}
+
+/** Static, data-free previews survive navigation and are replaced only with a new version. */
+export function useArtifactThumbnail(
+  artifactId: string,
+  versionId: string | null,
+  enabled: boolean,
+) {
+  const org = useOrgStore((state) => state.activeOrgId);
+  const user = useAuthStore((state) => state.user?.id ?? null);
+  const client = useQueryClient();
+  const key = qk.artifacts.thumbnail(artifactId, versionId, org, user);
+  return useQuery({
+    queryKey: key,
+    // Let an already-started static preview finish into this scoped cache when
+    // navigating away. Cancelling it would restart its isolated render on Back.
+    queryFn: () =>
+      apiClient.get<ArtifactThumbnail>(
+        `/apps/${artifactId}/thumbnail${versionId ? `?version_id=${encodeURIComponent(versionId)}` : ""}`,
+      ),
+    // Visibility toggles enabled after mount. Keep a failed immutable version
+    // failed instead of treating each visibility change as a fresh render.
+    enabled: enabled && client.getQueryState(key)?.status !== "error",
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    retry: false,
+    retryOnMount: false,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 }

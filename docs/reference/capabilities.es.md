@@ -1,5 +1,5 @@
 ---
-source_sha: "07f6be53fe17"
+source_sha: "d3f26132e044"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -161,7 +161,7 @@ contabilidad. El modo de código mantiene esas paradas al cruzar el límite del 
 | `compaction` | Conversaciones largas | utility | ninguna, a propósito | — | — | sin efecto |
 | `media` | Imágenes fuera del historial | utility | ninguna, a propósito | — | — | sin efecto |
 | `tool_output_limits` | Límites de resultados de herramientas | utility | `read_tool_result` | — | — | tal cual |
-| `artifacts` | Aplicaciones | utility | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact`, `share_artifact` | — | — | tal cual |
+| `artifacts` | Aplicaciones | utility | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact`, `export_artifact`, `share_artifact` | — | — | tal cual |
 | `channel_tools` | Información del canal de chat | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file` | — | — | no disponible |
 | `phone_calls` | [Llamadas telefónicas](../voice.md#telephone-calls) | channels | `get_phone_contact_policy`, `call_me`, `list_phone_transfer_contacts`, `transfer_phone_call`, `end_phone_call` | `endpoint_id` | — | — |
 | `ask_user` | Preguntar al usuario | utility | `ask_user_question` | — | — | en pantalla |
@@ -436,7 +436,7 @@ archivos se gestionan bajo `/api/v1/context` y se vinculan a un agent por id
 Notas que un agent guarda por su cuenta entre conversaciones, indexadas por otra
 que él mismo mantiene. Donde `context` es una biblioteca que una persona escribe y
 vincula a muchos agents, la memoria es del propio agent: escribe con herramientas
-en mitad del run, y aquí no escribe nadie más. No se vincula por id: activar la
+en mitad del run. Una persona puede corregir sus propias notas en **Settings → Memory → Notes**, sin obtener acceso a notas ajenas. Las correcciones conservan la fecha de escritura original del agent y el estado de supresión, comprueban la revisión y generan una auditoría sin el contenido de la nota. No se vincula por id: activar la
 capability le da al agent sus notas.
 
 **`MEMORY.md` es el índice, y se le muestra al agent en cada petición.** Es una
@@ -1983,6 +1983,8 @@ propia ruta de teselas del despliegue. Consulte [Visuals](../artifacts.md#visual
 
 ## Aplicaciones { #artifacts }
 
+`export_artifact` guarda la versión publicada actual como PDF real en el workspace. Usa el renderer aislado, admite informes A4 y presentaciones web 16:9, conserva las comprobaciones de acceso y audiencia de la vista previa y rechaza datos vinculados no disponibles. Requiere configurar el renderer y el extra `browser`. Los archivos tienen nombres únicos y un límite de 50 páginas y 20 MB. Consulta los [recursos de diseño](../skills.es.md#design-resources).
+
 `publish_artifact` — _Publica una página terminada — un informe, un pequeño
 dashboard, un resumen — bajo un enlace estable._
 `read_artifact` — _Lee la versión actual de una página que publicó este agent, tal
@@ -3142,6 +3144,8 @@ censurado llega al modelo limpio, pero la conversación guarda el mensaje tal co
 escribió la persona, datos personales incluidos. Quien pueda leer la conversación
 puede leer ese mensaje.
 
+La transcripción para personas conserva el registro original de auditoría. Se guarda otra copia censurada, incluida la descripción de adjuntos, para el historial del modelo y las citas. Los turnos posteriores conservan esa copia aunque después se desactive la censura de entrada. El historial antiguo se revisa antes de gestionar el contexto del run; los turnos bloqueados siguen usando el marcador de rechazo.
+
 **El borde de entrada revisa un adjunto antes de escribirlo.** Un archivo adjunto
 llega al prompt como su nombre, su ruta y sus primeras 20 líneas (como máximo 2.000
 caracteres), y el borde de entrada las lee junto con el mensaje de la persona. En un
@@ -3543,3 +3547,17 @@ La elección de acceso local pertenece al agente seleccionado, no a un valor glo
 La corrección `[session:api] Usa las cifras de la UE` llega a la sesión `api`. Con una sola sesión activa, también recibe las correcciones sin destinatario; con varias, estas quedan para el agente principal para no modificar otra tarea. El agente principal registra la corrección una vez cuando continúa.
 
 Las tareas de programación en sandbox del mismo conjunto de herramientas se ejecutan en secuencia para evitar que se superpongan sus instantáneas de archivos; las sesiones locales independientes siguen en paralelo.
+
+
+## Aplicaciones de chat conectadas (`channel_actions`) { #connected-chat-apps-channel_actions }
+
+Permisos explícitos del bot para encontrar canales, buscar mensajes y entregar informes solicitados desde cualquier ejecución.
+
+| Herramienta | Acción |
+| --- | --- |
+| `list_chat_connections` | Identificadores de bots, permisos y destino actual |
+| `find_chat_channels` | Metadatos de canales del bot con paginación |
+| `read_chat_messages` | Historial limitado con filtros |
+| `send_chat_message` | Mensaje o informe solicitado en una publicación nueva o un hilo existente |
+
+Cada operación vuelve a comprobar la pertenencia a la organización, acceso al agente, vinculación y bot activos, además de pertenencia al canal y correspondencia del hilo. No se une a canales ni utiliza bots de otros agentes. La búsqueda y el historial devuelven páginas limitadas con cursores; una página sin coincidencias no es el final si hay cursor. Los fallos del proveedor son rechazos, no resultados vacíos. Los envíos siguen la política de aprobación; una entrega no confirmada debe comprobarse antes de reintentarse. Las demás plataformas conservan sus herramientas de conversación; las acciones entre canales solo se ofrecen donde el adaptador verifica la pertenencia.

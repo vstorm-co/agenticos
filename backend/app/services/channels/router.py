@@ -569,6 +569,17 @@ class ChannelMessageRouter:
             )
         self._apply_broadcast_policy(incoming, bot)
 
+        # Passive collection is silent when the bot's admission policy refuses it.
+        # It must not create identities or post refusals for overheard bystanders.
+        try:
+            self._check_access(incoming, bot)
+        except AuthorizationError:
+            pass
+        else:
+            from app.services.channels.observation import observe
+
+            await observe(db, bot, incoming, addressed=not self._is_overheard(incoming))
+
         if self._is_overheard(incoming):
             # Decided before anything is created or refused, not after. A bot in a
             # channel hears every post, so a refusal - a whitelist that does not
@@ -1208,6 +1219,7 @@ class ChannelMessageRouter:
             # whatever else the room had been saying (#1353).
             thread_id=thread_id or None,
             private_chat=incoming.chat_type == "private",
+            message_id=incoming.message_id,
         )
 
     @staticmethod

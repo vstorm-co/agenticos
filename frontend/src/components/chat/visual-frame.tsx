@@ -11,6 +11,7 @@ import { useAskingGate } from "@/hooks/use-artifact-actions";
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { clampHeight, visualFrameUrl, type VisualKind } from "@/lib/visuals";
 import { cn } from "@/lib/utils";
+import { PreviewSkeleton } from "@/components/ui/preview-skeleton";
 import { getResolvedTheme, useThemeStore } from "@/stores/theme-store";
 
 /** How long a finished drawing may go without a heartbeat before it is taken down. */
@@ -123,6 +124,9 @@ export function VisualFrame({
   const theme = getResolvedTheme(useThemeStore((state) => state.theme));
   const frame = useRef<HTMLIFrameElement>(null);
   const [ready, setReady] = useState(false);
+  const [rendered, setRendered] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const loading = !failed && !rendered && !(ready && !done && content !== "");
   const [reported, setReported] = useState<number | null>(null);
   const finalSent = useRef(false);
   const growths = useRef(0);
@@ -160,8 +164,10 @@ export function VisualFrame({
       } else if (message.type === "agenticos:follow-up") {
         const text = followUpText(message);
         if (text !== null) handlers.current.onFollowUp?.(text);
-      } else if (message.type === "agenticos:visual-rendered") handlers.current.onRendered?.();
-      else if (message.type === "agenticos:visual-svg" && typeof message.markup === "string") {
+      } else if (message.type === "agenticos:visual-rendered") {
+        setRendered(true);
+        handlers.current.onRendered?.();
+      } else if (message.type === "agenticos:visual-svg" && typeof message.markup === "string") {
         handlers.current.onSvg?.(message.markup);
       } else if (message.type === "agenticos:visual-alive") alive.current = Date.now();
       else if (message.type === "agenticos:visual-size" && typeof message.height === "number") {
@@ -180,6 +186,7 @@ export function VisualFrame({
           return next;
         });
       } else if (message.type === "agenticos:visual-error" && typeof message.message === "string") {
+        setFailed(true);
         handlers.current.onError?.(message.message);
       }
     };
@@ -269,7 +276,10 @@ export function VisualFrame({
           ? { ...fullLaidOut, colorScheme: theme }
           : { ...laidOut, colorScheme: theme, visibility: measured ? "visible" : "hidden" }
       }
-      className="block border-0"
+      className={cn(
+        "block border-0 transition-opacity duration-300 ease-out motion-reduce:transition-none",
+        loading ? "opacity-0" : "opacity-100",
+      )}
     />
   );
   // The footprint clips the frame to what it shows: a page laid out taller than
@@ -288,13 +298,14 @@ export function VisualFrame({
             style={{ width: `${zoom * 100}%`, height: `${zoom * 100}%` }}
           >
             {iframe}
+            {loading && <PreviewSkeleton />}
           </div>
         </div>
       ) : (
         <div
           ref={box}
           className={cn(
-            "w-full transition-[height] duration-200 ease-out motion-reduce:transition-none",
+            "relative w-full transition-[height] duration-200 ease-out motion-reduce:transition-none",
             zoom > 1 ? "scrollbar-thin overflow-auto" : "overflow-hidden",
           )}
           style={{ height: Math.round(boxHeight) }}
@@ -307,6 +318,7 @@ export function VisualFrame({
           >
             {iframe}
           </div>
+          {loading && <PreviewSkeleton />}
         </div>
       )}
       <LinkRequestDialog pending={pending} onDone={closeLink} />

@@ -177,7 +177,10 @@ def _as_history(
                 "content": (
                     REFUSED_TURN
                     if row.role == "user" and row.guardrail_refused
-                    else spoken.get(row.id, row.content) + (row.attachment_context or "")
+                    else spoken.get(
+                        row.id, row.model_content if row.model_content is not None else row.content
+                    )
+                    + ((row.attachment_context or "") if row.model_content is None else "")
                 ),
                 # The size of the request this answer came out of: the anchor the
                 # compaction estimator measures against, in place of counting
@@ -2242,7 +2245,7 @@ def _said(message: Message) -> str:
     other way a refused prompt's words would reach it (#2578)."""
     if message.role == "user" and message.guardrail_refused:
         return REFUSED_TURN
-    return message.content
+    return message.model_content if message.model_content is not None else message.content
 
 
 def _whose(message: Message, people: dict[UUID, User]) -> str:

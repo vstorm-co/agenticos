@@ -3,8 +3,11 @@
 A published page is read by somebody who was not in the conversation, often
 weeks later, sometimes on a phone. Build for that reader: the answer first, the
 detail under it, nothing they have to scroll past to learn whether it matters.
-It should look like a screen of the product it was published from - quiet,
-precise, graphite - not like a landing page.
+Choose the visual direction for that reader and purpose. A product-style report
+can use the kit's neutral defaults; an editorial story, school activity or playful
+App can use its own palette, typography and composition. Read
+`references/styles-and-deliverables.md` for directions and `references/ui-components.md`
+for reusable controls. Keep runtime and accessibility requirements in every style.
 
 **Start from a template** (below) rather than an empty file. Every page,
 template or not, follows the skeleton and the structural rules - the publish
@@ -111,32 +114,29 @@ the CSS and the JS of the same version.
 - **Charts** go in `div.ao-chart` (or `ao-chart-sm`, `ao-chart-lg`) around a
   `canvas`, created with `AO.chart("#id", () => config)`.
 
-## The house style
+## The kit's default style
 
-- **No accent colour.** No indigo buttons, no blue links, no gradients. The
-  primary is graphite. Green (`ao-up`, `ao-badge-success`) and red (`ao-down`,
-  `ao-badge-danger`) mean better and worse, amber (`ao-badge-warning`) means
-  attention - never decoration.
-- **Flat surfaces.** `ao-card` has a hairline border and no shadow. Do not add
-  shadows, coloured backgrounds or borders of your own.
-- **Sentence case** everywhere: titles, headers, buttons, table headers. No
-  capitals for emphasis and no letter-spaced labels.
-- **Icons where they help a label be found** - a stat, a section title, a meta
-  line - not on every line. Names are Lucide's (lucide.dev): `calendar`,
-  `database`, `trending-up`, `users`, `wallet`, `git-fork`, `circle-dot`,
-  `git-pull-request`, `download`, `eye`, `triangle-alert`, `circle-check`,
-  `info`, `clock`, `file-text`, `ticket`, `list`.
-- **Numbers**: never hand-format. `AO.format.number(36924)` writes it the way the
-  page's language does, `AO.format.compact`, `AO.format.percent(0.411)`,
-  `AO.format.currency(v, "EUR")`, `AO.format.date(iso)`, and
-  `AO.format.delta(v, { percent: true })` for a signed change.
-- **Charts**: the kit gives Chart.js the product's fonts, grid, tooltip and a
-  graphite series palette, and follows light and dark. Do not set colours unless
-  a series means something; when it does, read a token:
-  `AO.color("--ao-series-3")`, `AO.color("--ao-danger")`.
+The kit provides neutral, flat product components. They are a starting point,
+not a restriction on generated Apps. Preserve a supplied brand; otherwise choose
+a deliberate, consistent direction using semantic color tokens and a readable
+type hierarchy. Custom classes and a scoped `<style>` block are supported.
 
-An organization may have edited this skill to describe its own brand. If this
-section names other colours or fonts, follow those.
+- Keep feedback colors meaningful and distinct from decorative accents. A
+  selected option, keyboard focus, error and disabled control must remain legible.
+- Use borders, depth, illustration or colored surfaces when they clarify structure.
+  Avoid effects on every element and unrelated decorative dashboards.
+- Use readable sentence-case labels. A short editorial kicker can be uppercase;
+  do not make body copy or controls difficult to scan.
+- Use icons where they help a label be found. Choose illustration or emoji when
+  it fits the audience; do not replace essential text labels with unexplained symbols.
+- Format numbers with the page's locale. `AO.format.number`, `compact`, `percent`,
+  `currency`, `date` and `delta` are available when the AO script is loaded.
+- `AO.chart` supplies responsive defaults and a neutral palette. A deliberate
+  chart palette may override it; maintain distinguishable series, labels and
+  contrast in every supported theme. `AO.color` reads a token after styling loads.
+
+An organization may have edited this skill to describe its own brand. Follow
+that explicit direction and preserve its meaning in phone and PDF layouts.
 
 ## Every class
 

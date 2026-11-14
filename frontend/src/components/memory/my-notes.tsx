@@ -14,7 +14,9 @@ export function MyNotes() {
   const view = useTranslations("pages.memory.browser");
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
-  const { page, isLoading, error, skip, showPage, setActive, remove } = useMyMemory(q.trim());
+  const { page, isLoading, error, skip, showPage, setActive, remove, update } = useMyMemory(
+    q.trim(),
+  );
   const note = page?.items.find((item) => item.id === selected);
   return (
     <ListCard
@@ -59,10 +61,10 @@ export function MyNotes() {
         <ErrorState />
       ) : page.items.length === 0 ? (
         <ListCardEmpty
+          onClearFilters={Boolean(q) ? () => setQ("") : undefined}
           icon={FileText}
           title={view(q ? "noMatches" : "emptyNotes")}
           description={view(q ? "tryFilters" : "emptyNotesHint")}
-          {...(q ? { cta: { label: view("clearFilters"), onClick: () => setQ("") } } : {})}
         />
       ) : (
         <ul className="divide-foreground/5 divide-y px-2">
@@ -99,6 +101,7 @@ export function MyNotes() {
           onClose={() => setSelected(null)}
           setActive={setActive}
           remove={remove}
+          update={update}
         />
       )}
     </ListCard>

@@ -21,13 +21,11 @@ from app.db.locks import LockScope, hold_name, hold_subject, try_hold_name
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.organization import Organization, OrganizationMember, OrgRole
 from app.repositories import (
-    collection_teardown_repo,
     credential_repo,
     invitation_repo,
     knowledge_base_repo,
     member_repo,
     organization_repo,
-    rag_document_repo,
 )
 from app.schemas.organization import (
     OrganizationCreate,
@@ -43,7 +41,7 @@ from app.services.model_outputs import model_outputs, not_chat_refusal
 from app.services.proactive import ProactiveService
 from app.services.skills import SkillService
 from app.services.speech_to_text_settings import SpeechToTextSettingsService
-from app.worker.jobs import BasePurge, Restamp
+from app.worker.jobs import Restamp
 
 if TYPE_CHECKING:
     from app.services.rag.vectorstore import BaseVectorStore
@@ -804,20 +802,18 @@ class OrganizationService:
         not dropped - `collection_name` is not tenant-unique (#913) - and each name
         that is dropped is reserved in `collection_teardowns`, committed with the
         delete, so a claim of the name in the commit-to-drop window is refused rather
-        than adopting the still-populated table (#1362). The gap this does not close
-        is commit-to-dispatch - a crash before `spawn_after_commit` fires still loses
-        the cleanup, which only a record committed with the delete (an outbox) would
-        close.
+        than adopting the still-populated table (#1362). The durable cleanup job
+        is committed with the deletion; a failed table drop retains its reservation
+        for the worker or stale-reservation sweep to retry.
         """
         # Teardown locks before the org row lock, from a snapshot read without it,
         # so claim (teardown then org FK) and purge cannot invert into a deadlock
         # (#1387). Sorted, so two purges sharing a name (#913) take it in one order.
         held: set[str] = set()
-        if self._vector_store is not None:
-            snapshot = await knowledge_base_repo.list_org_scoped(self.db, org.id)
-            for collection in sorted({kb.collection_name for kb in snapshot}):
-                await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
-                held.add(collection)
+        snapshot = await knowledge_base_repo.list_org_scoped(self.db, org.id)
+        for collection in sorted({kb.collection_name for kb in snapshot}):
+            await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
+            held.add(collection)
 
         await organization_repo.get_by_id_for_update(self.db, org.id)
         from app.repositories import telephony as phone_repo
@@ -825,14 +821,21 @@ class OrganizationService:
         # The org row lock fences new call intents through their foreign key.
         if await phone_repo.organization_has_unfinished_calls(self.db, org.id):
             raise ConflictError(message="End all telephone calls before deleting this organization")
-        collections: list[str] = []
-        storage_paths: list[str] = []
-        deleted_bases: list[BasePurge] = []
-        for kb in await knowledge_base_repo.list_org_scoped(self.db, org.id):
-            storage_paths.extend(await rag_document_repo.delete_by_knowledge_base(self.db, kb.id))
-            collections.append(kb.collection_name)
-            deleted_bases.append(BasePurge(collection=kb.collection_name, knowledge_base_id=kb.id))
-            await knowledge_base_repo.delete(self.db, kb.id)
+        from app.services.knowledge_base import KnowledgeBaseService
+
+        bases = await knowledge_base_repo.list_org_scoped(self.db, org.id)
+        for kb in sorted(bases, key=lambda row: row.collection_name):
+            if kb.collection_name not in held and not await try_hold_name(
+                self.db, LockScope.COLLECTION_TEARDOWN, kb.collection_name
+            ):
+                raise ConcurrentChangeError(
+                    message="The organization's knowledge collections changed during deletion. Nothing was deleted; try again.",
+                    details={"collection_name": kb.collection_name},
+                )
+            held.add(kb.collection_name)
+            await KnowledgeBaseService(self.db).purge(
+                kb, cleanup_vectors=self._vector_store is not None
+            )
 
         # A personal base carrying this org's id is left standing by the `SET NULL`,
         # which flips its `vector_tenant` to `None` while its rows stay stamped with
@@ -848,48 +851,10 @@ class OrganizationService:
 
         await organization_repo.delete(self.db, org)
 
-        # A store is wired only on the teardown path, and it is the signal to clean up
-        # the vector tables. A collection another organization still references is left
-        # alone - the name is not tenant-unique (#913). The rest are dropped by the
-        # deferred cleanup, under the teardown lock (#1355) and only while reserved,
-        # and every one of them is reserved here, so a claim in the
-        # commit-to-drop window is refused rather than adopting the still-populated
-        # table (#1362). Both readings below therefore happen under the name's lock:
-        # the ones the snapshot saw are already held, and one created since is taken
-        # without waiting - see the note above on why waiting here cannot be done and
-        # why a name that cannot be locked is a refusal rather than an unreserved drop.
-        # Files are unlinked whether or not a store was wired.
-        to_drop: list[str] = []
-        if self._vector_store is not None:
-            for collection in dict.fromkeys(collections):
-                if collection not in held and not await try_hold_name(
-                    self.db, LockScope.COLLECTION_TEARDOWN, collection
-                ):
-                    raise ConcurrentChangeError(
-                        message=(
-                            "This organization gained a knowledge collection while it "
-                            "was being deleted, and something else is working on that "
-                            "collection right now. Nothing was deleted; try again."
-                        ),
-                        details={"collection_name": collection},
-                    )
-                held.add(collection)
-                if await knowledge_base_repo.list_by_collection_name(self.db, collection):
-                    continue
-                to_drop.append(collection)
-                await collection_teardown_repo.reserve(self.db, collection)
         restamps = [
             Restamp(collection=kb.collection_name, organization_id=org.id, knowledge_base_id=kb.id)
             for kb in restamp_orphans
         ]
-        # A base whose table another organization keeps leaves its chunks in it,
-        # filed under an id no scope reads; the job deletes them by that id (#2537).
-        # Only with a store wired, the same signal the drops follow.
-        base_purges = (
-            [purge for purge in deleted_bases if purge.collection not in to_drop]
-            if self._vector_store is not None
-            else []
-        )
         # The images, speech and video its agents generated go in the same job
         # (#2310): their rows cascade with the organization, so the job is the
         # only record of the bytes left. One prefix, which also takes the files
@@ -899,12 +864,12 @@ class OrganizationService:
 
         await queue_external_state_cleanup(
             self.db,
-            storage_paths,
-            to_drop,
+            [],
+            [],
             restamps,
             prefixes=[organization_directory(org.id)],
             organization_id=org.id,
-            base_purges=base_purges,
+            base_purges=[],
         )
         # Whatever the `media` capability offloaded out of any of this tenant's
         # compacted histories. Content-addressed objects record nothing about who

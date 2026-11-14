@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -664,14 +664,49 @@ describe("the channels page", () => {
     );
   });
 
-  it("removes a bot", async () => {
+  it("removes a bot only after confirmation", async () => {
     serve([bot()]);
     vi.mocked(apiClient.delete).mockResolvedValue(undefined);
     await mount();
 
     await userEvent.click(await screen.findByRole("button", { name: "Remove Acme Support" }));
 
-    expect(apiClient.delete).toHaveBeenCalledWith("/channels/bots/b1");
+    expect(apiClient.delete).not.toHaveBeenCalled();
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText(/every agent bound to it/)).toBeVisible();
+    await userEvent.click(within(dialog).getByRole("button", { name: /^Remove bot$/ }));
+    await waitFor(() => expect(apiClient.delete).toHaveBeenCalledWith("/channels/bots/b1"));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("cancels removal without changing the bot", async () => {
+    serve([bot()]);
+    await mount();
+    await userEvent.click(await screen.findByRole("button", { name: "Remove Acme Support" }));
+    await userEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }),
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(apiClient.delete).not.toHaveBeenCalled();
+    expect(screen.getByText("Acme Support")).toBeVisible();
+  });
+
+  it("keeps removal open after a refusal and allows retry", async () => {
+    serve([bot()]);
+    vi.mocked(apiClient.delete)
+      .mockRejectedValueOnce(new Error("temporarily unavailable"))
+      .mockResolvedValueOnce(undefined);
+    await mount();
+    await userEvent.click(await screen.findByRole("button", { name: "Remove Acme Support" }));
+    const confirm = within(screen.getByRole("dialog")).getByRole("button", {
+      name: /^Remove bot$/,
+    });
+    await userEvent.click(confirm);
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(screen.getByRole("dialog")).toBeVisible();
+    await userEvent.click(confirm);
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(apiClient.delete).toHaveBeenCalledTimes(2);
   });
 
   it("does not ask for the list at all without channels:manage", async () => {

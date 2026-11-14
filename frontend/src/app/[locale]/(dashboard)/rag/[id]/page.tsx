@@ -199,7 +199,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
     }
   };
 
-  if (isLoading && !kb) return <KBDetailSkeleton />;
+  if (isLoading && !kb) return <KBDetailSkeleton tab={tab} showGaps={maySeeGaps} />;
   // A cold failure of a load-bearing read - the collection or its documents -
   // takes the whole page. A failed *refresh* does not reach here: it keeps `kb`
   // and shows the "may be stale" banner below instead.

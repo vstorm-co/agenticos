@@ -23,17 +23,20 @@ exactly the people it is for.
 
 import re
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities import CapabilityToolInfo
 from app.agents.capabilities import get as get_capability
+from app.agents.capabilities.channel_actions._contract import CAPABILITY_ID, platform_actions
 from app.agents.capabilities.channel_tools import CHANNEL_TOOLS_CAPABILITY_ID
 from app.agents.system_agents import refuse_system_agent
 from app.core.audit import record_audit
+from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
+from app.db.locks import LockScope, hold_subject_shared
 from app.db.models.agent_exposure import AgentExposure, ExposureSurface
 from app.db.models.channel_bot import ChannelBot
 from app.db.updates import writable
@@ -47,9 +50,11 @@ from app.schemas.agent_exposure import (
     ExposureVariable,
 )
 from app.schemas.channel_bot import UsageReporting
+from app.schemas.channel_observer import ChannelObservationConfig
 from app.services.agent_registry import AgentRegistryService
 from app.services.capability_contracts import ToolContract, tool_contracts
 from app.services.channels.directory import PLATFORM_TOOLS
+from app.services.channels.formatting import TEST_ENVIRONMENT_GUIDANCE, house_style
 from app.services.channels.prompt_variables import VARIABLES as PROMPT_VARIABLES
 
 # How many bots one organization can have bound before the picker stops being a
@@ -121,7 +126,18 @@ async def _lookups_for(surface: ExposureSurface) -> list[ExposureTool]:
     """
     contracts = (await tool_contracts()).get(CHANNEL_TOOLS_CAPABILITY_ID, {})
     available = PLATFORM_TOOLS.get(surface.value, ())
-    return [
+    actions = (await tool_contracts()).get(CAPABILITY_ID, {})
+    extra = [
+        ExposureTool(
+            id=tool.id,
+            name=tool.name,
+            description=_description_for(tool, actions),
+            scope="connection",
+        )
+        for tool in get_capability(CAPABILITY_ID).tools
+        if tool.id in platform_actions(surface.value) and tool.id != "list_chat_connections"
+    ]
+    return extra + [
         ExposureTool(id=tool.id, name=tool.name, description=_description_for(tool, contracts))
         for tool in get_capability(CHANNEL_TOOLS_CAPABILITY_ID).tools
         if tool.id in available
@@ -230,6 +246,15 @@ class AgentExposureService:
             environment_id=exposure.environment_id,
             session_scope=exposure.session_scope,
             prompt=exposure.prompt,
+            observation=ChannelObservationConfig.model_validate(exposure.observation or {}),
+            observation_user_id=exposure.observation_user_id,
+            prompt_replaces_defaults=exposure.prompt_replaces_defaults is True,
+            default_prompt=house_style(surface.value)
+            + (
+                "\n\n" + TEST_ENVIRONMENT_GUIDANCE
+                if settings.ENVIRONMENT in {"local", "development"}
+                else ""
+            ),
             tools=list(exposure.tools or []),
             available_tools=await _lookups_for(surface),
             available_variables=_variables_for(surface),
@@ -335,6 +360,7 @@ class AgentExposureService:
             surface=surface.value,
             channel_bot_id=bot.id,
             created_by_user_id=ctx.user_id,
+            tools=[tool.id for tool in await _lookups_for(surface)],
             environment_id=data.environment_id,
             prompt=None,
             session_scope=data.session_scope,
@@ -370,6 +396,20 @@ class AgentExposureService:
         """
         exposure = await self._owned(ctx, agent_id, exposure_id)
         changes = writable(data, over=AgentExposure)
+        if data.observation is not None:
+            from app.services.channels.observation import validate_configuration
+
+            await hold_subject_shared(
+                self.db, LockScope.MODEL_PROFILE_REFERENCES, ctx.organization_id
+            )
+            await validate_configuration(self.db, ctx, exposure, data.observation)
+            changes["observation"] = data.observation.model_dump(mode="json")
+            changes["observation_user_id"] = ctx.user_id
+            changes["observation_generation"] = uuid4()
+        elif exposure.observation and changes:
+            changes["observation_generation"] = uuid4()
+        if "prompt" in changes and changes["prompt"] is None:
+            changes["prompt_replaces_defaults"] = False
         if changes.get("environment_id") is not None:
             await self._environment_of(ctx, agent_id, changes["environment_id"])
         if changes.get("tools") is not None:

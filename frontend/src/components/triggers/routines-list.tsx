@@ -93,6 +93,7 @@ export function RoutinesList() {
           <div className="space-y-3">
             {list.visible.length === 0 ? (
               <ListCardEmpty
+                onClearFilters={() => list.setQuery("")}
                 icon={Search}
                 title={t("noRoutineMatches")}
                 description={t("noRoutineMatchesHint")}

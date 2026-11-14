@@ -77,7 +77,11 @@ export function ArtifactCard({
         paperClassName="p-0"
       >
         {artifact.current_version !== null && !archived && (
-          <ArtifactThumbnail artifactId={artifact.id} title={artifact.title} />
+          <ArtifactThumbnail
+            artifactId={artifact.id}
+            title={artifact.title}
+            versionId={artifact.current_version.id}
+          />
         )}
       </DocPeek>
       <div className="pointer-events-none relative flex flex-1 flex-col gap-1.5 p-4 pt-3.5">

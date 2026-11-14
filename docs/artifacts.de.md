@@ -1,5 +1,5 @@
 ---
-source_sha: "39ef16198c21"
+source_sha: "a2ae2fb2e890"
 ---
 
 # Apps { #artifacts }
@@ -1570,3 +1570,11 @@ Deployments, unter `artifacts/<organization>/<artifact>/`.
 - Archivieren behält eine Seite und liefert nichts von ihr aus, den öffentlichen
   Link ausgeschaltet, bis jemand, der sie bearbeiten darf, sie wiederherstellt.
 - Eine eigene Aufbewahrungsklasse, gemessen ab der letzten Veröffentlichung.
+
+## Vorschauen laden und teilen { #preview-loading-and-sharing }
+
+Chat-Vorschauen reservieren Platz, während der Visual-Renderer oder das App-Vorschaubild lädt. Sie werden nach dem Rendern oder Dekodieren eingeblendet; die Einstellung für reduzierte Bewegung deaktiviert die Animation. App-Listen verwenden zwischengespeicherte statische Vorschaubilder pro Version, statt beim Zurückkehren jede App erneut auszuführen.
+
+Der Apps-Skill enthält interaktive HTML-Präsentationen, PDF-Druckstile und wiederverwendbare Komponentenbeispiele. PDF-Export benötigt den konfigurierten Renderer; reine Validierung beweist keine erfolgreiche Skriptausführung. Diagramme, Tabellen und interaktive Inhalte müssen in der gerenderten Vorschau geprüft werden. PowerPoint-Export ist nicht enthalten.
+
+Das Plattform-MCP-Tool `create_app_public_link` benötigt Bearbeitungszugriff und die ausdrückliche Bestätigung der öffentlichen Freigabe. Es verwendet vorhandene Links weiter und erhält Passwort, Ablaufdatum und festgelegte Version. Live-Daten benötigen eine separate Zustimmung des Eigentümers. Ein Aufruf ist erst erfolgreich, wenn die API die öffentliche URL bestätigt.

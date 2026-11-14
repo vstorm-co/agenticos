@@ -1,5 +1,5 @@
 ---
-source_sha: "bfe431b65940"
+source_sha: "88782c453516"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -341,6 +341,7 @@ Standardowe providery korzystają z wnioskowania modeli i providerów w Pydantic
 | OpenAI | `openai` | klucz API albo brak | ✓ |
 | Anthropic | `anthropic` | klucz API | ✓ |
 | Google Gemini | `google` | klucz API | ✓ |
+| TypeSafe (Jev) | `typesafe` | API key | ✓ |
 | OpenRouter | `openrouter` | klucz API |  ✓ |
 | Otari | `otari` | klucz API | ✓ |
 | Alibaba Cloud | `alibaba` | klucz API | ✓ |
@@ -367,6 +368,7 @@ Standardowe providery korzystają z wnioskowania modeli i providerów w Pydantic
 
 | Provider | id | Poświadczenie | Custom URL |
 |---|---|---|---|
+| System One API | `system-one` | API key, or none | ✓ |
 | Ollama | `ollama` | brak | ✓ |
 | proxy LiteLLM | `litellm` | brak | ✓ (`api_base`) |
 
@@ -779,3 +781,15 @@ Endpoint regionalny obsługuje mniej modeli embeddingów niż globalny: `eu.open
 Przed ustawieniem regionalnych endpointów zaktualizuj wszystkie procesy API i workerów. Starsze wersje ignorują nadpisanie endpointu OpenRouter.
 
 Aby użyć innego endpointu z tym samym dostawcą i modelem, wybierz w Builderze **Dodaj osobny model**. Automatyczna nazwa zawiera endpoint, a istniejący profil pozostaje bez zmian. **Aktualizuj model** edytuje wspólny profil. Pobieranie niestandardowego katalogu ma limit 2 MiB, 2048 modeli i długości pól; proces przechowuje maksymalnie 16 katalogów. Skompresowana lub zbyt duża odpowiedź pozostawia możliwość wpisania identyfikatora modelu bez przechodzenia na globalną listę.
+
+## Modele decyzyjne { #decision-models }
+
+Profile decyzyjne używają natywnego API `decisions` zamiast generowania tekstu. Wybierz dostawcę, model i klucz z sejfu w formularzu modelu. OpenAI, Google i OpenRouter oferują API czatu i decyzji; TypeSafe i własny endpoint System One służą do decyzji. Profil decyzyjny nie może być modelem rozmowy agenta ani przełączać się awaryjnie na model czatowy.
+
+Adaptery pochodzą z Pydantic AI. Obecne sugestie obejmują OpenAI `gpt-6-luna`, Google `gemini-decision-1` oraz TypeSafe `jev-1.14.0` / `jev-latest`. OpenRouter pobiera katalog modeli decyzyjnych osobno od tekstowych. Własny System One wymaga adresu i identyfikatora modelu. Dostępność zależy od dostawcy i konta; sugestia nie gwarantuje dostępu.
+
+Kroki **Decision models** w workflow wybierają profil natywny. Istniejące identyfikatory `decide.*` i konfiguracje z kluczem TypeSafe nadal działają. Odpowiedź poniżej progu pewności kieruje do portu `unsure`. Każde wykonanie ponownie sprawdza uprawnienia i klucz; koszt wchodzi do budżetu workflow i organizacji.
+
+Automatyczne dołączanie do rozmów na kanałach może korzystać z modelu natywnego lub zwykłego LLM ze structured output. Natywna decyzja tak/nie zwraca prawdopodobieństwo dołączenia; ograniczone pole liczbowe zachowuje tę wartość. LLM zwraca ocenę przydatności 0–100, a nie skalibrowane prawdopodobieństwo. Obie wartości porównujemy z suwakiem progu, włącznie z samą granicą. Klasyfikator nie ma narzędzi. Funkcja wymaga włączenia i respektuje ustawione interwały; główny agent może używać organizacyjnych kont MCP, nigdy prywatnych danych uczestnika.
+
+Źródła dostawców: [Pydantic AI](https://pydantic.dev/docs/ai/models/decision/), [OpenAI](https://developers.openai.com/api/docs/guides/decisions), [Google](https://ai.google.dev/gemini-api/docs/decisions-api), [TypeSafe](https://docs.typesafe.ai/models), [OpenRouter](https://github.com/OpenRouterTeam/skills/tree/main/skills/openrouter-decisions).

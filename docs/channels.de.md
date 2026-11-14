@@ -1,5 +1,5 @@
 ---
-source_sha: "3849e81358a8"
+source_sha: "3d76e4884645"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -87,6 +87,16 @@ Seite öffnet, und das wird wie das des Widgets pro Adresse gezählt.
     [Die HTTP-API](api.md) behandelt die Authentifizierung, den
     Organisations-Header, das Ausführen eines Agents über HTTP, die beiden
     WebSocket-Endpunkte und den Fehler-Envelope.
+
+## Automatische Kanalteilnahme {#automatic-channel-participation}
+
+Die Funktion ist für jede Bindung zunächst ausgeschaltet. Ein Mitglied mit **Manage channels** aktiviert sie unter **Availability → Chat apps → Configure** und wählt ein separates Entscheidungsmodell, einen Schwerpunkt, die Beobachtung aller für den Bot zugänglichen Kanäle. Zwei konfigurierbare Intervalle gelten: standardmäßig 20 Minuten vor einer Erwähnung des Agenten im Gespräch und 1 Minute danach. Direkte Erwähnungen werden weiterhin sofort beantwortet. Ohne neue menschliche Nachrichten erfolgt kein Modellaufruf.
+
+Der Worker bündelt höchstens 20 Nachrichten mit jeweils 2.000 Zeichen. Zustellbelege verhindern sieben Tage lang Duplikate; Referenzfenster verfallen nach sieben Tagen ohne Aktivität. Aufgaben überleben Neustarts, bezahlte Analysen und Antworten werden jedoch nicht automatisch wiederholt. Änderungen oder Deaktivierung der Bindung, entzogene Kontorechte sowie eine Antwort auf eine direkte Erwähnung ersetzen wartende Teilnahme. Activity erfasst Entscheidung und Agentenantwort getrennt sowie beide Kosten, auch bei Fehlern.
+
+Automatische Antworten nutzen Hauptmodell und Anweisungen des veröffentlichten Agenten und bewahren Budget, Guardrails und Tool-Suche. Sie dürfen ausschließlich ausdrücklich gebundene MCP-Organisationskonten innerhalb der Tool-Freigaben von Verbindung und Bindung verwenden. Persönliche Verbindungen, Plattform-MCP-Zugangsdaten und andere Aktionsfähigkeiten bleiben unverfügbar. Bestehende MCP-Freigaberegeln gelten weiterhin: Ein freigabepflichtiger Aufruf wird ohne Ausführung oder Parken verweigert. Der Agent erklärt den nächsten Schritt und bittet eine Person um eine Erwähnung im Thread. Der normale Lauf verwendet dann deren Identität und die üblichen Freigabeeinstellungen. Das ausführende Konto gehört dem Mitglied, das die Konfiguration speichert; aktuelle Mitgliedschaft und Kanalverwaltungsrecht werden vor Modellaufrufen und Zustellung erneut geprüft.
+
+Passive Beobachtung benötigt einen tatsächlichen Gruppen-Nachrichtenstrom: Mattermost-WebSocket oder beobachteten ausgehenden Webhook, vollständige Slack-Nachrichtenereignisse statt nur `app_mention`, Teams-RSC für alle Nachrichten, entsprechende Telegram-Datenschutz-/Administratoreinstellungen oder Discord-Nachrichtenzugriff und Intents. Nur vom Anbieter zugestellte Nachrichten werden beobachtet. SMS, E-Mail und iMessage behalten ihr normales Anfrage-Antwort-Verhalten ohne diesen Kanalmodus.
 
 ## Das Website-Widget { #the-website-widget }
 
@@ -3140,7 +3150,7 @@ ab, der `channel_tools` trägt, und der Run setzt die Bindung aus der Zeile
 zusammen, die die Nachricht eingelassen hat, genauso wie er den Prompt dieser
 Bindung anhängt.
 
-Nichts wird standardmäßig gewährt. Was eine Plattform nicht beantworten kann, wird
+Neue Bindungen aktivieren alle von der Plattform unterstützten Tools. Bestehende Bindungen behalten ihre gespeicherte Auswahl; deaktivieren Sie nicht benötigte Tools. Was eine Plattform nicht beantworten kann, wird
 nicht angeboten: Telegram gibt einem Bot kein Verzeichnis von Chats zum Durchsuchen
 und keine Möglichkeit, Nachrichten zu lesen, die ihm nicht geschickt wurden, und
 `getChatAdministrators` ist alles, was es auflisten darf — also ist eine
@@ -3218,7 +3228,7 @@ Eine Kanalnachricht, die nur die Bot-Erwähnung oder Leerraum enthält, wird nac
 
 ## Aktuelle Kanalvorgaben {#current-channel-defaults}
 
-Formatierung und Gesprächsregeln kommen bei jedem Lauf aus dem aktuellen Deployment. Der Bindungs-Prompt speichert nur eigene Ergänzungen. Upgrades entfernen exakt erkannte Kopien früherer Standardanweisungen und erhalten den umgebenden eigenen Text; bearbeiteter oder unbekannter Text bleibt unverändert. Das Leeren des eigenen Prompts erhält Plattformvorgaben und Kanalkontext. Eine Umschreibung alter Prompt-Zeichenfolgen zur Laufzeit ist nicht erforderlich.
+Formatierung und Gesprächsregeln kommen bei jedem Lauf aus dem aktuellen Deployment. Ältere Bindungs-Prompts speichern Ergänzungen; neue vollständige Änderungen werden ausdrücklich als Ersatz markiert. Upgrades entfernen exakt erkannte Kopien früherer Standardanweisungen und erhalten den umgebenden eigenen Text; bearbeiteter oder unbekannter Text bleibt unverändert. Das Leeren des eigenen Prompts erhält Plattformvorgaben und Kanalkontext. Eine Umschreibung alter Prompt-Zeichenfolgen zur Laufzeit ist nicht erforderlich.
 
 Ein Downgrade stellt die gespeicherten Kanalvorgaben der vorherigen Version wieder her und erhält eigene Ergänzungen, auch bei nach dem Upgrade angelegten Bindungen. Andere Oberflächen bleiben unverändert.
 
@@ -3263,3 +3273,44 @@ Eingehende E-Mails werden vor der Signaturprüfung als begrenzter Stream mit hö
 
 
 Vor der dauerhaften E-Mail-Annahme gelten je Organisation höchstens 4.096 aufbewahrte Zustellaufträge und 256 MiB Nachrichtentext, einschließlich abgeschlossener und fehlgeschlagener Zustellungen. Die Annahme ist workerübergreifend serialisiert; doppelte Message-IDs bleiben idempotent. Bei voller Quote folgt HTTP 429, bevor weiterer Inhalt gespeichert wird. Aufbewahrungsbereinigung oder Löschen gespeicherter Aufträge gibt Kapazität frei.
+
+## Älterer Verlauf und authentifizierte Vorschauen { #history-pages-and-live-views }
+
+`read_channel_history` unterstützt `query` (wörtlicher Text), `author_id`, `after` und `before` (ISO-Zeitstempel mit Zeitzone). Die Zeitgrenzen sind exklusiv. Mit `cursor="start"` beginnt die Seitennavigation ohne Filter; der zurückgegebene Cursor wird mit denselben Filtern, demselben Bereich und Limit fortgesetzt. Auch eine Seite ohne Treffer kann einen Folgecursor haben. Jeder Aufruf prüft eine begrenzte Seite statt des gesamten Archivs; Nachrichtentexte bleiben auf 500 Zeichen begrenzt.
+
+Mattermost findet Text oder Zeitfenster in Teamkanälen über seinen Suchindex und setzt dann mit nativen Nachrichten-IDs fort, auch ohne Elasticsearch. Die Abdeckung hängt vom Index und der Aufbewahrung ab. In Direktgesprächen ist die Indexsuche nicht verfügbar; deren Verlauf lässt sich mit nativen Seiten ohne Text-/Zeitsuche prüfen. Thread-Seiten verwenden den gebundenen Thread und native Zeit-/ID-Positionen. Slack verwendet eigene Cursor und Zeitgrenzen und filtert Text und Autor innerhalb jeder Seite. Andere Adapter melden fehlende Unterstützung ausdrücklich; bisherige Abfragen letzter Nachrichten bleiben unverändert.
+
+Das Ziel bleibt der aktuelle Kanal oder Thread. Ein Cursor kann weder in ein anderes Ziel übertragen noch mit geänderten Filtern verwendet werden. Bestehende Berechtigungen und Freigaben gelten weiterhin. Ältere Nachrichten sind Quellen, keine neuen Anweisungen; Systemereignisse starten keine kostenpflichtigen Runs.
+
+Browser- und Computeraktionen können während der Ausführung einen authentifizierten Vorschaulink zeigen. Die abschließende Kanalantwort und Antworten nach einer Freigabe behalten verfügbare Links, auch bei umbenannten Tools. Das Öffnen erfordert Anmeldung und die bestehenden Run-/Ansichtsberechtigungen; ein persönlicher Desktop wird dadurch nicht mit dem Raum geteilt. Die Verfügbarkeit hängt vom Vorschaudienst und seiner Aufbewahrung ab und verspricht keine dauerhafte Aufzeichnung.
+
+
+## Aktionen in verbundenen Chat-Apps { #connected-messaging-actions }
+
+Die Kontrollkästchen unter **Was dieser Agent tun darf** gewähren echte Werkzeuge. Gesprächswerkzeuge gelten nur für den eingehenden Kanal oder Thread; Bindungsanweisungen sind separater Text für diese Oberfläche. Die Gruppe **Aus jedem Lauf** gewährt `find_chat_channels`, `read_chat_messages` und `send_chat_message` auf einem ausgewählten Mattermost- oder Slack-Bot. Neue Bindungen aktivieren diese Aktionen und die unterstützten Gesprächswerkzeuge; vorhandene Einstellungen bleiben erhalten. Eine aktivierte Aktion umfasst alle Kanäle, denen der Bot beigetreten ist, auch aus Webchat, anderen Unterhaltungen verknüpfter Benutzer oder Routinen. `list_chat_connections` liefert freigegebene Bots und das verifizierte aktuelle Ziel.
+
+Jede Operation prüft erneut Organisationsmitgliedschaft, Agentenzugriff, aktive Bindung und Bot sowie anschließend Kanalmitgliedschaft und Thread-Zugehörigkeit. Sie tritt keinen Kanälen bei und verwendet keine Bots anderer Agenten. Suche und Verlauf liefern begrenzte Seiten mit Cursorn; eine leere Trefferseite ist nicht das Ende, solange ein Cursor besteht. Anbieterfehler sind Ablehnungen, keine leeren Ergebnisse. Senden folgt den Freigaberegeln; unbestätigte Sendungen müssen vor einem erneuten Versuch am Ziel geprüft werden. Andere Plattformen behalten ihre Gesprächswerkzeuge; kanalübergreifende Aktionen werden nur bei überprüfbarer Mitgliedschaft angeboten.
+
+Vor einem wiederkehrenden Bericht Zeitzone, Rhythmus und Ziel einschließlich bestehendem Thread oder neuem Beitrag klären. Verifizierte Bot-, Kanal- und Thread-IDs sowie die vollständige Aufgabe in den Routinen-Prompt schreiben und abschließend `send_chat_message` verwenden; die Konsolenkopie gehört ins Laufprotokoll. Quellen und gegebenenfalls dauerhafte Aktionsfreigabe unter Routinen prüfen. Fehlt eine Quelle, wird die Routine mit Einrichtungshinweisen pausiert gespeichert und bleibt bis zur Reparatur und Quellenprüfung gesperrt. Die bestehende Routine reparieren, statt weitere mit anderen Agenten anzulegen.
+
+Lange Aufgaben streamen Text und tatsächliche Werkzeugschritte. Textkanäle zeigen die laufende Phase auch nach einem Zwischenstand; begrenzte Aktualisierungen nennen verstrichene Zeit und abgeschlossene Schritte, keinen erfundenen Prozentsatz. Die endgültige Antwort ersetzt den Zwischenstatus. Nativ streamende Plattformen behalten ihre eigene Zeitleiste.
+
+### Vom Agenten gewählte Reaktionen { #agent-chosen-reactions }
+
+Neue Bot-Bindungen aktivieren alle von der Plattform unterstützten Werkzeuge, einschließlich **React with emoji**, sofern verfügbar. Bestehende Bindungen behalten ihre Auswahl. Reaktionen begleiten eine Textantwort: eine kurze Bestätigung bei einfachen Anfragen oder einen vollständigen Bericht, wenn nötig. Der Bot löscht seine Fortschrittsnachricht nach dem Reagieren nicht. Er darf auf mehrere ältere, aus dem zugelassenen Kanalverlauf gelesene Nachrichten reagieren; nicht verknüpfte Absender erhalten keinen Zugriff auf andere Kanäle. Fehler und teilweise angewendete Reaktionen werden wahrheitsgemäß gemeldet.
+
+| Plattform | Native Reaktionen über diese Verbindung | Grenze und Bereich |
+| --- | --- | --- |
+| Mattermost, Slack | Ja | Bis zu acht verschiedene Standard-Emoji-Namen; überprüfte zugängliche Nachricht |
+| Discord | Ja | Bis zu acht verschiedene Standard-Emoji-Namen; aktuelle zugelassene Nachricht |
+| Telegram | Ja | Eine Reaktion; aktuelle zugelassene Nachricht; Telegram kann die Emoji-Auswahl begrenzen |
+| iMessage | BlueBubbles-Tapbacks | Ein unterstützter Tapback auf die aktuelle zugelassene Nachricht; Private API erforderlich |
+| Microsoft Teams | Nicht mit dem aktuellen Bot-Connector-Zugang | Graph-Reaktionen benötigen delegierte Benutzerrechte; Anwendungsrechte werden nicht unterstützt |
+| Twilio SMS, E-Mail | Kein natives Reaktionsprotokoll in diesen Adaptern | Emoji sind als normaler Text möglich |
+
+Slack benötigt `reactions:read` sowie `reactions:write`; installiere die App nach der Manifeständerung erneut. Das Werkzeug meldet das tatsächliche Ergebnis, statt eine nicht unterstützte Auswahl still zu ersetzen. Die Verbindungsliste zeigt Reaktionsgrenze und Zielbereich. Die Beschränkung auf die aktuelle Nachricht bei Telegram, Discord und iMessage verhindert geratene Empfänger oder fremde Nachrichten-IDs.
+
+E-Mail, iMessage und Twilio MMS bieten außerdem die ausdrückliche Zustellung von Workspace-Dateien in der aktuellen Unterhaltung. MMS unterliegt den Medieneinstellungen der Bereitstellung und den Twilio-Anhangsgrenzen. Per E-Mail gesendete Diagramme werden als Bildanhänge zugestellt.
+
+
+Das Eingabefeld für Kanalanweisungen zeigt die aktuellen Vorgaben einschließlich `{{channel_name}}` und `{{channel_members}}`. Das Speichern eines bearbeiteten vollständigen Prompts setzt `prompt_replaces_defaults`: Darstellungshinweise werden einmal ersetzt, ohne die Vorgaben zu duplizieren. Frühere eigene Prompts bleiben Ergänzungen. Leeren stellt die aktuellen Deployment-Vorgaben wieder her. Identität, Berechtigungen und vertrauenswürdiger Laufzeitkontext bleiben unabhängig. Ein Bot darf auf die zugelassene aktuelle Nachricht reagieren, ohne die Identität des abrechnenden Herausgebers eines nicht verknüpften Absenders zu übernehmen; Aktionen in anderen Kanälen erfordern weiterhin ein identifiziertes Mitglied und ausdrückliche Freigaben.

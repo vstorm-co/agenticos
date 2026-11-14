@@ -41,9 +41,25 @@ export function TableListView({
 
   if (isLoading && records.length === 0) {
     return (
-      <div className="space-y-2">
+      <div aria-busy="true" className="space-y-2 p-3 sm:p-4">
         {[0, 1, 2].map((row) => (
-          <Skeleton key={row} className="h-14 w-full" />
+          <div
+            key={row}
+            aria-hidden="true"
+            className="border-border/60 bg-background/60 flex flex-col gap-3 rounded-xl border px-4 py-4"
+          >
+            <div className="flex items-center gap-2">
+              <Skeleton className="size-8 shrink-0 rounded-lg" />
+              <Skeleton className="h-5 w-40 max-w-full" />
+            </div>
+            {secondary.length > 0 && (
+              <div className="flex flex-wrap gap-x-6 gap-y-2 sm:pl-10">
+                {secondary.slice(0, 3).map((column) => (
+                  <Skeleton key={column.id} className="h-4 w-24" />
+                ))}
+              </div>
+            )}
+          </div>
         ))}
       </div>
     );

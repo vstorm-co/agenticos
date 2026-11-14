@@ -28,32 +28,42 @@ import { useTranslations } from "next-intl";
 export function ExposurePrompt({
   botName,
   value,
+  defaultPrompt = "",
+  replacesDefaults = false,
   variables,
   disabled,
   onSave,
 }: {
   botName: string;
   value: string | null;
+  defaultPrompt?: string;
+  replacesDefaults?: boolean;
   /** Placeholders this platform can fill in, resolved server-side. */
   variables: ExposureVariable[];
   disabled: boolean;
   onSave: (prompt: string | null) => void;
 }) {
   const t = useTranslations("agents");
-  const [draft, setDraft] = useState(value ?? "");
+  const initial =
+    value === null
+      ? defaultPrompt
+      : replacesDefaults
+        ? value
+        : [defaultPrompt, value].filter(Boolean).join("\n\n");
+  const [draft, setDraft] = useState(initial);
   const box = useRef<HTMLTextAreaElement>(null);
-  const changed = draft.trim() !== (value ?? "").trim();
+  const changed = draft.trim() !== initial.trim();
 
   /** Put a placeholder where the caret is, rather than at the end. */
   function insert(name: string) {
     const field = box.current;
     const at = field ? field.selectionStart : draft.length;
-    setDraft(`${draft.slice(0, at)}{${name}}${draft.slice(at)}`);
+    setDraft(`${draft.slice(0, at)}{{${name}}}${draft.slice(at)}`);
     field?.focus();
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       {/* The same editor the agent's own Instructions use, for the same
           reason: this is Markdown the model reads as structure, and three rows
           of it is a keyhole onto a prompt somebody is composing. */}
@@ -80,7 +90,7 @@ export function ExposurePrompt({
               title={variable.description}
               onClick={() => insert(variable.name)}
             >
-              {`{${variable.name}}`}
+              {`{{${variable.name}}}`}
             </Button>
           ))}
         </div>
@@ -94,7 +104,11 @@ export function ExposurePrompt({
           // Empty means "nothing extra here", which is a null rather than a
           // blank string: the run appends what it finds, and an empty line
           // appended to every prompt is still an edit to every prompt.
-          onClick={() => onSave(draft.trim() === "" ? null : draft.trim())}
+          onClick={() =>
+            onSave(
+              draft.trim() === "" || draft.trim() === defaultPrompt.trim() ? null : draft.trim(),
+            )
+          }
         >
           {t("save4")}
         </Button>

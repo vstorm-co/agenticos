@@ -267,6 +267,7 @@ class TestACredentialInTheConfigIsRefused:
         service = _service(monkeypatch)
         existing = SimpleNamespace(
             connector_type="gdrive",
+            collection_name="handbook",
             ctx=_ctx(_ORG),
             config={"folder_id": "1AbC"},
             secret_id=None,
@@ -410,3 +411,47 @@ def test_there_is_no_second_encryption_mechanism():
 
     with pytest.raises(ModuleNotFoundError):
         importlib.import_module("app.core.crypto")
+
+
+class TestPreparedSourceEdits:
+    @pytest.mark.security
+    async def test_a_source_changed_after_network_validation_is_not_overwritten(self, monkeypatch):
+        from datetime import UTC, datetime
+
+        from app.core.exceptions import ConcurrentChangeError
+        from app.db.models.sync_source import SyncSource
+
+        service = _service(monkeypatch)
+        source = SyncSource(
+            id=uuid.uuid4(),
+            organization_id=_ORG,
+            name="Docs",
+            connector_type="gdrive",
+            collection_name="handbook",
+            config={"folder_id": "before"},
+            sync_mode="new_only",
+            updated_at=datetime.now(UTC),
+        )
+        monkeypatch.setattr(service, "get_source", AsyncMock(return_value=source))
+        update = AsyncMock()
+        monkeypatch.setattr(sync_source_module.sync_source_repo, "update", update)
+        prepared = await service.prepare_update(
+            str(source.id), SyncSourceUpdate(name="After"), ctx=_ctx(_ORG)
+        )
+        source.config = {"folder_id": "concurrent"}
+        with pytest.raises(ConcurrentChangeError):
+            await service.update_source(
+                str(source.id), prepared.data, ctx=_ctx(_ORG), prepared=prepared
+            )
+        update.assert_not_awaited()
+
+    async def test_a_validation_timeout_is_actionable_and_closes_the_connector(self, monkeypatch):
+        from app.services.rag.connectors import BaseSyncConnector
+
+        connector = MagicMock(spec=BaseSyncConnector)
+        connector.validate_config = AsyncMock(side_effect=TimeoutError)
+        connector.aclose = AsyncMock()
+        monkeypatch.setitem(sync_source_module.CONNECTOR_REGISTRY, "slow", lambda: connector)
+        with pytest.raises(BadRequestError, match="validation timed out"):
+            await sync_source_module._refuse_an_invalid_config({}, "slow")
+        connector.aclose.assert_awaited_once()

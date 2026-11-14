@@ -4,8 +4,9 @@ import { use, useEffect, useState } from "react";
 import { Archive } from "lucide-react";
 
 import { PageHeader } from "@/components/dashboard/page-header";
+import { RetentionFormLoading } from "@/components/orgs/retention-table";
 import { RetentionForm } from "@/components/orgs/retention-form";
-import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { EmptyState, ErrorState } from "@/components/states";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
 import { usePermissions, useRetention } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
@@ -58,7 +59,7 @@ export default function RetentionPage({ params }: PageProps) {
   // on navigation and leaves a failed read saying it permanently (#1420 review).
   if (permissionsError) {
     return (
-      <div className="space-y-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
         {header}
         <ErrorState />
       </div>
@@ -66,15 +67,22 @@ export default function RetentionPage({ params }: PageProps) {
   }
   if (!isLoaded) {
     return (
-      <div className="space-y-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
         {header}
-        <LoadingState variant="skeleton-table" columns={3} rows={6} />
+        <Card className="flex min-h-0 flex-1 flex-col">
+          <CardHeader className="border-b px-5 py-4">
+            <CardTitle className="text-sm">{t("howLongEachClassLives")}</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-1 flex-col p-0">
+            <RetentionFormLoading />
+          </CardContent>
+        </Card>
       </div>
     );
   }
   if (!can(Perm.orgSettings)) {
     return (
-      <div className="space-y-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
         {header}
         <EmptyState icon={Archive} title={t("notYours")} description={t("askAnAdmin")} />
       </div>
@@ -82,17 +90,17 @@ export default function RetentionPage({ params }: PageProps) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       {header}
-      <Card data-tour="org-retention">
+      <Card data-tour="org-retention" className="flex min-h-0 flex-1 flex-col">
         <CardHeader className="border-b px-5 py-4">
           <CardTitle className="text-sm">{t("howLongEachClassLives")}</CardTitle>
         </CardHeader>
-        <CardContent className="p-5">
+        <CardContent className="flex min-h-0 flex-1 flex-col p-0">
           {error ? (
             <ErrorState cta={{ label: tc("retry"), onClick: () => void refetch() }} />
           ) : isLoading || !policy ? (
-            <LoadingState variant="skeleton-table" columns={3} rows={6} />
+            <RetentionFormLoading />
           ) : (
             <RetentionForm
               policy={policy}

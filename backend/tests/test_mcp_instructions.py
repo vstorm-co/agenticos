@@ -69,5 +69,5 @@ async def test_two_connections_on_the_same_host_keep_distinct_instruction_source
     assert seen[0] is not None
     assert "Use the work handbook." in seen[0]
     assert "Use my notes." in seen[0]
-    sources = re.findall(r'<context id="([^"]+)">', seen[0])
+    sources = re.findall(r'<pyai:context id="([^"]+)">', seen[0])
     assert len(sources) == len(set(sources)) == 2

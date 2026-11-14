@@ -311,6 +311,7 @@ export default function WorkflowsPage() {
           <ErrorState cta={{ label: tc("retry"), onClick: () => void refetch() }} />
         ) : list.matched === 0 ? (
           <ListCardEmpty
+            onClearFilters={filtersActive ? clearFilters : undefined}
             icon={Workflow}
             title={filtersActive ? t("nothingMatches") : t("noWorkflowsYet")}
             description={

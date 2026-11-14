@@ -73,7 +73,10 @@ function StepApprovalRow({
   const shownDraft = useDeferredValue(draft);
 
   const named = approval.approver_user_ids.length > 0;
-  const notYours = named && (userId === null || !approval.approver_user_ids.includes(userId));
+  const notYours =
+    approval.can_decide === undefined
+      ? named && (userId === null || !approval.approver_user_ids.includes(userId))
+      : !approval.can_decide;
   const unsendable = draft.trim() === "" || draft.length > MAX_PROPOSAL_CHARS;
   const heading = approval.proposal_label ?? t("stepApprovalProposal");
   const approveDisabled = deciding || notYours || (approval.editable && unsendable);

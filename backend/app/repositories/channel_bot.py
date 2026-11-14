@@ -40,6 +40,7 @@ async def get_for_org(
     *,
     organization_id: UUID,
     for_update: bool = False,
+    fresh: bool = False,
 ) -> ChannelBot | None:
     """Get a bot by ID within one organization.
 
@@ -48,9 +49,13 @@ async def get_for_org(
     read, or a rotation committing in between leaves its envelope tagged with a
     version it was not sealed under.
     """
-    stmt = select(ChannelBot).where(
-        ChannelBot.id == bot_id,
-        ChannelBot.organization_id == organization_id,
+    stmt = (
+        select(ChannelBot)
+        .where(
+            ChannelBot.id == bot_id,
+            ChannelBot.organization_id == organization_id,
+        )
+        .execution_options(populate_existing=fresh)
     )
     if for_update:
         stmt = stmt.with_for_update().execution_options(populate_existing=True)

@@ -438,11 +438,28 @@ class TestTheLegacyCliSources:
         assert not (tmp_path / "evil.txt").exists()
 
     async def test_a_cli_synced_document_is_stamped_with_its_connector_source(
-        self, tmp_path: Path
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """`rag-sync-s3`/`rag-sync-gdrive` reach `sources/`, which — unlike the
         worker connector flow — omitted `source`, so documents synced this way
         stored `source = null` and never matched a `source=["s3"]` filter."""
+        from contextlib import asynccontextmanager
+        from uuid import uuid4
+
+        from app.services.rag.sources import base
+
+        @asynccontextmanager
+        async def context():
+            yield MagicMock()
+
+        documents = MagicMock(
+            hold_ingestion_name=AsyncMock(),
+            create_document=AsyncMock(return_value=MagicMock(id=uuid4())),
+            complete_ingestion=AsyncMock(return_value=True),
+        )
+        monkeypatch.setattr(base, "get_db_context", context)
+        monkeypatch.setattr(base, "RAGDocumentService", MagicMock(return_value=documents))
+        (tmp_path / "report.pdf").write_bytes(b"PDF")
         source = S3Source.__new__(S3Source)
         source.list_files = AsyncMock(  # type: ignore[method-assign]
             return_value=[SourceFile(id="k1", name="report.pdf", path="folder/report.pdf")]

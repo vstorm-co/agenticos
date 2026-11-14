@@ -68,6 +68,7 @@ export function MyClaims() {
         <ErrorState />
       ) : page.items.length === 0 ? (
         <ListCardEmpty
+          onClearFilters={narrowed ? reset : undefined}
           icon={narrowed ? SlidersHorizontal : Brain}
           title={view(narrowed ? "noMatches" : "emptyMemories")}
           description={view(narrowed ? "tryFilters" : "emptyMemoriesHint")}

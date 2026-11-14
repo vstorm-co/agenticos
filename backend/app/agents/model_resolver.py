@@ -71,7 +71,7 @@ from app.core.secret_kinds import (
 if TYPE_CHECKING:
     from pydantic_ai.providers.openai_codex import OpenAICodexCredentialSource
 
-ModelApi = Literal["chat", "responses"]
+ModelApi = Literal["chat", "responses", "decisions"]
 """Which of OpenAI's two APIs a profile's requests go to: Chat Completions or Responses."""
 
 
@@ -147,7 +147,18 @@ class ProviderSpec:
     @property
     def apis(self) -> tuple[ModelApi, ...]:
         """The APIs a profile may choose between; empty where there is no choice."""
-        return ("responses", "chat") if self.native_api is not None else ()
+        ordinary: tuple[ModelApi, ...] = (
+            ("chat",)
+            if self.id in {"google", "openrouter"}
+            else ("responses", "chat")
+            if self.native_api is not None
+            else ()
+        )
+        return (
+            (*ordinary, "decisions")
+            if self.id in {"openai", "google", "openrouter", "typesafe", "system-one"}
+            else ordinary
+        )
 
     def default_api(self, base_url: str | None) -> ModelApi | None:
         """The API a profile gets when it names none.
@@ -157,6 +168,10 @@ class ProviderSpec:
         a gateway or a regional OpenAI endpoint that serves Responses is a choice
         the profile makes explicitly.
         """
+        if self.id in {"typesafe", "system-one"}:
+            return "decisions"
+        if self.id in {"google", "openrouter"}:
+            return "chat"
         if self.native_api is None:
             return None
         return self.native_api if base_url is None else "chat"
@@ -256,6 +271,14 @@ PROVIDERS: dict[str, ProviderSpec] = {
         ),
         _api_key("anthropic", "Anthropic", base_url_param="base_url"),
         _api_key("google", "Google Gemini", base_url_param="base_url"),
+        _api_key("typesafe", "TypeSafe (Jev)", base_url_param="base_url"),
+        _api_key(
+            "system-one",
+            "System One API",
+            base_url_param="base_url",
+            keyless=True,
+            requires_base_url=True,
+        ),
         _api_key("openrouter", "OpenRouter", base_url_param="base_url"),
         _api_key(
             "otari",
@@ -567,6 +590,8 @@ def build_model(credential: ResolvedCredential, model: str) -> Model:
 
 def _build_model(credential: ResolvedCredential, model: str) -> Model:
     spec = get_provider(credential.provider)
+    if is_decision_api(credential.provider, credential.api):
+        return _build_decision_model(credential, model)
     if credential.api == "responses":
         # Local for the reason `_build_provider`'s are: a deployment that never
         # configures OpenAI should not import its SDK at startup.
@@ -591,6 +616,47 @@ def _build_model(credential: ResolvedCredential, model: str) -> Model:
         f"{spec.prefix}:{model}",
         provider_factory=lambda _: _build_provider(spec, credential),
     )
+
+
+def is_decision_api(provider: str, api: ModelApi | str | None) -> bool:
+    """Decision-only endpoints must not be mistaken for conversational models."""
+    return api == "decisions" or provider in {"typesafe", "system-one"}
+
+
+def _build_decision_model(credential: ResolvedCredential, model: str) -> Model:
+    """Use Pydantic AI's native decision transports, preserving the chosen account."""
+    from pydantic_ai.models.google_decisions import GoogleDecisionsModel
+    from pydantic_ai.models.openai_decisions import OpenAIDecisionsModel
+    from pydantic_ai.models.system_one import SystemOneModel
+    from pydantic_ai.models.typesafe import TypeSafeModel
+    from pydantic_ai.providers.google import GoogleProvider
+    from pydantic_ai.providers.system_one import SystemOneProvider
+    from pydantic_ai.providers.typesafe import TypeSafeProvider
+
+    if credential.provider in {"openrouter", "system-one"}:
+        secret = credential.secret
+        if not isinstance(secret, (ApiKeySecret, NoSecret)):
+            raise BadRequestError(
+                message="A decision endpoint requires an API key or keyless connection"
+            )
+        endpoint = credential.base_url or "https://openrouter.ai/api/v1"
+        return SystemOneModel(
+            model,
+            provider=SystemOneProvider(
+                base_url=endpoint,
+                api_key=secret.api_key.get_secret_value()
+                if isinstance(secret, ApiKeySecret)
+                else "",
+            ),
+        )
+    provider = _build_provider(get_provider(credential.provider), credential)
+    if credential.provider == "openai" and isinstance(provider, OpenAIProvider):
+        return OpenAIDecisionsModel(model, provider=provider)
+    if credential.provider == "google" and isinstance(provider, GoogleProvider):
+        return GoogleDecisionsModel(model, provider=provider)
+    if credential.provider == "typesafe" and isinstance(provider, TypeSafeProvider):
+        return TypeSafeModel(model, provider=provider)
+    raise BadRequestError(message="This provider does not serve a supported decision API")
 
 
 def _openrouter_model(spec: ProviderSpec, credential: ResolvedCredential, model: str) -> Model:

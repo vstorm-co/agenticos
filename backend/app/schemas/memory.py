@@ -6,8 +6,8 @@ what a deletion removed (#1470). The self-service view says what is written down
 person, never by an organization role: somebody who may edit an agent must not
 thereby be able to read what every agent learned about a colleague (#1594).
 
-There is still no authoring here. Notes are written by the agent and by nothing
-else; what a person may do is suppress one, restore it, or delete it.
+A person may correct their own note content, suppress it, restore it or delete it.
+Corrections preserve the original agent-write timestamp and are audited separately.
 """
 
 from datetime import datetime
@@ -61,15 +61,17 @@ class MemoryNoteList(BaseSchema):
 
 
 class MemoryNoteUpdate(BaseSchema):
-    """Suppress a note, or restore one - the only field a person may set.
-
-    Not the content: this surface is for reading what an agent wrote and deciding
-    whether it may keep using it. A person editing an agent's note into something
-    the agent then believes it learned is the authoring surface memory
-    deliberately does not have.
-    """
+    """Suppress a personal note or restore it without changing its content."""
 
     active: bool
+
+
+class MemoryNoteEdit(BaseSchema):
+    """Correct a personal note using the revision displayed in the editor."""
+
+    model_config = ConfigDict(extra="forbid")
+    content: str = Field(min_length=1, max_length=100_000)
+    expected_updated_at: AwareDatetime | None
 
 
 class MemoryClaimRead(BaseSchema):

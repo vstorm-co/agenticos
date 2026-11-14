@@ -214,3 +214,20 @@ class TestAgentsCommand:
 
         assert answer is not None
         assert all(f"/{name}" in answer for name, _ in CHANNEL_COMMANDS)
+
+
+def test_bot_messages_do_not_start_a_new_channel_observation():
+    assert (
+        TelegramAdapter().parse_incoming(
+            {
+                "message": {
+                    "message_id": 3,
+                    "from": {"id": 9, "is_bot": True},
+                    "chat": {"id": -100, "type": "supergroup"},
+                    "text": "Bot reply",
+                }
+            },
+            "bot",
+        )
+        is None
+    )

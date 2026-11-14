@@ -97,6 +97,7 @@ import {
   useTableDefaultView,
 } from "@/hooks";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
+import { CreateTaskDialog } from "@/components/tasks/create-task-dialog";
 import { useDurableTasks } from "@/hooks/use-durable-tasks";
 import { useUrlState } from "@/hooks/use-url-state";
 import { COMPUTED_TYPES, emptyViewConfig } from "@/types/tables";
@@ -132,6 +133,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   const tErrors = useTranslations("errors");
   const tc = useTranslations("common");
   const tTasks = useTranslations("durableTasks");
+  const [creatingTask, setCreatingTask] = useState(false);
   const taskBoards = useDurableTasks().boards;
   const taskBoard = taskBoards.data?.find((board) => board.table_id === id);
   const tMenu = useTranslations("tables.columnMenu");
@@ -484,13 +486,16 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
         }
         actions={
           canEdit && (
-            <Button size="sm" onClick={() => addRecord()}>
-              <Plus className="h-4 w-4" /> {t("addRecord")}
+            <Button size="sm" onClick={() => (taskBoard ? setCreatingTask(true) : addRecord())}>
+              <Plus className="h-4 w-4" /> {taskBoard ? tTasks("newTask") : t("addRecord")}
             </Button>
           )
         }
       />
 
+      {creatingTask && taskBoard && canEdit && (
+        <CreateTaskDialog open onOpenChange={setCreatingTask} board={taskBoard} />
+      )}
       {table.archived_at && (
         <ArchivedTableNotice
           archivedAt={table.archived_at}

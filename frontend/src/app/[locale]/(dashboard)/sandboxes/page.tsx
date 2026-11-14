@@ -8,13 +8,12 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { ConnectionDialog } from "@/components/sandboxes/connection-dialog";
 import { ConnectionsTable } from "@/components/sandboxes/connections-table";
 import { PolicyPanel } from "@/components/sandboxes/policy-panel";
-import { SessionsPanel } from "@/components/sandboxes/sessions-panel";
+import { SessionsPanel, SessionsPanelLoading } from "@/components/sandboxes/sessions-panel";
 import {
   Button,
   ConfirmDialog,
   ListCard,
   ListCardEmpty,
-  Skeleton,
   Tabs,
   TabsContent,
   TabsList,
@@ -114,27 +113,15 @@ export default function SandboxesPage() {
             fill
             data-tour="sandboxes-connections"
             title={t("sandboxConnections")}
-            // With the list refused or still loading, "0 connections" would
-            // state as fact something no answer has said - the skeleton stays.
-            counted={
-              isLoading || error !== null
-                ? null
-                : t("registeredCount", { count: connections.length })
-            }
+            namedByPage
             contentClassName="p-0"
           >
-            {isLoading ? (
-              <div className="space-y-3 p-5">
-                {[0, 1].map((row) => (
-                  <Skeleton key={row} className="h-10 w-full" />
-                ))}
-              </div>
-            ) : error !== null ? (
+            {error !== null ? (
               // An empty table and a failed request are the same pixels, so the
               // refusal is shown where the rows would be rather than dressed as
               // "none registered".
               <ErrorState description={error} className="m-5" />
-            ) : connections.length === 0 ? (
+            ) : !isLoading && connections.length === 0 ? (
               <ListCardEmpty
                 icon={Boxes}
                 title={t("noSandboxConnectionsYet")}
@@ -143,6 +130,7 @@ export default function SandboxesPage() {
             ) : (
               <ConnectionsTable
                 connections={connections}
+                loading={isLoading}
                 onEdit={(connection) => {
                   setEditing(connection);
                   setDialogOpen(true);
@@ -156,11 +144,7 @@ export default function SandboxesPage() {
 
         <TabsContent value="running" className="flex flex-1 flex-col">
           {isLoading ? (
-            <div className="space-y-3 p-5">
-              {[0, 1].map((row) => (
-                <Skeleton key={row} className="h-10 w-full" />
-              ))}
-            </div>
+            <SessionsPanelLoading />
           ) : error !== null ? (
             // With the list refused, "no container connection registered" would
             // state as fact something the request never answered.

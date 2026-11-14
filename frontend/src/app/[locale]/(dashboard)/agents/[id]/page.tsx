@@ -115,6 +115,7 @@ import { KnowledgeGapsPanel } from "@/components/knowledge-gaps/knowledge-gaps-p
 import { gapStatus } from "@/lib/knowledge-gap-status";
 import { ImproveButton, ImproveLink } from "@/components/agents/improve-link";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/states";
 import {
   ResourceUnavailable,
@@ -916,7 +917,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
     [capabilities],
   );
 
-  if (isLoading) return <BuilderSkeleton />;
+  if (isLoading) return <BuilderSkeleton tab={tab} />;
   if (agentError instanceof ApiError && (agentError.status === 404 || agentError.status === 403))
     return (
       <div role="alert" className="space-y-3">
@@ -936,7 +937,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
         cta={{ label: tAgents("retryLoad"), onClick: () => void refetchAgent() }}
       />
     );
-  if (!spec) return <BuilderSkeleton />;
+  if (!spec) return <BuilderSkeleton tab={tab} />;
   if (isSystem) return <ResourceUnavailable back={ROUTES.AGENTS} label={t("backToAgents")} />;
 
   const isPublished = agent.status === "published";
@@ -2295,33 +2296,51 @@ export default function AgentBuilderPage({ params }: PageProps) {
  * moment the agent arrived, which is the jump the skeleton exists to prevent.
  * `ConversationSkeleton` in `chat-container.tsx` is the same argument.
  */
-function BuilderSkeleton() {
+function BuilderSkeleton({ tab }: { tab: string }) {
   const t = useTranslations("pages.agents");
   return (
-    <div role="status" aria-label={t("loading")} className="min-w-0 space-y-6">
-      <div className="mb-6 md:mb-8">
-        <div className="bg-foreground/8 mb-3 h-3 w-40 animate-pulse rounded" />
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div className="min-w-0 space-y-2">
-            <div className="bg-foreground/10 h-5 w-52 animate-pulse rounded" />
-            <div className="bg-foreground/8 h-3.5 w-80 max-w-full animate-pulse rounded" />
-          </div>
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            {["w-32", "w-28", "w-24", "w-20"].map((width, index) => (
-              <div
+    <div
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+      aria-label={t("loading")}
+      className="min-w-0 space-y-6"
+    >
+      <PageHeader
+        title={
+          <span className="flex items-center gap-3">
+            <Skeleton className="size-12 rounded-full" />
+            <Skeleton className="h-8 w-52 max-w-full" />
+          </span>
+        }
+        breadcrumbs={[{ label: t("agents"), href: ROUTES.AGENTS }, { label: "…" }]}
+        badges={
+          <>
+            <Skeleton className="h-5 w-20 rounded-full" />
+            <Skeleton className="h-5 w-40 rounded-full" />
+          </>
+        }
+        actions={
+          <div aria-hidden="true" className="flex flex-wrap gap-2">
+            {["w-20", "w-36", "w-56", "w-32", "w-24", "w-9", "w-28"].map((width, index) => (
+              <Skeleton
                 key={index}
-                className={cn("bg-foreground/10 h-9 animate-pulse rounded-md", width)}
+                className={cn(
+                  "touch:min-h-11 h-10 rounded-lg",
+                  width,
+                  index > 1 && "hidden md:block",
+                )}
               />
             ))}
           </div>
-        </div>
-      </div>
+        }
+      />
 
       {/* Tab strip - one placeholder per tab, at the width its label takes.
           Keyed by position rather than by the width class: the classes repeat,
           which React reported as duplicate keys on every load of this page. */}
       <div className="border-border touch:min-h-11 flex h-9 max-w-full min-w-0 items-center gap-3 overflow-hidden border-b px-2">
-        {["w-12", "w-20", "w-28", "w-16", "w-24", "w-16", "w-12"].map((width, index) => (
+        {["w-12", "w-20", "w-28", "w-16", "w-24", "w-16", "w-28", "w-16"].map((width, index) => (
           <div
             key={index}
             className={cn("bg-foreground/10 h-4 shrink-0 animate-pulse rounded-md", width)}
@@ -2329,20 +2348,22 @@ function BuilderSkeleton() {
         ))}
       </div>
 
-      <Card>
-        <CardHeader className="space-y-2">
-          <div className="bg-foreground/10 h-4 w-28 animate-pulse rounded" />
-          <div className="bg-foreground/8 h-3 w-full max-w-xl animate-pulse rounded" />
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* The instructions textarea: rows={10} at the same border and radius. */}
-          <div className="border-input bg-foreground/[0.04] h-52 animate-pulse rounded-md border" />
-          <div className="space-y-2">
-            <div className="bg-foreground/10 h-3 w-16 animate-pulse rounded" />
-            <div className="border-input bg-foreground/[0.04] h-9 w-full animate-pulse rounded-md border" />
-          </div>
-        </CardContent>
-      </Card>
+      {tab === "build" ? (
+        <Card aria-hidden="true">
+          <CardContent className="space-y-2 p-4 sm:p-5">
+            <div className="flex h-9 items-center justify-between">
+              <Skeleton className="h-4 w-28" />
+              <Skeleton className="h-8 w-24 rounded-lg" />
+            </div>
+            <Skeleton className="border-input h-64 w-full rounded-xl border" />
+          </CardContent>
+        </Card>
+      ) : (
+        <div aria-hidden="true" className="border-border bg-card min-h-96 rounded-xl border p-5">
+          <div className="bg-muted h-5 w-36 animate-pulse rounded" />
+          <div className="bg-muted mt-5 h-32 w-full animate-pulse rounded-lg" />
+        </div>
+      )}
     </div>
   );
 }

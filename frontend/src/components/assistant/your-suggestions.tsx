@@ -1,5 +1,8 @@
 "use client";
 
+import Link from "next/link";
+import { Inbox } from "lucide-react";
+import { ROUTES } from "@/lib/constants";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -39,7 +42,18 @@ export function YourSuggestions() {
   };
 
   return (
-    <SectionCard title={t("title")} description={t("description")}>
+    <SectionCard
+      title={t("title")}
+      description={t("description")}
+      action={
+        <Button variant="outline" size="sm" asChild>
+          <Link href={ROUTES.INBOX}>
+            <Inbox className="size-4" aria-hidden />
+            {t("openInbox")}
+          </Link>
+        </Button>
+      }
+    >
       <div className="space-y-4">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">

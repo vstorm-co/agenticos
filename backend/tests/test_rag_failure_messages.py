@@ -354,3 +354,14 @@ class TestAModelTheEndpointDoesNotServe:
         assert "credential" not in summary
         assert "eu.openrouter.ai" not in summary
         assert isinstance(refusal.value.__cause__, openai.NotFoundError)
+
+
+@pytest.mark.security
+def test_a_sync_integrity_race_names_the_target_and_never_suggests_rotating_credentials():
+    from sqlalchemy.exc import IntegrityError
+
+    message = failure_summary(
+        IntegrityError("secret query", {}, Exception("token")), stage=IngestionStage.SYNC
+    )
+    assert "source or its target changed" in message
+    assert "secret" not in message and "token" not in message and "credential" not in message

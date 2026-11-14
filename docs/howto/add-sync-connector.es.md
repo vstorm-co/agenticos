@@ -1,5 +1,5 @@
 ---
-source_sha: "1ff020c86d59"
+source_sha: "10b9dc4e266d"
 ---
 
 # Añade un sync connector { #add-a-sync-connector }
@@ -353,7 +353,7 @@ curl -X POST http://localhost:8000/api/v1/rag/sync/sources \
     }'
 
 # Trigger sync
-curl -X POST http://localhost:8000/api/v1/rag/sync/sources/{source_id}/sync \
+curl -X POST http://localhost:8000/api/v1/rag/sync/sources/{source_id}/trigger \
     -H "Authorization: Bearer $TOKEN"
 
 # Check sync status

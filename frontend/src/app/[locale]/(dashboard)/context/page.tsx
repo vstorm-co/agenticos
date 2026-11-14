@@ -302,6 +302,15 @@ export default function ContextPage() {
             <NothingSharedWithGroup groupId={groupId} />
           ) : files.length === 0 ? (
             <ListCardEmpty
+              onClearFilters={
+                isFiltering
+                  ? () => {
+                      setQuery("");
+                      setGroupId(null);
+                      setPage(0);
+                    }
+                  : undefined
+              }
               icon={FileText}
               title={isFiltering ? t("noContextMatches") : t("noContextYet")}
               description={

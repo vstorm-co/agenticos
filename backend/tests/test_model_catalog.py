@@ -935,3 +935,33 @@ def test_otari_catalog_prices_direct_selectors_but_not_routing_aliases() -> None
         "anthropic", "claude-sonnet-4-6"
     )
     assert priced_model("otari", "gpt-4.1") is None
+
+
+@pytest.mark.anyio
+async def test_native_catalogs_never_reuse_text_suggestions_or_custom_fallbacks():
+    native = {"data": [{"id": "typesafe/jev-1.14", "name": "Jev"}]}
+    client = _responds(native)
+    with patch(f"{MODULE}.httpx.AsyncClient", return_value=client):
+        models, source = await models_for("openrouter", api="decisions")
+    assert source == "live"
+    assert [model.id for model in models] == ["typesafe/jev-1.14"]
+    assert client.get.call_args.args[0].endswith("/models?output_modalities=decisions")
+    client = _responds({"data": [{"id": "text-only"}]})
+    with patch(f"{MODULE}.httpx.AsyncClient", return_value=client):
+        text, _ = await models_for("openrouter", api="chat")
+    assert [model.id for model in text] == ["text-only"]
+    for provider in ("openai", "google", "typesafe"):
+        models, source = await models_for(provider, api="decisions")
+        assert source == "curated" and models
+        assert all(model.output_modalities == ("decisions",) for model in models)
+        custom, source = await models_for(provider, api="decisions", base_url="http://local.test")
+        assert source == "unlisted" and not custom
+    models, source = await models_for("system-one", api="decisions", base_url="http://local.test")
+    assert source == "unlisted" and not models
+    with patch(f"{MODULE}._listed", new=AsyncMock(side_effect=httpx.ConnectError("offline"))):
+        public, source = await models_for("openrouter", api="decisions", base_url=None)
+        assert source == "curated" and public
+        custom, source = await models_for(
+            "openrouter", api="decisions", base_url="http://local.test"
+        )
+        assert source == "unlisted" and not custom

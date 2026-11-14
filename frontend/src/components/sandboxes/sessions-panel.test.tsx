@@ -2,7 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { SessionsPanel } from "./sessions-panel";
+import { SessionsPanel, SessionsPanelLoading } from "./sessions-panel";
 import type {
   SandboxConnectionRecord,
   SandboxOperation,
@@ -128,6 +128,14 @@ function log(items: SandboxOperation[], total = items.length, operations: string
 }
 
 describe("SessionsPanel", () => {
+  it("reserves the actual session columns before the host list is available", () => {
+    render(<SessionsPanelLoading />);
+    expect(screen.getByRole("status")).toHaveAttribute("aria-busy", "true");
+    expect(screen.getAllByRole("columnheader")).toHaveLength(7);
+    expect(screen.getAllByRole("row")).toHaveLength(7);
+    expect(screen.queryByText(/no container connection/i)).not.toBeInTheDocument();
+  });
+
   it("explains that nothing can be listed without a container connection", () => {
     render(<SessionsPanel connections={[]} />);
 
@@ -140,7 +148,15 @@ describe("SessionsPanel", () => {
   it("counts this organization's sandboxes against what it is allowed", () => {
     render(<SessionsPanel connections={[connection()]} />);
 
-    expect(screen.getByText(/1 of this organization's sandboxes, out of 5 allowed/)).toBeVisible();
+    expect(screen.getByText("Sandboxes: 1 / 5")).toBeVisible();
+  });
+
+  it("does not claim zero sessions before the host has answered", () => {
+    state.listing = null;
+    state.sessionsLoading = true;
+    render(<SessionsPanel connections={[connection()]} />);
+    expect(screen.queryByText(/Sandboxes: 0/)).not.toBeInTheDocument();
+    expect(screen.getByRole("table")).toHaveAttribute("aria-busy", "true");
   });
 
   it("says nothing about a ceiling the service did not report", () => {
@@ -214,6 +230,15 @@ describe("SessionsPanel", () => {
   });
 
   describe("search", () => {
+    it("finds a session by the displayed agent name, case-insensitively", async () => {
+      state.agents = [{ id: "a-1", slug: "analyst", name: "Research Analyst" }];
+      state.listing = listing([session(), session({ session_id: "xc-other", agent_id: "a-2" })]);
+      render(<SessionsPanel connections={[connection()]} />);
+      await userEvent.type(screen.getByRole("textbox", { name: "Search sessions" }), "ANALYST");
+      expect(screen.getByText("xc-1")).toBeVisible();
+      expect(screen.queryByText("xc-other")).not.toBeInTheDocument();
+    });
+
     it("narrows the table to what matches, without hiding that nothing did", async () => {
       state.listing = listing([
         session({ session_id: "xc-python", runtime: "python" }),
@@ -369,7 +394,7 @@ describe("SessionsPanel", () => {
     state.listing = listing([]);
     render(<SessionsPanel connections={[connection()]} />);
 
-    expect(screen.getByText(/Nothing running/)).toBeVisible();
+    expect(screen.getByText("No running sandboxes")).toBeVisible();
   });
 
   it("reports a host that did not answer instead of looking idle", () => {
@@ -728,4 +753,13 @@ describe("what the row says about a sandbox", () => {
       "/chat?id=c-9",
     );
   });
+});
+
+it("clears an unmatched session query without losing the selected host", async () => {
+  render(<SessionsPanel connections={[connection()]} />);
+  const input = screen.getByRole("textbox", { name: /Search sessions/ });
+  await userEvent.type(input, "unmatched");
+  await userEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+  expect(input).toHaveValue("");
+  expect(screen.getByText("xc-1")).toBeInTheDocument();
 });

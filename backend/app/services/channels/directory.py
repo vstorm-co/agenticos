@@ -6,7 +6,11 @@ capability never holds a token and never chooses a channel: both are decided
 here, from the row the message arrived on, before the agent is built.
 """
 
-from dataclasses import dataclass
+import base64
+import hashlib
+import hmac
+import json
+from dataclasses import dataclass, field
 from typing import Literal
 from uuid import UUID
 
@@ -18,6 +22,11 @@ from app.agents.capabilities.channel_tools import (
     ChannelMember,
     ChannelPost,
     ChannelSummary,
+)
+from app.agents.capabilities.channel_tools._directory import (
+    ChannelDirectoryUnsupported,
+    HistoryPage,
+    HistoryQuery,
 )
 from app.core.exceptions import BadRequestError
 from app.db.models.agent_exposure import AgentExposure
@@ -76,6 +85,9 @@ PLATFORM_TOOLS: dict[str, tuple[str, ...]] = {
     # privileged Server Members intent, so no roster, details or channel search yet
     # (#2079).
     "discord": ("send_channel_file", "read_channel_history"),
+    "imessage": ("send_channel_file",),
+    "email": ("send_channel_file",),
+    "sms": ("send_channel_file",),
 }
 """What each platform can actually answer, as the Builder offers it.
 
@@ -119,6 +131,7 @@ class BoundChannelDirectory:
     api_base_url: str | None = None
     bot_id: UUID | None = None
     private_chat: bool = False
+    message_id: str | None = None
     thread_id: str | None = None
     """The thread this run is answering in, where the platform has threads.
 
@@ -126,6 +139,14 @@ class BoundChannelDirectory:
     `history`: a model that could name the thread could name another one, and the
     conversation an agent may read is the one it was spoken to in.
     """
+
+    _observed_message_ids: set[str] = field(
+        default_factory=set, init=False, repr=False, compare=False
+    )
+
+    @property
+    def reaction_message_ids(self) -> frozenset[str]:
+        return frozenset(self._observed_message_ids)
 
     @property
     def destination(self) -> ChannelDestination | None:
@@ -135,6 +156,7 @@ class BoundChannelDirectory:
             bot_id=self.bot_id,
             platform_chat_id=self.channel_id + (":" + self.thread_id if self.thread_id else ""),
             private_chat=self.private_chat,
+            message_id=self.message_id,
         )
 
     async def send_file(self, *, filename: str, content: bytes, mime_type: str) -> str:
@@ -179,13 +201,71 @@ class BoundChannelDirectory:
     async def history(
         self, *, limit: int, scope: Literal["thread", "channel"] = "thread"
     ) -> list[ChannelPost]:
-        return await self.adapter.channel_history(
+        posts = await self.adapter.channel_history(
             self.bot_token,
             self.channel_id,
             api_base_url=self.api_base_url,
             limit=limit,
             thread_id=self.thread_id if scope == "thread" else None,
         )
+        self._observed_message_ids.update(
+            post.post_id for post in posts if post.post_id is not None
+        )
+        return posts
+
+    async def history_page(
+        self, *, limit: int, scope: Literal["thread", "channel"], filters: HistoryQuery
+    ) -> HistoryPage:
+        # The adapter sees only its native token. The signed envelope cannot be
+        # moved between destinations, windows, authors or page sizes.
+        binding = json.dumps(
+            [
+                self.adapter.platform,
+                self.api_base_url,
+                scope,
+                self.channel_id,
+                self.thread_id if scope == "thread" else None,
+                limit,
+                filters.model_dump(mode="json", exclude={"cursor"}),
+            ],
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        native = None
+        if filters.cursor is not None:
+            try:
+                encoded, signature = filters.cursor.rsplit(".", 1)
+                native = base64.urlsafe_b64decode(encoded.encode()).decode()
+            except (ValueError, UnicodeError) as exc:
+                raise ChannelDirectoryUnsupported(
+                    "This history cursor is invalid or belongs to different filters. Start again without it."
+                ) from exc
+            expected = hmac.new(
+                self.bot_token.encode(), (binding + encoded).encode(), hashlib.sha256
+            ).hexdigest()
+            if not hmac.compare_digest(signature, expected):
+                raise ChannelDirectoryUnsupported(
+                    "This history cursor is invalid or belongs to different filters. Start again without it."
+                )
+        page = await self.adapter.channel_history_page(
+            self.bot_token,
+            self.channel_id,
+            api_base_url=self.api_base_url,
+            limit=limit,
+            thread_id=self.thread_id if scope == "thread" else None,
+            filters=filters.model_copy(update={"cursor": native}),
+        )
+        self._observed_message_ids.update(
+            post.post_id for post in page.posts if post.post_id is not None
+        )
+        cursor = None
+        if page.cursor is not None:
+            encoded = base64.urlsafe_b64encode(page.cursor.encode()).decode()
+            signature = hmac.new(
+                self.bot_token.encode(), (binding + encoded).encode(), hashlib.sha256
+            ).hexdigest()
+            cursor = f"{encoded}.{signature}"
+        return HistoryPage(posts=page.posts, scanned=page.scanned, cursor=cursor)
 
 
 async def restore_directory(
@@ -223,5 +303,6 @@ async def restore_directory(
         channel_id=channel_id,
         thread_id=thread_id or None,
         private_chat=destination.private_chat,
+        message_id=destination.message_id,
         api_base_url=bot.api_base_url,
     )

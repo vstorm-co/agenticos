@@ -60,6 +60,7 @@ class _Fakes:
         self.sources.get_source = AsyncMock(
             return_value=MagicMock(collection_name="handbook", organization_id=self.org_id)
         )
+        self.sources.prepare_update = AsyncMock(return_value=MagicMock())
         self.sources.update_source = AsyncMock(
             return_value=_read(name="Renamed", schedule_minutes=60)
         )
