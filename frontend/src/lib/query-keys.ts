@@ -813,8 +813,9 @@ export const qk = {
     usable: (workflowId: string) => ["mcp-connections", "usable", workflowId] as const,
     calls: (connectionId: string) => ["mcp-connections", "calls", connectionId] as const,
   },
-  // What one coding-agent task changed: written once, when the task ends, and never again.
+  // A task's recorded changes and the current reader's permission to revert them.
   codingChanges: {
+    all: () => ["coding-changes"] as const,
     detail: (changeId: string) => ["coding-changes", changeId] as const,
   },
   conversationWorkspace: {

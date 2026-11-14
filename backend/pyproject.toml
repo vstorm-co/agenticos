@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "1.72.0"
+version = "1.73.0"
 description = "OS for your agents."
 requires-python = ">=3.15"
 license = { text = "Apache-2.0" }
@@ -1234,6 +1234,9 @@ include = [
     "app/schemas/coding_task_change.py",
     "app/repositories/coding_task_change.py",
     "app/services/coding_task_changes.py",
+    "app/services/_coding_task_revert.py",
+    "app/services/workspace_turn_guard.py",
+    "app/worker/tasks/coding_tasks.py",
     "app/db/models/coding_account.py",
     "app/schemas/coding_account.py",
     "app/repositories/coding_account.py",
@@ -2145,6 +2148,9 @@ include = [
     "app/schemas/coding_task_change.py",
     "app/repositories/coding_task_change.py",
     "app/services/coding_task_changes.py",
+    "app/services/_coding_task_revert.py",
+    "app/services/workspace_turn_guard.py",
+    "app/worker/tasks/coding_tasks.py",
     "app/db/models/coding_account.py",
     "app/schemas/coding_account.py",
     "app/repositories/coding_account.py",
@@ -2389,6 +2395,9 @@ exclude_also = [
 ]
 
 [tool.uv]
+# CVE-2026-126360: bound untrusted traceparent parsing in the tracing stack.
+constraint-dependencies = ["opentelemetry-api>=1.45.2"]
+
 # aiogram 3.31 caps pydantic below 2.14, and every pydantic 2.13 pins a
 # pydantic-core with no CPython 3.15 wheel, so without this the backend cannot
 # be installed on the Python it runs (#2229). aiogram raises that cap with each

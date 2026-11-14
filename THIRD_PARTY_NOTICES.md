@@ -176,10 +176,10 @@ names no author is in the evidence column below.
 | openpyxl | 3.1.5 | MIT | https://foss.heptapod.net/openpyxl/openpyxl | License field |
 | opensandbox | 1.2.0 | Apache-2.0 | https://github.com/opensandbox-group/OpenSandbox | classifier |
 | opentelemetry-api | 1.45.2 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
-| opentelemetry-exporter-http-transport | 0.66b1 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
-| opentelemetry-exporter-otlp-common | 0.66b1 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
-| opentelemetry-exporter-otlp-proto-common | 1.45.1 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
-| opentelemetry-exporter-otlp-proto-http | 1.45.1 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
+| opentelemetry-exporter-http-transport | 0.66b2 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
+| opentelemetry-exporter-otlp-common | 0.66b2 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
+| opentelemetry-exporter-otlp-proto-common | 1.45.2 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
+| opentelemetry-exporter-otlp-proto-http | 1.45.2 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
 | opentelemetry-instrumentation | 0.66b2 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python-contrib | License-Expression |
 | opentelemetry-instrumentation-aiohttp-client | 0.66b2 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python-contrib | License-Expression |
 | opentelemetry-instrumentation-asgi | 0.66b2 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python-contrib | License-Expression |
@@ -187,7 +187,7 @@ names no author is in the evidence column below.
 | opentelemetry-instrumentation-fastapi | 0.66b2 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python-contrib | License-Expression |
 | opentelemetry-instrumentation-httpx | 0.66b2 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python-contrib | License-Expression |
 | opentelemetry-instrumentation-redis | 0.66b2 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python-contrib | License-Expression |
-| opentelemetry-proto | 1.45.1 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
+| opentelemetry-proto | 1.45.2 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
 | opentelemetry-sdk | 1.45.2 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
 | opentelemetry-semantic-conventions | 0.66b2 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
 | opentelemetry-util-http | 0.66b2 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python-contrib | License-Expression; no licence file, attributed to OpenTelemetry Authors |

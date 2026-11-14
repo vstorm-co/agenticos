@@ -1924,7 +1924,15 @@
         "binary": "binär",
         "binaryFile": "Eine Binärdatei: Es gibt keine Zeilen anzuzeigen.",
         "patchOmitted": "Jenseits der Patch-Grenze: Nur der Name wird gespeichert.",
-        "noTextChanges": "Der Inhalt hat sich nicht geändert: Die Datei wurde umbenannt oder ihr Modus geändert."
+        "noTextChanges": "Der Inhalt hat sich nicht geändert: Die Datei wurde umbenannt oder ihr Modus geändert.",
+        "revertTask": "Diese Aufgabe rückgängig machen",
+        "revertDescription": "Stelle die von dieser Aufgabe geänderten Dateien auf ihren vorherigen Stand zurück. Wurde eine betroffene Datei seitdem geändert, wird nichts zurückgesetzt.",
+        "taskReverted": "Diese Aufgabe wurde rückgängig gemacht.",
+        "revertConflict": "Diese Dateien wurden nach der Aufgabe geändert. Es wurde nichts zurückgesetzt.",
+        "revertFailed": "Die Aufgabe konnte nicht rückgängig gemacht werden.",
+        "revertPending": "Diese Aufgabe wird rückgängig gemacht…",
+        "revertUnknown": "Das vorherige Rückgängigmachen konnte nicht bestätigt werden. Der Workspace bleibt reserviert, bis ein erneuter Versuch seine Dateien prüft.",
+        "retryRevert": "Erneut versuchen"
       },
       "runCodingAgent": "Arbeit an den Coding Agent übergeben",
       "runningCodingAgent": "Der Coding Agent arbeitet",
@@ -5942,6 +5950,10 @@
       "workflow-input-contract": {
         "title": "Erwartete Eingabe festlegen",
         "body": "Die Trigger Manuell, API und Von einem Workflow aufgerufen unterstützen einfache Felder oder einen Vertrag nach JSON Schema 2020-12. Das Schema unterstützt verschachtelte Werte und wird vor dem Start eines Runs geprüft."
+      },
+      "chat-coding-revert": {
+        "title": "Eine Programmieraufgabe prüfen und rückgängig machen",
+        "body": "Öffne eine Programmieraufgabe, um ihre geänderten Dateien zu prüfen. Die Aufgabe lässt sich nur rückgängig machen, wenn keine dieser Dateien seitdem geändert wurde."
       }
     },
     "chooseLanguage": "Sprache",
@@ -7991,7 +8003,7 @@
       "startHeading": "Wie startet er?",
       "start": {
         "manual": {
-          "name": "Manual",
+          "name": "Manuell",
           "description": "Sie starten ihn selbst mit Run, im Editor oder auf seiner Run-Seite."
         },
         "chat": {
@@ -8011,7 +8023,7 @@
           "description": "Ein Datensatz, der einer Tabelle hinzugefügt, geändert oder gelöscht wird, startet einen Lauf mit diesem Datensatz."
         },
         "api": {
-          "name": "API request",
+          "name": "API-Anfrage",
           "description": "Gestartet über eine HTTP-Anfrage oder einen WebSocket, mit der Eingabe, die Sie deklarieren."
         },
         "workflowFailed": {
@@ -8058,7 +8070,7 @@
       "runHint": "Führt den Draft aus, nicht die veröffentlichte Version (Strg oder Cmd + Enter)",
       "runNeedsSteps": "Zuerst einen Schritt hinzufügen",
       "runBlockedByProblems": "{count, plural, one {Zuerst # Problem beheben} other {Zuerst # Probleme beheben}}",
-      "liveRunTitle": "Testlauf",
+      "liveRunTitle": "Test-Run",
       "liveRunSteps": "{count, plural, one {# Schritt fertig} other {# Schritte fertig}}",
       "liveRunOpen": "Run öffnen",
       "liveRunClose": "Run ausblenden",
@@ -10649,6 +10661,11 @@
         "failed": "Das Schreiben Ihrer Testfragen ist fehlgeschlagen."
       }
     },
+    "kind": {
+      "approvalRequested": "{agent} wartet auf Ihre Freigabe",
+      "budgetExceeded": "{agent} wurde gestoppt: {scope, select, agent {sein Monatsbudget} group {das Monatsbudget einer Abteilung} department {das Monatsbudget der Abteilung {department}} organization {das Monatsbudget der Organisation} other {ein Ausgabenlimit}} ist aufgebraucht ({spent} von {limit} ausgegeben)",
+      "budgetWarning": "{group} hat {share} % des Monatsbudgets von {limit} verbraucht."
+    },
     "needsAttention": "Aufmerksamkeit erforderlich"
   },
   "workflows": {
@@ -10684,6 +10701,8 @@
     "versionRestored": "Version {version} ist wieder der Entwurf",
     "versionRestoreConflict": "Der Entwurf hat sich beim Wiederherstellen geändert. Lösen Sie den Konflikt und stellen Sie dann erneut wieder her.",
     "quickAdd": "Einen Schritt nach {name} ({port}) hinzufügen",
+    "stepApprovalDecided": "{known, select, no {{status, select, approved {Genehmigt} other {Abgelehnt}}} other {{status, select, approved {Genehmigt von {name}} other {Abgelehnt von {name}}}}} · {time}",
+    "stepApprovalUndecided": "{status, select, expired {Abgelaufen: Niemand hat rechtzeitig entschieden} cancelled {Mit dem Run abgebrochen} other {Wartet auf eine Entscheidung}}",
     "paletteNoMatches": "Kein Knoten passt zu Ihrer Suche.",
     "canvasTitle": "Arbeitsfläche",
     "canvasHint": "Füge einen Schritt hinzu, um den Workflow zu beginnen.",
@@ -10999,6 +11018,9 @@
       "more": "Mehr"
     },
     "pickerSearch": "Schritte suchen",
+    "pickerMoreApps": "{count, plural, one {# weitere App zum Verbinden} other {# weitere Apps zum Verbinden}}",
+    "pickerFewerApps": "Apps zum Verbinden ausblenden",
+    "pickerAppToConnect": "Verbinden",
     "pickerBack": "Alle Schritte",
     "toolbarAddStep": "Schritt hinzufügen",
     "toolbarReady": "Keine Probleme",
@@ -11918,6 +11940,10 @@
     "sheet": {
       "title": "Datensatz",
       "conflict": "Jemand anderes hat dieses Feld geändert.",
+      "conflictNow": "Jetzt: {value}, geändert von <who></who> um {time}. Ihr Wert steht im Feld.",
+      "conflictNowUntimed": "Jetzt: {value}, geändert von <who></who>. Ihr Wert steht im Feld.",
+      "conflictEmpty": "leer",
+      "conflictSomeone": "jemand anderem",
       "reloadAndReapply": "Neu laden und erneut anwenden",
       "discard": "Verwerfen",
       "conflictAfterClose": "Jemand anderes hat diesen Datensatz geändert, daher wurde Ihre letzte Änderung nicht gespeichert. Öffnen Sie den Datensatz, um sie erneut anzuwenden oder zu verwerfen.",
@@ -17463,5 +17489,401 @@
     "error": "Gruppen konnten nicht geladen werden. Die Auswahl bleibt erhalten.",
     "loading": "Gruppen werden geladen…",
     "empty": "Keine Gruppen in dieser Organisation."
+  },
+  "workflowNodes": {
+    "node": {
+      "agent_run": {
+        "name": "Agent ausführen",
+        "description": "Einen veröffentlichten Agent aus dem Katalog in einer festgelegten Version ausführen und seine Antwort verwenden."
+      },
+      "ai_classify": {
+        "name": "Klassifizieren",
+        "description": "Einen Text von einem Modell einer Ihrer Kategorien zuordnen lassen und danach verzweigen."
+      },
+      "ai_extract": {
+        "name": "Daten extrahieren",
+        "description": "Die von Ihnen benannten Felder von einem Modell als Objekt aus einem Text herauslesen lassen."
+      },
+      "ai_prompt": {
+        "name": "Modell fragen",
+        "description": "Eines Ihrer Modelle etwas fragen, mit Instruktionen, die nur für diesen Schritt gelten."
+      },
+      "ai_rewrite": {
+        "name": "Zusammenfassen oder übersetzen",
+        "description": "Einen Text von einem Modell zusammenfassen, übersetzen oder umschreiben lassen."
+      },
+      "code_javascript_sandbox": {
+        "name": "JavaScript in einer Sandbox",
+        "description": "JavaScript auf Node mit den Dateien des Runs als dauerhaften Job auf dem Sandbox-Host der Organisation ausführen, ohne Zugangsdaten der Plattform darin."
+      },
+      "code_python_sandbox": {
+        "name": "Python in einer Sandbox",
+        "description": "Vollständiges Python mit den Dateien des Runs als dauerhaften Job auf dem Sandbox-Host der Organisation ausführen, ohne Zugangsdaten der Plattform darin."
+      },
+      "code_python_simple": {
+        "name": "Python-Skript",
+        "description": "Einen JSON-Wert mit einem kurzen Python-Skript in der Monty-Sandbox berechnen – ohne Dateien, ohne Netzwerk, mit einer kleinen Standardbibliothek."
+      },
+      "control_foreach": {
+        "name": "Für jedes Element",
+        "description": "Die Schritte in der Schleife für jedes Element einer Liste einmal ausführen, der Reihe nach."
+      },
+      "convert_csv_to_json": {
+        "name": "CSV zu JSON",
+        "description": "Eine CSV-Datei in eine JSON-Datei umwandeln, deren Zeilen nach den Spaltenüberschriften benannt sind."
+      },
+      "convert_json_to_csv": {
+        "name": "JSON zu CSV",
+        "description": "Eine JSON-Liste flacher Objekte in eine CSV-Datei umwandeln."
+      },
+      "convert_pdf_to_png": {
+        "name": "PDF-Seiten als Bilder",
+        "description": "Ausgewählte Seiten eines PDFs als PNG-Bilder rendern, innerhalb des Pixellimits für Bilder."
+      },
+      "convert_text_to_file": {
+        "name": "Text als Datei",
+        "description": "Text als UTF-8-TXT-Datei des Runs speichern."
+      },
+      "core_input": {
+        "name": "API-Anfrage",
+        "description": "Über eine HTTP-Anfrage oder einen WebSocket starten, mit der Eingabe, die Sie deklarieren."
+      },
+      "core_output": {
+        "name": "Ausgabe",
+        "description": "Was der Workflow antwortet: Text, Quellen, Dateien und ein strukturierter Wert."
+      },
+      "data_combine": {
+        "name": "Listen kombinieren",
+        "description": "Aus zwei Listen eine machen: hintereinander, nach Position oder nach einem Schlüssel."
+      },
+      "data_filter": {
+        "name": "Liste filtern",
+        "description": "Die Elemente einer Liste behalten, für die eine Bedingung zutrifft."
+      },
+      "data_map": {
+        "name": "Felder zuordnen",
+        "description": "Werte aus früheren Ausgaben auswählen und jedem einen Typ geben."
+      },
+      "debug_echo": {
+        "name": "Echo",
+        "description": "Gibt seine Eingabe unverändert zurück. Hat keine echte Wirkung."
+      },
+      "debug_relay": {
+        "name": "Weiterleiten",
+        "description": "Gibt eine per Echo zurückgegebene Nachricht als einfache Nachricht weiter. Hat keine echte Wirkung."
+      },
+      "decide_choose": {
+        "name": "Option wählen",
+        "description": "Das Entscheidungsmodell fragen, welche Ihrer Optionen zu einem Text passt – eine Kategorie, eine Warteschlange, eine Absicht."
+      },
+      "decide_score": {
+        "name": "Bewerten",
+        "description": "Das Entscheidungsmodell fragen, wo ein Text auf Ihrer Bewertungsskala liegt – Dringlichkeit, Eignung, Risiko."
+      },
+      "decide_yes_no": {
+        "name": "Ja oder nein",
+        "description": "Dem Entscheidungsmodell eine Ja-Nein-Frage zu einem Text stellen und nach der Antwort verzweigen."
+      },
+      "email_send": {
+        "name": "E-Mail senden",
+        "description": "Eine E-Mail an bis zu zehn Adressen über ein SMTP-Konto oder den Absender der Plattform senden."
+      },
+      "error_handle": {
+        "name": "Fehler behandeln",
+        "description": "Einen Fehlschlag an einen Zweig leiten, der nach seinem Fehlercode gewählt wird."
+      },
+      "error_raise": {
+        "name": "Fehler auslösen",
+        "description": "Diesen Zweig mit einem von Ihnen definierten Fehler fehlschlagen lassen."
+      },
+      "file_read": {
+        "name": "Datei lesen",
+        "description": "Eine der Dateien des Runs als UTF-8-Text, JSON-Wert oder CSV-Zeilen lesen."
+      },
+      "file_write": {
+        "name": "Datei schreiben",
+        "description": "Text, einen JSON-Wert oder Zeilen als neue UTF-8-Datei des Runs speichern."
+      },
+      "flow_await_reply": {
+        "name": "Auf E-Mail-Antwort warten",
+        "description": "Auf eine authentifizierte Antwort eines Absenders in einem E-Mail-Thread warten oder bis zu ihrer Frist."
+      },
+      "flow_resume_link": {
+        "name": "Fortsetzungslink",
+        "description": "Die Adresse, über die die „Warten“-Schritte dieses Runs fortgesetzt werden, die auf einen Aufruf warten."
+      },
+      "flow_wait": {
+        "name": "Warten",
+        "description": "Den Run eine Weile oder bis zu einem Zeitpunkt anhalten und dann fortfahren."
+      },
+      "html_parse": {
+        "name": "HTML parsen",
+        "description": "HTML in seinen Text, seine Links und die Treffer eines CSS-Selektors zerlegen – es wird nichts abgerufen oder ausgeführt."
+      },
+      "http_download": {
+        "name": "Datei herunterladen",
+        "description": "Eine Datei über HTTP in den Run laden, gestreamt und größenbegrenzt; ihr Typ wird aus ihren eigenen Bytes ermittelt."
+      },
+      "http_request": {
+        "name": "HTTP-Anfrage",
+        "description": "Eine HTTP-API aufrufen, mit SSRF-Schutz und Zugangsdaten aus dem Vault."
+      },
+      "http_upload": {
+        "name": "Datei hochladen",
+        "description": "Eine der Dateien des Runs an einen HTTP-Endpunkt senden, direkt aus dem Speicher gestreamt."
+      },
+      "human_approval": {
+        "name": "Freigabe anfordern",
+        "description": "Warten, bis eine Person freigibt oder ablehnt, und dann je nach Antwort fortfahren."
+      },
+      "image_transform": {
+        "name": "Bild umwandeln",
+        "description": "Ein PNG-, JPEG-, WebP- oder GIF-Bild zuschneiden, skalieren, drehen oder konvertieren; Metadaten werden entfernt und die Größe wird vor dem Dekodieren begrenzt."
+      },
+      "knowledge_add": {
+        "name": "Zum Wissen hinzufügen",
+        "description": "Einen Text oder eine Datei in Wissens-Collections ablegen, damit Agents sie finden."
+      },
+      "knowledge_search": {
+        "name": "Wissen durchsuchen",
+        "description": "Passagen in Wissens-Collections finden, als Quellen für einen späteren Schritt."
+      },
+      "logic_if": {
+        "name": "Wenn / sonst",
+        "description": "In einem von zwei Zweigen weitermachen, entschieden durch eine Bedingung."
+      },
+      "logic_merge": {
+        "name": "Zusammenführen",
+        "description": "Zweige wieder zu einem Pfad zusammenführen."
+      },
+      "logic_split": {
+        "name": "Aufteilen",
+        "description": "Den Run gleichzeitig in mehrere Zweige schicken."
+      },
+      "logic_switch": {
+        "name": "Weiche",
+        "description": "Im ersten von mehreren Zweigen weitermachen, dessen Regel zutrifft."
+      },
+      "loop_item": {
+        "name": "Schleifenelement",
+        "description": "Das Element, mit dem dieser Schleifendurchlauf arbeitet."
+      },
+      "loop_yield": {
+        "name": "Schleifenergebnis",
+        "description": "Diesen Schleifendurchlauf beenden und sein Ergebnis zurückgeben."
+      },
+      "mattermost_channels_find": {
+        "name": "Kanäle finden",
+        "description": "Kanäle nach Namen in einem Mattermost-Team finden, in dem der Bot Mitglied ist."
+      },
+      "mattermost_members_list": {
+        "name": "Mitglieder auflisten",
+        "description": "Die Personen in einem Mattermost-Kanal auflisten, mit den IDs, die eine Erwähnung braucht."
+      },
+      "mattermost_message_send": {
+        "name": "Nachricht senden",
+        "description": "Eine Nachricht als einer Ihrer Bots in einem Mattermost-Kanal oder einem Thread darin posten."
+      },
+      "mattermost_messages_read": {
+        "name": "Nachrichten lesen",
+        "description": "Die neuesten Nachrichten in einem Mattermost-Kanal oder -Thread lesen."
+      },
+      "mcp_call": {
+        "name": "MCP-Tool aufrufen",
+        "description": "Ein Tool auf einem der MCP-Server der Organisation aufrufen; bevor es etwas ändert, wird zuerst eine Person gefragt."
+      },
+      "notification_send": {
+        "name": "Mitglieder benachrichtigen",
+        "description": "Mitglieder über die Benachrichtigungskanäle benachrichtigen, die sie gewählt haben."
+      },
+      "slack_channels_find": {
+        "name": "Kanäle finden",
+        "description": "Slack-Kanäle nach Namen finden."
+      },
+      "slack_members_list": {
+        "name": "Mitglieder auflisten",
+        "description": "Die Personen in einem Slack-Kanal auflisten, mit den IDs, die eine Erwähnung braucht."
+      },
+      "slack_message_send": {
+        "name": "Nachricht senden",
+        "description": "Eine Nachricht als einer Ihrer Bots in einem Slack-Kanal oder einem Thread darin posten."
+      },
+      "slack_messages_read": {
+        "name": "Nachrichten lesen",
+        "description": "Die neuesten Nachrichten in einem Slack-Kanal oder -Thread lesen."
+      },
+      "table_create": {
+        "name": "Tabelle erstellen",
+        "description": "Eine neue Virtual Table mit den angegebenen Spalten erstellen."
+      },
+      "table_describe": {
+        "name": "Tabelle beschreiben",
+        "description": "Den Namen einer Tabelle und ihre aktuellen Spalten für die nachfolgenden Schritte lesen."
+      },
+      "table_exists": {
+        "name": "Tabelle vorhanden?",
+        "description": "Danach verzweigen, ob eine Tabelle mit diesem Namen existiert."
+      },
+      "table_list": {
+        "name": "Tabellen auflisten",
+        "description": "Die Tabellen auflisten, die dieser Run sehen darf, gefunden über einen Teil des Namens."
+      },
+      "table_record_create": {
+        "name": "Datensatz hinzufügen",
+        "description": "Einen Datensatz zu einer Virtual Table hinzufügen."
+      },
+      "table_record_delete": {
+        "name": "Datensatz löschen",
+        "description": "Einen Datensatz löschen. Sein Verlauf bleibt erhalten."
+      },
+      "table_record_exists": {
+        "name": "Datensatz vorhanden?",
+        "description": "Danach verzweigen, ob ein Datensatz einer Tabelle zu Ihren Filtern passt."
+      },
+      "table_record_get": {
+        "name": "Datensatz finden",
+        "description": "Einen Datensatz über seine ID oder externe ID lesen."
+      },
+      "table_record_query": {
+        "name": "Datensätze auflisten",
+        "description": "Die Datensätze einer Tabelle auflisten, gefiltert und sortiert."
+      },
+      "table_record_update": {
+        "name": "Datensatz aktualisieren",
+        "description": "Einige Zellen eines Datensatzes ändern."
+      },
+      "table_record_upsert": {
+        "name": "Datensatz speichern",
+        "description": "Den Datensatz mit einer externen ID anlegen oder aktualisieren."
+      },
+      "telegram_members_list": {
+        "name": "Administratoren auflisten",
+        "description": "Die Administratoren eines Telegram-Chats auflisten – mehr erfährt ein Bot nicht."
+      },
+      "telegram_message_send": {
+        "name": "Nachricht senden",
+        "description": "Eine Nachricht als einer Ihrer Bots an einen Telegram-Chat senden."
+      },
+      "text_compare": {
+        "name": "Texte vergleichen",
+        "description": "Bewerten, wie ähnlich sich zwei Texte sind – 1 gleich, 0 nichts gemeinsam – ohne Modell."
+      },
+      "text_extract": {
+        "name": "Text extrahieren",
+        "description": "Den Text einer TXT-, JSON-, CSV-, Text-PDF- oder DOCX-Datei lesen. Eine gescannte Seite lässt den Schritt fehlschlagen und meldet, dass sie OCR braucht."
+      },
+      "transform_aggregate": {
+        "name": "Aggregieren",
+        "description": "Die Werte eines Felds über alle Elemente hinweg in einer Liste sammeln."
+      },
+      "transform_crypto": {
+        "name": "Krypto",
+        "description": "Text hashen oder kodieren oder eine ID oder einen Zufallswert erzeugen."
+      },
+      "transform_date_time": {
+        "name": "Datum & Uhrzeit",
+        "description": "Jetzt oder ein verschobener Zeitpunkt, ausgegeben in einer Zeitzone."
+      },
+      "transform_edit_fields": {
+        "name": "Felder bearbeiten",
+        "description": "Felder bei jedem Element einer Liste setzen, umbenennen oder entfernen."
+      },
+      "transform_limit": {
+        "name": "Begrenzen",
+        "description": "Die ersten oder die letzten Elemente einer Liste behalten."
+      },
+      "transform_remove_duplicates": {
+        "name": "Duplikate entfernen",
+        "description": "Von Elementen, die in bestimmten Feldern gleich sind, jeweils eines behalten."
+      },
+      "transform_sort": {
+        "name": "Sortieren",
+        "description": "Die Elemente einer Liste nach einem oder mehreren Feldern sortieren."
+      },
+      "transform_split_out": {
+        "name": "Auffächern",
+        "description": "Eine Liste in jedem Element in eigene Elemente umwandeln."
+      },
+      "transform_summarize": {
+        "name": "Zusammenfassen",
+        "description": "Die Elemente zählen, summieren oder mitteln, nach Gruppen."
+      },
+      "trigger_channel_message": {
+        "name": "Kanalnachricht",
+        "description": "Eine Nachricht an einen Ihrer Slack-, Mattermost- oder Telegram-Bots."
+      },
+      "trigger_chat": {
+        "name": "Chatnachricht",
+        "description": "Ein Mitglied sendet eine Nachricht im Chat, und dieser Workflow ist zum Antworten ausgewählt."
+      },
+      "trigger_form": {
+        "name": "Formular",
+        "description": "Jemand füllt ein Formular unter der öffentlichen Adresse des Workflows aus."
+      },
+      "trigger_github": {
+        "name": "GitHub",
+        "description": "In einem GitHub-Repository passiert etwas – ein Issue, ein Pull Request, ein Push."
+      },
+      "trigger_gmail": {
+        "name": "Gmail",
+        "description": "Eine neue E-Mail kommt im verbundenen Gmail-Postfach der Organisation an."
+      },
+      "trigger_manual": {
+        "name": "Manuell",
+        "description": "Starten Sie ihn mit einem Klick auf Run im Editor oder auf der Run-Seite des Workflows."
+      },
+      "trigger_outlook": {
+        "name": "Outlook",
+        "description": "Eine neue E-Mail kommt in einem Ordner des verbundenen Microsoft-365-Postfachs der Organisation an."
+      },
+      "trigger_schedule": {
+        "name": "Zeitplan",
+        "description": "Läuft nach der Uhr: in Abständen oder nach einem Cron-Ausdruck in UTC."
+      },
+      "trigger_table_record": {
+        "name": "Tabellendatensatz",
+        "description": "Ein Datensatz wird einer Tabelle hinzugefügt, geändert oder gelöscht und passt zu den Filtern."
+      },
+      "trigger_webhook": {
+        "name": "Webhook",
+        "description": "Eine signierte HTTP-Zustellung kommt unter der eigenen Adresse dieses Workflows an."
+      },
+      "trigger_workflow_call": {
+        "name": "Von einem Workflow aufgerufen",
+        "description": "Der Schritt „Workflow ausführen“ eines anderen Workflows startet ihn mit den Feldern, die er deklariert."
+      },
+      "trigger_workflow_failed": {
+        "name": "Bei Fehlschlag eines Workflows",
+        "description": "Ein Run eines Workflows, der diesen als seinen Fehler-Workflow angibt, schlägt fehl."
+      },
+      "webhook_respond": {
+        "name": "Auf Webhook antworten",
+        "description": "Den Webhook-Aufruf beantworten, der den Run gestartet hat: mit Status, Headern und Body."
+      },
+      "workflow_run": {
+        "name": "Workflow ausführen",
+        "description": "Einen anderen Workflow als Schritt ausführen und weitergeben, was er antwortet."
+      }
+    },
+    "port": {
+      "approved": "Freigegeben",
+      "chosen": "Gewählt",
+      "deadline_reached": "Frist erreicht",
+      "default": "Standard",
+      "done": "Fertig",
+      "error": "Fehler",
+      "false": "Falsch",
+      "in": "Eingang",
+      "no": "Nein",
+      "other": "Andere",
+      "otherwise": "Sonst",
+      "out": "Ausgang",
+      "rejected": "Abgelehnt",
+      "reply_received": "Antwort erhalten",
+      "scored": "Bewertet",
+      "true": "Wahr",
+      "unsure": "Unsicher",
+      "yes": "Ja"
+    }
   }
 }

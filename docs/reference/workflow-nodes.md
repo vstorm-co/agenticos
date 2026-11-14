@@ -1349,6 +1349,7 @@ configuration - choose a runtime without network for untrusted work.
 | The job ran past `timeout_seconds` | `PYTHON_SANDBOX_TIMEOUT`, the session purged |
 | No usable `sandboxd` connection | `SANDBOX_UNAVAILABLE` |
 | It wrote more than 20 files or 100 MB, or printed more than 10 MB | `PYTHON_OUTPUT_TOO_LARGE`, measured in the sandbox before anything is fetched, and the session purged |
+| The host answered but could not start the sandbox - a workspace directory it cannot write, an image that would not build | `SANDBOX_START_FAILED` with a safe diagnosis; raw host output stays in the host's logs, retried |
 | The host could not be reached | `SANDBOX_UNREACHABLE`, retried |
 
 ::: app.workflows.nodes.code_python_simple._handler.PythonSimpleConfig

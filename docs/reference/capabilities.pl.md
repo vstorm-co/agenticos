@@ -1,5 +1,5 @@
 ---
-source_sha: "c0498a802079"
+source_sha: "d3f26132e044"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1763,8 +1763,31 @@ tam, gdzie został ucięty.
 **Kto czyta diff.** Jest zapisany razem z rozmową i czytany z takim samym dostępem
 jak jej transkrypcja, więc widzi go każdy, kto może czytać czat; usunięcie czatu
 usuwa też diff. W sandboxie, który dzieli kilka czatów, zadanie działające w tym
-samym czasie co inne widzi w swoim diffie także tamtego zmiany. Cofania zadania
-jeszcze nie ma, a zadanie na tym komputerze nie zapisuje diffu.
+samym czasie co inne widzi w swoim diffie także tamtego zmiany. Zadanie na tym komputerze nie zapisuje diffu.
+
+**Cofnij to zadanie.** Nowe zadanie może przywrócić zwykłe pliki tylko wtedy, gdy
+kompletny snapshot powstał w izolowanym workspace rozmowy. Snapshoty projektu,
+agenta, kanału i użytkownika pozostają tylko do odczytu, ponieważ mogą zawierać
+pracę innej rozmowy. Potrzebujesz bieżącego dostępu do edycji; żaden run nie może
+zapisywać workspace. Treść i tryb wykonywalny każdego pliku muszą odpowiadać
+stanowi po zadaniu. Konflikt odrzuca całe cofnięcie i wskazuje pliki. Pozostałe
+pliki oraz indeks i historia Git pozostają bez zmian.
+
+Akcja kolejkuje trwałe zadanie i rezerwuje workspace. Panel pokazuje postęp oraz
+jednoznaczne odmowy. Nieznany wynik zachowuje rezerwację; **Ponów cofnięcie**
+sprawdza przed zapisem, czy pliki zostały już przywrócone. Awaria lub utrata
+odpowiedzi nie powoduje więc ponownego zastosowania cofnięcia. Worker ponownie
+sprawdza dostęp i zapisuje sukces w audycie.
+
+Cofnięcie przywraca tylko pliki; rozmowa i raport zadania pozostają. Wymaga Git
+i Python 3. Odrzuca snapshoty ucięte, zredagowane, starsze przeznaczone tylko do
+wyświetlania lub zawierające dowiązania oraz bieżące pliki większe niż 2 MiB.
+Nie tworzy zastępstwa usuniętego ani przeniesionego workspace.
+
+**Liczba zmienionych plików.** Panel i stopka wiadomości korzystają z zapisanego
+zestawu zmian, w tym edycji przez shell i liczby plików pominiętych przez limit.
+Tylko zadanie bez zestawu zmian używa listy harnessu; nowe raporty podają te ścieżki
+względem workspace.
 
 **Zadania jednej rozmowy kontynuują jedną sesję.** Identyfikator sesji harnessu
 jest trzymany w sandboxie obok pracy, w `.agenticos/coding-agent/`, osobno dla każdej

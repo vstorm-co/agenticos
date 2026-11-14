@@ -1696,8 +1696,31 @@ The patch is kept up to 256 KiB and 500 files, and marked where it was cut.
 **Who reads the diff.** It is stored with the conversation and read with the
 transcript's own access, so whoever can read the chat sees it; deleting the chat
 deletes it. In a sandbox several chats share, a task running at the same time as
-another sees that one's edits in its diff too. Reverting a task is not offered
-yet, and a task on this computer records no diff.
+another sees that one's edits in its diff too. A task on this computer records no diff.
+
+**Revert this task.** New tasks can restore regular files only when their complete
+snapshot was captured in an isolated conversation workspace. Project-, agent-,
+channel- and user-scoped snapshots stay read-only because they can include another
+conversation's work. You need current edit access, and no run may be writing the
+workspace. Every affected file must match the task's final content and executable
+mode; a conflict refuses the whole revert and lists the files. Unrelated files
+and your Git index and history stay unchanged.
+
+The action queues a durable job and reserves the workspace. The panel shows
+progress and any definite refusal. An unknown result keeps the reservation;
+**Retry revert** checks whether the files were already restored before applying
+anything. A crash or a lost response therefore cannot silently apply undo twice.
+The worker rechecks access before acting and audits success.
+
+Revert restores files only, keeping the conversation and task report. It requires
+Git and Python 3 and refuses truncated, redacted, older display-only or linked-file
+snapshots, and current files over 2 MiB. A removed or moved workspace is not
+replaced.
+
+**Changed-file counts.** The panel and message footer use the stored change set,
+including shell edits and the count of files omitted by the limit. Only a task
+without a change set uses the harness's file list; new reports make those paths
+relative to the workspace.
 
 **A conversation's tasks continue one session.** The harness's session id is kept
 in the sandbox beside the work, under `.agenticos/coding-agent/`, one per

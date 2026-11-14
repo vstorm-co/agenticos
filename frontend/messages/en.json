@@ -1924,7 +1924,15 @@
         "binary": "binary",
         "binaryFile": "A binary file: there are no lines to show.",
         "patchOmitted": "Past the patch's limit: only its name is kept.",
-        "noTextChanges": "Its content did not change: it was renamed, or its mode changed."
+        "noTextChanges": "Its content did not change: it was renamed, or its mode changed.",
+        "revertTask": "Revert this task",
+        "revertDescription": "Restore the files changed by this task to their earlier state. If an affected file has changed since, nothing is reverted.",
+        "taskReverted": "This task was reverted.",
+        "revertConflict": "These files changed after the task. Nothing was reverted.",
+        "revertFailed": "The task could not be reverted.",
+        "revertPending": "Reverting this task…",
+        "revertUnknown": "The previous revert could not be confirmed. The workspace is reserved until a retry checks its files.",
+        "retryRevert": "Retry revert"
       },
       "runCodingAgent": "Hand the work to the coding agent",
       "runningCodingAgent": "The coding agent is working",
@@ -6063,6 +6071,10 @@
       "workflow-input-contract": {
         "title": "Define the expected input",
         "body": "A Manual, API or Called by a workflow trigger can use simple fields or a JSON Schema Draft 2020-12 contract. The schema supports nested values and is checked before a run starts."
+      },
+      "chat-coding-revert": {
+        "title": "Review and revert a coding task",
+        "body": "Open a coding task to review its changed files. Revert this task restores those files only when none has changed since the task ended."
       }
     },
     "chooseLanguage": "Language",
@@ -10963,6 +10975,11 @@
         "failed": "Writing your test questions failed."
       }
     },
+    "kind": {
+      "approvalRequested": "{agent} is waiting on your approval",
+      "budgetExceeded": "{agent} stopped: {scope, select, agent {its monthly budget} group {a department's monthly budget} department {the {department} department's monthly budget} organization {the organization's monthly budget} other {a spending limit}} is used up ({spent} spent of {limit})",
+      "budgetWarning": "{group} has used {share}% of its {limit} monthly budget."
+    },
     "needsAttention": "Needs attention"
   },
   "workflows": {
@@ -11004,6 +11021,8 @@
     "versionRestored": "Version {version} is the draft again",
     "versionRestoreConflict": "The draft changed while restoring. Resolve the conflict, then restore again.",
     "quickAdd": "Add a step after {name} ({port})",
+    "stepApprovalDecided": "{known, select, no {{status, select, approved {Approved} other {Rejected}}} other {{status, select, approved {Approved by {name}} other {Rejected by {name}}}}} · {time}",
+    "stepApprovalUndecided": "{status, select, expired {Expired: nobody decided in time} cancelled {Cancelled with its run} other {Waiting for a decision}}",
     "paletteNoMatches": "No nodes match your search.",
     "canvasTitle": "Canvas",
     "canvasHint": "Add a step to start the workflow.",
@@ -11313,6 +11332,9 @@
       "more": "More"
     },
     "pickerSearch": "Search steps",
+    "pickerMoreApps": "{count, plural, one {# more app to connect} other {# more apps to connect}}",
+    "pickerFewerApps": "Hide apps to connect",
+    "pickerAppToConnect": "Connect",
     "pickerBack": "All steps",
     "toolbarAddStep": "Add step",
     "toolbarReady": "No problems",
@@ -12232,6 +12254,10 @@
     "sheet": {
       "title": "Record",
       "conflict": "Someone else changed this field.",
+      "conflictNow": "Now: {value}, changed by <who></who> at {time}. Your value is in the field.",
+      "conflictNowUntimed": "Now: {value}, changed by <who></who>. Your value is in the field.",
+      "conflictEmpty": "empty",
+      "conflictSomeone": "someone else",
       "reloadAndReapply": "Reload and reapply",
       "discard": "Discard",
       "conflictAfterClose": "Someone else changed that record, so your last edit was not saved. Open the record to reapply or discard it.",
@@ -17777,5 +17803,401 @@
     "error": "Groups could not be loaded. Existing selections are kept.",
     "loading": "Loading groups…",
     "empty": "No groups in this organization."
+  },
+  "workflowNodes": {
+    "node": {
+      "agent_run": {
+        "name": "Run an agent",
+        "description": "Run a published agent from the catalog at a pinned version and use its answer."
+      },
+      "ai_classify": {
+        "name": "Classify",
+        "description": "Have a model put a text in one of your categories, and branch on it."
+      },
+      "ai_extract": {
+        "name": "Extract data",
+        "description": "Have a model pull the fields you name out of a text, as an object."
+      },
+      "ai_prompt": {
+        "name": "Ask a model",
+        "description": "Ask one of your models something, with instructions of the step's own."
+      },
+      "ai_rewrite": {
+        "name": "Summarize or translate",
+        "description": "Have a model summarize, translate or rewrite a text."
+      },
+      "code_javascript_sandbox": {
+        "name": "JavaScript in a sandbox",
+        "description": "Run JavaScript on Node with the run's files as a durable job on the organization's sandbox host, with no platform credentials inside it."
+      },
+      "code_python_sandbox": {
+        "name": "Python in a sandbox",
+        "description": "Run full Python with the run's files as a durable job on the organization's sandbox host, with no platform credentials inside it."
+      },
+      "code_python_simple": {
+        "name": "Python script",
+        "description": "Compute a JSON value with a short Python script in the Monty sandbox - no files, no network, a small standard library."
+      },
+      "control_foreach": {
+        "name": "For each",
+        "description": "Run the steps inside the loop once for every item in a list, in order."
+      },
+      "convert_csv_to_json": {
+        "name": "CSV to JSON",
+        "description": "Convert a CSV file into a JSON file of header-keyed rows."
+      },
+      "convert_json_to_csv": {
+        "name": "JSON to CSV",
+        "description": "Convert a JSON list of flat objects into a CSV file."
+      },
+      "convert_pdf_to_png": {
+        "name": "PDF pages to images",
+        "description": "Render chosen pages of a PDF as PNG images, within the image pixel limit."
+      },
+      "convert_text_to_file": {
+        "name": "Text to file",
+        "description": "Store text as a UTF-8 TXT file of the run."
+      },
+      "core_input": {
+        "name": "API request",
+        "description": "Start from an HTTP request or over a WebSocket, with the input you declare."
+      },
+      "core_output": {
+        "name": "Output",
+        "description": "What the workflow answers: text, sources, files and a structured value."
+      },
+      "data_combine": {
+        "name": "Combine lists",
+        "description": "Make one list of two: one after the other, by position or by a key."
+      },
+      "data_filter": {
+        "name": "Filter a list",
+        "description": "Keep the items of a list for which a condition holds."
+      },
+      "data_map": {
+        "name": "Map fields",
+        "description": "Pick values out of earlier outputs and give each one a type."
+      },
+      "debug_echo": {
+        "name": "Echo",
+        "description": "Echoes its input back, unchanged. Has no real effect."
+      },
+      "debug_relay": {
+        "name": "Relay",
+        "description": "Passes an echoed message on as a plain message. Has no real effect."
+      },
+      "decide_choose": {
+        "name": "Choose one",
+        "description": "Ask the decision model which of your options fits a text - a category, a queue, an intent."
+      },
+      "decide_score": {
+        "name": "Score",
+        "description": "Ask the decision model where a text sits on your rubric - urgency, fit, risk."
+      },
+      "decide_yes_no": {
+        "name": "Yes or no",
+        "description": "Ask the decision model a yes-or-no question about a text, and branch on the answer."
+      },
+      "email_send": {
+        "name": "Send an email",
+        "description": "Email up to ten addresses through an SMTP account or the platform sender."
+      },
+      "error_handle": {
+        "name": "Handle error",
+        "description": "Route a failure to a branch chosen by its error code."
+      },
+      "error_raise": {
+        "name": "Raise error",
+        "description": "Fail this branch with an error you define."
+      },
+      "file_read": {
+        "name": "Read a file",
+        "description": "Read one of the run's files as UTF-8 text, a JSON value or CSV rows."
+      },
+      "file_write": {
+        "name": "Write a file",
+        "description": "Store text, a JSON value or rows as a new UTF-8 file of the run."
+      },
+      "flow_await_reply": {
+        "name": "Await email reply",
+        "description": "Wait for an authenticated reply from one sender in one mail thread, or its deadline."
+      },
+      "flow_resume_link": {
+        "name": "Resume link",
+        "description": "The address that resumes this run's Wait steps waiting for a call."
+      },
+      "flow_wait": {
+        "name": "Wait",
+        "description": "Hold the run for a while, or until a time, then go on."
+      },
+      "html_parse": {
+        "name": "Parse HTML",
+        "description": "Read HTML into its text, its links and what a CSS selector picks - nothing is fetched or run."
+      },
+      "http_download": {
+        "name": "Download a file",
+        "description": "Fetch a file over HTTP into the run, streamed and size-limited, its type read from its own bytes."
+      },
+      "http_request": {
+        "name": "HTTP request",
+        "description": "Call an HTTP API, with SSRF protection and a vault credential."
+      },
+      "http_upload": {
+        "name": "Upload a file",
+        "description": "Send one of the run's files to an HTTP endpoint, streamed from storage."
+      },
+      "human_approval": {
+        "name": "Ask for approval",
+        "description": "Wait until a person approves or rejects, then go on by their answer."
+      },
+      "image_transform": {
+        "name": "Transform an image",
+        "description": "Crop, resize, rotate or convert a PNG, JPEG, WebP or GIF image, with its metadata removed and its size bounded before it is decoded."
+      },
+      "knowledge_add": {
+        "name": "Add to knowledge",
+        "description": "Put a text or a file into knowledge collections, for agents to find."
+      },
+      "knowledge_search": {
+        "name": "Search knowledge",
+        "description": "Find passages in knowledge collections, as sources a later step can use."
+      },
+      "logic_if": {
+        "name": "If / else",
+        "description": "Continue down one of two branches, decided by a condition."
+      },
+      "logic_merge": {
+        "name": "Merge",
+        "description": "Join branches back into one path."
+      },
+      "logic_split": {
+        "name": "Split",
+        "description": "Send the run down several branches at once."
+      },
+      "logic_switch": {
+        "name": "Switch",
+        "description": "Continue down the first of many branches whose rule holds."
+      },
+      "loop_item": {
+        "name": "Loop item",
+        "description": "The element this iteration of a loop works on."
+      },
+      "loop_yield": {
+        "name": "Loop result",
+        "description": "End this iteration of a loop, handing back its result."
+      },
+      "mattermost_channels_find": {
+        "name": "Find channels",
+        "description": "Find channels by name in a Mattermost team the bot is in."
+      },
+      "mattermost_members_list": {
+        "name": "List members",
+        "description": "List the people in a Mattermost channel, with the ids a mention takes."
+      },
+      "mattermost_message_send": {
+        "name": "Send a message",
+        "description": "Post a message to a Mattermost channel, or a thread in it, as one of your bots."
+      },
+      "mattermost_messages_read": {
+        "name": "Read messages",
+        "description": "Read the latest messages in a Mattermost channel or thread."
+      },
+      "mcp_call": {
+        "name": "Call an MCP tool",
+        "description": "Call one tool on one of the organization's MCP servers, asking a person first before it changes anything."
+      },
+      "notification_send": {
+        "name": "Notify members",
+        "description": "Notify members through their opted-in notification channels."
+      },
+      "slack_channels_find": {
+        "name": "Find channels",
+        "description": "Find Slack channels by name."
+      },
+      "slack_members_list": {
+        "name": "List members",
+        "description": "List the people in a Slack channel, with the ids a mention takes."
+      },
+      "slack_message_send": {
+        "name": "Send a message",
+        "description": "Post a message to a Slack channel, or a thread in it, as one of your bots."
+      },
+      "slack_messages_read": {
+        "name": "Read messages",
+        "description": "Read the latest messages in a Slack channel or thread."
+      },
+      "table_create": {
+        "name": "Create a table",
+        "description": "Create a new Virtual Table with the given columns."
+      },
+      "table_describe": {
+        "name": "Describe a table",
+        "description": "Read a table's name and its live columns for the steps after it."
+      },
+      "table_exists": {
+        "name": "Table exists?",
+        "description": "Branch on whether a table of this name exists."
+      },
+      "table_list": {
+        "name": "List tables",
+        "description": "List the tables this run may see, found by part of a name."
+      },
+      "table_record_create": {
+        "name": "Add a record",
+        "description": "Add a record to a Virtual Table."
+      },
+      "table_record_delete": {
+        "name": "Delete a record",
+        "description": "Delete a record. Its history is kept."
+      },
+      "table_record_exists": {
+        "name": "Record exists?",
+        "description": "Branch on whether any record of a table matches your filters."
+      },
+      "table_record_get": {
+        "name": "Find a record",
+        "description": "Read one record by its id or external id."
+      },
+      "table_record_query": {
+        "name": "List records",
+        "description": "List a table's records, filtered and sorted."
+      },
+      "table_record_update": {
+        "name": "Update a record",
+        "description": "Change some of a record's cells."
+      },
+      "table_record_upsert": {
+        "name": "Save a record",
+        "description": "Create or update the record with an external id."
+      },
+      "telegram_members_list": {
+        "name": "List administrators",
+        "description": "List the administrators of a Telegram chat - all a bot is told."
+      },
+      "telegram_message_send": {
+        "name": "Send a message",
+        "description": "Send a message to a Telegram chat as one of your bots."
+      },
+      "text_compare": {
+        "name": "Compare texts",
+        "description": "Score how alike two texts are - 1 the same, 0 nothing in common - without a model."
+      },
+      "text_extract": {
+        "name": "Extract text",
+        "description": "Read the text of a TXT, JSON, CSV, text PDF or DOCX file. A scanned page fails the step and says it needs OCR."
+      },
+      "transform_aggregate": {
+        "name": "Aggregate",
+        "description": "Collect a field's values across the items into one list."
+      },
+      "transform_crypto": {
+        "name": "Crypto",
+        "description": "Hash or encode text, or make an id or a random value."
+      },
+      "transform_date_time": {
+        "name": "Date & time",
+        "description": "Now, or a moment moved and written out in a timezone."
+      },
+      "transform_edit_fields": {
+        "name": "Edit fields",
+        "description": "Set, rename or remove fields on every item of a list."
+      },
+      "transform_limit": {
+        "name": "Limit",
+        "description": "Keep the first or the last items of a list."
+      },
+      "transform_remove_duplicates": {
+        "name": "Remove duplicates",
+        "description": "Keep one of each set of items equal on some fields."
+      },
+      "transform_sort": {
+        "name": "Sort",
+        "description": "Sort the items of a list by one or more fields."
+      },
+      "transform_split_out": {
+        "name": "Split out",
+        "description": "Turn a list inside each item into items of their own."
+      },
+      "transform_summarize": {
+        "name": "Summarize",
+        "description": "Count, sum or average the items, by group."
+      },
+      "trigger_channel_message": {
+        "name": "Channel message",
+        "description": "A message to one of your Slack, Mattermost or Telegram bots."
+      },
+      "trigger_chat": {
+        "name": "Chat message",
+        "description": "A member sends a message in the chat, with this workflow picked to answer."
+      },
+      "trigger_form": {
+        "name": "Form",
+        "description": "Somebody fills in a form at the workflow's public address."
+      },
+      "trigger_github": {
+        "name": "GitHub",
+        "description": "Something happens in a GitHub repository - an issue, a pull request, a push."
+      },
+      "trigger_gmail": {
+        "name": "Gmail",
+        "description": "A new email arrives in the organization's connected Gmail mailbox."
+      },
+      "trigger_manual": {
+        "name": "Manual",
+        "description": "Start by clicking Run in the editor or on the workflow's runs page."
+      },
+      "trigger_outlook": {
+        "name": "Outlook",
+        "description": "A new email arrives in a folder of the organization's connected Microsoft 365 mailbox."
+      },
+      "trigger_schedule": {
+        "name": "Schedule",
+        "description": "Runs on a clock: every so often, or on a cron expression in UTC."
+      },
+      "trigger_table_record": {
+        "name": "Table record",
+        "description": "A record is added to a table, changed or deleted, and matches the filters."
+      },
+      "trigger_webhook": {
+        "name": "Webhook",
+        "description": "A signed HTTP delivery arrives at this workflow's own address."
+      },
+      "trigger_workflow_call": {
+        "name": "Called by a workflow",
+        "description": "Another workflow's Run a workflow step starts it with the fields it declares."
+      },
+      "trigger_workflow_failed": {
+        "name": "On failure of a workflow",
+        "description": "A run of a workflow that names this one as its error workflow fails."
+      },
+      "webhook_respond": {
+        "name": "Respond to webhook",
+        "description": "Answer the webhook call that started the run: a status, headers and a body."
+      },
+      "workflow_run": {
+        "name": "Run a workflow",
+        "description": "Run another workflow as a step, and hand on what it answers."
+      }
+    },
+    "port": {
+      "approved": "Approved",
+      "chosen": "Chosen",
+      "deadline_reached": "Deadline reached",
+      "default": "Default",
+      "done": "Done",
+      "error": "Error",
+      "false": "False",
+      "in": "In",
+      "no": "No",
+      "other": "Other",
+      "otherwise": "Otherwise",
+      "out": "Out",
+      "rejected": "Rejected",
+      "reply_received": "Reply received",
+      "scored": "Scored",
+      "true": "True",
+      "unsure": "Unsure",
+      "yes": "Yes"
+    }
   }
 }

@@ -144,6 +144,7 @@ from app.agents.capabilities.budget import (
     SpendLimit,
     guarded_by,
     metered_by,
+    usd,
 )
 from app.agents.capabilities.channel_tools import (
     CHANNEL_DIRECTORY_RESOURCE,
@@ -3280,7 +3281,7 @@ class RoutineBudgetSpent(BudgetExceeded):
     def __init__(self, *, limit_usd: Decimal, spent_usd: Decimal) -> None:
         super().__init__(limit_usd=limit_usd, spent_usd=spent_usd, scope=BudgetScope.RUN)
         self.args = (
-            f"Routine monthly budget exhausted: ${spent_usd:.4f} spent of ${limit_usd:.2f} limit",
+            f"Routine monthly budget exhausted: ${spent_usd:.4f} spent of {usd(limit_usd)} limit",
         )
 
 
@@ -6679,6 +6680,7 @@ class AgentRunnerService:
         error: str | None = None,
         paused_state: PausedRunState | None = None,
         budget_scope: BudgetScope | None = None,
+        budget: BudgetExceeded | None = None,
     ) -> AgentRun:
         """Record what the run consumed and how it ended.
 
@@ -6706,7 +6708,8 @@ class AgentRunnerService:
         is carried from the `except` clause that caught the refusal rather than
         re-derived here, because the alternative is matching a prefix on the
         error message - and it decides who gets mailed: an agent's cap is its
-        author's to raise, the organization's is not.
+        author's to raise, the organization's is not. `budget` is the refusal
+        itself, for the limit and spend its notification states.
         """
         # Both before the workspace closes, because a run-scoped one is released
         # by `close` and its files are gone afterwards.
@@ -6828,6 +6831,7 @@ class AgentRunnerService:
                 status=status,
                 error=error,
                 budget_scope=budget_scope,
+                budget=budget,
             )
         except Exception:
             logger.exception("run_notification_failed", extra={"run_id": str(finished.id)})
@@ -7061,6 +7065,7 @@ class AgentRunnerService:
         status: RunStatus,
         error: str | None,
         budget_scope: BudgetScope | None,
+        budget: BudgetExceeded | None = None,
     ) -> None:
         """Tell somebody, when the run ended in a way nobody is watching for.
 
@@ -7088,6 +7093,9 @@ class AgentRunnerService:
                 # two - so an unknown scope tells fewer people rather than
                 # mailing the whole administration about somebody's draft.
                 scope=budget_scope or BudgetScope.AGENT,
+                limit_usd=budget.limit_usd if budget else None,
+                spent_usd=budget.spent_usd if budget else None,
+                subject=budget.subject if budget else None,
             )
         elif status is RunStatus.AWAITING_APPROVAL:
             approvals = await agent_run_repo.list_approvals_for_run(
@@ -8484,6 +8492,7 @@ class AgentRunnerService:
         structured: dict[str, Any] | None = None
         paused: PausedRunState | None = None
         budget_scope: BudgetScope | None = None
+        budget: BudgetExceeded | None = None
         called: list[RecordedToolCall] = []
         settled: dict[str, str] = {}
         summarized: list[dict[str, Any]] | None = None
@@ -8589,6 +8598,7 @@ class AgentRunnerService:
             status = RunStatus.BUDGET_EXCEEDED
             error = str(exc)
             budget_scope = exc.scope
+            budget = exc
             logger.info("Run %s stopped by budget: %s", prepared.run.id, exc)
             finished_cleanly = True
         except GuardrailBlocked as exc:
@@ -8630,6 +8640,7 @@ class AgentRunnerService:
                     error=error,
                     paused_state=paused,
                     budget_scope=budget_scope,
+                    budget=budget,
                 )
                 if prepared.run.status == RunStatus.FAILED.value:
                     status = RunStatus.FAILED

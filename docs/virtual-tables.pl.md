@@ -1,5 +1,5 @@
 ---
-source_sha: "b43472572f36"
+source_sha: "33c4b5347c7d"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -331,7 +331,9 @@ nic nie zostaje zapisane, dopóki nie ma wszystkich wymaganych wartości.
 
 Każda edycja to jeden `PATCH` względem rewizji widocznej na ekranie, więc edycja, która
 przegrywa z nowszą zmianą, zostaje odrzucona, a nie zapisana na niej. Rekord otwiera się
-wtedy z odrzuconą wartością zachowaną obok **Reload and reapply**. Zaznaczenie wierszy
+wtedy z odrzuconą wartością zachowaną obok **Reload and reapply** i zostaje odczytany
+ponownie: pole mówi, co zawiera teraz, kto ostatnio zmienił rekord i kiedy, a tytuł
+panelu się odświeża. Zaznaczenie wierszy
 udostępnia **Delete** dla wszystkich naraz, każdy względem własnej rewizji: rekord,
 który ktoś w międzyczasie zmienił, zostaje, a konsola mówi, ile takich było. Panel
 rekordu usuwa pojedynczy rekord w ten sam sposób.
@@ -354,6 +356,8 @@ typy, na które dają się przekonwertować jej wartości.
 W **Columns** przełącznik **Required** sprawia, że kolumna wymaga wartości, a
 zarchiwizowana kolumna trafia do **Archived columns**, skąd **Restore** przywraca ją
 razem z jej wartościami.
+
+Odczyt porównania zachowuje niezapisane edycje innych pól i ich pierwotną rewizję. Kolejny konflikt odczytuje nowe porównanie; odpowiedź dla zamkniętego rekordu nie zamknie innego rekordu. Długie wartości mają skrócony podgląd.
 
 ### Import i eksport { #import-and-export }
 

@@ -47,7 +47,6 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
-  Skeleton,
 } from "@/components/ui";
 import {
   useNodeCatalog,
@@ -59,6 +58,11 @@ import {
 import { TagsEditor } from "@/components/workflows/tags-editor";
 import { ActiveSwitch } from "@/components/workflows/editor/active-switch";
 import { WorkflowStatus } from "@/components/workflows/editor/workflow-status";
+import {
+  WorkflowEditorLoading,
+  WORKFLOW_EDITOR_CANVAS,
+  WORKFLOW_EDITOR_LAYOUT,
+} from "@/components/workflows/editor/editor-loading";
 import { ROUTES } from "@/lib/constants";
 import type { WorkflowGraph } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores";
@@ -158,30 +162,7 @@ export default function WorkflowEditorPage({ params }: PageProps) {
   // The canvas waits for the catalog too: a card drawn without its definition
   // has no ports, and its connections cannot find where to attach (xyflow 008).
   if (isLoading || catalogLoading) {
-    return (
-      <div aria-busy="true" className="flex min-h-0 flex-1 flex-col gap-3 pb-4 sm:min-h-[40rem]">
-        <div aria-hidden="true" className="shrink-0 space-y-3">
-          <Skeleton className="h-4 w-40" />
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-3">
-              <Skeleton className="size-10 shrink-0 rounded-xl" />
-              <Skeleton className="h-8 w-40 sm:w-64" />
-            </div>
-            <div className="flex gap-2">
-              <Skeleton className="size-9 rounded-lg" />
-              <Skeleton className="h-9 w-20 rounded-lg" />
-              <Skeleton className="h-9 w-24 rounded-lg" />
-            </div>
-          </div>
-        </div>
-        <div className="border-border bg-card relative min-h-80 flex-1 overflow-hidden rounded-xl border">
-          <div aria-hidden="true" className="absolute top-4 left-4 flex gap-2">
-            <Skeleton className="h-9 w-28 rounded-lg" />
-            <Skeleton className="size-9 rounded-lg" />
-          </div>
-        </div>
-      </div>
-    );
+    return <WorkflowEditorLoading />;
   }
 
   if (!workflow) {
@@ -208,7 +189,7 @@ export default function WorkflowEditorPage({ params }: PageProps) {
   return (
     // Fills what the shell's `main` leaves: the editor is a workspace, and a canvas
     // in a fixed-height box scrolls the page instead of the graph.
-    <div key={workflow.id} className="flex min-h-0 flex-1 flex-col gap-3 pb-4 sm:min-h-[40rem]">
+    <div key={workflow.id} className={WORKFLOW_EDITOR_LAYOUT}>
       <PageHeader
         // The canvas is the page: the header gives it the height a list page
         // would keep for breathing room.
@@ -297,10 +278,7 @@ export default function WorkflowEditorPage({ params }: PageProps) {
         }
       />
       {canEdit && <ConflictBanner workflowId={workflow.id} />}
-      <div
-        data-workflow-editor
-        className="border-border bg-card relative flex min-h-0 flex-1 overflow-hidden rounded-xl border"
-      >
+      <div data-workflow-editor className={WORKFLOW_EDITOR_CANVAS}>
         <div className="relative min-w-0 flex-1">
           {liveRunId === null ? (
             <WorkflowCanvas workflow={workflow} catalog={nodes} readOnly={!editing} />

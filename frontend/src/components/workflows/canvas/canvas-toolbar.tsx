@@ -37,6 +37,7 @@ import type { ValidationProblem } from "@/components/workflows/validation";
 import type { NodeDefinition, Uuid } from "@/lib/workflows/types";
 import { cn } from "@/lib/utils";
 import { useWorkflowNodeStyleStore } from "@/stores/workflow-node-style-store";
+import { useNarrowScreen } from "@/hooks/use-narrow-screen";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { ScopeBreadcrumb } from "./scope-breadcrumb";
@@ -80,7 +81,10 @@ export function CanvasToolbar({
   const editNode = useWorkflowEditorStore((state) => state.editNode);
   const overlay = useWorkflowEditorStore((state) => state.overlay);
   const setOverlay = useWorkflowEditorStore((state) => state.setOverlay);
-  const minimapShown = useWorkflowEditorStore((state) => state.minimapShown);
+  const onPhone = useNarrowScreen();
+  const minimapShown = useWorkflowEditorStore((state) =>
+    onPhone ? state.phoneMinimapShown : state.minimapShown,
+  );
   const toggleMinimap = useWorkflowEditorStore((state) => state.toggleMinimap);
   const nodeStyle = useWorkflowNodeStyleStore((state) => state.style);
   const setNodeStyle = useWorkflowNodeStyleStore((state) => state.setStyle);
@@ -161,7 +165,7 @@ export function CanvasToolbar({
               <DropdownMenuCheckboxItem
                 className="gap-3"
                 checked={minimapShown}
-                onCheckedChange={toggleMinimap}
+                onCheckedChange={() => toggleMinimap(onPhone)}
               >
                 <MapIcon className="size-4" />
                 {t(minimapShown ? "toolbarHideMinimap" : "toolbarShowMinimap")}
