@@ -113,13 +113,7 @@ export default function SandboxesPage() {
             fill
             data-tour="sandboxes-connections"
             title={t("sandboxConnections")}
-            // With the list refused or still loading, "0 connections" would
-            // state as fact something no answer has said - the skeleton stays.
-            counted={
-              isLoading || error !== null
-                ? null
-                : t("registeredCount", { count: connections.length })
-            }
+            namedByPage
             contentClassName="p-0"
           >
             {error !== null ? (

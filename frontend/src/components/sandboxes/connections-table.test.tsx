@@ -113,9 +113,9 @@ describe("ConnectionsTable", () => {
 
     const names = Array.from(
       screen.getAllByRole("rowgroup")[1]!.querySelectorAll("tr > td:first-child"),
-      (cell) => cell.textContent,
+      (cell) => cell.querySelector("[title]")?.textContent,
     );
-    expect(names).toEqual(["Big box", expect.stringContaining("Local Docker")]);
+    expect(names).toEqual(["Big box", "Local Docker"]);
   });
 
   it("hands each action the row it was pressed on", async () => {

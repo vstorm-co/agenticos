@@ -10,7 +10,7 @@ import { ChannelBotsTable } from "@/components/channels/channel-bots-table";
 import { DiscordRoleMappingsDialog } from "@/components/channels/discord-role-mappings-dialog";
 import { EditChannelDialog } from "@/components/channels/edit-channel-dialog";
 import { ErrorState } from "@/components/states";
-import { Button, ListCard, ListCardEmpty } from "@/components/ui";
+import { Button, ConfirmDialog, ListCard, ListCardEmpty } from "@/components/ui";
 import { useChannelBots, usePermissions } from "@/hooks";
 import { getErrorMessage } from "@/lib/api-error";
 import type { ChannelBot } from "@/types/channels";
@@ -62,6 +62,7 @@ export default function ChannelsPage() {
   // The row being edited, which is also what opens the dialog: a bot and an
   // open flag can disagree, and the disagreement renders last row's answers.
   const [editing, setEditing] = useState<ChannelBot | null>(null);
+  const [deleting, setDeleting] = useState<ChannelBot | null>(null);
   const [mapping, setMapping] = useState<ChannelBot | null>(null);
 
   if (!permissionsLoading && !permissionsError && !canManage) {
@@ -100,7 +101,7 @@ export default function ChannelsPage() {
             loading
             onEdit={setEditing}
             onToggleActive={(bot) => setActive.mutate({ botId: bot.id, isActive: !bot.is_active })}
-            onDelete={(bot) => remove.mutate(bot.id)}
+            onDelete={setDeleting}
           />
         ) : error || permissionsError ? (
           // A failed read has no rows either, and "No channels yet" over a 502
@@ -132,7 +133,7 @@ export default function ChannelsPage() {
             busy={setActive.isPending || remove.isPending}
             onEdit={setEditing}
             onToggleActive={(bot) => setActive.mutate({ botId: bot.id, isActive: !bot.is_active })}
-            onDelete={(bot) => remove.mutate(bot.id)}
+            onDelete={setDeleting}
             onMapRoles={can(Perm.membersManage) ? setMapping : undefined}
           />
         )}
@@ -144,6 +145,19 @@ export default function ChannelsPage() {
           onOpenChange={setAdding}
           onSubmit={create.mutateAsync}
           isPending={create.isPending}
+        />
+      )}
+
+      {deleting && canManage && (
+        <ConfirmDialog
+          open
+          onOpenChange={(open) => !open && setDeleting(null)}
+          title={t("removeBot", { bot: deleting.name })}
+          description={t("removeBotDescription")}
+          confirmLabel={t("removeBotConfirm")}
+          destructive
+          loading={remove.isPending}
+          onConfirm={() => remove.mutate(deleting.id, { onSuccess: () => setDeleting(null) })}
         />
       )}
 

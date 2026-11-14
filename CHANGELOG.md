@@ -41,6 +41,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Keep sandbox connection details and session controls readable on narrow screens, search sessions by agent name, and confirm channel-bot removal before disconnecting bound agents.
+
 - Align organization role, directory and retention views with shared list layouts: searchable permission matrices with sticky labels, responsive retention fields and matching loading states, disabled unchanged saves, and retryable directory deletion refusals.
 
 - Share pagination controls and loading/boundary states across catalogs, record tables and memory. Disable unchanged participation settings, organize background-service cards, and retain the full file-reader footprint while previews load.

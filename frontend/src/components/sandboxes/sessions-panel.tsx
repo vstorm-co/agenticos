@@ -145,11 +145,11 @@ export function SessionsPanel({ connections, loadingConnections = false }: Sessi
     const needle = query.trim().toLowerCase();
     if (!needle) return sessions;
     return sessions.filter((session) =>
-      [session.session_id, session.runtime, session.state].some((field) =>
+      [session.session_id, session.runtime, session.state, nameOf(session) ?? ""].some((field) =>
         field.toLowerCase().includes(needle),
       ),
     );
-  }, [listing, query]);
+  }, [listing, query, nameOf]);
 
   const columns = useMemo<Column<SandboxSession>[]>(
     () => [
@@ -229,7 +229,10 @@ export function SessionsPanel({ connections, loadingConnections = false }: Sessi
               <span className="text-muted-foreground text-xs">{idle(session.idle_seconds)}</span>
               {left !== null && (
                 <span
-                  className={cn("text-xs", left < 120 ? "text-amber-600" : "text-muted-foreground")}
+                  className={cn(
+                    "text-xs",
+                    left < 120 ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground",
+                  )}
                 >
                   {t("reapedIn", { time: idle(left) })}
                 </span>
@@ -247,7 +250,7 @@ export function SessionsPanel({ connections, loadingConnections = false }: Sessi
       },
       {
         key: "activity",
-        className: "pr-5",
+        className: "pr-5 @max-md/table:text-left",
         header: t("activity"),
         align: "right",
         cell: (session) => (
@@ -287,14 +290,17 @@ export function SessionsPanel({ connections, loadingConnections = false }: Sessi
 
   return (
     <Card
-      className="flex flex-1 flex-col"
+      className="@container/sessions flex min-w-0 flex-1 flex-col"
       role={loadingConnections ? "status" : undefined}
       aria-label={loadingConnections ? states("loading") : undefined}
       aria-busy={loadingConnections || undefined}
     >
-      <CardHeader className="flex-row items-center justify-between space-y-0 border-b px-5 py-4">
+      <CardHeader className="flex-col gap-3 space-y-0 border-b px-4 py-4 sm:px-5 @3xl/sessions:flex-row @3xl/sessions:items-center @3xl/sessions:justify-between">
         {loadingConnections ? (
-          <div className="flex w-full items-center justify-between gap-4" aria-hidden="true">
+          <div
+            className="flex w-full flex-col gap-3 @3xl/sessions:flex-row @3xl/sessions:items-center @3xl/sessions:justify-between"
+            aria-hidden="true"
+          >
             <div className="space-y-2">
               <Skeleton className="h-5 w-40" />
               <Skeleton className="h-3 w-48 max-w-full" />
@@ -303,19 +309,25 @@ export function SessionsPanel({ connections, loadingConnections = false }: Sessi
           </div>
         ) : (
           <>
-            <div className="space-y-1">
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <Activity className="h-4 w-4" aria-hidden />
-                {t("runningOn", { name: connection?.name ?? "" })}
+            <div className="min-w-0 space-y-1">
+              <CardTitle className="flex min-w-0 items-center gap-2 text-sm">
+                <Activity className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                <span className="min-w-0 break-words">
+                  {t("runningOn", { name: connection?.name ?? "" })}
+                </span>
                 <ContextHelp>{t("whatSessionsAre")}</ContextHelp>
               </CardTitle>
               <CardDescription className="text-xs">
-                {listing?.tenant_limit
-                  ? t("sessionsOfLimit", { count: sessions.length, limit: listing.tenant_limit })
-                  : t("sessionsCount", { count: sessions.length })}
+                {listing === null ? (
+                  <Skeleton className="h-4 w-48 max-w-full" />
+                ) : listing.tenant_limit ? (
+                  t("sessionsOfLimit", { count: sessions.length, limit: listing.tenant_limit })
+                ) : (
+                  t("sessionsCount", { count: sessions.length })
+                )}
               </CardDescription>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex min-w-0 flex-wrap items-center gap-3 @3xl/sessions:shrink-0">
               {connections.length > 1 && (
                 <Select
                   value={connection?.id}
@@ -326,7 +338,10 @@ export function SessionsPanel({ connections, loadingConnections = false }: Sessi
                     setWatching(null);
                   }}
                 >
-                  <SelectTrigger className="h-8 w-44" aria-label={t("host")}>
+                  <SelectTrigger
+                    className="h-9 w-full min-w-0 @sm/sessions:w-44"
+                    aria-label={t("host")}
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -361,6 +376,8 @@ export function SessionsPanel({ connections, loadingConnections = false }: Sessi
         <DataTable<SandboxSession>
           columns={columns}
           rows={visible}
+          stackOnNarrow
+          fillHeight
           getRowKey={(session) => session.session_id}
           loading={isLoading}
           error={
