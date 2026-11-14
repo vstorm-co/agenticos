@@ -234,6 +234,7 @@ retranslated is how a stale translation stops being visible.
 | What the console calls each thing, and its name in the API and spec | `docs/reference/glossary.md` |
 | MCP connections, the server catalog, OAuth, managed Composio apps | `docs/mcp.md` |
 | Providers, model profiles, fallbacks, cost | `docs/models.md` |
+| Provider quota visibility and account pool proposal | `docs/design/provider-quota-account-pools.md` (repo only; not implemented) |
 | Which model to pick, open weights vs closed | `docs/choosing-models.md` |
 | Adoption, roles, cost, the security review | `docs/rollout.md` |
 | The vault, secret kinds, what never leaks | `docs/secrets.md` |
