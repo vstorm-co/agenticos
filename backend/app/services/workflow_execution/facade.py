@@ -26,6 +26,7 @@ from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.locks import LockScope, hold_subject
 from app.db.models.workflow import Workflow, WorkflowStatus, WorkflowVersion
+from app.db.models.workflow_approval import WorkflowApprovalStatus
 from app.db.models.workflow_file import WorkflowFile
 from app.db.models.workflow_run import (
     NodeAttempt,
@@ -39,6 +40,7 @@ from app.db.models.workflow_run import (
     WorkflowRunTrigger,
 )
 from app.repositories import workflow as workflow_repo
+from app.repositories import workflow_approval as workflow_approval_repo
 from app.repositories import workflow_file as workflow_file_repo
 from app.repositories import workflow_log_entry as workflow_log_repo
 from app.repositories import workflow_run as workflow_run_repo
@@ -65,6 +67,7 @@ from app.schemas.workflow_run import (
     WorkflowRunGraph,
     WorkflowRunList,
     WorkflowRunRead,
+    WorkflowStepDecision,
     WorkflowStepResolve,
     WorkflowStepTest,
 )
@@ -96,12 +99,17 @@ from app.services.workflow_execution.exceptions import (
     WorkflowTriggerMismatchError,
 )
 from app.services.workflow_execution.run_status import refresh_run_status
-from app.workflows.contracts.io import TableIORef
 from app.workflows.contracts.payload import json_byte_size
 from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import WorkflowGraph, jsonb_value_fits
 from app.workflows.graph.step import step_subgraph
-from app.workflows.graph.validate import file_binding_problems, graph_file_refs, validate_graph
+from app.workflows.graph.validate import (
+    file_binding_problems,
+    graph_file_refs,
+    graph_table_refs,
+    set_aside,
+    validate_graph,
+)
 from app.workflows.nodes.core_input._handler import TriggerInputConfig, input_problems
 from app.workflows.triggers import (
     BY_HAND,
@@ -603,12 +611,14 @@ class WorkflowExecutionService:
         # Charge this run's node work against the organization's and the caller's
         # outstanding-node-work ceilings before anything is written, so a caller
         # cannot start many wide graphs below the per-minute run limit and grow a
-        # backlog on the shared runner that starves other tenants (#1907).
+        # backlog on the shared runner that starves other tenants (#1907). A step
+        # set aside never runs, so it reserves nothing.
+        node_count = len(graph.nodes) - len(set_aside(graph))
         await admission.enforce_admission_quota(
             self.db,
             organization_id=ctx.organization_id,
             principal_user_id=ctx.subject_id,
-            requested_node_count=len(graph.nodes),
+            requested_node_count=node_count,
         )
 
         now = datetime.now(UTC)
@@ -668,7 +678,7 @@ class WorkflowExecutionService:
                 None if ctx.key_scopes is None else sorted(scope.value for scope in ctx.key_scopes)
             ),
             budget_limit=budget_limit,
-            node_count=len(graph.nodes),
+            node_count=node_count,
             deadline_at=deadline_at,
             timezone=settings.timezone,
             root_run_id=causation.root_run_id if causation else None,
@@ -715,7 +725,9 @@ class WorkflowExecutionService:
         dispatch row and queued job, every pending approval request, the agent
         run each parked step waits on, and every live step, which becomes
         `cancelled`. A step whose attempt is executing at that moment finishes
-        on its own; its result is recorded and nothing follows from it.
+        on its own; its result is recorded and nothing follows from it. Every
+        unfinished run it called, and every run those called, is cancelled the
+        same way (`cleanup.stop_called_runs`).
 
         Raises:
             WorkflowRunNotFoundError: No such run, or this caller may not see
@@ -767,6 +779,7 @@ class WorkflowExecutionService:
         )
         await events.append(self.db, run=run, kind=events.EventKind.RUN_CANCELLED)
         await delivery.deliver_result(self.db, run=run)
+        await cleanup.stop_called_runs(self.db, run=run, now=ended_at)
         return _read(run, can_cancel=True)
 
     async def edit_reply_expectation(
@@ -1069,7 +1082,9 @@ class WorkflowExecutionService:
             WorkflowRunNotRetryableError: The run did not fail, was not
                 cancelled and did not run out of budget.
             AuthorizationError: The caller may see the run but not run its
-                workflow - or, for a test run, not edit it.
+                workflow - or, for a test run, not edit it - or the run was
+                cancelled and the caller is neither the person who started it nor
+                an editor of its workflow, so could not have cancelled it.
             WorkflowArchivedError: The workflow is archived.
             WorkflowNotRunnableError: The version the run ran no longer resolves.
             WorkflowAdmissionQuotaError: As `start`.
@@ -1087,6 +1102,14 @@ class WorkflowExecutionService:
             )
         ):
             raise AuthorizationError(message="You may not retry this run")
+        if original.status == WorkflowRunStatus.CANCELLED.value and not await self._may_cancel(
+            ctx, original, workflow
+        ):
+            raise AuthorizationError(
+                message="Only the person who started this run, or an editor of its "
+                "workflow, may retry it after it was cancelled",
+                details={"run_id": original.id},
+            )
         if workflow.status == WorkflowStatus.ARCHIVED.value:
             raise WorkflowArchivedError(
                 workflow_id=workflow.id, message="This workflow is archived and cannot be run"
@@ -1157,11 +1180,30 @@ class WorkflowExecutionService:
         ):
             graph = await dispatcher.resolve_graph(self.db, run)
             awaited = {node.id for node in graph.nodes if node.definition_id == "flow.await_reply"}
+        decisions = {
+            decision.node_run_id: decision
+            for decision in await workflow_approval_repo.step_decisions(
+                self.db,
+                organization_id=ctx.organization_id,
+                node_run_ids=[row.id for row in rows],
+            )
+        }
         items = []
         for row in rows:
             read = node_run_read(row, by_run.get(row.id, []))
             if row.node_instance_id in awaited and row.resume_payload is not None:
                 read.reply_expectation = ReplyExpectation.model_validate(row.resume_payload)
+            decision = decisions.get(row.id)
+            if decision is not None:
+                read.approval = WorkflowStepDecision(
+                    status=WorkflowApprovalStatus(decision.status),
+                    decided_at=decision.decided_at,
+                    # Who decided names a member: a caller who may not list the
+                    # members - a key scoped to workflows - reads the decision alone.
+                    decided_by_name=decision.decided_by_name
+                    if ctx.has(Perm.MEMBERS_VIEW)
+                    else None,
+                )
             items.append(read)
         return WorkflowNodeRunList(items=items, total=total)
 
@@ -1443,15 +1485,14 @@ class WorkflowExecutionService:
                 kind=ResourceRefKind.FILE.value,
                 ref=ref.model_dump(mode="json"),
             )
-        for binding in graph.bindings:
-            if isinstance(binding.source, TableIORef):
-                await workflow_run_repo.create_resource_ref(
-                    self.db,
-                    organization_id=run.organization_id,
-                    workflow_run_id=run.id,
-                    kind=ResourceRefKind.TABLE.value,
-                    ref=binding.source.model_dump(mode="json"),
-                )
+        for _field, ref in graph_table_refs(graph):
+            await workflow_run_repo.create_resource_ref(
+                self.db,
+                organization_id=run.organization_id,
+                workflow_run_id=run.id,
+                kind=ResourceRefKind.TABLE.value,
+                ref=ref.model_dump(mode="json"),
+            )
 
 
 __all__ = ["Causation", "WorkflowExecutionService", "node_run_read"]

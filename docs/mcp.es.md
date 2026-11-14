@@ -1,5 +1,5 @@
 ---
-source_sha: "4d16926af3c7"
+source_sha: "a6eae1ab61a9"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -11,8 +11,9 @@ Una organización apunta a un servidor, sus herramientas aparecen en el Builder,
 no cambia ni una línea de código de nuestro lado.
 
 Todo lo que hay en el [catálogo de capabilities](reference/capabilities.md) es
-código que escribimos nosotros y que mantenemos al 100% de cobertura. Todo lo que
-hay aquí es una URL que alguien pegó.
+código que escribimos nosotros y que mantenemos con una cobertura del 100%. Las
+conexiones MCP acceden a las herramientas mediante una URL de servidor o una
+conexión de app gestionada.
 
 !!! info "Las dos cosas no son alternativas"
 
@@ -63,8 +64,8 @@ Una fila que apunta a un servidor remoto. El transporte — HTTP en streaming o
 server-sent events — se deduce de la URL, así que un servidor solo de SSE como
 Atlassian funciona junto a uno de HTTP en streaming sin nada que configurar.
 
-| | |
-|---|---|
+|  |  |
+| --- | --- |
 | `name` | También el prefijo de las herramientas. Ver [Colisiones de nombres](#name-collisions) |
 | `url` | Validada contra SSRF antes de que lleguemos a pedirla |
 | `auth_token` | Sellado en el [vault](secrets.md), nunca devuelto por ningún endpoint |
@@ -142,13 +143,13 @@ cuenta de cada persona; uno que pide una clave recomienda la compartida.
 asistente, y también un agent vinculado a la cuenta propia de cada persona cuando
 es ella quien habla con él.
 
-Su credencial se sella para el *miembro*, no para una organización — una conexión
+Su credencial se sella para el _miembro_, no para una organización — una conexión
 personal no tiene ninguna, y su dueño puede pertenecer a varias, así que atarla a
 la que estuviera activa cuando la añadió haría el token ilegible en el momento en
 que cambiara de una a otra.
 
 **Organización** está limitada a la organización, protegida por `mcp:manage`, y
-es el único tipo que el spec de un agent publicado puede nombrar *por id*.
+es el único tipo que el spec de un agent publicado puede nombrar _por id_.
 
 Un servidor de la organización puede pertenecer a un departamento. En **Who can
 use it** el diálogo de conexión ofrece **Everyone**, por defecto, o **Some
@@ -241,6 +242,20 @@ servidores o las herramientas individuales que elijas. Estas exclusiones cambian
 cuándo se muestra el esquema de una herramienta; las listas permitidas de conexión
 y vinculación siguen decidiendo si está disponible.
 
+Las nuevas plantillas de AgenticOS y Architect también difieren herramientas de
+capabilities, mantienen visibles las preguntas y las herramientas del sandbox desde
+el principio y usan búsqueda BM25 local con hasta cinco resultados. Los agents ya
+publicados conservan su configuración; puedes adoptar los nuevos valores en los
+ajustes de búsqueda de herramientas. La búsqueda no elimina las instrucciones ni
+el historial; el total de tokens de entrada suma todas las peticiones al modelo.
+
+La disponibilidad de las herramientas del navegador también sigue el estado de las
+pestañas: abrir, leer y listar siguen disponibles para iniciar o restaurar una
+sesión. Cerrar y cambiar requieren una pestaña abierta; las acciones sobre la página,
+una pestaña activa. La búsqueda no revela acciones no disponibles en el estado
+actual. Los cambios de disponibilidad pueden afectar a la caché del prompt del
+proveedor; menos esquemas de herramientas por sí solos no demuestran un menor coste.
+
 ### Qué llamadas esperan a una persona { #which-calls-wait-for-a-person }
 
 Cada vinculación tiene una política `approval` para las herramientas de su
@@ -264,6 +279,24 @@ En el Builder, los ajustes de un servidor lo dicen por
 grupos: sus **lecturas** y las herramientas que **cambian cosas** se ejecutan sin
 preguntar o preguntan primero.
 
+Cada herramienta también puede ejecutarse sin preguntar o preguntar primero por sí
+sola, digan lo que digan su grupo y su marca de solo lectura: pulsa el escudo que
+tiene al lado. Un servidor que no marca ninguna herramienta como de solo lectura
+las muestra todas en un solo grupo, que `writes` retiene por completo; si dejas
+que sus lecturas se ejecuten sin preguntar, se ejecutan mientras sus escrituras
+preguntan. El mismo control deja que una sola escritura se ejecute sin
+preguntar, sin que `none` libere todas las demás.
+
+El spec guarda estos ajustes en el `tool_approval` de la vinculación, por el
+nombre de la herramienta en el servidor. Un grupo cuyas herramientas difieren
+muestra **Per tool**, y elegir para el grupo vuelve a ajustar todas sus
+herramientas. Una herramienta que el servidor añada más tarde sigue a su grupo.
+
+En dos casos manda la marca del servidor. En una app de chat, una herramienta que
+el servidor no marca como de solo lectura pregunta primero aunque esté ajustada
+para ejecutarse sin preguntar, y una vigilancia nunca lee una herramienta ante la
+que su vinculación pregunta, porque no hay nadie para responder.
+
 ### A través de qué cuenta habla una vinculación { #whose-account-a-binding-speaks-through }
 
 Una vinculación es de uno de dos tipos, y el Builder pregunta cuál en los ajustes
@@ -281,7 +314,7 @@ Notion como esa persona: en el dashboard, en un mensaje directo y en un canal po
 igual. El rastro de auditoría en Notion dice entonces quién hizo qué, cosa que una
 cuenta de servicio compartida nunca puede.
 
-La cuenta es la del autor de *este mensaje*, nunca la del hilo. Ania pregunta en
+La cuenta es la del autor de _este mensaje_, nunca la del hilo. Ania pregunta en
 `#ops` y obtiene una respuesta de su Notion; Bartek hace la misma pregunta en el
 mismo hilo y obtiene la suya, o se le dice que conecte una. Un hilo no es una
 frontera que las credenciales de nadie deban cruzar — si la primera persona en
@@ -337,7 +370,7 @@ intersecan.
     log que nadie lee. Renombrar una de las dos conexiones es el arreglo del autor.
 
 Un agent puede vincular un servicio de las dos maneras — el Notion del manual de
-la organización *y* el propio de cada persona — siempre que la conexión de la
+la organización _y_ el propio de cada persona — siempre que la conexión de la
 organización no se llame como la clave del catálogo, que es el prefijo que toma
 la cuenta propia de cada persona.
 
@@ -367,9 +400,11 @@ antes de conectar, y la API rechaza una segunda cuenta sin nombre en `label`.
 La aprobación dice entonces qué cuenta actúa. Una llamada a través de una
 conexión con etiqueta, o de una de varias cuentas en un mismo servicio, lleva el
 nombre de esa cuenta: el chat, Activity y el dashboard lo muestran junto a la
-acción, un mensaje de Slack o Telegram pregunta «to *send in Gmail* as *Work*», y
+acción, un mensaje de Slack o Telegram pregunta «to _send in Gmail_ as _Work_», y
 el correo de aprobación lo indica tras la herramienta. Una sola cuenta sin
 etiqueta no tiene de qué distinguirse, así que no se añade nada.
+
+El diálogo de herramientas muestra **solo lectura** para `readOnlyHint: true` explícito, **puede cambiar datos** para false explícito y **sin declaración** si falta la anotación o una prueba anterior no la guardó. La política `writes` trata la ausencia de metadatos con cautela; no demuestra que la herramienta escriba. Vuelve a probar conexiones antiguas para actualizar sus declaraciones. Esta clasificación es independiente de confiar en las anotaciones durante evaluaciones aisladas.
 
 ## Autenticación { #authentication }
 
@@ -475,7 +510,7 @@ Quedan dos bordes, ambos estrechos y ambos deliberados:
   OAuth de una conexión cuyo propio host está en la lista pueden alcanzar los
   hosts de la lista, fijadas como cualquier otro paso.
 
-Nada que elija un *modelo* llega a esta comprobación, y nada debería: una URL
+Nada que elija un _modelo_ llega a esta comprobación, y nada debería: una URL
 elegida por un agent quiere el `safe_download` de Pydantic AI.
 
 !!! info "Detrás de un proxy de salida, quien conecta es el proxy"
@@ -516,7 +551,7 @@ no va, el otro que escribió una dirección que nada puede marcar, y contar
 cualquiera de los dos como el otro sería una afirmación rotunda sobre de quién fue
 la culpa de un fallo.
 
-Una pista `WWW-Authenticate` inutilizable termina ese *candidato* de
+Una pista `WWW-Authenticate` inutilizable termina ese _candidato_ de
 descubrimiento, no el flujo, porque las URI well-known que vienen después se
 derivan de la URL que escribió un operador y bien pueden responder.
 
@@ -608,6 +643,23 @@ Es un intercambio deliberado. El endpoint `/test` y `last_status` son cómo te
 enteras, y el [rastro de auditoría](governance.md#audit) registra lo que se
 ejecutó de verdad.
 
+### En un entorno de prueba, y en un eval { #in-a-test-environment-and-in-an-eval }
+
+Un [entorno](environments.md#test-connections) con nombre puede responder a un
+binding de la organización con una conexión de prueba — un CRM sandbox en
+`staging`. El turno llega entonces al servidor de prueba con el nombre de la
+conexión de producción, así que el modelo ve las mismas herramientas; si la
+conexión de prueba ya no existe o está desactivada, el binding queda apagado en
+ese turno y nunca se llega a producción en su lugar.
+
+En un eval, cada llamada a una conexión de producción se retiene y se registra con
+sus argumentos en lugar de ejecutarse. La única excepción es una herramienta que
+el servidor marca con `readOnlyHint`, en una conexión que confía en esa marca. La
+marca es una afirmación del propio servidor, así que la confianza está
+desactivada en todas las conexiones. Se activa en el diálogo **Tools** de la
+conexión. El diálogo indica cuántas herramientas declaran la marca, y el cambio
+queda en la auditoría con ese número.
+
 ### Conectar uno desde el Builder { #connecting-one-from-the-builder }
 
 La pestaña **MCP servers** de un agent lista el catálogo entero, no solo lo que
@@ -664,6 +716,18 @@ Dos conexiones cuyos nombres se reducen al mismo prefijo se deduplican — gana 
 primera, con un aviso que nombra a la perdedora. Los servidores gestionados por el
 despliegue van ordenados primero, así que ganan a una conexión de usuario que dé
 la casualidad de elegir el mismo nombre.
+
+Un prefijo separa las herramientas de un servidor de las de otro, pero no de las
+demás herramientas del agent. Una conexión llamada `request` cuyo servidor ofrece
+`capability` presenta `request_capability`, que casi todo agent ya tiene, y `create`
+con `chart` cae en el `create_chart` de la capability charts.
+
+Publicar rechaza esa vinculación, comparando las herramientas que listó la última comprobación de la
+conexión con las de las capabilities del agent y las de la propia plataforma. Si una
+colisión llega aun así a un run - un servidor añadió la herramienta, o una conexión
+cambió de nombre -, el servidor entero queda fuera de ese turno y al modelo se le
+dice por qué, como en una colisión de prefijos. Cambia el nombre de la conexión o
+restringe sus herramientas.
 
 ### Estado, uso y llamadas { #health-users-and-calls }
 
@@ -747,7 +811,7 @@ entradas en memoria podrían responder a «servidores que casan con
 'linear'» y no podrían responder a «la cuarta página de todos ellos» sin cargarlo
 todo y cortarlo. El ranking se movió a SQL con ello, por la misma razón: ordenar
 una página es ordenar lo que esa página haya contenido. Tres bandas — el servidor
-que se *llama* Linear, luego los nombres que meramente lo contienen, luego las
+que se _llama_ Linear, luego los nombres que meramente lo contienen, luego las
 descripciones que lo mencionan — nombre más corto primero dentro de una banda, así
 que `Stripe` gana a `Sweden Payments (Stripe)`.
 
@@ -793,7 +857,7 @@ no un listado:
 - **Una categoría también llega al espejo.** El registro no tiene categorías,
   así que cada entrada recibe una al sincronizar a partir de su propio nombre y
   descripción, contando las palabras por las que se reconoce cada categoría; una
-  entrada que no nombra ninguna se archiva en *other* en lugar de adivinarle un
+  entrada que no nombra ninguna se archiva en _other_ en lugar de adivinarle un
   encabezado. El filtro **Sign-in** pregunta por lo que pide un servidor - OAuth,
   un token, nada -, y para una entrada replicada es lo que encontró la
   comprobación del catálogo.
@@ -802,12 +866,12 @@ no un listado:
   porque el registro de otra persona esté caído, y un nombre que ayer resolvía y
   hoy no resuelve a nada es peor que uno que nunca estuvo.
 
-    `make platform-bootstrap` la carga, así que un despliegue nuevo la tiene sin
-    que nadie lea esto. `agenticos cmd mcp-registry-sync` la refresca, y `--fetch`
-    lee el registro en vivo en lugar de la instantánea empaquetada. En un
-    despliegue anterior a la tabla, la lista es el centenar curado hasta que se
-    ejecuta la sincronización — que es lo que era antes de todo esto, así que nada
-    empeora mientras alguien encuentra el momento.
+  `make platform-bootstrap` la carga, así que un despliegue nuevo la tiene sin
+  que nadie lea esto. `agenticos cmd mcp-registry-sync` la refresca, y `--fetch`
+  lee el registro en vivo en lugar de la instantánea empaquetada. En un
+  despliegue anterior a la tabla, la lista es el centenar curado hasta que se
+  ejecuta la sincronización — que es lo que era antes de todo esto, así que nada
+  empeora mientras alguien encuentra el momento.
 
 Un servidor que no está en ninguna de las dos listas sigue siendo alcanzable:
 **Custom server** acepta cualquier URL y no necesita entrada de catálogo alguna.
@@ -871,7 +935,7 @@ el proveedor emite un endpoint por cuenta.
 ### Desarrollo { #development }
 
 | Servidor | Auth | URL |
-|---|---|---|
+| --- | --- | --- |
 | GitHub | token | `https://api.githubcopilot.com/mcp/` |
 | Cloudflare docs | none | `https://docs.mcp.cloudflare.com/mcp` |
 | GitLab | token | self-hosted |
@@ -891,7 +955,7 @@ el proveedor emite un endpoint por cuenta.
 ### Gestión de proyectos { #project-management }
 
 | Servidor | Auth | URL |
-|---|---|---|
+| --- | --- | --- |
 | Linear | oauth | `https://mcp.linear.app/mcp` |
 | Jira & Confluence | oauth | `https://mcp.atlassian.com/v1/sse` |
 | Asana | oauth | `https://mcp.asana.com/sse` |
@@ -903,7 +967,7 @@ el proveedor emite un endpoint por cuenta.
 ### Datos y analítica { #data-and-analytics }
 
 | Servidor | Auth | URL |
-|---|---|---|
+| --- | --- | --- |
 | PostgreSQL | token | self-hosted |
 | Supabase | token | `https://mcp.supabase.com/mcp` |
 | Elasticsearch | token | self-hosted |
@@ -926,7 +990,7 @@ el proveedor emite un endpoint por cuenta.
 ### Comunicación, soporte, conocimiento { #communication-support-knowledge }
 
 | Servidor | Auth | URL |
-|---|---|---|
+| --- | --- | --- |
 | Slack | oauth | `https://mcp.slack.com/mcp` |
 | Microsoft Work IQ | oauth | `https://workiq.svc.cloud.microsoft/mcp` |
 | Google Workspace (self-hosted) | oauth | self-hosted |
@@ -945,7 +1009,7 @@ el proveedor emite un endpoint por cuenta.
 ### Finanzas, ventas, comercio { #finance-sales-commerce }
 
 | Servidor | Auth | URL |
-|---|---|---|
+| --- | --- | --- |
 | Stripe | token | `https://mcp.stripe.com` |
 | PayPal | oauth | `https://mcp.paypal.com/sse` |
 | Xero | oauth | `https://mcp.xero.com/mcp` |
@@ -958,7 +1022,7 @@ el proveedor emite un endpoint por cuenta.
 ### Observabilidad { #observability }
 
 | Servidor | Auth | URL |
-|---|---|---|
+| --- | --- | --- |
 | Sentry | oauth | `https://mcp.sentry.dev/mcp` |
 | Grafana | token | `https://mcp.grafana.com/mcp` |
 | PagerDuty | oauth | `https://mcp.pagerduty.com/mcp` |
@@ -971,7 +1035,7 @@ el proveedor emite un endpoint por cuenta.
 ### Marketing y diseño { #marketing-and-design }
 
 | Servidor | Auth | URL |
-|---|---|---|
+| --- | --- | --- |
 | Mailchimp | oauth | `https://ai-inc.mailchimp.com/claude/mcp/v2` |
 | Resend | token | `https://mcp.resend.com/mcp` |
 | Webflow | oauth | `https://mcp.webflow.com/mcp` |
@@ -991,7 +1055,7 @@ el proveedor emite un endpoint por cuenta.
 ### Automatización, almacenamiento, productividad, medios { #automation-storage-productivity-media }
 
 | Servidor | Auth | URL |
-|---|---|---|
+| --- | --- | --- |
 | Zapier | oauth | `https://mcp.zapier.com/api/mcp/mcp` |
 | Make | token | self-hosted |
 | n8n | token | self-hosted |
@@ -1104,7 +1168,7 @@ reiniciar. Las cuentas se conectan expresamente; se conservan las direcciones y
 credenciales de las conexiones existentes.
 
 | Servidor | Endpoint oficial |
-|---|---|
+| --- | --- |
 | Gmail | `https://gmailmcp.googleapis.com/mcp/v1` |
 | Google Calendar | `https://calendarmcp.googleapis.com/mcp/v1` |
 | Google Chat | `https://chatmcp.googleapis.com/mcp/v1` |
@@ -1194,7 +1258,7 @@ Outlook también está disponible mediante servicios MCP de terceros. El registr
 incluido contiene entradas de MintMCP para correo y calendario:
 
 | Entrada del registro | URL del servidor |
-|---|---|
+| --- | --- |
 | `com.mintmcp/outlook-email` | `https://outlook-email.mintmcp.com/mcp` |
 | `com.mintmcp/outlook-calendar` | `https://outlook-calendar.mintmcp.com/mcp` |
 
@@ -1251,19 +1315,20 @@ Aprobar rutinas y watches personales requiere el scope explícito `personal:cons
 Las comprobaciones de conexión actualizan las herramientas descubiertas y el estado. Por eso `test_my_connection` espera aprobación tanto con `writes` como con `all`.
 
 | Herramienta | Necesita |
-|---|---|
+| --- | --- |
 | `whoami` | — |
-| `list_agents`, `get_agent`, `list_capabilities`, `list_models`, `search_mcp_servers` | `agents:view` |
+| `list_agents`, `get_agent`, `list_capabilities`, `get_capability`, `list_models`, `search_mcp_servers` | `agents:view` |
 | `create_agent_draft`, `update_agent_draft`, `test_agent_draft` | `agents:edit` |
 | `list_sandbox_connections`, `list_sandbox_runtimes`, `get_sandbox_policy` | `connections:view` |
 | `list_org_connections` | `mcp:manage` |
+| `list_mcp_connection_tools`, `get_mcp_connection_tool` | `mcp:manage` (organización); conexiones personales propias (clave: `agents:run`) |
 | `publish_agent` | `agents:publish` sobre ese agent |
 | `discard_agent_draft` | `agents:edit`, sobre un borrador tuyo que nunca se publicó |
 | `run_agent` | `agents:run` |
 | `list_routines` | `agents:view` |
 | `create_routine`, `run_routine_now` | `agents:run` sobre el agent |
 | `update_routine`, `delete_routine` | quien creó la rutina, o `agents:edit` sobre su agent |
-| `list_runs`, `get_run`, `read_conversation`, `list_conversations`, `get_spend` | `runs:view` |
+| `list_runs`, `get_run`, `read_run_transcript`, `read_run_tool_call`, `read_conversation`, `read_conversation_tool_call`, `list_conversations`, `get_spend` | `runs:view` |
 | `create_conversation` | `agents:run` |
 | `update_proactivity_settings` | `org:settings`, `budgets:manage` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |
@@ -1271,8 +1336,14 @@ Las comprobaciones de conexión actualizan las herramientas descubiertas y el es
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
 | `create_skill` | `skills:edit` |
-| `get_skill` | `skills:view` |
+| `get_skill`, `list_skill_versions`, `get_skill_version` | `skills:view`; los agents que quien llama no puede ver solo se cuentan |
 | `update_skill`, `add_skill_resource` | `skills:edit` |
+| `list_skill_improvements`, `get_skill_improvement` | `skills:view` y `runs:view` |
+| `estimate_skill_improvement`, `start_skill_improvement`, `estimate_next_skill_improvement_step`, `run_next_skill_improvement_step`, `retry_skill_improvement_step`, `accept_skill_improvement`, `end_skill_improvement` | acceso de edición al skill y `runs:view`; fijar los agents que empeoraron también `agents:publish` en cada uno |
+| `change_skill_version` | acceso de edición al agent; publicar en vivo también `agents:publish` |
+| `list_skills_behind_main` | `skills:view` |
+| `estimate_skill_update_check`, `start_skill_update_check`, `estimate_skill_catch_up`, `start_skill_catch_up` | acceso de edición al skill y `runs:view`; una comprobación de actualización también acceso al agent |
+| `return_skill_fork_to_main` | acceso de edición a cada agent; publicar en vivo también `agents:publish` |
 | `list_context_files`, `get_context_file` | `context:view` |
 | `create_context_file`, `update_context_file` | `context:edit` |
 | `list_projects` | `projects:view` |
@@ -1281,6 +1352,11 @@ Las comprobaciones de conexión actualizan las herramientas descubiertas y el es
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` y `roles:manage` |
 | `list_my_connections`, `test_my_connection`, `set_my_language`, `set_my_profile` | — (los de quien llama; una clave necesita `agents:run` para `test_my_connection`) |
+| `list_improvements`, `get_improvement` | acceso de lectura al agente; los temas de conocimiento de la sesión también necesitan `runs:view`, igual que listar todas las sesiones abiertas sin indicar un agente |
+| `estimate_improvement`, `start_improvement`, `use_attempt`, `accept_improvement`, `estimate_next_improvement_step`, `run_next_improvement_step`, `estimate_improve_again`, `improve_again`, `end_improvement` | acceso de edición al agente y `runs:view`; iniciar también `datasets:run`, publicar `agents:publish` |
+| `list_datasets` | `datasets:view` |
+| `get_eval_run` | `runs:view` |
+| `estimate_knowledge_draft`, `draft_knowledge_topic` | `runs:view` y acceso de edición a la base de conocimiento del tema |
 | `list_watches`, `delete_watch` | vigilancias propias de quien llama |
 | `create_watch`, `update_watch` | la propia persona: con sesión iniciada, con una clave o token MCP que emitió, o en su chat privado; `agents:run` al elegir agente |
 
@@ -1289,6 +1365,15 @@ por guardrails y los fragmentos citados de respuestas. `list_conversations` omit
 conversaciones con turnos rechazados para que un título generado no repita su
 texto a un modelo. La consola conserva la transcripción completa para la persona
 autorizada.
+
+Las herramientas de Improve y de evals llaman a rutas que aún no forman parte
+de la API pública: responden al Architect de la aplicación y a un cliente MCP
+conectado con OAuth, y rechazan una clave de API de la organización como lo hace
+una ruta de la consola. Son las propias acciones del
+[asistente Improve](authoring.md#the-improve-wizard), así que se aplican sus
+comprobaciones, y el Architect usa las que cambian algo solo cuando se lo piden. Un cliente
+MCP también puede iniciar, aceptar, publicar y terminar sesiones; allí, la propia
+solicitud de aprobación del cliente ocupa el lugar de la tarjeta del Architect.
 
 La búsqueda con `list_projects` devuelve solo identificadores y nombres.
 `get_project` lee las instrucciones y la configuración de un proyecto elegido.
@@ -1423,13 +1508,11 @@ parcial. Consulta contratos mayores por HTTP fuera del contexto del modelo.
 
 Para registros operativos usa `list_virtual_tables`, `get_virtual_table`, `create_virtual_table`, `update_virtual_table_schema`, `query_virtual_table`, `add_virtual_table_record` y `update_virtual_table_record`. Las modificaciones de esquemas y registros conservan la comprobación de revisiones. Todas las herramientas utilizan la organización, permisos y concesiones del solicitante; las escrituras conservan la aprobación MCP de la plataforma. Los skills de Architect workflow-builder y virtual-tables explican la selección de triggers, cómo envolver una API HTTP documentada cuando falta la integración en la galería MCP y cómo ofrecer un workflow publicado e invocable como herramienta de un agente. Las credenciales se configuran en la bóveda, nunca en grafos o respuestas al modelo.
 
-
 Workflows y Tables usan el servidor AgenticOS MCP como interfaz común de herramientas. Permite al agente solo las herramientas necesarias. `run_workflow` inicia un workflow publicado y devuelve la ejecución admitida; consulta el resultado con `get_workflow_execution`. Las tablas ofrecen `get_virtual_table_record`, `virtual_table_record_exists`, `upsert_virtual_table_record`, `delete_virtual_table_record` y `list_virtual_table_views`. Actualizaciones y eliminaciones usan la revisión leída, y las escrituras siguen requiriendo aprobación. Las vistas guardadas usan la misma API pública autenticada y los controles de acceso a tablas. Los bindings de Workflows existentes siguen siendo editables. Se elimina la capacidad Tables: los permisos de aplicaciones pasan a `table_bindings`, y operar con tablas requiere una conexión MCP explícita de la plataforma.
 
 Los rechazos esperados de la API devuelven un objeto `error` explícito con estado HTTP, código, mensaje y detalles seguros de los campos. Es una operación rechazada, nunca una escritura exitosa. El objeto queda visible en el historial; los errores inesperados del servidor siguen enmascarados. `prepare_workflow_draft` agrupa tabla y grafo en una aprobación; `check_workflow_draft` los comprueba sin acciones. Actualizar un Architect sin modificaciones también instala y vincula los skills workflow-builder y virtual-tables, conserva los vínculos existentes y no sobrescribe cambios pendientes del borrador.
 
 Para un Architect existente con cambios propios, ejecuta `uv run agenticos cmd refresh-assistant --org <organization-id> --workflow-support`.
-
 
 ## Crear Context y skills { #context-and-skill-authoring }
 
@@ -1452,3 +1535,19 @@ La migración `0293_connected_account_sources.py` exige renovar el consentimient
 Las pausas de aprobación de Mirage fijan identidades de cuentas y generaciones de secretos. Cambiarlas durante la espera requiere una ejecución nueva con aprobación. Las revisiones de fuentes de rutinas fijan las mismas generaciones; escrituras y comandos del terminal requieren consentimiento para efectos de la rutina incluso con las aprobaciones de escritura del montaje desactivadas.
 
 Eliminar a un miembro revoca permanentemente sus autorizaciones personales emitidas mediante esta organización; volver a invitarlo requiere un nuevo consentimiento.
+
+## Descubrimiento acotado e inspección de ejecuciones { #bounded-discovery }
+
+El MCP de la plataforma devuelve primero resúmenes, no todos los contratos. `list_org_connections` y `list_my_connections` aceptan `q`, `limit` (1–50, 20 por defecto) y `skip`; siga `next_skip` hasta null. Omiten esquemas guardados de herramientas y listas de agentes. `tool_count: null` indica que no hay catálogo guardado; cero indica un catálogo guardado vacío. `allowed_tool_count: null` significa que no hay lista de herramientas permitidas. `list_my_connections(include_tools=true)` sigue disponible para respuestas pequeñas, pero rechaza cargas superiores a 64 KiB.
+
+`list_mcp_connection_tools(connection_id, account, q, limit, skip)` busca herramientas de una conexión accesible. Devuelve nombres, extractos acotados de descripciones, estado de la lista permitida y el `read_only_hint` declarado por el servidor. Null significa que no hay declaración, no demuestra una escritura. `get_mcp_connection_tool` lee un contrato guardado completo con su esquema de entrada. Un esquema null no se conservó; no significa que no existan argumentos. Ambas llamadas leen el último catálogo guardado sin ejecutar herramientas ni probar el servidor; revise `last_checked_at` y `tools_cached`. La lectura de la organización requiere `mcp:manage`; la personal se limita a las conexiones propias.
+
+`list_capabilities(q, limit, skip)` devuelve resúmenes; consulte `get_capability(capability_id)` antes de configurar para obtener esquema, valores predeterminados y contratos. `list_skills` devuelve 20 elementos por defecto, pasa `q` a la API y omite extractos del contenido. `get_skill` lee el contenido; `include_usage=true` añade los agentes que usan la habilidad. Estas respuestas tienen un presupuesto de 64 KiB y rechazan explícitamente el exceso, indicando que hay que acotar la solicitud. No recortan campos obligatorios del esquema de forma silenciosa. Los clientes MCP existentes deben usar las herramientas de detalle para leer configuraciones y seguir la paginación. Las respuestas REST de la consola no cambian.
+
+`list_runs` permite filtrar por estado, canal, versión congelada y fechas con zona horaria. Los errores históricos no prueban un fallo de la versión actual. `read_conversation` sigue limitado a chats propios. `read_run_transcript` lee ejecuciones autorizadas, incluidas las de colegas o canales, según la política existente de `runs:view`. Omite los turnos rechazados por guardrails antes de paginar y excluye citas de respuestas.
+
+Los índices corresponden a esa transcripción filtrada. Devuelve ventanas acotadas de texto y metadatos de herramientas, sin todos los argumentos y resultados. Siga `next_skip`, `next_offset` y `next_tool_skip`; use `limit=1` para continuar un mensaje largo. `read_run_tool_call` lee una ventana de `args` o `result` de una llamada, verifica que el identificador del mensaje coincide con la página y no ejecuta nada. Un resultado no disponible es null. No concede acceso adicional a conversaciones privadas.
+
+La búsqueda por nombre para Improve revisa todas las páginas antes de elegir una coincidencia o indicar ambigüedad; los primeros 100 agentes no se consideran el catálogo completo.
+
+`read_conversation` usa las mismas ventanas acotadas de mensajes y metadatos que la inspección de ejecuciones, con 10 mensajes por defecto. `read_conversation_tool_call` lee una carga registrada concreta, también de mensajes antiguos sin identificador de ejecución, mediante la API de conversaciones propias sin ampliar permisos. Los clientes MCP deben seguir las continuaciones de las ventanas en vez de esperar todos los resultados de herramientas dentro de la transcripción.

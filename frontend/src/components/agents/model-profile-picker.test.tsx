@@ -514,3 +514,23 @@ describe("a model an agent cannot run on (#2487)", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 });
+
+it("offers a compact model selector without the row list or model management", async () => {
+  const onChange = vi.fn();
+  mount({ compact: true, onChange });
+  expect(screen.queryByRole("radiogroup")).toBeNull();
+  expect(screen.queryByRole("button", { name: "Add model" })).toBeNull();
+  const picker = screen.getByRole("combobox", { name: "Model" });
+  expect(picker).toHaveTextContent("Use default model");
+  await userEvent.click(picker);
+  await userEvent.click(screen.getByRole("option", { name: "openai default" }));
+  expect(onChange).toHaveBeenCalledWith("p1");
+});
+
+it("lets the compact selector restore the assistant's default model", async () => {
+  const onChange = vi.fn();
+  mount({ compact: true, value: "p1", onChange });
+  await userEvent.click(screen.getByRole("combobox", { name: "Model" }));
+  await userEvent.click(screen.getByRole("option", { name: "Use default model" }));
+  expect(onChange).toHaveBeenCalledWith(null);
+});

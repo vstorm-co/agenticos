@@ -833,6 +833,9 @@ async def test_a_create_assigned_to_someone_else_is_refused(ops, monkeypatch):
 async def test_a_batch_reports_the_refused_row_and_writes_the_rest(ops, monkeypatch):
     service, ctx, table = ops
     monkeypatch.setattr(
+        virtual_table_repo, "database_time", AsyncMock(return_value=datetime.now(UTC))
+    )
+    monkeypatch.setattr(
         virtual_table_repo, "get_record_by_external_id", AsyncMock(return_value=None)
     )
 

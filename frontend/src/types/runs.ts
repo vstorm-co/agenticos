@@ -15,6 +15,17 @@ export type RunStatus =
   /** A model request went past its deadline without answering. */
   | "timed_out";
 
+/** Which eval run and case one agent run answered. */
+export interface EvalCaseLink {
+  eval_run_id: string;
+  agent_id: string;
+  case_id: string;
+  dataset_name: string;
+  case_input: string;
+  /** The run is the judge grading the case, not the agent answering it. */
+  graded: boolean;
+}
+
 /** One call as Activity shows it: every connection of it, summed (#54). */
 export interface VoiceChain {
   /** 1, plus one per reconnect. */
@@ -22,6 +33,21 @@ export interface VoiceChain {
   seconds: number;
   /** A decimal string, like `cost_usd`. */
   cost_usd: string;
+}
+
+/** Whose work a run was, as Activity's Source filter asks. */
+export type RunSource = "conversation" | "evaluation" | "system";
+
+/** Which platform agent a run was, and where its work is read. */
+export interface RunOrigin {
+  kind: "grader" | "improve" | "knowledge_gaps" | "test_questions";
+  agent_name: string;
+  /** The agent an assistant request was about. */
+  agent_id?: string | null;
+  improvement_id?: string | null;
+  topic_id?: string | null;
+  knowledge_base_id?: string | null;
+  dataset_id?: string | null;
 }
 
 export interface AgentRun {
@@ -40,6 +66,9 @@ export interface AgentRun {
   waiting_expires_at?: string | null;
   agent_version_id: string | null;
   user_id: string | null;
+  /** Publisher authority is distinct from the actual channel sender. */
+  initiated_by_publisher_fallback?: boolean | null;
+  asked_in_chat?: { platform: string; name: string; bot_name: string | null } | null;
   surface: string;
   /** The platform role that did this run when no agent's instructions ran (#2575). */
   system_role?: string | null;
@@ -88,6 +117,20 @@ export interface AgentRun {
    */
   prev_run_id?: string | null;
   next_run_id?: string | null;
+  /**
+   * The eval run and case this run answered, or graded for a judge's run -
+   * only when the caller may see the dataset. Such a run keeps no conversation.
+   */
+  eval_case?: EvalCaseLink | null;
+  /** The skills the run opened or read, at their versions; only the single-run read sends it. */
+  skills_used?: RunSkillUse[];
+  /** For a platform agent's run - the judge, the assistant, the knowledge-gap and case helpers. */
+  origin?: RunOrigin | null;
+  /**
+   * One line of what the run was asked: its first user turn, or the eval
+   * case's question. Sent on the listing; null for a run with no conversation.
+   */
+  preview?: string | null;
   error: string | null;
   /**
    * Whether an assistant answer this run produced was rated down by anybody -
@@ -438,7 +481,12 @@ export interface ManifestReview {
 export interface ManifestCodeRun {
   tool_call_id: string;
   code: string;
-  calls: { tool: string; args: string; status: "returned" | "failed" }[];
+  calls: {
+    tool_call_id?: string;
+    tool: string;
+    args: string;
+    status: "returned" | "failed" | "awaiting_approval";
+  }[];
   /** Calls past the ones listed - a script that loops can make thousands. */
   omitted_calls?: number;
 }
@@ -482,6 +530,17 @@ export interface ToolApproval {
    * describes, or a call whose description failed.
    */
   context?: Record<string, string> | null;
+  /**
+   * The call quotes its run - the fact `share_memory` would share, or the two
+   * versions of one `correct_memory` would change - and the reader may not see
+   * that run, so the quoted keys were left out of `context` and `tool_args`.
+   */
+  content_hidden?: boolean;
+  /**
+   * Only a person's answer to this call could let it run. With `content_hidden`
+   * the server refuses an approval from this reader, so only Reject is offered.
+   */
+  always_asks?: boolean;
   /**
    * Which of a service's accounts the call acts as - a labelled connection, or one of
    * several accounts on one service. Null where there is nothing to tell apart.
@@ -662,6 +721,10 @@ export interface ParkedCall {
   /** The arguments' ids as names, as `ToolApproval.context` carries them. */
   context?: Record<string, string> | null;
   account?: string | null;
+  /** As `ToolApproval.content_hidden`. */
+  content_hidden?: boolean;
+  /** As `ToolApproval.always_asks`. */
+  always_asks?: boolean;
 }
 
 /** One tool call an execution of a run made, and what came back from it. */
@@ -786,6 +849,18 @@ export interface ParkedSecretRequest {
   status: string;
   fulfilled_secret_id?: string | null;
   fulfilled_hint?: string | null;
+}
+
+/** A skill a run opened or read, at the version it was served. */
+export interface RunSkillUse {
+  skill_id: string;
+  name: string;
+  /** The version's number on its line; null where none is known. */
+  version: number | null;
+  /** The fork that version is on; null on main. */
+  fork: string | null;
+  /** It opened the skill, rather than only reading one of its files. */
+  loaded: boolean;
 }
 
 /** A live chat's correlated acknowledgement for a parked question answer. */

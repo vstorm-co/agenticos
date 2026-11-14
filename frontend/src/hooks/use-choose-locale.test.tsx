@@ -24,6 +24,7 @@ const ADA: User = {
 beforeEach(() => {
   vi.clearAllMocks();
   env.save.mockResolvedValue("pl");
+  window.history.replaceState(null, "", "/");
 });
 
 describe("useChooseLocale", () => {
@@ -60,4 +61,18 @@ describe("useChooseLocale", () => {
     expect(env.save).not.toHaveBeenCalled();
     expect(env.push).toHaveBeenCalledWith("/agents", { locale: "de" });
   });
+});
+
+it("preserves the wizard workspace, question and fragment when choosing a language", () => {
+  window.history.replaceState(
+    null,
+    "",
+    "/onboarding?start-step=admin.organization&workspace=org&question=budget#limits",
+  );
+  const { result } = renderHook(() => useChooseLocale());
+  act(() => result.current("pl"));
+  expect(env.push).toHaveBeenCalledWith(
+    "/agents?start-step=admin.organization&workspace=org&question=budget#limits",
+    { locale: "pl" },
+  );
 });

@@ -8,7 +8,8 @@ import { useTranslations } from "next-intl";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { CreateProjectDialog } from "@/components/projects/create-project-dialog";
 import { ProjectCard } from "@/components/projects/project-card";
-import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { CatalogLoading } from "@/components/states/catalog-loading";
+import { EmptyState, ErrorState } from "@/components/states";
 import {
   Button,
   ListCard,
@@ -98,7 +99,7 @@ export default function ProjectsPage() {
         }
       >
         {isLoading || isLoadingPermissions ? (
-          <LoadingState variant="skeleton-cards" rows={3} />
+          <CatalogLoading kind="project" />
         ) : error ? (
           <ErrorState
             description={getErrorMessage(error, tErrors)}

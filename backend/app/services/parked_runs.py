@@ -93,6 +93,8 @@ class DecidedApproval:
 
     approval: ToolApproval
     continues_in_chat: bool
+    hidden: frozenset[str] = frozenset()
+    """The keys of the call the decider may not read, from `ApprovalService.hidden_fields`."""
 
 
 @dataclass(frozen=True)
@@ -137,7 +139,7 @@ class ParkedRunService:
                 note=note,
                 remember_scope=remember_scope,
             )
-            return DecidedApproval(decided, False)
+            return DecidedApproval(decided, False, await self.approvals.hidden_fields(ctx, decided))
         # Computed on the row held now, not on one read before the claim.
         flag = continues_in_chat(run, ctx)
         await channel_prompt_repo.settle_open(
@@ -165,7 +167,7 @@ class ParkedRunService:
                 name=f"channel-continuation:{run.id}",
             )
         # True while other calls are pending too: the browser must not resume either way.
-        return DecidedApproval(decided, flag)
+        return DecidedApproval(decided, flag, await self.approvals.hidden_fields(ctx, decided))
 
     async def _claimed_chat_run(self, ctx: AuthContext, approval_id: UUID) -> AgentRun | None:
         """The approval's run, held, when it is a channel run; None for any other."""

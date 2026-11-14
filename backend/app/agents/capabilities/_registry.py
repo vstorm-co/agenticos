@@ -232,6 +232,17 @@ class CapabilityToolInfo(BaseModel):
     and beats the code's.
     """
 
+    read_only: bool | None = None
+    """Whether calling *this tool* changes nothing outside the run.
+
+    `None` defers to `CapabilityDef.read_only`. Separate from `side_effecting`
+    because the two are read by different gates with opposite defaults:
+    approval asks about what was declared dangerous, and an isolated run - an
+    eval - executes only what was declared safe. An eval blocks a tool that
+    declares nothing, so `side_effecting`'s default of "not gated" cannot stand
+    in for "reads".
+    """
+
     @model_validator(mode="before")
     @classmethod
     def _name_defaults_to_id(cls, data: Any) -> Any:
@@ -247,10 +258,13 @@ class CapabilityToolInfo(BaseModel):
         return data
 
 
-type ApprovalDescriber = Callable[[AgentDeps, Mapping[str, Any]], Awaitable[dict[str, str] | None]]
+type ApprovalDescriber = Callable[
+    [AgentDeps, Mapping[str, Any], BaseModel | None], Awaitable[dict[str, str] | None]
+]
 """How one tool describes a parked call of its own to the person deciding it.
 
-Given the run's deps and the call's validated arguments, it answers the ids in
+Given the run's deps, the call's validated arguments and the binding's validated
+config - so it reads no more than the tool itself would - it answers the ids in
 them as names - `{"table": "Support"}` - which the approval card and the queue
 put into a sentence above the raw arguments. An `update_record` card that says
 only `table_id: 6f1c…` asks a person to approve something they cannot read.
@@ -264,6 +278,20 @@ courtesy and the approval is not.
 Declared per capability on :func:`register`, keyed by tool id, rather than on
 :class:`CapabilityToolInfo`: that model is served in the catalog, and a callable
 is not something a catalog can carry.
+"""
+
+type BoundDescriber = Callable[[AgentDeps, Mapping[str, Any]], Awaitable[dict[str, str] | None]]
+"""An :data:`ApprovalDescriber` with its binding's config already given, as the gate calls it."""
+
+
+type AlwaysAsksWhen = Callable[[AgentDeps, Mapping[str, Any]], Awaitable[bool]]
+"""Whether one call of a tool may only run on a person's answer to that call.
+
+For a tool whose risk depends on what it is called with: `correct_memory` on
+somebody's own fact is theirs to make, and on a fact the whole organization
+reads it is not. Answering `True` gates the call whatever the binding says and
+puts it beyond standing and remembered consent, as `always_requires_approval`
+does for every call of a tool. The gate treats a failure as `True`.
 """
 
 
@@ -365,8 +393,48 @@ class CapabilityDef:
     # instance. Code says "I need an API key"; configuration says which one.
     secret: SecretRequirement | None = None
     provider_executed: ProviderExecuted | None = None
+    read_only: bool = False
+    """Whether this capability's tools change nothing outside the run.
+
+    What an isolated run (an eval) reads to decide whether a tool may execute
+    against the normal connections. False - the default - means "writes", so a
+    capability nobody classified is blocked in an eval rather than allowed to
+    send the e-mail it was written to send. A tool may override it either way.
+    """
+    tunable: bool = False
+    """Whether the authoring assistant may change this capability's configuration.
+
+    Opt in only where the configuration is about quality alone - how much to
+    retrieve, when to compact, how hard to think. A field that reaches somewhere
+    (a URL, a domain, a connection, a provider, personal data) or holds other
+    agents keeps it off, so a new capability never becomes a target by accident.
+    """
+    protective: bool = False
+    """Whether this capability is a safeguard rather than something the agent can do.
+
+    The authoring assistant may add a safeguard but never remove it or change its
+    configuration: weakening one is a governance decision, not a quality one.
+    """
+    test_key_isolates: bool = False
+    """Whether a test key alone moves this capability's writes off production.
+
+    True only where the vault key *is* the target - a provider's test account,
+    as with Stripe's test keys - and no URL, host or endpoint in the config also
+    names one. An isolated run lets the writing tools of a binding whose key the
+    environment swapped execute only under this declaration; otherwise a swapped
+    key stands in for the credential while the writes are still recorded, not run.
+    """
     describers: Mapping[str, ApprovalDescriber] = field(default_factory=dict)
     """Tool id to the :data:`ApprovalDescriber` that names a parked call's ids."""
+    always_asks_when: Mapping[str, AlwaysAsksWhen] = field(default_factory=dict)
+    """Tool id to the :data:`AlwaysAsksWhen` that decides it for one call."""
+    private_approval_fields: Mapping[str, frozenset[str]] = field(default_factory=dict)
+    """Tool id to the argument and context keys that quote what the run's person reads.
+
+    The approvals queue is the organization's, while what such a call quotes - a
+    fact from someone's private memory - is the run's. An approver who may not see
+    the run reads the call without these keys.
+    """
 
     def needs_secret(self, config: BaseModel | None) -> bool:
         """Whether a binding with this configuration must name a secret.
@@ -409,12 +477,21 @@ class CapabilityDef:
                 # one call worth gating, which is the exact failure `id` exists
                 # to prevent.
                 side_effecting=tool.side_effecting,
+                read_only=tool.read_only,
                 # Carried for the same reason, and with more at stake: renaming a tool
                 # must not be a way to take it off its mandatory approval.
                 always_requires_approval=tool.always_requires_approval,
             )
             for tool in self.tools
         )
+
+    def tool_is_read_only(self, tool: CapabilityToolInfo) -> bool:
+        """Whether one of this capability's tools may run in an isolated run.
+
+        The tool's own declaration wins over the capability's, and a capability
+        that declares nothing writes.
+        """
+        return self.read_only if tool.read_only is None else tool.read_only
 
     def validate_config(self, raw: dict[str, Any]) -> BaseModel | None:
         """Parse a spec's config blob against this capability's schema.
@@ -465,7 +542,13 @@ def register(
     scopes: Iterable[str] = (),
     secret: SecretRequirement | None = None,
     provider_executed: ProviderExecuted | None = None,
+    read_only: bool = False,
+    tunable: bool = False,
+    protective: bool = False,
+    test_key_isolates: bool = False,
     describers: Mapping[str, ApprovalDescriber] | None = None,
+    private_approval_fields: Mapping[str, Iterable[str]] | None = None,
+    always_asks_when: Mapping[str, AlwaysAsksWhen] | None = None,
 ) -> Callable[[CapabilityBuilder], CapabilityBuilder]:
     """Register a capability builder.
 
@@ -491,6 +574,15 @@ def register(
     those is refused at publish rather than given a gate that never fires; see
     :class:`ProviderExecuted` for why the capability owns that statement.
 
+    `read_only` declares that the tools change nothing outside the run, which is
+    what lets them execute in an eval; see :attr:`CapabilityDef.read_only`. A
+    tool that delegates to other tools counts as read-only, because each of
+    those tools is held to its own declaration.
+
+    `test_key_isolates` declares that swapping the binding's vault key for a test
+    one moves every write to a test system; see
+    :attr:`CapabilityDef.test_key_isolates`.
+
     `tools` has no default on purpose. It is what the Builder offers per-tool
     approval for and what the approval gate matches on, so a capability that
     declares nothing is a capability whose tools cannot be gated - and the
@@ -509,10 +601,16 @@ def register(
     `describers` maps a tool id to the :data:`ApprovalDescriber` that names the
     ids in a parked call of it. A key that is not one of `tools` is a
     `RuntimeError`: it would describe a tool that cannot be parked under that id.
+    `private_approval_fields` and `always_asks_when` are keyed and checked the same way.
     """
     declared_tools = tuple(tools)
-    if stray := sorted(set(describers or {}) - {tool.id for tool in declared_tools}):
+    declared_ids = {tool.id for tool in declared_tools}
+    if stray := sorted(set(describers or {}) - declared_ids):
         raise RuntimeError(f"Capability '{id}' describes tools it does not declare: {stray}")
+    if stray := sorted(set(private_approval_fields or {}) - declared_ids):
+        raise RuntimeError(f"Capability '{id}' hides fields of tools it does not declare: {stray}")
+    if stray := sorted(set(always_asks_when or {}) - declared_ids):
+        raise RuntimeError(f"Capability '{id}' asks about tools it does not declare: {stray}")
 
     def decorator(builder: CapabilityBuilder) -> CapabilityBuilder:
         definition = CapabilityDef(
@@ -530,7 +628,16 @@ def register(
             scopes=frozenset(scopes),
             secret=secret,
             provider_executed=provider_executed,
+            read_only=read_only,
+            tunable=tunable,
+            protective=protective,
+            test_key_isolates=test_key_isolates,
             describers=dict(describers or {}),
+            always_asks_when=dict(always_asks_when or {}),
+            private_approval_fields={
+                tool_id: frozenset(keys)
+                for tool_id, keys in (private_approval_fields or {}).items()
+            },
         )
         existing = REGISTRY.get(definition.id)
         if existing is not None and existing is not definition:

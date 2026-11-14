@@ -6,6 +6,8 @@ import { useTranslations } from "next-intl";
 import {
   Checkbox,
   Label,
+  Input,
+  MoreOptions,
   Select,
   SelectContent,
   SelectItem,
@@ -57,18 +59,23 @@ export function ScopePicker({
   catalog,
   choice,
   id,
+  disabled = false,
 }: {
   catalog: ApiKeyScopeCatalog;
   choice: ScopeChoice;
   id: string;
+  disabled?: boolean;
 }) {
   const t = useTranslations("apiKeys");
+  const [query, setQuery] = useState("");
+  const needle = query.trim().toLowerCase();
+  const shown = catalog.scopes.filter((scope) => scope.toLowerCase().includes(needle));
   const custom = !catalog.presets.some((option) => option.id === choice.preset);
   return (
     <>
       <div className="space-y-1.5">
         <Label htmlFor={id}>{t("access")}</Label>
-        <Select value={choice.preset} onValueChange={choice.setPreset}>
+        <Select value={choice.preset} onValueChange={choice.setPreset} disabled={disabled}>
           <SelectTrigger id={id}>
             <SelectValue />
           </SelectTrigger>
@@ -81,25 +88,70 @@ export function ScopePicker({
             <SelectItem value={CUSTOM}>{t("preset.custom")}</SelectItem>
           </SelectContent>
         </Select>
-        <p className="text-muted-foreground text-xs">{t("accessWhy")}</p>
-        {catalog.scopes.includes(Perm.personalConsent) && (
-          <p className="text-muted-foreground text-xs">{t("personalConsentWhy")}</p>
-        )}
       </div>
       {custom ? (
-        <fieldset className="grid gap-2 sm:grid-cols-2" aria-label={t("access")}>
-          {catalog.scopes.map((scope) => (
-            <label key={scope} className="flex items-center gap-2 font-mono text-xs">
-              <Checkbox
-                checked={choice.custom.includes(scope)}
-                onCheckedChange={(on) => choice.toggle(scope, on === true)}
-              />
-              {scope}
-            </label>
-          ))}
-        </fieldset>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <Label htmlFor={`${id}-search`}>{t("permissionSearch")}</Label>
+            <span className="text-muted-foreground shrink-0 text-xs">
+              {t("scopeCount", { count: choice.scopes.length })}
+            </span>
+          </div>
+          <Input
+            type="search"
+            onKeyDown={(event) => {
+              if (event.key === "Enter") event.preventDefault();
+            }}
+            id={`${id}-search`}
+            value={query}
+            disabled={disabled}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={t("permissionPlaceholder")}
+          />
+          <fieldset disabled={disabled} className="grid min-w-0 gap-2 sm:grid-cols-2">
+            <legend className="sr-only">{t("access")}</legend>
+            {shown.map((scope) => (
+              <label
+                key={scope}
+                className="hover:bg-accent/50 has-[[data-state=checked]]:bg-accent flex min-h-11 min-w-0 cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2 font-mono text-xs"
+              >
+                <Checkbox
+                  disabled={disabled}
+                  checked={choice.custom.includes(scope)}
+                  onCheckedChange={(on) => choice.toggle(scope, on === true)}
+                />
+                <span className="[overflow-wrap:anywhere]">{scope}</span>
+              </label>
+            ))}
+          </fieldset>
+          {shown.length === 0 && (
+            <p className="text-muted-foreground py-3 text-center text-sm">{t("noPermissions")}</p>
+          )}
+          {catalog.scopes.includes(Perm.personalConsent) && (
+            <p className="text-muted-foreground text-xs leading-relaxed">
+              {t("personalConsentWhy")}
+            </p>
+          )}
+        </div>
       ) : (
-        <p className="text-muted-foreground font-mono text-xs">{choice.scopes.join(", ")}</p>
+        <MoreOptions label={t("permissionDetails", { count: choice.scopes.length })}>
+          <p className="text-muted-foreground text-xs leading-relaxed">{t("accessWhy")}</p>
+          <ul className="flex flex-wrap gap-1.5">
+            {choice.scopes.map((scope) => (
+              <li
+                key={scope}
+                className="bg-muted max-w-full rounded-md px-2 py-1 font-mono text-xs [overflow-wrap:anywhere]"
+              >
+                {scope}
+              </li>
+            ))}
+          </ul>
+          {catalog.scopes.includes(Perm.personalConsent) && (
+            <p className="text-muted-foreground text-xs leading-relaxed">
+              {t("personalConsentWhy")}
+            </p>
+          )}
+        </MoreOptions>
       )}
     </>
   );

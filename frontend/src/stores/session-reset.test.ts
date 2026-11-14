@@ -7,6 +7,8 @@ import { useOrgStore } from "./org-store";
 import { useBrowserPanelStore } from "./browser-panel-store";
 import { useTableViewStore } from "./table-view-store";
 import { addVisualImages, useVisualImagesStore } from "./visual-stream-store";
+import { useUnsavedChangesStore } from "./unsaved-changes-store";
+import { copyKey, readCopies, writeCopy } from "@/lib/unsaved-copies";
 
 describe("resetTenantState", () => {
   beforeEach(() => {
@@ -17,6 +19,18 @@ describe("resetTenantState", () => {
       flowAgentId: null,
       choices: {},
     });
+  });
+
+  it("forgets the unsaved edits kept in this browser, and stops asking about them", () => {
+    writeCopy(copyKey("org-1", "ds-1", "grading"), 1, {});
+    localStorage.setItem("theme", "dark");
+    useUnsavedChangesStore.setState({ sources: { editor: { discard: () => {} } } });
+
+    resetTenantState();
+
+    expect(readCopies("org-1", "ds-1")).toEqual([]);
+    expect(localStorage.getItem("theme")).toBe("dark");
+    expect(useUnsavedChangesStore.getState().sources).toEqual({});
   });
 
   it("closes a running onboarding flow and clears a pending offer on an org switch", () => {

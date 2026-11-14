@@ -92,15 +92,21 @@ export function countRecords(tableId: string, query: RecordCountQuery): Promise<
   return apiClient.post<RecordCount>(`/tables/${tableId}/records/count`, query);
 }
 
-/** Records created together, each on its own - at most 200 in one call. */
+/**
+ * Records created together, each on its own - at most 200 in one call. The
+ * first batch of an import omits `asOf` and the rest send the `as_of` it
+ * answered, so a record someone changed meanwhile is reported, not overwritten.
+ */
 export function createRecords(
   tableId: string,
   records: RecordCreate[],
   updateExisting = false,
+  asOf?: string,
 ): Promise<RecordBatchResult> {
   return apiClient.post<RecordBatchResult>(`/tables/${tableId}/records/batch`, {
     records,
     update_existing: updateExisting,
+    ...(asOf ? { as_of: asOf } : {}),
   });
 }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "628f3497bb0d"
+source_sha: "f5b9c5b37782"
 ---
 
 # Escalar más allá de un host { #scale-beyond-one-host }
@@ -16,17 +16,20 @@ en un host pequeño es CPU steal o un pool demasiado pequeño, no una réplica q
 falta. La [batería de carga](load-testing.md) ejecuta la misma carga contra
 cualquier despliegue.
 
+El [chart Helm de Kubernetes](kubernetes.md) aplica este modelo de servicios
+externos a los pods de API, worker y consola. OpenShift sigue sin validar.
+
 ## Qué guarda estado y qué no { #what-holds-state-and-what-does-not }
 
-| Parte | Qué guarda | Cómo crece |
-|---|---|---|
-| API (`app`) | Nada propio. Las sesiones, la presencia, los turnos de chat en curso y el feed de actualizaciones en vivo están en Postgres y Redis | Más workers de uvicorn, luego más hosts detrás de un balanceador |
-| Worker | Nada. Los jobs, los leases y las programaciones son filas en Postgres | Más procesos, en cualquier host, con los pools repartidos entre ellos |
-| Consola (`frontend`) | El branding que guarda en caché cinco minutos | Más instancias |
-| Postgres | Todo lo duradero: organizaciones, agentes, conversaciones, vectores, la cola de jobs | Una instancia mayor, o una gestionada |
-| Redis (Valkey) | Una caché y sus canales pub/sub, reconstruidos tras un reinicio | Una instancia que comparten todos los hosts |
-| Archivos subidos | Un volumen en el host, o un bucket | Un bucket en cuanto más de un host los lee o los escribe |
-| Servicio de sandboxes | Los sandboxes en los que los agentes ejecutan comandos | Su propio host, ver [Espacios de trabajo de agentes](configuration.md#running-the-service-on-another-host) |
+| Parte                 | Qué guarda                                                                                                                          | Cómo crece                                                                                                 |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| API (`app`)           | Nada propio. Las sesiones, la presencia, los turnos de chat en curso y el feed de actualizaciones en vivo están en Postgres y Redis | Más workers de uvicorn, luego más hosts detrás de un balanceador                                           |
+| Worker                | Nada. Los jobs, los leases y las programaciones son filas en Postgres                                                               | Más procesos, en cualquier host, con los pools repartidos entre ellos                                      |
+| Consola (`frontend`)  | El branding que guarda en caché cinco minutos                                                                                       | Más instancias                                                                                             |
+| Postgres              | Todo lo duradero: organizaciones, agentes, conversaciones, vectores, la cola de jobs                                                | Una instancia mayor, o una gestionada                                                                      |
+| Redis (Valkey)        | Una caché y sus canales pub/sub, reconstruidos tras un reinicio                                                                     | Una instancia que comparten todos los hosts                                                                |
+| Archivos subidos      | Un volumen en el host, o un bucket                                                                                                  | Un bucket en cuanto más de un host los lee o los escribe                                                   |
+| Servicio de sandboxes | Los sandboxes en los que los agentes ejecutan comandos                                                                              | Su propio host, ver [Espacios de trabajo de agentes](configuration.md#running-the-service-on-another-host) |
 
 ## Una base de datos por despliegue { #one-database-per-deployment }
 
@@ -49,6 +52,12 @@ Redis sus propios números de `REDIS_DB`, para que los buckets de límites y las
 respuestas en caché no se mezclen. Un bucket también es de un solo despliegue.
 Un agente pasa de uno a otro como su spec: se exporta como YAML en uno
 (`GET /agents/{id}/spec.yaml`) y se importa en un agente del otro.
+
+Dos despliegues con un mismo nombre de host, en puertos distintos, comparten
+también las cookies de la consola, porque el navegador las distingue por host y no
+por puerto: iniciar sesión en uno cierra la sesión en el otro. Dale a cada uno su
+propio nombre de host o define
+[`SESSION_COOKIE_NAMESPACE`](configuration.md#docker-production) en cada consola.
 
 ## Un Postgres externo { #an-external-postgres }
 
@@ -148,7 +157,7 @@ Por qué la cola son filas en Postgres, medida frente a otros nueve motores, se
 explica en [el benchmark de jobs en segundo plano](task-queue-benchmark.md).
 
 Separa los pools cuando el análisis de documentos compite con las ejecuciones
-de agentes. `WORKER_POOLS=agent,system,workflow` en un grupo de procesos y
+de agentes. `WORKER_POOLS=agent,eval,system,workflow` en un grupo de procesos y
 `WORKER_POOLS=ingest` en hosts con memoria de sobra evitan que una subida
 grande retrase una rutina. La sonda de salud y `agenticos cmd doctor` avisan de
 un pool que ningún worker vivo atiende. Los ajustes de
@@ -180,6 +189,3 @@ respuesta en la transcripción cuando llega, en lugar de fotograma a fotograma.
 - Réplicas de lectura, o una base de datos vectorial propia.
 - Sharding de organizaciones entre bases de datos dentro de un despliegue.
 - PgBouncer en modo transacción, o Redis Cluster.
-- Manifiestos de Kubernetes. Las imágenes son las mismas que ejecutan los
-  archivos de compose, y cada servicio lleva su propio health check, así que un
-  clúster las ejecuta con el entorno que describe esta página.

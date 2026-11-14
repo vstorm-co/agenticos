@@ -12,6 +12,7 @@ the model cannot change its mind between asking and acting.
 """
 
 import logging
+from collections.abc import Sequence
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Any, Final, Literal
@@ -20,12 +21,13 @@ from uuid import UUID
 from pydantic_ai_harness.ask_user import TIMED_OUT
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.approval import private_approval_fields
 from app.agents.capabilities.channel_tools._directory import ChannelDestination
 from app.core.audit import current_impersonator, record_audit
 from app.core.background import spawn_after_commit
 from app.core.config import settings
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
-from app.core.permissions import AuthContext, Perm
+from app.core.permissions import AuthContext, Perm, Scope
 from app.db.models.agent_run import (
     CHANNEL_SURFACES,
     AgentRun,
@@ -36,6 +38,7 @@ from app.db.models.agent_run import (
 )
 from app.db.models.secret_request import SecretRequestStatus
 from app.repositories import (
+    agent_repo,
     agent_run_repo,
     channel_prompt_repo,
     organization_repo,
@@ -81,6 +84,10 @@ def _parked_tool_call_ids(run: AgentRun) -> list[str]:
     return list(parked.values())
 
 
+def _own_run(ctx: AuthContext, run_user_id: UUID | None) -> bool:
+    return ctx.user_id is not None and ctx.api_key_id is None and run_user_id == ctx.user_id
+
+
 def _notice(run: AgentRun, destination: ChannelDestination, text: str) -> ChatNotice:
     return ChatNotice(
         organization_id=run.organization_id, run_id=run.id, destination=destination, text=text
@@ -89,6 +96,16 @@ def _notice(run: AgentRun, destination: ChannelDestination, text: str) -> ChatNo
 
 def _hours(span: timedelta) -> str:
     return f"{int(span.total_seconds() // 3600)}h"
+
+
+def withhold(
+    fields: frozenset[str], *, tool_args: dict[str, Any], context: dict[str, str] | None
+) -> tuple[dict[str, Any], dict[str, str] | None]:
+    """A parked call's arguments and context without the keys only its run's readers see."""
+    kept = {key: value for key, value in tool_args.items() if key not in fields}
+    if context is None:
+        return kept, None
+    return kept, {key: value for key, value in context.items() if key not in fields}
 
 
 class ApprovalService:
@@ -112,6 +129,7 @@ class ApprovalService:
         subagent_name: str | None = None,
         subagent_agent_id: UUID | None = None,
         standing_consent_by: UUID | None = None,
+        always_asks: bool = False,
     ) -> ToolApproval:
         """Park a tool call until a human decides - or record one already decided.
 
@@ -147,6 +165,8 @@ class ApprovalService:
                 distinguishable from an agent that was never gated - that
                 distinction is the audit trail (#925). `None` is every other
                 approval: pending, waiting for somebody.
+            always_asks: Whether only a person's answer to this call could let it
+                run, which also means it can never be remembered.
         """
         approval = await agent_run_repo.create_approval(
             self.db,
@@ -162,6 +182,7 @@ class ApprovalService:
             subagent_name=subagent_name,
             subagent_agent_id=subagent_agent_id,
             standing_consent_by=standing_consent_by,
+            always_asks=always_asks,
         )
         logger.info(
             "Approval %s requested for tool %s on run %s (delegate: %s)",
@@ -203,8 +224,77 @@ class ApprovalService:
         person = decided_by_a_person(ctx)
         return [
             replace(row, continues_in_chat=True) if person and row.parked_in_chat else row
-            for row in rows
+            for row in await self.as_read_by(ctx, rows)
         ], total
+
+    async def as_read_by(self, ctx: AuthContext, rows: Sequence[ApprovalRow]) -> list[ApprovalRow]:
+        """Each row as this reader may read it.
+
+        The queue is the organization's, but a call such as `share_memory` quotes
+        what the run's person reads. Its private keys stay for somebody who may see
+        the run - the person whose run it is, or a reader of every run who may view
+        the agent - and are left out for everyone else, with `content_hidden` set.
+        """
+        private = {
+            row.id: fields
+            for row in rows
+            if (fields := private_approval_fields(row.capability_tool_id))
+        }
+        if not private:
+            return list(rows)
+        blind = await self._agents_whose_runs_are_hidden(
+            ctx,
+            {
+                row.agent_id
+                for row in rows
+                if row.id in private and not _own_run(ctx, row.triggered_by_user_id)
+            },
+        )
+        read: list[ApprovalRow] = []
+        for row in rows:
+            if (
+                row.id in private
+                and row.agent_id in blind
+                and not _own_run(ctx, row.triggered_by_user_id)
+            ):
+                tool_args, context = withhold(
+                    private[row.id], tool_args=row.tool_args, context=row.context
+                )
+                row = replace(row, tool_args=tool_args, context=context, content_hidden=True)
+            read.append(row)
+        return read
+
+    async def hidden_fields(self, ctx: AuthContext, approval: ToolApproval) -> frozenset[str]:
+        """The keys of one approval this reader may not see; empty when they may see it all."""
+        fields = private_approval_fields(approval.capability_tool_id)
+        if not fields:
+            return frozenset()
+        run = await agent_run_repo.get_run(
+            self.db, approval.run_id, organization_id=ctx.organization_id
+        )
+        if run is not None and _own_run(ctx, run.user_id):
+            return frozenset()
+        blind = await self._agents_whose_runs_are_hidden(ctx, {approval.agent_id})
+        return fields if approval.agent_id in blind else frozenset()
+
+    async def _agents_whose_runs_are_hidden(
+        self, ctx: AuthContext, agent_ids: set[UUID]
+    ) -> set[UUID]:
+        from app.services.access import AGENT, resolve_access
+
+        if not agent_ids:
+            return set()
+        if ctx.scope_for(Perm.RUNS_VIEW) is not Scope.ALL:
+            return agent_ids
+        agents = await agent_repo.get_many(
+            self.db, list(agent_ids), organization_id=ctx.organization_id
+        )
+        return {
+            agent_id
+            for agent_id in agent_ids
+            if (agent := agents.get(agent_id)) is None
+            or not await resolve_access(self.db, ctx, agent, Perm.AGENTS_VIEW, resource_type=AGENT)
+        }
 
     async def decide(
         self,
@@ -223,6 +313,8 @@ class ApprovalService:
         refuses it while the call is live (#54).
 
         Raises:
+            AuthorizationError: If this is an approval of a call that only a person's
+                answer may let run, by somebody who may not see what it quotes.
             NotFoundError: If the approval is not in this organization.
             BadRequestError: If it was already decided. Deciding twice would
                 make the audit trail ambiguous about who authorised the action.
@@ -247,10 +339,23 @@ class ApprovalService:
                 details={"approval_id": str(approval_id)},
             )
 
+        if approved and approval.always_asks and await self.hidden_fields(ctx, approval):
+            raise AuthorizationError(
+                message=(
+                    "Only somebody who can see the run this call came from may approve it; "
+                    "you may reject it"
+                ),
+                details={"approval_id": approval_id},
+            )
         if remember_scope is not None:
             if not approved or via_call or approval.subagent_name is not None:
                 raise BadRequestError(
                     message="Remembered approval requires approving this agent's own chat tool"
+                )
+            if approval.always_asks:
+                raise BadRequestError(
+                    message="This tool asks every time, so its approval cannot be remembered",
+                    details={"approval_id": approval_id, "tool_id": approval.tool_id},
                 )
             run = await agent_run_repo.get_run(
                 self.db, approval.run_id, organization_id=ctx.organization_id

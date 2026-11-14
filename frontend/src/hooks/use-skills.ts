@@ -115,17 +115,9 @@ export function useSkills({
       apiClient.patch<Skill>(`/skills/${id}`, changes),
     onSuccess: async () => {
       await invalidate();
-      // Skills are bound by reference, so an edit reaches every agent at once.
-      toast.success(t("savedAgentsCurrent"));
-    },
-    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
-  });
-
-  const remove = useMutation({
-    mutationFn: (id: string) => apiClient.delete<void>(`/skills/${id}`),
-    onSuccess: async () => {
-      await invalidate();
-      toast.success(t("deleted"));
+      // An edit is a new main version: agents on main read it from their next run,
+      // while pinned agents and forks keep the version they read.
+      toast.success(t("savedMainVersion"));
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
@@ -141,7 +133,6 @@ export function useSkills({
     refetch,
     create,
     update,
-    remove,
   };
 }
 
@@ -167,7 +158,7 @@ export function useSkill(skillId: string | null) {
   const t = useTranslations("skills");
   const queryClient = useQueryClient();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: qk.skills.detail(skillId ?? ""),
     queryFn: () => apiClient.get<Skill>(`/skills/${skillId}`),
     enabled: skillId !== null,
@@ -181,14 +172,28 @@ export function useSkill(skillId: string | null) {
     await queryClient.invalidateQueries({ queryKey: qk.skills.all() });
   }, [queryClient]);
 
+  /** The editor says what a save made, and what refused it, so this stays quiet. */
   const save = useMutation({
-    mutationFn: (edit: SkillEdit) => apiClient.patch<Skill>(`/skills/${skillId}`, edit),
+    mutationFn: (edit: Partial<SkillEdit>) => apiClient.patch<Skill>(`/skills/${skillId}`, edit),
+    onSuccess: invalidate,
+  });
+
+  /** The delete dialog says why a delete was refused, so a refusal is not toasted. */
+  const remove = useMutation({
+    mutationFn: (removeFromAgents: boolean | void) =>
+      apiClient.delete<void>(
+        `/skills/${skillId}${removeFromAgents ? "?remove_from_agents=true" : ""}`,
+      ),
     onSuccess: async () => {
-      await invalidate();
-      // Agents bind to the skill, not to a version of it, so this is already live.
-      toast.success(t("savedAgentsCurrent"));
+      await Promise.all([
+        invalidate(),
+        // Taking the skill off its agents changes them as well.
+        queryClient.invalidateQueries({ queryKey: qk.agents.all() }),
+      ]);
+      toast.success(t("deleted"));
     },
-    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+    // A refusal names who uses the skill now, which the agents list may not know yet.
+    onError: () => queryClient.invalidateQueries({ queryKey: qk.skills.agents(skillId ?? "") }),
   });
 
   /**
@@ -256,7 +261,9 @@ export function useSkill(skillId: string | null) {
   return {
     skill: data,
     isLoading,
+    error,
     save,
+    remove,
     addResource,
     saveResource,
     removeResource,

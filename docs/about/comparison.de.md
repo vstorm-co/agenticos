@@ -1,5 +1,5 @@
 ---
-source_sha: "f8d7b221b146"
+source_sha: "a850cf14de8a"
 title: "AgenticOS vergleichen"
 seo_title: "AgenticOS im Vergleich: souveräne Schicht für KI-Agents"
 description: "Die souveräne, selbst gehostete Open-Source-Schicht AgenticOS im Vergleich mit Claude, ChatGPT, Copilot Studio, Gemini Enterprise, Dify, n8n und Coding-Agents."
@@ -104,7 +104,7 @@ Ein Vergleich, der die eigenen Lücken verschweigt, ist Werbung. Prüfen Sie die
 - Es gibt keinen Konversationskanal für Microsoft Teams, WhatsApp, Telefon oder E-Mail. [Sprachgespräche](../voice.md) laufen im Web-Chat, im Widget und auf der gehosteten Seite, nicht über eine Telefonleitung.
 - AgenticOS enthält inzwischen eine visuelle Workflow-Arbeitsfläche mit typisierten Schritten, Verzweigungen und Schleifen. Vergleichen Sie die benötigten Knotentypen und Integrationen, statt identische Funktionen vorauszusetzen.
 - Eine MCP-Bindung mit `writes` vertraut den Nur-Lesen-Markierungen des Servers selbst, also läuft ein Werkzeug, das er fälschlich als nur lesend markiert, ungefragt; `all` hält jeden Aufruf an. Siehe [was MCP Ihnen nicht bietet](../mcp.md#what-mcp-does-not-get-you).
-- Die Bereitstellung erfolgt mit Docker Compose, und ein Host ist der ausgelieferte Weg. Ein externes Postgres sowie weitere API-Hosts und Worker sind [dokumentiert](../scaling.md), aber es gibt keine Kubernetes-Manifeste.
+- OpenShift ist nicht validiert. Ein gepflegtes [Kubernetes-Helm-Chart](../kubernetes.md) deployt API, Worker und Konsole mit externen Datendiensten; Docker Compose bleibt der Weg für einen einzelnen Host.
 - Sie betreiben es selbst, oder Sie vereinbaren den Betrieb mit Vstorm oder einem anderen Partner.
 
 ## Ein gemeinsamer Versuch { #a-shared-trial }

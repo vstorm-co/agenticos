@@ -10,12 +10,17 @@ import {
   type OrgState,
 } from "@/lib/onboarding/flows";
 import {
+  IMPROVEMENT,
+  IMPROVEMENT_START,
   AGENT_BUILDER,
+  DATASET_DETAIL,
   KB_DETAIL,
   ORG_DIRECTORY,
   ORG_GROUPS,
   ORG_MEMBERS,
   ORG_ROLES,
+  SKILL_IMPROVEMENT,
+  SKILL_IMPROVEMENT_START,
   TABLE_DETAIL,
   PROJECT_DETAIL,
 } from "@/lib/onboarding/tour";
@@ -218,6 +223,59 @@ describe("FLOWS", () => {
   });
 });
 
+describe("create-dataset", () => {
+  it("goes on past the empty dataset into its first case, field group by field group", () => {
+    const steps = FLOWS["create-dataset"].steps;
+    const ids = steps.map((step) => step.id);
+    expect(ids.slice(0, 3)).toEqual([
+      "flow-dataset-create",
+      "flow-dataset-field-name",
+      "flow-dataset-field-create",
+    ]);
+    const open = steps[3];
+    expect(open?.target).toBe("dataset-card-open");
+    expect(open?.page).toBeUndefined();
+    expect(open?.signal).toEqual({ kind: "arrived", page: DATASET_DETAIL });
+    expect(steps[4]).toMatchObject({
+      target: "datasets-add-case",
+      signal: { kind: "opened" },
+    });
+
+    const groups = steps.slice(5, -4);
+    expect(groups.map((step) => step.target)).toEqual([
+      "case-group-question",
+      "case-group-answers",
+      "case-group-history",
+      "case-group-counter",
+      "case-group-tools",
+      "case-group-checks",
+      "case-group-labels",
+    ]);
+    for (const step of groups) {
+      expect(step).toMatchObject({
+        page: DATASET_DETAIL,
+        inOverlay: true,
+        blockSubmit: "case-save",
+      });
+      expect(step.signal).toBeUndefined();
+    }
+    const [save, sources, next, generate] = steps.slice(-4);
+    expect(save).toMatchObject({
+      target: "case-save",
+      signal: { kind: "created", resource: "case" },
+    });
+    expect(save?.blockSubmit).toBeUndefined();
+    expect(sources?.target).toBe("datasets-case-tools");
+    expect(sources?.signal).toBeUndefined();
+    expect(next).toMatchObject({ target: "datasets-settings-tab", page: DATASET_DETAIL });
+    expect(generate).toMatchObject({
+      target: "datasets-generate",
+      activate: "datasets-generate-action",
+      page: DATASET_DETAIL,
+    });
+  });
+});
+
 describe("flowForPage", () => {
   it("offers personal-model setup only with every permission its controls require", () => {
     expect(flowForPage(ROUTES.SETTINGS_AI_CONNECTIONS)).toBe("connect-personal-model");
@@ -237,7 +295,10 @@ describe("flowForPage", () => {
   it("maps each section, collapsing its detail routes onto the same flow", () => {
     expect(flowForPage(ROUTES.AGENTS)).toBe("create-agent");
     // An Agents "?" that walked into the builder still offers the agent flow.
-    expect(flowForPage(AGENT_BUILDER)).toBe("create-agent");
+    // Already in an agent, the builder's walk ends on testing a change to it.
+    expect(flowForPage(AGENT_BUILDER)).toBe("test-change");
+    // Nobody tests a change to a system agent against a dataset.
+    expect(flowForPage(AGENT_BUILDER, true)).toBeNull();
     expect(flowForPage(ROUTES.SKILLS)).toBe("create-skill");
     expect(flowForPage(ROUTES.RAG)).toBe("create-kb");
     expect(flowForPage(KB_DETAIL)).toBe("create-kb");
@@ -245,6 +306,7 @@ describe("flowForPage", () => {
     expect(flowForPage(TABLE_DETAIL)).toBe("create-table");
     expect(flowForPage(ROUTES.MCP_SERVERS)).toBe("connect-app");
     expect(flowForPage(ROUTES.ROUTINES)).toBe("create-routine");
+    expect(flowForPage(ROUTES.DATASETS)).toBe("create-dataset");
     expect(flowForPage(ROUTES.WORKFLOWS)).toBe("create-workflow");
     expect(flowForPage(ROUTES.AGENT_MESSAGES)).toBe("create-agent-message");
     expect(flowForPage(ROUTES.ORGS)).toBe("create-org");
@@ -274,6 +336,23 @@ describe("create-routine", () => {
     expect(stepsForFlow(FLOWS["create-routine"], STOCKED, allow, NO_CHOICES)).toHaveLength(2);
     const noRunnable = { ...STOCKED, hasRunnableAgent: false };
     expect(stepsForFlow(FLOWS["create-routine"], noRunnable, allow, NO_CHOICES)).toHaveLength(0);
+  });
+
+  it("tests a change only where something is published to test it against", () => {
+    const ids = (state: OrgState) =>
+      stepsForFlow(FLOWS["test-change"], state, allow, NO_CHOICES).map((step) => step.id);
+    expect(ids(STOCKED)).toEqual([
+      "flow-test-draft",
+      "flow-test-target",
+      "flow-test-run",
+      "flow-test-verdict",
+    ]);
+    // With nothing published there is no Test draft button to start from, so no
+    // step either: an inert flow, not a page frozen waiting for the button.
+    expect(ids(EMPTY)).toEqual([]);
+    // Nor for a reader who may read runs but not edit the agent or run a dataset.
+    const readOnly = (permission: Permission) => permission === Perm.runsView;
+    expect(stepsForFlow(FLOWS["test-change"], STOCKED, readOnly, NO_CHOICES)).toEqual([]);
   });
 });
 
@@ -597,6 +676,64 @@ describe("canOfferFlow", () => {
   it("offers an unpermissioned flow to anyone", () => {
     expect(canOfferFlow(FLOWS["create-org"], deny)).toBe(true);
   });
+});
+
+it("offers the start of an improvement on its start page and a session's walk on a session", () => {
+  expect(flowForPage(IMPROVEMENT_START)).toBe("first-improvement");
+  expect(flowForPage(IMPROVEMENT)).toBe("improvement-session");
+});
+
+it("offers a skill's improvement its own start and session walks", () => {
+  expect(flowForPage(SKILL_IMPROVEMENT_START)).toBe("first-skill-improvement");
+  expect(flowForPage(SKILL_IMPROVEMENT)).toBe("skill-improvement-session");
+  expect(FLOWS["first-skill-improvement"].steps.map((step) => step.target)).toEqual([
+    "skill-improvement-start",
+    "skill-merge-start",
+  ]);
+  const session = FLOWS["skill-improvement-session"].steps;
+  expect(session.map((step) => step.target)).toEqual([
+    "improvement-steps",
+    "skill-merge-changes",
+    "skill-improvement-agents",
+    "skill-improvement-accept",
+  ]);
+  expect(session.filter((step) => !step.optional).map((step) => step.target)).toEqual([
+    "improvement-steps",
+  ]);
+  expect(session.at(-1)?.permission).toBe(Perm.skillsEdit);
+});
+
+it("walks the start of an improvement through its one decision", () => {
+  expect(FLOWS["first-improvement"].steps.map((step) => step.target)).toEqual([
+    "improvement-start",
+    "improvement-quote",
+    "improvement-question-set",
+    "improvement-details",
+  ]);
+});
+
+it("walks a session from its questions to the guard that holds a publish", () => {
+  const steps = FLOWS["improvement-session"].steps;
+  expect(steps.map((step) => step.target)).toEqual([
+    "improvement-steps",
+    "improvement-evidence",
+    "improvement-test-questions",
+    "improvement-changes",
+    "improvement-next-step",
+    "improvement-check",
+    "improvement-open-check",
+    "improvement-results",
+    "improvement-automatic-check",
+    "improvement-guard",
+    "improvement-accept",
+  ]);
+  expect(steps.every((step) => step.permission === Perm.runsView)).toBe(true);
+  expect(steps.filter((step) => !step.optional).map((step) => step.target)).toEqual([
+    "improvement-steps",
+  ]);
+  expect(steps.find((step) => step.id === "flow-improvement-review")?.activate).toBe(
+    "improvement-step-check",
+  );
 });
 
 it("only offers project tracker publication when every required permission and capacity is present", () => {

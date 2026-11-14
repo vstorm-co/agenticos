@@ -501,3 +501,34 @@ class TestMattermostReadsAThreadsEarlierFiles:
             )
 
         assert [a.filename for a in found] == ["first.png", "second.png"]
+
+
+class TestEditedMentions:
+    @pytest.mark.parametrize(
+        "text,accepted",
+        [
+            ("@helper please read the PDFs", True),
+            ("please read the PDFs", False),
+            ("@helper-other read it", False),
+            ("`@helper` is a handle", False),
+        ],
+    )
+    def test_only_an_explicit_bot_mention_can_trigger_an_edit(self, text, accepted):
+        adapter = MattermostAdapter()
+        adapter._own_names["bot-1"] = "helper"
+        adapter._own_ids["bot-1"] = "own-id"
+        frame = _posted(message=text, file_ids=["pdf-1", "pdf-2"])
+        frame["event"] = "post_edited"
+        frame["data"]["channel_type"] = "O"
+        incoming = adapter.parse_incoming(frame, "bot-1")
+        assert (incoming is not None) is accepted
+        if incoming is not None:
+            assert incoming.addressed is True
+            assert len(incoming.attachments) == 2
+            assert incoming.message_id == "p1"
+            assert incoming.raw["event"] == "post_edited"
+
+    def test_an_unresolved_bot_name_does_not_trigger_an_edit(self):
+        frame = _posted(message="@helper go")
+        frame["event"] = "post_edited"
+        assert MattermostAdapter().parse_incoming(frame, "bot-1") is None

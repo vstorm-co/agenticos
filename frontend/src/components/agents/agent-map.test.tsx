@@ -635,6 +635,40 @@ describe("AgentMap pan and zoom", () => {
     expect(content.style.transform).toContain("translate(0px, 0px)");
   });
 
+  it("pans from a node once the press moves past the threshold, and clicks it while it stays", () => {
+    const { content, viewport } = draw();
+    const capture = vi.fn();
+    viewport.setPointerCapture = capture;
+    const skills = screen.getByRole("button", { name: "Skills" });
+
+    pointer(skills, "pointerdown", { pointerId: 1, clientX: 100, clientY: 100 });
+    pointer(skills, "pointermove", { pointerId: 1, clientX: 102, clientY: 101 });
+    expect(capture).not.toHaveBeenCalled();
+    expect(content.style.transform).toContain("translate(0px, 0px)");
+    pointer(skills, "pointerup", { pointerId: 1 });
+    fireEvent.click(skills);
+    expect(skills).toHaveAttribute("aria-pressed", "true");
+
+    pointer(skills, "pointerdown", { pointerId: 2, clientX: 100, clientY: 100 });
+    pointer(skills, "pointermove", { pointerId: 2, clientX: 140, clientY: 120 });
+    pointer(skills, "pointermove", { pointerId: 2, clientX: 150, clientY: 125 });
+    expect(capture).toHaveBeenCalledTimes(1);
+    expect(content.style.transform).toContain("translate(50px, 25px)");
+  });
+
+  it("forgets a press released outside the map, so a later move does not pan", () => {
+    const { content, viewport } = draw();
+    const capture = vi.fn();
+    viewport.setPointerCapture = capture;
+
+    pointer(viewport, "pointerdown", { pointerId: 1, clientX: 100, clientY: 100 });
+    pointer(document.body, "pointerup", { pointerId: 1 });
+    pointer(viewport, "pointermove", { pointerId: 1, clientX: 300, clientY: 300 });
+
+    expect(capture).not.toHaveBeenCalled();
+    expect(content.style.transform).toContain("translate(0px, 0px)");
+  });
+
   it("stops panning when the pointer is released", () => {
     const { content, viewport } = draw();
     viewport.setPointerCapture = vi.fn();

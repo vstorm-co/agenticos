@@ -3,9 +3,8 @@
 `is_active` is how an operator pauses a source without deleting it
 (`docs/howto/configure-sync-sources.md`), but only the scheduler's query read
 it: a manual trigger, from the API or the CLI, ran a paused source all the same.
-The routes that trigger a run refuse it through `SyncSourceService.refuse_paused`,
-and the job refuses again, because a source can be paused after the trigger (and
-the CLI trigger reaches only the job).
+The service refuses it before queueing, and the worker checks again when the
+job starts because a source can be paused after it was queued.
 
 `created_at` is `now()`, the transaction's start, so two bases inserted together
 tie on it; `list_by_collection_name` then has to break the tie on something
@@ -64,7 +63,7 @@ async def _org(db: AsyncSession) -> Organization:
 
 
 def _kb(
-    organization_id: uuid.UUID, kb_id: uuid.UUID, collection_name: str, tied_at: datetime
+    organization_id: uuid.UUID, kb_id: uuid.UUID, collection_name: str, tied_at: datetime | None
 ) -> KnowledgeBase:
     return KnowledgeBase(
         id=kb_id,
@@ -98,11 +97,32 @@ async def _source(db: AsyncSession, organization: Organization, **fields: object
 
 
 class TestBasesTiedOnCreatedAt:
+    async def test_deleting_a_tied_sibling_only_detaches_sources_of_the_chosen_base(
+        self, db: AsyncSession
+    ) -> None:
+        organization = await _org(db)
+        older = _kb(organization.id, uuid.UUID(int=1), "tied", None)
+        sibling = _kb(organization.id, uuid.UUID(int=2), "tied", None)
+        db.add_all([sibling, older])
+        await db.flush()
+        source = await _source(db, organization, collection_name="tied")
+        access = CollectionAccessService(db)
+
+        await access.detach_sources_targeting(sibling)
+        await db.refresh(source)
+        assert source.collection_name == "tied"
+        assert source.is_active
+
+        await access.detach_sources_targeting(older)
+        await db.refresh(source)
+        assert source.collection_name is None
+        assert not source.is_active
+
     async def test_the_same_base_is_first_whichever_was_inserted_first(
         self, db: AsyncSession
     ) -> None:
         organization = await _org(db)
-        tied_at = datetime(2026, 1, 1, tzinfo=UTC)
+        tied_at = None
         low = uuid.UUID(int=1)
         high = uuid.UUID(int=2)
         # The later id goes in first, so a query with no tie-breaker would
@@ -115,6 +135,7 @@ class TestBasesTiedOnCreatedAt:
         by_name = await knowledge_base_repo.list_by_collection_names(db, ["tied"])
         chosen = await knowledge_base_repo.get_for_collection(db, "tied", organization.id)
 
+        assert listed[0].created_at == listed[1].created_at
         assert [kb.id for kb in listed] == [low, high]
         assert [kb.id for kb in by_name["tied"]] == [low, high]
         assert chosen is not None and chosen.id == low
@@ -189,17 +210,19 @@ def _count_logs(source_id: uuid.UUID) -> Select[int]:
     return select(func.count()).select_from(SyncLog).where(SyncLog.sync_source_id == source_id)
 
 
+@pytest.mark.parametrize("has_log", [False, True])
 async def test_a_job_that_finds_its_source_paused_ends_without_syncing(
-    engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+    engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch, has_log: bool
 ) -> None:
     """Paused between the trigger and the job: the log is finished as an error."""
     factory = async_sessionmaker(engine, expire_on_commit=False)
     async with factory() as db:
         organization = await _org(db)
-        source = await _source(db, organization, is_active=False)
-        log = await SyncSourceService(db).open_sync_log(source, collection_name="docs")
+        source = await _source(db, organization)
+        log = await SyncSourceService(db).trigger_sync(str(source.id)) if has_log else None
+        source.is_active = False
         await db.commit()
-        source_id, log_id = str(source.id), str(log.id)
+        source_id, log_id = str(source.id), str(log.id) if log is not None else None
 
     @contextlib.asynccontextmanager
     async def worker_db() -> AsyncGenerator[AsyncSession]:
@@ -207,22 +230,25 @@ async def test_a_job_that_finds_its_source_paused_ends_without_syncing(
             yield db
             await db.commit()
 
-    resolve = AsyncMock()
-    notify = AsyncMock()
+    credential = AsyncMock()
     monkeypatch.setattr(rag_tasks, "get_worker_db_context", worker_db)
-    monkeypatch.setattr(rag_tasks, "_knowledge_base_for", resolve)
-    monkeypatch.setattr(rag_tasks, "_notify_sync_start_failure", notify)
+    monkeypatch.setattr(rag_tasks, "_connector_credential", credential)
+    monkeypatch.setattr(rag_tasks, "_knowledge_base_for", AsyncMock(return_value=None))
+    monkeypatch.setattr(rag_tasks.NotificationService, "sync_failed", AsyncMock())
 
     answer = await rag_tasks._sync_source(source_id, log_id)
 
     assert answer == {"status": "error", "message": PAUSED_SOURCE}
-    notify.assert_awaited_once()
-    assert notify.await_args is not None
-    assert notify.await_args.kwargs["sync_log_id"] == log_id
-    assert notify.await_args.kwargs["message"] == PAUSED_SOURCE
-    resolve.assert_not_awaited()
+    credential.assert_not_awaited()
     async with factory() as db:
         paused = await db.get(SyncSource, uuid.UUID(source_id))
         assert paused is not None
         assert paused.last_sync_status == "error"
         assert paused.last_error == PAUSED_SOURCE
+        assert await db.scalar(_count_logs(paused.id)) == int(has_log)
+        if log_id is not None:
+            finished = await db.get(SyncLog, uuid.UUID(log_id))
+            assert finished is not None
+            assert finished.status == "error"
+            assert finished.error_message == PAUSED_SOURCE
+            assert finished.completed_at is not None

@@ -52,11 +52,12 @@ from app.agents.failures import first_leaf, run_failure_summary
 from app.agents.loop_guard import ToolLoopStopped
 from app.agents.steering import SteeringInbox
 from app.agents.subagent_events import SubagentEventSink
+from app.agents.system_agents import refuse_system_agent
 from app.agents.visual_reports import VisualReports
 from app.core.audit import current_impersonator
 from app.core.exceptions import AuthorizationError, BadRequestError, RunFailedError
 from app.core.field_errors import field_problems
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, Perm
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
@@ -475,6 +476,20 @@ class ChatAgentRunner:
         self.runner = AgentRunnerService(db)
         self.usage = UsageReportService(db)
 
+    async def refuse_system_agent(
+        self, *, user: User, organization_id: UUID, agent_id: UUID
+    ) -> None:
+        """Refuse a chat with an agent only the platform runs, before anything is written.
+
+        Raises:
+            AuthorizationError: If the user is not a member of this organization.
+            NotFoundError: If no agent here has that id, or they may not run it.
+            SystemAgentRestrictedError: If the agent is a system agent, such as a judge.
+        """
+        ctx = await self._context(user, organization_id)
+        agent = await self.runner.registry.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
+        refuse_system_agent(agent, action=f"a {RunSurface.WEB.value} run")
+
     async def run(
         self,
         *,
@@ -691,6 +706,7 @@ class ChatAgentRunner:
         error: str | None = None
         paused: PausedRunState | None = None
         budget_scope: BudgetScope | None = None
+        budget: BudgetExceeded | None = None
         output = ""
         summarized: list[dict[str, Any]] | None = None
         # Set as the last statement of the `try`, so it is True only when this run
@@ -728,7 +744,7 @@ class ChatAgentRunner:
                 )
             status, output, _structured, paused = _classify_output(
                 result,
-                parked=prepared.approvals.parked,
+                parked=prepared.checkpointed_approvals(),
                 history_revision=message_history.revision
                 if isinstance(message_history, ModelHistory)
                 else None,
@@ -749,6 +765,7 @@ class ChatAgentRunner:
             status = RunStatus.BUDGET_EXCEEDED
             error = str(exc)
             budget_scope = exc.scope
+            budget = exc
             logger.info("Chat run %s stopped by budget: %s", prepared.run.id, exc)
             raise
         except GuardrailBlocked as exc:
@@ -795,6 +812,7 @@ class ChatAgentRunner:
                     error=error,
                     paused_state=paused,
                     budget_scope=budget_scope,
+                    budget=budget,
                 )
                 if prepared.run.status == RunStatus.FAILED.value:
                     status = RunStatus.FAILED

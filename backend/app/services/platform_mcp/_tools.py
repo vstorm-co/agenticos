@@ -8,19 +8,24 @@ Every description names the permission the call needs, because the caller's key
 or token decides what succeeds and a model told up front stops asking for what
 it will be refused. Nothing here touches a credential. What deletes is undoing an
 agent draft its caller owns and never published, and removing a routine; what
-publishes is `publish_agent`, held for the person's approval like every write
-here but `UNGATED` (#2301).
+publishes is `publish_agent`, and `accept_improvement` when the person asked to
+publish, each held for the person's approval like every write here but
+`UNGATED` (#2301).
 """
 
+import json as json_module
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any, Literal
+from decimal import ROUND_CEILING, Decimal
+from typing import Annotated, Any, Literal
 from urllib.parse import quote
 from uuid import UUID
 
-from pydantic import JsonValue
+from fastmcp.exceptions import ToolError
+from pydantic import AwareDatetime, Field, JsonValue, TypeAdapter
 
 from app.agents.spec import CapabilityBindingSpec, McpServerRef
+from app.db.models.agent_run import RunSurface
 from app.schemas.agent import QuestionAnswers
 from app.schemas.context import ContextFileCreate, ContextFileUpdate
 from app.schemas.routine_notifications import ExternalNotificationChannel, WatchReportMode
@@ -58,8 +63,134 @@ not be able to write it unseen. `app.agents.mcp` names the same set as
 """
 
 
-_TOOL_FIELDS = frozenset({"last_tools", "allowed_tools"})
-"""A connection's tools - what `list_my_connections` leaves out unless asked."""
+_TOOL_FIELDS = frozenset({"last_tools", "allowed_tools", "used_by"})
+"""Bulk details that do not belong in connection discovery."""
+
+DiscoveryLimit = Annotated[int, Field(ge=1, le=50)]
+DiscoverySkip = Annotated[int, Field(ge=0)]
+TranscriptChars = Annotated[int, Field(ge=1, le=8000)]
+ConnectionAccount = Literal["organization", "personal"]
+_JSON_OBJECT = TypeAdapter(dict[str, JsonValue])
+_JSON_ITEMS = TypeAdapter(list[dict[str, JsonValue]])
+_MCP_DISCOVERY_BYTES = 64 * 1024
+
+
+def _discovery_page(
+    items: list[dict[str, JsonValue]], limit: int, skip: int
+) -> dict[str, JsonValue]:
+    """A bounded page with an explicit continuation, never an implied empty result."""
+    end = skip + limit
+    page: list[JsonValue] = list(items[skip:end])
+    return {
+        "items": page,
+        "total": len(items),
+        "next_skip": end if end < len(items) else None,
+    }
+
+
+def _connection_summary(item: dict[str, JsonValue]) -> dict[str, JsonValue]:
+    summary = {key: value for key, value in item.items() if key not in _TOOL_FIELDS}
+    for source, target in (("last_tools", "tool_count"), ("allowed_tools", "allowed_tool_count")):
+        value = item.get(source)
+        summary[target] = len(value) if isinstance(value, list) else None
+    return summary
+
+
+def _bounded_mcp_discovery(result: dict[str, JsonValue]) -> dict[str, JsonValue]:
+    try:
+        json_byte_size(result, limit=_MCP_DISCOVERY_BYTES)
+    except PayloadTooLarge as exc:
+        raise ToolError(
+            "Requested details exceed 64 KiB. Narrow the query, reduce limit or the "
+            "text window (content_chars/chars), or use a targeted detail tool. "
+            "No data was silently truncated."
+        ) from exc
+    return result
+
+
+def _text_window(text: str, offset: int, chars: int) -> dict[str, JsonValue]:
+    end = offset + chars
+    return {
+        "content": text[offset:end],
+        "offset": offset,
+        "total_chars": len(text),
+        "next_offset": end if end < len(text) else None,
+    }
+
+
+def _transcript_page(
+    listing: dict[str, JsonValue],
+    *,
+    skip: int,
+    limit: int,
+    content_offset: int,
+    content_chars: int,
+    tool_skip: int,
+) -> dict[str, JsonValue]:
+    summaries: list[JsonValue] = []
+    for index, item in enumerate(_JSON_ITEMS.validate_python(listing["items"]), start=skip):
+        calls = _JSON_ITEMS.validate_python(item.get("tool_calls") or [])
+        text = item.get("content")
+        if not isinstance(text, str):
+            raise ToolError("The recorded message has no textual content")
+        summary: dict[str, JsonValue] = {
+            "id": item["id"],
+            "run_id": item.get("run_id"),
+            "message_index": index,
+            "role": item["role"],
+            "reply_to": None,
+            **_text_window(text, content_offset, content_chars),
+            "tool_call_count": len(calls),
+            "next_tool_skip": tool_skip + 20 if tool_skip + 20 < len(calls) else None,
+            "tool_calls": [
+                {
+                    key: value
+                    for key, value in call.items()
+                    if key in {"tool_call_id", "tool_name", "status", "duration_ms"}
+                }
+                for call in calls[tool_skip : tool_skip + 20]
+            ],
+        }
+        summaries.append(summary)
+    total = listing["total"]
+    return {
+        "items": summaries,
+        "total": total,
+        "next_skip": skip + limit if isinstance(total, int) and skip + limit < total else None,
+    }
+
+
+def _recorded_tool_window(
+    listing: dict[str, JsonValue],
+    *,
+    message_id: UUID,
+    tool_call_id: str,
+    field: Literal["args", "result"],
+    offset: int,
+    chars: int,
+) -> dict[str, JsonValue]:
+    items = _JSON_ITEMS.validate_python(listing["items"])
+    if not items or items[0]["id"] != str(message_id):
+        raise ToolError("Transcript page changed; refresh the transcript listing before retrying")
+    calls = _JSON_ITEMS.validate_python(items[0].get("tool_calls") or [])
+    call = next((call for call in calls if call["tool_call_id"] == tool_call_id), None)
+    if call is None:
+        raise ToolError("Tool call not found in this message")
+    value = call.get(field)
+    text = json_module.dumps(value, ensure_ascii=False) if field == "args" else value
+    if text is not None and not isinstance(text, str):
+        raise ToolError("The recorded tool result is not text")
+    return {
+        "message_id": str(message_id),
+        "tool_call_id": tool_call_id,
+        "field": field,
+        "available": value is not None,
+        **(
+            _text_window(text, offset, chars)
+            if text is not None
+            else {"content": None, "next_offset": None}
+        ),
+    }
 
 
 @dataclass(frozen=True)
@@ -82,6 +213,15 @@ class PlatformTool:
         return (self.function.__doc__ or "").strip().splitlines()[0]
 
 
+@dataclass(frozen=True)
+class _NamedAgent:
+    id: UUID
+    name: str
+
+
+_NAMED_AGENTS = TypeAdapter(list[_NamedAgent])
+
+
 def _merge_capabilities(
     current: list[CapabilityBindingSpec], additions: list[str | CapabilityBindingSpec]
 ) -> list[dict[str, JsonValue]]:
@@ -96,6 +236,918 @@ def _merge_capabilities(
             **binding.model_dump(mode="json", exclude_unset=True),
         }
     return list(bindings.values())
+
+
+_SESSION_FIELDS = (
+    "id",
+    "status",
+    "stage",
+    "iteration",
+    "max_iterations",
+    "stop_reason",
+    "spent_usd",
+    "budget_usd",
+    "created_at",
+    "finished_at",
+)
+"""What a listing says about one improvement session; the rest is in `get_improvement`."""
+
+_CASES_SHOWN = 5
+"""Broken and fixed cases `get_eval_run` names, each; the run page has the rest."""
+
+_INPUT_CHARS = 200
+
+
+def improvement_link(agent_id: UUID | str, session_id: UUID | str) -> str:
+    """Where the person follows a session step by step: the Improve wizard."""
+    return f"/agents/{agent_id}/improve/{session_id}"
+
+
+_CLOSED = frozenset({"accepted", "published", "rejected", "cancelled", "stale"})
+"""A session that is a record now: nothing on it can be accepted, chosen or tried again."""
+
+_DECISIONS = frozenset(
+    {
+        "improvement.accepted",
+        "improvement.published",
+        "improvement.discarded",
+        "improvement.rejected",
+        "improvement.cancelled",
+    }
+)
+
+
+def _outcome(session: dict[str, Any]) -> dict[str, Any] | None:
+    """What was decided on a closed session: the attempt, the version, by whom and when."""
+    if session["status"] not in _CLOSED:
+        return None
+    best = session.get("best_iteration_id")
+    attempt = next((it["number"] for it in session.get("iterations", []) if it["id"] == best), None)
+    decisions = [
+        event
+        for event in session.get("timeline", [])
+        if event["action"] in _DECISIONS and event.get("actor_user_id")
+    ]
+    decision = max(decisions, key=lambda event: event["at"], default=None)
+    return {
+        "status": session["status"],
+        "attempt": attempt if session["status"] in ("accepted", "published") else None,
+        "published_version": session.get("published_version"),
+        "published_version_id": session.get("published_version_id"),
+        "decided_by": decision and (decision.get("actor_name") or decision["actor_user_id"]),
+        "decided_at": decision and decision["at"],
+    }
+
+
+def _why_stale(
+    session: dict[str, Any], *, started_from: int | None, live: int | None
+) -> str | None:
+    """Why an outdated session can no longer be used, in plain words."""
+    if session["status"] != "stale":
+        return None
+    if session.get("stop_reason") == "expired":
+        return "It waited too long for a person and expired."
+    if session.get("stop_reason") == "superseded":
+        return "A newer attempt or a person's own change replaced it."
+    if started_from is not None and live is not None and started_from != live:
+        return f"The agent's published version changed from v{started_from} to v{live}."
+    return session.get("error") or (
+        "The agent, its test questions or how they are scored changed after it started."
+    )
+
+
+_NEXT_STEPS = {
+    "propose": {"after": "Understand", "next_step": "propose changes"},
+    "check": {"after": "Changes", "next_step": "test the changes"},
+}
+"""Where a waiting session stopped and what pressing Next step runs, by its `next_step`."""
+
+
+_CENT = Decimal("0.01")
+
+
+def _session_limit(estimate: dict[str, Any]) -> str:
+    """The spending limit the wizard offers: the start and every attempt, up to the cent."""
+    whole = Decimal(estimate["total_usd"]) + estimate["max_iterations"] * Decimal(
+        estimate["per_round_usd"]
+    )
+    return str(max(_CENT, whole.quantize(_CENT, rounding=ROUND_CEILING)))
+
+
+def _found(items: list[dict[str, Any]]) -> dict[str, int]:
+    """What Understand found, counted as the wizard counts it: a topic once, else a conversation."""
+    columns: dict[str, set[str]] = {
+        "in_the_agent": set(),
+        "missing_knowledge": set(),
+        "knowledge_added_since": set(),
+        "not_a_problem": set(),
+    }
+    for item in items:
+        if item["branch"] in {"agent", "unknown"}:
+            column = "in_the_agent"
+        elif item["branch"] == "missing_knowledge":
+            column = "knowledge_added_since" if item.get("knowledge_added") else "missing_knowledge"
+        else:
+            column = "not_a_problem"
+        columns[column].add(item.get("topic_id") or item["run_id"])
+    return {column: len(keys) for column, keys in columns.items()}
+
+
+def _waiting(session: dict[str, Any]) -> dict[str, Any] | None:
+    """What a session paused between steps is waiting for."""
+    if session["status"] != "waiting":
+        return None
+    return _NEXT_STEPS.get(session.get("next_step") or "")
+
+
+_EARLIER_FIELDS = (
+    "id",
+    "status",
+    "created_at",
+    "finished_at",
+    "closed",
+    "outcome",
+    "why_stale",
+    "started_from_version",
+    "link",
+    "newest",
+)
+"""What a listing keeps of a session older than the newest: a record, never an offer."""
+
+_CHECKING_STAGES = frozenset({"evaluating", "judging"})
+_PROPOSING_STAGES = frozenset({"proposing", "filtering", "drafting"})
+
+_WHY_STOPPED = {
+    "no_data": "There were no rated answers or failed test questions to learn from.",
+    "no_proposal": "The helper found nothing to change.",
+    "budget": "It reached its spending limit.",
+    "inconclusive": "The test could not tell whether the changes helped.",
+    "regression": "The changes made some answers worse.",
+    "no_change": "The changes made no difference on the test.",
+    "max_iterations": "It used all its attempts.",
+    "repeat_candidate": "The attempt proposed the same changes as an earlier one.",
+    "permission": "Whoever ran the step lost access the step needs.",
+    "stale": "The agent, its test questions or how they are scored changed.",
+    "stalled": "A step stopped making progress.",
+    "proposal": "Writing the changes failed.",
+    "eval": "The test failed or was cancelled.",
+    "superseded": "A newer attempt or a person's own change replaced it.",
+    "knowledge_only": "Every problem was missing knowledge, so there was nothing to change "
+    "in the agent.",
+    "expired": "It waited too long for a person.",
+}
+"""Why a session stopped, in the words a person reads; never the stored reason's name."""
+
+
+def _plain(refusal: str) -> str:
+    """A refusal's own sentence, without the status and code a person never reads."""
+    _, _, reason = refusal.partition(": ")
+    return reason or refusal
+
+
+def _step(session: dict[str, Any]) -> str:
+    """The wizard step a session is on, as its stepper names it."""
+    status, stage = session["status"], session.get("stage") or ""
+    if status in {"accepted", "published"}:
+        return "Accept"
+    if status == "waiting":
+        return "Changes" if session.get("next_step") == "check" else "Understand"
+    if status not in {"queued", "running"}:
+        return "Result"
+    if stage in _CHECKING_STAGES:
+        return "Check"
+    if stage in _PROPOSING_STAGES:
+        return "Changes"
+    return "Understand"
+
+
+def _questions(count: int) -> str:
+    return f"{count} question" if count == 1 else f"{count} questions"
+
+
+def _measured(session: dict[str, Any]) -> list[dict[str, Any]]:
+    """The session's attempts that have a verdict, within its attempt limit."""
+    return [
+        it
+        for it in session.get("iterations", [])
+        if it.get("verdict") and it["number"] <= session["max_iterations"]
+    ]
+
+
+def _person_chose(session: dict[str, Any]) -> str | None:
+    """Who chose the attempt to keep, when a person did so after the latest verdict."""
+    events = session.get("timeline", [])
+    chose = [
+        e for e in events if e["action"] == "improvement.round_selected" and e.get("actor_user_id")
+    ]
+    judged = [e["at"] for e in events if e["action"] == "improvement.verdict"]
+    last = max(chose, key=lambda event: event["at"], default=None)
+    if last is None or (judged and last["at"] <= max(judged)):
+        return None
+    return last.get("actor_name") or last["actor_user_id"]
+
+
+def _attempt_sentence(attempt: dict[str, Any]) -> str:
+    detail = attempt.get("verdict_detail") or {}
+    fixed, broken = detail.get("fixed") or 0, detail.get("broken") or 0
+    number = attempt["number"]
+    if broken or attempt["verdict"] == "regression":
+        return (
+            f"Warning: attempt {number} makes the agent worse - it breaks "
+            f"{_questions(broken)} the agent answered well before, and fixes {fixed}."
+        )
+    if attempt["verdict"] == "better":
+        return f"Attempt {number} fixes {_questions(fixed)} and breaks none."
+    if attempt["verdict"] == "no_change":
+        return f"Attempt {number} made no measurable difference."
+    return f"The test could not tell whether attempt {number} helped."
+
+
+def _price_sentence(price: dict[str, Any]) -> str:
+    return (
+        f"The next step most likely costs about ${price['expected_usd']}, "
+        f"at most ${price['total_usd']}."
+    )
+
+
+def _where(session: dict[str, Any], item: dict[str, Any], live: int | None) -> str:
+    status = session["status"]
+    attempt = f"attempt {session['iteration']} of {session['max_iterations']}"
+    published = (item.get("outcome") or {}).get("published_version")
+    if status == "published":
+        since = f", since replaced by v{live}" if live is not None and live != published else ""
+        return f"The newest session is over: it published v{published}{since}."
+    if status == "accepted":
+        return "The newest session is over: its changes were accepted as a draft."
+    if status in {"rejected", "cancelled"}:
+        return "The newest session ended without changing the agent."
+    if status == "stale":
+        return f"The newest session can no longer be used: {item['why_stale']}"
+    if status == "waiting":
+        return f"The newest session waits at the {item['step']} stop for a go-ahead."
+    if status in {"queued", "running"}:
+        return f"The newest session is working on {item['step']}, {attempt}."
+    if status == "ready":
+        return f"The newest session has a result to decide on, after {attempt}."
+    why = item.get("why_stopped") or "A step failed."
+    return f"The newest session stopped after {attempt}: {why}"
+
+
+_ASK_LIMIT = 6
+"""The most options one ask_user_question question offers."""
+
+
+def _ask(actions: list[str]) -> dict[str, Any] | None:
+    """The ask_user_question arguments that offer exactly these actions, ready to pass on."""
+    if not actions:
+        return None
+    options = [*actions, "Not now"] if len(actions) == 1 else actions
+    return {
+        "questions": [
+            {
+                "header": "Next",
+                "question": "What would you like to do?",
+                "options": [{"label": label} for label in options[:_ASK_LIMIT]],
+            }
+        ]
+    }
+
+
+def _summary(session: dict[str, Any], item: dict[str, Any], live: int | None) -> str:
+    """How improving stands, in a few plain sentences built from the session's own facts."""
+    sentences = [
+        f"v{live} is live." if live is not None else "No version of the agent is published yet.",
+        _where(session, item, live),
+    ]
+    if not item["closed"]:
+        sentences += [_attempt_sentence(attempt) for attempt in _measured(session)]
+        chooser = _person_chose(session)
+        chosen = _chosen_number(session)
+        if chooser is not None and chosen is not None:
+            sentences.append(f"{chooser} chose attempt {chosen} to accept.")
+    blocked = _try_again_blocked(session)
+    if blocked is not None and not item["closed"]:
+        sentences.append(f"Trying again is not offered: {blocked}")
+    actions = item["next_actions"]
+    if actions:
+        price = (item.get("waiting_for") or {}).get("price") or {}
+        cost = f" {_price_sentence(price)}" if "total_usd" in price else ""
+        sentences.append("What can be done now: " + "; ".join(actions) + "." + cost)
+    return " ".join(sentences)
+
+
+def _chosen_number(session: dict[str, Any]) -> int | None:
+    chosen = session.get("best_iteration_id")
+    return next((it["number"] for it in _measured(session) if it["id"] == chosen), None)
+
+
+_RESUMABLE_STAGES = frozenset({"classifying", "drafting", "proposing", "evaluating"})
+_LAST_ATTEMPT = frozenset(
+    {"no_data", "knowledge_only", "repeat_candidate", "max_iterations", "stale"}
+)
+"""Stop reasons after which no further attempt may start, however much budget is left."""
+
+
+def _resumable(session: dict[str, Any]) -> bool:
+    """A failed step, or one stopped for its budget or lost access, can run again."""
+    status, stage, reason = session["status"], session.get("stage"), session.get("stop_reason")
+    return (
+        (status == "failed" and stage in {"proposing", "evaluating"})
+        or (status == "stopped" and reason == "budget" and stage in _RESUMABLE_STAGES)
+        or (status == "stopped" and reason == "permission")
+    )
+
+
+def _attempts_used(session: dict[str, Any]) -> int:
+    return max(
+        (
+            iteration["number"]
+            for iteration in session.get("iterations", [])
+            if iteration.get("authoring_request_id")
+            or iteration.get("eval_run_ids")
+            or iteration.get("verdict")
+        ),
+        default=0,
+    )
+
+
+def _try_again_blocked(session: dict[str, Any]) -> str | None:
+    """Why the session refuses another attempt even with attempts left, in plain words."""
+    blocked = session.get("try_again_blocked")
+    if blocked is None:
+        return None
+    if blocked["reason"] == "missing_holdout":
+        needed = blocked.get("needed") or 0
+        return (
+            f"Another attempt can't be checked: {needed} more "
+            f"{'question' if needed == 1 else 'questions'} kept aside would be needed, "
+            "and this session's questions are fixed."
+        )
+    return "Another attempt has nothing to learn from: no answer this session reads still fails."
+
+
+def _can_try_again(session: dict[str, Any]) -> bool:
+    """The wizard's rule: a measured session with attempts left, unless its stop rules it out."""
+    return (
+        _try_again_blocked(session) is None
+        and session.get("can_restart") is not False
+        and session["status"] in {"ready", "stopped"}
+        and any(iteration.get("verdict") for iteration in session.get("iterations", []))
+        and _attempts_used(session) < session["max_iterations"]
+        and session["iteration"] < session["max_iterations"]
+        and session.get("stop_reason") not in _LAST_ATTEMPT
+    )
+
+
+def _keep_actions(session: dict[str, Any]) -> list[str]:
+    """The wizard's choice between measured attempts: each one the session does not keep yet."""
+    measured = _measured(session)
+    if (
+        session["status"] not in {"ready", "stopped"}
+        or len(measured) < 2
+        or session.get("can_restart") is False
+    ):
+        return []
+    kept = session.get("best_iteration_id") if session["status"] == "ready" else None
+    return [
+        f"Keep attempt {it['number']}" + ("" if it["verdict"] == "better" else " anyway")
+        for it in measured
+        if it["id"] != kept
+    ]
+
+
+def _next_actions(session: dict[str, Any]) -> list[str]:
+    """What the wizard offers on a session right now, in its own words; none on a closed one."""
+    status = session["status"]
+    if status in _CLOSED:
+        return []
+    if status in {"queued", "running"}:
+        return ["Stop the session"]
+    actions = []
+    waiting = _waiting(session)
+    if waiting is not None:
+        actions.append(f"Next step: {waiting['next_step']}")
+    if session.get("can_restart") is not False and _resumable(session):
+        actions.append("Retry this step" if status == "failed" else "Continue this step")
+    if status == "ready":
+        chosen = _chosen_number(session)
+        actions.append(
+            "Accept the chosen attempt" if chosen is None else f"Accept attempt {chosen}"
+        )
+    actions += _keep_actions(session)
+    if _can_try_again(session):
+        attempt = _attempts_used(session) + 1
+        actions.append(f"Try again (attempt {attempt} of {session['max_iterations']})")
+    if session.get("can_discard") is not False:
+        actions.append("End the session")
+    return actions
+
+
+def _session(agent_id: UUID | str, session: dict[str, Any]) -> dict[str, Any]:
+    """A session as a listing reads it: where it stands, and what may still be done with it."""
+    return {
+        **{field: session.get(field) for field in _SESSION_FIELDS},
+        "closed": session["status"] in _CLOSED,
+        "step": _step(session),
+        "why_stopped": _WHY_STOPPED.get(session.get("stop_reason") or ""),
+        "attempt": session.get("iteration"),
+        "max_attempts": session.get("max_iterations"),
+        "can_accept": session["status"] == "ready",
+        "can_try_again": _can_try_again(session),
+        "next_actions": _next_actions(session),
+        "waiting_for": _waiting(session),
+        "outcome": _outcome(session),
+        "link": improvement_link(agent_id, session["id"]),
+    }
+
+
+def _attempt(iteration: dict[str, Any], chosen: Any) -> dict[str, Any]:
+    """One round of a session, as its verdict reads in plain numbers.
+
+    Each attempt is measured on held-out questions of its own, against the agent
+    as it is today on those same questions, so attempts compare by their change -
+    fixed less broken - and never by their pass rates, which come from
+    different questions.
+    """
+    detail = iteration.get("verdict_detail") or {}
+    fixed, broken = detail.get("fixed"), detail.get("broken")
+    return {
+        "attempt": iteration["number"],
+        "verdict": iteration.get("verdict"),
+        "fixed": fixed,
+        "broken": broken,
+        "change": fixed - broken if fixed is not None and broken is not None else None,
+        "held_out": detail.get("held_out"),
+        "details": {
+            "pass_rate_before": detail.get("baseline_pass_rate"),
+            "pass_rate_after": detail.get("candidate_pass_rate"),
+        },
+        "cost_usd": iteration.get("cost_usd"),
+        "chosen": iteration["id"] == chosen,
+        "best": iteration.get("verdict") == "better",
+    }
+
+
+_CHOOSING = frozenset({"improvement.round_selected", "improvement.selection_confirmed"})
+
+
+def _chosen_by(session: dict[str, Any]) -> str | None:
+    """Who chose the session's attempt by hand; `None` when the session's own rule did."""
+    choices = [
+        event
+        for event in session.get("timeline", [])
+        if event["action"] in _CHOOSING and event.get("actor_user_id")
+    ]
+    choice = max(choices, key=lambda event: event["at"], default=None)
+    return choice and (choice.get("actor_name") or choice["actor_user_id"])
+
+
+def _topic_state(topic: dict[str, Any], deferred: set[Any]) -> str:
+    """Where one missing-knowledge topic stands, in one word, as the knowledge gaps page shows it."""
+    if topic.get("status") in ("covered", "dismissed"):
+        return topic["status"]
+    if topic.get("drafting"):
+        return "drafting"
+    if topic.get("draft_failed"):
+        return "draft_failed"
+    if topic.get("has_draft"):
+        return "draft_stale" if topic.get("draft_stale") else "draft_ready"
+    return "deferred" if topic["id"] in deferred else "missing"
+
+
+_REASON_CHARS = 150
+
+
+def _noise(noise: dict[str, Any] | None) -> dict[str, Any] | None:
+    """How far a session's test can be trusted, its example questions cut short."""
+    if noise is None:
+        return None
+    return {
+        **noise,
+        "examples": [
+            {**example, "input": example["input"][:_INPUT_CHARS]}
+            for example in noise.get("examples", [])
+        ],
+    }
+
+
+def _judged(case: dict[str, Any], arm_id: Any) -> str | None:
+    """Why the candidate's first answer to a case was graded as it was, in brief.
+
+    Read off the API's own case listing, where a case from a conversation the
+    caller cannot open already comes without its reasons.
+    """
+    attempts = sorted(
+        (attempt for attempt in case.get("attempts", []) if attempt["arm_id"] == arm_id),
+        key=lambda attempt: attempt["attempt"],
+    )
+    score = attempts[0].get("score") if attempts else None
+    if not score:
+        return None
+    results = sorted(score.get("results", []), key=lambda result: result["scorer"] != "judge")
+    reason = next((result["reason"] for result in results if result.get("reason")), None)
+    return reason[:_REASON_CHARS] if reason else None
+
+
+def _flips(cases: list[dict[str, Any]], flip: str) -> list[dict[str, Any]]:
+    return [
+        {
+            "case_id": case["case_id"],
+            "input": case["input"][:_INPUT_CHARS],
+            "confirmed": case["confirmed"],
+        }
+        for case in cases
+        if case["flip"] == flip
+    ][:_CASES_SHOWN]
+
+
+_PAGE = 100
+"""The most sessions one request to a skill's session list returns."""
+
+
+def skill_link(skill_id: UUID | str) -> str:
+    """A skill's page: its agents and their versions, its history and its version tree."""
+    return f"/skills/{skill_id}"
+
+
+def skill_improvement_link(skill_id: UUID | str, session_id: UUID | str) -> str:
+    """Where the person follows a skill session step by step: the skill's Improve wizard."""
+    return f"/skills/{skill_id}/improve/{session_id}"
+
+
+def _uses(binding: dict[str, Any]) -> str:
+    """Which version of a skill an agent reads, as the skill page writes it."""
+    behind = binding.get("behind_main") or 0
+    lag = f" · {behind} behind main" if behind else ""
+    if binding["state"] == "fork":
+        fork = binding["fork"]
+        changes = "1 change" if fork["changes"] == 1 else f"{fork['changes']} changes"
+        return f'Fork "{fork["name"]}" · from v{fork["base_number"]} · {changes}{lag}'
+    number = binding["version"]["number"]
+    return f"v{number} · pinned{lag}" if binding["state"] == "pinned" else f"v{number} · main"
+
+
+def _skill_agent(usage: dict[str, Any], *, sees_checks: bool = True) -> dict[str, Any]:
+    """One agent of a skill: the version it reads, and whether that version was checked on it.
+
+    Without `runs:view` the API leaves out every check, so an agent's check reads
+    `not_shown` rather than `unknown`, which means the version was never checked.
+    """
+    binding = usage["binding"]
+    checked = usage.get("checked")
+    if not sees_checks:
+        state = "not_shown"
+    else:
+        state = checked["state"] if isinstance(checked, dict) else "unknown"
+    return {
+        "agent_id": usage["agent"]["id"],
+        "name": usage["agent"]["name"],
+        "uses": _uses(binding),
+        "state": binding["state"],
+        "fork_id": (binding.get("fork") or {}).get("id"),
+        "behind_main": binding.get("behind_main") or 0,
+        "checked": state,
+        "checked_on_skill_questions_only": isinstance(checked, dict)
+        and checked.get("sample") == "skill_set_only",
+        "checked_versions": [
+            {"version_id": item["version_id"], "state": item["state"]}
+            for item in usage.get("checked_versions", [])
+        ],
+        "via_specialist": usage.get("via_specialist"),
+        "other_environments": [
+            {"name": env["name"], "uses": _uses(env["binding"])}
+            for env in usage.get("environments", [])
+        ],
+        "can_change": usage.get("can_change", False),
+        "can_publish": usage.get("can_publish", False),
+    }
+
+
+def _skill_fork(fork: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "fork_id": fork["id"],
+        "name": fork["name"],
+        "from_version": fork["base"]["number"],
+        "changes": fork["changes"],
+        "behind_main": fork["behind_main"],
+        "agents": fork["agents"],
+        "archive_candidate": fork.get("archive_candidate", False),
+    }
+
+
+def _checked_agent(row: dict[str, Any]) -> dict[str, Any]:
+    """How one agent came out of a skill check, in fixed and broken questions.
+
+    `sample` says, in a quick check, whether the agent's own questions were asked
+    or only the skill's, so an agent checked on the skill's questions alone is
+    never reported as checked on its own.
+    """
+    return {
+        "name": row["agent"]["name"],
+        "state": row["state"],
+        "why_unknown": row.get("unknown_reason"),
+        "sample": row.get("sample"),
+        "fixed": row.get("fixed", 0),
+        "broken": row.get("broken", 0),
+        "broken_confirmed": row.get("regressions_confirmed", 0),
+        "held_out": row.get("held_out", 0),
+        "noisy": row.get("noisy", False),
+        "expected_usd": row.get("expected_usd"),
+        "at_most_usd": row.get("at_most_usd"),
+    }
+
+
+def _skill_check(check: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "verdict": check.get("verdict"),
+        "warnings": check.get("warnings", []),
+        "agents": [_checked_agent(row) for row in check.get("agents", [])],
+        "hidden_agents": check.get("hidden", 0),
+        "hidden_unknown": check.get("hidden_unknown", 0),
+    }
+
+
+def _names(check: dict[str, Any] | None, state: str) -> str:
+    rows = (check or {}).get("agents", [])
+    return ", ".join(row["agent"]["name"] for row in rows if row["state"] == state)
+
+
+def _may_improve_further(session: dict[str, Any]) -> bool:
+    """Whether another round is open: the result offers one and the session can restart."""
+    return (
+        "improve_further" in (session.get("outcomes") or [])
+        and bool(session.get("can_restart"))
+        and not session.get("try_again_blocked")
+    )
+
+
+def _skill_next_actions(session: dict[str, Any]) -> list[str]:
+    """What the skill wizard offers on a session right now; none on a closed one."""
+    status = session["status"]
+    if status in _CLOSED:
+        return []
+    if status in {"queued", "running"}:
+        return ["Stop the session"]
+    actions = []
+    waiting = _waiting(session)
+    if waiting is not None:
+        actions.append(f"Next step: {waiting['next_step']}")
+    if status == "failed":
+        actions.append("Retry this step")
+    if status == "stopped" and session.get("can_restart") and not session.get("try_again_blocked"):
+        actions.append(
+            f"Try again (attempt {session['iteration'] + 1} of {session['max_iterations']})"
+        )
+    may_end = session.get("can_discard") is not False
+    if status == "ready" and session.get("stale"):
+        # A merge is checked once; a line that moved since needs a new one.
+        if session.get("purpose") in {"catch_up", "to_main"}:
+            again = "catch-up" if session.get("purpose") == "catch_up" else "move to main"
+            return [f"End the session, then start the {again} again"] if may_end else []
+        return ["Check again on the line as it is now", *(["End the session"] if may_end else [])]
+    outcomes = (session.get("outcomes") or []) if status == "ready" else []
+    fork = session.get("line_name")
+    on_main = session.get("fork_id") is None or session.get("purpose") == "to_main"
+    line = "main" if on_main else f'the fork "{fork}"'
+    check = session.get("check")
+    base = (session.get("base_version") or {}).get("number")
+    if "apply" in outcomes:
+        actions.append(f"Apply to {line}")
+    if "apply_and_pin" in outcomes:
+        worse = _names(check, "worse") or "the agents it made worse"
+        actions.append(f"Apply to main and keep {worse} on v{base}")
+    if "fork_for_helped" in outcomes:
+        helped = _names(check, "better")
+        actions.append(
+            f"Make a fork for {helped}, or for the agents the person picks"
+            if helped
+            else "Make a fork for the agents the person picks, or none"
+        )
+    if "catch_up" in outcomes:
+        actions.append(f'Take the merge into the fork "{fork}"')
+    if "return_to_main" in outcomes:
+        actions.append(f'Drop the fork "{fork}" and return its agents to main')
+    if status == "ready" and _may_improve_further(session):
+        attempt = session["iteration"] + 1
+        actions.append(f"Improve further (attempt {attempt} of {session['max_iterations']})")
+    if may_end:
+        actions.append("End the session")
+    return actions
+
+
+_SKILL_VERDICTS = {
+    "passed": "No agent got worse and at least one got better, so it can be applied.",
+    "needs_ack": (
+        "No agent got worse and at least one got better, but some agents could not be "
+        "checked: the person acknowledges them before it is applied."
+    ),
+    "no_better": "No agent got better, so there is nothing to apply.",
+}
+
+_BLOCKED_CHOICES = {
+    "apply_and_pin": "apply it and keep the worse agents on their version",
+    "fork_for_helped": "make a fork for the agents the person picks",
+}
+
+
+def _blocked(session: dict[str, Any]) -> str:
+    """Why a change some agent got worse on is not applied, and only the choices left."""
+    outcomes = session.get("outcomes") or []
+    choices = [text for outcome, text in _BLOCKED_CHOICES.items() if outcome in outcomes]
+    if _may_improve_further(session):
+        choices.append("improve further")
+    if session.get("can_discard") is not False:
+        choices.append("end the session")
+    said = "An agent got worse, so it cannot simply be applied"
+    if not choices:
+        return f"{said}."
+    listed = choices[0] if len(choices) == 1 else f"{', '.join(choices[:-1])} or {choices[-1]}"
+    return f"{said}: {listed}."
+
+
+_SKILL_CLOSED = {
+    "accepted": "It was accepted.",
+    "published": "It was accepted.",
+    "rejected": "It ended without changing the skill.",
+    "cancelled": "It was stopped without changing the skill.",
+    "stale": "It is out of date: the skill line moved on before anything was decided.",
+}
+"""How a closed skill session reads, in the wizard's words rather than its stored status."""
+
+
+_CATCH_UP_VERDICTS = {
+    **_SKILL_VERDICTS,
+    "passed": "None of the fork's agents got worse, so the merge can be taken in.",
+    "no_better": "None of the fork's agents got worse, so the merge can be taken in.",
+    "blocked": "Some of the fork's agents got worse, so the merge cannot be taken in.",
+}
+"""A catch-up is taken in when nobody got worse, whether or not anybody got better."""
+
+_MAIN_ALONE = {
+    (
+        "checked",
+        True,
+    ): "Main alone made none of the fork's agents worse, so the fork can be dropped.",
+    ("checked", False): "Main alone made some of the fork's agents worse, so the fork stays.",
+    ("off", False): "Main alone was not checked, so dropping the fork is not offered.",
+}
+"""What a catch-up's check of main's newest version alone said, by `main_alone` and whether
+the result offers returning the fork's agents to main."""
+
+
+def _returned(returned: dict[str, Any]) -> dict[str, Any]:
+    """What returning a fork's agents to main did, agent by agent."""
+    rows = returned["agents"]
+    return {
+        "moved": [
+            {"name": row["agent"]["name"], "published": row["published"]}
+            for row in rows
+            if not row.get("refused")
+        ],
+        "refused": [
+            {"name": row["agent"]["name"], "why": row["refused"]}
+            for row in rows
+            if row.get("refused")
+        ],
+        "hidden_agents": returned["hidden"],
+        "still_on_fork": returned["remaining"],
+        "archived": returned["archived"],
+    }
+
+
+def _behind(item: dict[str, Any]) -> dict[str, Any]:
+    """A pinned agent or a fork that main has moved past, and how it catches up."""
+    main = item["main_latest"]["number"]
+    pinned = item["kind"] == "pinned"
+    name = item["agent"]["name"] if pinned else item["fork"]["name"]
+    return {
+        "skill_id": item["skill"]["id"],
+        "skill": item["skill"]["name"],
+        "kind": item["kind"],
+        "agent_id": item["agent"]["id"] if pinned else None,
+        "fork_id": None if pinned else item["fork"]["id"],
+        "name": name,
+        "on_version": item["version"]["number"],
+        "main_version": main,
+        "behind_main": item["behind_main"],
+        "agents": item["agents"],
+        "can_act": item["can_act"],
+        "via_specialist": item.get("via_specialist"),
+        "catch_up": _catch_up_label(item, name, main),
+        "link": skill_link(item["skill"]["id"]),
+    }
+
+
+def _catch_up_label(item: dict[str, Any], name: str, main: int) -> str:
+    if item["kind"] == "fork":
+        if not item["fork"]["changes"]:
+            return f'Return the fork "{name}"\'s agents to main: it has no changes of its own'
+        return f'Catch the fork "{name}" up'
+    if item.get("via_specialist"):
+        return (
+            f"Its specialist {item['via_specialist']} pins the skill, so update it to v{main} "
+            f"in {name}'s Builder"
+        )
+    return f"Update {name} to v{main}"
+
+
+def _skill_summary(session: dict[str, Any]) -> str:
+    """How improving a skill stands, in plain sentences built from the session's own facts."""
+    line = session.get("line_name") or "main"
+    base = (session.get("base_version") or {}).get("number")
+    sentences = [
+        {
+            "catch_up": f'Catching the fork "{line}" up with main, from v{base}.',
+            "to_main": f"Moving a fork's changes to main, from v{base}.",
+        }.get(session.get("purpose") or "", f"Improving the {line} line, started from v{base}.")
+    ]
+    waiting = _waiting(session)
+    if waiting is not None:
+        sentences.append(
+            f"It stopped after {waiting['after']}; next it will {waiting['next_step']}."
+        )
+    elif session["status"] in {"queued", "running"}:
+        sentences.append(f"It is working on {_step(session)}.")
+    elif session["status"] in _CLOSED:
+        sentences.append(_SKILL_CLOSED[session["status"]])
+    elif session["status"] == "failed":
+        error = session.get("error")
+        sentences.append(f"A step failed: {error}" if error else "A step failed.")
+    elif reason := _WHY_STOPPED.get(session.get("stop_reason") or ""):
+        sentences.append(reason)
+    if session.get("stale") and session["status"] not in _CLOSED:
+        sentences.append(
+            "The skill line moved on since this merge was read, so it has to be started again."
+            if session.get("purpose") in {"catch_up", "to_main"}
+            else "The skill line moved on since this session read it, so its next check "
+            "measures the changes on the line as it is now."
+        )
+        if session.get("can_discard") is False:
+            sentences.append(
+                "Only whoever started the session, or an organization admin, can end it."
+            )
+    check = session.get("check")
+    if check and session["status"] == "ready":
+        results = [
+            f"{row['name']} {row['state']}"
+            + (f" ({row['why_unknown']})" if row["why_unknown"] else "")
+            for row in _skill_check(check)["agents"]
+        ]
+        sentences.append("The check: " + ", ".join(results) + ".")
+        if check.get("hidden"):
+            sentences.append(f"{check['hidden']} more agents use it that you cannot see.")
+        catching_up = session.get("purpose") == "catch_up"
+        verdict = (
+            _blocked(session)
+            if check.get("verdict") == "blocked" and not catching_up
+            else (_CATCH_UP_VERDICTS if catching_up else _SKILL_VERDICTS).get(
+                check.get("verdict") or ""
+            )
+        )
+        if verdict and not session.get("stale"):
+            sentences.append(verdict)
+        if "within_noise" in check.get("warnings", []):
+            sentences.append("Some results are within noise: a warning, not a block.")
+        main_alone = _MAIN_ALONE.get(
+            (session.get("main_alone") or "", "return_to_main" in session.get("outcomes", []))
+        )
+        if main_alone and not session.get("stale"):
+            sentences.append(main_alone)
+    return " ".join(sentences)
+
+
+def _skill_session(skill_id: UUID | str, session: dict[str, Any]) -> dict[str, Any]:
+    """A skill session as the Architect reads it: where it stands and what may be done."""
+    check = session.get("check")
+    actions = _skill_next_actions(session)
+    return {
+        "id": session["id"],
+        "purpose": session.get("purpose") or "improve",
+        "status": session["status"],
+        "stage": session.get("stage"),
+        "line": session.get("line_name") or "main",
+        "fork_id": session.get("fork_id"),
+        "started_from_version": (session.get("base_version") or {}).get("number"),
+        "attempt": session.get("iteration"),
+        "max_attempts": session.get("max_iterations"),
+        "spent_usd": session.get("spent_usd"),
+        "budget_usd": session.get("budget_usd"),
+        "expires_at": session.get("expires_at"),
+        "created_at": session.get("created_at"),
+        "closed": session["status"] in _CLOSED,
+        "stale": session.get("stale", False),
+        "waiting_for": _waiting(session),
+        "check": _skill_check(check) if check else None,
+        "main_alone_check": _skill_check(session["main_alone_check"])
+        if session.get("main_alone_check")
+        else None,
+        "outcome": session.get("outcome"),
+        "applied_version_id": session.get("applied_version_id"),
+        "summary": _skill_summary(session),
+        "next_actions": actions,
+        "ask": _ask(actions),
+        "link": skill_improvement_link(skill_id, session["id"]),
+    }
 
 
 def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
@@ -181,7 +1233,12 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         )
 
     async def list_agents(limit: int = 50, skip: int = 0) -> dict[str, Any]:
-        """The agents this caller can see. Needs `agents:view`."""
+        """List agents this caller can see, with names and ids. Needs `agents:view`.
+
+        Find a named agent here, then call get_agent for its matching id. Do not
+        infer agent ids from run history or fetch every agent's full spec.
+        Results are paginated metadata; use limit/skip to continue.
+        """
         return await api.request("GET", "/agents", params={"limit": limit, "skip": skip})
 
     async def get_agent(agent_id: UUID) -> dict[str, Any]:
@@ -384,32 +1441,196 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         return await api.request("GET", "/spend", params={"days": days})
 
     async def list_runs(
-        agent_id: UUID | None = None, limit: int = 20, skip: int = 0
-    ) -> dict[str, Any]:
-        """Recent runs, newest first, with status, tokens and cost. Needs `runs:view`."""
-        params: dict[str, Any] = {"limit": limit, "skip": skip}
+        agent_id: UUID | None = None,
+        limit: int = 20,
+        skip: int = 0,
+        status: str | None = None,
+        surface: RunSurface | None = None,
+        started_from: AwareDatetime | None = None,
+        started_to: AwareDatetime | None = None,
+        agent_version_id: UUID | None = None,
+    ) -> dict[str, JsonValue]:
+        """Recent runs, newest first, with status, tokens and cost. Needs `runs:view`.
+
+        Filter failures with status (comma-separated API statuses), channel with
+        surface, frozen spec with agent_version_id, and dates with timezone-aware
+        started_from/started_to. Historical failures do not establish that the
+        currently published version still fails. Use get_run for the recorded error.
+        """
+        params: dict[str, str | int] = {"limit": limit, "skip": skip}
         if agent_id is not None:
             params["agent_id"] = str(agent_id)
-        return await api.request("GET", "/runs", params=params)
+        if status is not None:
+            params["status"] = status
+        if surface is not None:
+            params["surface"] = surface.value
+        if agent_version_id is not None:
+            params["agent_version_id"] = str(agent_version_id)
+        for key, instant in (("started_from", started_from), ("started_to", started_to)):
+            if instant is not None:
+                params[key] = instant.isoformat()
+        return _JSON_OBJECT.validate_python(await api.request("GET", "/runs", params=params))
 
     async def get_run(run_id: UUID) -> dict[str, Any]:
-        """One run: status, the error a failed one stopped on, tokens and cost. Needs `runs:view`."""
+        """One run: status, recorded error, tokens and cost. Needs `runs:view`.
+
+        Read its turns with read_run_transcript, including channel runs or a
+        colleague's run when the existing runs:view permission permits it.
+        read_conversation instead belongs to the asker's own chats. When
+        initiated_by_publisher_fallback is true, user_id names the publisher's
+        authority, not the sender. asked_in_chat names the unverified chat account.
+        """
         return await api.request("GET", f"/runs/{run_id}")
 
-    async def read_conversation(
-        conversation_id: UUID, limit: int = 100, skip: int = 0
-    ) -> dict[str, Any]:
-        """One of the asker's own conversations, turn by turn. Needs `runs:view`.
+    async def read_run_transcript(
+        run_id: UUID,
+        limit: DiscoveryLimit = 10,
+        skip: DiscoverySkip = 0,
+        content_offset: DiscoverySkip = 0,
+        content_chars: TranscriptChars = 2000,
+        tool_skip: DiscoverySkip = 0,
+    ) -> dict[str, JsonValue]:
+        """Read a run's turns in bounded windows. Needs existing `runs:view` access.
 
-        What was asked and answered, oldest first, with the tools each turn called
-        and what they returned - for making a skill of how something was done, or
-        picking up where a conversation left off. Another member's conversation is
-        not found. Guardrail-refused turns and quoted reply excerpts are omitted.
+        Works for authorized channel/colleague runs without widening access to
+        private chats. Refused turns and quoted replies are omitted. Message
+        indexes refer to this filtered transcript. For a long message, repeat
+        with its message_index as skip, limit=1 and next_offset as content_offset.
+        Tool calls are metadata only, 20 per message; follow next_tool_skip.
+        Use read_run_tool_call for a selected call's arguments or result.
         """
-        return await api.request(
-            "GET",
-            f"/conversations/{conversation_id}/transcript",
-            params={"limit": limit, "skip": skip, "for_model": True},
+        listing = _JSON_OBJECT.validate_python(
+            await api.request(
+                "GET",
+                f"/runs/{run_id}/transcript",
+                params={"limit": limit, "skip": skip, "scope": "run", "for_model": True},
+            )
+        )
+        return _bounded_mcp_discovery(
+            {
+                "run_id": str(run_id),
+                "conversation_id": listing.get("conversation_id"),
+                **_transcript_page(
+                    listing,
+                    skip=skip,
+                    limit=limit,
+                    content_offset=content_offset,
+                    content_chars=content_chars,
+                    tool_skip=tool_skip,
+                ),
+            }
+        )
+
+    async def read_run_tool_call(
+        run_id: UUID,
+        message_index: DiscoverySkip,
+        message_id: UUID,
+        tool_call_id: str,
+        field: Literal["args", "result"] = "result",
+        offset: DiscoverySkip = 0,
+        chars: TranscriptChars = 4000,
+    ) -> dict[str, JsonValue]:
+        """A bounded window of one recorded tool call. Needs existing `runs:view` access.
+
+        Select the message index, id and call id from read_run_transcript. Only
+        args or result is read, never every call's payload. Follow next_offset
+        until null; unavailable results stay null. Arguments are JSON text.
+        A changed filtered page is refused so it cannot read the wrong message.
+        """
+        listing = _JSON_OBJECT.validate_python(
+            await api.request(
+                "GET",
+                f"/runs/{run_id}/transcript",
+                params={"limit": 1, "skip": message_index, "scope": "run", "for_model": True},
+            )
+        )
+        return _bounded_mcp_discovery(
+            {
+                "run_id": str(run_id),
+                **_recorded_tool_window(
+                    listing,
+                    message_id=message_id,
+                    tool_call_id=tool_call_id,
+                    field=field,
+                    offset=offset,
+                    chars=chars,
+                ),
+            }
+        )
+
+    async def read_conversation(
+        conversation_id: UUID,
+        limit: DiscoveryLimit = 10,
+        skip: DiscoverySkip = 0,
+        content_offset: DiscoverySkip = 0,
+        content_chars: TranscriptChars = 2000,
+        tool_skip: DiscoverySkip = 0,
+    ) -> dict[str, JsonValue]:
+        """The asker's own chat, with bounded text windows and tool metadata. Needs `runs:view`.
+
+        Another member's conversation is not found. Refused turns and quoted reply
+        excerpts are omitted. Follow next_skip; continue a long message with
+        limit=1, its message_index as skip and next_offset as content_offset.
+        Tool metadata has 20 calls per message; follow next_tool_skip.
+        Read one payload with read_conversation_tool_call, not the whole history.
+        """
+        listing = _JSON_OBJECT.validate_python(
+            await api.request(
+                "GET",
+                f"/conversations/{conversation_id}/transcript",
+                params={"limit": limit, "skip": skip, "for_model": True},
+            )
+        )
+        return _bounded_mcp_discovery(
+            {
+                "conversation_id": str(conversation_id),
+                "cost": listing.get("cost"),
+                **_transcript_page(
+                    listing,
+                    skip=skip,
+                    limit=limit,
+                    content_offset=content_offset,
+                    content_chars=content_chars,
+                    tool_skip=tool_skip,
+                ),
+            }
+        )
+
+    async def read_conversation_tool_call(
+        conversation_id: UUID,
+        message_index: DiscoverySkip,
+        message_id: UUID,
+        tool_call_id: str,
+        field: Literal["args", "result"] = "result",
+        offset: DiscoverySkip = 0,
+        chars: TranscriptChars = 4000,
+    ) -> dict[str, JsonValue]:
+        """Read a bounded window of one tool payload in the asker's own chat. Needs `runs:view`.
+
+        Select message_index, message_id and tool_call_id from read_conversation.
+        Follow next_offset; result=null means it was not recorded. Arguments are
+        JSON text. The message id must still match the filtered page. This also
+        works for old messages without a run id, without widening chat access.
+        """
+        listing = _JSON_OBJECT.validate_python(
+            await api.request(
+                "GET",
+                f"/conversations/{conversation_id}/transcript",
+                params={"limit": 1, "skip": message_index, "for_model": True},
+            )
+        )
+        return _bounded_mcp_discovery(
+            {
+                "conversation_id": str(conversation_id),
+                **_recorded_tool_window(
+                    listing,
+                    message_id=message_id,
+                    tool_call_id=tool_call_id,
+                    field=field,
+                    offset=offset,
+                    chars=chars,
+                ),
+            }
         )
 
     async def test_my_connection(connection_id: UUID) -> dict[str, Any]:
@@ -577,13 +1798,62 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             json={"collection_name": collection_name, "query": query, "limit": limit},
         )
 
-    async def list_capabilities() -> dict[str, Any]:
-        """Everything an agent can be given - each capability's id, what it does and its tools.
+    async def list_capabilities(
+        q: str | None = None, limit: DiscoveryLimit = 20, skip: DiscoverySkip = 0
+    ) -> dict[str, JsonValue]:
+        """Discover capability summaries without every configuration and tool schema.
 
-        Includes `config_schema`, defaults and requirements for configuring bindings
-        in `create_agent_draft` or `update_agent_draft`. Needs `agents:view`.
+        Needs `agents:view`. Search ids, names or descriptions and follow next_skip.
+        Before configuring a binding, read get_capability for its current schema,
+        defaults, requirements and full tool contracts.
         """
-        return await api.request("GET", "/agents/capabilities")
+        listing = _JSON_OBJECT.validate_python(await api.request("GET", "/agents/capabilities"))
+        items = _JSON_ITEMS.validate_python(listing["items"])
+        if q is not None:
+            items = [
+                item
+                for item in items
+                if q.casefold()
+                in f"{item.get('id', '')} {item.get('name', '')} {item.get('description', '')}".casefold()
+            ]
+        return _bounded_mcp_discovery(
+            _discovery_page(
+                [
+                    {
+                        key: value
+                        for key, value in item.items()
+                        if key
+                        in {
+                            "id",
+                            "name",
+                            "category",
+                            "description",
+                            "side_effecting",
+                            "read_only",
+                            "scopes",
+                            "voice",
+                            "requires_secret",
+                        }
+                    }
+                    for item in items
+                ],
+                limit,
+                skip,
+            )
+        )
+
+    async def get_capability(capability_id: str) -> dict[str, JsonValue]:
+        """One capability's full configuration schema and tool contracts. Needs `agents:view`.
+
+        Read before configuring this capability. Use returned ids and schemas;
+        do not invent configuration keys or tool names from a summary.
+        """
+        listing = _JSON_OBJECT.validate_python(await api.request("GET", "/agents/capabilities"))
+        items = _JSON_ITEMS.validate_python(listing["items"])
+        item = next((item for item in items if item["id"] == capability_id), None)
+        if item is None:
+            raise ToolError("Capability not found in this deployment's catalog")
+        return _bounded_mcp_discovery(item)
 
     async def list_models() -> dict[str, Any]:
         """The models this organization runs agents on: each one's id, label and provider.
@@ -1014,33 +2284,141 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         """
         return await api.request("GET", f"/sandbox-connections/{connection_id}/policy")
 
-    async def list_org_connections() -> dict[str, Any]:
-        """Organization MCP connections and their tools. Needs `mcp:manage`.
+    async def _connection_items(account: ConnectionAccount) -> list[dict[str, JsonValue]]:
+        path = "/mcp-connections" if account == "organization" else "/me/mcp-connections"
+        listing = _JSON_OBJECT.validate_python(await api.request("GET", path))
+        return _JSON_ITEMS.validate_python(listing["items"])
 
-        Returns the organization's listing without credentials. Use a connection's
-        id in an `account: organization` MCP binding; personal services instead
-        use `account: personal` and a catalog key from `search_mcp_servers`.
+    async def _connection(account: ConnectionAccount, connection_id: UUID) -> dict[str, JsonValue]:
+        items = await _connection_items(account)
+        for item in items:
+            if item["id"] == str(connection_id):
+                return item
+        raise ToolError("MCP connection not found in this caller's accessible connections")
+
+    async def list_org_connections(
+        q: str | None = None, limit: DiscoveryLimit = 20, skip: DiscoverySkip = 0
+    ) -> dict[str, JsonValue]:
+        """Organization MCP connection metadata, without tool schemas. Needs `mcp:manage`.
+
+        Filter by name/label and follow next_skip. tool_count is null before
+        discovery, zero only for a recorded empty catalog. Inspect selected tools
+        with list_mcp_connection_tools and get_mcp_connection_tool. Bind an id with
+        `account: organization`; personal bindings use a catalog key instead.
         """
-        return await api.request("GET", "/mcp-connections")
+        items = await _connection_items("organization")
+        if q is not None:
+            items = [
+                item
+                for item in items
+                if q.casefold() in f"{item.get('name', '')} {item.get('label') or ''}".casefold()
+            ]
+        return _bounded_mcp_discovery(
+            _discovery_page([_connection_summary(item) for item in items], limit, skip)
+        )
 
-    async def list_my_connections(include_tools: bool = False) -> dict[str, Any]:
-        """The services the person asking has connected with their own account.
+    async def list_my_connections(
+        include_tools: bool = False,
+        q: str | None = None,
+        limit: DiscoveryLimit = 20,
+        skip: DiscoverySkip = 0,
+    ) -> dict[str, JsonValue]:
+        """The asker's connected services, paged without tool schemas by default.
 
-        Read it before suggesting a connection, so you never offer what they
-        already have. Tokens are never in it. Each connection's tools are left
-        out unless `include_tools` is true - whether a service is connected
-        needs its name, not the forty tools it offers.
+        Filter by name/label and follow next_skip. Tokens are never returned.
+        Legacy include_tools is allowed only within a 64 KiB response budget;
+        prefer list_mcp_connection_tools(account="personal") for selected details.
         """
-        listing = await api.request("GET", "/me/mcp-connections")
-        if include_tools:
-            return listing
-        return {
-            **listing,
-            "items": [
-                {field: value for field, value in item.items() if field not in _TOOL_FIELDS}
-                for item in listing["items"]
-            ],
-        }
+        items = await _connection_items("personal")
+        if q is not None:
+            items = [
+                item
+                for item in items
+                if q.casefold() in f"{item.get('name', '')} {item.get('label') or ''}".casefold()
+            ]
+        return _bounded_mcp_discovery(
+            _discovery_page(
+                items if include_tools else [_connection_summary(item) for item in items],
+                limit,
+                skip,
+            )
+        )
+
+    async def list_mcp_connection_tools(
+        connection_id: UUID,
+        account: ConnectionAccount = "organization",
+        q: str | None = None,
+        limit: DiscoveryLimit = 20,
+        skip: DiscoverySkip = 0,
+    ) -> dict[str, JsonValue]:
+        """Find cached tools on one accessible MCP connection, without argument schemas.
+
+        Organization reads need `mcp:manage`; personal reads belong to the asker.
+        Search names/descriptions, then get_mcp_connection_tool for a full contract.
+        This reads the last recorded catalog, not live health. Check last_checked_at
+        and tools_cached; missing read-only declarations remain unknown.
+        """
+        connection = await _connection(account, connection_id)
+        cached = connection.get("last_tools")
+        tools = _JSON_ITEMS.validate_python(cached) if cached is not None else []
+        if q is not None:
+            tools = [
+                tool
+                for tool in tools
+                if q.casefold()
+                in f"{tool.get('name', '')} {tool.get('description', '')}".casefold()
+            ]
+        allowed = connection.get("allowed_tools")
+        page = _discovery_page(tools, limit, skip)
+        page["items"] = [
+            {
+                "name": tool["name"],
+                "description": str(tool.get("description") or "")[:500],
+                "description_truncated": len(str(tool.get("description") or "")) > 500,
+                "read_only_hint": tool.get("read_only_hint"),
+                "read_only": tool.get("read_only", False),
+                "allowed": allowed is None
+                or (isinstance(allowed, list) and tool["name"] in allowed),
+            }
+            for tool in tools[skip : skip + limit]
+        ]
+        page.update(
+            {
+                "connection_id": str(connection_id),
+                "account": account,
+                "tools_cached": cached is not None,
+                "last_checked_at": connection.get("last_checked_at"),
+            }
+        )
+        return _bounded_mcp_discovery(page)
+
+    async def get_mcp_connection_tool(
+        connection_id: UUID, tool_name: str, account: ConnectionAccount = "organization"
+    ) -> dict[str, JsonValue]:
+        """One cached MCP tool's description, input schema and declared read-only hint.
+
+        Same permissions as list_mcp_connection_tools. A null input_schema means
+        it was not retained, not that the tool has no arguments. This neither
+        executes the tool nor probes the remote server.
+        """
+        connection = await _connection(account, connection_id)
+        cached = connection.get("last_tools")
+        if cached is None:
+            raise ToolError("No cached tool catalog; test this connection in the console first")
+        tools = _JSON_ITEMS.validate_python(cached)
+        tool = next((item for item in tools if item["name"] == tool_name), None)
+        if tool is None:
+            raise ToolError("Tool not found in this connection's cached catalog")
+        allowed = connection.get("allowed_tools")
+        return _bounded_mcp_discovery(
+            {
+                "connection_id": str(connection_id),
+                "account": account,
+                "last_checked_at": connection.get("last_checked_at"),
+                "allowed": allowed is None or (isinstance(allowed, list) and tool_name in allowed),
+                "tool": tool,
+            }
+        )
 
     async def set_my_language(locale: ConsoleLocale) -> dict[str, Any]:
         """Switch the console's language for the person asking, using a supported locale from the input schema.
@@ -1068,17 +2446,44 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         }
         return await api.request("PATCH", "/users/me/agent-context", json=changes)
 
-    async def list_skills(limit: int = 50, skip: int = 0) -> dict[str, Any]:
-        """The skills this caller can see. Needs `skills:view`."""
-        return await api.request("GET", "/skills", params={"limit": limit, "skip": skip})
+    async def list_skills(
+        limit: DiscoveryLimit = 20,
+        skip: DiscoverySkip = 0,
+        q: str | None = None,
+        include_usage: bool = False,
+    ) -> dict[str, JsonValue]:
+        """Find accessible skills by name/description without loading body excerpts.
 
-    async def get_skill(skill_id: UUID) -> dict[str, Any]:
-        """Read an accessible skill body and its resource listing before editing or binding.
-
-        Needs access to that skill. Returns its content, version and resource metadata;
-        a skill does not grant tools or permission to execute its example scripts.
+        Needs `skills:view`. Read get_skill for one body. include_usage adds the
+        agents using these skills; otherwise only their counts are included.
+        Follow next_skip. The public API applies search before pagination.
         """
-        return await api.request("GET", f"/skills/{skill_id}")
+        params: dict[str, str | int] = {"limit": limit, "skip": skip}
+        if q is not None:
+            params["q"] = q
+        listing = _JSON_OBJECT.validate_python(await api.request("GET", "/skills", params=params))
+        items = _JSON_ITEMS.validate_python(listing["items"])
+        summaries: list[JsonValue] = []
+        for item in items:
+            summary = {
+                key: value
+                for key, value in item.items()
+                if key != "excerpt" and (include_usage or key not in {"used_by", "drafted_by"})
+            }
+            for key in ("used_by", "drafted_by"):
+                usage = item.get(key)
+                summary[f"{key}_count"] = len(usage) if isinstance(usage, list) else None
+            summaries.append(summary)
+        total = listing["total"]
+        return _bounded_mcp_discovery(
+            {
+                "items": summaries,
+                "total": total,
+                "next_skip": skip + limit
+                if isinstance(total, int) and skip + limit < total
+                else None,
+            }
+        )
 
     async def update_skill(skill_id: UUID, changes: SkillUpdate) -> dict[str, Any]:
         """Edit an accessible skill, retaining omitted fields. Needs `skills:edit` on it.
@@ -1163,6 +2568,1149 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             "/skills",
             json={"name": name, "description": description, "content": content},
         )
+
+    async def _versions(agent_id: UUID | str) -> tuple[int | None, dict[str, int]]:
+        """The agent's live version number, and each recent version's number by its id."""
+        agent = await api.request("GET", f"/agents/{agent_id}")
+        page = await api.request("GET", f"/agents/{agent_id}/versions", params={"limit": 100})
+        numbers = {version["id"]: version["version"] for version in page["items"]}
+        live = agent.get("current_version_id")
+        if live is None:
+            return None, numbers
+        if live not in numbers:
+            numbers[live] = (await api.request("GET", f"/agents/{agent_id}/versions/{live}"))[
+                "version"
+            ]
+        return numbers[live], numbers
+
+    def _history(
+        session: dict[str, Any], live: int | None, numbers: dict[str, int]
+    ) -> dict[str, Any]:
+        started_from = numbers.get(session.get("base_version_id") or "")
+        return {
+            "started_from_version": started_from,
+            "why_stale": _why_stale(session, started_from=started_from, live=live),
+        }
+
+    async def _agent_sessions(agent_id: UUID | str, *, history: bool = True) -> dict[str, Any]:
+        sessions = await api.request("GET", f"/agents/{agent_id}/improvements")
+        live, numbers = await _versions(agent_id)
+        ordered = sorted(sessions, key=lambda session: session["created_at"], reverse=True)
+        items: list[dict[str, Any]] = [
+            {**_session(agent_id, session), **_history(session, live, numbers), "newest": False}
+            for session in ordered
+        ]
+        items[1:] = [
+            {field: item[field] for field in _EARLIER_FIELDS if field in item} for item in items[1:]
+        ]
+        if items:
+            newest = items[0]
+            newest.update(newest=True, live_version=live)
+            if newest["waiting_for"] is not None:
+                newest["waiting_for"] = {
+                    **newest["waiting_for"],
+                    "price": await _next_step_price(agent_id, ordered[0]),
+                }
+            newest["summary"] = _summary(ordered[0], newest, live)
+            newest["ask"] = _ask(newest["next_actions"])
+        if history:
+            return {"current_published_version": live, "items": items}
+        return {
+            "current_published_version": live,
+            "items": items[:1],
+            "earlier_sessions": len(items[1:]),
+        }
+
+    async def _open_sessions() -> dict[str, Any]:
+        """Every open session on the agents the caller can read, newest first."""
+        listed = await api.request("GET", "/improvements", params={"open": "true"})
+        names = {session["agent_id"]: session["agent_name"] for session in listed}
+        found: list[dict[str, Any]] = []
+        for agent_id, name in names.items():
+            agent = await _agent_sessions(agent_id)
+            found.extend(
+                {
+                    **item,
+                    "agent_id": agent_id,
+                    "agent_name": name,
+                    "live_version": agent["current_published_version"],
+                }
+                for item in agent["items"]
+                if not item["closed"]
+            )
+        found.sort(key=lambda item: item["created_at"], reverse=True)
+        return {"open_sessions": found}
+
+    async def _agent_named(name: str) -> _NamedAgent:
+        """The one agent called `name`, ignoring case, or a refusal naming the candidates."""
+        agents: list[_NamedAgent] = []
+        skip = 0
+        while True:
+            params = {"limit": 100, **({"skip": skip} if skip else {})}
+            listing = _JSON_OBJECT.validate_python(
+                await api.request("GET", "/agents", params=params)
+            )
+            batch = _NAMED_AGENTS.validate_python(listing["items"])
+            agents.extend(batch)
+            if len(batch) < 100:
+                break
+            skip += len(batch)
+        wanted = name.strip().casefold()
+        exact = [agent for agent in agents if agent.name.casefold() == wanted]
+        matches = exact or [agent for agent in agents if wanted in agent.name.casefold()]
+        if len(matches) == 1:
+            return matches[0]
+        if matches:
+            raise ToolError(
+                f"Several agents match {name!r}: "
+                + ", ".join(f"{agent.name} ({agent.id})" for agent in matches[:20])
+                + ". Ask the person which one, then call again with its agent_id."
+            )
+        raise ToolError(
+            f"No agent is named {name!r}. This is not an empty result: call list_agents, "
+            "find the agent the person means, and call again with its agent_id."
+        )
+
+    async def list_improvements(
+        agent_id: UUID | None = None, agent_name: str | None = None, history: bool = False
+    ) -> dict[str, Any]:
+        """Improve sessions, newest first. Needs access to the agent, and `runs:view` without one.
+
+        Without `agent_id` or `agent_name`, it lists every open session on the
+        agents the caller can read, each with its `agent_name` - start there when
+        you have no agent id from a tool result; never make one up. `agent_name`
+        matches an agent's name, ignoring case; several matches are refused with
+        the candidates.
+        The newest session carries `summary`: how improving stands, in plain
+        sentences - start a reply from it and keep every fact in it.
+        Name where a session is by its `step` - Understand, Changes, Check,
+        Result or Accept, as the wizard does - and why it stopped by
+        `why_stopped`; `status`, `stage` and `stop_reason` are internal names a
+        person never reads.
+        For one agent, `current_published_version` is the version live now; a
+        session's `outcome.published_version` is only what it published then. The
+        first item is `newest` - the one to describe when asked how improving
+        stands - and carries `live_version`, while it waits the next step's
+        `price` (`expected_usd` most likely, `total_usd` at most), and its
+        `next_actions`: what the wizard offers on it now, in its words, empty
+        once it is closed; `can_try_again` says whether another attempt may
+        start, at `attempt` of `max_attempts`. It has its status, the step it is
+        on, why it stopped and what it spent, the version it
+        `started_from_version`, and `link` - the Improve wizard, where the person
+        follows it. It also carries `ask`: the ask_user_question arguments that
+        offer exactly its `next_actions` - pass them as they are. Only the newest
+        session is listed, with a count of `earlier_sessions`; pass
+        `history=true` only when the person asks about earlier sessions, which
+        are then records - status, `outcome`, `why_stale` and `link`. Read one
+        with get_improvement.
+        """
+        if agent_id is not None:
+            return await _agent_sessions(agent_id, history=history)
+        if agent_name is None:
+            return await _open_sessions()
+        agent = await _agent_named(agent_name)
+        return {
+            "agent_id": str(agent.id),
+            "agent_name": agent.name,
+            **await _agent_sessions(agent.id, history=history),
+        }
+
+    async def _next_step_price(agent_id: UUID | str, session: dict[str, Any]) -> dict[str, Any]:
+        """The next step's quote within the session's limit, or why it cannot be quoted."""
+        try:
+            quote = await api.request(
+                "POST",
+                f"/agents/{agent_id}/improvements/{session['id']}/continue/estimate",
+                json={"budget_usd": str(session["budget_usd"])},
+            )
+        except ToolError as refused:
+            return {"unavailable": _plain(str(refused))}
+        return {
+            field: quote[field]
+            for field in ("total_usd", "expected_usd", "budget_usd", "affordable", "candidate_hash")
+        }
+
+    async def get_improvement(session_id: UUID) -> dict[str, Any]:
+        """One Improve session by its id: its attempts and verdicts, and what is missing from knowledge.
+
+        `summary` says how the session stands in plain sentences - start a reply
+        from it and keep every fact in it, a warning above all - and `ask` holds
+        the ask_user_question arguments offering its `next_actions`.
+        `current_published_version` is the agent's live version; call the
+        session's published version live only when the two are equal, and a
+        stale session says `why_stale`.
+        Needs access to its agent, whose `agent_id` the answer carries; the
+        knowledge topics and `measurement_noise` also need `runs:view`. When
+        `measurement_noise.noisy` is true, the test cannot tell a better version
+        from a worse one. A session `waiting_for` the person says which step it
+        stopped after, what the next one runs and its `price` within the
+        session's limit - pass its `total_usd` and `candidate_hash` to
+        run_next_improvement_step, or, when it is not `affordable`, quote a
+        higher limit with estimate_next_improvement_step. `found` counts what
+        Understand found: problems in the agent, knowledge missing, knowledge
+        added since, and what was not a problem.
+        Each attempt has its verdict, the questions it fixed and broke (confirmed
+        on a rerun) and its `change` - fixed less broken - on `held_out`
+        questions of its own; compare attempts by that, not by the pass rates in
+        their `details`, which come from different questions. Each has its cost.
+        `chosen` marks the attempt the session keeps - picked by `chosen_by`, or
+        by the session itself when that is empty - and `best` only an attempt
+        whose verdict is better; a chosen attempt need not be one. Each knowledge
+        topic has its `state`: missing, deferred, drafting, draft_failed,
+        draft_ready, draft_stale, covered or dismissed. Only a session with
+        `can_accept` can be accepted; a `closed` one is a record, and its
+        `outcome` says what was decided. Point the person at `link` rather than
+        retelling the wizard's screens.
+        """
+        session = await api.request("GET", f"/improvements/{session_id}")
+        agent_id = session["agent_id"]
+        chosen = session.get("best_iteration_id")
+        live, numbers = await _versions(agent_id)
+        result: dict[str, Any] = {
+            "agent_id": agent_id,
+            "current_published_version": live,
+            **_session(agent_id, session),
+            **_history(session, live, numbers),
+            "attempts": [_attempt(iteration, chosen) for iteration in session["iterations"]],
+            "chosen_by": _chosen_by(session),
+            "can_discard": session.get("can_discard"),
+            "can_restart": session.get("can_restart"),
+            "measurement_noise": _noise(session.get("measurement_noise")),
+        }
+        if result["waiting_for"] is not None:
+            result["waiting_for"] = {
+                **result["waiting_for"],
+                "price": await _next_step_price(agent_id, session),
+            }
+        result["summary"] = _summary(session, result, live)
+        result["ask"] = _ask(result["next_actions"])
+        me = await api.request("GET", "/me/permissions")
+        if not any(entry["permission"] == "runs:view" for entry in me.get("permissions", [])):
+            return result
+        evidence = await api.request(
+            "GET", f"/agents/{agent_id}/improvements/{session_id}/evidence"
+        )
+        result["found"] = _found(evidence["items"])
+        topic_ids = {item["topic_id"] for item in evidence["items"] if item.get("topic_id")}
+        deferred = set(session.get("deferred_topic_ids") or [])
+        topics = await api.request(
+            "GET", f"/knowledge-gaps/agents/{agent_id}", params={"limit": 100}
+        )
+        result["missing_knowledge"] = [
+            {
+                "topic_id": topic["id"],
+                "label": topic["label"],
+                "knowledge_base": topic["knowledge_base_name"],
+                "state": _topic_state(topic, deferred),
+            }
+            for topic in topics["items"]
+            if topic["id"] in topic_ids
+        ]
+        return result
+
+    async def estimate_improvement(
+        agent_id: UUID,
+        dataset_id: UUID | None = None,
+        suite_id: UUID | None = None,
+        max_iterations: int = 3,
+    ) -> dict[str, Any]:
+        """What an Improve session would cost, before it starts. Needs `agents:edit`, `runs:view`
+        and `datasets:run` on the dataset.
+
+        Name exactly one of `dataset_id` (test questions) or `suite_id` (an
+        automatic check, which brings its dataset). `total_usd` is what it costs
+        up to its first stop, after Understand, `per_round_usd` about what one
+        attempt costs - each later step is priced when it is taken - and
+        `limit_usd` the spending limit for the whole session, covering the start
+        and every attempt. Tell the person all three before starting one.
+        """
+        target: dict[str, Any] = {"max_iterations": max_iterations}
+        if dataset_id is not None:
+            target["dataset_id"] = str(dataset_id)
+        if suite_id is not None:
+            target["suite_id"] = str(suite_id)
+        estimate = await api.request(
+            "POST", f"/agents/{agent_id}/improvements/estimate", json=target
+        )
+        return {**estimate, "limit_usd": _session_limit(estimate)}
+
+    async def start_improvement(
+        agent_id: UUID,
+        budget_usd: Decimal,
+        dataset_id: UUID | None = None,
+        suite_id: UUID | None = None,
+        max_iterations: int = 3,
+    ) -> dict[str, Any]:
+        """Start an Improve session, only when the person asked for one. Needs `agents:edit`,
+        `runs:view` and `datasets:run` on the dataset.
+
+        Run estimate_improvement first. `budget_usd` is the spending limit for the
+        whole session, never below its `total_usd`: the person's figure, or the
+        estimate's `limit_usd`. The session never spends more. Say the price and the limit before calling. The session stops for the person after
+        Understand, after Changes and at the result, and changes nothing in the
+        agent until it is accepted. An agent has one open session at a time: with
+        one open, this refuses and names it - end it first, when the person asks.
+        """
+        sessions = await api.request("GET", f"/agents/{agent_id}/improvements")
+        if open_session := next((s for s in sessions if s["status"] not in _CLOSED), None):
+            return api.refuse(
+                f"This agent already has an open Improve session ({open_session['status']}): "
+                f"{improvement_link(agent_id, open_session['id'])}. Continue it there, or end "
+                "it with end_improvement and start a new one."
+            )
+        start: dict[str, Any] = {"max_iterations": max_iterations, "budget_usd": str(budget_usd)}
+        if dataset_id is not None:
+            start["dataset_id"] = str(dataset_id)
+        if suite_id is not None:
+            start["suite_id"] = str(suite_id)
+        session = await api.request("POST", f"/agents/{agent_id}/improvements", json=start)
+        return {
+            **{field: session.get(field) for field in _SESSION_FIELDS},
+            "link": improvement_link(agent_id, session["id"]),
+        }
+
+    async def use_attempt(agent_id: UUID, session_id: UUID, attempt: int) -> dict[str, Any]:
+        """Make one finished attempt of a session the one to accept. Needs `agents:edit` and
+        `runs:view`.
+
+        Only an attempt that has a verdict can be chosen. Name the attempt and why
+        before calling, from get_improvement's numbers.
+        """
+        session = await api.request(
+            "POST", f"/agents/{agent_id}/improvements/{session_id}/rounds/{attempt}/select"
+        )
+        return {
+            **{field: session.get(field) for field in _SESSION_FIELDS},
+            "link": improvement_link(agent_id, session_id),
+        }
+
+    async def accept_improvement(
+        agent_id: UUID, session_id: UUID, publish: bool, automatic_check: bool = False
+    ) -> dict[str, Any]:
+        """Accept a ready session's chosen attempt into the agent: as a draft, or published.
+        Needs `agents:edit` and `runs:view`; `publish` also needs `agents:publish`.
+
+        Publish only when the person asked for exactly that; otherwise accept as a
+        draft they publish themselves. An environment guarded by an automatic
+        check moves only once that check passes. `automatic_check` adds a check
+        that runs the session's test questions on every publish. Refused when the
+        agent changed since the session started.
+        """
+        finished = await api.request(
+            "POST",
+            f"/agents/{agent_id}/improvements/{session_id}/finish",
+            json={"confirmed": True, "publish": publish, "automatic_check": automatic_check},
+        )
+        return {
+            "status": finished["session"]["status"],
+            "version": finished.get("version"),
+            "link": improvement_link(agent_id, session_id),
+        }
+
+    async def end_improvement(agent_id: UUID, session_id: UUID) -> dict[str, Any]:
+        """End a session without changing the agent: stop a running one, discard any other open one.
+        Needs `agents:edit` and `runs:view`; only whoever started it, or an organization admin.
+
+        A session waiting between steps, a ready one and a stopped or failed one are
+        discarded; the agent stays as it was.
+        """
+        path = f"/agents/{agent_id}/improvements/{session_id}"
+        session = await api.request("GET", path)
+        if session["status"] in ("queued", "running"):
+            ended = await api.request("POST", f"{path}/cancel")
+        else:
+            ended = await api.request("POST", f"{path}/discard", json={"confirmed": True})
+        return {"status": ended["status"], "link": improvement_link(agent_id, session_id)}
+
+    async def estimate_improve_again(
+        agent_id: UUID, session_id: UUID, budget_usd: Decimal
+    ) -> dict[str, Any]:
+        """What trying a session again would cost, and whether it may. Needs `agents:edit`
+        and `runs:view`.
+
+        `mode` is the next attempt, resuming one stopped on the budget, or
+        retrying a failed step; the session refuses when another attempt cannot
+        help. Pass `total_usd` and `candidate_hash` on to improve_again.
+        """
+        return await api.request(
+            "POST",
+            f"/agents/{agent_id}/improvements/{session_id}/continue/estimate",
+            json={"budget_usd": str(budget_usd)},
+        )
+
+    async def improve_again(
+        agent_id: UUID,
+        session_id: UUID,
+        budget_usd: Decimal,
+        estimate_usd: Decimal,
+        candidate_hash: str,
+        note: str | None = None,
+    ) -> dict[str, Any]:
+        """Try a session again, only when the person asked for it. Needs `agents:edit` and
+        `runs:view`.
+
+        Pass `estimate_usd` and `candidate_hash` from estimate_improve_again and
+        say the price before calling; a session that changed since is refused.
+        `note` is what the person wants done differently, in their words; the
+        next proposal reads it.
+        """
+        consent: dict[str, Any] = {
+            "confirmed": True,
+            "budget_usd": str(budget_usd),
+            "estimate_usd": str(estimate_usd),
+            "candidate_hash": candidate_hash,
+        }
+        if note is not None:
+            consent["note"] = note
+        session = await api.request(
+            "POST", f"/agents/{agent_id}/improvements/{session_id}/continue", json=consent
+        )
+        return {
+            **{field: session.get(field) for field in _SESSION_FIELDS},
+            "link": improvement_link(agent_id, session_id),
+        }
+
+    async def estimate_next_improvement_step(
+        session_id: UUID, budget_usd: Decimal | None = None
+    ) -> dict[str, Any]:
+        """What the next step of a session waiting for the person would cost. Needs `agents:edit`
+        and `runs:view`.
+
+        After Understand the next step proposes changes; after Changes it tests
+        them. `budget_usd` defaults to the session's; pass a higher one when the
+        estimate does not fit. Pass `total_usd` and `candidate_hash` on to
+        run_next_improvement_step.
+        """
+        session = await api.request("GET", f"/improvements/{session_id}")
+        estimate = await api.request(
+            "POST",
+            f"/agents/{session['agent_id']}/improvements/{session_id}/continue/estimate",
+            json={
+                "budget_usd": str(budget_usd if budget_usd is not None else session["budget_usd"])
+            },
+        )
+        return {
+            **estimate,
+            "waiting_for": _waiting(session),
+            "link": improvement_link(session["agent_id"], session_id),
+        }
+
+    async def run_next_improvement_step(
+        session_id: UUID, budget_usd: Decimal, estimate_usd: Decimal, candidate_hash: str
+    ) -> dict[str, Any]:
+        """Run the next step of a session waiting for the person, only when they asked for it.
+        Needs `agents:edit` and `runs:view`.
+
+        Pass `estimate_usd` and `candidate_hash` from
+        estimate_next_improvement_step, and say the step and its price before
+        calling; a session that changed since is refused. The step runs as the
+        person, and the session stops again at the next step or the result. A
+        step that outlasts this conversation's two-hour credential stops, and the
+        person finishes it with Next step in the wizard.
+        """
+        session = await api.request("GET", f"/improvements/{session_id}")
+        agent_id = session["agent_id"]
+        moved = await api.request(
+            "POST",
+            f"/agents/{agent_id}/improvements/{session_id}/continue",
+            json={
+                "confirmed": True,
+                "budget_usd": str(budget_usd),
+                "estimate_usd": str(estimate_usd),
+                "candidate_hash": candidate_hash,
+            },
+        )
+        return _session(agent_id, moved)
+
+    async def _sees_checks() -> bool:
+        """Whether the caller holds `runs:view`, without which the API leaves out checks."""
+        me = await api.request("GET", "/me/permissions")
+        return any(entry["permission"] == "runs:view" for entry in me["permissions"])
+
+    async def get_skill(skill_id: UUID) -> dict[str, Any]:
+        """One skill: its body, its files, its forks, and each agent with the version it
+        reads. Needs `skills:view`. Read it before editing or binding the skill; a skill
+        does not grant tools or permission to execute its example scripts.
+
+        `content` is the main line's newest text and `resources` its files, by name.
+        `uses` is how the skill page writes an agent's version - `v10 · main`,
+        `v7 · pinned · 3 behind main`, `Fork "Returns" · from v7 · 2 changes`.
+        `checked` is how that version did on that agent in a skill check,
+        `unknown` when it was never checked there, and `not_shown` when the
+        caller may not read runs, so checks are left out. `checked_versions` are
+        the versions a check measured on that agent, by `version_id` as
+        list_skill_versions gives them: read it before moving the agent.
+        `other_environments` are the environments that read the skill
+        differently, each with the version it reads. Agents the caller cannot
+        see are only counted in `hidden_agents`; never guess who they are.
+        """
+        skill = await api.request("GET", f"/skills/{skill_id}")
+        forks = await api.request("GET", f"/skills/{skill_id}/forks")
+        agents = await api.request("GET", f"/skills/{skill_id}/agents")
+        sees_checks = await _sees_checks()
+        return {
+            "id": skill["id"],
+            "name": skill["name"],
+            "description": skill["description"],
+            "content": skill.get("content"),
+            "resources": skill.get("resources", []),
+            "main_version": agents["main_latest"]["number"],
+            "can_edit": skill.get("can_edit", False),
+            "forks": [_skill_fork(fork) for fork in forks["items"]],
+            "agents": [
+                _skill_agent(usage, sees_checks=sees_checks)
+                for usage in agents["items"]
+                if not usage["draft_only"]
+            ],
+            "only_in_drafts": [
+                usage["agent"]["name"] for usage in agents["items"] if usage["draft_only"]
+            ],
+            "hidden_agents": agents["hidden"],
+            "link": skill_link(skill_id),
+        }
+
+    async def list_skill_versions(
+        skill_id: UUID, fork_id: UUID | None = None, limit: int = 20, skip: int = 0
+    ) -> dict[str, Any]:
+        """A skill line's history, newest first: main, or the fork `fork_id`. Needs `skills:view`.
+
+        Every saved change is a version that never changes again; `source` says
+        what made it - an edit, a library sync, Improve, a restore. Read one with
+        get_skill_version. When `next_skip` is set, older versions follow: call
+        again with it as `skip`.
+        """
+        params: dict[str, Any] = {"limit": limit, "skip": skip}
+        if fork_id is not None:
+            params["fork_id"] = str(fork_id)
+        listed = await api.request("GET", f"/skills/{skill_id}/versions", params=params)
+        return {
+            "items": [
+                {
+                    "version_id": version["id"],
+                    "number": version["number"],
+                    "source": version["source"],
+                    "restored_from": (version.get("restored_from") or {}).get("number"),
+                    "created_by": (version.get("created_by") or {}).get("name"),
+                    "created_at": version["created_at"],
+                    "agents": version["agents"],
+                }
+                for version in listed["items"]
+            ],
+            "total": listed["total"],
+            "next_skip": skip + len(listed["items"])
+            if skip + len(listed["items"]) < listed["total"]
+            else None,
+        }
+
+    async def get_skill_version(skill_id: UUID, version_id: UUID) -> dict[str, Any]:
+        """One version of a skill: its description, body and files. Needs `skills:view`."""
+        version = await api.request("GET", f"/skills/{skill_id}/versions/{version_id}")
+        return {
+            "number": version["number"],
+            "fork_id": version["fork_id"],
+            "source": version["source"],
+            "description": version["description"],
+            "content": version["content"],
+            "files": [resource["name"] for resource in version.get("resources", [])],
+        }
+
+    async def _skill_step_price(skill_id: UUID | str, session: dict[str, Any]) -> dict[str, Any]:
+        try:
+            quote = await api.request(
+                "POST",
+                f"/skills/{skill_id}/improvements/{session['id']}/continue/estimate",
+                json={},
+            )
+        except ToolError as refused:
+            return {"unavailable": _plain(str(refused))}
+        return {
+            field: quote[field]
+            for field in ("total_usd", "expected_usd", "budget_usd", "affordable", "candidate_hash")
+        }
+
+    async def list_skill_improvements(
+        skill_id: UUID | None = None,
+        fork_id: UUID | None = None,
+        main: bool = False,
+        history: bool = False,
+    ) -> dict[str, Any]:
+        """A skill's Improve sessions, newest first. Needs `skills:view` and `runs:view`.
+
+        Without `skill_id`, the skill sessions waiting for a person across the
+        organization. With one, the newest session carries `summary`, `ask` and
+        the price of its next step; earlier sessions are only counted unless
+        `history` is true. A skill can have a session open on main and on each
+        fork at once: name the line asked about with `fork_id`, or `main`.
+        """
+        if skill_id is None:
+            awaiting = await api.request("GET", "/skill-improvements/awaiting")
+            return {
+                "waiting": [
+                    {**item, "link": skill_improvement_link(item["skill_id"], item["id"])}
+                    for item in awaiting
+                ]
+            }
+        line: dict[str, Any] = {"limit": _PAGE}
+        if fork_id is not None:
+            line["fork_id"] = str(fork_id)
+        elif main:
+            line["main"] = "true"
+        sessions: list[dict[str, Any]] = []
+        while True:
+            page = await api.request(
+                "GET",
+                f"/skills/{skill_id}/improvements",
+                params={**line, "skip": len(sessions)},
+            )
+            sessions += page
+            if len(page) < _PAGE:
+                break
+        ordered = sorted(sessions, key=lambda session: session["created_at"], reverse=True)
+        items = [_skill_session(skill_id, session) for session in ordered]
+        if items and items[0]["waiting_for"] is not None:
+            items[0]["waiting_for"] = {
+                **items[0]["waiting_for"],
+                "price": await _skill_step_price(skill_id, ordered[0]),
+            }
+        if history:
+            return {"items": items}
+        return {"items": items[:1], "earlier_sessions": len(items[1:])}
+
+    async def get_skill_improvement(skill_id: UUID, session_id: UUID) -> dict[str, Any]:
+        """One skill Improve session: what it found, and how each agent did in its check.
+        Needs `skills:view` and `runs:view`.
+
+        Start a reply from `summary` and keep every fact in it, a worse agent
+        above all; end it by asking with `ask` exactly as given. `found` counts
+        the problems in the skill and the bad answers that were not the skill's
+        fault.
+        """
+        path = f"/skills/{skill_id}/improvements/{session_id}"
+        session = await api.request("GET", path)
+        item = _skill_session(skill_id, session)
+        if item["waiting_for"] is not None:
+            item["waiting_for"] = {
+                **item["waiting_for"],
+                "price": await _skill_step_price(skill_id, session),
+            }
+        if session["status"] in {"waiting", "ready", "stopped", "failed"}:
+            try:
+                evidence = await api.request("GET", f"{path}/evidence")
+            except ToolError:
+                return item
+            item["found"] = {
+                "problems": [problem["title"] for problem in evidence["problems"]],
+                "not_the_skill": evidence["not_the_skill"],
+                "not_a_problem": evidence["not_a_problem"],
+            }
+        return item
+
+    async def estimate_skill_improvement(
+        skill_id: UUID,
+        fork_id: UUID | None = None,
+        max_iterations: int = 3,
+        from_run: UUID | None = None,
+    ) -> dict[str, Any]:
+        """What improving a skill line would cost, before it starts. Needs `skills:edit` and
+        `runs:view`.
+
+        Name `fork_id` to improve that fork; without it, main. `from_run` is an
+        agent's Improve session whose skill problems start it. `total_usd` is
+        what it costs up to its first stop, `per_round_usd` about what one
+        attempt costs - its proposal and its check on every agent of the line,
+        of which `check_usd` is the check - each priced again when it is taken,
+        and `limit_usd` the spending limit for the whole session, covering the
+        start and every attempt. Tell the person all three before starting one.
+        """
+        target: dict[str, Any] = {
+            "fork_id": str(fork_id) if fork_id is not None else None,
+            "max_iterations": max_iterations,
+        }
+        if from_run is not None:
+            target["from_run"] = str(from_run)
+        estimate = await api.request(
+            "POST", f"/skills/{skill_id}/improvements/estimate", json=target
+        )
+        return {**estimate, "limit_usd": _session_limit(estimate)}
+
+    async def start_skill_improvement(
+        skill_id: UUID,
+        budget_usd: Decimal,
+        fork_id: UUID | None = None,
+        max_iterations: int = 3,
+        from_run: UUID | None = None,
+    ) -> dict[str, Any]:
+        """Start improving a skill line, only when the person asked for it. Needs `skills:edit`
+        and `runs:view`.
+
+        Run estimate_skill_improvement first and say the price and the limit.
+        `budget_usd` is the limit for the whole session, never below its
+        `total_usd`. It stops for the person after Understand, after Changes and
+        at the result, and changes no version until it is accepted. A line has
+        one open session at a time: with one open, this refuses and names it.
+        """
+        line = str(fork_id) if fork_id is not None else None
+        open_session = None
+        if from_run is None:
+            sessions = await api.request(
+                "GET",
+                f"/skills/{skill_id}/improvements",
+                params={"fork_id": line} if line is not None else {"main": "true"},
+            )
+            open_session = next(
+                (s for s in sessions if s["status"] not in _CLOSED and s.get("fork_id") == line),
+                None,
+            )
+        if open_session is not None:
+            return api.refuse(
+                f"This skill line already has an open Improve session ({open_session['status']}): "
+                f"{skill_improvement_link(skill_id, open_session['id'])}. Continue it there, or "
+                "end it with end_skill_improvement and start a new one."
+            )
+        start: dict[str, Any] = {
+            "fork_id": line,
+            "budget_usd": str(budget_usd),
+            "max_iterations": max_iterations,
+        }
+        if from_run is not None:
+            start["from_run"] = str(from_run)
+        session = await api.request("POST", f"/skills/{skill_id}/improvements", json=start)
+        return _skill_session(skill_id, session)
+
+    async def estimate_next_skill_improvement_step(
+        skill_id: UUID,
+        session_id: UUID,
+        thorough: bool = False,
+        recheck: bool = False,
+        main_alone: bool = True,
+    ) -> dict[str, Any]:
+        """What a skill session's next step, or another attempt, would cost. Needs `skills:edit`
+        and `runs:view`.
+
+        After Understand the next step proposes changes; after Changes it checks
+        them on every agent of the line; at the result it tries again. `recheck`
+        prices checking the result's changes again on the line as it is now, for
+        a `stale` result. `agents` names which agents the check runs and which
+        cannot be checked, and why. `thorough` checks each agent's whole dataset
+        instead of a sample; a changed description always does. On a catch-up the
+        check also runs main's newest version alone on the fork's agents, so the
+        result can offer dropping the fork; `main_alone` false leaves that out
+        and lowers the price. When it is not
+        `affordable`, a higher limit goes to run_next_skill_improvement_step as
+        its `budget_usd`. Pass `total_usd` and `candidate_hash` on to it.
+        """
+        path = f"/skills/{skill_id}/improvements/{session_id}"
+        session = await api.request("GET", path)
+        body: dict[str, Any] = {"mode": "thorough"} if thorough else {}
+        if not main_alone:
+            body["main_alone"] = False
+        route = "recheck" if recheck else "continue"
+        estimate = await api.request("POST", f"{path}/{route}/estimate", json=body)
+        check = estimate.get("check_estimate")
+        return {
+            **{key: value for key, value in estimate.items() if key != "check_estimate"},
+            "agents": [_checked_agent(row) for row in check["agents"]] if check else None,
+            "hidden_agents": check["hidden"] if check else 0,
+            "waiting_for": _waiting(session),
+            "link": skill_improvement_link(skill_id, session_id),
+        }
+
+    async def run_next_skill_improvement_step(
+        skill_id: UUID,
+        session_id: UUID,
+        budget_usd: Decimal,
+        estimate_usd: Decimal,
+        candidate_hash: str,
+        note: str | None = None,
+        thorough: bool = False,
+        recheck: bool = False,
+        main_alone: bool = True,
+    ) -> dict[str, Any]:
+        """Run a skill session's next step, or improve further, only when the person asked for it.
+        Needs `skills:edit` and `runs:view`.
+
+        Pass `estimate_usd` and `candidate_hash` from
+        estimate_next_skill_improvement_step, priced the same way, and say the
+        step and its price before calling. `budget_usd` is the session's limit,
+        or a higher one the person agreed to. A session whose line moved since
+        the price is refused: price it again. `note` is what the person wants
+        done differently, in their words, for another attempt. `recheck` checks
+        a stale result's changes again instead.
+        """
+        consent: dict[str, Any] = {
+            "confirmed": True,
+            "budget_usd": str(budget_usd),
+            "estimate_usd": str(estimate_usd),
+            "candidate_hash": candidate_hash,
+        }
+        if note is not None:
+            consent["note"] = note
+        if thorough:
+            consent["mode"] = "thorough"
+        if not main_alone:
+            consent["main_alone"] = False
+        route = "recheck" if recheck else "continue"
+        moved = await api.request(
+            "POST", f"/skills/{skill_id}/improvements/{session_id}/{route}", json=consent
+        )
+        return _skill_session(skill_id, moved)
+
+    async def retry_skill_improvement_step(skill_id: UUID, session_id: UUID) -> dict[str, Any]:
+        """Run a skill session's failed step again, only when the person asked for it. Needs
+        `skills:edit` and `runs:view`.
+
+        It runs within the session's spending limit. Say the step before calling.
+        """
+        moved = await api.request("POST", f"/skills/{skill_id}/improvements/{session_id}/retry")
+        return _skill_session(skill_id, moved)
+
+    async def accept_skill_improvement(
+        skill_id: UUID,
+        session_id: UUID,
+        outcome: Literal["apply", "apply_and_pin", "fork_for_helped", "catch_up", "return_to_main"],
+        acknowledge_unknown: bool = False,
+        fork_name: str | None = None,
+        fork_agent_ids: list[UUID] | None = None,
+    ) -> dict[str, Any]:
+        """Accept a skill session's result, only as the person chose. Needs `skills:edit`.
+
+        `apply` makes it the line's new version. `apply_and_pin` applies it to
+        main and keeps every agent it made worse on its current version, which
+        also needs `agents:publish` on each of them. `fork_for_helped` leaves
+        main as it is and makes a fork named `fork_name` with this change for
+        the agents it helped, or for `fork_agent_ids` when the person picked
+        others - an empty list moves none. On a catch-up, `catch_up` takes the merge in as the
+        fork's newest version and moves the fork's start to main's newest, and
+        `return_to_main` moves the fork's agents back to main instead, offered
+        only when main alone made none of them worse. Offer only the session's
+        `next_actions`, and say which agents each choice moves. `acknowledge_unknown` only after the
+        person accepted the agents that could not be checked.
+        """
+        path = f"/skills/{skill_id}/improvements/{session_id}"
+        if outcome == "return_to_main":
+            alone = (await api.request("GET", path)).get("main_alone_check") or {}
+            unknown = alone.get("hidden_unknown", 0) + sum(
+                row["state"] == "unknown" for row in alone.get("agents", [])
+            )
+            if unknown and not acknowledge_unknown:
+                return api.refuse(
+                    "Some of the fork's agents could not be checked on main alone. Name them "
+                    "to the person, and call again with acknowledge_unknown once they accept."
+                )
+            returned = await api.request(
+                "POST",
+                f"{path}/return-to-main",
+                json={"confirmed": True, "acknowledge_unknown": acknowledge_unknown},
+            )
+            return {
+                "status": returned["session"]["status"],
+                **_returned(returned["returned"]),
+                "link": skill_link(skill_id),
+            }
+        if outcome == "fork_for_helped":
+            if not fork_name:
+                return api.refuse("Name the fork: ask the person, or use the helped agent's name.")
+            choice: dict[str, Any] = {
+                "confirmed": True,
+                "name": fork_name,
+                "acknowledge_unknown": acknowledge_unknown,
+            }
+            if fork_agent_ids is not None:
+                choice["agent_ids"] = [str(agent_id) for agent_id in fork_agent_ids]
+            forked = await api.request("POST", f"{path}/fork", json=choice)
+            return {
+                "status": forked["session"]["status"],
+                "fork": _skill_fork(forked["fork"]),
+                "moved": [agent["name"] for agent in forked["moved"]],
+                "only_in_drafts": [agent["name"] for agent in forked["draft_only"]],
+                "link": skill_link(skill_id),
+            }
+        applied = await api.request(
+            "POST",
+            f"{path}/apply",
+            json={
+                "confirmed": True,
+                "acknowledge_unknown": acknowledge_unknown,
+                "pin_worse": outcome == "apply_and_pin",
+            },
+        )
+        return {
+            "status": applied["session"]["status"],
+            "version": applied.get("version"),
+            "pinned": [agent["name"] for agent in applied.get("pinned", [])],
+            "link": skill_link(skill_id),
+        }
+
+    async def end_skill_improvement(skill_id: UUID, session_id: UUID) -> dict[str, Any]:
+        """End a skill session without changing the skill: stop a running one, discard the rest.
+        Needs `skills:edit`.
+        """
+        path = f"/skills/{skill_id}/improvements/{session_id}"
+        session = await api.request("GET", path)
+        if session["status"] in ("queued", "running"):
+            ended = await api.request("POST", f"{path}/cancel")
+        else:
+            ended = await api.request("POST", f"{path}/discard", json={"confirmed": True})
+        return {"status": ended["status"], "link": skill_improvement_link(skill_id, session_id)}
+
+    async def change_skill_version(
+        skill_id: UUID,
+        agent_id: UUID,
+        state: Literal["main", "pinned", "fork"],
+        version: int | None = None,
+        fork_id: UUID | None = None,
+        note: str | None = None,
+        check_id: UUID | None = None,
+        acknowledge_unknown: bool = False,
+    ) -> dict[str, Any]:
+        """Move one agent to another version of a skill, only when the person asked for it.
+        Needs `agents:edit` on the agent; going live also needs `agents:publish`.
+
+        `main` follows the newest main version, `pinned` stays on main's
+        `version`, `fork` follows the fork `fork_id`. Read get_skill first: when
+        the chosen version was never checked on this agent, say it is unknown
+        and go on only once the person confirms. With `agents:publish` the
+        change is published as a new agent version; otherwise it lands in the
+        agent's draft only, and `published` is false. Updating a pinned agent
+        to main passes the `check_id` of its update check, so the agent reads as
+        checked; `acknowledge_unknown` only after the person accepted that the
+        check could not run on it.
+        """
+        binding: dict[str, Any] = {"state": state}
+        if state == "pinned":
+            if version is None:
+                return api.refuse("Pinning needs the main version number to stay on.")
+            binding["version"] = version
+        if state == "fork":
+            if fork_id is None:
+                return api.refuse("Moving to a fork needs its fork_id, from get_skill.")
+            binding["fork_id"] = str(fork_id)
+        if note is not None:
+            binding["note"] = note
+        if check_id is not None:
+            binding["check_id"] = str(check_id)
+            binding["acknowledge_unknown"] = acknowledge_unknown
+        moved = await api.request(
+            "PUT", f"/skills/{skill_id}/agents/{agent_id}/binding", json=binding
+        )
+        return {
+            "published": moved["published"],
+            "agent_version": moved["agent_version"],
+            "environments": moved["environments"],
+            "agent": _skill_agent(moved["usage"], sees_checks=await _sees_checks())
+            if moved.get("usage")
+            else None,
+            "link": skill_link(skill_id),
+        }
+
+    async def get_skill_check(skill_id: UUID, check_id: UUID) -> dict[str, Any]:
+        """One skill check: how each agent did, its verdict and what it allows. Needs
+        `skills:view` and `runs:view`.
+        """
+        check = await api.request("GET", f"/skills/{skill_id}/checks/{check_id}")
+        return {
+            "check_id": check["id"],
+            "status": check["status"],
+            **_skill_check(check),
+            "outcomes": check.get("outcomes", []),
+        }
+
+    async def list_skills_behind_main() -> dict[str, Any]:
+        """Pinned agents and forks that main has moved past, across the organization. Needs
+        `skills:view`.
+
+        Nothing catches up by itself, because every catch-up costs a check. A
+        pinned agent catches up with an update check, then change_skill_version
+        to main naming that check; a fork with start_skill_catch_up, or, when it
+        has no changes of its own, return_skill_fork_to_main. Pinned
+        agents the caller cannot see are only counted in `hidden_agents`.
+        """
+        behind = await api.request("GET", "/skills/behind-main")
+        return {
+            "items": [_behind(item) for item in behind["items"]],
+            "hidden_agents": behind["hidden"],
+            "total": behind["total"],
+        }
+
+    async def estimate_skill_update_check(
+        skill_id: UUID, agent_id: UUID, thorough: bool = False
+    ) -> dict[str, Any]:
+        """What checking main's newest version on one pinned agent would cost. Needs
+        `skills:edit`, `runs:view` and access to the agent.
+        """
+        body = {"mode": "thorough" if thorough else "quick"}
+        estimate = await api.request(
+            "POST", f"/skills/{skill_id}/agents/{agent_id}/update-check/estimate", json=body
+        )
+        return {
+            "expected_usd": estimate["expected_usd"],
+            "at_most_usd": estimate["at_most_usd"],
+            "affordable": estimate["affordable"],
+            "agents": [_checked_agent(row) for row in estimate["agents"]],
+        }
+
+    async def start_skill_update_check(
+        skill_id: UUID, agent_id: UUID, thorough: bool = False
+    ) -> dict[str, Any]:
+        """Check main's newest version on one pinned agent, only when the person asked for it.
+        Needs `skills:edit`, `runs:view` and access to the agent.
+
+        Price it with estimate_skill_update_check first; it is billed to that
+        agent. Read it with get_skill_check; when it is done, change_skill_version
+        to main with its `check_id` moves the agent unless the newer version made
+        it worse.
+        """
+        body = {"mode": "thorough" if thorough else "quick"}
+        check = await api.request(
+            "POST", f"/skills/{skill_id}/agents/{agent_id}/update-check", json=body
+        )
+        return {"check_id": check["id"], "status": check["status"], **_skill_check(check)}
+
+    async def estimate_skill_catch_up(
+        skill_id: UUID, fork_id: UUID, to_main: bool = False
+    ) -> dict[str, Any]:
+        """What catching a fork up with main, or moving its changes to main, would merge and
+        cost. Needs `skills:edit` and `runs:view`.
+
+        `conflicts` counts the parts both lines changed differently; the
+        assistant proposes a text for each, and `total_usd` is that proposal
+        alone. The check is priced at Changes, so agree a spending limit that
+        leaves room for it.
+        """
+        route = "to-main" if to_main else "catch-up"
+        return await api.request("POST", f"/skills/{skill_id}/forks/{fork_id}/{route}/estimate")
+
+    async def start_skill_catch_up(
+        skill_id: UUID, fork_id: UUID, budget_usd: Decimal, to_main: bool = False
+    ) -> dict[str, Any]:
+        """Catch a fork up with main, or move its changes to main, only when the person asked.
+        Needs `skills:edit` and `runs:view`.
+
+        It runs as a skill session, step by step like Improve. Parts changed on
+        one side merge by themselves; the parts both changed are proposed at
+        Changes, where the person may reword them. A catch-up then checks the
+        fork's agents, `to_main` every main agent by the full rule.
+        """
+        route = "to-main" if to_main else "catch-up"
+        session = await api.request(
+            "POST",
+            f"/skills/{skill_id}/forks/{fork_id}/{route}",
+            json={"budget_usd": str(budget_usd)},
+        )
+        return _skill_session(skill_id, session)
+
+    async def return_skill_fork_to_main(
+        skill_id: UUID, fork_id: UUID, agent_ids: list[UUID] | None = None
+    ) -> dict[str, Any]:
+        """Move a fork's agents back to main, only when the person asked for it. Needs
+        `agents:edit` on each agent; going live also needs `agents:publish`.
+
+        Use it after a fork's changes moved to main, or for a fork with no
+        changes of its own; a catch-up's own result drops the fork through
+        accept_skill_improvement. `agent_ids` moves only those agents; without
+        it, all of them. The fork is archived once no agent reads it.
+        """
+        body = {} if agent_ids is None else {"agent_ids": [str(agent) for agent in agent_ids]}
+        returned = await api.request(
+            "POST", f"/skills/{skill_id}/forks/{fork_id}/return-to-main", json=body
+        )
+        return {**_returned(returned), "link": skill_link(skill_id)}
+
+    async def estimate_knowledge_draft(topic_id: UUID) -> dict[str, Any]:
+        """The most drafting a document for one missing-knowledge topic costs. Needs `runs:view`
+        and edit access to the topic's knowledge base.
+
+        `total_usd` is absent when the drafting model has no price. Say the price
+        before draft_knowledge_topic.
+        """
+        return await api.request("GET", f"/knowledge-gaps/{topic_id}/draft/estimate")
+
+    async def draft_knowledge_topic(topic_id: UUID) -> dict[str, Any]:
+        """Draft a document for a question the knowledge base could not answer, only when asked.
+        Needs `runs:view`, edit access to the topic's knowledge base, a model and budget.
+
+        It is written in the background and kept on the topic for a person to
+        review; nothing is added to the knowledge base. Asking again while one is
+        being written changes nothing, and asking again later redrafts it from the
+        knowledge base as it is then.
+        """
+        topic = await api.request("POST", f"/knowledge-gaps/{topic_id}/draft")
+        return {
+            field: topic.get(field)
+            for field in (
+                "id",
+                "label",
+                "knowledge_base_name",
+                "drafting",
+                "draft_failed",
+                "draft_stale",
+            )
+        }
+
+    async def list_datasets(
+        agent_id: UUID | None = None, limit: int = 50, skip: int = 0
+    ) -> dict[str, Any]:
+        """Test question sets (datasets) you can see, optionally those made for or run on one agent.
+
+        Needs `datasets:view`. `can_run` says whether an eval or an Improve session
+        may use it.
+        """
+        params: dict[str, str | int] = {"limit": limit, "skip": skip}
+        if agent_id is not None:
+            params["agent"] = str(agent_id)
+        listing = await api.request("GET", "/datasets", params=params)
+        return {
+            "total": listing["total"],
+            "items": [
+                {
+                    field: item.get(field)
+                    for field in ("id", "name", "case_count", "latest_version", "can_run")
+                }
+                for item in listing["items"]
+            ],
+        }
+
+    async def get_eval_run(run_id: UUID) -> dict[str, Any]:
+        """One eval run: how it ended and which questions it broke or fixed. Needs `runs:view`.
+
+        `broken` and `fixed` name up to five questions each; `confirmed` means a
+        rerun gave the same answer, so it is not luck, and `judge_reason` is why
+        the new answer was graded as it was. The run page has the rest.
+        """
+        run = await api.request("GET", f"/eval-runs/{run_id}")
+        outcome = run.get("outcome") or {}
+        result: dict[str, Any] = {
+            "id": run["id"],
+            "agent_id": run["agent_id"],
+            "dataset": run["dataset_name"],
+            "status": run["status"],
+            "cases": run["cases"],
+            "cost_usd": run["cost_usd"],
+            "verdict": outcome.get("verdict"),
+            "pass_rate": {
+                "baseline": outcome.get("baseline_pass_rate"),
+                "candidate": outcome.get("candidate_pass_rate"),
+            },
+            "regressions_confirmed": outcome.get("regressions_confirmed"),
+            "fixed_confirmed": outcome.get("fixed_confirmed"),
+        }
+        if run["status"] != "completed" or not run["paired"]:
+            return result
+        comparison = await api.request("GET", f"/eval-runs/{run_id}/comparison")
+        cases = comparison.get("cases", [])
+        broken, fixed = _flips(cases, "regression"), _flips(cases, "fixed")
+        flipped = [case["case_id"] for case in broken + fixed]
+        if flipped:
+            listing = await api.request(
+                "GET",
+                f"/eval-runs/{run_id}/cases",
+                params={"case_id": flipped, "limit": len(flipped)},
+            )
+            candidate = comparison.get("candidate", {}).get("arm_id")
+            reasons = {case["case_id"]: _judged(case, candidate) for case in listing["items"]}
+            for case in broken + fixed:
+                case["judge_reason"] = reasons.get(case["case_id"])
+        return {**result, "broken": broken, "fixed": fixed}
 
     async def list_members(limit: int = 50, skip: int = 0) -> dict[str, Any]:
         """The members of this connection's organization, with their roles. Needs `members:view`."""
@@ -1655,7 +4203,10 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (delete_routine, True),
         (list_runs, False),
         (get_run, False),
+        (read_run_transcript, False),
+        (read_run_tool_call, False),
         (read_conversation, False),
+        (read_conversation_tool_call, False),
         (list_conversations, False),
         (create_conversation, True),
         (update_proactivity_settings, True),
@@ -1666,11 +4217,46 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (add_document, True),
         (search_knowledge, False),
         (list_capabilities, False),
+        (get_capability, False),
         (list_skills, False),
         (get_skill, False),
         (update_skill, True),
         (add_skill_resource, True),
         (create_skill, True),
+        (list_improvements, False),
+        (get_improvement, False),
+        (estimate_improvement, False),
+        (start_improvement, True),
+        (use_attempt, True),
+        (accept_improvement, True),
+        (end_improvement, True),
+        (estimate_improve_again, False),
+        (improve_again, True),
+        (estimate_next_improvement_step, False),
+        (run_next_improvement_step, True),
+        (list_skill_versions, False),
+        (get_skill_version, False),
+        (list_skill_improvements, False),
+        (get_skill_improvement, False),
+        (estimate_skill_improvement, False),
+        (start_skill_improvement, True),
+        (estimate_next_skill_improvement_step, False),
+        (run_next_skill_improvement_step, True),
+        (retry_skill_improvement_step, True),
+        (accept_skill_improvement, True),
+        (end_skill_improvement, True),
+        (change_skill_version, True),
+        (list_skills_behind_main, False),
+        (estimate_skill_update_check, False),
+        (start_skill_update_check, True),
+        (estimate_skill_catch_up, False),
+        (start_skill_catch_up, True),
+        (return_skill_fork_to_main, True),
+        (get_skill_check, False),
+        (estimate_knowledge_draft, False),
+        (draft_knowledge_topic, True),
+        (list_datasets, False),
+        (get_eval_run, False),
         (list_context_files, False),
         (get_context_file, False),
         (create_context_file, True),
@@ -1681,6 +4267,8 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (list_my_connections, False),
         (test_my_connection, True),
         (list_org_connections, False),
+        (list_mcp_connection_tools, False),
+        (get_mcp_connection_tool, False),
         (list_sandbox_connections, False),
         (list_sandbox_runtimes, False),
         (get_sandbox_policy, False),

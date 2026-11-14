@@ -88,6 +88,8 @@ interface DataTableProps<T> {
    * becomes the vertical one too, and `sticky` resolves against it.
    */
   fillHeight?: boolean;
+  /** Stack compact, non-virtual tables into labeled rows in narrow containers. */
+  stackOnNarrow?: boolean;
   /** Number of skeleton rows while loading. */
   skeletonRows?: number;
   className?: string;
@@ -148,6 +150,7 @@ export function DataTable<T>({
   onRowClick,
   isRowActive,
   fillHeight = false,
+  stackOnNarrow = false,
   skeletonRows = 6,
   className,
   sort,
@@ -216,6 +219,8 @@ export function DataTable<T>({
     <div
       className={cn(
         "border-border bg-card overflow-hidden rounded-xl border",
+        stackOnNarrow &&
+          "@container/table @max-md/table:[&_table]:block @max-md/table:[&_tbody]:block @max-md/table:[&_thead]:hidden @max-md/table:[&_tr]:flex @max-md/table:[&_tr]:flex-wrap",
         fillHeight && "flex min-h-0 flex-1 flex-col",
         className,
       )}
@@ -228,17 +233,26 @@ export function DataTable<T>({
           fillHeight && "min-h-0 flex-1 overflow-y-auto",
         )}
       >
-        <table className="w-full border-collapse text-sm" aria-busy={loading || undefined}>
+        {/* Explicit roles retain semantics when narrow-container CSS changes display types. */}
+        <table
+          role={stackOnNarrow ? "table" : undefined}
+          className="w-full border-collapse text-sm"
+          aria-busy={loading || undefined}
+        >
           {/* No column headings over no rows: an empty table read as a grid
               with a hole in it, the empty state boxed again inside it. */}
-          <thead className={cn(fillHeight && "bg-card sticky top-0 z-10", showEmpty && "hidden")}>
-            <tr className="border-border border-b">
+          <thead
+            role={stackOnNarrow ? "rowgroup" : undefined}
+            className={cn(fillHeight && "bg-card sticky top-0 z-10", showEmpty && "hidden")}
+          >
+            <tr role={stackOnNarrow ? "row" : undefined} className="border-border border-b">
               {columns.map((col) => {
                 const sortsHere = col.sortable && (serverSorted || col.sortValue !== undefined);
                 const sorted = sortsHere && activeSort?.by === col.key ? activeSort : null;
                 return (
                   <th
                     key={col.key}
+                    role={stackOnNarrow ? "columnheader" : undefined}
                     scope="col"
                     aria-sort={
                       sorted ? (sorted.dir === "asc" ? "ascending" : "descending") : undefined
@@ -268,12 +282,17 @@ export function DataTable<T>({
               })}
             </tr>
           </thead>
-          <tbody>
+          <tbody role={stackOnNarrow ? "rowgroup" : undefined}>
             {loading &&
               Array.from({ length: skeletonRows }).map((_, i) => (
-                <tr key={`sk-${i}`} className="border-border/60 border-b last:border-0">
+                <tr
+                  role={stackOnNarrow ? "row" : undefined}
+                  key={`sk-${i}`}
+                  className="border-border/60 border-b last:border-0"
+                >
                   {columns.map((col) => (
                     <td
+                      role={stackOnNarrow ? "cell" : undefined}
                       key={col.key}
                       className={cn(
                         "px-4 py-3",
@@ -293,6 +312,7 @@ export function DataTable<T>({
             {!loading &&
               drawn?.map((row, offset) => (
                 <tr
+                  role={stackOnNarrow ? "row" : undefined}
                   key={getRowKey(row, first + offset)}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
                   tabIndex={onRowClick ? 0 : undefined}
@@ -326,6 +346,7 @@ export function DataTable<T>({
                 >
                   {columns.map((col) => (
                     <td
+                      role={stackOnNarrow ? "cell" : undefined}
                       key={col.key}
                       className={cn(
                         "text-foreground px-3 py-3 sm:px-4",
@@ -335,6 +356,11 @@ export function DataTable<T>({
                         col.className,
                       )}
                     >
+                      {stackOnNarrow && col.header && (
+                        <span className="text-muted-foreground mb-1 hidden text-xs font-medium @max-md/table:block">
+                          {col.header}
+                        </span>
+                      )}
                       {col.cell(row)}
                     </td>
                   ))}

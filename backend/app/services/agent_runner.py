@@ -52,6 +52,7 @@ agent already resolved, and a recorder that writes one row.
 
 import asyncio
 import hashlib
+import json
 import logging
 from collections import Counter
 from collections.abc import AsyncGenerator, Awaitable, Callable, Mapping, Sequence
@@ -61,7 +62,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from functools import partial
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 from uuid import UUID, uuid4
 
 from pydantic import (
@@ -144,6 +145,7 @@ from app.agents.capabilities.budget import (
     SpendLimit,
     guarded_by,
     metered_by,
+    usd,
 )
 from app.agents.capabilities.channel_tools import (
     CHANNEL_DIRECTORY_RESOURCE,
@@ -157,7 +159,12 @@ from app.agents.capabilities.coding_agent import (
     CodingAgentConfig,
     CodingPreferences,
 )
-from app.agents.capabilities.context import CONTEXT_FILES_RESOURCE, context_config
+from app.agents.capabilities.context import (
+    CONTEXT_BODIES_RESOURCE,
+    CONTEXT_FILES_RESOURCE,
+    ContextBody,
+    context_config,
+)
 from app.agents.capabilities.council import CouncilConfig
 from app.agents.capabilities.drafts._spec import draft_tool_names
 from app.agents.capabilities.guardrails import (
@@ -167,6 +174,7 @@ from app.agents.capabilities.guardrails import (
     input_screen,
     output_screen,
 )
+from app.agents.capabilities.knowledge import KNOWLEDGE_SEARCH_LOG_RESOURCE, KnowledgeSearchLog
 from app.agents.capabilities.media import offloaded_history
 from app.agents.capabilities.mirage import (
     MIRAGE_CAPABILITY_ID,
@@ -189,9 +197,18 @@ from app.agents.capabilities.sandbox import (
 )
 from app.agents.capabilities.sandbox._identity import SessionScope
 from app.agents.capabilities.sandbox._recording import RecordingWorkspace
+from app.agents.capabilities.skills import (
+    SKILL_BODIES_RESOURCE,
+    SKILL_USE_LOG_RESOURCE,
+    SkillBody,
+    SkillUseLog,
+    served_skills,
+    tool_identities,
+)
 from app.agents.capabilities.sol_loop import SolLoopConfig
 from app.agents.capabilities.subagents import SubagentsConfig, acting_delegate
 from app.agents.capabilities.tool_output_limits import SPILL_LOG_RESOURCE
+from app.agents.code_checkpoint import CodeCheckpoint
 from app.agents.computer_on_use import ComputerAccessCallback, RequestComputerOnUse
 from app.agents.connect_on_use import (
     ConnectionCallback,
@@ -204,6 +221,15 @@ from app.agents.ephemeral_media import dump_messages
 from app.agents.factory import AgentOutput, BuiltAgent, answer_text, build_agent
 from app.agents.failures import first_leaf, run_failure_summary
 from app.agents.hand_off import CallWorker, HandOffSpend
+from app.agents.isolation import (
+    CallRow,
+    RunIsolation,
+    RunKnowledge,
+    ToolClass,
+    ToolRecording,
+    capability_tools,
+    recorded_calls,
+)
 from app.agents.loop_guard import ToolLoopStopped
 from app.agents.manifest import RunRecorder, as_payload, carried_over, fit, resolve_fallback_use
 from app.agents.mcp import PLATFORM_MCP_PREFIX, McpSourceIdentity, unreachable_briefing
@@ -221,12 +247,14 @@ from app.agents.secret_request import (
 )
 from app.agents.spec import (
     AgentSpec,
+    BudgetSpec,
     CapabilityBindingSpec,
     ExternalAgentRef,
     McpServerRef,
     ObservabilitySpec,
     PersonalMcpServerRef,
     PlatformMcpServerRef,
+    SkillBindingSpec,
     SpecialistSpec,
     SubagentRef,
     TraceContent,
@@ -250,6 +278,8 @@ from app.agents.subagent_runtime import (
     ResumedDelegation,
     SubagentRuntime,
 )
+from app.agents.system_agents import for_the_platform, refuse_system_agent, searches
+from app.agents.tool_names import taken_tool_names
 from app.agents.voice import VoiceOptions, handed_off, without_voice_unavailable
 from app.agents.watch_sources import WatchReadReceipt, WatchSourceTools
 from app.core.audit import current_impersonator, record_audit
@@ -268,7 +298,9 @@ from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import ApiKeySecret, StorableSecret
 from app.core.tool_identity import ToolIdentity
 from app.core.update_gate import require_admission
-from app.db.models.agent import Agent, AgentStatus
+from app.db.locks import LockScope, try_hold_subject
+from app.db.models.agent import Agent, AgentKind, AgentStatus
+from app.db.models.agent_environment import ConnectionKind
 from app.db.models.agent_exposure import AgentExposure
 from app.db.models.agent_run import (
     CHANNEL_SURFACES,
@@ -281,6 +313,8 @@ from app.db.models.agent_run import (
 from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Message
 from app.db.models.credential import ModelProfile
+from app.db.models.intercepted_tool_call import InterceptedToolCall
+from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.project import Project
 from app.db.models.run_manifest import RunManifest
 from app.db.models.skill import Skill
@@ -291,35 +325,41 @@ from app.repositories import (
     agent_exposure_repo,
     agent_repo,
     agent_run_repo,
+    agent_trigger_repo,
     channel_prompt_repo,
     chat_file_repo,
     conversation_repo,
     conversation_share_repo,
     external_agent_repo,
     group_repo,
+    intercepted_tool_call_repo,
     knowledge_base_repo,
+    knowledge_gap_repo,
     member_repo,
     message_rating_repo,
     organization_repo,
     run_manifest_repo,
     secret_request_repo,
+    skill_usage_repo,
     user_repo,
     voice_call_repo,
 )
 from app.repositories.agent_run import AgentSpendRow, RunFilters
 from app.repositories.voice_call import VoiceChain
 from app.schemas.agent import AgentRunResult, ParkedCall, ParkedQuestion, ParkedSecretRequest
+from app.schemas.agent_run import ChatAskerRead, RunOriginRead
 from app.schemas.user import WorkingHours
 from app.services import change_feed
 from app.services.agent_registry import (
     DEFAULT_GRANTED_SCOPES,
     DELEGATION_CAPABILITY_ID,
     AgentRegistryService,
+    Candidate,
     delegation_binding,
     models_a_run_reaches,
 )
 from app.services.api_key import mint_for_run
-from app.services.approvals import ApprovalService
+from app.services.approvals import ApprovalService, withhold
 from app.services.attachments import (
     UPLOAD_DIR,
     AttachmentRouter,
@@ -349,6 +389,7 @@ from app.services.channels.handback import STOPPED_NOTICE, ChatNotice, chat_dest
 from app.services.channels.handback_jobs import queue_notices
 from app.services.channels.prompt_variables import CHANNEL_CONTEXT
 from app.services.channels.prompt_variables import resolve as resolve_prompt_variables
+from app.services.collection_access import readable_kb
 from app.services.context import ContextService
 from app.services.conversation import (
     API_HISTORY_MESSAGES,
@@ -378,6 +419,7 @@ from app.services.notifications import NotificationService
 from app.services.organization import OrganizationService
 from app.services.organization_secret import OrganizationSecretService
 from app.services.project import ProjectService
+from app.services.rag.overlay import with_overlay
 from app.services.routine_authority import MCP_SOURCES, RoutineAuthority
 from app.services.routine_health import RoutineHealthService
 from app.services.routine_sources import RoutineSourcesRequired
@@ -394,7 +436,12 @@ from app.services.skill_proposal import SkillProposalService
 from app.services.skill_workspace import SKILLS_ROOT, MaterialisedSkills, collect_changes
 from app.services.skill_workspace import materialise as materialise_skills
 from app.services.skills import SkillService
-from app.services.spend import month_start, organization_monthly_spend
+from app.services.spend import (
+    budget_window,
+    month_start,
+    organization_monthly_spend,
+    organization_spend_since,
+)
 from app.services.transcript import (
     STOPPED_TOOL_RESULT,
     RecordedToolCall,
@@ -433,6 +480,33 @@ def _skills_with_content_overrides(
 
 _QUESTION_RESULT = TypeAdapter(dict[str, list[str]] | str)
 
+#: Every candidate skill body of the run, whichever line each was written for. The
+#: agent reads its own share as `SKILL_BODIES_RESOURCE`; each inline specialist takes
+#: its share from this, since it may follow a line the agent does not.
+RUN_SKILL_BODIES_RESOURCE = "run_skill_bodies"
+
+#: The skills the run's inline specialists were resolved with, gathered as each is.
+#: A published delegate's specialists are not the run's: the delegate records its own
+#: run, and its resources start without this list.
+SPECIALIST_SKILLS_RESOURCE = "specialist_skills"
+
+_PREVIEW_CHARS = 80
+
+_ORIGIN_KINDS: dict[str, Literal["grader", "improve", "knowledge_gaps", "test_questions"]] = {
+    AgentKind.JUDGE.value: "grader",
+    AgentKind.IMPROVER.value: "improve",
+    AgentKind.CLASSIFIER.value: "knowledge_gaps",
+    AgentKind.DRAFTER.value: "knowledge_gaps",
+    AgentKind.GENERATOR.value: "test_questions",
+}
+
+
+def _preview(text: str) -> str:
+    """A question as one line of a list: whitespace folded, cut at 80 characters."""
+    flat = " ".join(text.split())
+    return flat if len(flat) <= _PREVIEW_CHARS else f"{flat[: _PREVIEW_CHARS - 1].rstrip()}…"
+
+
 _DELEGATION_RUN_STATUS: Mapping[DelegationStatus, RunStatus] = {
     "completed": RunStatus.COMPLETED,
     "failed": RunStatus.FAILED,
@@ -444,6 +518,27 @@ Three of the six, and no fourth added for delegation: a delegated run ends the
 same three ways any run ends, and a `delegated` status would answer "how did it
 end" with "it was delegated". `parent_run_id` answers that.
 """
+
+
+def _bound_forks(spec: AgentSpec) -> dict[UUID, UUID]:
+    """The fork each skill a run reads is bound to, its inline specialists' included.
+
+    The agent's own binding wins: a skill it reads itself from main is not credited to
+    a fork one of its specialists reads.
+    """
+    delegation = _delegation_config(spec)
+    forks = {
+        binding.skill_id: binding.fork_id
+        for specialist in ([] if delegation is None else delegation.inline)
+        for binding in specialist.skill_bindings
+        if binding.fork_id is not None and binding.skill_id not in spec.skill_ids
+    }
+    forks.update(
+        (binding.skill_id, binding.fork_id)
+        for binding in spec.skill_bindings
+        if binding.fork_id is not None
+    )
+    return forks
 
 
 def _delegation_config(spec: AgentSpec) -> SubagentsConfig | None:
@@ -460,6 +555,15 @@ def _delegation_config(spec: AgentSpec) -> SubagentsConfig | None:
     """
     binding = delegation_binding(spec)
     return None if binding is None else SubagentsConfig.model_validate(binding.config)
+
+
+def _served(skills: list[Skill]) -> list[UUID]:
+    """The versions these resolved skills serve.
+
+    A skill an eval proposes to create has none. A candidate body for a stored skill
+    is resolved as that skill, so its stored version is the one named.
+    """
+    return [skill.latest_version_id for skill in skills if skill.latest_version_id is not None]
 
 
 def input_screen_for(spec: AgentSpec) -> Callable[[str], GuardrailResult] | None:
@@ -495,6 +599,59 @@ def _secret_ids(spec: AgentSpec) -> list[UUID]:
     if spec.observability and spec.observability.token_secret_id:
         ids.append(spec.observability.token_secret_id)
     return ids
+
+
+@dataclass(frozen=True)
+class _TestConnections:
+    """What the run's environment answers with test systems instead.
+
+    Both maps are keyed by the id a spec names. A value of `None` is a binding
+    whose test side was deleted: it is off in this environment, never answered
+    by the production side.
+    """
+
+    mcp: Mapping[UUID, UUID | None] = field(default_factory=dict)
+    secrets: Mapping[UUID, UUID | None] = field(default_factory=dict)
+
+
+def _with_test_secrets(
+    spec: AgentSpec, overrides: Mapping[UUID, UUID | None]
+) -> tuple[AgentSpec, frozenset[str]]:
+    """The spec with each overridden capability secret pointing at its test one,
+    and the ids of the bindings that were swapped.
+
+    Swapped on the spec rather than at unsealing, so the one resolver that
+    yields plaintext stays the only one and the capability never learns it was
+    handed a test key. The swapped bindings are named rather than recognised by
+    their new secret afterwards: a binding that holds that test key in its own
+    right was never swapped. A disabled binding builds nothing, so it is left
+    alone - and never refused for a test key it would not use.
+
+    Raises:
+        BadRequestError: If an override's test secret was deleted. The
+            capability cannot run without a key, and the production one is the
+            key this environment exists to keep it away from.
+    """
+    capabilities: list[CapabilityBindingSpec] = []
+    swapped: set[str] = set()
+    for binding in spec.capabilities:
+        if not binding.enabled or binding.secret_id is None or binding.secret_id not in overrides:
+            capabilities.append(binding)
+            continue
+        test_id = overrides[binding.secret_id]
+        if test_id is None:
+            raise BadRequestError(
+                message=(
+                    f"The test key this environment uses for capability '{binding.id}' was "
+                    "deleted. Choose another one in the environment, or remove the override."
+                ),
+                details={"capability_id": binding.id},
+            )
+        capabilities.append(binding.model_copy(update={"secret_id": test_id}))
+        swapped.add(binding.id)
+    if not swapped:
+        return spec, frozenset()
+    return spec.model_copy(update={"capabilities": capabilities}), frozenset(swapped)
 
 
 def _computer_requirements(spec: AgentSpec) -> tuple[bool, bool]:
@@ -990,6 +1147,9 @@ class PausedRunState(BaseModel):
         default=None, ge=0, exclude_if=lambda value: value is None
     )
     tool_identities: dict[str, ToolIdentity] = Field(default_factory=dict)
+    code_checkpoints: dict[str, CodeCheckpoint] = Field(
+        default_factory=dict, exclude_if=lambda value: not value
+    )
     channel_destination: ChannelDestination | None = None
     channel_file_attempts: int = Field(default=0, ge=0, le=3)
     channel_context: str = ""
@@ -1150,6 +1310,8 @@ class ParkedApproval:
 
     routine_consented_by: UUID | None = None
     tool_consented_by: UUID | None = None
+    always_asks: bool = False
+    """Only a person's answer to this call may let it run - see `ApprovalRequest.always_asks`."""
     standing: bool = False
     """Whether this was granted by standing consent rather than parked.
 
@@ -1260,9 +1422,11 @@ class ApprovalChannel:
         # between a run somebody waived and an agent nobody ever gated. It is not
         # added to `parked`, because nothing is waiting - `paused_state` names the
         # calls a resume has to answer, and this one already ran (#925).
-        consenting = self.standing_consent_by or request.routine_consented_by
-        if consenting is None and delegate is None and self.tool_consent is not None:
-            consenting = await self.tool_consent(request)
+        consenting = None
+        if not request.always_asks:
+            consenting = self.standing_consent_by or request.routine_consented_by
+            if consenting is None and delegate is None and self.tool_consent is not None:
+                consenting = await self.tool_consent(request)
         if consenting is None:
             self.parked[str(approval_id)] = request.tool_call_id
         self.requested.append(
@@ -1274,6 +1438,7 @@ class ApprovalChannel:
                 capability_tool_id=request.capability_tool_id,
                 context=context,
                 account=request.account,
+                always_asks=request.always_asks,
                 standing=consenting is not None,
                 routine_consented_by=request.routine_consented_by,
                 tool_consented_by=consenting,
@@ -1439,6 +1604,27 @@ class _ResumePlan:
     """
 
 
+def _native_approval_tools(state: PausedRunState) -> dict[str | None, frozenset[str]]:
+    """Keep each owner's already parked native calls out of its script catalog."""
+    pending_ids: dict[str | None, set[str]] = {}
+    for approval_id, call_id in state.tool_call_ids.items():
+        pending_ids.setdefault(state.delegated_approvals.get(approval_id), set()).add(call_id)
+    native_tools: dict[str | None, frozenset[str]] = {}
+
+    def collect(owner: str | None, history: object, frames: list[DelegationFrame]) -> None:
+        native_tools[owner] = frozenset(
+            part.tool_name
+            for message in ModelMessagesTypeAdapter.validate_python(history)
+            for part in message.parts
+            if isinstance(part, ToolCallPart) and part.tool_call_id in pending_ids.get(owner, set())
+        )
+        for frame in frames:
+            collect(frame.task_id, frame.messages, frame.delegations)
+
+    collect(None, state.messages, state.delegations)
+    return native_tools
+
+
 def _resume_plan(state: PausedRunState, decided_args: Mapping[str, dict[str, Any]]) -> _ResumePlan:
     """Split a parked run's verdicts across the agents that were waiting on them.
 
@@ -1449,6 +1635,11 @@ def _resume_plan(state: PausedRunState, decided_args: Mapping[str, dict[str, Any
     remains the only thing allowed to decide whether a *gated* tool runs, which is
     why every parked call is approved here and refusals are carried separately.
     """
+    script_parents = {
+        call.tool_call_id: checkpoint.parent_tool_call_id
+        for checkpoint in state.code_checkpoints.values()
+        for call in checkpoint.calls
+    }
     by_delegation: dict[str | None, list[str]] = {}
     for approval_id, tool_call_id in state.tool_call_ids.items():
         by_delegation.setdefault(state.delegated_approvals.get(approval_id), []).append(
@@ -1463,6 +1654,9 @@ def _resume_plan(state: PausedRunState, decided_args: Mapping[str, dict[str, Any
     def level(frames: list[DelegationFrame], own: list[str]) -> DeferredToolResults:
         results = DeferredToolResults()
         for tool_call_id in own:
+            if tool_call_id in script_parents:
+                results.approvals[script_parents[tool_call_id]] = ToolApproved()
+                continue
             results.approvals[tool_call_id] = ToolApproved(
                 override_args=decided_args.get(tool_call_id)
             )
@@ -1670,6 +1864,10 @@ class PreparedRun:
     user the same.
     """
 
+    knowledge_searches: KnowledgeSearchLog | None = None
+    """The knowledge searches the run and its delegates made, waiting for `finish`."""
+    skill_uses: SkillUseLog | None = None
+    """The skills the run and its delegates used, waiting for `finish`."""
     delegate_recorders: list[tuple[UUID, RunRecorder]] = field(default_factory=list)
     """Each delegate's agent id and request recording, so `finish` can count the
     cache busts it hit on the row that answers for that agent - a delegate's agent
@@ -1755,6 +1953,11 @@ class PreparedRun:
     failed open on the path where somebody had said no (#1326).
     """
 
+    isolation: RunIsolation | None = None
+    """How this run treats its tools when it is isolated - an eval - and what it
+    held back, for :meth:`AgentRunnerService.finish` to write. `None` is every
+    other run, whose tools act on the world."""
+
     @property
     def deps(self) -> AgentDeps:
         return self.built.deps
@@ -1784,6 +1987,20 @@ class PreparedRun:
             )
         ]
 
+    def checkpointed_approvals(self) -> dict[str, str]:
+        """Do not queue an approval whose script failed to retain its place."""
+        orphaned = self.built.deps.code_continuations.orphan_approvals
+        if orphaned:
+            self.approvals.parked = {
+                key: call for key, call in self.approvals.parked.items() if call not in orphaned
+            }
+            self.approvals.requested[:] = [
+                request
+                for request in self.approvals.requested
+                if request.tool_call_id not in orphaned
+            ]
+        return self.approvals.parked
+
     async def execute(
         self,
         user_prompt: str | Sequence[UserContent] | None,
@@ -1800,6 +2017,7 @@ class PreparedRun:
             checking_model_context(self.model_context_check),
             guarded_by(self.built.budget),
             metered_by(self.built.ledger),
+            with_overlay(None if self.isolation is None else self.isolation.knowledge_overlay),
             acting_for_no_person(self.built.deps.run_person is None),
             acting_impersonated(self.built.deps.impersonated),
         ):
@@ -1854,6 +2072,7 @@ class PreparedRun:
             checking_model_context(self.model_context_check),
             guarded_by(self.built.budget),
             metered_by(self.built.ledger),
+            with_overlay(None if self.isolation is None else self.isolation.knowledge_overlay),
             acting_for_no_person(self.built.deps.run_person is None),
             acting_impersonated(self.built.deps.impersonated),
         ):
@@ -2368,10 +2587,40 @@ _DEFERRED_SKILLS_BRIEFING = (
 Said before the writes can have succeeded, so it does not claim they did."""
 
 
+def _add_collection(names: list[str], scopes: dict[str, VectorScope], base: KnowledgeBase) -> None:
+    """Add a base to the collections an agent searches, merging one that shares a name.
+
+    Bases that passed the organization check share a vector tenant, so two with
+    one collection name are read as a union without widening to their siblings.
+    """
+    name = base.collection_name
+    if previous := scopes.get(name):
+        scopes[name] = replace(
+            previous,
+            additional_knowledge_base_ids=(*previous.additional_knowledge_base_ids, base.id),
+        )
+    else:
+        names.append(name)
+        scopes[name] = base.vector_scope
+
+
+def _searched_bases(resources: Mapping[str, Any]) -> dict[str, tuple[UUID, ...]]:
+    """Each bound collection name, to the knowledge bases a search of it reads."""
+    return {
+        name: tuple(
+            base_id
+            for base_id in (scope.knowledge_base_id, *scope.additional_knowledge_base_ids)
+            if base_id is not None
+        )
+        for name, scope in resources["kb_vector_scopes"].items()
+    }
+
+
 def _start_turn_on_first_use(
     workspace: RecordingWorkspace,
     prepared: PreparedRun,
     skills: list[Skill],
+    bodies: Mapping[UUID, SkillBody],
     *,
     earlier: EarlierAttachments | None = None,
     can_parse: bool = False,
@@ -2388,7 +2637,7 @@ def _start_turn_on_first_use(
     """
 
     async def start() -> None:
-        prepared.materialised_skills = await materialise_skills(workspace, skills)
+        prepared.materialised_skills = await materialise_skills(workspace, skills, bodies)
         if earlier is not None:
             await restore_earlier_attachments(workspace, earlier, can_parse=can_parse)
         prepared.earlier_attachments_checked = checked_earlier
@@ -2557,6 +2806,7 @@ def _connect_on_use(
     refs: Sequence[McpServerRef],
     user_id: UUID | None,
     request_connection: ConnectionCallback | None,
+    taken_names: Mapping[str, str],
 ) -> tuple[ConnectOnUse | None, list[UnavailableBinding]]:
     """Split the gaps into those the run offers to connect on use and those it briefs.
 
@@ -2577,7 +2827,12 @@ def _connect_on_use(
         request = ConnectionRequest(
             catalog_key=gap.catalog_key, name=personal_service_gap(gap).name, gap=gap.gap
         )
-        resolve = partial(connect_personal_toolset, personal[gap.catalog_key], user_id=user_id)
+        resolve = partial(
+            connect_personal_toolset,
+            personal[gap.catalog_key],
+            user_id=user_id,
+            taken_names=taken_names,
+        )
         pending.append(PendingService(request=request, resolve=resolve))
     if not pending:
         return None, briefed
@@ -2706,14 +2961,13 @@ def _answer_only(spec: AgentSpec) -> AgentSpec:
 def _with_channel_service_approval(
     spec: AgentSpec, surface: RunSurface, *, linked_sender: bool = False
 ) -> AgentSpec:
-    """Require approval for channel writes, preserving an operator's stricter policy.
+    """Keep linked members' authored policy; hold every unlinked MCP call.
 
-    Linked senders use web chat's read-only classification. An unlinked room
-    participant needs approval for every MCP or Mirage call; no member vouched
-    for releasing organization data to them. An explicit `all` still includes reads.
-    This also applies to delegates and resumed runs through the shared factory.
+    A linked channel sender uses the same approval settings as web chat.
+    Unlinked participants still need approval for all MCP and Mirage calls.
+    The factory applies this to delegates and resumed runs as well.
     """
-    if surface not in _CHANNEL_SURFACES:
+    if surface not in _CHANNEL_SURFACES or linked_sender:
         return spec
     return spec.model_copy(
         update={
@@ -2729,22 +2983,25 @@ def _with_channel_service_approval(
                         },
                     }
                 )
-                if not linked_sender and binding.id == MIRAGE_CAPABILITY_ID
+                if binding.id == MIRAGE_CAPABILITY_ID
                 else binding
                 for binding in spec.capabilities
             ],
-            "mcp_servers": [
-                ref.model_copy(
-                    update={
-                        "approval": "all"
-                        if not linked_sender or ref.approval == "all"
-                        else "writes"
-                    }
-                )
-                for ref in spec.mcp_servers
-            ],
+            "mcp_servers": [_held_to_channel_approval(ref) for ref in spec.mcp_servers],
         }
     )
+
+
+def _held_to_channel_approval(ref: McpServerRef) -> McpServerRef:
+    """One MCP binding, held to what a chat app requires.
+
+    See :func:`_with_channel_service_approval` for the rule.
+    """
+    approval = "all"
+    if isinstance(ref, PlatformMcpServerRef):
+        return ref.model_copy(update={"approval": approval})
+    asked = {tool: mode for tool, mode in ref.tool_approval.items() if mode == "required"}
+    return ref.model_copy(update={"approval": approval, "tool_approval": asked})
 
 
 def _with_channel_tools(spec: AgentSpec, exposure: AgentExposure | None) -> AgentSpec:
@@ -2902,6 +3159,11 @@ class _Delegation:
     """One stash for the whole tree, because a delegation three levels down parks
     the run somebody started and is continued from that run's stored state."""
 
+    test_connections: _TestConnections
+    """The run's environment overrides, which every level of the tree honours."""
+
+    isolation: RunIsolation | None
+    """The run's isolation, when it is an eval, which every level of the tree is under."""
     output_screen: ScreenedStream | None = None
     """The run's own output check, for what every level of the tree streams."""
 
@@ -3005,6 +3267,7 @@ def _delegate_builder(
     resources: dict[str, Any],
     secrets: Mapping[UUID, StorableSecret],
     extra_toolsets: list[AbstractToolset[Any]],
+    test_bindings: frozenset[str] = frozenset(),
     reviewer_models: Mapping[UUID, ModelRequestSpec] | None = None,
     council_models: Mapping[UUID, ModelRequestSpec] | None = None,
     sol_loop_models: Mapping[UUID, ModelRequestSpec] | None = None,
@@ -3070,6 +3333,8 @@ def _delegate_builder(
             # delegate meters nothing the parent can see, and the parent's cap
             # stops binding at exactly the moment delegation multiplies spend.
             shared_budget=delegation.budget.guard,
+            isolation=delegation.isolation,
+            test_bindings=test_bindings,
             answering_call=delegation.answering_call,
         )
         # Kept so `finish` counts its cache busts on the row of the agent that hit them.
@@ -3139,6 +3404,20 @@ def _dynamic_builder(
         )()
 
     return build
+
+
+class RoutineBudgetSpent(BudgetExceeded):
+    """A parked fire resumed once its routine's month is spent, refused as a skipped fire is.
+
+    A fire still running when the limit is crossed finishes; a parked one has not
+    started its continuation, so it waits for the next month like a new fire.
+    """
+
+    def __init__(self, *, limit_usd: Decimal, spent_usd: Decimal) -> None:
+        super().__init__(limit_usd=limit_usd, spent_usd=spent_usd, scope=BudgetScope.RUN)
+        self.args = (
+            f"Routine monthly budget exhausted: ${spent_usd:.4f} spent of {usd(limit_usd)} limit",
+        )
 
 
 def _spend_already_booked(run: AgentRun) -> SpendEntry:
@@ -3505,20 +3784,31 @@ class AgentRunnerService:
                     ctx.organization_id,
                 )
                 continue
-            name = collection.collection_name
-            if previous := scopes.get(name):
-                # Both bases passed the organization check above, so they share
-                # a vector tenant. Read their union without widening to siblings.
-                scopes[name] = replace(
-                    previous,
-                    additional_knowledge_base_ids=(
-                        *previous.additional_knowledge_base_ids,
-                        collection.id,
-                    ),
-                )
-            else:
-                names.append(name)
-                scopes[name] = collection.vector_scope
+            _add_collection(names, scopes, collection)
+        return {"kb_collection_names": names, "kb_vector_scopes": scopes}
+
+    async def _run_collections(
+        self, ctx: AuthContext, spec: AgentSpec, knowledge: RunKnowledge | None
+    ) -> dict[str, Any]:
+        """The knowledge bases a system agent searches on this run, as `_bound_collections` names them.
+
+        Picked by whoever started the run rather than bound in the spec, and
+        only those the person the run is for may read: what it finds is shown to
+        the readers of what it answers.
+        """
+        names: list[str] = []
+        scopes: dict[str, VectorScope] = {}
+        if knowledge is None or not searches(spec):
+            return {"kb_collection_names": names, "kb_vector_scopes": scopes}
+        found = await knowledge_base_repo.get_by_ids(self.db, list(knowledge.knowledge_base_ids))
+        for base_id in knowledge.knowledge_base_ids:
+            base = found.get(base_id)
+            if (
+                base is not None
+                and base.organization_id == ctx.organization_id
+                and await readable_kb(self.db, ctx, base)
+            ):
+                _add_collection(names, scopes, base)
         return {"kb_collection_names": names, "kb_vector_scopes": scopes}
 
     async def _recorded_conversation_state(self, conversation_id: UUID | None) -> _RecordedState:
@@ -3578,6 +3868,8 @@ class AgentRunnerService:
         skill_content_overrides: Mapping[UUID, str] | None = None,
         on_sandbox_wait: SandboxWaitSink | None = None,
         request_connection: ConnectionCallback | None = None,
+        isolation: RunIsolation | None = None,
+        candidate: Candidate | None = None,
         request_computer_access: ComputerAccessCallback | None = None,
         run_limit_usd: Decimal | None = None,
         public_origin: bool = False,
@@ -3593,8 +3885,9 @@ class AgentRunnerService:
 
         Args:
             source_run: A run whose frozen spec an auxiliary call uses.
-                Current access is still checked; its original instructions, budgets
-                and tracing policy cannot drift to a newly published version.
+                Current access and the current published budget still apply; its
+                original instructions and tracing policy cannot drift to a newly
+                published version.
             aside: A question asked on the side of a run still working (#2087):
                 answered from the conversation alone, with the agent's tools,
                 knowledge, servers and delegates taken away - see `_answer_only`.
@@ -3653,6 +3946,16 @@ class AgentRunnerService:
                 binding they have not connected is offered to the model as
                 `connect_account` rather than briefed as unavailable - so nobody
                 is asked to connect a service the agent never reaches for.
+            isolation: Run isolated, as an eval does: only reads and calls to the
+                environment's test connections execute, everything else is held
+                and recorded, and a recording - when given - answers calls
+                instead. See :mod:`app.agents.isolation`.
+            candidate: Run this instead of the version the environment pins -
+                how an eval runs a given version, or a draft. The environment
+                then supplies only the connections and the tracing. An
+                unpublished candidate is validated against the caller's access
+                and the run is attributed to no version, so a draft's answers
+                never count as a published version's.
             request_computer_access: How to ask the person at the keyboard where
                 the agent may work on their computer while the run waits. Given,
                 an agent whose workspace is that computer and has none chosen
@@ -3693,6 +3996,7 @@ class AgentRunnerService:
         effective_environment_id = environment_id or (
             exposure.environment_id if exposure is not None else None
         )
+        version_id: UUID | None
         test_spec: dict[str, Any] | None = None
         if draft:
             if effective_environment_id is not None:
@@ -3703,16 +4007,22 @@ class AgentRunnerService:
             agent, spec = await self.registry.get_draft_spec(ctx, agent_id)
             version_id = None
             test_spec = spec.model_dump(mode="json")
-        elif version_id is not None:
+        elif candidate is None and version_id is not None:
             agent, spec, version_id = await self.registry.get_pinned_spec(ctx, agent_id, version_id)
-        else:
+        elif candidate is None:
             agent, spec, version_id = await self.registry.get_runnable_spec(
                 ctx, agent_id, environment_id=effective_environment_id
+            )
+        else:
+            agent, spec, version_id = await self.registry.get_candidate_spec(
+                ctx, agent_id, candidate, environment_id=effective_environment_id
             )
         if source_run is not None:
             _, spec = await self._parked_spec(ctx, source_run)
             version_id = source_run.agent_version_id
             test_spec = source_run.test_spec
+        skill_bodies = {} if candidate is None else candidate.skill_bodies
+        context_bodies = {} if candidate is None else candidate.context_bodies
         spec = await self._with_environment_observability(
             ctx, spec, environment_id=effective_environment_id
         )
@@ -3722,6 +4032,7 @@ class AgentRunnerService:
             spec = spec.model_copy(update={"output_schema": output_schema})
         if instructions_override is not None:
             spec = spec.model_copy(update={"instructions": instructions_override})
+            version_id = None
             test_spec = spec.model_dump(mode="json")
         if skill_content_overrides and not (test or draft):
             raise BadRequestError("Skill content overrides are only allowed on test runs")
@@ -3758,6 +4069,7 @@ class AgentRunnerService:
             # Passed in rather than set on the built deps like `on_compaction`:
             # whether a gap is briefed or offered as a tool decides what is built.
             request_connection=request_connection,
+            isolation=isolation,
             request_computer_access=request_computer_access,
             run_limit_usd=run_limit_usd,
             public_origin=public_origin,
@@ -3768,6 +4080,8 @@ class AgentRunnerService:
             is_test=test or draft,
             test_spec=test_spec,
             skill_content_overrides=skill_content_overrides,
+            skill_bodies=skill_bodies,
+            context_bodies=context_bodies,
             watch_receipt=watch_receipt,
         )
         prepared.output_schema = output_schema
@@ -3940,6 +4254,7 @@ class AgentRunnerService:
         environment_id: UUID | None = None,
         plan_items: list[dict[str, Any]] | None = None,
         request_connection: ConnectionCallback | None = None,
+        isolation: RunIsolation | None = None,
         request_computer_access: ComputerAccessCallback | None = None,
         run_limit_usd: Decimal | None = None,
         public_origin: bool = False,
@@ -3950,6 +4265,8 @@ class AgentRunnerService:
         is_test: bool = False,
         test_spec: dict[str, Any] | None = None,
         skill_content_overrides: Mapping[UUID, str] | None = None,
+        skill_bodies: Mapping[UUID, SkillBody] | None = None,
+        context_bodies: Mapping[UUID, ContextBody] | None = None,
         on_sandbox_wait: SandboxWaitSink | None = None,
         channel_file_attempts: int = 0,
         restored_channel_context: str = "",
@@ -3986,6 +4303,18 @@ class AgentRunnerService:
         that created it - at the run's own agent (agenticos#175) and inside a nested
         delegate (agenticos#254) alike.
         """
+        # A system agent runs only through the system agent runner, on the eval
+        # surface - here, so a resumed run and every fresh surface are held to it.
+        if surface != RunSurface.EVAL:
+            refuse_system_agent(agent, action=f"a {surface.value} run")
+        system = agent.kind != AgentKind.AGENT.value
+        if system:
+            spec = for_the_platform(spec)
+        spec = await self._with_current_budget(
+            agent,
+            spec,
+            version_id=version_id if existing_run is None else existing_run.agent_version_id,
+        )
         routine = await RoutineAuthority.capture(
             self.db, ctx, agent_id=agent.id, run=existing_run, version_id=version_id
         )
@@ -4169,15 +4498,42 @@ class AgentRunnerService:
 
         # Everything a capability needs but must not fetch itself. Resolved once,
         # server-side, so the model cannot influence what an agent reaches.
-        skills = _skills_with_content_overrides(
-            await self.skills.resolve_for_agent(ctx, spec.skill_ids), skill_content_overrides
+        knowledge = None if isolation is None else isolation.knowledge
+        bound = (
+            await self._run_collections(ctx, spec, knowledge)
+            if system
+            else await self._bound_collections(spec, ctx)
+        )
+        search_log = KnowledgeSearchLog(
+            agent_id=agent.id,
+            collections=_searched_bases(bound),
+            found=None if knowledge is None else knowledge.found,
+        )
+        own_bodies = _on_line(spec.skill_bindings, skill_bodies or {}, own=True)
+        skills = await self.skills.resolve_for_agent(
+            ctx, spec.skill_ids, bindings=spec.skill_bindings, projected=own_bodies or None
+        )
+        skills = _skills_with_content_overrides(skills, skill_content_overrides)
+        skill_log = SkillUseLog(
+            agent_id=agent.id,
+            served=served_skills(skills, own_bodies),
+            tools=tool_identities(spec.capabilities),
         )
         resources: dict[str, Any] = {
-            **await self._bound_collections(spec, ctx),
+            **bound,
+            KNOWLEDGE_SEARCH_LOG_RESOURCE: search_log,
+            SKILL_USE_LOG_RESOURCE: skill_log,
             "skills": skills,
             CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(
-                ctx, spec.context_ids, config=context_config(spec.capabilities)
+                ctx,
+                spec.context_ids,
+                projected=context_bodies,
+                config=context_config(spec.capabilities),
             ),
+            SKILL_BODIES_RESOURCE: own_bodies,
+            RUN_SKILL_BODIES_RESOURCE: dict(skill_bodies or {}),
+            CONTEXT_BODIES_RESOURCE: dict(context_bodies or {}),
+            SPECIALIST_SKILLS_RESOURCE: [],
         }
         # What an earlier turn of this thread wrote down. Read here rather than
         # beside the build below, because one of the three is a resource.
@@ -4222,6 +4578,16 @@ class AgentRunnerService:
             resources[BROWSER_STEP_MODEL_RESOURCE] = (
                 await self.models.resolve(models_ctx, profile_id=step_profile)
             ).build()
+        # Read off the run on a resume, so a continuation reaches the systems
+        # the run began on.
+        test_connections = await self._test_connections(
+            ctx,
+            environment_id=(
+                existing_run.environment_id if existing_run is not None else environment_id
+            ),
+        )
+        spec, test_bindings = _with_test_secrets(spec, test_connections.secrets)
+
         # Unsealed here and handed straight to the factory, which hands them to
         # the capability instances that declared them. They are kept out of
         # `resources` deliberately: a resource may end up in a log line and a
@@ -4253,13 +4619,17 @@ class AgentRunnerService:
         personal_sources = admitted_mcp_sources
         if watch_sources is not None:
             personal_sources = {watch_sources.connection_id: source_identity(watch_sources)}
+        # What the spec's other tools are called, which no MCP tool may also be (#2890).
+        taken_names = taken_tool_names(spec)
         resolved = await build_toolsets_for_agent(
             self.db,
             organization_id=ctx.organization_id,
             refs=spec.mcp_servers,
             sender_user_id=personal_mcp_user_id,
+            test_connections=test_connections.mcp,
             personal_sources=personal_sources,
             organization_sources=admitted_mcp_sources,
+            taken_names=taken_names,
             platform_credential=await self._platform_credential(
                 spec,
                 ctx,
@@ -4297,6 +4667,7 @@ class AgentRunnerService:
             refs=spec.mcp_servers,
             user_id=personal_mcp_user_id,
             request_connection=request_connection,
+            taken_names=taken_names,
         )
         context = runtime_context(
             surface.value,
@@ -4344,17 +4715,19 @@ class AgentRunnerService:
         if routine is not None:
             routine.require_project(project)
         run = existing_run
+        opened_at = datetime.now(UTC)
+        started_at = opened_at if existing_run is None else existing_run.started_at
         if run is None:
             require_admission()
             run = await agent_run_repo.create_run(
                 self.db,
                 organization_id=ctx.organization_id,
                 agent_id=agent.id,
-                # A draft under test has no version; naming the current one
-                # would credit its answers to something it did not run.
-                agent_version_id=(
-                    None if test_spec is not None else version_id or agent.current_version_id
-                ),
+                # A draft under test, or an unpublished candidate, has no version;
+                # naming the current one would credit its answers to something it
+                # did not run.
+                agent_version_id=version_id,
+                improvement_run_id=isolation.improvement_run_id if isolation else None,
                 user_id=ctx.user_id,
                 trigger_id=ctx.routine_id if ctx.routine_kind == "trigger" else None,
                 routine_origin_id=ctx.routine_id,
@@ -4411,11 +4784,14 @@ class AgentRunnerService:
                 if model_spec is not None
                 else None,
                 modality="voice" if voice is not None else "text",
-                started_at=datetime.now(UTC),
+                started_at=opened_at,
                 is_test=is_test,
                 test_spec=test_spec,
             )
-
+        elif run.skill_uses_recorded:
+            # Recorded up to the park; this segment's uses are unknown until its own
+            # finish writes them. A segment already lost stays lost.
+            run.skill_uses_recorded = None
         # Two lookups, because the caps they feed meter two different things. The
         # agent's own cap used to read the organization-wide number below, which
         # made `AgentSpec.budget.monthly_usd` a second organization cap wearing
@@ -4458,12 +4834,15 @@ class AgentRunnerService:
                 return get_worker_db_context
             return get_db_context
 
+        since, until = budget_window(started_at)
+
         async def agent_period_spend() -> Decimal:
             async with spend_session("agent")() as db:
                 return await agent_run_repo.sum_cost_since(
                     db,
                     organization_id=ctx.organization_id,
-                    since=month_start(),
+                    since=since,
+                    until=until,
                     agent_id=agent.id,
                     include_delegations=True,
                     exclude_run_id=run.id,
@@ -4471,12 +4850,15 @@ class AgentRunnerService:
 
         async def org_period_spend() -> Decimal:
             async with spend_session("organization")() as db:
-                return await organization_monthly_spend(
-                    db, ctx.organization_id, exclude_run_id=run.id
+                return await organization_spend_since(
+                    db, ctx.organization_id, since, until=until, exclude_run_id=run.id
                 )
 
         group_limits = await self._group_limits(
-            self._department_context(ctx, existing_run), exclude_run_id=run.id
+            self._department_context(ctx, existing_run),
+            exclude_run_id=run.id,
+            since=since,
+            until=until,
         )
 
         # A chat in a project works in the project's container and reads its
@@ -4522,9 +4904,13 @@ class AgentRunnerService:
             # What the binding that admitted this run says, if it says anything.
             # The same agent in web chat and on a Slack bot is one agent in two
             # situations, and one value for both was the wrong shape. A project's
-            # container is the project's, whatever either says.
+            # container is the project's, whatever either says. Isolated evals
+            # instead get a disposable workspace per attempt: they have no chat
+            # and must never share the agent's or caller's persistent files.
             scope_override=(
-                "project"
+                "run"
+                if isolation is not None
+                else "project"
                 if project is not None
                 else cast("SessionScope | None", exposure.session_scope)
                 if exposure is not None and exposure.session_scope
@@ -4674,7 +5060,9 @@ class AgentRunnerService:
                 if resources["skills"]:
                     spec = _with_skills_briefing(spec, deferred=True)
             else:
-                materialised = await materialise_skills(workspace.workspace, resources["skills"])
+                materialised = await materialise_skills(
+                    workspace.workspace, resources["skills"], resources[SKILL_BODIES_RESOURCE]
+                )
                 if materialised.written:
                     spec = _with_skills_briefing(spec)
                 if earlier is not None:
@@ -4826,6 +5214,8 @@ class AgentRunnerService:
             delegations=delegations,
             delegate_recorders=delegate_recorders,
             stash=stash,
+            test_connections=test_connections,
+            isolation=isolation,
             answering_call=None if voice is None else voice.options,
             routine_check=routine_check,
             routine_action_check=None if routine is None else routine.action_policy,
@@ -4833,6 +5223,11 @@ class AgentRunnerService:
         )
         if runtime is not None:
             resources[SUBAGENT_RUNTIME_RESOURCE] = runtime
+        # The versions the run could answer from: its own and its specialists'. A
+        # resumed run serves what its lines say now, which may be newer than what it
+        # started on, so it keeps both.
+        served = _served([*skills, *resources[SPECIALIST_SKILLS_RESOURCE]])
+        run.skill_version_ids = list(dict.fromkeys([*(run.skill_version_ids or []), *served]))
 
         # The audience is the run's own, not the resuming caller's: an approver
         # releasing somebody else's run must not become the person its memory is kept
@@ -4848,6 +5243,37 @@ class AgentRunnerService:
             fired_as_creator=ctx.fired_as_creator,
             room_key=memory_room_key,
             via_api_key=ctx.api_key_id is not None,
+        )
+        audience = replace(
+            audience,
+            shared_transcript=project is not None
+            or await self._shared_for_editing(ctx, conversation_id),
+        )
+        # A workflow step runs as the workflow's principal, so only the dispatch
+        # knows whether an outsider supplied the run's input. Read here rather
+        # than trusted to every caller: a step parked before the flag existed
+        # wakes with it unset, and a step that forgets to pass it must not lend
+        # the run the principal as its person. With no dispatch at all a workflow
+        # run counts as public - both callers run inside one.
+        #
+        # Imported here: `workflow_execution` reaches the `agent.run` node, which
+        # imports this module at load.
+        from app.services.workflow_execution import context as workflow_context
+
+        dispatching = workflow_context.active()
+        public_origin = public_origin or (
+            surface is RunSurface.WORKFLOW and (dispatching is None or dispatching.public_origin)
+        )
+        # Whether an administrator started this run as its person: stated by a
+        # resume from the stored terms, otherwise read from the request that is
+        # starting it or the workflow dispatch it runs inside - the only places
+        # that still know. Carried on the deps and the admitted terms, because
+        # the ambient request state is gone in a spawned task, a worker and a
+        # run resumed after an approval.
+        impersonated = (
+            impersonated
+            or current_impersonator() is not None
+            or (dispatching is not None and dispatching.impersonated)
         )
         # The run's own person. On a resume that is `owner_user_id` alone, never
         # the approver's `ctx.user_id`: a run whose member was deleted lost its
@@ -4982,6 +5408,8 @@ class AgentRunnerService:
             # advanced, so it counts across turns rather than resetting each one.
             recorded_overhead=recorded.overhead,
             recorded_reminder_state=recorded.reminder_state,
+            isolation=isolation,
+            test_bindings=test_bindings,
             voice=None if voice is None else voice.options,
         )
 
@@ -5034,6 +5462,8 @@ class AgentRunnerService:
                 if isinstance(gap, UnavailablePersonalService)
             ],
             delegations=delegations,
+            knowledge_searches=search_log,
+            skill_uses=skill_log,
             delegate_recorders=delegate_recorders,
             stash=stash,
             ctx=ctx,
@@ -5054,6 +5484,7 @@ class AgentRunnerService:
                 impersonated=impersonated,
                 is_workflow=is_workflow,
             ),
+            isolation=isolation,
         )
         if channel_directory is not None:
             built.deps.send_channel_file = channel_file_sender(
@@ -5066,6 +5497,7 @@ class AgentRunnerService:
                 workspace.workspace,
                 prepared,
                 resources["skills"],
+                resources[SKILL_BODIES_RESOURCE],
                 earlier=earlier,
                 can_parse=workspace.parses_documents,
                 checked_earlier=checked_earlier,
@@ -5093,6 +5525,8 @@ class AgentRunnerService:
         delegations: list[RecordedDelegation],
         delegate_recorders: list[tuple[UUID, RunRecorder]],
         stash: DelegationStash,
+        test_connections: _TestConnections,
+        isolation: RunIsolation | None,
         request_computer_access: ComputerAccessCallback | None = None,
         answering_call: VoiceOptions | None = None,
         routine_check: RoutineCheck | None = None,
@@ -5126,6 +5560,12 @@ class AgentRunnerService:
                 continuation finds one. Given to every level of the tree, because
                 the run being continued is the one somebody started however deep
                 the delegation that parked it was.
+            test_connections: The run's environment overrides, applied at every
+                level: a delegate binding the production CRM reaches the sandbox
+                in staging, exactly as the agent that delegated to it does.
+            isolation: The run's isolation, shared by the whole tree, so a
+                delegate's write is held - and recorded in the run's one list -
+                exactly as its parent's is.
             answering_call: The call the tree works for, when it is a call's
                 text twin that delegates (#54): see `_Delegation.answering_call`.
 
@@ -5164,6 +5604,8 @@ class AgentRunnerService:
             attribution=attribution,
             runtimes=runtimes,
             stash=stash,
+            test_connections=test_connections,
+            isolation=isolation,
             output_screen=_output_screen(spec),
             request_computer_access=request_computer_access,
             computer_resources=_computer_resources(resources),
@@ -5517,6 +5959,7 @@ class AgentRunnerService:
         own_resources = await self._delegate_resources(
             ctx,
             spec,
+            agent_id=None,
             shared=shared,
             parent_resources=resources,
             person_id=delegation.personal_mcp_user_id,
@@ -5627,6 +6070,7 @@ class AgentRunnerService:
                 message=f"A delegate this agent is pinned to, '{delegate.name}', is archived",
                 details={"agent_id": str(ref.agent_id), "slug": delegate.slug},
             )
+        refuse_system_agent(delegate, action="a delegate")
         version = await agent_repo.get_version(
             self.db, ref.agent_version_id, organization_id=ctx.organization_id
         )
@@ -5653,6 +6097,7 @@ class AgentRunnerService:
         delegate_resources = await self._delegate_resources(
             ctx,
             pinned,
+            agent_id=ref.agent_id,
             shared=shared,
             parent_resources=resources,
             person_id=delegation.personal_mcp_user_id,
@@ -5724,13 +6169,16 @@ class AgentRunnerService:
         )
         # Recorded now so the child's run row can name the model that answered.
         delegation.attribution[ref.agent_version_id] = model
+        runnable, test_bindings = _with_test_secrets(runnable, delegation.test_connections.secrets)
         resolved = await build_toolsets_for_agent(
             self.db,
             organization_id=ctx.organization_id,
             refs=runnable.mcp_servers,
             sender_user_id=delegation.personal_mcp_user_id,
+            test_connections=delegation.test_connections.mcp,
             personal_sources=delegation.routine_sources,
             organization_sources=delegation.routine_sources,
+            taken_names=taken_tool_names(runnable),
             # The run's own person, as for the parent: on a resume `ctx` is the
             # approver's, and a delegate must not carry their authority either.
             platform_credential=await self._platform_credential(runnable, ctx, delegation.run),
@@ -5766,6 +6214,7 @@ class AgentRunnerService:
                 reviewer_models=await self._reviewer_models(delegation.models_ctx, runnable),
                 council_models=await self._council_models(delegation.models_ctx, runnable),
                 sol_loop_models=await self._sol_loop_models(delegation.models_ctx, runnable),
+                test_bindings=test_bindings,
             ),
             max_steps=runnable.max_steps,
             preferred_mode=ref.preferred_mode,
@@ -5784,6 +6233,7 @@ class AgentRunnerService:
         ctx: AuthContext,
         spec: AgentSpec,
         *,
+        agent_id: UUID | None,
         shared: list[CapabilityBindingSpec],
         parent_resources: dict[str, Any],
         person_id: UUID | None,
@@ -5815,13 +6265,45 @@ class AgentRunnerService:
         workspace is opened per delegate: only the run has one. Sharing is how a
         delegate reaches a durable workspace at all.
         """
+        bound = await self._bound_collections(spec, ctx)
+        # An inline specialist is part of the agent being run, so a candidate skill
+        # body measured on that agent is what its specialists read too - where they
+        # follow the line it was written for. A published delegate is another agent,
+        # served its own stored skills.
+        parent_bodies = parent_resources.get(RUN_SKILL_BODIES_RESOURCE)
+        run_bodies: dict[UUID, SkillBody] = (
+            dict(parent_bodies) if agent_id is None and isinstance(parent_bodies, dict) else {}
+        )
+        projected = _on_line(spec.skill_bindings, run_bodies)
+        skills = await self.skills.resolve_for_agent(
+            ctx, spec.skill_ids, bindings=spec.skill_bindings, projected=projected or None
+        )
         resources: dict[str, Any] = {
-            **await self._bound_collections(spec, ctx),
-            "skills": await self.skills.resolve_for_agent(ctx, spec.skill_ids),
+            **bound,
+            "skills": skills,
             CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(
                 ctx, spec.context_ids, config=context_config(spec.capabilities)
             ),
+            SKILL_BODIES_RESOURCE: projected,
+            RUN_SKILL_BODIES_RESOURCE: run_bodies,
         }
+        gathered = parent_resources.get(SPECIALIST_SKILLS_RESOURCE)
+        if agent_id is None and isinstance(gathered, list):
+            gathered.extend(skills)
+        parent_skills = parent_resources.get(SKILL_USE_LOG_RESOURCE)
+        if isinstance(parent_skills, SkillUseLog):
+            # Recorded on the run that delegated, under the delegate's own agent:
+            # the answer somebody rates is that run's, and the skill is the delegate's.
+            resources[SKILL_USE_LOG_RESOURCE] = parent_skills.for_agent(
+                agent_id, served_skills(skills, projected), tool_identities(spec.capabilities)
+            )
+        parent_log = parent_resources.get(KNOWLEDGE_SEARCH_LOG_RESOURCE)
+        if isinstance(parent_log, KnowledgeSearchLog):
+            # An inline specialist has no agent of its own (`agent_id` is None);
+            # its searches are the delegating agent's.
+            resources[KNOWLEDGE_SEARCH_LOG_RESOURCE] = parent_log.for_agent(
+                agent_id, _searched_bases(bound)
+            )
         if any(binding.id == SANDBOX_CAPABILITY_ID for binding in shared):
             resources[WORKSPACE_RESOURCE] = parent_resources.get(WORKSPACE_RESOURCE)
             resources[WORKSPACE_SHARED_RESOURCE] = parent_resources.get(WORKSPACE_SHARED_RESOURCE)
@@ -5857,12 +6339,23 @@ class AgentRunnerService:
         """
         config = _mirage_config(spec)
         if config is not None:
-            key = hashlib.sha256(
+            legacy_key = hashlib.sha256(
                 f"{ctx.organization_id}:{person_id}:{config.model_dump_json()}".encode()
             ).hexdigest()
+            canonical = json.dumps(
+                config.model_dump(mode="json"), sort_keys=True, separators=(",", ":")
+            )
+            key = (
+                "v2:"
+                + hashlib.sha256(
+                    f"{ctx.organization_id}:{person_id}:{canonical}".encode()
+                ).hexdigest()
+            )
             service = MirageMountService(self.db)
             identity = await service.authority(ctx, config, person_id=person_id)
-            if restoring and (authorities is None or authorities.get(key) != identity):
+            if restoring and (
+                authorities is None or authorities.get(key, authorities.get(legacy_key)) != identity
+            ):
                 raise AuthorizationError(
                     message="A terminal account or credential changed while this run waited. Start a new run to review its targets."
                 )
@@ -5873,6 +6366,7 @@ class AgentRunnerService:
                 )
             if authorities is not None:
                 authorities[key] = identity
+                authorities[legacy_key] = identity
             resources[MIRAGE_MOUNTS_RESOURCE] = terminal
 
     async def _workspace_shared(
@@ -5886,12 +6380,13 @@ class AgentRunnerService:
         """
         if scope in SHARED_SCOPES:
             return True
-        if scope != "conversation" or conversation_id is None:
-            return False
-        shares = await conversation_share_repo.get_shares_for_conversation(
+        return scope == "conversation" and await self._shared_for_editing(ctx, conversation_id)
+
+    async def _shared_for_editing(self, ctx: AuthContext, conversation_id: UUID | None) -> bool:
+        """Whether somebody the conversation is shared with may write in it."""
+        return conversation_id is not None and await conversation_share_repo.has_edit_share(
             self.db, conversation_id, organization_id=ctx.organization_id
         )
-        return any(share.shared_with is not None and share.permission == "edit" for share in shares)
 
     @staticmethod
     def _delegation_recorder(
@@ -6092,6 +6587,178 @@ class AgentRunnerService:
                     extra={"run_id": str(parent.id), "delegation_id": str(delegation.id)},
                 )
 
+    async def _write_knowledge_searches(self, prepared: PreparedRun) -> None:
+        """Write the knowledge searches the run made, once.
+
+        Never raises, for the reason :meth:`_write_delegations` gives: it shares a
+        `finally` with the run's cost row, and a search record lost is a gap
+        nobody sees, where a failed terminal write loses what the run cost. A
+        savepoint keeps a failed insert from aborting the transaction that
+        commits that row.
+        """
+        log = prepared.knowledge_searches
+        if log is None or not log.records:
+            return
+        records = list(log.records)
+        log.records.clear()
+        run = prepared.run
+        if run.surface == RunSurface.EVAL.value or run.is_test or prepared.isolation is not None:
+            # A gap is a question a person asked; an eval replays or generates them,
+            # and a builder testing a draft is not asking.
+            return
+        starter = None if run.initiated_by_publisher_fallback else run.user_id
+        if starter is not None and not await self._may_record_about(starter):
+            return
+        try:
+            async with self.db.begin_nested():
+                await knowledge_gap_repo.record_searches(
+                    self.db,
+                    records,
+                    organization_id=run.organization_id,
+                    run_id=run.id,
+                    conversation_id=run.conversation_id,
+                )
+        except Exception:
+            logger.exception("knowledge_searches_not_written", extra={"run_id": str(run.id)})
+
+    async def _write_skill_uses(self, prepared: PreparedRun) -> None:
+        """Write the skills the run and its delegates used, and mark the run recorded.
+
+        Never raises, for the reason :meth:`_write_knowledge_searches` gives. Both
+        writes share one savepoint. A run parked on an approval comes here once per
+        segment, so a write that fails marks the run unrecorded for good: what that
+        segment used is lost, and it reads "unknown" rather than as a run that used
+        no skill, whichever segment's write comes after it.
+        """
+        log = prepared.skill_uses
+        records = [] if log is None else log.records()
+        run = prepared.run
+        try:
+            async with self.db.begin_nested():
+                await skill_usage_repo.record_uses(
+                    self.db,
+                    records,
+                    organization_id=run.organization_id,
+                    run_id=run.id,
+                    started_at=run.started_at or run.created_at,
+                )
+                await skill_usage_repo.mark_recorded(
+                    self.db, organization_id=run.organization_id, run_id=run.id
+                )
+        except Exception:
+            logger.exception("skill_uses_not_written", extra={"run_id": str(run.id)})
+            try:
+                async with self.db.begin_nested():
+                    await skill_usage_repo.mark_unrecorded(
+                        self.db, organization_id=run.organization_id, run_id=run.id
+                    )
+            except Exception:
+                logger.exception("skill_uses_not_marked", extra={"run_id": str(run.id)})
+
+    async def _may_record_about(self, user_id: UUID) -> bool:
+        """Whether a search made answering this person may still be written.
+
+        An erasure of the person takes `PERSONAL_DATA_PER_USER` before it purges
+        their searches, and the run's own project chat and row outlive the
+        account with no link back to them - so a search written after the purge
+        would be theirs and found by nothing. Taken without waiting: this
+        transaction already holds its run row, which the erasure updates after
+        taking the lock. Held, it lasts to the run's commit, and the purge that
+        follows removes what was written; not held, or the account gone, the
+        searches are dropped, as a gap nobody sees.
+        """
+        if not await try_hold_subject(self.db, LockScope.PERSONAL_DATA_PER_USER, user_id):
+            return False
+        return await user_repo.get_by_id(self.db, user_id) is not None
+
+    async def _write_interceptions(self, prepared: PreparedRun) -> None:
+        """Write what an isolated run held back, and forget it.
+
+        Written with the run rather than as each call happens, for the reason
+        approvals are: the session is shared by everything in the run, and a
+        tool call is no place to write on it. Not guarded like the manifest: an
+        eval whose intended calls were lost is an eval that cannot be scored, so
+        a failure here fails the run's write as loudly as its own row would.
+        """
+        isolation = prepared.isolation
+        if isolation is None or not isolation.intercepted:
+            return
+        held, isolation.intercepted = isolation.intercepted, []
+        await intercepted_tool_call_repo.add_many(
+            self.db,
+            run_id=prepared.run.id,
+            organization_id=prepared.run.organization_id,
+            calls=[
+                InterceptedToolCall(
+                    agent_id=call.agent_id,
+                    tool_call_id=call.tool_call_id,
+                    tool_name=call.tool_name,
+                    tool_id=call.tool_id,
+                    args=call.args,
+                    outcome=call.outcome.value,
+                    reason=None if call.reason is None else call.reason.value,
+                )
+                for call in held
+            ],
+        )
+
+    async def tool_recording(self, ctx: AuthContext, run_id: UUID) -> ToolRecording:
+        """The calls a past run made, ready to answer an isolated run's calls.
+
+        Read from the run's `tool_calls` rows - the arguments and the result of
+        every call its transcript kept - in the order they were made, and
+        resolved to stable ids through the version that answered, so a candidate
+        that renamed a tool still matches its own recorded calls. A call that
+        never returned is left out: there is nothing to answer it with.
+
+        The manifest is the check that no row is missing. Its request waterfall
+        names every call the model asked for, and survives every trim; a call it
+        names that has no row means the transcript lost part of the run. A row
+        whose call never returned passes that check and answers nothing, so the
+        candidate's matching call is divergent - a fact about the original run.
+        Within a turn written without `parts` the order of identical calls is
+        not known; see :func:`conversation_repo.list_tool_calls_for_run`.
+
+        Raises:
+            NotFoundError: If the run is not this caller's to read.
+            BadRequestError: If the run cannot be replayed whole - it kept no
+                manifest, or its transcript is missing a call the manifest names.
+                A partial recording would answer some calls and call the rest
+                divergent, which reads as the agent's doing.
+        """
+        run = await self.get_run(ctx, run_id)
+        manifest = await run_manifest_repo.get_by_run(self.db, run.id, ctx.organization_id)
+        rows = await conversation_repo.list_tool_calls_for_run(
+            self.db, run_id=run.id, organization_id=ctx.organization_id
+        )
+        requested = Counter(
+            name
+            for request in (manifest.payload if manifest else {}).get("requests", [])
+            for name in request.get("tool_calls", [])
+        )
+        if manifest is None or requested - Counter(call.tool_name for call, _ in rows):
+            raise BadRequestError(
+                message="That run kept no complete record of its tool calls to answer from",
+                details={"run_id": run.id},
+            )
+        tools: dict[str, ToolClass] = {}
+        if run.agent_version_id is not None:
+            version = await agent_repo.get_version(
+                self.db, run.agent_version_id, organization_id=ctx.organization_id
+            )
+            if version is not None:
+                tools = capability_tools(AgentSpec.model_validate(version.spec))
+        return ToolRecording(
+            recorded_calls(
+                [
+                    CallRow(tool_name=call.tool_name, args=call.args, result=call.result)
+                    for call, _ in rows
+                    if call.result is not None
+                ],
+                tools=tools,
+            )
+        )
+
     async def _write_approvals(self, prepared: PreparedRun, *, include_pending: bool) -> None:
         """Write the approval rows the run parked, once, off the shared session.
 
@@ -6148,6 +6815,7 @@ class AgentRunnerService:
                 capability_tool_id=parked.capability_tool_id,
                 context=parked.context,
                 account=parked.account,
+                always_asks=parked.always_asks,
                 subagent_name=parked.subagent,
                 # Null when the delegate's agent was deleted after the call was
                 # parked: the record of what it was authorised to do outlives it.
@@ -6242,6 +6910,7 @@ class AgentRunnerService:
                         changes,
                         agent_id=agent_id,
                         conversation_id=conversation_id,
+                        forks=_bound_forks(prepared.spec),
                     )
         except Exception:
             logger.exception("skill_proposal_record_failed", extra={"run_id": run_id})
@@ -6276,6 +6945,7 @@ class AgentRunnerService:
         error: str | None = None,
         paused_state: PausedRunState | None = None,
         budget_scope: BudgetScope | None = None,
+        budget: BudgetExceeded | None = None,
     ) -> AgentRun:
         """Record what the run consumed and how it ended.
 
@@ -6303,7 +6973,8 @@ class AgentRunnerService:
         is carried from the `except` clause that caught the refusal rather than
         re-derived here, because the alternative is matching a prefix on the
         error message - and it decides who gets mailed: an agent's cap is its
-        author's to raise, the organization's is not.
+        author's to raise, the organization's is not. `budget` is the refusal
+        itself, for the limit and spend its notification states.
         """
         # Both before the workspace closes, because a run-scoped one is released
         # by `close` and its files are gone afterwards.
@@ -6330,6 +7001,27 @@ class AgentRunnerService:
                 status = RunStatus.FAILED
                 paused_state = None
 
+        parked = (
+            None
+            if paused_state is None
+            else self._parked_tree(prepared, paused_state, await dump_plan(prepared.plan_store))
+        )
+        if parked is not None and parked.code_checkpoints:
+            requested_bytes = len(
+                json.dumps(
+                    {
+                        key: value.model_dump(mode="json")
+                        for key, value in parked.code_checkpoints.items()
+                    }
+                ).encode()
+            )
+            if not await agent_run_repo.code_checkpoint_capacity(
+                self.db, run=prepared.run, requested_bytes=requested_bytes
+            ):
+                status = RunStatus.FAILED
+                error = "Code checkpoint storage quota exceeded; no pending tool ran."
+                parked = None
+
         # The approval rows the run parked, written here rather than while it ran:
         # parking on the channel is deferred off the shared session so two gated
         # calls in one model step cannot race two inserts (agenticos#169), and this
@@ -6344,12 +7036,8 @@ class AgentRunnerService:
             paused_state,
             include_pending=status in (RunStatus.AWAITING_APPROVAL, RunStatus.AWAITING_ANSWER),
         )
+        await self._write_interceptions(prepared)
 
-        parked = (
-            None
-            if paused_state is None
-            else self._parked_tree(prepared, paused_state, await dump_plan(prepared.plan_store))
-        )
         ledger = prepared.built.ledger
         # This row's own requests, and an inline or invented specialist's, which
         # has no row and is built as this agent; a published delegate's go on its
@@ -6408,6 +7096,8 @@ class AgentRunnerService:
         # the parent's row is written on every path: a delegation that spent money
         # and recorded nothing is the hole a cancellation would otherwise open.
         await self._write_delegations(prepared)
+        await self._write_knowledge_searches(prepared)
+        await self._write_skill_uses(prepared)
         await self._record_manifest(prepared)
         await RoutineHealthService(self.db).run_result(finished)
         await self._queue_memory_extraction(finished, prepared)
@@ -6428,6 +7118,7 @@ class AgentRunnerService:
                 status=status,
                 error=error,
                 budget_scope=budget_scope,
+                budget=budget,
             )
         except Exception:
             logger.exception("run_notification_failed", extra={"run_id": str(finished.id)})
@@ -6563,6 +7254,7 @@ class AgentRunnerService:
                 ],
                 "plan": plan,
                 "generated_files": sorted(prepared.built.deps.generated_files),
+                "code_checkpoints": dict(prepared.built.deps.code_continuations.checkpoints),
                 "channel_destination": prepared.channel_destination,
                 "channel_file_attempts": prepared.channel_file_budget.attempts,
                 "channel_context": prepared.channel_context,
@@ -6578,12 +7270,18 @@ class AgentRunnerService:
         are not the run's - its spend is the starter's, and the starter's caps
         hold it. Departments are a person's, not a role's, so the run's own
         person and flags are enough. `None` where no member started the run:
-        nobody's to begin with, or fired by a routine, which a fresh run tells
-        apart by its flags.
+        nobody's to begin with, fired by a routine - a deleted one's included,
+        whose `trigger_id` is cleared - or background work for a person, which
+        a fresh run tells apart by its flags.
         """
         if existing_run is None:
             return ctx
-        if existing_run.user_id is None or existing_run.trigger_id is not None:
+        if (
+            existing_run.user_id is None
+            or existing_run.trigger_id is not None
+            or existing_run.routine_origin_id is not None
+            or existing_run.surface == RunSurface.PROACTIVE.value
+        ):
             return None
         return replace(
             ctx,
@@ -6593,7 +7291,12 @@ class AgentRunnerService:
         )
 
     async def _group_limits(
-        self, ctx: AuthContext | None, *, exclude_run_id: UUID
+        self,
+        ctx: AuthContext | None,
+        *,
+        exclude_run_id: UUID,
+        since: datetime | None = None,
+        until: datetime | None = None,
     ) -> list[SpendLimit]:
         """The monthly caps of every department the person running this is in (#2072).
 
@@ -6621,7 +7324,8 @@ class AgentRunnerService:
                     return await agent_run_repo.sum_cost_since(
                         db,
                         organization_id=ctx.organization_id,
-                        since=month_start(),
+                        since=since or month_start(),
+                        until=until,
                         group_id=group_id,
                         exclude_run_id=exclude_run_id,
                     )
@@ -6648,6 +7352,7 @@ class AgentRunnerService:
         status: RunStatus,
         error: str | None,
         budget_scope: BudgetScope | None,
+        budget: BudgetExceeded | None = None,
     ) -> None:
         """Tell somebody, when the run ended in a way nobody is watching for.
 
@@ -6675,6 +7380,9 @@ class AgentRunnerService:
                 # two - so an unknown scope tells fewer people rather than
                 # mailing the whole administration about somebody's draft.
                 scope=budget_scope or BudgetScope.AGENT,
+                limit_usd=budget.limit_usd if budget else None,
+                spent_usd=budget.spent_usd if budget else None,
+                subject=budget.subject if budget else None,
             )
         elif status is RunStatus.AWAITING_APPROVAL:
             approvals = await agent_run_repo.list_approvals_for_run(
@@ -6682,10 +7390,15 @@ class AgentRunnerService:
             )
             pending = [a for a in approvals if a.status == ApprovalStatus.PENDING.value]
             await notifications.approval_requested(run, agent=agent, spec=spec, approvals=pending)
-        elif RunSurface(run.surface) not in {RunSurface.WEB, RunSurface.FOLLOW_UPS}:
-            # A chat user watching `WEB` already sees a completion or a
-            # failure on screen; every other surface is exactly the "stops
-            # silently" gap this module's own docstring names.
+        elif RunSurface(run.surface) not in (
+            RunSurface.WEB,
+            RunSurface.EVAL,
+            RunSurface.FOLLOW_UPS,
+        ):
+            # A chat user watching `WEB` already sees the outcome on screen, a
+            # follow-up run is part of the answer it follows, and an `EVAL` run is
+            # one of many its eval reports on as a whole; every other surface is
+            # the "stops silently" gap this module's docstring names.
             # A routine's own finish is told by the routine, with its name and the
             # start of its answer, which this point does not have (#2301).
             if (
@@ -6731,6 +7444,9 @@ class AgentRunnerService:
         generated_files: set[str] | None = None,
         stream: RunStream | None = None,
         on_compaction: CompactionSink | None = None,
+        model_profile_id: UUID | None = None,
+        isolation: RunIsolation | None = None,
+        candidate: Candidate | None = None,
         output_schema: dict[str, Any] | None = None,
         instructions_override: str | None = None,
         skill_content_overrides: Mapping[UUID, str] | None = None,
@@ -6741,11 +7457,11 @@ class AgentRunnerService:
         steering: SteeringInbox | None = None,
         aside: bool = False,
         reports_failure: bool = False,
+        started: Callable[[AgentRun], Awaitable[None]] | None = None,
         draft: bool = False,
         test: bool = False,
         watch_receipt: WatchReadReceipt | None = None,
         conversation_task_id: UUID | None = None,
-        model_profile_id: UUID | None = None,
         result_only: bool = False,
         on_run_open: Callable[[AgentRun], Awaitable[None]] | None = None,
         check_model_request: Callable[[AsyncSession], Awaitable[None]] | None = None,
@@ -6765,7 +7481,12 @@ class AgentRunnerService:
 
         `environment_id` runs the version that environment pins - the API's way
         of exercising a dev environment before promoting it. `version_id` runs
-        one named version instead, as a workflow step does.
+        one named version instead, as a workflow step does. With `isolation` it
+        is how an eval runs: on that environment's test connections, with every
+        other write held and recorded. `candidate` names what the eval runs
+        instead of the version the environment pins; see :meth:`prepare`.
+
+        `model_profile_id` runs it on another model, as :meth:`prepare` describes.
 
         `attachments` are files that arrived with the message. They are routed
         here rather than by the caller because where an attachment *goes* depends
@@ -6813,6 +7534,10 @@ class AgentRunnerService:
         `steering` is the inbox of a surface whose person may add to the task
         while it runs, and `aside` answers a question on the side of one (#2087).
 
+        `started` is told the run's row once it exists, before the model is
+        called, so a caller that keeps a link to the run has it even when the
+        run then fails or is stopped; what it writes is committed with the run.
+
         `draft` runs the unpublished draft as a test, as `prepare` documents - the
         HTTP API's way of trying an agent before it is published (#2301).
         `test` marks the run a test without running the draft - an eval try of
@@ -6848,6 +7573,8 @@ class AgentRunnerService:
             version_id=version_id,
             model_profile_id=model_profile_id,
             on_compaction=on_compaction,
+            isolation=isolation,
+            candidate=candidate,
             output_schema=output_schema,
             instructions_override=instructions_override,
             skill_content_overrides=skill_content_overrides,
@@ -6861,6 +7588,8 @@ class AgentRunnerService:
         prepared.admitted_as.conversation_task_id = conversation_task_id
         prepared.built.deps.conversation_task_id = conversation_task_id
         prepared.channel_author_context = channel_author_context
+        if started is not None:
+            await started(prepared.run)
         prepared.built.deps.steering = steering
         input_edge = input_screen_for(prepared.spec)
         if steering is not None:
@@ -6953,22 +7682,35 @@ class AgentRunnerService:
         )
         state = run.paused_state or {}
         by_approval = state.get("tool_call_ids", {}) if isinstance(state, dict) else {}
-        return [
-            ParkedCall(
-                id=approval.id,
-                tool_call_id=by_approval.get(str(approval.id)),
-                tool_name=approval.tool_id,
-                subagent_name=approval.subagent_name,
-                can_remember=ApprovalService.can_remember_in_run(ctx, run)
-                and approval.subagent_name is None,
-                tool_args=approval.tool_args or {},
-                capability_tool_id=approval.capability_tool_id,
-                context=approval.context,
-                account=approval.account,
+        reader = ApprovalService(self.db)
+        parked: list[ParkedCall] = []
+        for approval in approvals:
+            if approval.status != ApprovalStatus.PENDING.value:
+                continue
+            # The same withholding the approvals queue applies: this route is
+            # reachable with the run's id by anybody who may read the queue.
+            hidden = await reader.hidden_fields(ctx, approval)
+            tool_args, context = withhold(
+                hidden, tool_args=approval.tool_args or {}, context=approval.context
             )
-            for approval in approvals
-            if approval.status == ApprovalStatus.PENDING.value
-        ]
+            parked.append(
+                ParkedCall(
+                    id=approval.id,
+                    tool_call_id=by_approval.get(str(approval.id)),
+                    tool_name=approval.tool_id,
+                    subagent_name=approval.subagent_name,
+                    can_remember=ApprovalService.can_remember_in_run(ctx, run)
+                    and approval.subagent_name is None
+                    and not approval.always_asks,
+                    tool_args=tool_args,
+                    capability_tool_id=approval.capability_tool_id,
+                    context=context,
+                    account=approval.account,
+                    content_hidden=bool(hidden),
+                    always_asks=approval.always_asks,
+                )
+            )
+        return parked
 
     @asynccontextmanager
     async def _resume_stream(
@@ -7319,6 +8061,8 @@ class AgentRunnerService:
         prepared.admitted_as.conversation_task_id = state.admitted_as.conversation_task_id
         prepared.built.deps.conversation_task_id = state.admitted_as.conversation_task_id
         prepared.built.deps.generated_files.update(state.generated_files)
+        prepared.built.deps.code_continuations.checkpoints.update(state.code_checkpoints)
+        prepared.built.deps.code_continuations.native_tools = _native_approval_tools(state)
         if can_ask:
             prepared.built.deps.ask_questions = park_the_question
             prepared.built.deps.parks_questions = True
@@ -7350,6 +8094,14 @@ class AgentRunnerService:
         # continue. Nothing above has touched the row, so the run is still parked
         # and still resumable, and no failure path can commit a status that was
         # never written.
+        refusal = await self._routine_budget_spent(run)
+
+        async def opened(child: AgentRun) -> None:
+            if refusal is not None:
+                raise refusal
+            if on_run_open is not None:
+                await on_run_open(child)
+
         await agent_run_repo.mark_running(self.db, run=run)
 
         try:
@@ -7365,7 +8117,7 @@ class AgentRunnerService:
                     ),
                     deferred_tool_results=plan.results,
                     on_segment=on_segment,
-                    on_run_open=on_run_open,
+                    on_run_open=opened,
                     check_model_request=check_model_request,
                     stream=frames.drive if frames is not None else None,
                 )
@@ -7990,6 +8742,27 @@ class AgentRunnerService:
             approved_args[tool_call_id] = approval.tool_args
         return decided, _resume_plan(state, approved_args)
 
+    async def _test_connections(
+        self, ctx: AuthContext, *, environment_id: UUID | None
+    ) -> _TestConnections:
+        """The overrides of the environment this run names.
+
+        None for a run naming no environment: that is the default environment,
+        which the environment service refuses overrides on - production keeps
+        the connections its spec binds.
+        """
+        if environment_id is None:
+            return _TestConnections()
+        rows = await agent_environment_repo.list_connections(
+            self.db, environment_ids=[environment_id], organization_id=ctx.organization_id
+        )
+        return _TestConnections(
+            mcp={row.production_id: row.test_id for row in rows if row.kind == ConnectionKind.MCP},
+            secrets={
+                row.production_id: row.test_id for row in rows if row.kind == ConnectionKind.SECRET
+            },
+        )
+
     async def _with_environment_observability(
         self, ctx: AuthContext, spec: AgentSpec, *, environment_id: UUID | None
     ) -> AgentSpec:
@@ -8023,6 +8796,48 @@ class AgentRunnerService:
             content=base.content if base else "full",
         )
         return spec.model_copy(update={"observability": merged})
+
+    async def _routine_budget_spent(self, run: AgentRun) -> RoutineBudgetSpent | None:
+        """The refusal for a parked fire whose routine has spent its month, or `None`.
+
+        The month is the one the run started in, as the routine's spend is
+        counted, and this run's own spend so far is part of it.
+        """
+        if run.routine_kind != "trigger" or run.routine_origin_id is None:
+            return None
+        trigger = await agent_trigger_repo.get(
+            self.db, run.routine_origin_id, organization_id=run.organization_id
+        )
+        if trigger is None or trigger.monthly_budget_usd is None:
+            return None
+        since, until = budget_window(run.started_at)
+        spent = (
+            await agent_run_repo.spend_by_trigger_since(
+                self.db, trigger_ids=[trigger.id], since=since, until=until
+            )
+        ).get(trigger.id, Decimal(0))
+        if spent < trigger.monthly_budget_usd:
+            return None
+        return RoutineBudgetSpent(limit_usd=trigger.monthly_budget_usd, spent_usd=spent)
+
+    async def _with_current_budget(
+        self, agent: Agent, spec: AgentSpec, *, version_id: UUID | None
+    ) -> AgentSpec:
+        """`spec` held to the monthly cap of the agent's current published version.
+
+        A pinned version - a routine's, an environment's, a workflow step's, a
+        parked run's - decides how the agent behaves, not what it may spend, so a
+        limit published since binds every version that runs. An agent never
+        published keeps its own spec's cap: a draft under test has nothing else.
+        """
+        current = agent.current_version_id
+        if current is None or current == version_id:
+            return spec
+        cap = (await agent_repo.published_budget_caps(self.db, version_ids=[current])).get(current)
+        budget = None if cap is None else BudgetSpec(monthly_usd=cap)
+        if budget == spec.budget:
+            return spec
+        return spec.model_copy(update={"budget": budget})
 
     async def _parked_spec(self, ctx: AuthContext, run: AgentRun) -> tuple[Agent, AgentSpec]:
         """The agent and the exact spec version this run was executing.
@@ -8156,6 +8971,7 @@ class AgentRunnerService:
         structured: dict[str, Any] | None = None
         paused: PausedRunState | None = None
         budget_scope: BudgetScope | None = None
+        budget: BudgetExceeded | None = None
         called: list[RecordedToolCall] = []
         settled: dict[str, str] = {}
         summarized: list[dict[str, Any]] | None = None
@@ -8225,7 +9041,7 @@ class AgentRunnerService:
             settled = settled_calls_in(new_messages)
             status, output, structured, paused = _classify_output(
                 result,
-                parked=prepared.approvals.parked,
+                parked=prepared.checkpointed_approvals(),
                 history_revision=message_history.revision
                 if isinstance(message_history, ModelHistory)
                 else None,
@@ -8256,6 +9072,7 @@ class AgentRunnerService:
             status = RunStatus.BUDGET_EXCEEDED
             error = str(exc)
             budget_scope = exc.scope
+            budget = exc
             logger.info("Run %s stopped by budget: %s", prepared.run.id, exc)
             finished_cleanly = True
         except GuardrailBlocked as exc:
@@ -8304,6 +9121,7 @@ class AgentRunnerService:
                     error=error,
                     paused_state=paused,
                     budget_scope=budget_scope,
+                    budget=budget,
                 )
                 if prepared.run.status == RunStatus.FAILED.value:
                     status = RunStatus.FAILED
@@ -8403,6 +9221,19 @@ class AgentRunnerService:
             message_id=message_id,
         )
 
+    async def run_chat_askers(
+        self, ctx: AuthContext, run_ids: Sequence[UUID]
+    ) -> dict[UUID, ChatAskerRead]:
+        """The channel account that asked, without attributing it to the publisher."""
+        if not ctx.has(Perm.RUNS_VIEW):
+            raise AuthorizationError(
+                message="Insufficient permissions", details={"required": [Perm.RUNS_VIEW.value]}
+            )
+        found = await agent_run_repo.run_chat_askers(
+            self.db, organization_id=ctx.organization_id, run_ids=run_ids
+        )
+        return {run_id: ChatAskerRead.model_validate(asker) for run_id, asker in found.items()}
+
     async def list_runs(
         self,
         ctx: AuthContext,
@@ -8464,6 +9295,46 @@ class AgentRunnerService:
             self.db, organization_id=ctx.organization_id, run_ids=run_ids
         )
 
+    async def origins(self, ctx: AuthContext, run_ids: Sequence[UUID]) -> dict[UUID, RunOriginRead]:
+        """Which of these runs a platform agent made, and what each worked on.
+
+        Read under the same `runs:view` the rows are: the names and ids only say
+        where the work is, and each of those pages checks its own access.
+        """
+        found = await agent_run_repo.run_origins(
+            self.db, organization_id=ctx.organization_id, run_ids=run_ids
+        )
+        return {
+            run_id: RunOriginRead(
+                kind=_ORIGIN_KINDS[origin.kind],
+                agent_name=origin.agent_name,
+                agent_id=origin.agent_id,
+                improvement_id=origin.improvement_id,
+                topic_id=origin.topic_id,
+                knowledge_base_id=origin.knowledge_base_id,
+                dataset_id=origin.dataset_id,
+            )
+            for run_id, origin in found.items()
+        }
+
+    async def previews(
+        self, run_ids: Sequence[UUID], *, questions: Mapping[UUID, str]
+    ) -> dict[UUID, str]:
+        """What each of these runs was asked, as a list shows it beside the run.
+
+        `questions` holds what is already known for some of them - an eval case's
+        question, for a run that answered or graded one. The rest show the first
+        user turn they recorded - the transcript's own text, read under the
+        `runs:view` the transcript is. A run that kept no conversation has none.
+        The ids come from a listing already narrowed to the caller's organization.
+        """
+        turns = await conversation_repo.first_user_turns(
+            self.db,
+            [run_id for run_id in run_ids if run_id not in questions],
+            chars=_PREVIEW_CHARS * 4,
+        )
+        return {run_id: _preview(text) for run_id, text in {**turns, **questions}.items()}
+
     async def voice_chains(
         self, ctx: AuthContext, run_ids: Sequence[UUID]
     ) -> dict[UUID, VoiceChain]:
@@ -8513,6 +9384,7 @@ class AgentRunnerService:
         skip: int = 0,
         limit: int = 100,
         whole_conversation: bool = False,
+        for_model: bool = False,
     ) -> tuple[AgentRun, list[Message], int]:
         """One run, and the turns it produced - authorized, not owned.
 
@@ -8547,6 +9419,11 @@ class AgentRunnerService:
         through `run.conversation_id` being `None`, and the message read is
         skipped rather than run to confirm a certainty.
 
+        `for_model` filters guardrail-refused turns before both pagination and
+        counting, refreshing stored rows rather than reusing an earlier view.
+        The API additionally removes reply excerpts from its model projection;
+        the human transcript retains its complete history by default.
+
         Returns:
             The run, its turns oldest-first, and the total number of them - the
             last so a paged read still knows the size of the whole.
@@ -8569,14 +9446,29 @@ class AgentRunnerService:
             return run, [], 0
         if whole_conversation:
             messages = await conversation_repo.get_messages_by_conversation(
-                self.db, run.conversation_id, skip=skip, limit=limit, include_tool_calls=True
+                self.db,
+                run.conversation_id,
+                skip=skip,
+                limit=limit,
+                include_tool_calls=True,
+                for_model=for_model,
+                fresh=for_model,
             )
-            total = await conversation_repo.count_messages(self.db, run.conversation_id)
+            total = await conversation_repo.count_messages(
+                self.db, run.conversation_id, for_model=for_model
+            )
         else:
             messages = await conversation_repo.get_messages_by_run(
-                self.db, run.id, skip=skip, limit=limit, include_tool_calls=True
+                self.db,
+                run.id,
+                skip=skip,
+                limit=limit,
+                include_tool_calls=True,
+                for_model=for_model,
             )
-            total = await conversation_repo.count_messages_by_run(self.db, run.id)
+            total = await conversation_repo.count_messages_by_run(
+                self.db, run.id, for_model=for_model
+            )
         return run, messages, total
 
     async def get_run_attachment(self, ctx: AuthContext, run_id: UUID, file_id: UUID) -> ChatFile:
@@ -8852,3 +9744,31 @@ class AgentRunnerService:
             until=until,
             month_since=month_start(),
         )
+
+
+def _on_line(
+    bindings: Sequence[SkillBindingSpec], bodies: Mapping[UUID, SkillBody], *, own: bool = False
+) -> dict[UUID, SkillBody]:
+    """The bodies a reader with these bindings is served: those of the line it follows.
+
+    `own` is the run's agent itself, which a body measuring its move off a pin reaches.
+    """
+    return {
+        skill_id: body
+        for skill_id, body in bodies.items()
+        if _reads_line(bindings, skill_id, body.fork_id)
+        or (own and body.over_pin and _pinned(bindings, skill_id))
+    }
+
+
+def _reads_line(bindings: Sequence[SkillBindingSpec], skill_id: UUID, fork_id: UUID | None) -> bool:
+    """Whether a reader with these bindings follows the line of `skill_id` named by
+    `fork_id` - main's newest when `None`. A reader pinned to a main version follows none."""
+    binding = next((item for item in bindings if item.skill_id == skill_id), None)
+    if binding is None:
+        return fork_id is None
+    return binding.version is None and binding.fork_id == fork_id
+
+
+def _pinned(bindings: Sequence[SkillBindingSpec], skill_id: UUID) -> bool:
+    return any(item.skill_id == skill_id and item.version is not None for item in bindings)

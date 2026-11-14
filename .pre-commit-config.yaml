@@ -44,6 +44,8 @@ repos:
       # and the safe loader refuses a tag it has no constructor for. This still
       # catches the thing worth catching: a file that is not valid YAML.
       - id: check-yaml
+        # Go templates are checked by Helm rendering in kubernetes.yml.
+        exclude: ^charts/agenticos/templates/
         args: [--unsafe]
       - id: check-toml
       - id: check-json
@@ -102,6 +104,7 @@ repos:
     rev: v0.21.0
     hooks:
       - id: yamlfmt
+        exclude: ^charts/agenticos/templates/
 
   # Static analysis for the workflows themselves - unpinned actions, a fork PR
   # trigger with write permissions, cache poisoning. CI is the one place where a

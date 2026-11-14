@@ -11,7 +11,7 @@ from app.db.models.agent import Agent, AgentStatus
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
-from app.services.resource_usage import agents_using
+from app.services.resource_usage import agents_serving_skills, agents_using
 
 pytestmark = pytest.mark.anyio
 
@@ -123,3 +123,4 @@ async def test_nothing_asked_is_nothing_queried(db: AsyncSession) -> None:
     _, owner = await _organization(db)
 
     assert await agents_using(db, owner, field="context_ids", resource_ids=[]) == {}
+    assert await agents_serving_skills(db, owner, skill_ids=[]) == {}

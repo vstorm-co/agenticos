@@ -380,6 +380,21 @@ class TestHowEachRunEnded:
         # Nothing to measure yet, which is not the same claim as "took no time".
         assert outcomes[still_running.id].duration_ms is None
 
+    async def test_a_failed_run_keeps_its_error_for_safe_transcript_projection(self, db) -> None:
+        organization = await _org(db)
+        owner = await _user(db)
+        conversation = await _conversation(db, organization, owner)
+        agent = await _agent(db, organization, owner)
+        failed = await _run(
+            db, conversation, agent, started_at=_START, ended_at=_START + timedelta(seconds=10)
+        )
+        failed.status = "failed"
+        failed.error = "The run did not finish (ContentFilterError) - retry it"
+        await db.flush()
+        outcome = (await conversation_repo.run_outcomes(db, {failed.id}))[failed.id]
+        assert outcome.status == "failed"
+        assert outcome.error == failed.error
+
     async def test_no_runs_asks_nothing(self, db) -> None:
         assert await conversation_repo.run_outcomes(db, set()) == {}
 

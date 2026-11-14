@@ -26,6 +26,7 @@ import { readNodeDragData } from "@/components/workflows/palette";
 import { fittingMergeConfigs } from "@/components/workflows/property-panel/merge-config";
 import { problemText } from "@/components/workflows/property-panel/problems";
 import { validateGraph } from "@/components/workflows/validation";
+import { useNarrowScreen } from "@/hooks/use-narrow-screen";
 import { useResolvedTheme } from "@/hooks/use-resolved-theme";
 import type { NodeDefinition, WorkflowGraph } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
@@ -34,6 +35,7 @@ import { CanvasInteractionProvider, type ConnectEndpoint } from "./canvas-contex
 import { WorkflowMinimap } from "./workflow-minimap";
 import { CanvasContextMenu } from "./canvas-context-menu";
 import { CanvasToolbar } from "./canvas-toolbar";
+import { fitViewOptions, minZoomFor } from "./fit-view";
 import { PanePicker, type PanePoint } from "./pane-picker";
 import {
   autoBindings,
@@ -67,13 +69,8 @@ interface WorkflowGraphViewProps {
   readOnly: boolean;
 }
 
-/** Frame the whole graph, but no smaller than a node's text stays legible at. */
 // Both keys, whichever a keyboard puts the delete on: macOS has only Backspace.
 const DELETE_KEYS = ["Backspace", "Delete"];
-
-const FIT_VIEW = { padding: 0.2, minZoom: 0.55, maxZoom: 1 };
-/** A read-only graph is looked at whole - a run, a past version - so it may shrink further. */
-const FIT_VIEW_READ_ONLY = { padding: 0.15, minZoom: 0.5, maxZoom: 1 };
 
 /** Left drag selects; middle and right drag remain available for panning. */
 const PAN_BUTTONS = [1, 2];
@@ -110,6 +107,8 @@ const EMPTY_GRAPH: WorkflowGraph = {
 export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps) {
   const t = useTranslations("workflows");
   const colorMode = useResolvedTheme();
+  const narrow = useNarrowScreen();
+  const fitOptions = useMemo(() => fitViewOptions(readOnly, narrow), [readOnly, narrow]);
 
   const graph = useWorkflowEditorStore((state) => state.graph);
   const scopePath = useWorkflowEditorStore((state) => state.scopePath);
@@ -282,20 +281,20 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
     if (inView) return;
     const upstream = graph?.edges.find((edge) => edge.target_node_id === node.id);
     const framed = [{ id: node.id }, ...(upstream ? [{ id: upstream.source_node_id }] : [])];
-    void fitView({ ...FIT_VIEW, maxZoom: getZoom(), nodes: framed, duration: 300 });
-  }, [revealNodeId, graph, clearReveal, flowToScreenPosition, fitView, getZoom]);
+    void fitView({ ...fitOptions, maxZoom: getZoom(), nodes: framed, duration: 300 });
+  }, [revealNodeId, graph, clearReveal, flowToScreenPosition, fitView, getZoom, fitOptions]);
 
   // A different scope is a different drawing: frame it, or entering a loop body
   // leaves the viewport where the outer graph was and the body off-screen.
   const scopeKey = scopePath.join("/");
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
-      void fitView(readOnly ? FIT_VIEW_READ_ONLY : FIT_VIEW);
+      void fitView(fitOptions);
     });
     return () => cancelAnimationFrame(frame);
-  }, [scopeKey, fitView, readOnly]);
+  }, [scopeKey, fitView, fitOptions]);
 
-  const onKeyDown = useCanvasShortcuts(readOnly, cancelConnect);
+  const onKeyDown = useCanvasShortcuts(readOnly, cancelConnect, catalog);
 
   const insertAfter = useCallback(
     (
@@ -337,7 +336,10 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
   };
   const addNote = useWorkflowEditorStore((state) => state.addNote);
   const moveNodes = useWorkflowEditorStore((state) => state.moveNodes);
-  const minimapShown = useWorkflowEditorStore((state) => state.minimapShown);
+  // A phone has its own minimap choice, off until made: it covers a fifth of the canvas.
+  const minimapShown = useWorkflowEditorStore((state) =>
+    narrow ? state.phoneMinimapShown : state.minimapShown,
+  );
   const setSelection = useWorkflowEditorStore((state) => state.setSelection);
 
   // A right click on a step opens that step's menu; on the empty canvas, the step
@@ -499,8 +501,8 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
               zoomOnPinch
               zoomOnDoubleClick={false}
               fitView
-              fitViewOptions={readOnly ? FIT_VIEW_READ_ONLY : FIT_VIEW}
-              minZoom={0.3}
+              fitViewOptions={fitOptions}
+              minZoom={minZoomFor(narrow)}
               proOptions={{ hideAttribution: true }}
               aria-label={t("canvasGraphLabel")}
             >

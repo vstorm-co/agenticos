@@ -9,7 +9,7 @@ import type { Group, GroupMember, GroupResource } from "@/types/groups";
 const hooks = vi.hoisted(() => ({
   members: [] as GroupMember[],
   shareable: [] as GroupResource[],
-  sharing: { isLoading: false, error: null as unknown },
+  sharing: { isLoading: false, error: null as unknown, pending: false },
   add: vi.fn(),
   remove: vi.fn(),
   setLead: vi.fn(),
@@ -33,7 +33,7 @@ vi.mock("@/hooks", () => ({
     shareable: hooks.shareable,
     isLoading: hooks.sharing.isLoading,
     error: hooks.sharing.error,
-    share: { mutate: hooks.share, isPending: false },
+    share: { mutate: hooks.share, isPending: hooks.sharing.pending },
   }),
 }));
 vi.mock("@/components/dashboard/agent-face", () => ({
@@ -44,8 +44,8 @@ vi.mock("@/stores", () => ({
     select({ user: { id: hooks.me } }),
 }));
 vi.mock("@/components/orgs/group-member-add", () => ({
-  GroupMemberAdd: ({ onAdd }: { onAdd: (id: string) => void }) => (
-    <button type="button" onClick={() => onAdd("u-new")}>
+  GroupMemberAdd: ({ onAdd }: { onAdd: (id: string, onAdded: () => void) => void }) => (
+    <button type="button" onClick={() => onAdd("u-new", vi.fn())}>
       add member
     </button>
   ),
@@ -83,7 +83,7 @@ describe("a group's lead (#2072)", () => {
     expect(screen.getByText("Lead")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /group's lead/ })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "add member" }));
-    expect(hooks.add).toHaveBeenCalledWith("u-new");
+    expect(hooks.add).toHaveBeenCalledWith("u-new", { onSuccess: expect.any(Function) });
   });
 
   it("lets an administrator name and unname a lead", async () => {
@@ -169,14 +169,43 @@ describe("adding to a group from its page (#2072)", () => {
   });
 
   it("shows loading and a failure", () => {
-    hooks.sharing = { isLoading: true, error: null };
+    hooks.sharing = { isLoading: true, error: null, pending: false };
     const { unmount } = render(<AddToGroupDialog orgId="o1" group={FINANCE} onClose={vi.fn()} />);
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
     unmount();
 
-    hooks.sharing = { isLoading: false, error: new Error("boom") };
+    hooks.sharing = { isLoading: false, error: new Error("boom"), pending: false };
     render(<AddToGroupDialog orgId="o1" group={FINANCE} onClose={vi.fn()} />);
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
-    hooks.sharing = { isLoading: false, error: null };
+    hooks.sharing = { isLoading: false, error: null, pending: false };
   });
+});
+
+it("locks a pending group share without losing its selected resources", async () => {
+  hooks.shareable = [{ kind: "agent", id: "a-review", name: "Customer guide", level: "edit" }];
+  const close = vi.fn();
+  const view = render(<AddToGroupDialog orgId="o1" group={FINANCE} onClose={close} />);
+  await userEvent.click(screen.getByRole("checkbox", { name: /Customer guide/ }));
+  hooks.sharing.pending = true;
+  view.rerender(<AddToGroupDialog orgId="o1" group={FINANCE} onClose={close} />);
+  try {
+    expect(screen.getByRole("checkbox", { name: /Customer guide/ })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: /Customer guide/ })).toBeChecked();
+    expect(screen.getByRole("combobox")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
+    await userEvent.keyboard("{Escape}");
+    expect(close).not.toHaveBeenCalled();
+  } finally {
+    hooks.sharing.pending = false;
+  }
+  view.rerender(<AddToGroupDialog orgId="o1" group={FINANCE} onClose={close} />);
+  expect(screen.getByRole("checkbox", { name: /Customer guide/ })).toBeEnabled();
+  expect(screen.getByRole("checkbox", { name: /Customer guide/ })).toBeChecked();
+});
+
+it("dismisses the member list without changing membership", async () => {
+  const onClose = vi.fn();
+  render(<GroupMembersDialog orgId="o1" group={FINANCE} canManage={false} onClose={onClose} />);
+  await userEvent.keyboard("{Escape}");
+  expect(onClose).toHaveBeenCalledOnce();
 });

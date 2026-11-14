@@ -432,6 +432,19 @@ async def test_a_matchs_markup_is_closed_where_its_node_budget_ends(
     assert match.text == "x x"
 
 
+async def test_document_selectors_and_links_exclude_inert_template_contents() -> None:
+    html = (
+        '<body><template><a href="/draft" class="item">Draft</a></template>'
+        '<a href="/published" class="item">Published</a></body>'
+    )
+
+    output = await _output(html, selector="body .item", base_url=BASE)
+
+    assert [link.href for link in output.links] == ["https://shop.example.com/published"]
+    assert len(output.matches) == 1
+    assert output.matches[0].attributes == {"href": "/published", "class": "item"}
+
+
 async def test_a_script_elements_own_text_is_its_script():
     html = (
         '<script type="application/ld+json">{"@type": "Product"}</script>'
@@ -527,12 +540,22 @@ async def test_the_step_parses_in_a_child_process(monkeypatch: pytest.MonkeyPatc
 
 
 @pytest.mark.security
+async def test_deep_descendant_selectors_complete_without_backtracking() -> None:
+    result = await handle(
+        HtmlParseConfig(selector="section div div"),
+        HtmlParseInput(html="<div>" * 2000),
+    )
+
+    assert isinstance(result, Completed)
+    assert result.output.matches == []
+    assert result.output.match_count == 0
+
+
 async def test_a_child_that_never_finishes_fails_as_too_complex(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ):
-    # Exercise the process budget independently of a selector's implementation:
-    # this child cannot finish before the deadline, even when parsing gets faster.
+    # Exercise the process budget independently of a selector implementation.
     monkeypatch.setattr(html_parse, "PARSE_DEADLINE_SECONDS", 1)
     monkeypatch.setattr(
         html_parse, "_CHILD_SCRIPT", _child_script(tmp_path, "import time\ntime.sleep(60)\n")

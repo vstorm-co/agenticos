@@ -40,6 +40,8 @@ interface ArtifactShareDialogProps {
   /** The kept versions, newest first - what the public link may be pinned to. */
   versions: ArtifactVersion[];
   open: boolean;
+  /** Keep actionable requests first when opening from their badge or notification. */
+  hasPendingRequests?: boolean;
   onOpenChange: (open: boolean) => void;
   /** A public-link request is in flight. */
   busy: boolean;
@@ -110,6 +112,7 @@ export function ArtifactShareDialog({
   artifact,
   versions,
   open,
+  hasPendingRequests = false,
   onOpenChange,
   busy,
   onEnablePublicLink,
@@ -131,6 +134,16 @@ export function ArtifactShareDialog({
   const [needsConsent, setNeedsConsent] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const confirmable = artifact.consent?.may_confirm === true && artifact.current_version !== null;
+  const requestsPanel = (
+    <ArtifactRequests
+      artifact={artifact}
+      onReview={(request) => {
+        onOpenChange(false);
+        onReview(request);
+      }}
+      onConsentRequired={() => setNeedsConsent(true)}
+    />
+  );
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={cn(DIALOG_FORM, DIALOG_SCROLL)}>
@@ -138,14 +151,7 @@ export function ArtifactShareDialog({
           <DialogTitle>{t("shareTitle", { title: artifact.title })}</DialogTitle>
           <DialogDescription>{t("shareWhy")}</DialogDescription>
         </DialogHeader>
-        <ArtifactRequests
-          artifact={artifact}
-          onReview={(request) => {
-            onOpenChange(false);
-            onReview(request);
-          }}
-          onConsentRequired={() => setNeedsConsent(true)}
-        />
+        {hasPendingRequests && requestsPanel}
         {needsConsent && (
           <Alert>
             <AlertDescription className="flex flex-wrap items-center gap-3">
@@ -161,6 +167,13 @@ export function ArtifactShareDialog({
           </Alert>
         )}
         <PageLinkField artifactId={artifact.id} />
+        <SharingPanel
+          resourceType="artifact"
+          resourceId={artifact.id}
+          canManage={artifact.can_edit}
+          mayGrantEditData={artifact.may_grant_edit_data}
+          onConsentRequired={() => setNeedsConsent(true)}
+        />
         <PublicLinkCard
           publicUrl={artifact.public_url}
           link={artifact.public_link}
@@ -169,7 +182,7 @@ export function ArtifactShareDialog({
           onEnable={onEnablePublicLink}
           onDisable={onDisablePublicLink}
         >
-          <EmbedSnippet link={artifact.public_link} />
+          {!artifact.can_edit && <EmbedSnippet link={artifact.public_link} />}
           {artifact.can_edit && (
             <PublicLinkSettings
               // A fresh form for fresh settings: its fields start from what the server holds.
@@ -189,13 +202,7 @@ export function ArtifactShareDialog({
             withdrawPending={withdrawingPublicData}
           />
         </PublicLinkCard>
-        <SharingPanel
-          resourceType="artifact"
-          resourceId={artifact.id}
-          canManage={artifact.can_edit}
-          mayGrantEditData={artifact.may_grant_edit_data}
-          onConsentRequired={() => setNeedsConsent(true)}
-        />
+        {!hasPendingRequests && requestsPanel}
         {artifact.consent !== null && (
           <AutoConsentSetting
             consent={artifact.consent}

@@ -22,7 +22,12 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec, BudgetSpec
-from app.core.exceptions import AppException, AuthorizationError, NotFoundError
+from app.core.exceptions import (
+    AppException,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+)
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.agent_run import RunStatus
@@ -47,7 +52,7 @@ from app.services.skills import LibraryRefresh, SkillService
 
 logger = logging.getLogger(__name__)
 
-TEMPLATE_KEY = "general/platform-assistant"
+TEMPLATE_KEY = agent_templates.ARCHITECT_KEY
 # Its mark, worn as an ordinary agent picture so every place an agent's face is
 # drawn - the catalog, a picker, the transcript, Slack - draws the Architect's.
 AVATAR = agent_templates.TEMPLATES_ROOT / TEMPLATE_KEY / "avatar.png"
@@ -92,8 +97,8 @@ class AssistantService:
             # the assistant unavailable.
             async with self.db.begin_nested():
                 row, agent = await self._installed(ctx.organization_id)
-        except AppException:
-            logger.exception("Could not install the assistant in %s", ctx.organization_id)
+        except AppException as exc:
+            _log_install_failure(exc, "Could not install the assistant in %s", ctx.organization_id)
             return AssistantRead(
                 status="unavailable",
                 agent_id=None,
@@ -129,21 +134,23 @@ class AssistantService:
                             and starter.current_version_id is None
                         ):
                             await self._publish_when_possible(ctx.organization_id, starter)
-            except AppException:
+            except AppException as exc:
                 # A missing model/service may block a refresh, but must not hide
                 # the existing assistant. The next console open retries it.
-                logger.exception(
-                    "Could not refresh shipped agent %s in %s", key, ctx.organization_id
+                _log_install_failure(
+                    exc, "Could not refresh shipped agent %s in %s", key, ctx.organization_id
                 )
                 agent = await self.registry.get(installer, row.agent_id)
         if row.enabled and agent.current_version_id is None:
             try:
                 async with self.db.begin_nested():
                     agent = await self._publish_when_possible(ctx.organization_id, agent)
-            except AppException:
+            except AppException as exc:
                 # Publish refusing the draft - a binding this deployment cannot
                 # serve - leaves it waiting, not every console load erroring.
-                logger.exception("Could not publish the assistant in %s", ctx.organization_id)
+                _log_install_failure(
+                    exc, "Could not publish the assistant in %s", ctx.organization_id
+                )
                 agent = await self.registry.get(installer, row.agent_id)
         return self._read(row, agent, can_use=can_use, can_configure=can_configure)
 
@@ -516,6 +523,25 @@ class AssistantService:
             can_use=can_use,
             can_configure=can_configure,
         )
+
+
+def _log_install_failure(exc: AppException, failure: str, *args: object) -> None:
+    """Log a step of installing the shipped agents that did not go through.
+
+    A refusal from publish names what the draft is waiting for - a sandbox
+    connection, a chat model - and is retried on every console open and every
+    bootstrap, so it is one warning line rather than a traceback each time.
+    Anything else is a failure and keeps its traceback.
+    """
+    problems = (exc.details or {}).get("problems") if isinstance(exc, BadRequestError) else None
+    if problems:
+        logger.warning(
+            "%s: it waits to publish - %s",
+            failure % args,
+            "; ".join(str(problem) for problem in problems),
+        )
+        return
+    logger.error(failure, *args, exc_info=exc)
 
 
 def _fallback_name(template: agent_templates.AgentTemplate) -> str:
