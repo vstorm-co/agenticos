@@ -693,16 +693,9 @@ send `unsure` and a category down one path, or two categories to one log step.
 
 ## Decisions { #decisions }
 
-Three steps ask TypeSafe's Jev a typed question about a bound `text`, with a
-TypeSafe API key from the vault. Jev does not write text: it answers the
-question with a confidence from 0 to 1, in one request, and it can only answer
-with one of the answers the step allows. Below the step's `min_confidence` the
-step leaves by its `unsure` port instead, so a workflow decides there what a
-person or an agent does with a doubtful case.
+Three steps ask a native decision model a typed question about a bound `text`. Choose a model profile with its provider, vault key and endpoint. Existing configurations using a TypeSafe key and Jev model still load unchanged. Provider capabilities determine which question shapes are accepted.
 
-`decide.*` calls TypeSafe's hosted Jev only. To route doubtful cases on a
-self-hosted model, use `ai.classify` with `min_confidence`, which leaves by
-`unsure` the same way.
+The model returns an answer and confidence. Below `min_confidence`, the step follows `unsure`; the workflow can escalate or choose another path. Native profiles use OpenAI, Google, OpenRouter, TypeSafe or a custom System One endpoint through Pydantic AI. See [decision models](../models.md#decision-models) for provider availability and the distinction from LLM assessments.
 
 | Step | Asks | Leaves by |
 |---|---|---|
@@ -710,11 +703,7 @@ self-hosted model, use `ai.classify` with `min_confidence`, which leaves by
 | `decide.choose` | which of up to 255 options fits | `out` with the `choice`, or `unsure` |
 | `decide.score` | where the text sits on a rubric of 2 to 10 levels | `out` with the `score`, or `unsure` |
 
-The key is checked at publish and read again on every run. A key that is gone
-or unshared fails the step with `SECRET_NOT_USABLE`, a model that does not
-answer with `DECISION_FAILED`, which is retried as the step's policy says, and a
-deployment built without the `browser` extra with `DECISION_MODEL_UNAVAILABLE`.
-A merge may rejoin a decision's branches, as it rejoins an If's.
+Credentials and access are checked at publish and again for each execution. A removed legacy key gives `SECRET_NOT_USABLE`; a non-native profile gives `DECISION_MODEL_REQUIRED`. Provider failures give `DECISION_FAILED` under the step's retry policy. Spend counts toward workflow and organization budgets. Merge can rejoin decision branches.
 
 ::: app.workflows.nodes._decide.DecisionConfig
 

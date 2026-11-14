@@ -14,7 +14,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
 
-from app.agents.model_resolver import PROVIDERS
+from app.agents.model_resolver import PROVIDERS, ModelApi, is_decision_api
 from app.api.deps import Auth, ModelProfileSvc, SecretSvc, require
 from app.api.public_api import PUBLIC
 from app.core.exceptions import AuthorizationError
@@ -397,6 +397,7 @@ async def list_provider_models(
     ctx: Auth,
     base_url: str | None = None,
     secret_id: UUID | None = None,
+    api: ModelApi | None = None,
 ) -> Any:
     """List suggestions; custom authenticated endpoints require a visible selected key."""
     if (
@@ -426,7 +427,9 @@ async def list_provider_models(
         if sends_key
         else None
     )
-    models, source = await models_for(provider, api_key=api_key, base_url=base_url)
+    models, source = await models_for(
+        provider, api_key=api_key, base_url=base_url, **({"api": api} if api is not None else {})
+    )
     return ProviderModelList(
         items=[
             ProviderModelRead(
@@ -435,7 +438,8 @@ async def list_provider_models(
                 context_length=entry.context_length,
                 output_modalities=list(entry.output_modalities),
                 apis=[api for api in ("chat", "responses") if api in entry.surfaces],
-                chat_capable=stated_outputs(provider, entry.id, entry.output_modalities).chat,
+                chat_capable=not is_decision_api(provider, api)
+                and stated_outputs(provider, entry.id, entry.output_modalities).chat,
             )
             for entry in models
         ],

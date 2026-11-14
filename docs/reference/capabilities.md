@@ -400,8 +400,10 @@ same way `knowledge` bound to no collections is not. Files are managed under
 
 Notes an agent keeps of its own across conversations, indexed by one it maintains
 itself. Where `context` is a library a person authors and binds to many agents,
-memory is the agent's own: it writes through tools mid-run, and nobody else writes
-here at all. It is not bound by id — enabling the capability gives the agent its
+memory is the agent's own: it writes through tools mid-run. A person can correct
+their own notes in **Settings → Memory → Notes**; this does not grant access to
+other people’s notes. Corrections preserve the original agent-write timestamp and
+suppression state, use a revision check and record an audit entry without content. It is not bound by id — enabling the capability gives the agent its
 notes.
 
 **`MEMORY.md` is the index, and it is shown to the agent every request.** It is an

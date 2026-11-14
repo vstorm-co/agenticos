@@ -23,7 +23,7 @@ names no author is in the evidence column below.
 
 | Licence | Backend | Frontend |
 |---|---:|---:|
-| MIT | 100 | 253 |
+| MIT | 101 | 253 |
 | Apache-2.0 | 71 | 24 |
 | BSD-3-Clause | 22 | 4 |
 | ISC | 3 | 21 |
@@ -50,7 +50,7 @@ names no author is in the evidence column below.
 
 ## Backend image (Python)
 
-225 distributions.
+226 distributions.
 
 | Component | Version | Licence | Source | Evidence |
 |---|---|---|---|---|
@@ -101,7 +101,7 @@ names no author is in the evidence column below.
 | defusedxml | 0.7.1 | PSF-2.0 | https://github.com/tiran/defusedxml | classifier |
 | deprecated | 1.3.1 | MIT | https://github.com/laurent-laporte-pro/deprecated | License field |
 | distro | 1.9.0 | Apache-2.0 | https://github.com/python-distro/distro | License field |
-| dnspython | 2.9.0 | ISC | https://github.com/rthalley/dnspython.git | License-Expression; no licence file, attributed to Bob Halley |
+| dnspython | 2.9.2 | ISC | https://github.com/rthalley/dnspython.git | License-Expression |
 | docstring-parser | 0.18.0 | MIT | https://github.com/rr-/docstring_parser | License field |
 | e2b | 2.59.0 | MIT | https://github.com/e2b-dev/e2b/tree/main/packages/python-sdk | License-Expression; no licence file, attributed to e2b |
 | e2b-dockerfile-utils | 0.1.1 | Apache-2.0 | https://github.com/e2b-dev/e2b/tree/main/packages/dockerfile-utils-python | License-Expression |
@@ -117,9 +117,9 @@ names no author is in the evidence column below.
 | filelock | 4.2.4 | MIT | https://github.com/tox-dev/py-filelock | License-Expression |
 | frozenlist | 1.8.0 | Apache-2.0 | https://github.com/aio-libs/frozenlist | License field |
 | fsspec | 2026.9.0 | BSD-3-Clause | https://github.com/fsspec/filesystem_spec | License-Expression |
-| genai-prices | 0.2.1 | MIT | https://github.com/pydantic/genai-prices | License-Expression |
+| genai-prices | 0.2.3 | MIT | https://github.com/pydantic/genai-prices | License-Expression |
 | google-auth | 2.62.1 | Apache-2.0 | https://github.com/googleapis/google-cloud-python/tree/main/packages/google-auth | License field |
-| google-genai | 2.33.0 | Apache-2.0 | https://github.com/googleapis/python-genai | License-Expression |
+| google-genai | 2.34.0 | Apache-2.0 | https://github.com/googleapis/python-genai | License-Expression |
 | googleapis-common-protos | 1.76.0 | Apache-2.0 | https://github.com/googleapis/google-cloud-python/tree/main/packages/googleapis-common-protos | License-Expression |
 | greenlet | 3.5.6 | MIT AND PSF-2.0 | https://github.com/python-greenlet/greenlet | License-Expression |
 | griffelib | 2.4.1 | ISC | https://github.com/mkdocstrings/griffe | License-Expression |
@@ -210,12 +210,12 @@ names no author is in the evidence column below.
 | pycparser | 3.12 | BSD-3-Clause | https://github.com/eliben/pycparser | License-Expression |
 | pydantic | 2.14.3 | MIT | https://github.com/pydantic/pydantic | License-Expression |
 | pydantic-ai-backend | 0.2.39 | MIT | https://github.com/vstorm-co/pydantic-ai-backend | License-Expression |
-| pydantic-ai-harness | 0.66.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
+| pydantic-ai-harness | 0.68.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
 | pydantic-ai-otari | 0.1.0 | Apache-2.0 | https://github.com/mozilla-ai/otari | License-Expression |
 | pydantic-ai-skills | 2.1.1 | MIT | https://github.com/dougtrajano/pydantic-ai-skills | License-Expression |
-| pydantic-ai-slim | 2.66.0 | MIT | https://github.com/pydantic/pydantic-ai/tree/main/pydantic_ai_slim | License-Expression |
+| pydantic-ai-slim | 2.68.0 | MIT | https://github.com/pydantic/pydantic-ai/tree/main/pydantic_ai_slim | License-Expression |
 | pydantic-core | 2.50.4 | MIT | https://github.com/pydantic/pydantic/tree/main/pydantic-core | License-Expression |
-| pydantic-graph | 2.66.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
+| pydantic-graph | 2.68.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
 | pydantic-monty | 1.5.0 | MIT | https://github.com/pydantic/monty | License-Expression; no licence file, attributed to Pydantic Services Inc. |
 | pydantic-monty-client | 1.5.0 | MIT | https://github.com/pydantic/monty | License field; no licence file, attributed to Pydantic Services Inc. |
 | pydantic-monty-runtime | 1.5.0 | MIT | https://github.com/pydantic/monty | License field; no licence file, attributed to Pydantic Services Inc. |
@@ -263,6 +263,7 @@ names no author is in the evidence column below.
 | truststore | 0.10.5 | MIT | https://github.com/sethmlarson/truststore | License-Expression |
 | typer | 0.25.1 | MIT | https://github.com/fastapi/typer | License-Expression |
 | types-requests | 2.33.0.20261006 | Apache-2.0 | https://github.com/python/typeshed | License-Expression |
+| typesafe-sdk | 0.7.5 | MIT | https://github.com/typesafe-ai/typesafe-sdk-python | License-Expression |
 | typing-extensions | 4.16.0 | PSF-2.0 | https://github.com/python/typing_extensions | License-Expression |
 | typing-inspection | 0.4.4 | MIT | https://github.com/pydantic/typing-inspection | License-Expression |
 | uncalled-for | 0.4.1 | MIT | https://github.com/chrisguidry/uncalled-for | License-Expression |

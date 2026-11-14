@@ -50,11 +50,13 @@ class _Jev:
         self.details = {"confidence": {"answer": confidence}, **details}
         self.asked: list[dict[str, Any]] = []
         self.texts: list[str] = []
+        self.settings: list[dict[str, Any] | None] = []
 
     def model(self, name: str, api_key: str) -> FunctionModel:
         self.name, self.key = name, api_key
 
         def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            self.settings.append(info.model_settings)
             tool = info.output_tools[0]
             self.asked.append(tool.parameters_json_schema)
             self.texts += [
@@ -420,3 +422,39 @@ async def test_a_decision_checks_the_shared_source_before_calling_typesafe(jev, 
     assert result.error.code == "AGENT_GUARDRAIL_BLOCKED"
     assert result.error.bypassable is False
     assert model.texts == []
+
+
+async def test_native_profile_preserves_the_selected_model_settings(
+    jev, monkeypatch: pytest.MonkeyPatch
+):
+    from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
+
+    model = jev(True)
+    profile_id = uuid.uuid4()
+    resolved = ModelRequestSpec(
+        profile_id=profile_id,
+        label="Native classifier",
+        provider="typesafe",
+        model="jev-1.14.0",
+        params={"timeout": 12},
+        credential=ResolvedCredential(
+            provider="typesafe", secret=ApiKeySecret(api_key="test-key"), api="decisions"
+        ),
+        fallbacks=[],
+    )
+    monkeypatch.setattr(
+        ModelRequestSpec, "build", lambda _self: model.model("jev-1.14.0", "test-key")
+    )
+    monkeypatch.setattr(
+        _decide.ModelProfileService,
+        "profile_for_organization",
+        AsyncMock(return_value=MagicMock(provider="typesafe", api="decisions")),
+    )
+    resolve = AsyncMock(return_value=resolved)
+    monkeypatch.setattr(_decide.ModelProfileService, "resolve", resolve)
+    result = await _ask(
+        yes_no, DecisionConfig(question="Is it urgent?", model_profile_id=profile_id)
+    )
+    assert isinstance(result, Completed)
+    assert model.settings == [{"timeout": 12}]
+    assert resolve.call_args.kwargs == {"profile_id": profile_id, "decision": True}

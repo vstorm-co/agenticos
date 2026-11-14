@@ -1,5 +1,5 @@
 ---
-source_sha: "e49637ff7aa2"
+source_sha: "b43472572f36"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -867,9 +867,11 @@ Beim Erstellen einer leeren Tabelle benötigen Pflichtspalten keine Vorgaben: Je
 
 ## Dauerhafte Aufgaben {#durable-tasks}
 
+Ein **Agent** kann ebenfalls eine gemeinsame Aufgabentabelle besitzen. Der Zugriff folgt den aktuellen Agent-Berechtigungen; das Bearbeiten von Aufgaben erfordert zusätzlich Tabellenbearbeitung und die Berechtigung, den Agent auszuführen. Eigentümer oder Bearbeiter des Agents können die Tabelle verwalten. Die Zuweisung eines Agents gibt eine private Aufgabe nicht frei. AgenticOS MCP verwendet mit `create_task` und `ensure_task_board` die vorhandene Bereichstabelle oder erstellt sie bei der ersten Nutzung. Persönliche Aufgaben gehören in den privaten Bereich, Projektergebnisse zum Projekt und eine ausdrücklich gewünschte Agent-Warteschlange zum Agent. Bei unklarem Bereich nachfragen; persönliche Inhalte niemals stillschweigend teilen.
+
 Sie können Projektaufgaben aus privaten Unterhaltungen außerhalb des Projekts erstellen. Lassen Sie die Arbeitsunterhaltung offen: Die Aufgabe öffnet ihre eigene Unterhaltung im Projekt, ohne Ihr privates Transkript zu verknüpfen. Eine ausdrücklich verknüpfte Unterhaltung aus einem anderen Projekt wird abgelehnt.
 
-**Hintergrundarbeit** (`/work`) zeigt dauerhafte Aufgaben neben laufenden Hintergrundchats. Eine Aufgabe ist ein Virtual-Table-Datensatz mit Arbeitschat und einem Inbox-Fall, wenn Aufmerksamkeit nötig ist. Tabelle, Kanban und Aufgaben-API verwenden dieselbe Revision, ohne eine zweite synchronisierte TODO-Liste.
+Aufgaben werden in **Tables** (`/tables`) verwaltet. **Hintergrundarbeit** (`/work`) zeigt laufende Hintergrundchats und ihren Verlauf. Eine Aufgabe ist ein Virtual-Table-Datensatz mit Arbeitschat und einem Inbox-Fall, wenn Aufmerksamkeit nötig ist. Tabelle, Kanban und Aufgaben-API verwenden dieselbe Revision, ohne eine zweite synchronisierte TODO-Liste.
 
 Eine Aufgabentabelle entsteht bei der ersten Nutzung für eine **Person**, ein **Projekt**, eine **Gruppe** oder eine **Organisation** und wird wiederverwendet. Projects und Groups bieten **Aufgaben**; Tables öffnet die private Tabelle. Installation und neue Mitgliedschaften erzeugen keine leeren Tabellen. Die erste Erstellung erfordert `tables:create`. Aktuelle Projektberechtigungen und Gruppenmitgliedschaften gelten auch für Tabellen-API, Verknüpfungen und gespeicherte Ansichten. Private Aufgaben bleiben selbst vor einem anderen Organisationseigentümer verborgen. Eigene bestehende Aufgabentabellen und Projektverfolgungs-Presets werden nicht automatisch umgewandelt.
 
@@ -882,7 +884,7 @@ AgenticOS MCP bietet `list_task_boards`, `ensure_task_board`, `list_tasks`, `get
 
 Gruppenmitglieder dürfen das Aufgabenboard ihrer Gruppe lesen; Schreibzugriff erfordert zusätzlich Tabellen-Bearbeitungsrechte oder eine ausdrückliche Bearbeitungsfreigabe. Verliert die zugewiesene prüfende Person den Zugriff, wird die Erinnerung blockiert und ihr Ersteller erhält einen Inbox-Fall zur Übergabe. Neue Arbeitsunterhaltungen für Projektaufgaben gehören zum Projekt. Eine Tabellenquote kann die optionale Aufgabe eines Routine-Ergebnisses verhindern; Arbeitschat, Inbox-Fall und Benachrichtigung werden dennoch zugestellt.
 
-Schreiben auf Projekt-Aufgabentafeln erfordert Projektzugriff und Tabellenbearbeitungsrechte oder eine ausdrückliche Edit-Freigabe für die Tabelle. Das Entfernen eines Projekts, einer Gruppe oder eines privaten Eigentümers storniert wartende Aufgaben, schließt ihre Fälle und löscht die verwaltete Tabelle dieses Bereichs samt Datensätzen, Verlauf und Medien in derselben Transaktion. Andere Bereiche bleiben erhalten. Verschwindet die ausgewählte Tafel, wechselt das Aufgabenpanel zur verfügbaren privaten Tafel.
+Schreiben auf Projekt-Aufgabentafeln erfordert Projektzugriff und Tabellenbearbeitungsrechte oder eine ausdrückliche Edit-Freigabe für die Tabelle. Das Entfernen eines Projekts, einer Gruppe oder eines privaten Eigentümers storniert wartende Aufgaben, schließt ihre Fälle und löscht die verwaltete Tabelle dieses Bereichs samt Datensätzen, Verlauf und Medien in derselben Transaktion. Andere Bereiche bleiben erhalten.
 
 Ein Aufgabenboard selbst zu ändern ist enger gefasst, als darauf zu arbeiten. Das Board
 umzubenennen, seine Spalten oder Standardansicht zu ändern und es zu archivieren oder
@@ -905,3 +907,8 @@ Aufgabennotizen sind Markdown-Dokumente mit demselben Rich-Text-Editor und derse
 Ein Agent kann nicht gelöscht werden, solange eine verwaltete Aufgabe von seiner geplanten Ausführung abhängt. Weise diese Aufgaben zuerst neu zu, schließe sie ab oder brich sie ab; das Löschen darf ihre Ausführung nicht stillschweigend verwerfen.
 
 Beim Wiederherstellen einer archivierten verwalteten Aufgabentafel werden geplante Erinnerungen für Personen erneut eingereiht, auch wenn ihr Termin während der Archivierung verstrichen ist. Die Zustellung prüft weiterhin den aktuellen Zugriff des ursprünglichen Erstellers und Empfängers; die Wiederherstellung autorisiert keine neue Agentenarbeit. Auch die eigenen Aufgaben schreiben nicht in eine archivierte Tafel: Ein Fall, der in der Zwischenzeit in der Inbox erledigt wird, lässt seine Aufgabe unverändert, und erst die Wiederherstellung der Tafel setzt sie auf erledigt oder abgebrochen. Einen Fall wieder zu öffnen, dessen Aufgabe auf einer archivierten Tafel liegt, wird mit `TABLE_ARCHIVED` abgelehnt.
+
+
+Mitglieder mit Berechtigung zum Erstellen von Tabellen erhalten ihre fehlende private Aufgabentabelle beim ersten Besuch von **Tables**. Bestehende Tabellen werden wiederverwendet; dabei entstehen keine Organisations- oder Agent-Backlogs. Projekte bieten **Task table** zum Erstellen oder Öffnen ihrer Tabelle. Ohne Erstellungsrecht bleiben zugängliche Tabellen verfügbar, ohne einen verbotenen Schreibversuch.
+
+Inbox zeigt eine Aufgabe, wenn eine Person handeln oder ein Ergebnis prüfen muss; sie ist kein zweiter Aufgabenspeicher. Watches, Mail-Trigger und Routinen können Inbox-Fälle ohne Aufgabenrekord erzeugen. Aufgaben stehen für konkrete Verpflichtungen, nicht jedes Ereignis. Eine vereinbarte Tabellenkonvention darf mit geprüfter Tabellen-ID gespeichert werden; der aktuelle Aufgabenstatus bleibt in der Tabelle.

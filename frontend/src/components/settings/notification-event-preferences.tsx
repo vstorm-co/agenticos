@@ -6,8 +6,9 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { ChannelPlatformIcon } from "@/components/channels/channel-platform-icon";
-import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { ErrorState, LoadingState } from "@/components/states";
 import {
+  ListCardEmpty,
   Pager,
   SearchInput,
   Select,
@@ -105,12 +106,12 @@ export function NotificationEventPreferences() {
           {isLoading ? (
             <LoadingState variant="pending" />
           ) : list.visible.length === 0 ? (
-            <EmptyState
+            <ListCardEmpty
+              onClearFilters={() => list.setQuery("")}
               icon={Search}
               title={t("notificationNoMatches")}
               description={t("notificationSearchHint")}
               cta={{ label: t("notificationClearSearch"), onClick: () => list.setQuery("") }}
-              className="border-0"
             />
           ) : (
             <ul ref={rows} className="scroll-mt-32 space-y-3 lg:scroll-mt-6">

@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import { Radio } from "lucide-react";
+import { BrainCircuit, Gauge, Radio } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -16,16 +16,25 @@ import {
   Input,
   Label,
   Switch,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Textarea,
 } from "@/components/ui";
 import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
 import { useModelProviders } from "@/hooks/use-model-providers";
+import { usePermissions } from "@/hooks/use-permissions";
+import { Perm } from "@/types/permissions";
 import type { ChannelObservationConfig } from "@/types/exposures";
 
 const DEFAULTS: ChannelObservationConfig = {
   enabled: false,
   model_profile_id: null,
   instructions: "",
+  decision_mode: "llm",
+  threshold_percent: 80,
   unmentioned_interval_minutes: 20,
   mentioned_interval_minutes: 1,
 };
@@ -80,9 +89,15 @@ function ObservationForm({
   const t = useTranslations("agents");
   const id = useId();
   const { profiles, profilesStatus } = useModelProviders();
-  const [config, setConfig] = useState(initial);
+  const { can } = usePermissions();
+  const [creatingModel, setCreatingModel] = useState(false);
+  const [config, setConfig] = useState(() => ({
+    ...initial,
+    instructions: initial.instructions || t("observationDefaultInstructions"),
+  }));
   const [coldInterval, setColdInterval] = useState(String(initial.unmentioned_interval_minutes));
   const [warmInterval, setWarmInterval] = useState(String(initial.mentioned_interval_minutes));
+  const [threshold, setThreshold] = useState(initial.threshold_percent ?? 80);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   return (
@@ -105,6 +120,7 @@ function ObservationForm({
           try {
             await onSave({
               ...config,
+              threshold_percent: threshold,
               unmentioned_interval_minutes: Number(coldInterval),
               mentioned_interval_minutes: Number(warmInterval),
             });
@@ -126,15 +142,70 @@ function ObservationForm({
         </div>
         <fieldset disabled={disabled || saving} className="space-y-4">
           <legend className="mb-2 text-sm font-medium">{t("observationDecisionModel")}</legend>
+          <div className="space-y-1.5">
+            <Label htmlFor={`${id}-engine`}>{t("observationEngine")}</Label>
+            <Select
+              value={config.decision_mode ?? "llm"}
+              onValueChange={(mode) => {
+                if (mode === "llm" || mode === "native")
+                  setConfig({ ...config, decision_mode: mode, model_profile_id: null });
+              }}
+            >
+              <SelectTrigger id={`${id}-engine`}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="llm">
+                  <span className="flex items-center gap-2">
+                    <BrainCircuit className="size-4" aria-hidden />
+                    {t("observationLlm")}
+                  </span>
+                </SelectItem>
+                <SelectItem value="native">
+                  <span className="flex items-center gap-2">
+                    <Gauge className="size-4" aria-hidden />
+                    {t("observationNative")}
+                  </span>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <ModelProfilePicker
-            emptyLabel={t("observationDecisionModel")}
             profiles={profiles}
             profilesStatus={profilesStatus}
-            compact
+            purpose={config.decision_mode === "native" ? "decision" : "chat"}
             value={config.model_profile_id}
-            allowAdd={false}
+            allowAdd={can(Perm.connectionsManage)}
+            disabled={disabled || saving}
+            onCreationPendingChange={setCreatingModel}
             onChange={(model_profile_id) => setConfig({ ...config, model_profile_id })}
           />
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between gap-3">
+              <Label htmlFor={`${id}-threshold`}>{t("observationThreshold")}</Label>
+              <span className="shrink-0 text-sm font-medium tabular-nums">{threshold}%</span>
+            </div>
+            <input
+              id={`${id}-threshold`}
+              name="threshold"
+              type="range"
+              min={0}
+              max={100}
+              step={1}
+              value={threshold}
+              aria-valuetext={`${threshold}%`}
+              aria-describedby={`${id}-threshold-hint`}
+              className="accent-foreground focus-visible:outline-ring h-10 w-full cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              onChange={(event) => setThreshold(event.target.valueAsNumber)}
+            />
+            <p id={`${id}-threshold-hint`} className="text-muted-foreground text-xs">
+              {t(
+                config.decision_mode === "native"
+                  ? "observationProbabilityHint"
+                  : "observationScoreHint",
+              )}
+            </p>
+          </div>
           <div className="space-y-1.5">
             <Label htmlFor={`${id}-instructions`}>{t("observationFocus")}</Label>
             <Textarea
@@ -142,7 +213,7 @@ function ObservationForm({
               name="instructions"
               maxLength={8000}
               value={config.instructions}
-              className="min-h-28"
+              className="min-h-56"
               onChange={(event) => setConfig({ ...config, instructions: event.target.value })}
             />
           </div>
@@ -152,6 +223,7 @@ function ObservationForm({
               <Label htmlFor={`${id}-cold`}>{t("observationUnmentioned")}</Label>
               <Input
                 id={`${id}-cold`}
+                aria-describedby={`${id}-cold-hint`}
                 name="unmentionedInterval"
                 type="number"
                 min={1}
@@ -160,11 +232,15 @@ function ObservationForm({
                 value={coldInterval}
                 onChange={(event) => setColdInterval(event.target.value)}
               />
+              <p id={`${id}-cold-hint`} className="text-muted-foreground text-xs">
+                {t("observationUnmentionedHint")}
+              </p>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor={`${id}-warm`}>{t("observationMentioned")}</Label>
               <Input
                 id={`${id}-warm`}
+                aria-describedby={`${id}-warm-hint`}
                 name="mentionedInterval"
                 type="number"
                 min={1}
@@ -173,9 +249,14 @@ function ObservationForm({
                 value={warmInterval}
                 onChange={(event) => setWarmInterval(event.target.value)}
               />
+              <p id={`${id}-warm-hint`} className="text-muted-foreground text-xs">
+                {t("observationMentionedHint")}
+              </p>
             </div>
           </fieldset>
-          <p className="text-muted-foreground text-xs">{t("observationTimingHint")}</p>
+          <p className="bg-muted/40 text-muted-foreground rounded-lg p-3 text-xs leading-relaxed">
+            {t("observationTimingHint")}
+          </p>
           <p className="text-muted-foreground text-xs">{t("observationAllChannels")}</p>
           <p className="bg-muted/40 text-muted-foreground rounded-lg p-3 text-xs leading-relaxed">
             {t("observationAuthorityHint")}
@@ -187,7 +268,7 @@ function ObservationForm({
           </p>
         )}
         <DialogFooter>
-          <Button type="submit" disabled={disabled || saving}>
+          <Button type="submit" disabled={disabled || saving || creatingModel}>
             {t("observationSave")}
           </Button>
         </DialogFooter>

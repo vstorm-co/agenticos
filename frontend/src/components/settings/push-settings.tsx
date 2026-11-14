@@ -81,7 +81,7 @@ function PushCard() {
 
   if (state === null) return null;
   return (
-    <SectionCard title={t("title")}>
+    <SectionCard className="h-full" title={t("title")}>
       <p role="status" className="text-foreground mb-3 text-sm">
         {t(`state.${state}`)}
       </p>

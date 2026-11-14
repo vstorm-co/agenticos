@@ -185,6 +185,18 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
                     to: the same agent on an internal Mattermost and a customer
                     Slack gets a different answer here, and a switch in the
                     Toolbox would have one for both. */}
+                {canRegister &&
+                  ["mattermost", "slack", "teams", "telegram", "discord"].includes(
+                    exposure.surface,
+                  ) && (
+                    <ExposureObservation
+                      value={exposure.observation}
+                      disabled={setObservation.isPending}
+                      onSave={(observation) =>
+                        setObservation.mutateAsync({ exposureId: exposure.id, observation })
+                      }
+                    />
+                  )}
                 <ExposureCostReporting
                   exposureId={exposure.id}
                   value={exposure.usage_reporting}
@@ -201,18 +213,6 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
                   disabled={setTools.isPending}
                   onChange={(tools) => setTools.mutate({ exposureId: exposure.id, tools })}
                 />
-                {canRegister &&
-                  ["mattermost", "slack", "teams", "telegram", "discord"].includes(
-                    exposure.surface,
-                  ) && (
-                    <ExposureObservation
-                      value={exposure.observation}
-                      disabled={setObservation.isPending}
-                      onSave={(observation) =>
-                        setObservation.mutateAsync({ exposureId: exposure.id, observation })
-                      }
-                    />
-                  )}
                 <ExposurePrompt
                   botName={exposure.channel_bot_name}
                   value={exposure.prompt}

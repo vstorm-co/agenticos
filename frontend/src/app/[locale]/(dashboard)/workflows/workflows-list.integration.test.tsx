@@ -294,7 +294,7 @@ describe("the workflows list past one page", () => {
       serve(ROWS);
       params = new URLSearchParams("status=draft");
       render(<WorkflowsPage />, { wrapper });
-      await userEvent.click(await screen.findByRole("button", { name: "Clear filter" }));
+      await userEvent.click(await screen.findByRole("button", { name: "Clear filters" }));
       await screen.findByRole("link", { name: "Open Beta" });
 
       await showFilters();

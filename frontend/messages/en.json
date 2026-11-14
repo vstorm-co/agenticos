@@ -1110,6 +1110,14 @@
       "react_to_chat_message": "React with emoji"
     },
     "groupsNotifyOnly": "Recipients are notified using current group membership. This does not grant or restrict approval authority.",
+    "observationEngine": "Decision engine",
+    "observationLlm": "LLM · structured assessment",
+    "observationNative": "Decision model · native probabilities",
+    "observationThreshold": "Run the agent from (%)",
+    "observationProbabilityHint": "Uses the provider’s probability of joining. At or above this threshold, the main agent runs.",
+    "observationScoreHint": "The LLM returns a structured score from 0 to 100. This is its assessment, not a calibrated probability.",
+    "modelApiDecisions": "Decisions API",
+    "modelApiNative": "Standard generation",
     "observationTitle": "Join conversations automatically",
     "observationSummary": "A separate model decides when a contribution would help.",
     "observationOn": "On",
@@ -1118,11 +1126,14 @@
     "observationDescription": "Analyze new messages on every channel this bot can access. Mentions still receive an immediate answer.",
     "observationEnable": "Enable automatic participation",
     "observationDecisionModel": "Decision model",
+    "observationDefaultInstructions": "Join when you can answer an unresolved question, add relevant facts, correct a meaningful misunderstanding, or suggest a concrete next step. Stay silent when the conversation is casual, someone has already answered, or you would only repeat what was said.\n\nUse the conversation’s language and match its tone. Be specific, helpful and concise; give a longer explanation when it is useful. Verify claims with the tools available to you and say clearly when you cannot check something. If a task needs a personal connection or approval, ask someone to mention you in the thread so you can continue.",
+    "observationUnmentionedHint": "Check for opportunities to join a new conversation.",
+    "observationMentionedHint": "Follow up more frequently in threads the agent has already joined by mention.",
     "observationFocus": "What to focus on and when to contribute",
     "observationTiming": "Check intervals in minutes",
-    "observationUnmentioned": "Before the agent is mentioned",
-    "observationMentioned": "After the agent is mentioned",
-    "observationTimingHint": "Only new messages trigger analysis. Empty intervals make no model requests.",
+    "observationUnmentioned": "Threads where the agent has not been mentioned",
+    "observationMentioned": "Threads where the agent has already been mentioned",
+    "observationTimingHint": "An @mention triggers an immediate answer, regardless of these intervals. Scheduled checks analyze only new messages; empty intervals make no model requests.",
     "observationAllChannels": "All channels this bot can access",
     "observationAuthorityHint": "The decision model has no tools. Automatic replies use the published agent’s main model and bound organization MCP accounts, with their normal approval rules. Personal accounts and other action tools require someone to mention the bot in the thread. Calls needing approval are not executed automatically. Both model costs appear in Activity.",
     "observationRequired": "Select the model that decides whether the agent should join.",
@@ -3903,7 +3914,6 @@
   },
   "kb": {
     "addIntegration": "Add integration",
-    "addKnowledgeBase": "Add to knowledge base",
     "adding": "Adding…",
     "appliesEachFileYou": "This applies to each file you add next and is recorded on it. The collection keeps its own settings - every later upload goes back to them.",
     "applyChanges": "{count, plural, =1 {Apply 1 change} other {Apply # changes}}",
@@ -3927,7 +3937,6 @@
     "chunkingRecursiveHint": "Split on paragraphs, then sentences, then words - whatever fits.",
     "chunkingSummary": "{size, plural, =1 {1 character} other {# characters}}, {overlap, number} overlapping · {strategy}",
     "chunks": "Chunks",
-    "configuredOnceUsedAs": "Configured once, used in as many knowledge bases as you like. Each copy syncs on its own schedule.",
     "create": "Create",
     "createKnowledgeBase": "Create knowledge base",
     "creating": "Creating...",
@@ -3978,7 +3987,6 @@
     "liteparseReadsTextLayer": "LiteParse reads the text layer first and OCRs a page only when there is nothing there. OCR dominates the cost of a parse, and most documents are born digital. Turn this off to OCR every page regardless.",
     "llamaparseKey": "LlamaParse key",
     "llamaparseTier": "LlamaParse tier",
-    "loadingIntegrations": "Loading integrations…",
     "loadingModels": "Loading models…",
     "manualSchedule": "manual",
     "maximumPages": "Maximum pages",
@@ -4035,7 +4043,12 @@
     "reasoning": "Reasoning",
     "remove": "Remove",
     "removeNamed": "Remove {name}?",
-    "reusableIntegrations": "Reusable integrations",
+    "integrationActions": "Actions",
+    "integrationDetails": "Connection / schedule",
+    "integrationsDescription": "Reusable sources feed your knowledge bases. Local services provide embedding and OCR processing on your own network.",
+    "integrationsEmpty": "No integrations yet",
+    "integrationsCount": "{count, plural, one {# integration} other {# integrations}}",
+    "reusableIntegrations": "Integrations",
     "save": "Save",
     "saving": "Saving…",
     "scannedPages": "Scanned pages",
@@ -4052,7 +4065,7 @@
     "tierCostEffectiveHint": "A middle setting.",
     "tierFast": "Fast",
     "tierFastHint": "Cheapest, and the least faithful to layout.",
-    "use": "Use in…",
+    "use": "Use in knowledge base",
     "useCollectionSettings": "Use the collection's settings",
     "useSourceInCollection": "Use “{name}” in a knowledge base",
     "useStandardPrompt": "Use the standard prompt",
@@ -4066,11 +4079,8 @@
     "endpointModelsUnconfirmed": "This endpoint could not be asked which models it serves, so every OpenRouter model is listed. A model it does not serve will fail on the first upload.",
     "endpointServesNoModel": "This endpoint serves none of the embedding models AgenticOS offers. Leave the endpoint empty, or choose another provider.",
     "endpointLacksCollectionModel": "This endpoint does not serve {model}, the model this collection's vectors were made with. Leave the endpoint empty, or choose one that serves it.",
-    "localServices": "Local services",
     "localServicesHint": "Servers on the deployment's own network - an Ollama that embeds, an OCR sidecar for LiteParse - registered once and chosen per collection. Nothing sent to one leaves the deployment.",
     "addServer": "Add server",
-    "loadingLocalServices": "Loading servers…",
-    "noLocalServicesYet": "Nothing here yet. Register an Ollama or an OCR server to keep embeddings and OCR on your own network.",
     "failedLoadLocalServices": "Failed to load local services",
     "localServiceKind": "Kind",
     "embeddingServer": "Embedding server (Ollama)",
@@ -6821,13 +6831,15 @@
         "retractHint": "The agent will stop using this memory. The entry stays in history, along with its source.",
         "deleteNote": "Delete this note?",
         "deleteNoteHint": "“{name}” will be permanently deleted. You can stop using it instead and restore it later.",
-        "noteDetails": "Memory details",
         "type": {
           "fact": "Fact",
           "preference": "Preference",
           "decision": "Decision",
           "other": "Memory"
-        }
+        },
+        "editNoteHint": "Correct what the agent remembers about you. Your edits are recorded separately from the original agent write.",
+        "noteContent": "Note content",
+        "noteDetails": "Memory details"
       }
     },
     "admin": {
@@ -7237,7 +7249,6 @@
       "platform": "Platform",
       "polling": "Polling",
       "register": "Register",
-      "registeredCount": "{count, plural, =1 {1 channel registered} other {# channels registered}}",
       "removeBot": "Remove {bot}",
       "replaceBotToken": "Replace bot token",
       "resumeBot": "Resume {bot}",
@@ -7939,7 +7950,6 @@
       "chatAccountsDescription": "Slack, Microsoft Teams, Telegram, Mattermost and Discord accounts connected to you. An agent reached from one of these answers as you, with your permissions and your budget.",
       "confirmNewPassword": "Confirm new password",
       "currentPassword": "Current password",
-      "customizeCommandPaletteChat": "Customize the /command palette in chat - disable built-ins, or define your own quick prompts.",
       "deleteAccount": "Delete account",
       "deleteMyAccount": "Delete my account",
       "deleteYourAccount": "Delete your account?",
@@ -8853,7 +8863,7 @@
       "noContainerConnectionHint": "What is running can only be listed from a container service. Register one under Connections; Daytona sandboxes are managed on the Daytona account they bill to.",
       "noOperationMatches": "No operation matches that.",
       "noSessionMatches": "No running sandbox matches that.",
-      "nothingRunningSandboxOpens": "Nothing running. A sandbox opens on an agent's first file or shell call, so an agent that has one and never uses it costs nothing here.",
+      "nothingRunningSandboxOpens": "No running sandboxes",
       "ok": "Succeeded",
       "operation": "Operation",
       "reapedIn": "reaped in {time}",
@@ -8983,10 +8993,11 @@
     "save2": "Save",
     "saving4": "Saving…",
     "sentAsRegularUserMessage": "Sent as a regular user message when you type <cmd>/{name}</cmd>.",
-    "slashShortcuts": "Slash shortcuts for prompts you type often. Typing <cmd>/name</cmd> in chat sends the stored prompt.",
     "summarizeConversationAsChecklist": "Summarize the conversation as a checklist of action items.",
     "todo": "todo",
-    "yourCustomCommands": "Your custom commands"
+    "commandCatalog": "Slash commands",
+    "commandKind": "Type",
+    "customKind": "Custom"
   },
   "sharing": {
     "access": "Access",
@@ -9701,6 +9712,7 @@
     "minutesAgo": "{count, plural, other {#m ago}}"
   },
   "ui": {
+    "clearFilters": "Clear filters",
     "expandEditor": "Expand {label}",
     "cancel": "Cancel",
     "checkConnection": "Check your connection and try again.",
@@ -9715,7 +9727,6 @@
     "jsonShowLess": "show less",
     "labelPreview": "{label} preview",
     "markdown": "Markdown",
-    "matchedOfTotal": "{matched} of {counted}",
     "next": "Next",
     "nextMonths": "Next months",
     "nextPage": "Next page",
@@ -10267,6 +10278,7 @@
     "setupOwnerRequired": "Saved and paused. Its creator must repair and review the sources."
   },
   "portals": {
+    "backToServices": "Back to services",
     "mailboxInterval": {
       "label": "Check for new mail every",
       "option": "{count, plural, =1 {1 minute} other {# minutes}}",
@@ -11145,7 +11157,7 @@
       "notification": "Notifications",
       "debug": "Debug",
       "triggers": "Triggers",
-      "decide": "Jev decisions",
+      "decide": "Decision models",
       "people": "People",
       "slack": "Slack",
       "mattermost": "Mattermost",
@@ -11264,7 +11276,7 @@
     "categoryHint": {
       "triggers": "How a run starts",
       "agent": "Run one of your agents",
-      "decide": "Ask TypeSafe's Jev a typed question",
+      "decide": "Ask a model a typed question and route on the result",
       "knowledge": "Search a knowledge base, or add to one",
       "logic": "Choose a path, or join them again",
       "control": "Loop over items, wait, or run another workflow",
@@ -12952,8 +12964,8 @@
     "openBuilder": "Open in Agent Builder",
     "openOrganization": "Organization settings",
     "suggestions": {
-      "title": "Suggestions for you",
-      "description": "What the nightly look at your week proposed, and whether it looks at all.",
+      "title": "Automatic suggestions",
+      "description": "Control whether AgenticOS sends you proactive suggestions in Inbox and briefing. This page shows their history and lets you restore dismissed suggestions. It does not configure replies in your conversations.",
       "forMe": "Nightly suggestions for me",
       "orgOff": "Your organization has nightly suggestions off, so none are made yet.",
       "turnedOn": "Nightly suggestions are on for you",
@@ -12965,7 +12977,8 @@
         "open": "Waiting",
         "accepted": "Taken",
         "dismissed": "Declined"
-      }
+      },
+      "openInbox": "Open Inbox"
     }
   },
   "orgAssistant": {
@@ -14211,7 +14224,7 @@
       "sharedWorkspace": "Shared project workspace"
     },
     "tracking": {
-      "title": "Keep project on track",
+      "title": "Automatic project tracking",
       "description": "Create a task table with saved views and publish a private copy of a selected agent as its scheduled tracker.",
       "audience": "The routine acts as you and writes its reports in this project’s shared conversation. The source agent remains unchanged.",
       "baseAgent": "Source agent you can edit",
@@ -14232,8 +14245,8 @@
       "cancel": "Cancel",
       "retry": "Try again",
       "loadFailed": "Retry project tracker",
-      "openTasks": "Task table",
-      "scopeHint": "The project reuses one task board. Access follows the project; people and agents are linked records, and the next-step field controls handoff."
+      "scopeHint": "The project reuses one task board. Access follows the project; people and agents are linked records, and the next-step field controls handoff.",
+      "openTracker": "Tracking agent"
     }
   },
   "voiceGlow": {
@@ -17041,7 +17054,6 @@
     "tasks": "Tasks",
     "newTask": "New task",
     "hint": "Commitments for you and your agents. The table, working chat and Inbox share one task.",
-    "board": "Task board",
     "openTable": "Open table",
     "title": "Task",
     "description": "Instructions or context",
@@ -17069,7 +17081,8 @@
       "private": "My tasks",
       "project": "Project tasks",
       "group": "Group tasks",
-      "organization": "Organization tasks"
+      "organization": "Organization tasks",
+      "agent": "Agent tasks"
     },
     "status": {
       "planned": "Planned",
@@ -17082,7 +17095,8 @@
     "nextActor": {
       "user": "Next step: person",
       "agent": "Next step: agent"
-    }
+    },
+    "taskTable": "Task table"
   },
   "setupHints": {
     "title": "Setup available",

@@ -3704,6 +3704,7 @@ class AgentRunnerService:
         test: bool = False,
         aside: bool = False,
         organization_mcp_only: bool = False,
+        decision_model: bool = False,
         source_run: AgentRun | None = None,
         watch_receipt: WatchReadReceipt | None = None,
     ) -> PreparedRun:
@@ -3834,7 +3835,11 @@ class AgentRunnerService:
             )
         else:
             agent, spec, version_id = await self.registry.get_candidate_spec(
-                ctx, agent_id, candidate, environment_id=effective_environment_id
+                ctx,
+                agent_id,
+                candidate,
+                environment_id=effective_environment_id,
+                decision_model=decision_model,
             )
         if source_run is not None:
             _, spec = await self._parked_spec(ctx, source_run)
@@ -3880,6 +3885,7 @@ class AgentRunnerService:
             local=local,
             answer_only=aside,
             organization_mcp_only=organization_mcp_only,
+            decision_model=decision_model,
             # Passed in rather than set on the built deps like `on_compaction`:
             # whether a gap is briefed or offered as a tool decides what is built.
             request_connection=request_connection,
@@ -4022,6 +4028,7 @@ class AgentRunnerService:
         local: LocalTarget | None = None,
         answer_only: bool = False,
         organization_mcp_only: bool = False,
+        decision_model: bool = False,
         specialists: Mapping[str | None, Sequence[RegisteredSpecialist]] | None = None,
         discovered_delegates: dict[str, list[SubagentRef]] | None = None,
         mirage_authorities: dict[str, str] | None = None,
@@ -4151,7 +4158,9 @@ class AgentRunnerService:
             local_model_choice = (local.model_service, profile.id)
         else:
             model_spec = await self.models.resolve(
-                models_ctx, profile_id=model_profile_id or spec.model_profile_id
+                models_ctx,
+                profile_id=model_profile_id or spec.model_profile_id,
+                decision=decision_model,
             )
             # The override arrives from a socket frame or an API body, past every
             # picker and past publish, so the catalogs' answer is checked here too
@@ -7154,6 +7163,7 @@ class AgentRunnerService:
         conversation_task_id: UUID | None = None,
         result_only: bool = False,
         organization_mcp_only: bool = False,
+        decision_model: bool = False,
         on_run_open: Callable[[AgentRun], Awaitable[None]] | None = None,
         check_model_request: Callable[[AsyncSession], Awaitable[None]] | None = None,
         on_segment: Callable[[RunSegment], Awaitable[None]] | None = None,
@@ -7273,6 +7283,7 @@ class AgentRunnerService:
             public_origin=public_origin,
             aside=aside or result_only,
             organization_mcp_only=organization_mcp_only,
+            decision_model=decision_model,
             draft=draft,
             watch_receipt=watch_receipt,
         )

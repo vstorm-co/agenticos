@@ -56,7 +56,7 @@ from app.agents.capabilities.sandbox import SandboxConfig
 from app.agents.capabilities.skills import SkillBody
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.mcp import PLATFORM_MCP_PREFIX, prefix_collisions
-from app.agents.model_resolver import lacks_key
+from app.agents.model_resolver import is_decision_api, lacks_key
 from app.agents.spec import (
     SPEC_VERSION,
     AgentSpec,
@@ -2181,7 +2181,12 @@ class AgentRegistryService:
         return await self.save_draft(ctx, agent_id, _parse_spec_yaml(text))
 
     async def validate_spec(
-        self, ctx: AuthContext, spec: AgentSpec, *, agent_id: UUID | None = None
+        self,
+        ctx: AuthContext,
+        spec: AgentSpec,
+        *,
+        agent_id: UUID | None = None,
+        decision_model: bool = False,
     ) -> None:
         """Check every reference a spec makes, and report all problems at once.
 
@@ -2250,7 +2255,11 @@ class AgentRegistryService:
         if spec.model_profile_id is None:
             problems.merge(_SpecProblems.at("model_profile_id", NO_MODEL))
         else:
-            problems.add(await self.model_profile_problems(ctx, spec.model_profile_id))
+            problems.add(
+                await self.model_profile_problems(
+                    ctx, spec.model_profile_id, decision=decision_model
+                )
+            )
         # And each reviewer's, refused here rather than when a run first reaches
         # its cadence and finds nothing to review with.
         for reviewer in spec.reviewers:
@@ -2486,7 +2495,9 @@ class AgentRegistryService:
                     )
         return problems
 
-    async def model_profile_problems(self, ctx: AuthContext, profile_id: UUID) -> list[str]:
+    async def model_profile_problems(
+        self, ctx: AuthContext, profile_id: UUID, *, decision: bool = False
+    ) -> list[str]:
         """Whether a named model profile is still this organization's to run on.
 
         And whether it is a model anything can run *on*: a profile can name a
@@ -2503,6 +2514,8 @@ class AgentRegistryService:
         )
         if profile is None:
             return ["The selected model profile no longer exists"]
+        if is_decision_api(profile.provider, profile.api) and not decision:
+            return ["The selected profile serves decisions, not conversation. Pick a chat model."]
         outputs = model_outputs(profile.provider, profile.model, base_url=profile.base_url)
         if not outputs.chat:
             return [not_chat_refusal(profile.label, profile.model, outputs)]
@@ -2521,12 +2534,19 @@ class AgentRegistryService:
             ]
         problems: list[str] = []
         fallback_ids = [UUID(pid) for pid in profile.fallback_profile_ids[:MAX_FALLBACK_DEPTH]]
+        if is_decision_api(profile.provider, profile.api) and fallback_ids:
+            return ["Decision models require an explicit model without automatic fallbacks"]
         fallbacks = await credential_repo.get_profiles_by_ids(
             self.db, fallback_ids, organization_id=ctx.organization_id
         )
         # In the chain's order. One that no longer exists is skipped at run
         # time, not refused here.
         for fallback in (fallbacks[pid] for pid in fallback_ids if pid in fallbacks):
+            if is_decision_api(fallback.provider, fallback.api):
+                problems.append(
+                    f"Fallback model '{fallback.label}' serves decisions, not conversation"
+                )
+                continue
             found = model_outputs(fallback.provider, fallback.model, base_url=fallback.base_url)
             if not found.chat:
                 problems.append(
@@ -4058,6 +4078,9 @@ class AgentRegistryService:
 
         await agent_repo.fence_deletion(self.db, agent.id, organization_id=ctx.organization_id)
         await TaskService(self.db).require_no_agent_execution(ctx, agent.id)
+        await TaskService(self.db).purge_scope(
+            "agent", agent.id, organization_id=ctx.organization_id
+        )
         await AgentTriggerService(self.db).deregister_agent_webhooks(ctx, agent.id)
         # The grant table is generic and has no foreign key to the agent, so
         # nothing cascades on its behalf.
@@ -4636,6 +4659,7 @@ class AgentRegistryService:
         candidate: Candidate,
         *,
         environment_id: UUID | None = None,
+        decision_model: bool = False,
     ) -> tuple[Agent, AgentSpec, UUID | None]:
         """The spec an eval runs in place of the one an environment pins.
 
@@ -4688,7 +4712,9 @@ class AgentRegistryService:
                     ],
                 }
             )
-            await self.validate_spec(ctx, validation, agent_id=agent.id)
+            await self.validate_spec(
+                ctx, validation, agent_id=agent.id, decision_model=decision_model
+            )
             if virtual_contexts:
                 stored_contexts = await context_repo.get_many(
                     self.db, validation.context_ids, organization_id=ctx.organization_id

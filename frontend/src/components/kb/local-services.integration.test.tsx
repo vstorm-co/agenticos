@@ -4,7 +4,8 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { LocalServices } from "./local-services";
+import { KnowledgeIntegrations } from "./reusable-integrations";
+import { useOrgStore } from "@/stores";
 import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
 import type { LocalServiceRecord } from "@/lib/local-services-api";
@@ -64,6 +65,8 @@ function serve({
         is_app_admin: appAdmin,
         permissions: manage ? [{ permission: "connections:manage", scope: "all" }] : [],
       };
+    if (path === "/orgs/org-1/integrations") return { items: [], total: 0 };
+    if (path === "/orgs/org-1/integrations/connectors") return { items: [], total: 0 };
     if (path === "/local-services") return { items: services, total: services.length };
     throw new Error(`unexpected GET ${path}`);
   });
@@ -71,6 +74,7 @@ function serve({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  useOrgStore.setState({ activeOrgId: "org-1" });
   vi.mocked(apiClient.post).mockResolvedValue(service({ id: "ls-3", name: "New box" }));
   vi.mocked(apiClient.delete).mockResolvedValue(undefined);
 });
@@ -78,7 +82,7 @@ beforeEach(() => {
 describe("LocalServices", () => {
   it("shows a member nothing, and asks the endpoint nothing", async () => {
     serve({ manage: false });
-    render(<LocalServices />, { wrapper });
+    render(<KnowledgeIntegrations targets={[]} />, { wrapper });
 
     await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/me/permissions"));
     expect(screen.queryByText("Local services")).toBeNull();
@@ -87,7 +91,7 @@ describe("LocalServices", () => {
 
   it("lists the organization's servers and the deployment's, marked apart", async () => {
     serve({ manage: true });
-    render(<LocalServices />, { wrapper });
+    render(<KnowledgeIntegrations targets={[]} />, { wrapper });
 
     expect(await screen.findByText("GPU box")).toBeVisible();
     expect(screen.getByText("Shared OCR (deployment)")).toBeVisible();
@@ -96,16 +100,16 @@ describe("LocalServices", () => {
 
   it("says when nothing is registered yet", async () => {
     serve({ manage: true, services: [] });
-    render(<LocalServices />, { wrapper });
+    render(<KnowledgeIntegrations targets={[]} />, { wrapper });
 
-    expect(await screen.findByText(/Nothing here yet/)).toBeVisible();
+    expect(await screen.findByText("No integrations yet")).toBeVisible();
   });
 
   it("registers a server with the provider its kind implies, and no deployment switch", async () => {
     // The provider is not a field: one embedding catalog entry and one parser
     // can stand behind a local server, so the kind decides it.
     serve({ manage: true });
-    render(<LocalServices />, { wrapper });
+    render(<KnowledgeIntegrations targets={[]} />, { wrapper });
     await screen.findByText("GPU box");
 
     await userEvent.click(screen.getByRole("button", { name: "Add server" }));
@@ -127,7 +131,7 @@ describe("LocalServices", () => {
 
   it("lets the app admin register for the whole deployment, as an OCR server", async () => {
     serve({ manage: true, appAdmin: true });
-    render(<LocalServices />, { wrapper });
+    render(<KnowledgeIntegrations targets={[]} />, { wrapper });
     await screen.findByText("GPU box");
 
     await userEvent.click(screen.getByRole("button", { name: "Add server" }));
@@ -160,7 +164,7 @@ describe("LocalServices", () => {
       }),
     );
     serve({ manage: true });
-    render(<LocalServices />, { wrapper });
+    render(<KnowledgeIntegrations targets={[]} />, { wrapper });
     await screen.findByText("GPU box");
 
     await userEvent.click(screen.getByRole("button", { name: "Add server" }));
@@ -174,7 +178,7 @@ describe("LocalServices", () => {
 
   it("removes the organization's own server after a confirmation", async () => {
     serve({ manage: true });
-    render(<LocalServices />, { wrapper });
+    render(<KnowledgeIntegrations targets={[]} />, { wrapper });
     await screen.findByText("GPU box");
 
     await userEvent.click(screen.getByRole("button", { name: "Remove GPU box" }));
@@ -187,7 +191,7 @@ describe("LocalServices", () => {
     // A deployment-wide row is the app admin's; the server would refuse the
     // delete, so the button is not drawn rather than drawn and refused.
     serve({ manage: true });
-    render(<LocalServices />, { wrapper });
+    render(<KnowledgeIntegrations targets={[]} />, { wrapper });
     await screen.findByText("GPU box");
 
     expect(screen.queryByRole("button", { name: "Remove Shared OCR" })).toBeNull();
@@ -195,7 +199,7 @@ describe("LocalServices", () => {
 
   it("offers the app admin the deployment's row to remove", async () => {
     serve({ manage: true, appAdmin: true });
-    render(<LocalServices />, { wrapper });
+    render(<KnowledgeIntegrations targets={[]} />, { wrapper });
     await screen.findByText("GPU box");
 
     expect(screen.getByRole("button", { name: "Remove Shared OCR" })).toBeInTheDocument();
@@ -212,9 +216,9 @@ describe("LocalServices", () => {
         };
       throw new Error("502 Bad Gateway");
     });
-    render(<LocalServices />, { wrapper });
+    render(<KnowledgeIntegrations targets={[]} />, { wrapper });
 
-    expect(await screen.findByText(/Failed to load local services|502/)).toBeVisible();
+    expect((await screen.findAllByText(/Failed to load local services|502/))[0]).toBeVisible();
     expect(screen.queryByText(/Nothing here yet/)).toBeNull();
   });
 });

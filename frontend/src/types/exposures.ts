@@ -20,6 +20,8 @@ export interface ChannelObservationConfig {
   enabled: boolean;
   model_profile_id: string | null;
   instructions: string;
+  decision_mode?: "llm" | "native";
+  threshold_percent?: number;
   unmentioned_interval_minutes: number;
   mentioned_interval_minutes: number;
 }

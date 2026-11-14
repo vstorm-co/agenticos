@@ -173,11 +173,12 @@ class RecordingWorkspace(WrapperWorkspace):
         shell: bool = False,
         env: Mapping[str, str] | None = None,
         timeout: float | None = None,
+        cwd: str | None = None,
     ) -> CommandResult:
         return await self._recorded(
             "execute",
             _command_text(command),
-            super().run(command, shell=shell, env=env, timeout=timeout),
+            super().run(command, shell=shell, env=env, timeout=timeout, cwd=cwd),
             _command_outcome,
         )
 

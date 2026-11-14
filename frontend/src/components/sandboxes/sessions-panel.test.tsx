@@ -369,7 +369,7 @@ describe("SessionsPanel", () => {
     state.listing = listing([]);
     render(<SessionsPanel connections={[connection()]} />);
 
-    expect(screen.getByText(/Nothing running/)).toBeVisible();
+    expect(screen.getByText("No running sandboxes")).toBeVisible();
   });
 
   it("reports a host that did not answer instead of looking idle", () => {

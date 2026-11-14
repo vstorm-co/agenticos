@@ -9,10 +9,54 @@ export function CatalogLoading({
   kind,
   rows = 3,
 }: {
-  kind: "document" | "resource" | "project";
+  kind: "document" | "resource" | "project" | "agent" | "group";
   rows?: number;
 }) {
   const t = useTranslations("states");
+  if (kind === "agent" || kind === "group") {
+    return (
+      <div
+        role="status"
+        aria-busy="true"
+        aria-label={t("loading")}
+        className={cn(
+          "grid grid-cols-1 gap-3 xl:grid-cols-3",
+          kind === "group" ? "sm:grid-cols-2" : "md:grid-cols-2",
+        )}
+      >
+        {Array.from({ length: rows }, (_, index) => (
+          <div
+            key={index}
+            aria-hidden="true"
+            className="bg-card flex min-w-0 flex-col rounded-xl border p-4"
+          >
+            <div className="flex flex-1 items-start gap-3">
+              <Skeleton
+                className={cn("size-11 shrink-0 rounded-xl", kind === "agent" && "max-sm:size-12")}
+              />
+              <div className="min-w-0 flex-1 space-y-2">
+                <Skeleton className="h-5 w-3/5" />
+                <div className="min-h-10 space-y-2 pt-1">
+                  <Skeleton className="h-3 w-full" />
+                  <Skeleton className="h-3 w-4/5" />
+                </div>
+                {kind === "agent" && <Skeleton className="h-5 w-24 rounded-full" />}
+              </div>
+            </div>
+            <div
+              className={cn(
+                "mt-4 flex items-center justify-between gap-2 pt-3",
+                kind === "group" && "border-t",
+              )}
+            >
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="size-8 rounded-lg" />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
   return (
     <div
       role="status"

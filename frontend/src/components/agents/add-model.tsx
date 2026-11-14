@@ -32,6 +32,7 @@ import type { ModelApi, ModelProfile, ModelRegion, ProviderInfo } from "@/types/
 import { useTranslations } from "next-intl";
 
 interface AddModelProps {
+  purpose?: "chat" | "decision";
   /** Called with the new model once it exists, so the picker can select it. */
   onCreated: (profile: ModelProfile) => void;
   /**
@@ -221,6 +222,7 @@ export function AddModel({
   onCancel,
   disabled,
   selected,
+  purpose,
 }: AddModelProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
@@ -258,7 +260,14 @@ export function AddModel({
   const [failure, setFailure] = useState(NO_FAILURE);
   const [naming, setNaming] = useState(false);
 
-  const providers = purposes.filter((entry) => entry.category === "model_provider");
+  const providers = purposes.filter(
+    (entry) =>
+      entry.category === "model_provider" &&
+      (purpose !== "decision" ||
+        catalog.some(
+          (provider) => provider.id === entry.id && provider.apis.includes("decisions"),
+        )),
+  );
   /*
    * The provider an organization with exactly one key is obviously going to
    * pick, chosen for them.
@@ -306,11 +315,37 @@ export function AddModel({
     providerId === selected.provider;
   const chosenKey = secretId || (offersNoKey ? "" : (keys[0]?.id ?? ""));
   const endpoint = baseUrl.trim().replace(/\/+$/, "");
-  const manualDiscovery = providerId === "otari" || (capabilities?.requires_base_url ?? false);
+  const manualDiscovery =
+    providerId !== "system-one" &&
+    (providerId === "otari" || (capabilities?.requires_base_url ?? false));
   const confirmedGateway =
     gatewayDiscovery?.endpoint === endpoint && gatewayDiscovery?.secretId === chosenKey;
   const listingEndpoint = manualDiscovery && !confirmedGateway ? undefined : endpoint || undefined;
 
+  // Stav.ai says per model which API it is served on, so nobody is asked.
+  const apiFromModel = capabilities?.api_from_model ?? false;
+  const availableApis =
+    capabilities?.apis.filter((api) =>
+      purpose === "decision"
+        ? api === "decisions"
+        : purpose === "chat"
+          ? api !== "decisions"
+          : true,
+    ) ?? [];
+  const choosesApi = availableApis.length > 1 && !apiFromModel;
+  // Before anybody picks: the model in use's own choice while its provider and
+  // endpoint are the ones on screen, and otherwise the default for what is - so
+  // pointing the model in use at a vLLM does not carry Responses there with it.
+  const startingApi =
+    purpose === "decision"
+      ? "decisions"
+      : selected?.api != null &&
+          providerId === selected.provider &&
+          baseUrl.trim() === (selected.base_url ?? "")
+        ? selected.api
+        : (defaultApi(capabilities, baseUrl) ??
+          capabilities?.apis.find((entry) => entry === "chat") ??
+          null);
   const {
     models: suggestions,
     refused,
@@ -320,19 +355,9 @@ export function AddModel({
     providerId,
     ["openrouter", "stav", "otari"].includes(providerId) ? listingEndpoint : undefined,
     ["stav", "otari"].includes(providerId) ? chosenKey || undefined : undefined,
+    (pickedApi ?? startingApi) === "decisions" || ["typesafe", "system-one"].includes(providerId),
   );
-  // Stav.ai says per model which API it is served on, so nobody is asked.
-  const apiFromModel = capabilities?.api_from_model ?? false;
-  const choosesApi = (capabilities?.apis.length ?? 0) > 1 && !apiFromModel;
-  // Before anybody picks: the model in use's own choice while its provider and
-  // endpoint are the ones on screen, and otherwise the default for what is - so
-  // pointing the model in use at a vLLM does not carry Responses there with it.
-  const startingApi =
-    selected?.api != null &&
-    providerId === selected.provider &&
-    baseUrl.trim() === (selected.base_url ?? "")
-      ? selected.api
-      : defaultApi(capabilities, baseUrl);
+
   // Preserve stored API choices; derive new profiles from advertised surfaces.
   const listedApis = suggestions.find((entry) => entry.id === model.trim())?.apis ?? [];
   const modelApi: ModelApi | null = listedApis.includes("chat")
@@ -346,11 +371,14 @@ export function AddModel({
     baseUrl.trim().replace(/\/+$/, "") === (selected.base_url ?? "").replace(/\/+$/, "")
       ? (selected.api ?? null)
       : null;
-  const api = choosesApi
-    ? (pickedApi ?? startingApi)
-    : apiFromModel
-      ? (storedApi ?? modelApi)
-      : null;
+  const api =
+    purpose === "decision"
+      ? "decisions"
+      : choosesApi
+        ? (pickedApi ?? startingApi)
+        : apiFromModel
+          ? (storedApi ?? modelApi)
+          : null;
   // Existing profiles retain their region; new profiles use the provider default.
   const regions = capabilities?.regions ?? [];
   const startingRegion =
@@ -505,7 +533,7 @@ export function AddModel({
       });
       // An id the listing did not classify still reaches here; the server
       // classifies the profile it created, and that answer is final.
-      if (!runsAgents(profile)) {
+      if (purpose === "decision" ? profile.decision_capable !== true : !runsAgents(profile)) {
         setFailure({ ...NO_FAILURE, ...notChat });
         return;
       }
@@ -742,7 +770,14 @@ export function AddModel({
               : // "chosen from the model" only when it is: a profile saved with
                 // another API through the API keeps it, and says only which.
                 t(api === modelApi ? "modelApiFromModel" : "modelApiStored", {
-                  api: api === "responses" ? t("modelApiResponses") : t("modelApiChat"),
+                  api:
+                    api === "decisions"
+                      ? t("modelApiDecisions")
+                      : api === "responses"
+                        ? t("modelApiResponses")
+                        : providerId === "google"
+                          ? t("modelApiNative")
+                          : t("modelApiChat"),
                 })}
           </p>
           <p className="text-muted-foreground text-xs">{t("modelApiFromModelHint")}</p>
@@ -766,9 +801,15 @@ export function AddModel({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {capabilities?.apis.map((entry) => (
+              {availableApis.map((entry) => (
                 <SelectItem key={entry} value={entry}>
-                  {entry === "responses" ? t("modelApiResponses") : t("modelApiChat")}
+                  {entry === "decisions"
+                    ? t("modelApiDecisions")
+                    : entry === "responses"
+                      ? t("modelApiResponses")
+                      : providerId === "google"
+                        ? t("modelApiNative")
+                        : t("modelApiChat")}
                 </SelectItem>
               ))}
             </SelectContent>

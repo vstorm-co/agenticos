@@ -285,10 +285,12 @@ function CollectionPin({
 /** One of the organization's models, for a step that asks one directly. */
 function ModelProfilePin({
   value,
+  purpose = "chat",
   disabled,
   onChange,
 }: {
   value: unknown;
+  purpose?: "chat" | "decision";
   disabled?: boolean;
   onChange: (value: unknown) => void;
 }) {
@@ -296,6 +298,7 @@ function ModelProfilePin({
   const { can } = usePermissions();
   return (
     <ModelProfilePicker
+      purpose={purpose}
       profiles={profiles}
       profilesStatus={profilesStatus}
       allowAdd={can(Perm.connectionsManage)}
@@ -435,7 +438,16 @@ function ResourcePin({
       kind === "collection" ? CollectionPin : kind === "member" ? MemberPin : ModelProfilePin;
     return (
       <div className="space-y-1.5">
-        <Pin value={value} disabled={disabled} onChange={onChange} />
+        {kind === "model_profile" ? (
+          <ModelProfilePin
+            value={value}
+            disabled={disabled}
+            onChange={onChange}
+            purpose={schema["x-model-purpose"] === "decision" ? "decision" : "chat"}
+          />
+        ) : (
+          <Pin value={value} disabled={disabled} onChange={onChange} />
+        )}
         {error !== undefined && <p className="text-destructive text-xs">{error}</p>}
       </div>
     );
@@ -1297,6 +1309,9 @@ function NodeFields({
     );
   const agentStep = definition.id === AGENT_RUN;
   const mcpStep = definition.id === MCP_CALL;
+  const profiledDecision =
+    definition.id.startsWith("decide.") &&
+    configFields.some((entry) => entry.name === "model_profile_id");
   const httpStep = ["http.request", "http.upload", "http.download"].includes(definition.id);
   const httpUrlBinding = httpStep ? bindingFor(bindings, node.id, "url") : undefined;
   // Drawn by another field: an agent step's `inline` by `agent`, an MCP step's
@@ -1305,7 +1320,10 @@ function NodeFields({
     (definition.id === "flow.await_reply" && ["provider", "connection_id"].includes(name)) ||
     (agentStep && name === AGENT_INLINE) ||
     (mcpStep && name === MCP_TOOL) ||
-    (definition.id === "email.send" && name === "smtp_secret_id");
+    (definition.id === "email.send" && name === "smtp_secret_id") ||
+    (profiledDecision &&
+      ["secret_id", "model"].includes(name) &&
+      node.config.secret_id === undefined);
   // Shown however the options are folded: what is set, needed or always there.
   const configWanted = (entry: (typeof configFields)[number]) =>
     // An agent step always shows `agent`: neither it nor `inline` is required
@@ -1469,7 +1487,18 @@ function NodeFields({
                 ctx={ctx}
                 value={node.config[entry.name]}
                 onChange={(next) =>
-                  updateNodeConfig(node.id, setKey(node.config, entry.name, next))
+                  updateNodeConfig(
+                    node.id,
+                    setKey(
+                      definition.id.startsWith("decide.") &&
+                        entry.name === "model_profile_id" &&
+                        typeof next === "string"
+                        ? setKey(setKey(node.config, "secret_id", undefined), "model", undefined)
+                        : node.config,
+                      entry.name,
+                      next,
+                    ),
+                  )
                 }
               />
             )}

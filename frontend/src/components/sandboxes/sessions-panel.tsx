@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle, Activity } from "lucide-react";
 
+import { ContextHelp } from "@/components/ui/context-help";
 import { ActivityLog } from "@/components/sandboxes/activity-log";
 import {
   Badge,
@@ -282,6 +283,7 @@ export function SessionsPanel({ connections }: SessionsPanelProps) {
           <CardTitle className="flex items-center gap-2 text-sm">
             <Activity className="h-4 w-4" aria-hidden />
             {t("runningOn", { name: connection.name })}
+            <ContextHelp>{t("whatSessionsAre")}</ContextHelp>
           </CardTitle>
           <CardDescription className="text-xs">
             {listing?.tenant_limit
@@ -326,13 +328,6 @@ export function SessionsPanel({ connections }: SessionsPanelProps) {
         <ListCardControlsRow>
           <SearchInput value={query} onChange={setQuery} placeholder={t("searchSessions")} />
         </ListCardControlsRow>
-        {/* What this table is, once, where somebody who opened the tab is looking.
-            "Nothing running" and "nothing configured" are the same empty grid, and
-            a session opening on the first tool call rather than when a chat starts
-            is the part nobody guesses (#1039). */}
-        <p className="text-muted-foreground border-border border-t px-5 py-2 text-xs">
-          {t("whatSessionsAre")}
-        </p>
         <DataTable<SandboxSession>
           columns={columns}
           rows={visible}
@@ -346,7 +341,15 @@ export function SessionsPanel({ connections }: SessionsPanelProps) {
               </span>
             )
           }
-          empty={sessions.length === 0 ? t("nothingRunningSandboxOpens") : t("noSessionMatches")}
+          empty={
+            <ListCardEmpty
+              icon={Activity}
+              title={
+                sessions.length === 0 ? t("nothingRunningSandboxOpens") : t("noSessionMatches")
+              }
+              onClearFilters={sessions.length > 0 ? () => setQuery("") : undefined}
+            />
+          }
           className="rounded-none border-0 bg-transparent"
         />
 

@@ -211,11 +211,7 @@ export function Pager({
   counted: string;
 }) {
   const t = useTranslations("ui");
-  if (pageCount <= 1) {
-    return matched === total ? null : (
-      <p className="text-muted-foreground text-xs">{t("matchedOfTotal", { matched, counted })}</p>
-    );
-  }
+  if (matched === 0 || pageCount <= 1) return null;
 
   return (
     <div className="mt-auto flex shrink-0 flex-wrap items-center justify-between gap-2">

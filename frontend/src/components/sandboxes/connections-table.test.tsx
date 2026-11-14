@@ -28,6 +28,23 @@ function mount(rows: SandboxConnectionRecord[]) {
 }
 
 describe("ConnectionsTable", () => {
+  it("keeps the real column headers while the rows are loading", () => {
+    render(
+      <ConnectionsTable
+        connections={[]}
+        loading
+        onEdit={vi.fn()}
+        onInspect={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("table")).toHaveAttribute("aria-busy", "true");
+    expect(screen.getAllByRole("columnheader")).toHaveLength(6);
+    expect(screen.getAllByRole("row")).toHaveLength(4);
+    expect(screen.queryByText("Local Docker")).not.toBeInTheDocument();
+  });
+
   it("says which host an agent gets when it names none", () => {
     // The only question this table exists to answer at a glance.
     mount([connection(), connection({ id: "c-2", name: "Big box", is_default: false })]);

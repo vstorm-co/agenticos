@@ -10,7 +10,7 @@ import { ChannelBotsTable } from "@/components/channels/channel-bots-table";
 import { DiscordRoleMappingsDialog } from "@/components/channels/discord-role-mappings-dialog";
 import { EditChannelDialog } from "@/components/channels/edit-channel-dialog";
 import { ErrorState } from "@/components/states";
-import { Button, ListCard, ListCardEmpty, Skeleton } from "@/components/ui";
+import { Button, ListCard, ListCardEmpty } from "@/components/ui";
 import { useChannelBots, usePermissions } from "@/hooks";
 import { getErrorMessage } from "@/lib/api-error";
 import type { ChannelBot } from "@/types/channels";
@@ -26,7 +26,6 @@ function BotsCard({ count, children }: { count: number | null; children: ReactNo
       data-tour="channels-list"
       namedByPage
       title={t("bots")}
-      counted={count === null ? null : t("registeredCount", { count })}
       empty={count === 0}
       contentClassName="p-0"
     >
@@ -78,30 +77,6 @@ export default function ChannelsPage() {
     );
   }
 
-  // The same card the page renders, with row skeletons in it. A skeleton that
-  // draws a different shape from what follows is a layout jump on every load.
-  if (isLoading || permissionsLoading) {
-    return (
-      <div className="flex flex-1 flex-col space-y-4">
-        <PageHeader title={t("channels")} description={t("pageDescription")} />
-        <BotsCard count={null}>
-          {[0, 1, 2].map((row) => (
-            <div
-              key={row}
-              className="border-border flex items-center gap-3 border-b px-5 py-4 last:border-b-0"
-            >
-              <Skeleton className="h-8 w-8 shrink-0 rounded-lg" />
-              <div className="min-w-0 flex-1 space-y-2">
-                <Skeleton className="h-4 w-40" />
-                <Skeleton className="h-3 w-72 max-w-full" />
-              </div>
-            </div>
-          ))}
-        </BotsCard>
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-1 flex-col space-y-4">
       <PageHeader
@@ -118,7 +93,16 @@ export default function ChannelsPage() {
       />
 
       <BotsCard count={error || permissionsError ? null : bots.length}>
-        {error || permissionsError ? (
+        {isLoading || permissionsLoading ? (
+          <ChannelBotsTable
+            bots={[]}
+            busy
+            loading
+            onEdit={setEditing}
+            onToggleActive={(bot) => setActive.mutate({ botId: bot.id, isActive: !bot.is_active })}
+            onDelete={(bot) => remove.mutate(bot.id)}
+          />
+        ) : error || permissionsError ? (
           // A failed read has no rows either, and "No channels yet" over a 502
           // is a refusal dressed as reassurance (#32's shape).
           <ErrorState
@@ -154,12 +138,14 @@ export default function ChannelsPage() {
         )}
       </BotsCard>
 
-      <AddChannelDialog
-        open={adding}
-        onOpenChange={setAdding}
-        onSubmit={create.mutateAsync}
-        isPending={create.isPending}
-      />
+      {canManage && !permissionsLoading && (
+        <AddChannelDialog
+          open={adding}
+          onOpenChange={setAdding}
+          onSubmit={create.mutateAsync}
+          isPending={create.isPending}
+        />
+      )}
 
       <EditChannelDialog
         bot={editing}

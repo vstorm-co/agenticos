@@ -123,18 +123,12 @@ export default function SandboxesPage() {
             }
             contentClassName="p-0"
           >
-            {isLoading ? (
-              <div className="space-y-3 p-5">
-                {[0, 1].map((row) => (
-                  <Skeleton key={row} className="h-10 w-full" />
-                ))}
-              </div>
-            ) : error !== null ? (
+            {error !== null ? (
               // An empty table and a failed request are the same pixels, so the
               // refusal is shown where the rows would be rather than dressed as
               // "none registered".
               <ErrorState description={error} className="m-5" />
-            ) : connections.length === 0 ? (
+            ) : !isLoading && connections.length === 0 ? (
               <ListCardEmpty
                 icon={Boxes}
                 title={t("noSandboxConnectionsYet")}
@@ -143,6 +137,7 @@ export default function SandboxesPage() {
             ) : (
               <ConnectionsTable
                 connections={connections}
+                loading={isLoading}
                 onEdit={(connection) => {
                   setEditing(connection);
                   setDialogOpen(true);

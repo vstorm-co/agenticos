@@ -10,6 +10,7 @@ import { useTranslations } from "next-intl";
 
 interface ConnectionsTableProps {
   connections: readonly SandboxConnectionRecord[];
+  loading?: boolean;
   onEdit: (connection: SandboxConnectionRecord) => void;
   onInspect: (connection: SandboxConnectionRecord) => void;
   onDelete: (connection: SandboxConnectionRecord) => void;
@@ -45,6 +46,7 @@ function addressLabel(connection: SandboxConnectionRecord): string {
  */
 export function ConnectionsTable({
   connections,
+  loading = false,
   onEdit,
   onInspect,
   onDelete,
@@ -184,6 +186,8 @@ export function ConnectionsTable({
     <DataTable<SandboxConnectionRecord>
       columns={columns}
       rows={rows}
+      loading={loading}
+      skeletonRows={3}
       getRowKey={(connection) => connection.id}
       className="rounded-none border-0 bg-transparent"
     />

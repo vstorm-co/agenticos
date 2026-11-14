@@ -41,6 +41,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Match loading placeholders to the actual agent/group cards, stacked channel and sandbox tables, workflow canvas, workspace documents and record lists. Preserve page frames and toolbars while data loads, and keep placeholders visible on narrow screens in both themes.
+
 - Upgrade the OpenTelemetry API/SDK instrumentation family to 1.45.2/0.66b2 to fix trace-context parsing denial of service (CVE-2026-126360).
 
 - Preserve input redactions in a separate model-replay copy, including attachment briefings and forked conversations; keep the original human audit transcript.

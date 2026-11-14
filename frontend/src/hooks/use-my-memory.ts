@@ -6,7 +6,14 @@ import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 
 import { getErrorMessage } from "@/lib/api-error";
-import { deleteNote, getMyMemory, setNoteActive, type MemoryPage } from "@/lib/memory-api";
+import {
+  deleteNote,
+  getMyMemory,
+  setNoteActive,
+  editNoteContent,
+  type MemoryNote,
+  type MemoryPage,
+} from "@/lib/memory-api";
 import { useChanged } from "./use-changed";
 import { qk } from "@/lib/query-keys";
 import { useOrgStore } from "@/stores";
@@ -23,6 +30,7 @@ interface UseMyMemoryResult {
   showPage: (skip: number) => void;
   setActive: (id: string, active: boolean) => Promise<boolean>;
   remove: (id: string) => Promise<boolean>;
+  update: (note: MemoryNote, content: string) => Promise<boolean>;
 }
 
 /**
@@ -65,6 +73,21 @@ export function useMyMemory(q = ""): UseMyMemoryResult {
     onError: (cause) => toast.error(getErrorMessage(cause, t)),
   });
 
+  const correction = useMutation({
+    mutationFn: ({ note, content }: { note: MemoryNote; content: string }) =>
+      editNoteContent(note, content),
+    onSuccess: invalidate,
+    onError: (cause) => toast.error(getErrorMessage(cause, t)),
+  });
+  const update = async (note: MemoryNote, content: string): Promise<boolean> => {
+    try {
+      await correction.mutateAsync({ note, content });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   // A refused privacy action stays open; onError reports why it failed.
   const setActive = useCallback(
     async (id: string, active: boolean) => {
@@ -90,5 +113,5 @@ export function useMyMemory(q = ""): UseMyMemoryResult {
     [removal],
   );
 
-  return { page: data, isLoading, error, skip, showPage: setSkip, setActive, remove };
+  return { page: data, isLoading, error, skip, showPage: setSkip, setActive, remove, update };
 }

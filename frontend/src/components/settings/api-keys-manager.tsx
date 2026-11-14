@@ -1,5 +1,7 @@
 "use client";
 
+import { useWorkspaceFullscreen } from "@/hooks/use-workspace-fullscreen";
+import { WorkspaceFullscreenButton } from "@/components/ui/workspace-fullscreen-button";
 import { useMemo, useState } from "react";
 import { KeyRound, Plus, Search } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
@@ -12,6 +14,7 @@ import {
   Button,
   ConfirmDialog,
   DataTable,
+  ListCardEmpty,
   Pager,
   SearchInput,
   useListControls,
@@ -31,6 +34,7 @@ import { Perm } from "@/types/permissions";
  * itself appears.
  */
 export function ApiKeysManager() {
+  const { ref, expanded, toggle } = useWorkspaceFullscreen();
   const t = useTranslations("apiKeys");
   const tc = useTranslations("common");
   const locale = useLocale();
@@ -125,120 +129,136 @@ export function ApiKeysManager() {
   ];
 
   return (
-    <section
-      className="bg-card border-foreground/[0.07] shadow-card flex min-h-0 flex-col rounded-2xl border"
-      data-tour="api-keys"
+    <div
+      ref={ref}
+      className={
+        expanded
+          ? "bg-background fixed inset-0 z-40 flex flex-col overflow-y-auto p-4 sm:p-6"
+          : "flex min-h-0 flex-1 flex-col"
+      }
     >
-      <header className="border-foreground/[0.06] flex flex-col items-start justify-between gap-3 border-b px-5 py-4 sm:flex-row sm:px-6">
-        <div className="min-w-0 flex-1">
-          <div className="space-y-1">
-            <h2 className="text-foreground text-sm font-semibold">{t("title")}</h2>
-            <p className="text-muted-foreground max-w-2xl text-xs leading-5">{t("why")}</p>
+      <section
+        className="bg-card border-foreground/[0.07] shadow-card flex min-h-0 flex-1 flex-col rounded-2xl border"
+        data-tour="api-keys"
+      >
+        <header className="border-foreground/[0.06] flex flex-col items-start justify-between gap-3 border-b px-5 py-4 sm:flex-row sm:px-6">
+          <div className="min-w-0 flex-1">
+            <div className="space-y-1">
+              <h2 className="text-foreground text-sm font-semibold">{t("title")}</h2>
+              <p className="text-muted-foreground max-w-2xl text-xs leading-5">{t("why")}</p>
+            </div>
           </div>
-        </div>
-        {canCreate && catalog && (
-          <Button size="sm" className="w-full sm:w-auto" onClick={() => setCreating(true)}>
-            <Plus className="h-4 w-4" />
-            {t("createTitle")}
-          </Button>
-        )}
-      </header>
-      {canCreate && catalogError && (
-        <div className="px-4 pt-4 sm:px-6">
-          <ErrorState
-            title={t("couldNotLoadScopes")}
-            cta={{ label: tc("retry"), onClick: () => void retryCatalog() }}
-          />
-        </div>
-      )}
-      {!isLoading && !error && keys.length === 0 ? (
-        <EmptyState
-          icon={KeyRound}
-          title={t("emptyTitle")}
-          description={t("emptyWhy")}
-          className="flex-1 border-0 bg-transparent"
-        />
-      ) : (
-        <div className="space-y-4 p-4 sm:p-6">
-          {keys.length > 0 && !error && (
-            <SearchInput
-              value={list.query}
-              onChange={list.setQuery}
-              placeholder={t("search")}
-              className="w-full sm:max-w-sm"
+          <div className="flex items-center gap-2">
+            <WorkspaceFullscreenButton
+              expanded={expanded}
+              onToggle={toggle}
+              className="md:inline-flex"
             />
-          )}
-          {error ? (
+            {canCreate && catalog && (
+              <Button size="sm" className="w-full sm:w-auto" onClick={() => setCreating(true)}>
+                <Plus className="h-4 w-4" />
+                {t("createTitle")}
+              </Button>
+            )}
+          </div>
+        </header>
+        {canCreate && catalogError && (
+          <div className="px-4 pt-4 sm:px-6">
             <ErrorState
-              title={t("couldNotLoad")}
-              cta={{ label: tc("retry"), onClick: () => void refetch() }}
+              title={t("couldNotLoadScopes")}
+              cta={{ label: tc("retry"), onClick: () => void retryCatalog() }}
             />
-          ) : isLoading ? (
-            <LoadingState variant="pending" />
-          ) : list.visible.length === 0 ? (
-            <EmptyState
-              icon={Search}
-              title={t("noMatches")}
-              description={t("searchHint")}
-              cta={{ label: t("clearSearch"), onClick: () => list.setQuery("") }}
-              className="border-0"
-            />
-          ) : (
-            <>
-              <DataTable
-                className="hidden rounded-none border-0 md:block"
-                columns={columns}
-                rows={list.visible}
-                getRowKey={(key) => key.id}
+          </div>
+        )}
+        {!isLoading && !error && keys.length === 0 ? (
+          <EmptyState
+            icon={KeyRound}
+            title={t("emptyTitle")}
+            description={t("emptyWhy")}
+            className="flex-1 border-0 bg-transparent"
+          />
+        ) : (
+          <div className="space-y-4 p-4 sm:p-6">
+            {keys.length > 0 && !error && (
+              <SearchInput
+                value={list.query}
+                onChange={list.setQuery}
+                placeholder={t("search")}
+                className="w-full sm:max-w-sm"
               />
-              <div className="md:hidden">
-                <ul className="space-y-3">
-                  {list.visible.map((key) => (
-                    <ApiKeyCard
-                      key={key.id}
-                      apiKey={key}
-                      manages={manages}
-                      onRevoke={setRevoking}
-                    />
-                  ))}
-                </ul>
-              </div>
-              <Pager
-                page={list.page}
-                pageCount={list.pageCount}
-                matched={list.matched}
-                total={list.total}
-                onPage={list.setPage}
-                counted={t("keyCount", { count: list.total })}
+            )}
+            {error ? (
+              <ErrorState
+                title={t("couldNotLoad")}
+                cta={{ label: tc("retry"), onClick: () => void refetch() }}
               />
-            </>
-          )}
-        </div>
-      )}
-      {catalog && (
-        <CreateApiKeyDialog
-          open={creating}
-          onOpenChange={(open) => {
-            setCreating(open);
-            if (!open) create.reset();
-          }}
-          catalog={catalog}
-          onCreate={(input) => create.mutateAsync(input)}
-          busy={create.isPending}
-        />
-      )}
-      {revoking && (
-        <ConfirmDialog
-          open
-          onOpenChange={() => setRevoking(null)}
-          title={t("revokeTitle", { name: revoking.name })}
-          description={t("revokeWhy")}
-          confirmLabel={t("revoke")}
-          destructive
-          loading={revoke.isPending}
-          onConfirm={() => revoke.mutate(revoking.id, { onSuccess: () => setRevoking(null) })}
-        />
-      )}
-    </section>
+            ) : isLoading ? (
+              <LoadingState variant="pending" />
+            ) : list.visible.length === 0 ? (
+              <ListCardEmpty
+                onClearFilters={() => list.setQuery("")}
+                icon={Search}
+                title={t("noMatches")}
+                description={t("searchHint")}
+                cta={{ label: t("clearSearch"), onClick: () => list.setQuery("") }}
+              />
+            ) : (
+              <>
+                <DataTable
+                  className="hidden rounded-none border-0 md:block"
+                  columns={columns}
+                  rows={list.visible}
+                  getRowKey={(key) => key.id}
+                />
+                <div className="md:hidden">
+                  <ul className="space-y-3">
+                    {list.visible.map((key) => (
+                      <ApiKeyCard
+                        key={key.id}
+                        apiKey={key}
+                        manages={manages}
+                        onRevoke={setRevoking}
+                      />
+                    ))}
+                  </ul>
+                </div>
+                <Pager
+                  page={list.page}
+                  pageCount={list.pageCount}
+                  matched={list.matched}
+                  total={list.total}
+                  onPage={list.setPage}
+                  counted={t("keyCount", { count: list.total })}
+                />
+              </>
+            )}
+          </div>
+        )}
+        {catalog && (
+          <CreateApiKeyDialog
+            open={creating}
+            onOpenChange={(open) => {
+              setCreating(open);
+              if (!open) create.reset();
+            }}
+            catalog={catalog}
+            onCreate={(input) => create.mutateAsync(input)}
+            busy={create.isPending}
+          />
+        )}
+        {revoking && (
+          <ConfirmDialog
+            open
+            onOpenChange={() => setRevoking(null)}
+            title={t("revokeTitle", { name: revoking.name })}
+            description={t("revokeWhy")}
+            confirmLabel={t("revoke")}
+            destructive
+            loading={revoke.isPending}
+            onConfirm={() => revoke.mutate(revoking.id, { onSuccess: () => setRevoking(null) })}
+          />
+        )}
+      </section>
+    </div>
   );
 }

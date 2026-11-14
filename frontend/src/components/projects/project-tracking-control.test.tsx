@@ -72,13 +72,13 @@ it("offers creation only to an entitled caller and retains loading/refusal state
 });
 it("opens review and waits for successful creation before closing", async () => {
   render(<ProjectTrackingControl project={project} />);
-  await userEvent.click(screen.getByRole("button", { name: "Keep project on track" }));
+  await userEvent.click(screen.getByRole("button", { name: "Automatic project tracking" }));
   await userEvent.click(screen.getByRole("button", { name: "Confirm setup" }));
   const call = state.save.mock.calls[0];
   expect(call?.[0]).toEqual(expect.objectContaining({ publish_and_start: true }));
   call?.[1].onSuccess();
 });
-it("links to the installed table", () => {
+it("links to the tracking agent separately from the task table", () => {
   state.data = {
     id: "setup",
     project_id: "launch",
@@ -89,7 +89,10 @@ it("links to the installed table", () => {
     conversation_id: "chat",
   };
   render(<ProjectTrackingControl project={project} />);
-  expect(screen.getByRole("link", { name: "Task table" })).toHaveAttribute("href", "/tables/tasks");
+  expect(screen.getByRole("link", { name: "Tracking agent" })).toHaveAttribute(
+    "href",
+    "/agents/agent",
+  );
 });
 it("retries a failed tracker lookup", async () => {
   state.error = new Error("Offline");

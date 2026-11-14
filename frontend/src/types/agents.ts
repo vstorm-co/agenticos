@@ -902,6 +902,7 @@ export interface JsonSchemaProperty {
   default?: unknown;
   minimum?: number;
   maximum?: number;
+  "x-percent"?: boolean;
   maxLength?: number;
   enum?: unknown[];
   /**

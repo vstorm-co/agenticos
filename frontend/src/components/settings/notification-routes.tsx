@@ -86,7 +86,7 @@ export function NotificationRoutes() {
     </div>
   );
   return (
-    <SectionCard title={t("title")} description={t("description")}>
+    <SectionCard className="h-full" title={t("title")} description={t("description")}>
       {error ? (
         <ErrorState
           description={getErrorMessage(error, errors, t("loadFailed"))}

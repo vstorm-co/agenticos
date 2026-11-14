@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useRef, useState, type ReactNode } from "react";
+import { useId, useRef, useState, type ReactNode } from "react";
 import { Camera } from "lucide-react";
 import { toast } from "sonner";
 
@@ -15,7 +15,7 @@ import { apiClient } from "@/lib/api-client";
 import { cn, formatDate, isAppAdmin, MAX_AVATAR_SIZE_BYTES } from "@/lib/utils";
 import { useAuthStore } from "@/stores";
 import type { User } from "@/types";
-import { useUploadAccountAvatar } from "@/hooks/use-account-profile";
+import { useUploadAccountAvatar, type AgentContext } from "@/hooks/use-account-profile";
 import { useChanged } from "@/hooks/use-changed";
 import { useLocale, useTranslations } from "next-intl";
 import styles from "./profile-identity-settings.module.css";
@@ -25,12 +25,16 @@ export function ProfileIdentitySettings({
   saveLabel,
   secondaryAction,
   section = "all",
+  unifiedSave = false,
 }: {
   onContinue?: () => void;
   saveLabel?: string;
   secondaryAction?: ReactNode;
   section?: "all" | "identity" | "context";
+  unifiedSave?: boolean;
 }) {
+  const sharedFormId = useId();
+  const IdentityContainer = unifiedSave ? "div" : "form";
   const tErrors = useTranslations("errors");
   const t = useTranslations("pages.settings");
   const locale = useLocale();
@@ -95,6 +99,22 @@ export function ProfileIdentitySettings({
     }
   };
 
+  const saveProfileTab = async (changes: AgentContext): Promise<User> => {
+    const payload = {
+      ...changes,
+      ...(name !== (user?.full_name ?? "") ? { full_name: name || null } : {}),
+      ...(email !== user?.email ? { email } : {}),
+    };
+    const updated = await apiClient.patch<User>("/users/me", payload);
+    setUser(updated);
+    if (payload.email !== undefined) {
+      setEmail(updated.email);
+      if (updated.pending_email)
+        toast.success(t("emailChangeSent", { email: updated.pending_email }));
+    }
+    return updated;
+  };
+
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || busy) return;
@@ -146,7 +166,7 @@ export function ProfileIdentitySettings({
           title={t("personalInfo")}
           description={t("visibleTeammatesSharedOrganizations")}
         >
-          <form
+          <IdentityContainer
             aria-label={t("personalInfo")}
             onSubmit={async (event) => {
               event.preventDefault();
@@ -236,6 +256,7 @@ export function ProfileIdentitySettings({
                   <Input
                     id="profile-name"
                     name="full_name"
+                    form={unifiedSave ? sharedFormId : undefined}
                     autoComplete="name"
                     value={name}
                     onChange={(event) => setName(event.target.value)}
@@ -260,6 +281,7 @@ export function ProfileIdentitySettings({
                   <Input
                     id="profile-email"
                     name="email"
+                    form={unifiedSave ? sharedFormId : undefined}
                     type="email"
                     autoComplete="email"
                     required
@@ -268,27 +290,31 @@ export function ProfileIdentitySettings({
                   />
                 </FormField>
               </div>
-              <div
-                data-profile-actions
-                className="flex flex-wrap items-center justify-end gap-3 border-t pt-4"
-              >
-                <Button
-                  type="submit"
-                  loading={saving}
-                  disabled={busy || (!onContinue && !profileChanged)}
-                  className="w-full sm:w-auto"
+              {!unifiedSave && (
+                <div
+                  data-profile-actions
+                  className="flex flex-wrap items-center justify-end gap-3 border-t pt-4"
                 >
-                  {saveLabel ?? t("saveChanges")}
-                </Button>
-                {secondaryAction}
-              </div>
+                  <Button
+                    type="submit"
+                    loading={saving}
+                    disabled={busy || (!onContinue && !profileChanged)}
+                    className="w-full sm:w-auto"
+                  >
+                    {saveLabel ?? t("saveChanges")}
+                  </Button>
+                  {secondaryAction}
+                </div>
+              )}
             </fieldset>
-          </form>
+          </IdentityContainer>
         </SectionCard>
       )}
       {section !== "identity" && (
         <AgentContextSettings
           user={user}
+          formId={unifiedSave ? sharedFormId : undefined}
+          onSave={unifiedSave ? saveProfileTab : undefined}
           disabled={identityBusy}
           onSavingChange={setContextSaving}
           beforeSave={onContinue && section !== "context" ? handleSaveProfile : undefined}

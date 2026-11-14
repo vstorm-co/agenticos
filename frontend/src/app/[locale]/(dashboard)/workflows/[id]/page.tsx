@@ -159,9 +159,27 @@ export default function WorkflowEditorPage({ params }: PageProps) {
   // has no ports, and its connections cannot find where to attach (xyflow 008).
   if (isLoading || catalogLoading) {
     return (
-      <div className="space-y-6">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-96 w-full" />
+      <div aria-busy="true" className="flex min-h-0 flex-1 flex-col gap-3 pb-4 sm:min-h-[40rem]">
+        <div aria-hidden="true" className="shrink-0 space-y-3">
+          <Skeleton className="h-4 w-40" />
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <Skeleton className="size-10 shrink-0 rounded-xl" />
+              <Skeleton className="h-8 w-40 sm:w-64" />
+            </div>
+            <div className="flex gap-2">
+              <Skeleton className="size-9 rounded-lg" />
+              <Skeleton className="h-9 w-20 rounded-lg" />
+              <Skeleton className="h-9 w-24 rounded-lg" />
+            </div>
+          </div>
+        </div>
+        <div className="border-border bg-card relative min-h-80 flex-1 overflow-hidden rounded-xl border">
+          <div aria-hidden="true" className="absolute top-4 left-4 flex gap-2">
+            <Skeleton className="h-9 w-28 rounded-lg" />
+            <Skeleton className="size-9 rounded-lg" />
+          </div>
+        </div>
       </div>
     );
   }

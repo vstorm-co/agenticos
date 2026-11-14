@@ -190,7 +190,7 @@ async def test_classifier_can_stay_silent_without_running_full_agent(db: AsyncSe
     async def execute(ctx, agent_id, prompt, **kwargs: object):
         structured = kwargs["structured"]
         assert isinstance(structured, list)
-        structured.append({"join": False, "reason": "Already answered"})
+        structured.append({"score": 0, "reason": "Already answered"})
         assert ctx.subject_is_publisher_fallback
         return "", SimpleNamespace(id=uuid4(), status="completed")
 
@@ -208,8 +208,28 @@ async def test_classifier_can_stay_silent_without_running_full_agent(db: AsyncSe
     assert run.await_count == 1
 
 
-async def test_positive_decision_uses_main_model_and_replies_once(db: AsyncSession):
+@pytest.mark.parametrize(
+    "mode,assessment,threshold,joins",
+    [
+        ("llm", 100, 80, True),
+        ("llm", 80, 80, True),
+        ("llm", 79, 80, False),
+        ("llm", 0, 0, True),
+        ("native", 0.8, 80, True),
+        ("native", 0.79, 80, False),
+        ("native", 1.0, 100, True),
+    ],
+)
+async def test_positive_decision_uses_main_model_and_replies_once(
+    db: AsyncSession, mode: str, assessment: float, threshold: int, joins: bool
+):
     exposure, _ = await world(db)
+    exposure.observation = {
+        **exposure.observation,
+        "decision_mode": mode,
+        "threshold_percent": threshold,
+    }
+    await db.flush()
     await append(db, exposure)
     payload = await payload_for(db, exposure)
     main_model = uuid4()
@@ -222,7 +242,11 @@ async def test_positive_decision_uses_main_model_and_replies_once(db: AsyncSessi
         assert ctx.subject_is_publisher_fallback
         structured = kwargs.get("structured")
         if isinstance(structured, list):
-            structured.append({"join": True, "reason": "Useful unanswered question"})
+            structured.append(
+                {"probability": assessment}
+                if mode == "native"
+                else {"score": assessment, "reason": "Useful unanswered question"}
+            )
         return "Here is a useful answer", SimpleNamespace(id=uuid4(), status="completed")
 
     adapter = SimpleNamespace(send_message=AsyncMock())
@@ -238,11 +262,15 @@ async def test_positive_decision_uses_main_model_and_replies_once(db: AsyncSessi
         patch("app.services.channels.observation.get_adapter", return_value=adapter),
         patch("app.services.channels.observation.unseal_bot_token", return_value="unused"),
     ):
-        assert await analyze(db, payload) is True
-    assert len(calls) == 2 and calls[-1].spec.model_profile_id == main_model
+        assert await analyze(db, payload) is joins
+    assert len(calls) == (2 if joins else 1)
     assert all(not call.spec.capabilities and not call.spec.mcp_servers for call in calls)
-    adapter.send_message.assert_awaited_once()
-    assert adapter.send_message.call_args.args[1].reply_to_message_id == "m1"
+    if joins:
+        assert calls[-1].spec.model_profile_id == main_model
+        adapter.send_message.assert_awaited_once()
+        assert adapter.send_message.call_args.args[1].reply_to_message_id == "m1"
+    else:
+        adapter.send_message.assert_not_awaited()
 
 
 async def test_expiry_removes_reference_windows(db: AsyncSession):
@@ -388,7 +416,7 @@ async def test_incomplete_models_never_send_a_reply(db: AsyncSession, state: str
             assert row.system_role == "channel_decision"
         structured = kwargs.get("structured")
         if isinstance(structured, list) and state != "empty_decision":
-            structured.append({"join": True, "reason": "Useful"})
+            structured.append({"score": 100, "reason": "Useful"})
         status = (
             "failed"
             if (count == 1 and state == "failed_decision")
@@ -445,6 +473,10 @@ async def test_configuration_requires_a_human_channel_manager_and_valid_model(db
         patch(
             "app.services.channels.observation.AgentRegistryService.validate_spec", new=AsyncMock()
         ) as validate,
+        patch(
+            "app.services.channels.observation.ModelProfileService.profile_for_organization",
+            new=AsyncMock(return_value=SimpleNamespace(provider="openai", api=None)),
+        ),
     ):
         await validate_configuration(db, owner, exposure, enabled)
     assert validate.call_args.args[1].model_profile_id == enabled.model_profile_id
@@ -565,7 +597,7 @@ async def test_real_runner_uses_only_organization_mcp_and_records_the_agent_repl
                 parts=[
                     ToolCallPart(
                         info.output_tools[0].name,
-                        {"join": True, "reason": "An unanswered useful question"},
+                        {"score": 100, "reason": "An unanswered useful question"},
                     )
                 ]
             )
@@ -695,7 +727,7 @@ async def test_automatic_answers_reuse_threads_and_respect_removed_windows(
 
     async def execute(_ctx, _agent, _prompt, **kwargs):
         if "structured" in kwargs:
-            kwargs["structured"].append({"join": True, "reason": "Useful"})
+            kwargs["structured"].append({"score": 100, "reason": "Useful"})
         elif source in {"session", "observation"}:
             assert kwargs["conversation_id"] == conversation.id
         return "Useful answer", SimpleNamespace(id=uuid4(), status="completed")

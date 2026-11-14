@@ -1,5 +1,5 @@
 ---
-source_sha: "bfe431b65940"
+source_sha: "88782c453516"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -370,6 +370,7 @@ Standard-Provider verwenden die Modell- und Provider-Ableitung von Pydantic AI. 
 | OpenAI | `openai` | API-Key, oder keine | ✓ |
 | Anthropic | `anthropic` | API-Key | ✓ |
 | Google Gemini | `google` | API-Key | ✓ |
+| TypeSafe (Jev) | `typesafe` | API key | ✓ |
 | OpenRouter | `openrouter` | API-Key |  ✓ |
 | Otari | `otari` | API-Key | ✓ |
 | Alibaba Cloud | `alibaba` | API-Key | ✓ |
@@ -396,6 +397,7 @@ Standard-Provider verwenden die Modell- und Provider-Ableitung von Pydantic AI. 
 
 | Provider | id | Zugangsdaten | Custom URL |
 |---|---|---|---|
+| System One API | `system-one` | API key, or none | ✓ |
 | Ollama | `ollama` | keine | ✓ |
 | LiteLLM proxy | `litellm` | keine | ✓ (`api_base`) |
 
@@ -835,3 +837,15 @@ Ein regionaler Endpunkt stellt weniger Embedding-Modelle bereit als der globale:
 Aktualisiere alle API- und Worker-Prozesse, bevor du regionale Endpunkte konfigurierst. Ältere Versionen ignorieren den überschriebenen OpenRouter-Endpunkt.
 
 Für einen weiteren Endpunkt mit demselben Anbieter und Modell wählen Sie im Builder **Separates Modell hinzufügen**. Der automatische Name enthält den Endpunkt; das vorhandene Profil bleibt unverändert. **Modell aktualisieren** bearbeitet stattdessen das gemeinsame Profil. Benutzerdefinierte Kataloge sind auf 2 MiB, 2.048 Modelle und begrenzte Feldlängen beschränkt; jeder Prozess speichert höchstens 16 Kataloge. Bei komprimierten oder übergroßen Antworten bleibt die Modell-ID frei eingebbar, ohne auf eine globale Liste auszuweichen.
+
+## Entscheidungsmodelle { #decision-models }
+
+Entscheidungsprofile verwenden die native API `decisions` statt Textgenerierung. Anbieter, Modell und Tresorschlüssel werden im Modellformular gewählt. OpenAI, Google und OpenRouter bieten Chat- und Entscheidungs-APIs; TypeSafe und ein eigener System-One-Endpunkt dienen Entscheidungen. Ein Entscheidungsprofil kann weder das Gesprächsmodell eines Agents sein noch auf ein Chatmodell zurückfallen.
+
+Die Adapter stammen aus Pydantic AI. Aktuelle Vorschläge umfassen OpenAI `gpt-6-luna`, Google `gemini-decision-1` und TypeSafe `jev-1.14.0` / `jev-latest`. OpenRouter lädt Entscheidungsmodelle getrennt von Textmodellen. Ein eigener System-One-Endpunkt benötigt URL und Modell-ID. Verfügbarkeit und Kontozugang bestimmt der Anbieter; Vorschläge garantieren keinen Zugang.
+
+Die Workflow-Schritte **Decision models** wählen ein natives Profil. Bestehende `decide.*`-IDs und TypeSafe-Schlüsselkonfigurationen bleiben gültig. Unterhalb der Konfidenzschwelle folgt der Schritt dem Port `unsure`. Jede Ausführung prüft Schlüssel und Berechtigungen erneut; Kosten zählen zum Workflow- und Organisationsbudget.
+
+Automatisches Mitreden in Kanälen kann ein natives Modell oder ein gewöhnliches LLM mit strukturierter Ausgabe verwenden. Native Ja/Nein-Entscheidungen liefern die Wahrscheinlichkeit des Mitredens; ein begrenztes Zahlenfeld erhält diesen Wert. Ein LLM liefert eine Nützlichkeitsbewertung von 0 bis 100, keine kalibrierte Wahrscheinlichkeit. Beide werden einschließlich Gleichheit mit dem Schwellenregler verglichen. Der Klassifikator hat keine Tools. Die Funktion ist optional und beachtet die Intervalle; der Hauptagent darf organisatorische MCP-Konten nutzen, niemals private Zugangsdaten eines Teilnehmers.
+
+Anbieterquellen: [Pydantic AI](https://pydantic.dev/docs/ai/models/decision/), [OpenAI](https://developers.openai.com/api/docs/guides/decisions), [Google](https://ai.google.dev/gemini-api/docs/decisions-api), [TypeSafe](https://docs.typesafe.ai/models), [OpenRouter](https://github.com/OpenRouterTeam/skills/tree/main/skills/openrouter-decisions).

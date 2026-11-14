@@ -10,7 +10,7 @@ export default function ProfileSettingsPage() {
   if (!user) return null;
   return (
     <div className="flex flex-1 flex-col space-y-4">
-      <ProfileIdentitySettings />
+      <ProfileIdentitySettings unifiedSave />
       <AppearanceSettings />
       <ChatAccounts />
       <CodingAccounts />

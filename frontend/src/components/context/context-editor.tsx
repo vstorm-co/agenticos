@@ -1,5 +1,7 @@
 "use client";
 
+import { ContextHelp } from "@/components/ui/context-help";
+
 import { useId, useState } from "react";
 import { AlertTriangle, SlidersHorizontal } from "lucide-react";
 
@@ -96,7 +98,12 @@ export function ContextEditor({
         )}
       >
         <div className="space-y-1.5">
-          <Label htmlFor="context-description">{t("description")}</Label>
+          <div className="flex items-center gap-1">
+            <Label htmlFor="context-description">{t("description")}</Label>
+            <ContextHelp>
+              {t("bindingSettingsHint")} {t("textOnlyBinaryElsewhere")}
+            </ContextHelp>
+          </div>
           <Input
             id="context-description"
             value={description}
@@ -105,9 +112,6 @@ export function ContextEditor({
             maxLength={500}
             readOnly={!canEdit}
           />
-          <p className="text-muted-foreground text-xs">{t("shownWhenLinked")}</p>
-          <p className="text-muted-foreground text-xs">{t("bindingSettingsHint")}</p>
-          <p className="text-muted-foreground text-xs">{t("textOnlyBinaryElsewhere")}</p>
         </div>
       </div>
 

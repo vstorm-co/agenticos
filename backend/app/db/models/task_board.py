@@ -15,7 +15,7 @@ class TaskBoard(Base, TimestampMixin):
     __table_args__ = (
         UniqueConstraint("organization_id", "scope_kind", "scope_id", name="uq_task_board_scope"),
         CheckConstraint(
-            "scope_kind IN ('private', 'project', 'group', 'organization')",
+            "scope_kind IN ('private', 'agent', 'project', 'group', 'organization')",
             name="ck_task_board_scope",
         ),
     )

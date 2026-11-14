@@ -1,5 +1,5 @@
 ---
-source_sha: "097cf838acab"
+source_sha: "c0498a802079"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -436,7 +436,7 @@ archivos se gestionan bajo `/api/v1/context` y se vinculan a un agent por id
 Notas que un agent guarda por su cuenta entre conversaciones, indexadas por otra
 que él mismo mantiene. Donde `context` es una biblioteca que una persona escribe y
 vincula a muchos agents, la memoria es del propio agent: escribe con herramientas
-en mitad del run, y aquí no escribe nadie más. No se vincula por id: activar la
+en mitad del run. Una persona puede corregir sus propias notas en **Settings → Memory → Notes**, sin obtener acceso a notas ajenas. Las correcciones conservan la fecha de escritura original del agent y el estado de supresión, comprueban la revisión y generan una auditoría sin el contenido de la nota. No se vincula por id: activar la
 capability le da al agent sus notas.
 
 **`MEMORY.md` es el índice, y se le muestra al agent en cada petición.** Es una

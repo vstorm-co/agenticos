@@ -1,7 +1,7 @@
 """Opt-in channel observation, independent of an agent's published spec."""
 
 from datetime import datetime
-from typing import Self
+from typing import Literal, Self
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -13,6 +13,8 @@ class ChannelObservationConfig(BaseModel):
     enabled: bool = False
     model_profile_id: UUID | None = None
     instructions: str = Field(default="", max_length=8000)
+    decision_mode: Literal["llm", "native"] = "llm"
+    threshold_percent: float = Field(default=80, ge=0, le=100)
     unmentioned_interval_minutes: int = Field(default=20, ge=1, le=1440)
     mentioned_interval_minutes: int = Field(default=1, ge=1, le=1440)
 
@@ -35,5 +37,19 @@ class ObservedChannelMessage(BaseModel):
 class ChannelJoinDecision(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    join: bool
+    score: int = Field(
+        ge=0,
+        le=100,
+        description="How useful and timely joining is, from 0 (stay silent) to 100 (join)",
+    )
     reason: str = Field(max_length=500)
+
+
+class NativeChannelJoinDecision(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    probability: float = Field(
+        ge=0,
+        le=1,
+        description="Should the agent join this conversation now, following the operator focus?",
+    )

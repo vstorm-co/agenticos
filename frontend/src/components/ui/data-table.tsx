@@ -295,12 +295,17 @@ export function DataTable<T>({
                       role={stackOnNarrow ? "cell" : undefined}
                       key={col.key}
                       className={cn(
-                        "px-4 py-3",
+                        "px-3 py-3 sm:px-4",
                         col.hideBelow && hideBelowClass[col.hideBelow],
                         col.className,
                       )}
                     >
-                      <div className="bg-foreground/10 h-4 w-2/3 animate-pulse rounded" />
+                      {stackOnNarrow && col.header && (
+                        <span className="text-muted-foreground mb-1 hidden text-xs font-medium @max-md/table:block">
+                          {col.header}
+                        </span>
+                      )}
+                      <div className="bg-foreground/10 h-4 w-24 max-w-full animate-pulse rounded" />
                     </td>
                   ))}
                 </tr>

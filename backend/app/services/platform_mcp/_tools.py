@@ -1872,20 +1872,25 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
     async def list_task_boards() -> dict[str, object]:
         """Discover task tables the caller can currently access. Needs tables:view.
 
-        Private, project, group and organization boards are provisioned only when
+        Private, agent, project, group and organization boards are provisioned only when
         first needed. Reuse their table ids; do not create parallel TODO tables.
         """
         return {"items": await api.request("GET", "/tasks/boards")}
 
     async def ensure_task_board(
-        scope: Literal["private", "project", "group", "organization"] = "private",
+        scope: Literal["private", "agent", "project", "group", "organization"] = "private",
         scope_id: UUID | None = None,
     ) -> dict[str, object]:
         """Get or create the one task table for a scope. Needs tables:create on first use.
 
         Private is the default for personal mail and drafts. Sharing is explicit:
         supply a project/group id only when the user wants the task shared there.
-        Membership is rechecked on subsequent reads and edits.
+        Agent scope is a shared backlog for a named agent, not its private identity.
+        Use project scope for project deliverables, private for personal follow-ups,
+        organization for explicitly company-wide work, and agent for an explicitly
+        requested agent backlog. Ask when the audience is ambiguous. Reuse existing
+        boards; this tool safely creates only the missing one. Never share personal
+        content just because an agent is assigned. Access is rechecked on every use.
         """
         data = BoardEnsure(scope=scope, scope_id=scope_id)
         return await api.request("POST", "/tasks/boards", json=data.model_dump(mode="json"))

@@ -51,9 +51,23 @@ export default function RemoteAgentsPage() {
         contentClassName="p-0"
       >
         {isLoading ? (
-          <div className="space-y-3 p-5">
-            {[0, 1].map((row) => (
-              <Skeleton key={row} className="h-12 w-full" />
+          <div
+            role="status"
+            aria-busy="true"
+            aria-label={t("listTitle")}
+            className="divide-border divide-y"
+          >
+            {[0, 1, 2].map((row) => (
+              <div key={row} aria-hidden="true" className="flex items-start gap-3 px-5 py-4">
+                <Skeleton className="mt-0.5 size-8 shrink-0 rounded-lg" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <Skeleton className="h-5 w-40 max-w-full" />
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-3 w-1/2" />
+                  <Skeleton className="h-5 w-24 rounded-full" />
+                </div>
+                <Skeleton className="h-8 w-16 shrink-0 rounded-lg" />
+              </div>
             ))}
           </div>
         ) : error !== null ? (

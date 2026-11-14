@@ -34,7 +34,7 @@ interface ProviderCapabilities {
   supports_base_url: boolean;
   requires_base_url?: boolean;
   keyless: boolean;
-  apis: ("chat" | "responses")[];
+  apis: ("chat" | "responses" | "decisions")[];
   native_api: "chat" | "responses" | null;
   regions?: ("eu" | "eea" | "global")[];
   api_from_model?: boolean;
@@ -1155,6 +1155,7 @@ describe("choosing where a Stav model's requests run", () => {
       "stav",
       "https://staging-api.stav.ai/v1",
       "s-stav",
+      false,
     );
   });
 
@@ -1675,6 +1676,7 @@ it("keeps an OpenRouter key and lists models at its selected regional endpoint",
     "openrouter",
     "https://eu.openrouter.ai/api/v1",
     undefined,
+    false,
   );
   expect(state.createProfile.mutateAsync).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -1697,12 +1699,13 @@ it("creates an Otari profile using its selected vault key and gateway model sele
   mount();
   await pickProvider("Otari");
   await userEvent.type(screen.getByLabelText("Endpoint"), "https://eu.api.otari.ai/api/v1");
-  expect(listingRequests).toHaveBeenLastCalledWith("otari", undefined, "s-otari");
+  expect(listingRequests).toHaveBeenLastCalledWith("otari", undefined, "s-otari", false);
   await userEvent.click(screen.getByRole("button", { name: "Load models" }));
   expect(listingRequests).toHaveBeenLastCalledWith(
     "otari",
     "https://eu.api.otari.ai/api/v1",
     "s-otari",
+    false,
   );
   expect(screen.queryByLabelText("Region")).toBeNull();
   await userEvent.click(screen.getByLabelText("Model"));
@@ -1731,7 +1734,7 @@ it("never discovers Otari on auto-selection or typing and reconfirms a changed d
   ];
   state.models = [];
   mount();
-  expect(listingRequests).toHaveBeenLastCalledWith("otari", undefined, "otari-a");
+  expect(listingRequests).toHaveBeenLastCalledWith("otari", undefined, "otari-a", false);
   await userEvent.click(screen.getByLabelText("Model"));
   await userEvent.type(screen.getByPlaceholderText("Search models…"), "support-agent");
   await userEvent.click(screen.getByText("not in the list"));
@@ -1747,23 +1750,75 @@ it("never discovers Otari on auto-selection or typing and reconfirms a changed d
     "otari",
     "https://gateway.company/api/v1",
     "otari-a",
+    false,
   );
   await userEvent.clear(screen.getByLabelText("Endpoint"));
   await userEvent.type(screen.getByLabelText("Endpoint"), "https://other.company/api/v1");
-  expect(listingRequests).toHaveBeenLastCalledWith("otari", undefined, "otari-a");
+  expect(listingRequests).toHaveBeenLastCalledWith("otari", undefined, "otari-a", false);
   await userEvent.click(screen.getByRole("button", { name: "Load models" }));
   expect(listingRequests).toHaveBeenLastCalledWith(
     "otari",
     "https://other.company/api/v1",
     "otari-a",
+    false,
   );
   await userEvent.click(screen.getByLabelText("Key"));
   await userEvent.click(screen.getByRole("option", { name: /Otari B/ }));
-  expect(listingRequests).toHaveBeenLastCalledWith("otari", undefined, "otari-b");
+  expect(listingRequests).toHaveBeenLastCalledWith("otari", undefined, "otari-b", false);
   await userEvent.click(screen.getByRole("button", { name: "Load models" }));
   expect(listingRequests).toHaveBeenLastCalledWith(
     "otari",
     "https://other.company/api/v1",
     "otari-b",
+    false,
   );
+});
+
+describe("native decision model setup", () => {
+  it("uses the provider model and inline vault key flow for decisions", async () => {
+    state.catalog = [
+      capabilities("openai", "OpenAI", {
+        ...OPENAI_CAPABILITIES,
+        apis: ["responses", "chat", "decisions"],
+      }),
+      capabilities("openrouter", "OpenRouter"),
+    ];
+    state.models = [{ id: "gpt-6-luna", name: "GPT-6 Luna" }];
+    state.createProfile.mutateAsync.mockResolvedValue({
+      id: "decision-1",
+      decision_capable: true,
+      chat_capable: false,
+    });
+    const { onCreated } = mount({ purpose: "decision" });
+    await pickProvider("OpenAI");
+    expect(listingRequests).toHaveBeenLastCalledWith("openai", undefined, undefined, true);
+    expect(screen.queryByLabelText("API")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-6-luna/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Store a key" }));
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+    expect(state.createProfile.mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: "openai",
+        model: "gpt-6-luna",
+        api: "decisions",
+        secret_id: "s-new",
+      }),
+    );
+    expect(onCreated).toHaveBeenCalledWith(expect.objectContaining({ id: "decision-1" }));
+  });
+
+  it("only offers providers with a native decision API", async () => {
+    state.catalog = [
+      capabilities("openai", "OpenAI", {
+        ...OPENAI_CAPABILITIES,
+        apis: ["responses", "chat", "decisions"],
+      }),
+      capabilities("openrouter", "OpenRouter"),
+    ];
+    mount({ purpose: "decision" });
+    await userEvent.click(screen.getByLabelText("Provider"));
+    expect(screen.getByRole("option", { name: /OpenAI/ })).toBeVisible();
+    expect(screen.queryByRole("option", { name: /OpenRouter/ })).not.toBeInTheDocument();
+  });
 });

@@ -3535,6 +3535,7 @@ class TestArchiveAndDelete:
             patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()) as audit,
             patch("app.services.agent_trigger.AgentTriggerService") as triggers_cls,
             patch("app.repositories.task.has_agent_execution", new=AsyncMock(return_value=False)),
+            patch("app.services.tasks.TaskService.purge_scope", new=AsyncMock()) as purge_board,
         ):
             triggers = triggers_cls.return_value
             triggers.deregister_agent_webhooks = AsyncMock()
@@ -3548,6 +3549,7 @@ class TestArchiveAndDelete:
         # The provider side is swept before the rows cascade away - after that the
         # stored webhook ids the hooks are removable by are gone for good.
         triggers.deregister_agent_webhooks.assert_awaited_once_with(ctx, agent.id)
+        purge_board.assert_awaited_once_with("agent", agent.id, organization_id=ctx.organization_id)
 
 
 class TestGetVersion:
@@ -5858,8 +5860,11 @@ class TestUndoingADraft:
         monkeypatch.setattr(
             "app.repositories.task.has_agent_execution", AsyncMock(return_value=False)
         )
+        purge = AsyncMock()
+        monkeypatch.setattr("app.services.tasks.TaskService.purge_scope", purge)
         await AgentRegistryService(db).delete(ctx, agent.id, draft_only=True)
 
+        purge.assert_awaited_once_with("agent", agent.id, organization_id=ctx.organization_id)
         delete.assert_awaited_once_with(db, agent)
 
 

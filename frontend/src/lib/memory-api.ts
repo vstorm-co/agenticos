@@ -44,6 +44,13 @@ export async function setNoteActive(id: string, active: boolean): Promise<Memory
   return apiClient.patch<MemoryNote>(`${ROOT}/mine/${id}`, { active });
 }
 
+export async function editNoteContent(note: MemoryNote, content: string): Promise<MemoryNote> {
+  return apiClient.patch<MemoryNote>(`${ROOT}/mine/${note.id}/content`, {
+    content,
+    expected_updated_at: note.updated_at,
+  });
+}
+
 export async function deleteNote(id: string): Promise<void> {
   await apiClient.delete(`${ROOT}/mine/${id}`);
 }

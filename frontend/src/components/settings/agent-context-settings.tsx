@@ -10,7 +10,7 @@ import { WorkingHoursField } from "@/components/settings/working-hours-field";
 import { Button, FormField, Input } from "@/components/ui";
 import { Textarea } from "@/components/ui/textarea";
 import { useChanged } from "@/hooks/use-changed";
-import { useSaveAgentContext } from "@/hooks/use-account-profile";
+import { useSaveAgentContext, type AgentContext } from "@/hooks/use-account-profile";
 import { getErrorMessage } from "@/lib/api-error";
 import type { User } from "@/types";
 import type { WorkingHours } from "@/types/auth";
@@ -28,8 +28,12 @@ export function AgentContextSettings({
   secondaryAction,
   disabled = false,
   onSavingChange,
+  formId,
+  onSave,
 }: {
   user: User;
+  formId?: string;
+  onSave?: (changes: AgentContext) => Promise<User>;
   beforeSave?: () => Promise<boolean>;
   onSaved?: () => void;
   saveLabel?: string;
@@ -60,7 +64,7 @@ export function AgentContextSettings({
     onSavingChange?.(true);
     try {
       if (beforeSave && !(await beforeSave())) return;
-      await save({
+      await (onSave ?? save)({
         job_title: role.trim() || null,
         about: about.trim() || null,
         time_zone: zone || null,
@@ -79,6 +83,7 @@ export function AgentContextSettings({
   return (
     <SectionCard title={t("title")} description={t("description")}>
       <form
+        id={formId}
         aria-label={t("title")}
         onSubmit={(event) => {
           event.preventDefault();

@@ -4,8 +4,9 @@ import { Pencil, Search, Trash2, Users } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 
+import { CatalogLoading } from "@/components/states/catalog-loading";
 import { GroupIcon } from "@/components/groups/group-icon";
-import { ErrorState, LoadingState } from "@/components/states";
+import { ErrorState } from "@/components/states";
 import {
   Button,
   IconButton,
@@ -63,7 +64,7 @@ export function GroupList({
       empty={!isLoading && !error && groups.length === 0}
       contentClassName="p-0"
       controls={
-        groups.length > 0 &&
+        (isLoading || groups.length > 0) &&
         !error && (
           <SearchInput
             value={list.query}
@@ -81,7 +82,9 @@ export function GroupList({
           className="m-5"
         />
       ) : isLoading ? (
-        <LoadingState variant="skeleton-cards" rows={3} />
+        <div className="p-4 sm:p-5">
+          <CatalogLoading kind="group" />
+        </div>
       ) : groups.length === 0 ? (
         <ListCardEmpty
           icon={Users}
@@ -91,6 +94,7 @@ export function GroupList({
         />
       ) : list.visible.length === 0 ? (
         <ListCardEmpty
+          onClearFilters={() => list.setQuery("")}
           icon={Search}
           title={t("noMatches")}
           description={t("searchHint")}
