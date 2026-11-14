@@ -1458,7 +1458,8 @@
       },
       "makeSkill": "Zrób z tego skill",
       "makeSkillAsk": "Zrób z tego skill, żeby każdy agent zrobił to następnym razem tak samo.\n\nO co prosiłem:\n{request}\n\nJak to zostało zrobione:\n{answer}",
-      "makeSkillFromConversation": "Zrób z tego skill, żeby każdy agent zrobił to następnym razem tak samo. Najpierw przeczytaj całą rozmowę przez read_conversation - jej id to {conversation}.\n\nO co prosiłem:\n{request}"
+      "makeSkillFromConversation": "Zrób z tego skill, żeby każdy agent zrobił to następnym razem tak samo. Najpierw przeczytaj całą rozmowę przez read_conversation - jej id to {conversation}.\n\nO co prosiłem:\n{request}",
+      "projectsUsed": "Użyte projekty"
     },
     "suggestions": {
       "label": "Propozycje dla ciebie",
@@ -7953,7 +7954,6 @@
   "skills": {
     "addFile": "Dodaj plik",
     "apply": "Zastosuj",
-    "applyChangeTo": "Zastosuj zmianę w {name}",
     "availableEveryAgentOrganization": "Poniżej wybierz, kto może z niego korzystać. Agent czyta go, gdy zostanie do niego dodany.",
     "cancel": "Anuluj",
     "cancel2": "Anuluj",
@@ -7981,7 +7981,6 @@
     "fileSaved": "Plik zapisany",
     "fileTree": "Pliki skilla",
     "files": "Pliki",
-    "files2": "Pliki",
     "files3": "Pliki",
     "filesUploaded": "{count, plural, one {Przesłano 1 plik} few {Przesłano # pliki} many {Przesłano # plików} other {Przesłano # pliku}}",
     "folder": "Folder",
@@ -8045,7 +8044,6 @@
     "moreFiles": "{count, plural, one {+1 plik} few {+# pliki} many {+# plików} other {+# pliku}}",
     "bodyPlaceholder": "# Zwroty\n\nUżyj tego, gdy klient prosi o zwrot pieniędzy.\n\n## Kroki\n\n1. Sprawdź datę zamówienia.\n2. W ciągu 14 dni zwróć bez pytania.\n3. Później poproś człowieka o zatwierdzenie.",
     "whoCanUseIt": "Kto może z tego korzystać",
-    "expectedEffect": "Oczekiwany efekt:",
     "page": {
       "skills": "Skille",
       "mainVersion": "v{number} na main",
@@ -8330,8 +8328,6 @@
       "skillDetails": "Szczegóły skilla",
       "openFullView": "Otwórz pełny widok"
     },
-    "checkOnAgents": "Sprawdź na agentach",
-    "checkChangeTo": "Sprawdź zmianę w {name} na agentach, które go używają",
     "check": {
       "title": "Sprawdź tę zmianę na każdym agencie, który używa skilla",
       "description": "Każdy agent odpowiada na swoje pytania ze skillem w obecnej wersji i z tą zmianą. Nic się nie zmienia, dopóki nie zdecydujesz.",
@@ -8401,10 +8397,14 @@
       "library": "Aktualizacja biblioteki",
       "impact": "Powiązani agenci",
       "instructions": "Proponowane instrukcje",
-      "close": "Zamknij podgląd",
       "preview": "Podgląd",
       "compare": "Porównaj z obecnym skillem",
-      "compareFailed": "Nie udało się wczytać obecnego skilla. Otwórz podgląd ponownie, aby spróbować jeszcze raz."
+      "compareFailed": "Nie udało się wczytać obecnego skilla. Otwórz podgląd ponownie, aby spróbować jeszcze raz.",
+      "apply": "Zastosuj aktualizację",
+      "testOptional": "Przetestuj przed zastosowaniem (opcjonalnie)",
+      "hiddenAgents": "Pozostali agenci: {count}",
+      "testOptionalShort": "Test (opcjonalnie)",
+      "compareShort": "Zmiany"
     }
   },
   "settings": {

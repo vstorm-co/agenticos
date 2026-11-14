@@ -17,8 +17,18 @@ vi.mock("@/hooks/use-permissions", () => ({
   usePermissions: () => ({ can: () => state.runsView }),
 }));
 
-vi.mock("@/hooks/use-skills", () => ({
-  useSkill: () => ({ skill: { content: "Original instructions." }, isLoading: false, error: null }),
+vi.mock("@/hooks/use-skill-proposal-baseline", () => ({
+  useSkillProposalBaseline: () => ({
+    data: {
+      id: "v1",
+      description: "Old description.",
+      content: "Original instructions.",
+      resources: [],
+    },
+    isLoading: false,
+    error: null,
+  }),
+  useSkillProposalFile: () => ({ data: undefined, isLoading: false, error: null }),
 }));
 vi.mock("./skill-check-dialog", () => ({
   SkillCheckDialog: ({
@@ -110,7 +120,7 @@ describe("ProposedChanges", () => {
     expect(screen.getByText(/2 updates ready to review/)).toBeVisible();
   });
 
-  it("says an edit reaches its agents through a check, and a new skill reaches nobody", async () => {
+  it("says when the update reaches its agents without requiring evaluation", async () => {
     const reached = {
       id: "a-1",
       name: "Refund desk",
@@ -128,9 +138,9 @@ describe("ProposedChanges", () => {
 
     expect(screen.getByText("1 affected agent")).toBeVisible();
     await userEvent.click(screen.getAllByRole("button", { name: /Show what changed/ })[0]!);
-    expect(
-      screen.getByText("Goes live for Refund desk (production) once a check on them lets it."),
-    ).toBeVisible();
+    expect(screen.getByText("Used by Refund desk")).toBeVisible();
+    expect(document.querySelector('[data-agent-avatar="a-1"]')).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Side by side" })).toBeNull();
     expect(screen.queryByText(/Goes live now/)).toBeNull();
     expect(screen.getByText("0 affected agents")).toBeInTheDocument();
   });
@@ -149,7 +159,7 @@ describe("ProposedChanges", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /Show what changed in refunds/ }));
 
-    expect(screen.getByText(/Ask for the receipt/)).toBeVisible();
+    expect(screen.getByRole("tabpanel")).toHaveTextContent("Ask for the receipt");
   });
 
   it("lists the files a change brings with it", async () => {
@@ -167,7 +177,7 @@ describe("ProposedChanges", () => {
     const toggle = screen.getByRole("button", { name: /Show what changed in refunds/ });
 
     await userEvent.click(toggle);
-    await userEvent.click(screen.getByRole("button", { name: "Close review" }));
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
 
     expect(screen.queryByText(/Ask for the receipt/)).toBeNull();
   });
@@ -237,28 +247,39 @@ describe("ProposedChanges", () => {
     expect(screen.queryByText("No evidence that could be checked.")).toBeNull();
   });
 
-  it("applies a new skill at once, and refuses a change through its own action", async () => {
-    state.changes = [change({ skill_id: null })];
-    render(<ProposedChanges canEdit />);
+  it.each([null, "s-1"])(
+    "applies a reviewed proposal for skill %s without evaluations",
+    async (skillId) => {
+      state.changes = [change({ skill_id: skillId })];
+      render(<ProposedChanges canEdit />);
+      await userEvent.click(screen.getByRole("button", { name: /Show what changed/ }));
+      await userEvent.click(screen.getByRole("button", { name: "Apply update" }));
+      expect(state.apply).toHaveBeenCalledWith(expect.objectContaining({ id: "p-1", revision: 1 }));
+      expect(screen.queryByText(/checking p-1/)).toBeNull();
+    },
+  );
 
-    await userEvent.click(screen.getByRole("button", { name: /Apply the change to refunds/ }));
-    expect(state.apply).toHaveBeenCalledWith(expect.objectContaining({ id: "p-1", revision: 1 }));
-
-    await userEvent.click(screen.getByRole("button", { name: /Discard the change to refunds/ }));
-    expect(state.discard).toHaveBeenCalledWith(expect.objectContaining({ id: "p-1", revision: 1 }));
-  });
-
-  it("sends a change to a skill agents use through a check on them, on its line", async () => {
-    // Applying it goes live for every agent that follows the line, so it is
-    // checked there first; there is no Apply that skips the check.
+  it("keeps testing available as an optional action on the proposal's line", async () => {
     state.changes = [change({ fork_id: "fork-1" })];
     render(<ProposedChanges canEdit />);
-
-    expect(screen.queryByRole("button", { name: /Apply the change to refunds/ })).toBeNull();
-    await userEvent.click(
-      screen.getByRole("button", { name: /Check the change to refunds on the agents/ }),
-    );
+    await userEvent.click(screen.getByRole("button", { name: /Show what changed/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Test before applying (optional)" }));
     expect(screen.getByText("checking p-1 on fork-1")).toBeInTheDocument();
+    expect(state.apply).not.toHaveBeenCalled();
+  });
+
+  it("keeps the review open when applying fails", async () => {
+    state.apply.mockRejectedValueOnce(new Error("Version changed"));
+    render(<ProposedChanges canEdit />);
+    await userEvent.click(screen.getByRole("button", { name: /Show what changed/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Apply update" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("discards a proposal through its own action", async () => {
+    render(<ProposedChanges canEdit />);
+    await userEvent.click(screen.getByRole("button", { name: /Discard the change/ }));
+    expect(state.discard).toHaveBeenCalledWith(expect.objectContaining({ id: "p-1", revision: 1 }));
   });
 });
 
@@ -279,7 +300,9 @@ it("identifies library updates and keeps long audience lists in the review dialo
   expect(screen.queryByRole("dialog")).toBeNull();
   await userEvent.click(screen.getByRole("button", { name: /Show what changed/ }));
   expect(screen.getByRole("dialog")).toHaveTextContent("Proposed instructions");
-  expect(screen.getByRole("dialog")).toHaveTextContent("examples/report.html");
+  expect(screen.getByText("report.html", { exact: true })).toBeVisible();
+  await userEvent.click(screen.getByText("report.html", { exact: true }));
+  expect(screen.getByRole("tabpanel")).toHaveTextContent("<h1>Report</h1>");
 });
 
 it("offers the current instruction comparison without mixing it with the proposed preview", async () => {

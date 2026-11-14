@@ -192,3 +192,25 @@ export function filesChangedOf(
   }
   return [...paths];
 }
+
+/** Successful run-local selections, including earlier projects if the agent switched again. */
+export function projectsUsedOf(
+  calls: readonly ToolCall[] | undefined,
+): { id: string; name: string }[] {
+  const projects = new Map<string, { id: string; name: string }>();
+  for (const call of finished(calls, "select_project_workspace")) {
+    const selected = jsonObject(call.result);
+    if (
+      selected?.kind !== "project_workspace_selection" ||
+      typeof selected.project_id !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        selected.project_id,
+      ) ||
+      typeof selected.name !== "string" ||
+      !selected.name.trim()
+    )
+      continue;
+    projects.set(selected.project_id, { id: selected.project_id, name: selected.name });
+  }
+  return [...projects.values()];
+}

@@ -1,5 +1,5 @@
 ---
-source_sha: "3976c337d664"
+source_sha: "9bc0bd6a3c5a"
 ---
 
 # Skille { #skills }
@@ -204,10 +204,13 @@ Dlatego zapis staje się **propozycją** i pojawia się nad listą na stronie Sk
 każdemu, kto może edytować ten skill. Propozycja nowego skilla pojawia się każdemu,
 kto ma `skills:edit`. Nikt inny nie może jej zobaczyć na liście ani otworzyć:
 
-- **Check on agents** uruchamia zmianę na każdym agencie linii, dla której
-  powstała, a jej zastosowanie - następna wersja tej linii, którą ci agenci
-  przeczytają przy następnym runie - odbywa się z wyniku sprawdzenia. Zobacz
-  [Sprawdzanie zmiany na każdym agencie](#checking-a-change-on-every-agent).
+- **Przejrzyj** otwiera instrukcje, porównanie z obecnym skillem i pliki referencyjne.
+  **Zastosuj aktualizację** zapisuje nową wersję od razu. Agenci śledzący tę linię
+  użyją jej przy kolejnym uruchomieniu. Testy są opcjonalne; brak pytań testowych
+  nie blokuje zastosowania propozycji.
+- **Przetestuj przed zastosowaniem (opcjonalnie)** sprawdza zmianę na agentach tej
+  linii. Wynik pokazuje regresje i agentów, których nie udało się sprawdzić,
+  przed ostateczną decyzją. Zobacz [Sprawdzanie zmiany na każdym agencie](#checking-a-change-on-every-agent).
 - **Discard** zachowuje zapis. Agent proponujący w kółko tę samą zmianę mówi
   komuś coś o skillu, a usunięty wiersz czyni to niewidocznym.
 
@@ -262,10 +265,12 @@ innych forków nie są uruchamiani - zmiana do nich nie dociera. Opublikowana
 wersja każdego agenta odpowiada na swoje pytania dwa razy, ze skillem takim, jaki
 jest, i ze zmianą, a poza tym nic się nie różni.
 
-Zmiana zapisana przez workspace agenta, zmiana zaproponowana przez asystenta i
-[aktualizacja z biblioteki](#getting-skills-into-an-organization) skilla, którego
-używają agenci, trafiają na żywo tylko przez to sprawdzenie. Osoba edytująca
-skill ręcznie od razu zapisuje nową wersję, a ta edycja nie jest sprawdzana.
+Propozycje z workspace, propozycje asystenta i
+[aktualizacje biblioteki](#getting-skills-into-an-organization) można przejrzeć i
+zastosować bez opcjonalnego testu. Zastosowanie nadal sprawdza uprawnienia do
+edycji, rewizję propozycji oraz wersję skilla, na której oparto zmianę. Jeśli
+wybierzesz testowanie, zastosowanie przez wynik testu respektuje jego reguły,
+w tym wymagane potwierdzenia i przypięcia wersji.
 
 ### O co pyta { #what-a-check-asks }
 

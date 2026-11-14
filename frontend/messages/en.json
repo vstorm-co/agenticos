@@ -2442,7 +2442,8 @@
       },
       "makeSkill": "Make a skill of this",
       "makeSkillAsk": "Make a skill of this, so any agent can do it the same way next time.\n\nWhat I asked:\n{request}\n\nHow it was answered:\n{answer}",
-      "makeSkillFromConversation": "Make a skill of this, so any agent can do it the same way next time. Read the whole conversation first with read_conversation - its id is {conversation}.\n\nWhat I asked:\n{request}"
+      "makeSkillFromConversation": "Make a skill of this, so any agent can do it the same way next time. Read the whole conversation first with read_conversation - its id is {conversation}.\n\nWhat I asked:\n{request}",
+      "projectsUsed": "Projects used"
     },
     "suggestions": {
       "label": "Suggestions for you",
@@ -9058,7 +9059,6 @@
   "skills": {
     "addFile": "Add file",
     "apply": "Apply",
-    "applyChangeTo": "Apply the change to {name}",
     "availableEveryAgentOrganization": "Choose below who can use it. An agent reads it once it is added to that agent.",
     "cancel": "Cancel",
     "cancel2": "Cancel",
@@ -9086,7 +9086,6 @@
     "fileSaved": "File saved",
     "fileTree": "Skill files",
     "files": "Files",
-    "files2": "Files",
     "files3": "Files",
     "filesUploaded": "{count, plural, =1 {1 file uploaded} other {# files uploaded}}",
     "folder": "Folder",
@@ -9150,7 +9149,6 @@
     "moreFiles": "{count, plural, =1 {+1 file} other {+# files}}",
     "bodyPlaceholder": "# Refunds\n\nUse this when a customer asks for their money back.\n\n## Steps\n\n1. Check the order date.\n2. Within 14 days, refund without asking.\n3. After that, ask a person to approve it.",
     "whoCanUseIt": "Who can use it",
-    "expectedEffect": "Expected effect:",
     "page": {
       "skills": "Skills",
       "mainVersion": "v{number} on main",
@@ -9435,8 +9433,6 @@
       "skillDetails": "Skill details",
       "openFullView": "Open full view"
     },
-    "checkOnAgents": "Check on agents",
-    "checkChangeTo": "Check the change to {name} on the agents that use it",
     "check": {
       "title": "Check this change on every agent that uses it",
       "description": "Each agent answers its questions with the skill as it is and with this change. Nothing changes until you decide.",
@@ -9506,10 +9502,14 @@
       "library": "Library update",
       "impact": "Affected agents",
       "instructions": "Proposed instructions",
-      "close": "Close review",
       "preview": "Preview",
       "compare": "Compare with current skill",
-      "compareFailed": "The current skill could not be loaded. Reopen the review to try again."
+      "compareFailed": "The current skill could not be loaded. Reopen the review to try again.",
+      "apply": "Apply update",
+      "testOptional": "Test before applying (optional)",
+      "hiddenAgents": "{count, plural, one {# other agent} other {# other agents}}",
+      "testOptionalShort": "Test (optional)",
+      "compareShort": "Changes"
     }
   },
   "states": {

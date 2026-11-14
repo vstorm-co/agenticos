@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Check, ArrowRight, BookOpen, GitPullRequest, Users, X } from "lucide-react";
 
 import {
@@ -22,16 +22,26 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
 } from "@/components/ui";
 import { EvidenceList, RationaleText } from "@/components/authoring/evidence-list";
-import { GoesLive } from "@/components/authoring/goes-live";
 import { useSkillChanges } from "@/hooks";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Perm } from "@/types/permissions";
 import { ROUTES } from "@/lib/constants";
 import type { SkillChangeRecord } from "@/lib/skill-changes-api";
-import { DIALOG_BROAD, DIALOG_COLUMN, DIALOG_BODY } from "@/lib/dialog-sizes";
-import { useSkill } from "@/hooks/use-skills";
+import { DIALOG_CANVAS, DIALOG_FILL } from "@/lib/dialog-sizes";
+import {
+  useSkillProposalBaseline,
+  useSkillProposalFile,
+} from "@/hooks/use-skill-proposal-baseline";
+import { FileTree } from "./skill-files";
+import { buildTree } from "@/lib/file-tree";
+import { UsedBy } from "@/components/agents/used-by";
 import { DiffView } from "@/components/authoring/diff-view";
 import { MarkdownContent } from "@/components/chat/markdown-content";
 import { SkillCheckDialog } from "./skill-check-dialog";
@@ -87,7 +97,7 @@ export function ProposedChanges({ canEdit }: ProposedChangesProps) {
             key={change.id}
             change={change}
             disabled={isDeciding}
-            onApply={() => void apply(change)}
+            onApply={() => apply(change)}
             onDiscard={() => void discard(change)}
           />
         ))}
@@ -99,7 +109,7 @@ export function ProposedChanges({ canEdit }: ProposedChangesProps) {
 interface ChangeRowProps {
   change: SkillChangeRecord;
   disabled: boolean;
-  onApply: () => void;
+  onApply: () => Promise<void>;
   onDiscard: () => void;
 }
 
@@ -114,8 +124,36 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
   const [open, setOpen] = useState(false);
   const [checking, setChecking] = useState(false);
   const resources = Object.keys(change.resources);
-  const current = useSkill(open ? change.skill_id : null);
-  // A change to a skill agents already use goes live only through a check on them.
+  const current = useSkillProposalBaseline(open ? change.skill_id : null, change.fork_id);
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const oldFile = current.data?.resources.find((file) => file.name === selectedFile);
+  const originalFile = useSkillProposalFile(
+    open ? change.skill_id : null,
+    current.data?.id ?? null,
+    oldFile?.name ?? null,
+  );
+  const fileNames = useMemo(
+    () =>
+      [
+        ...new Set([
+          ...Object.keys(change.resources),
+          ...(current.data?.resources.map((file) => file.name) ?? []),
+        ]),
+      ].sort(),
+    [change.resources, current.data],
+  );
+  const files = useMemo(
+    () => buildTree(fileNames.map((name) => ({ id: name, name, size_bytes: 0 }))),
+    [fileNames],
+  );
+  const after =
+    selectedFile === null
+      ? change.content
+      : (change.resources[selectedFile] ??
+        (change.source === "library" ? "" : (originalFile.data?.content ?? "")));
+  const before =
+    selectedFile === null ? (current.data?.content ?? "") : (originalFile.data?.content ?? "");
+  const comparing = selectedFile === null ? current : originalFile;
   const skillId = change.skill_id;
 
   return (
@@ -179,134 +217,179 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
           <X className="h-4 w-4" aria-hidden />
           {t("discard")}
         </Button>
-        {skillId === null ? (
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={disabled}
-            onClick={onApply}
-            aria-label={t("applyChangeTo", { name: change.name })}
-          >
-            <Check className="h-4 w-4" aria-hidden />
-            {t("apply")}
-          </Button>
-        ) : (
-          <>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={disabled}
-              onClick={() => setChecking(true)}
-              aria-label={t("checkChangeTo", { name: change.name })}
-            >
-              <Check className="h-4 w-4" aria-hidden />
-              {t("checkOnAgents")}
-            </Button>
-            {checking && (
-              <SkillCheckDialog
-                skillId={skillId}
-                change={{ proposalId: change.id }}
-                forkId={change.fork_id}
-                onOpenChange={setChecking}
-              />
-            )}
-          </>
+        {skillId !== null && checking && (
+          <SkillCheckDialog
+            skillId={skillId}
+            change={{ proposalId: change.id }}
+            forkId={change.fork_id}
+            onOpenChange={setChecking}
+          />
         )}
       </div>
 
       {open && (
         <Dialog open onOpenChange={setOpen}>
-          <DialogContent className={`${DIALOG_BROAD} ${DIALOG_COLUMN}`}>
+          <DialogContent className={`${DIALOG_CANVAS} ${DIALOG_FILL}`}>
             <DialogHeader>
               <DialogTitle>{change.name}</DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="line-clamp-2 md:line-clamp-none">
                 {change.description || t("noDescriptionWorthAdding")}
               </DialogDescription>
             </DialogHeader>
-            <div className={`${DIALOG_BODY} space-y-4`}>
-              <div className="bg-muted/40 rounded-lg border p-3">
-                <p className="mb-2 text-xs font-medium">{t("reviewUpdates.impact")}</p>
-                <GoesLive
-                  reaches={change.reaches}
-                  hidden={change.reaches_hidden}
-                  afterCheck={skillId !== null}
-                />
-              </div>
-              {change.rationale && (
-                <RationaleText text={change.rationale} evidence={change.evidence ?? []} />
-              )}
-              {change.expected_effect && (
-                <p className="text-sm">
-                  <span className="font-medium">{t("expectedEffect")}</span>{" "}
-                  {change.expected_effect}
-                </p>
-              )}
-              {change.authoring_request_id != null && (
-                <EvidenceList
-                  items={change.evidence ?? []}
-                  dropped={change.evidence_dropped ?? 0}
+            <div className="bg-muted/30 rounded-lg border px-3 py-2 text-xs">
+              {!(change.reaches.length === 0 && change.reaches_hidden > 0) && (
+                <UsedBy
+                  agents={change.reaches.map((agent) => ({
+                    ...agent,
+                    slug: agent.slug ?? undefined,
+                  }))}
+                  className="text-foreground gap-2"
                 />
               )}
-              <div className="min-w-0 rounded-lg border p-4 text-sm">
-                <p className="text-muted-foreground mb-3 text-xs font-medium">
-                  {t("reviewUpdates.instructions")}
+              {change.reaches_hidden > 0 && (
+                <p className="text-muted-foreground mt-1">
+                  {t("reviewUpdates.hiddenAgents", { count: change.reaches_hidden })}
                 </p>
-                <Tabs defaultValue="preview">
-                  <TabsList>
-                    <TabsTrigger value="preview">{t("reviewUpdates.preview")}</TabsTrigger>
-                    {skillId !== null && (
-                      <TabsTrigger value="changes">{t("reviewUpdates.compare")}</TabsTrigger>
-                    )}
-                  </TabsList>
-                  <TabsContent value="preview">
-                    <MarkdownContent content={change.content} inertImages highlightVariables />
-                  </TabsContent>
-                  {skillId !== null && (
-                    <TabsContent value="changes">
-                      {current.error ? (
-                        <p role="alert" className="text-destructive text-sm">
-                          {t("reviewUpdates.compareFailed")}
-                        </p>
-                      ) : current.isLoading || !current.skill ? (
-                        <Skeleton className="h-40 w-full" />
-                      ) : (
-                        <DiffView before={current.skill.content} after={change.content} />
-                      )}
-                    </TabsContent>
+              )}
+              {(change.rationale || change.expected_effect || change.authoring_request_id) && (
+                <details className="mt-2">
+                  <summary className="cursor-pointer">{t("reviewUpdates.impact")}</summary>
+                  {change.rationale && (
+                    <RationaleText text={change.rationale} evidence={change.evidence ?? []} />
                   )}
-                </Tabs>
-              </div>
-              {resources.length > 0 && (
-                <div className="space-y-1">
-                  <p className="text-xs font-medium">{t("files2")}</p>
-                  <ul className="text-muted-foreground space-y-0.5 text-xs">
-                    {resources.map((name) => (
-                      <li key={name}>
-                        <details className="rounded-md border">
-                          <summary className="cursor-pointer px-3 py-2 font-mono">{name}</summary>
-                          <pre className="bg-muted/30 max-h-64 overflow-auto border-t p-3 font-mono text-xs break-words whitespace-pre-wrap">
-                            {change.resources[name]}
-                          </pre>
-                        </details>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                  {change.expected_effect && <p className="mt-2">{change.expected_effect}</p>}
+                  {change.authoring_request_id != null && (
+                    <EvidenceList
+                      items={change.evidence ?? []}
+                      dropped={change.evidence_dropped ?? 0}
+                    />
+                  )}
+                </details>
               )}
             </div>
-            <DialogFooter className="border-t pt-4">
-              <Button variant="outline" onClick={() => setOpen(false)}>
-                {t("reviewUpdates.close")}
-              </Button>
+            <div className="flex min-h-0 flex-1 flex-col gap-3 md:grid md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] md:grid-rows-1">
+              <div className="shrink-0 md:hidden">
+                <Select
+                  value={selectedFile === null ? "instructions" : `file:${selectedFile}`}
+                  onValueChange={(value) =>
+                    setSelectedFile(value === "instructions" ? null : value.slice(5))
+                  }
+                >
+                  <SelectTrigger aria-label={t("fileTree")} className="w-full min-w-0">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="instructions">{t("reviewUpdates.instructions")}</SelectItem>
+                    {fileNames.map((name) => (
+                      <SelectItem key={name} value={`file:${name}`}>
+                        {name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <nav
+                className="hidden overflow-auto rounded-lg border p-2 md:block"
+                aria-label={t("fileTree")}
+              >
+                <Button
+                  className="mb-1 w-full justify-start"
+                  variant={selectedFile === null ? "secondary" : "ghost"}
+                  onClick={() => setSelectedFile(null)}
+                >
+                  <BookOpen className="size-4" aria-hidden />
+                  {t("reviewUpdates.instructions")}
+                </Button>
+                <FileTree nodes={files} openId={selectedFile} onOpen={setSelectedFile} />
+              </nav>
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border">
+                <div className="bg-muted/30 truncate border-b px-3 py-2 text-xs font-medium md:px-4 md:py-3 md:text-sm">
+                  {selectedFile ?? t("reviewUpdates.instructions")}
+                </div>
+                <Tabs defaultValue="changes" className="flex min-h-0 flex-1 flex-col p-3">
+                  <TabsList className="shrink-0">
+                    <TabsTrigger value="changes" aria-label={t("reviewUpdates.compare")}>
+                      <span className="max-sm:hidden">{t("reviewUpdates.compare")}</span>
+                      <span className="sm:hidden">{t("reviewUpdates.compareShort")}</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="preview">{t("reviewUpdates.preview")}</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="changes" className="min-h-0 flex-1 overflow-auto">
+                    {comparing.error ? (
+                      <p role="alert" className="text-destructive text-sm">
+                        {t("reviewUpdates.compareFailed")}
+                      </p>
+                    ) : current.isLoading || comparing.isLoading ? (
+                      <Skeleton className="h-40 w-full" />
+                    ) : (
+                      <>
+                        {selectedFile === null &&
+                          current.data?.description !== change.description && (
+                            <div className="mb-3">
+                              <DiffView
+                                before={current.data?.description ?? ""}
+                                after={change.description}
+                                fill
+                                modes={false}
+                              />
+                            </div>
+                          )}
+                        <DiffView
+                          key={selectedFile ?? "instructions"}
+                          before={before}
+                          after={after}
+                          fill
+                          modes={false}
+                        />
+                      </>
+                    )}
+                  </TabsContent>
+                  <TabsContent value="preview" className="min-h-0 flex-1 overflow-auto px-1">
+                    {originalFile.isLoading &&
+                    selectedFile !== null &&
+                    !(selectedFile in change.resources) ? (
+                      <Skeleton className="h-40 w-full" />
+                    ) : selectedFile === null || /\.mdx?$/i.test(selectedFile) ? (
+                      <MarkdownContent content={after} inertImages highlightVariables />
+                    ) : (
+                      <pre className="font-mono text-xs break-words whitespace-pre-wrap">
+                        {after}
+                      </pre>
+                    )}
+                  </TabsContent>
+                </Tabs>
+              </div>
+            </div>
+            <DialogFooter className="border-t pt-4 max-sm:flex-row max-sm:items-center">
+              {skillId !== null && (
+                <Button
+                  variant="outline"
+                  className="max-sm:min-w-0 max-sm:flex-1 max-sm:px-2 max-sm:text-xs"
+                  aria-label={t("reviewUpdates.testOptional")}
+                  disabled={disabled}
+                  onClick={() => {
+                    setOpen(false);
+                    setChecking(true);
+                  }}
+                >
+                  <span className="max-sm:hidden">{t("reviewUpdates.testOptional")}</span>
+                  <span className="sm:hidden">{t("reviewUpdates.testOptionalShort")}</span>
+                </Button>
+              )}
               <Button
+                className="max-sm:min-w-0 max-sm:flex-1 max-sm:px-2 max-sm:text-xs"
                 disabled={disabled}
-                onClick={() => {
-                  setOpen(false);
-                  if (skillId === null) onApply();
-                  else setChecking(true);
+                onClick={async () => {
+                  try {
+                    await onApply();
+                    setOpen(false);
+                  } catch {
+                    // The mutation reports the refusal; keep the review available.
+                  }
                 }}
               >
-                {skillId === null ? t("apply") : t("checkOnAgents")}
+                <Check className="size-4" aria-hidden />
+                {t("reviewUpdates.apply")}
               </Button>
             </DialogFooter>
           </DialogContent>

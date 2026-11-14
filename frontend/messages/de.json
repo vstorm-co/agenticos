@@ -2442,7 +2442,8 @@
       },
       "makeSkill": "Einen Skill daraus machen",
       "makeSkillAsk": "Mach daraus einen Skill, damit jeder Agent es beim nächsten Mal genauso macht.\n\nWorum ich gebeten habe:\n{request}\n\nWie es beantwortet wurde:\n{answer}",
-      "makeSkillFromConversation": "Mach daraus einen Skill, damit jeder Agent es beim nächsten Mal genauso macht. Lies zuerst die ganze Unterhaltung mit read_conversation - ihre ID ist {conversation}.\n\nWorum ich gebeten habe:\n{request}"
+      "makeSkillFromConversation": "Mach daraus einen Skill, damit jeder Agent es beim nächsten Mal genauso macht. Lies zuerst die ganze Unterhaltung mit read_conversation - ihre ID ist {conversation}.\n\nWorum ich gebeten habe:\n{request}",
+      "projectsUsed": "Verwendete Projekte"
     },
     "suggestions": {
       "label": "Vorschläge für Sie",
@@ -8937,7 +8938,6 @@
   "skills": {
     "addFile": "Datei hinzufügen",
     "apply": "Übernehmen",
-    "applyChangeTo": "Die Änderung an {name} übernehmen",
     "availableEveryAgentOrganization": "Wählen Sie unten, wer ihn nutzen darf. Ein Agent liest ihn, sobald er ihm hinzugefügt wurde.",
     "cancel": "Abbrechen",
     "cancel2": "Abbrechen",
@@ -8965,7 +8965,6 @@
     "fileSaved": "Datei gespeichert",
     "fileTree": "Skill-Dateien",
     "files": "Dateien",
-    "files2": "Dateien",
     "files3": "Dateien",
     "filesUploaded": "{count, plural, =1 {1 Datei hochgeladen} other {# Dateien hochgeladen}}",
     "folder": "Ordner",
@@ -9029,7 +9028,6 @@
     "moreFiles": "{count, plural, =1 {+1 Datei} other {+# Dateien}}",
     "bodyPlaceholder": "# Erstattungen\n\nNutzen Sie dies, wenn ein Kunde sein Geld zurückmöchte.\n\n## Schritte\n\n1. Prüfen Sie das Bestelldatum.\n2. Innerhalb von 14 Tagen ohne Nachfrage erstatten.\n3. Danach eine Person um Freigabe bitten.",
     "whoCanUseIt": "Wer es nutzen darf",
-    "expectedEffect": "Erwartete Wirkung:",
     "page": {
       "skills": "Skills",
       "mainVersion": "v{number} auf main",
@@ -9314,8 +9312,6 @@
       "skillDetails": "Skill-Details",
       "openFullView": "Vollständige Ansicht öffnen"
     },
-    "checkOnAgents": "Auf Agents prüfen",
-    "checkChangeTo": "Die Änderung an {name} auf den Agents prüfen, die ihn nutzen",
     "check": {
       "title": "Diese Änderung auf jedem Agent prüfen, der den Skill nutzt",
       "description": "Jeder Agent beantwortet seine Fragen mit dem Skill, wie er ist, und mit dieser Änderung. Nichts ändert sich, bevor du entscheidest.",
@@ -9385,10 +9381,14 @@
       "library": "Bibliotheksaktualisierung",
       "impact": "Betroffene Agenten",
       "instructions": "Vorgeschlagene Anweisungen",
-      "close": "Prüfung schließen",
       "preview": "Vorschau",
       "compare": "Mit aktuellem Skill vergleichen",
-      "compareFailed": "Der aktuelle Skill konnte nicht geladen werden. Öffne die Prüfung erneut."
+      "compareFailed": "Der aktuelle Skill konnte nicht geladen werden. Öffne die Prüfung erneut.",
+      "apply": "Aktualisierung anwenden",
+      "testOptional": "Vor dem Anwenden testen (optional)",
+      "hiddenAgents": "Weitere Agenten: {count}",
+      "testOptionalShort": "Test (optional)",
+      "compareShort": "Änderungen"
     }
   },
   "states": {

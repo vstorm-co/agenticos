@@ -619,7 +619,6 @@
   "skills": {
     "addFile": "Dosya ekle",
     "apply": "Uygula",
-    "applyChangeTo": "Değişikliği {name} öğesine uygula",
     "availableEveryAgentOrganization": "Kimlerin kullanabileceğini aşağıdan seçin. Bir Agent'a eklendiğinde Agent bunu okur.",
     "cancel": "İptal",
     "cancel2": "İptal",
@@ -647,7 +646,6 @@
     "fileSaved": "Dosya kaydedildi",
     "fileTree": "Skill dosyaları",
     "files": "Dosyalar",
-    "files2": "Dosyalar",
     "files3": "Dosyalar",
     "filesUploaded": "{count, plural, =1 {1 dosya yüklendi} other {# dosya yüklendi}}",
     "folder": "Klasör",
@@ -727,10 +725,14 @@
       "library": "Kütüphane güncellemesi",
       "impact": "Etkilenen Agentlar",
       "instructions": "Önerilen talimatlar",
-      "close": "İncelemeyi kapat",
       "preview": "Önizleme",
       "compare": "Mevcut skill ile karşılaştır",
-      "compareFailed": "Mevcut skill yüklenemedi. Tekrar denemek için incelemeyi yeniden açın."
+      "compareFailed": "Mevcut skill yüklenemedi. Tekrar denemek için incelemeyi yeniden açın.",
+      "apply": "Güncellemeyi uygula",
+      "testOptional": "Uygulamadan önce test et (isteğe bağlı)",
+      "hiddenAgents": "Diğer ajanlar: {count}",
+      "testOptionalShort": "Test (isteğe bağlı)",
+      "compareShort": "Değişiklikler"
     },
     "check": {
       "proposalGoneTitle": "Bu güncelleme artık beklemede değil",
@@ -9842,7 +9844,8 @@
       },
       "makeSkill": "Bundan skill oluştur",
       "makeSkillAsk": "Bundan bir skill oluştur; böylece herhangi bir agent sonraki sefer bunu aynı şekilde yapabilir.\n\nİsteğim:\n{request}\n\nVerilen yanıt:\n{answer}",
-      "makeSkillFromConversation": "Bundan bir skill oluştur; böylece sonraki sefer her Agent aynı şekilde yapabilir. Önce read_conversation ile konuşmanın tamamını oku; id'si {conversation}.\n\nİstediğim:\n{request}"
+      "makeSkillFromConversation": "Bundan bir skill oluştur; böylece sonraki sefer her Agent aynı şekilde yapabilir. Önce read_conversation ile konuşmanın tamamını oku; id'si {conversation}.\n\nİstediğim:\n{request}",
+      "projectsUsed": "Kullanılan projeler"
     },
     "suggestions": {
       "label": "Size öneriler",

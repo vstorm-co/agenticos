@@ -194,6 +194,7 @@ from app.agents.capabilities.sandbox import (
     WorkspaceIdentity,
 )
 from app.agents.capabilities.sandbox._identity import SessionScope
+from app.agents.capabilities.sandbox._project import PROJECT_WORKSPACE_RESOURCE
 from app.agents.capabilities.sandbox._recording import RecordingWorkspace
 from app.agents.capabilities.skills import (
     SKILL_BODIES_RESOURCE,
@@ -412,6 +413,7 @@ from app.services.routine_authority import MCP_SOURCES, RoutineAuthority
 from app.services.routine_health import RoutineHealthService
 from app.services.routine_sources import RoutineSourcesRequired
 from app.services.run_heartbeat import run_heartbeat
+from app.services.run_project_workspace import RunProjectWorkspace
 from app.services.sandbox_workspace import (
     SANDBOX_CAPABILITY_ID,
     OpenWorkspace,
@@ -1109,6 +1111,7 @@ class PausedRunState(BaseModel):
         default_factory=dict, exclude_if=lambda value: not value
     )
     channel_destination: ChannelDestination | None = None
+    selected_project_id: UUID | None = Field(default=None, exclude_if=lambda value: value is None)
     channel_file_attempts: int = Field(default=0, ge=0, le=3)
     channel_context: str = ""
     channel_authors: dict[str, UUID] = Field(default_factory=dict)
@@ -1735,6 +1738,8 @@ class PreparedRun:
     run is over.
     """
 
+    project_workspace: RunProjectWorkspace | None = None
+
     hand_off: CallWorker | None = None
     """A call's text twin, when the call hands work off (#54): the session points
     its steps at the call's event pump."""
@@ -2087,6 +2092,8 @@ class PreparedRun:
         environment. `None` leaves the agent's own, the in-memory fallback of a
         spec run without the runner.
         """
+        if self.project_workspace is not None:
+            return self.project_workspace.workspace
         return None if self.workspace is None else self.workspace.workspace
 
 
@@ -5059,6 +5066,24 @@ class AgentRunnerService:
             surface=surface,
             public_origin=public_origin,
         )
+        project_workspace = None
+        if (
+            workspace is not None
+            and isolation is None
+            and not answer_only
+            and not organization_mcp_only
+        ):
+            project_actor = await self._run_owner_context(ctx, existing_run)
+            project_workspace = RunProjectWorkspace(
+                workspace.workspace,
+                replace(
+                    project_actor or ctx,
+                    user_id=run_person if project_actor is not None else None,
+                    subject_is_publisher_fallback=run_person is None or project_actor is None,
+                ),
+                require_project=None if routine is None else routine.require_project,
+            )
+            resources[PROJECT_WORKSPACE_RESOURCE] = project_workspace
         hand_off: CallWorker | None = None
         handed = [] if voice is None else handed_off(spec)
         if voice is not None and handed:
@@ -5208,6 +5233,7 @@ class AgentRunnerService:
             built=built,
             approvals=channel,
             workspace=workspace,
+            project_workspace=project_workspace,
             hand_off=hand_off,
             earlier_attachments_checked=(
                 checked_earlier
@@ -5265,7 +5291,7 @@ class AgentRunnerService:
         )
         if channel_directory is not None:
             built.deps.send_channel_file = channel_file_sender(
-                None if workspace is None else workspace.workspace,
+                prepared._workspace(),
                 channel_directory,
                 prepared.channel_file_budget,
             )
@@ -6968,6 +6994,9 @@ class AgentRunnerService:
                 "plan": plan,
                 "generated_files": sorted(prepared.built.deps.generated_files),
                 "code_checkpoints": dict(prepared.built.deps.code_continuations.checkpoints),
+                "selected_project_id": None
+                if prepared.project_workspace is None
+                else prepared.project_workspace.project_id,
                 "channel_destination": prepared.channel_destination,
                 "channel_file_attempts": prepared.channel_file_budget.attempts,
                 "channel_context": prepared.channel_context,
@@ -7722,6 +7751,8 @@ class AgentRunnerService:
             plan_items=state.plan,
             run_limit_usd=ceiling,
         )
+        if prepared.project_workspace is not None:
+            prepared.project_workspace.project_id = state.selected_project_id
         prepared.output_schema = state.output_schema
         prepared.run_limit_usd = ceiling
         prepared.built.ledger.book(_spend_already_booked(run))

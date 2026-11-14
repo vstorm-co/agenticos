@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "e9573cb4bf21"
+source_sha: "1749ff5d3130"
 ---
 
 # Proyectos { #projects }
@@ -71,6 +71,17 @@ Dos formas de entrar:
 
 Un chat se queda en el proyecto en el que empezó. La etiqueta de un chat existente
 lleva de vuelta al proyecto.
+
+Un agente con Sandbox puede llamar a `select_project_workspace` con el ID de un
+proyecto accesible para usar sus archivos y consola durante la ejecución actual,
+también desde un canal conectado. La respuesta muestra los proyectos elegidos.
+Sin ID se restaura el workspace original. Las continuaciones tras una aprobación
+conservan la selección; el siguiente mensaje empieza en el workspace original.
+La selección no mueve el historial, copia archivos privados ni cambia las
+instrucciones. Cada operación comprueba de nuevo el acceso. Las rutinas siguen
+limitadas a las fuentes revisadas; las evaluaciones aisladas no pueden seleccionar
+proyectos activos. Los archivos quedan en el proyecto; para entregarlos, publica
+una App o envía explícitamente el archivo.
 
 ## Lo que recibe un agent en un proyecto { #what-an-agent-gets-in-a-project }
 

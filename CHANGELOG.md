@@ -19,6 +19,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Select an accessible project's workspace for the current agent run from chat or channels, without moving conversation history. Access is rechecked for each operation; approval continuations retain the selection and routines keep their reviewed source ceiling.
+
+### Changed
+
+- Make evaluation optional when reviewing skill proposals: apply a reviewed update directly, or run a check before deciding. Edit permissions and proposal/version conflict checks still apply.
+
 ### Fixed
 
 - Keep pending skill updates fresh after decisions in other sessions, recover from stale proposals, and present compact update rows with readable instruction comparisons and reference-file previews.

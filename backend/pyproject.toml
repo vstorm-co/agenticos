@@ -758,6 +758,7 @@ include = [
     "app/services/local_service.py",
     "app/services/sandbox_connection.py",
     "app/services/sandbox_runtimes.py",
+    "app/services/run_project_workspace.py",
     "app/services/sandbox_workspace.py",
     "app/services/sandboxd_compat.py",
     # A `.zip` or `.tar.gz` unpacked into a workspace, and a folder zipped out
@@ -1642,6 +1643,7 @@ include = [
     "app/services/local_service.py",
     "app/services/sandbox_connection.py",
     "app/services/sandbox_runtimes.py",
+    "app/services/run_project_workspace.py",
     "app/services/sandbox_workspace.py",
     "app/services/sandboxd_compat.py",
     # A `.zip` or `.tar.gz` unpacked into a workspace, and a folder zipped out
