@@ -76,6 +76,10 @@ def build_inputs(service: AgentRunnerService, ctx: AuthContext) -> Iterator[Simp
             AsyncMock(return_value=MagicMock(id=uuid4())),
         ),
         patch(
+            "app.services.agent_runner.conversation_share_repo.get_shares_for_conversation",
+            AsyncMock(return_value=[]),
+        ),
+        patch(
             "app.services.agent_runner.conversation_repo.get_conversation_by_id",
             AsyncMock(return_value=conversation),
         ),
