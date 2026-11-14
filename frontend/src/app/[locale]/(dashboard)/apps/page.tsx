@@ -175,6 +175,17 @@ export default function ArtifactsPage() {
           <NothingSharedWithGroup groupId={groupId} />
         ) : artifacts.length === 0 ? (
           <ListCardEmpty
+            onClearFilters={
+              isFiltering
+                ? () => {
+                    setQuery("");
+                    setAgentId(null);
+                    setGroupId(null);
+                    setShownParam(null);
+                    setPage(0);
+                  }
+                : undefined
+            }
             icon={PanelsTopLeft}
             title={isFiltering ? t("noMatches") : t("noneYet")}
             description={isFiltering ? t("noMatchesWhy") : t("noneYetWhy")}

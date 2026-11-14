@@ -248,11 +248,27 @@ it("clears an unmatched API key search from the empty state", async () => {
   useApiKeysMock.mockReturnValue(state({ keys: [key()] }));
   render(<ApiKeysManager />);
   await userEvent.type(screen.getByPlaceholderText("Search API keys…"), "no-match-at-all");
-  const clear = screen
-    .getAllByRole("button", { name: "Clear search" })
-    .find((button) => button.textContent === "Clear search");
-  if (!clear) throw new Error("Missing empty-state search action");
+  const clear = screen.getByRole("button", { name: "Clear filters" });
   await userEvent.click(clear);
   expect(screen.getByPlaceholderText("Search API keys…")).toHaveValue("");
   expect(screen.getByRole("table")).toHaveTextContent(key().name);
+});
+
+it("keeps the search toolbar and actual table columns in place during the initial read", () => {
+  useApiKeysMock.mockReturnValue(state({ keys: [], isLoading: true }));
+  const { rerender } = render(<ApiKeysManager />);
+  const search = screen.getByRole("textbox", { name: "Search API keys…" });
+  expect(search).toBeEnabled();
+  const columns = within(screen.getByRole("table"))
+    .getAllByRole("columnheader")
+    .map((cell) => cell.textContent);
+  useApiKeysMock.mockReturnValue(state());
+  rerender(<ApiKeysManager />);
+  expect(screen.getByRole("textbox", { name: "Search API keys…" })).toBe(search);
+  expect(search).toBeEnabled();
+  expect(
+    within(screen.getByRole("table"))
+      .getAllByRole("columnheader")
+      .map((cell) => cell.textContent),
+  ).toEqual(columns);
 });

@@ -30,6 +30,7 @@ import { PhoneCallCard } from "@/components/phone/phone-call-card";
 import { ModelSetupCard } from "./model-setup-card";
 import { WorkflowRunCard } from "./workflow-run-card";
 import { TurnVisuals } from "./visual-panel";
+import { ChartMessage, parseChartResult } from "./chart-message";
 import { YouFace } from "./you-face";
 import { ReplyQuote } from "./reply-quote";
 import { useTurnElapsed, WorkFold } from "./work-fold";
@@ -136,7 +137,10 @@ export function TurnParts({
                 agents={agents}
                 // Rich outputs may open on arrival; routine action details stay opt-in.
                 startOpen={openLastStep && run.isLast && step === run.parts.length - 1}
-                autoExpand={toolEntry(toolLookupName(part.toolCall!))?.opensOnSight === true}
+                autoExpand={
+                  toolLookupName(part.toolCall!) !== "create_chart" &&
+                  toolEntry(toolLookupName(part.toolCall!))?.opensOnSight === true
+                }
               />
             ))}
           </AgentSteps>
@@ -192,7 +196,6 @@ export function TurnParts({
   return (
     <>
       <WorkFold
-        key={active ? "live" : "finished"}
         live={active}
         steps={split.steps}
         durationMs={durationMs ?? elapsed}
@@ -212,6 +215,7 @@ export function TurnParts({
         })}
       </WorkFold>
       <TurnBrowses calls={browseCalls(runs)} />
+      <TurnCharts calls={chartCalls(runs)} />
       <TurnVisuals calls={visualCalls(split.folded)} />
       <TurnDrafts calls={draftCalls(split.folded)} />
       {split.shown.map((run, index) => render(run, true, index === 0))}
@@ -511,6 +515,31 @@ export function browseCalls(runs: PartRun[]): ToolCall[] {
  * a drawing is shown whether or not the steps around it fold: it is what the
  * turn produced, not a step of the work.
  */
+export function chartCalls(runs: PartRun[]): ToolCall[] {
+  return runs.flatMap((run) =>
+    run.kind === "tools"
+      ? run.parts.flatMap((part) =>
+          part.toolCall &&
+          toolLookupName(part.toolCall) === "create_chart" &&
+          part.toolCall.status === "completed"
+            ? [part.toolCall]
+            : [],
+        )
+      : [],
+  );
+}
+
+function TurnCharts({ calls }: { calls: ToolCall[] }) {
+  return calls.map((call) => {
+    const spec = parseChartResult(call.result);
+    return spec === null ? null : (
+      <div key={call.id} className="my-4">
+        <ChartMessage spec={spec} />
+      </div>
+    );
+  });
+}
+
 export function visualCalls(runs: PartRun[]): ToolCall[] {
   return runs.flatMap((run) =>
     run.kind === "tools"

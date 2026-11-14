@@ -3,10 +3,12 @@
 import { toolLookupName } from "@/lib/tool-identity";
 
 import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import { ExternalLink } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { ArtifactThumbnail } from "@/components/artifacts/artifact-thumbnail";
+import { appLinkFromChat } from "@/lib/app-return";
 import { ROUTES } from "@/lib/constants";
 import type { ToolCall } from "@/types";
 
@@ -74,11 +76,23 @@ export function publishedApps(toolCalls: ToolCall[]): PublishedArtifactPayload[]
  * run left, not whatever the link shows today. It opens in a new tab, so the
  * conversation stays where it was.
  */
-export function PublishedArtifactResult({ data }: { data: PublishedArtifactPayload }) {
+export function PublishedArtifactResult({
+  data,
+  returnTo,
+}: {
+  data: PublishedArtifactPayload;
+  returnTo?: string;
+}) {
   const t = useTranslations("chat.tools");
+  const pathname = usePathname();
+  const search = useSearchParams();
+  const origin = returnTo ?? `${pathname}?${search.toString()}`;
   return (
     <Link
-      href={`${ROUTES.ARTIFACT_DETAIL(data.artifactId)}?version=${encodeURIComponent(data.versionId)}`}
+      href={appLinkFromChat(
+        `${ROUTES.ARTIFACT_DETAIL(data.artifactId)}?version=${encodeURIComponent(data.versionId)}`,
+        origin,
+      )}
       target="_blank"
       rel="noopener noreferrer"
       className="hover:bg-accent/40 my-1 flex items-center gap-3 rounded-xl border p-2 pr-3 transition-colors"

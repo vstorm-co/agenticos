@@ -8,6 +8,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { Badge } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import { timeAgo } from "@/lib/utils";
+import type { TaskBoard } from "@/lib/tasks-api";
 import type { TableListItem } from "@/types/tables";
 
 const VISIBILITY_ICON = { org: Building2, team: Users, private: Lock } as const;
@@ -16,8 +17,9 @@ const VISIBILITY_ICON = { org: Building2, team: Users, private: Lock } as const;
  * One table in the catalog - the agents gallery's card, for a table: what it
  * is called, how much it holds, who may reach it and when it last changed.
  */
-export function TableCard({ table }: { table: TableListItem }) {
+export function TableCard({ table, taskBoard }: { table: TableListItem; taskBoard?: TaskBoard }) {
   const t = useTranslations("pages.tables");
+  const tasks = useTranslations("durableTasks");
   const tc = useTranslations("common");
   const tt = useTranslations("time");
   const locale = useLocale();
@@ -43,6 +45,12 @@ export function TableCard({ table }: { table: TableListItem }) {
                 </Badge>
               )}
             </div>
+            {taskBoard && (
+              <p className="text-muted-foreground mb-1 text-xs">
+                {tasks(`scope.${taskBoard.scope_kind}`)}
+                {taskBoard.scope_name && ` · ${taskBoard.scope_name}`}
+              </p>
+            )}
             <p className="text-muted-foreground text-xs">
               {t("cardSize", { records: table.record_count, columns: table.column_count })}
             </p>

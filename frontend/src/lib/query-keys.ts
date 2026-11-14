@@ -532,6 +532,8 @@ export const qk = {
     agents: () => ["artifacts", "agents"] as const,
     detail: (id: string) => ["artifacts", id] as const,
     versions: (id: string) => ["artifacts", id, "versions"] as const,
+    thumbnail: (id: string, version: string | null, org: string | null, user: string | null) =>
+      ["artifacts", id, "thumbnail", version ?? "current", org, user] as const,
     view: (id: string, versionId: string | null, withData = false) =>
       ["artifacts", id, "view", versionId ?? "current", withData ? "data" : "plain"] as const,
     data: (id: string, versionId: string) => ["artifacts", id, "data", versionId] as const,

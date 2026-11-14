@@ -102,6 +102,14 @@ export default function DatasetsPage() {
           />
         ) : datasets.length === 0 ? (
           <ListCardEmpty
+            onClearFilters={
+              isFiltering
+                ? () => {
+                    setQuery("");
+                    setPage(0);
+                  }
+                : undefined
+            }
             icon={FlaskConical}
             title={isFiltering ? t("noMatches") : canCreate ? t("empty") : t("noneShared")}
             description={

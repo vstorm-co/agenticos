@@ -1,5 +1,5 @@
 ---
-source_sha: "a9b67bff9ee7"
+source_sha: "68ac0f7695b1"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -729,16 +729,9 @@ categorías a un mismo paso de registro.
 
 ## Decisiones { #decisions }
 
-Tres pasos hacen a Jev, de TypeSafe, una pregunta tipada sobre un `text` enlazado,
-con una clave de API de TypeSafe del vault. Jev no escribe texto: responde la
-pregunta con una confianza de 0 a 1, en una sola petición, y solo puede responder
-con una de las respuestas que el paso permite. Por debajo del `min_confidence` del
-paso, sale por su puerto `unsure`, así que el workflow decide ahí qué hace una
-persona o un agent con un caso dudoso.
+Tres pasos plantean una pregunta tipada a un modelo nativo de decisión sobre el `text` de entrada. Elige un perfil con proveedor, clave del almacén y endpoint. Las configuraciones existentes con clave TypeSafe y modelo Jev siguen siendo válidas sin cambios. El proveedor determina los tipos de pregunta admitidos.
 
-`decide.*` solo llama al Jev alojado de TypeSafe. Para encaminar los casos dudosos
-con un modelo autoalojado usa `ai.classify` con `min_confidence`, que sale por
-`unsure` de la misma manera.
+El modelo devuelve una respuesta y su confianza. Por debajo de `min_confidence`, el paso sigue `unsure`; el workflow puede escalar o elegir otra ruta. Los perfiles nativos usan OpenAI, Google, OpenRouter, TypeSafe o un endpoint System One propio mediante Pydantic AI. Consulta [modelos de decisión](../models.md#decision-models) para conocer disponibilidad y diferencias con las valoraciones de un LLM.
 
 | Paso | Pregunta | Sale por |
 |---|---|---|
@@ -746,12 +739,7 @@ con un modelo autoalojado usa `ai.classify` con `min_confidence`, que sale por
 | `decide.choose` | cuál de hasta 255 opciones encaja | `out` con la `choice`, o `unsure` |
 | `decide.score` | dónde queda el texto en una escala de 2 a 10 niveles | `out` con el `score`, o `unsure` |
 
-La clave se comprueba al publicar y se vuelve a leer en cada run. Una clave que ya
-no existe o no está compartida hace fallar el paso con `SECRET_NOT_USABLE`, un
-modelo que no responde con `DECISION_FAILED`, que se reintenta según la política
-del paso, y un despliegue construido sin el extra `browser` con
-`DECISION_MODEL_UNAVAILABLE`. Un merge puede volver a unir las ramas de una
-decisión, como las de un If.
+Las credenciales y el acceso se comprueban al publicar y en cada ejecución. Una clave antigua eliminada produce `SECRET_NOT_USABLE`; un perfil sin API nativa, `DECISION_MODEL_REQUIRED`. Los fallos del proveedor producen `DECISION_FAILED` según la política de reintentos. El coste cuenta para los presupuestos del workflow y la organización. Merge puede reunir las ramas de decisión.
 
 ::: app.workflows.nodes._decide.DecisionConfig
 

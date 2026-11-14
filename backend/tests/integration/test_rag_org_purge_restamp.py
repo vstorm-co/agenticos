@@ -400,7 +400,59 @@ class TestThePurgeEndToEnd:
         assert survivor.organization_id is None  # the `SET NULL` that would strand it
 
         _db, _paths, to_drop, restamps = dispatch.call_args.args
-        assert to_drop == ["orgbook"]
+        assert to_drop == []
+        assert any("orgbook" in call.args[2] for call in dispatch.await_args_list)
         assert restamps == [
             Restamp(collection="mybook", organization_id=ORG_A, knowledge_base_id=personal_kb.id)
         ]
+
+
+async def test_org_purge_keeps_shared_table_and_foreign_unfiled_vectors(engine, db):
+    store = _store(engine)
+    await _seed(store)
+    org, _ = await _org(db, ORG_A)
+    await _org(db, ORG_B)
+    owned = _kb(
+        collection_name=COLLECTION, scope=KBScope.ORG.value, organization_id=ORG_A, owner=None
+    )
+    shared = _kb(
+        collection_name=COLLECTION, scope=KBScope.APP.value, organization_id=None, owner=None
+    )
+    db.add_all([owned, shared])
+    for name, tenant in (("doc-a", ORG_A), ("doc-b", ORG_B), ("doc-none", None)):
+        db.add(
+            RAGDocument(
+                id=uuid.uuid4(),
+                collection_name=COLLECTION,
+                filename=name + ".pdf",
+                filetype="pdf",
+                status=DocumentStatus.DONE,
+                vector_document_id=name,
+                organization_id=tenant,
+                writer_kind="operator" if tenant is None else "document",
+            )
+        )
+    await db.commit()
+    dispatch = AsyncMock()
+    with patch("app.worker.tasks.teardown_tasks.queue_external_state_cleanup", dispatch):
+        await OrganizationService(db, vector_store=store).purge(org)
+    await db.commit()
+    purges = [
+        purge for call in dispatch.await_args_list for purge in call.kwargs.get("base_purges", [])
+    ]
+    assert purges
+    for purge in purges:
+        await store.delete_knowledge_base_chunks(
+            purge.collection,
+            purge.knowledge_base_id,
+            vector_document_ids=purge.vector_document_ids,
+            unfiled_of=VectorScope(tenant=purge.tenant) if purge.takes_unfiled else None,
+        )
+    assert await store._collection_exists(COLLECTION)
+    assert await store.get_documents(COLLECTION, VectorScope(tenant=ORG_A)) == []
+    assert [
+        d.document_id for d in await store.get_documents(COLLECTION, VectorScope(tenant=ORG_B))
+    ] == ["doc-b"]
+    assert [
+        d.document_id for d in await store.get_documents(COLLECTION, VectorScope(tenant=None))
+    ] == ["doc-none"]

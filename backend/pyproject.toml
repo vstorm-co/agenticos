@@ -58,9 +58,9 @@ dependencies = [
     # whatever is current, which is fine as long as the lock resolves to at least
     # as new: this group's bump once locked 2.30.0 while `main` already held
     # 2.31.0, and the image installs the lock verbatim (`uv sync --frozen`).
-    "pydantic-ai-slim[openrouter,anthropic,google,duckduckgo,web-fetch,groq,mistral,cohere,huggingface,xai,openai-realtime,google-realtime,xai-realtime]>=2.66.0",
+    "pydantic-ai-slim[typesafe,openrouter,anthropic,google,duckduckgo,web-fetch,groq,mistral,cohere,huggingface,xai,openai-realtime,google-realtime,xai-realtime]>=2.68.0",
     "genai-prices>=0.2.1",
-    "pydantic-ai-slim[mcp]>=2.66.0",
+    "pydantic-ai-slim[mcp]>=2.68.0",
     # The MCP SDK. Uncapped since #1820 moved the one path where our code and
     # the SDK exchange HTTP objects onto `httpx2`, which 2.0 migrated the whole
     # SDK to: `PinnedAsyncClient` (`app/core/pinned_http.py`) and the MCP OAuth
@@ -781,6 +781,9 @@ include = [
     "app/services/channels/feedback.py",
     "app/services/channels/membership.py",
     "app/services/channels/mentions.py",
+    "app/services/channels/observation.py",
+    "app/schemas/channel_observer.py",
+    "app/db/models/channel_observation.py",
     # Approvals and questions offered as buttons in a chat, and the Slack app
     # around the bot (#2064, #2067, #2068).
     "app/services/channels/prompts.py",
@@ -941,6 +944,7 @@ include = [
     "app/schemas/agent_environment.py",
     "app/repositories/agent_environment.py",
     "app/repositories/agent_exposure.py",
+    "app/repositories/channel_observation.py",
     "app/repositories/agent_trigger.py",
     "app/repositories/ingestion_spend.py",
     "app/repositories/mcp_connection.py",
@@ -1045,6 +1049,7 @@ include = [
     "app/services/artifact_request_service.py",
     "app/services/artifact_requests.py",
     "app/services/artifact_render.py",
+    "app/services/artifact_thumbnails.py",
     "app/api/routes/v1/_artifact_bytes.py",
     "app/api/routes/v1/artifacts.py",
     "app/db/models/visual.py",
@@ -1113,6 +1118,7 @@ include = [
     "app/services/memory/extraction.py",
     "app/services/memory/facade.py",
     "app/services/primary_conversation.py",
+    "app/services/screened_replay.py",
     "app/services/outcome.py",
     "app/services/system_agent.py",
     "app/services/routine_authority.py",
@@ -1147,6 +1153,7 @@ include = [
     "app/repositories/project_tracking.py",
     "app/db/models/project_tracking.py",
     "app/services/routine_sources.py",
+    "app/services/channel_actions.py",
     "app/schemas/routine_sources.py",
     "app/services/routine_actions.py",
     "app/schemas/routine_actions.py",
@@ -1345,6 +1352,7 @@ include = [
     "app/services/discord_role_mapping.py",
     "app/services/channels/discord_roles.py",
     "app/worker/tasks/channel_tasks.py",
+    "app/worker/tasks/channel_observation_tasks.py",
     # Node contracts, registry and graph validation (#1786). Mirrors the
     # capability registry's split: typed definitions in code, a graph checked
     # against them before it can be published.
@@ -1657,6 +1665,9 @@ include = [
     "app/services/channels/feedback.py",
     "app/services/channels/membership.py",
     "app/services/channels/mentions.py",
+    "app/services/channels/observation.py",
+    "app/schemas/channel_observer.py",
+    "app/db/models/channel_observation.py",
     # Approvals and questions offered as buttons in a chat, and the Slack app
     # around the bot (#2064, #2067, #2068).
     "app/services/channels/prompts.py",
@@ -1847,6 +1858,7 @@ include = [
     "app/schemas/agent_environment.py",
     "app/repositories/agent_environment.py",
     "app/repositories/agent_exposure.py",
+    "app/repositories/channel_observation.py",
     "app/repositories/agent_trigger.py",
     "app/repositories/ingestion_spend.py",
     "app/repositories/mcp_connection.py",
@@ -1951,6 +1963,7 @@ include = [
     "app/services/artifact_request_service.py",
     "app/services/artifact_requests.py",
     "app/services/artifact_render.py",
+    "app/services/artifact_thumbnails.py",
     "app/api/routes/v1/_artifact_bytes.py",
     "app/api/routes/v1/artifacts.py",
     "app/db/models/visual.py",
@@ -2019,6 +2032,7 @@ include = [
     "app/services/memory/extraction.py",
     "app/services/memory/facade.py",
     "app/services/primary_conversation.py",
+    "app/services/screened_replay.py",
     "app/services/outcome.py",
     "app/services/system_agent.py",
     "app/services/routine_authority.py",
@@ -2053,6 +2067,7 @@ include = [
     "app/repositories/project_tracking.py",
     "app/db/models/project_tracking.py",
     "app/services/routine_sources.py",
+    "app/services/channel_actions.py",
     "app/schemas/routine_sources.py",
     "app/services/routine_actions.py",
     "app/schemas/routine_actions.py",
@@ -2251,6 +2266,7 @@ include = [
     "app/services/discord_role_mapping.py",
     "app/services/channels/discord_roles.py",
     "app/worker/tasks/channel_tasks.py",
+    "app/worker/tasks/channel_observation_tasks.py",
     # Node contracts, registry and graph validation (#1786). Mirrors the
     # capability registry's split: typed definitions in code, a graph checked
     # against them before it can be published.

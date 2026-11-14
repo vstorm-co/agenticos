@@ -75,6 +75,7 @@ from app.services.channels.formatting import (
     LINK_ACCOUNT_INSTRUCTION,
     authored_prompt,
 )
+from app.services.channels.live_reply import with_preview_links
 from app.services.channels.next_steps import next_steps_of
 from app.services.channels.steering import current_steering, is_asked_aside
 from app.services.file_storage import get_file_storage
@@ -538,10 +539,11 @@ class ChannelAgentRouter:
             # enforcing nothing.
             exposure=exposure,
         )
+        rendered_answer = await self._with_usage(
+            ctx, answer, run, usage_reporting=exposure.usage_reporting, turn=turn
+        )
         return AnsweredTurn(
-            text=await self._with_usage(
-                ctx, answer, run, usage_reporting=exposure.usage_reporting, turn=turn
-            ),
+            text=rendered_answer,
             attachments=produced,
             refused=refused,
             delivery_notices=notices,
@@ -663,10 +665,11 @@ class ChannelAgentRouter:
             channel_author_context="" if incoming is None else authored_prompt("", incoming),
             exposure=exposure,
         )
+        rendered_answer = await self._with_usage(
+            ctx, answer, run, usage_reporting=exposure.usage_reporting, turn=turn
+        )
         return AnsweredTurn(
-            text=await self._with_usage(
-                ctx, answer, run, usage_reporting=exposure.usage_reporting, turn=turn
-            ),
+            text=rendered_answer,
             attachments=produced,
             refused=refused,
             delivery_notices=notices,
@@ -708,6 +711,7 @@ class ChannelAgentRouter:
         Never raises. This hangs off an answer somebody is waiting for; a
         workspace that cannot be measured must not turn a good turn into an error.
         """
+        answer = await with_preview_links(answer, run.id)
         try:
             report = await self.usage.for_run(
                 ctx,

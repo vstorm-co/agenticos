@@ -548,10 +548,10 @@ describe("SkillPage's lines and writes", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: "Next page" }));
     expect(apiClient.get).toHaveBeenCalledWith("/skills/s1/checks?limit=20&skip=20");
-    expect(await screen.findByText("45 checks · page 2 of 3")).toBeInTheDocument();
+    expect(await screen.findByText("2 / 3")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "fork “Returns”" }));
-    expect(await screen.findByText("45 checks · page 1 of 3")).toBeInTheDocument();
+    expect(await screen.findByText("1 / 3")).toBeInTheDocument();
     expect(apiClient.get).toHaveBeenCalledWith("/skills/s1/checks?limit=20&fork_id=f1");
   });
 

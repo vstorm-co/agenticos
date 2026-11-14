@@ -26,6 +26,7 @@ from pydantic_ai.messages import ModelMessage, ModelRequest, SystemPromptPart
 from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.usage import RequestUsage
 
+from app.agents.approval import ApprovalRequest
 from app.agents.capabilities.budget import (
     BudgetExceeded,
     BudgetScope,
@@ -49,7 +50,12 @@ from app.services.agent_chat import (
     requested_model_profile_id,
     requested_testing,
 )
-from app.services.agent_runner import AgentRunnerService, PersonalServiceGap, PreparedRun
+from app.services.agent_runner import (
+    AgentRunnerService,
+    ApprovalChannel,
+    PersonalServiceGap,
+    PreparedRun,
+)
 from app.services.message_history import ModelHistory
 
 pytestmark = pytest.mark.anyio
@@ -1360,3 +1366,48 @@ def test_a_chat_frame_preserves_every_native_grant() -> None:
     assert result is not None
     assert result.folder == "/work" and result.model_service == "model"
     assert result.mcp_services == ["files"] and result.browser
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("remembered", [False, True])
+@pytest.mark.parametrize("pending", [False, True])
+async def test_chat_exposes_only_pending_approvals_after_automatic_consent(
+    remembered: bool, pending: bool
+) -> None:
+    """Approved audit entries must never become actionable WebSocket prompts (#2994)."""
+    prepared = _prepared(DeferredToolRequests() if pending else "done")
+    user_id = uuid.uuid4()
+    approvals = ApprovalChannel(
+        organization_id=uuid.uuid4(), agent_id=uuid.uuid4(), run_id=prepared.run.id
+    )
+    if remembered:
+        approvals.tool_consent = AsyncMock(return_value=user_id)
+    else:
+        approvals.standing_consent_by = user_id
+    prepared.approvals = approvals
+    await approvals(
+        ApprovalRequest(
+            capability_id=None,
+            tool_name="agenticos_run_agent",
+            tool_call_id="granted",
+            tool_args={},
+        )
+    )
+    if pending:
+        await approvals(
+            ApprovalRequest(
+                capability_id=None,
+                tool_name="must_ask",
+                tool_call_id="pending",
+                tool_args={},
+                always_asks=True,
+            )
+        )
+    with _runner(prepared):
+        turn = await _run(_db())
+    assert [entry.tool_call_id for entry in turn.parked] == (["pending"] if pending else [])
+    assert [entry.tool_call_id for entry in approvals.requested] == (
+        ["granted", "pending"] if pending else ["granted"]
+    )
+    assert approvals.requested[0].standing
+    assert approvals.requested[0].tool_consented_by == user_id

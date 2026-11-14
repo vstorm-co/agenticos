@@ -27,7 +27,6 @@ export function PaginationBar({
   isLoading?: boolean;
   onPage: (page: number) => void;
 }) {
-  const t = useTranslations("ui");
   const tc = useTranslations("common");
   if (total === 0) return null;
 
@@ -40,16 +39,46 @@ export function PaginationBar({
       <span className="text-muted-foreground text-[13px] tabular-nums">
         {tc("rangeOfTotal", { start, end, total })}
       </span>
-      <div className="flex items-center gap-1">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => onPage(Math.max(0, page - 1))}
-          disabled={page === 0 || isLoading}
-          aria-label={t("previousPage")}
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </Button>
+      <PageNavigation
+        page={page}
+        pageCount={pageCount}
+        hasNext={page < pageCount - 1}
+        isLoading={isLoading}
+        onPage={onPage}
+      />
+    </div>
+  );
+}
+
+/** Shared navigation for counted pages and cursor-backed lists. */
+export function PageNavigation({
+  page,
+  pageCount,
+  hasNext,
+  isLoading = false,
+  onPage,
+}: {
+  page: number;
+  pageCount?: number;
+  hasNext: boolean;
+  isLoading?: boolean;
+  onPage: (page: number) => void;
+}) {
+  const t = useTranslations("ui");
+  return (
+    <div className="flex items-center gap-1">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="size-8 p-0"
+        disabled={page <= 0 || isLoading}
+        onClick={() => onPage(page - 1)}
+        aria-label={t("previousPage")}
+      >
+        <ChevronLeft className="size-4" aria-hidden />
+      </Button>
+      {pageCount !== undefined && (
         <span
           className="text-foreground/80 min-w-12 px-2 text-center text-[13px] font-medium tabular-nums"
           aria-live="polite"
@@ -57,16 +86,18 @@ export function PaginationBar({
         >
           {page + 1} / {pageCount}
         </span>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => onPage(Math.min(pageCount - 1, page + 1))}
-          disabled={page >= pageCount - 1 || isLoading}
-          aria-label={t("nextPage")}
-        >
-          <ChevronRight className="h-4 w-4" />
-        </Button>
-      </div>
+      )}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="size-8 p-0"
+        disabled={!hasNext || isLoading}
+        onClick={() => onPage(page + 1)}
+        aria-label={t("nextPage")}
+      >
+        <ChevronRight className="size-4" aria-hidden />
+      </Button>
     </div>
   );
 }

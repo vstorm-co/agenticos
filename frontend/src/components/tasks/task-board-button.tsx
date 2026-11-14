@@ -39,7 +39,7 @@ export function TaskBoardButton({ scope, scopeId }: { scope: TaskScope; scopeId?
       }}
     >
       <ListTodo className="size-4" aria-hidden />
-      {t("tasks")}
+      {t("taskTable")}
     </Button>
   );
 }

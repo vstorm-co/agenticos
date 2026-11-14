@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Shield } from "lucide-react";
+import { Shield, Search } from "lucide-react";
 
 import { UserDetailDrawer } from "@/components/admin/user-detail-drawer";
 import { ErrorState } from "@/components/states";
@@ -11,6 +11,7 @@ import {
   Button,
   DataTable,
   ListCard,
+  ListCardEmpty,
   ListCardFootRow,
   PaginationBar,
   SearchInput,
@@ -198,7 +199,20 @@ export default function AdminUsersPage() {
           sort={sort}
           onSort={setSort}
           error={error ? <ErrorState description={error} className="m-5" /> : null}
-          empty={search ? t("noUsersMatch", { query: search }) : t("noUsersYet")}
+          empty={
+            search ? (
+              <ListCardEmpty
+                icon={Search}
+                title={t("noUsersMatch", { query: search })}
+                onClearFilters={() => {
+                  setSearch("");
+                  setPage(0);
+                }}
+              />
+            ) : (
+              t("noUsersYet")
+            )
+          }
           className="rounded-none border-0 bg-transparent"
         />
 

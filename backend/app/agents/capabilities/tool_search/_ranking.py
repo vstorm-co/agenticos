@@ -20,8 +20,8 @@ def rank_tools(
     """Rank matching identifiers, descriptions and argument schemas without model IO."""
     if not tools:
         return []
-    query = set(_terms(" ".join(queries)))
-    if not query:
+    query_terms = [terms for raw in queries if (terms := _terms(raw))]
+    if not query_terms:
         return []
     documents = [
         Counter(
@@ -34,22 +34,36 @@ def rank_tools(
     ]
     frequency = Counter(term for document in documents for term in document)
     average = sum(sum(document.values()) for document in documents) / len(documents)
-    scores: list[tuple[float, str]] = []
-    for tool, document in zip(tools, documents, strict=True):
-        length = sum(document.values())
-        score = 0.0
-        for term in query:
-            count = document[term]
-            if count:
-                rarity = math.log(
-                    1 + (len(tools) - frequency[term] + 0.5) / (frequency[term] + 0.5)
-                )
-                score += rarity * count * 2.2 / (count + 1.2 * (0.25 + 0.75 * length / average))
-        identifiers = _terms(tool.name)
-        for raw in queries:
-            terms = _terms(raw)
-            if terms and (terms == identifiers or terms == identifiers[1:]):
+    rankings: list[list[str]] = []
+    for terms in query_terms:
+        query = set(terms)
+        scores: list[tuple[float, str]] = []
+        for tool, document in zip(tools, documents, strict=True):
+            length = sum(document.values())
+            identifiers = _terms(tool.name)
+            score = 0.0
+            for term in query:
+                count = document[term]
+                if count:
+                    rarity = math.log(
+                        1 + (len(tools) - frequency[term] + 0.5) / (frequency[term] + 0.5)
+                    )
+                    score += rarity * count * 2.2 / (count + 1.2 * (0.25 + 0.75 * length / average))
+                    # An operation named in a query must not lose to short,
+                    # generic descriptions because its own contract is long.
+                    if term in identifiers:
+                        score += 4.0 * rarity
+            if terms == identifiers or terms == identifiers[1:]:
                 score += 100.0
-        if score > 0:
-            scores.append((score, tool.name))
-    return [name for _, name in sorted(scores, key=lambda item: (-item[0], item[1]))]
+            if score > 0:
+                scores.append((score, tool.name))
+        rankings.append([name for _, name in sorted(scores, key=lambda item: (-item[0], item[1]))])
+
+    # Queries describe separate operations. A shared top-k would let one broad
+    # query consume every slot and hide the fetch needed after a search.
+    found: dict[str, None] = {}
+    for index in range(max(map(len, rankings))):
+        for ranking in rankings:
+            if index < len(ranking):
+                found.setdefault(ranking[index], None)
+    return list(found)

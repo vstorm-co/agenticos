@@ -1158,3 +1158,56 @@ async def test_platform_mcp_requires_an_explicit_creator_identity(
         with pytest.raises(RoutineSourcesRequired) as existing:
             await service.require_current(ctx, trigger, expected_id=snapshot.policy.id)
         assert existing.value.code == "ROUTINE_PLATFORM_IDENTITY_REQUIRED"
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "change", ["tools", "generation", "binding_off", "bot_off", "binding_deleted", "bot_deleted"]
+)
+async def test_routine_chat_grants_are_recorded_and_live_revocation_requires_review(db, change):
+    from app.db.models.agent_exposure import AgentExposure
+    from app.db.models.channel_bot import ChannelBot
+    from app.services.channel_actions import grant_fingerprint
+    from app.services.routine_sources import require_bound_sources
+
+    ctx, trigger, _, _ = await world(db)
+    bot = ChannelBot(
+        id=uuid4(),
+        organization_id=ctx.organization_id,
+        platform="mattermost",
+        name="Weekly reports",
+        token_encrypted="not used by this test",
+        is_active=True,
+    )
+    db.add(bot)
+    await db.flush()
+    binding = AgentExposure(
+        id=uuid4(),
+        organization_id=ctx.organization_id,
+        agent_id=trigger.agent_id,
+        channel_bot_id=bot.id,
+        surface="mattermost",
+        is_active=True,
+        tools=["send_chat_message"],
+        created_by_user_id=ctx.user_id,
+    )
+    db.add(binding)
+    await db.flush()
+    policy = await RoutineSourceService(db).initial(ctx, trigger)
+    assert policy.channel_sources == {binding.id: grant_fingerprint(binding, bot)}
+    await require_bound_sources(db, organization_id=ctx.organization_id, policy=policy)
+    if change == "tools":
+        binding.tools = []
+    elif change == "generation":
+        bot.authorization_generation = uuid4()
+    elif change == "binding_off":
+        binding.is_active = False
+    elif change == "bot_off":
+        bot.is_active = False
+    elif change == "binding_deleted":
+        await db.delete(binding)
+    else:
+        await db.delete(bot)
+    await db.flush()
+    with pytest.raises(RoutineSourcesRequired):
+        await require_bound_sources(db, organization_id=ctx.organization_id, policy=policy)

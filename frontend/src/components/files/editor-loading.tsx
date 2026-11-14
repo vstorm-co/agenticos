@@ -49,14 +49,11 @@ export function EditorLoading({
           <div className={isSkill ? "min-w-0 flex-1 basis-72 space-y-1.5" : "space-y-1.5"}>
             <Label>{isSkill ? skill("description3") : context("description")}</Label>
             <Skeleton className="touch:min-h-11 h-10 w-full rounded-md" />
-            <p className="text-muted-foreground text-xs">
-              {isSkill ? skill("onlyPartModelReads2") : context("shownWhenLinked")}
-            </p>
-            <p className="text-muted-foreground text-xs">
-              {isSkill ? skill("markdownLoadedOnlyAfter") : context("bindingSettingsHint")}
-            </p>
-            {!isSkill && (
-              <p className="text-muted-foreground text-xs">{context("textOnlyBinaryElsewhere")}</p>
+            {isSkill && (
+              <>
+                <p className="text-muted-foreground text-xs">{skill("onlyPartModelReads2")}</p>
+                <p className="text-muted-foreground text-xs">{skill("markdownLoadedOnlyAfter")}</p>
+              </>
             )}
           </div>
           {isSkill && (

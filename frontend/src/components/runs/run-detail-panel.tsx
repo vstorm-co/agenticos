@@ -14,28 +14,7 @@ const STORAGE_KEY = "runDetailPanelWidth";
 /** How far one arrow press moves the boundary. */
 const KEYBOARD_STEP = 32;
 
-/**
- * The run detail, beside the list rather than over it.
- *
- * It was a full-height overlay drawer, and the drawer was the wrong shape for
- * what people do here: reading a run is comparing it with the rows around it -
- * the one before it, the ones at the same minute, the column that says this one
- * took nine seconds and its neighbours took two. An overlay hides exactly that,
- * so every comparison was a close, a scan and a re-open.
- *
- * So it is a column: the list narrows, the panel takes the right-hand side, and
- * the reader drags the boundary to whatever the run needs - a transcript full of
- * JSON wants the room, a two-turn run does not. The width is remembered per
- * reader, like the chat's attachment preview, which is the other panel that
- * earned the same treatment.
- *
- * **Full height, not sticky.** The page is a column that fills the screen, so
- * this takes the height of the row it sits in and scrolls inside itself -
- * `FocusedRun` owns the split between the header that stays and the body that
- * moves. It was sticky first, which left the list sliding under a floating card
- * with dead space below it. Below `lg` there is no room for two columns at all:
- * the panel is simply the page, full width, and the caller hides the list.
- */
+/** Resizable inspector alongside history; both panes fill the Activity viewport. */
 export function RunDetailPanel({
   runId,
   onFocusRun,
@@ -67,12 +46,7 @@ export function RunDetailPanel({
       // Through a custom property rather than `style={{ width }}`, so the width
       // applies at the breakpoint where there are two columns and nowhere else.
       style={{ "--run-panel-width": `${width}px` } as React.CSSProperties}
-      // `h-full` over a parent with a definite height, which the page gives it:
-      // the panel is sticky and bounded to the scrollport there, so this is what
-      // hands that height down to `FocusedRun`'s one scrolling column. Without a
-      // definite parent height the chain grows to its content and the
-      // `overflow-hidden` below clips the timeline rather than scrolling it -
-      // which is a transcript whose end cannot be reached.
+      // A definite parent height keeps the header visible while the body scrolls.
       className="border-border bg-card @container relative flex h-full w-full shrink-0 flex-col overflow-hidden rounded-xl border lg:w-[var(--run-panel-width)]"
     >
       {/* The boundary. A button rather than a bare `separator`, because it is a

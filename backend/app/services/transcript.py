@@ -257,6 +257,7 @@ class TranscriptService:
         answer: str,
         attachments: Sequence[ChatFile] = (),
         attachment_context: str | None = None,
+        model_content: str | None = None,
         tool_calls: Sequence[RecordedToolCall] = (),
         settled: Mapping[str, str] | None = None,
         parked: Collection[str] = (),
@@ -348,6 +349,7 @@ class TranscriptService:
                         conversation_id=run.conversation_id,
                         role="user",
                         content=prompt or what_arrived(attachments),
+                        model_content=model_content,
                         attachment_context=attachment_context,
                         run_id=run.id,
                         # Off the run rather than passed in: the run row already

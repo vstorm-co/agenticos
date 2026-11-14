@@ -112,7 +112,7 @@ async def delete_org_integration(
     ctx: Auth,
 ) -> None:
     """Delete an org integration by ID."""
-    source = await access.sync_source(ctx, str(source_id))
+    source = await access.writable_sync_source(ctx, str(source_id))
     await sync_source_svc.delete_source(str(source.id), ctx=ctx)
 
 
@@ -128,7 +128,7 @@ async def trigger_org_integration(
     ctx: Auth,
 ) -> Any:
     """Manually trigger a sync run for an org integration."""
-    source = await access.sync_source(ctx, str(source_id))
+    source = await access.writable_sync_source(ctx, str(source_id))
     sync_source_svc.refuse_paused(source)
     sync_log = await sync_source_svc.trigger_sync(str(source.id), user_id=ctx.user_id)
     return RAGSyncResponse(

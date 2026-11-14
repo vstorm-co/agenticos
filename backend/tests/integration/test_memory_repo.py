@@ -317,3 +317,46 @@ class TestDeleting:
             db, organization_id=agent.organization_id, agent_id=agent.id, owner_key=ANNA
         )
         assert [row.name for row in rows] == ["MEMORY.md"]
+
+
+@pytest.mark.security
+async def test_personal_correction_is_scoped_revision_checked_and_preserves_suppression(db):
+    from app.core.exceptions import AlreadyExistsError, NotFoundError
+    from app.core.permissions import AuthContext, OrgRoleName
+    from app.schemas.memory import MemoryNoteEdit
+    from app.services.memory import MemoryService
+
+    user = await _user(db)
+    other = await _user(db)
+    org = await _org(db, owner=user)
+    agent = await _agent(db, org=org)
+    note = await _create(db, agent=agent, owner_key=person_owner_key(user.id), name="preference")
+    note.deactivated_at = datetime(2026, 1, 1, tzinfo=UTC)
+    await db.flush()
+    await db.refresh(note)
+    revision = note.updated_at
+    written = note.written_at
+    ctx = AuthContext(user_id=user.id, organization_id=org.id, role=OrgRoleName.OWNER)
+    service = MemoryService(db)
+    updated = await service.edit_note(
+        ctx,
+        note.id,
+        MemoryNoteEdit(content="My corrected preference", expected_updated_at=revision),
+    )
+    assert updated.content == "My corrected preference"
+    assert updated.written_at == written
+    assert updated.deactivated_at == datetime(2026, 1, 1, tzinfo=UTC)
+    with pytest.raises(AlreadyExistsError):
+        await service.edit_note(
+            ctx, note.id, MemoryNoteEdit(content="Stale", expected_updated_at=None)
+        )
+    for caller in (
+        AuthContext(user_id=other.id, organization_id=org.id, role=OrgRoleName.OWNER),
+        AuthContext(user_id=user.id, organization_id=uuid.uuid4(), role=OrgRoleName.OWNER),
+    ):
+        with pytest.raises(NotFoundError):
+            await service.edit_note(
+                caller,
+                note.id,
+                MemoryNoteEdit(content="Not mine", expected_updated_at=updated.updated_at),
+            )

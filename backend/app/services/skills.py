@@ -66,7 +66,14 @@ from app.schemas.skill_usage import (
     SkillUsageVersion,
 )
 from app.services import skill_library
-from app.services.access import AGENT, SKILL, accessible_ids, resolve_access, visible_resource_ids
+from app.services.access import (
+    AGENT,
+    SKILL,
+    accessible_ids,
+    platform_skill_write_allowed,
+    resolve_access,
+    visible_resource_ids,
+)
 from app.services.resource_usage import (
     agents_serving_skills,
     agents_using,
@@ -653,6 +660,10 @@ class SkillService:
                 ),
                 details={"name": name},
             )
+        if not platform_skill_write_allowed(ctx, name):
+            raise AuthorizationError(
+                message="Only an administrator who can edit shipped assistants may create a platform skill"
+            )
         skill = await skill_repo.create(
             self.db,
             organization_id=ctx.organization_id,
@@ -847,6 +858,16 @@ class SkillService:
 
         return bool(await SkillAgentService(self.db).line_agents(skill, None))
 
+    async def trusted_template_copy(
+        self, skill: Skill, bundled: skill_library.LibrarySkill
+    ) -> bool:
+        """Do not adopt a historical same-name user skill as bundled instructions."""
+        if skill.library_fingerprint is not None or _fingerprint_of(skill) == bundled.fingerprint:
+            return True
+        return await audit_log_repo.has_skill_installation(
+            self.db, organization_id=skill.organization_id, skill_id=skill.id, key=bundled.key
+        )
+
     async def _refresh_bundled(
         self,
         ctx: AuthContext,
@@ -857,6 +878,9 @@ class SkillService:
         wait_for_check: bool,
     ) -> LibraryRefresh:
         if existing is not None:
+            # Trusted installers use owner authority; refresh must obey the same
+            # resource boundary as edits, even when called outside the API.
+            await self.get(ctx, existing.id, perm=Perm.SKILLS_EDIT)
             # Locked and re-read before deciding: an edit a member commits between
             # the lookup and the overwrite would otherwise be judged on the copy as
             # it was, found unedited, and replaced. Every edit writes the skill row

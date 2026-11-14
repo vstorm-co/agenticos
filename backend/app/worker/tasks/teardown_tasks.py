@@ -158,8 +158,8 @@ async def _drop_then_release(store: PgVectorStore, db: AsyncSession, collection:
 
     try:
         await store.delete_collection(collection)
-    except SQLAlchemyError as exc:
-        logger.warning("Failed to drop collection %s: %s", collection, exc)
+    except Exception:
+        logger.exception("Failed to drop collection %s; reservation retained", collection)
         return False
     await collection_teardown_repo.release(db, collection)
     return True

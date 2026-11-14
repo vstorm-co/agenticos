@@ -12,7 +12,7 @@ Lead with the conclusion or the decision. Build a visible hierarchy, use restrai
 
 Use the active tool description as the authority for input format, supported libraries, runtime limitations and publication. Do not infer another environment or copy unsupported API parameters from an example. Reuse the available templates when they fit, adapting content and composition to the task.
 
-The optional resource `references/design-recipes.md` contains detailed design examples and template guidance; read the section needed for the chosen medium rather than loading every recipe. Current tool contracts win over older implementation examples.
+For a new browser deck, use the `artifact-pages` slide-deck template and its audience/style references. Its runtime libraries do not impose the console's neutral appearance on the presentation. The optional resource `references/design-recipes.md` contains detailed design examples and template guidance; read the section needed for the chosen medium rather than loading every recipe. Current tool contracts win over older implementation examples.
 
 For a presentation, write the narrative and evidence before styling slides. Each slide carries one claim with a clear takeaway; move supporting detail to notes or an appendix. Use consistent grids and type, realistic pacing and legible charts. Verify slide dimensions and the requested deliverable: a browser deck, PDF and editable PowerPoint are different outputs.
 

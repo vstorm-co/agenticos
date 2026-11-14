@@ -179,3 +179,9 @@ it("keeps HTML previews available for file sources without linked-resource suppo
     "<h1>Inline page</h1>",
   );
 });
+
+it.each(["markdown", "pdf"] as const)("reserves the full reader while %s arrives", (kind) => {
+  show(kind, { readText: () => new Promise(() => {}), readBytes: () => new Promise(() => {}) });
+  expect(screen.getByRole("status")).toHaveAttribute("aria-busy", "true");
+  expect(screen.getByRole("status")).toHaveClass("h-full", "min-h-64");
+});

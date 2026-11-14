@@ -156,9 +156,9 @@ describe("memory browser", () => {
   it("keeps older memories reachable and does not return a false zero count", async () => {
     mount({ total: 205, skip: 100 });
     expect(screen.getByText("showing:101|101|205")).toBeVisible();
-    await userEvent.click(screen.getByRole("button", { name: "older" }));
+    await userEvent.click(screen.getByRole("button", { name: "nextPage" }));
     expect(showPage).toHaveBeenCalledWith(200);
-    await userEvent.click(screen.getByRole("button", { name: "newer" }));
+    await userEvent.click(screen.getByRole("button", { name: "previousPage" }));
     expect(showPage).toHaveBeenCalledWith(0);
   });
 });

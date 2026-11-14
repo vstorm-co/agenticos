@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-import { CreateKBDialog, LocalServices, ReusableIntegrations } from "@/components/kb";
+import { CreateKBDialog, KnowledgeIntegrations } from "@/components/kb";
 import { SearchTab } from "@/components/rag/search-tab";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ErrorState } from "@/components/states";
@@ -149,7 +149,18 @@ export default function RAGPage() {
             face. */}
         <TabsContent value="search" className="flex flex-1 flex-col">
           {loading ? (
-            <Skeleton className="h-48 w-full rounded-xl" />
+            <div
+              aria-busy="true"
+              className="border-border bg-card flex flex-1 flex-col gap-4 rounded-xl border p-4"
+            >
+              <div aria-hidden="true" className="flex flex-col gap-2 sm:flex-row">
+                <Skeleton className="h-9 flex-1" />
+                <div className="flex gap-2">
+                  <Skeleton className="h-9 w-full sm:w-56" />
+                  <Skeleton className="h-9 w-24 shrink-0" />
+                </div>
+              </div>
+            </div>
           ) : listError ? (
             <ErrorState
               title={t("listFailedTitle")}
@@ -169,7 +180,9 @@ export default function RAGPage() {
             counted={loading || listError ? null : t("storedCount", { count: kbs.length })}
             empty={!loading && !listError && kbs.length === 0}
             controls={
-              !loading && !listError && kbs.length > 0 ? (
+              loading ? (
+                <Skeleton className="h-8 w-36 rounded-lg" />
+              ) : !listError && kbs.length > 0 ? (
                 <GroupFilter value={groupId} onChange={setGroupId} />
               ) : undefined
             }
@@ -231,18 +244,9 @@ export default function RAGPage() {
             and cloned into each base that needs it. `targets` is the base list,
             so this tab needs it loaded - which is why it is the same query
             rather than a second one. */}
-        <TabsContent
-          value="integrations"
-          className="grid min-w-0 flex-1 grid-cols-1 content-start items-start gap-5 xl:grid-cols-[minmax(0,1.3fr)_minmax(20rem,1fr)]"
-        >
-          <div data-tour="knowledge-integrations" className="flex min-h-0 flex-col">
-            <ReusableIntegrations targets={kbs} />
-          </div>
-          {/* Servers on the deployment's own network, registered once and chosen
-              per collection - the same shape as the integrations above, and
-              hidden by the same permission. */}
-          <div data-tour="knowledge-local-services" className="flex min-h-0 flex-col">
-            <LocalServices />
+        <TabsContent value="integrations" className="flex min-w-0 flex-1 flex-col gap-5">
+          <div data-tour="knowledge-integrations" className="flex min-h-0 flex-1 flex-col">
+            <KnowledgeIntegrations targets={kbs} />
           </div>
         </TabsContent>
       </Tabs>

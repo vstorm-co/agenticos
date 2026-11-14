@@ -40,7 +40,7 @@ import socket
 import weakref
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 from urllib.parse import urlsplit, urlunsplit
 
 import httpx
@@ -54,9 +54,14 @@ from app.services.artifact import (
     content_address,
     content_security_policy,
     library_file,
+    with_platform_script,
 )
 
 logger = logging.getLogger(__name__)
+
+PDF_MAX_BYTES = 20 * 1024 * 1024
+PDF_MAX_PAGES = 50
+PDF_STREAM_CLOSE_SECONDS = 2.0
 
 WIDTH = 1280
 """How wide every page is drawn: a desktop window, the width a report is read at."""
@@ -132,6 +137,8 @@ class RenderRequest:
     bindings: dict[str, AnyBindingData] | None
     """Posted to the page when it asks, `reason` left out as the console leaves it
     out. `{}` draws every binding unavailable; `None` never answers."""
+    output: Literal["image", "pdf"] = "image"
+    paper: Literal["a4", "slides"] = "a4"
     injected_lines: int = 0
     """Lines served before the page's own, taken off a line number reported in it."""
 
@@ -158,6 +165,8 @@ class Rendered:
     """What the page's `Content-Security-Policy` refused."""
     blocked: list[str] = field(default_factory=list)
     """Requests answered as blocked: anything outside the page and the library set."""
+    pdf: bytes | None = None
+    """A bounded, complete PDF export when requested; never a screenshot renamed as PDF."""
     dialogs: list[str] = field(default_factory=list)
     """`alert`, `confirm` and `prompt`, each dismissed so the render goes on."""
 
@@ -250,6 +259,7 @@ async def _render(request: RenderRequest, endpoint: str, connect: Connector) -> 
     except TimeoutError:
         found.timed_out = True
         found.image = None
+        found.pdf = None
     except CdpError as failed:
         logger.warning("artifact_render_failed", exc_info=True)
         raise ExternalServiceError(message=_UNREACHABLE) from failed
@@ -297,6 +307,8 @@ class _Render:
         self.connection = connection
         self.shell = f"{settings.FRONTEND_URL.rstrip('/')}/artifacts/preview"
         self.page_url = content_address("preview")
+        if request.output == "pdf":
+            self.shell = self.page_url
         self.library = content_address("lib/")
         self.context_id: str | None = None
         self.target_id: str | None = None
@@ -354,6 +366,9 @@ class _Render:
         await connection.send("Page.navigate", {"url": self.shell}, session_id=self.page)
         await self.loaded.wait()
         await asyncio.sleep(SETTLE_SECONDS)
+        if self.request.output == "pdf":
+            await self._pdf()
+            return
         self.found.asked = await self._asked()
         self.found.height = await self._height()
         shown = min(max(self.found.height or FIRST_HEIGHT, FIRST_HEIGHT), MAX_HEIGHT)
@@ -368,6 +383,69 @@ class _Render:
         data = shot.get("data")
         self.found.image = base64.b64decode(data) if isinstance(data, str) and data else None
         self.found.shown_height = shown
+
+    async def _pdf(self) -> None:
+        await self.connection.send(
+            "Emulation.setEmulatedMedia", {"media": "print"}, session_id=self.page
+        )
+        await self.connection.send(
+            "Runtime.evaluate",
+            {
+                "expression": "document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))",
+                "awaitPromise": True,
+            },
+            session_id=self.page,
+        )
+        slides = self.request.paper == "slides"
+        printed = await self.connection.send(
+            "Page.printToPDF",
+            {
+                "printBackground": True,
+                "preferCSSPageSize": True,
+                "paperWidth": 13.333 if slides else 8.2677,
+                "paperHeight": 7.5 if slides else 11.6929,
+                "marginTop": 0.4,
+                "marginBottom": 0.4,
+                "marginLeft": 0.4,
+                "marginRight": 0.4,
+                "pageRanges": f"1-{PDF_MAX_PAGES + 1}",
+                "transferMode": "ReturnAsStream",
+            },
+            session_id=self.page,
+        )
+        handle = printed.get("stream")
+        if not isinstance(handle, str) or not handle:
+            raise CdpError("The renderer did not return a PDF stream")
+        content = bytearray()
+        try:
+            while True:
+                chunk = await self.connection.send(
+                    "IO.read", {"handle": handle, "size": 65536}, session_id=self.page
+                )
+                text = chunk.get("data")
+                if not isinstance(text, str):
+                    raise CdpError("The renderer returned an invalid PDF chunk")
+                try:
+                    part = (
+                        base64.b64decode(text, validate=True)
+                        if chunk.get("base64Encoded")
+                        else text.encode()
+                    )
+                except ValueError as exc:
+                    raise CdpError("The renderer returned an invalid PDF encoding") from exc
+                content.extend(part)
+                if len(content) > PDF_MAX_BYTES:
+                    raise ExternalServiceError(message="PDF export exceeds the 20 MB limit.")
+                if chunk.get("eof") is True:
+                    break
+        finally:
+            try:
+                async with asyncio.timeout(PDF_STREAM_CLOSE_SECONDS):
+                    await self.connection.send("IO.close", {"handle": handle}, session_id=self.page)
+            except CdpError, TimeoutError:
+                # The enclosing render still disposes its entire browser context.
+                logger.debug("artifact_pdf_stream_close_failed", exc_info=True)
+        self.found.pdf = await asyncio.to_thread(_checked_pdf, bytes(content))
 
     async def _watch(self, session_id: str | None) -> None:
         """Hold every request of a target, and hear what it says."""
@@ -452,6 +530,16 @@ class _Render:
         if method != "GET":
             return None
         address = url.split("#", 1)[0]
+        if address == self.shell and self.request.output == "pdf":
+            return _Response(
+                body=pdf_document(self.request),
+                headers={
+                    "Content-Type": "text/html; charset=utf-8",
+                    "Content-Security-Policy": content_security_policy(),
+                    "Cache-Control": "no-store",
+                    "Referrer-Policy": "no-referrer",
+                },
+            )
         if address == self.shell:
             return _Response(
                 body=shell_document(
@@ -608,6 +696,49 @@ def _inline_json(value: object) -> str:
     for raw, escaped in _SCRIPT_ESCAPES.items():
         text = text.replace(raw, escaped)
     return text
+
+
+def _checked_pdf(data: bytes) -> bytes:
+    """Validate the binary and refuse an export that would silently omit pages."""
+    import pymupdf
+
+    if not data.startswith(b"%PDF-"):
+        raise ExternalServiceError(message="The renderer returned an invalid PDF.")
+    try:
+        with pymupdf.open(stream=data, filetype="pdf") as document:
+            if not document.is_pdf:
+                raise ExternalServiceError(message="The renderer returned an invalid PDF.")
+            pages = document.page_count
+    except (pymupdf.FileDataError, pymupdf.EmptyFileError) as exc:
+        raise ExternalServiceError(message="The renderer returned an invalid PDF.") from exc
+    if not 1 <= pages <= PDF_MAX_PAGES:
+        raise ExternalServiceError(
+            message="PDF export supports 1 to 50 pages; split the document and export again."
+        )
+    return data
+
+
+def pdf_document(request: RenderRequest) -> bytes:
+    """The same admitted data bridge in a sandboxed top-level print document."""
+    page = (
+        None
+        if request.bindings is None
+        else {
+            name: binding.model_dump(mode="json", exclude={"reason"})
+            for name, binding in request.bindings.items()
+        }
+    )
+    script = (
+        "<script>(()=>{const n="
+        + _inline_json(request.nonce)
+        + ";const bindings="
+        + _inline_json(page)
+        + ";window.addEventListener('message',event=>{"
+        + "if(event.source!==window||!event.data||event.data.type!=='agenticos:ready'||event.data.n!==n)return;"
+        + "if(bindings!==null)window.postMessage({type:'agenticos:data',n,bindings},'*');"
+        + "});})();</script>"
+    )
+    return with_platform_script(request.document, script)
 
 
 def shell_document(

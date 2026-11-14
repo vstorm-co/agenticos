@@ -16,17 +16,27 @@ import {
   Input,
   Label,
   Switch,
-  Textarea,
+  MarkdownEditor,
+  ListCard,
+  DataTable,
+  type Column,
 } from "@/components/ui";
 import { getErrorMessage } from "@/lib/api-error";
 import { EmptyState } from "@/components/states";
 import { BUILTIN_COMMAND_LIST, isBuiltinEnabled, useSlashCommands } from "@/hooks";
 import type { UserSlashCommandRecord } from "@/lib/slash-commands-api";
 import { useTranslations } from "next-intl";
-import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_CONFIRM } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_WIDE } from "@/lib/dialog-sizes";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import { cn } from "@/lib/utils";
+
+interface CommandRow {
+  name: string;
+  description: string;
+  local: boolean;
+  record: UserSlashCommandRecord | null;
+}
 
 const NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/;
 
@@ -172,8 +182,90 @@ export function SlashCommandsManager() {
   const editorTitle =
     editingId === "new" ? t("newCustomCommand") : tc("editNamed", { name: `/${initial.name}` });
 
+  const rows: CommandRow[] = [
+    ...BUILTIN_COMMAND_LIST.map((command) => ({
+      name: command.name,
+      description: tCommands(command.descriptionKey),
+      local: command.action.kind === "client",
+      record: null,
+    })),
+    ...customs.map((record) => ({
+      name: record.name,
+      description: record.prompt ?? "",
+      local: false,
+      record,
+    })),
+  ];
+  const columns: Column<CommandRow>[] = [
+    {
+      key: "name",
+      header: t("name"),
+      cell: (row) => <code className="font-mono text-xs">/{row.name}</code>,
+    },
+    {
+      key: "prompt",
+      header: t("prompt"),
+      cell: (row) => (
+        <p className="text-muted-foreground line-clamp-2 text-sm">{row.description}</p>
+      ),
+    },
+    {
+      key: "kind",
+      header: t("commandKind"),
+      cell: (row) => (
+        <span className="text-muted-foreground text-xs">
+          {row.record ? t("customKind") : row.local ? t("local") : t("builtCommands")}
+        </span>
+      ),
+    },
+    {
+      key: "enabled",
+      header: t("enabled"),
+      cell: (row) => (
+        <Switch
+          checked={row.record ? row.record.is_enabled : isBuiltinEnabled(row.name, records)}
+          onCheckedChange={(next) =>
+            row.record ? handleToggleCustom(row.record, next) : handleToggleBuiltin(row.name, next)
+          }
+          disabled={isLoading || pendingToggles.has(row.name)}
+          aria-label={t("toggleCommand", { name: row.name })}
+        />
+      ),
+    },
+    {
+      key: "actions",
+      header: "",
+      align: "right",
+      cell: (row) =>
+        row.record && (
+          <div className="flex justify-end gap-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              disabled={pendingToggles.has(row.name)}
+              onClick={() => row.record && openEdit(row.record)}
+              aria-label={tc("editNamed", { name: `/${row.name}` })}
+            >
+              <Pencil aria-hidden />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              disabled={pendingToggles.has(row.name)}
+              onClick={() => setRemoving(row.record)}
+              aria-label={tc("deleteNamed", { name: `/${row.name}` })}
+            >
+              <Trash2 aria-hidden />
+            </Button>
+          </div>
+        ),
+    },
+  ];
+
   return (
-    <div className="@container/commands space-y-8">
+    <div className="@container/commands flex min-h-0 flex-1 flex-col gap-4">
       {error && (
         <div className="border-destructive/35 bg-destructive/[0.07] text-foreground flex items-center justify-between rounded-xl border px-4 py-3 text-sm">
           <span>{error}</span>
@@ -183,111 +275,33 @@ export function SlashCommandsManager() {
         </div>
       )}
 
-      <section className="space-y-3">
-        <div className="flex items-baseline justify-between gap-3">
-          <div>
-            <h3 className="text-foreground text-sm font-semibold">{t("builtCommands")}</h3>
-            <p className="text-muted-foreground mt-0.5 text-xs">{t("disableAnyYouDon")}</p>
-          </div>
-        </div>
-        <ul className="border-foreground/10 divide-foreground/8 divide-y rounded-xl border">
-          {BUILTIN_COMMAND_LIST.map((cmd) => {
-            const enabled = isBuiltinEnabled(cmd.name, records);
-            return (
-              <li key={cmd.name} className="flex items-center gap-4 px-4 py-3">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-baseline gap-2">
-                    <code className="text-foreground bg-foreground/8 rounded px-1.5 py-0.5 font-mono text-xs">
-                      /{cmd.name}
-                    </code>
-                    {cmd.action.kind === "client" && (
-                      <span className="text-muted-foreground font-mono text-xs tracking-wider uppercase">
-                        {t("local")}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-foreground/65 mt-1 text-xs">{tCommands(cmd.descriptionKey)}</p>
-                </div>
-                <Switch
-                  checked={enabled}
-                  onCheckedChange={(v) => handleToggleBuiltin(cmd.name, v)}
-                  disabled={isLoading || pendingToggles.has(cmd.name)}
-                  aria-label={t("toggleCommand", { name: cmd.name })}
-                />
-              </li>
-            );
-          })}
-        </ul>
-      </section>
-
-      <section className="space-y-3">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div className="min-w-0 flex-1 basis-48">
-            <h3 className="text-foreground text-sm font-semibold">{t("yourCustomCommands")}</h3>
-            <p className="text-muted-foreground mt-0.5 text-xs">
-              {t.rich("slashShortcuts", { cmd: (chunks) => <code>{chunks}</code> })}
-            </p>
-          </div>
-          <Button size="sm" className="shrink-0" onClick={openCreate}>
-            <Plus className="mr-1 h-3.5 w-3.5" />
+      <ListCard
+        fill
+        contentClassName="p-0"
+        title={t("commandCatalog")}
+        counted={t("disableAnyYouDon")}
+        controls={
+          <Button size="sm" onClick={openCreate}>
+            <Plus className="size-4" aria-hidden />
             {t("newCommand")}
           </Button>
-        </div>
-
-        {customs.length === 0 ? (
-          <EmptyState title={t("noCustomCommandsYet")} description={t("createOneSendLong")} />
-        ) : (
-          <ul className="border-foreground/10 divide-foreground/8 divide-y rounded-xl border">
-            {customs.map((record) => (
-              <li
-                key={record.id}
-                className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 px-4 py-3 @max-md/commands:grid-cols-1"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-baseline gap-2">
-                    <code className="text-foreground bg-foreground/8 rounded px-1.5 py-0.5 font-mono text-xs break-all">
-                      /{record.name}
-                    </code>
-                  </div>
-                  <p className="text-foreground/65 mt-1 line-clamp-2 text-xs">{record.prompt}</p>
-                </div>
-                <div className="flex shrink-0 items-center justify-end gap-1">
-                  <Switch
-                    checked={record.is_enabled}
-                    onCheckedChange={(v) => handleToggleCustom(record, v)}
-                    disabled={isLoading || pendingToggles.has(record.name)}
-                    aria-label={t("toggleCommand", { name: record.name })}
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => openEdit(record)}
-                    disabled={pendingToggles.has(record.name)}
-                    aria-label={tc("editNamed", { name: `/${record.name}` })}
-                  >
-                    <Pencil aria-hidden="true" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => setRemoving(record)}
-                    disabled={pendingToggles.has(record.name)}
-                    className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                    aria-label={tc("deleteNamed", { name: `/${record.name}` })}
-                  >
-                    <Trash2 aria-hidden="true" />
-                  </Button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+        }
+      >
+        <DataTable
+          columns={columns}
+          className="rounded-none border-0 bg-transparent"
+          rows={rows}
+          getRowKey={(row) => row.name}
+          loading={isLoading}
+          stackOnNarrow
+          empty={
+            <EmptyState title={t("noCustomCommandsYet")} description={t("createOneSendLong")} />
+          }
+        />
+      </ListCard>
 
       <Dialog open={editingId !== null} onOpenChange={(o) => !o && closeDialog()}>
-        <DialogContent dismissible={!submitting} className={cn(DIALOG_CONFIRM, DIALOG_COLUMN)}>
+        <DialogContent dismissible={!submitting} className={cn(DIALOG_WIDE, DIALOG_COLUMN)}>
           <DialogHeader>
             <DialogTitle>{editorTitle}</DialogTitle>
           </DialogHeader>
@@ -328,14 +342,15 @@ export function SlashCommandsManager() {
                 </div>
                 <div>
                   <Label htmlFor="cmd-prompt">{t("prompt")}</Label>
-                  <Textarea
+                  <MarkdownEditor
                     id="cmd-prompt"
+                    label={t("prompt")}
                     value={draftPrompt}
-                    onChange={(e) => setDraftPrompt(e.target.value)}
+                    onChange={setDraftPrompt}
                     placeholder={t("summarizeConversationAsChecklist")}
-                    rows={6}
+                    rows={14}
                     maxLength={10_000}
-                    className="mt-1.5 font-mono text-base md:text-sm"
+                    disabled={submitting}
                   />
                   <p className="text-muted-foreground mt-1 text-xs">
                     {t.rich("sentAsRegularUserMessage", {

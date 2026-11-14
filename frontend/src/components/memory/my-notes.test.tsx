@@ -54,6 +54,7 @@ function mount(
     skip: 0,
     showPage,
     setActive,
+    update: vi.fn(),
     remove,
   });
   render(
@@ -74,13 +75,11 @@ it("opens one note at a time instead of expanding every file inline", async () =
   expect(screen.queryByText("Checklist content")).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: /checklist.md/ }));
   expect(await screen.findByText("Checklist content")).toBeVisible();
-  await userEvent.click(screen.getByRole("tab", { name: "noteDetails" }));
   expect(screen.getByText("writtenBy:Playground|4 Nov 2026")).toBeVisible();
 });
 it("suppresses and restores a note without deleting it", async () => {
   mount({ deactivated_at: "2026-11-04T12:00:00Z" });
   await userEvent.click(screen.getByRole("button", { name: /checklist.md/ }));
-  await userEvent.click(screen.getByRole("tab", { name: "noteDetails" }));
   await userEvent.click(screen.getByRole("button", { name: "restore" }));
   expect(setActive).toHaveBeenCalledWith("n-1", true);
   expect(remove).not.toHaveBeenCalled();
@@ -88,7 +87,6 @@ it("suppresses and restores a note without deleting it", async () => {
 it("requires confirmation before permanent deletion", async () => {
   mount();
   await userEvent.click(screen.getByRole("button", { name: /checklist.md/ }));
-  await userEvent.click(screen.getByRole("tab", { name: "noteDetails" }));
   await userEvent.click(screen.getByRole("button", { name: "delete" }));
   expect(remove).not.toHaveBeenCalled();
   const confirm = screen.getAllByRole("dialog").at(-1)!;
@@ -99,7 +97,6 @@ it("keeps the note visible after deletion is refused", async () => {
   remove.mockResolvedValue(false);
   mount();
   await userEvent.click(screen.getByRole("button", { name: /checklist.md/ }));
-  await userEvent.click(screen.getByRole("tab", { name: "noteDetails" }));
   await userEvent.click(screen.getByRole("button", { name: "delete" }));
   const confirm = screen.getAllByRole("dialog").at(-1)!;
   await userEvent.click(within(confirm).getByRole("button", { name: "delete" }));

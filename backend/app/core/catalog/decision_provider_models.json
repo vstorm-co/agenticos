@@ -1,0 +1,38 @@
+{
+  "typesafe": [
+    {
+      "id": "jev-latest",
+      "name": "Jev · latest"
+    },
+    {
+      "id": "jev-1.14.0",
+      "name": "Jev 1.14 · pinned"
+    },
+    {
+      "id": "jev-1.13.0",
+      "name": "Jev 1.13 · pinned"
+    }
+  ],
+  "openai": [
+    {
+      "id": "gpt-6-luna",
+      "name": "GPT-6 Luna · Decisions API"
+    }
+  ],
+  "google": [
+    {
+      "id": "gemini-decision-1",
+      "name": "Gemini Decision 1"
+    }
+  ],
+  "openrouter": [
+    {
+      "id": "typesafe/jev-1.14",
+      "name": "TypeSafe: Jev 1.14"
+    },
+    {
+      "id": "google/gemini-decision-1",
+      "name": "Google: Gemini Decision 1"
+    }
+  ]
+}

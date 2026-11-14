@@ -150,8 +150,8 @@
     "channelCanOverrideScope": "Jeder Kanal, auf dem dieser Agent veröffentlicht ist, kann das überschreiben.",
     "channelLookupsHint": "Name, Thema und eine begrenzte sichtbare Mitgliederliste werden automatisch ergänzt. Diese Schalter gewähren weitere Aktionen; Dateizustellung benötigt eine Nutzeranfrage.",
     "channelLookupsOn": "Was dieser Agent auf {platform} tun darf",
-    "channelPromptHint": "Die Laufzeit ergänzt Plattform, Kontoverbindung des Absenders und aktuelle Kanaldaten bei jedem Run. Dieser editierbare Text ergänzt Bindungsinstruktionen; neue Bindungen enthalten Formatierungs- und Gesprächshinweise.",
-    "channelPromptOn": "Zusätzliche Instruktionen auf {bot}",
+    "channelPromptHint": "Die Standardanweisungen erscheinen automatisch. Bearbeiten Sie sie für diesen Kanal oder leeren und speichern Sie das Feld, um die aktuellen Vorgaben wiederherzustellen. Identität, Berechtigungen und Laufzeitkontext verwaltet die Plattform.",
+    "channelPromptOn": "Kanalanweisungen für {bot}",
     "channelPromptPlaceholder": "Was dieser Agent wissen sollte, um hier zu antworten.",
     "channelPromptVariables": "Einfügen:",
     "choosePeople": "Personen wählen",
@@ -1090,7 +1090,55 @@
     "pipelineNoMatches": "Keine passenden Modelle",
     "alreadyHasIt": "Verwendet ihn",
     "inDraftOf": "{more, plural, =0 {Im Entwurf von {names}, noch nicht veröffentlicht} other {In den Entwürfen von {names} und # weiteren, noch nicht veröffentlicht}}",
-    "useDefaultModel": "Standardmodell verwenden"
+    "useDefaultModel": "Standardmodell verwenden",
+    "channelToolScope": {
+      "conversation": "Aktuelle Unterhaltung",
+      "conversationHint": "Verfügbar beim Antworten in diesem Kanal. Diese Werkzeuge betreffen nur die aktuelle Unterhaltung.",
+      "connection": "Aus jedem Lauf",
+      "connectionHint": "Verfügbar im Webchat, in Unterhaltungen verknüpfter Benutzer und in Routinen. Jede aktivierte Aktion erreicht alle Kanäle, denen dieser Bot beigetreten ist. Senden folgt den Freigaberegeln."
+    },
+    "channelToolDetails": "Werkzeugdetails",
+    "channelActionNames": {
+      "find_chat_channels": "Kanäle finden",
+      "read_chat_messages": "Nachrichtenverlauf durchsuchen",
+      "send_chat_message": "Nachrichten und Berichte senden",
+      "get_channel_info": "Diesen Kanal beschreiben",
+      "list_channel_members": "Kanalmitglieder auflisten",
+      "search_channels": "Kanalnamen finden",
+      "read_channel_history": "Diese Unterhaltung lesen",
+      "send_channel_file": "Hier eine Datei senden",
+      "react_to_chat_message": "Mit Emoji reagieren"
+    },
+    "groupsNotifyOnly": "Aktuelle Gruppenmitglieder werden benachrichtigt. Dies erteilt oder beschränkt keine Genehmigungsrechte.",
+    "observationEngine": "Entscheidungsverfahren",
+    "observationLlm": "LLM · strukturierte Bewertung",
+    "observationNative": "Entscheidungsmodell · native Wahrscheinlichkeiten",
+    "observationThreshold": "Agent starten ab (%)",
+    "observationProbabilityHint": "Verwendet die vom Anbieter gelieferte Wahrscheinlichkeit einer Teilnahme. Ab diesem Schwellenwert startet der Hauptagent.",
+    "observationScoreHint": "Das LLM liefert eine strukturierte Bewertung von 0 bis 100, keine kalibrierte Wahrscheinlichkeit.",
+    "modelApiDecisions": "Decisions API",
+    "modelApiNative": "Standardgenerierung",
+    "observationTitle": "Automatisch an Gesprächen teilnehmen",
+    "observationSummary": "Ein separates Modell entscheidet, wann ein Beitrag hilfreich ist.",
+    "observationOn": "Ein",
+    "observationOff": "Aus",
+    "observationConfigure": "Konfigurieren",
+    "observationDescription": "Neue Nachrichten werden auf allen für den Bot zugänglichen Kanälen analysiert. Erwähnungen erhalten sofort eine Antwort.",
+    "observationEnable": "Automatische Teilnahme aktivieren",
+    "observationDecisionModel": "Entscheidungsmodell",
+    "observationDefaultInstructions": "Beteilige dich, wenn du eine offene Frage beantworten, relevante Fakten ergänzen, ein wichtiges Missverständnis klären oder einen konkreten nächsten Schritt vorschlagen kannst. Bleibe still bei lockeren Gesprächen, bereits beantworteten Fragen oder wenn du nur Gesagtes wiederholen würdest.\n\nVerwende die Sprache und den Ton des Gesprächs. Antworte konkret, hilfreich und knapp; erkläre ausführlicher, wenn es nützlich ist. Prüfe Aussagen mit deinen verfügbaren Werkzeugen und sage deutlich, was du nicht überprüfen kannst. Wenn eine persönliche Verbindung oder Freigabe nötig ist, bitte jemanden, dich im Thread zu erwähnen, damit du fortfahren kannst.",
+    "observationUnmentionedHint": "Prüfe, ob ein Beitrag zu einem neuen Gespräch hilfreich wäre.",
+    "observationMentionedHint": "Prüfe häufiger Threads, in die der Agent bereits per Erwähnung eingeladen wurde.",
+    "observationFocus": "Schwerpunkt und Anlass für Beiträge",
+    "observationTiming": "Prüfintervalle in Minuten",
+    "observationUnmentioned": "Threads, in denen der Agent noch nicht erwähnt wurde",
+    "observationMentioned": "Threads, in denen der Agent bereits erwähnt wurde",
+    "observationTimingHint": "Eine @Erwähnung löst unabhängig von diesen Intervallen sofort eine Antwort aus. Geplante Prüfungen analysieren nur neue Nachrichten; leere Intervalle verursachen keine Modellaufrufe.",
+    "observationAllChannels": "Alle für den Bot zugänglichen Kanäle",
+    "observationAuthorityHint": "Das Entscheidungsmodell hat keine Tools. Automatische Antworten nutzen das Hauptmodell und die gebundenen MCP-Organisationskonten mit ihren Freigaberegeln. Persönliche Konten und andere Aktionstools erfordern eine Erwähnung des Bots durch eine Person. Freigabepflichtige Aufrufe werden nicht automatisch ausgeführt. Beide Modellkosten erscheinen in Aktivität.",
+    "observationRequired": "Wählen Sie das Modell für die Teilnahmeentscheidung.",
+    "observationSaveFailed": "Speichern fehlgeschlagen. Ihre Änderungen bleiben im Formular erhalten.",
+    "observationSave": "Teilnahmeeinstellungen speichern"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -1381,7 +1429,13 @@
       "waiverSettings": "Genehmigungseinstellungen öffnen",
       "toolsTab": "Werkzeuge und Dateien",
       "preferencesTab": "Einstellungen",
-      "savedAutomatically": "Änderungen werden automatisch gespeichert"
+      "savedAutomatically": "Änderungen werden automatisch gespeichert",
+      "activeApprovalMode": "Genehmigungsmodus: {mode}",
+      "compactMode": {
+        "follow_agent": "Agent-Regeln",
+        "approve_all": "Alles erlauben",
+        "ask_all": "Immer fragen"
+      }
     },
     "conversationArchived": "Diese Unterhaltung ist archiviert",
     "conversationDeleted": "Unterhaltung gelöscht",
@@ -1959,7 +2013,15 @@
       "tablesCreating": "Erstellt eine Tabelle",
       "tablesDescribing": "Liest die Spalten einer Tabelle",
       "tablesListing": "Prüft, welche Tabellen es nutzen kann",
-      "viewsListing": "Listet die gespeicherten Ansichten einer Tabelle auf"
+      "viewsListing": "Listet die gespeicherten Ansichten einer Tabelle auf",
+      "sendingChannelMessage": "Nachricht an den Kanal senden",
+      "sendChannelMessage": "Kanalnachricht senden",
+      "listingChatConnections": "Chat-Verbindungen auflisten",
+      "chatConnections": "Chat-Verbindungen",
+      "reactingToMessage": "Auf eine Nachricht reagieren",
+      "messageReactions": "Nachrichtenreaktionen",
+      "exportingArtifact": "PDF wird exportiert…",
+      "exportArtifact": "Veröffentlichte App exportieren"
     },
     "turnWasStopped": "gestoppt",
     "unfavourite": "Aus den Favoriten entfernen",
@@ -3860,7 +3922,6 @@
   },
   "kb": {
     "addIntegration": "Integration hinzufügen",
-    "addKnowledgeBase": "Zur Wissensdatenbank hinzufügen",
     "adding": "Wird hinzugefügt …",
     "appliesEachFileYou": "Das gilt für jede Datei, die Sie als Nächstes hinzufügen, und wird auf ihr vermerkt. Die Collection behält ihre eigenen Einstellungen – jeder spätere Upload greift wieder darauf zurück.",
     "applyChanges": "{count, plural, =1 {1 Änderung übernehmen} other {# Änderungen übernehmen}}",
@@ -3884,7 +3945,6 @@
     "chunkingRecursiveHint": "Teilt an Absätzen, dann Sätzen, dann Wörtern – was eben passt.",
     "chunkingSummary": "{size, plural, =1 {1 Zeichen} other {# Zeichen}}, {overlap, number} Überlappung · {strategy}",
     "chunks": "Chunks",
-    "configuredOnceUsedAs": "Einmal konfiguriert, in so vielen Wissensdatenbanken verwendet, wie Sie möchten. Jede Kopie synchronisiert nach ihrem eigenen Zeitplan.",
     "create": "Erstellen",
     "createKnowledgeBase": "Wissensdatenbank erstellen",
     "creating": "Wird erstellt …",
@@ -3935,7 +3995,6 @@
     "liteparseReadsTextLayer": "LiteParse liest zuerst die Textebene und führt OCR auf einer Seite nur aus, wenn dort nichts steht. OCR bestimmt die Kosten eines Parse, und die meisten Dokumente entstehen digital. Schalten Sie dies aus, um jede Seite unabhängig davon per OCR zu lesen.",
     "llamaparseKey": "LlamaParse-Schlüssel",
     "llamaparseTier": "LlamaParse-Stufe",
-    "loadingIntegrations": "Integrationen werden geladen …",
     "loadingModels": "Modelle werden geladen …",
     "manualSchedule": "manuell",
     "maximumPages": "Höchstzahl Seiten",
@@ -3992,7 +4051,12 @@
     "reasoning": "Reasoning",
     "remove": "Entfernen",
     "removeNamed": "{name} entfernen?",
-    "reusableIntegrations": "Wiederverwendbare Integrationen",
+    "integrationActions": "Aktionen",
+    "integrationDetails": "Verbindung / Zeitplan",
+    "integrationsDescription": "Wiederverwendbare Quellen versorgen deine Wissensbasen. Lokale Dienste übernehmen Embeddings und OCR im eigenen Netzwerk.",
+    "integrationsEmpty": "Noch keine Integrationen",
+    "integrationsCount": "{count, plural, one {# Integration} other {# Integrationen}}",
+    "reusableIntegrations": "Integrationen",
     "save": "Speichern",
     "saving": "Wird gespeichert …",
     "scannedPages": "Gescannte Seiten",
@@ -4009,7 +4073,7 @@
     "tierCostEffectiveHint": "Eine mittlere Einstellung.",
     "tierFast": "Schnell",
     "tierFastHint": "Am günstigsten und am wenigsten layouttreu.",
-    "use": "Verwenden in …",
+    "use": "In Wissensbasis verwenden",
     "useCollectionSettings": "Die Einstellungen der Collection verwenden",
     "useSourceInCollection": "„{name}“ in einer Wissensdatenbank verwenden",
     "useStandardPrompt": "Den Standard-Prompt verwenden",
@@ -4023,11 +4087,8 @@
     "endpointModelsUnconfirmed": "Dieser Endpoint konnte nicht gefragt werden, welche Modelle er bereitstellt, daher werden alle OpenRouter-Modelle aufgeführt. Ein Modell, das er nicht bereitstellt, schlägt beim ersten Upload fehl.",
     "endpointServesNoModel": "Dieser Endpoint stellt keines der Embedding-Modelle bereit, die AgenticOS anbietet. Lassen Sie den Endpoint leer oder wählen Sie einen anderen Provider.",
     "endpointLacksCollectionModel": "Dieser Endpoint stellt {model} nicht bereit, das Modell, mit dem die Vektoren dieser Collection erstellt wurden. Lassen Sie den Endpoint leer oder wählen Sie einen, der es bereitstellt.",
-    "localServices": "Lokale Dienste",
     "localServicesHint": "Server im eigenen Netz des Deployments – ein Ollama, das einbettet, ein OCR-Sidecar für LiteParse – einmal registriert und pro Collection gewählt. Nichts, was an einen davon geht, verlässt das Deployment.",
     "addServer": "Server hinzufügen",
-    "loadingLocalServices": "Server werden geladen …",
-    "noLocalServicesYet": "Noch nichts hier. Registrieren Sie einen Ollama- oder OCR-Server, um Embeddings und OCR in Ihrem eigenen Netz zu halten.",
     "failedLoadLocalServices": "Lokale Dienste konnten nicht geladen werden",
     "localServiceKind": "Art",
     "embeddingServer": "Embedding-Server (Ollama)",
@@ -4128,7 +4189,8 @@
       "description": "Quick Ask, Sprache und lokale Werkzeuge per Tastenkürzel.",
       "download": "Desktop-App herunterladen",
       "dismiss": "In 14 Tagen erinnern"
-    }
+    },
+    "signInAgain": "Erneut anmelden"
   },
   "legal": {
     "acceptAll": "Alle akzeptieren",
@@ -5964,7 +6026,6 @@
     },
     "memory": {
       "showing": "{from}–{to} von {total} werden angezeigt",
-      "newer": "Neuere",
       "older": "Ältere",
       "title": "Ihr Gedächtnis",
       "description": "Sehen Sie, was Ihre Agents gespeichert haben, woher es stammt und wer es nutzen kann.",
@@ -6002,7 +6063,6 @@
           "retracted": "Zurückgezogen"
         },
         "showing": "{from}–{to} von {total}",
-        "newer": "Neuer",
         "older": "Älter",
         "episode": {
           "situation": "Situation",
@@ -6054,13 +6114,15 @@
         "retractHint": "Der Agent verwendet diese Erinnerung nicht mehr. Der Eintrag und seine Quelle bleiben im Verlauf erhalten.",
         "deleteNote": "Diese Notiz löschen?",
         "deleteNoteHint": "„{name}“ wird dauerhaft gelöscht. Sie können die Verwendung stattdessen deaktivieren und später wiederherstellen.",
-        "noteDetails": "Gedächtnisdetails",
         "type": {
           "fact": "Fakt",
           "preference": "Präferenz",
           "decision": "Entscheidung",
           "other": "Erinnerung"
-        }
+        },
+        "editNoteHint": "Korrigiere, was sich der Agent über dich merkt. Deine Änderungen werden getrennt vom ursprünglichen Agent-Eintrag protokolliert.",
+        "noteContent": "Notizinhalt",
+        "noteDetails": "Gedächtnisdetails"
       }
     },
     "admin": {
@@ -6468,8 +6530,9 @@
       "platform": "Plattform",
       "polling": "Abfrage",
       "register": "Registrieren",
-      "registeredCount": "{count, plural, =1 {1 Kanal registriert} other {# Kanäle registriert}}",
       "removeBot": "{bot} entfernen",
+      "removeBotDescription": "Dieser Bot antwortet danach für keinen der verknüpften Agenten mehr. Pausiere ihn stattdessen, um seine Konfiguration zu behalten.",
+      "removeBotConfirm": "Bot entfernen",
       "replaceBotToken": "Bot-Token ersetzen",
       "resumeBot": "{bot} fortsetzen",
       "save": "Speichern",
@@ -6682,6 +6745,8 @@
       "termsOfService": "Nutzungsbedingungen"
     },
     "orgs": {
+      "searchPermissions": "Berechtigungen suchen…",
+      "noPermissionsMatch": "Keine Berechtigungen passen zur Suche",
       "retention": "Aufbewahrung",
       "active": "Aktiv",
       "all": "alle",
@@ -6979,7 +7044,6 @@
       "took": "Dauer",
       "toolInput": "Eingabe",
       "toolOutput": "Ausgabe",
-      "toolsSent": "{count, plural, =0 {Tools} =1 {1 Tool} other {# Tools}}",
       "transcriptCouldNotBeRead": "Der Mitschnitt konnte nicht gelesen werden",
       "tryAgain": "Erneut versuchen",
       "turnAgent": "Agent",
@@ -7099,7 +7163,42 @@
       "skillsUsed": "Genutzte Skills:",
       "skillVersion": "{onFork, select, yes {{name} · {fork} v{version}} other {{name} · v{version}}}",
       "unverifiedSender": "Unbestätigt",
-      "anonymousRequester": "Anonymer Teilnehmer"
+      "anonymousRequester": "Anonymer Teilnehmer",
+      "inputPrompt": "Prompt",
+      "inputTools": "Tools",
+      "inputRequests": "Anfragen",
+      "inputCatalog": "Tool-Katalog",
+      "inputCatalogHint": "Definitionen, die der Runtime bei der letzten Anfrage zur Verfügung standen. Nur sichtbare Tools wurden dem Modell direkt angeboten.",
+      "inputVisibilityUnknown": "Dieser ältere Datensatz enthält keine Tool-Sichtbarkeit. Die Kataloggröße ist nicht die Anzahl der an das Modell gesendeten Schemata.",
+      "inputVisible": "Sichtbar",
+      "inputDeferred": "Zurückgestellt",
+      "inputWithheld": "Ausgeblendet",
+      "inputViaHistory": "Im Verlauf",
+      "inputUnknown": "Nicht erfasst",
+      "inputToolsSearch": "Tool-Namen und Beschreibungen durchsuchen…",
+      "inputToolCount": "{matched} von {total} Tools",
+      "inputShowMore": "Weitere Tools anzeigen",
+      "inputNoMatches": "Keine Tools entsprechen der Suche.",
+      "inputSearchEnabled": "Tool Search aktiviert",
+      "inputSearchPolicy": "Bis zu {count} Ergebnisse pro Suche · {strategy}",
+      "inputAlwaysVisible": "Immer sichtbare Ausnahmen",
+      "inputNoExceptions": "Keine immer sichtbaren Ausnahmen.",
+      "inputPromptHint": "Leseansicht der aufgezeichneten Anweisungen und Systemblöcke. Die Quellansicht zeigt ihre ursprünglichen Grenzen.",
+      "inputRead": "Lesen",
+      "inputSource": "Quelle",
+      "inputInstructions": "Anweisungen",
+      "inputSystemBlock": "Systemblock {index}",
+      "inputLastRequest": "Letzte Anfrage",
+      "inputRequestTools": "Tools je Modellanfrage",
+      "inputRequest": "Anfrage {index}",
+      "inputRequestHint": "Die Sichtbarkeit wird für jede Modellanfrage erfasst, nachdem der Provider Tool Search aufgelöst hat.",
+      "inputNoVisibleNames": "Die Namen der sichtbaren Tools wurden in diesem Datensatz nicht aufbewahrt.",
+      "inputTokenInput": "Input-Token",
+      "inputTokenOutput": "Output-Token",
+      "inputTokenCacheRead": "Cache gelesen",
+      "inputTokenCacheWrite": "Cache geschrieben",
+      "inputTokenHint": "Summe der erfassten Modellanfragen. Cache-Token sind im Input enthalten und werden nicht zusätzlich gezählt.",
+      "systemRoleChannelDecision": "Entscheidung zur Kanalteilnahme (System)"
     },
     "sandboxes": {
       "addConnection": "Verbindung hinzufügen",
@@ -7138,7 +7237,6 @@
       "chatAccountsDescription": "Slack-, Microsoft-Teams-, Telegram-, Mattermost- und Discord-Konten, die mit Ihnen verbunden sind. Ein Agent, der über eines davon erreicht wird, antwortet als Sie, mit Ihren Berechtigungen und Ihrem Budget.",
       "confirmNewPassword": "Neues Passwort bestätigen",
       "currentPassword": "Aktuelles Passwort",
-      "customizeCommandPaletteChat": "Passen Sie die /Befehlspalette im Chat an – schalten Sie eingebaute ab oder legen Sie eigene Schnell-Prompts an.",
       "deleteAccount": "Konto löschen",
       "deleteMyAccount": "Mein Konto löschen",
       "deleteYourAccount": "Ihr Konto löschen?",
@@ -8658,7 +8756,7 @@
       "noContainerConnectionHint": "Was läuft, lässt sich nur von einem Container-Dienst auflisten. Registrieren Sie einen unter Verbindungen; Daytona-Sandboxes werden auf dem Daytona-Konto verwaltet, dem sie berechnet werden.",
       "noOperationMatches": "Keine Operation passt dazu.",
       "noSessionMatches": "Keine laufende Sandbox passt dazu.",
-      "nothingRunningSandboxOpens": "Nichts läuft. Eine Sandbox öffnet sich beim ersten Datei- oder Shell-Aufruf eines Agents, ein Agent, der eine hat und sie nie nutzt, kostet hier also nichts.",
+      "nothingRunningSandboxOpens": "Keine laufenden Sandboxes",
       "ok": "Erfolgreich",
       "operation": "Operation",
       "reapedIn": "abgeräumt in {time}",
@@ -8674,8 +8772,8 @@
       "searchOperations": "Operationen suchen",
       "searchSessions": "Sessions suchen",
       "session": "Session",
-      "sessionsCount": "{count} der Sandboxes dieser Organisation. Wird alle zehn Sekunden aktualisiert.",
-      "sessionsOfLimit": "{count} der Sandboxes dieser Organisation, von {limit} erlaubten. Wird alle zehn Sekunden aktualisiert.",
+      "sessionsCount": "Sandboxes: {count}",
+      "sessionsOfLimit": "Sandboxes: {count} / {limit}",
       "sharedBy": "Geteilt von",
       "show": "Anzeigen",
       "state": "Zustand",
@@ -8683,7 +8781,7 @@
       "stateRunningMeans": "Der Container besteht und ist geladen.",
       "target": "Ziel",
       "whatIsRecorded": "Jede Operation, um die diese Sandbox gebeten wurde – der Befehl, der Pfad, welcher Agent gefragt hat, ob es geklappt hat und wie lange es gedauert hat. 30 Tage lang aufbewahrt, sodass sie auch nach dem Ende der Sandbox noch Auskunft gibt. Nie der Inhalt einer Datei und nie die Ausgabe eines Befehls – genau das macht dies zu einem Audit und nicht zu einem Weg, die Arbeit eines Agents zu lesen.",
-      "whatSessionsAre": "Eine Zeile ist ein Workspace auf einem Host. Eine Session öffnet sich beim ersten Tool-Aufruf eines Agents, nicht wenn ein Chat beginnt, und wird abgeräumt, sobald sie lange genug im Leerlauf war.",
+      "whatSessionsAre": "Eine Zeile ist ein Workspace auf einem Host. Eine Session öffnet sich beim ersten Tool-Aufruf eines Agents, nicht wenn ein Chat beginnt, und wird abgeräumt, sobald sie lange genug im Leerlauf war. Wird alle 10 Sekunden aktualisiert.",
       "when": "Wann"
     },
     "someUnreadable": "{count} konnten nicht gelesen werden; ihr Host ist möglicherweise ausgefallen.",
@@ -8788,10 +8886,11 @@
     "save2": "Speichern",
     "saving4": "Wird gespeichert …",
     "sentAsRegularUserMessage": "Wird als gewöhnliche Benutzernachricht gesendet, wenn Sie <cmd>/{name}</cmd> tippen.",
-    "slashShortcuts": "Slash-Kürzel für Prompts, die Sie oft tippen. <cmd>/name</cmd> im Chat sendet den hinterlegten Prompt.",
     "summarizeConversationAsChecklist": "Fasse die Unterhaltung als Checkliste mit Aufgaben zusammen.",
     "todo": "todo",
-    "yourCustomCommands": "Ihre eigenen Befehle"
+    "commandCatalog": "Slash-Befehle",
+    "commandKind": "Typ",
+    "customKind": "Benutzerdefiniert"
   },
   "sharing": {
     "access": "Zugriff",
@@ -9507,6 +9606,7 @@
     "minutesAgo": "{count, plural, other {vor # Min.}}"
   },
   "ui": {
+    "clearFilters": "Filter zurücksetzen",
     "expandEditor": "{label} vergrößern",
     "cancel": "Abbrechen",
     "checkConnection": "Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
@@ -9521,14 +9621,13 @@
     "jsonShowLess": "weniger anzeigen",
     "labelPreview": "Vorschau von {label}",
     "markdown": "Markdown",
-    "matchedOfTotal": "{matched} von {counted}",
     "next": "Weiter",
     "nextMonths": "Nächste Monate",
     "nextPage": "Nächste Seite",
     "noResults": "Keine Ergebnisse.",
     "nothingWrittenYet": "Noch nichts geschrieben.",
-    "pagerAll": "{counted} · Seite {page} von {pageCount}",
-    "pagerMatched": "{matched} von {counted} · Seite {page} von {pageCount}",
+    "pagerAll": "{counted}",
+    "pagerMatched": "{matched} von {counted}",
     "preview": "Vorschau",
     "previousMonths": "Vorherige Monate",
     "previousPage": "Vorherige Seite",
@@ -9718,6 +9817,7 @@
     "option": "Farbe {n}"
   },
   "triggers": {
+    "deliveryUnavailable": "Letzte Antwort im Chat nicht verfügbar",
     "attemptsTitle": "Vor dem Agentenstart",
     "attemptsHint": "Diese Versuche haben keinen Agentenlauf gestartet und keine Modellkosten verursacht.",
     "attemptsError": "Versuche vor dem Agentenstart konnten nicht gelesen werden.",
@@ -10020,7 +10120,6 @@
     "endsAtLabel": "Endet am (Gerätezeit)",
     "endsAtHint": "Leer lassen, um bis zum Stoppen fortzufahren. Diese Zeit verwendet {zone}, unabhängig von der Zeitzone des Zeitplans.",
     "endsAtInvalid": "Wählen Sie einen gültigen Zeitpunkt in der Zukunft oder leeren Sie das Feld, um das Ende zu entfernen.",
-    "deliveryUnavailable": "Letzte Antwort im Chat nicht verfügbar",
     "actionConsents": {
       "checkConnections": "Prüfe diese Verbindungen, um ihre Aktionen zu prüfen: {names}.",
       "personalAccount": "{name} · dein Konto",
@@ -10055,7 +10154,8 @@
       "current": "Die geprüften Quellen sind aktuell.",
       "changed": "Prüfen Sie diese Quellen vor dem nächsten Lauf.",
       "unavailable": "Prüfen oder verbinden Sie zuerst diese Quellen: {names}",
-      "accept": "Diese Quellen genehmigen"
+      "accept": "Diese Quellen genehmigen",
+      "inspectAgent": "Verbindungen des Agenten prüfen"
     },
     "advancedOptions": "Erweiterte Optionen",
     "advancedOptionsHint": "Standard: aktuelle veröffentlichte Version, Fehlerschutz und deine Benachrichtigungseinstellungen.",
@@ -10066,9 +10166,13 @@
     "resultReportHint": "Nach jeder Ausführung einen Bericht im gewählten Chat ablegen.",
     "resultInboxHint": "Pro Quellelement einen Inbox-Vorgang und Arbeitschat erstellen. Angeforderte Entwürfe stehen dort; unveränderte Prüfungen bleiben still. Versand benötigt weiterhin Berechtigung und Freigabe.",
     "clearSearch": "Suche löschen",
-    "noRoutineMatchesHint": "Suchen Sie nach dem Agentennamen, dem Routinentitel oder Wörtern aus ihrer Nachricht."
+    "noRoutineMatchesHint": "Suchen Sie nach dem Agentennamen, dem Routinentitel oder Wörtern aus ihrer Nachricht.",
+    "setupRequired": "Einrichtung erforderlich",
+    "setupRequiredHint": "Gespeichert und pausiert. Quellen reparieren, Zugriff prüfen und die Routine anschließend aktivieren.",
+    "setupOwnerRequired": "Gespeichert und pausiert. Der Ersteller muss die Quellen reparieren und prüfen."
   },
   "portals": {
+    "backToServices": "Zurück zu den Diensten",
     "mailboxInterval": {
       "label": "Auf neue Mails prüfen",
       "option": "{count, plural, =1 {jede Minute} other {alle # Minuten}}",
@@ -10754,7 +10858,7 @@
       "debug": "Debug",
       "core": "Abschluss",
       "triggers": "Auslöser",
-      "decide": "Entscheidungen",
+      "decide": "Entscheidungsmodelle",
       "people": "Personen",
       "slack": "Slack",
       "mattermost": "Mattermost",
@@ -10879,7 +10983,7 @@
     "categoryHint": {
       "triggers": "Wie ein Run startet",
       "agent": "Einen deiner Agenten ausführen",
-      "decide": "Mit dem Entscheidungsmodell Jev mit Ja oder Nein antworten, eine Option wählen oder bewerten",
+      "decide": "Eine typisierte Frage stellen und anhand der Antwort verzweigen",
       "knowledge": "Eine Wissensbasis durchsuchen oder etwas hinzufügen",
       "logic": "Einen Weg wählen oder Wege zusammenführen",
       "control": "Über Elemente schleifen, warten oder einen anderen Workflow ausführen",
@@ -11437,6 +11541,7 @@
     "latestVersionHint": "Folgt der nächsten Veröffentlichung",
     "currentTag": "Aktuell",
     "publicUpdated": "Aktualisiert {when}",
+    "backToConversation": "Zurück zum Gespräch",
     "backToArtifacts": "Zurück zu den Apps",
     "viewerControls": "App-Steuerung",
     "share": "Teilen",
@@ -12573,8 +12678,8 @@
     "openBuilder": "Im Agent Builder öffnen",
     "openOrganization": "Einstellungen der Organisation",
     "suggestions": {
-      "title": "Vorschläge für Sie",
-      "description": "Was der nächtliche Blick auf Ihre Woche vorgeschlagen hat, und ob er überhaupt stattfindet.",
+      "title": "Automatische Vorschläge",
+      "description": "Lege fest, ob AgenticOS dir proaktive Vorschläge in Inbox und Briefing sendet. Hier findest du den Verlauf und kannst verworfene Vorschläge wiederherstellen. Diese Einstellung steuert keine Antworten in Gesprächen.",
       "forMe": "Nächtliche Vorschläge für mich",
       "orgOff": "Ihre Organisation hat nächtliche Vorschläge ausgeschaltet, daher entstehen noch keine.",
       "turnedOn": "Nächtliche Vorschläge sind für Sie an",
@@ -12586,7 +12691,8 @@
         "open": "Offen",
         "accepted": "Angenommen",
         "dismissed": "Abgelehnt"
-      }
+      },
+      "openInbox": "Inbox öffnen"
     }
   },
   "orgAssistant": {
@@ -12898,6 +13004,14 @@
       "example3": "Eine Tabelle aus Ihrer Datenbank lesen und zusammenfassen",
       "needs": "Die Zugangsdaten der Dienste im Vault oder ein verbundenes Google-Konto. Ein Deployment installiert das Terminal mit dem Extra mirage, und ein Operator erlaubt die Hosts jedes Servers, den Sie eintragen.",
       "never": "Schreibt nie in einen nur lesbar eingebundenen Ordner und fragt vor jedem Schreiben eine Person, wo Sie das festgelegt haben."
+    },
+    "channel_actions": {
+      "name": "Verbundene Chat-Apps",
+      "does": "Findet Kanäle, durchsucht Nachrichten und sendet angeforderte Berichte über ausdrücklich freigegebene Bots.",
+      "example1": "Einen Bericht aus dem Webchat an das Team senden",
+      "example2": "Ein wöchentliches Update in einem vereinbarten Thread planen",
+      "needs": "Eine aktive Bot-Bindung, ausgewählte Aktionen und Mitgliedschaft im Zielkanal. Routinen erfordern eine Quellen- und Aktionsprüfung.",
+      "never": "Tritt keinem Kanal bei, verwendet keine Bots anderer Agenten und wiederholt keine unbestätigten Sendungen."
     }
   },
   "capabilityCategories": {
@@ -13532,6 +13646,12 @@
         "title": "Verborgene Pfade",
         "description": "Pfade, die der Agent gar nicht sieht, z. B. /drive/HR/."
       }
+    },
+    "channel_actions": {
+      "tools": {
+        "title": "Erlaubte Chat-Aktionen",
+        "description": "Ausdrücklich auf den verbundenen Bots dieses Agenten freigegebene Aktionen."
+      }
     }
   },
   "apiReference": {
@@ -13818,7 +13938,7 @@
       "sharedWorkspace": "Gemeinsame Projektumgebung"
     },
     "tracking": {
-      "title": "Projekt im Blick behalten",
+      "title": "Automatische Projektverfolgung",
       "description": "Erstellen Sie eine Aufgabentabelle mit gespeicherten Ansichten und veröffentlichen Sie eine private Kopie eines ausgewählten Agenten als geplanten Projektbegleiter.",
       "audience": "Die Routine handelt in Ihrem Namen und schreibt Berichte in das gemeinsame Projektgespräch. Der Quellagent bleibt unverändert.",
       "baseAgent": "Bearbeitbarer Quellagent",
@@ -13839,8 +13959,8 @@
       "cancel": "Abbrechen",
       "retry": "Erneut versuchen",
       "loadFailed": "Projektbegleiter erneut laden",
-      "openTasks": "Aufgabentabelle",
-      "scopeHint": "Das Projekt verwendet eine gemeinsame Aufgabentabelle. Der Zugriff folgt dem Projekt; Personen und Agenten sind verknüpfte Datensätze, und das Feld für den nächsten Schritt steuert die Übergabe."
+      "scopeHint": "Das Projekt verwendet eine gemeinsame Aufgabentabelle. Der Zugriff folgt dem Projekt; Personen und Agenten sind verknüpfte Datensätze, und das Feld für den nächsten Schritt steuert die Übergabe.",
+      "openTracker": "Agent zur Projektverfolgung"
     }
   },
   "voiceGlow": {
@@ -16648,7 +16768,6 @@
     "tasks": "Aufgaben",
     "newTask": "Neue Aufgabe",
     "hint": "Verbindliche Aufgaben für Sie und Ihre Agenten. Tabelle, Arbeitschat und Inbox gehören zur selben Aufgabe.",
-    "board": "Aufgabentabelle",
     "openTable": "Tabelle öffnen",
     "title": "Aufgabe",
     "description": "Anweisungen oder Kontext",
@@ -16676,7 +16795,8 @@
       "private": "Meine Aufgaben",
       "project": "Projektaufgaben",
       "group": "Gruppenaufgaben",
-      "organization": "Organisationsaufgaben"
+      "organization": "Organisationsaufgaben",
+      "agent": "Aufgaben des Agents"
     },
     "status": {
       "planned": "Geplant",
@@ -16689,7 +16809,8 @@
     "nextActor": {
       "user": "Nächster Schritt: Person",
       "agent": "Nächster Schritt: Agent"
-    }
+    },
+    "taskTable": "Aufgabentabelle"
   },
   "setupHints": {
     "title": "Konfiguration verfügbar",
@@ -17365,6 +17486,12 @@
     "contextBody": "Der Assistent nutzt Feedback aus Gesprächen, in denen Agenten diese Kontextdatei verwendet haben. Prüfen Sie jeden Vorschlag, bevor Sie ihn übernehmen.",
     "costs": "Kosten und Limits"
   },
+  "approvalGroups": {
+    "groups": "Gruppen",
+    "error": "Gruppen konnten nicht geladen werden. Die Auswahl bleibt erhalten.",
+    "loading": "Gruppen werden geladen…",
+    "empty": "Keine Gruppen in dieser Organisation."
+  },
   "workflowNodes": {
     "node": {
       "agent_run": {
@@ -17449,15 +17576,15 @@
       },
       "decide_choose": {
         "name": "Option wählen",
-        "description": "Jev fragen, welche Ihrer Optionen zu einem Text passt – eine Kategorie, eine Warteschlange, eine Absicht."
+        "description": "Das Entscheidungsmodell fragen, welche Ihrer Optionen zu einem Text passt – eine Kategorie, eine Warteschlange, eine Absicht."
       },
       "decide_score": {
         "name": "Bewerten",
-        "description": "Jev fragen, wo ein Text auf Ihrer Bewertungsskala liegt – Dringlichkeit, Eignung, Risiko."
+        "description": "Das Entscheidungsmodell fragen, wo ein Text auf Ihrer Bewertungsskala liegt – Dringlichkeit, Eignung, Risiko."
       },
       "decide_yes_no": {
         "name": "Ja oder nein",
-        "description": "Jev eine Ja-Nein-Frage zu einem Text stellen und nach der Antwort verzweigen."
+        "description": "Dem Entscheidungsmodell eine Ja-Nein-Frage zu einem Text stellen und nach der Antwort verzweigen."
       },
       "email_send": {
         "name": "E-Mail senden",

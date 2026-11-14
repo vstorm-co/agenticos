@@ -329,6 +329,7 @@ Standard providers use Pydantic AI's model and provider inference. The platform 
 | OpenAI | `openai` | API key, or none | ✓ |
 | Anthropic | `anthropic` | API key | ✓ |
 | Google Gemini | `google` | API key | ✓ |
+| TypeSafe (Jev) | `typesafe` | API key | ✓ |
 | OpenRouter | `openrouter` | API key |  ✓ |
 | Otari | `otari` | API key | ✓ |
 | Alibaba Cloud | `alibaba` | API key | ✓ |
@@ -355,6 +356,7 @@ Standard providers use Pydantic AI's model and provider inference. The platform 
 
 | Provider | id | Credential | Custom URL |
 |---|---|---|---|
+| System One API | `system-one` | API key, or none | ✓ |
 | Ollama | `ollama` | none | ✓ |
 | LiteLLM proxy | `litellm` | none | ✓ (`api_base`) |
 
@@ -750,3 +752,15 @@ A regional endpoint serves fewer embedding models than the global one: `eu.openr
 Upgrade every API and worker process before configuring regional endpoints. Earlier builds ignore the OpenRouter endpoint override.
 
 For another endpoint with the same provider and model, choose **Add separate model** in the Builder. Its automatic name includes the endpoint, and the existing profile stays unchanged. **Update model** edits the shared profile instead. Custom catalog downloads are limited to 2 MiB, 2,048 models and bounded field lengths, with at most 16 catalogs cached per process. A compressed or oversized response leaves the model ID editable without falling back to a global listing.
+
+## Decision models
+
+Decision profiles use a native `decisions` API instead of text generation. Select the provider, model and vault key in the model builder. OpenAI, Google and OpenRouter offer both chat and decision APIs; TypeSafe and a custom System One endpoint serve decisions. A decision profile cannot be the conversational model of an agent or a fallback to a chat model.
+
+The native adapters come from Pydantic AI. Current suggestions include OpenAI `gpt-6-luna`, Google `gemini-decision-1` and TypeSafe `jev-1.14.0` / `jev-latest`. OpenRouter reads its decision-model catalog separately from its text-model catalog. A custom System One endpoint requires its own URL and model identifier. Availability and account access depend on the provider; suggestions are not a guarantee of access.
+
+Workflow **Decision models** steps select a native profile. Existing `decide.*` ids and TypeSafe key configurations still load. Answers below the configured confidence follow the `unsure` port. Credentials and authorization are checked again for each execution, and provider spend counts toward workflow and organization budgets.
+
+Channel **Join conversations automatically** can use a native decision profile or an ordinary LLM with structured output. A native yes/no decision returns the probability of joining; a bounded numeric output preserves that probability. An LLM returns a usefulness assessment from 0 to 100, not a calibrated probability. Both compare against **Run the agent from (%)**, including the threshold itself. The classifier has no tools. Joining remains opt-in and uses the configured intervals; the main agent can use organization MCP accounts, never a participant's private credentials.
+
+Provider references: [Pydantic AI](https://pydantic.dev/docs/ai/models/decision/), [OpenAI](https://developers.openai.com/api/docs/guides/decisions), [Google](https://ai.google.dev/gemini-api/docs/decisions-api), [TypeSafe](https://docs.typesafe.ai/models), [OpenRouter](https://github.com/OpenRouterTeam/skills/tree/main/skills/openrouter-decisions).

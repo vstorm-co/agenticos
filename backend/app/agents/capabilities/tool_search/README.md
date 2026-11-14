@@ -76,3 +76,5 @@ the spec, so that is a run-time cost the author accepts by naming one; `auto`
 never fails this way.
 
 `local_bm25` provides provider-independent lexical ranking over the authorized deferred tool catalog. It tokenizes identifiers (including camel case), descriptions and argument schemas, weights rare terms, normalizes document length and boosts identifiers. It uses no embeddings or extra model request; the existing result limit bounds what enters context. Shipped starters use five results.
+
+Multiple queries are ranked separately and interleaved without duplicates, so a bounded result set can expose both a search and its follow-up fetch. Identifier terms receive a length-independent boost: a long API contract must not hide a precisely named operation behind short generic descriptions. Only the already authorized input catalog can be returned.

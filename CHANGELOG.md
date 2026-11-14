@@ -21,6 +21,24 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Opt-in automatic channel participation with a separate decision model, focus instructions, bounded message windows and configurable pre-/post-mention intervals. Automatic replies can use bound organization MCP accounts; private accounts and calls needing human approval require a direct mention.
+
+- Organization groups in workflow human/MCP approvals and agent notification audiences. Decisions use current eligible membership; empty or deleted configured groups never become unrestricted approval.
+
+
+- New chat bindings enable all supported tools by default, including agent-chosen emoji reactions on Mattermost, Slack, Discord, Telegram and iMessage, with explicit platform limits and text replies alongside reactions.
+
+- Apps exports published reports and browser presentations as real PDF files through the isolated renderer, with audience checks and explicit size/page limits.
+- Apps and Visuals include design playbooks, themed browser presentations, a native UI component studio and richer map/3D examples for school, play and work (#2989).
+- Platform MCP can create or reuse an App's public link after an explicit request, under the normal write approval and edit-access checks; live public-data consent remains separate.
+
+- Per-bot opt-in tools to find joined channels, search message history and send requested reports from web chat, linked channel conversations or routines.
+- Routines with unavailable sources are saved paused with setup guidance instead of discarding the requested schedule.
+
+- Channel history supports bounded text, author and time filters with destination-bound continuation cursors for Mattermost and Slack. Other platforms report unsupported paging explicitly.
+
+- Activity separates the runtime tool catalog from provider-resolved visibility, records Tool Search policy and per-request tool counts, and puts model settings and cache usage beside readable prompt/source views. Run history fills the available viewport even when it contains few records.
+
 - A retrieval benchmark over 34 documentation questions, including negative and
   cross-language answers. `make eval-retrieval` compares retrieval depth, query
   expansion and chunk settings, with per-question results and reproducible run
@@ -29,9 +47,53 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Keep sandbox connection details and session controls readable on narrow screens, search sessions by agent name, and confirm channel-bot removal before disconnecting bound agents.
+
+- Align organization role, directory and retention views with shared list layouts: searchable permission matrices with sticky labels, responsive retention fields and matching loading states, disabled unchanged saves, and retryable directory deletion refusals.
+
+- Share pagination controls and loading/boundary states across catalogs, record tables and memory. Disable unchanged participation settings, organize background-service cards, and retain the full file-reader footprint while previews load.
+- Keep switches visible when wrapped in action tooltips; tooltip state no longer overrides checked-state styling.
+- Forward image-proxy requests from their URL and headers without rewrapping the runtime's Request object.
+
+- Match loading placeholders to the actual agent/group cards, stacked channel and sandbox tables, workflow canvas, workspace documents and record lists. Preserve page frames and toolbars while data loads, and keep placeholders visible on narrow screens in both themes.
+
+- Upgrade the OpenTelemetry API/SDK instrumentation family to 1.45.2/0.66b2 to fix trace-context parsing denial of service (CVE-2026-126360).
+
+- Preserve input redactions in a separate model-replay copy, including attachment briefings and forked conversations; keep the original human audit transcript.
+- Apply knowledge-base teardown ownership rules to account and organization purges, and track CLI connector ingestion against concurrent teardown.
+- Enforce base access on integration mutations and cloning, reserve unassigned RAG templates for connection managers, and retain sync-log tenant/target ownership after source deletion. Validate source edits before mutation locks and reject stale validated writes.
+- Native routine skill loading no longer inherits an unrelated write-approval requirement; explicit agent approval policy still applies. Approval decisions no longer leave continuation blocked by a stale cached queue.
+- Preserve bot text replies after emoji reactions, including approval continuations. Unlinked senders can request bot reactions on the admitted message or earlier messages actually read from that bound channel, without borrowing publisher account authority. Show editable deployment defaults directly in the channel instruction input; preserve legacy custom additions and restore live defaults when cleared. Smooth chat App/Visual previews with reserved skeletons, decode/render readiness and reduced-motion support.
+
+
+- Protect bundled platform and Architect skills from edits, resource/version/fork changes and deletion by callers without organization-wide agent edit authority, including explicit skill grants; reserve their names against unprivileged creation (#2882).
+
+- Routine skill loading no longer falls through to the unknown external-action approval rule; explicit agent approval gates remain enforced (#3019). Approval decisions check the server for remaining requests rather than trusting a stale queue page.
+- Email delivers generated chart images as attachments instead of dropping image-only answers. Email, iMessage and Twilio MMS offer explicit current-conversation file delivery.
+- Session-check errors offer a sign-in action that preserves the return destination alongside retrying the saved session.
+
+- Preserve expanded chat activity through tool approval and resumption, use neutral approval status styling, and remove acknowledged approval notices without a stale flash.
+- Keep real tool progress visible in messaging channels after interim text, with bounded elapsed-time and completed-step updates for long work.
+
+- Browser and computer previews reach channel progress through runtime events, and available authenticated links remain in final and resumed answers.
+- The shipped AgenticOS instructions open relevant sources proactively, discover MCP fetch operations and link to the correct tool/account setup when something is missing.
+- Mobile composer placeholders and text align with attachment and send actions.
+
+- Chat prompts only for genuinely pending approvals; standing and remembered consent keep their approved audit entries without showing an actionable approval card after the tool completes (#2994).
+
+
+- Read Mattermost thread history in creation-time order and honor result limits even when the platform returns an unordered or oversized thread. Use the thread endpoint's native paging parameters for both text and attachment backfill.
+- Discover both search and fetch tools from multi-query local tool search, including MCP tools with long descriptions.
+- Keep channel author metadata separate from user messages, without inserting an empty message marker. Ignore Mattermost system housekeeping posts before they can start paid agent runs.
+
 - Workflow **knowledge.search** citations omit page numbers for formats without
   pages, including Markdown, text, HTML and `.docx`. PDF pages and presentation
   slides keep their locations (#2482).
+
+### Changed
+
+- The active chat permission mode stays visible beside the composer, with a direct selector that respects the organization waiver policy and the caller’s permissions (#2995).
+
 
 ## [1.73.0] - 2026-11-13
 
@@ -56,6 +118,7 @@ Two things are versioned separately from this file and worth knowing about:
 - Report why the sandbox host could not start a workflow script's sandbox, as `SANDBOX_START_FAILED` with a bounded, safe diagnosis that does not expose host paths or build output, instead of saying the host could not be reached. `make dev` now creates the sandbox workspace directory before Docker can create it as root, which on Linux and under Docker Desktop's WSL integration left every sandbox unable to start; an existing directory the service cannot write is reported with the command that fixes it.
 - **Coding task file counts.** The message footer and task panel use the stored change set, including shell edits. New reports normalize harness-only fallback paths relative to the workspace.
 - **Workflow step claims follow the database clock.** A worker's claim on a workflow step now measures its lease from the database's time, the clock every expiry check reads. Before, a worker host whose clock ran behind the database could take a claim that had already expired, so a second worker could run the same step; one whose clock ran ahead held a dead worker's step longer than `WORKFLOW_DISPATCH_LEASE_SECONDS`. The recovery sweeps read the database's time too.
+
 
 ## [1.72.0] - 2026-11-13
 

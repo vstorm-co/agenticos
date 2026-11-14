@@ -2,9 +2,6 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { ConversationTask } from "@/hooks/use-conversation-tasks";
 import WorkPage from "./page";
-vi.mock("@/components/tasks/tasks-panel", () => ({
-  TasksPanel: () => <div data-testid="tasks" />,
-}));
 const state = vi.hoisted(() => ({ can: true, stop: vi.fn() }));
 const task = (id: string, status: ConversationTask["status"]): ConversationTask => ({
   id,
@@ -32,6 +29,7 @@ vi.mock("@/hooks/use-conversation-tasks", async (original) => ({
 describe("WorkPage", () => {
   it("separates ongoing tasks from results while preserving stop and conversation links", () => {
     render(<WorkPage />);
+    expect(screen.queryByRole("button", { name: "New task" })).toBeNull();
     expect(screen.getByRole("link", { name: "Task active" })).toHaveAttribute(
       "href",
       "/chat?id=chat%2Factive",

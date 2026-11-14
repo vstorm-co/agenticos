@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>When does the cheaper plan change?</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --paper: light-dark(#faf8f3, #191b20);
+        --ink: light-dark(#252b32, #e9eced);
+        --muted: light-dark(#535f69, #acb7bf);
+        --line: light-dark(#c9cfce, #46505b);
+        --accent: light-dark(#176654, #81d5bb);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font:
+          17px/1.55 system-ui,
+          sans-serif;
+      }
+      main {
+        max-width: 1120px;
+        margin: auto;
+        padding: clamp(20px, 5vw, 64px);
+      }
+      h1 {
+        font:
+          clamp(36px, 6vw, 72px)/1.04 Georgia,
+          serif;
+        max-width: 18ch;
+        margin: 16px 0 24px;
+      }
+      h2 {
+        font-size: 24px;
+        line-height: 1.2;
+      }
+      p {
+        max-width: 70ch;
+      }
+      .eyebrow {
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--accent);
+      }
+      .muted,
+      small {
+        color: var(--muted);
+      }
+      button,
+      input,
+      select {
+        font: inherit;
+      }
+      button,
+      select,
+      input:not([type="range"]) {
+        min-height: 44px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 8px 12px;
+        background: var(--paper);
+        color: var(--ink);
+      }
+      button {
+        cursor: pointer;
+      }
+      button:hover {
+        border-color: var(--accent);
+      }
+      :focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 3px;
+      }
+      label {
+        display: block;
+        font-size: 14px;
+        font-weight: 600;
+        margin-top: 16px;
+      }
+      input[type="range"] {
+        width: 100%;
+        min-height: 44px;
+        accent-color: var(--accent);
+      }
+      .split {
+        display: grid;
+        grid-template-columns: minmax(220px, 1fr) minmax(0, 2fr);
+        gap: 40px;
+      }
+      .rule {
+        border-top: 1px solid var(--line);
+        padding-top: 24px;
+        margin-top: 32px;
+      }
+      svg,
+      canvas {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 14px;
+      }
+      th,
+      td {
+        text-align: left;
+        border-bottom: 1px solid var(--line);
+        padding: 12px 8px;
+      }
+      output {
+        font-variant-numeric: tabular-nums;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      .error {
+        color: light-dark(#a32e29, #ffaaa5);
+      }
+      @media (max-width: 640px) {
+        .split {
+          grid-template-columns: 1fr;
+          gap: 20px;
+        }
+        h1 {
+          font-size: 40px;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          scroll-behavior: auto !important;
+        }
+      }
+      @media print {
+        button,
+        input,
+        select,
+        .controls {
+          display: none;
+        }
+        body {
+          background: white;
+          color: black;
+        }
+        main {
+          padding: 0;
+        }
+      }
+      body {
+        background: transparent;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="eyebrow">Scenario lab · Illustrative assumptions</p>
+        <h1>When does the cheaper plan change?</h1>
+        <p>
+          A lower monthly fee can cost more at higher usage. Explore the
+          crossover. These are invented plans, not provider prices.
+        </p>
+      </header>
+      <div class="split rule">
+        <section class="controls" aria-labelledby="assumptions">
+          <h2 id="assumptions">Assumptions</h2>
+          <label for="tasks"
+            >Tasks per month:
+            <output id="task-count" for="tasks">1000</output></label
+          ><input
+            id="tasks"
+            type="range"
+            min="0"
+            max="5000"
+            step="100"
+            value="1000"
+          /><label for="base-a">Plan A monthly base ($)</label
+          ><input
+            id="base-a"
+            type="number"
+            min="0"
+            max="10000"
+            step="any"
+            value="20"
+          /><label for="rate-a">Plan A per task ($)</label
+          ><input
+            id="rate-a"
+            type="number"
+            min="0"
+            max="100"
+            step="any"
+            value="0.004"
+          /><label for="base-b">Plan B monthly base ($)</label
+          ><input
+            id="base-b"
+            type="number"
+            min="0"
+            max="10000"
+            step="any"
+            value="5"
+          /><label for="rate-b">Plan B per task ($)</label
+          ><input
+            id="rate-b"
+            type="number"
+            min="0"
+            max="100"
+            step="any"
+            value="0.012"
+          />
+          <p id="error" class="error" role="status"></p>
+          <button type="button" id="reset">Reset scenario</button>
+        </section>
+        <section aria-labelledby="consequence">
+          <h2 id="consequence">Monthly consequence</h2>
+          <div id="results">
+            <p id="summary" role="status"></p>
+            <figure>
+              <svg
+                id="chart"
+                viewBox="0 0 640 350"
+                role="img"
+                aria-labelledby="chart-title"
+              >
+                <title id="chart-title">
+                  Monthly cost in dollars versus tasks per month, from zero to
+                  5000 tasks
+                </title>
+                <g id="plot"></g>
+              </svg>
+              <figcaption id="crossover"></figcaption>
+            </figure>
+            <table>
+              <caption>
+                Current monthly cost in US dollars
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Plan</th>
+                  <th scope="col">Monthly cost</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">A (solid line)</th>
+                  <td id="cost-a"></td>
+                </tr>
+                <tr>
+                  <th scope="row">B (dashed line)</th>
+                  <td id="cost-b"></td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="muted">
+              Formula: monthly base + tasks × per-task rate. Excludes taxes,
+              discounts and other fees. Both lines use the same axes and a zero
+              baseline.
+            </p>
+          </div>
+        </section>
+      </div>
+    </main>
+    <script>
+      const ids = ["tasks", "base-a", "rate-a", "base-b", "rate-b"];
+      const fields = ids.map((id) => document.getElementById(id));
+      const money = (value) =>
+        new Intl.NumberFormat("en-US", {
+          style: "currency",
+          currency: "USD",
+        }).format(value);
+      const ns = "http://www.w3.org/2000/svg";
+      function node(tag, attrs, text) {
+        const element = document.createElementNS(ns, tag);
+        for (const [key, value] of Object.entries(attrs))
+          element.setAttribute(key, String(value));
+        if (text !== undefined) element.textContent = text;
+        return element;
+      }
+      function render() {
+        const values = fields.map((field) => field.valueAsNumber);
+        const valid =
+          fields.every((field) => field.validity.valid) &&
+          values.every((value) => Number.isFinite(value) && value >= 0);
+        document.getElementById("error").textContent = valid
+          ? ""
+          : "Enter a finite, nonnegative value within each field’s limit.";
+        document.getElementById("results").hidden = !valid;
+        if (!valid) return;
+        const [tasks, baseA, rateA, baseB, rateB] = values;
+        document.getElementById("task-count").value = String(tasks);
+        const a = baseA + tasks * rateA,
+          b = baseB + tasks * rateB;
+        document.getElementById("cost-a").textContent = money(a);
+        document.getElementById("cost-b").textContent = money(b);
+        document.getElementById("summary").textContent =
+          Math.abs(a - b) < 0.000001
+            ? `Both plans cost ${money(a)} at ${tasks} tasks.`
+            : `Plan ${a < b ? "A" : "B"} costs ${money(Math.abs(a - b))} less at ${tasks} tasks.`;
+        const cross = (baseB - baseA) / (rateA - rateB);
+        document.getElementById("crossover").textContent =
+          rateA === rateB
+            ? baseA === baseB
+              ? "The plans have identical costs."
+              : "Equal per-task rates: no crossover."
+            : cross >= 0
+              ? `Crossover: ${cross.toLocaleString("en-US", { maximumFractionDigits: 1 })} tasks per month${cross > 5000 ? " (outside this chart)" : ""}.`
+              : "No crossover for nonnegative usage.";
+        const max = Math.max(1, baseA + 5000 * rateA, baseB + 5000 * rateB);
+        const width = Math.max(
+          300,
+          document.getElementById("chart").clientWidth,
+        );
+        document
+          .getElementById("chart")
+          .setAttribute("viewBox", `0 0 ${width} 350`);
+        const x = (value) => 65 + (value / 5000) * (width - 85),
+          y = (value) => 280 - (value / max) * 240;
+        const plot = document.getElementById("plot");
+        plot.replaceChildren(
+          node("path", {
+            d: `M65 30V280H${width - 20}`,
+            fill: "none",
+            stroke: "var(--line)",
+          }),
+        );
+        for (const tick of [0, 2500, 5000])
+          plot.append(
+            node(
+              "text",
+              {
+                x: x(tick),
+                y: 305,
+                "text-anchor": "middle",
+                fill: "currentColor",
+                "font-size": 14,
+              },
+              tick,
+            ),
+          );
+        for (const tick of [0, max / 2, max])
+          plot.append(
+            node(
+              "text",
+              {
+                x: 56,
+                y: y(tick) + 5,
+                "text-anchor": "end",
+                fill: "currentColor",
+                "font-size": 12,
+              },
+              money(tick),
+            ),
+          );
+        plot.append(
+          node(
+            "text",
+            {
+              x: width / 2,
+              y: 340,
+              "text-anchor": "middle",
+              fill: "currentColor",
+              "font-size": 14,
+            },
+            "Tasks per month",
+          ),
+        );
+        for (const [base, rate, dash] of [
+          [baseA, rateA, ""],
+          [baseB, rateB, "8 6"],
+        ]) {
+          plot.append(
+            node("path", {
+              d: `M${x(0)} ${y(base)}L${x(5000)} ${y(base + 5000 * rate)}`,
+              stroke: "var(--accent)",
+              "stroke-width": 3,
+              "stroke-dasharray": dash,
+              fill: "none",
+            }),
+          );
+          plot.append(
+            node("circle", {
+              cx: x(tasks),
+              cy: y(base + tasks * rate),
+              r: 5,
+              fill: "var(--accent)",
+            }),
+          );
+        }
+      }
+      for (const field of fields) field.addEventListener("input", render);
+      document.getElementById("reset").addEventListener("click", () => {
+        fields.forEach(
+          (field, index) =>
+            (field.value = String([1000, 20, 0.004, 5, 0.012][index])),
+        );
+        render();
+      });
+      window.addEventListener("resize", render);
+      render();
+    </script>
+  </body>
+</html>

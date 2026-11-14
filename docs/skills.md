@@ -955,3 +955,15 @@ The assistant can propose **Worth creating a skill** when a reusable procedure a
 A procedure drawn from fewer than three distinct answers is not proposed as a suggestion. It is listed with its full text under **more ideas need your decision**. **Create skill** opens a preview: the name, description and body can be edited, and a warning says how many answers it is based on. **Create skill** in the preview creates the skill in the library and binds it to the agent's draft, never to a published version. It needs the same permissions as Accept and makes no model call. A second click returns the skill already created.
 
 The estimate reserves the full proposed body for each candidate answer and its confirming reruns, in addition to the historical per-answer price.
+
+## Design resources for Apps and Visuals { #design-resources }
+
+`artifact-pages` guides reusable Apps, evidence-led reports, decision workbenches and browser presentations. `visual-design` guides interactive explanations, comparisons, diagrams and original procedural graphics. Both choose composition, style and interactions for school, play or work rather than applying one dashboard to every subject. Detailed playbooks and complete HTML examples are loaded only when needed.
+
+The examples include an evidence filter, editable decision criteria, a transparent cost comparison, a reproducible generative field and a keyboard-operated slide deck with overview, four visual themes and a complete print layout. Example data and assumptions are labelled. Controls, error states, reset, phone layouts and reduced motion are part of verification.
+
+Apps can export a published HTML/Markdown page or browser presentation through `export_artifact`. The operator must configure `ARTIFACT_RENDER_CDP_URL` and install the `browser` extra; the agent needs a workspace to save the real PDF. Exports use the same access and audience rules as App previews and refuse unavailable bound data. A file is limited to 50 pages and 20 MB and gets a unique filename. Inspect the PDF, including page breaks and all slides. This does not introduce a PowerPoint format.
+
+Chat can embed interactive content. Mattermost and other text channels receive an authorized App link, a rendered image where supported, or a requested PDF through file delivery; HTML does not execute inside those messages. Posting a link does not grant public access. Existing installations receive these resources through the normal library refresh: untouched copies update, followed skills wait for their check, and customized copies remain protected.
+
+Bundled platform skills and the skills shipped with the AI Architect can be read and used through normal resource access, but changing their content, files, versions or forks, deleting them, or claiming their reserved name requires organization-wide agent edit authority (Owner/Admin in the built-in roles). A skill edit grant does not bypass this protection. Ordinary organization skills retain their existing ownership and sharing rules.

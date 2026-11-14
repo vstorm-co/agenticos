@@ -10,7 +10,7 @@ import { WorkingHoursField } from "@/components/settings/working-hours-field";
 import { Button, FormField, Input } from "@/components/ui";
 import { Textarea } from "@/components/ui/textarea";
 import { useChanged } from "@/hooks/use-changed";
-import { useSaveAgentContext } from "@/hooks/use-account-profile";
+import { useSaveAgentContext, type AgentContext } from "@/hooks/use-account-profile";
 import { getErrorMessage } from "@/lib/api-error";
 import type { User } from "@/types";
 import type { WorkingHours } from "@/types/auth";
@@ -28,8 +28,15 @@ export function AgentContextSettings({
   secondaryAction,
   disabled = false,
   onSavingChange,
+  formId,
+  onSave,
+  identityChanged,
 }: {
   user: User;
+  /** Combined profile form: edits in either section enable Save. */
+  identityChanged?: boolean;
+  formId?: string;
+  onSave?: (changes: AgentContext) => Promise<User>;
   beforeSave?: () => Promise<boolean>;
   onSaved?: () => void;
   saveLabel?: string;
@@ -54,13 +61,20 @@ export function AgentContextSettings({
     setHours(user.working_hours ?? null);
   }
 
+  const contextChanged =
+    role.trim() !== (user.job_title ?? "") ||
+    about.trim() !== (user.about ?? "") ||
+    zone !== (user.time_zone ?? "") ||
+    JSON.stringify(hours) !== stored;
+  const unchanged = identityChanged !== undefined && !identityChanged && !contextChanged;
+
   const submit = async () => {
     if (saving || disabled) return;
     setSaving(true);
     onSavingChange?.(true);
     try {
       if (beforeSave && !(await beforeSave())) return;
-      await save({
+      await (onSave ?? save)({
         job_title: role.trim() || null,
         about: about.trim() || null,
         time_zone: zone || null,
@@ -79,6 +93,7 @@ export function AgentContextSettings({
   return (
     <SectionCard title={t("title")} description={t("description")}>
       <form
+        id={formId}
         aria-label={t("title")}
         onSubmit={(event) => {
           event.preventDefault();
@@ -131,7 +146,7 @@ export function AgentContextSettings({
             <Button
               type="submit"
               loading={saving}
-              disabled={saving || disabled}
+              disabled={saving || disabled || unchanged}
               className="w-full sm:w-auto"
             >
               {saveLabel ?? t("save")}

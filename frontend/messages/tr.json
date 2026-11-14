@@ -348,6 +348,7 @@
     }
   },
   "ui": {
+    "clearFilters": "Filtreleri temizle",
     "expandEditor": "{label} alanını genişlet",
     "cancel": "İptal",
     "checkConnection": "Bağlantınızı kontrol edip tekrar deneyin.",
@@ -362,14 +363,13 @@
     "jsonShowLess": "daha az göster",
     "labelPreview": "{label} önizlemesi",
     "markdown": "Markdown",
-    "matchedOfTotal": "{counted} içinden {matched}",
     "next": "İleri",
     "nextMonths": "Sonraki aylar",
     "nextPage": "Sonraki sayfa",
     "noResults": "Sonuç yok.",
     "nothingWrittenYet": "Henüz bir şey yazılmadı.",
-    "pagerAll": "{counted} · sayfa {page} / {pageCount}",
-    "pagerMatched": "{counted} içinden {matched} · sayfa {page} / {pageCount}",
+    "pagerAll": "{counted}",
+    "pagerMatched": "{counted} içinden {matched}",
     "preview": "Önizleme",
     "previousMonths": "Önceki aylar",
     "previousPage": "Önceki sayfa",
@@ -751,7 +751,7 @@
       "notification": "Bildirimler",
       "debug": "Hata ayıklama",
       "triggers": "Tetikleyiciler",
-      "decide": "Kararlar",
+      "decide": "Karar modelleri",
       "people": "İnsanlar",
       "slack": "Slack",
       "mattermost": "Mattermost",
@@ -809,7 +809,7 @@
     "categoryHint": {
       "triggers": "run nasıl başlar?",
       "agent": "run temsilcilerinizden biri",
-      "decide": "Jev karar modeliyle evet ya da hayır yanıtı verin, bir seçenek seçin veya puan verin",
+      "decide": "Modele türlenmiş bir soru sorun ve sonuca göre yönlendirin",
       "knowledge": "Bir bilgi tabanında arama yapın veya birine ekleme yapın",
       "logic": "Bir yol seçin veya onlara tekrar katılın",
       "control": "Öğeler üzerinde döngü yapın, bekleyin veya run başka bir iş akışı",
@@ -2361,7 +2361,6 @@
     },
     "memory": {
       "showing": "{total} kayıttan {from}–{to} arası gösteriliyor",
-      "newer": "Daha yeni",
       "older": "Daha eski",
       "title": "Belleğiniz",
       "description": "Buradaki agentların sizin hakkınızda not ettikleri ve bu notlarla ilgili yapabilecekleriniz.",
@@ -2371,7 +2370,11 @@
       "suppressed": "Kullanım dışı",
       "suppress": "Bu notu kullanmayı bırak",
       "restore": "Bu notu yeniden kullan",
-      "delete": "Bu notu sil"
+      "delete": "Bu notu sil",
+      "browser": {
+        "editNoteHint": "Agent’ın sizin hakkınızda hatırladıklarını düzeltin. Düzenlemeleriniz ilk agent kaydından ayrı tutulur.",
+        "noteContent": "Not içeriği"
+      }
     },
     "agentDetail": {
       "perMonth": "Ayda ${amount}"
@@ -2743,6 +2746,8 @@
       "moreUploads": "Yükleme kuyruğunda {count, plural, one {# dosya daha} other {# dosya daha}}"
     },
     "orgs": {
+      "searchPermissions": "İzinlerde ara…",
+      "noPermissionsMatch": "Aramanızla eşleşen izin yok",
       "retention": "Saklama süresi",
       "active": "Etkin",
       "all": "tümü",
@@ -3033,8 +3038,9 @@
       "platform": "Platform",
       "polling": "Düzenli sorgulama",
       "register": "Kaydet",
-      "registeredCount": "{count, plural, =1 {1 kanal kaydedildi} other {# kanal kaydedildi}}",
       "removeBot": "{bot} kaldır",
+      "removeBotDescription": "Bu bot, bağlı tüm ajanlar için yanıt vermeyi durduracak. Yapılandırmasını korumak için bunun yerine duraklatabilirsin.",
+      "removeBotConfirm": "Botu kaldır",
       "replaceBotToken": "Bot tokenını değiştir",
       "resumeBot": "{bot} sürdür",
       "save": "Kaydet",
@@ -3413,7 +3419,6 @@
       "chatAccountsDescription": "Size bağlı Slack, Microsoft Teams, Telegram, Mattermost ve Discord hesapları. Bu hesaplardan birine ulaşan agent, sizin yetkilerinizle ve budgetınızla yanıt verir.",
       "confirmNewPassword": "Yeni parolayı onayla",
       "currentPassword": "Mevcut parola",
-      "customizeCommandPaletteChat": "Sohbetteki /komut paletini özelleştirin; yerleşik komutları devre dışı bırakın veya kendi hızlı promptlarınızı tanımlayın.",
       "deleteAccount": "Hesabı sil",
       "deleteMyAccount": "Hesabımı sil",
       "deleteYourAccount": "Hesabınız silinsin mi?",
@@ -4492,7 +4497,6 @@
       "took": "Süre",
       "toolInput": "Girdi",
       "toolOutput": "Çıktı",
-      "toolsSent": "{count, plural, =0 {Araçlar} =1 {1 araç} other {# araç}}",
       "transcriptCouldNotBeRead": "Transkript okunamadı",
       "tryAgain": "Yeniden dene",
       "turnAgent": "Agent",
@@ -4568,7 +4572,42 @@
       "standaloneRequest": "Model isteği",
       "standaloneResponse": "Model yanıtı",
       "unverifiedSender": "Doğrulanmamış",
-      "anonymousRequester": "Anonim katılımcı"
+      "anonymousRequester": "Anonim katılımcı",
+      "inputPrompt": "Prompt",
+      "inputTools": "Araçlar",
+      "inputRequests": "İstekler",
+      "inputCatalog": "Araç kataloğu",
+      "inputCatalogHint": "Son istekte çalışma zamanına sunulan tanımlar. Yalnızca görünür araçlar modele doğrudan sunuldu.",
+      "inputVisibilityUnknown": "Bu eski kayıt araç görünürlüğünü içermiyor. Katalog boyutu, modele gönderilen şema sayısı değildir.",
+      "inputVisible": "Görünür",
+      "inputDeferred": "Ertelenmiş",
+      "inputWithheld": "Gizlenmiş",
+      "inputViaHistory": "Geçmişte",
+      "inputUnknown": "Kaydedilmedi",
+      "inputToolsSearch": "Araç adlarında ve açıklamalarında ara…",
+      "inputToolCount": "{total} araçtan {matched} tanesi",
+      "inputShowMore": "Daha fazla araç göster",
+      "inputNoMatches": "Aramanızla eşleşen araç yok.",
+      "inputSearchEnabled": "Tool Search etkin",
+      "inputSearchPolicy": "Arama başına en fazla {count} sonuç · {strategy}",
+      "inputAlwaysVisible": "Her zaman görünür istisnalar",
+      "inputNoExceptions": "Her zaman görünür istisna yok.",
+      "inputPromptHint": "Kaydedilen talimat ve sistem bloklarının okuma görünümü. Kaynak görünümü özgün sınırlarını gösterir.",
+      "inputRead": "Oku",
+      "inputSource": "Kaynak",
+      "inputInstructions": "Talimatlar",
+      "inputSystemBlock": "Sistem bloğu {index}",
+      "inputLastRequest": "Son istek",
+      "inputRequestTools": "Model isteğine göre araçlar",
+      "inputRequest": "İstek {index}",
+      "inputRequestHint": "Görünürlük, sağlayıcı Tool Search ayarını çözdükten sonra her model isteği için kaydedilir.",
+      "inputNoVisibleNames": "Görünür araç adları bu kayıtta saklanmadı.",
+      "inputTokenInput": "Girdi tokenları",
+      "inputTokenOutput": "Çıktı tokenları",
+      "inputTokenCacheRead": "Önbellekten okunan",
+      "inputTokenCacheWrite": "Önbelleğe yazılan",
+      "inputTokenHint": "Kaydedilen model isteklerinin toplamı. Önbellek tokenları girdiye dahildir, ayrıca eklenmez.",
+      "systemRoleChannelDecision": "Kanala katılım kararı (sistem)"
     },
     "adminSettingsLayout": {
       "title": "Dağıtım ayarları",
@@ -4887,7 +4926,7 @@
       "noContainerConnectionHint": "Çalışanlar yalnızca bir container service üzerinden listelenebilir. Connections altında bir tane kaydedin; Daytona sandbox'ları ücretlendirildikleri Daytona hesabından yönetilir.",
       "noOperationMatches": "Eşleşen işlem yok.",
       "noSessionMatches": "Eşleşen çalışan sandbox yok.",
-      "nothingRunningSandboxOpens": "Çalışan yok. Bir sandbox, Agent ilk dosya veya shell çağrısını yaptığında açılır. Sandbox'ı olup hiç kullanmayan Agent burada hiçbir maliyet oluşturmaz.",
+      "nothingRunningSandboxOpens": "Çalışan sandbox yok",
       "ok": "Başarılı",
       "operation": "İşlem",
       "reapedIn": "{time} içinde temizlendi",
@@ -4903,8 +4942,8 @@
       "searchOperations": "İşlemlerde ara",
       "searchSessions": "Oturumlarda ara",
       "session": "Oturum",
-      "sessionsCount": "Bu kuruluşun sandbox'larından {count} tanesi. On saniyede bir yenilenir.",
-      "sessionsOfLimit": "İzin verilen {limit} sandbox'tan bu kuruluşa ait {count} tanesi. On saniyede bir yenilenir.",
+      "sessionsCount": "Sandbox sayısı: {count}",
+      "sessionsOfLimit": "Sandbox sayısı: {count} / {limit}",
       "sharedBy": "Paylaşan",
       "show": "Göster",
       "state": "Durum",
@@ -4912,7 +4951,7 @@
       "stateRunningMeans": "Container mevcut ve çalışır durumda.",
       "target": "Hedef",
       "whatIsRecorded": "Bu sandbox'tan istenen her işlem kaydedilir: komut, yol, istekte bulunan Agent, başarılı olup olmadığı ve ne kadar sürdüğü. Sandbox silindikten sonra da yanıt vermesi için 30 gün saklanır. Dosya içeriği ve komut çıktısı asla kaydedilmez; böylece bu kayıt denetim içindir, Agent'ın çalışmalarını okumak için değil.",
-      "whatSessionsAre": "Her satır bir host'taki tek bir workspace'i gösterir. Oturum chat başladığında değil, Agent ilk tool çağrısını yaptığında açılır; yeterince uzun süre boşta kaldıktan sonra temizlenir.",
+      "whatSessionsAre": "Her satır bir host'taki tek bir workspace'i gösterir. Oturum chat başladığında değil, Agent ilk tool çağrısını yaptığında açılır; yeterince uzun süre boşta kaldıktan sonra temizlenir. 10 saniyede bir yenilenir.",
       "when": "Zaman"
     },
     "someUnreadable": "{count} öğe okunamadı; host'ları kapalı olabilir.",
@@ -5932,8 +5971,8 @@
     "channelCanOverrideScope": "Agent'ın yayınlandığı her kanal bu ayarı geçersiz kılabilir.",
     "channelLookupsHint": "Kanal adı, konusu ve görülebilen üyelerin sınırlı bir özeti otomatik eklenir. Bu anahtarlar ek işlemlere izin verir; dosya göndermek için kullanıcının isteği gerekir.",
     "channelLookupsOn": "Bu Agent'ın {platform} üzerinde yapabilecekleri",
-    "channelPromptHint": "Runtime her run'da platformu, gönderenin bağlantı durumunu ve geçerli kanal verilerini ekler. Düzenlenebilir bu metin, bu bağlantıya ilişkin talimatları ekler; yeni bağlantılar biçimlendirme ve kanal konuşması yönergelerini içerir.",
-    "channelPromptOn": "{bot} için ek talimatlar",
+    "channelPromptHint": "Varsayılan talimatlar otomatik görünür. Bu kanal için düzenleyin veya güncel varsayılanları geri yüklemek için temizleyip kaydedin. Kimlik, izinler ve çalışma bağlamı platform tarafından yönetilir.",
+    "channelPromptOn": "{bot} kanal talimatları",
     "channelPromptPlaceholder": "Agent'ın burada yanıt verirken bilmesi gerekenler.",
     "channelPromptVariables": "Ekle:",
     "choosePeople": "Kişi seçin",
@@ -6780,7 +6819,36 @@
     "otariEndpointHint": "Modelleri yüklemeden önce /api/v1 ile biten ağ geçidi URL’sini girin. Barındırılan hizmet: https://api.otari.ai/api/v1. AB: https://eu.api.otari.ai/api/v1.",
     "loadGatewayModels": "Modelleri yükle",
     "modelIdOtariHint": "Otari ağ geçidinizde tanımlanan provider:model biçimini veya bir takma ad/yönlendirme politikasını kullanın.",
-    "useDefaultModel": "Varsayılan modeli kullan"
+    "useDefaultModel": "Varsayılan modeli kullan",
+    "observationEngine": "Karar yöntemi",
+    "observationLlm": "LLM · yapılandırılmış değerlendirme",
+    "observationNative": "Karar modeli · yerel olasılıklar",
+    "observationThreshold": "Ajanı başlatma eşiği (%)",
+    "observationProbabilityHint": "Sağlayıcının katılma olasılığını kullanır. Eşiğe ulaşıldığında ana ajan çalışır.",
+    "observationScoreHint": "LLM, 0–100 arasında yapılandırılmış bir değerlendirme döndürür; bu kalibre edilmiş bir olasılık değildir.",
+    "modelApiDecisions": "Decisions API",
+    "modelApiNative": "Standart üretim",
+    "observationTitle": "Sohbetlere otomatik katıl",
+    "observationSummary": "Ayrı bir model ne zaman katkı sağlamanın yararlı olacağına karar verir.",
+    "observationOn": "Açık",
+    "observationOff": "Kapalı",
+    "observationConfigure": "Yapılandır",
+    "observationDescription": "Botun erişebildiği tüm kanallardaki yeni iletileri analiz et. Bahsetmeler anında yanıt alır.",
+    "observationEnable": "Otomatik katılımı etkinleştir",
+    "observationDecisionModel": "Karar modeli",
+    "observationDefaultInstructions": "Yanıtlanmamış bir soruyu yanıtlayabiliyor, ilgili bilgiler ekleyebiliyor, önemli bir yanlış anlaşılmayı düzeltebiliyor veya somut bir sonraki adım önerebiliyorsan konuşmaya katıl. Gündelik sohbetlerde, başkası zaten yanıt verdiyse veya yalnızca söylenenleri tekrarlayacaksan sessiz kal.\n\nKonuşmanın dilini ve tonunu kullan. Somut, yardımcı ve kısa yanıt ver; yararlı olduğunda daha ayrıntılı açıkla. İddiaları kullanabildiğin araçlarla doğrula ve doğrulayamadığın noktaları açıkça belirt. Görev kişisel bir bağlantı veya onay gerektiriyorsa devam edebilmek için birinden ileti dizisinde senden bahsetmesini iste.",
+    "observationUnmentionedHint": "Yeni bir konuşmaya katılmanın yararlı olup olmayacağını kontrol et.",
+    "observationMentionedHint": "Ajanın bahsedilerek davet edildiği ileti dizilerini daha sık kontrol et.",
+    "observationFocus": "Odak noktası ve katılma koşulları",
+    "observationTiming": "Dakika cinsinden kontrol aralıkları",
+    "observationUnmentioned": "Ajandan henüz bahsedilmemiş ileti dizileri",
+    "observationMentioned": "Ajandan daha önce bahsedilmiş ileti dizileri",
+    "observationTimingHint": "@Bahsetme, bu aralıklardan bağımsız olarak hemen yanıt başlatır. Zamanlanmış kontroller yalnızca yeni iletileri analiz eder; boş aralıklarda model çağrısı yapılmaz.",
+    "observationAllChannels": "Botun erişebildiği tüm kanallar",
+    "observationAuthorityHint": "Karar modelinin araçları yoktur. Otomatik yanıtlar ana modeli ve bağlı kuruluş MCP hesaplarını normal onay kurallarıyla kullanır. Kişisel hesaplar ve diğer eylem araçları için birinin konuda bottan bahsetmesi gerekir. Onay gerektiren çağrılar otomatik yürütülmez. Her iki modelin maliyeti Activity içinde görünür.",
+    "observationRequired": "Katılım kararını verecek modeli seçin.",
+    "observationSaveFailed": "Kaydedilemedi. Değişiklikler formda duruyor; yeniden deneyin.",
+    "observationSave": "Katılım ayarlarını kaydet"
   },
   "dashboard": {
     "edit": {
@@ -8772,7 +8840,13 @@
       "waiverSettings": "Onay ayarlarını aç",
       "toolsTab": "Tool'lar ve dosyalar",
       "preferencesTab": "Tercihler",
-      "savedAutomatically": "Değişiklikler otomatik kaydedilir"
+      "savedAutomatically": "Değişiklikler otomatik kaydedilir",
+      "activeApprovalMode": "Onay modu: {mode}",
+      "compactMode": {
+        "follow_agent": "Agent kuralları",
+        "approve_all": "Tümünü onayla",
+        "ask_all": "Her zaman sor"
+      }
     },
     "conversationArchived": "Bu konuşma arşivlendi",
     "conversationDeleted": "Konuşma silindi",
@@ -9330,7 +9404,9 @@
       "tablesCreating": "Tablo oluşturuluyor",
       "tablesDescribing": "Tablonun sütunları okunuyor",
       "tablesListing": "Kullanabileceği tablolar denetleniyor",
-      "viewsListing": "Tablonun kayıtlı görünümleri listeleniyor"
+      "viewsListing": "Tablonun kayıtlı görünümleri listeleniyor",
+      "exportingArtifact": "PDF dışa aktarılıyor…",
+      "exportArtifact": "Yayınlanan uygulamayı dışa aktar"
     },
     "turnWasStopped": "durduruldu",
     "unfavourite": "Favorilerden çıkar",
@@ -10096,10 +10172,11 @@
     "save2": "Kaydet",
     "saving4": "Kaydediliyor…",
     "sentAsRegularUserMessage": "Sohbette <cmd>/{name}</cmd> yazdığınızda normal kullanıcı mesajı olarak gönderilir.",
-    "slashShortcuts": "Sık kullandığınız promptlar için slash kısayolları. Sohbette <cmd>/name</cmd> yazınca kayıtlı prompt gönderilir.",
     "summarizeConversationAsChecklist": "Konuşmayı yapılacaklar kontrol listesi olarak özetle.",
     "todo": "yapılacak",
-    "yourCustomCommands": "Özel komutlarınız"
+    "commandCatalog": "Slash komutları",
+    "commandKind": "Tür",
+    "customKind": "Özel"
   },
   "apiKeys": {
     "title": "API anahtarları",
@@ -10161,7 +10238,6 @@
   },
   "kb": {
     "addIntegration": "Entegrasyon ekle",
-    "addKnowledgeBase": "Bilgi tabanına ekle",
     "adding": "Ekleniyor…",
     "appliesEachFileYou": "Bu ayar, bundan sonra ekleyeceğiniz her dosyaya uygulanır ve dosyanın kaydına eklenir. Koleksiyon kendi ayarlarını korur; sonraki yüklemeler o ayarları kullanır.",
     "applyChanges": "{count, plural, =1 {1 değişikliği uygula} other {# değişikliği uygula}}",
@@ -10185,7 +10261,6 @@
     "chunkingRecursiveHint": "Önce paragraflara, sonra cümlelere, ardından sözcüklere göre böler; sığanı kullanır.",
     "chunkingSummary": "{size, plural, =1 {1 karakter} other {# karakter}}, {overlap, number} örtüşme · {strategy}",
     "chunks": "Parçalar",
-    "configuredOnceUsedAs": "Bir kez yapılandırın, istediğiniz sayıda bilgi tabanında kullanın. Her kopya kendi zamanlamasına göre eşitlenir.",
     "create": "Oluştur",
     "createKnowledgeBase": "Bilgi tabanı oluştur",
     "creating": "Oluşturuluyor...",
@@ -10236,7 +10311,6 @@
     "liteparseReadsTextLayer": "LiteParse önce metin katmanını okur, yalnızca metin yoksa OCR uygular. Ayrıştırma maliyetinin çoğunu OCR oluşturur; belgelerin çoğu dijital üretilmiştir. Her sayfaya OCR uygulamak için bu seçeneği kapatın.",
     "llamaparseKey": "LlamaParse anahtarı",
     "llamaparseTier": "LlamaParse katmanı",
-    "loadingIntegrations": "Entegrasyonlar yükleniyor…",
     "loadingModels": "Modeller yükleniyor…",
     "manualSchedule": "elle",
     "maximumPages": "En fazla sayfa",
@@ -10293,7 +10367,12 @@
     "reasoning": "Akıl yürütme",
     "remove": "Kaldır",
     "removeNamed": "{name} kaldırılsın mı?",
-    "reusableIntegrations": "Yeniden kullanılabilir entegrasyonlar",
+    "integrationActions": "İşlemler",
+    "integrationDetails": "Bağlantı / zamanlama",
+    "integrationsDescription": "Yeniden kullanılabilir kaynaklar bilgi tabanlarını besler. Yerel hizmetler kendi ağınızda embedding ve OCR işlemleri sağlar.",
+    "integrationsEmpty": "Henüz entegrasyon yok",
+    "integrationsCount": "{count, plural, one {# entegrasyon} other {# entegrasyon}}",
+    "reusableIntegrations": "Entegrasyonlar",
     "save": "Kaydet",
     "saving": "Kaydediliyor…",
     "scannedPages": "Taranmış sayfalar",
@@ -10310,7 +10389,7 @@
     "tierCostEffectiveHint": "Orta düzey ayar.",
     "tierFast": "Hızlı",
     "tierFastHint": "En ucuz; yerleşim sadakati en düşük seçenek.",
-    "use": "Şurada kullan…",
+    "use": "Bilgi tabanında kullan",
     "useCollectionSettings": "Koleksiyonun ayarlarını kullan",
     "useSourceInCollection": "“{name}” kaynağını bilgi tabanında kullan",
     "useStandardPrompt": "Standart promptu kullan",
@@ -10324,11 +10403,8 @@
     "endpointModelsUnconfirmed": "Bu uç noktaya hangi modelleri sunduğu sorulamadığından tüm OpenRouter modelleri listeleniyor. Sunulmayan bir model ilk yüklemede hata verir.",
     "endpointServesNoModel": "Bu uç nokta AgenticOS’un sunduğu embedding modellerinden hiçbirini sunmuyor. Uç noktayı boş bırakın veya başka provider seçin.",
     "endpointLacksCollectionModel": "Bu uç nokta koleksiyonun vektörlerinin oluşturulduğu {model} modelini sunmuyor. Uç noktayı boş bırakın veya bu modeli sunan birini seçin.",
-    "localServices": "Yerel servisler",
     "localServicesHint": "Dağıtımın kendi ağındaki sunucular: embedding yapan Ollama veya LiteParse için OCR yan hizmeti gibi. Bir kez kaydedilip koleksiyon başına seçilir. Bu servislere gönderilen hiçbir şey dağıtım dışına çıkmaz.",
     "addServer": "Sunucu ekle",
-    "loadingLocalServices": "Sunucular yükleniyor…",
-    "noLocalServicesYet": "Henüz bir şey yok. Embedding ve OCR işlemlerini kendi ağınızda tutmak için Ollama veya OCR sunucusu kaydedin.",
     "failedLoadLocalServices": "Yerel servisler yüklenemedi",
     "localServiceKind": "Tür",
     "embeddingServer": "Embedding sunucusu (Ollama)",
@@ -11898,6 +11974,10 @@
       "computer": "Bilgisayar · dosyalarınız",
       "computerHint": "Sohbetleriniz için bu bilgisayardaki bir klasörü kullanın. Bu kişisel seçiminizdir; diğer proje üyeleri paylaşılan proje workspace’ini kullanmaya devam eder.",
       "sharedWorkspace": "Paylaşılan proje workspace’i"
+    },
+    "tracking": {
+      "title": "Otomatik proje takibi",
+      "openTracker": "Takip agentı"
     }
   },
   "vault": {
@@ -11997,6 +12077,7 @@
     "googleAccount": "Google hesabı"
   },
   "portals": {
+    "backToServices": "Hizmetlere dön",
     "mailboxInterval": {
       "label": "Yeni e-postaları kontrol etme sıklığı",
       "option": "{count, plural, =1 {1 dakika} other {# dakika}}",
@@ -12444,8 +12525,8 @@
     "openBuilder": "Agent Builder’da aç",
     "openOrganization": "Kuruluş ayarları",
     "suggestions": {
-      "title": "Size yönelik öneriler",
-      "description": "Haftalık durumunuza gece yapılan incelemenin önerileri ve bu incelemenin açık olup olmadığı.",
+      "title": "Otomatik öneriler",
+      "description": "AgenticOS’un Inbox ve brifing üzerinden proaktif öneriler gönderip göndermeyeceğini belirleyin. Burada geçmişi görebilir ve reddedilen önerileri geri getirebilirsiniz. Bu ayar konuşmalardaki yanıtları yönetmez.",
       "forMe": "Bana yönelik gece önerileri",
       "orgOff": "Kuruluşunuzda gece önerileri kapalı olduğundan henüz öneri oluşturulmadı.",
       "turnedOn": "Gece önerileri sizin için açıldı",
@@ -12457,7 +12538,8 @@
         "open": "Bekliyor",
         "accepted": "Kabul edildi",
         "dismissed": "Reddedildi"
-      }
+      },
+      "openInbox": "Inbox’u aç"
     }
   },
   "orgAssistant": {
@@ -12999,7 +13081,6 @@
     "tasks": "Görevler",
     "newTask": "Yeni görev",
     "hint": "Siz ve ajanlarınız için kalıcı görevler. Tablo, çalışma sohbeti ve gelen kutusu aynı göreve bağlıdır.",
-    "board": "Görev tablosu",
     "openTable": "Tabloyu aç",
     "title": "Görev",
     "description": "Talimatlar veya bağlam",
@@ -13027,7 +13108,8 @@
       "private": "Görevlerim",
       "project": "Proje görevleri",
       "group": "Grup görevleri",
-      "organization": "Kuruluş görevleri"
+      "organization": "Kuruluş görevleri",
+      "agent": "Agent görevleri"
     },
     "status": {
       "planned": "Planlandı",
@@ -13040,7 +13122,8 @@
     "nextActor": {
       "user": "Sonraki adım: kişi",
       "agent": "Sonraki adım: ajan"
-    }
+    },
+    "taskTable": "Görev tablosu"
   },
   "setupHints": {
     "title": "Yapılandırma mevcut",
@@ -13520,15 +13603,15 @@
       },
       "decide_choose": {
         "name": "Birini seç",
-        "description": "Jev’e seçeneklerinizden hangisinin bir metne uyduğunu sorun - bir kategori, bir kuyruk, bir niyet."
+        "description": "Karar modeline seçeneklerinizden hangisinin bir metne uyduğunu sorun - bir kategori, bir kuyruk, bir niyet."
       },
       "decide_score": {
         "name": "Puanla",
-        "description": "Jev’e bir metnin değerlendirme ölçütünüzde nerede durduğunu sorun - aciliyet, uygunluk, risk."
+        "description": "Karar modeline bir metnin değerlendirme ölçütünüzde nerede durduğunu sorun - aciliyet, uygunluk, risk."
       },
       "decide_yes_no": {
         "name": "Evet veya hayır",
-        "description": "Jev’e bir metin hakkında evet veya hayır sorusu sorun ve yanıta göre dallanın."
+        "description": "Karar modeline bir metin hakkında evet veya hayır sorusu sorun ve yanıta göre dallanın."
       },
       "email_send": {
         "name": "E-posta gönder",

@@ -70,6 +70,7 @@ SCHEDULES: tuple[Schedule, ...] = (
     ),
     # Fire the agent triggers that have come due.
     Schedule("check-agent-triggers", jobs.CHECK_AGENT_TRIGGERS, _MINUTE),
+    Schedule("channel-observation", jobs.CHANNEL_OBSERVATION_SWEEP, _MINUTE),
     # Read the connected accounts nobody pushes to. Its own schedule rather than
     # work inside the trigger check: the two fail independently - a Gmail outage
     # must not stop a cron schedule firing.

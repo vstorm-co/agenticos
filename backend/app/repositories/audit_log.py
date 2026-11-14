@@ -23,6 +23,24 @@ async def installed_skill_keys(db: AsyncSession, *, organization_id: UUID) -> se
     return {key for key in keys if key is not None}
 
 
+async def has_skill_installation(
+    db: AsyncSession, *, organization_id: UUID, skill_id: UUID, key: str
+) -> bool:
+    """Match the receipt to this row, never a deleted skill sharing its name."""
+    found = await db.scalar(
+        select(AppAdminAuditLog.id)
+        .where(
+            AppAdminAuditLog.organization_id == organization_id,
+            AppAdminAuditLog.action == "skill.installed",
+            AppAdminAuditLog.target_type == "skill",
+            AppAdminAuditLog.target_id == str(skill_id),
+            AppAdminAuditLog.details["key"].astext == key,
+        )
+        .limit(1)
+    )
+    return found is not None
+
+
 async def list_for_org(
     db: AsyncSession,
     *,

@@ -275,6 +275,7 @@ class Message(Base, TimestampMixin):
     """
     role: Mapped[str] = mapped_column(String(20), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    model_content: Mapped[str | None] = mapped_column(Text, nullable=True)
     thinking: Mapped[str | None] = mapped_column(Text, nullable=True)
     model_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     # Which configured agent answered, when one did. Null for the plain

@@ -1,5 +1,5 @@
 ---
-source_sha: "66ff628633d4"
+source_sha: "b677b4ad3aa4"
 ---
 
 # Governance { #governance }
@@ -2691,3 +2691,11 @@ vertrauenswürdigen Zugangsdaten eines privaten Chats zur Verfügung; Letztere
 sind auf Vorgänge dieses Chats beschränkt. Gewöhnliche API-Schlüssel,
 Hintergrundläufe und Ersatzidentitäten des Herausgebers dürfen private
 Inbox-Vorgänge weder lesen noch erledigen.
+
+## Genehmigungsgruppen { #approval-groups }
+
+Workflow-Schritte für menschliche Genehmigungen und MCP-Aufrufe können Personen, Organisationsgruppen oder beide nennen. Eine berechtigte Person entscheidet und benötigt unabhängig davon `approvals:decide`. Sind weder Personen noch Gruppen konfiguriert, gilt die bisherige berechtigungsbasierte Regel. Eine konfigurierte leere oder gelöschte Gruppe öffnet den Zugriff niemals für alle.
+
+Gruppenmitgliedschaft und aktives Konto werden bei der Entscheidung geprüft. Benachrichtigungen ermitteln berechtigte Mitglieder beim Erstellen der Anfrage und entfernen Überschneidungen mit genannten Personen. Ein späterer Beitritt kann die Entscheidung ohne erneute Benachrichtigung erlauben; Austritt oder Berechtigungsverlust entzieht sie.
+
+Agent-Benachrichtigungen für Genehmigungen, Budget und Verbrauch unterstützen Gruppen als ausgewählte Empfänger. Sie steuern nur Benachrichtigungen und erteilen oder beschränken keine Entscheidungsrechte. Persönliche Benachrichtigungseinstellungen gelten weiterhin.

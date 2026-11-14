@@ -53,6 +53,7 @@ from app.services.channels.base import (
     read_press,
 )
 from app.services.channels.formatting import LINK_ACCOUNT_INSTRUCTION, PICTURE_DELIVERY_UNCONFIRMED
+from app.services.channels.live_reply import with_preview_links
 from app.services.channels.mentions import drawn_picture
 from app.services.channels.next_steps import offer_after_resume
 from app.services.transcript import RecordedToolCall
@@ -433,7 +434,9 @@ class ChannelPrompts:
         token = unseal_bot_token(bot)
         message = OutgoingMessage(
             platform_chat_id=platform_chat_id,
-            text="\n\n".join([segment.output or "Done.", *notices]),
+            text="\n\n".join(
+                [await with_preview_links(segment.output or "Done.", segment.run.id), *notices]
+            ),
             image_png=picture,
             api_base_url=bot.api_base_url,
         )

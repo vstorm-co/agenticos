@@ -31,6 +31,18 @@ def _posted(**post: object) -> dict[str, object]:
 
 
 class TestNormalisation:
+    @pytest.mark.parametrize(
+        "post_type", ["system_add_to_channel", "system_join_channel", "system_header_change"]
+    )
+    def test_system_housekeeping_cannot_start_an_agent_run(self, post_type: str) -> None:
+        assert (
+            MattermostAdapter().parse_incoming(
+                _posted(type=post_type, message="agenticos added to the channel by kacper."),
+                "bot-1",
+            )
+            is None
+        )
+
     def test_a_direct_message_arrives_as_a_private_chat(self):
         incoming = MattermostAdapter().parse_incoming(_posted(), "bot-1")
 

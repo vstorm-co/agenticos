@@ -54,6 +54,8 @@ export interface Trigger {
   /** A human title for this trigger; null lists it by the agent's name instead. */
   name: string | null;
   created_by_user_id: string | null;
+  setup_required?: boolean;
+  setup_issues?: string[];
   is_active: boolean;
   /**
    * Whether *this* caller may edit, pause, run-now or delete this trigger. The

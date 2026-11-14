@@ -27,9 +27,9 @@ export function ProjectTrackingControl({ project }: { project: Project }) {
   if (data)
     return (
       <Button variant="outline" asChild>
-        <Link href={ROUTES.TABLE_DETAIL(data.table_id)} data-tour="project-tracking">
+        <Link href={ROUTES.AGENT_DETAIL(data.agent_id)} data-tour="project-tracking">
           <ListChecks className="h-4 w-4" />
-          {t("openTasks")}
+          {t("openTracker")}
         </Link>
       </Button>
     );

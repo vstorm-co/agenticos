@@ -26,8 +26,11 @@ per-thread session (`channel_session`).
 
 ## Surface prompts
 
-`formatting.house_style` supplies current defaults at run time. Binding prompts
-store custom additions only; do not seed a snapshot of defaults into a new row.
+`formatting.house_style` supplies current defaults at run time. New binding rows
+store no snapshot. The editor shows `default_prompt` directly in the input.
+An explicit `prompt_replaces_defaults` edit replaces surface presentation text;
+legacy prompts remain additions. Clearing restores live defaults. Identity,
+authorization and environment context remain trusted runtime facts.
 Migration `0183_channel_prompt_defaults.py` removes exact historical defaults.
 Channel messages persist raw text and `channel_identity_id`; history author labels
 are resolved just before dispatch by `ChannelReference`, so erasure removes the
@@ -39,6 +42,10 @@ policy, keeping fixed transport metadata out of question checks. Keep JSON envel
 A decision made outside the chat (console, web chat, session API) continues the run through `app/services/channels/continuation.py`, and the endings made outside it (expiry, stop, a stranded run) post through `handback.post_notice`.
 Channel metadata remains request-only reference data, outside system instructions
 and the guarded input. Never infer identity or authorization from display labels.
+
+## Automatic participation
+
+`services/channels/observation.py` batches opted-in group messages through durable worker jobs. The binding owns the model, focus, channel scope and 20/1-minute intervals. It is off by default. Only native admitted human messages reach the bounded window; raw provider payloads and credentials never do. The tool-free decision and the main reply use the shared runner with source-agent budgets and guardrails. Main replies may use explicitly bound organization MCP accounts only, retaining allowlists, tool search and approvals. Never resolve personal or platform MCP credentials for an automatic turn. Refuse calls needing approval without parking; ask a participant to mention the bot for normal identity and approval handling. Re-check binding generation, bot admission fingerprint and active execution membership before model requests and delivery. Each paid window has a transactional, single-use claim; never replay uncertain replies.
 
 ## Tokens go through the vault
 

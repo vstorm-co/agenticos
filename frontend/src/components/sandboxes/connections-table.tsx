@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Box, Cloud, Pencil, ShieldCheck, Star, Trash2 } from "lucide-react";
+import { Pencil, ShieldCheck, Star, Trash2 } from "lucide-react";
 
 import { Badge, Button, DataTable, type Column } from "@/components/ui";
 import { ConnectionKindIcon } from "./connection-kind-icon";
@@ -10,6 +10,7 @@ import { useTranslations } from "next-intl";
 
 interface ConnectionsTableProps {
   connections: readonly SandboxConnectionRecord[];
+  loading?: boolean;
   onEdit: (connection: SandboxConnectionRecord) => void;
   onInspect: (connection: SandboxConnectionRecord) => void;
   onDelete: (connection: SandboxConnectionRecord) => void;
@@ -45,6 +46,7 @@ function addressLabel(connection: SandboxConnectionRecord): string {
  */
 export function ConnectionsTable({
   connections,
+  loading = false,
   onEdit,
   onInspect,
   onDelete,
@@ -61,17 +63,16 @@ export function ConnectionsTable({
         // Takes what the others leave and cuts a long name short, rather than
         // pushing the actions off a phone.
         // Bound the name on wider screens instead of separating it from its metadata.
-        className: "w-full max-w-0 sm:w-[32%] pl-5",
+        className: "w-[32%] pl-5 @max-md/table:w-full",
         header: t("name"),
         sortable: true,
         sortValue: (connection) => connection.name,
         cell: (connection) => (
           <div className="flex min-w-0 items-center gap-2">
-            {connection.kind === "daytona" || connection.kind === "e2b" ? (
-              <Cloud className="text-muted-foreground h-4 w-4 shrink-0" aria-hidden />
-            ) : (
-              <Box className="text-muted-foreground h-4 w-4 shrink-0" aria-hidden />
-            )}
+            <ConnectionKindIcon
+              kind={connection.kind}
+              className="text-muted-foreground size-4 shrink-0"
+            />
             <span title={connection.name} className="truncate font-medium">
               {connection.name}
             </span>
@@ -86,9 +87,7 @@ export function ConnectionsTable({
         ),
       },
       {
-        // Not on a phone, where they pushed the actions off the screen; the connection's dialog has them all.
         key: "kind",
-        hideBelow: "sm",
         header: t("kind"),
         cell: (connection) => (
           <span className="text-muted-foreground flex items-center gap-2 whitespace-nowrap">
@@ -99,17 +98,15 @@ export function ConnectionsTable({
       },
       {
         key: "address",
-        hideBelow: "sm",
         header: t("address"),
         cell: (connection) => (
-          <span className="text-muted-foreground font-mono text-xs whitespace-nowrap">
+          <span className="text-muted-foreground font-mono text-xs break-all">
             {addressLabel(connection)}
           </span>
         ),
       },
       {
         key: "credential",
-        hideBelow: "sm",
         header: t("credential"),
         cell: (connection) =>
           connection.secret_id === null ? (
@@ -123,7 +120,6 @@ export function ConnectionsTable({
       },
       {
         key: "defaultRuntime",
-        hideBelow: "sm",
         header: t("defaultRuntime"),
         cell: (connection) =>
           // A runtime's name is an identifier and reads as one; "the service's
@@ -140,11 +136,11 @@ export function ConnectionsTable({
       },
       {
         key: "actions",
-        className: "pr-5",
+        className: "pr-5 @max-md/table:w-full @max-md/table:text-left",
         header: t("actions"),
         align: "right",
         cell: (connection) => (
-          <div className="flex justify-end gap-1">
+          <div className="flex justify-end gap-1 @max-md/table:justify-start">
             {connection.kind === "docker" && (
               <Button
                 variant="ghost"
@@ -184,6 +180,10 @@ export function ConnectionsTable({
     <DataTable<SandboxConnectionRecord>
       columns={columns}
       rows={rows}
+      loading={loading}
+      skeletonRows={3}
+      stackOnNarrow
+      fillHeight
       getRowKey={(connection) => connection.id}
       className="rounded-none border-0 bg-transparent"
     />

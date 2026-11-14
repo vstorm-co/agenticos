@@ -461,7 +461,7 @@ it("searches department descriptions and clears an unmatched query", async () =>
   await userEvent.clear(search);
   await userEvent.type(search, "nothing-matches");
   expect(screen.getByText("No departments match")).toBeVisible();
-  await userEvent.click(screen.getByText("Clear search", { selector: "button" }));
+  await userEvent.click(screen.getByRole("button", { name: "Clear search" }));
   expect(search).toHaveValue("");
   expect(screen.getByRole("link", { name: "Ops" })).toBeVisible();
 });

@@ -1,13 +1,13 @@
-"""An agent's own notes - written by the agent, and by nothing else.
+"""An agent's own notes, with subject-only corrections through personal memory.
 
 Unlike a context file (a human-authored library row bound to many agents and
 read-only to the model), a memory note is the agent's own: it writes and edits one
 through a runtime tool, and it is addressed by the agent it belongs to plus the
 owner it was written for, never bound by id.
 
-Nobody else writes here, and that is the line between the two features rather than
-a limitation. `context` is what a person authors; memory is what the agent
-learned. An operator-authored memory store existed and went, along with the trust
+The subject can correct their own notes with separate audit provenance. Other
+people cannot author this store. `context` is shared standing knowledge; memory
+is what the agent learned about its subject. An operator-authored memory store existed and went, along with the trust
 tier it needed, because it was a second mechanism for the first feature's job
 (#1470).
 
