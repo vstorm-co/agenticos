@@ -119,3 +119,22 @@ it("closes an unchanged note from the dialog escape key", async () => {
   await userEvent.keyboard("{Escape}");
   expect(close).toHaveBeenCalled();
 });
+
+it("keeps a blank correction open when navigation asks it to save", async () => {
+  useUnsavedChangesStore.setState({ sources: {}, prompt: null, saving: false });
+  const close = vi.fn();
+  const update = vi.fn();
+  render(
+    <NoteDetail note={note} onClose={close} setActive={vi.fn()} remove={vi.fn()} update={update} />,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Source" }));
+  fireEvent.change(screen.getByRole("textbox", { name: "Note content" }), {
+    target: { value: "   " },
+  });
+  expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+  await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  await act(() => useUnsavedChangesStore.getState().answer("save"));
+  expect(update).not.toHaveBeenCalled();
+  expect(close).not.toHaveBeenCalled();
+  expect(screen.getByRole("textbox", { name: "Note content" })).toHaveValue("   ");
+});

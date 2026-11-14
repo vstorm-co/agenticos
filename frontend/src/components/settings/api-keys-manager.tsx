@@ -26,6 +26,8 @@ import { formatDate } from "@/lib/utils";
 import type { ApiKey } from "@/types/api-keys";
 import { Perm } from "@/types/permissions";
 
+const apiKeyRowId = (key: ApiKey): string => key.id;
+
 /**
  * The caller's organization API keys - every key in the organization for
  * somebody holding `api_keys:manage` - with the create and revoke controls.
@@ -199,7 +201,7 @@ export function ApiKeysManager() {
                   className="hidden rounded-none border-0 md:block"
                   columns={columns}
                   rows={[]}
-                  getRowKey={(key) => key.id}
+                  getRowKey={apiKeyRowId}
                   loading
                 />
                 <div aria-busy="true" className="space-y-3 md:hidden">
@@ -226,7 +228,6 @@ export function ApiKeysManager() {
                 icon={Search}
                 title={t("noMatches")}
                 description={t("searchHint")}
-                cta={{ label: t("clearSearch"), onClick: () => list.setQuery("") }}
               />
             ) : (
               <>
@@ -234,7 +235,7 @@ export function ApiKeysManager() {
                   className="hidden rounded-none border-0 md:block"
                   columns={columns}
                   rows={list.visible}
-                  getRowKey={(key) => key.id}
+                  getRowKey={apiKeyRowId}
                 />
                 <div className="md:hidden">
                   <ul className="space-y-3">
