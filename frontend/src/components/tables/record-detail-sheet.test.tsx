@@ -125,6 +125,11 @@ beforeEach(() => {
 });
 
 describe("RecordDetailSheet", () => {
+  it("offers row access only when the server grants audience management", () => {
+    renderSheet({ record: { ...record, access: "write", can_manage_access: true } });
+    expect(screen.getByRole("button", { name: "Row access" })).toBeVisible();
+  });
+
   it("lets a row writer edit ordinary cells without delete or sharing controls", () => {
     renderSheet({
       canEdit: false,
@@ -398,6 +403,20 @@ describe("RecordDetailSheet", () => {
     );
   });
 
+  it("does not reapply a conflicted edit after the server removes Write access", async () => {
+    const fresh: RecordRead = { ...record, revision: 5, access: "read" };
+    vi.mocked(apiClient.get).mockResolvedValue(fresh);
+    const onRecordUpdated = vi.fn();
+    renderSheet({ onRecordUpdated });
+    await raiseConflict();
+
+    await userEvent.click(screen.getByRole("button", { name: /reload and reapply/i }));
+
+    await waitFor(() => expect(onRecordUpdated).toHaveBeenCalledWith(fresh));
+    expect(apiClient.patch).toHaveBeenCalledTimes(1);
+    expect(useTableViewStore.getState().conflicts.r1?.c1?.pendingValues).toEqual({ c1: "x" });
+  });
+
   it("keeps the conflict banner when the retry commit itself fails, not only when the refetch does", async () => {
     // The refetch succeeding is not the retry write succeeding: the banner (and
     // the typed value) survive a retry PATCH that fails.
@@ -479,6 +498,20 @@ describe("RecordDetailSheet", () => {
       expect(deleteLater).toHaveBeenCalledWith([
         expect.objectContaining({ id: "r1", revision: 1 }),
       ]);
+    });
+
+    it("rechecks delete authority when an already-rendered confirmation is accepted", () => {
+      const pendingRecord: RecordRead = { ...record, can_delete: true };
+      const onOpenChange = vi.fn();
+      renderSheet({ record: pendingRecord, onOpenChange });
+      fireEvent.click(screen.getByRole("button", { name: "Delete record" }));
+      const accept = confirm();
+
+      pendingRecord.can_delete = false;
+      fireEvent.click(accept);
+
+      expect(deleteLater).not.toHaveBeenCalled();
+      expect(onOpenChange).not.toHaveBeenCalled();
     });
 
     it("offers no delete to a reader", () => {
