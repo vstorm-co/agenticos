@@ -30,14 +30,19 @@ export function SectionCard({
   return (
     <section
       className={cn(
-        "bg-card shadow-card overflow-hidden rounded-2xl border",
-        danger ? "border-destructive/20" : "border-foreground/[0.07]",
+        "min-w-0",
+        danger
+          ? "bg-card border-destructive/20 overflow-hidden rounded-xl border"
+          : "border-border border-b",
         className,
       )}
     >
       <header
         data-tour={tour}
-        className="border-foreground/[0.06] flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4 sm:px-6"
+        className={cn(
+          "flex flex-wrap items-center justify-between gap-3 py-4",
+          danger && "border-border border-b px-5 sm:px-6",
+        )}
       >
         <div className="flex min-w-0 flex-1 items-start gap-3">
           {Icon && (
@@ -61,7 +66,9 @@ export function SectionCard({
         </div>
         {action && <div className="shrink-0">{action}</div>}
       </header>
-      {children && <div className={cn("p-5 sm:p-6", contentClassName)}>{children}</div>}
+      {children && (
+        <div className={cn("py-5", danger && "px-5 sm:px-6", contentClassName)}>{children}</div>
+      )}
     </section>
   );
 }
@@ -90,8 +97,10 @@ export function SettingsSection({
   return (
     <section
       className={cn(
-        "bg-card rounded-2xl border p-4 sm:p-5",
-        danger ? "border-destructive/30 bg-destructive/[0.03]" : "border-foreground/10",
+        "min-w-0",
+        danger
+          ? "border-destructive/30 bg-destructive/[0.03] rounded-xl border p-4 sm:p-5"
+          : "border-border border-b py-5",
         className,
       )}
     >

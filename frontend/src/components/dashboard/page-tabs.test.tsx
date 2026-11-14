@@ -37,6 +37,21 @@ describe("PageTabs", () => {
     );
   });
 
+  it("keeps a desktop section index and a phone section menu for vertical navigation", async () => {
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <PageTabs tabs={SETTINGS_TABS} layout="vertical" />
+      </NextIntlClientProvider>,
+    );
+    expect(screen.getByRole("navigation")).toHaveClass("flex-col", "hidden", "md:flex");
+    expect(screen.getByRole("navigation").scrollLeft).toBe(0);
+    await userEvent.click(screen.getByRole("button", { name: "Section: API" }));
+    expect(screen.getByRole("menuitem", { name: "Profile" })).toHaveAttribute(
+      "href",
+      "/settings/profile",
+    );
+  });
+
   it("offers long section lists through a menu with the current section named", async () => {
     render(
       <NextIntlClientProvider locale="en" messages={messages}>

@@ -43,17 +43,19 @@ export interface PageTab {
  * (not an absolutely-positioned bar) so the horizontal scroll container never
  * produces a stray vertical scrollbar. The scrollbar is hidden; tabs scroll
  * horizontally only when they overflow. Dense sections default to a menu;
- * settings keeps the strip visible with `overflow="scroll"`.
+ * a vertical section index uses the same links on desktop and a menu on phones.
  */
 export function PageTabs({
   tabs: allTabs,
   className,
   overflow = "menu",
+  layout = "horizontal",
 }: {
   tabs: readonly PageTab[];
   className?: string;
   /** Keep the section index visible as a scrollable strip at every screen size. */
   overflow?: "menu" | "scroll";
+  layout?: "horizontal" | "vertical";
 }) {
   const shell = useShell();
   const isActive = useActiveRoute();
@@ -65,14 +67,16 @@ export function PageTabs({
   const strip = useRef<HTMLElement>(null);
   const activeTab = tabs.find((tab) => isActive(tab.href, tab.exact)) ?? tabs[0];
   const activeHref = activeTab?.href;
-  const many = overflow === "menu" && tabs.length > 4;
-  const sectionMenu = many && tabs.length > 6;
+  const vertical = layout === "vertical";
+  const many = vertical || (overflow === "menu" && tabs.length > 4);
+  const sectionMenu = !vertical && many && tabs.length > 6;
   useScrollFade(strip);
 
   // On a phone the strip is wider than the screen, and a tab past its edge -
   // API, opened from a link - was active but out of sight. Centre it, moving
   // only the strip, never the page.
   useEffect(() => {
+    if (vertical) return;
     const nav = strip.current;
     const active = nav?.querySelector<HTMLElement>('[aria-current="page"]');
     if (!nav || !active) return;
@@ -83,12 +87,12 @@ export function PageTabs({
     const resize = new ResizeObserver(centre);
     resize.observe(nav);
     return () => resize.disconnect();
-  }, [activeHref]);
+  }, [activeHref, vertical]);
 
   return (
     <div
       className={cn(
-        "border-border border-b",
+        !vertical && "border-border border-b",
         many && "max-md:border-0",
         sectionMenu && "border-0",
         className,
@@ -131,7 +135,8 @@ export function PageTabs({
         ref={strip}
         className={cn(
           "relative -mb-px flex min-w-0 [scrollbar-width:none] gap-0.5 overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
-          SCROLL_FADE,
+          !vertical && SCROLL_FADE,
+          vertical && "mb-0 flex-col overflow-visible",
           many && "hidden md:flex",
           sectionMenu && "md:hidden",
         )}
@@ -148,6 +153,8 @@ export function PageTabs({
                 active
                   ? "border-foreground text-foreground"
                   : "text-muted-foreground hover:text-foreground border-transparent",
+                vertical && "rounded-lg border-0 px-3 py-2",
+                vertical && active && "bg-muted text-foreground",
               )}
             >
               {tab.icon && <tab.icon className="h-4 w-4" aria-hidden />}
