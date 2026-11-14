@@ -25,6 +25,7 @@ from app.agents.spec import AgentSpec
 from app.agents.subagent_events import SubagentTextDelta
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import AuthContext
+from app.db.models.agent import AgentKind
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.services import live_turn
 from app.services.agent_runner import AgentRunnerService, LiveRunSurface, PreparedRun, RunSegment
@@ -53,7 +54,7 @@ def no_external_account_state(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @contextmanager
 def build_inputs(service: AgentRunnerService, ctx: AuthContext) -> Iterator[SimpleNamespace]:
-    agent = MagicMock(id=uuid4(), current_version_id=uuid4())
+    agent = MagicMock(id=uuid4(), current_version_id=uuid4(), kind=AgentKind.AGENT.value)
     spec = AgentSpec(name="Room responder", model_profile_id=uuid4())
     conversation = SimpleNamespace(
         organization_id=ctx.organization_id,
