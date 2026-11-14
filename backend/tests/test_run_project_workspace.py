@@ -68,6 +68,10 @@ async def test_select_files_and_reset_without_copying_private_content(
     assert "Restored" in await setup.selector.select(None)
     assert await setup.selector.workspace.read_text("private.txt") == "private conversation file"
     assert setup.selector.ref is None
+    await setup.selector.workspace.write_text("local.md", "original workspace")
+    assert await setup.original.read_text("local.md") == "original workspace"
+    await setup.selector.workspace.remove("local.md")
+    assert not await setup.original.exists("local.md")
 
 
 @pytest.mark.parametrize("unlinked", [True, False])
