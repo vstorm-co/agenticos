@@ -9,6 +9,7 @@ import { toolLookupName } from "@/lib/tool-identity";
  */
 
 import type { ToolCall } from "@/types/chat";
+import type { CodingTaskChanges } from "./coding-changes-api";
 
 import { pathArg } from "./tool-steps";
 import { toolEntry } from "./tool-catalog";
@@ -157,7 +158,21 @@ export function memoryChangesOf(calls: readonly ToolCall[] | undefined): MemoryC
 }
 
 /** Files the turn's successful writes or coding harness reported changing. */
-export function filesChangedOf(calls: readonly ToolCall[] | undefined): string[] {
+export function codingChangeIdsOf(calls: readonly ToolCall[] | undefined): string[] {
+  return [
+    ...new Set(
+      finished(calls, "run_coding_agent").flatMap((call) => {
+        const id = jsonObject(call.result)?.changes_id;
+        return typeof id === "string" ? [id] : [];
+      }),
+    ),
+  ];
+}
+
+export function filesChangedOf(
+  calls: readonly ToolCall[] | undefined,
+  changeSets: ReadonlyMap<string, CodingTaskChanges> = new Map(),
+): string[] {
   const paths = new Set<string>();
   for (const call of calls ?? []) {
     if (call.status !== "completed") continue;
@@ -165,7 +180,12 @@ export function filesChangedOf(calls: readonly ToolCall[] | undefined): string[]
       const path = pathArg(call.args);
       if (path) paths.add(path);
     } else if (toolLookupName(call) === "run_coding_agent") {
-      const files = jsonObject(call.result)?.files_changed;
+      const report = jsonObject(call.result);
+      if (typeof report?.changes_id === "string") {
+        for (const file of changeSets.get(report.changes_id)?.files ?? []) paths.add(file.path);
+        continue;
+      }
+      const files = report?.files_changed;
       if (Array.isArray(files))
         for (const path of files) if (typeof path === "string" && path.trim()) paths.add(path);
     }

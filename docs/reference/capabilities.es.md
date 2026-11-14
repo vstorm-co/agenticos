@@ -1,5 +1,5 @@
 ---
-source_sha: "6c7c4bc6350f"
+source_sha: "185e9574ec8b"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1803,8 +1803,32 @@ eran más pequeños al empezar la tarea. El parche se guarda hasta 256 KiB y 500
 **Quién lee el diff.** Se guarda con la conversación y se lee con el mismo acceso
 que su transcripción, así que lo ve quien pueda leer el chat; borrar el chat lo
 borra. En una sandbox que comparten varios chats, una tarea que se ejecuta a la vez
-que otra ve también los cambios de esa en su diff. Todavía no se ofrece revertir
-una tarea, y una tarea en este ordenador no registra diff.
+que otra ve también los cambios de esa en su diff. Una tarea en este ordenador no registra diff.
+
+**Revertir esta tarea.** Las tareas nuevas pueden restaurar archivos regulares
+solo si su snapshot completo se capturó en un workspace aislado de conversación.
+Los snapshots con ámbito de proyecto, agente, canal o usuario siguen siendo de
+solo lectura, porque pueden incluir trabajo de otra conversación. Necesitas
+acceso de edición actual y ningún run debe estar escribiendo en el workspace.
+El contenido y modo ejecutable de cada archivo deben coincidir con el estado
+final de la tarea. Un conflicto rechaza toda la reversión e indica los archivos.
+Los demás archivos, el índice de Git y su historial permanecen sin cambios.
+
+La acción encola un trabajo duradero y reserva el workspace. El panel muestra el
+progreso y los rechazos confirmados. Un resultado desconocido conserva la reserva;
+**Reintentar reversión** comprueba antes de escribir si los archivos ya se
+restauraron. Así, un fallo o una respuesta perdida no aplica la reversión dos
+veces. El worker vuelve a comprobar el acceso y registra el éxito en la auditoría.
+
+La reversión restaura solo archivos; conserva la conversación y el informe.
+Requiere Git y Python 3 y rechaza snapshots truncados, redactados, antiguos de
+solo visualización, archivos enlazados y archivos actuales de más de 2 MiB. No
+sustituye un workspace eliminado o trasladado.
+
+**Número de archivos cambiados.** El panel y el pie del mensaje usan el conjunto
+de cambios guardado, incluidas las ediciones del shell y el número de archivos
+omitidos por el límite. Solo una tarea sin conjunto de cambios usa la lista del
+harness; los informes nuevos expresan esas rutas respecto al workspace.
 
 **Las tareas de una conversación continúan una sesión.** El id de sesión del harness
 se guarda en la sandbox junto al trabajo, en `.agenticos/coding-agent/`, uno por

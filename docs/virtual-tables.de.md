@@ -1,5 +1,5 @@
 ---
-source_sha: "e49637ff7aa2"
+source_sha: "9bf7eb650d8e"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -355,7 +355,8 @@ Pflichtwerte da sind.
 Jede Bearbeitung ist ein `PATCH` gegen die angezeigte Revision, daher wird eine
 Bearbeitung, die gegen eine neuere Änderung verliert, abgelehnt statt darüber
 geschrieben. Der Datensatz öffnet sich dann mit dem abgelehnten Wert neben **Reload and
-reapply**. Markierte Zeilen bieten **Delete** für alle an, jede gegen ihre eigene
+reapply** und wird neu gelesen: Das Feld sagt, was es jetzt enthält, wer den Datensatz
+zuletzt geändert hat und wann, und der Titel des Panels zieht nach. Markierte Zeilen bieten **Delete** für alle an, jede gegen ihre eigene
 Revision: Ein zwischenzeitlich geänderter Datensatz bleibt erhalten, und die Konsole
 sagt, wie viele es waren. Das Datensatz-Panel löscht einen einzelnen Datensatz auf
 dieselbe Weise.
@@ -378,6 +379,8 @@ die sich ihre Werte umwandeln lassen.
 In **Columns** macht **Required** eine Spalte zur Pflicht, und eine archivierte Spalte
 wandert unter **Archived columns**, wo **Restore** sie samt ihren Werten
 zurückbringt.
+
+Das Lesen des Vergleichs erhält ungespeicherte Änderungen anderer Felder und deren ursprüngliche Revision. Ein weiterer Konflikt liest einen neuen Vergleich; eine Antwort für einen geschlossenen Datensatz schließt keinen anderen. Lange Werte erscheinen als gekürzte Vorschau.
 
 ### Import und Export { #import-and-export }
 

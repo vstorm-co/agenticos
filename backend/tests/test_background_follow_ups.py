@@ -395,6 +395,8 @@ async def test_budget_refusal_never_calls_the_suggestion_model(monkeypatch):
     assert prepared.built.ledger.input_tokens == 0
     assert runner.finish.await_args.kwargs["status"] == RunStatus.BUDGET_EXCEEDED
     assert runner.finish.await_args.kwargs["budget_scope"] == BudgetScope.ORGANIZATION
+    # The refusal itself, so its notification states the limit and the spend.
+    assert runner.finish.await_args.kwargs["budget"].limit_usd == Decimal(0)
 
 
 @pytest.mark.security

@@ -68,7 +68,7 @@ class WorkflowReconcilerService:
         exactly one code path responsible for it. The jobs are deduped per node,
         so a backed-up pool is not buried in copies.
         """
-        now = datetime.now(UTC)
+        now = await workflow_run_repo.database_time(self.db)
         rows = await workflow_run_repo.take_stale_claims_for_resubmission(
             self.db,
             before=now,
@@ -86,7 +86,7 @@ class WorkflowReconcilerService:
         it at least a lease ago (`list_orphaned_in_flight`). Returns how many
         were resolved - zero on the ordinary sweep.
         """
-        scanned_at = datetime.now(UTC)
+        scanned_at = await workflow_run_repo.database_time(self.db)
         grace = timedelta(seconds=settings.WORKFLOW_DISPATCH_LEASE_SECONDS)
         attempts = await workflow_run_repo.list_orphaned_in_flight(
             self.db, before=scanned_at, closed_before=scanned_at - grace, limit=limit
@@ -124,14 +124,13 @@ class WorkflowReconcilerService:
             # claim done and leave its holder dispatching a node that must not
             # run again.
             fresh = await workflow_run_repo.get_attempt(self.db, attempt.id)
+            now = await workflow_run_repo.database_time(self.db)
             if (
                 run is None
                 or node_run is None
                 or fresh is None
                 or fresh.status != NodeAttemptStatus.IN_FLIGHT.value
-                or not _abandoned(
-                    outbox, at=datetime.now(UTC), closed_before=datetime.now(UTC) - grace
-                )
+                or not _abandoned(outbox, at=now, closed_before=now - grace)
             ):
                 continue
             await dispatcher.resolve_orphaned_attempt(

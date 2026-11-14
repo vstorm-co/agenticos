@@ -6,11 +6,12 @@ import { useReleaseNotesStore } from "@/stores/release-notes-store";
 import type { CurrentReleaseResponse } from "@/lib/releases";
 const state = vi.hoisted(() => ({
   userId: "alice" as string | undefined,
+  appAdmin: false,
   data: undefined as CurrentReleaseResponse | undefined,
 }));
 vi.mock("@/stores/auth-store", () => ({
-  useAuthStore: (select: (s: { user: { id: string } | null }) => unknown) =>
-    select({ user: state.userId ? { id: state.userId } : null }),
+  useAuthStore: (select: (s: { user: { id: string; is_app_admin: boolean } | null }) => unknown) =>
+    select({ user: state.userId ? { id: state.userId, is_app_admin: state.appAdmin } : null }),
 }));
 vi.mock("@/hooks/use-current-release", () => ({ useCurrentRelease: () => ({ data: state.data }) }));
 vi.mock("@/components/chat/markdown-content", () => ({
@@ -19,6 +20,7 @@ vi.mock("@/components/chat/markdown-content", () => ({
 beforeEach(() => {
   vi.useFakeTimers();
   state.userId = "alice";
+  state.appAdmin = false;
   state.data = {
     release: {
       version,
@@ -79,3 +81,39 @@ it.each(["logged out", "missing notes", "acknowledged", "downgrade"])(
     expect(screen.queryByRole("dialog")).toBeNull();
   },
 );
+
+it("shows a release's operator sections only to whoever runs the deployment", async () => {
+  state.data = {
+    release: {
+      version,
+      url: `https://github.com/vstorm-co/agenticos/releases/tag/v${version}`,
+      body: "### Fixed\n\n- Charts render again.\n\n### Upgrading\n\n- Migrate before restarting.",
+    },
+  };
+  const view = render(<ReleaseNotes />);
+  await ready();
+  expect(screen.getByRole("dialog")).toHaveTextContent("Charts render again.");
+  expect(screen.getByRole("dialog")).not.toHaveTextContent("Migrate before restarting.");
+  view.unmount();
+
+  state.userId = "operator";
+  state.appAdmin = true;
+  render(<ReleaseNotes />);
+  await ready();
+  expect(screen.getByRole("dialog")).toHaveTextContent("Migrate before restarting.");
+});
+
+it("opens nothing for a member when the release only had operator notes", async () => {
+  state.data = {
+    release: {
+      version,
+      url: `https://github.com/vstorm-co/agenticos/releases/tag/v${version}`,
+      body: "### Upgrading\n\n- Migrate before restarting.",
+    },
+  };
+  render(<ReleaseNotes />);
+  await ready();
+  expect(screen.queryByRole("dialog")).toBeNull();
+  // Handled, so the notes are not asked for again for this release.
+  expect(useReleaseNotesStore.getState().acknowledged.alice).toBe(version);
+});

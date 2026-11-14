@@ -336,7 +336,9 @@ judged by someone running a deployment, not by the size of the diff:
   `## [X.Y.Z] - YYYY-MM-DD` under a new empty `[Unreleased]`, and bumps
   `backend/pyproject.toml`, `backend/uv.lock` and `frontend/package.json`. Feature
   PRs write their changelog entries under `[Unreleased]`; the cut does not add new
-  ones.
+  ones. Entries only an operator acts on - migrations, upgrade steps - go under
+  `### Upgrading`, which the console's What's new shows to deployment
+  administrators alone.
 - Prepare a release train with `make release-cut BUMP=patch` (or `minor`); add
   `CREATE_PR=1` to create the cut PR from fresh `origin/main`. The default only
   prints a plan. CI and CodeQL may reuse successful full runs for a proven
