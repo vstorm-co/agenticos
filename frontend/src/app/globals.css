@@ -178,8 +178,8 @@
 
   /* Neutral page chrome. Page, card and floating surfaces have separate roles;
      fields use the page surface as a well inside a card or dialog. */
-  --color-sidebar: #eeeef1;
-  --color-background: #f7f7f9;
+  --color-sidebar: #f0f0ed;
+  --color-background: #fafaf8;
   --color-foreground: #242428;
   --color-card: oklch(100% 0 0);
   --color-card-foreground: #242428;
@@ -205,7 +205,7 @@
   --color-secondary: #eeeef1;
   --color-secondary-foreground: oklch(22% 0.004 265);
   --color-muted: #eeeef1;
-  --color-muted-foreground: #62626c;
+  --color-muted-foreground: #63635f;
   /* Deeper than `muted`, where the two used to be the same value. `accent` is
      what paints a selected nav row and a hover, and the sidebar it paints them
      on is now a tinted surface of its own - at the muted step the selected row
@@ -231,8 +231,8 @@
   --color-success: oklch(58% 0.1 155);
   /* Fields use a soft filled surface and a quiet edge. Focus adds a wider,
      low-opacity halo rather than a bright hairline. */
-  --color-border: #dddde3;
-  --color-input: #c6c6ce;
+  --color-border: #e1e1dc;
+  --color-input: #8a8a85;
   --color-switch-off: #72727c;
   --color-destructive-ink: #a52a34;
   --color-warning-ink: #795000;
@@ -350,12 +350,12 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not(.light) {
-    --color-sidebar: #141416;
-    --color-background: #1c1c1f;
+    --color-sidebar: #161618;
+    --color-background: #222224;
     --color-foreground: #eeeef1;
-    --color-card: #232326;
+    --color-card: #29292c;
     --color-card-foreground: #eeeef1;
-    --color-popover: #2b2b30;
+    --color-popover: #323236;
     --color-popover-foreground: #eeeef1;
     --color-peek-well: oklch(21.5% 0.0025 265);
     --color-peek-sheet: oklch(25.5% 0.0025 265);
@@ -385,8 +385,8 @@
     --color-muted-foreground: #b1b1b9;
     --color-accent: #38383f;
     --color-accent-foreground: oklch(95% 0 0);
-    --color-border: #3b3b43;
-    --color-input: #51515c;
+    --color-border: #3c3c40;
+    --color-input: #85858e;
     --color-switch-off: #777781;
     --color-destructive-ink: #ffb4b4;
     --color-warning-ink: #f0cc84;
@@ -405,12 +405,12 @@
 }
 
 :root.dark {
-  --color-sidebar: #141416;
-  --color-background: #1c1c1f;
+  --color-sidebar: #161618;
+  --color-background: #222224;
   --color-foreground: #eeeef1;
-  --color-card: #232326;
+  --color-card: #29292c;
   --color-card-foreground: #eeeef1;
-  --color-popover: #2b2b30;
+  --color-popover: #323236;
   --color-popover-foreground: #eeeef1;
   --color-peek-well: oklch(21.5% 0.0025 265);
   --color-peek-sheet: oklch(25.5% 0.0025 265);
@@ -438,8 +438,8 @@
   --color-muted-foreground: #b1b1b9;
   --color-accent: #38383f;
   --color-accent-foreground: oklch(95% 0 0);
-  --color-border: #3b3b43;
-  --color-input: #51515c;
+  --color-border: #3c3c40;
+  --color-input: #85858e;
   --color-switch-off: #777781;
   --color-destructive-ink: #ffb4b4;
   --color-warning-ink: #f0cc84;
@@ -462,20 +462,20 @@
    ========================================================================= */
 
 .theme-light {
-  --color-input: #c6c6ce;
+  --color-input: #8a8a85;
   --color-switch-off: #72727c;
   --color-destructive-ink: #a52a34;
   --color-warning-ink: #795000;
   --color-success-ink: #236846;
   --color-popover: #ffffff;
   --color-popover-foreground: #242428;
-  --color-background: #f7f7f9;
+  --color-background: #fafaf8;
   --color-foreground: #242428;
   --color-card: #ffffff;
   --color-card-foreground: #242428;
   --color-muted: #eeeef1;
-  --color-muted-foreground: #62626c;
-  --color-border: #dddde3;
+  --color-muted-foreground: #63635f;
+  --color-border: #e1e1dc;
   /* A pinned-light subtree inside a dark root needs the light accent mapping
      too, or its buttons and links keep the root theme's accent. */
   --color-primary: oklch(21% 0.01 250);
@@ -503,7 +503,7 @@
   --series-3: oklch(80% 0.15 78);
   --series-4: oklch(64% 0.19 22);
   --series-5: oklch(58% 0.18 312);
-  --color-sidebar: #eeeef1;
+  --color-sidebar: #f0f0ed;
   --color-secondary: #eeeef1;
   --color-secondary-foreground: #242428;
   --color-accent: #e5e5ea;
@@ -511,21 +511,21 @@
 }
 
 .theme-dark {
-  --color-input: #51515c;
+  --color-input: #85858e;
   --color-switch-off: #777781;
   --color-destructive-ink: #ffb4b4;
   --color-warning-ink: #f0cc84;
   --color-success-ink: #99d5b1;
-  --color-popover: #2b2b30;
+  --color-popover: #323236;
   --color-popover-foreground: #eeeef1;
-  --color-sidebar: #141416;
-  --color-background: #1c1c1f;
+  --color-sidebar: #161618;
+  --color-background: #222224;
   --color-foreground: #eeeef1;
-  --color-card: #232326;
+  --color-card: #29292c;
   --color-card-foreground: #eeeef1;
   --color-muted: #2d2d32;
   --color-muted-foreground: #b1b1b9;
-  --color-border: #3b3b43;
+  --color-border: #3c3c40;
   --color-primary: oklch(96% 0.003 250);
   --color-primary-foreground: oklch(16% 0.01 250);
   --color-primary-hover: oklch(88% 0.004 250);
