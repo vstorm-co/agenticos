@@ -30,3 +30,4 @@ export { resetSessionState, resetTenantState } from "./session-reset";
 export { ChatScope } from "./chat-scope";
 export { useInChatScope } from "./chat-scope-context";
 export { useAssistantPageContextStore } from "./assistant-page-context-store";
+export { useArchitectAskStore } from "./architect-ask-store";

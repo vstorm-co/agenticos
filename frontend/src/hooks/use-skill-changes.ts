@@ -19,8 +19,8 @@ interface UseSkillChangesResult {
   changes: SkillChangeRecord[];
   isLoading: boolean;
   error: string | null;
-  apply: (id: string) => Promise<void>;
-  discard: (id: string) => Promise<void>;
+  apply: (change: SkillChangeRecord) => Promise<void>;
+  discard: (change: SkillChangeRecord) => Promise<void>;
   isDeciding: boolean;
 }
 
@@ -30,6 +30,8 @@ interface UseSkillChangesResult {
  * Both decisions invalidate the skills list as well as this one. Accepting a
  * change rewrites a skill and bumps its version, so a skills page left showing
  * the old body would be showing something no agent is following any more.
+ * A refused decision reads them again too - a proposal a newer run rewrote
+ * comes back at its new revision.
  */
 export function useSkillChanges(status: ProposalStatus = "pending"): UseSkillChangesResult {
   const tErrors = useTranslations("errors");
@@ -53,33 +55,57 @@ export function useSkillChanges(status: ProposalStatus = "pending"): UseSkillCha
   }, [queryClient]);
 
   const applied = useMutation({
-    mutationFn: (id: string) => applySkillChange(id),
+    mutationFn: (change: SkillChangeRecord) => applySkillChange(change),
     onSuccess: async (change) => {
       await invalidate();
       toast.success(t("changeApplied", { name: change.name }));
     },
-    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+    onError: (error) => {
+      toast.error(getErrorMessage(error, tErrors));
+      void invalidate();
+    },
   });
 
   const discarded = useMutation({
-    mutationFn: (id: string) => discardSkillChange(id),
+    mutationFn: (change: SkillChangeRecord) => discardSkillChange(change),
     onSuccess: async (change) => {
       await invalidate();
       toast.success(t("changeDiscarded", { name: change.name }));
     },
-    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+    onError: (error) => {
+      toast.error(getErrorMessage(error, tErrors));
+      void invalidate();
+    },
   });
 
   return {
     changes,
     isLoading,
     error: queryError ? getErrorMessage(queryError, tErrors, t("failedLoadProposedChanges")) : null,
-    apply: async (id: string) => {
-      await applied.mutateAsync(id);
+    apply: async (change: SkillChangeRecord) => {
+      await applied.mutateAsync(change);
     },
-    discard: async (id: string) => {
-      await discarded.mutateAsync(id);
+    discard: async (change: SkillChangeRecord) => {
+      await discarded.mutateAsync(change);
     },
     isDeciding: applied.isPending || discarded.isPending,
+  };
+}
+
+/**
+ * The skill changes agents proposed that nobody decided yet, for "Waiting for you".
+ * Read under `skills:edit`, so a reader without it asks nothing.
+ */
+export function useSkillProposalsAwaiting({ enabled = true }: { enabled?: boolean } = {}) {
+  const query = useQuery({
+    queryKey: qk.skillChanges.list("pending"),
+    queryFn: () => listSkillChanges("pending"),
+    enabled,
+  });
+  return {
+    changes: query.data ?? [],
+    isLoading: query.isLoading,
+    error: query.error,
+    refetch: query.refetch,
   };
 }

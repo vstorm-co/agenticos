@@ -21,7 +21,7 @@ import { useBackgroundJobActions, useBackgroundJobs } from "@/hooks/use-backgrou
 import { timeAgo } from "@/lib/utils";
 import type { BackgroundJob, JobPool, JobStatus } from "@/types/background-jobs";
 
-const POOLS: readonly JobPool[] = ["agent", "ingest", "system", "workflow"];
+const POOLS: readonly JobPool[] = ["agent", "eval", "ingest", "system", "workflow"];
 const ALL = "all";
 
 const BADGE: Record<JobStatus, "default" | "secondary" | "destructive" | "outline"> = {
@@ -107,7 +107,9 @@ export function JobsTable({
         align: "right",
         className: "w-0 pr-3 sm:pr-5",
         cell: (job) =>
-          job.status === "dead" ? (
+          job.status === "dead" && job.retry_refusal ? (
+            <span className="text-muted-foreground max-w-64 text-xs">{job.retry_refusal}</span>
+          ) : job.status === "dead" ? (
             <Button size="sm" variant="outline" onClick={() => retry.mutate(job)}>
               {t("retry")}
             </Button>

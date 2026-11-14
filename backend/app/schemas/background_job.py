@@ -9,7 +9,7 @@ from pydantic import Field
 from app.db.models.background_job import JobStatus
 from app.schemas.base import BaseSchema
 
-JobPool = Literal["agent", "ingest", "system", "workflow"]
+JobPool = Literal["agent", "eval", "ingest", "system", "workflow"]
 ActivityWindow = Literal["day", "week"]
 
 
@@ -18,6 +18,10 @@ class BackgroundJobRead(BaseSchema):
 
     id: UUID
     kind: str
+    retry_refusal: str | None = Field(
+        default=None,
+        description="Why this job needs a new request instead of retrying its queue row",
+    )
     pool: JobPool
     status: JobStatus
     priority: int

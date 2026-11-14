@@ -1,6 +1,8 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 
 import { FilePane, FileTree, NewFileForm, UploadButton, formatSize } from "./skill-files";
 import { buildTree } from "@/lib/file-tree";
@@ -35,6 +37,7 @@ function resource(name: string, id = name): SkillResourceSummary {
 }
 
 beforeEach(() => {
+  useUnsavedChangesStore.setState({ sources: {}, prompt: null, saving: false });
   loaded.content = "# Body";
   loaded.isLoading = false;
 });
@@ -185,7 +188,7 @@ describe("the file tree", () => {
 
 describe("the file pane", () => {
   function mount(props: Partial<Parameters<typeof FilePane>[0]> = {}) {
-    const onSave = vi.fn();
+    const onSave = vi.fn().mockResolvedValue(undefined);
     const onDelete = vi.fn();
     render(
       <FilePane
@@ -227,6 +230,45 @@ describe("the file pane", () => {
     expect(screen.getByRole("button", { name: "Save file" })).toBeDisabled();
   });
 
+  it("keeps the draft until saving succeeds and after a refused save", async () => {
+    let refuse: ((error: Error) => void) | undefined;
+    const onSave = vi.fn(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          refuse = reject;
+        }),
+    );
+    mount({ onSave });
+    await userEvent.type(screen.getByLabelText("checklist.md source"), " pending");
+    await userEvent.click(screen.getByRole("button", { name: "Save file" }));
+    expect(screen.getByLabelText("checklist.md source")).toHaveValue("# Body pending");
+    await act(async () => {
+      refuse?.(new Error("Write rejected"));
+    });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save file" })).toBeEnabled());
+    expect(screen.getByLabelText("checklist.md source")).toHaveValue("# Body pending");
+    expect(useUnsavedChangesStore.getState().sources["skill-resource:s-1:r-1"]).toBeDefined();
+  });
+
+  it("preserves typing made while the previous draft is being saved", async () => {
+    let finish: (() => void) | undefined;
+    mount({
+      onSave: () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    });
+    const input = screen.getByLabelText("checklist.md source");
+    await userEvent.type(input, " saved");
+    await userEvent.click(screen.getByRole("button", { name: "Save file" }));
+    await userEvent.type(input, " and still editing");
+    await act(async () => {
+      finish?.();
+    });
+    expect(input).toHaveValue("# Body saved and still editing");
+    expect(screen.getByRole("button", { name: "Save file" })).toBeEnabled();
+  });
+
   it("offers a discard only once there is something to discard", async () => {
     mount();
 
@@ -265,7 +307,7 @@ describe("the file pane", () => {
     loaded.isLoading = true;
     mount();
 
-    expect(screen.getByText("Loading...")).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: /Loading/ })).toHaveAttribute("aria-busy", "true");
   });
 });
 

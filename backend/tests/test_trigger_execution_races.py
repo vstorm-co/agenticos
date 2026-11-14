@@ -14,7 +14,16 @@ pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 @pytest.mark.parametrize(
-    "change", ["source_before", "source_during", "activation", "local_consent", "task_removed"]
+    "change",
+    [
+        "source_before",
+        "source_during",
+        "source_during_deleted",
+        "preparation_deleted",
+        "activation",
+        "local_consent",
+        "task_removed",
+    ],
 )
 async def test_late_admission_refusals_never_restart_an_obsolete_activation(monkeypatch, change):
     from app.services.agent_runner import AgentRunnerService
@@ -28,13 +37,26 @@ async def test_late_admission_refusals_never_restart_an_obsolete_activation(monk
     service._block_local_activation = AsyncMock()
     monkeypatch.setattr(module.device_wait_repo, "get", AsyncMock(return_value=None))
     monkeypatch.setattr(module.device_wait_repo, "settle", AsyncMock())
-    monkeypatch.setattr(module.agent_trigger_repo, "get_by_id", AsyncMock(return_value=trigger))
+    monkeypatch.setattr(
+        module.agent_run_repo, "latest_run_for_conversation", AsyncMock(return_value=None)
+    )
+    monkeypatch.setattr(
+        module.agent_trigger_repo,
+        "get_by_id",
+        AsyncMock(
+            return_value=None
+            if change in {"source_during_deleted", "preparation_deleted"}
+            else trigger
+        ),
+    )
     notice = AsyncMock()
     monkeypatch.setattr(module.NotificationService, "routine_blocked", notice)
     monkeypatch.setattr(TaskExecution, "started", AsyncMock(return_value=False))
     errors = {
         "source_before": RoutineSourcesRequired(),
         "source_during": RoutineSourcesRequired(),
+        "source_during_deleted": RoutineSourcesRequired(),
+        "preparation_deleted": RuntimeError("preparation failed"),
         "activation": RoutineActivationObsolete(message="Already settled"),
         "local_consent": RoutineLocalConsentRequired(message="Consent changed"),
     }
@@ -49,7 +71,11 @@ async def test_late_admission_refusals_never_restart_an_obsolete_activation(monk
     else:
         execute.assert_awaited_once()
         assert "revision" in execute.await_args.args[2]
-    if change.startswith("source"):
+    if change in {"source_during_deleted", "preparation_deleted"}:
+        notice.assert_not_awaited()
+        service._record_attempt.assert_not_awaited()
+        service.db.rollback.assert_awaited_once()
+    elif change.startswith("source"):
         notice.assert_awaited_once()
     elif change == "activation":
         service.db.rollback.assert_awaited_once()
@@ -518,3 +544,15 @@ async def test_a_legacy_folder_without_a_routine_grant_never_borrows_device_wait
     assert await service.queue_fire(trigger.id, organization_id=trigger.organization_id)
     wait.assert_not_awaited()
     assert queue.await_args.kwargs["dedupe_key"] is None
+
+
+async def test_deleted_routine_leaves_no_attempt_for_a_queued_job(monkeypatch):
+    from app.worker.jobs import FireTrigger
+
+    service = _service()
+    service.fire = AsyncMock()
+    monkeypatch.setattr(module.agent_trigger_repo, "get_by_id", AsyncMock(return_value=None))
+    result = await service.fire_job(FireTrigger(trigger_id=uuid4()))
+    assert result.outcome == "processed" and result.attempt_id is None
+    service.fire.assert_not_awaited()
+    service._record_attempt.assert_not_awaited()

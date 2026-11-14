@@ -6,7 +6,7 @@
  */
 
 export type JobStatus = "queued" | "running" | "succeeded" | "dead" | "cancelled";
-export type JobPool = "agent" | "ingest" | "system" | "workflow";
+export type JobPool = "agent" | "eval" | "ingest" | "system" | "workflow";
 
 export const JOB_STATUSES: readonly JobStatus[] = [
   "queued",
@@ -17,6 +17,7 @@ export const JOB_STATUSES: readonly JobStatus[] = [
 ];
 
 export interface BackgroundJob {
+  retry_refusal: string | null;
   id: string;
   kind: string;
   pool: JobPool;

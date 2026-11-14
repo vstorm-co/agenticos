@@ -1,5 +1,5 @@
 ---
-source_sha: "82df64a0d99f"
+source_sha: "68bc85353023"
 ---
 
 # Konfiguracja źródeł synchronizacji { #configure-sync-sources }
@@ -717,8 +717,18 @@ Pola, które można zmienić: `name`, `config`, `sync_mode`, `schedule_minutes`,
 `is_active`, `collection_name`.
 
 Ustaw `is_active` na `false`, aby wstrzymać źródło bez usuwania go.
+Wstrzymane źródło nie uruchamia się według harmonogramu ani na żądanie przez
+API lub CLI. Konsola wyłącza przycisk synchronizacji. Zadanie w kolejce sprawdza
+stan ponownie przed pobraniem plików i kończy się błędem, jeśli źródło
+wstrzymano podczas oczekiwania. Wstrzymanie nie przerywa już rozpoczętej
+synchronizacji. Ustaw `is_active` na `true`, aby zezwolić na nowe synchronizacje.
 
-Ręczne wyzwolenie przez API zwraca `400`, jeśli źródło jest wstrzymane. Worker sprawdza ten stan ponownie przed synchronizacją, więc zadanie z kolejki lub wywołanie CLI zatrzymuje się przed pobieraniem i indeksowaniem danych, jeśli źródło jest wstrzymane. Aktywuj je przed kolejną próbą.
+Przy rozwiązywaniu nazwy kolekcji wybierana jest najstarsza baza w organizacji
+źródła, a jeśli jej nie ma — baza o zakresie aplikacji. Przy jednakowych
+czasach utworzenia kolejność określa identyfikator bazy. API odmawia przypisania
+źródła przez nazwę kolekcji, jeśli kilka pasujących baz ma ten sam najstarszy
+czas utworzenia. Użyj bazy wiedzy z unikalną nazwą kolekcji, aby usunąć tę
+niejednoznaczność.
 
 ## Monitorowanie operacji synchronizacji { #monitoring-sync-operations }
 

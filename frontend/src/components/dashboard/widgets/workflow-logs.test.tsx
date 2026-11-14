@@ -133,3 +133,16 @@ describe("the workflow logs widget", () => {
     expect(refetch).toHaveBeenCalledOnce();
   });
 });
+
+it("renders the catalog name of a default-labeled recent log row", () => {
+  renderWidget({
+    ...BUSY,
+    items: BUSY.items.map((line) => ({
+      ...line,
+      step_label: "Server default",
+      step_definition_id: "core.input",
+    })),
+  });
+  expect(screen.getAllByText("· API request ·")).toHaveLength(2);
+  expect(screen.queryByText("· Server default ·")).toBeNull();
+});

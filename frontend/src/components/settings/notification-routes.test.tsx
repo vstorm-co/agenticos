@@ -6,12 +6,13 @@ import { NotificationRoutes } from "./notification-routes";
 import type { NotificationRoutes as Routes } from "@/lib/notification-preferences-api";
 
 const replace = vi.fn();
+const refetch = vi.fn();
 let data: Routes | undefined;
 let error: Error | null;
 let isLoading: boolean;
 let isSaving: boolean;
 vi.mock("@/hooks/use-notification-routes", () => ({
-  useNotificationRoutes: () => ({ data, error, isLoading, isSaving, replace }),
+  useNotificationRoutes: () => ({ data, error, isLoading, isSaving, replace, refetch }),
 }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
@@ -64,10 +65,14 @@ describe("private chat notification destinations", () => {
     isLoading = true;
     data = undefined;
     const view = render(<NotificationRoutes />);
-    expect(screen.getAllByRole("combobox").every((item) => item.hasAttribute("disabled"))).toBe(
-      true,
-    );
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
     isLoading = false;
+    data = {
+      items: [],
+      destinations: [
+        { session_id: "session-one", channel: "slack", bot_name: "Assistant", account_name: "Ada" },
+      ],
+    };
     isSaving = true;
     view.rerender(<NotificationRoutes />);
     expect(screen.getAllByRole("combobox").every((item) => item.hasAttribute("disabled"))).toBe(
@@ -89,4 +94,17 @@ it("shows the selected destination from the server", () => {
   };
   render(<NotificationRoutes />);
   expect(screen.getByRole("combobox", { name: "Slack" })).toHaveTextContent("Assistant · Ada");
+});
+
+it("keeps unconnected platforms folded and offers recovery from a failed read", async () => {
+  data = { items: [], destinations: [] };
+  const view = render(<NotificationRoutes />);
+  expect(screen.queryByRole("combobox", { name: "Mattermost" })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Chat platforms" }));
+  expect(screen.getByRole("combobox", { name: "Mattermost" })).toBeDisabled();
+  error = new Error("Read refused");
+  view.rerender(<NotificationRoutes />);
+  expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(refetch).toHaveBeenCalledOnce();
 });

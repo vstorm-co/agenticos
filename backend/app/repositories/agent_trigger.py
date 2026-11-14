@@ -8,14 +8,20 @@ from uuid import UUID
 
 from sqlalchemy import and_, false, func, or_, select, true
 from sqlalchemy import update as sql_update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.agent_run import AgentRun, RunStatus
-from app.db.models.agent_trigger import AgentTrigger, TriggerOverlap
+from app.db.models.agent_trigger import AgentTrigger, TriggerAttempt, TriggerOverlap
 from app.db.models.resource_grant import Visibility
+from app.schemas.agent_trigger import (
+    TriggerAttemptReason,
+    TriggerAttemptStage,
+    TriggerAttemptStatus,
+)
 
 # A run in one of these has not finished, so its trigger must not fire again on
 # top of it. Every other status is terminal - the run settled, one way or another.
@@ -568,3 +574,65 @@ async def revoke_member_authority(
         .values(is_active=False, approved_sources=None, action_consents=[])
     )
     await db.flush()
+
+
+async def record_attempt(
+    db: AsyncSession,
+    *,
+    trigger_id: UUID,
+    organization_id: UUID,
+    activation_id: UUID,
+    status: TriggerAttemptStatus,
+    stage: TriggerAttemptStage,
+    reason: TriggerAttemptReason,
+) -> TriggerAttempt:
+    """An activation's first refusal wins, including across duplicate job delivery."""
+    statement = (
+        insert(TriggerAttempt)
+        .values(
+            trigger_id=trigger_id,
+            organization_id=organization_id,
+            activation_id=activation_id,
+            status=status,
+            stage=stage,
+            reason=reason,
+        )
+        .on_conflict_do_nothing(index_elements=["trigger_id", "activation_id"])
+    )
+    await db.execute(statement)
+    await db.flush()
+    found = await attempt_for_activation(
+        db, trigger_id=trigger_id, organization_id=organization_id, activation_id=activation_id
+    )
+    assert found is not None, "an inserted or duplicate activation has an attempt"
+    return found
+
+
+async def attempt_for_activation(
+    db: AsyncSession, *, trigger_id: UUID, organization_id: UUID, activation_id: UUID
+) -> TriggerAttempt | None:
+    return await db.scalar(
+        select(TriggerAttempt).where(
+            TriggerAttempt.trigger_id == trigger_id,
+            TriggerAttempt.organization_id == organization_id,
+            TriggerAttempt.activation_id == activation_id,
+        )
+    )
+
+
+async def list_attempts(
+    db: AsyncSession, *, trigger_id: UUID, organization_id: UUID, skip: int, limit: int
+) -> tuple[list[TriggerAttempt], int]:
+    filters = (
+        TriggerAttempt.trigger_id == trigger_id,
+        TriggerAttempt.organization_id == organization_id,
+    )
+    rows = await db.scalars(
+        select(TriggerAttempt)
+        .where(*filters)
+        .order_by(TriggerAttempt.occurred_at.desc(), TriggerAttempt.id.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    total = await db.scalar(select(func.count()).select_from(TriggerAttempt).where(*filters))
+    return list(rows), int(total or 0)

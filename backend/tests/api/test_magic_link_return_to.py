@@ -56,6 +56,7 @@ async def client(mock_redis: MagicMock, mock_db_session) -> AsyncGenerator[Async
     app.dependency_overrides[get_redis] = lambda: mock_redis
     app.dependency_overrides[get_db_session] = lambda: mock_db_session
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        ac.sessions = sessions  # ty: ignore[unresolved-attribute]
         ac.service = service  # ty: ignore[unresolved-attribute]
         yield ac
     app.dependency_overrides.clear()
@@ -147,3 +148,17 @@ class TestTheTokenCarriesIt:
             _, return_to = await service.consume_magic_link_token(token)
 
         assert return_to is None
+
+
+@pytest.mark.parametrize("address", [None, "previous@example.com", "kacper@example.com"])
+async def test_only_the_address_bound_link_proves_this_sessions_current_mailbox(client, address):
+    service = client.service  # ty: ignore[unresolved-attribute]
+    user = _User()
+    service.consume_magic_link_token = AsyncMock(return_value=(user, None))
+    token = create_magic_link_token(str(user.id), email=address)
+    response = await client.post(VERIFY, json={"token": token})
+    assert response.status_code == 200
+    sessions = client.sessions  # ty: ignore[unresolved-attribute]
+    assert sessions.issue_tokens.await_args.kwargs["proved_email"] == (
+        user.email if address == user.email else None
+    )

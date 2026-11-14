@@ -13,12 +13,16 @@ import {
   cellText,
   earlierSteps,
   isInsideALoop,
+  iterationDataOf,
+  iterationOf,
   jsonBytes,
   knownInput,
   knownOutputs,
   schemaOf,
   sourcesOf,
+  stepDataAt,
   stepDataOf,
+  stepsTaken,
   tableOf,
   testEntryGraph,
 } from "./step-data";
@@ -70,6 +74,153 @@ describe("what a run's steps did", () => {
   });
 });
 
+describe("how a run's approval steps were decided", () => {
+  it("keeps an approval when dispatch fails after the decision", () => {
+    const approval = { status: "approved" as const, decided_at: null, decided_by_name: "Ola" };
+    const error = { code: "PRINCIPAL_REVOKED", message: "Access was revoked" };
+    const data = stepDataOf("r", [row({ status: "failed", error, approval })]);
+    expect(data.a).toEqual({ output: null, error, runId: "r", approval });
+  });
+
+  it("keeps the decision with the step's output, and adds nothing to other steps", () => {
+    const approval = {
+      status: "approved" as const,
+      decided_at: "2026-11-13T10:28:00Z",
+      decided_by_name: "Ola",
+    };
+    const data = stepDataOf("r", [
+      row({ node_instance_id: "a", output: { decision: "approved" }, approval }),
+      row({ node_instance_id: "b", output: { n: 1 }, approval: null }),
+    ]);
+
+    expect(data.a).toEqual({ output: { decision: "approved" }, error: null, runId: "r", approval });
+    expect(data.b).toEqual({ output: { n: 1 }, error: null, runId: "r" });
+  });
+
+  it("keeps a request its run was cancelled during, with nothing handed on", () => {
+    const approval = { status: "cancelled" as const, decided_at: null, decided_by_name: null };
+    const data = stepDataOf("r", [
+      row({ node_instance_id: "a", status: "cancelled", approval }),
+      row({ node_instance_id: "b", status: "cancelled" }),
+    ]);
+
+    expect(data).toEqual({ a: { output: null, error: null, runId: "r", approval } });
+  });
+});
+
+describe("what a run's steps did in each loop iteration", () => {
+  const loop = (index: number) => [{ loop_node_id: "l", index }];
+  const rows = [
+    row({ node_instance_id: "t", output: { list: [1, 2] } }),
+    row({ node_instance_id: "i", scope_path: loop(0), output: { item: 1 } }),
+    row({ node_instance_id: "h", scope_path: loop(0), output: { got: 1 } }),
+    row({ node_instance_id: "i", scope_path: loop(1), output: { item: 2 } }),
+    row({ node_instance_id: "h", scope_path: loop(1), status: "running" }),
+  ];
+  const latest = stepDataOf("r", rows);
+  const iterations = iterationDataOf("r", rows);
+
+  it("names a row's iteration by its index in each loop around it", () => {
+    expect(iterationOf(row({ scope_path: [] }))).toEqual([]);
+    expect(
+      iterationOf(
+        row({
+          scope_path: [
+            { loop_node_id: "l", index: 1 },
+            { loop_node_id: "m", index: 3 },
+          ],
+        }),
+      ),
+    ).toEqual([1, 3]);
+  });
+
+  it("reads each step as it was in the iteration asked for, not the last one", () => {
+    expect(stepDataAt(latest, iterations, "i", [0])?.output).toEqual({ item: 1 });
+    expect(stepDataAt(latest, iterations, "h", [0])?.output).toEqual({ got: 1 });
+    expect(stepDataAt(latest, iterations, "i", [1])?.output).toEqual({ item: 2 });
+  });
+
+  it("reads a step outside the loop as its latest", () => {
+    expect(stepDataAt(latest, iterations, "t", [1])?.output).toEqual({ list: [1, 2] });
+    expect(stepDataAt(latest, iterations, "i", [])?.output).toEqual({ item: 2 });
+    expect(stepDataAt(latest, iterations, "missing", [0])).toBeUndefined();
+  });
+
+  it("reads a step still running in that iteration as empty, never another iteration's", () => {
+    expect(stepDataAt(latest, iterations, "h", [1])).toEqual({
+      output: null,
+      error: null,
+      runId: "r",
+    });
+  });
+
+  it.each(["pending", "running", "cancelled", "skipped"] as const)(
+    "does not borrow the previous iteration's output for a %s step",
+    (status) => {
+      const scoped = iterationDataOf("r", [
+        row({ node_instance_id: "h", scope_path: loop(0), output: { got: 1 } }),
+        row({ node_instance_id: "h", scope_path: loop(1), status }),
+      ]);
+      expect(stepDataAt(latest, scoped, "h", [1])).toEqual({
+        output: null,
+        error: null,
+        runId: "r",
+      });
+    },
+  );
+
+  it("reads a source from the nearest enclosing iteration", () => {
+    const scoped = iterationDataOf("r", [
+      row({ node_instance_id: "i", scope_path: loop(0), output: { item: 1 } }),
+      row({ node_instance_id: "i", scope_path: loop(1), output: { item: 2 } }),
+    ]);
+    expect(stepDataAt(latest, scoped, "i", [0, 3])?.output).toEqual({ item: 1 });
+  });
+});
+
+describe("the steps a run took", () => {
+  it("keeps the server's sub-millisecond start order", () => {
+    const rows = [
+      row({ id: "http", started_at: "2026-11-10T10:00:00.123900Z" }),
+      row({ id: "item", started_at: "2026-11-10T10:00:00.123100Z" }),
+      row({ id: "result", started_at: "2026-11-10T10:00:00.124000Z" }),
+    ];
+    expect(stepsTaken(rows).map((taken) => taken.id)).toEqual(["item", "http", "result"]);
+    expect(rows.map((taken) => taken.id)).toEqual(["http", "item", "result"]);
+  });
+
+  it("compares equivalent timestamp formats without losing their stable order", () => {
+    const rows = [
+      row({ id: "later", started_at: "2026-11-10T10:00:00.123900Z" }),
+      row({ id: "offset", started_at: "2026-11-10T11:00:00.1231+01:00" }),
+      row({ id: "utc", started_at: "2026-11-10T10:00:00.123100Z" }),
+    ];
+    expect(stepsTaken(rows).map((taken) => taken.id)).toEqual(["offset", "utc", "later"]);
+  });
+
+  it("lists the steps that started, in the order they started", () => {
+    const at = (second: number) => `2026-11-10T10:00:0${second}Z`;
+    const rows = [
+      row({ id: "http", started_at: at(2) }),
+      row({ id: "item", started_at: at(1), ended_at: at(1) }),
+      row({ id: "failed", status: "failed", ended_at: at(3) }),
+      row({ id: "unsettled", status: "failed" }),
+      row({ id: "next", status: "pending" }),
+      row({ id: "skipped", status: "skipped", ended_at: at(4) }),
+      row({ id: "cancelled", status: "cancelled", ended_at: at(4) }),
+      row({ id: "retrying", status: "pending", started_at: at(0) }),
+    ];
+
+    expect(stepsTaken(rows).map((taken) => taken.id)).toEqual([
+      "retrying",
+      "item",
+      "http",
+      "failed",
+      "unsettled",
+    ]);
+  });
+});
+
 describe("the steps around a step", () => {
   it("reads from what it is bound to and wired from, in the graph's order", () => {
     expect(sourcesOf(LINE, "c")).toEqual(["a", "b"]);
@@ -88,7 +239,6 @@ describe("the steps around a step", () => {
         {
           scope_node_id: "b",
           body_node_ids: ["c"],
-          entry_port: "body",
           exit_node_id: "b",
           exit_port: "done",
         },
@@ -216,6 +366,14 @@ describe("earlierSteps", () => {
   it("never offers the step itself, and has nothing before the first step", () => {
     expect(earlierSteps(graph, "c", new Set(["c"]))).not.toContain("c");
     expect(earlierSteps(graph, "a", new Set())).toEqual([]);
+  });
+
+  it("never offers a step switched off, even the one wired just before", () => {
+    const off = {
+      ...graph,
+      nodes: graph.nodes.map((node) => (node.id === "b" ? { ...node, disabled: true } : node)),
+    };
+    expect(earlierSteps(off, "c", new Set(["a", "b"]))).toEqual(["x", "a", "far"]);
   });
 });
 

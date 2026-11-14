@@ -24,20 +24,27 @@ def maps_line() -> str:
     tiles = settings.map_tiles()
     if tiles is None:
         return (
-            "Maps in visuals: this deployment has no map tiles, so `AOMap.itinerary` draws "
-            "the stops as an outline - pins and the line between them, without streets or "
-            "terrain. When you draw a map, say so in your answer, in one sentence and not "
-            "inside the drawing: no map server is connected to this AgenticOS, so the map "
-            "is an outline, and an administrator of the deployment can turn real maps on "
-            "with the `VISUAL_MAP_TILES` setting (for example `openstreetmap`)."
+            "Maps in visuals: use `AOWorldMap.draw` by default, including for city-to-city "
+            "routes and itineraries. Load the bundled d3, topojson, world-atlas and "
+            "agenticos-worldmap libraries, then draw country outlines, pins and routes "
+            "in SVG; pass a DOM element, not a CSS selector, and use `focus` to zoom to "
+            "the relevant countries. This works without "
+            "map tiles or network access. Do not use Leaflet, `AOMap.itinerary`, remote "
+            "tiles or a plain pin-only outline when no map tiles are configured. "
+            "Country outlines are geographic context, not street directions: never "
+            "invent road geometry, distances or travel times. Only if street detail "
+            "is requested, explain in your answer that the deployment administrator "
+            "can enable it with `VISUAL_MAP_TILES` (for example `openstreetmap`)."
         )
     return (
-        f"Maps in visuals: `AOMap.itinerary` draws on {tiles.name} tiles. Coordinates you "
-        "know from memory are approximate - say so, and never present the line between "
-        "stops as directions, a distance or a travel time you have not looked up. If the "
-        "person says the map behind the pins is blank, the tile server is not answering "
-        "this deployment: tell them, and that an administrator can check it under "
-        "Admin → System."
+        f"Maps in visuals: the administrator enabled {tiles.name} tiles. Use "
+        "`AOWorldMap.draw` for country and regional maps; street-level maps and "
+        "itineraries may use `AOMap.itinerary`. If tiles fail to load, render a "
+        "lightweight SVG map with `AOWorldMap.draw`, country outlines, pins and routes "
+        "instead of leaving an empty map. Coordinates you know from memory are "
+        "approximate - say so, and never present the line between stops as directions, "
+        "a distance or a travel time you have not looked up. An administrator can "
+        "check the configured tile server under Admin → System."
     )
 
 

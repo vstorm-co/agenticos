@@ -52,8 +52,9 @@ from app.services.virtual_tables.exceptions import (
     SchemaVersionConflictError,
 )
 from app.services.virtual_tables.principals import principal_problems
-from app.services.virtual_tables.quotas import enforce_table_count
+from app.services.virtual_tables.quotas import enforce_storage, enforce_table_count, lock_storage
 from app.services.virtual_tables.receipts import run_once
+from app.services.virtual_tables.record_sources import source_for
 from app.services.virtual_tables.row_policy import parse_policy
 from app.services.virtual_tables.schema import SchemaDiff, build_columns, diff
 from app.services.virtual_tables.types import COMPUTED_TYPES, READ_THROUGH_LINK, CellProblem
@@ -125,6 +126,7 @@ class TableOperations(Operations):
                 owner_user_id=ctx.subject_id,
                 name=data.name,
                 description=data.description,
+                icon=data.icon,
                 visibility=data.visibility,
             )
             await virtual_table_repo.add_schema_version(
@@ -216,11 +218,13 @@ class TableOperations(Operations):
     async def describe_table(self, ctx: AuthContext, table_id: UUID) -> TableRead:
         """One table with the columns of its current schema."""
         table = await self._load_table(ctx, table_id, Perm.TABLES_VIEW)
+        can_edit = await self._can_edit(ctx, table)
         return self._read(
             table,
             await self._columns(table),
-            can_edit=await self._can_edit(ctx, table),
+            can_edit=can_edit,
             can_restore=await self._can_restore(ctx, table),
+            can_manage=can_edit and await self._manages_board(ctx, table),
         )
 
     async def table_source(
@@ -258,6 +262,7 @@ class TableOperations(Operations):
         # every other path that takes both (`create_table` locks no existing row).
         table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, lock=True)
         self._ensure_live(table)
+        await self._ensure_manages_board(ctx, table)
         changes = writable(data, over=VirtualTable)
         if data.default_view_id is not None:
             view = await table_view_repo.get(
@@ -288,6 +293,7 @@ class TableOperations(Operations):
         still depend on is refused, naming them.
         """
         table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, lock=True)
+        await self._ensure_manages_board(ctx, table)
         columns = await self._columns(table)
         # An archived table refuses every write, so neither answer below offers one. The
         # caller passed the edit check `unarchive_table` makes, so both offer the way back.
@@ -315,11 +321,13 @@ class TableOperations(Operations):
 
         Raises:
             NotFoundError: The table is out of reach, or this caller may not edit it.
+            AuthorizationError: A task board this caller may work on but not restore.
             BadRequestError: The table is not archived.
             AlreadyExistsError: A live table has taken its name since it was archived.
         """
         # The row lock before the name lock, the order `update_table` takes them in.
         table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, lock=True)
+        await self._ensure_manages_board(ctx, table)
         if table.archived_at is None:
             raise BadRequestError(
                 message=f"Table '{table.name}' is not archived", details={"table_id": table.id}
@@ -358,18 +366,24 @@ class TableOperations(Operations):
         is appended and the current table is returned. A stale `expected_version` is still a
         conflict, because it is checked first.
 
-        Records are not rewritten. Each keeps the version it was written under and
-        is read through the current columns, so a column added later is simply empty
-        on older records.
+        Records are not rewritten, except for a column whose type changed: each record
+        whose value reads differently in the new type takes the converted value, a new
+        revision and a history entry for that cell, and no trigger hears of it. Otherwise
+        each keeps the version it was written under and is read through the current
+        columns, so a column added later is simply empty on older records.
 
         Raises:
             SchemaVersionConflictError: `expected_version` is not the current one.
             InvalidSchemaError: The columns are inconsistent, or a column that already
                 has empty cells was made required.
             SchemaDependencyError: Something depends on a column this archives.
+            QuotaExceededError: The values a type change rewrites, with their history,
+                would take the organization past its table storage.
+            AuthorizationError: A task board this caller may work on but not reshape.
         """
         table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, lock=True)
         self._ensure_live(table)
+        await self._ensure_manages_board(ctx, table)
         if data.expected_version != table.schema_version:
             raise SchemaVersionConflictError(
                 expected_version=data.expected_version, current_version=table.schema_version
@@ -388,7 +402,13 @@ class TableOperations(Operations):
         change = diff(previous, columns)
         self._refuse_policy_column_change(table, columns, change)
         await self._refuse_dependents(ctx, table, column_ids=change.archived | change.retyped)
-        columns = await self._retype(table, previous, columns, change.retyped)
+        if change.retyped:
+            # Rewritten values and their history count toward the organization's storage,
+            # taken in the order a record write takes it; over the limit, nothing is written.
+            await lock_storage(self.db, ctx)
+            async with self.db.begin_nested():
+                columns = await self._retype(ctx, table, previous, columns, change.retyped)
+                await enforce_storage(self.db, ctx, table)
         await self._refuse_empty_required(table, columns, change.required)
         version = table.schema_version + 1
         await virtual_table_repo.add_schema_version(
@@ -565,6 +585,7 @@ class TableOperations(Operations):
 
     async def _retype(
         self,
+        ctx: AuthContext,
         table: VirtualTable,
         previous: list[ColumnDef],
         columns: list[ColumnDef],
@@ -574,17 +595,16 @@ class TableOperations(Operations):
 
         All of a change's values are converted before any is written, so a change
         some value does not survive writes nothing. Text that becomes a choice
-        gains an option for each distinct value it holds.
+        gains an option for each distinct value it holds. A value the conversion
+        leaves as it was is not written, so its record keeps its revision.
 
         Raises:
             InvalidSchemaError: A value does not read as its column's new type, or
                 text holds more distinct values than a choice column can have.
         """
-        if not retyped:
-            return columns
         before = {column.id: column for column in previous}
         result = list(columns)
-        rewrites: list[tuple[UUID, list[tuple[UUID, CellValue]]]] = []
+        rewrites: list[tuple[UUID, list[tuple[UUID, CellValue]], dict[UUID, CellValue]]] = []
         for index, column in enumerate(columns):
             if column.id not in retyped:
                 continue
@@ -596,6 +616,7 @@ class TableOperations(Operations):
                 column = _with_choices(index, column, [value for _record, value in held])
                 result[index] = column
             converted: list[tuple[UUID, CellValue]] = []
+            earlier: dict[UUID, CellValue] = {}
             refused: list[CellValue] = []
             for record_id, value in held:
                 try:
@@ -606,17 +627,44 @@ class TableOperations(Operations):
                 if new is None and not column.nullable:
                     refused.append(value)
                     continue
+                # `1 == True`, so a number becoming a checkbox must still be written.
+                if type(new) is type(value) and new == value:
+                    continue
                 converted.append((record_id, new))
+                earlier[record_id] = value
             if refused:
                 raise InvalidSchemaError(
                     f"columns.{index}.type",
                     f"{len(refused)} records hold a value that does not read as {column.type}, "
                     f"such as {str(refused[0])[:40]!r}. Change them first, or add a new column.",
                 )
-            rewrites.append((column.id, converted))
-        for column_id, converted in rewrites:
-            await virtual_table_repo.rewrite_column(
-                self.db, table_id=table.id, column_id=column_id, values=converted
+            rewrites.append((column.id, converted, earlier))
+        source = (await source_for(self.db, ctx)).stored()
+        for column_id, converted, earlier in rewrites:
+            revisions = await virtual_table_repo.rewrite_column(
+                self.db,
+                table_id=table.id,
+                column_id=column_id,
+                values=converted,
+                updated_by=ctx.subject_id,
+                source=source,
+            )
+            key = str(column_id)
+            await virtual_table_repo.add_history_rows(
+                self.db,
+                organization_id=table.organization_id,
+                table_id=table.id,
+                operation="update",
+                actor_user_id=ctx.subject_id,
+                rows=[
+                    (
+                        record_id,
+                        revisions[record_id],
+                        {key: earlier[record_id]},
+                        {} if value is None else {key: value},
+                    )
+                    for record_id, value in converted
+                ],
             )
         return result
 

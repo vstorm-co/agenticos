@@ -153,7 +153,9 @@ def _public_data_edge() -> Iterator[None]:
     with (
         patch(
             f"{module}.organization_repo.get_by_id",
-            new=AsyncMock(return_value=MagicMock(public_live_data=False)),
+            new=AsyncMock(
+                return_value=MagicMock(public_live_data=False, public_agenticos_attribution=True)
+            ),
         ),
         patch(f"{module}.owner_membership_id", new=AsyncMock(return_value=None)),
         patch(f"{module}.artifact_repo.get_version_by_number", new=AsyncMock(return_value=None)),
@@ -447,18 +449,30 @@ class TestActions:
 
 
 class TestStrangers:
-    async def test_a_public_link_needs_no_account(self, client: OpenClient) -> None:
+    @pytest.mark.parametrize("enabled", [True, False])
+    async def test_a_public_link_needs_no_account(self, client: OpenClient, enabled: bool) -> None:
         app.dependency_overrides.pop(deps.get_auth_context)
         row = _artifact(public_key="k" * 32)
         with (
             patch(f"{PATH}.artifact_repo.get_by_public_key", new=AsyncMock(return_value=row)),
             patch(f"{PATH}.artifact_repo.latest_served", new=AsyncMock(return_value=_version(row))),
             patch(f"{PATH}.artifact_repo.count_public_view", new=AsyncMock()),
+            patch(
+                f"{PATH}.organization_repo.get_by_id",
+                new=AsyncMock(return_value=MagicMock(public_agenticos_attribution=enabled)),
+            ),
         ):
             async with client() as http:
                 response = await http.get(f"{settings.API_V1_STR}/public/apps/{'k' * 32}")
         assert response.status_code == 200
-        assert set(response.json()) == {"password_required", "title", "published_at", "view"}
+        assert set(response.json()) == {
+            "password_required",
+            "title",
+            "published_at",
+            "view",
+            "show_agenticos_attribution",
+        }
+        assert response.json()["show_agenticos_attribution"] is enabled
 
     @pytest.mark.security
     async def test_a_revoked_link_is_not_found(self, client: OpenClient) -> None:
@@ -762,6 +776,7 @@ class TestStrangersWithAPassword:
                     json={"password": "wrong-one"},
                 )
         assert asked.json() == {
+            "show_agenticos_attribution": True,
             "password_required": True,
             "title": None,
             "published_at": None,
@@ -1705,7 +1720,9 @@ class TestPublicData:
             ),
             patch(
                 f"{self.MODULE}.organization_repo.get_by_id",
-                new=AsyncMock(return_value=MagicMock(public_live_data=True)),
+                new=AsyncMock(
+                    return_value=MagicMock(public_live_data=True, public_agenticos_attribution=True)
+                ),
             ),
             patch(f"{self.MODULE}.owner_membership_id", new=AsyncMock(return_value=membership)),
             patch(f"{self.MODULE}.artifact_repo.update", new=AsyncMock()) as written,
@@ -1740,7 +1757,9 @@ class TestPublicData:
             ),
             patch(
                 f"{self.MODULE}.organization_repo.get_by_id",
-                new=AsyncMock(return_value=MagicMock(public_live_data=True)),
+                new=AsyncMock(
+                    return_value=MagicMock(public_live_data=True, public_agenticos_attribution=True)
+                ),
             ),
             patch(f"{self.MODULE}.owner_membership_id", new=AsyncMock(return_value=membership)),
             patch(f"{PATH}.member_repo.get_active", new=AsyncMock(return_value=None)),

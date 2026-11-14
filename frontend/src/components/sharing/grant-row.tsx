@@ -22,6 +22,7 @@ import { levelOptions, shareInput, subjectLabel, subjectOf, toLevel } from "./gr
 
 interface GrantRowProps {
   grant: ResourceGrant;
+  /** Which levels this kind of resource offers. */
   resourceType: SharingResourceType;
   /** Whether the caller may give "including data" - the server's answer, never worked out here. */
   mayGrantEditData: boolean;
@@ -45,8 +46,8 @@ interface GrantRowProps {
  * subject back with it.
  */
 export function GrantRow({
-  grant,
   resourceType,
+  grant,
   mayGrantEditData,
   fullName,
   groupIcon,

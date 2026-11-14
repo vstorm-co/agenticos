@@ -23,7 +23,6 @@ import { Button } from "@/components/ui";
 import { type SetupKey, type SetupState, useDesktopSetup } from "@/hooks/use-desktop-setup";
 import { useShell } from "@/hooks/use-shell";
 import { retryDesktopScreenshot, SYSTEM_PERMISSIONS } from "@/lib/desktop/readiness";
-import { isDesktopShell } from "@/lib/desktop/shell";
 import { useRouter } from "@/lib/locale-navigation";
 import { useMutation } from "@tanstack/react-query";
 import { reportShellFailure } from "@/lib/desktop/shell";
@@ -48,14 +47,14 @@ const STATUS_ICONS: Record<SetupState, LucideIcon> = {
   unsupported: Minus,
 };
 
+/** What is ready on this computer; its callers show it only inside the desktop app. */
 export function ReadinessPanel({ repair }: { repair?: string | null }) {
-  const shell = useShell();
-  const t = useTranslations("desktop.readiness");
-  return isDesktopShell(shell) ? <ReadyItems repair={repair} /> : <p>{t("desktopOnly")}</p>;
-}
-function ReadyItems({ repair }: { repair?: string | null }) {
   const t = useTranslations("desktop.readiness");
   const setup = useDesktopSetup();
+  // The screen-recording advice names macOS settings; elsewhere it would send people
+  // looking for a System Settings pane their computer does not have.
+  const mac = useShell()?.platform === "macos";
+  const start = useTranslations("start");
   const router = useRouter();
   const retryScreenshot = useMutation({
     mutationFn: retryDesktopScreenshot,
@@ -72,6 +71,7 @@ function ReadyItems({ repair }: { repair?: string | null }) {
           <RefreshCw className="size-4" />
         </Button>
       </div>
+      <p className="text-muted-foreground text-sm">{start("optionalHint")}</p>
       <ul className="divide-border divide-y rounded-xl border px-4">
         {setup.items.map((item) => {
           const Icon = ITEM_ICONS[item.key];
@@ -112,7 +112,7 @@ function ReadyItems({ repair }: { repair?: string | null }) {
                 {item.key === "screen_capture" &&
                   setup.native.status.data?.screen_capture === "denied" && (
                     <p className="text-muted-foreground mt-1 max-w-sm text-xs leading-relaxed">
-                      {t("screenCaptureDenied")}
+                      {t(mac ? "screenCaptureDenied" : "screenCaptureDeniedElsewhere")}
                     </p>
                   )}
                 {item.key === "model" && item.state === "missing" && !manage && (
@@ -140,7 +140,7 @@ function ReadyItems({ repair }: { repair?: string | null }) {
                       : permission
                         ? "enable"
                         : item.key === "device"
-                          ? "connect"
+                          ? "link"
                           : item.key === "agent"
                             ? "viewAgents"
                             : "configure",
@@ -153,7 +153,7 @@ function ReadyItems({ repair }: { repair?: string | null }) {
       </ul>
       <p className="text-muted-foreground flex items-start gap-2 text-xs leading-relaxed">
         <ShieldCheck className="mt-0.5 size-4 shrink-0" aria-hidden />
-        <span>{t("permissionNote")}</span>
+        <span>{t(mac ? "permissionNoteMac" : "permissionNote")}</span>
       </p>
       {repair === "screen_capture" && setup.native.status.data?.screen_capture === "granted" && (
         <Button disabled={retryScreenshot.isPending} onClick={() => retryScreenshot.mutate()}>

@@ -42,6 +42,7 @@ SECRET = "relay-secret-1234"
 class _Redis:
     def __init__(self) -> None:
         self.data: dict[str, str] = {}
+        self.issued: set[str] = set()
 
     async def set(self, key: str, value: str, ttl: int | None = None, nx: bool = False) -> bool:
         if nx and key in self.data:
@@ -85,10 +86,33 @@ class _Redis:
             )
         return value
 
-    async def reserve_range(self, key: str, *, minimum: int, count: int, ttl: int) -> int:
-        last = max(int(self.data.get(key, "0")), minimum)
-        self.data[key] = str(last + count)
-        return last + 1
+    async def reserve_numbers(
+        self,
+        counter: str,
+        *,
+        issued: str,
+        pending: str,
+        count: int,
+        highest: int,
+        quarantine: int,
+        answerable: int,
+        ttl: int,
+    ) -> int:
+        taken = set(json.loads(self.data.get(pending, "{}"))) | self.issued
+        last = int(self.data.get(counter, "0"))
+        for step in range(highest):
+            start = (last + step) % highest + 1
+            block = [str(number) for number in range(start, start + count)]
+            if start + count - 1 <= highest and taken.isdisjoint(block):
+                self.issued.update(block)
+                self.data[counter] = str(start + count - 1)
+                return start
+        return 0
+
+    async def numbered_answer(
+        self, mapping: str, *, issued: str, number: str, ttl: int
+    ) -> str | None:
+        return json.loads(self.data.get(mapping, "{}")).get(number)
 
     async def update_mapping(
         self, key: str, *, updates: dict[str, str], remove: Sequence[str] = (), ttl: int

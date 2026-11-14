@@ -83,6 +83,20 @@ _SCOPE_LABELS = {
 }
 
 
+def usd(amount: Decimal) -> str:
+    """Dollars to the cent, or to as many places as it takes not to read as nothing.
+
+    A sub-cent limit beside a spend of `$0.0008` reads as `$0.00` to the cent,
+    which says the limit is zero when it is not. Four places hold most such
+    limits; six, the column's own precision, hold the rest.
+    """
+    if Decimal(0) < amount < Decimal("0.0001"):
+        return f"${amount:.6f}"
+    if Decimal(0) < amount < Decimal("0.01"):
+        return f"${amount:.4f}"
+    return f"${amount:.2f}"
+
+
 class BudgetExceeded(Exception):
     """Raised when a run would spend past its limit.
 
@@ -102,11 +116,12 @@ class BudgetExceeded(Exception):
         self.limit_usd = limit_usd
         self.spent_usd = spent_usd
         self.scope = scope
+        self.subject = subject
         # A person can sit in several capped departments, so "Department monthly"
         # alone would not say whose cap to go and ask about.
         label = f"{subject} department monthly" if subject else scope.label
         super().__init__(
-            f"{label} budget exhausted: ${spent_usd:.4f} spent of ${limit_usd:.2f} limit"
+            f"{label} budget exhausted: ${spent_usd:.4f} spent of {usd(limit_usd)} limit"
         )
 
 
@@ -194,6 +209,11 @@ def _price_lookups(model_name: str, provider: str | None) -> list[tuple[str, str
     `anthropic/claude-sonnet-5.5` was unpriced, so every request through it was
     booked at $0 and no budget could stop the run. The vendor spells a version
     with dashes where the aggregator uses a dot, so both are tried.
+
+    OpenRouter also answers to an OpenAI model's bare name, which is how the
+    embedding catalog spells its models there, so a bare name through it is
+    priced as OpenAI's own; without a vendor the snapshot cannot place an
+    embedding model at all, and every knowledge search was booked at $0.
     """
     if provider == "otari":
         identity = otari_price_identity(model_name)
@@ -205,6 +225,13 @@ def _price_lookups(model_name: str, provider: str | None) -> list[tuple[str, str
     vendor, slash, bare = model_name.partition("/")
     if slash:
         lookups += [(name, vendor) for name in dict.fromkeys((bare, bare.replace(".", "-")))]
+    elif provider == "openrouter":
+        lookups.append((model_name, "openai"))
+    # OpenRouter adds a release suffix and calls the upstream vendor `mistralai`.
+    # Resolve this published embedding id to the snapshot entry, without guessing
+    # prices for other dated models.
+    if model_name == "mistralai/mistral-embed-2312":
+        lookups.append(("mistral-embed", "mistral"))
     return lookups if provider else lookups[1:]
 
 

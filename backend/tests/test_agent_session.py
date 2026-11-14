@@ -110,7 +110,14 @@ from app.agents.subagent_runtime import (
 )
 from app.agents.visual_reports import VisualReport, VisualReports
 from app.core.config import settings
-from app.core.exceptions import AuthenticationError, AuthorizationError, BadRequestError
+from app.core.exceptions import (
+    AuthenticationError,
+    AuthorizationError,
+    BadRequestError,
+    SystemAgentRestrictedError,
+)
+from app.core.permissions import AuthContext, OrgRoleName
+from app.db.models.agent import AgentKind
 from app.db.models.agent_run import RunStatus
 from app.repositories import conversation as conversation_repo
 from app.schemas.conversation import MessagePart
@@ -295,6 +302,7 @@ def _chat(
     ):
         db_context.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
         db_context.return_value.__aexit__ = AsyncMock(return_value=False)
+        runner_cls.return_value.refuse_system_agent = AsyncMock()
         runner_cls.return_value.run = run
         yield SimpleNamespace(
             prompt=prompt,
@@ -371,6 +379,25 @@ class TestFramesWithoutAnAgent:
         event_type, data = events[0]
         assert event_type == "error"
         assert "not a valid agent id" in data["message"]
+        persist.assert_not_called()
+
+    async def test_a_frame_naming_a_system_agent_is_refused_before_anything_is_persisted(self):
+        """A judge is never chatted with, so the turn would only leave a
+        conversation holding a question nothing answers."""
+        session = _session()
+        refusal = SystemAgentRestrictedError(name="Judge", agent_id=uuid4(), action="a web run")
+
+        with (
+            patch("app.services.agent_session.persist_user_turn", new=AsyncMock()) as persist,
+            patch("app.services.agent_session.get_db_context") as db_context,
+            patch("app.services.agent_session.ChatAgentRunner") as runner_cls,
+        ):
+            db_context.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
+            db_context.return_value.__aexit__ = AsyncMock(return_value=False)
+            runner_cls.return_value.refuse_system_agent = AsyncMock(side_effect=refusal)
+            await session.process_message(_message())
+
+        assert _sent_events(session) == [("error", {"message": refusal.message})]
         persist.assert_not_called()
 
     async def test_an_empty_frame_is_still_refused_as_empty(self):
@@ -1335,9 +1362,16 @@ class TestATurnThatDidNotFinish:
             details={"conversation_id": _CONVERSATION},
         )
 
-        with patch(
-            "app.services.agent_session.persist_user_turn", new=AsyncMock(side_effect=refusal)
+        with (
+            patch(
+                "app.services.agent_session.persist_user_turn", new=AsyncMock(side_effect=refusal)
+            ),
+            patch("app.services.agent_session.get_db_context") as db_context,
+            patch("app.services.agent_session.ChatAgentRunner") as runner_cls,
         ):
+            db_context.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
+            db_context.return_value.__aexit__ = AsyncMock(return_value=False)
+            runner_cls.return_value.refuse_system_agent = AsyncMock()
             await session.process_message(_message(conversation_id=_CONVERSATION))
 
         assert _sent_events(session) == [
@@ -1478,6 +1512,17 @@ class TestATurnThatDidNotFinish:
             },
         )
         assert "503 from https://api.example.com/v1/chat" in caplog.text
+
+    async def test_a_content_filter_uses_the_same_safe_live_and_stored_summary(self):
+        from pydantic_ai.exceptions import ContentFilterError
+
+        from app.agents.failures import CONTENT_FILTER_SUMMARY
+
+        session = _session()
+        with _chat(AsyncMock(side_effect=ContentFilterError("private provider detail"))):
+            await session.process_message(_message())
+
+        assert _sent_events(session)[-1] == ("error", {"message": CONTENT_FILTER_SUMMARY})
 
     async def test_a_provider_out_of_credit_is_told_in_words(self):
         """A 402 from the provider's gateway (an OpenRouter key over its limit) was
@@ -3276,6 +3321,9 @@ class _Turn:
             )
             db_context.return_value.__aexit__ = AsyncMock(return_value=False)
             members.get = AsyncMock(return_value=MagicMock())
+            runner_cls.return_value.registry.get = AsyncMock(
+                return_value=MagicMock(kind=AgentKind.AGENT.value)
+            )
             runner_cls.return_value.prepare = AsyncMock(return_value=self.prepared)
             runner_cls.return_value.finish = self._finish
             conversations.return_value.model_history = AsyncMock(return_value=[])
@@ -4239,6 +4287,110 @@ async def test_a_closed_surface_returns_no_answers_without_opening_a_live_prompt
     session._closed = True
     assert await session._ask_user([{"question": "Still there?"}]) == []
     assert _sent_events(session) == []
+
+
+class TestStarterSetupReply:
+    async def test_a_setup_card_requires_a_persisted_conversation(self) -> None:
+        session = _session()
+        session.user.locale = "en"
+        with (
+            patch("app.services.agent_session.persist_assistant_turn", AsyncMock()) as persist,
+            pytest.raises(RuntimeError, match="requires a persisted conversation"),
+        ):
+            await session._reply_with_model_setup(uuid4(), "Architect")
+        persist.assert_not_awaited()
+        assert [kind for kind, _ in _sent_events(session)] == ["model_setup_required"]
+
+    @pytest.mark.security
+    async def test_setup_access_is_refused_before_persisting_or_running_a_turn(self) -> None:
+        session = _session()
+
+        @asynccontextmanager
+        async def db_context() -> AsyncIterator[MagicMock]:
+            yield MagicMock()
+
+        with (
+            patch("app.services.agent_session.get_db_context", db_context),
+            patch.object(session, "_chat_context", AsyncMock()),
+            patch(
+                "app.services.agent_session.ShippedAgentService.setup_candidate",
+                AsyncMock(side_effect=AuthorizationError(message="Agent access denied")),
+            ),
+            patch("app.services.agent_session.persist_user_turn", AsyncMock()) as persist,
+            patch("app.services.agent_session.ChatAgentRunner.run", AsyncMock()) as run,
+        ):
+            await session.process_message({"message": "hello", "allow_setup_reply": True})
+        persist.assert_not_awaited()
+        run.assert_not_awaited()
+        assert _sent_events(session) == [("error", {"message": "Agent access denied"})]
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        "locale, greeting", [("pl", "Cześć"), ("de", "Hallo"), ("tr", "Merhaba"), ("fr", "Hi")]
+    )
+    @pytest.mark.parametrize("saved", ["saved", None])
+    async def test_first_message_gets_a_persisted_setup_card_without_running_a_draft(
+        self, locale, greeting, saved
+    ):
+        session = _session()
+        session.user.locale = locale
+        session.organization_id = uuid4()
+        agent_id = uuid4()
+        conversation_id = str(uuid4())
+        ctx = AuthContext(
+            user_id=session.user.id,
+            organization_id=session.organization_id,
+            role=OrgRoleName.MEMBER,
+        )
+        prompt = SimpleNamespace(
+            conversation_id=conversation_id, newly_created=True, message_id=uuid4()
+        )
+
+        @contextlib.asynccontextmanager
+        async def db_context():
+            yield MagicMock()
+
+        with (
+            patch("app.services.agent_session.get_db_context", db_context),
+            patch.object(session, "_chat_context", AsyncMock(return_value=ctx)),
+            patch(
+                "app.services.agent_session.ShippedAgentService.setup_candidate",
+                AsyncMock(return_value=SimpleNamespace(id=agent_id, name="Architect")),
+            ),
+            patch(
+                "app.services.agent_session.persist_user_turn", AsyncMock(return_value=prompt)
+            ) as user_turn,
+            patch(
+                "app.services.agent_session.persist_assistant_turn", AsyncMock(return_value=saved)
+            ) as reply,
+            patch("app.services.agent_session.ChatAgentRunner.run", AsyncMock()) as run,
+            patch(
+                "app.services.agent_session.ChatAgentRunner.refuse_system_agent", AsyncMock()
+            ) as guard,
+        ):
+            await session.process_message({"message": "siema", "allow_setup_reply": True})
+        guard.assert_awaited_once_with(
+            user=session.user, organization_id=session.organization_id, agent_id=agent_id
+        )
+        assert user_turn.await_count == 1
+        assert reply.await_args.kwargs["agent_id"] == agent_id
+        assert [part.type for part in reply.await_args.kwargs["parts"]] == ["text", "model_setup"]
+        assert reply.await_args.kwargs["parts"][1].setup_agent_id == agent_id
+        assert reply.await_args.args[2] is None
+        assert "run_id" not in reply.await_args.kwargs
+        run.assert_not_awaited()
+        events = _sent_events(session)
+        assert [kind for kind, _ in events] == [
+            "conversation_created",
+            "user_prompt",
+            "model_setup_required",
+            "message_saved" if saved else "error",
+            "complete",
+        ]
+        assert greeting in events[2][1]["text"]
+        assert "Architect" in events[2][1]["text"]
+        if saved is None:
+            assert events[3][1]["code"] == "message_save_failed"
 
 
 @pytest.mark.security

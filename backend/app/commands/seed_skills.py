@@ -63,6 +63,9 @@ _DONE = {
         "differs from the bundled version and was copied before edits were tracked, "
         "left alone (--replace takes the bundled version)"
     ),
+    LibraryRefresh.WAITING: (
+        "agents follow it: the bundled version waits under Skills until it is checked on them"
+    ),
 }
 _WOULD = {
     LibraryRefresh.INSTALL: "would install",
@@ -70,6 +73,7 @@ _WOULD = {
     LibraryRefresh.UPDATE: "would update to the bundled version",
     LibraryRefresh.EDITED: _DONE[LibraryRefresh.EDITED],
     LibraryRefresh.UNTRACKED: _DONE[LibraryRefresh.UNTRACKED],
+    LibraryRefresh.WAITING: "agents follow it: would wait under Skills until it is checked on them",
 }
 
 

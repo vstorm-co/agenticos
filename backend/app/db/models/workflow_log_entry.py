@@ -19,13 +19,21 @@ from sqlalchemy import (
     Index,
     String,
     Text,
+    case,
+    cast,
     false,
     func,
+    literal,
+    literal_column,
+    select,
 )
+from sqlalchemy.dialects.postgresql import JSONPATH
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, column_property, mapped_column
 
 from app.db.base import Base
+from app.db.models.workflow import WorkflowVersion
+from app.db.models.workflow_run import WorkflowRun
 
 MAX_LOG_MESSAGE_CHARS = 2000
 """The longest rendered message kept: a template is 500 characters, but the output
@@ -58,6 +66,35 @@ class WorkflowLogEntry(Base):
     # The step in the graph; no foreign key, a step can be deleted from a later draft.
     node_instance_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
     step_label: Mapped[str] = mapped_column(String(128), nullable=False)
+    # The immutable run graph distinguishes a default name from a custom label,
+    # including older lines. Eager selection avoids serialization-time I/O.
+    step_definition_id: Mapped[str | None] = column_property(
+        select(
+            func.jsonb_path_query_first(
+                case(
+                    (WorkflowRun.workflow_version_id.is_(None), WorkflowRun.draft_graph_snapshot),
+                    else_=WorkflowVersion.graph,
+                ),
+                cast(
+                    literal(
+                        "$.nodes[*] ? (@.id == $node_id && "
+                        '(!exists(@.label) || @.label == null || @.label == "")).definition_id'
+                    ),
+                    JSONPATH,
+                ),
+                func.jsonb_build_object("node_id", cast(node_instance_id, String)),
+            ).op("#>>", return_type=String)(literal_column("'{}'::text[]"))
+        )
+        .select_from(WorkflowRun)
+        .outerjoin(
+            WorkflowVersion,
+            (WorkflowVersion.id == WorkflowRun.workflow_version_id)
+            & (WorkflowVersion.organization_id == WorkflowRun.organization_id),
+        )
+        .where(WorkflowRun.id == run_id, WorkflowRun.organization_id == organization_id)
+        .correlate_except(WorkflowRun, WorkflowVersion)
+        .scalar_subquery()
+    )
     # The port the step left by, or `error`; several ports are joined with a comma.
     outcome: Mapped[str] = mapped_column(String(256), nullable=False)
     # The step's settled status: `succeeded` or `failed`.

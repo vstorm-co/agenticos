@@ -203,3 +203,101 @@ async def test_refresh_updates_an_already_bound_shipped_skill_before_using_its_t
     target = await service._target(ctx, template)
     assert target.skill_ids
     refresh.assert_awaited_once_with(ctx, entry.key)
+
+
+async def test_a_legacy_architect_with_a_sandbox_is_recognized_without_duplicating_it(
+    installed, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ctx, _, _, service = installed
+    history = LegacyDefaults(
+        instructions="legacy",
+        capabilities=[{"id": "sandbox", "config": {"backend": "state"}}],
+        mcp_servers=[],
+        skills=[],
+        starters=[],
+    )
+    monkeypatch.setattr(shipped_agents, "legacy_defaults", lambda: {ARCHITECT: [history]})
+    service.registry.template_skills = AsyncMock(return_value=[])
+    spec = AgentSpec(
+        name="Architect",
+        capabilities=[{"id": "sandbox", "config": {"backend": "service", "include_execute": True}}],
+    )
+    previous = await service._legacy_baseline(ctx, spec, ARCHITECT)
+    assert previous["capabilities"] == fingerprint(spec, "capabilities")
+    assert history.capabilities == [{"id": "sandbox", "config": {"backend": "state"}}]
+
+
+@pytest.mark.parametrize("case", ["missing", "different", "published", "archived", "versioned"])
+async def test_setup_reply_never_admits_other_or_already_published_agents(
+    installed, monkeypatch, case
+):
+    ctx, _, agent, service = installed
+    candidate = None if case == "missing" else agent
+    agent.status = "draft"
+    agent.current_version_id = None
+    if case == "published":
+        agent.status = "published"
+    if case == "archived":
+        agent.status = "archived"
+    if case == "versioned":
+        agent.current_version_id = uuid4()
+    monkeypatch.setattr(
+        shipped_agents.agent_repo, "get_shipped_starter", AsyncMock(return_value=candidate)
+    )
+    monkeypatch.setattr(
+        shipped_agents.organization_assistant_repo, "get", AsyncMock(return_value=None)
+    )
+    assert await service.setup_candidate(ctx, uuid4() if case == "different" else agent.id) is None
+    service.registry.get.assert_not_awaited()
+
+
+async def test_unconfigured_starter_setup_still_checks_the_callers_run_grant(
+    installed, monkeypatch
+):
+    from app.core.permissions import Perm
+
+    ctx, _, agent, service = installed
+    agent.status = "draft"
+    agent.current_version_id = None
+    monkeypatch.setattr(
+        shipped_agents.agent_repo, "get_shipped_starter", AsyncMock(return_value=agent)
+    )
+    assert await service.setup_candidate(ctx, None) is agent
+    service.registry.get.assert_awaited_once_with(ctx, agent.id, perm=Perm.AGENTS_RUN)
+    service.registry.get.side_effect = NotFoundError(message="Agent not found")
+    with pytest.raises(NotFoundError):
+        await service.setup_candidate(ctx, agent.id)
+
+
+@pytest.mark.parametrize(
+    "case", ["draft", "disabled", "other", "published", "archived", "versioned", "denied"]
+)
+async def test_architect_setup_uses_organization_identity_and_run_access(
+    installed, monkeypatch, case
+):
+    ctx, _, agent, service = installed
+    agent.status = "draft"
+    agent.current_version_id = None
+    if case in ("published", "archived"):
+        agent.status = case
+    if case == "versioned":
+        agent.current_version_id = uuid4()
+    row = SimpleNamespace(
+        enabled=case != "disabled", agent_id=uuid4() if case == "other" else agent.id
+    )
+    monkeypatch.setattr(
+        shipped_agents.agent_repo, "get_shipped_starter", AsyncMock(return_value=None)
+    )
+    monkeypatch.setattr(
+        shipped_agents.organization_assistant_repo, "get", AsyncMock(return_value=row)
+    )
+    if case == "denied":
+        service.registry.get.side_effect = NotFoundError(message="Agent not found")
+        with pytest.raises(NotFoundError):
+            await service.setup_candidate(ctx, agent.id)
+    else:
+        result = await service.setup_candidate(ctx, agent.id)
+        assert result is (agent if case == "draft" else None)
+    if case in ("disabled", "other"):
+        service.registry.get.assert_not_awaited()
+    assert await service.setup_candidate(ctx, None) is None

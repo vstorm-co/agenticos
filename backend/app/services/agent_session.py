@@ -12,7 +12,7 @@ import anyio
 from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.encoders import jsonable_encoder
 from pydantic import Field, ValidationError
-from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
+from pydantic_ai.exceptions import ContentFilterError, ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import ModelMessage, ToolCallPart
 from pydantic_ai_harness.ask_user import AskUserRequest, AskUserResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -90,6 +90,7 @@ from app.services.conversation import ConversationService
 from app.services.notifications import NotificationService
 from app.services.parked_runs import run_result
 from app.services.run_stream import RunFrames
+from app.services.shipped_agents import ShippedAgentService
 from app.services.usage_report import usage_frame
 from app.services.ws_auth import authenticate_socket_token
 
@@ -112,9 +113,8 @@ ROOM_RETRY_SECONDS = 5.0
 TYPING_EVERY_SECONDS = 2.0
 """The least time between two "typing" announcements from one socket; the console sends one every three."""
 
-# Said to a frame that names no agent. There is nothing else a frame could run:
-# the general assistant the template shipped is gone, and guessing an agent on
-# the user's behalf would mean something they never picked answering them.
+# Frames without an agent or an eligible, explicitly requested setup path
+# cannot execute a turn. Ordinary drafts never become an execution fallback.
 _PICK_AN_AGENT = "Pick an agent to chat with. If none is listed, publish one in the Builder first."
 
 # Closed with the same 4001 the handshake uses for a bad credential: the client
@@ -185,7 +185,7 @@ def _turn_failed(exc: Exception) -> str:
     cause: BaseException = exc
     while isinstance(cause, BaseExceptionGroup):
         cause = cause.exceptions[0]
-    if isinstance(cause, ModelHTTPError | UsageLimitExceeded):
+    if isinstance(cause, ContentFilterError | ModelHTTPError | UsageLimitExceeded):
         return run_failure_summary(cause)
     return (
         f"The agent could not finish this turn ({type(exc).__name__}). "
@@ -828,6 +828,41 @@ class AgentSession:
         # already told them through `approval_requested` or the question's park.
         await self._tell_the_absent(self._outcome)
 
+    async def _reply_with_model_setup(self, agent_id: UUID, name: str) -> None:
+        """Persist an honest setup response without opening or charging an AI run."""
+        replies = {
+            "en": "Hi, I'm {name}. I'm ready to help you plan, work with documents and get things done. Before I can answer your request, finish connecting my AI model and publish me. Add a provider key if your chosen model needs one. Let's get that ready together.",
+            "pl": "Cześć, jestem {name}. Pomogę Ci planować, pracować z dokumentami i realizować zadania. Zanim odpowiem na Twoją wiadomość, dokończ konfigurację mojego modelu AI i opublikuj agenta. Dodaj klucz dostawcy, jeśli wybrany model go wymaga. Zróbmy ten pierwszy krok razem.",
+            "de": "Hallo, ich bin {name}. Ich helfe beim Planen, bei Dokumenten und Aufgaben. Bevor ich antworten kann, richte meinen KI-Zugang ein und veröffentliche mich. Füge bei Bedarf einen Anbieterschlüssel hinzu. Gehen wir diesen ersten Schritt gemeinsam.",
+            "tr": "Merhaba, ben {name}. Planlama, belgeler ve görevlerde yardımcı olurum. Yanıt verebilmem için AI modelimi yapılandır ve beni yayımla. Model gerektiriyorsa sağlayıcı anahtarı ekle. İlk adımı birlikte atalım.",
+        }
+        text = replies.get(self.user.locale or "en", replies["en"]).format(name=name)
+        await self._emit("model_setup_required", {"agent_id": str(agent_id), "text": text})
+        if self.current_conversation_id is None:
+            raise RuntimeError("A setup response requires a persisted conversation")
+        saved = await persist_assistant_turn(
+            self.current_conversation_id,
+            text,
+            None,
+            [],
+            organization_id=self.organization_id,
+            agent_id=agent_id,
+            parts=[
+                MessagePart(type="text", text=text),
+                MessagePart(type="model_setup", setup_agent_id=agent_id),
+            ],
+        )
+        if saved is None:
+            await self._emit(
+                "error", {"message": _UNSAVED_REPLY_NOTICE, "code": "message_save_failed"}
+            )
+        else:
+            await self._emit(
+                "message_saved",
+                {"message_id": saved, "conversation_id": self.current_conversation_id},
+            )
+        await self._emit("complete", {"conversation_id": self.current_conversation_id})
+
     async def process_message(self, data: dict[str, Any]) -> None:
         """Process one user turn: persist input, run the agent, stream events, persist output."""
         self._outcome = None
@@ -844,6 +879,17 @@ class AgentSession:
         except AppException as exc:
             await self._emit("error", {"message": exc.message})
             return
+        setup_agent = None
+        if data.get("allow_setup_reply") is True and not requested_testing(data).test:
+            try:
+                async with get_db_context() as db:
+                    ctx = await self._chat_context(db)
+                    setup_agent = await ShippedAgentService(db).setup_candidate(ctx, agent_id)
+            except AppException as exc:
+                await self._emit("error", {"message": exc.message})
+                return
+        if setup_agent is not None:
+            agent_id = setup_agent.id
         if agent_id is None:
             await self._emit("error", {"message": _PICK_AN_AGENT})
             return
@@ -852,7 +898,7 @@ class AgentSession:
         try:
             page_context = requested_page_context(data)
             mention_refs = requested_mentions(data)
-            if mention_refs:
+            if mention_refs and setup_agent is None:
                 async with get_db_context() as db:
                     resolved = await ChatAgentRunner(db).mentions(
                         user=self.user,
@@ -877,6 +923,14 @@ class AgentSession:
         # still continues the session's conversation.
         if "conversation_id" in data and data["conversation_id"] is None:
             self.current_conversation_id = None
+        try:
+            async with get_db_context() as db:
+                await ChatAgentRunner(db).refuse_system_agent(
+                    user=self.user, organization_id=self.organization_id, agent_id=agent_id
+                )
+        except AppException as exc:
+            await send_event(self.websocket, "error", {"message": exc.message})
+            return
         try:
             prompt = await persist_user_turn(
                 self.user,
@@ -917,6 +971,16 @@ class AgentSession:
             await self._admission_stack.enter_async_context(
                 claim(UUID(self.current_conversation_id), background=False)
             )
+        if setup_agent is not None:
+            await self._emit(
+                "user_prompt",
+                {
+                    "content": user_message,
+                    "message_id": None if prompt.message_id is None else str(prompt.message_id),
+                },
+            )
+            await self._reply_with_model_setup(agent_id, setup_agent.name)
+            return
         collected_tool_calls: list[dict[str, Any]] = []
         # Everything the model produces, in the order it produces it - the text,
         # the reasoning and where the tool calls sat between them. It is what gets
@@ -1147,7 +1211,8 @@ class AgentSession:
                                 "tool_name": parked.tool_name,
                                 "subagent_name": parked.subagent,
                                 "can_remember": turn.agent_version_id is not None
-                                and parked.subagent is None,
+                                and parked.subagent is None
+                                and not parked.always_asks,
                                 "args": parked.tool_args,
                                 "capability_tool_id": parked.capability_tool_id,
                                 "context": parked.context,

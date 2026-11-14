@@ -7,7 +7,11 @@ import {
   BarChart3,
   Bell,
   Check,
+  Sparkles,
+  GitPullRequest,
   KeyRound,
+  ListChecks,
+  ShieldAlert,
   Lightbulb,
   Megaphone,
   Plug,
@@ -52,6 +56,13 @@ const KINDS: Record<string, { icon: LucideIcon; attention?: "error" | "warning" 
   capability_requested: { icon: Wrench, attention: "warning" },
   suggestion: { icon: Lightbulb },
   finding: { icon: Radar, attention: "warning" },
+  eval_run_finished: { icon: ListChecks },
+  case_generation_finished: { icon: Sparkles },
+  improvement_finished: { icon: Sparkles },
+  eval_suite_failed: { icon: ListChecks, attention: "error" },
+  eval_suite_reevaluated: { icon: ListChecks },
+  promotion_overridden: { icon: ShieldAlert, attention: "warning" },
+  shared_change_applied: { icon: GitPullRequest, attention: "warning" },
 };
 const UNKNOWN = { icon: Bell };
 

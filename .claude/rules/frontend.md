@@ -136,8 +136,8 @@ There is no `(marketing)` route group.
   component translates at the point of use; a pure helper either answers with a key
   or takes `t`.
 - **The product's own nouns stay English in every locale**, and this is the list:
-  **agent, spec, capability, skill, embed, budget, run, prompt, provider, token,
-  vault, workspace, sandbox, MCP**. They name things a client also meets in
+  **agent, spec, capability, skill, dataset, embed, budget, run, prompt, provider,
+  token, vault, workspace, sandbox, MCP**. They name things a client also meets in
   `docs/`, in the API and in the YAML a spec exports into their own repository, so
   translating them in the UI and nowhere else makes two vocabularies for one
   product - a Polish reader looking up *zdolność* finds nothing. Inflect them
@@ -355,3 +355,17 @@ right to notice.
 `asyncUtilTimeout` 5s, both measured rather than guessed - `docs/testing.md#two-deadlines-both-sized-for-a-loaded-machine`
 has the four runs behind them (#862). Neither is a reason to keep a spec that mounts
 more than its assertions read.
+
+
+## Loading geometry
+
+Loading UI keeps the final surface's width, height, breakpoints and action slots.
+Use `LoadingForm` when the real form can render before its values. Editor reads
+use `EditorLoading` and the same dialog-size tokens as the loaded editor; catalog
+reads use `CatalogLoading`. Tables load through their own `DataTable` columns so
+responsive visibility stays identical. Keep the dialog shell mounted across data
+and module reads; replace only its body. Remounting repeats the entry animation
+and resets focus even when the placeholder dimensions match. A data-dependent view whose structure is
+unknown uses `LoadingState variant="pending"` in its reserved area; do not invent
+card grids or fields. Check held reads at desktop and touch phone widths, release
+them, then compare the actual loading/loaded bounds and focus behavior.

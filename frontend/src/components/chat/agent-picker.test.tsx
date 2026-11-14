@@ -496,4 +496,29 @@ describe("the floating assistant's picker", () => {
     rerender(<AgentPicker selectedLabel="Architect" autoSelect={false} />);
     expect(screen.queryByRole("button", { name: "Agent: Architect" })).not.toBeInTheDocument();
   });
+  it("defaults to the authentic AgenticOS even before a model is connected", async () => {
+    const starter = {
+      ...agent("starter", "AgenticOS", "draft"),
+      is_starter: true,
+      setup_required: true,
+    };
+    listed.mockReturnValue([agent("architect", "Architect"), starter]);
+    selectedId.mockReturnValue(null);
+    render(<AgentPicker />);
+    await waitFor(() => expect(select).toHaveBeenCalledWith("starter"));
+  });
+
+  it("does not offer a setup draft without its run permission", () => {
+    listed.mockReturnValue([
+      {
+        ...agent("starter", "AgenticOS", "draft"),
+        is_starter: true,
+        setup_required: true,
+        can_run: false,
+      },
+    ]);
+    selectedId.mockReturnValue(null);
+    render(<AgentPicker />);
+    expect(select).not.toHaveBeenCalled();
+  });
 });

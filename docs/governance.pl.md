@@ -1,5 +1,5 @@
 ---
-source_sha: "df94a18f6c76"
+source_sha: "0500be2db6f4"
 ---
 
 # Governance { #governance }
@@ -88,6 +88,10 @@ Formularz rutyny pozwala ustawić lub usunąć datę zakończenia. Data używa p
 
 Rutyna przed każdym narzędziem ponownie sprawdza twórcę, aktywne członkostwo, rolę i granty uruchamiania, także w delegacjach i po zatwierdzeniu. Pauza, usunięcie, wygaśnięcie, cofnięcie zgody na osobiste konta lub zmiana tych uprawnień odmawia kolejnych wywołań. Kontrola nie cofa efektu już wysłanego do zewnętrznej usługi. Migracja `0260_routine_run_origin` zachowuje pochodzenie po usunięciu rutyny; starszy zaparkowany harmonogram, który utracił pochodzenie, jest odrzucany zamiast pożyczać uprawnienia zatwierdzającego.
 
+Wbudowany serwer MCP AgenticOS wymaga opcji **Działaj jako twórca**, również gdy używa go opublikowany delegat. Bez tożsamości użytkownika przegląd źródeł i tworzenie procedury odrzucają tę konfigurację z jasnym wyjaśnieniem. Włącz tę opcję albo usuń powiązanie platformowego MCP z agenta i jego delegatów. Platforma nigdy nie pożycza automatycznie tożsamości twórcy.
+
+Historia procedury pokazuje też zablokowane i nieudane próby zakończone przed utworzeniem runu agenta. Każda ma czas, etap i wskazówkę naprawy. Nie naliczają kosztów modelu ani nie zawierają promptów, błędów dostawcy lub poświadczeń. Rekordy pozostają do usunięcia procedury lub organizacji. Błąd dostarczenia powiadomienia nie usuwa historii. Zadanie workera fire-trigger zapisuje osobny wynik zablokowany lub nieudany; zakończenie zadania kolejki nie oznacza poprawnego uruchomienia agenta.
+
 ## Budżety { #budgets }
 
 !!! abstract "Trzy poziomy, i nie są to warianty jednej liczby"
@@ -97,10 +101,16 @@ Rutyna przed każdym narzędziem ponownie sprawdza twórcę, aktywne członkostw
     pułapem. Zobacz [dlaczego nie da się ich zwinąć w jedno](#why-they-cannot-be-collapsed).
 
 | Poziom | Ustawiany w | Mierzy | Podnosi |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | **Miesięczny agenta** | spec agenta | runy tego agenta | ten, kto może edytować agenta |
 | **Miesięczny działu** | ustawienia działu | runy uruchomione przez jego członków, na dowolnym agencie | ten, kto ma `members:manage` i `budgets:manage` |
-| **Miesięczny organizacji** | ustawienia organizacji | każdy run *oraz* ingestię w organizacji | ten, kto ma `budgets:manage` |
+| **Miesięczny organizacji** | ustawienia organizacji | każdy run _oraz_ ingestię w organizacji | ten, kto ma `budgets:manage` |
+
+Każdy miesięczny limit liczy cały koszt runu w miesiącu, w którym run się zaczął,
+tak jak raporty wydatków. Run, który przechodzi przez granicę miesiąca - zaparkowany
+na zatwierdzeniu ostatniego wieczoru i zatwierdzony pierwszego dnia - w całości
+trafia do wcześniejszego miesiąca, a po wznowieniu jest sprawdzany względem wydatków
+tamtego miesiąca, nie nowego.
 
 **Nowa organizacja startuje z już ustawionym pułapem organizacji** —
 `DEFAULT_ORG_MONTHLY_BUDGET_USD` wdrożenia ([konfiguracja](configuration.md),
@@ -119,7 +129,7 @@ sprawia, że nie jest on limitem. Limit organizacji mierzony względem wydatków
 jednego agenta nigdy by nie zawiązał.
 
 Więc każdy limit mierzy własną wielkość, a wyszukiwanie podróżuje razem z
-ograniczeniem. Agent za $5 pod pułapem $50 wiąże teraz wtedy, gdy *on sam* wydał
+ograniczeniem. Agent za $5 pod pułapem $50 wiąże teraz wtedy, gdy _on sam_ wydał
 $5, a odmowa nazywa ten limit, który faktycznie zawiązał, zamiast wnioskować go
 z tego, która z dwóch liczb była mniejsza.
 
@@ -130,10 +140,15 @@ zatrzymany na $10.
 
 Oba limity są czytelne tam, gdzie są ich wydatki: limit organizacji w jej własnym
 wierszu (`GET /orgs/{org_id}`), a limit każdego agenta jako `budget_monthly_usd`
-na liście agentów — liczba z *opublikowanej* wersji, bo to ją egzekwuje runner, a
+na liście agentów — liczba z _opublikowanej_ wersji, bo to ją egzekwuje runner, a
 nie to, co akurat obiecuje draft. Karta zapasu na dashboardzie zestawia je z
 `GET /spend`, więc zbliżający się limit widać, zanim w historii runów zacznie
 pojawiać się `budget_exceeded`.
+
+Ta opublikowana liczba obowiązuje każdy run agenta, także run starszej wersji:
+rutynę, środowisko albo krok workflow przypięte do niej, albo run wznowiony na
+wersji, na której został zaparkowany. Przypięcie decyduje o tym, jak agent działa,
+a nie o tym, ile może wydać.
 
 ### Limit działu { #a-departments-cap }
 
@@ -142,7 +157,7 @@ Stoi między pozostałymi dwoma: run jest sprawdzany względem limitu agenta,
 potem każdego działu z limitem, w którym jest osoba, która go uruchomiła, a na
 końcu względem limitu organizacji. Każdy dział liczy miesiąc własnych członków,
 więc osobę z Finansów i Sprzedaży zatrzyma ten z dwóch, który wyczerpie się
-pierwszy, a odmowa go nazwie - *Sales department monthly budget exhausted*.
+pierwszy, a odmowa go nazwie - _Sales department monthly budget exhausted_.
 
 Lider działu i administratorzy dostają jedno powiadomienie, gdy dział przekroczy
 80% miesiąca, i kolejne, gdy limit zatrzyma run. Run, którego nikt nie
@@ -164,7 +179,7 @@ jest liczony.
     kontekstowi sesji — ten wycofuje się przy każdym wyjątku i przy anulowaniu
     nie jest osiągany w ogóle.
 
-!!! important "Punkt odniesienia to to, co wydały *inne* runy"
+!!! important "Punkt odniesienia to to, co wydały _inne_ runy"
 
     Oba wyszukiwania pomijają wiersz pytającego runa. Wznowiony run zachowuje
     swój wiersz, a do tego czasu `finish_run` zacommitował już to, co wydał —
@@ -175,7 +190,7 @@ jest liczony.
     odmowę, mając $4 zapasu, mówiąc swojemu właścicielowi, że osiągnął limit,
     którego wykorzystał w 60%. Limit organizacji dubluje się identycznie.
 
-Bramka jest twardym stopem dla runa, który *widzi* wydatki, a własny koszt runa
+Bramka jest twardym stopem dla runa, który _widzi_ wydatki, a własny koszt runa
 ląduje w jego wierszu dopiero wtedy, gdy run się kończy.
 
 Więc punkt odniesienia, który run odczytuje, to suma runów już zakończonych, a
@@ -192,12 +207,23 @@ przed żądaniem faktycznie ogranicza. Dlatego limit jest pułapem na
 Wdrożenie, które potrzebuje ścisłego limitu, przepuszcza swoich agentów przez
 jedną kolejkę, zamiast równolegle.
 
+### Evale wydają z tych samych budżetów { #evals-spend-from-the-same-budgets }
+
+[Eval run](evals.md) składa się ze zwykłych runów, więc każdy przypadek jest
+sprawdzany względem limitów agenta i organizacji przed każdym żądaniem do
+modelu, a to, co wyda, liczy się do obu - nie ma osobnego budżetu na evale.
+Duży dataset może więc zużyć miesięczny budżet, którego potrzebuje ruch
+produkcyjny. Start runa pokazuje, ile każdy limit zachowa po wydaniu szacunku,
+i jest odrzucany, zanim cokolwiek się uruchomi, gdy szacunek przekracza to, co
+zostało w którymkolwiek z nich; zob.
+[Budżet, który zostaje](evals.md#the-budget-it-leaves).
+
 ### Run kosztuje więcej niż jego żądania do modelu { #a-run-costs-more-than-its-model-requests }
 
 Wyszukiwanie w wiedzy najpierw osadza pytanie, zanim będzie mogło go użyć do
 szukania, a to osadzanie jest księgowane na runa, który o nie poprosił. Usługa
 osadzeń jest globalna dla procesu — obsługuje naraz każdy run i każde zadanie
-ingestii — więc księguje na tym runie, który jest *aktualnie mierzony*, zamiast
+ingestii — więc księguje na tym runie, który jest _aktualnie mierzony_, zamiast
 przyjmować budżet jako argument.
 
 Przez co licznik staje się czymś, o czym powierzchnia może zapomnieć, a
@@ -211,7 +237,7 @@ Capability [Długie rozmowy](reference/capabilities.md#context-management) to ta
 druga taka rzecz. Jej strategia podsumowująca zapisuje podsumowanie przez
 agenta, którego buduje sama, więc to żądanie nie przechodzi przez żadną bramkę
 budżetu; capability księguje to, co kosztowało, na tym samym liczniku. Bycie
-*poza* bramką ma jedną konsekwencję, którą warto znać: wydatek zostaje zapisany,
+_poza_ bramką ma jedną konsekwencję, którą warto znać: wydatek zostaje zapisany,
 a nie odrzucony, więc kompaktowanie przekraczające limit zatrzymuje run na
 kolejnym żądaniu.
 
@@ -237,13 +263,13 @@ Ta flaga podróżuje teraz całą drogę w dół. Jest w wierszu runa, w wierszu
 wiadomości, który zapisuje tura, i w sumie, którą raportuje rozmowa; każda
 powierzchnia rysująca pieniądze rysuje przed nimi `≥` zamiast liczby, którą
 czyta się jako dokładną. Null w wiadomości zapisanej, zanim kolumna istniała,
-oznacza *nie zapisano*, co nie jest tym samym twierdzeniem co „dokładne” —
+oznacza _nie zapisano_, co nie jest tym samym twierdzeniem co „dokładne” —
 klient oznacza tylko to, co wie.
 
 **Każda powierzchnia zapisuje to teraz, a każda tura zapisuje swój własny
 udział.** Wiadomość zapisana przez kanał, API albo widget do niedawna nie niosła
 żadnego kosztu, więc wątku na Slacku nie dało się zsumować. Zapisywana liczba to
-*różnica* względem tego, co deklarują już wcześniejsze tury tego runa, a nie
+_różnica_ względem tego, co deklarują już wcześniejsze tury tego runa, a nie
 liczba z wiersza runa: wiersz runa jest skumulowany, a run, który zaparkował i
 został wznowiony, zapisuje dwie tury asystenta — ostemplowanie obu liczbą z
 wiersza policzyłoby zaparkowaną połowę dwa razy. Wiadomości jednego runa sumują
@@ -265,8 +291,8 @@ prostu się wywraca.
 
 Dlatego każdy agent nosi wskaźnik — nie tylko ten, który ma podpiętą
 capability [Długie rozmowy](reference/capabilities.md#context-management), bo
-ostrzeżenie liczy się najbardziej dla agenta, który *nie* będzie kompaktował.
-Raportuje on, ile tokenów niosło ostatnie żądanie tury, *po* ewentualnym
+ostrzeżenie liczy się najbardziej dla agenta, który _nie_ będzie kompaktował.
+Raportuje on, ile tokenów niosło ostatnie żądanie tury, _po_ ewentualnym
 kompaktowaniu: odczyt spada, gdy kompaktowanie działa, bo mierzy to, co wyszło, a
 nie to, co trzyma rozmowa.
 
@@ -326,7 +352,7 @@ poniżej niego — nie ma ich w historii do podsumowania. Każde żądanie kupow
 wtedy podsumowanie, które nic nie zmienia. Kompaktowanie jest pomijane, czat mówi
 dlaczego, a naprawa należy do autora: większe okno albo wyższy ułamek.
 
-Ta odmowa opiera się na liczbie, którą produkuje *odpowiedź*, więc tura nie może
+Ta odmowa opiera się na liczbie, którą produkuje _odpowiedź_, więc tura nie może
 zmierzyć swojej własnej, zanim musi zdecydować — a tura czatu to zwykle jedno
 żądanie. Rozmowa niesie ostatni odczyt, a run od niego startuje. Pierwsza tura
 wątku nie ma się więc na czym oprzeć i kompaktuje zgodnie z konfiguracją; od
@@ -343,13 +369,13 @@ właśnie sprawia, że limit rodzica widzi wydatki delegacji przed swoim kolejny
 żądaniem do modelu, dokładnie w momencie, w którym delegacja zwielokrotnia to,
 ile może kosztować tura. Każdy wpis jest ostemplowany delegacją, która go
 zaksięgowała, i to dzięki temu jeden rejestr dalej odpowiada na pytanie „ile
-kosztował *ten* delegat” — zobacz niżej.
+kosztował _ten_ delegat” — zobacz niżej.
 
 Wynika z tego, że **limity, które wiążą wewnątrz delegacji, to limity rodzica**.
 Własny `budget.monthly_usd` delegata nie jest egzekwowany w trakcie runa rodzica:
 dwie bramki mierzące jeden rejestr liczyłyby każde żądanie podwójnie, a pułap,
 który ma znaczenie, to ten na runie, który ktoś uruchomił. Własny limit delegata
-dalej rządzi runami *samego delegata*.
+dalej rządzi runami _samego delegata_.
 
 Każdy delegat wycenia jednak własne żądania, bo bramka wycenia to, co zapisuje:
 delegat na Anthropic mierzony przez bramkę zbudowaną dla OpenAI byłby wyceniany
@@ -363,7 +389,7 @@ własne `max_steps` każdego delegata ogranicza jego pętlę. Zobacz
 
 Dwa z tych trzech należą do samego delegata, i to jest granica, której budżet nie
 przekracza: `max_steps` jest odczytywane ze speca delegata, a jego `max_depth`
-ogranicza, jak głęboko *on* może zejść, niezależnie od tego, ile miejsca zostało
+ogranicza, jak głęboko _on_ może zejść, niezależnie od tego, ile miejsca zostało
 jego wołającemu. Limit na wydatki jest limitem na run, który ktoś uruchomił;
 limit na zagnieżdżenie to decyzja podjęta przez autora delegata i przeczytana
 przez jego recenzentów, więc wołający nie może jej poszerzyć.
@@ -373,15 +399,15 @@ przez jego recenzentów, więc wołający nie może jej poszerzyć.
 Delegacja do **opublikowanego** agenta dostaje własny wiersz w `agent_runs`,
 niosący `parent_run_id` i id zadania delegacji. **Wbudowany specjalista** nie
 dostaje żadnego: nie ma agenta, któremu można by go przypisać, więc jego koszt
-należy do *runa*, a zapisem jest wywołanie narzędzia w transkrypcie.
+należy do _runa_, a zapisem jest wywołanie narzędzia w transkrypcie.
 
 Tylko którego runa — na to pytanie odpowiedziało
 [#228](https://github.com/vstorm-co/agenticos/issues/228).
 
 - Specjalista bezpośrednio pod własnym agentem runa księguje się na **wiersz
   najwyższego poziomu**, który i tak jest całym rejestrem.
-- Specjalista pod **opublikowanym delegatem** księguje się na wiersz *tego
-  delegata*, a nie na ten najwyższego poziomu — więc miesiąc delegata zawiera to,
+- Specjalista pod **opublikowanym delegatem** księguje się na wiersz _tego
+  delegata_, a nie na ten najwyższego poziomu — więc miesiąc delegata zawiera to,
   co wydał jego specjalista, i to jedyne miejsce, w którym mogłoby to uczciwie
   wylądować.
 
@@ -453,12 +479,12 @@ zostawia trzy segmenty i jeden wiersz.
 
 `cost_is_partial` jest przenoszona tak samo, i z powodu, którego pieniądze nie
 dzielą: jest teraz per wiersz, a nie per run, więc delegat, który wykonał
-niewycenione żądanie *przed* zatwierdzeniem i wznowił się na wycenionym modelu,
+niewycenione żądanie _przed_ zatwierdzeniem i wznowił się na wycenionym modelu,
 inaczej deklarowałby w swoim wierszu dokładny koszt. Flaga jest prawdziwa, jeśli
 była prawdziwa dla któregokolwiek segmentu.
 
 Warto to powiedzieć, bo awaria, którą to zastępuje, była niewidzialna. Wiersz
-trzymał kiedyś tylko to, co delegat wydał *po* ostatnim wznowieniu, co przy
+trzymał kiedyś tylko to, co delegat wydał _po_ ostatnim wznowieniu, co przy
 zwykłym kształcie — wykonaj pracę, potem poproś o pozwolenie na działanie na jej
 wyniku — jest tą mniejszą połową. Nic nie przestawało się zgadzać, bo pieniądze
 przez cały czas były w wierszu rodzica; błędna była każda liczba odpowiadająca na
@@ -468,9 +494,9 @@ Wiersz dziecka jest tym, co czyni odpowiadalnymi dwa różne pytania, a każde c
 przeciwnej arytmetyki:
 
 | Pytanie | Wiersze dzieci |
-|---|---|
+| --- | --- |
 | **Ile jest winna organizacja?** | **wyłączone** — wiersz rodzica zawiera już te tokeny, więc liczenie obu obciąża organizację dwa razy za jedno żądanie |
-| **Ile kosztował *ten agent* w tym miesiącu?** | **włączone** — wiersze delegata to jedyne miejsce, w którym zapisane są jego własne wydatki, a każdy z nich trzyma własne żądania tego agenta i żądania jego wbudowanych specjalistów ([#228](https://github.com/vstorm-co/agenticos/issues/228)), ale nie jego opublikowanych delegatów, którzy mają własne wiersze |
+| **Ile kosztował _ten agent_ w tym miesiącu?** | **włączone** — wiersze delegata to jedyne miejsce, w którym zapisane są jego własne wydatki, a każdy z nich trzyma własne żądania tego agenta i żądania jego wbudowanych specjalistów ([#228](https://github.com/vstorm-co/agenticos/issues/228)), ale nie jego opublikowanych delegatów, którzy mają własne wiersze |
 
 To drugie sprawia, że na pytanie „ile researcher kosztował w tym miesiącu” da się
 odpowiedzieć $40, i to na nim odpalają się raport użycia per agent albo alert
@@ -486,7 +512,7 @@ rodzica, a własny tekst providera trafia do logu serwera. Delegat zatrzymany
 przez swój limit użycia albo przez pułap budżetu zachowuje komunikat limitu w
 całości: to pułap wykonujący swoją pracę, a nie awaria do zdiagnozowania.
 
-Reguła sięga też transkryptu *rodzica*. Gdy agent deleguje w tle, odpytuje
+Reguła sięga też transkryptu _rodzica_. Gdy agent deleguje w tle, odpytuje
 `check_task` i `wait_tasks` o wynik, a to, co one odpowiadają, staje się wierszem
 wywołania narzędzia w rozmowie — przechowywanym w całości, bo zwrot z narzędzia
 jest własną odpowiedzią narzędzia, a nie czymś, co ta platforma ułożyła. Dlatego
@@ -495,7 +521,7 @@ nazywają one klasę wyjątku, zamiast powtarzać komunikat providera, co zapewn
 wersja jest wersją minimalną.
 
 **Okienkowa liczba na dashboardzie też to niesie.** `GET /stats/usage` odpowiada
-blokiem `cost` dla dowolnego okresu wybranego filtrem, a ten blok to runy *plus*
+blokiem `cost` dla dowolnego okresu wybranego filtrem, a ten blok to runy _plus_
 ingestia — ta sama arytmetyka, którą mierzy się limit miesięczny — z `model_usd`
 i `ingestion_usd` obok, żeby czytelnik widział, gdzie poszły pieniądze, bez
 odejmowania. Do 0.0.152 raportował samą połowę modelową, co stawiało na jednej
@@ -513,7 +539,7 @@ byłoby wymyślaniem jej wydatków.
 jest pierwsza kolumna. Liczba od początku miesiąca i stojący za nią rozkład per
 agent wyłączają wiersze dzieci, więc sumują się do sumy wypisanej nad nimi — a
 e-mail organizacji o użyciu raportuje tę samą sumę, a nie sumę jednego z nich.
-Włączają je tylko pytania zadane *o jednego agenta*. Trzy z tych pięciu zapytań
+Włączają je tylko pytania zadane _o jednego agenta_. Trzy z tych pięciu zapytań
 trafiły na produkcję bez tego rozróżnienia i każde raportowało $1,40 za $1,00
 pracy; jeśli dochodzi nowe, domyślne jest to bezpieczne.
 
@@ -521,10 +547,10 @@ pracy; jeśli dochodzi nowe, domyślne jest to bezpieczne.
 
 **By provider** i **By key** nie mogą użyć żadnej z tych kolumn, a pomyłka w tym
 miejscu jest na ekranie niewidoczna. Wyłączenie wierszy dzieci sumuje poprawnie,
-ale przypisuje pieniądze delegata dostawcy *rodzica*, bo to jest provider w
+ale przypisuje pieniądze delegata dostawcy _rodzica_, bo to jest provider w
 sumowanym wierszu: orkiestrator na OpenAI delegujący pracę za $0,40 agentowi na
-Anthropic raportował `openai $1.00` i ani jednego wiersza Anthropic. Włączenie
-ich raportowało `openai $1.00` + `anthropic $0.40` — więcej niż rachunek.
+Anthropic raportował `openai $1.00`i ani jednego wiersza Anthropic. Włączenie
+ich raportowało`openai $1.00` + `anthropic $0.40` — więcej niż rachunek.
 
 Dlatego te dwa sumują **własne** wydatki każdego runa: jego koszt pomniejszony o
 koszty jego bezpośrednich delegacji. `openai $0.60` + `anthropic $0.40`, co jest
@@ -592,6 +618,12 @@ wywołanie modelu, na modelu wybranym przez organizację przy włączaniu (nie m
 domyślnego: `proactive_model_profile_id` jest wymagany), zapisane w historii
 runów jako run z powierzchni **proactive** i liczone do budżetu organizacji jak
 każde inne. Osoba może wyłączyć to dla siebie w **Ustawienia → Asystent**.
+
+Każde żądanie do modelu w takim runie - pierwsze i każda ponowna próba - jest
+sprawdzane względem limitu wydatków na proaktywność danej osoby, miesięcznego
+budżetu przypisanego agenta i budżetu organizacji. Run, który osiągnie któryś z
+nich w trakcie, zatrzymuje się, kończy jako `budget_exceeded` i zachowuje to, co
+wydał. Takie runy nie liczą się do żadnego działu.
 
 Nocny przegląd staje się należny 20 godzin po własnej ostatniej próbie.
 Obserwacje i konserwacja pamięci nie przesuwają tego terminu. Obserwacje nadal
@@ -664,7 +696,8 @@ Kolejna publikacja może zawęzić dostęp, ale nie dodaje kont, narzędzi ani �
 nie podmienia konta zatwierdzonego dla obserwacji.
 
 Każdy przegląd jest zwykłym runem **proactive**, przypisanym rzeczywistemu
-agentowi i wersji. Narzędzia źródła muszą mieć `readOnlyHint`. Obserwacja dopuszcza
+agentowi i wersji. Narzędzia źródła muszą mieć `readOnlyHint`, a odczyt, przed
+którym pyta powiązanie MCP agenta, zostaje pominięty w przeglądzie. Obserwacja dopuszcza
 zatwierdzone konto, wiedzę/kontekst, guardrails, planowanie i przypomnienia
 systemowe; nie udostępnia sieci, sandboxa, wykonywalnych skills, zapisu pamięci
 ani delegacji. Wymagane interaktywne zgody blokują konfigurację zamiast zostać
@@ -770,6 +803,18 @@ wyciszona przez dany miesiąc.
 
 ### Zgody na działania { #routine-action-consent }
 
+Akcje są grupowane według capability lub konkretnego konta MCP i można je wyszukiwać.
+Zaznacz lub wyczyść grupę albo całą listę dozwolonych akcji; kontrolki grupowe obejmują
+też pozycje ukryte przez wyszukiwanie. Nadal możesz wykluczać pojedyncze akcje.
+Review obsługuje do 1000 zaznaczonych akcji; większy wybór jest pokazany i wymaga
+zmniejszenia przed zapisem, nigdy nie jest po cichu obcinany.
+
+Zmiana samej nazwy lub częstotliwości zachowuje zgodę. Po zmianie wersji, pracy,
+instrukcji lub konta dialog wyjaśnia zmienioną granicę. **Zaznacz ponownie wcześniej
+sprawdzone akcje** to jawny nowy wybór zgodnych, dozwolonych identyfikatorów; nie daje
+zgody przed zapisaniem bieżącego review. Nowe akcje i zmienione konta nie zaznaczają
+się automatycznie. Obowiązkowe akceptacje, cofanie zgody i kontrola aktualności nadal działają.
+
 Rutyna działająca bez nadzoru pyta przed działaniami funkcji, zmianami lokalnych
 plików i delegowaniem. Wywołania zewnętrznego MCP pytają, chyba że serwer oznacza je
 jako tylko do odczytu; silniejsza polityka zatwierdzania połączenia nadal obowiązuje.
@@ -790,7 +835,6 @@ wstrzymanego przebiegu, a cofnięcie i ponowne nadanie tworzy nową tożsamość
 każdym narzędziu ponownie sprawdzane są członkostwo, uprawnienia, polityka organizacji
 i zgoda. Każde wykonanie na podstawie zgody zapisuje zatwierdzony wpis z osobą i
 argumentami. Delegaci wymagają własnych decyzji; nie pożyczają wyjątku rodzica.
-
 
 Stała zgoda na działania zapisuje także aktualne rewizje przypiętych skills, ich zasobów, plików kontekstu i instrukcji projektu. Edycja któregokolwiek unieważnia wyjątek, nawet gdy opublikowana wersja agenta się nie zmienia lub później przywrócono dawną treść. Ponownie przejrzyj działania, aby nadać nowy wyjątek. Istniejące wyjątki bez odcisku rewizji pozostają ważne tylko dla agentów bez takich zmiennych źródeł instrukcji.
 
@@ -867,7 +911,7 @@ wykonały (#2575). **Organizacje → AI i usługi → Usługi w tle**
 miesiącu i ostatnimi wykonaniami.
 
 | Rola | Co robi | Konfiguracja |
-|---|---|---|
+| --- | --- | --- |
 | `daily_briefing` | Nocne spojrzenie na tydzień każdej osoby i zbudowany z niego briefing | W zakładce Proaktywność: ten sam model i limit, tutaj tylko do odczytu |
 | `memory_maintenance` | Czyta zakończoną dopuszczoną turę raz i zapisuje trwałe fakty, preferencje i decyzje jako [claimy](reference/capabilities.md#memory-claims) | Tutaj: przełącznik, model i własny budżet miesięczny |
 
@@ -897,13 +941,13 @@ $1,00 + $0,40 + $0,40 + $0,40 obok liczby $1,00 od początku miesiąca, i obie
 połowy miały rację, tylko o czym innym.
 
 Lista przyjmuje tę samą dwustronną arytmetykę co sumy powyżej i z tego samego
-powodu — więc powierzchnia zawężona do jednego agenta pokazuje, co zrobił *ten
-agent*, wraz z pracą delegatów:
+powodu — więc powierzchnia zawężona do jednego agenta pokazuje, co zrobił _ten
+agent_, wraz z pracą delegatów:
 
 | Pytanie | Odpowiedź |
-|---|---|
+| --- | --- |
 | `GET /runs` | Runy, które ktoś uruchomił. `parent_run_id IS NULL` |
-| `GET /runs?agent_id=<id>&include_delegations=true` | Własna historia jednego agenta. O to pytają panel Recent runs w Builderze i `?agent=` na Activity, bo wiersze delegata to jedyny zapis tego, co on sam zrobił |
+| `GET /runs?agent_id=<id>&include_delegations=true` | Własna historia jednego agenta. O to pytają panel Recent runs w Builderze i `?agent=` na stronie **Aktywność** (Activity), bo wiersze delegata to jedyny zapis tego, co on sam zrobił |
 | `GET /runs?parent_run_id=<id>` | Co ten run zdelegował — zapytanie, dla którego istnieje `agent_runs_parent_run_id_idx`. Ma pierwszeństwo przed `include_delegations` |
 | `GET /runs/<id>` | Jeden run, zdelegowany albo nie. Tu ląduje link z transkryptu |
 | `GET /runs/<id>/transcript` | Tury tego runa, po kolei — to, co widok szczegółów runa rysuje jako kroki. Autoryzowane, nie posiadane (niżej) |
@@ -955,14 +999,14 @@ Złożona odpowiedź jest pytaniem organizacji, więc każdy blok w niej liczy
 wyłącznie wiersze najwyższego poziomu: koszt okresu i jego rozbicie na providerów
 (podwójny rachunek powyżej), ale też sumę runów, szereg dzienny, rozbicie
 wyników, powierzchnie, percentyle opóźnień, liczbę aktywnych osób i tabelę per
-osoba. Poza kosztem zdelegowany wiersz *kopiuje* `user_id` i `surface` swojego
+osoba. Poza kosztem zdelegowany wiersz _kopiuje_ `user_id` i `surface` swojego
 rodzica, więc policzenie go dodatkowo wymyśliłoby drugą osobę i drugie wejście na
 kanał, z którego ktoś skorzystał raz.
 
 Dwa agregaty biorą drugą stronę i oba są pytaniami o jednego agenta:
 
 | Pytanie | Wiersze dzieci |
-|---|---|
+| --- | --- |
 | `by_agent` — karta adopcji | **włączone.** Bez nich agent, który działa czterysta razy dziennie jako czyjś delegat, nie ma żadnego wiersza, a karta nazywa każdego opublikowanego agenta bez wiersza zapomnianym i proponuje jego zarchiwizowanie. Jej słupki mogą więc przekraczać sumę runów obok nich; nic ich nie sumuje |
 | `?group_by=version` — karta porównania wersji | **włączone.** Specjalista, który wykonuje się wyłącznie jako delegat, inaczej nie miałby czego porównywać między swoimi wersjami |
 
@@ -977,20 +1021,20 @@ odpowiada na pytanie „dlaczego mój agent nie kończy”; dziś nic to nie zmi
 delegacja jest zapisywana do bazy już jako zakończona i dlatego nigdy nie
 parkuje.
 
-Ostatnie dwa to `?run=<id>` na stronie Activity: jeden run, delegacje pod nim,
+Ostatnie dwa to `?run=<id>` na stronie Aktywność: jeden run, delegacje pod nim,
 każda z plakietką id zadania, które niosły jej ramki `subagent_*`, oraz link w
 górę do runa, na który delegacja została zaksięgowana. Panel delegacji w czacie
 linkuje tam z `run_id`, które niesie jego ramka terminalna — i właśnie dlatego ta
 ramka je niesie. Zagnieżdżanie zdelegowanych wierszy wewnątrz tabeli najwyższego
-poziomu celowo *nie* jest tutaj robione; prymityw tabeli współdzielony przez cały
+poziomu celowo _nie_ jest tutaj robione; prymityw tabeli współdzielony przez cały
 produkt jest [proponowany osobno](https://github.com/vstorm-co/agenticos/issues/139),
 i zagnieżdżanie należy do niego, a nie do jednej szytej na miarę tabeli runów.
 
 ### Co pokazuje ekran kosztów { #what-the-cost-screen-shows }
 
 `GET /spend` przyjmuje swoje okno na dwa sposoby, bo strona pyta o oba rodzaje:
-`days` dla presetów *ostatnich N dni* oraz `from`/`to` dla *tego miesiąca*,
-*poprzedniego miesiąca* i zakresu z kalendarza. Gdy przychodzą oba, wygrywa
+`days` dla presetów _ostatnich N dni_ oraz `from`/`to` dla _tego miesiąca_,
+_poprzedniego miesiąca_ i zakresu z kalendarza. Gdy przychodzą oba, wygrywa
 `from` — jawny zakres jest bardziej konkretnym żądaniem niż wartość domyślna,
 której nikt nie zmienił — a `period_days` wraca wtedy jako null, zamiast
 powtarzać liczbę, której zakres przeczy.
@@ -1008,14 +1052,14 @@ faktycznie osiągnięty.
 Każdy wiersz per agent niesie **dwie liczby kosztu pod dwiema różnymi nazwami**,
 co jest regułą tej strony na całej jej długości:
 
-| | |
-|---|---|
+|  |  |
+| --- | --- |
 | `cost_usd` | Jego udział w oknie, **wyłącznie runy najwyższego poziomu**, więc kolumna sumuje się do sumy nad nią |
 | `month_to_date_usd` | Jego **własny** miesiąc kalendarzowy, ze zdelegowanymi wierszami **włącznie** — wydatki, na które `monthly_cap_usd` jest limitem. Nie sumuje się do miesiąca organizacji i nie jest rysowany, jakby się sumował |
 
 `partial_run_count` mówi, ile z tego wszystkiego jest faktem: ilu **runów
 najwyższego poziomu** w oknie nie dało się w pełni wycenić, więc koszt jest dolną
-granicą dokładnie o tyle. *„3 z 40 runów nie dało się wycenić”* to coś, z czym
+granicą dokładnie o tyle. _„3 z 40 runów nie dało się wycenić”_ to coś, z czym
 czytelnik może coś zrobić; liczba z doklejonym plusem — nie.
 
 Run liczy się wtedy, gdy którykolwiek model w jego drzewie nie miał ceny, **z
@@ -1040,7 +1084,7 @@ podnosi żadnego zastrzeżenia, bo pieniądze samego okna są dokładne
 ([#620](https://github.com/vstorm-co/agenticos/issues/620)).
 
 Wiersz jest **jeden na agenta**, z `agent_name` na nim. Kiedyś był jeden na
-agenta *i model*, niosąc tylko `model_label` — więc zakładka wypisywała nazwy
+agenta _i model_, niosąc tylko `model_label` — więc zakładka wypisywała nazwy
 modeli tam, gdzie czytelnik spodziewa się agenta, i dzieliła jednego agenta na
 dwa wiersze za to, że odpowiadał na dwóch modelach. Kształt per model przetrwał
 tam, gdzie jest zadawanym pytaniem: e-mail o użyciu dalej grupuje w ten sposób.
@@ -1074,8 +1118,8 @@ to zapis tego, co zostało rozstrzygnięte, i niesie nazwisko decydenta oraz jeg
 notatkę, bo sam UUID nie jest śladem odpowiedzialności. Na rozstrzygniętym
 wierszu celowo nie ma żadnych kontrolek.
 
-| Parametr | |
-|---|---|
+| Parametr |  |
+| --- | --- |
 | `status` | Powtarzalny. Brak oznacza oczekujące — kolejkę |
 | `triggered_by_user_id` | Czyje runy zaparkowały to wywołanie. Odczytywane z `agent_runs`: zatwierdzenie należy do runa, a run należy do osoby. Pomija runy, w których publikujący zastąpił niepowiązane konto czatu; takie wiersze niosą zamiast tego `asked_in_chat` (platforma, nazwa i bot), a ich pola `triggered_by_*` są puste |
 | `created_from`, `created_to` | Kiedy wywołanie zostało zaparkowane, włącznie z obiema granicami |
@@ -1090,8 +1134,8 @@ początku.
 
 ### Zawężanie historii runów { #narrowing-run-history }
 
-| Parametr | |
-|---|---|
+| Parametr |  |
+| --- | --- |
 | `status` | Powtarzalny. `?status=failed&status=budget_exceeded` to zapytanie „pokaż mi problemy”, a te dwa są osobnymi statusami właśnie po to, żeby pytanie o jeden nie było pytaniem o drugi |
 | `surface` | Skąd przyszedł run |
 | `user_id` | Jako **kto** run działał, co nie zawsze jest tym, kto zapytał — runy widgetu niosą tożsamość właściciela widgetu, bo odwiedzający jest anonimowy |
@@ -1108,7 +1152,7 @@ wiersze pod sobą. Lista i licznik to dwa zapytania, a filtr docierający tylko 
 jednego z nich czyta się jak błąd stronicowania, a nie jak brakująca klauzula.
 
 `started_from` jest też tym, co czyni ten licznik uzgadnialnym z pieniędzmi obok
-niego. Bez okna czyta *cały czas*, podczas gdy liczba wydatków czyta jeden
+niego. Bez okna czyta _cały czas_, podczas gdy liczba wydatków czyta jeden
 miesiąc kalendarzowy, więc trzyletnia organizacja pokazywała „8412 runów” obok
 „$31,20”, a oczywisty odczyt tej pary mylił się o trzy lata. Liczba runów i
 liczba wydatków na jednym ekranie dzielą jedno okno albo mówią, które okno
@@ -1117,13 +1161,13 @@ opisuje każda z nich.
 Wartość spoza swojego typu zostaje odrzucona z kodem 422, zamiast być
 dopasowywana do niczego: `status` i `surface` to kolumny tekstowe, więc
 `?status=complete` odpowiedziałoby inaczej pustą stroną — a pusta strona czyta
-się jako *w tym tygodniu nic się nie popsuło*. `order_by` przyjmuje jedno z
+się jako _w tym tygodniu nic się nie popsuło_. `order_by` przyjmuje jedno z
 czterech uporządkowań, a nie nazwę kolumny, z tego samego powodu plus jeszcze
 jednego: `ORDER BY` składane z query stringa to powierzchnia do wstrzyknięcia.
 
 **Każdy z nich podróżuje w URL-u**, i to właśnie pozwala karcie na dashboardzie
 przekazać czytelnika do swoich własnych wierszy:
-`/runs?surface=mattermost&period=30d` otwiera Activity z już ustawionym filtrem i
+`/runs?surface=mattermost&period=30d` otwiera Aktywność z już ustawionym filtrem i
 z licznikiem zgodnym z kartą, która podlinkowała. Do #768 były stanem lokalnym,
 więc liczba p95 była jedyną liczbą na dashboardzie, która potrafiła dosięgnąć
 stojących za nią runów, a trzy karty nie niosły żadnego linku — nie było niczego
@@ -1133,7 +1177,7 @@ uczciwego, na co można by je skierować.
 `?tab=spend` otwierają kolejkę i ekran kosztów; historia runów jest domyślna i
 nigdy nie jest zapisywana.
 
-To jest adres, którego potrzebuje link do *decyzji*, i powód, dla którego ten
+To jest adres, którego potrzebuje link do _decyzji_, i powód, dla którego ten
 parametr istnieje: „See all” na karcie zatwierdzeń i alert mówiący, że run jest
 zaparkowany, musiały oba wskazywać na historię runów, gdzie niczego nie da się
 rozstrzygnąć (#934).
@@ -1150,7 +1194,7 @@ nie ma nic wspólnego — a poniżej `lg` zastępuje listę, więc pasek pozosta
 
 **Czas trwania jest liczony w SQL-u, na całym zawężonym zbiorze.**
 
-To właśnie prowadzi od *„p95 to 14,8 s”* na dashboardzie do **tamtych runów**.
+To właśnie prowadzi od _„p95 to 14,8 s”_ na dashboardzie do **tamtych runów**.
 Sortowanie jednej strony dwudziestu pięciu wierszy sortuje zły zbiór, bo
 najwolniejszego runa miesiąca nie ma w tych wierszach, które akurat zwróciła
 strona od najnowszych. `cost` i `tokens` to ten sam układ dla pieniędzy i dla
@@ -1162,10 +1206,10 @@ kosztu i tokenów są zapisywane dopiero wtedy, gdy się kończy — sortowany t
 jest przechowywany, wciąż trwający run czytałby się jako najtańszy i najlżejszy w
 organizacji.
 
-To, jak długo trwa *wciąż działający* run, jest osobnym pytaniem i żadne z tych
+To, jak długo trwa _wciąż działający_ run, jest osobnym pytaniem i żadne z tych
 uporządkowań na nie nie odpowiada.
 
-Activity pokazuje ten czas trwania na trzy sposoby i wszystkie trzy prowadzą do
+Aktywność pokazuje ten czas trwania na trzy sposoby i wszystkie trzy prowadzą do
 tego samego zapytania:
 
 - Nagłówek kolumny **Took** jest kontrolką sortowania — tak jak nagłówek Started
@@ -1209,7 +1253,7 @@ własnych rozmów członka, ta sama reguła zakresu i to samo słownictwo okien 
 `GET /stats/usage` (zobacz [Uprawnienia](permissions.md)). Same liczniki —
 komentarze zostają za szczegółami runa, powyżej.
 
-Trzy liczby Activity nad zakładkami pozostają liczbami organizacji, łącznie z
+Trzy liczby Aktywności nad zakładkami pozostają liczbami organizacji, łącznie z
 licznikiem runów, nawet gdy tabela pod nimi jest zawężona do jednego agenta.
 Licznik per agent obok miesiąca organizacji byłby dwoma pytaniami pod jedną
 etykietą — a to licznik per agent jest tym, który włącza delegacje.
@@ -1230,7 +1274,7 @@ audytu. Strona, która potrafi odpowiedzieć na pytanie na ekranie, ale nie poza
 nim, odsyła ludzi do bazy danych.
 
 | Pytanie | Odpowiedź |
-|---|---|
+| --- | --- |
 | `GET /runs/export` | Historia runów, te same filtry co `GET /runs` i to samo domyślne ograniczenie do najwyższego poziomu. `runs:view` |
 | `GET /approvals/export` | Zapis zatwierdzeń, te same filtry co `GET /approvals`. `approvals:decide` |
 | `GET /spend/export` | Rozbicie wydatków per agent, to samo okno co `GET /spend`. `runs:view` |
@@ -1289,7 +1333,7 @@ które route'y listujące odpowiadać nie muszą:
 - **Dane osobowe.** Każdy eksport wysyła dokładnie tę tożsamość, którą jego
   zakładka już pokazuje. Tabela runów pokazuje `user_id` i żadnego nazwiska, więc
   eksport runów wysyła samo id — CSV z tym, kto co uruchomił, z rozwiązanymi
-  nazwiskami to ta tabela per osoba, której odmówiła decyzja 3 projektu Activity,
+  nazwiskami to ta tabela per osoba, której odmówiła decyzja 3 projektu Aktywności,
   przybywająca jako plik do pobrania. Kolejka zatwierdzeń rozwiązuje już na
   ekranie adresy e-mail osoby wyzwalającej i decydującej, więc eksport
   zatwierdzeń je zachowuje. Niesie też wyświetlaną nazwę albo uchwyt obcego z czatu, tak jak pokazuje je kolejka, w trzech kolumnach: `asked_in_chat_platform`, `asked_in_chat_account` i `asked_in_chat_bot`. W takim wierszu obie kolumny e-mail są puste, bo publikujący nie pytał.
@@ -1338,7 +1382,7 @@ tego runa. Builder ustawia oba progi albo wyłącza strażnika obok `max_steps`
 
 Długi run dryfuje: instrukcje bledną, twierdzenia bez źródła się mnożą, agent
 odchodzi od prośby. Agent może mieć do pięciu recenzentów (`reviewers` w specu,
-*Recenzenci runu* w Builderze obok limitów), każdy to drugi, zwykle tańszy model z
+_Recenzenci runu_ w Builderze obok limitów), każdy to drugi, zwykle tańszy model z
 jednym zadaniem. Co `every` żądań do modelu recenzent czyta ostatnie `window`
 tokenów runu i albo zostawia go w spokoju, albo wysyła jedną krótką poprawkę,
 którą model runu dostaje przy następnym żądaniu, z nazwą recenzenta. Widok runu
@@ -1354,7 +1398,7 @@ dodatkowych wywołań modelu.
 
 Agent, który przechodzi przez rekordy - zaktualizuj dziesięć wierszy, potem je
 podsumuj - płaci turą modelu za każde zależne wywołanie, a każda tura wysyła
-ponownie cały kontekst. Z włączonym *Trybem kodu* (`code_mode` w specu, obok
+ponownie cały kontekst. Z włączonym _Trybem kodu_ (`code_mode` w specu, obok
 limitów w Builderze) narzędzia agenta są zwijane w jedno narzędzie `run_code`:
 model pisze krótki skrypt Pythona, który działa w sandboksie Monty i wywołuje
 narzędzia w pętlach i równolegle, do `max_tool_calls` na skrypt.
@@ -1363,12 +1407,31 @@ Naraz działają najwyżej cztery wywołania skryptu, a reszta czeka, więc skry
 rozsyłający setki wywołań w sandboksie nie otworzy ich wszystkich jednocześnie.
 
 Każde wywołanie ze skryptu przechodzi przez te same guardraile, budżet i
-sprawdzenia uprawnień co wywołanie bezpośrednie. Narzędzie wymagające
-zatwierdzenia nigdy nie trafia do skryptu: pozostaje zwykłym wywołaniem, a run
-zatrzymuje się dla człowieka jak zawsze. Tak samo pytania, delegowania i
-narzędzia, których wywołanie jest tym, co widzi osoba (wersje robocze, wykresy,
-rysunki). Widok runu wymienia każdy skrypt i każde
-wywołanie, które wykonał.
+sprawdzenia uprawnień co wywołanie bezpośrednie. Narzędzie wymagające zgody
+zatrzymuje run na tym wywołaniu. Rozpoczęte operacje kończą się, zanim serwer
+zapisze interpreter, wyniki, manifest i licznik wywołań. Po decyzji dowolny worker
+może kontynuować skrypt bez nowej tury modelu i powtarzania zakończonych operacji.
+Odrzucenie zgody podnosi `RuntimeError` wewnątrz skryptu; kod narzędzia nie działa.
+Zgoda na samo `run_code` nie zatwierdza operacji wewnątrz skryptu.
+
+Surowy stan interpretera ma limit 512 kB, a wszystkie checkpointy kodu jednego
+runu — łącznie 1 MB JSON. Atomowe rezerwacje w bazie ograniczają przechowywane
+checkpointy do 8 MB na użytkownika inicjującego (łącznie w organizacjach) i 32 MB
+na organizację, także podczas wznawiania. Po wyczerpaniu miejsca run kończy się
+błędem bez zapisu oczekujących zatwierdzeń; definitywne zakończenie zwalnia
+rezerwację.
+
+
+Zapis wznowienia należy do serwera i ma ograniczony rozmiar. Jeśli jest uszkodzony,
+tożsamość narzędzia się zmieniła lub aktualizacja harness/Monty uniemożliwia jego
+odtworzenie, wywołanie kończy się czytelnym błędem przed wykonaniem oczekującego
+narzędzia. Skrypt nigdy nie uruchamia się ponownie od początku.
+
+Pytania, delegowania i narzędzia widoczne bezpośrednio w interfejsie (wersje
+robocze, wykresy, rysunki) pozostają zwykłymi narzędziami. Sesje pytające przed
+każdym narzędziem i runy rutyn zachowują dotychczasową politykę narzędzi natywnych.
+Widok runu pokazuje każdy skrypt raz, wraz z wywołaniami i ich stanem zgody lub
+wykonania po kolejnych wznowieniach.
 
 ### Raportowanie { #reporting }
 
@@ -1394,14 +1457,14 @@ się tylko, dopóki początek każdego żądania jest identyczny; zmieniona kole
 narzędzi albo znacznik czasu w instrukcjach sprawia, że dostawca liczy pełną
 stawkę za tokeny, które miał w cache. Każdy agent odczytuje z każdej odpowiedzi
 liczby cache podane przez dostawcę, a żądanie, którego prefiks z cache się
-załamał, jest oznaczane w wykresie żądań runu - *cache zerwany*, gdy dostawca
-powinien go jeszcze trzymać, *cache wygasł*, gdy minęła retencja - z liczbą
+załamał, jest oznaczane w wykresie żądań runu - _cache zerwany_, gdy dostawca
+powinien go jeszcze trzymać, _cache wygasł_, gdy minęła retencja - z liczbą
 tokenów z cache, których nie odczytało, i logowane z agentem i modelem.
 Pierwsze żądanie tury jest porównywane z tym, co zapisała poprzednia tura, gdy
 obie obsługuje ten sam worker API.
 
 Liczby są zapisywane na każdym runie, więc **Runs → Spend** sumuje, gdzie cache
-nie trzymał: karta *Cache promptu*, jeden wiersz na agenta i model, z busts,
+nie trzymał: karta _Cache promptu_, jeden wiersz na agenta i model, z busts,
 wygaśnięciami i tokenami z cache, których nie odczytano z powrotem, w wybranym
 oknie - to miara chybienia, a nie tego, co naliczono ponownie, bo prompt trzymany
 w cache może też skrócić kompakcja.
@@ -1409,9 +1472,15 @@ Karty nie ma, dopóki każdy cache trzymał.
 
 ## Zatwierdzenia { #approvals }
 
-Narzędzie, które autor agenta objął bramką, parkuje run i czeka na człowieka.
-Nic nie jest za bramką, dopóki ktoś o to nie poprosi: bramka, której nikt nie
-wybrał, parkuje runy w kanałach i rutynach, gdzie nikogo nie ma, żeby odpowiedzieć.
+Narzędzie objęte bramką parkuje run i czeka na osobę. Builder oferuje **Zawsze pytaj**
+i **Nigdy nie pytaj** dla capability; pojedyncze narzędzia mogą też dziedziczyć jej tryb.
+Nowa capability dodana w Builderze zaczyna od **Zawsze pytaj**. Istniejące bindingi,
+w tym pominięte approval i zapisane `default`, zachowują wcześniejszą politykę.
+
+Wymagane akceptacje mogą wstrzymać routines i kanały tak samo jak chat. Dla pracy bez
+nadzoru świadomie wybierz akcje dozwolone bez pytania. Obowiązkowe akceptacje i bardziej
+rygorystyczna polityka organizacji nadal obowiązują. Narzędzia wykonywane przez providera
+potrzebują lokalnej metody, aby pytać; publikacja odrzuca niewykonalną bramkę.
 
 Rozstrzyganie idzie od najbardziej szczegółowego:
 
@@ -1486,7 +1555,7 @@ Pięć właściwości, które warto znać:
   czasu przestać się budować — usunięty sekret, który nazywa powiązanie, usunięty
   profil modelu, capability wyrzucona przy wdrożeniu, cofnięte współdzielenie
   połączenia MCP. Spec jest składany, zanim run opuści kolejkę zatwierdzeń, więc
-  odmowa w tym miejscu odrzuca *próbę*: decyzja pozostaje w mocy, a wznawianie
+  odmowa w tym miejscu odrzuca _próbę_: decyzja pozostaje w mocy, a wznawianie
   znów działa, gdy zadziała spec. Run zadany na czacie, którego nikt nie kontynuował,
   kończy siatka bezpieczeństwa około godziny po ostatniej decyzji.
 - **Kto kontynuuje run zadany na czacie.** Decyzja osoby w konsoli, w czacie webowym
@@ -1505,14 +1574,14 @@ Pięć właściwości, które warto znać:
   `APPROVAL_EXPIRY_HOURS`**, a stojący za nim run zostaje rozliczony, zamiast
   zostać zaparkowanym na zawsze. Status to `expired` z nullowym
   `decided_by_user_id`, i to właśnie odróżnia wygaśnięcie od odrzucenia w śladzie
-  odpowiedzialności. Run zadany na czacie raz mówi też czatowi, że prośba wygasła. Strona Activity dalej pokazuje **wiek** najstarszego
+  odpowiedzialności. Run zadany na czacie raz mówi też czatowi, że prośba wygasła. Strona Aktywność dalej pokazuje **wiek** najstarszego
   oczekiwania, bo kolejka mieszcząca się w swoim oknie wygasania to ta, na której
   ktoś jeszcze może zadziałać.
 - **`required` działa na dowolnej capability**, nie tylko na tych ze skutkami
   ubocznymi. „To tylko czyta, ale w mojej organizacji i tak ktoś to zatwierdza”
   to prawdziwa decyzja i da się ją wyrazić.
 - **Z wyjątkiem narzędzia, które uruchamia provider modelu — tam zostaje to
-  odrzucone przy publikacji.** Bramka opakowuje *wykonanie narzędzia*, czyli
+  odrzucone przy publikacji.** Bramka opakowuje _wykonanie narzędzia_, czyli
   jedyne miejsce, w którym da się zatrzymać wywołanie, więc natywne pobranie
   strony albo natywne wyszukiwanie — wykonywane po stronie providera — nigdy do
   niej nie dociera, a zabramkowanie takiego narzędzia zostawiłoby pustą kolejkę,
@@ -1554,14 +1623,15 @@ Pięć właściwości, które warto znać:
 
 ### Jak bardzo jedna rozmowa chce być pytana { #how-much-one-conversation-wants-to-be-asked }
 
-Karta akceptacji oferuje również **Zezwalaj na ten tool w tej rozmowie** i **Zawsze zezwalaj na ten tool dla tego agenta**. Zgoda dotyczy tylko wskazanego narzędzia i konta, osoby udzielającej zgody oraz opublikowanej wersji agenta. Wymaga tego samego uprawnienia i przełącznika organizacji co zatwierdzanie wszystkiego. Nie upoważnia delegata ani pracy bez nadzoru. Zmiana wersji agenta wymaga ponownego wyboru.
+Karta akceptacji oferuje również **Zezwalaj na ten tool w tej rozmowie** i **Zawsze zezwalaj na ten tool dla tego agenta**. Zgoda dotyczy tylko wskazanego narzędzia i konta, osoby udzielającej zgody oraz opublikowanej wersji agenta. Wymaga tego samego uprawnienia i przełącznika organizacji co zatwierdzanie wszystkiego. Nie upoważnia delegata ani pracy bez nadzoru. Zmiana wersji agenta wymaga ponownego wyboru. Tool, który pyta za każdym razem, taki jak `share_memory`, nigdy nie jest zapamiętywany i nie odpowiada na niego zatwierdzanie wszystkiego: jego karta nie oferuje żadnej z tych opcji, a serwer odmawia zapamiętania.
 
 Wybory są zapisywane na serwerze. **Chat controls → Preferences → Zapamiętane akceptacje tooli → Pytaj ponownie** cofa zgodę bez usuwania historii pierwotnej akceptacji. Przed każdym automatycznym zatwierdzeniem ponownie sprawdzane są członkostwo, uprawnienie do akceptacji i polityka organizacji. Tryb pytania o wszystko ma pierwszeństwo przed zapisanymi zgodami. Każde automatyczne zatwierdzenie nadal zapisuje osobę udzielającą zgody i rzeczywiste argumenty wywołania.
 
+Kolejka akceptacji należy do organizacji, ale niektóre wywołania cytują to, co czyta osoba z runu - fakt, który udostępniłby `share_memory`. Ten cytat widzi tylko ktoś, kto może zobaczyć run: osoba, dla której działał, albo członek, który czyta wszystkie runy i może zobaczyć agenta. Pozostali widzą tool, odbiorców i informację, że treść jest ukryta. Wywołanie, które pyta za każdym razem, zatwierdzić może tylko ktoś, kto widzi to, co cytuje: każdy inny może je odrzucić, a jego zatwierdzenie zostaje odrzucone.
 
 Reguła powyżej należy do agenta, jest rozstrzygana w czasie publikacji i per
 narzędzie, i to jest dla niej właściwe miejsce: to wypowiedź o tym, czym agent
-*jest*. Czego nie potrafi wyrazić, to nastrój jednej sesji — ktoś przechodzący
+_jest_. Czego nie potrafi wyrazić, to nastrój jednej sesji — ktoś przechodzący
 dwadzieścia tur z agentem, który bramkuje trzy narzędzia, odpowiada na te same
 trzy pytania w każdej turze, a jedynym wyjściem było ponowne opublikowanie agenta
 i zmienienie go dla wszystkich, na stałe, żeby naprawić jedno popołudnie
@@ -1571,7 +1641,7 @@ Dlatego sesja czatu niesie **tryb zatwierdzeń**, na ramce wysyłki obok nadpisa
 modelu, wczytywany do runa:
 
 | Tryb | Co robi |
-|---|---|
+| --- | --- |
 | **Follow the agent** (domyślny) | Rozstrzyga spec. Dokładnie to zachowanie, które istniało, zanim powstała ta kontrolka, i to, co dostaje klient, który nie wysyła niczego |
 | **Approve everything** | Stała zgoda dla tej rozmowy: każde zabramkowane wywołanie jest przyznawane bez parkowania — i każde dalej zapisuje swój wiersz |
 | **Ask about everything** | Bramkuj każde narzędzie, do którego agent może sięgnąć, łącznie z tymi, których spec nie zabramkował, i z tymi, których nie posiada żadna capability |
@@ -1585,7 +1655,7 @@ Cztery rzeczy czynią z tego ustawienie sesji, a nie dziurę w modelu:
   `AgentRunnerService.prepare`, jedynym lejku wspólnym dla świeżego i wznowionego
   runa, a nie przy sockecie, o którym wołający mógłby zapomnieć.
 - **Zrzeczenie się wymaga `approvals:decide` i zgody organizacji.** Stała zgoda
-  *jest* tą decyzją, dla której zapisywania istnieje kolejka zatwierdzeń, a
+  _jest_ tą decyzją, dla której zapisywania istnieje kolejka zatwierdzeń, a
   `member` i `builder` uruchamiają agentów, nie mając tego uprawnienia — więc bez
   sprawdzenia uprawnienia codzienny użytkownik czatu przyznaje sobie, jednym
   kliknięciem, władzę, której API odmawia mu jeden endpoint dalej. Pułapem jest
@@ -1657,7 +1727,7 @@ zaparkował, pozostaje w mocy.
 
 Trzy rzeczy, których celowo nie robi:
 
-- **Nie kontynuuje runa.** *Odrzucone* wywołanie rozlicza się przez wznowienie:
+- **Nie kontynuuje runa.** _Odrzucone_ wywołanie rozlicza się przez wznowienie:
   odmowa jest odtwarzana, a agent idzie dalej, do odpowiedzi. To żądanie do
   modelu na własnych kluczach organizacji, a wykonywanie go z harmonogramu, dla
   runa, na który nikt nie czeka, nie jest kosztem do poniesienia bez pytania.
@@ -1679,7 +1749,7 @@ Drugi stan, którego nic wewnątrz procesu nigdy nie rozstrzygnie.
 
 Wiersz runa jest commitowany jako `running`, zanim zostanie zawołany jego model
 ([#12][12-issue]), więc worker zabity w środku runa — OOM, wdrożenie, które nie
-drenuje — zostawia trwały wiersz, którego nie ma już co dokończyć: w Activity na
+drenuje — zostawia trwały wiersz, którego nie ma już co dokończyć: w Aktywności na
 zawsze i blokujący każdy harmonogram, dla którego triggera był podlinkowanym
 runem.
 
@@ -1740,7 +1810,7 @@ zrobiłoby usunięcie go po tym, jak wiersz już istniał.
 Run rodzica parkuje, zamiast dostać do ręki coś, co wygląda jak skończona
 delegacja. Warto to powiedzieć, bo kiedyś było inaczej: każdy agent budowany tu
 deklaruje typ wyjścia, który pozwala runowi skończyć się ze swoimi zaparkowanymi
-wywołaniami jako *wyjściem*, zamiast podnieść wyjątek, a biblioteka delegacji
+wywołaniami jako _wyjściem_, zamiast podnieść wyjątek, a biblioteka delegacji
 serializowała ten obiekt i podawała modelowi rodzica
 `{"calls": [], "approvals": [...]}` jako raport specjalisty, z zadaniem
 oznaczonym jako ukończone. To była ścieżka domyślna, a nie przypadek brzegowy, i
@@ -1764,7 +1834,7 @@ gdy delegacja wreszcie się kończy, obejmuje to wszystko — zobacz
 [jako co zapisywany jest zdelegowany run](#what-a-delegated-run-is-recorded-as).
 Obie połowy drzewa są trzymane per delegacja, a nie per run, i to pozwala
 specjaliście trzy poziomy niżej zaparkować i dalej być rozliczonym na własnego
-agenta. Wydatki są zachowywane nawet wtedy, gdy *miejsca* delegata zachować się
+agenta. Wydatki są zachowywane nawet wtedy, gdy _miejsca_ delegata zachować się
 nie dało — historia wiadomości z biblioteki jest telemetrią w miarę możliwości, a
 delegacja uruchomiona od nowa i tak wydała to, co wydała.
 
@@ -1816,7 +1886,7 @@ rekordu, wartości filtra ani wiersza: zawierają wersje, odciski, identyfikator
 próśb i słowa, które osoba potwierdziła.
 
 | Akcja | Zapisywana, gdy |
-|---|---|
+| --- | --- |
 | `artifact.published` | Opublikowano wersję, z jej numerem, odciskiem jej zapytań strony i `actions`, czyli id workflowów, które deklaruje |
 | `artifact.data_consented` | Właściciel potwierdził dane wersji albo wyrażono na nie zgodę automatycznie (`automatic`). Nazywa wersję i odcisk, `for_owner`, gdy potwierdził za niego Owner lub Admin, oraz `via_grant`, gdy dał ją grant `edit_data` |
 | `artifact.data_withdrawn` | Edytor zatrzymał udostępnianie danych przez stronę; nazywa wersję, którą serwowano odbiorcom, i czy auto-zgoda była włączona, oraz ile grantów `edit_data` obniżono do `edit` |
@@ -1855,7 +1925,7 @@ pierwsze, co ktokolwiek o tym słyszy, to czyjeś pytanie, dlaczego agent zamilk
 
 Każdy alert w tej sekcji zapisuje dwie rzeczy: e-mail opisany niżej oraz wiersz
 przy **dzwonku** w [Konsoli](console.md#the-bell) — jej własnej skrzynce, a nie
-kopii maila. Wiersz *jest* dostarczeniem w aplikacji; nic dodatkowego nie musi
+kopii maila. Wiersz _jest_ dostarczeniem w aplikacji; nic dodatkowego nie musi
 się powieść, żeby się pojawił. E-mail to drugi, niezależnie ponawiany kanał z
 tego samego zapisu, dlatego jeden może zawieść — odbity adres, padły przekaźnik
 SMTP — a drugi nigdy się o tym nie dowie.
@@ -1868,6 +1938,9 @@ Prośba o udostępnienie strony i zmiana jej właściciela podają nazwę strony
 
 Ta sama strona niesie też
 każde inne zdarzenie, które dostarcza skrzynka: nienadzorowane zakończenie albo
+
+Run `eval` jest jednym z wielu raportowanych razem przez ewaluację; nie wysyła osobnego powiadomienia o zakończeniu ani błędzie.
+
 błąd runa - koniec rutyny nazwany jej imieniem i zaczynający się początkiem jej
 odpowiedzi, dla osoby, która ją ustawiła - prośbę o włączenie capability, dla
 właściciela agenta, propozycje, które [praca z własnej
@@ -1917,7 +1990,7 @@ niesie licznika — liczenie oznaczałoby przepisywanie go przy każdym kolejnym
 zdarzeniu, czyli dokładnie ten zalew, przed którym limit ma chronić.
 
 Wiersz znika ze skrzynki dziewięćdziesiąt dni po tym, jak został zapisany,
-jeśli jest *przeczytany*, i rok po tym niezależnie od tego, czy w ogóle został
+jeśli jest _przeczytany_, i rok po tym niezależnie od tego, czy w ogóle został
 otwarty — licząc zawsze od zapisania, nigdy od przeczytania, więc wiersz
 otwarty dzień przed swoją górną granicą znika razem z każdym innym w tym
 wieku. To zamiatanie w tle, a nie coś, co uruchamia człowiek. Zamiatanie
@@ -1966,7 +2039,7 @@ ustawienie, więc jedynym sposobem na uciszenie pierwszego było ogłuchnięcie 
 drugiego.
 
 | Alert | Odpala się, gdy | Domyślni odbiorcy |
-|---|---|---|
+| --- | --- | --- |
 | **Budget** | ten agent osiągnął swój własny limit miesięczny | administratorzy i właściciel agenta |
 | **Approvals** | wywołanie narzędzia zaparkowało | ten, kto uruchomił run, plus administratorzy |
 | **Usage** | tygodniowo i miesięcznie, ile ten agent wydał | wyłączone |
@@ -1980,7 +2053,7 @@ inaczej. Podlegają tym samym preferencjom dzwonka i e-maila co reszta tej sekcj
 Odbiorcy to lista ról, a nie adresów:
 
 | Odbiorcy | Rozwiązują się do |
-|---|---|
+| --- | --- |
 | `admins` | właściciele i administratorzy organizacji, **plus administratorzy aplikacji tego wdrożenia** |
 | `owner` | właściciel agenta |
 | `initiator` | ten, kto uruchomił run; nikt, gdy run rozpoczął harmonogram |
@@ -1996,10 +2069,10 @@ już się nie rozwiązuje.
 ### Alert linkuje tam, gdzie jest decyzja { #an-alert-links-to-where-the-decision-is }
 
 **Mail o zatwierdzeniach otwiera kolejkę** — `/runs?tab=approvals`, zakładkę
-Approvals na Activity, która jest jedyną powierzchnią niosącą Approve i Reject.
+Approvals w Aktywności, która jest jedyną powierzchnią niosącą Approve i Reject.
 Kiedyś otwierał `/agents/{id}`, czyli Buildera: jedno zdanie prozy o wywołaniach
 narzędzi trafiających do kolejki i żadnej kolejki. Więc ten jeden e-mail, którego
-całym celem jest *ktoś musi zdecydować, teraz*, lądował o jedno wyszukiwanie od
+całym celem jest _ktoś musi zdecydować, teraz_, lądował o jedno wyszukiwanie od
 decyzji, podczas gdy zaparkowany run starzał się w stronę
 `ApprovalService.expire_stale` (#935). Ta zakładka nie miała żadnego URL-a,
 dopóki #934 nie umieściło jej w `?tab=`.
@@ -2017,16 +2090,16 @@ raportuje, edytuje się właśnie tam.
 zaparkowanego wywołania obejmują tego, kto uruchomił run, a builder uruchamiający
 własnego agenta z czatu jest zwyczajnym inicjatorem — więc alert rutynowo
 docierał do kogoś, komu platforma by odmówiła. Dostawał **„waiting on your
-approval”** z przyciskiem **Review the request**, klikał go, a Activity nie
-rysowało żadnej zakładki Approvals: odmowa przybywała jako nieobecna zakładka, a
+approval”** z przyciskiem **Review the request**, klikał go, a Aktywność nie
+rysowała żadnej zakładki Approvals: odmowa przybywała jako nieobecna zakładka, a
 nie jako zdanie.
 
 Dlatego odbiorcy są dzieleni według uprawnienia, a nie przycinani do niego:
 
 | Odbiorca ma | Dostaje |
-|---|---|
+| --- | --- |
 | `approvals:decide` | prośbę, z linkiem do kolejki |
-| cokolwiek mniej | *fakt*: run jest wstrzymany, a nie przewrócony, zatwierdzenie go należy do właściciela, administratora albo operatora, i nic się od niego nie wymaga |
+| cokolwiek mniej | _fakt_: run jest wstrzymany, a nie przewrócony, zatwierdzenie go należy do właściciela, administratora albo operatora, i nic się od niego nie wymaga |
 
 Przycięcie zamiast tego zostawiłoby jedyną osobę, która na pewno czeka na ten run
 — osobę, która go uruchomiła — bez żadnej informacji o tym, dlaczego się
@@ -2053,7 +2126,7 @@ Konsola działa na tej organizacji, której czytelnik użył ostatnio: `apiClien
 stempluje `X-Organization-Id` z wyboru utrwalonego per przeglądarka. Kiedyś żaden
 URL alertu go nie niósł, więc ktoś należący do dwóch organizacji, kto ostatnio
 pracował w Globexie, otwierał alert o zatwierdzeniu dla runa w Acme i czytał
-kolejkę **Globexa** — najpewniej pustą i czytającą się jako *nic nie czeka* o
+kolejkę **Globexa** — najpewniej pustą i czytającą się jako _nic nie czeka_ o
 runie, który jest zaparkowany i starzeje się w stronę
 `ApprovalService.expire_stale`. Linki do agentów myliły się ciszej: `/agents/{id}`
 pod niewłaściwą organizacją to odmowa dla agenta, którego czytelnik naprawdę może
@@ -2063,7 +2136,7 @@ Dlatego każdy link niesie `org=<id>`, budowany w jednym miejscu — w
 `NotificationService._link`, które wybiera separator na podstawie ścieżki, bo
 link do zatwierdzeń niesie już `?tab=approvals` — a nie w każdym z czterech
 miejsc wywołania, a konsola przyjmuje go dokładnie tak, jak przyjmuje id w
-`/orgs/{id}`: strona, która nazywa organizację, *jest* tą organizacją. Przyjęcie
+`/orgs/{id}`: strona, która nazywa organizację, _jest_ tą organizacją. Przyjęcie
 to efekt układu w `ActiveOrgGuard`, przed zresetowaniem cache'u tenanta i przed
 własnymi zapytaniami strony, więc pierwsze żądanie, które strona wykonuje, niesie
 już właściwego tenanta. Ścieżka bije parametr — link mówi, której organizacji
@@ -2103,6 +2176,33 @@ wyglądają wiarygodnie.
 Wysyłka nigdy nie blokuje i nigdy nie podnosi wyjątku do wołającego: run, który
 już się skończył, nie może przewrócić się ponownie dlatego, że SMTP był
 niedostępny.
+
+## Płatna ewaluacja { #ai-assistance }
+
+Ocenianie, generowanie przypadków i ulepszanie są jawnymi płatnymi działaniami. Model i instrukcje należą do datasetu: **Ocenianie** konfiguruje oceniającego, a **Ustawienia** generowanie i ulepszanie. Konsola pokazuje szacunek przed uruchomieniem płatnej pracy.
+
+Nie ma organizacyjnego przełącznika wsparcia AI ani organizacyjnego nadpisania modelu oceniającego. Cena nie wybiera rzekomo silniejszego modelu. Automatycznie utworzony zestaw testowy zaczyna od modelu danego agenta; niezależnego oceniającego wybiera się jawnie na datasecie.
+
+Nadal obowiązują uprawnienia osoby, poświadczenia modelu, budżety organizacji i limity runów. Każde wywołanie jest mierzone i zapisywane w Aktywności. Zadanie w kolejce zachowuje model oraz instrukcje z chwili startu; zmiany ustawień dotyczą kolejnych zadań. Historyczne wiersze pomocników pozostają dla atrybucji i egzekwowania budżetów.
+
+## Pominięcia promocji { #promotion-overrides }
+
+Środowisko [strzeżone przez suity ewaluacji](environments.md#guarding-a-promotion-with-evals)
+przyjmuje wersję dopiero, gdy przejdą na niej. Promocja z ich pominięciem to
+**pominięcie**: wymaga `promotions:override` - mają je owner i admin, a można je
+dać roli własnej - od osoby zalogowanej jako ona sama, nie od klucza API ani
+administratora, który się pod nią podszywa, oraz powodu o długości co najmniej
+dziesięciu znaków. Trafia do [audit logu](#audit) jako
+`agent.environment_promotion_overridden`, z powodem i wynikiem każdego
+strażnika, widać je na wersji w historii, a właściciel każdego strażnika, który
+nie przeszedł, dostaje wiadomość.
+
+Zmiana listy strażników środowiska, przesunięcie przypięcia strażnika albo
+osłabienie tego, co sprawdza strażnik, wymaga tego samego uprawnienia; każda z
+tych zmian, a także ostrzejszy próg, jest zapisywana jako
+`agent.environment_guards_changed`. Zmiana oceniania datasetu jest zapisywana
+jako `dataset.scoring_changed`, z nazwami zmienionych części zamiast ich
+treści, a utworzenie sędziego datasetu jako `dataset.judge_created`.
 
 ## Audyt { #audit }
 
@@ -2184,7 +2284,7 @@ konto, wiersz sesji, którym ta impersonacja jest, i moment jej wygaśnięcia;
 kończy, z administratorem jako aktorem. Wygaśnięcie nie zapisuje nic, bo nikt nie
 działał — i tak samo nic nie zapisuje osoba wylogowująca się wszędzie, co kończy
 impersonację przez `DELETE /sessions` tak, jak kończy każdą inną sesję. To, czy
-ta osoba zostaje *poinformowana*, jest ustawieniem wdrożenia
+ta osoba zostaje _poinformowana_, jest ustawieniem wdrożenia
 `notify_impersonated_users` ([Wdrożenie](deployment.md#acting-as-another-account));
 gdy jest wyłączone, co jest wartością domyślną, ten ślad jest jedynym zapisem.
 
@@ -2243,10 +2343,10 @@ gdzie ustawia się okresy per tenant.
 ### Klasy { #the-classes }
 
 | Klasa | Co odchodzi razem z nią | Liczone od |
-|---|---|---|
+| --- | --- | --- |
 | Rozmowy | Wiadomości, wywołania narzędzi i pliki; zablokowana partia pomija rozmowy z niezakończonymi runami, a trwałe zadanie usunięcia plików zatwierdza się razem z usunięciem wierszy | Ostatniej aktywności wątku, więc ten, do którego ktoś wraca, nie jest stary |
 | Runy | Wiersz runu, jego manifest i jego zatwierdzenia narzędzi | Startu runu |
-| Workspace'y | Zapis platformy o plikach agenta. Dla backendu `state` wiersz *jest* magazynem; pliki backendu sandboxowego sprząta własny TTL sandboxa. Pliki projektu zostają, dopóki jest projekt | Ostatniego użycia |
+| Workspace'y | Zapis platformy o plikach agenta. Dla backendu `state` wiersz _jest_ magazynem; pliki backendu sandboxowego sprząta własny TTL sandboxa. Pliki projektu zostają, dopóki jest projekt | Ostatniego użycia |
 | Aplikacje | [Opublikowana strona](artifacts.md), wszystkie wersje, granty i publiczny link; usunięcie plików trafia do kolejki w tej samej transakcji | Ostatniej publikacji, więc raport, który harmonogram publikuje ponownie, nie jest stary |
 | Pamięć | Pliki pamięci agenta | Ostatniego zapisu, bo notatka jest pisana raz, a czytana miesiącami |
 | Wgrane dokumenty | Wiersz, jego wektory i wgrany plik | Momentu wgrania |
@@ -2368,6 +2468,8 @@ Warto to powiedzieć, bo strona o governance sugeruje coś innego:
 - **Cisza coś znaczy.** Alert, który nie przyszedł, oznacza, że dana rzecz się
   nie wydarzyła, co jest prawdą tylko dlatego, że nic tutaj nie działa w trybie
   „w miarę możliwości”.
+- **Promocja z pominięciem evali to pominięcie** - z powodem, własnym
+  uprawnieniem i zapisem na wersji.
 
 ## Materiały { #reference }
 
@@ -2377,14 +2479,13 @@ Warto to powiedzieć, bo strona o governance sugeruje coś innego:
 
 ## Automatyczne wstrzymanie po kolejnych błędach { #routine-health }
 
-Rutyny i obserwacje domyślnie wstrzymują się po **trzech kolejnych nieudanych sprawdzeniach**. W formularzu rutyny ustaw limit od 1 do 20 lub wyłącz ten limit. Liczą się błędy dostawcy i wykonania, nieprawidłowe odczyty obserwacji oraz niedostępne źródła. Oczekiwanie na zgodę, komputer offline i błędy dostarczenia nie zwiększają licznika; puste, ale poprawnie zweryfikowane sprawdzenie zeruje serię. Inne blokady uprawnień i budżetu obowiązują także po wyłączeniu tego limitu.
+Rutyny i obserwacje domyślnie wstrzymują się po **trzech kolejnych nieudanych sprawdzeniach**. W formularzu rutyny ustaw limit od 1 do 20 lub wyłącz ten limit. Liczą się błędy dostawcy i wykonania, nieprawidłowe odczyty obserwacji oraz niedostępne źródła. Oczekiwanie na zgodę, komputer offline, błędy dostarczenia i zatrzymania przez budżet nie zwiększają licznika: sprawdzenie odrzucone przez budżet czeka na następne i ani nie wydłuża serii, ani jej nie zeruje. Puste, ale poprawnie zweryfikowane sprawdzenie zeruje serię. Inne blokady uprawnień i budżetu obowiązują także po wyłączeniu tego limitu.
 
 Każda aktywacja ma jeden trwały zapis stanu. Ponowienia nie zwiększają licznika, a opóźnione zakończenia są oceniane według kolejności aktywacji. Automatyczne wstrzymanie zatrzymuje przyszłe aktywacje; trwające żądanie do modelu może się zakończyć.
 
 Istniejąca sprawa właściciela zapisuje wstrzymanie, a powiadomienie korzysta ze wspólnych preferencji i wybranych tras. Niepotwierdzona sprawa otrzymuje jedno zawiadomienie o wstrzymaniu, zastępujące wcześniejszy wpis w Inboxie. Wznowienie lub zmiana polityki unieważnia oczekujące zawiadomienia o wstrzymaniu. Potwierdzenie sprawy nie zeruje stanu wykonania ani nie wznawia rutyny. Po naprawieniu problemu jawnie wznów rutynę, aby rozpocząć nowe liczenie. Zmiana limitu błędów również rozpoczyna nowe liczenie.
 
 Lista pokazuje automatyczne wstrzymanie i liczbę błędów. Metadane zachowują najwyżej 50 obserwacji na rutynę, bez treści źródeł i błędów dostawców. Trafiają do ograniczonego rozmiarem eksportu danych właściciela i są usuwane kaskadowo z właścicielem lub rutyną. Migracja `0275_routine_health.py` włącza domyślny limit także dla istniejących rutyn: aktualizuj API i workery razem. Wycofanie migracji usuwa metadane i politykę, zachowując wstrzymanie rutyny.
-
 
 ## Zatwierdzone źródła rutyn { #routine-sources }
 
@@ -2394,17 +2495,15 @@ Zakolejkowane uruchomienia, oczekiwanie na komputer i zaparkowane przebiegi zach
 
 Migracja `0276_routine_sources.py` nie nadaje zgód istniejącym rutynom. Opróżnij starą kolejkę workerów, zaktualizuj API i workery razem, a przed uruchomieniem jawnie przejrzyj stare rutyny. Zgodę może zastąpić tylko właściciel w konsoli; nie mogą tego zrobić klucze API, podszywanie się ani agenci działający bez nadzoru.
 
-
 Uruchomienia rutyny z budżetem współdzielą klucz współbieżności kolejki, aby równoczesne zdarzenia nie dopuszczały wielu wywołań modelu na podstawie tego samego zakończonego wydatku. Ekstrakcja pamięci również jest wykonywana kolejno dla roli konserwacji organizacji. Każde zadanie ponownie sprawdza budżet; jedno dopuszczone wywołanie nadal może zakończyć się ponad limitem.
-
 
 Alerty o wstrzymanych zadaniach całego wdrożenia zachowują zwykły stan odczytu i odrzucenia powiadomienia; nie są przedstawiane jako sprawy organizacji.
 
 ### Rutyny, rozmowy robocze i Inbox { #routines-working-conversations-and-inbox }
 
 **Routines** pokazuje wspólnie zadania czasowe, zdarzeniowe i gotowe warianty
-monitorowania w trybie odczytu. Trigger określa, *kiedy* uruchomić rutynę;
-wariant monitorujący ogranicza, *co* może zrobić. Jedna odpowiedzialność powinna
+monitorowania w trybie odczytu. Trigger określa, _kiedy_ uruchomić rutynę;
+wariant monitorujący ogranicza, _co_ może zrobić. Jedna odpowiedzialność powinna
 mieć jedną rutynę, bez dublowania obserwacji i zadania czasowego dla tej samej poczty.
 
 Wybierz **Po każdym zakończonym wykonaniu** (`result_mode: report`, dotychczasowa

@@ -38,6 +38,21 @@ beforeEach(() => {
 });
 
 describe("SwipeToDecide", () => {
+  it("does not follow a finger towards approving a row that may only be rejected", () => {
+    const { onApprove, onReject, target } = row({ rejectOnly: true });
+    swipe(target, [
+      [20, 0],
+      [SWIPE_THRESHOLD + 10, 2],
+    ]);
+    expect(onApprove).not.toHaveBeenCalled();
+
+    swipe(target, [
+      [-20, 0],
+      [-SWIPE_THRESHOLD - 10, 2],
+    ]);
+    expect(onReject).toHaveBeenCalledTimes(1);
+  });
+
   it("approves on a swipe to the right past the point of no return", () => {
     const { onApprove, onReject, target } = row();
     swipe(target, [

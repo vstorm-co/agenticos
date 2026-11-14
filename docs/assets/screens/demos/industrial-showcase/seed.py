@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import sys
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -16,7 +17,6 @@ from uuid import UUID
 
 from app.agents.capabilities.visuals._toolset import content_problem
 from app.core.permissions import AuthContext
-from app.db.models.agent import Agent
 from app.db.models.artifact import ArtifactMediaType
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.organization import Organization, OrganizationMember
@@ -28,6 +28,9 @@ from app.schemas.visual import VisualPublish
 from app.services.artifact import publish_problem, publish_with
 from app.services.visual import VisualService
 from sqlalchemy import select
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from demo_agents import BOOTSTRAP, ORGANIZATION, ensure_agent  # noqa: E402
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,25 +51,20 @@ async def seed(args: SeedOptions) -> None:
                 OrganizationMember.user_id == args.user,
             )
         )
-        if organization is None or organization.name != "Northwind Labs":
+        if organization is None or organization.name != ORGANIZATION:
             raise ValueError(
-                "This seed only supports the isolated Northwind Labs demonstration"
+                f"This seed only supports the isolated {ORGANIZATION} demonstration - "
+                f"create it with `{BOOTSTRAP}`"
             )
         if owner is None or member is None or member.role != "owner":
             raise ValueError("Choose the existing demo organization owner")
-        agent = await db.scalar(
-            select(Agent).where(
-                Agent.organization_id == args.org, Agent.name == "Visuals Lab"
-            )
-        )
-        if agent is None:
-            raise ValueError("The demo organization needs Visuals Lab")
         ctx = AuthContext(
             user_id=args.user,
             organization_id=args.org,
             role=member.role,
             is_app_admin=owner.is_app_admin,
         )
+        agent = await ensure_agent(db, ctx, "Visuals Lab", model_profile_id=None)
         apps: dict[str, str] = {}
         for name, title in [
             ("northline-operations", "Northline · Supply & Production"),

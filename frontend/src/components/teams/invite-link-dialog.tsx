@@ -1,5 +1,6 @@
 "use client";
 
+import { isLoopbackAddress } from "@/lib/local-server";
 import { useState } from "react";
 import { Check, Copy, Link2 } from "lucide-react";
 
@@ -47,6 +48,7 @@ interface InviteLinkDialogProps {
  */
 export function InviteLinkDialog({ open, onOpenChange, orgId }: InviteLinkDialogProps) {
   const t = useTranslations("teams");
+  const start = useTranslations("start");
   const { createLink } = useInvitations(orgId);
   const { copy, copied } = useCopyToClipboard();
   const assignable = useAssignableRoles();
@@ -94,6 +96,11 @@ export function InviteLinkDialog({ open, onOpenChange, orgId }: InviteLinkDialog
           <DialogDescription>{t("oneUrlAnybodyCan")}</DialogDescription>
         </DialogHeader>
 
+        {typeof window !== "undefined" && isLoopbackAddress(window.location.origin) && (
+          <p role="note" className="text-muted-foreground text-sm">
+            {start("localTeamWarning")}
+          </p>
+        )}
         {link === null ? (
           <div className="space-y-4">
             <div className="space-y-2">

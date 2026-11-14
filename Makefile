@@ -1,4 +1,4 @@
-.PHONY: ci-test-db-configure test-frontend-jobs-check test-frontend-reports-check test-frontend-merge build-frontend-pack docker-test-db docker-test-db-down docker-minio install format lint desktop-dev desktop-build desktop-check mobile-android mobile-ios mobile-check lint-backend lint-frontend check audit licenses licenses-check build-frontend test run clean help sandbox-token sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build docs-slug-check presentation audit-frontend sbom
+.PHONY: ci-test-db-configure test-frontend-jobs-check test-frontend-reports-check test-frontend-merge build-frontend-pack docker-test-db docker-test-db-down docker-minio install format lint desktop-dev desktop-build desktop-check mobile-android mobile-ios mobile-check lint-backend lint-frontend check audit licenses licenses-check build-frontend test run clean help sandbox-token sandbox-workspace sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build docs-slug-check presentation audit-frontend sbom
 
 # === Environments ===========================================================
 # Three. The images are published to GHCR by `.github/workflows/images.yml`
@@ -45,6 +45,40 @@ sandbox-token:
 		echo "▶ Generated SANDBOXD_TOKEN in backend/.env"; \
 	fi
 
+# Where the sandbox service keeps each session's files, mounted at the same path
+# on the host. Created here, world-writable like `/tmp` itself, because a missing
+# bind source is created by the Docker daemon as root:root 755 on Linux, under
+# Docker Desktop's WSL integration as much as with a native engine - and the
+# service, running as uid 10001, then cannot write it, so every sandbox fails to
+# start while the service still reports healthy. An existing directory is only
+# checked: changing the owner of one Docker created takes root. Under WSL, do not
+# delete it while a container mounts it either: Docker Desktop keeps a mount of
+# the old directory, and the next container fails "no such file or directory"
+# until every container using it is stopped or Docker Desktop restarts.
+# The pinned sandboxd image runs as uid 10001, primary gid 999.
+SANDBOX_WORKSPACE_ROOT ?= /tmp/agenticos-sandbox-workspaces
+
+sandbox-workspace:
+	@dir="$(SANDBOX_WORKSPACE_ROOT)"; \
+	if [ ! -d "$$dir" ]; then \
+		if mkdir -p "$$dir" && chmod 1777 "$$dir"; then \
+			echo "▶ Created $$dir for the sandbox service"; \
+		else \
+			echo "⚠ Could not create $$dir. Create it writable by uid 10001, or sandboxes will not start."; \
+		fi; \
+	else \
+		owner=$$(ls -Lnd "$$dir" | awk '{print $$3}'); \
+		group=$$(ls -Lnd "$$dir" | awk '{print $$4}'); \
+		if [ "$$owner" = 10001 ]; then bits=3,4; \
+		elif [ "$$group" = 999 ]; then bits=6,7; \
+		else bits=9,10; fi; \
+		access=$$(ls -Lnd "$$dir" | awk '{print $$1}' | cut -c $$bits); \
+		case "$$access" in wx|ws|wt) ;; *) \
+			echo "⚠ The sandbox service (uid 10001) needs write and search access to $$dir."; \
+			echo "  Fix it once with: sudo chown 10001 $$dir && sudo chmod u+wx $$dir"; \
+		;; esac; \
+	fi
+
 # The runtime allowlist the compose files hand the sandbox service, written from
 # backend/app/core/catalog/sandbox_runtimes.json. Run it after editing that file;
 # `backend/tests/test_sandbox_runtime_catalog.py` is what fails when nobody did.
@@ -61,7 +95,7 @@ sandbox-runtimes:
 # `sandboxd:0.2` once served an older API than the backend's client spoke, and
 # every command failed as a lost session (#2484). `--pull missing` would add
 # nothing, and would override `pull_policy: never` on the images built here.
-dev: sandbox-token
+dev: sandbox-token sandbox-workspace
 	@echo "▶ Building the backend image and starting the stack (migrations run as the \`migrate\` service)…"
 	@if ! docker compose $(COMPOSE_LOCAL) $(COMPOSE_DEV_PROFILES) up -d --build; then \
 		echo ""; \
@@ -107,6 +141,13 @@ platform-bootstrap:
 		agenticos cmd bootstrap
 
 bootstrap: dev seed
+
+# Needs a running stack, SKILLS_LAB_EMAIL, SKILLS_LAB_PASSWORD and SKILLS_LAB_OPENROUTER_KEY;
+# PROBE=v1|broad|narrow measures one wording of the skill, DROP_PROBES=1 deletes those orgs.
+SKILLS_LAB_URL ?= http://localhost:8000
+seed-skills-lab:
+	uv run --directory backend python ../scripts/seed_skills_lab.py \
+		--url $(SKILLS_LAB_URL) $(if $(PROBE),--probe $(PROBE)) $(if $(DROP_PROBES),--drop-probes)
 
 dev-down:
 	docker compose $(COMPOSE_LOCAL) $(COMPOSE_DEV_PROFILES) --profile console down
@@ -331,6 +372,7 @@ lint-backend:
 	uv run --directory backend python3 ../scripts/check_comments.py
 	uv run --directory backend python3 ../scripts/check_docs_paragraphs.py
 	uv run --directory backend python3 ../scripts/check_docs_i18n.py
+	uv run --directory backend python3 ../scripts/check_docs_glossary.py
 
 # Unused functions and methods, reported rather than gated. `make lint` runs
 # vulture at a confidence high enough to be a gate (unused variables and
@@ -1054,6 +1096,7 @@ help:
 	@echo "Day-to-day dev:"
 	@echo "  make dev            Build + start dev stack; migrations run as a service (idempotent)"
 	@echo "  make seed           One-shot admin seed (admin@example.com / admin123)"
+	@echo "  make seed-skills-lab  Skills lab: one skill shared by several agents (PROBE=, DROP_PROBES=1)"
 	@echo "  make dev-down       Stop dev stack"
 	@echo "  make dev-logs       Tail dev container logs"
 	@echo "  make dev-rebuild    Force-rebuild backend image"

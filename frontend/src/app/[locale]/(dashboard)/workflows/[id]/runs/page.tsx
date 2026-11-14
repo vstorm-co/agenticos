@@ -92,7 +92,7 @@ export default function WorkflowRunsPage({ params }: PageProps) {
     ) : (
       <div className="space-y-2">
         <p className="text-muted-foreground text-sm">{t("modeReal")}</p>
-        <LoadingState variant="skeleton-panel" />
+        <LoadingState variant="pending" />
       </div>
     )
   ) : null;

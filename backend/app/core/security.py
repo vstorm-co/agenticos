@@ -156,6 +156,7 @@ def create_mfa_token(
     expires_delta: timedelta | None = None,
     *,
     return_to: str | None = None,
+    mailbox_proved: bool = False,
     jti: str | None = None,
 ) -> str:
     """The short-lived proof a password check passed, awaiting the second factor.
@@ -170,6 +171,9 @@ def create_mfa_token(
     `return_to` rides along only when the challenge came from a magic link:
     the link's destination was validated at mint, and the second step must
     not be what drops it.
+
+    `mailbox_proved` preserves the signed link's proof through the second factor
+    without putting the email address itself in the challenge.
     """
     expire = datetime.now(UTC) + (expires_delta or timedelta(minutes=5))
     to_encode: dict[str, Any] = {
@@ -181,6 +185,8 @@ def create_mfa_token(
     }
     if return_to is not None:
         to_encode["rt"] = return_to
+    if mailbox_proved:
+        to_encode["mbp"] = True
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
@@ -236,8 +242,12 @@ def create_magic_link_token(
     subject: str | Any,
     expires_delta: timedelta | None = None,
     return_to: str | None = None,
+    email: str | None = None,
 ) -> str:
     """Sign-in-by-email JWT. Short-lived (15 min default).
+
+    `email` binds mailbox proof to the address this link was actually sent to.
+    Legacy links without it can still sign in, but cannot prove a current address.
 
     `return_to` rides in the token because a magic link is followed from an
     email - a different tab, often a different application, sometimes a
@@ -248,6 +258,8 @@ def create_magic_link_token(
     """
     expire = datetime.now(UTC) + (expires_delta or timedelta(minutes=15))
     to_encode: dict[str, Any] = {"exp": expire, "sub": str(subject), "type": "magic_link"}
+    if email is not None:
+        to_encode["email"] = email
     if return_to is not None:
         to_encode["rt"] = return_to
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)

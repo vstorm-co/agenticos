@@ -22,7 +22,7 @@ from httpx import ASGITransport, AsyncClient
 from app.api import deps
 from app.core.config import settings
 from app.core.permissions import AuthContext, OrgRoleName
-from app.db.models.agent import Agent, AgentStatus
+from app.db.models.agent import Agent, AgentKind, AgentStatus
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.main import app
 from app.services.agent_registry import AgentRegistryService
@@ -46,6 +46,7 @@ def _agent(*, categories: list[str] | None = None, tags: list[str] | None = None
         name="Support",
         description=None,
         status=AgentStatus.DRAFT.value,
+        kind=AgentKind.AGENT.value,
         draft_spec={},
         categories=categories or [],
         tags=tags or [],
@@ -146,3 +147,26 @@ async def test_a_viewer_with_an_edit_grant_reaches_the_route(viewer_client: Open
         async with viewer_client() as http:
             response = await http.patch(_url(agent.id), json={"tags": ["ops"]})
     assert response.status_code == 200
+
+
+async def test_saving_a_draft_answers_the_canonical_spec(owner_client: OpenClient) -> None:
+    from app.agents.spec import AgentSpec
+
+    saved = _agent()
+    spec = AgentSpec(name="Canonical", variables=[{"name": "customer"}])
+    saved.name = spec.name
+    saved.draft_spec = spec.model_dump(mode="json")
+    with patch.object(
+        AgentRegistryService, "save_draft", new=AsyncMock(return_value=saved)
+    ) as save:
+        async with owner_client() as http:
+            response = await http.put(
+                f"{settings.API_V1_STR}/agents/{saved.id}/draft",
+                json={"spec": {"name": "Canonical", "variables": [{"name": "customer"}]}},
+            )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["id"] == str(saved.id)
+    assert body["draft_spec"] == spec.model_dump(mode="json")
+    assert body["draft_spec"]["variables"][0]["description"] is None
+    save.assert_awaited_once()

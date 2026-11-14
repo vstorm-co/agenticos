@@ -1,5 +1,7 @@
 # Workflows
 
+Choose a workflow’s icon beside its name in the editor. The same neutral tile appears in the catalog. A selected mark survives reload; **Use default icon** resets it. This changes presentation metadata, not the draft revision or published graph.
+
 A **workflow** chains steps into an automation your agents carry out: read a
 [table](virtual-tables.md), call an agent, branch on the result, loop over a
 list. You build it on a canvas, wire the steps together, and publish it as an
@@ -50,7 +52,7 @@ For Outlook, the creation form can also name a shared mailbox the connected acco
 
 The notification defaults to in-app. Its **Notify members** step can select the
 other supported notification channels, subject to each recipient's preferences
-and private-channel consent. The [awaited-reply step](reference/workflow-nodes.md#flow-await-reply)
+and private-channel consent. The [awaited-reply step](https://vstorm-co.github.io/agenticos/reference/workflow-nodes/#flow-await-reply)
 keeps matching, pause/correction, cancellation and deadline semantics.
 
 Run history fills the available page area by default, without an expansion control. The catalog fills the available page area and offers its own Full screen control. Pagination appears only when there is another page. File import has a labelled upload area that accepts a file picker or a dropped JSON file.
@@ -78,7 +80,11 @@ the same list.
 
 **More → Settings** contains the workflow's name, description, tags and runtime settings, saved automatically. The step editor fills the available window: Input on the left, Parameters and Settings in the middle, Output on the right. Triggers use two panes because they have no incoming data. Each pane scrolls independently on larger screens; phones use one scrolling column. Recorded executions show the parameters read-only beside their data. Record values are fields named after table columns. Notes offer Open note, size presets and resize handles.
 
-The app picker includes catalog MCP servers before they are connected; its generic Call an MCP tool entry is hidden. Connect a service in place, then choose one of its discovered tools. The connection's allowlist remains enforced. The canvas starts with colored steps and a minimap. AI model steps expose instructions, temperature and reasoning effort; unset controls retain provider defaults. Jev decisions expose their model, question and confidence threshold. Send an email uses the platform sender, or connects Gmail or Outlook and switches to that mailbox's actual MCP tool after confirmation. Switching clears incompatible input mappings and is undoable.
+The app picker includes catalog MCP servers before they are connected; its generic Call an MCP tool entry is hidden, and those nobody has connected wait under **more apps to connect** at the end of their section. Connect a service in place, then choose one of its discovered tools. The connection's allowlist remains enforced.
+
+The canvas starts with colored steps and a minimap. On a phone it opens with the whole flow in view and the minimap hidden; **Canvas options** shows it again.
+
+AI model steps expose instructions, temperature and reasoning effort; unset controls retain provider defaults. **Decisions** steps, answered by the Jev decision model, expose their model, question and confidence threshold. Send an email uses the platform sender, or connects Gmail or Outlook and switches to that mailbox's actual MCP tool after confirmation. Switching clears incompatible input mappings and is undoable.
 
 The **Send an email** step also offers **SMTP account → New SMTP account**. Enter the server, port, username, password and sender in the vault dialog. STARTTLS usually uses 587; implicit TLS usually uses 465, with certificate verification in both modes. Only `smtp_secret_id` is stored in the workflow. Select **Platform sender** to clear it. Publication and execution enforce secret access; an unavailable account fails instead of silently changing senders.
 
@@ -109,6 +115,8 @@ Agents called from workflows can use their AgenticOS MCP tools in the background
 
 ## The canvas and adding steps { #the-canvas-and-the-palette }
 
+After **Test draft**, the canvas shows the run's status and completed-step count. **Open run** opens its details. On narrow screens the status bar wraps inside the canvas so the link and close button remain reachable.
+
 The editor keeps **Runs**, **Test draft** and **Publish** visible. **More** contains **Versions** and the edit/view switch. **Canvas options** holds the minimap, connection style and shortcuts. A step with no incoming connection leaves more room for parameters by omitting the empty Input pane; **Expected output fields** expands the output schema. **Review setup before testing** opens the unfinished setup.
 
 The **canvas** is where a workflow's steps and connections appear, and it has the
@@ -118,7 +126,7 @@ connection that sets the order: the step it points to runs after the one it leav
 Each node is a card with the step's icon, its name and one line under it: what it
 is set up to do - a condition, a URL, the number of mapped fields - after the
 agent, model or table it works with. A step with more than one way
-out lists its ports by name: **true** and **false**, **Each item** and **Done**,
+out lists its ports by name: **true** and **false**, a loop's **Done**,
 and a red **Error** port on a step that handles its errors. A step that stops a
 publish carries a setup mark (red after testing or publishing): hovering lists the first items, and clicking it
 opens the step.
@@ -128,7 +136,7 @@ pinch - or Ctrl or Cmd with the wheel - zooms it; its controls sit in the corner
 
 Steps are chosen in the **step picker**. It lists sections - **Start**, **AI**,
 **Flow**, **Data**, **Apps and the web** - with the groups under each. A group such
-as **Slack**, **Tables** or **Jev decisions** opens to its steps, and a group of one
+as **Slack**, **Tables** or **Decisions** opens to its steps, and a group of one
 step is that step. **Search steps** finds any step by its name, what it does or its
 group. You add a step four ways:
 
@@ -153,7 +161,7 @@ Workspace**, **Microsoft 365**), which is also where **Connect** and an untested
 connection are shown. The sign-in tools (`start_google_auth`, `login`,
 `verify-login`) are not offered.
 
-Picking an entry adds an [MCP call](reference/workflow-nodes.md#mcp-call) already
+Picking an entry adds an [MCP call](https://vstorm-co.github.io/agenticos/reference/workflow-nodes/#mcp-call) already
 set to that connection and tool, so stored workflows and the node's contract do not
 change. The entry never hides what it is: it carries an **MCP** badge and the
 connection's name, and the tool's own name stands on its own line under it, with the
@@ -175,10 +183,11 @@ connects a server. An app's action rows are picked, not dragged: only
 the step's own rows can be dragged onto the canvas.
 
 A new step never lands on top of another, is selected, opens its settings when it
-has any, and the canvas scrolls to it when it falls outside the view. Inside a
-loop's body every new step is wired into the body, so it stays there. The picker
-shows what is valid where you are: **Loop item** and **Loop result** only inside a
-loop's body, and a loop until loops are nested as deep as publishing allows.
+has any, and the canvas scrolls to it when it falls outside the view. A step added
+or pasted inside a loop's body belongs to that body, wired after the last step with
+an output free or, when none has one, left for you to wire. A new loop already holds
+its **Loop item** and **Loop result**, so the picker never offers them; it offers a
+loop until loops are nested as deep as publishing allows.
 
 Right-clicking a step offers **Open settings**, **Duplicate**, **Switch off** and
 **Delete step**. With several steps selected, a bar at the bottom deletes them together.
@@ -269,7 +278,7 @@ published version, a run and a comparison show the saved size without handles.
 ## Configuring a node { #configuring-a-node }
 
 What each node does, what it is configured with and what its failures mean is in
-the [node reference](reference/workflow-nodes.md).
+the [node reference](https://vstorm-co.github.io/agenticos/reference/workflow-nodes/).
 
 A click selects a step; a double click opens it over the canvas. In a published version or **View only**, one click opens it. The header names the step and folds unfinished setup into one expandable summary. Open it to see what is missing; choosing a field takes you to its input. After a test or publish attempt, the summary opens with validation details.
 
@@ -338,10 +347,25 @@ on the card, and the tab carries a dot once anything there is changed.
 Turning off
 **Run this step** there, or **Switch off** in its right-click menu, keeps a step on
 the canvas, dimmed, and skips it when a run reaches it: it does nothing and hands on
-what came into it. Publishing refuses the trigger or a step that decides the way
+what came into it. Publishing refuses the trigger or a connected step that decides the way
 switched off, and a step that reads one that is off, unless what comes into it -
 along its one incoming connection, from a step that is on - has the field read,
 which it then hands on. All three are saved in the graph, so versions keep them.
+
+A step that is off, connected or not, is not checked for its inputs or its settings:
+it reads neither. Switching it back on is a change to publish, and publishing checks
+them then.
+
+A step that is off with no connection at all is set aside: it can sit beside the
+workflow or inside a loop - a **Combine lists** holding test data, say - without
+being reachable. A run ignores it, and it does not count towards the run's step
+limit. Connect it to anything and it must be reachable again. Any step can be set
+aside, even one that decides the way, such as **If**: with no connection it has no
+way to choose. Only the trigger and a loop's **Loop item** and **Loop result**
+always stay on.
+
+
+A switched-off step may keep its saved error policy and file or table bindings even when the resource is no longer accessible. It reads none of them; switching it back on checks them again. A step set aside appears as **Switched off** in the run's Steps tab without an execution row. Connect it to a trigger before using **Test step**.
 
 ### A step's data, test data and testing one step { #a-steps-data-pinning-and-testing-one-step }
 
@@ -396,7 +420,7 @@ step names a real thing your organization has:
 |---|---|
 | **Agent** and **Version** | An agent, by its face and description, then one of its published versions, with the live one marked and each one's date and release note. Changing the agent clears the pinned version, because a version belongs to one agent. The step's card then shows the agent's face and "name · v3" |
 | **Table** and **Columns** | A [virtual table](virtual-tables.md), then the columns the step reads — scoped to that table's current schema |
-| **Secret** | A [vault](secrets.md) secret, by reference. A step stores the secret's id, never its value |
+| **Secret** | A [vault](https://vstorm-co.github.io/agenticos/secrets/) secret, by reference. A step stores the secret's id, never its value |
 | **MCP server** and **Tool** | One of the organization's [MCP servers](mcp.md), with its service's mark, then one of the tools it listed when last tested. Choosing it needs the right to edit the workflow - by role or by a grant on it, as publishing the step does - not `mcp:manage`; only a member who manages servers can test one or add another |
 
 Each picker disambiguates same-named rows with context and marks a reference
@@ -440,7 +464,7 @@ of failing the run. **Tries** is how often the step is attempted in all, and **W
 between tries** and **First wait** set the pause between attempts. A step whose call
 is not safe to repeat, such as running an agent, says so and is never retried.
 **Time limit** cuts a call off after that many seconds. What each setting does at
-run time is in the [node reference](reference/workflow-nodes.md#error-handling).
+run time is in the [node reference](https://vstorm-co.github.io/agenticos/reference/workflow-nodes/#error-handling).
 
 A binding to a value with no declared shape - a loop's current item, a trigger's
 payload - offers a **Field inside it** box under the source, where you type the path
@@ -516,11 +540,16 @@ loop body** on the step, which says how many steps the body holds, enters that
 view, and the **Workflow scope** breadcrumb in the canvas's corner shows where you
 are, from **Workflow** down to the loop you opened. Each crumb navigates back out.
 
-A body starts at **Loop item**, which the loop's **Each item** port connects to,
-and ends at **Loop result**; nothing in it connects back to the loop, which
-continues through **Done** once every item has been through the body. The step picker and the binding sources follow the scope you are in, and a step in a body may read
+A body starts at **Loop item** and ends at **Loop result**. Every step remembers
+the loop it belongs to, so removing a wire never moves a step out of a body; a step
+**Loop item** does not lead to is reported until you connect it. No wire runs from
+the loop into its body or back to the loop, which continues through **Done** once
+every item has been through the body. **Loop item** and **Loop result** go only with
+their loop: deleting the loop deletes its whole body, and copying it copies the body.
+
+The step picker and the binding sources follow the scope you are in, and a step in a body may read
 anything that ran before the loop. What the loop does is in the
-[node reference](reference/workflow-nodes.md#loops).
+[node reference](https://vstorm-co.github.io/agenticos/reference/workflow-nodes/#loops).
 
 ### Parallel branches { #parallel-branches }
 
@@ -544,7 +573,7 @@ by name as `branches`, so later steps read `branches.<name>`; each wire has a
 **Branch name**. Publishing refuses it when an input may not run, naming it, or
 when only one input ever can. Connecting a second leg to a merge picks the setting
 the graph needs, and renaming a branch name carries the steps that read it, in one
-undo. The details are in the [node reference](reference/workflow-nodes.md#logic-if-and-logic-merge).
+undo. The details are in the [node reference](https://vstorm-co.github.io/agenticos/reference/workflow-nodes/#logic-if-and-logic-merge).
 
 Publishing also refuses a graph with two **Output** steps, or two **Respond to
 webhook** steps, that can both run in one run, and an **Error handler** that two
@@ -571,7 +600,7 @@ settles.
 How many branches run at once is set by the worker, not by the run. There is no
 per-run limit, so the branches of one run may take every workflow slot of a worker,
 `WORKER_WORKFLOW_CONCURRENCY` (five by default, see
-[Configuration](configuration.md)), and the rest queue. A run someone is waiting on
+[Configuration](https://vstorm-co.github.io/agenticos/configuration/)), and the rest queue. A run someone is waiting on
 goes ahead of one that started itself. A fan-out of many branches in one run
 therefore slows other runs on that worker; keep it as wide as the work needs.
 
@@ -653,7 +682,7 @@ nothing is published until you publish the draft again. Undo starts over from th
 restored graph. If someone changed the draft since you opened it, the restore is
 refused with the same conflict banner a save raises, rather than discarding their
 edit. Restoring needs `workflows:edit` on the workflow, and an archived workflow
-cannot be restored. Each restore is recorded in the [audit log](governance.md) as
+cannot be restored. Each restore is recorded in the [audit log](https://vstorm-co.github.io/agenticos/governance/) as
 `workflow.version_restored`.
 
 **Compare with draft** in a version's preview draws the version and the draft on
@@ -774,7 +803,7 @@ Figures are per step and per day, not per kind of message. To compare categories
 each one to its own approval step.
 
 How much an edit changed is measured once, when the person decides, by the same scorer
-as [`text.compare`](reference/workflow-nodes.md#text-compare), by character: `0` when
+as [`text.compare`](https://vstorm-co.github.io/agenticos/reference/workflow-nodes/#text-compare), by character: `0` when
 they approved the proposal unchanged on a step that can be edited, up to `1` when
 nothing of it is left. A step that cannot be edited, a rejection and an expiry have no
 such figure. An edit decided before approvals were measured has none either and is left
@@ -785,7 +814,7 @@ The same figures arrive over the API in the stats' `approvals` block. Across eve
 workflow you can see, over the dates you choose, `GET
 /api/v1/workflow-approvals/stats?from=2026-10-01&to=2026-10-31` gives the totals and the
 five workflows with the most requests, and the dashboard's [**Approval
-outcomes**](console.md#the-dashboard) card shows them.
+outcomes**](https://vstorm-co.github.io/agenticos/console/#the-dashboard) card shows them.
 
 The dashboard's **Workflows** card adds the same up across every workflow you can
 see, over the period the dashboard is set to: runs, failures, cost and the five
@@ -800,10 +829,15 @@ faded. Only a page open while the run went on moves; one opened later is still. 
 
 The run's answer - its text, its structured result, the passages it drew on and how
 many files it made, with the JSON itself under **Raw output** - and every step it
-took, iteration by iteration, sit alongside. A run still going
+took, iteration by iteration, sit alongside.
+
+The list holds the steps that started, in the order they started. Failures remain
+visible even if a step failed before starting. Other steps that never started stay
+on the canvas; skipped steps appear faded. Clicking a loop step's row shows its
+input and output in that iteration. A run still going
 refreshes itself every couple of seconds, and **Cancel run** stops it, and withdraws the timers its waiting steps had queued. Its **Files** list what its steps stored - a download, a rendered page, a script's output - each one downloadable.
 
-A run waiting on an [**Ask for approval**](reference/workflow-nodes.md#human-approval)
+A run waiting on an [**Ask for approval**](https://vstorm-co.github.io/agenticos/reference/workflow-nodes/#human-approval)
 step shows in the **Approvals** tab of Activity. When the step is set to **Let the
 approver edit** and has a proposal bound, such as a drafted reply, the approver
 changes it in an editor there, with **Restore original** and **Show changes**, and
@@ -811,6 +845,12 @@ approves their version. The step then hands on `final`, `original` and `edited`,
 a later step sends what the person approved. A decider the step does not name sees
 the proposal read-only, and a request decided with a changed version
 shows an **Edited** badge under **Decided**.
+
+In the run itself, a finished approval step opens with who decided it and when -
+**Approved by** or **Rejected by** the person and the time - only the decision and the time
+when the account is gone or the reader may not list members - above the step's output. When the approver changed the
+proposal, **Show changes** compares the two. A request that expired or was cancelled
+with its run says so instead.
 
 When the step lists **Ways to approve**, the queue shows one button for each, with the
 label its author wrote, in place of **Approve**; **Reject** stays. Each way is an output
@@ -846,7 +886,9 @@ a loop, or **Fail the run**. If the step reported a result after it was given up
 siblings, approvals and timers go on.
 
 Only the person who started the run, or an editor of the workflow, may resolve a
-step, and in a test run only an editor may resolve a step or retry the run. Over the
+step, and in a test run only an editor may resolve a step or retry the run. A cancelled run
+is retried only by the person who started it or an editor, the people who could have
+cancelled it. Over the
 API it is `POST /api/v1/workflow-runs/{id}/steps/{node_run_id}/rerun` with a `choice`, and the
 decision is audited. A run that was cancelled, or that failed, has no step to resolve:
 **Retry from failed step** starts a new run. A step that finished after its run
@@ -864,6 +906,8 @@ characters of it (at least four); **Show only this run** on a line fills it in, 
 that wrote it. In the run view, each step's own lines sit under it, in the order they
 were written. An organization API key with `workflows:view` reads them too, for
 public-origin runs: see [Reading a workflow's log](api.md#reading-a-workflows-log).
+
+New Quick Log lines show default step names in the reader's language, including on the dashboard. The saved run graph identifies default names, including in older lines. Custom labels and lines whose saved graph no longer identifies the step keep their stored words.
 
 ### Alerts { #log-alerts }
 
@@ -886,7 +930,7 @@ holds up to 25 rules, and a switch on each pauses one.
 **Who is told** is the workflow's **owner**, which a new rule starts with, the
 organization's **admins**, or **specific people** you pick; a person who has left the
 organization is skipped. Each of them gets a notification in the bell and an email, as
-their own [notification preferences](governance.md#alerts) allow, and one who can no
+their own [notification preferences](https://vstorm-co.github.io/agenticos/governance/#alerts) allow, and one who can no
 longer view the workflow no longer sees it. The notification says how many lines
 matched, and its link opens the Logs page filtered to the rule's step and outcomes. A
 rule with an outcome that the live version's step does not have is flagged in the list.
@@ -909,14 +953,14 @@ other trigger has a door of its own. A test run of the draft takes any trigger, 
 
 **Manual** is the trigger a person starts with **Test draft**; **API request** is the one a system calls, and **Trigger** shows its endpoint and a sample request. Give either its **Input fields** and a run asks for what it needs: **Test draft** and **Start a run** show a form with one box per field instead of the JSON, typed as the
 field is, and an API call whose input does not fit is refused with the fields that
-are wrong. See [core.input](reference/workflow-nodes.md#core-input).
+are wrong. See [core.input](https://vstorm-co.github.io/agenticos/reference/workflow-nodes/#core-input).
 
 For nested objects and arrays, configure an optional JSON Schema Draft 2020-12
 `input_schema` on **Manual**, **API request** or **Called by a workflow** instead
 of simple fields. The schema is saved with the published version, and every run
 must satisfy that version's contract before it starts. API and MCP callers can
 inspect the same contract before sending input. See
-[JSON Schema input contracts](reference/workflow-nodes.md#json-schema-input-contracts)
+[JSON Schema input contracts](https://vstorm-co.github.io/agenticos/reference/workflow-nodes/#json-schema-input-contracts)
 for configuration, references and validation errors. Existing simple-field inputs
 and workflows without a contract keep their behavior.
 
@@ -960,6 +1004,16 @@ in `X-Signature-256`, and names each delivery in `X-Delivery-Id`; GitHub's own
 headers work as well. The trigger hands on the delivery's JSON as `body`, with its
 `delivery_id`. A retry that repeats an id is answered with the first run and starts
 nothing, because the id is recorded with the run it admitted, in one transaction.
+
+The id is not part of what the sender signs, so the same signed request under another id
+within 24 hours is a copy too: it is answered with the first run and starts nothing,
+whichever of the two signature headers carries it. Identical content sent again after 24
+hours starts a run. A sender that sends the same body more often on purpose makes each one
+differ, with its own id or time in the body, or signs the time: with
+`X-Signature-Timestamp` (Unix seconds) the signature covers `{timestamp}.{body}` and is
+refused more than five minutes from the server's clock.
+
+Deliveries admitted before signed digests were recorded retain delivery-ID deduplication. Their signed copies under a different ID cannot be recognized from those older rows; signature-based copy detection starts with deliveries recorded by the new version.
 
 A **Schedule** trigger runs every so often, daily at a set time or on a cron
 expression, in the workflow's timezone (UTC unless its **Settings** name another)
@@ -1023,7 +1077,7 @@ The link is the page's only credential and survives every publish of the same no
 pausing the trigger closes the page. Answers that do not fit are named on the page
 and start nothing, a hidden box catches scripts, and each form takes at most
 `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` answers a minute. See
-[trigger.form](reference/workflow-nodes.md#trigger-form).
+[trigger.form](https://vstorm-co.github.io/agenticos/reference/workflow-nodes/#trigger-form).
 
 ### From GitHub { #from-github }
 
@@ -1042,7 +1096,7 @@ the member who published the workflow, with the `event`, `action`, `repository`,
 `sender` and the whole `payload`. A redelivery answers with its first run, and
 anything else - GitHub's `ping` included - is skipped. **New secret** replaces the
 secret and registers the hook again where the account set it up. See
-[trigger.github](reference/workflow-nodes.md#trigger-github).
+[trigger.github](https://vstorm-co.github.io/agenticos/reference/workflow-nodes/#trigger-github).
 
 ### From an email { #from-an-email }
 
@@ -1072,9 +1126,9 @@ mailbox's `message_id`, and the thread the message belongs to: `thread_id`, the
 `received_at` and the `html` body. The sender writes the three header fields, so a
 reply can be threaded with them but they prove nothing about who sent it. A message
 read twice starts its run once, and one the organization had no room to run yet is read again a minute later. See
-[trigger.gmail](reference/workflow-nodes.md#trigger-gmail). To read the `html` body
+[trigger.gmail](https://vstorm-co.github.io/agenticos/reference/workflow-nodes/#trigger-gmail). To read the `html` body
 as text, links or what a CSS selector picks, bind it to
-[`html.parse`](reference/workflow-nodes.md#html-parse).
+[`html.parse`](https://vstorm-co.github.io/agenticos/reference/workflow-nodes/#html-parse).
 
 An **Outlook** trigger does the same for the organization's Microsoft 365 mailbox,
 connected through the **Outlook** portal. Microsoft Graph is read one folder at a
@@ -1086,14 +1140,42 @@ read it starts from the moment the workflow was published or last switched on, s
 mail already there starts nothing.
 
 Naming a shared mailbox the organization's Microsoft grant can open takes the permission
-to manage connections, as it does for Outlook agent triggers; a workflow already
-listening to one keeps it through later publishes, and changing it needs the permission again. If Outlook says the folder can no longer be read, the workflow is
+to manage connections, as it does for Outlook agent triggers; every publish that names one needs it, because whoever publishes becomes the member
+the mailbox is read as, and a message reaching a workflow whose publisher no longer
+holds it starts no run. If Outlook says the folder can no longer be read, the workflow is
 switched off and the audit log says why.
+
+Before upgrading to a release with this check, an administrator can find the
+Outlook triggers it will stop: those reading a shared mailbox for a publisher who is not an owner, admin or builder,
+and so lacks `mcp:manage`. Each needs a republish by someone who holds it, or its
+publisher's role raised. Run against the deployment's database:
+
+```sql
+SELECT o.name AS organization,
+       w.name AS workflow,
+       u.email AS publisher,
+       m.role AS publisher_role,
+       node -> 'config' ->> 'mailbox' AS shared_mailbox
+FROM workflow_exposures AS e
+JOIN workflow_versions AS v ON v.id = e.workflow_version_id
+JOIN workflows AS w ON w.id = e.workflow_id
+JOIN organizations AS o ON o.id = e.organization_id
+JOIN users AS u ON u.id = e.execution_principal_user_id
+LEFT JOIN organization_members AS m
+  ON m.organization_id = e.organization_id AND m.user_id = e.execution_principal_user_id
+CROSS JOIN LATERAL jsonb_array_elements(v.graph -> 'nodes') AS node
+WHERE e.adapter = 'outlook'
+  AND e.is_active
+  AND (node ->> 'id')::uuid = e.node_instance_id
+  AND coalesce(node -> 'config' ->> 'mailbox', '') <> ''
+  AND NOT u.is_app_admin
+  AND coalesce(m.role, '') NOT IN ('owner', 'admin', 'builder');
+```
 
 The run gets the same fields as a Gmail
 run, with `labels` holding the message's categories and `mailbox` the shared
 mailbox it came from. See
-[trigger.outlook](reference/workflow-nodes.md#trigger-outlook).
+[trigger.outlook](https://vstorm-co.github.io/agenticos/reference/workflow-nodes/#trigger-outlook).
 
 Both mail triggers take outside input: anyone can send the mailbox a message, so
 bind what the run does with it as you would for a webhook.
@@ -1131,9 +1213,10 @@ topic only inside a forum topic.
 
 A **Send a message** step added after a **Channel message** trigger starts as the
 trigger's bot, with `channel_id` and `thread_id` bound, when the two platforms match. A
-bot's messages start one workflow at most, and listening to a bot needs `channels:manage`.
+bot's messages start one workflow at most, and listening to a bot needs `channels:manage`, checked again
+at every message: once the publisher loses it, the bot's own agent answers instead.
 A voice note arrives as its transcript; other attachments are not handed on. See
-[trigger.channel_message](reference/workflow-nodes.md#trigger-channel-message).
+[trigger.channel_message](https://vstorm-co.github.io/agenticos/reference/workflow-nodes/#trigger-channel-message).
 
 ### When another workflow calls it { #when-another-workflow-calls-it }
 
@@ -1153,12 +1236,17 @@ already running in the chain, or more than five calls deep, is refused.
 Called workflows inherit the caller's remaining run budget and the earlier deadline.
 Their spend counts toward the caller's total; `own_cost` exposes the caller's direct
 fees for consumers aggregating run records without counting descendants twice.
-With a finite caller budget, **Wait for it to finish** must stay on. Cancelling a
-caller or revoking its access stops a child before its next dispatch; an external
-request already in flight may finish. Retrying a failed call reuses successful
-steps of its original, frozen child rather than repeating their effects. A still
-running original child must finish or be stopped first. File outputs are explicitly
-imported into the caller, and callee access is rechecked when a waiting call resumes.
+With a finite caller budget, **Wait for it to finish** must stay on.
+
+Cancelling a caller, or its running out of budget, cancels every unfinished run it
+called and every run those called, with their approval requests and questions. A called
+run whose step is executing at that moment stops before its next dispatch, as does one
+whose caller lost its access; an external request already in flight may finish.
+
+Retrying a failed call reuses successful steps of its original, frozen child rather than
+repeating their effects. A still running original child must finish or be stopped first.
+File outputs are explicitly imported into the caller, and callee access is rechecked
+when a waiting call resumes.
 
 The caller's daily chart and per-step statistics include called-run fees too.
 
@@ -1176,7 +1264,7 @@ unlinked channel sender, an agent event trigger's delivery) starts none.
 
 ### From an app { #from-an-app }
 
-A [published page](artifacts.md#actions) can start a workflow that its agent has bound
+A [published page](https://vstorm-co.github.io/agenticos/artifacts/#actions) can start a workflow that its agent has bound
 and that starts from **Manual** or **API request**. The page only asks. The member
 viewing it is shown a dialog with the workflow's own name and every input value, and
 the run starts only when they confirm. It is theirs: their access, their budget and
@@ -1213,12 +1301,12 @@ deciding it.
 Nothing else is exactly once. An HTTP call, an upload or a file write may be made
 again after such a stop, so a receiving system that must not see a request twice
 needs an idempotency key of its own. Each step's retry promise is listed in the
-[node reference](reference/workflow-nodes.md).
+[node reference](https://vstorm-co.github.io/agenticos/reference/workflow-nodes/).
 
 | What you see | Why | What to do |
 |---|---|---|
 | **Needs attention** | A step that may have acted was interrupted, or stopped waiting with nothing to wake it | Check whether its effect happened, then **Resolve** the step on the run: run it again, use a result it reported late, take its error route or fail the run. Cancelling the run, then **Retry from failed step**, starts over |
-| `PRINCIPAL_REVOKED` | The member the run acts as lost access, or their account was deactivated | Have a member who may run the workflow publish it again, so its trigger runs as them |
+| `PRINCIPAL_REVOKED` | The member the run acts as lost access, or their account was deactivated, or the API key that started the run was revoked | Have a member who may run the workflow publish it again, so its trigger runs as them |
 | `WORKFLOW_TRIGGER_MISMATCH` | The run was asked for through a door its live trigger is not: by hand or the API for a workflow that starts from a webhook, or in the chat for one that does not start from a chat message | Start it the way its trigger says, or test the draft, which takes any trigger |
 | `INVALID_BINDING` | A value did not fit the field it was bound to | The step's error names the field; fix the binding or the value upstream |
 | `REVISION_CONFLICT` | Someone changed a record after the step read it | Route the step's error to a fresh read with `error.handle` |
@@ -1257,7 +1345,7 @@ steps read from each other rather than from the originals. Every edit shortcut i
 inert while the editor is read-only - a published version, or **View only**;
 `Escape` still cancels a stray connection, and `?` still shows the shortcuts.
 
-Copy and paste have three limits:
+Copy and paste have four limits:
 
 - **A bound step reads from where it read before.** A copied step keeps its
   bindings. One that reads from a step you did not copy keeps reading from the
@@ -1269,6 +1357,10 @@ Copy and paste have three limits:
 - **The shortcuts belong to the canvas.** They work while focus is on the canvas, and
   clicking anywhere in it — a step, empty canvas, a connection — keeps it there. Focus in a step's settings or the step picker keeps the keys for those fields, so click
   the canvas before pressing them.
+- **A paste lands only where the palette would put it.** Inside a loop, pasting a
+  trigger is refused, and so is a loop that would nest more than three deep with the
+  loops it carries. The whole paste is refused and the clipboard keeps it, so open
+  the top level, or a shallower loop, and paste there.
 
 Agent image attachments share a 20 MB byte ceiling, checked before each file
 is loaded, including repeated references. MCP results redact resolved authentication

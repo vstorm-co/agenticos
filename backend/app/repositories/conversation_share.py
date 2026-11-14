@@ -67,6 +67,12 @@ async def get_shares_for_conversation(
     return list(result.scalars().all())
 
 
+async def has_edit_share(db: AsyncSession, conversation_id: UUID, *, organization_id: UUID) -> bool:
+    """Whether a member the conversation is shared with may write in it."""
+    shares = await get_shares_for_conversation(db, conversation_id, organization_id=organization_id)
+    return any(share.shared_with is not None and share.permission == "edit" for share in shares)
+
+
 def _shared_with_member(
     user_id: UUID, *, include_archived: bool = True
 ) -> tuple[ColumnElement[bool], ...]:
