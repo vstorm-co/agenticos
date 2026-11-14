@@ -26,18 +26,24 @@ describe("SidebarSearch", () => {
     render(<SidebarSearch />);
 
     expect(screen.getByRole("button", { name: "search" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "search" })).toHaveTextContent("searchShortcut");
+    expect(screen.getByRole("button", { name: "search" })).toHaveAttribute(
+      "title",
+      "search (searchShortcut)",
+    );
   });
 
   it("carries its shortcut as a badge in the icon row, the keyboard's own", () => {
     // How anybody learns ⌘K exists; a Mac writes the symbol, the rest name the key.
-    const { unmount } = render(<SidebarSearch variant="icon" />);
-    expect(screen.getByRole("button", { name: "search" })).toHaveTextContent("searchShortcut");
+    const { unmount } = render(<SidebarSearch />);
+    expect(screen.getByRole("button", { name: "search" })).toHaveAttribute(
+      "title",
+      "search (searchShortcut)",
+    );
     unmount();
 
     const platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
-    render(<SidebarSearch variant="icon" />);
-    expect(screen.getByRole("button", { name: "search" })).toHaveTextContent("⌘K");
+    render(<SidebarSearch />);
+    expect(screen.getByRole("button", { name: "search" })).toHaveAttribute("title", "search (⌘K)");
     platform.mockRestore();
   });
 });

@@ -38,9 +38,7 @@ export function OrganizationSwitcher({
           title={label}
           className={cn(
             "hover:bg-accent focus-visible:ring-ring data-[state=open]:bg-accent touch:min-h-11 touch:min-w-11 flex items-center rounded-xl text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset",
-            collapsed
-              ? "size-10 justify-center"
-              : "border-border/60 w-full gap-2.5 border px-2.5 py-2",
+            collapsed ? "size-10 justify-center" : "h-10 w-full gap-2.5 px-2.5",
           )}
         >
           {activeOrg ? (
@@ -60,9 +58,7 @@ export function OrganizationSwitcher({
           {!collapsed && (
             <>
               <span className="min-w-0 flex-1">
-                <span className="text-muted-foreground block text-xs">
-                  {t("organizationLabel")}
-                </span>
+                <span className="sr-only">{t("organizationLabel")}</span>
                 <span className="block truncate text-sm font-medium">
                   {activeOrg?.name ?? t("selectOrganization")}
                 </span>

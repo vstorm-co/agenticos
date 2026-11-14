@@ -30,6 +30,7 @@ import { ProjectRows } from "@/components/layout/project-rows";
 
 import { BrandLink } from "@/components/layout/brand-link";
 import { stripLocale } from "@/lib/active-route";
+import { SidebarSearch } from "@/components/layout/sidebar-search";
 import { SidebarShell } from "@/components/layout/sidebar-shell";
 import { useMounted } from "@/hooks/use-mounted";
 import { useSuggestions } from "@/hooks/use-suggestions";
@@ -66,10 +67,10 @@ function NavLink({
       title={collapsed ? label : undefined}
       aria-label={collapsed ? label : undefined}
       className={cn(
-        "touch:min-h-11 focus-visible:ring-ring relative flex items-center rounded-xl text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset",
+        "touch:min-h-11 focus-visible:ring-ring relative flex items-center rounded-lg text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset",
         // One row height in both states, so collapsing the column moves no icon
         // up or down - the rail is the same list with its words taken away.
-        collapsed ? "touch:min-w-11 h-8 w-8 justify-center" : "h-8 gap-2.5 px-2.5",
+        collapsed ? "touch:min-w-11 h-8 w-8 justify-center" : "h-9 gap-2.5 px-2.5",
         // Selected is a neutral raised pill with a dark label. Section hues live
         // on the page's own tile, not here: a column of coloured pills competed
         // with the content it points at.
@@ -289,8 +290,8 @@ export function AppSidebar() {
         data-titlebar
         data-tauri-drag-region="deep"
         className={cn(
-          "flex h-14 shrink-0 items-center",
-          collapsed ? "justify-center px-2" : "gap-1 px-3",
+          "flex shrink-0 items-center",
+          collapsed ? "flex-col gap-1 px-2 py-2" : "h-14 gap-1 px-3",
         )}
       >
         {collapsed ? null : (
@@ -298,6 +299,7 @@ export function AppSidebar() {
             <BrandLink />
           </div>
         )}
+        <SidebarSearch />
         <button
           type="button"
           onClick={toggleCollapsed}
