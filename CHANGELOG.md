@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.74.0] - 2026-11-14
+
 ### Added
 
 - Opt-in automatic channel participation with a separate decision model, focus instructions, bounded message windows and configurable pre-/post-mention intervals. Automatic replies can use bound organization MCP accounts; private accounts and calls needing human approval require a direct mention.
@@ -21743,7 +21745,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.73.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.74.0...HEAD
+[1.74.0]: https://github.com/vstorm-co/agenticos/compare/v1.73.0...v1.74.0
 [1.73.0]: https://github.com/vstorm-co/agenticos/compare/v1.72.0...v1.73.0
 [1.72.0]: https://github.com/vstorm-co/agenticos/compare/v1.71.2...v1.72.0
 [1.71.2]: https://github.com/vstorm-co/agenticos/compare/v1.71.1...v1.71.2
