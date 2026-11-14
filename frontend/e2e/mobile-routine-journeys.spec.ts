@@ -80,7 +80,7 @@ test("phone schedule search, refusal, edit, reload and deletion keep the action 
     await expect(page.getByText("No routine matches that.", { exact: true })).toBeVisible();
     await page
       .getByRole("button", { name: "Clear search", exact: true })
-      .filter({ hasText: "Clear search" })
+
       .click();
     await expect(row).toBeVisible();
     await row.getByRole("button", { name: "Edit", exact: true }).click();

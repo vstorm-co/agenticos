@@ -3826,7 +3826,7 @@ class TestGetCandidateSpec:
                 ctx, agent.id, UnpublishedCandidate(draft)
             )
 
-        validate.assert_awaited_once_with(ctx, draft, agent_id=agent.id)
+        validate.assert_awaited_once_with(ctx, draft, agent_id=agent.id, decision_model=False)
         assert spec is draft
         assert version_id is None
 
@@ -6328,3 +6328,40 @@ async def test_agent_notification_groups_are_checked_in_the_publishing_organizat
         "organization_id": ctx.organization_id,
         "group_ids": [group_id],
     }
+
+
+@pytest.mark.anyio
+async def test_model_validation_distinguishes_decision_profiles_and_fallbacks():
+    from types import SimpleNamespace
+
+    ctx = _ctx()
+    profile = SimpleNamespace(
+        id=uuid4(),
+        provider="openai",
+        api="decisions",
+        model="gpt-6-luna",
+        label="Classifier",
+        base_url=None,
+        secret_id=uuid4(),
+        runs_without_key=False,
+        fallback_profile_ids=[],
+    )
+    service = AgentRegistryService(_db())
+    with (
+        patch(f"{REGISTRY_PATH}.credential_repo.get_profile", AsyncMock(return_value=profile)),
+        patch(f"{REGISTRY_PATH}.credential_repo.get_profiles_by_ids", AsyncMock(return_value={})),
+    ):
+        assert "not conversation" in (await service.model_profile_problems(ctx, profile.id))[0]
+        assert await service.model_profile_problems(ctx, profile.id, decision=True) == []
+        profile.fallback_profile_ids = [str(uuid4())]
+        assert (
+            "without automatic fallbacks"
+            in (await service.model_profile_problems(ctx, profile.id, decision=True))[0]
+        )
+        fallback = SimpleNamespace(provider="typesafe", api="decisions", label="Fallback")
+        profile.api = None
+        with patch(
+            f"{REGISTRY_PATH}.credential_repo.get_profiles_by_ids",
+            AsyncMock(return_value={uuid.UUID(profile.fallback_profile_ids[0]): fallback}),
+        ):
+            assert "not conversation" in (await service.model_profile_problems(ctx, profile.id))[0]

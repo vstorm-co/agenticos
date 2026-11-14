@@ -6539,7 +6539,7 @@ class TestTheBrowsersStepModel:
         )
         step_model = MagicMock(name="fast-model")
         resolve = AsyncMock(
-            side_effect=lambda ctx, profile_id=None: MagicMock(
+            side_effect=lambda ctx, profile_id=None, decision=False: MagicMock(
                 label="m", build=MagicMock(return_value=step_model)
             )
         )
@@ -6581,7 +6581,9 @@ class TestTheBrowsersStepModel:
         )
         resolver = AsyncMock(
             side_effect=resolve
-            or (lambda ctx, profile_id=None: MagicMock(label="m", build=MagicMock()))
+            or (
+                lambda ctx, profile_id=None, decision=False: MagicMock(label="m", build=MagicMock())
+            )
         )
         with (
             patch.object(
@@ -6649,7 +6651,7 @@ class TestTheBrowsersStepModel:
             ],
         )
 
-        def resolve(ctx, profile_id=None):
+        def resolve(ctx, profile_id=None, decision=False):
             if profile_id == gone:
                 raise NotFoundError(message="Model profile not found")
             return MagicMock(label="m", build=MagicMock())

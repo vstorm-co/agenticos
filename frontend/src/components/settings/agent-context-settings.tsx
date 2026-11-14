@@ -30,8 +30,11 @@ export function AgentContextSettings({
   onSavingChange,
   formId,
   onSave,
+  identityChanged,
 }: {
   user: User;
+  /** Combined profile form: edits in either section enable Save. */
+  identityChanged?: boolean;
   formId?: string;
   onSave?: (changes: AgentContext) => Promise<User>;
   beforeSave?: () => Promise<boolean>;
@@ -57,6 +60,13 @@ export function AgentContextSettings({
     setZone(user.time_zone ?? "");
     setHours(user.working_hours ?? null);
   }
+
+  const contextChanged =
+    role.trim() !== (user.job_title ?? "") ||
+    about.trim() !== (user.about ?? "") ||
+    zone !== (user.time_zone ?? "") ||
+    JSON.stringify(hours) !== stored;
+  const unchanged = identityChanged !== undefined && !identityChanged && !contextChanged;
 
   const submit = async () => {
     if (saving || disabled) return;
@@ -136,7 +146,7 @@ export function AgentContextSettings({
             <Button
               type="submit"
               loading={saving}
-              disabled={saving || disabled}
+              disabled={saving || disabled || unchanged}
               className="w-full sm:w-auto"
             >
               {saveLabel ?? t("save")}

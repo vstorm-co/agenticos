@@ -36,17 +36,17 @@ test("phone command editing guards drafts, serializes writes and confirms remova
     );
     id = String(record.id);
     await page.reload();
-    const row = page.getByRole("listitem").filter({ hasText: `/${name}` });
+    const row = page.getByRole("row").filter({ hasText: `/${name}` });
     await row.scrollIntoViewIfNeeded();
     const createBounds = await page
       .getByRole("button", { name: "New command", exact: true })
       .boundingBox();
     expect(createBounds).not.toBeNull();
     expect(createBounds!.x + createBounds!.width).toBeLessThanOrEqual(320);
-    const heading = await page
-      .getByRole("heading", { name: "Your custom commands", exact: true })
-      .boundingBox();
-    expect(createBounds!.y).toBeGreaterThanOrEqual(heading!.y + heading!.height);
+    await expect(page.getByRole("heading", { name: "Slash commands", exact: true })).toBeVisible();
+    const rowBounds = await row.boundingBox();
+    expect(rowBounds).not.toBeNull();
+    expect(createBounds!.y).toBeLessThan(rowBounds!.y);
     for (const target of [
       row.getByRole("button", { name: `Edit /${name}`, exact: true }),
       row.getByRole("button", { name: `Delete /${name}`, exact: true }),

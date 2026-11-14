@@ -2526,3 +2526,46 @@ async def test_a_native_decision_cannot_silently_change_to_a_fallback_model():
         pytest.raises(BadRequestError, match="cannot switch models"),
     ):
         await service.resolve(ctx, profile_id=profile.id, decision=True)
+
+
+@pytest.mark.anyio
+async def test_decision_profile_creation_and_conversion_refuse_existing_fallbacks():
+    service = ModelProfileService(_db())
+    ctx = _ctx()
+    with pytest.raises(BadRequestError, match="automatic fallbacks"):
+        await service.create_profile(
+            ctx,
+            label="Classifier",
+            provider="openai",
+            model="gpt-6-luna",
+            secret_id=uuid.uuid4(),
+            api="decisions",
+            fallback_profile_ids=[uuid.uuid4()],
+        )
+    profile = _profile(ctx, fallbacks=[uuid.uuid4()])
+    with (
+        patch.object(service, "_get_profile", AsyncMock(return_value=profile)),
+        pytest.raises(BadRequestError, match="fallbacks"),
+    ):
+        await service.update_profile(ctx, profile.id, ModelProfileUpdate(api="decisions"))
+
+
+def test_decision_transports_refuse_credentials_for_another_authentication_protocol():
+    from app.agents.model_resolver import _build_decision_model
+
+    with pytest.raises(BadRequestError, match="requires an API key"):
+        _build_decision_model(
+            ResolvedCredential(provider="system-one", secret=codex_secret()), "classifier"
+        )
+    with pytest.raises(BadRequestError, match="supported decision API"):
+        _build_decision_model(
+            ResolvedCredential(provider="anthropic", secret=ApiKeySecret(api_key="test-not-a-key")),
+            "classifier",
+        )
+
+
+def test_decision_only_and_google_gateway_defaults_name_their_supported_api():
+    assert PROVIDERS["typesafe"].default_api(None) == "decisions"
+    assert PROVIDERS["system-one"].default_api("http://localhost:1234") == "decisions"
+    assert PROVIDERS["google"].default_api("http://localhost:1234") == "chat"
+    assert PROVIDERS["openrouter"].default_api(None) == "chat"

@@ -161,17 +161,14 @@ for (const device of [
           }
         const portrait = await heldRefusal(page, "/api/users/me/avatar", "POST");
         release = portrait.release;
-        await page
-          .getByRole("form", { name: "Personal info", exact: true })
-          .locator('input[type="file"]')
-          .setInputFiles({
-            name: "review.png",
-            mimeType: "image/png",
-            buffer: Buffer.from(
-              "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j3ioAAAAASUVORK5CYII=",
-              "base64",
-            ),
-          });
+        await page.locator('input[type="file"]').setInputFiles({
+          name: "review.png",
+          mimeType: "image/png",
+          buffer: Buffer.from(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j3ioAAAAASUVORK5CYII=",
+            "base64",
+          ),
+        });
         await portrait.started;
         await expect(page.getByLabel("Display name", { exact: true })).toBeDisabled();
         portrait.release();

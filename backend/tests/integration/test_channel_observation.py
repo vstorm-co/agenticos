@@ -478,6 +478,10 @@ async def test_configuration_requires_a_human_channel_manager_and_valid_model(db
             new=AsyncMock(return_value=SimpleNamespace(provider="openai", api=None)),
         ),
     ):
+        with pytest.raises(BadRequestError, match="native decision profile"):
+            await validate_configuration(
+                db, owner, exposure, enabled.model_copy(update={"decision_mode": "native"})
+            )
         await validate_configuration(db, owner, exposure, enabled)
     assert validate.call_args.args[1].model_profile_id == enabled.model_profile_id
 

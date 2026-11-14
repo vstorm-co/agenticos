@@ -916,7 +916,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
     [capabilities],
   );
 
-  if (isLoading) return <BuilderSkeleton />;
+  if (isLoading) return <BuilderSkeleton tab={tab} />;
   if (agentError instanceof ApiError && (agentError.status === 404 || agentError.status === 403))
     return (
       <div role="alert" className="space-y-3">
@@ -936,7 +936,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
         cta={{ label: tAgents("retryLoad"), onClick: () => void refetchAgent() }}
       />
     );
-  if (!spec) return <BuilderSkeleton />;
+  if (!spec) return <BuilderSkeleton tab={tab} />;
   if (isSystem) return <ResourceUnavailable back={ROUTES.AGENTS} label={t("backToAgents")} />;
 
   const isPublished = agent.status === "published";
@@ -2295,24 +2295,29 @@ export default function AgentBuilderPage({ params }: PageProps) {
  * moment the agent arrived, which is the jump the skeleton exists to prevent.
  * `ConversationSkeleton` in `chat-container.tsx` is the same argument.
  */
-function BuilderSkeleton() {
+function BuilderSkeleton({ tab }: { tab: string }) {
   const t = useTranslations("pages.agents");
   return (
-    <div role="status" aria-label={t("loading")} className="min-w-0 space-y-6">
-      <div className="mb-6 md:mb-8">
+    <div
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+      aria-label={t("loading")}
+      className="min-w-0 space-y-6"
+    >
+      <div aria-hidden="true" className="mb-6 md:mb-8">
         <div className="bg-foreground/8 mb-3 h-3 w-40 animate-pulse rounded" />
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div className="min-w-0 space-y-2">
-            <div className="bg-foreground/10 h-5 w-52 animate-pulse rounded" />
-            <div className="bg-foreground/8 h-3.5 w-80 max-w-full animate-pulse rounded" />
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <div className="bg-muted size-12 shrink-0 animate-pulse rounded-full" />
+            <div className="min-w-0 flex-1 space-y-2">
+              <div className="bg-foreground/10 h-7 w-52 max-w-full animate-pulse rounded" />
+              <div className="bg-foreground/8 h-5 w-32 max-w-full animate-pulse rounded-full" />
+            </div>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
-            {["w-32", "w-28", "w-24", "w-20"].map((width, index) => (
-              <div
-                key={index}
-                className={cn("bg-foreground/10 h-9 animate-pulse rounded-md", width)}
-              />
-            ))}
+            <div className="bg-foreground/10 h-9 w-20 animate-pulse rounded-lg" />
+            <div className="bg-foreground/10 h-9 w-28 animate-pulse rounded-lg" />
           </div>
         </div>
       </div>
@@ -2329,20 +2334,27 @@ function BuilderSkeleton() {
         ))}
       </div>
 
-      <Card>
-        <CardHeader className="space-y-2">
-          <div className="bg-foreground/10 h-4 w-28 animate-pulse rounded" />
-          <div className="bg-foreground/8 h-3 w-full max-w-xl animate-pulse rounded" />
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* The instructions textarea: rows={10} at the same border and radius. */}
-          <div className="border-input bg-foreground/[0.04] h-52 animate-pulse rounded-md border" />
-          <div className="space-y-2">
-            <div className="bg-foreground/10 h-3 w-16 animate-pulse rounded" />
-            <div className="border-input bg-foreground/[0.04] h-9 w-full animate-pulse rounded-md border" />
-          </div>
-        </CardContent>
-      </Card>
+      {tab === "build" ? (
+        <Card>
+          <CardHeader className="space-y-2">
+            <div className="bg-foreground/10 h-4 w-28 animate-pulse rounded" />
+            <div className="bg-foreground/8 h-3 w-full max-w-xl animate-pulse rounded" />
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* The instructions textarea: rows={10} at the same border and radius. */}
+            <div className="border-input bg-foreground/[0.04] h-52 animate-pulse rounded-md border" />
+            <div className="space-y-2">
+              <div className="bg-foreground/10 h-3 w-16 animate-pulse rounded" />
+              <div className="border-input bg-foreground/[0.04] h-9 w-full animate-pulse rounded-md border" />
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <div aria-hidden="true" className="border-border bg-card min-h-96 rounded-xl border p-5">
+          <div className="bg-muted h-5 w-36 animate-pulse rounded" />
+          <div className="bg-muted mt-5 h-32 w-full animate-pulse rounded-lg" />
+        </div>
+      )}
     </div>
   );
 }

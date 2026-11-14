@@ -99,7 +99,7 @@ test.describe("Reusable integrations", () => {
 
     await expect(page.getByText(REUSABLE_NAME)).toBeVisible();
 
-    await page.getByRole("button", { name: "Use in…" }).first().click();
+    await page.getByRole("button", { name: "Use in knowledge base" }).first().click();
     const clone = page.getByRole("dialog");
     await clone.getByRole("combobox", { name: "Knowledge base" }).click();
     await page.getByRole("option", { name: SEEDED_KB_NAME }).click();

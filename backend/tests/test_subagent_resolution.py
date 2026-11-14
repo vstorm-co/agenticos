@@ -373,7 +373,10 @@ async def _prepare(
     catalog = [_profile("fast")] if profiles is None else profiles
     by_id = {profile.id: profile for profile in catalog}
 
-    async def resolve_model(_ctx: Any, *, profile_id: uuid.UUID | None) -> Any:
+    async def resolve_model(
+        _ctx: Any, *, profile_id: uuid.UUID | None, decision: bool = False
+    ) -> Any:
+        assert not decision
         profile = by_id.get(profile_id)
         if profile is not None and profile.label == UNUSABLE_PROFILE:
             raise BadRequestError(message="That model has no key configured")

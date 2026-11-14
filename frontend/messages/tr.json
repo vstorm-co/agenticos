@@ -10368,7 +10368,7 @@
     "integrationDetails": "Bağlantı / zamanlama",
     "integrationsDescription": "Yeniden kullanılabilir kaynaklar bilgi tabanlarını besler. Yerel hizmetler kendi ağınızda embedding ve OCR işlemleri sağlar.",
     "integrationsEmpty": "Henüz entegrasyon yok",
-    "integrationsCount": "{count} entegrasyon",
+    "integrationsCount": "{count, plural, one {# entegrasyon} other {# entegrasyon}}",
     "reusableIntegrations": "Entegrasyonlar",
     "save": "Kaydet",
     "saving": "Kaydediliyor…",

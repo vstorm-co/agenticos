@@ -315,6 +315,7 @@ export function ProfileIdentitySettings({
           user={user}
           formId={unifiedSave ? sharedFormId : undefined}
           onSave={unifiedSave ? saveProfileTab : undefined}
+          identityChanged={unifiedSave ? profileChanged : undefined}
           disabled={identityBusy}
           onSavingChange={setContextSaving}
           beforeSave={onContinue && section !== "context" ? handleSaveProfile : undefined}
