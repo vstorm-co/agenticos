@@ -23,7 +23,7 @@ describe("ListCard", () => {
     expect(screen.getByText("Channels").parentElement).not.toHaveAttribute("hidden");
   });
 
-  it("keeps one shared container and toolbar for grid catalogs in every state", () => {
+  it("keeps a flat gallery and toolbar through loading and results", () => {
     const { container, rerender } = render(
       <ListCard
         layout="grid"
@@ -35,7 +35,7 @@ describe("ListCard", () => {
         <p>cards</p>
       </ListCard>,
     );
-    expect(container.firstElementChild).toHaveClass("bg-card", "border");
+    expect(container.firstElementChild).not.toHaveClass("bg-card", "border");
     expect(container.querySelector(".animate-pulse")).not.toBeNull();
     expect(screen.getByRole("button", { name: "search" })).toBeVisible();
     rerender(
@@ -44,7 +44,7 @@ describe("ListCard", () => {
       </ListCard>,
     );
     expect(screen.getByText("2 skills")).toBeVisible();
-    expect(container.firstElementChild).toHaveClass("bg-card", "border");
+    expect(container.firstElementChild).not.toHaveClass("bg-card", "border");
   });
 
   it("keeps the frame and title in every state, counting once the server answered", () => {

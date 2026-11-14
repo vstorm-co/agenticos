@@ -11,14 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
-/**
- * The resource-list page's frame, drawn whether or not there is anything in
- * it - one card instead of the five per-page copies it replaces (#282).
- *
- * Same header, same border, in every state: what changes is what is inside.
- * A card that only appears once rows exist reads as the panel disappearing
- * the moment you use it.
- */
+/** Table lists keep a shared frame; galleries place their cards directly on the page. */
 export function ListCard({
   title,
   counted,
@@ -72,13 +65,16 @@ export function ListCard({
   children: ReactNode;
 } & HTMLAttributes<HTMLDivElement>) {
   if (namedByPage) {
+    const gallery = layout === "grid";
+    const Frame = gallery ? "div" : Card;
     return (
-      <Card className={cn(fill && "flex min-h-0 flex-1 flex-col", className)} {...rest}>
+      <Frame className={cn("min-w-0", fill && "flex min-h-0 flex-1 flex-col", className)} {...rest}>
         <CardHeader
           hidden={empty || (counted === undefined && !controls)}
           data-tour={headerTour}
           className={cn(
-            "shrink-0 flex-col gap-3 space-y-0 border-b px-4 py-3 sm:min-h-14 sm:flex-row sm:items-center sm:justify-between sm:px-5",
+            "shrink-0 flex-col gap-3 space-y-0 py-3 sm:min-h-14 sm:flex-row sm:items-center sm:justify-between",
+            gallery ? "px-0" : "border-b px-4 sm:px-5",
           )}
         >
           <CardTitle className="sr-only">{title}</CardTitle>
@@ -95,15 +91,13 @@ export function ListCard({
         </CardHeader>
         <CardContent
           className={cn(
-            layout === "grid"
-              ? cn("p-4 sm:p-5", contentClassName)
-              : contentPadding(contentClassName),
+            layout === "grid" ? cn("p-0 pt-2", contentClassName) : contentPadding(contentClassName),
             fill && "flex min-h-0 flex-1 flex-col",
           )}
         >
           {children}
         </CardContent>
-      </Card>
+      </Frame>
     );
   }
   return (
