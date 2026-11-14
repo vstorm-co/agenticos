@@ -64,7 +64,9 @@ export function SuggestionRows({
               aria-label={suggestion.title}
               className={cn(
                 "hover:bg-muted/40 grid grid-cols-[2rem_minmax(0,1fr)] items-start gap-x-3 gap-y-2 transition-colors",
-                dense ? "px-1 py-2.5" : "px-4 py-5 sm:px-5 md:grid-cols-[2rem_minmax(0,1fr)_auto]",
+                dense
+                  ? "px-1 py-2.5 @[48rem]/widget:grid-cols-[2rem_minmax(0,1fr)_auto]"
+                  : "px-4 py-5 sm:px-5 md:grid-cols-[2rem_minmax(0,1fr)_auto]",
               )}
             >
               <SuggestionMark suggestion={suggestion} className="bg-muted shadow-none" />
@@ -128,7 +130,9 @@ export function SuggestionRows({
               <div
                 className={cn(
                   "col-start-2 flex flex-wrap items-center gap-1.5",
-                  dense ? "mt-0.5" : "md:col-start-3 md:row-start-1 md:self-center",
+                  dense
+                    ? "mt-0.5 @[48rem]/widget:col-start-3 @[48rem]/widget:row-start-1 @[48rem]/widget:self-center"
+                    : "md:col-start-3 md:row-start-1 md:self-center",
                 )}
               >
                 {suggestion.kind === "finding" &&

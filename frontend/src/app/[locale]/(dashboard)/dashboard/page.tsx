@@ -373,7 +373,11 @@ export default function DashboardPage() {
                   return (
                     <div
                       key={`${entry.widget}-${index}`}
-                      className={cn(cell, coloured && "dash-tile-accent")}
+                      className={cn(
+                        cell,
+                        !isCustom && "lg:has-[[data-widget-empty]:not([open])]:row-span-1",
+                        coloured && "dash-tile-accent",
+                      )}
                     >
                       <Widget
                         title={t(entry.titleKey ?? `widgets.${entry.widget}.title`)}
@@ -440,7 +444,6 @@ export default function DashboardPage() {
           numbers. */}
       {activeOrgId && view === "org" && <StartChecklist orgId={activeOrgId} />}
       {view === "me" && <MeOpening orgId={activeOrgId} period={period} pending={openingLoading} />}
-      {view === "me" && <DiscoverTips />}
       {/* The bands own a rhythm of their own, four times the gap between two
           cards, which is what makes a band read as a band. The header and the
           control strip above keep the 24px every other page uses. */}
@@ -455,6 +458,7 @@ export default function DashboardPage() {
       ) : (
         bands
       )}
+      {view === "me" && <DiscoverTips />}
     </div>
   );
 }
